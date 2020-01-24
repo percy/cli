@@ -1,0 +1,35 @@
+{
+  "name": "@percy/dom",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "license": "MIT",
+  "scripts": {
+    "build": "webpack",
+    "lint": "eslint --ignore-path ../../.gitignore .",
+    "test": "cross-env NODE_ENV=test karma start --single-run",
+    "test:coverage": "yarn test --coverage"
+  },
+  "babel": {
+    "extends": "../../babel.config.js",
+    "presets": [
+      ["@babel/env", {
+        "targets": "last 2 version"
+      }]
+    ]
+  },
+  "devDependencies": {
+    "babel-loader": "^8.0.6",
+    "cheerio": "^1.0.0-rc.3",
+    "interactor.js": "^1.6.0",
+    "karma": "^4.4.1",
+    "karma-chrome-launcher": "^3.1.0",
+    "karma-coverage": "^2.0.1",
+    "karma-firefox-launcher": "^1.3.0",
+    "karma-mocha": "^1.3.0",
+    "karma-mocha-reporter": "^2.2.5",
+    "karma-webpack": "^4.0.2",
+    "regenerator-runtime": "^0.13.3",
+    "webpack": "^4.41.6",
+    "webpack-cli": "^3.3.11"
+  }
+}
