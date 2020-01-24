@@ -1,0 +1,21 @@
+{
+  "name": "@percy/env",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "license": "MIT",
+  "scripts": {
+    "build": "babel --root-mode upward src --out-dir dist",
+    "lint": "eslint --ignore-path ../../.gitignore .",
+    "test": "cross-env NODE_ENV=test mocha",
+    "test:coverage": "nyc yarn test"
+  },
+  "mocha": {
+    "require": "../../scripts/babel-register"
+  },
+  "devDependencies": {
+    "mock-require": "^3.0.3"
+  },
+  "dependencies": {
+    "dotenv": "^8.2.0"
+  }
+}
