@@ -1,7 +1,16 @@
 {
+  "name": "percy",
   "private": true,
   "workspaces": [
+    "packages/*"
   ],
+  "scripts": {
+    "build": "lerna run build",
+    "clean": "rm -rf packages/**/{dist,.nyc_output,coverage}",
+    "lint": "lerna run lint",
+    "test": "lerna run test -- --colors",
+    "test:coverage": "lerna run test:coverage -- --colors"
+  },
   "devDependencies": {
     "@babel/cli": "^7.8.3",
     "@babel/core": "^7.8.3",
@@ -19,6 +28,7 @@
     "eslint-plugin-promise": "^4.2.1",
     "eslint-plugin-standard": "^4.0.1",
     "expect": "^25.2.0",
+    "lerna": "^3.20.2",
     "mocha": "^6.2.2",
     "nock": "^12.0.2",
     "nyc": "^15.0.0"
