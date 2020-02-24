@@ -1,0 +1,29 @@
+{
+  "name": "@percy/cli",
+  "version": "1.0.0",
+  "license": "MIT",
+  "main": "index.js",
+  "bin": {
+    "percy": "./bin/run"
+  },
+  "files": [
+    "./bin",
+    "./index.js",
+    "./oclif.manifest.json"
+  ],
+  "scripts": {
+    "lint": "eslint --ignore-path ../../.gitignore .",
+    "postpublish": "rm -f oclif.manifest.json",
+    "prepublish": "oclif-dev manifest",
+    "readme": "oclif-dev readme"
+  },
+  "oclif": {
+    "bin": "percy",
+    "plugins": [
+      "@oclif/plugin-help"
+    ]
+  },
+  "dependencies": {
+    "@oclif/plugin-help": "^2.2.3"
+  }
+}
