@@ -20,10 +20,12 @@
   "oclif": {
     "bin": "percy",
     "plugins": [
+      "@percy/cli-config",
       "@oclif/plugin-help"
     ]
   },
   "dependencies": {
-    "@oclif/plugin-help": "^2.2.3"
+    "@oclif/plugin-help": "^2.2.3",
+    "@percy/cli-config": "1.0.0"
   }
 }
