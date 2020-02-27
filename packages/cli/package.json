@@ -23,12 +23,14 @@
       "@percy/cli-command",
       "@percy/cli-config",
       "@percy/cli-exec",
+      "@percy/cli-finalize",
       "@oclif/plugin-help"
     ]
   },
   "dependencies": {
     "@oclif/plugin-help": "^2.2.3",
     "@percy/cli-config": "1.0.0",
-    "@percy/cli-exec": "1.0.0"
+    "@percy/cli-exec": "1.0.0",
+    "@percy/cli-finalize": "1.0.0"
   }
 }

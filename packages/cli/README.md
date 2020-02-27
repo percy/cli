@@ -10,6 +10,7 @@ A collection of CLI commmands for taking Percy snapshots.
 * [`percy exec:ping`](#percy-execping)
 * [`percy exec:start`](#percy-execstart)
 * [`percy exec:stop`](#percy-execstop)
+* [`percy finalize`](#percy-finalize)
 * [`percy help [COMMAND]`](#percy-help-command)
 
 ## `percy config:create [FILEPATH]`
@@ -131,6 +132,23 @@ OPTIONS
 
 EXAMPLE
   $ percy server:stop
+```
+
+## `percy finalize`
+
+finalize parallel Percy builds
+
+```
+USAGE
+  $ percy finalize
+
+OPTIONS
+  -q, --quiet    log errors only
+  -v, --verbose  log everything
+  --silent       log nothing
+
+EXAMPLE
+  $ percy finalize
 ```
 
 ## `percy help [COMMAND]`
