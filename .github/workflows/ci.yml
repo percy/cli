@@ -1,0 +1,237 @@
+name: Continuous Integration
+on: [push, pull_request]
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      # duplicate - there is no sharing in GH actions
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 12
+      - name: Get yarn cache directory
+        id: yarn-cache-dir
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - uses: actions/cache@v1
+        with:
+          path: ${{ steps.yarn-cache-dir.outputs.dir }}
+          key: ${{ runner.os }}-12-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-12-yarn-
+      - name: Install dependencies
+        run: yarn
+      # end duplicate
+      - name: Lint packages
+        run: yarn lint --since ${{ github.base_ref }}
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      # duplicate - there is no sharing in GH actions
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 12
+      - name: Get yarn cache directory
+        id: yarn-cache-dir
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - uses: actions/cache@v1
+        with:
+          path: ${{ steps.yarn-cache-dir.outputs.dir }}
+          key: ${{ runner.os }}-12-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-12-yarn-
+      - name: Install dependencies
+        run: yarn
+      # end duplicate
+      - name: Build packages
+        run: yarn build
+  test-env:
+    name: Test @percy/env
+    needs: [lint, build]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [10, 12]
+        exclude:
+          - os: windows-latest
+            node: 12
+    runs-on: ${{ matrix.os }}
+    steps:
+      # duplicate - there is no sharing in GH actions
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Get yarn cache directory
+        id: yarn-cache-dir
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - uses: actions/cache@v1
+        with:
+          path: ${{ steps.yarn-cache-dir.outputs.dir }}
+          key: ${{ matrix.os }}-${{ matrix.node }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ matrix.os }}-${{ matrix.node }}-yarn-
+      - name: Install dependencies
+        run: yarn
+      - name: Build packages
+        run: yarn build
+      # end duplicate
+
+      - name: Run tests
+        run: yarn workspace @percy/env test:coverage --colors
+  test-client:
+    name: Test @percy/client
+    needs: [lint, build]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [10, 12]
+        exclude:
+          - os: windows-latest
+            node: 12
+    runs-on: ${{ matrix.os }}
+    steps:
+      # duplicate - there is no sharing in GH actions
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Get yarn cache directory
+        id: yarn-cache-dir
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - uses: actions/cache@v1
+        with:
+          path: ${{ steps.yarn-cache-dir.outputs.dir }}
+          key: ${{ matrix.os }}-${{ matrix.node }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ matrix.os }}-${{ matrix.node }}-yarn-
+      - name: Install dependencies
+        run: yarn
+      - name: Build packages
+        run: yarn build
+      # end duplicate
+
+      - name: Run tests
+        run: yarn workspace @percy/client test:coverage --colors
+  test-dom:
+    name: Test @percy/dom
+    needs: [lint, build]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [10, 12]
+        exclude:
+          - os: windows-latest
+            node: 12
+    runs-on: ${{ matrix.os }}
+    steps:
+      # duplicate - there is no sharing in GH actions
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Get yarn cache directory
+        id: yarn-cache-dir
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - uses: actions/cache@v1
+        id: yarn-cache
+        with:
+          path: ${{ steps.yarn-cache-dir.outputs.dir }}
+          key: ${{ matrix.os }}-${{ matrix.node }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ matrix.os }}-${{ matrix.node }}-yarn-
+      - name: Install dependencies
+        run: yarn
+      - name: Build packages
+        run: yarn build
+      # end duplicate
+
+      - name: Run tests
+        run: yarn workspace @percy/dom test:coverage --browsers 'ChromeHeadless,FirefoxHeadless' --colors
+  test-core:
+    name: Test @percy/core
+    needs: [lint, build]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [10, 12]
+        exclude:
+          - os: windows-latest
+            node: 12
+    runs-on: ${{ matrix.os }}
+    steps:
+      # duplicate - there is no sharing in GH actions
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Get yarn cache directory
+        id: yarn-cache-dir
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - uses: actions/cache@v1
+        with:
+          path: ${{ steps.yarn-cache-dir.outputs.dir }}
+          key: ${{ matrix.os }}-${{ matrix.node }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ matrix.os }}-${{ matrix.node }}-yarn-
+      - name: Install dependencies
+        run: yarn
+      - name: Build packages
+        run: yarn build
+      # end duplicate
+
+      - name: Run tests
+        run: yarn workspace @percy/core test:coverage --colors
+  test-cli:
+    name: Test @percy/cli
+    needs: [lint, build]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [10, 12]
+        exclude:
+          - os: windows-latest
+            node: 12
+    runs-on: ${{ matrix.os }}
+    steps:
+      # duplicate - there is no sharing in GH actions
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Get yarn cache directory
+        id: yarn-cache-dir
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - uses: actions/cache@v1
+        id: yarn-cache
+        with:
+          path: ${{ steps.yarn-cache-dir.outputs.dir }}
+          key: ${{ matrix.os }}-${{ matrix.node }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ matrix.os }}-${{ matrix.node }}-yarn-
+      - name: Install dependencies
+        run: yarn
+      - name: Build packages
+        run: yarn build
+      # end duplicate
+
+      # tired of all the duplication already, just lump the cli packages together
+      - name: Test @percy/cli-config
+        run: yarn workspace @percy/cli-config test:coverage --colors
+      - name: Test @percy/cli-command
+        run: yarn workspace @percy/cli-command test:coverage --colors
+      - name: Test @percy/cli-exec
+        run: yarn workspace @percy/cli-exec test:coverage --colors
+      - name: Test @percy/cli-finalize
+        run: yarn workspace @percy/cli-finalize test:coverage --colors
+      - name: Test @percy/cli-snapshot
+        run: yarn workspace @percy/cli-snapshot test:coverage --colors
+      - name: Test @percy/cli-upload
+        run: yarn workspace @percy/cli-upload test:coverage --colors
