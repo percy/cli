@@ -23,14 +23,14 @@ export class Upload extends Command {
     ...flags.logging,
     ...flags.config,
 
-    files: flags.glob({
+    files: flags.string({
       char: 'f',
       multiple: true,
       description: 'one or more globs matching image file paths to upload',
       default: schema.upload.properties.files.default,
       percyrc: 'upload.files'
     }),
-    ignore: flags.glob({
+    ignore: flags.string({
       char: 'i',
       multiple: true,
       description: 'one or more globs matching image file paths to ignore',
