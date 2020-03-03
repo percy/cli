@@ -13,6 +13,7 @@ A collection of CLI commmands for taking Percy snapshots.
 * [`percy finalize`](#percy-finalize)
 * [`percy help [COMMAND]`](#percy-help-command)
 * [`percy snapshot PATHNAME`](#percy-snapshot-pathname)
+* [`percy upload DIRNAME`](#percy-upload-dirname)
 
 ## `percy config:create [FILEPATH]`
 
@@ -196,5 +197,29 @@ OPTIONS
 EXAMPLES
   $ percy snapshot ./public
   $ percy snapshot pages.yml
+```
+
+## `percy upload DIRNAME`
+
+upload a directory of images
+
+```
+USAGE
+  $ percy upload DIRNAME
+
+ARGUMENTS
+  DIRNAME  directory of images to upload
+
+OPTIONS
+  -c, --config=config  configuration file path
+  -d, --dry-run        prints a list of matching images to upload without uploading
+  -f, --files=files    [default: **/*.{png,jpg,jpeg}] one or more globs matching image file paths to upload
+  -i, --ignore=ignore  one or more globs matching image file paths to ignore
+  -q, --quiet          log errors only
+  -v, --verbose        log everything
+  --silent             log nothing
+
+EXAMPLE
+  $ percy upload ./images
 ```
 <!-- commandsstop -->
