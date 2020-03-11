@@ -20,6 +20,7 @@
   "oclif": {
     "bin": "percy",
     "plugins": [
+      "@percy/cli-command",
       "@percy/cli-config",
       "@oclif/plugin-help"
     ]
