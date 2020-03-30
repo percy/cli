@@ -56,6 +56,8 @@ export default class PercyEnvironment {
         return `github/${this.vars.PERCY_GITHUB_ACTION ?? 'unknown'}`;
       case 'gitlab':
         return `gitlab/${this.vars.CI_SERVER_VERSION}`;
+      case 'semaphore':
+        return this.vars.SEMAPHORE_GIT_SHA ? 'semaphore/2.0' : 'semaphore';
       default:
         return this.ci;
     }
@@ -82,7 +84,7 @@ export default class PercyEnvironment {
         case 'drone':
           return this.vars.DRONE_COMMIT;
         case 'semaphore':
-          return this.vars.REVISION;
+          return this.vars.REVISION || this.vars.SEMAPHORE_GIT_PR_SHA || this.vars.SEMAPHORE_GIT_SHA;
         case 'buildkite':
           return this.vars.BUILDKITE_COMMIT !== 'HEAD' && this.vars.BUILDKITE_COMMIT;
         case 'heroku':
@@ -127,7 +129,7 @@ export default class PercyEnvironment {
         case 'drone':
           return this.vars.DRONE_BRANCH;
         case 'semaphore':
-          return this.vars.BRANCH_NAME;
+          return this.vars.BRANCH_NAME || this.vars.SEMAPHORE_GIT_PR_BRANCH || this.vars.SEMAPHORE_GIT_BRANCH;
         case 'buildkite':
           return this.vars.BUILDKITE_BRANCH;
         case 'heroku':
@@ -173,7 +175,7 @@ export default class PercyEnvironment {
         case 'drone':
           return this.vars.CI_PULL_REQUEST;
         case 'semaphore':
-          return this.vars.PULL_REQUEST_NUMBER;
+          return this.vars.PULL_REQUEST_NUMBER || this.vars.SEMAPHORE_GIT_PR_NUMBER;
         case 'buildkite':
           return this.vars.BUILDKITE_PULL_REQUEST !== 'false' && this.vars.BUILDKITE_PULL_REQUEST;
         case 'gitlab':
@@ -215,7 +217,8 @@ export default class PercyEnvironment {
         case 'drone':
           return this.vars.DRONE_BUILD_NUMBER;
         case 'semaphore':
-          return `${this.vars.SEMAPHORE_BRANCH_ID}/${this.vars.SEMAPHORE_BUILD_NUMBER}`;
+          return this.vars.SEMAPHORE_WORKFLOW_ID ||
+            `${this.vars.SEMAPHORE_BRANCH_ID}/${this.vars.SEMAPHORE_BUILD_NUMBER}`;
         case 'buildkite':
           return this.vars.BUILDKITE_BUILD_ID;
         case 'heroku':
