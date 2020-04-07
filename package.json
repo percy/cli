@@ -6,8 +6,10 @@
   ],
   "scripts": {
     "build": "lerna run build",
+    "build:watch": "lerna run build --parallel -- --watch",
     "clean": "rm -rf packages/**/{dist,.nyc_output,coverage}",
     "lint": "lerna run lint",
+    "readme": "lerna run readme",
     "test": "lerna run test -- --colors",
     "test:coverage": "lerna run test:coverage -- --colors"
   },
