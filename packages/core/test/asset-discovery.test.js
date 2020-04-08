@@ -127,6 +127,25 @@ describe('Asset Discovery', () => {
     ]);
   });
 
+  it('does not capture data url requests', async () => {
+    let dataUrl = `data:image/gif;base64,${pixel.toString('base64')}`;
+    let dataUrlDOM = testDOM.replace('img.gif', dataUrl);
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: dataUrlDOM
+    });
+
+    expect(captured[0]).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        attributes: expect.objectContaining({
+          'resource-url': dataUrl.replace('data:', 'data://')
+        })
+      })
+    ]));
+  });
+
   it('follows redirects', async () => {
     server.app.get('/stylesheet.css', (req, res) => {
       res.redirect('/style.css');

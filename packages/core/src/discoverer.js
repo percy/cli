@@ -190,8 +190,10 @@ export default class PercyDiscoverer {
       let url = normalizeURL(request.url());
 
       try {
-        // do nothing for the root URL
-        if (url === rootUrl) return;
+        // do nothing for the root URL or URLs that start with `data:` since
+        // Puppeteer network interception doesn't support proper request
+        // aborting for those URLs
+        if (url === rootUrl || url.startsWith('data:')) return;
 
         // process and cache the response and resource
         if (this.disableAssetCache || !this.#cache.has(url)) {
