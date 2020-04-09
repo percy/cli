@@ -1,0 +1,40 @@
+{
+  "name": "@percy/cli-snapshot",
+  "version": "1.0.0",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "files": [
+    "./dist",
+    "./oclif.manifest.json"
+  ],
+  "scripts": {
+    "build": "babel --root-mode upward src --out-dir dist",
+    "lint": "eslint --ignore-path ../../.gitignore .",
+    "postpublish": "rm -f oclif.manifest.json",
+    "prepublish": "oclif-dev manifest",
+    "readme": "oclif-dev readme",
+    "test": "cross-env NODE_ENV=test mocha",
+    "test:coverage": "nyc yarn test"
+  },
+  "mocha": {
+    "require": "../../scripts/babel-register",
+    "timeout": 5000
+  },
+  "oclif": {
+    "bin": "percy",
+    "commands": "./dist/commands",
+    "hooks": {
+      "init": "./dist/hooks/init"
+    }
+  },
+  "dependencies": {
+    "@percy/cli-command": "1.0.0",
+    "@percy/core": "1.0.0",
+    "@percy/dom": "1.0.0",
+    "@percy/logger": "1.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.17.1",
+    "globby": "^11.0.0",
+    "yaml": "^1.8.0"
+  }
+}

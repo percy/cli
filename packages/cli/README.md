@@ -12,6 +12,7 @@ A collection of CLI commmands for taking Percy snapshots.
 * [`percy exec:stop`](#percy-execstop)
 * [`percy finalize`](#percy-finalize)
 * [`percy help [COMMAND]`](#percy-help-command)
+* [`percy snapshot PATHNAME`](#percy-snapshot-pathname)
 
 ## `percy config:create [FILEPATH]`
 
@@ -167,4 +168,33 @@ OPTIONS
 ```
 
 _See code: [@oclif/plugin-help](https://github.com/oclif/plugin-help/blob/v2.2.3/src/commands/help.ts)_
+
+## `percy snapshot PATHNAME`
+
+snapshot a list of pages from a file or directory
+
+```
+USAGE
+  $ percy snapshot PATHNAME
+
+ARGUMENTS
+  PATHNAME  path to a directory or file containing a list of pages
+
+OPTIONS
+  -b, --base-url=base-url                          [default: /] the url path to serve the static directory from
+  -c, --config=config                              configuration file path
+  -d, --dry-run                                    prints a list of pages to snapshot without snapshotting
+  -f, --files=files                                [default: **/*.{html,htm}] one or more globs matching static file paths to snapshot
+  -h, --allowed-hostname=allowed-hostname          allowed hostnames
+  -i, --ignore=ignore                              one or more globs matching static file paths to ignore
+  -q, --quiet                                      log errors only
+  -t, --network-idle-timeout=network-idle-timeout  [default: 100] asset discovery idle timeout
+  -v, --verbose                                    log everything
+  --disable-asset-cache                            disable asset discovery caches
+  --silent                                         log nothing
+
+EXAMPLES
+  $ percy snapshot ./public
+  $ percy snapshot pages.yml
+```
 <!-- commandsstop -->

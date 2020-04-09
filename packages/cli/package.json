@@ -24,6 +24,7 @@
       "@percy/cli-config",
       "@percy/cli-exec",
       "@percy/cli-finalize",
+      "@percy/cli-snapshot",
       "@oclif/plugin-help"
     ]
   },
@@ -31,6 +32,7 @@
     "@oclif/plugin-help": "^2.2.3",
     "@percy/cli-config": "1.0.0",
     "@percy/cli-exec": "1.0.0",
-    "@percy/cli-finalize": "1.0.0"
+    "@percy/cli-finalize": "1.0.0",
+    "@percy/cli-snapshot": "1.0.0"
   }
 }
