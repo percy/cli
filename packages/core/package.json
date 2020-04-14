@@ -15,7 +15,7 @@
   },
   "mocha": {
     "require": "../../scripts/babel-register",
-    "timeout": 5000
+    "timeout": 10000
   },
   "dependencies": {
     "@percy/client": "1.0.0",
