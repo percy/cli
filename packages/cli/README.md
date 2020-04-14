@@ -1,225 +1,71 @@
-# @percy/cli
+# Percy CLI
 
-A collection of CLI commmands for taking Percy snapshots.
+![CI](https://github.com/wwilsman/percy/workflows/Continuous%20Integration/badge.svg)
 
-## Commands
-<!-- commands -->
-* [`percy config:create [FILEPATH]`](#percy-configcreate-filepath)
-* [`percy config:validate [FILEPATH]`](#percy-configvalidate-filepath)
-* [`percy exec`](#percy-exec)
-* [`percy exec:ping`](#percy-execping)
-* [`percy exec:start`](#percy-execstart)
-* [`percy exec:stop`](#percy-execstop)
-* [`percy finalize`](#percy-finalize)
-* [`percy help [COMMAND]`](#percy-help-command)
-* [`percy snapshot PATHNAME`](#percy-snapshot-pathname)
-* [`percy upload DIRNAME`](#percy-upload-dirname)
+The Percy CLI is used to capture and upload snapshots to [percy.io](https://percy.io) from the
+command line.
 
-## `percy config:create [FILEPATH]`
+## Installation
 
-create a Percy config file
+Using yarn: 
 
-```
-USAGE
-  $ percy config:create [FILEPATH]
-
-ARGUMENTS
-  FILEPATH  config filepath
-
-OPTIONS
-  --js    create a .percy.js file
-  --json  create a .percy.json file
-  --rc    create a .percyrc file
-  --yaml  create a .percy.yaml file
-  --yml   create a .percy.yml file
-
-EXAMPLES
-  $ percy config:create
-  $ percy config:create --yaml
-  $ percy config:create --json
-  $ percy config:create --js
-  $ percy config:create --rc
-  $ percy config:create ./config/percy.yml
+```sh-session
+$ yarn add @percy/cli --dev
 ```
 
-## `percy config:validate [FILEPATH]`
+Using npm: 
 
-validate a Percy config file
-
-```
-USAGE
-  $ percy config:validate [FILEPATH]
-
-ARGUMENTS
-  FILEPATH  config filepath, detected by default
-
-EXAMPLES
-  $ percy config:validate
-  $ percy config:validate ./config/percy.yml
+```sh-session
+$ npm install @percy/cli --save-dev
 ```
 
-## `percy exec`
+## Command Topics
 
-start and stop Percy around a supplied command
+- [`percy exec`](./packages/cli-exec#readme) - capture and upload snapshots
+- [`percy snapshot`](./packages/cli-snapshot#readme) - snapshot a static directory or a list of pages
+- [`percy upload`](./packages/cli-upload#readme) - upload a static directory of images
+- [`percy config`](./packages/cli-config#readme) - manage configuration files
+- [`percy finalize`](./packages/cli-finalize#readme) - finalize parallel builds
 
-```
-USAGE
-  $ percy exec
+### Advanced
 
-OPTIONS
-  -c, --config=config                              configuration file path
-  -h, --allowed-hostname=allowed-hostname          allowed hostnames
-  -q, --quiet                                      log errors only
-  -t, --network-idle-timeout=network-idle-timeout  [default: 100] asset discovery idle timeout
-  -v, --verbose                                    log everything
-  --disable-asset-cache                            disable asset discovery caches
-  --silent                                         log nothing
+In addition to the CLI packages, this repo contains core libraries responsible for Percy's CI/CD
+integrations, Percy API communication, DOM snapshotting, and asset discovery.
 
-EXAMPLES
-  $ percy exec -- echo "percy is running around this echo command"
-  $ percy exec -- yarn test
-```
+- [`@percy/env`](./packages/env#readme) - captures CI build environment variables
+- [`@percy/client`](./packages/client#readme) - handles communicating with the Percy API
+- [`@percy/dom`](./packages/dom#readme) - serializes DOM snapshots
+- [`@percy/core`](./packages/core#readme) - performs snapshot asset discovery and uploading
+- [`@percy/logger`](./packages/logger#readme) - common logger used throughout the CLI
 
-## `percy exec:ping`
+## Issues
 
-pings a running Percy process
+For problems directly related to the CLI, [add an issue on
+GitHub](https://github.com/percy/percy-cli/issues/new).
 
-```
-USAGE
-  $ percy exec:ping
+For other issues, [open a support request](https://percy.io).
 
-OPTIONS
-  -q, --quiet    log errors only
-  -v, --verbose  log everything
-  --silent       log nothing
+## Developing
 
-EXAMPLE
-  $ percy server:ping
-```
+This project is built with [lerna](https://lerna.js.org/). The core libaries and CLI plugins are
+located in [./packages](./packages). Run `yarn` to install dependencies after cloning the repo and use
+the following scripts for various development tasks:
 
-## `percy exec:start`
+- `yarn build` - build all packages
+- `yarn build:watch` - build and watch all packages in parallel
+- `yarn clean` - clean up build and coverage output
+- `yarn lint` - lint all packages
+- `yarn readme` - generate oclif readme usage
+- `yarn test` - run all tests, one package after another
+- `yarn test:coverage` - run all tests with coverage, one package after another
 
-starts a Percy process
+Individual package scripts can be invoked using yarn's
+[workspace](https://classic.yarnpkg.com/en/docs/cli/workspace/) command. For example:
 
-```
-USAGE
-  $ percy exec:start
-
-OPTIONS
-  -c, --config=config                              configuration file path
-  -h, --allowed-hostname=allowed-hostname          allowed hostnames
-  -q, --quiet                                      log errors only
-  -t, --network-idle-timeout=network-idle-timeout  [default: 100] asset discovery idle timeout
-  -v, --verbose                                    log everything
-  --disable-asset-cache                            disable asset discovery caches
-  --silent                                         log nothing
-
-EXAMPLES
-  $ percy server:start
-  $ percy server:start &>/dev/null
+```sh-session
+$ yarn workspace @percy/core test
 ```
 
-## `percy exec:stop`
+## Releasing
 
-stops a running Percy process
-
-```
-USAGE
-  $ percy exec:stop
-
-OPTIONS
-  -q, --quiet    log errors only
-  -v, --verbose  log everything
-  --silent       log nothing
-
-EXAMPLE
-  $ percy server:stop
-```
-
-## `percy finalize`
-
-finalize parallel Percy builds
-
-```
-USAGE
-  $ percy finalize
-
-OPTIONS
-  -q, --quiet    log errors only
-  -v, --verbose  log everything
-  --silent       log nothing
-
-EXAMPLE
-  $ percy finalize
-```
-
-## `percy help [COMMAND]`
-
-display help for percy
-
-```
-USAGE
-  $ percy help [COMMAND]
-
-ARGUMENTS
-  COMMAND  command to show help for
-
-OPTIONS
-  --all  see all commands in CLI
-```
-
-_See code: [@oclif/plugin-help](https://github.com/oclif/plugin-help/blob/v2.2.3/src/commands/help.ts)_
-
-## `percy snapshot PATHNAME`
-
-snapshot a list of pages from a file or directory
-
-```
-USAGE
-  $ percy snapshot PATHNAME
-
-ARGUMENTS
-  PATHNAME  path to a directory or file containing a list of pages
-
-OPTIONS
-  -b, --base-url=base-url                          [default: /] the url path to serve the static directory from
-  -c, --config=config                              configuration file path
-  -d, --dry-run                                    prints a list of pages to snapshot without snapshotting
-  -f, --files=files                                [default: **/*.{html,htm}] one or more globs matching static file paths to snapshot
-  -h, --allowed-hostname=allowed-hostname          allowed hostnames
-  -i, --ignore=ignore                              one or more globs matching static file paths to ignore
-  -q, --quiet                                      log errors only
-  -t, --network-idle-timeout=network-idle-timeout  [default: 100] asset discovery idle timeout
-  -v, --verbose                                    log everything
-  --disable-asset-cache                            disable asset discovery caches
-  --silent                                         log nothing
-
-EXAMPLES
-  $ percy snapshot ./public
-  $ percy snapshot pages.yml
-```
-
-## `percy upload DIRNAME`
-
-upload a directory of images
-
-```
-USAGE
-  $ percy upload DIRNAME
-
-ARGUMENTS
-  DIRNAME  directory of images to upload
-
-OPTIONS
-  -c, --config=config  configuration file path
-  -d, --dry-run        prints a list of matching images to upload without uploading
-  -f, --files=files    [default: **/*.{png,jpg,jpeg}] one or more globs matching image file paths to upload
-  -i, --ignore=ignore  one or more globs matching image file paths to ignore
-  -q, --quiet          log errors only
-  -v, --verbose        log everything
-  --silent             log nothing
-
-EXAMPLE
-  $ percy upload ./images
-```
-<!-- commandsstop -->
+**@todo**
