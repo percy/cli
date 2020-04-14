@@ -14,6 +14,7 @@
     "postpublish": "rm -f oclif.manifest.json",
     "prepublish": "oclif-dev manifest",
     "readme": "oclif-dev readme",
+    "pretest": "node ../../scripts/install-browser",
     "test": "cross-env NODE_ENV=test mocha",
     "test:coverage": "nyc yarn test"
   },
