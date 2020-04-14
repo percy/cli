@@ -53,11 +53,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        node: [10, 12]
-        exclude:
-          - os: windows-latest
-            node: 12
+        os: [ubuntu-latest]
+        node: [10]
     runs-on: ${{ matrix.os }}
     steps:
       # duplicate - there is no sharing in GH actions
@@ -88,11 +85,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        node: [10, 12]
-        exclude:
-          - os: windows-latest
-            node: 12
+        os: [ubuntu-latest]
+        node: [10]
     runs-on: ${{ matrix.os }}
     steps:
       # duplicate - there is no sharing in GH actions
@@ -123,11 +117,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        node: [10, 12]
-        exclude:
-          - os: windows-latest
-            node: 12
+        os: [ubuntu-latest]
+        node: [10]
     runs-on: ${{ matrix.os }}
     steps:
       # duplicate - there is no sharing in GH actions
@@ -159,11 +150,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        node: [10, 12]
-        exclude:
-          - os: windows-latest
-            node: 12
+        os: [ubuntu-latest]
+        node: [10]
     runs-on: ${{ matrix.os }}
     steps:
       # duplicate - there is no sharing in GH actions
@@ -194,11 +182,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        node: [10, 12]
-        exclude:
-          - os: windows-latest
-            node: 12
+        os: [ubuntu-latest]
+        node: [10]
     runs-on: ${{ matrix.os }}
     steps:
       # duplicate - there is no sharing in GH actions
