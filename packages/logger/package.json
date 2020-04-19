@@ -1,0 +1,21 @@
+{
+  "name": "@percy/logger",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "lint": "eslint --ignore-path ../../.gitignore .",
+    "test": "cross-env NODE_ENV=test mocha",
+    "test:coverage": "nyc yarn test"
+  },
+  "mocha": {
+    "require": "../../scripts/babel-register"
+  },
+  "dependencies": {
+    "colors": "^1.4.0",
+    "winston": "^3.2.1"
+  },
+  "devDependencies": {
+    "strip-ansi": "^6.0.0"
+  }
+}
