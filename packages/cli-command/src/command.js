@@ -1,5 +1,5 @@
 import Command from '@oclif/command';
-import PercyConfig from '@percy/cli-config';
+import PercyConfig from '@percy/config';
 import log from '@percy/logger';
 
 // The PercyCommand class that all Percy CLI commands should extend
@@ -46,7 +46,7 @@ export default class PercyCommand extends Command {
   // environment variable is also included as a convenience.
   percyrc() {
     let flags = Object.entries(this.constructor.flags);
-    let provided = flags.reduce((conf, [name, flag]) => (
+    let overrides = flags.reduce((conf, [name, flag]) => (
       flag.percyrc?.split('.').reduce((target, key, i, paths) => {
         let last = i === paths.length - 1;
         target[key] = last ? this.flags[name] : (target[key] ?? {});
@@ -55,6 +55,9 @@ export default class PercyCommand extends Command {
     ), {});
 
     // will also validate config and log warnings
-    return PercyConfig.load(this.flags.config, provided);
+    return PercyConfig.load({
+      filepath: this.flags.config,
+      overrides
+    });
   }
 }

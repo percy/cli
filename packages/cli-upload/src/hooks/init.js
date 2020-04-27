@@ -1,4 +1,4 @@
-import PercyConfig from '@percy/cli-config';
+import PercyConfig from '@percy/config';
 import { schema } from '../config';
 
 export default function() {

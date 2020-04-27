@@ -29,6 +29,7 @@
   "dependencies": {
     "@percy/cli-command": "1.0.0",
     "@percy/client": "1.0.0",
+    "@percy/config": "1.0.0",
     "@percy/logger": "1.0.0",
     "globby": "^11.0.0",
     "image-size": "^0.8.3"

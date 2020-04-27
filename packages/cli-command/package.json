@@ -25,7 +25,7 @@
     "@oclif/command": "^1.5.19",
     "@oclif/config": "^1.14.0",
     "@oclif/plugin-help": "^2.2.3",
-    "@percy/cli-config": "1.0.0",
+    "@percy/config": "1.0.0",
     "@percy/logger": "1.0.0"
   }
 }
