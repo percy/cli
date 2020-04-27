@@ -32,10 +32,11 @@ $ npm install @percy/cli --save-dev
 In addition to the CLI packages, this repo contains core libraries responsible for Percy's CI/CD
 integrations, Percy API communication, DOM snapshotting, and asset discovery.
 
+- [`@percy/core`](./packages/core#readme) - performs snapshot asset discovery and uploading
+- [`@percy/config`](./packages/config#readme) - loads Percy configuration files
+- [`@percy/dom`](./packages/dom#readme) - serializes DOM snapshots
 - [`@percy/env`](./packages/env#readme) - captures CI build environment variables
 - [`@percy/client`](./packages/client#readme) - handles communicating with the Percy API
-- [`@percy/dom`](./packages/dom#readme) - serializes DOM snapshots
-- [`@percy/core`](./packages/core#readme) - performs snapshot asset discovery and uploading
 - [`@percy/logger`](./packages/logger#readme) - common logger used throughout the CLI
 
 ## Issues
