@@ -1,5 +1,6 @@
 import expect from 'expect';
 import fetch from 'node-fetch';
+import PercyConfig from '@percy/config';
 import Percy from '../src';
 
 describe('Snapshot Server', () => {
@@ -31,20 +32,17 @@ describe('Snapshot Server', () => {
   });
 
   it('has a /healthcheck endpoint', async () => {
-    percy.config.foo = 'bar';
     await percy.start();
 
     let response = await fetch('http://localhost:1337/percy/healthcheck');
     await expect(response.json()).resolves.toEqual({
       success: true,
+      loglevel: 'error',
+      config: PercyConfig.getDefaults(),
       build: {
         id: '123',
         number: 1,
         url: 'https://percy.io/test/test/123'
-      },
-      config: {
-        loglevel: 'error',
-        foo: 'bar'
       }
     });
   });

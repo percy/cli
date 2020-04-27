@@ -14,8 +14,9 @@ export function createServerApp(percy) {
     .get('/percy/healthcheck', (_, res) => {
       res.json({
         success: true,
-        build: percy.client.build,
-        config: percy.config
+        config: percy.config,
+        loglevel: percy.loglevel(),
+        build: percy.client.build
       });
     })
   // snapshots are not awaited on for concurrent requests

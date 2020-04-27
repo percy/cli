@@ -22,18 +22,18 @@ export default class PercyDiscoverer {
   #cache = new Map()
 
   constructor({
+    // asset discovery concurrency
+    concurrency,
     // additional allowed hostnames besides the root URL hostname
-    allowedHostnames = [],
+    allowedHostnames,
     // how long to wait before the network is considered to be idle and assets
     // are determined to be fully discovered
-    networkIdleTimeout = 100,
+    networkIdleTimeout,
     // disable resource caching, the cache is still used but overwritten for each resource
-    disableAssetCache = false,
-    // asset discovery concurrency
-    concurrency = 5,
+    disableAssetCache,
     // browser launch options
-    launchOptions = {}
-  } = {}) {
+    launchOptions
+  }) {
     this.#queue = new Queue(concurrency);
 
     Object.assign(this, {
@@ -56,7 +56,7 @@ export default class PercyDiscoverer {
       args = [],
       executablePath = process.env.PUPPETEER_EXECUTABLE_PATH,
       ...launchOptions
-    } = this.launchOptions;
+    } = this.launchOptions || {};
 
     await maybeInstallBrowser();
 

@@ -1,5 +1,4 @@
 import { flags } from '@oclif/command';
-import { schema } from './config';
 
 // Common logging flags exclusive of each other.
 const logging = {
@@ -30,7 +29,6 @@ const discovery = {
   'network-idle-timeout': flags.integer({
     char: 't',
     description: 'asset discovery idle timeout',
-    default: schema.discovery.properties.networkIdleTimeout.default,
     percyrc: 'discovery.networkIdleTimeout'
   }),
   'disable-asset-cache': flags.boolean({

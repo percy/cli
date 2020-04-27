@@ -1,13 +1,18 @@
 import PercyClient from '@percy/client';
+import PercyConfig from '@percy/config';
 import log from '@percy/logger';
-import Queue from './queue';
+import { schema } from './config';
 import Discoverer from './discoverer';
-import { createServerApp, startServer } from './server';
 import injectPercyCSS from './percy-css';
+import { createServerApp, startServer } from './server';
+import Queue from './queue';
 import assert from './utils/assert';
 import { createRootResource } from './utils/resources';
 import { normalizeURL } from './utils/url';
 import pkg from '../package.json';
+
+// Register core config options
+PercyConfig.addSchema(schema);
 
 // A Percy instance will create a new build when started, handle snapshot
 // creation, asset discovery, and resource uploads, and will finalize the build
@@ -38,9 +43,11 @@ export default class Percy {
     concurrency = 5,
     // initial log level
     loglevel,
-    // additional options such as `loglevel`, `snapshot`, and `discovery`
-    // options which are all accessible via the `config` property
-    ...config
+    // configuration filepath
+    config,
+    // options such as `snapshot` and `discovery` that are valid Percy config
+    // options which will become accessible via the `#config` property
+    ...options
   } = {}) {
     if (loglevel) {
       this.loglevel(loglevel);
@@ -54,8 +61,8 @@ export default class Percy {
     this.#snapshots = new Queue();
     this.#captures = new Queue(concurrency);
 
-    this.config = { loglevel: this.loglevel(), ...config };
-    this.discoverer = new Discoverer(config.discovery);
+    this.config = PercyConfig.load({ filepath: config, overrides: options });
+    this.discoverer = new Discoverer(this.config.discovery);
     this.client = new PercyClient({
       clientInfo: [`${pkg.name}/${pkg.version}`].concat(clientInfo),
       environmentInfo,
@@ -166,20 +173,20 @@ export default class Percy {
     assert(domSnapshot, 'Missing required argument: domSnapshot');
 
     // fallback to instance snapshot widths
-    widths = widths ?? this.config.snapshot?.widths;
+    widths = widths ?? this.config.snapshot.widths;
     assert(widths, 'Missing required argument: widths');
     assert(widths.length <= 10, 'too many widths');
 
     // normalize the URL
     url = normalizeURL(url);
     // fallback to instance minimum height
-    minimumHeight = minimumHeight ?? this.config.snapshot?.minimumHeight;
+    minimumHeight = minimumHeight ?? this.config.snapshot.minimumHeight;
     // combine snapshot Percy CSS with instance Percy CSS
-    percyCSS = `${this.config.snapshot?.percyCSS ?? ''}\n${percyCSS ?? ''}`.trim();
+    percyCSS = `${this.config.snapshot.percyCSS}\n${percyCSS ?? ''}`.trim();
     // combine snapshot request headers with instance request headers
-    requestHeaders = { ...this.config.snapshot?.requestHeaders, ...requestHeaders };
+    requestHeaders = { ...this.config.snapshot.requestHeaders, ...requestHeaders };
     // fallback to instance enable JS flag
-    enableJavaScript = enableJavaScript ?? this.config.snapshot?.enableJavaScript ?? false;
+    enableJavaScript = enableJavaScript ?? this.config.snapshot.enableJavaScript ?? false;
 
     // add this snapshot task to the snapshot queue
     return this.#snapshots.push(async () => {

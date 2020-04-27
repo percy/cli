@@ -61,8 +61,8 @@ describe('Percy', () => {
     });
 
     it('returns the specified loglevel', () => {
-      percy = new Percy({ loglevel: 'debug' });
-      expect(percy.loglevel()).toBe('debug');
+      percy = new Percy({ loglevel: 'warn' });
+      expect(percy.loglevel()).toBe('warn');
     });
 
     it('sets the loglevel', () => {
