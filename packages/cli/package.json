@@ -19,7 +19,6 @@
   "oclif": {
     "bin": "percy",
     "plugins": [
-      "@percy/cli-command",
       "@percy/cli-config",
       "@percy/cli-exec",
       "@percy/cli-finalize",

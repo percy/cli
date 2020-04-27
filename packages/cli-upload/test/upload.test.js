@@ -11,7 +11,6 @@ const cwd = process.cwd();
 
 describe('percy upload', () => {
   before(() => {
-    require('@percy/cli-command/dist/hooks/init').default();
     require('../src/hooks/init').default();
 
     fs.mkdirSync(path.join(__dirname, 'tmp'));

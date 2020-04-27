@@ -1,8 +1,11 @@
 import expect from 'expect';
 import log from '@percy/logger';
 import stdio from '@percy/logger/test/helper';
+import PercyConfig from '@percy/config';
 import PercyCommand, { flags } from '../src';
-import init from '../src/hooks/init';
+
+// add config schema to test discovery flags
+PercyConfig.addSchema(require('@percy/core/dist/config').schema);
 
 describe('PercyCommand', () => {
   let results;
@@ -24,10 +27,6 @@ describe('PercyCommand', () => {
       await this.test?.();
     }
   }
-
-  before(() => {
-    init();
-  });
 
   beforeEach(() => {
     results = [];

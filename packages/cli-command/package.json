@@ -18,12 +18,6 @@
   "mocha": {
     "require": "../../scripts/babel-register"
   },
-  "oclif": {
-    "bin": "percy",
-    "hooks": {
-      "init": "./dist/hooks/init"
-    }
-  },
   "dependencies": {
     "@oclif/command": "^1.5.19",
     "@oclif/config": "^1.14.0",

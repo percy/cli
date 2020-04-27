@@ -1,11 +1,6 @@
 import nock from 'nock';
 import mock from 'mock-require';
-import initCommon from '@percy/cli-command/dist/hooks/init';
 import mockAPI from '@percy/client/test/helper';
-
-before(() => {
-  initCommon();
-});
 
 beforeEach(() => {
   process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
