@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import Command, { flags } from '@oclif/command';
+import PercyConfig from '@percy/config';
 import log from '@percy/logger';
-import PercyConfig from '../../';
 
 const FILETYPES = ['rc', 'yaml', 'yml', 'json', 'js'];
 

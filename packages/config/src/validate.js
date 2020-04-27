@@ -1,6 +1,7 @@
 import Ajv from 'ajv';
+import log from '@percy/logger';
 
-const { assign, entries, freeze } = Object;
+const { assign, entries } = Object;
 
 // Ajv manages and validates schemas.
 const ajv = new Ajv({
@@ -22,11 +23,16 @@ function getDefaultSchema() {
   };
 }
 
+// Gets the schema object from the AJV schema.
+export function getSchema(name) {
+  return ajv.getSchema(name).schema;
+}
+
 // Adds schemas to the config schema's properties. The config schema is removed,
 // modified, and replaced after the new schemas are added to clear any compiled
 // caches. Existing schemas are removed and replaced as well.
 export function addSchema(schemas) {
-  let { schema: config } = ajv.getSchema('config');
+  let config = getSchema('config');
   ajv.removeSchema('config');
 
   for (let [$id, schema] of entries(schemas)) {
@@ -44,33 +50,16 @@ export function resetSchema() {
   ajv.addSchema(getDefaultSchema(), 'config');
 }
 
-// Recursively walks a schema and collects defaults. When no schema is provided,
-// the default config schema is used. Returned defaults are frozen.
-export function getDefaults(schema) {
-  if (!schema || typeof schema.$ref === 'string') {
-    // get the schema from ajv
-    return getDefaults(ajv.getSchema(schema?.$ref ?? 'config').schema);
-  } else if (schema.default != null) {
-    // return the frozen default for this schema
-    return freeze(schema.default);
-  } else if (schema.type === 'object' && schema.properties) {
-    // return a frozen object of default properties
-    return freeze(
-      entries(schema.properties).reduce((acc, [prop, schema]) => {
-        let def = getDefaults(schema);
-        return def != null ? assign(acc || {}, { [prop]: def }) : acc;
-      }, undefined)
-    );
-  } else {
-    return undefined;
-  }
-}
+// Validates config data according to the config schema and logs warnings to the
+// console. Optionallly scrubs invalid values from the provided config. Returns
+// true when the validation success, false otherwise.
+export default function validate(config, { scrub } = {}) {
+  let result = ajv.validate('config', config);
 
-// Validates config data according to the config schema. When failing, an array
-// of errors is returned with formatted messages. Returns undefined when passing.
-export function validate(config, scrub) {
-  if (!ajv.validate('config', config)) {
-    return ajv.errors.map(error => {
+  if (!result) {
+    log.warn('Invalid config:');
+
+    for (let error of ajv.errors) {
       let { dataPath, keyword, params, message, data } = error;
       let pre = dataPath ? `'${dataPath.substr(1)}' ` : '';
 
@@ -90,9 +79,11 @@ export function validate(config, scrub) {
         }
       }
 
-      return `${pre}${message}`;
-    });
+      log.warn(`- ${pre}${message}`);
+    }
   }
+
+  return result;
 }
 
 // Adds "a" or "an" to a word for readability.

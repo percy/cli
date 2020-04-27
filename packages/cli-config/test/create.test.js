@@ -1,7 +1,7 @@
 import expect from 'expect';
 import { getWrite, stdio } from './helpers';
 import { Create } from '../src/commands/config/create';
-import PercyConfig from '../src';
+import PercyConfig from '@percy/config';
 
 describe('percy config:create', () => {
   it('creates a .percy.yml config file by default', async () => {

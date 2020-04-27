@@ -32,9 +32,6 @@
     "@oclif/command": "^1.5.19",
     "@oclif/config": "^1.14.0",
     "@percy/logger": "1.0.0",
-    "ajv": "^6.12.0",
-    "cosmiconfig": "^6.0.0",
-    "deepmerge": "^4.2.2",
-    "yaml": "^1.8.0"
+    "@percy/config": "1.0.0"
   }
 }

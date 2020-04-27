@@ -41,7 +41,7 @@ parsed and validated when `PercyConfig.load()` is called. See [JSON
 schema](https://json-schema.org/) for possible schema options.
 
 ```js
-import PercyConfig from '@percy/cli-config'
+import PercyConfig from '@percy/config'
 
 PercyConfig.addSchema({ propertyName: JSONSchema })
 ```

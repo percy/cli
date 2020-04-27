@@ -1,7 +1,7 @@
 import expect from 'expect';
 import { mockConfig, stdio } from './helpers';
 import { Validate } from '../src/commands/config/validate';
-import PercyConfig from '../src';
+import PercyConfig from '@percy/config';
 
 describe('percy config:validate', () => {
   beforeEach(() => {
@@ -17,6 +17,11 @@ describe('percy config:validate', () => {
         }
       }
     });
+  });
+
+  afterEach(() => {
+    PercyConfig.cache.clear();
+    PercyConfig.resetSchema();
   });
 
   it('logs debug info for a valid config file', async () => {
