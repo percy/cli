@@ -10,6 +10,7 @@ const percyOptions: PercyOptions = {
   port: 5338,
   concurrency: 1,
   loglevel: 'info',
+  config: '.percy.yml',
   snapshot: {
     widths: [1280],
     minimumHeight: 1024,

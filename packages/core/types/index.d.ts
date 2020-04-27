@@ -28,6 +28,7 @@ export type PercyOptions<C = Pojo> = C & {
   port?: number,
   concurrency?: number,
   loglevel?: LogLevel,
+  config?: undefined | string | false,
   snapshot?: SnapshotOptions,
   discovery?: DiscoveryOptions
 };
