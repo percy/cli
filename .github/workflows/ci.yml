@@ -113,6 +113,9 @@ jobs:
       - name: Test @percy/dom
         run: yarn workspace @percy/dom test:coverage --browsers 'ChromeHeadless,FirefoxHeadless' --colors
 
+      - name: Test @percy/config
+        run: yarn workspace @percy/config test:coverage --colors
+
       - name: Test @percy/core
         run: yarn workspace @percy/core test:coverage --colors
 
