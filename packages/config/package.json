@@ -3,14 +3,17 @@
   "version": "1.0.0",
   "license": "MIT",
   "main": "dist/index.js",
+  "types": "types/index.d.ts",
   "files": [
-    "./dist"
+    "dist",
+    "types/index.d.ts"
   ],
   "scripts": {
     "build": "babel --root-mode upward src --out-dir dist",
     "lint": "eslint --ignore-path ../../.gitignore .",
     "test": "cross-env NODE_ENV=test mocha",
-    "test:coverage": "nyc yarn test"
+    "test:coverage": "nyc yarn test",
+    "test:types": "tsd"
   },
   "mocha": {
     "require": "../../scripts/babel-register"
@@ -21,5 +24,8 @@
     "cosmiconfig": "^6.0.0",
     "deepmerge": "^4.2.2",
     "yaml": "^1.8.0"
+  },
+  "devDependencies": {
+    "json-schema-typed": "^7.0.3"
   }
 }
