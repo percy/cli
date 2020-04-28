@@ -1,3 +1,8 @@
+// Handles async routes with a middleware pattern to catch and forward errors
+function asyncRoute(handler) {
+  return (req, res, next) => handler(req, res, next).catch(next);
+}
+
 // Lazily creates and returns an express app for communicating with the Percy
 // instance using a local API
 export function createServerApp(percy) {
@@ -20,24 +25,25 @@ export function createServerApp(percy) {
       });
     })
   // responds when idle
-    .get('/percy/idle', async (_, res) => {
+    .get('/percy/idle', asyncRoute(async (_, res) => {
       await percy.idle();
       res.json({ success: true });
-    })
+    }))
   // serves @percy/dom as a convenience
     .get('/percy/dom.js', (_, res) => {
       res.sendFile(require.resolve('@percy/dom'));
     })
-  // snapshots are not awaited on for concurrent requests
-    .post('/percy/snapshot', (req, res) => {
-      percy.snapshot(req.body);
+  // snapshot requests are concurrent by default
+    .post('/percy/snapshot', asyncRoute(async (req, res) => {
+      let snapshot = percy.snapshot(req.body);
+      if (req.body.concurrent === false) await snapshot;
       res.json({ success: true });
-    })
+    }))
   // stops the instance
-    .post('/percy/stop', async (_, res) => {
+    .post('/percy/stop', asyncRoute(async (_, res) => {
       await percy.stop();
       res.json({ success: true });
-    })
+    }))
   // other routes 404
     .use('*', (_, res) => {
       res.status(404).json({ success: false, error: 'Not found' });
