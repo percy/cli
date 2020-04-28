@@ -44,6 +44,7 @@ declare class Percy {
   isRunning(): boolean;
   start(): Promise<void>;
   stop(): Promise<void>;
+  idle(): Promise<void>;
 
   snapshot(options: SnapshotOptions & {
     url: string,

@@ -19,6 +19,15 @@ export function createServerApp(percy) {
         build: percy.client.build
       });
     })
+  // responds when idle
+    .get('/percy/idle', async (_, res) => {
+      await percy.idle();
+      res.json({ success: true });
+    })
+  // serves @percy/dom as a convenience
+    .get('/percy/dom.js', (_, res) => {
+      res.sendFile(require.resolve('@percy/dom'));
+    })
   // snapshots are not awaited on for concurrent requests
     .post('/percy/snapshot', (req, res) => {
       percy.snapshot(req.body);
@@ -28,10 +37,6 @@ export function createServerApp(percy) {
     .post('/percy/stop', async (_, res) => {
       await percy.stop();
       res.json({ success: true });
-    })
-  // serves @percy/dom as a convenience
-    .get('/percy/dom.js', (_, res) => {
-      res.sendFile(require.resolve('@percy/dom'));
     })
   // other routes 404
     .use('*', (_, res) => {

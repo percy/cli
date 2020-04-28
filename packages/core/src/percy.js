@@ -151,6 +151,14 @@ export default class Percy {
     }
   }
 
+  // Resolves when captures and snapshots are idle.
+  async idle() {
+    await Promise.all([
+      this.#captures.idle(),
+      this.#snapshots.idle()
+    ]);
+  }
+
   // Handles asset discovery for the URL and DOM snapshot at each requested
   // width with the provided options. Resolves when the snapshot is complete,
   // although shouldn't be awaited on as snapshots are handled concurrently.

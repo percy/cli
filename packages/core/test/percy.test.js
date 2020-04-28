@@ -227,6 +227,48 @@ describe('Percy', () => {
     });
   });
 
+  describe('#idle()', () => {
+    beforeEach(async () => {
+      await percy.start();
+    });
+
+    it('resolves after captures idle', async () => {
+      server = await createTestServer();
+      server.app.get('/', (req, res) => {
+        res.set('Content-Type', 'text/html').send('<p>Test</p>');
+      });
+
+      // not awaited on so it becomes pending
+      percy.capture({ name: 'test snapshot', url: 'http://localhost:8000' });
+
+      percy.loglevel('info');
+      await stdio.capture(() => percy.idle());
+
+      expect(stdio[2]).toHaveLength(0);
+      expect(stdio[1]).toEqual([
+        '[percy] Snapshot taken: test snapshot\n'
+      ]);
+    });
+
+    it('resolves after snapshots idle', async () => {
+      // not awaited on so it becomes pending
+      percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        widths: [1000]
+      });
+
+      percy.loglevel('info');
+      await stdio.capture(() => percy.idle());
+
+      expect(stdio[2]).toHaveLength(0);
+      expect(stdio[1]).toEqual([
+        '[percy] Snapshot taken: test snapshot\n'
+      ]);
+    });
+  });
+
   describe('#snapshot()', () => {
     let testDOM = dedent`
       <html>

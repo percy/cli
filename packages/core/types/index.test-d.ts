@@ -51,6 +51,8 @@ expectType<boolean>(percy.isRunning());
 expectType<void>(await percy.start());
 // #stop()
 expectType<void>(await percy.stop());
+// #idle()
+expectType<void>(await percy.idle());
 
 // #snapshot()
 expectType<void>(await percy.snapshot({

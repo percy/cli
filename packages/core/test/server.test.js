@@ -47,6 +47,23 @@ describe('Snapshot Server', () => {
     });
   });
 
+  it('has an /idle endpoint that calls #idle()', async () => {
+    await percy.start();
+    percy.idle = () => (percy.idle.calls = percy.idle.calls || []).push(undefined);
+
+    let response = await fetch('http://localhost:1337/percy/idle');
+    await expect(response.json()).resolves.toEqual({ success: true });
+    expect(percy.idle.calls).toHaveLength(1);
+  });
+
+  it('serves the @percy/dom bundle', async () => {
+    let bundle = require('fs').readFileSync(require.resolve('@percy/dom'), { encoding: 'utf-8' });
+
+    await percy.start();
+    let response = await fetch('http://localhost:1337/percy/dom.js');
+    await expect(response.text()).resolves.toBe(bundle);
+  });
+
   it('has a /stop endpoint that calls #stop()', async () => {
     await percy.start();
     percy.stop = () => (percy.stop.calls = percy.stop.calls || []).push(undefined);
@@ -69,14 +86,6 @@ describe('Snapshot Server', () => {
     await expect(response.json()).resolves.toEqual({ success: true });
     expect(percy.snapshot.calls).toHaveLength(1);
     expect(percy.snapshot.calls[0]).toEqual({ test: true });
-  });
-
-  it('serves the @percy/dom bundle', async () => {
-    let bundle = require('fs').readFileSync(require.resolve('@percy/dom'), { encoding: 'utf-8' });
-
-    await percy.start();
-    let response = await fetch('http://localhost:1337/percy/dom.js');
-    await expect(response.text()).resolves.toBe(bundle);
   });
 
   it('returns a 500 error when an endpoint throws', async () => {
