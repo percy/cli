@@ -52,16 +52,10 @@ export default class PercyDiscoverer {
   // Installs the browser executable if necessary and launches a Puppeteer
   // browser instance for use during asset discovery.
   async launch() {
-    let {
-      args = [],
-      executablePath = process.env.PUPPETEER_EXECUTABLE_PATH,
-      ...launchOptions
-    } = this.launchOptions || {};
-
-    await maybeInstallBrowser();
+    let executablePath = await maybeInstallBrowser(this.launchOptions?.executablePath);
 
     this.#browser = await puppeteer.launch({
-      ...launchOptions,
+      ...this.launchOptions,
       ignoreHTTPSErrors: true,
       handleSIGINT: false,
       handleSIGTERM: false,
@@ -70,7 +64,7 @@ export default class PercyDiscoverer {
       args: [
         '--no-sandbox',
         '--disable-web-security',
-        ...args
+        ...this.launchOptions?.args
       ]
     });
   }
