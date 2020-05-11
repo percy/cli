@@ -1,4 +1,4 @@
-const path = require('path')
+const path = require('path');
 
 require('@babel/register')({
   // allow monorepos to share a single babel config
@@ -12,4 +12,4 @@ require('@babel/register')({
         .join(path.sep === '/' ? '/' : '\\\\')
     )
   ]
-})
+});

@@ -23,7 +23,7 @@ jobs:
         run: yarn
       # end duplicate
       - name: Lint packages
-        run: yarn lint --since ${{ github.base_ref }}
+        run: yarn lint
   build:
     name: Build
     runs-on: ubuntu-latest

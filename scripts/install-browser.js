@@ -1,1 +1,1 @@
-require('@percy/core/dist/utils/install-browser').default()
+require('@percy/core/dist/utils/install-browser').default();
