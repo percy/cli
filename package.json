@@ -5,14 +5,14 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "lerna run build",
+    "build": "lerna run build --parallel",
     "build:watch": "lerna run build --parallel -- --watch",
     "clean": "rm -rf packages/**/{dist,.nyc_output,coverage}",
-    "lint": "lerna run lint",
-    "readme": "lerna run readme",
-    "test": "lerna run test -- --colors",
-    "test:coverage": "lerna run test:coverage -- --colors",
-    "test:types": "lerna run test:types"
+    "lint": "eslint --ignore-path .gitignore .",
+    "readme": "lerna run --parallel readme",
+    "test": "lerna run --stream --concurrency=1 test -- --colors",
+    "test:coverage": "lerna run --stream --concurrency=1 test:coverage -- --colors",
+    "test:types": "lerna run --parallel test:types"
   },
   "devDependencies": {
     "@babel/cli": "^7.8.3",
