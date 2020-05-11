@@ -98,8 +98,9 @@ export default class Percy {
 
       // log build details
       let build = this.client.build;
-      log.info('Percy has started!');
-      log.info(`Created build #${build.number}: ${build.url}`);
+      let meta = { build: { id: build.id } };
+      log.info('Percy has started!', meta);
+      log.info(`Created build #${build.number}: ${build.url}`, meta);
 
       // mark this process as running
       this.#running = true;
@@ -123,17 +124,20 @@ export default class Percy {
     // do nothing if not running or already stopping
     if (this.isRunning() && !this.#stopping) {
       this.#stopping = true;
-      log.info('Stopping percy...');
+
+      let build = this.client.build;
+      let meta = { build: { id: build.id } };
+      log.info('Stopping percy...', meta);
 
       // clear queued page captures and wait for any pending
       if (this.#captures.clear()) {
-        log.info(`Waiting for ${this.#captures.length} page(s) to complete`);
+        log.info(`Waiting for ${this.#captures.length} page(s) to complete`, meta);
         await this.#captures.idle();
       }
 
       // clear queued snapshots and wait for any pending
       if (this.#snapshots.clear()) {
-        log.info(`Waiting for ${this.#snapshots.length} snapshot(s) to complete`);
+        log.info(`Waiting for ${this.#snapshots.length} snapshot(s) to complete`, meta);
         await this.#snapshots.idle();
       }
 
@@ -143,9 +147,8 @@ export default class Percy {
       this.#running = false;
 
       // log build info
-      let build = this.client.build;
       await this.client.finalizeBuild();
-      log.info(`Finalized build #${build.number}: ${build.url}`);
+      log.info(`Finalized build #${build.number}: ${build.url}`, meta);
 
       log.info('Done!');
     }
@@ -198,22 +201,27 @@ export default class Percy {
 
     // add this snapshot task to the snapshot queue
     return this.#snapshots.push(async () => {
+      let meta = {
+        snapshot: { name },
+        build: { id: this.client.build.id }
+      };
+
       log.debug('---------');
-      log.debug('Handling snapshot:');
-      log.debug(`-> name: ${name}`);
-      log.debug(`-> url: ${url}`);
-      log.debug(`-> widths: ${widths.join('px, ')}px`);
-      log.debug(`-> clientInfo: ${clientInfo}`);
-      log.debug(`-> environmentInfo: ${environmentInfo}`);
-      log.debug(`-> requestHeaders: ${JSON.stringify(requestHeaders)}`);
+      log.debug('Handling snapshot:', meta);
+      log.debug(`-> name: ${name}`, meta);
+      log.debug(`-> url: ${url}`, meta);
+      log.debug(`-> widths: ${widths.join('px, ')}px`, meta);
+      log.debug(`-> clientInfo: ${clientInfo}`, meta);
+      log.debug(`-> environmentInfo: ${environmentInfo}`, meta);
+      log.debug(`-> requestHeaders: ${JSON.stringify(requestHeaders)}`, meta);
       log.debug(`-> domSnapshot:\n${(
         domSnapshot.length <= 1024 ? domSnapshot
           : (domSnapshot.substr(0, 1024) + '... [truncated]')
-      )}`);
+      )}`, meta);
 
       try {
         // inject Percy CSS
-        let [percyDOM, percyCSSResource] = injectPercyCSS(url, domSnapshot, percyCSS);
+        let [percyDOM, percyCSSResource] = injectPercyCSS(url, domSnapshot, percyCSS, meta);
         // use a map so resources remain unique by url
         let resources = new Map([[url, createRootResource(url, percyDOM)]]);
 
@@ -224,7 +232,8 @@ export default class Percy {
             rootDom: domSnapshot,
             enableJavaScript,
             requestHeaders,
-            width
+            width,
+            meta
           })
         )));
 
@@ -244,9 +253,9 @@ export default class Percy {
           resources: Array.from(resources.values())
         });
 
-        log.info(`Snapshot taken: ${name}`);
+        log.info(`Snapshot taken: ${name}`, meta);
       } catch (error) {
-        log.error(`Encountered an error for snapshot: ${name}`);
+        log.error(`Encountered an error for snapshot: ${name}`, meta);
         log.error(error);
       }
     });

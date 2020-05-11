@@ -11,17 +11,18 @@ const TEMP_DIR = path.join(os.tmpdir(), 'percy');
 // Creates a local resource object containing the resource URL, SHA, mimetype,
 // and local filepath in the OS temp directory. If the file does not exist, it
 // is created unless it exceeds the file size limit.
-export function createLocalResource(url, content, mimetype, log) {
+export function createLocalResource(url, content, mimetype, beforeWrite, meta) {
   if (!existsSync(TEMP_DIR)) mkdirSync(TEMP_DIR);
 
   let sha = sha256hash(content);
   let filepath = path.join(TEMP_DIR, sha);
 
   if (!existsSync(filepath)) {
-    log?.();
+    beforeWrite?.();
 
     assert(content.length < MAX_FILE_SIZE_BYTES, 'too many bytes', {
-      size: readableBytes(content.length)
+      size: readableBytes(content.length),
+      ...meta
     });
 
     writeFileSync(filepath, content);

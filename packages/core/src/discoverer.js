@@ -64,7 +64,7 @@ export default class PercyDiscoverer {
       args: [
         '--no-sandbox',
         '--disable-web-security',
-        ...this.launchOptions?.args
+        ...(this.launchOptions?.args || [])
       ]
     });
   }
@@ -88,13 +88,14 @@ export default class PercyDiscoverer {
     rootDom,
     enableJavaScript,
     requestHeaders,
-    width
+    width,
+    meta
   }) {
     assert(this.isConnected(), 'Browser not connected');
 
     // discover assets concurrently
     return this.#queue.push(async () => {
-      log.debug(`Discovering resources @ ${width}px`, { url: rootUrl });
+      log.debug(`Discovering resources @${width}px for ${rootUrl}`, { url: rootUrl, ...meta });
 
       // get a fresh page
       let page = await this.page();
@@ -112,15 +113,18 @@ export default class PercyDiscoverer {
         .on('request', this._handleRequest({
           onRequest: () => processing++,
           rootUrl,
-          rootDom
+          rootDom,
+          meta
         }))
         .on('requestfinished', this._handleRequestFinished({
           onFinished: () => processing--,
           accumulator,
-          rootUrl
+          rootUrl,
+          meta
         }))
         .on('requestfailed', this._handleRequestFailed({
-          onFailed: () => processing--
+          onFailed: () => processing--,
+          meta
         }));
 
       // navigate to the root URL and wait for the network to idle
@@ -139,26 +143,28 @@ export default class PercyDiscoverer {
   // will serve the root DOM for the root URL, respond with possible cached
   // responses, skip resources that should not be captured, and abort requests
   // that result in an error.
-  _handleRequest({ rootUrl, rootDom, onRequest }) {
+  _handleRequest({ rootUrl, rootDom, onRequest, meta }) {
     let allowedHostnames = [hostname(rootUrl)].concat(this.allowedHostnames);
 
     return request => {
       let url = request.url();
-      log.debug('Handling request', { url });
+
+      meta = { ...meta, url };
+      log.debug(`Handling request for ${url}`, meta);
       onRequest();
 
       try {
         if (url === rootUrl) {
           // root resource
-          log.debug('Serving root resource', { url });
+          log.debug(`Serving root resource for ${url}`, meta);
           request.respond({ status: 200, body: rootDom, contentType: 'text/html' });
         } else if (!this.disableAssetCache && this.#cache.has(url)) {
           // respond with cached response
-          log.debug('Response cache hit', { url });
+          log.debug(`Response cache hit for ${url}`, meta);
           request.respond(this.#cache.get(url).response);
         } else {
           // do not resolve resources that should not be captured
-          assert(allowedHostnames.some(h => domainMatch(h, url)), 'is remote', { url });
+          assert(allowedHostnames.some(h => domainMatch(h, url)), 'is remote', meta);
           // continue the request
           request.continue();
         }
@@ -166,7 +172,7 @@ export default class PercyDiscoverer {
         if (error.name === 'PercyAssertionError') {
           log.debug(`Skipping - ${error.toString()}`, error.meta);
         } else {
-          log.error(`Encountered an error for ${url}`);
+          log.error(`Encountered an error for ${url}`, meta);
           log.error(error);
         }
 
@@ -179,9 +185,10 @@ export default class PercyDiscoverer {
   // Creates a request finished handler for a specific root URL that will add
   // resolved resources to an accumulator. Both the response and resource are
   // cached for future snapshots and requests.
-  _handleRequestFinished({ rootUrl, accumulator, onFinished }) {
+  _handleRequestFinished({ rootUrl, accumulator, onFinished, meta }) {
     return async request => {
       let url = normalizeURL(request.url());
+      meta = { ...meta, url };
 
       try {
         // do nothing for the root URL or URLs that start with `data:` since
@@ -191,18 +198,18 @@ export default class PercyDiscoverer {
 
         // process and cache the response and resource
         if (this.disableAssetCache || !this.#cache.has(url)) {
-          log.debug('Processing resource', { url });
-          let response = await this._parseRequestResponse(url, request);
+          log.debug(`Processing resource - ${url}`, meta);
+          let response = await this._parseRequestResponse(url, request, meta);
 
           let mimetype = response.headers['content-type'][0].split(';')[0];
           let resource = createLocalResource(url, response.body, mimetype, () => {
-            log.debug('Making local copy of response', { url });
+            log.debug(`Making local copy of response - ${url}`, meta);
           });
 
-          log.debug(`-> url: ${url}`);
-          log.debug(`-> sha: ${resource.sha}`);
-          log.debug(`-> filepath: ${resource.filepath}`);
-          log.debug(`-> mimetype: ${resource.mimetype}`);
+          log.debug(`-> url: ${url}`, meta);
+          log.debug(`-> sha: ${resource.sha}`, meta);
+          log.debug(`-> filepath: ${resource.filepath}`, meta);
+          log.debug(`-> mimetype: ${resource.mimetype}`, meta);
 
           this.#cache.set(url, { response, resource });
         }
@@ -213,7 +220,7 @@ export default class PercyDiscoverer {
         if (error.name === 'PercyAssertionError') {
           log.debug(`Skipping - ${error.toString()}`, error.meta);
         } else {
-          log.error(`Encountered an error for ${url}`);
+          log.error(`Encountered an error for ${url}`, meta);
           log.error(error);
         }
       } finally {
@@ -223,14 +230,14 @@ export default class PercyDiscoverer {
   }
 
   // Creates a failed request handler that logs non-generic failure reasons.
-  _handleRequestFailed({ onFailed }) {
+  _handleRequestFailed({ onFailed, meta }) {
     return req => {
       let error = req.failure().errorText;
 
       // do not log generic failures since the real error was most likely
       // already logged from elsewhere
       if (error !== 'net::ERR_FAILED') {
-        log.debug(`Request failed for ${req.url()} - ${error}`);
+        log.debug(`Request failed for ${req.url()} - ${error}`, meta);
       }
 
       onFailed();
@@ -239,19 +246,19 @@ export default class PercyDiscoverer {
 
   // Parses a request's response to find the status, headers, and body. Performs
   // various response assertions and follows redirect requests using node-fetch.
-  async _parseRequestResponse(url, request) {
+  async _parseRequestResponse(url, request, meta) {
     let headers, body;
 
     let response = request.response();
-    assert(response, 'no response', { url });
+    assert(response, 'no response', meta);
 
     let status = response.status();
-    assert(ALLOWED_STATUSES.includes(status), 'disallowed status', { status, url });
+    assert(ALLOWED_STATUSES.includes(status), 'disallowed status', { status, ...meta });
 
     if (REDIRECT_STATUSES.includes(status)) {
       // fetch's default max redirect length is 20
       let length = request.redirectChain().length;
-      assert(length <= 20, 'too many redirects', { length, url });
+      assert(length <= 20, 'too many redirects', { length, ...meta });
 
       let redirect = await fetch(response.url(), {
         responseType: 'arraybuffer',
@@ -273,7 +280,7 @@ export default class PercyDiscoverer {
       body = await response.buffer();
     }
 
-    assert(body.toString(), 'is empty', { url });
+    assert(body.toString(), 'is empty', meta);
     return { status, headers, body };
   }
 }
