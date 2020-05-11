@@ -74,4 +74,21 @@ logger.error = function(message) {
   return this.constructor.prototype.error.call(this, message);
 };
 
+// Patch the query method to return a promise, query the file transport only,
+// and allow filtering logs with a filter function.
+logger.query = function(options = {}) {
+  return new Promise((resolve, reject) => {
+    // the query method mutates options to normalize and set defaults, so the
+    // same is done here to set more desirable defaults
+    options.limit = options.limit || Infinity;
+    options.order = options.order || 'asc';
+
+    this.transports[1].query(options, (err, logs) => {
+      if (err) return reject(err);
+      if (options.filter) logs = logs.filter(options.filter);
+      resolve(logs);
+    });
+  });
+};
+
 module.exports = logger;

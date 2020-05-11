@@ -45,3 +45,14 @@ log.error(new Error('example'))
 //   at example:2:10
 //   ...
 ```
+
+### `#query(options)`
+
+Patched `#query()` method that is promisified and allows a `filter` function option.
+
+``` js
+let logs = await log.query({
+  filter: log => true
+  // ...other query options (see winston docs)
+})
+```

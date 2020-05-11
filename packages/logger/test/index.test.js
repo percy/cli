@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import expect from 'expect';
 import colors from 'colors/safe';
 import stdio from './helper';
@@ -7,6 +9,9 @@ describe('logger', () => {
   const label = colors.magenta('percy');
 
   beforeEach(() => {
+    let { dirname, filename } = log.transports[1];
+    let logfile = path.join(dirname, filename);
+    fs.writeFileSync(logfile, '');
     log.loglevel('debug');
   });
 
@@ -79,6 +84,40 @@ describe('logger', () => {
       let err = { toString: () => 'error' };
       stdio.capture(() => log.error(err));
       expect(stdio[2]).toEqual(['[percy] error\n']);
+    });
+  });
+
+  describe('#query()', () => {
+    beforeEach(() => {
+      stdio.capture(() => {
+        log.info('foo', { foo: true });
+        log.info('bar', { bar: true });
+      });
+    });
+
+    it('is promisified', async () => {
+      await expect(log.query()).resolves.toEqual([
+        expect.objectContaining({ message: 'foo', foo: true }),
+        expect.objectContaining({ message: 'bar', bar: true })
+      ]);
+
+      await expect(log.query({
+        get level() { throw new Error('test'); }
+      })).rejects.toThrow('test');
+    });
+
+    it('can filter logs', async () => {
+      await expect(log.query({
+        filter: log => log.foo
+      })).resolves.toEqual([
+        expect.objectContaining({ message: 'foo', foo: true })
+      ]);
+
+      await expect(log.query({
+        filter: log => log.bar
+      })).resolves.toEqual([
+        expect.objectContaining({ message: 'bar', bar: true })
+      ]);
     });
   });
 });
