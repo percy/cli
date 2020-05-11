@@ -344,6 +344,10 @@ describe('PercyClient', () => {
         { success: 'bar' }
       ]);
     });
+
+    it('throws any errors from uploading', async () => {
+      await expect(client.setBuildData({ id: 123 }).uploadResources([{}])).rejects.toThrow();
+    });
   });
 
   describe('#createSnapshot()', () => {

@@ -20,29 +20,33 @@ export function base64encode(content) {
 // Resolves when the generator's final promise resolves and rejects when any
 // generated promise rejects.
 export function pool(generator, context, concurrency) {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     let iterator = generator.call(context);
     let queue = 0;
     let ret = [];
+    let err;
 
     // generates concurrent promises
     let proceed = () => {
       while (queue < concurrency) {
         let { done, value: promise } = iterator.next();
 
-        if (done) {
+        if (done || err) {
+          if (!queue && err) reject(err);
           if (!queue) resolve(ret);
           return;
         }
 
-        let cont = value => {
+        queue++;
+        promise.then(value => {
           queue--;
           ret.push(value);
           proceed();
-        };
-
-        queue++;
-        promise.then(cont, cont);
+        }).catch(error => {
+          queue--;
+          err = error;
+          proceed();
+        });
       }
     };
 
