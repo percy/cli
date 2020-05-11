@@ -1,12 +1,15 @@
+const os = require('os');
+const path = require('path');
 const { createLogger, transports, format } = require('winston');
 const colors = require('colors/safe');
 
 // A very basic url regexp only used for highlighting URLs blue in the CLI.
 const URL_REGEXP = /\b(https?:\/\/)[\w-]+(\.[\w-]+)*(:\d+)?(\/\S*)?\b/gi;
+const TEMP_DIR = path.join(os.tmpdir(), 'percy');
 
 // Custom logging formatter to color log levels, insert a megenta label, and
 // highlight URLs logged to the transport
-function formatter({ label, level, message, url }) {
+function formatter({ label, level, message }) {
   label = colors.magenta(label);
 
   if (level === 'error') {
@@ -16,24 +19,30 @@ function formatter({ label, level, message, url }) {
   } else if (level === 'info') {
     // highlight urls blue
     message = message.replace(URL_REGEXP, colors.blue('$&'));
-  } else if (level === 'debug' && url) {
-    // add debug urls and highlight them blue
-    message = `${message}: ${colors.blue(url)}`;
   }
 
   return `[${label}] ${message}`;
 }
 
-// Global logger with console transport. Only logs errors by default.
+// Global logger
 const logger = createLogger({
   transports: [
+    // console transport logs errors by default
     new transports.Console({
       level: 'error',
       stderrLevels: ['error'],
       format: format.combine(
-        format.timestamp(),
         format.label({ label: 'percy' }),
         format.printf(formatter)
+      )
+    }),
+    // file transport logs everything
+    new transports.File({
+      level: 'debug',
+      filename: path.join(TEMP_DIR, `percy.${Date.now()}.log`),
+      format: format.combine(
+        format.timestamp(),
+        format.json()
       )
     })
   ]

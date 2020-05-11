@@ -35,12 +35,6 @@ describe('logger', () => {
     expect(stdio[1]).toEqual([`[${label}] url = ${colors.blue(url)}\n`]);
   });
 
-  it('adds and formats debug URLs blue', () => {
-    let url = 'https://localhost:3000/foobar/baz.png';
-    stdio.capture(() => log.debug('debug', { url }), { ansi: true });
-    expect(stdio[1]).toEqual([`[${label}] debug: ${colors.blue(url)}\n`]);
-  });
-
   describe('#loglevel()', () => {
     it('sets the first transport log level', () => {
       expect(log.transports[0].level).toBe('debug');
