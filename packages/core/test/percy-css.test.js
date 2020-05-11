@@ -45,7 +45,6 @@ describe('Percy CSS', () => {
     let resources = mockAPI.requests['/builds/123/snapshots'][0]
       .body.data.relationships.resources.data;
 
-    expect(resources).toHaveLength(2);
     expect(resources[1].id).toBe(sha256hash('p { color: purple; }'));
     expect(resources[1].attributes['resource-url']).toMatch(/\/percy-specific\.\d+\.css$/);
   });
@@ -62,7 +61,6 @@ describe('Percy CSS', () => {
     let resources = mockAPI.requests['/builds/123/snapshots'][0]
       .body.data.relationships.resources.data;
 
-    expect(resources).toHaveLength(2);
     expect(resources[1].id).toBe(sha256hash('body { color: purple; }'));
     expect(resources[1].attributes['resource-url']).toMatch(/\/percy-specific\.\d+\.css$/);
   });
@@ -78,7 +76,6 @@ describe('Percy CSS', () => {
     let resources = mockAPI.requests['/builds/123/snapshots'][0]
       .body.data.relationships.resources.data;
 
-    expect(resources).toHaveLength(2);
     expect(resources[1].id).toBe(sha256hash('p { color: purple; }\np { font-size: 2rem; }'));
     expect(resources[1].attributes['resource-url']).toMatch(/\/percy-specific\.\d+\.css$/);
   });

@@ -343,6 +343,14 @@ describe('Percy', () => {
                   'is-root': null,
                   mimetype: 'image/gif'
                 }
+              }, {
+                type: 'resources',
+                id: expect.any(String),
+                attributes: {
+                  'resource-url': expect.stringMatching(/^percy\.\d+\.log$/),
+                  'is-root': null,
+                  mimetype: 'text/plain'
+                }
               }])
             }
           }
@@ -357,7 +365,7 @@ describe('Percy', () => {
         domSnapshot: testDOM
       })).resolves.toBeUndefined();
 
-      expect(mockAPI.requests['/builds/123/resources']).toHaveLength(3);
+      expect(mockAPI.requests['/builds/123/resources']).toHaveLength(4);
       expect(mockAPI.requests['/builds/123/resources'].map(r => r.body)).toEqual(
         expect.arrayContaining([{
           data: {
@@ -381,6 +389,15 @@ describe('Percy', () => {
             id: sha256hash(pixel),
             attributes: {
               'base64-content': base64encode(pixel)
+            }
+          }
+        }, {
+          data: {
+            type: 'resources',
+            id: mockAPI.requests['/builds/123/snapshots'][0]
+              .body.data.relationships.resources.data[3].id,
+            attributes: {
+              'base64-content': expect.any(String)
             }
           }
         }])

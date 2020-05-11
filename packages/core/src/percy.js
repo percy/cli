@@ -7,7 +7,7 @@ import injectPercyCSS from './percy-css';
 import { createServerApp, startServer } from './server';
 import Queue from './queue';
 import assert from './utils/assert';
-import { createRootResource } from './utils/resources';
+import { createRootResource, createLogResource } from './utils/resources';
 import { normalizeURL } from './utils/url';
 import pkg from '../package.json';
 
@@ -237,10 +237,13 @@ export default class Percy {
           })
         )));
 
+        // convert resource map to array
+        resources = Array.from(resources.values());
         // include the Percy CSS resource if there was one
-        if (percyCSSResource) {
-          resources.set(percyCSSResource.url, percyCSSResource);
-        }
+        if (percyCSSResource) resources.push(percyCSSResource);
+        // include a log resource for debugging
+        let logs = await log.query({ filter: ({ snapshot: s }) => s?.name === name });
+        resources.push(createLogResource(logs));
 
         // create, upload, and finalize the snapshot
         await this.client.sendSnapshot({
@@ -250,7 +253,7 @@ export default class Percy {
           enableJavaScript,
           clientInfo,
           environmentInfo,
-          resources: Array.from(resources.values())
+          resources
         });
 
         log.info(`Snapshot taken: ${name}`, meta);

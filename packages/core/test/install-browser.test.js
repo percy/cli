@@ -2,38 +2,42 @@ import expect from 'expect';
 import mock from 'mock-require';
 import { stdio } from './helpers';
 
-// mock browser fetcher
-const mockFetcher = {
-  revisionInfo(revision) {
-    this.revisionInfo.calls.push([revision]);
-    return { revision, ...this.revisionInfo.return };
-  },
-  download(revision) {
-    this.download.calls.push([revision]);
-  },
-  reset() {
-    this.revisionInfo.calls = [];
-    this.revisionInfo.return = {};
-    this.download.calls = [];
-  }
-};
-
-// require the install script after mocking fs and puppeteer
-mock('fs', { existsSync: path => path !== '404' });
-mock('puppeteer-core', { createBrowserFetcher: () => mockFetcher });
-const maybeInstallBrowser = mock.reRequire('../src/utils/install-browser').default;
-
 describe('Browser Install', () => {
+  let maybeInstallBrowser;
+
+  // mock browser fetcher
+  let mockFetcher = {
+    revisionInfo(revision) {
+      this.revisionInfo.calls.push([revision]);
+      return { revision, ...this.revisionInfo.return };
+    },
+    download(revision) {
+      this.download.calls.push([revision]);
+    },
+    reset() {
+      this.revisionInfo.calls = [];
+      this.revisionInfo.return = {};
+      this.download.calls = [];
+    }
+  };
+
+  before(() => {
+    // require the install script after mocking fs and puppeteer
+    mock('fs', { existsSync: path => path !== '404' });
+    mock('puppeteer-core', { createBrowserFetcher: () => mockFetcher });
+    maybeInstallBrowser = mock.reRequire('../src/utils/install-browser').default;
+  });
+
+  after(() => {
+    mock.stopAll();
+  });
+
   beforeEach(() => {
     mockFetcher.reset();
   });
 
   afterEach(() => {
     delete process.env.PUPPETEER_EXECUTABLE_PATH;
-  });
-
-  after(() => {
-    mock.stopAll();
   });
 
   it('returns the provided executable path if already installed', async () => {

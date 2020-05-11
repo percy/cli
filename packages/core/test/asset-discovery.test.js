@@ -32,7 +32,10 @@ describe('Asset Discovery', () => {
       captured.push(
         // order is not important, stabilize it for testing
         body.data.relationships.resources.data
-          .sort((a, b) => a.id < b.id ? -1 : (a.id > b.id ? 1 : 0))
+          .sort((a, b) => (
+            a.attributes['resource-url'] < b.attributes['resource-url'] ? -1
+              : (a.attributes['resource-url'] > b.attributes['resource-url'] ? 1 : 0)
+          ))
       );
 
       return [201, { data: { id: '4567' } }];
@@ -85,15 +88,20 @@ describe('Asset Discovery', () => {
         })
       }),
       expect.objectContaining({
+        id: sha256hash(pixel),
+        attributes: expect.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      }),
+      expect.objectContaining({
         id: sha256hash(testCSS),
         attributes: expect.objectContaining({
           'resource-url': 'http://localhost:8000/style.css'
         })
       }),
       expect.objectContaining({
-        id: sha256hash(pixel),
         attributes: expect.objectContaining({
-          'resource-url': 'http://localhost:8000/img.gif'
+          'resource-url': expect.stringMatching(/^percy\.\d+\.log$/)
         })
       })
     ]);
@@ -113,15 +121,20 @@ describe('Asset Discovery', () => {
 
     expect(captured[0]).toEqual([
       expect.objectContaining({
+        id: sha256hash(prefetchDOM),
+        attributes: expect.objectContaining({
+          'resource-url': 'http://localhost:8000/'
+        })
+      }),
+      expect.objectContaining({
         id: sha256hash(pixel),
         attributes: expect.objectContaining({
           'resource-url': 'http://localhost:8000/img.gif'
         })
       }),
       expect.objectContaining({
-        id: sha256hash(prefetchDOM),
         attributes: expect.objectContaining({
-          'resource-url': 'http://localhost:8000/'
+          'resource-url': expect.stringMatching(/^percy\.\d+\.log$/)
         })
       })
     ]);
@@ -194,6 +207,11 @@ describe('Asset Discovery', () => {
       expect.objectContaining({
         attributes: expect.objectContaining({
           'resource-url': 'http://localhost:8000/img.gif'
+        })
+      }),
+      expect.objectContaining({
+        attributes: expect.objectContaining({
+          'resource-url': expect.stringMatching(/^percy\.\d+\.log$/)
         })
       })
     ]);
@@ -292,7 +310,9 @@ describe('Asset Discovery', () => {
       expect(paths.sort()).toEqual(['/img.gif', '/style.css']);
 
       // the first and second snapshot's captured resources should match
-      expect(captured[0]).toEqual(captured[1]);
+      expect(captured[0][0]).toEqual(captured[1][0]);
+      expect(captured[0][1]).toEqual(captured[1][1]);
+      expect(captured[0][2]).toEqual(captured[1][2]);
     });
 
     it('does not cache resource requests when disabled', async () => {
@@ -307,7 +327,9 @@ describe('Asset Discovery', () => {
       expect(paths.sort()).toEqual(['/img.gif', '/img.gif', '/style.css', '/style.css']);
 
       // the first and second snapshot's captured resources should match
-      expect(captured[0]).toEqual(captured[1]);
+      expect(captured[0][0]).toEqual(captured[1][0]);
+      expect(captured[0][1]).toEqual(captured[1][1]);
+      expect(captured[0][2]).toEqual(captured[1][2]);
     });
   });
 
@@ -391,12 +413,17 @@ describe('Asset Discovery', () => {
       expect(captured[0]).toEqual([
         expect.objectContaining({
           attributes: expect.objectContaining({
+            'resource-url': 'http://localhost:8000/'
+          })
+        }),
+        expect.objectContaining({
+          attributes: expect.objectContaining({
             'resource-url': 'http://localhost:8000/style.css'
           })
         }),
         expect.objectContaining({
           attributes: expect.objectContaining({
-            'resource-url': 'http://localhost:8000/'
+            'resource-url': expect.stringMatching(/^percy\.\d+\.log$/)
           })
         })
       ]);
@@ -477,12 +504,17 @@ describe('Asset Discovery', () => {
       expect(captured[0]).toEqual([
         expect.objectContaining({
           attributes: expect.objectContaining({
+            'resource-url': 'http://localhost:8000/'
+          })
+        }),
+        expect.objectContaining({
+          attributes: expect.objectContaining({
             'resource-url': 'http://localhost:8000/style.css'
           })
         }),
         expect.objectContaining({
           attributes: expect.objectContaining({
-            'resource-url': 'http://localhost:8000/'
+            'resource-url': expect.stringMatching(/^percy\.\d+\.log$/)
           })
         })
       ]);

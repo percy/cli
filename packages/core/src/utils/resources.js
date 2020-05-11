@@ -42,3 +42,15 @@ export function createRootResource(url, content) {
     root: true
   };
 }
+
+// Creates a log resource object.
+export function createLogResource(logs) {
+  let content = JSON.stringify(logs);
+
+  return {
+    content,
+    url: `percy.${Date.now()}.log`,
+    sha: sha256hash(content),
+    mimetype: 'text/plain'
+  };
+}
