@@ -2,6 +2,7 @@ import prepareDOM from './prepare-dom';
 import serializeInputs from './serialize-inputs';
 import serializeFrames from './serialize-frames';
 import serializeCSSOM from './serialize-cssom';
+import serializeCanvas from './serialize-canvas';
 
 // Returns a copy or new doctype for a document.
 function doctype(dom) {
@@ -33,6 +34,7 @@ export default function serializeDOM({
 
   if (!enableJavaScript) {
     serializeCSSOM(dom, clone);
+    serializeCanvas(dom, clone);
   }
 
   let doc = clone.documentElement;
