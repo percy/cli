@@ -5,6 +5,7 @@ export default function serializeFrames(dom, clone, { enableJavaScript }) {
   for (let frame of dom.querySelectorAll('iframe')) {
     let percyElementId = frame.getAttribute('data-percy-element-id');
     let cloneEl = clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
+    let builtWithJs = !frame.srcdoc && (!frame.src || frame.src.split(':')[0] === 'javascript');
 
     // delete frames within the head since they usually break pages when
     // rerendered and do not effect the visuals of a page
@@ -13,8 +14,6 @@ export default function serializeFrames(dom, clone, { enableJavaScript }) {
 
     // if the frame document is accessible, we can serialize it
     } else if (frame.contentDocument) {
-      let builtWithJs = !frame.srcdoc && (!frame.src || frame.src.split(':')[0] === 'javascript');
-
       // js is enabled and this frame was built with js, don't serialize it
       if (enableJavaScript && builtWithJs) { continue; }
 
@@ -30,6 +29,11 @@ export default function serializeFrames(dom, clone, { enableJavaScript }) {
       // assign to srcdoc and remove src
       cloneEl.setAttribute('srcdoc', serialized);
       cloneEl.removeAttribute('src');
+
+    // delete inaccessible frames built with js when js is disabled because they
+    // break asset discovery by creating non-captured requests that hang
+    } else if (!enableJavaScript && builtWithJs) {
+      cloneEl.remove();
     }
   }
 }

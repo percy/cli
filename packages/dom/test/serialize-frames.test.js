@@ -36,6 +36,12 @@ describe('serializeFrames', () => {
     let $frameExt = document.getElementById('frame-external');
     await when(() => assert(!$frameExt.contentDocument, '#frame-external did not load in time'), 3000);
 
+    let $frameInject = document.createElement('iframe');
+    $frameInject.id = 'frame-inject';
+    $frameInject.src = 'javascript:false';
+    $frameInject.sandbox = '';
+    document.getElementById('test').appendChild($frameInject);
+
     $ = cheerio.load(serializeDOM());
   });
 
@@ -82,6 +88,10 @@ describe('serializeFrames', () => {
   });
 
   it('removes iframes from the head element', () => {
-    expect($('#iframe-head')).toHaveLength(0);
+    expect($('#frame-head')).toHaveLength(0);
+  });
+
+  it('removes inaccessible JS frames', () => {
+    expect($('#frame-inject')).toHaveLength(0);
   });
 });
