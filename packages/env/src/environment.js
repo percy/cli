@@ -270,14 +270,11 @@ export default class PercyEnvironment {
 
   // git information for the current commit
   get git() {
-    return getCommitData(this.commit, this.branch, {
-      message: this.vars.GIT_COMMIT_MESSAGE,
-      authorName: this.vars.GIT_AUTHOR_NAME,
-      authorEmail: this.vars.GIT_AUTHOR_EMAIL,
-      committedAt: this.vars.GIT_COMMITTED_DATE,
-      committerName: this.vars.GIT_COMMITTER_NAME,
-      committerEmail: this.vars.GIT_COMMITTER_EMAIL
-    });
+    return getCommitData(
+      this.commit,
+      this.branch,
+      this.vars
+    );
   }
 
   // manually set build commit and branch targets

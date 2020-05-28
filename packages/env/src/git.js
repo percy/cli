@@ -25,19 +25,24 @@ export function git(args) {
   return '';
 }
 
-// get raw commit data with fallbacks
-export function getCommitData(sha, branch, fallbacks = {}) {
+// get raw commit data
+export function getCommitData(sha, branch, vars = {}) {
   let raw = git(`show ${sha || 'HEAD'} --quiet --format=${GIT_COMMIT_FORMAT}`);
 
+  // prioritize PERCY_GIT_* vars and fallback to GIT_* vars
+  let get = key => vars[`PERCY_GIT_${key}`] ||
+    raw.match(new RegExp(`${key}:(.*)`, 'm'))?.[1] ||
+    vars[`GIT_${key}`];
+
   return {
-    sha: raw.match(/COMMIT_SHA:(.*)/)?.[1] || sha,
-    branch: branch || git('rev-parse --abbrev-ref HEAD'),
-    message: raw.match(/COMMIT_MESSAGE:(.*)/m)?.[1] || fallbacks.message,
-    authorName: raw.match(/AUTHOR_NAME:(.*)/)?.[1] || fallbacks.authorName,
-    authorEmail: raw.match(/AUTHOR_EMAIL:(.*)/)?.[1] || fallbacks.authorEmail,
-    committedAt: raw.match(/COMMITTED_DATE:(.*)/)?.[1] || fallbacks.committedAt,
-    committerName: raw.match(/COMMITTER_NAME:(.*)/)?.[1] || fallbacks.committerName,
-    committerEmail: raw.match(/COMMITTER_EMAIL:(.*)/)?.[1] || fallbacks.committerEmail
+    sha: sha || raw.match(/COMMIT_SHA:(.*)/)?.[1] || null,
+    branch: branch || git('rev-parse --abbrev-ref HEAD') || null,
+    message: get('COMMIT_MESSAGE'),
+    authorName: get('AUTHOR_NAME'),
+    authorEmail: get('AUTHOR_EMAIL'),
+    committedAt: get('COMMITTED_DATE'),
+    committerName: get('COMMITTER_NAME'),
+    committerEmail: get('COMMITTER_EMAIL')
   };
 }
 
