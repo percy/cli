@@ -11,6 +11,7 @@ export function inspect(config) {
 // falls back to schema defaults.
 export default function stringify(format, config = getDefaults()) {
   switch (format) {
+    case 'yml':
     case 'yaml':
       return YAML.stringify(config);
     case 'json':

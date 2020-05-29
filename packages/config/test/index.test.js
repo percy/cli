@@ -401,6 +401,13 @@ describe('PercyConfig', () => {
     });
 
     it('formats config as yaml', () => {
+      expect(PercyConfig.stringify('yml', {
+        foo: { bar: 'baz' }
+      })).toBe([
+        'foo:',
+        '  bar: baz\n'
+      ].join('\n'));
+
       expect(PercyConfig.stringify('yaml', {
         foo: { bar: 'baz' }
       })).toBe([
