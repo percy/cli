@@ -19,6 +19,6 @@ export default function stringify(format, config = getDefaults()) {
     case 'js':
       return `module.exports = ${inspect(config)}`;
     default:
-      return '';
+      throw new Error(`Unsupported format: ${format}`);
   }
 }

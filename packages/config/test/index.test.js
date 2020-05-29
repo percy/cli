@@ -385,10 +385,6 @@ describe('PercyConfig', () => {
   });
 
   describe('.stringify()', () => {
-    it('returns an empty string without a format', () => {
-      expect(PercyConfig.stringify()).toBe('');
-    });
-
     it('formats the default config', () => {
       expect(PercyConfig.stringify('json')).toBe([
         '{',
@@ -438,6 +434,11 @@ describe('PercyConfig', () => {
         '  }',
         '}'
       ].join('\n'));
+    });
+
+    it('throws an error with an unrecognized format', () => {
+      expect(() => PercyConfig.stringify('foo'))
+        .toThrow('Unsupported format: foo');
     });
   });
 });
