@@ -10,7 +10,7 @@ import { inspect } from './stringify';
 export const cache = new Map();
 
 // The cosmiconfig explorer used to load config files
-const explorer = cosmiconfigSync('percy', {
+export const explorer = cosmiconfigSync('percy', {
   searchPlaces: [
     'package.json',
     '.percyrc',

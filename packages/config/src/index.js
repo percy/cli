@@ -1,4 +1,4 @@
-import load, { cache } from './load';
+import load, { cache, explorer } from './load';
 import validate, { addSchema, resetSchema } from './validate';
 import getDefaults from './defaults';
 import stringify from './stringify';
@@ -7,6 +7,7 @@ import stringify from './stringify';
 export default {
   load,
   cache,
+  explorer,
   validate,
   addSchema,
   resetSchema,

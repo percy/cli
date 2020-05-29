@@ -1,6 +1,6 @@
 import mock from 'mock-require';
 
-const configs = new Map();
+export const configs = new Map();
 
 export default function mockConfig(f, c) {
   configs.set(f, {
