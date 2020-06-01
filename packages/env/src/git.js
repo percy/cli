@@ -32,10 +32,10 @@ export function getCommitData(sha, branch, vars = {}) {
   // prioritize PERCY_GIT_* vars and fallback to GIT_* vars
   let get = key => vars[`PERCY_GIT_${key}`] ||
     raw.match(new RegExp(`${key}:(.*)`, 'm'))?.[1] ||
-    vars[`GIT_${key}`];
+    vars[`GIT_${key}`] || null;
 
   return {
-    sha: sha || raw.match(/COMMIT_SHA:(.*)/)?.[1] || null,
+    sha: sha?.length === 40 ? sha : get('COMMIT_SHA'),
     branch: branch || git('rev-parse --abbrev-ref HEAD') || null,
     message: get('COMMIT_MESSAGE'),
     authorName: get('AUTHOR_NAME'),
