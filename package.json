@@ -5,9 +5,9 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "lerna run build --parallel",
-    "build:watch": "lerna run build --parallel -- --watch",
-    "clean": "rm -rf packages/**/{dist,.nyc_output,coverage}",
+    "build": "lerna run build --stream",
+    "build:watch": "lerna run build --stream -- --watch",
+    "clean": "rm -rf packages/**/{dist,.nyc_output,coverage,oclif.manifest.json}",
     "lint": "eslint --ignore-path .gitignore .",
     "readme": "lerna run --parallel readme",
     "test": "lerna run --stream --concurrency=1 test -- --colors",
