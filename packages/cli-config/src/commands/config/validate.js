@@ -16,11 +16,11 @@ export class Validate extends Command {
   ];
 
   async run() {
-    let { args: { filepath } } = this.parse();
+    let { args: { filepath: path } } = this.parse();
     log.loglevel('debug');
 
     // when `bail` is true, #load() returns undefined on validation warnings
-    if (!PercyConfig.load({ filepath, bail: true })) {
+    if (!PercyConfig.load({ path, bail: true })) {
       this.exit(1);
     }
   }

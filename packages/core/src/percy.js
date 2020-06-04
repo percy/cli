@@ -61,7 +61,7 @@ export default class Percy {
     this.#snapshots = new Queue();
     this.#captures = new Queue(concurrency);
 
-    this.config = PercyConfig.load({ filepath: config, overrides: options });
+    this.config = PercyConfig.load({ path: config, overrides: options });
     this.discoverer = new Discoverer(this.config.discovery);
     this.client = new PercyClient({
       clientInfo: [`${pkg.name}/${pkg.version}`].concat(clientInfo),

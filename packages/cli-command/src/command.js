@@ -56,7 +56,7 @@ export default class PercyCommand extends Command {
 
     // will also validate config and log warnings
     return PercyConfig.load({
-      filepath: this.flags.config,
+      path: this.flags.config,
       overrides
     });
   }
