@@ -141,36 +141,54 @@ describe('PercyConfig', () => {
 
   describe('.load()', () => {
     beforeEach(() => {
-      PercyConfig.addSchema({ arr: { type: 'array', items: { type: 'string' } } });
-      mockConfig('.percy.yml', { version: 2, test: { value: 'percy' } });
-      mockConfig('.bar.yml', { version: 2, test: { value: 'bar' } });
-      mockConfig('.defaults.yml', { version: 2, arr: ['merged'] });
+      PercyConfig.addSchema({
+        arr: {
+          type: 'array',
+          items: { type: 'string' }
+        }
+      });
+
+      mockConfig('.percy.yml', [
+        'version: 2',
+        'test:',
+        '  value: percy'
+      ].join('\n'));
+
+      mockConfig('.bar.yml', [
+        'version: 2',
+        'test:',
+        '  value: bar'
+      ].join('\n'));
+
+      mockConfig('.defaults.yml', [
+        'version: 2',
+        'arr: [merged]'
+      ].join('\n'));
     });
 
     it('loads a config file from the provided filepath', () => {
       // mock cosmiconfig.load returns the exact mock
-      expect(PercyConfig.load({ filepath: '.bar.yml' })).toEqual({
+      expect(PercyConfig.load({ path: '.bar.yml' })).toEqual({
         version: 2,
         test: { value: 'bar' }
       });
     });
 
-    it('searches for specific config files without a filepath', () => {
-      // mock consmiconfig.search returns the first mock
+    it('searches for specific config files without a path', () => {
       expect(PercyConfig.load()).toEqual({
         version: 2,
         test: { value: 'percy' }
       });
     });
 
-    it('does not search for config files when filepath is false', () => {
-      expect(PercyConfig.load({ filepath: false })).toEqual({
+    it('does not search for config files when path is false', () => {
+      expect(PercyConfig.load({ path: false })).toEqual({
         version: 2,
         test: { value: 'foo' }
       });
     });
 
-    it('logs the filepath of a found config', () => {
+    it('logs the path of a found config', () => {
       log.loglevel('debug');
 
       expect(stdio.capture(() => (
@@ -186,8 +204,30 @@ describe('PercyConfig', () => {
       );
     });
 
+    it('can search a provided directory for a config file', () => {
+      log.loglevel('debug');
+
+      mockConfig('config/.percy.yml', [
+        'version: 2',
+        'test:',
+        '  value: config/percy'
+      ].join('\n'));
+
+      expect(stdio.capture(() => (
+        PercyConfig.load({ path: 'config/' })
+      ))).toEqual({
+        version: 2,
+        test: { value: 'config/percy' }
+      });
+
+      expect(stdio[2]).toHaveLength(0);
+      expect(stdio[1]).toContain(
+        '[percy] Found config file: config/.percy.yml\n'
+      );
+    });
+
     it('returns config options merged with defaults', () => {
-      expect(PercyConfig.load({ filepath: '.defaults.yml' })).toEqual({
+      expect(PercyConfig.load({ path: '.defaults.yml' })).toEqual({
         version: 2,
         test: { value: 'foo' },
         arr: ['merged']
@@ -196,29 +236,19 @@ describe('PercyConfig', () => {
 
     it('caches config files on subsequent loads', () => {
       let loads = 0;
-
-      mockConfig('.cached.yml', () => ++loads && {
-        version: 2,
-        test: { value: 'cache' }
-      });
-
-      PercyConfig.load({ filepath: '.cached.yml' });
-      PercyConfig.load({ filepath: '.cached.yml' });
-      PercyConfig.load({ filepath: '.cached.yml' });
+      mockConfig('.cached.yml', () => ++loads && 'version: 2');
+      PercyConfig.load({ path: '.cached.yml' });
+      PercyConfig.load({ path: '.cached.yml' });
+      PercyConfig.load({ path: '.cached.yml' });
       expect(loads).toBe(1);
     });
 
     it('reloads cached config files when `reload` is true', () => {
       let loads = 0;
-
-      mockConfig('.cached.yml', () => ++loads && {
-        version: 2,
-        test: { value: 'cache' }
-      });
-
-      PercyConfig.load({ filepath: '.cached.yml' });
-      PercyConfig.load({ filepath: '.cached.yml' });
-      PercyConfig.load({ filepath: '.cached.yml', reload: true });
+      mockConfig('.cached.yml', () => ++loads && 'version: 2');
+      PercyConfig.load({ path: '.cached.yml' });
+      PercyConfig.load({ path: '.cached.yml' });
+      PercyConfig.load({ path: '.cached.yml', reload: true });
       expect(loads).toBe(2);
     });
 
@@ -226,7 +256,7 @@ describe('PercyConfig', () => {
       log.loglevel('debug');
 
       expect(stdio.capture(() => (
-        PercyConfig.load({ filepath: '.404.yml' })
+        PercyConfig.load({ path: '.404.yml' })
       ))).toEqual({
         version: 2,
         test: { value: 'foo' }
@@ -243,7 +273,7 @@ describe('PercyConfig', () => {
       log.loglevel('debug');
 
       expect(stdio.capture(() => (
-        PercyConfig.load({ filepath: '.error.yml' })
+        PercyConfig.load({ path: '.error.yml' })
       ))).toEqual({
         version: 2,
         test: { value: 'foo' }
@@ -258,12 +288,12 @@ describe('PercyConfig', () => {
 
     it('logs loaded and provided config options', () => {
       PercyConfig.addSchema({ fooBar: { type: 'string' } });
-      mockConfig('.foo.yml', { version: 2, 'foo-bar': 'baz' });
+      mockConfig('.foo.yml', 'version: 2\nfoo-bar: baz');
       log.loglevel('debug');
 
       expect(stdio.capture(() => (
         PercyConfig.load({
-          filepath: '.foo.yml',
+          path: '.foo.yml',
           overrides: {
             test: { value: 'hi' },
             arr: []
@@ -291,11 +321,11 @@ describe('PercyConfig', () => {
     });
 
     it('logs with an missing version and uses default options', () => {
-      mockConfig('.no-version.yml', { test: { value: 'no-version' } });
+      mockConfig('.no-version.yml', 'test:\n  value: no-version');
       log.loglevel('debug');
 
       expect(stdio.capture(() => (
-        PercyConfig.load({ filepath: '.no-version.yml' })
+        PercyConfig.load({ path: '.no-version.yml' })
       ))).toEqual({
         version: 2,
         test: { value: 'foo' }
@@ -309,11 +339,11 @@ describe('PercyConfig', () => {
     });
 
     it('logs with an invalid version and uses default options', () => {
-      mockConfig('.bad-version.yml', { version: 1, test: { value: 'bad-version' } });
+      mockConfig('.bad-version.yml', 'version: 1\ntest:\n  value: bad-version');
       log.loglevel('debug');
 
       expect(stdio.capture(() => (
-        PercyConfig.load({ filepath: '.bad-version.yml' })
+        PercyConfig.load({ path: '.bad-version.yml' })
       ))).toEqual({
         version: 2,
         test: { value: 'foo' }
@@ -327,12 +357,12 @@ describe('PercyConfig', () => {
     });
 
     it('logs validation warnings and scrubs failing properties', () => {
-      mockConfig('.invalid.yml', { version: 2, foo: 'bar' });
+      mockConfig('.invalid.yml', 'version: 2\nfoo: bar');
       log.loglevel('debug');
 
       expect(stdio.capture(() => (
         PercyConfig.load({
-          filepath: '.invalid.yml',
+          path: '.invalid.yml',
           overrides: {
             test: { value: 1 },
             arr: {}
@@ -359,12 +389,12 @@ describe('PercyConfig', () => {
     });
 
     it('returns undefined on validation warnings when `bail` is true', () => {
-      mockConfig('.invalid.yml', { version: 2, foo: 'bar' });
+      mockConfig('.invalid.yml', 'version: 2\nfoo: bar');
       log.loglevel('debug');
 
       expect(stdio.capture(() => (
         PercyConfig.load({
-          filepath: '.invalid.yml',
+          path: '.invalid.yml',
           bail: true,
           overrides: {
             test: { value: 1 },

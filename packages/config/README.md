@@ -10,7 +10,7 @@ configuration files.
 ### Loading config files
 
 The `.load()` method will load and validate a configuation file, optionally merging it with any
-provided `overrides`. If no `filepath` is provided, will search for the first supported config found
+provided `overrides`. If no `path` is provided, will search for the first supported config found
 from the current directory up to the home directoy. Configuration files are cached and reused unless
 `reload` is `true`.
 
@@ -19,7 +19,7 @@ import PercyConfig from '@percy/config'
 
 // loading is done synchronously
 const config = PercyConfig.load({
-  filepath,        // the path to a Percy config file
+  path,            // config file path or directory path containing a config file
   overrides = {},  // configuration option overrides
   reload = false,  // reload file and update cache
   bail = false     // return undefined on validation warnings

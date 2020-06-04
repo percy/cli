@@ -3,16 +3,16 @@ import PercyConfig, { PercyConfigObject } from '@percy/config';
 
 // .load()
 expectType<PercyConfigObject>(PercyConfig.load());
-expectType<PercyConfigObject>(PercyConfig.load({ filepath: false }));
-expectType<PercyConfigObject>(PercyConfig.load({ filepath: undefined }));
+expectType<PercyConfigObject>(PercyConfig.load({ path: false }));
+expectType<PercyConfigObject>(PercyConfig.load({ path: undefined }));
 expectType<PercyConfigObject>(PercyConfig.load({
-  filepath: '.percy.yml',
+  path: '.percy.yml',
   overrides: { foo: 'bar' },
   reload: true,
   bail: true
 }));
 
-expectError(PercyConfig.load({ filepath: true }));
+expectError(PercyConfig.load({ path: true }));
 expectError(PercyConfig.load({ overrides: null }));
 
 // .validate()

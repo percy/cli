@@ -5,7 +5,7 @@ export interface PercyConfigObject extends Pojo { version: number; }
 
 declare namespace PercyConfig {
   function load(options?: {
-    filepath?: undefined | string | false,
+    path?: undefined | string | false,
     overrides?: Pojo,
     reload?: boolean,
     bail?: boolean

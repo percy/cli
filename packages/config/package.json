@@ -23,6 +23,7 @@
     "ajv": "^6.12.0",
     "cosmiconfig": "^6.0.0",
     "deepmerge": "^4.2.2",
+    "path-type": "^4.0.0",
     "yaml": "^1.8.0"
   },
   "devDependencies": {

@@ -1,4 +1,6 @@
+import { relative } from 'path';
 import { cosmiconfigSync } from 'cosmiconfig';
+import { isDirectorySync } from 'path-type';
 import merge from 'deepmerge';
 import log from '@percy/logger';
 import getDefaults from './defaults';
@@ -11,6 +13,7 @@ export const cache = new Map();
 
 // The cosmiconfig explorer used to load config files
 export const explorer = cosmiconfigSync('percy', {
+  cache: false,
   searchPlaces: [
     'package.json',
     '.percyrc',
@@ -31,25 +34,22 @@ export const explorer = cosmiconfigSync('percy', {
 // always returns camelCase options. Currently only supports version 2 config
 // files; missing versions or other versions are discarded.
 export default function load({
-  filepath,
+  path,
   overrides = {},
   reload = false,
   bail = false
 } = {}) {
-  // load cached config if available
-  let config = filepath
-    ? cache.get(filepath)
-    : Array.from(cache)[cache.size - 1]?.[1];
+  // load cached config; when no path is specified, get the last config cached
+  let config = path ? cache.get(path) : Array.from(cache)[cache.size - 1]?.[1];
 
   // load config or reload cached config
-  if (filepath !== false && (!config || reload)) {
+  if (path !== false && (!config || reload)) {
     try {
-      let result = filepath
-        ? explorer.load(filepath)
-        : explorer.search();
+      let result = !path || isDirectorySync(path)
+        ? explorer.search(path) : explorer.load(path);
 
       if (result && result.config) {
-        log.debug(`Found config file: ${result.filepath}`);
+        log.debug(`Found config file: ${relative('', result.filepath)}`);
 
         if (result.config.version !== 2) {
           log.warn('Ignoring config file - ' + (
@@ -60,7 +60,7 @@ export default function load({
         } else {
           // normalize to remove empty values and convert snake-case to camelCase
           config = normalize(result.config);
-          cache.set(filepath, config);
+          cache.set(path, config);
         }
       } else {
         log.debug('Config file not found');
