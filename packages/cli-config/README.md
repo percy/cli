@@ -6,6 +6,7 @@ Percy configuration files.
 ## Commands
 <!-- commands -->
 * [`percy config:create [FILEPATH]`](#percy-configcreate-filepath)
+* [`percy config:migrate [FILEPATH] [OUTPUT]`](#percy-configmigrate-filepath-output)
 * [`percy config:validate [FILEPATH]`](#percy-configvalidate-filepath)
 
 ## `percy config:create [FILEPATH]`
@@ -33,6 +34,28 @@ EXAMPLES
   $ percy config:create --js
   $ percy config:create --rc
   $ percy config:create ./config/percy.yml
+```
+
+## `percy config:migrate [FILEPATH] [OUTPUT]`
+
+Migrate a Percy config file to the latest version
+
+```
+USAGE
+  $ percy config:migrate [FILEPATH] [OUTPUT]
+
+ARGUMENTS
+  FILEPATH  current config filepath, detected by default
+  OUTPUT    new config filepath to write to, defaults to FILEPATH
+
+OPTIONS
+  -d, --dry-run  prints the new config rather than writing it
+
+EXAMPLES
+  $ percy config:migrate
+  $ percy config:migrate --dry-run
+  $ percy config:migrate ./config/percy.yml
+  $ percy config:migrate .percy.yml .percy.js
 ```
 
 ## `percy config:validate [FILEPATH]`
