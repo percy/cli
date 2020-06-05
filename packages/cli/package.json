@@ -27,7 +27,7 @@
     ]
   },
   "dependencies": {
-    "@oclif/plugin-help": "^2.2.3",
+    "@oclif/plugin-help": "^3.1.0",
     "@percy/cli-config": "1.0.0",
     "@percy/cli-exec": "1.0.0",
     "@percy/cli-finalize": "1.0.0",
