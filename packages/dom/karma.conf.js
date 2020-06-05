@@ -35,7 +35,12 @@ module.exports = config => {
 
     webpack: {
       mode: 'development',
-      module: require('./webpack.config').module
+      module: require('./webpack.config').module,
+      externals: {
+        // referenced by jest expect
+        fs: '{}',
+        module: '{}'
+      }
     },
 
     webpackMiddleware: {
