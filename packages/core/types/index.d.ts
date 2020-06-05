@@ -1,5 +1,5 @@
 // Minimum TypeScript Version: 3.8
-import 'puppeteer-core/lib/externs';
+import Puppeteer from 'puppeteer-core';
 
 type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'silent';
 interface Pojo { [x: string]: any; }
