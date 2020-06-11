@@ -128,8 +128,8 @@ jobs:
       - name: Test @percy/cli-exec
         run: yarn workspace @percy/cli-exec test:coverage --colors
 
-      - name: Test @percy/cli-finalize
-        run: yarn workspace @percy/cli-finalize test:coverage --colors
+      - name: Test @percy/cli-build
+        run: yarn workspace @percy/cli-build test:coverage --colors
 
       - name: Test @percy/cli-snapshot
         run: yarn workspace @percy/cli-snapshot test:coverage --colors
