@@ -1,5 +1,5 @@
 {
-  "name": "@percy/cli-finalize",
+  "name": "@percy/cli-build",
   "version": "1.0.0",
   "license": "MIT",
   "main": "dist/index.js",
@@ -20,7 +20,12 @@
   },
   "oclif": {
     "bin": "percy",
-    "commands": "./dist/commands"
+    "commands": "./dist/commands",
+    "topics": {
+      "build": {
+        "description": "interact with Percy builds"
+      }
+    }
   },
   "dependencies": {
     "@percy/cli-command": "1.0.0",

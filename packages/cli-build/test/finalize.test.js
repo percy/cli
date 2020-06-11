@@ -1,9 +1,9 @@
 import expect from 'expect';
 import mockAPI from '@percy/client/test/helper';
 import stdio from '@percy/logger/test/helper';
-import { Finalize } from '../src/commands/finalize';
+import { Finalize } from '../src/commands/build/finalize';
 
-describe('percy finalize', () => {
+describe('percy build:finalize', () => {
   beforeEach(() => {
     process.env.PERCY_PARALLEL_TOTAL = '-1';
     mockAPI.start();

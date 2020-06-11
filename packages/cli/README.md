@@ -25,7 +25,7 @@ $ npm install @percy/cli --save-dev
 - [`percy snapshot`](./packages/cli-snapshot#readme) - snapshot a static directory or a list of pages
 - [`percy upload`](./packages/cli-upload#readme) - upload a static directory of images
 - [`percy config`](./packages/cli-config#readme) - manage configuration files
-- [`percy finalize`](./packages/cli-finalize#readme) - finalize parallel builds
+- [`percy build`](./packages/cli-build#readme) - interact with Percy builds
 
 ### Advanced
 

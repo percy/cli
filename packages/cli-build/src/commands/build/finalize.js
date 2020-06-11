@@ -3,7 +3,7 @@ import PercyClient from '@percy/client';
 import log from '@percy/logger';
 
 export class Finalize extends Command {
-  static description = 'Finalize parallel Percy builds';
+  static description = 'Finalize parallel Percy builds where PERCY_PARALLEL_TOTAL=-1';
 
   static flags = {
     ...flags.logging

@@ -20,7 +20,7 @@
     "plugins": [
       "@percy/cli-config",
       "@percy/cli-exec",
-      "@percy/cli-finalize",
+      "@percy/cli-build",
       "@percy/cli-snapshot",
       "@percy/cli-upload",
       "@oclif/plugin-help"
@@ -30,7 +30,7 @@
     "@oclif/plugin-help": "^3.1.0",
     "@percy/cli-config": "1.0.0",
     "@percy/cli-exec": "1.0.0",
-    "@percy/cli-finalize": "1.0.0",
+    "@percy/cli-build": "1.0.0",
     "@percy/cli-snapshot": "1.0.0",
     "@percy/cli-upload": "1.0.0"
   }
