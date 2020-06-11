@@ -185,6 +185,67 @@ export default class PercyClient {
     return this.get(`projects/${projectSlug}/builds?${qs}`);
   }
 
+  // Resolves when the build has finished and is no longer pending or
+  // processing. By default, will time out if no update after 10 minutes.
+  waitForBuild({
+    build,
+    project,
+    sha,
+    progress,
+    timeout = 600000,
+    interval = 1000
+  }) {
+    if (sha && !project) {
+      throw new Error('Missing project for commit');
+    } else if (!sha && !build) {
+      throw new Error('Missing build ID or commit SHA');
+    }
+
+    // get build data by id or project-commit combo
+    let getBuildData = async () => {
+      let body = build
+        ? await this.getBuild(build)
+        : await this.getBuilds(project, { sha });
+      let data = build ? body?.data : body?.data[0];
+
+      return [data, data?.attributes.state];
+    };
+
+    // recursively poll every second until the build finishes
+    return new Promise((resolve, reject) => (async function poll(last, t) {
+      try {
+        let [data, state] = await getBuildData();
+        let updated = JSON.stringify(data) !== JSON.stringify(last);
+        let pending = !state || state === 'pending' || state === 'processing';
+
+        // new data recieved
+        if (updated) {
+          t = Date.now();
+
+        // no new data within the timeout
+        } else if (Date.now() - t >= timeout) {
+          throw new Error('Timeout exceeded without an update');
+        }
+
+        // call progress after the first update
+        if ((last || pending) && updated && progress) {
+          progress(data);
+        }
+
+        // not finished, poll again
+        if (pending) {
+          return setTimeout(poll, interval, data, t);
+
+        // build finished
+        } else {
+          resolve(data);
+        }
+      } catch (err) {
+        reject(err);
+      }
+    })(null, Date.now()));
+  }
+
   // Uploads a single resource to the active build. If `filepath` is provided,
   // `content` is read from the filesystem. The sha is optional and will be
   // created from `content` if one is not provided.

@@ -230,6 +230,74 @@ describe('PercyClient', () => {
     });
   });
 
+  describe('#waitForBuild()', () => {
+    it('throws an error when missing a build or commit sha', () => {
+      expect(() => client.waitForBuild({})).toThrow('Missing build ID or commit SHA');
+    });
+
+    it('throws an error when missing a project with a commit sha', () => {
+      expect(() => client.waitForBuild({ sha: '...' })).toThrow('Missing project for commit');
+    });
+
+    it('calls the progress function each interval while waiting', async () => {
+      let progress = 0;
+
+      mockAPI
+        .reply('/builds/123', () => [200, {
+          data: { attributes: { state: 'processing' } }
+        }])
+        .reply('/builds/123', () => [200, {
+          data: { attributes: { state: 'processing' } }
+        }])
+        .reply('/builds/123', () => [200, {
+          data: { attributes: { state: 'finished' } }
+        }]);
+
+      await client.waitForBuild({
+        build: '123',
+        interval: 50,
+        progress: () => progress++
+      });
+
+      expect(progress).toEqual(2);
+    });
+
+    it('throws an error with no update within the timeout', async () => {
+      mockAPI.reply('/builds/123', () => [200, {
+        data: { attributes: { state: 'processing' } }
+      }]);
+
+      await expect(client.waitForBuild({ build: '123', timeout: 1500, interval: 50 }))
+        .rejects.toThrow('Timeout exceeded without an update');
+    });
+
+    it('resolves when the build completes', async () => {
+      mockAPI
+        .reply('/builds/123', () => [200, {
+          data: { attributes: { state: 'processing' } }
+        }])
+        .reply('/builds/123', () => [200, {
+          data: { attributes: { state: 'finished' } }
+        }]);
+
+      await expect(client.waitForBuild({ build: '123', interval: 50 }))
+        .resolves.toEqual({ attributes: { state: 'finished' } });
+    });
+
+    it('resolves when the build matching a sha completes', async () => {
+      mockAPI
+        .reply('/projects/test/builds?filter[sha]=abcdef', () => [200, {
+          data: [{ attributes: { state: 'processing' } }]
+        }])
+        .reply('/projects/test/builds?filter[sha]=abcdef', () => [200, {
+          data: [{ attributes: { state: 'finished' } }]
+        }]);
+
+      await expect(client.waitForBuild({ project: 'test', sha: 'abcdef', interval: 50 }))
+        .resolves.toEqual({ attributes: { state: 'finished' } });
+    });
+  });
+
   describe('#finalizeBuild()', () => {
     it('throws an error when there is no active build', async () => {
       await expect(client.finalizeBuild())

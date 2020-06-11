@@ -60,3 +60,12 @@ await client.getBuild(buildId)
 ``` js
 await client.getBuilds(projectSlug/*, filters*/)
 ```
+
+### Wait for a build to be finished
+
+**Requires a read access token**
+
+``` js
+await client.waitForBuild({ build: 'build-id' })
+await client.waitForBuild({ project: 'project-slug', commit: '40-char-sha' })
+```
