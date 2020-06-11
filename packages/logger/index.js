@@ -48,6 +48,11 @@ const logger = createLogger({
   ]
 });
 
+// Attach the formatter so external logs can utilize it
+logger.formatter = message => formatter(
+  typeof message === 'string' ? { label: 'percy', message } : message
+);
+
 // Method to change the global logger's console log level. The second argument
 // can be used to set the appropriate level based on boolean flags and fallback
 // to the provided log level.

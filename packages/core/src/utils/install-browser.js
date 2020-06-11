@@ -8,12 +8,6 @@ const {
   chromium_revision: DEFAULT_CHROMIUM_REVISION
 } = require('puppeteer-core/package.json').puppeteer;
 
-// Utilizes the global logger console transport formatter to match other logs.
-function format(message) {
-  return log.transports[0].format
-    .transform({ level: 'info', message })[Symbol.for('message')];
-}
-
 // If the default Chromium revision is not yet downloaded, download it. Lazily
 // requires the progress package to print a progress bar during the download.
 export default async function maybeInstallBrowser(
@@ -44,7 +38,7 @@ export default async function maybeInstallBrowser(
 
     await fetcher.download(revision, (downloaded, total) => {
       progress = progress || new ProgressBar(
-        format(`Chromium r${revision} - ${readableBytes(total)} [:bar] :percent :etas`),
+        log.formatter(`Chromium r${revision} - ${readableBytes(total)} [:bar] :percent :etas`),
         { incomplete: ' ', width: 21, total, stream: process.stdout }
       );
 

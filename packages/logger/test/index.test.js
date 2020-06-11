@@ -40,6 +40,17 @@ describe('logger', () => {
     expect(stdio[1]).toEqual([`[${label}] url = ${colors.blue(url)}\n`]);
   });
 
+  describe('#formatter()', () => {
+    it('returns a string formatted as a percy log', () => {
+      expect(log.formatter('testing')).toEqual(`[${label}] testing`);
+    });
+
+    it('accepts a logger meta object', () => {
+      expect(log.formatter({ label: 'test', message: 'foobar' }))
+        .toEqual(`[${colors.magenta('test')}] foobar`);
+    });
+  });
+
   describe('#loglevel()', () => {
     it('sets the first transport log level', () => {
       expect(log.transports[0].level).toBe('debug');
