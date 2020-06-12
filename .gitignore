@@ -4,3 +4,4 @@ node_modules
 coverage
 dist
 oclif.manifest.json
+.DS_Store
