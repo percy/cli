@@ -21,7 +21,7 @@ OPTIONS
   --silent       log nothing
 
 EXAMPLE
-  $ percy finalize
+  $ percy build:finalize
 ```
 
 ## `percy build:wait`

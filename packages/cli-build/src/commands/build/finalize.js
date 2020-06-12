@@ -10,7 +10,7 @@ export class Finalize extends Command {
   };
 
   static examples = [
-    '$ percy finalize'
+    '$ percy build:finalize'
   ];
 
   async run() {
