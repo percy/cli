@@ -30,6 +30,7 @@
   "dependencies": {
     "@percy/cli-command": "1.0.0",
     "@percy/client": "1.0.0",
+    "@percy/env": "1.0.0",
     "@percy/logger": "1.0.0"
   }
 }

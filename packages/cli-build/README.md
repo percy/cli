@@ -44,6 +44,6 @@ OPTIONS
 
 EXAMPLES
   $ percy wait --build 123
-  $ percy wait --project test --commit $(git rev-parse @)
+  $ percy wait --project test --commit HEAD
 ```
 <!-- commandsstop -->
