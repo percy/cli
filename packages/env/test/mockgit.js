@@ -28,7 +28,8 @@ function gitmock(args) {
     return branch.mock?.(args) ?? '';
   } else if (args[0] === 'show' || args[0] === 'rev-parse') {
     let raw = commit.mock?.(args) ?? '';
-    return args[0] === 'show' ? raw : raw.match(/COMMIT_SHA:(.*)/)?.[1];
+    return args[0] !== 'show' && raw.startsWith('COMMIT_SHA')
+      ? raw.match(/COMMIT_SHA:(.*)/)?.[1] : raw;
   } else {
     return '';
   }
@@ -47,6 +48,7 @@ mock('child_process', {
 
 mock.reRequire('child_process');
 mock.reRequire('../src/git');
+mock.reRequire('../dist/git');
 mock.reRequire('../src/environment');
 mock.reRequire('../src');
 beforeEach(reset);
