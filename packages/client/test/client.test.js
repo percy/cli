@@ -36,7 +36,7 @@ describe('PercyClient', () => {
   describe('#userAgent()', () => {
     it('contains client and environment information', () => {
       expect(client.userAgent()).toMatch(
-        /^Percy\/v1 @percy\/client\/[\d.]+ \(node\/v[\d.]+.*\)$/
+        /^Percy\/v1 @percy\/client\/\S+ \(node\/v[\d.]+.*\)$/
       );
     });
 
@@ -48,7 +48,7 @@ describe('PercyClient', () => {
       });
 
       expect(client.userAgent()).toMatch(
-        /^Percy\/v1 @percy\/client\/[\d.]+ client-info \(env-info; node\/v[\d.]+.*\)$/
+        /^Percy\/v1 @percy\/client\/\S+ client-info \(env-info; node\/v[\d.]+.*\)$/
       );
     });
 
@@ -65,7 +65,7 @@ describe('PercyClient', () => {
       client.addEnvironmentInfo('env-info');
 
       expect(client.userAgent()).toMatch(
-        /^Percy\/v1 @percy\/client\/[\d.]+ client-info \(env-info; node\/v[\d.]+.*\)$/
+        /^Percy\/v1 @percy\/client\/\S+ client-info \(env-info; node\/v[\d.]+.*\)$/
       );
     });
   });
@@ -447,7 +447,7 @@ describe('PercyClient', () => {
       expect(mockAPI.requests['/builds/123/snapshots'][0].headers).toEqual(
         expect.objectContaining({
           'user-agent': expect.stringMatching(
-            /^Percy\/v1 @percy\/client\/[\d.]+ sdk\/info \(sdk\/env; node\/v[\d.]+.*\)$/
+            /^Percy\/v1 @percy\/client\/\S+ sdk\/info \(sdk\/env; node\/v[\d.]+.*\)$/
           )
         })
       );
