@@ -1,6 +1,6 @@
 {
   "name": "@percy/dom",
-  "version": "1.0.0",
+  "version": "1.0.0-beta.0",
   "main": "dist/index.js",
   "license": "MIT",
   "scripts": {
@@ -12,9 +12,12 @@
   "babel": {
     "extends": "../../babel.config.js",
     "presets": [
-      ["@babel/env", {
-        "targets": "last 2 version"
-      }]
+      [
+        "@babel/env",
+        {
+          "targets": "last 2 version"
+        }
+      ]
     ]
   },
   "devDependencies": {
