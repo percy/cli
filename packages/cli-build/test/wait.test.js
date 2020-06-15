@@ -1,7 +1,6 @@
 import expect from 'expect';
 import stdio from '@percy/logger/test/helper';
 import mockAPI from '@percy/client/test/helper';
-import mockgit from '@percy/env/test/mockgit';
 import { Wait } from '../src/commands/build/wait';
 
 describe('percy build:wait', () => {
@@ -115,36 +114,6 @@ describe('percy build:wait', () => {
     expect(stdio[1]).toHaveLength(0);
     expect(stdio[2]).toEqual(expect.arrayContaining([
       '[percy] Build #10 is expired. https://percy.io/test/test/123\n'
-    ]));
-  });
-
-  it('can parse a commit revision', async () => {
-    mockgit.commit(([, rev]) => rev === 'HEAD' && 'parsed-commit-sha');
-    mockAPI.reply('/projects/my-project/builds?filter[sha]=parsed-commit-sha', () => [200, {
-      data: [build({ 'total-comparisons-diff': 12, state: 'finished' }).data]
-    }]);
-
-    await stdio.capture(() => Wait.run(['--project=my-project', '--commit=HEAD']));
-
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual(expect.arrayContaining([
-      '[percy] Build #10 finished! https://percy.io/test/test/123\n',
-      '[percy] Found 12 changes\n'
-    ]));
-  });
-
-  it('defaults to the provided commit when parsing fails', async () => {
-    mockgit.commit(() => { throw new Error('test'); });
-    mockAPI.reply('/projects/my-project/builds?filter[sha]=HEAD', () => [200, {
-      data: [build({ 'total-comparisons-diff': 12, state: 'finished' }).data]
-    }]);
-
-    await stdio.capture(() => Wait.run(['--project=my-project', '--commit=HEAD']));
-
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual(expect.arrayContaining([
-      '[percy] Build #10 finished! https://percy.io/test/test/123\n',
-      '[percy] Found 12 changes\n'
     ]));
   });
 

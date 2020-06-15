@@ -1,5 +1,6 @@
 import expect from 'expect';
 import mock from 'mock-require';
+import mockgit from '@percy/env/test/mockgit';
 import PercyClient from '../src';
 import { sha256hash, base64encode } from '../src/utils';
 import mockAPI from './helper';
@@ -232,11 +233,13 @@ describe('PercyClient', () => {
 
   describe('#waitForBuild()', () => {
     it('throws an error when missing a build or commit sha', () => {
-      expect(() => client.waitForBuild({})).toThrow('Missing build ID or commit SHA');
+      expect(() => client.waitForBuild({}))
+        .toThrow('Missing build ID or commit SHA');
     });
 
     it('throws an error when missing a project with a commit sha', () => {
-      expect(() => client.waitForBuild({ sha: '...' })).toThrow('Missing project for commit');
+      expect(() => client.waitForBuild({ commit: '...' }))
+        .toThrow('Missing project for commit');
     });
 
     it('calls the progress function each interval while waiting', async () => {
@@ -284,16 +287,29 @@ describe('PercyClient', () => {
         .resolves.toEqual({ attributes: { state: 'finished' } });
     });
 
-    it('resolves when the build matching a sha completes', async () => {
+    it('resolves when the build matching a commit revision completes', async () => {
+      mockgit.commit(([, rev]) => rev === 'HEAD' && 'parsed-sha');
+
       mockAPI
-        .reply('/projects/test/builds?filter[sha]=abcdef', () => [200, {
+        .reply('/projects/test/builds?filter[sha]=parsed-sha', () => [200, {
           data: [{ attributes: { state: 'processing' } }]
         }])
-        .reply('/projects/test/builds?filter[sha]=abcdef', () => [200, {
+        .reply('/projects/test/builds?filter[sha]=parsed-sha', () => [200, {
           data: [{ attributes: { state: 'finished' } }]
         }]);
 
-      await expect(client.waitForBuild({ project: 'test', sha: 'abcdef', interval: 50 }))
+      await expect(client.waitForBuild({ project: 'test', commit: 'HEAD', interval: 50 }))
+        .resolves.toEqual({ attributes: { state: 'finished' } });
+    });
+
+    it('defaults to the provided commit when revision parsing fails', async () => {
+      mockgit.commit(() => { throw new Error('test'); });
+
+      mockAPI.reply('/projects/test/builds?filter[sha]=abcdef', () => [200, {
+        data: [{ attributes: { state: 'finished' } }]
+      }]);
+
+      await expect(client.waitForBuild({ project: 'test', commit: 'abcdef' }))
         .resolves.toEqual({ attributes: { state: 'finished' } });
     });
   });

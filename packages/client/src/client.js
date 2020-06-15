@@ -1,4 +1,5 @@
 import PercyEnvironment from '@percy/env';
+import { git } from '@percy/env/dist/git';
 import pkg from '../package.json';
 
 import {
@@ -190,24 +191,23 @@ export default class PercyClient {
   waitForBuild({
     build,
     project,
-    sha,
+    commit,
     progress,
     timeout = 600000,
     interval = 1000
   }) {
-    if (sha && !project) {
+    if (commit && !project) {
       throw new Error('Missing project for commit');
-    } else if (!sha && !build) {
+    } else if (!commit && !build) {
       throw new Error('Missing build ID or commit SHA');
     }
 
     // get build data by id or project-commit combo
     let getBuildData = async () => {
-      let body = build
-        ? await this.getBuild(build)
+      let sha = commit && (git(`rev-parse ${commit}`) || commit);
+      let body = build ? await this.getBuild(build)
         : await this.getBuilds(project, { sha });
       let data = build ? body?.data : body?.data[0];
-
       return [data, data?.attributes.state];
     };
 

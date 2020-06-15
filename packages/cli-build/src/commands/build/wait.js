@@ -1,7 +1,6 @@
 import readline from 'readline';
 import Command, { flags } from '@percy/cli-command';
 import PercyClient from '@percy/client';
-import { git } from '@percy/env/dist/git';
 import log from '@percy/logger';
 
 export class Wait extends Command {
@@ -52,17 +51,10 @@ export class Wait extends Command {
       return;
     }
 
-    let { build, project, commit, timeout, interval } = this.flags;
-    let sha = commit && (git(`rev-parse ${commit}`) || commit);
-
     let client = new PercyClient();
     let result = await client.waitForBuild({
       progress: this.progress,
-      build,
-      project,
-      sha,
-      timeout,
-      interval
+      ...this.flags
     });
 
     return this.finish(result);
