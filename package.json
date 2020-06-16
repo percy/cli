@@ -1,5 +1,4 @@
 {
-  "name": "percy",
   "private": true,
   "workspaces": [
     "packages/*"
