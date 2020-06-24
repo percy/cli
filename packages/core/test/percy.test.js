@@ -88,6 +88,16 @@ describe('Percy', () => {
       expect(percy.discoverer.isConnected()).toBe(true);
     });
 
+    it('does not error or launch multiple browsers', async () => {
+      await expect(percy.discoverer.launch()).resolves.toBeUndefined();
+      expect(percy.discoverer.isConnected()).toBe(true);
+      expect(percy.isRunning()).toBe(false);
+
+      await expect(percy.start()).resolves.toBeUndefined();
+      expect(percy.discoverer.isConnected()).toBe(true);
+      expect(percy.isRunning()).toBe(true);
+    });
+
     it('logs once started with a loglevel', async () => {
       percy.loglevel('info');
       await stdio.capture(() => percy.start());
