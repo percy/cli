@@ -10,7 +10,6 @@ import pkg from '../../package.json';
 
 export class Snapshot extends Command {
   static description = 'Snapshot a list of pages from a file or directory';
-  static strict = false;
 
   static args = [{
     name: 'pathname',
@@ -77,7 +76,9 @@ export class Snapshot extends Command {
     }
 
     if (this.flags['dry-run']) {
-      log.info('Snapshots:');
+      let l = pages.length;
+
+      log.info(`Found ${l} snapshot${l === 1 ? '' : 's'}:`);
 
       return pages.forEach(({ name, snapshots = [] }) => {
         (name ? [{ name }].concat(snapshots) : snapshots)
@@ -110,8 +111,11 @@ export class Snapshot extends Command {
     app.use(require('cors')());
     app.use(baseUrl, express.static(staticDir));
 
-    await new Promise(resolve => {
-      this.server = app.listen(resolve);
+    return new Promise(resolve => {
+      this.server = app.listen(() => {
+        let { port } = this.server.address();
+        resolve(`http://localhost:${port}`);
+      });
     });
   }
 
@@ -122,9 +126,7 @@ export class Snapshot extends Command {
     let addr = '';
 
     if (!this.flags['dry-run']) {
-      await this.serve(pathname, baseUrl);
-      let { port } = this.server.address();
-      addr = `http://localhost:${port}`;
+      addr = await this.serve(pathname, baseUrl);
     }
 
     return paths.sort().map(path => ({

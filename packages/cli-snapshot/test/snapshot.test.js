@@ -147,7 +147,7 @@ describe('percy snapshot', () => {
       await stdio.capture(() => Snapshot.run(['./public', '--dry-run']));
       expect(stdio[2]).toHaveLength(0);
       expect(stdio[1]).toEqual([
-        '[percy] Snapshots:\n',
+        '[percy] Found 3 snapshots:\n',
         '/test-1.html\n',
         '/test-2.html\n',
         '/test-3.htm\n'
@@ -240,7 +240,7 @@ describe('percy snapshot', () => {
       await stdio.capture(() => Snapshot.run(['./pages.js', '--dry-run']));
       expect(stdio[2]).toHaveLength(0);
       expect(stdio[1]).toEqual([
-        '[percy] Snapshots:\n',
+        '[percy] Found 1 snapshot:\n',
         'JS Snapshot\n'
       ]);
     });
