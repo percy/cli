@@ -357,7 +357,7 @@ describe('Percy', () => {
                 type: 'resources',
                 id: expect.any(String),
                 attributes: {
-                  'resource-url': expect.stringMatching(/^percy\.\d+\.log$/),
+                  'resource-url': expect.stringMatching(/^\/percy\.\d+\.log$/),
                   'is-root': null,
                   mimetype: 'text/plain'
                 }

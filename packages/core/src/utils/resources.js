@@ -49,7 +49,7 @@ export function createLogResource(logs) {
 
   return {
     content,
-    url: `percy.${Date.now()}.log`,
+    url: `/percy.${Date.now()}.log`,
     sha: sha256hash(content),
     mimetype: 'text/plain'
   };
