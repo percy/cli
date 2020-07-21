@@ -50,6 +50,9 @@ export function resetSchema() {
   ajv.addSchema(getDefaultSchema(), 'config');
 }
 
+// Used to ensure warnings for the exact same invalid configs are never logged more than once.
+const invalidCache = new Set();
+
 // Validates config data according to the config schema and logs warnings to the
 // console. Optionallly scrubs invalid values from the provided config. Returns
 // true when the validation success, false otherwise.
@@ -57,7 +60,14 @@ export default function validate(config, { scrub } = {}) {
   let result = ajv.validate('config', config);
 
   if (!result) {
-    log.warn('Invalid config:');
+    // do not log warnings for the same config more than once
+    let cacheKey = JSON.stringify(config);
+    let logWarning = !invalidCache.has(cacheKey);
+    invalidCache.add(cacheKey);
+
+    if (logWarning) {
+      log.warn('Invalid config:');
+    }
 
     for (let error of ajv.errors) {
       let { dataPath, keyword, params, message, data } = error;
@@ -79,7 +89,9 @@ export default function validate(config, { scrub } = {}) {
         }
       }
 
-      log.warn(`- ${pre}${message}`);
+      if (logWarning) {
+        log.warn(`- ${pre}${message}`);
+      }
     }
   }
 
