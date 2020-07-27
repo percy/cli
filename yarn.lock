@@ -1869,9 +1869,9 @@
     wrap-ansi "^4.0.0"
 
 "@oclif/plugin-plugins@^1.7.10":
-  version "1.8.0"
-  resolved "https://registry.yarnpkg.com/@oclif/plugin-plugins/-/plugin-plugins-1.8.0.tgz#f99dc16419409873290f834ab23300f6d374e935"
-  integrity sha512-T7hVo2PFnv9JN/gdcdmkuBv6mtDTsnK3GYHixB0x1aYwJbGtZ5Fq/a6XQXGAzn81ivInZHjyDL7k8XKmmSv+UQ==
+  version "1.9.0"
+  resolved "https://registry.yarnpkg.com/@oclif/plugin-plugins/-/plugin-plugins-1.9.0.tgz#f6098cc51646585bbf75480e180cef98b5437bc5"
+  integrity sha512-sq31nJk/n5pH5qGDioj2Z9x6MlRUrc/kkQrfCYKRPbQM80qewSP4RcPK3/gDvDSOAWD3wLAK9oMbDQO9lqImMA==
   dependencies:
     "@oclif/color" "^0.x"
     "@oclif/command" "^1.5.12"
@@ -1882,8 +1882,8 @@
     http-call "^5.2.2"
     load-json-file "^5.2.0"
     npm-run-path "^3.0.0"
-    semver "^5.6.0"
-    tslib "^1.9.3"
+    semver "^7.3.2"
+    tslib "^2.0.0"
     yarn "^1.21.1"
 
 "@oclif/screen@^1.0.3":
@@ -9239,7 +9239,7 @@ semver@^6.0.0, semver@^6.1.0, semver@^6.2.0, semver@^6.3.0:
   resolved "https://registry.yarnpkg.com/semver/-/semver-6.3.0.tgz#ee0a64c8af5e8ceea67687b133761e1becbd1d3d"
   integrity sha512-b39TBaTSfV6yBrapU89p5fKekE2m/NwnDocOVruQFS1/veMgdzuPcnOM34M6CwxW8jH/lxEa5rBoDeUwu5HHTw==
 
-semver@^7.2.1:
+semver@^7.2.1, semver@^7.3.2:
   version "7.3.2"
   resolved "https://registry.yarnpkg.com/semver/-/semver-7.3.2.tgz#604962b052b81ed0786aae84389ffba70ffd3938"
   integrity sha512-OrOb32TeeambH6UrhtShmF7CRDqhL6/5XpPNp2DuRH6+9QLw/orhp72j87v8Qa1ScDkvrrBNpZcDejAirJmfXQ==
@@ -10221,6 +10221,11 @@ tslib@^1, tslib@^1.9.0, tslib@^1.9.3:
   version "1.13.0"
   resolved "https://registry.yarnpkg.com/tslib/-/tslib-1.13.0.tgz#c881e13cc7015894ed914862d276436fa9a47043"
   integrity sha512-i/6DQjL8Xf3be4K/E6Wgpekn5Qasl1usyw++dAA35Ue5orEn65VIxOA+YvNNl9HV3qv70T7CNwjODHZrLwvd1Q==
+
+tslib@^2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/tslib/-/tslib-2.0.0.tgz#18d13fc2dce04051e20f074cc8387fd8089ce4f3"
+  integrity sha512-lTqkx847PI7xEDYJntxZH89L2/aXInsyF2luSafe/+0fHOMjlBNXdH6th7f70qxLDhul7KZK0zC8V5ZIyHl0/g==
 
 tty-browserify@0.0.0:
   version "0.0.0"
