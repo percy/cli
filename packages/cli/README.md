@@ -42,7 +42,7 @@ integrations, Percy API communication, DOM snapshotting, and asset discovery.
 ## Issues
 
 For problems directly related to the CLI, [add an issue on
-GitHub](https://github.com/percy/percy-cli/issues/new).
+GitHub](https://github.com/percy/cli/issues/new).
 
 For other issues, [open a support request](https://percy.io).
 
