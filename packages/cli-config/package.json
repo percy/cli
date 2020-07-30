@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-config",
-  "version": "1.0.0-beta.0",
+  "version": "1.0.0-beta.1",
   "license": "MIT",
   "main": "dist/index.js",
   "files": [
@@ -30,8 +30,8 @@
   "dependencies": {
     "@oclif/command": "^1.5.19",
     "@oclif/config": "^1.14.0",
-    "@percy/config": "^1.0.0-beta.0",
-    "@percy/logger": "^1.0.0-beta.0",
+    "@percy/config": "^1.0.0-beta.1",
+    "@percy/logger": "^1.0.0-beta.1",
     "path-type": "^4.0.0"
   }
 }
