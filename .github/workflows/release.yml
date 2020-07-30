@@ -16,6 +16,6 @@ jobs:
     - name: Build packages
       run: yarn build
     - name: Publish
-      run: yarn lerna publish from-package
+      run: yarn lerna publish from-package --yes
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
