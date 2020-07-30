@@ -4,12 +4,12 @@
   "license": "MIT",
   "main": "index.js",
   "bin": {
-    "percy": "./bin/run"
+    "percy": "bin/run"
   },
   "files": [
-    "./bin",
-    "./index.js",
-    "./oclif.manifest.json"
+    "bin",
+    "index.js",
+    "oclif.manifest.json"
   ],
   "scripts": {
     "lint": "eslint --ignore-path ../../.gitignore .",

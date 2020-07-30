@@ -3,6 +3,9 @@
   "version": "1.0.0-beta.1",
   "main": "dist/index.js",
   "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "webpack",
     "lint": "eslint --ignore-path ../../.gitignore .",
