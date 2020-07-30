@@ -15,6 +15,9 @@
     "test:coverage": "nyc yarn test",
     "test:types": "tsd"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "mocha": {
     "require": "../../scripts/babel-register"
   },

@@ -17,6 +17,9 @@
     "test": "cross-env NODE_ENV=test mocha",
     "test:coverage": "nyc yarn test"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "mocha": {
     "require": "../../scripts/babel-register",
     "timeout": 10000

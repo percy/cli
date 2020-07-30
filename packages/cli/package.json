@@ -15,6 +15,9 @@
     "lint": "eslint --ignore-path ../../.gitignore .",
     "postbuild": "oclif-dev manifest"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "oclif": {
     "bin": "percy",
     "plugins": [

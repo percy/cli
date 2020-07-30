@@ -9,6 +9,9 @@
     "test": "cross-env NODE_ENV=test karma start --single-run",
     "test:coverage": "yarn test --coverage"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "babel": {
     "extends": "../../babel.config.js",
     "presets": [
