@@ -187,8 +187,8 @@ export default class Percy {
     assert(domSnapshot, 'Missing required argument: domSnapshot');
 
     // fallback to instance snapshot widths
-    widths = widths ?? this.config.snapshot.widths;
-    assert(widths, 'Missing required argument: widths');
+    widths = widths?.length ? widths : this.config.snapshot.widths;
+    assert(widths?.length, 'Missing required argument: widths');
     assert(widths.length <= 10, 'too many widths');
 
     // normalize the URL
@@ -196,7 +196,7 @@ export default class Percy {
     // fallback to instance minimum height
     minimumHeight = minimumHeight ?? this.config.snapshot.minimumHeight;
     // combine snapshot Percy CSS with instance Percy CSS
-    percyCSS = `${this.config.snapshot.percyCSS}\n${percyCSS ?? ''}`.trim();
+    percyCSS = [this.config.snapshot.percyCSS, percyCSS].filter(Boolean).join('\n');
     // combine snapshot request headers with instance request headers
     requestHeaders = { ...this.config.snapshot.requestHeaders, ...requestHeaders };
     // fallback to instance enable JS flag
