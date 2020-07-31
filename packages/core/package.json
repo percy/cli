@@ -1,9 +1,9 @@
 {
   "name": "@percy/core",
   "version": "1.0.0-beta.2",
+  "license": "MIT",
   "main": "dist/index.js",
   "types": "types/index.d.ts",
-  "license": "MIT",
   "files": [
     "dist",
     "types/index.d.ts"
