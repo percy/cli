@@ -89,6 +89,7 @@ export class Snapshot extends Command {
     this.percy = await Percy.start({
       clientInfo: `${pkg.name}/${pkg.version}`,
       server: false,
+      config: false,
       ...config
     });
 

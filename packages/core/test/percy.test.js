@@ -22,6 +22,32 @@ describe('Percy', () => {
     server?.close();
   });
 
+  it('scrubs invalid config options and loads defaults', () => {
+    percy = new Percy({ snapshot: { foo: 'bar' } });
+
+    expect(percy.config.snapshot).toEqual({
+      widths: [375, 1280],
+      requestHeaders: {},
+      minHeight: 1024,
+      percyCSS: ''
+    });
+  });
+
+  it('does not scrub invalid config options when the config option is false', () => {
+    percy = new Percy({
+      config: false,
+      snapshot: { foo: 'bar' }
+    });
+
+    expect(percy.config.snapshot).toEqual({
+      widths: [375, 1280],
+      requestHeaders: {},
+      minHeight: 1024,
+      percyCSS: '',
+      foo: 'bar'
+    });
+  });
+
   describe('.start()', () => {
     // rather than stub prototypes, extend and mock
     class TestPercy extends Percy {

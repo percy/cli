@@ -26,6 +26,7 @@ export class Start extends Command {
 
     let percy = await Percy.start({
       port: this.flags.port,
+      config: false,
       ...this.percyrc()
     });
 
