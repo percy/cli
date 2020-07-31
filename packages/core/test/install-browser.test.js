@@ -61,7 +61,7 @@ describe('Browser Install', () => {
   });
 
   it('checks if the default browser revision is already installed', async () => {
-    let rev = require('puppeteer-core/package.json').puppeteer.chromium_revision;
+    let rev = require('puppeteer-core/lib/cjs/puppeteer/revisions').PUPPETEER_REVISIONS.chromium;
     mockFetcher.revisionInfo.return = { local: true, executablePath: 'bin-exe' };
     await expect(stdio.capture(() => maybeInstallBrowser())).resolves.toBe('bin-exe');
     expect(mockFetcher.revisionInfo.calls[0][0]).toEqual(rev);

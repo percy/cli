@@ -32,7 +32,7 @@
     "express": "^4.17.1",
     "node-fetch": "^2.6.0",
     "progress": "^2.0.3",
-    "puppeteer-core": "^4.0.0"
+    "puppeteer-core": "^5.2.1"
   },
   "devDependencies": {
     "rimraf": "^3.0.2",

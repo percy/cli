@@ -3,17 +3,15 @@ import puppeteer from 'puppeteer-core';
 import log from '@percy/logger';
 import readableBytes from './bytes';
 
-const {
-  // The default Chromium revision is defined in puppeteer's package.json.
-  chromium_revision: DEFAULT_CHROMIUM_REVISION
-} = require('puppeteer-core/package.json').puppeteer;
+// Get the default revisions from within puppeteer
+import { PUPPETEER_REVISIONS } from 'puppeteer-core/lib/cjs/puppeteer/revisions';
 
 // If the default Chromium revision is not yet downloaded, download it. Lazily
 // requires the progress package to print a progress bar during the download.
 export default async function maybeInstallBrowser(
   path = process.env.PUPPETEER_EXECUTABLE_PATH
 ) {
-  let revision = DEFAULT_CHROMIUM_REVISION;
+  let revision = PUPPETEER_REVISIONS.chromium;
   let local = false;
 
   if (path) {
