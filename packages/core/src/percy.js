@@ -9,7 +9,6 @@ import Queue from './queue';
 import assert from './utils/assert';
 import { createRootResource, createLogResource } from './utils/resources';
 import { normalizeURL } from './utils/url';
-import pkg from '../package.json';
 
 // Register core config options
 PercyConfig.addSchema(schema);
@@ -66,11 +65,7 @@ export default class Percy {
       : PercyConfig.load({ path: config, overrides: options });
 
     this.discoverer = new Discoverer(this.config.discovery);
-    this.client = new PercyClient({
-      clientInfo: [`${pkg.name}/${pkg.version}`].concat(clientInfo),
-      environmentInfo,
-      token
-    });
+    this.client = new PercyClient({ token, clientInfo, environmentInfo });
   }
 
   // Shortcut for controlling the global logger's log level.

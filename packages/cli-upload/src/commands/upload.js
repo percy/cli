@@ -7,6 +7,7 @@ import imageSize from 'image-size';
 import PercyClient from '@percy/client';
 import createImageResources from '../resources';
 import { schema } from '../config';
+import pkg from '../../package.json';
 
 const ALLOWED_IMAGE_TYPES = /\.(png|jpg|jpeg)$/i;
 
@@ -75,11 +76,14 @@ export class Upload extends Command {
 
     // we already have assets so we don't need asset discovery from @percy/core,
     // we can use @percy/client directly to send snapshots
-    this.client = new PercyClient();
-    await this.client.createBuild();
-    log.info('Percy has started!');
+    this.client = new PercyClient({
+      clientInfo: `${pkg.name}/${pkg.version}`
+    });
 
-    let build = this.client.build;
+    await this.client.createBuild();
+    let { build } = this.client;
+
+    log.info('Percy has started!');
     log.info(`Created build #${build.number}: ${build.url}`);
 
     for (let name of paths) {
