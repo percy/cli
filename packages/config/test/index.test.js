@@ -388,35 +388,6 @@ describe('PercyConfig', () => {
       ]);
     });
 
-    it('only logs validation warnings once for the same config', () => {
-      mockConfig('.invalid.yml', 'version: 2\nfoo: bar');
-      log.loglevel('debug');
-
-      // validation cache persists across tests, this is the same config from the previous test
-      expect(stdio.capture(() => (
-        PercyConfig.load({
-          path: '.invalid.yml',
-          overrides: {
-            test: { value: 1 },
-            arr: {}
-          }
-        })
-      ))).toEqual({
-        version: 2,
-        test: { value: 'foo' }
-      });
-
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
-        '[percy] Found config file: .invalid.yml\n',
-        '[percy] Using config:\n' + [
-          '{',
-          '  version: 2',
-          '}\n'
-        ].join('\n')
-      ]);
-    });
-
     it('returns undefined on validation warnings when `bail` is true', () => {
       mockConfig('.invalid.yml', 'version: 2\nfoo: bar');
       log.loglevel('debug');
@@ -426,7 +397,7 @@ describe('PercyConfig', () => {
           path: '.invalid.yml',
           bail: true,
           overrides: {
-            test: { value: 2 },
+            test: { value: 1 },
             arr: {}
           }
         })
