@@ -74,6 +74,7 @@ describe('Asset Discovery', () => {
       domSnapshot: testDOM
     });
 
+    await percy.idle();
     let paths = server.requests.map(r => r.path);
     // does not request the root url (serves domSnapshot instead)
     expect(paths).not.toContain('/');
@@ -116,6 +117,7 @@ describe('Asset Discovery', () => {
       domSnapshot: prefetchDOM
     });
 
+    await percy.idle();
     let paths = server.requests.map(r => r.path);
     expect(paths).toContain('/style.css');
 
@@ -150,6 +152,7 @@ describe('Asset Discovery', () => {
       domSnapshot: dataUrlDOM
     });
 
+    await percy.idle();
     expect(captured[0]).not.toEqual(expect.arrayContaining([
       expect.objectContaining({
         attributes: expect.objectContaining({
@@ -170,6 +173,7 @@ describe('Asset Discovery', () => {
       domSnapshot: testDOM.replace('style.css', 'stylesheet.css')
     });
 
+    await percy.idle();
     let paths = server.requests.map(r => r.path);
     expect(paths).toContain('/stylesheet.css');
     expect(paths).toContain('/style.css');
@@ -199,6 +203,7 @@ describe('Asset Discovery', () => {
       })
     ));
 
+    await percy.idle();
     expect(captured[0]).toEqual([
       expect.objectContaining({
         attributes: expect.objectContaining({
@@ -299,6 +304,8 @@ describe('Asset Discovery', () => {
         url: 'http://localhost:8000',
         domSnapshot: testDOM
       });
+
+      await percy.idle();
     };
 
     it('caches resource requests', async () => {
@@ -407,6 +414,7 @@ describe('Asset Discovery', () => {
         domSnapshot: testExternalDOM
       });
 
+      await percy.idle();
       let paths = server.requests.map(r => r.path);
       expect(paths).toContain('/style.css');
       expect(paths).not.toContain('/img.gif');
@@ -450,6 +458,7 @@ describe('Asset Discovery', () => {
         widths: [1000]
       });
 
+      await percy.idle();
       expect(captured[0][3]).toEqual(
         expect.objectContaining({
           attributes: expect.objectContaining({
@@ -477,6 +486,7 @@ describe('Asset Discovery', () => {
         widths: [1000]
       });
 
+      await percy.idle();
       expect(captured[0][3]).toEqual(
         expect.objectContaining({
           attributes: expect.objectContaining({
@@ -504,6 +514,7 @@ describe('Asset Discovery', () => {
         widths: [1000]
       });
 
+      await percy.idle();
       expect(captured[0]).toEqual([
         expect.objectContaining({
           attributes: expect.objectContaining({

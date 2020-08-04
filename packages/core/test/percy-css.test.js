@@ -42,6 +42,7 @@ describe('Percy CSS', () => {
       domSnapshot: testDOM
     });
 
+    await percy.idle();
     let resources = mockAPI.requests['/builds/123/snapshots'][0]
       .body.data.relationships.resources.data;
 
@@ -58,6 +59,7 @@ describe('Percy CSS', () => {
       percyCSS: 'body { color: purple; }'
     });
 
+    await percy.idle();
     let resources = mockAPI.requests['/builds/123/snapshots'][0]
       .body.data.relationships.resources.data;
 
@@ -73,6 +75,7 @@ describe('Percy CSS', () => {
       percyCSS: 'p { font-size: 2rem; }'
     });
 
+    await percy.idle();
     let resources = mockAPI.requests['/builds/123/snapshots'][0]
       .body.data.relationships.resources.data;
 

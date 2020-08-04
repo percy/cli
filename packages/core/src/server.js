@@ -33,10 +33,9 @@ export function createServerApp(percy) {
     .get('/percy/dom.js', (_, res) => {
       res.sendFile(require.resolve('@percy/dom'));
     })
-  // snapshot requests are concurrent by default
+  // forward snapshot requests
     .post('/percy/snapshot', asyncRoute(async (req, res) => {
-      let snapshot = percy.snapshot(req.body);
-      if (req.body.concurrent === false) await snapshot;
+      await percy.snapshot(req.body);
       res.json({ success: true });
     }))
   // stops the instance

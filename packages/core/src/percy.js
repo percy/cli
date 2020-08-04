@@ -127,17 +127,15 @@ export default class Percy {
       let meta = { build: { id: build.id } };
       log.info('Stopping percy...', meta);
 
-      // clear queued page captures and wait for any pending
-      if (this.#captures.clear()) {
-        log.info(`Waiting for ${this.#captures.length} page(s) to complete`, meta);
-        await this.#captures.idle();
+      // log about queued captures or uploads
+      if (this.#captures.length) {
+        log.info(`Waiting for ${this.#captures.length} page(s) to finish snapshotting`, meta);
+      } else if (this.#snapshots.length) {
+        log.info(`Waiting for ${this.#snapshots.length} snapshot(s) to finish uploading`, meta);
       }
 
-      // clear queued snapshots and wait for any pending
-      if (this.#snapshots.clear()) {
-        log.info(`Waiting for ${this.#snapshots.length} snapshot(s) to complete`, meta);
-        await this.#snapshots.idle();
-      }
+      // wait for any queued captures or snapshots
+      await this.idle();
 
       // close the server and browser
       this.server?.close();
@@ -161,8 +159,9 @@ export default class Percy {
   }
 
   // Handles asset discovery for the URL and DOM snapshot at each requested
-  // width with the provided options. Resolves when the snapshot is complete,
-  // although shouldn't be awaited on as snapshots are handled concurrently.
+  // width with the provided options. Resolves when the snapshot has been taken
+  // and asset discovery is finished, but does not gaurantee that the snapshot
+  // will be succesfully uploaded.
   snapshot({
     url,
     name,
@@ -197,68 +196,70 @@ export default class Percy {
     // fallback to instance enable JS flag
     enableJavaScript = enableJavaScript ?? this.config.snapshot.enableJavaScript ?? false;
 
-    // add this snapshot task to the snapshot queue
-    return this.#snapshots.push(async () => {
-      let meta = {
-        snapshot: { name },
-        build: { id: this.client.build.id }
-      };
+    // useful meta info for the logfile
+    let meta = {
+      snapshot: { name },
+      build: { id: this.client.build.id }
+    };
 
-      log.debug('---------');
-      log.debug('Handling snapshot:', meta);
-      log.debug(`-> name: ${name}`, meta);
-      log.debug(`-> url: ${url}`, meta);
-      log.debug(`-> widths: ${widths.join('px, ')}px`, meta);
-      log.debug(`-> clientInfo: ${clientInfo}`, meta);
-      log.debug(`-> environmentInfo: ${environmentInfo}`, meta);
-      log.debug(`-> requestHeaders: ${JSON.stringify(requestHeaders)}`, meta);
-      log.debug(`-> domSnapshot:\n${(
-        domSnapshot.length <= 1024 ? domSnapshot
-          : (domSnapshot.substr(0, 1024) + '... [truncated]')
-      )}`, meta);
+    log.debug('---------');
+    log.debug('Handling snapshot:', meta);
+    log.debug(`-> name: ${name}`, meta);
+    log.debug(`-> url: ${url}`, meta);
+    log.debug(`-> widths: ${widths.join('px, ')}px`, meta);
+    log.debug(`-> clientInfo: ${clientInfo}`, meta);
+    log.debug(`-> environmentInfo: ${environmentInfo}`, meta);
+    log.debug(`-> requestHeaders: ${JSON.stringify(requestHeaders)}`, meta);
+    log.debug(`-> domSnapshot:\n${(
+      domSnapshot.length <= 1024 ? domSnapshot
+        : (domSnapshot.substr(0, 1024) + '... [truncated]')
+    )}`, meta);
 
-      try {
-        // inject Percy CSS
-        let [percyDOM, percyCSSResource] = injectPercyCSS(url, domSnapshot, percyCSS, meta);
-        // use a map so resources remain unique by url
-        let resources = new Map([[url, createRootResource(url, percyDOM)]]);
+    // use a promise as a try-catch so we can do the remaining work
+    // asynchronously, but perform the above synchronously
+    return Promise.resolve().then(async () => {
+      // inject Percy CSS
+      let [percyDOM, percyCSSResource] = injectPercyCSS(url, domSnapshot, percyCSS, meta);
+      // use a map so resources remain unique by url
+      let resources = new Map([[url, createRootResource(url, percyDOM)]]);
+      // include the Percy CSS resource if there was one
+      if (percyCSSResource) resources.set('percy-css', percyCSSResource);
 
-        // gather resources at each width concurrently
-        await Promise.all(widths.map(width => (
-          this.discoverer.gatherResources(resources, {
-            rootUrl: url,
-            rootDom: domSnapshot,
-            enableJavaScript,
-            requestHeaders,
-            width,
-            meta
-          })
-        )));
-
-        // convert resource map to array
-        resources = Array.from(resources.values());
-        // include the Percy CSS resource if there was one
-        if (percyCSSResource) resources.push(percyCSSResource);
-        // include a log resource for debugging
-        let logs = await log.query({ filter: ({ snapshot: s }) => s?.name === name });
-        resources.push(createLogResource(logs));
-
-        // create, upload, and finalize the snapshot
-        await this.client.sendSnapshot({
-          name,
-          widths,
-          minimumHeight,
+      // gather resources at each width concurrently
+      await Promise.all(widths.map(width => (
+        this.discoverer.gatherResources(resources, {
+          rootUrl: url,
+          rootDom: domSnapshot,
           enableJavaScript,
-          clientInfo,
-          environmentInfo,
-          resources
-        });
+          requestHeaders,
+          width,
+          meta
+        })
+      )));
 
-        log.info(`Snapshot taken: ${name}`, meta);
-      } catch (error) {
-        log.error(`Encountered an error for snapshot: ${name}`, meta);
+      // include a log resource for debugging
+      let logs = await log.query({ filter: ({ snapshot: s }) => s?.name === name });
+      resources.set('percy-logs', createLogResource(logs));
+
+      // log that the snapshot has been taken before uploading it
+      log.info(`Snapshot taken: ${name}`, meta);
+
+      // upload within the async snapshot queue
+      this.#snapshots.push(() => this.client.sendSnapshot({
+        name,
+        widths,
+        minimumHeight,
+        enableJavaScript,
+        clientInfo,
+        environmentInfo,
+        resources: Array.from(resources.values())
+      }).catch(error => {
+        log.error(`Encountered an error uploading snapshot: ${name}`, meta);
         log.error(error);
-      }
+      }));
+    }).catch(error => {
+      log.error(`Encountered an error taking snapshot: ${name}`, meta);
+      log.error(error);
     });
   }
 
@@ -276,6 +277,7 @@ export default class Percy {
     snapshots = name ? [{ name, execute }].concat(snapshots) : snapshots;
     assert(snapshots.length && snapshots.every(s => s.name), `Missing name for ${url}`);
 
+    // the entire capture process happens within the async capture queue
     return this.#captures.push(async () => {
       let results = [];
       let page;
@@ -315,7 +317,7 @@ export default class Percy {
         log.error(`Encountered an error for page: ${url}`);
         log.error(error);
       } finally {
-        // awaiting on resulting snapshots syncs this task with those snapshot tasks
+        // await on any resulting snapshots
         await Promise.all(results);
         await page?.close();
       }

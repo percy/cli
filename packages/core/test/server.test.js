@@ -73,14 +73,9 @@ describe('Snapshot Server', () => {
     expect(percy.stop.calls).toHaveLength(1);
   });
 
-  it('has a /snapshot endpoint that calls #snapshot() concurrently', async () => {
-    let done = false;
-
+  it('has a /snapshot endpoint that calls #snapshot()', async () => {
     await percy.start();
-    percy.snapshot = data => {
-      (percy.snapshot.calls = percy.snapshot.calls || []).push(data);
-      return new Promise(r => setTimeout(r, 10)).then(() => (done = true));
-    };
+    percy.snapshot = data => (percy.snapshot.calls = percy.snapshot.calls || []).push(data);
 
     let response = await fetch('http://localhost:1337/percy/snapshot', {
       method: 'post',
@@ -91,28 +86,6 @@ describe('Snapshot Server', () => {
     await expect(response.json()).resolves.toEqual({ success: true });
     expect(percy.snapshot.calls).toHaveLength(1);
     expect(percy.snapshot.calls[0]).toEqual({ test: true });
-    expect(done).toBe(false);
-  });
-
-  it('waits for /snapshot completion when `concurrent` is false', async () => {
-    let done = false;
-
-    await percy.start();
-    percy.snapshot = data => {
-      (percy.snapshot.calls = percy.snapshot.calls || []).push(data);
-      return new Promise(r => setTimeout(r, 10)).then(() => (done = true));
-    };
-
-    let response = await fetch('http://localhost:1337/percy/snapshot', {
-      method: 'post',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{ "concurrent": false }'
-    });
-
-    await expect(response.json()).resolves.toEqual({ success: true });
-    expect(percy.snapshot.calls).toHaveLength(1);
-    expect(percy.snapshot.calls[0]).toEqual({ concurrent: false });
-    expect(done).toBe(true);
   });
 
   it('returns a 500 error when an endpoint throws', async () => {

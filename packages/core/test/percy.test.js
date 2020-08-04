@@ -208,8 +208,7 @@ describe('Percy', () => {
     });
 
     it('logs when stopping with pending snapshots', async () => {
-      // not awaited on so it becomes pending
-      percy.snapshot({
+      await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
         domSnapshot: '<html></html>',
@@ -222,8 +221,7 @@ describe('Percy', () => {
       expect(stdio[2]).toHaveLength(0);
       expect(stdio[1]).toEqual([
         '[percy] Stopping percy...\n',
-        '[percy] Waiting for 1 snapshot(s) to complete\n',
-        '[percy] Snapshot taken: test snapshot\n',
+        '[percy] Waiting for 1 snapshot(s) to finish uploading\n',
         '[percy] Finalized build #1: https://percy.io/test/test/123\n',
         '[percy] Done!\n'
       ]);
@@ -244,7 +242,7 @@ describe('Percy', () => {
       expect(stdio[2]).toHaveLength(0);
       expect(stdio[1]).toEqual([
         '[percy] Stopping percy...\n',
-        '[percy] Waiting for 1 page(s) to complete\n',
+        '[percy] Waiting for 1 page(s) to finish snapshotting\n',
         '[percy] Snapshot taken: test snapshot\n',
         '[percy] Finalized build #1: https://percy.io/test/test/123\n',
         '[percy] Done!\n'
@@ -287,21 +285,18 @@ describe('Percy', () => {
     });
 
     it('resolves after snapshots idle', async () => {
-      // not awaited on so it becomes pending
-      percy.snapshot({
+      await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
         domSnapshot: '<html></html>',
         widths: [1000]
       });
 
-      percy.loglevel('info');
-      await stdio.capture(() => percy.idle());
+      expect(mockAPI.requests['/builds/123/snapshots']).toBeUndefined();
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
-        '[percy] Snapshot taken: test snapshot\n'
-      ]);
+      await percy.idle();
+
+      expect(mockAPI.requests['/builds/123/snapshots']).toHaveLength(1);
     });
   });
 
@@ -338,12 +333,13 @@ describe('Percy', () => {
     });
 
     it('creates a new snapshot for the build', async () => {
-      await expect(percy.snapshot({
+      await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
         domSnapshot: testDOM
-      })).resolves.toBeUndefined();
+      });
 
+      await percy.idle();
       expect(mockAPI.requests['/builds/123/snapshots'][0].body).toEqual({
         data: {
           type: 'snapshots',
@@ -395,12 +391,13 @@ describe('Percy', () => {
     });
 
     it('uploads missing resources for the snapshot', async () => {
-      await expect(percy.snapshot({
+      await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
         domSnapshot: testDOM
-      })).resolves.toBeUndefined();
+      });
 
+      await percy.idle();
       expect(mockAPI.requests['/builds/123/resources']).toHaveLength(4);
       expect(mockAPI.requests['/builds/123/resources'].map(r => r.body)).toEqual(
         expect.arrayContaining([{
@@ -441,12 +438,13 @@ describe('Percy', () => {
     });
 
     it('finalizes the snapshot', async () => {
-      await expect(percy.snapshot({
+      await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
         domSnapshot: testDOM
-      })).resolves.toBeUndefined();
+      });
 
+      await percy.idle();
       expect(mockAPI.requests['/snapshots/4567/finalize']).toBeDefined();
     });
 
@@ -480,23 +478,45 @@ describe('Percy', () => {
       ]);
     });
 
-    it('logs any encountered errors', async () => {
-      mockAPI.reply('/builds/123/snapshots', () => [401, {
-        errors: [{ detail: 'snapshot error' }]
-      }]);
-
+    it('logs any encountered errors when snapshotting', async () => {
       await stdio.capture(() => (
         percy.snapshot({
           name: 'test snapshot',
           url: 'http://localhost:8000',
-          domSnapshot: testDOM
+          domSnapshot: testDOM,
+          // sabatoge an array to cause an unexpected error
+          widths: Object.assign([1000], {
+            map: () => { throw new Error('snapshot error'); }
+          })
         })
       ));
 
       expect(stdio[1]).toHaveLength(0);
       expect(stdio[2]).toEqual([
-        '[percy] Encountered an error for snapshot: test snapshot\n',
+        '[percy] Encountered an error taking snapshot: test snapshot\n',
         '[percy] Error: snapshot error\n'
+      ]);
+    });
+
+    it('logs any encountered errors when uploading', async () => {
+      mockAPI.reply('/builds/123/snapshots', () => [401, {
+        errors: [{ detail: 'snapshot upload error' }]
+      }]);
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await stdio.capture(() => (
+        percy.idle()
+      ));
+
+      expect(stdio[1]).toHaveLength(0);
+      expect(stdio[2]).toEqual([
+        '[percy] Encountered an error uploading snapshot: test snapshot\n',
+        '[percy] Error: snapshot upload error\n'
       ]);
     });
   });
@@ -535,6 +555,7 @@ describe('Percy', () => {
         url: 'http://localhost:8000'
       }));
 
+      await percy.idle();
       expect(Buffer.from((
         mockAPI.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
@@ -552,6 +573,7 @@ describe('Percy', () => {
         waitFor: '#test'
       }));
 
+      await percy.idle();
       expect(Buffer.from((
         mockAPI.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
@@ -568,6 +590,7 @@ describe('Percy', () => {
         }
       }));
 
+      await percy.idle();
       expect(Buffer.from((
         mockAPI.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
