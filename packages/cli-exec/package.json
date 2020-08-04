@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-exec",
-  "description": "capture and upload snaphots",
+  "description": "capture and upload snapshots",
   "version": "1.0.0-beta.3",
   "license": "MIT",
   "main": "dist/index.js",
