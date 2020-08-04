@@ -131,15 +131,17 @@ export default class PercyDiscoverer {
           meta
         }));
 
-      // navigate to the root URL and wait for the network to idle
-      await page.goto(rootUrl);
-      await idle(() => processing, this.networkIdleTimeout);
-
-      // cleanup
-      page.removeAllListeners('request');
-      page.removeAllListeners('requestfailed');
-      page.removeAllListeners('requestfinished');
-      await page.close();
+      try {
+        // navigate to the root URL and wait for the network to idle
+        await page.goto(rootUrl);
+        await idle(() => processing, this.networkIdleTimeout);
+      } finally {
+        // cleanup
+        page.removeAllListeners('request');
+        page.removeAllListeners('requestfailed');
+        page.removeAllListeners('requestfinished');
+        await page.close();
+      }
     });
   }
 
