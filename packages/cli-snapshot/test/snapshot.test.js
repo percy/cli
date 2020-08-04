@@ -178,6 +178,7 @@ describe('percy snapshot', () => {
         '[percy] Created build #1: https://percy.io/test/test/123\n',
         '[percy] Snapshot taken: YAML Snapshot\n',
         '[percy] Stopping percy...\n',
+        '[percy] Waiting for 1 snapshot(s) to finish uploading\n',
         '[percy] Finalized build #1: https://percy.io/test/test/123\n',
         '[percy] Done!\n'
       ]);
@@ -192,6 +193,7 @@ describe('percy snapshot', () => {
         '[percy] Created build #1: https://percy.io/test/test/123\n',
         '[percy] Snapshot taken: JSON Snapshot\n',
         '[percy] Stopping percy...\n',
+        '[percy] Waiting for 1 snapshot(s) to finish uploading\n',
         '[percy] Finalized build #1: https://percy.io/test/test/123\n',
         '[percy] Done!\n'
       ]);
@@ -206,6 +208,7 @@ describe('percy snapshot', () => {
         '[percy] Created build #1: https://percy.io/test/test/123\n',
         '[percy] Snapshot taken: JS Snapshot\n',
         '[percy] Stopping percy...\n',
+        '[percy] Waiting for 1 snapshot(s) to finish uploading\n',
         '[percy] Finalized build #1: https://percy.io/test/test/123\n',
         '[percy] Done!\n'
       ]);
@@ -220,6 +223,7 @@ describe('percy snapshot', () => {
         '[percy] Created build #1: https://percy.io/test/test/123\n',
         '[percy] Snapshot taken: JS Function Snapshot\n',
         '[percy] Stopping percy...\n',
+        '[percy] Waiting for 1 snapshot(s) to finish uploading\n',
         '[percy] Finalized build #1: https://percy.io/test/test/123\n',
         '[percy] Done!\n'
       ]);
