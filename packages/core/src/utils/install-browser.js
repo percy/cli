@@ -11,7 +11,8 @@ import { PUPPETEER_REVISIONS } from 'puppeteer-core/lib/cjs/puppeteer/revisions'
 export default async function maybeInstallBrowser(
   path = process.env.PUPPETEER_EXECUTABLE_PATH
 ) {
-  let revision = PUPPETEER_REVISIONS.chromium;
+  let revision = process.env.PUPPETEER_CHROMIUM_REVISION ||
+    PUPPETEER_REVISIONS.chromium;
   let local = false;
 
   if (path) {
