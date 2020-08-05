@@ -21,7 +21,15 @@ export default function normalize(subject) {
   }
 }
 
+// Edge case camelizations
+const CAMELIZE_MAP = {
+  css: 'CSS',
+  javascript: 'JavaScript'
+};
+
 // Converts a kebab-cased string to camelCase.
 function camelize(s) {
-  return s.replace(/-./g, l => l.toUpperCase()[1]);
+  return s.replace(/-([^-]+)/g, (_, w) => (
+    CAMELIZE_MAP[w] || (w[0].toUpperCase() + w.slice(1))
+  ));
 }
