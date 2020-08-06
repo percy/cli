@@ -1,0 +1,67 @@
+name: Test
+on: push
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 10
+      - uses: actions/cache@v2
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+          key: ${{ runner.os }}/node-10/${{ hashFiles('**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}/node-10/
+      - run: yarn
+      - run: yarn build
+      - uses: actions/upload-artifact@v2
+        with:
+          name: dist
+          path: packages/*/dist
+
+  test:
+    name: Test ${{ matrix.package }}
+    needs: [build]
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        node: [10]
+        package:
+          - '@percy/env'
+          - '@percy/client'
+          - '@percy/dom'
+          - '@percy/config'
+          - '@percy/core'
+          - '@percy/cli-command'
+          - '@percy/cli-exec'
+          - '@percy/cli-snapshot'
+          - '@percy/cli-upload'
+          - '@percy/cli-build'
+          - '@percy/cli-config'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/cache@v2
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+          key: ${{ runner.os }}/node-${{ matrix.node }}/${{ hashFiles('**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}/node-${{ matrix.node }}/
+      - uses: actions/download-artifact@v2
+        with:
+          name: dist
+          path: packages
+      - run: yarn
+      - name: Install browser dependencies
+        run: sudo apt-get install -y libgbm-dev
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+      - name: Run tests
+        run: yarn workspace ${{ matrix.package }} test:coverage --colors
