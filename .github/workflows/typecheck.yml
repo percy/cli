@@ -1,0 +1,20 @@
+name: Typecheck
+on: push
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 12
+      - uses: actions/cache@v2
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+          key: ${{ runner.os }}/node-12/${{ hashFiles('**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}/node-12/
+      - run: yarn
+      - run: yarn test:types

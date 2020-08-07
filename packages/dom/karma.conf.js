@@ -1,7 +1,11 @@
 module.exports = config => {
   config.set({
     frameworks: ['mocha'],
-    browsers: ['ChromeHeadless'],
+
+    browsers: [
+      'ChromeHeadless',
+      'FirefoxHeadless'
+    ],
 
     reporters: [
       'mocha',
