@@ -70,6 +70,6 @@ $ yarn workspace @percy/core test
 ### Releasing
 
 1. Run `yarn bump:version` and choose an appropriate version.
-2. Commit updated versions with a matching commit (e.g. `🏷 v1.0.0`).
+2. Commit updated versions with a matching commit (e.g. `🔖v1.0.0`).
 3. Push updated versions to GitHub and wait for CI to pass.
 4. Create a new GitHub release which will in-turn automate an NPM release.
