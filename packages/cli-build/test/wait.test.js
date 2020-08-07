@@ -106,6 +106,37 @@ describe('percy build:wait', () => {
     ]));
   });
 
+  it('exits and logs found diffs when finished', async () => {
+    mockAPI.reply('/builds/123', () => [200, build({
+      'total-comparisons-diff': 16,
+      state: 'finished'
+    })]);
+
+    await expect(stdio.capture(() => Wait.run(['--build=123', '-f'])))
+      .rejects.toThrow('EEXIT: 1');
+
+    expect(stdio[2]).toHaveLength(0);
+    expect(stdio[1]).toEqual(expect.arrayContaining([
+      '[percy] Build #10 finished! https://percy.io/test/test/123\n',
+      '[percy] Found 16 changes\n'
+    ]));
+  });
+
+  it('does not exit when diffs are not found', async () => {
+    mockAPI.reply('/builds/123', () => [200, build({
+      'total-comparisons-diff': 0,
+      state: 'finished'
+    })]);
+
+    await stdio.capture(() => Wait.run(['--build=123', '-f']));
+
+    expect(stdio[2]).toHaveLength(0);
+    expect(stdio[1]).toEqual(expect.arrayContaining([
+      '[percy] Build #10 finished! https://percy.io/test/test/123\n',
+      '[percy] Found 0 changes\n'
+    ]));
+  });
+
   it('exits and logs the build state when unrecognized', async () => {
     mockAPI.reply('/builds/123', () => [200, build({ state: 'expired' })]);
     await expect(stdio.capture(() => Wait.run(['--build=123'])))

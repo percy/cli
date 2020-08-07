@@ -35,6 +35,7 @@ USAGE
 OPTIONS
   -b, --build=build        build id
   -c, --commit=commit      build's commit sha for a project
+  -f, --fail-on-changes    exits with an error when diffs are found in snapshots
   -i, --interval=interval  interval, in milliseconds, at which to poll for updates, defaults to 1000
   -p, --project=project    build's project slug, required with --commit
   -q, --quiet              log errors only

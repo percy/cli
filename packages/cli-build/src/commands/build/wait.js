@@ -37,6 +37,11 @@ export class Wait extends Command {
         'interval, in milliseconds, at which to poll for updates, ',
         'defaults to 1000'
       ].join('')
+    }),
+    'fail-on-changes': flags.boolean({
+      char: 'f',
+      default: false,
+      description: 'exits with an error when diffs are found in snapshots'
     })
   };
 
@@ -105,6 +110,10 @@ export class Wait extends Command {
     if (state === 'finished') {
       log.info(`Build #${number} finished! ${url}`);
       log.info(`Found ${diffs} changes`);
+
+      if (this.flags['fail-on-changes'] && diffs > 0) {
+        return this.exit(1);
+      }
     } else if (state === 'failed') {
       log.error(`Build #${number} failed! ${url}`);
       log.error(this.failure(failReason, failDetails));

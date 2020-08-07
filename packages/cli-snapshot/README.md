@@ -21,13 +21,22 @@ OPTIONS
   -b, --base-url=base-url                          [default: /] the url path to serve the static directory from
   -c, --config=config                              configuration file path
   -d, --dry-run                                    prints a list of pages to snapshot without snapshotting
-  -f, --files=files                                [default: **/*.{html,htm}] one or more globs matching static file paths to snapshot
+
+  -f, --files=files                                [default: **/*.{html,htm}] one or more globs matching static file
+                                                   paths to snapshot
+
   -h, --allowed-hostname=allowed-hostname          allowed hostnames
+
   -i, --ignore=ignore                              one or more globs matching static file paths to ignore
+
   -q, --quiet                                      log errors only
+
   -t, --network-idle-timeout=network-idle-timeout  asset discovery idle timeout
+
   -v, --verbose                                    log everything
+
   --disable-asset-cache                            disable asset discovery caches
+
   --silent                                         log nothing
 
 EXAMPLES
