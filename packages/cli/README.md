@@ -1,6 +1,6 @@
 # Percy CLI
 
-![CI](https://github.com/percy/cli/workflows/Continuous%20Integration/badge.svg)
+![Test](https://github.com/percy/cli/workflows/Test/badge.svg)
 
 The Percy CLI is used to capture and upload snapshots to [percy.io](https://percy.io) from the
 command line.
