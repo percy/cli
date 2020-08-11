@@ -24,7 +24,7 @@
   "dependencies": {
     "@percy/logger": "^1.0.0-beta.6",
     "ajv": "^6.12.0",
-    "cosmiconfig": "^6.0.0",
+    "cosmiconfig": "^7.0.0",
     "deepmerge": "^4.2.2",
     "path-type": "^4.0.0",
     "yaml": "^1.8.0"
