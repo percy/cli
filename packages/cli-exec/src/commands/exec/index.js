@@ -51,9 +51,16 @@ export class Exec extends Command {
       log.info(`Running "${[command].concat(argv).join(' ')}"`);
     }
 
+    // provide SDKs with useful env vars
+    let env = {
+      ...process.env,
+      PERCY_CLI_PORT: this.flags.port,
+      PERCY_CLI_LOGLEVEL: log.loglevel()
+    };
+
     // run the passed command async
     let status = await new Promise((resolve, reject) => {
-      spawn(command, argv, { stdio: 'inherit' })
+      spawn(command, argv, { stdio: 'inherit', env })
         .on('error', reject)
         .on('close', resolve);
     });

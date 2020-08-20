@@ -4,6 +4,6 @@ export default {
   port: flags.integer({
     char: 'p',
     description: 'server port',
-    default: 5338
+    default: process.env.PERCY_CLI_PORT || 5338
   })
 };
