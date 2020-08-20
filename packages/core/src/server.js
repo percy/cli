@@ -49,7 +49,7 @@ export function createServerApp(percy) {
     })
   // generic error handler
     .use(({ message }, req, res, next) => {
-      res.status(500).send({ success: false, error: message });
+      res.status(500).json({ success: false, error: message });
     });
 }
 
