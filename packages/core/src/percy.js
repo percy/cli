@@ -167,7 +167,7 @@ export default class Percy {
     name,
     domSnapshot,
     widths,
-    minimumHeight,
+    minHeight,
     percyCSS,
     requestHeaders,
     enableJavaScript,
@@ -188,7 +188,7 @@ export default class Percy {
     // normalize the URL
     url = normalizeURL(url);
     // fallback to instance minimum height
-    minimumHeight = minimumHeight ?? this.config.snapshot.minimumHeight;
+    minHeight = minHeight ?? this.config.snapshot.minHeight;
     // combine snapshot Percy CSS with instance Percy CSS
     percyCSS = [this.config.snapshot.percyCSS, percyCSS].filter(Boolean).join('\n');
     // combine snapshot request headers with instance request headers
@@ -248,7 +248,7 @@ export default class Percy {
       this.#snapshots.push(() => this.client.sendSnapshot({
         name,
         widths,
-        minimumHeight,
+        minHeight,
         enableJavaScript,
         clientInfo,
         environmentInfo,

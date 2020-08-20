@@ -447,7 +447,7 @@ describe('PercyClient', () => {
           .createSnapshot({
             name: 'snapfoo',
             widths: [1000],
-            minimumHeight: 1000,
+            minHeight: 1000,
             enableJavaScript: true,
             clientInfo: 'sdk/info',
             environmentInfo: 'sdk/env',

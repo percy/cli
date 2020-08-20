@@ -13,7 +13,7 @@ const percyOptions: PercyOptions = {
   config: '.percy.yml',
   snapshot: {
     widths: [1280],
-    minimumHeight: 1024,
+    minHeight: 1024,
     percyCSS: '.percy { color: purple; }',
     requestHeaders: { Authorization: 'foobar' },
     enableJavaScript: false
@@ -60,7 +60,7 @@ expectType<void>(await percy.snapshot({
   url: 'http://localhost:3000',
   domSnapshot: '...',
   widths: [1000],
-  minimumHeight: 1000,
+  minHeight: 1000,
   percyCSS: '.foo { font-weight: 900; }',
   requestHeaders: { 'x-testing': 'test' },
   enableJavaScript: true
@@ -101,7 +101,7 @@ expectType<void>(await percy.capture({
     execute: async page => {}
   }],
   widths: [1000],
-  minimumHeight: 1000,
+  minHeight: 1000,
   percyCSS: '.foo { font-weight: 900; }',
   requestHeaders: { 'x-testing': 'test' },
   enableJavaScript: true

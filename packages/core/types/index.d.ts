@@ -6,7 +6,7 @@ interface Pojo { [x: string]: any; }
 
 export interface SnapshotOptions {
   widths?: number[];
-  minimumHeight?: number;
+  minHeight?: number;
   percyCSS?: string;
   requestHeaders?: Pojo;
   enableJavaScript?: boolean;

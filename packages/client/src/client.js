@@ -286,7 +286,7 @@ export default class PercyClient {
   async createSnapshot({
     name,
     widths,
-    minimumHeight,
+    minHeight,
     enableJavaScript,
     clientInfo,
     environmentInfo,
@@ -305,7 +305,7 @@ export default class PercyClient {
         attributes: {
           name: name || null,
           widths: widths || null,
-          'minimum-height': minimumHeight || null,
+          'minimum-height': minHeight || null,
           'enable-javascript': enableJavaScript || null
         },
         relationships: {

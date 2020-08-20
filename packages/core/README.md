@@ -65,7 +65,7 @@ percy.snapshot({
   url: 'http://localhost:3000',  // required url
   domSnapshot: domSnapshot,      // required DOM string
   widths: [500, 1280],           // widths to discover resources
-  minimumHeight: 1024,           // minimum height used when screenshotting
+  minHeight: 1024,               // minimum height used when screenshotting
   percyCSS: '',                  // percy specific css to inject
   requestHeaders: {},            // asset request headers such as authorization
   clientInfo: '',                // user-agent client info for the SDK

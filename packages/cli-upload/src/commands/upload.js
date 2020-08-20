@@ -102,7 +102,7 @@ export class Upload extends Command {
       await this.client.sendSnapshot({
         // width and height is clamped to API min and max
         widths: [Math.max(10, Math.min(width, 2000))],
-        minimumHeight: Math.max(10, Math.min(height, 2000)),
+        minHeight: Math.max(10, Math.min(height, 2000)),
         resources: createImageResources(name, buffer, width, height),
         name
       });

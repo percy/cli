@@ -27,7 +27,7 @@ await client.createBuild()
 await client.sendSnapshot({
   name,
   widths,
-  minimumHeight,
+  minHeight,
   enableJavaScript,
   clientInfo,
   environmentInfo,
