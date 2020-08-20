@@ -21,11 +21,13 @@ function doctype(dom) {
 }
 
 // Serializes a document and returns the resulting DOM string.
-export default function serializeDOM({
-  dom = document,
-  enableJavaScript,
-  domTransformation
-} = {}) {
+export default function serializeDOM(options) {
+  let {
+    dom = document,
+    enableJavaScript,
+    domTransformation
+  } = options || {};
+
   prepareDOM(dom);
 
   let clone = dom.cloneNode(true);
