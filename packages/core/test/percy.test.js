@@ -346,7 +346,7 @@ describe('Percy', () => {
           attributes: {
             name: 'test snapshot',
             widths: [1000],
-            'minimum-height': null,
+            'minimum-height': 1024,
             'enable-javascript': null
           },
           relationships: {
