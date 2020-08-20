@@ -155,6 +155,11 @@ export default class PercyDiscoverer {
     return request => {
       let url = request.url();
 
+      // skip any logging and handling of data-urls
+      if (url.startsWith('data:')) {
+        return request.continue();
+      }
+
       meta = { ...meta, url };
       log.debug(`Handling request for ${url}`, meta);
       onRequest();
@@ -197,9 +202,7 @@ export default class PercyDiscoverer {
       meta = { ...meta, url };
 
       try {
-        // do nothing for the root URL or URLs that start with `data:` since
-        // Puppeteer network interception doesn't support proper request
-        // aborting for those URLs
+        // do nothing for the root URL or URLs that start with `data:`
         if (url === rootUrl || url.startsWith('data:')) return;
 
         // process and cache the response and resource
