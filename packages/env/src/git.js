@@ -13,11 +13,7 @@ const GIT_COMMIT_FORMAT = [
 
 export function git(args) {
   try {
-    let result = execSync(`git ${args}`, { stdio: 'ignore' });
-
-    if (result && result.status === 0) {
-      return result.stdout.trim();
-    }
+    return execSync(`git ${args}`, { encoding: 'utf-8' });
   } catch (e) {
     // do something?
   }
