@@ -5,11 +5,11 @@ require('@babel/register')({
   rootMode: 'upward',
   babelrcRoots: ['.'],
 
-  // specified without the cwd so tests can share helpers
   only: [
+    // specified without the cwd so tests can share helpers
     new RegExp(
-      ['packages', '.*?', '(src|test)']
-      // escape windows path seperators and escape the escape
+      ['(@percy|packages)', '.+?', '(src|test)']
+      // escape windows path separators and escape the escape
         .join(path.sep === '/' ? '/' : '\\\\')
     )
   ]
