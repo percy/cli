@@ -38,10 +38,9 @@ function gitmock(args) {
 mock('child_process', {
   execSync(...args) {
     if (args[0].match(/^git\b/)) {
-      let stdout = gitmock(args[0].split(' ').slice(1));
-      return { status: stdout ? 0 : 1, stdout };
+      return gitmock(args[0].split(' ').slice(1));
     } else {
-      return { status: 1 };
+      return '';
     }
   }
 });
