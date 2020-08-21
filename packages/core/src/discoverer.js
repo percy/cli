@@ -154,6 +154,7 @@ export default class PercyDiscoverer {
 
     return request => {
       let url = request.url();
+      onRequest();
 
       // skip any logging and handling of data-urls
       if (url.startsWith('data:')) {
@@ -162,7 +163,6 @@ export default class PercyDiscoverer {
 
       meta = { ...meta, url };
       log.debug(`Handling request for ${url}`, meta);
-      onRequest();
 
       try {
         if (url === rootUrl) {
