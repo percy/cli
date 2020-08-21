@@ -156,4 +156,10 @@ describe('Defaults', () => {
     expect(env).toHaveProperty('git.committedAt', 'git date');
     expect(env).toHaveProperty('git.message', 'git message');
   });
+
+  it('catches git errors, if there are any', () => {
+    mockgit.commit(() => { throw Error('test'); });
+
+    expect(env).toHaveProperty('git.sha', null);
+  });
 });
