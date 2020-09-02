@@ -66,18 +66,20 @@ logger.loglevel = function loglevel(level, flags = {}) {
   this.transports[0].level = level;
 };
 
-// Patch the error method to handle error objects. Winston accepts objects with
-// messages and meta as an argument but will fail to log real error instances.
-logger.error = function(message) {
-  // libraries may also throw errors which are not technically Error instances
-  if (typeof message === 'object') {
-    // get the stack trace for debug (no ternary to always fallback to string)
-    message = (this.loglevel() === 'debug' && message.stack) || message.toString();
-  }
+// Patch the error and debug methods to handle error objects. Winston accepts objects
+// with messages and meta as an argument but will fail to log real error instances.
+for (let method of ['error', 'debug']) {
+  logger[method] = function(message) {
+    // libraries may also throw errors which are not technically Error instances
+    if (typeof message === 'object') {
+      // get the stack trace for debug (no ternary to always fallback to string)
+      message = (this.loglevel() === 'debug' && message.stack) || message.toString();
+    }
 
-  // return super.error(message)
-  return this.constructor.prototype.error.call(this, message);
-};
+    // return super[method](message)
+    return this.constructor.prototype[method].call(this, message);
+  };
+}
 
 // Patch the query method to return a promise, query the file transport only,
 // and allow filtering logs with a filter function.

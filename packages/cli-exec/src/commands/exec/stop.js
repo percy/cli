@@ -23,7 +23,7 @@ export class Stop extends Command {
       log.info('Percy has stopped');
     } catch (err) {
       log.error('Percy is not running');
-      log.debug(err.toString());
+      log.debug(err);
       this.exit(1);
     }
   }

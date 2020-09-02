@@ -67,7 +67,7 @@ export default function load({
       }
     } catch (error) {
       log.debug('Failed to load or parse config file');
-      log.debug(error.toString());
+      log.debug(error);
     }
   }
 

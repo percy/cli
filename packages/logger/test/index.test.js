@@ -98,6 +98,14 @@ describe('logger', () => {
     });
   });
 
+  describe('#debug()', () => {
+    it('is patched to log error instance strings', () => {
+      let err = { toString: () => 'error' };
+      stdio.capture(() => log.debug(err));
+      expect(stdio[1]).toEqual(['[percy] error\n']);
+    });
+  });
+
   describe('#query()', () => {
     beforeEach(() => {
       stdio.capture(() => {

@@ -282,7 +282,7 @@ describe('PercyConfig', () => {
       expect(stdio[2]).toHaveLength(0);
       expect(stdio[1]).toEqual([
         '[percy] Failed to load or parse config file\n',
-        '[percy] Error: test\n'
+        expect.stringContaining('[percy] Error: test')
       ]);
     });
 

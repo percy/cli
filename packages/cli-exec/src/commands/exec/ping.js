@@ -18,7 +18,7 @@ export class Ping extends Command {
       log.info('Percy is running');
     } catch (err) {
       log.error('Percy is not running');
-      log.debug(err.toString());
+      log.debug(err);
       this.exit(1);
     }
   }
