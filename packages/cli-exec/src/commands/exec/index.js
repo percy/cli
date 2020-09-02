@@ -53,9 +53,9 @@ export class Exec extends Command {
 
     // provide SDKs with useful env vars
     let env = {
-      ...process.env,
       PERCY_CLI_API: this.percy?.apiAddress(),
-      PERCY_LOGLEVEL: log.loglevel()
+      PERCY_LOGLEVEL: log.loglevel(),
+      ...process.env
     };
 
     // run the passed command async
