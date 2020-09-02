@@ -99,13 +99,8 @@ describe('Percy', () => {
   });
 
   describe('#apiAddress()', () => {
-    it('returns undefined when the server is not running', () => {
-      expect(percy.apiAddress()).toBeUndefined();
-    });
-
-    it('returns the server API address when it is running', async () => {
-      await percy.start();
-      expect(percy.apiAddress()).toEqual('http://[::]:5338/percy');
+    it('returns the server API address', async () => {
+      expect(percy.apiAddress()).toEqual('http://localhost:5338/percy');
     });
   });
 
