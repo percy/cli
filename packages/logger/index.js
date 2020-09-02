@@ -29,7 +29,7 @@ const logger = createLogger({
   transports: [
     // console transport logs errors by default
     new transports.Console({
-      level: 'error',
+      level: process.env.PERCY_LOGLEVEL || 'info',
       stderrLevels: ['error'],
       format: format.combine(
         format.label({ label: 'percy' }),

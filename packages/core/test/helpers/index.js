@@ -6,13 +6,13 @@ import mockAPI from '@percy/client/test/helper';
 
 beforeEach(() => {
   mockAPI.start();
+  // set the default log level for testing
+  log.loglevel('error');
 });
 
 afterEach(() => {
   // cleanup tmp files
   rimraf.sync(path.join(os.tmpdir(), 'percy'));
-  // reset log level
-  log.loglevel('error');
 });
 
 export { mockAPI };
