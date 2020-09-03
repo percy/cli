@@ -1,3 +1,4 @@
+import path from 'path';
 import expect from 'expect';
 import logger from '@percy/logger/test/helper';
 import mockConfig from './helper';
@@ -225,15 +226,16 @@ describe('PercyConfig', () => {
     });
 
     it('can search a provided directory for a config file', () => {
+      let filename = path.join('config', '.percy.yml');
       logger.loglevel('debug');
 
-      mockConfig('config/.percy.yml', [
+      mockConfig(filename, [
         'version: 2',
         'test:',
         '  value: config/percy'
       ].join('\n'));
 
-      expect(PercyConfig.load({ path: 'config/' }))
+      expect(PercyConfig.load({ path: 'config' }))
         .toEqual({
           version: 2,
           test: { value: 'config/percy' }
@@ -241,7 +243,7 @@ describe('PercyConfig', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toContain(
-        '[percy:config] Found config file: config/.percy.yml\n'
+        `[percy:config] Found config file: ${filename}\n`
       );
     });
 
