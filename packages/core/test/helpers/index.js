@@ -19,7 +19,7 @@ afterEach(function(done) {
   }
 
   // cleanup tmp files
-  rimraf(path.join(os.tmpdir(), 'percy'), done);
+  rimraf(path.join(os.tmpdir(), 'percy'), () => done());
 });
 
 export { logger, mockAPI };
