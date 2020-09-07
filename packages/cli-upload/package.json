@@ -34,6 +34,6 @@
     "@percy/config": "^1.0.0-beta.10",
     "@percy/logger": "^1.0.0-beta.10",
     "globby": "^11.0.0",
-    "image-size": "^0.8.3"
+    "image-size": "^0.9.1"
   }
 }
