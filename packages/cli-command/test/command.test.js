@@ -68,14 +68,14 @@ describe('PercyCommand', () => {
     expect(log.loglevel()).toBe('silent');
   });
 
-  it('logs errors to the logger', async () => {
+  it('logs errors to the logger and exits', async () => {
     class TestPercyCommandError extends TestPercyCommand {
       test() { this.error('test error'); }
     }
 
     await expect(stdio.capture(() => (
       TestPercyCommandError.run([])
-    ))).rejects.toThrow('test error');
+    ))).rejects.toThrow('EEXIT: 1');
 
     expect(stdio[1]).toHaveLength(0);
     expect(stdio[2]).toEqual([

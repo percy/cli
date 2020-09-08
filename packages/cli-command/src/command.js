@@ -29,9 +29,11 @@ export default class PercyCommand extends Command {
       // real errors will bubble
       await super.catch(err);
     } catch (err) {
-      // oclif exit method actually throws an error, don't log it
-      if (!err.oclif || err.code !== 'EEXIT') log.error(err);
-      throw err;
+      // oclif exit method actually throws an error, let it continue
+      if (err.oclif && err.code === 'EEXIT') throw err;
+      // log all other errors and exit
+      log.error(err);
+      this.exit(1);
     }
   }
 
