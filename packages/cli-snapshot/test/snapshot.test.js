@@ -80,7 +80,7 @@ describe('percy snapshot', () => {
   it('errors when the provided path doesn\'t exist', async () => {
     await expect(stdio.capture(() => (
       Snapshot.run(['./404'])
-    ))).rejects.toThrow('Not found: ./404');
+    ))).rejects.toThrow('EEXIT: 1');
 
     expect(stdio[1]).toHaveLength(0);
     expect(stdio[2]).toEqual([
@@ -91,7 +91,7 @@ describe('percy snapshot', () => {
   it('errors when the base-url is invalid', async () => {
     await expect(stdio.capture(() => (
       Snapshot.run(['./public', '--base-url=wrong'])
-    ))).rejects.toThrow('The base-url flag must begin with a forward slash (/)');
+    ))).rejects.toThrow('EEXIT: 1');
 
     expect(stdio[1]).toHaveLength(0);
     expect(stdio[2]).toEqual([
@@ -102,7 +102,7 @@ describe('percy snapshot', () => {
   it('errors when there are no snapshots to take', async () => {
     await expect(stdio.capture(() => (
       Snapshot.run(['./public', '--files=no-match'])
-    ))).rejects.toThrow('No snapshots found');
+    ))).rejects.toThrow('EEXIT: 1');
 
     expect(stdio[1]).toHaveLength(0);
     expect(stdio[2]).toEqual([
@@ -232,7 +232,7 @@ describe('percy snapshot', () => {
     it('errors with unknown file extensions', async () => {
       await expect(stdio.capture(() => (
         Snapshot.run(['./nope'])
-      ))).rejects.toThrow('Unsupported filetype: ./nope');
+      ))).rejects.toThrow('EEXIT: 1');
 
       expect(stdio[1]).toHaveLength(0);
       expect(stdio[2]).toEqual([

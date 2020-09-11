@@ -93,7 +93,7 @@ describe('percy exec', () => {
 
     await expect(stdio.capture(() => (
       Exec.run(['--', 'foobar'])
-    ))).rejects.toThrow('ENOENT');
+    ))).rejects.toThrow('EEXIT: 1');
 
     expect(stdio[2]).toEqual([
       '[percy] Error: spawn foobar ENOENT\n'

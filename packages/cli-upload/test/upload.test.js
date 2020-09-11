@@ -58,7 +58,7 @@ describe('percy upload', () => {
   it('errors when the directory is not found', async () => {
     await expect(stdio.capture(() => (
       Upload.run(['./404'])
-    ))).rejects.toThrow('Not found: ./404');
+    ))).rejects.toThrow('EEXIT: 1');
 
     expect(stdio[1]).toHaveLength(0);
     expect(stdio[2]).toEqual([
@@ -69,7 +69,7 @@ describe('percy upload', () => {
   it('errors when the path is not a directory', async () => {
     await expect(stdio.capture(() => (
       Upload.run(['./nope'])
-    ))).rejects.toThrow('Not a directory: ./nope');
+    ))).rejects.toThrow('EEXIT: 1');
 
     expect(stdio[1]).toHaveLength(0);
     expect(stdio[2]).toEqual([
@@ -80,7 +80,7 @@ describe('percy upload', () => {
   it('errors when there are no matching files', async () => {
     await expect(stdio.capture(() => (
       Upload.run(['./images', '--files=no-match.png'])
-    ))).rejects.toThrow('No matching files found in \'./images\'');
+    ))).rejects.toThrow('EEXIT: 1');
 
     expect(stdio[1]).toHaveLength(0);
     expect(stdio[2]).toEqual([

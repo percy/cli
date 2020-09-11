@@ -39,9 +39,9 @@ describe('percy build:wait', () => {
     ]);
   });
 
-  it('logs an error when required args are missing', async () => {
+  it('logs an error and exits when required args are missing', async () => {
     await expect(stdio.capture(() => Wait.run([])))
-      .rejects.toThrow('Missing build ID or commit SHA');
+      .rejects.toThrow('EEXIT: 1');
     expect(stdio[1]).toHaveLength(0);
     expect(stdio[2]).toEqual([
       '[percy] Error: Missing build ID or commit SHA\n'

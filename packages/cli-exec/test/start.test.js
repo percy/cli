@@ -41,7 +41,7 @@ describe('percy exec:start', () => {
   it('logs an error when percy is already running', async () => {
     await expect(stdio.capture(() => (
       Start.run([])
-    ))).rejects.toThrow('Percy is already running');
+    ))).rejects.toThrow('EEXIT: 1');
 
     expect(stdio[1]).toHaveLength(0);
     expect(stdio[2]).toEqual([
