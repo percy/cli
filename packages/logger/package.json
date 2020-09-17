@@ -3,6 +3,10 @@
   "version": "1.0.0-beta.11",
   "license": "MIT",
   "main": "index.js",
+  "files": [
+    "index.js",
+    "test/helper.js"
+  ],
   "scripts": {
     "lint": "eslint --ignore-path ../../.gitignore .",
     "test": "cross-env NODE_ENV=test mocha",
