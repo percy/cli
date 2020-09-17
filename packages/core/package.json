@@ -1,6 +1,6 @@
 {
   "name": "@percy/core",
-  "version": "1.0.0-beta.11",
+  "version": "1.0.0-beta.12",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "types/index.d.ts",
@@ -24,9 +24,9 @@
     "timeout": 10000
   },
   "dependencies": {
-    "@percy/client": "^1.0.0-beta.11",
-    "@percy/dom": "^1.0.0-beta.11",
-    "@percy/logger": "^1.0.0-beta.11",
+    "@percy/client": "^1.0.0-beta.12",
+    "@percy/dom": "^1.0.0-beta.12",
+    "@percy/logger": "^1.0.0-beta.12",
     "body-parser": "^1.19.0",
     "cors": "^2.8.5",
     "express": "^4.17.1",
