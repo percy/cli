@@ -91,7 +91,7 @@ describe('serializeInputs', () => {
     expect($('#multiselect>:nth-child(3)').attr('selected')).toBe('selected');
   });
 
-  it('does not mutate original select elements', async () => {
+  it('does not mutate original select elements', () => {
     let options = [
       ...document.querySelector('#multiselect').options,
       ...document.querySelector('#singleSelect').options

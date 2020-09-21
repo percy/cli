@@ -33,7 +33,7 @@ describe('serializeCanvas', () => {
     src = canvas.toDataURL();
   });
 
-  it('serializes canvas elements', async () => {
+  it('serializes canvas elements', () => {
     let $canvas = $('#canvas');
     expect($canvas[0].tagName).toBe('img');
     expect($canvas.attr('src')).toBe(src);
@@ -43,7 +43,7 @@ describe('serializeCanvas', () => {
     expect($canvas.is('[data-percy-canvas-serialized]')).toBe(true);
   });
 
-  it('does not serialize canvas elements when JS is enabled', async () => {
+  it('does not serialize canvas elements when JS is enabled', () => {
     $ = cheerio.load(serializeDOM({ enableJavaScript: true }));
 
     let $canvas = $('#canvas');
