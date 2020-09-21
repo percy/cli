@@ -68,8 +68,8 @@ $ percy snapshot ./public
 
 When snapshotting a file containing a list of pages to snapshot, the page URLs must all be
 accessible by a browser. The file must be YAML, JSON, or a JS file exporting a list of pages. Each
-page must contain a snapshot `name` and `url`, with an optional `waitFor` option to wait for a selector
-or timeout before snapshotting the page.
+page must contain a snapshot `name` and `url`. The options `waitForTimeout` and `waitForSelector`
+can also be provided option to wait for a timeout or selector respectively before snapshotting.
 
 #### YAML
 
@@ -81,8 +81,9 @@ or timeout before snapshotting the page.
 
 - name: Snapshot two
   url: http://localhost:8080/two
-  # wait for an element or timeout before snapshotting
-  waitFor: .some-element
+  # wait for a timeout and/or selector before snapshotting
+  waitForTimeout: 1000
+  waitForSelector: .some-element
 ```
 
 Snapshotting `pages.yml`:
@@ -109,7 +110,7 @@ $ percy snapshot pages.yml
 }, {
   "name": "Snapshot two",
   "url": "http://localhost:8080/two",
-  "waitFor": ".some-element"
+  "waitForSelector": ".some-element"
 }]
 ```
 
@@ -143,7 +144,7 @@ module.exports = [{
 }, {
   name: 'Snapshot two',
   url: 'http://localhost:8080/two',
-  waitFor: '.some-element',
+  waitForSelector: '.some-element',
   snapshots: [{
     name: 'Snapshot two - after click',
     async execute(page) {

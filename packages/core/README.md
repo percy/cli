@@ -84,7 +84,8 @@ the exception of `domSnapshot`.
 percy.capture({
   name: 'My Snapshot',            // snapshot name
   url: 'http://localhost:3000/',  // required page URL
-  waitFor: selectorOrTimeout,     // selector or timeout to wait for before snapshotting
+  waitForTimeout: 1000,           // timeout to wait before snapshotting
+  waitForSelector: '.selector',   // selector to wait for before snapshotting
   execute: async (page) => {},    // async page function to execute before snapshotting
   snapshots: [{                   // additional snapshots to take on this page
     name: 'Second Snapshot',        // additional snapshot name

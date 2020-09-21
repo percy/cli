@@ -271,7 +271,8 @@ export default class Percy {
   capture({
     url,
     name,
-    waitFor,
+    waitForTimeout,
+    waitForSelector,
     execute,
     snapshots = [],
     ...options
@@ -301,7 +302,8 @@ export default class Percy {
         // inject @percy/dom for serialization
         await page.addScriptTag({ path: require.resolve('@percy/dom') });
         // wait for any other elements or timeout before snapshotting
-        if (waitFor) await page.waitFor(waitFor);
+        if (waitForTimeout) await page.waitForTimeout(waitForTimeout);
+        if (waitForSelector) await page.waitForSelector(waitForSelector);
 
         // multiple snapshots can be captured on a single page
         for (let { name, execute } of snapshots) {

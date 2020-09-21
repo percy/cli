@@ -568,7 +568,7 @@ describe('Percy', () => {
       ), 'base64').toString()).toMatch('<p>Test</p>');
     });
 
-    it('navigates to a url and takes a snapshot after `waitFor`', async () => {
+    it('navigates to a url and takes a snapshot after `waitForTimeout`', async () => {
       testDOM = testDOM.replace('</p>', '</p><script>' + (
         'setTimeout(() => (document.querySelector("p").id = "test"), 500)'
       ) + '</script>');
@@ -576,7 +576,25 @@ describe('Percy', () => {
       await stdio.capture(() => percy.capture({
         name: 'test snapshot',
         url: 'http://localhost:8000',
-        waitFor: '#test'
+        waitForTimeout: 600
+      }));
+
+      await percy.idle();
+      expect(Buffer.from((
+        mockAPI.requests['/builds/123/resources'][0]
+          .body.data.attributes['base64-content']
+      ), 'base64').toString()).toMatch('<p id="test">Test</p>');
+    });
+
+    it('navigates to a url and takes a snapshot after `waitForSelector`', async () => {
+      testDOM = testDOM.replace('</p>', '</p><script>' + (
+        'setTimeout(() => (document.querySelector("p").id = "test"), 500)'
+      ) + '</script>');
+
+      await stdio.capture(() => percy.capture({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        waitForSelector: '#test'
       }));
 
       await percy.idle();

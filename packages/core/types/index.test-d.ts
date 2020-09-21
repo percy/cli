@@ -94,7 +94,8 @@ expectError(await percy.snapshot());
 expectType<void>(await percy.capture({
   name: 'test snapshot',
   url: 'http://localhost:3000',
-  waitFor: '.some-selector',
+  waitForTimeout: 1000,
+  waitForSelector: '.some-selector',
   execute: async page => {},
   snapshots: [{
     name: 'test 2',

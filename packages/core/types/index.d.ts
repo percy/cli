@@ -58,12 +58,14 @@ declare class Percy {
     url: string,
     name: string,
     snapshots?: CaptureSnapshots,
-    waitFor?: string | number,
+    waitForTimeout?: number,
+    waitForSelector?: string,
     execute?: CaptureExec,
   } | {
     url: string,
     snapshots: CaptureSnapshots,
-    waitFor?: string | number,
+    waitForTimeout?: number,
+    waitForSelector?: string,
     execute?: CaptureExec
   })): Promise<void>;
 }
