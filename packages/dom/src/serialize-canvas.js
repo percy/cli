@@ -1,18 +1,23 @@
 // Serialize in-memory canvas elements into images.
 export default function serializeCanvas(dom, clone) {
   for (let canvas of dom.querySelectorAll('canvas')) {
+    // Note: the `.toDataURL` API requires WebGL canvas elements to use
+    // `preserveDrawingBuffer: true`. This is because `.toDataURL` uses the
+    // drawing buffer, which is cleared after each render for WebGL by default.
+    let dataUrl = canvas.toDataURL();
+
+    // skip empty canvases
+    if (!dataUrl || dataUrl === 'data:,') continue;
+
+    // create an image element in the cloned dom
     let img = clone.createElement('img');
+    img.src = dataUrl;
 
     // copy canvas element attributes to the image element such as style, class,
     // or data attributes that may be targeted by CSS
     for (let { name, value } of canvas.attributes) {
       img.setAttribute(name, value);
     }
-
-    // Note: the `.toDataURL` API requires WebGL canvas elements to use
-    // `preserveDrawingBuffer: true`. This is because `.toDataURL` uses the
-    // drawing buffer, which is cleared after each render for WebGL by default.
-    img.src = canvas.toDataURL();
 
     // mark the image as serialized (can be targeted by CSS)
     img.setAttribute('data-percy-canvas-serialized', '');

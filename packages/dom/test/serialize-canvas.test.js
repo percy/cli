@@ -14,6 +14,11 @@ describe('serializeCanvas', () => {
         height="150px"
         style="border: 5px solid black;"
       ></canvas>
+      <canvas
+        id="empty"
+        width="0px"
+        height="0px"
+      ></canvas>
     `);
 
     let canvas = document.getElementById('canvas');
@@ -47,6 +52,12 @@ describe('serializeCanvas', () => {
     $ = cheerio.load(serializeDOM({ enableJavaScript: true }));
 
     let $canvas = $('#canvas');
+    expect($canvas[0].tagName).toBe('canvas');
+    expect($canvas.is('[data-percy-canvas-serialized]')).toBe(false);
+  });
+
+  it('does not serialize empty canvas elements', () => {
+    let $canvas = $('#empty');
     expect($canvas[0].tagName).toBe('canvas');
     expect($canvas.is('[data-percy-canvas-serialized]')).toBe(false);
   });
