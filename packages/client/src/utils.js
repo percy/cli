@@ -130,7 +130,8 @@ export function request(url, { body, ...options }) {
             // error
             let err = Object.assign(new Error(), {
               response: { status, body },
-              message: body?.errors?.[0]?.detail || (
+              // use first error detail or the status message
+              message: body?.errors?.find(e => e.detail)?.detail || (
                 `${status} ${res.statusMessage || raw}`
               )
             });
