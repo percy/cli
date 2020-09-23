@@ -1,5 +1,8 @@
 // Minimum TypeScript Version: 3.8
-import Puppeteer from 'puppeteer-core';
+import * as Puppeteer from 'puppeteer-core/lib/cjs/puppeteer/common/Page';
+
+// Stubbed so other types can be consumed without needing global dom types
+declare global { interface Element {} }
 
 type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'silent';
 interface Pojo { [x: string]: any; }
