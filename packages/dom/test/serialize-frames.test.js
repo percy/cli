@@ -23,7 +23,7 @@ describe('serializeFrames', () => {
 
     let $frameInput = document.getElementById('frame-input');
     await when(() => assert($frameInput.contentWindow.performance.timing.loadEventEnd, '#frame-input did not load in time'));
-    await type($frameInput.contentDocument.querySelector('input'), 'iframe with an input');
+    await type(() => $frameInput.contentDocument.querySelector('input'), 'iframe with an input');
 
     let $frameJS = document.getElementById('frame-js-no-src');
     $frameJS.contentDocument.body.innerHTML = '<p>generated iframe</p>';

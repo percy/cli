@@ -1,6 +1,6 @@
 import expect from 'expect';
 import cheerio from 'cheerio';
-import { Interactor } from 'interactor.js';
+import Interactor, { by } from 'interactor.js';
 import { withExample } from './helpers';
 import serializeDOM from '../src';
 
@@ -48,13 +48,13 @@ describe('serializeInputs', () => {
 
     // interact with the inputs to update properties (does not update attributes)
     await new Interactor('form')
-      .type('#name', 'Bob Boberson')
-      .type('#valueAttr', 'Replacement Value!', { range: [0, 500] })
-      .type('#feedback', 'This is my feedback... And it is not very helpful')
-      .check('#radio')
-      .select('#singleSelect', 'Maybe')
-      .select('#multiselect', ['Shelby GT350', 'NA Miata'])
-      .check('#mailing');
+      .find('#name').type('Bob Boberson')
+      .find('#valueAttr').type('Replacement Value!', { range: [0, 500] })
+      .find('#feedback').type('This is my feedback... And it is not very helpful')
+      .find('#radio').check()
+      .find('#singleSelect').select(by.text('Maybe'))
+      .find('#multiselect').select([by.text('Shelby GT350'), by.text('NA Miata')])
+      .find('#mailing').check();
 
     $ = cheerio.load(serializeDOM());
   });
