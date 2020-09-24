@@ -1,4 +1,4 @@
-import stripAnsi from 'strip-ansi';
+const stripAnsi = require('strip-ansi');
 
 const og = {
   out: process.stdout.write,
@@ -19,7 +19,7 @@ function tryFinally(fn, cb) {
   let r, e;
   try { r = fn(); } catch (err) { e = err; }
 
-  if (typeof r?.then === 'function') {
+  if (r && typeof r.then === 'function') {
     return r.then(done, e => done(null, e));
   } else {
     return done(r, e);
@@ -49,4 +49,4 @@ const stdio = {
   }
 };
 
-export default stdio;
+module.exports = stdio;

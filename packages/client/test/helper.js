@@ -1,4 +1,4 @@
-import nock from 'nock';
+const nock = require('nock');
 
 const DEFAULT_REPLIES = {
   '/builds': () => [201, {
@@ -46,15 +46,19 @@ const mockAPI = {
       path = path.replace('/api/v1', '');
 
       let req = { body, headers, method };
-      let reply = replies[path]?.length > 1
-        ? replies[path].shift()
-        : replies[path]?.[0];
+      let reply = replies[path] && (
+        replies[path].length > 1
+          ? replies[path].shift()
+          : replies[path][0]
+      );
 
       requests[path] = requests[path] || [];
       requests[path].push(req);
 
       return reply ? reply(req) : (
-        DEFAULT_REPLIES[path]?.(req) ?? [200]
+        DEFAULT_REPLIES[path]
+          ? DEFAULT_REPLIES[path](req)
+          : [200]
       );
     }
 
@@ -69,4 +73,4 @@ const mockAPI = {
   }
 };
 
-export default mockAPI;
+module.exports = mockAPI;
