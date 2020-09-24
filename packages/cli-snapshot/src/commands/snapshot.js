@@ -106,14 +106,13 @@ export class Snapshot extends Command {
 
   // Serves a static directory at a base-url and resolves when listening.
   async serve(staticDir, baseUrl) {
-    let express = require('express');
-    let app = express();
-
-    app.use(require('cors')());
-    app.use(baseUrl, express.static(staticDir));
+    let http = require('http');
+    let serve = require('serve-handler');
 
     return new Promise(resolve => {
-      this.server = app.listen(() => {
+      this.server = http.createServer((req, res) => {
+        serve(req, res, { public: staticDir });
+      }).listen(() => {
         let { port } = this.server.address();
         resolve(`http://localhost:${port}`);
       });
