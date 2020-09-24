@@ -235,7 +235,7 @@ describe('Percy', () => {
 
     it('logs when stopping with pending captures', async () => {
       server = await createTestServer({
-        '/': () => [200, 'text/html', '<p>Test</p>']
+        default: () => [200, 'text/html', '<p>Test</p>']
       });
 
       // not awaited on so it becomes pending
@@ -273,7 +273,7 @@ describe('Percy', () => {
 
     it('resolves after captures idle', async () => {
       server = await createTestServer({
-        '/': () => [200, 'text/html', '<p>Test</p>']
+        default: () => [200, 'text/html', '<p>Test</p>']
       });
 
       // not awaited on so it becomes pending
@@ -525,7 +525,7 @@ describe('Percy', () => {
       testDOM = '<p>Test</p>';
 
       server = await createTestServer({
-        '/': () => [200, 'text/html', testDOM]
+        default: () => [200, 'text/html', testDOM]
       });
 
       await percy.start();

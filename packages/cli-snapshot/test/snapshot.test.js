@@ -160,7 +160,7 @@ describe('percy snapshot', () => {
 
     beforeEach(async () => {
       server = await createTestServer({
-        '/': () => [200, 'text/html', '<p>Test</p>']
+        default: () => [200, 'text/html', '<p>Test</p>']
       });
     });
 

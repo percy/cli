@@ -44,7 +44,7 @@ describe('Asset Discovery', () => {
     server = await createTestServer({
       '/': () => [200, 'text/html', testDOM],
       '/style.css': () => [200, 'text/css', testCSS],
-      '/img.gif': () => [200, 'image/gif', pixel], // delay
+      '/img.gif': () => [200, 'image/gif', pixel]
     });
 
     percy = await Percy.start({
@@ -181,7 +181,7 @@ describe('Asset Discovery', () => {
   });
 
   it('skips capturing large files', async () => {
-    server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(16000000)]);
+    server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(16_000_000)]);
 
     percy.loglevel('debug');
     await stdio.capture(() => (
@@ -332,7 +332,6 @@ describe('Asset Discovery', () => {
     });
   });
 
-  // these caches helpers are no longer used
   describe('with unhandled errors', async () => {
     it('logs unhandled request errors gracefully', async () => {
       // sabotage this property to trigger unexpected error handling

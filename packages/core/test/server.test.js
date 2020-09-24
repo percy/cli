@@ -49,7 +49,9 @@ describe('Snapshot Server', () => {
 
   it('has an /idle endpoint that calls #idle()', async () => {
     await percy.start();
-    percy.idle = () => (percy.idle.calls = percy.idle.calls || []).push(undefined);
+    percy.idle = async () => (
+      percy.idle.calls = percy.idle.calls || []
+    ).push(undefined);
 
     let response = await fetch('http://localhost:1337/percy/idle');
     await expect(response.json()).resolves.toEqual({ success: true });
@@ -57,7 +59,8 @@ describe('Snapshot Server', () => {
   });
 
   it('serves the @percy/dom bundle', async () => {
-    let bundle = require('fs').readFileSync(require.resolve('@percy/dom'), { encoding: 'utf-8' });
+    let bundle = require('fs')
+      .readFileSync(require.resolve('@percy/dom'), { encoding: 'utf-8' });
 
     await percy.start();
     let response = await fetch('http://localhost:1337/percy/dom.js');
@@ -66,7 +69,9 @@ describe('Snapshot Server', () => {
 
   it('has a /stop endpoint that calls #stop()', async () => {
     await percy.start();
-    percy.stop = () => (percy.stop.calls = percy.stop.calls || []).push(undefined);
+    percy.stop = async () => (
+      percy.stop.calls = percy.stop.calls || []
+    ).push(undefined);
 
     let response = await fetch('http://localhost:1337/percy/stop', { method: 'post' });
     await expect(response.json()).resolves.toEqual({ success: true });
@@ -75,7 +80,9 @@ describe('Snapshot Server', () => {
 
   it('has a /snapshot endpoint that calls #snapshot()', async () => {
     await percy.start();
-    percy.snapshot = data => (percy.snapshot.calls = percy.snapshot.calls || []).push(data);
+    percy.snapshot = async data => (
+      percy.snapshot.calls = percy.snapshot.calls || []
+    ).push(data);
 
     let response = await fetch('http://localhost:1337/percy/snapshot', {
       method: 'post',
@@ -90,7 +97,7 @@ describe('Snapshot Server', () => {
 
   it('returns a 500 error when an endpoint throws', async () => {
     await percy.start();
-    percy.snapshot = () => { throw new Error('test error'); };
+    percy.snapshot = () => Promise.reject(new Error('test error'));
 
     let response = await fetch('http://localhost:1337/percy/snapshot', {
       method: 'post',
