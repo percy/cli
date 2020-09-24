@@ -30,7 +30,7 @@ const mockAPI = {
   requests: null,
   replies: null,
 
-  start() {
+  start(delay = 0) {
     nock.cleanAll();
     nock.disableNetConnect();
     nock.enableNetConnect('storage.googleapis.com|localhost|127.0.0.1');
@@ -62,8 +62,8 @@ const mockAPI = {
       );
     }
 
-    n.get(/.*/).reply(intercept);
-    n.post(/.*/).reply(intercept);
+    n.get(/.*/).delay(delay).reply(intercept);
+    n.post(/.*/).delay(delay).reply(intercept);
   },
 
   reply(path, handler) {

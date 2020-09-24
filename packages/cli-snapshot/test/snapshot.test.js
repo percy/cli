@@ -58,7 +58,7 @@ describe('percy snapshot', () => {
 
   beforeEach(() => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    mockAPI.start();
+    mockAPI.start(50);
   });
 
   afterEach(() => {
