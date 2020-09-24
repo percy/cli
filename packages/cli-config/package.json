@@ -31,8 +31,8 @@
     }
   },
   "dependencies": {
-    "@oclif/command": "^1.5.19",
-    "@oclif/config": "^1.14.0",
+    "@oclif/command": "^1.8.0",
+    "@oclif/config": "^1.17.0",
     "@percy/config": "^1.0.0-beta.12",
     "@percy/logger": "^1.0.0-beta.12",
     "path-type": "^4.0.0"
