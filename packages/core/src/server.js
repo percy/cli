@@ -9,12 +9,11 @@ export function createServerApp(percy) {
   // lazily required to speed up imports when the server is not needed
   let express = require('express');
   let cors = require('cors');
-  let bodyParser = require('body-parser');
 
   return express()
     .use(cors())
-    .use(bodyParser.urlencoded({ extended: true }))
-    .use(bodyParser.json({ limit: '50mb' }))
+    .use(express.urlencoded({ extended: true }))
+    .use(express.json({ limit: '50mb' }))
   // healthcheck returns meta info as well
     .get('/percy/healthcheck', (_, res) => {
       res.json({

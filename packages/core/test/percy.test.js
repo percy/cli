@@ -234,9 +234,8 @@ describe('Percy', () => {
     });
 
     it('logs when stopping with pending captures', async () => {
-      server = await createTestServer();
-      server.app.get('/', (req, res) => {
-        res.set('Content-Type', 'text/html').send('<p>Test</p>');
+      server = await createTestServer({
+        '/': () => [200, 'text/html', '<p>Test</p>']
       });
 
       // not awaited on so it becomes pending
@@ -273,9 +272,8 @@ describe('Percy', () => {
     });
 
     it('resolves after captures idle', async () => {
-      server = await createTestServer();
-      server.app.get('/', (req, res) => {
-        res.set('Content-Type', 'text/html').send('<p>Test</p>');
+      server = await createTestServer({
+        '/': () => [200, 'text/html', '<p>Test</p>']
       });
 
       // not awaited on so it becomes pending
@@ -322,18 +320,11 @@ describe('Percy', () => {
     let pixel = Buffer.from('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', 'base64');
 
     beforeEach(async () => {
-      server = await createTestServer();
-
-      server.app
-        .get('/', (req, res) => {
-          res.set('Content-Type', 'text/html').send(testDOM);
-        })
-        .get('/style.css', (req, res) => {
-          res.set('Content-Type', 'text/css').send(testCSS);
-        })
-        .get('/img.gif', (req, res) => {
-          res.set('Content-Type', 'image/gif').send(pixel);
-        });
+      server = await createTestServer({
+        '/': () => [200, 'text/html', testDOM],
+        '/style.css': () => [200, 'text/css', testCSS],
+        '/img.gif': () => [200, 'image/gif', pixel]
+      });
 
       await percy.start();
     });
@@ -532,9 +523,9 @@ describe('Percy', () => {
 
     beforeEach(async () => {
       testDOM = '<p>Test</p>';
-      server = await createTestServer();
-      server.app.get('/', (req, res) => {
-        res.set('Content-Type', 'text/html').send(testDOM);
+
+      server = await createTestServer({
+        '/': () => [200, 'text/html', testDOM]
       });
 
       await percy.start();
