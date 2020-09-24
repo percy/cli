@@ -1,63 +1,104 @@
-// Handles async routes with a middleware pattern to catch and forward errors
-function asyncRoute(handler) {
-  return (req, res, next) => handler(req, res, next).catch(next);
+import http from 'http';
+import fs from 'fs';
+
+async function getReply(routes, request) {
+  let route = routes[request.url] || routes.default;
+  let reply;
+
+  // cors preflight
+  if (request.method === 'OPTIONS') {
+    reply = [204, { 'Access-Control-Allow-Methods': 'GET,POST' }];
+  } else {
+    reply = await Promise.resolve()
+      .then(() => routes.middleware?.(request))
+      .then(() => route?.(request))
+      .catch(routes.catch);
+  }
+
+  // default 404 when reply is not an array
+  let [status, headers, body] = Array.isArray(reply) ? reply : [404, {}];
+  // support content-type header shortcut
+  if (typeof headers === 'string') headers = { 'Content-Type': headers };
+  // auto stringify json
+  if (headers['Content-Type']?.includes('json')) body = JSON.stringify(body);
+  // add content length and cors headers
+  headers['Content-Length'] = body?.length ?? 0;
+  headers['Access-Control-Allow-Origin'] = '*';
+
+  return [status, headers, body];
 }
 
-// Lazily creates and returns an express app for communicating with the Percy
-// instance using a local API
-export function createServerApp(percy) {
-  // lazily required to speed up imports when the server is not needed
-  let express = require('express');
-  let cors = require('cors');
+export function createServer(routes) {
+  let context = {
+    get listening() {
+      return context.server.listening;
+    }
+  };
 
-  return express()
-    .use(cors())
-    .use(express.urlencoded({ extended: true }))
-    .use(express.json({ limit: '50mb' }))
-  // healthcheck returns meta info as well
-    .get('/percy/healthcheck', (_, res) => {
-      res.json({
-        success: true,
-        config: percy.config,
-        loglevel: percy.loglevel(),
-        build: percy.client.build
-      });
-    })
-  // responds when idle
-    .get('/percy/idle', asyncRoute(async (_, res) => {
-      await percy.idle();
-      res.json({ success: true });
-    }))
-  // serves @percy/dom as a convenience
-    .get('/percy/dom.js', (_, res) => {
-      res.sendFile(require.resolve('@percy/dom'));
-    })
-  // forward snapshot requests
-    .post('/percy/snapshot', asyncRoute(async (req, res) => {
-      await percy.snapshot(req.body);
-      res.json({ success: true });
-    }))
-  // stops the instance
-    .post('/percy/stop', asyncRoute(async (_, res) => {
-      await percy.stop();
-      res.json({ success: true });
-    }))
-  // other routes 404
-    .use('*', (_, res) => {
-      res.status(404).json({ success: false, error: 'Not found' });
-    })
-  // generic error handler
-    .use(({ message }, req, res, next) => {
-      res.status(500).json({ success: false, error: message });
+  context.server = http.createServer((request, response) => {
+    request.on('data', chunk => {
+      request.body = (request.body || '') + chunk;
     });
+
+    request.on('end', async () => {
+      try { request.body = JSON.parse(request.body); } catch {}
+      let [status, headers, body] = await getReply(routes, request);
+      response.writeHead(status, headers).end(body);
+    });
+  });
+
+  context.close = () => context.server.close();
+  context.listen = port => new Promise((resolve, reject) => {
+    context.server.on('listening', () => resolve(context));
+    context.server.on('error', reject);
+    context.server.listen(port);
+  });
+
+  context.reply = (url, handler) => {
+    routes[url] = handler;
+    return context;
+  };
+
+  return context;
 }
 
-// Promised based helper for starting an app at the specified port. Resolves
-// when the server is listening, rejects if there are any errors when starting.
-export function startServer(app, port) {
-  return new Promise((resolve, reject) => {
-    let server = app.listen(port);
-    server.once('listening', () => resolve(server));
-    server.once('error', reject);
+export default function createPercyServer(percy) {
+  return createServer({
+    // healthcheck returns meta info on success
+    '/percy/healthcheck': () => [200, 'application/json', {
+      success: true,
+      config: percy.config,
+      loglevel: percy.loglevel(),
+      build: percy.client.build
+    }],
+
+    // responds when idle
+    '/percy/idle': () => percy.idle()
+      .then(() => [200, 'application/json', { success: true }]),
+
+    // serves @percy/dom as a convenience
+    '/percy/dom.js': () => fs.promises
+      .readFile(require.resolve('@percy/dom'), 'utf-8')
+      .then(content => [200, 'applicaton/javascript', content]),
+
+    // forward snapshot requests
+    '/percy/snapshot': ({ body }) => percy.snapshot(body)
+      .then(() => [200, 'application/json', { success: true }]),
+
+    // stops the instance
+    '/percy/stop': () => percy.stop()
+      .then(() => [200, 'application/json', { success: true }]),
+
+    // other routes 404
+    default: () => [404, 'application/json', {
+      error: 'Not found',
+      success: false
+    }],
+
+    // generic error handler
+    catch: ({ message }) => [500, 'application/json', {
+      error: message,
+      success: false
+    }]
   });
 }
