@@ -159,9 +159,8 @@ describe('percy snapshot', () => {
     let server;
 
     beforeEach(async () => {
-      server = await createTestServer();
-      server.app.get('/', (req, res) => {
-        res.set('Content-Type', 'text/html').send('<p>Test</p>');
+      server = await createTestServer({
+        default: () => [200, 'text/html', '<p>Test</p>']
       });
     });
 

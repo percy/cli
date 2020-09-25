@@ -41,18 +41,11 @@ describe('Asset Discovery', () => {
       return [201, { data: { id: '4567' } }];
     });
 
-    server = await createTestServer();
-
-    server.app
-      .get('/', (req, res) => {
-        res.set('Content-Type', 'text/html').send(testDOM);
-      })
-      .get('/style.css', (req, res) => {
-        res.set('Content-Type', 'text/css').send(testCSS);
-      })
-      .get('/img.gif', (req, res) => setTimeout(() => {
-        res.set('Content-Type', 'image/gif').send(pixel);
-      }, 10));
+    server = await createTestServer({
+      '/': () => [200, 'text/html', testDOM],
+      '/style.css': () => [200, 'text/css', testCSS],
+      '/img.gif': () => [200, 'image/gif', pixel]
+    });
 
     percy = await Percy.start({
       token: 'PERCY_TOKEN',
@@ -75,7 +68,7 @@ describe('Asset Discovery', () => {
     });
 
     await percy.idle();
-    let paths = server.requests.map(r => r.path);
+    let paths = server.requests.map(r => r[0]);
     // does not request the root url (serves domSnapshot instead)
     expect(paths).not.toContain('/');
     expect(paths).toContain('/style.css');
@@ -118,7 +111,7 @@ describe('Asset Discovery', () => {
     });
 
     await percy.idle();
-    let paths = server.requests.map(r => r.path);
+    let paths = server.requests.map(r => r[0]);
     expect(paths).toContain('/style.css');
 
     expect(captured[0]).toEqual([
@@ -163,9 +156,7 @@ describe('Asset Discovery', () => {
   });
 
   it('follows redirects', async () => {
-    server.app.get('/stylesheet.css', (req, res) => {
-      res.redirect('/style.css');
-    });
+    server.reply('/stylesheet.css', () => [301, { Location: '/style.css' }]);
 
     await percy.snapshot({
       name: 'test snapshot',
@@ -174,7 +165,7 @@ describe('Asset Discovery', () => {
     });
 
     await percy.idle();
-    let paths = server.requests.map(r => r.path);
+    let paths = server.requests.map(r => r[0]);
     expect(paths).toContain('/stylesheet.css');
     expect(paths).toContain('/style.css');
 
@@ -190,9 +181,7 @@ describe('Asset Discovery', () => {
   });
 
   it('skips capturing large files', async () => {
-    server.app.get('/large.css', (req, res) => {
-      res.set('Content-Type', 'text/stylesheet').send('A'.repeat(16000000));
-    });
+    server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(16_000_000)]);
 
     percy.loglevel('debug');
     await stdio.capture(() => (
@@ -314,7 +303,7 @@ describe('Asset Discovery', () => {
       await snapshot(2);
 
       // only one request for each resource should be made
-      let paths = server.requests.map(r => r.path);
+      let paths = server.requests.map(r => r[0]);
       expect(paths.sort()).toEqual(['/img.gif', '/style.css']);
 
       // both snapshots' captured resources should match
@@ -332,7 +321,7 @@ describe('Asset Discovery', () => {
       await snapshot(2);
 
       // two requests for each resource should be made (opposite of prev test)
-      let paths = server.requests.map(r => r.path);
+      let paths = server.requests.map(r => r[0]);
       expect(paths.sort()).toEqual(['/img.gif', '/img.gif', '/style.css', '/style.css']);
 
       // bot snapshots' captured resources should match
@@ -343,7 +332,6 @@ describe('Asset Discovery', () => {
     });
   });
 
-  // these caches helpers are no longer used
   describe('with unhandled errors', async () => {
     it('logs unhandled request errors gracefully', async () => {
       // sabotage this property to trigger unexpected error handling
@@ -397,10 +385,9 @@ describe('Asset Discovery', () => {
     let server2;
 
     beforeEach(async () => {
-      server2 = await createTestServer(8001);
-      server2.app.get('/img.gif', (req, res) => {
-        res.set('Content-Type', 'image/gif').send(pixel);
-      });
+      server2 = await createTestServer({
+        '/img.gif': () => [200, 'image/gif', pixel]
+      }, 8001);
     });
 
     afterEach(() => {
@@ -415,10 +402,10 @@ describe('Asset Discovery', () => {
       });
 
       await percy.idle();
-      let paths = server.requests.map(r => r.path);
+      let paths = server.requests.map(r => r[0]);
       expect(paths).toContain('/style.css');
       expect(paths).not.toContain('/img.gif');
-      let paths2 = server2.requests.map(r => r.path);
+      let paths2 = server2.requests.map(r => r[0]);
       expect(paths2).not.toContain('/img.gif');
 
       expect(captured[0]).toEqual([

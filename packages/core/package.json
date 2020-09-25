@@ -6,7 +6,8 @@
   "types": "types/index.d.ts",
   "files": [
     "dist",
-    "types/index.d.ts"
+    "types/index.d.ts",
+    "test/helpers/server.js"
   ],
   "scripts": {
     "build": "babel --root-mode upward src --out-dir dist",
@@ -27,9 +28,6 @@
     "@percy/client": "^1.0.0-beta.13",
     "@percy/dom": "^1.0.0-beta.13",
     "@percy/logger": "^1.0.0-beta.13",
-    "body-parser": "^1.19.0",
-    "cors": "^2.8.5",
-    "express": "^4.17.1",
     "node-fetch": "^2.6.1",
     "progress": "^2.0.3",
     "puppeteer-core": "^5.3.1"

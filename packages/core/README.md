@@ -45,8 +45,7 @@ await percy.start()
 #### API Server
 
 Starting a `Percy` instance will start a local API server unless `server` is `false`. The server can
-be found at `http://localhost:5338/` or at the provided `port` number. All POST requests accept a
-JSON body with the `application/json` content-type.
+be found at `http://localhost:5338/` or at the provided `port` number.
 
 - GET `/percy/healthcheck` – Responds with information about the running instance
 - GET `/percy/dom.js` – Responds with the [`@percy/dom`](./packages/dom) library

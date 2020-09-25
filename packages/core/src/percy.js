@@ -4,7 +4,7 @@ import log from '@percy/logger';
 import { schema } from './config';
 import Discoverer from './discoverer';
 import injectPercyCSS from './percy-css';
-import { createServerApp, startServer } from './server';
+import createPercyServer from './server';
 import Queue from './queue';
 import assert from './utils/assert';
 import { createRootResource, createLogResource } from './utils/resources';
@@ -54,7 +54,7 @@ export default class Percy {
 
     if (server) {
       this.port = port;
-      this.app = createServerApp(this);
+      this.server = createPercyServer(this);
     }
 
     this.#snapshots = new Queue();
@@ -90,10 +90,8 @@ export default class Percy {
     this.client.getToken();
 
     try {
-      // if there is an exress app, a server should be started
-      if (this.app) {
-        this.server = await startServer(this.app, this.port);
-      }
+      // if there is a server, start listening
+      await this.server?.listen(this.port);
 
       // launch the discoverer browser and create a percy build
       await this.discoverer.launch();

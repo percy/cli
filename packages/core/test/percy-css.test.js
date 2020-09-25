@@ -14,10 +14,8 @@ describe('Percy CSS', () => {
   `;
 
   beforeEach(async () => {
-    server = await createTestServer();
-
-    server.app.get('/', (req, res) => {
-      res.set('Content-Type', 'text/html').send(testDOM);
+    server = await createTestServer({
+      default: () => [200, 'text/html', testDOM]
     });
 
     percy = await Percy.start({
