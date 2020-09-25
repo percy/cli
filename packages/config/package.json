@@ -1,6 +1,6 @@
 {
   "name": "@percy/config",
-  "version": "1.0.0-beta.13",
+  "version": "1.0.0-beta.14",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "types/index.d.ts",
@@ -22,7 +22,7 @@
     "require": "../../scripts/babel-register"
   },
   "dependencies": {
-    "@percy/logger": "^1.0.0-beta.13",
+    "@percy/logger": "^1.0.0-beta.14",
     "ajv": "^6.12.5",
     "cosmiconfig": "^7.0.0",
     "deepmerge": "^4.2.2",
