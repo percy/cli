@@ -1,8 +1,10 @@
 name: Changelog
 on:
-  push: [master]
+  push:
+    branches: [master]
 jobs:
-  update_draft:
+  update:
+    name: Update
     runs-on: ubuntu-latest
     steps:
       - uses: release-drafter/release-drafter@v5
