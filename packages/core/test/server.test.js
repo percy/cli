@@ -86,7 +86,6 @@ describe('Snapshot Server', () => {
 
     let response = await fetch('http://localhost:1337/percy/snapshot', {
       method: 'post',
-      headers: { 'Content-Type': 'application/json' },
       body: '{ "test": true }'
     });
 
@@ -101,7 +100,6 @@ describe('Snapshot Server', () => {
 
     let response = await fetch('http://localhost:1337/percy/snapshot', {
       method: 'post',
-      headers: { 'Content-Type': 'application/json' },
       body: '{ "test": true }'
     });
 
