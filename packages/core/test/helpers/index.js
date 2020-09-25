@@ -17,5 +17,5 @@ afterEach(() => {
 
 export { mockAPI };
 export { default as stdio } from '@percy/logger/test/helper';
-export { default as createTestServer } from './test-server';
+export { default as createTestServer } from './server';
 export { default as dedent } from './dedent';

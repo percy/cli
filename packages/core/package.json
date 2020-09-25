@@ -7,7 +7,7 @@
   "files": [
     "dist",
     "types/index.d.ts",
-    "test/helpers/test-server.js"
+    "test/helpers/server.js"
   ],
   "scripts": {
     "build": "babel --root-mode upward src --out-dir dist",
