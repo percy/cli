@@ -1,9 +1,10 @@
-import { createServer } from '../../src/server';
+const { createServer } = require('@percy/core/dist/server');
 
-export default function createTestServer(routes, port = 8000) {
-  let middleware = ({ url, body }) => server.requests.push([url, body]);
-  let server = createServer({ ...routes, middleware });
+module.exports = function createTestServer(routes, port = 8000) {
+  let onError = ({ message }) => [500, 'text/plain', message];
+  let middleware = ({ url, body }) => server.requests.push(body ? [url, body] : [url]);
+  let server = createServer({ ...routes, middleware, catch: onError });
   server.requests = [];
 
   return server.listen(port);
-}
+};
