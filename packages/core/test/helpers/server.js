@@ -1,3 +1,4 @@
+// aliased to src for coverage during tests without needing to compile this file
 const { createServer } = require('@percy/core/dist/server');
 
 module.exports = function createTestServer(routes, port = 8000) {

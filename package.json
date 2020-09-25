@@ -23,6 +23,7 @@
     "@babel/preset-env": "^7.11.5",
     "@babel/register": "^7.11.5",
     "@oclif/dev-cli": "^1.22.2",
+    "babel-plugin-module-resolver": "^4.0.0",
     "babel-plugin-istanbul": "^6.0.0",
     "cross-env": "^7.0.2",
     "eslint": "^7.9.0",
