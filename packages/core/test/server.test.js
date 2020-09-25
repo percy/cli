@@ -123,6 +123,22 @@ describe('Snapshot Server', () => {
     });
   });
 
+  it('accepts preflight cors checks', async () => {
+    let called = false;
+
+    await percy.start();
+    percy.snapshot = async () => (called = true);
+
+    let response = await fetch('http://localhost:1337/percy/snapshot', {
+      method: 'OPTIONS'
+    });
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    expect(response.headers.get('Access-Control-Allow-Methods')).toBe('GET,POST');
+    expect(called).toBe(false);
+  });
+
   describe('when the server is disabled', () => {
     beforeEach(async () => {
       percy = await Percy.start({
