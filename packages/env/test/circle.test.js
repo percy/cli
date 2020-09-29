@@ -10,8 +10,7 @@ describe('CircleCI', () => {
       CIRCLE_BRANCH: 'circle-branch',
       CIRCLE_SHA1: 'circle-commit-sha',
       CI_PULL_REQUESTS: 'https://github.com/owner/repo-name/pull/123',
-      CIRCLE_BUILD_NUM: 'build-number',
-      CIRCLE_NODE_TOTAL: '3'
+      CIRCLE_BUILD_NUM: 'build-number'
     });
   });
 
@@ -23,7 +22,7 @@ describe('CircleCI', () => {
     expect(env).toHaveProperty('target.branch', null);
     expect(env).toHaveProperty('pullRequest', '123');
     expect(env).toHaveProperty('parallel.nonce', 'build-number');
-    expect(env).toHaveProperty('parallel.total', 3);
+    expect(env).toHaveProperty('parallel.total', null);
   });
 
   it('has the correct parallel nonce in 2.x', () => {

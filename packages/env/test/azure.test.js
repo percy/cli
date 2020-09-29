@@ -9,7 +9,6 @@ describe('Azure', () => {
       BUILD_BUILDID: 'azure-build-id',
       BUILD_SOURCEVERSION: 'azure-commit-sha',
       BUILD_SOURCEBRANCHNAME: 'azure-branch',
-      SYSTEM_PARALLELEXECUTIONTYPE: 'None',
       TF_BUILD: 'True'
     });
   });
@@ -23,17 +22,6 @@ describe('Azure', () => {
     expect(env).toHaveProperty('pullRequest', null);
     expect(env).toHaveProperty('parallel.nonce', 'azure-build-id');
     expect(env).toHaveProperty('parallel.total', null);
-  });
-
-  it('has the correct properties for parallel build', () => {
-    env = new PercyEnvironment({
-      ...env.vars,
-      SYSTEM_PARALLELEXECUTIONTYPE: 'MultiMachine',
-      SYSTEM_TOTALJOBSINPHASE: '5'
-    });
-
-    expect(env).toHaveProperty('parallel.nonce', 'azure-build-id');
-    expect(env).toHaveProperty('parallel.total', 5);
   });
 
   it('has the correct properties for PR builds', () => {

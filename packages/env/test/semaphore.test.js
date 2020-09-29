@@ -11,7 +11,6 @@ describe('Semaphore', () => {
       REVISION: 'semaphore-commit-sha',
       SEMAPHORE_BRANCH_ID: 'semaphore-branch-id',
       SEMAPHORE_BUILD_NUMBER: 'semaphore-build-number',
-      SEMAPHORE_THREAD_COUNT: '2',
       PULL_REQUEST_NUMBER: '123'
     });
   });
@@ -25,7 +24,7 @@ describe('Semaphore', () => {
     expect(env).toHaveProperty('target.branch', null);
     expect(env).toHaveProperty('pullRequest', '123');
     expect(env).toHaveProperty('parallel.nonce', 'semaphore-branch-id/semaphore-build-number');
-    expect(env).toHaveProperty('parallel.total', 2);
+    expect(env).toHaveProperty('parallel.total', null);
   });
 
   describe('Semaphore 2.0', () => {

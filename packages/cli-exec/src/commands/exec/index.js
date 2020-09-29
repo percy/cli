@@ -13,7 +13,12 @@ export class Exec extends Command {
     ...flags.logging,
     ...flags.discovery,
     ...flags.config,
-    ...execFlags
+    ...execFlags,
+
+    parallel: flags.boolean({
+      char: 'p',
+      description: 'marks the build as one of many parallel builds'
+    })
   };
 
   static examples = [
@@ -34,6 +39,11 @@ export class Exec extends Command {
     } else if (!which.sync(command, { nothrow: true })) {
       log.error(`Error: command not found "${command}"`);
       return this.exit(127);
+    }
+
+    // set environment parallel total for `n` parallel builds (use with build:finalize)
+    if (this.flags.parallel && !process.env.PERCY_PARALLEL_TOTAL) {
+      process.env.PERCY_PARALLEL_TOTAL = '-1';
     }
 
     // attempt to start percy if enabled
