@@ -19,8 +19,14 @@ export class Finalize extends Command {
       return;
     }
 
+    // automatically set parallel total to -1
+    if (!process.env.PERCY_PARALLEL_TOTAL) {
+      process.env.PERCY_PARALLEL_TOTAL = '-1';
+    }
+
     let client = new PercyClient();
 
+    // ensure that this command is not used for other parallel totals
     if (client.env.parallel.total !== -1) {
       log.error('This command should only be used with PERCY_PARALLEL_TOTAL=-1');
       log.error(`Current value is "${client.env.parallel.total}"`);

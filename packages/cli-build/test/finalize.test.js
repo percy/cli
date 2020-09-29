@@ -5,7 +5,6 @@ import { Finalize } from '../src/commands/build/finalize';
 
 describe('percy build:finalize', () => {
   beforeEach(() => {
-    process.env.PERCY_PARALLEL_TOTAL = '-1';
     mockAPI.start();
   });
 
@@ -36,6 +35,14 @@ describe('percy build:finalize', () => {
       '[percy] This command should only be used with PERCY_PARALLEL_TOTAL=-1\n',
       '[percy] Current value is "5"\n'
     ]);
+  });
+
+  it('defaults PERCY_PARALLEL_TOTAL to -1', async () => {
+    process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+
+    expect(process.env.PERCY_PARALLEL_TOTAL).toBeUndefined();
+    await stdio.capture(() => Finalize.run([]));
+    expect(process.env.PERCY_PARALLEL_TOTAL).toEqual('-1');
   });
 
   it('gets parallel build info and finalizes all parallel builds', async () => {
