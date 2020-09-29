@@ -348,12 +348,12 @@ describe('Asset Discovery', () => {
       ));
 
       expect(stdio[1]).toHaveLength(0);
-      expect(stdio[2]).toEqual([
+      expect(stdio[2]).toEqual(expect.arrayContaining([
         '[percy] Encountered an error for http://localhost:8000/style.css\n',
         '[percy] Error: some unhandled request error\n',
         '[percy] Encountered an error for http://localhost:8000/img.gif\n',
         '[percy] Error: some unhandled request error\n'
-      ]);
+      ]));
     });
 
     it('logs unhandled requestfinished errors gracefully', async () => {
@@ -371,12 +371,12 @@ describe('Asset Discovery', () => {
       ));
 
       expect(stdio[1]).toHaveLength(0);
-      expect(stdio[2]).toEqual([
+      expect(stdio[2]).toEqual(expect.arrayContaining([
         '[percy] Encountered an error for http://localhost:8000/style.css\n',
         '[percy] Error: some unhandled finished error\n',
         '[percy] Encountered an error for http://localhost:8000/img.gif\n',
         '[percy] Error: some unhandled finished error\n'
-      ]);
+      ]));
     });
   });
 
