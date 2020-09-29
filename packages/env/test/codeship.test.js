@@ -11,8 +11,7 @@ describe('CodeShip', () => {
       CI_BUILD_NUMBER: 'codeship-build-number',
       CI_BUILD_ID: 'codeship-build-id',
       CI_COMMIT_ID: 'codeship-commit-sha',
-      CI_PULL_REQUEST: 'false',
-      CI_NODE_TOTAL: '3'
+      CI_PULL_REQUEST: 'false'
     });
   });
 
@@ -24,7 +23,7 @@ describe('CodeShip', () => {
     expect(env).toHaveProperty('target.branch', null);
     expect(env).toHaveProperty('pullRequest', null);
     expect(env).toHaveProperty('parallel.nonce', 'codeship-build-number');
-    expect(env).toHaveProperty('parallel.total', 3);
+    expect(env).toHaveProperty('parallel.total', null);
   });
 
   it('has nonce fallback for CodeShip Pro', () => {

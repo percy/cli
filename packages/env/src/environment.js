@@ -239,34 +239,12 @@ export default class PercyEnvironment {
     })();
 
     let total = (() => {
-      if (this.vars.PERCY_PARALLEL_TOTAL) {
-        return this.vars.PERCY_PARALLEL_TOTAL;
-      }
-
-      switch (this.ci) {
-        case 'travis':
-          return this.vars.CI_NODE_TOTAL;
-        case 'circle':
-          return this.vars.CIRCLE_NODE_TOTAL;
-        case 'codeship':
-          return this.vars.CI_NODE_TOTAL;
-        case 'semaphore':
-          return this.vars.SEMAPHORE_THREAD_COUNT;
-        case 'buildkite':
-          return this.vars.BUILDKITE_PARALLEL_JOB_COUNT;
-        case 'heroku':
-          return this.vars.CI_NODE_TOTAL;
-        case 'azure':
-          // SYSTEM_TOTALJOBSINPHASE is set for parallel builds and non-parallel matrix builds, so
-          // check build strategy is parallel by ensuring SYSTEM_PARALLELEXECUTIONTYPE == MultiMachine
-          return this.vars.SYSTEM_PARALLELEXECUTIONTYPE === 'MultiMachine' &&
-            this.vars.SYSTEM_TOTALJOBSINPHASE;
-      }
+      try { return parseInt(this.vars.PERCY_PARALLEL_TOTAL); } catch {}
     })();
 
     return {
       nonce: nonce || null,
-      total: total ? parseInt(total) : null
+      total: total || null
     };
   }
 

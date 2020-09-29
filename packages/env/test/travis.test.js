@@ -11,8 +11,7 @@ describe('Travis', () => {
       TRAVIS_PULL_REQUEST_BRANCH: '',
       TRAVIS_COMMIT: 'travis-commit-sha',
       TRAVIS_BRANCH: 'travis-branch',
-      TRAVIS_BUILD_NUMBER: 'build-number',
-      CI_NODE_TOTAL: '3'
+      TRAVIS_BUILD_NUMBER: 'build-number'
     });
   });
 
@@ -24,7 +23,7 @@ describe('Travis', () => {
     expect(env).toHaveProperty('target.branch', null);
     expect(env).toHaveProperty('pullRequest', null);
     expect(env).toHaveProperty('parallel.nonce', 'build-number');
-    expect(env).toHaveProperty('parallel.total', 3);
+    expect(env).toHaveProperty('parallel.total', null);
   });
 
   it('has the correct properties for PR builds', () => {
