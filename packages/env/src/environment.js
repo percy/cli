@@ -178,6 +178,8 @@ export default class PercyEnvironment {
           return this.vars.PULL_REQUEST_NUMBER || this.vars.SEMAPHORE_GIT_PR_NUMBER;
         case 'buildkite':
           return this.vars.BUILDKITE_PULL_REQUEST !== 'false' && this.vars.BUILDKITE_PULL_REQUEST;
+        case 'heroku':
+          return this.vars.HEROKU_PR_NUMBER;
         case 'gitlab':
           return this.vars.CI_MERGE_REQUEST_IID;
         case 'azure':
