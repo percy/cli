@@ -10,6 +10,7 @@ beforeEach(() => {
 afterEach(() => {
   delete process.env.PERCY_TOKEN;
   delete process.env.PERCY_ENABLE;
+  delete process.env.PERCY_PARALLEL_TOTAL;
   process.removeAllListeners();
   nock.cleanAll();
   mock.stopAll();

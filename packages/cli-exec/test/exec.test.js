@@ -45,6 +45,19 @@ describe('percy exec', () => {
     ]);
   });
 
+  it('sets the parallel total when the --parallel flag is provided', async () => {
+    expect(process.env.PERCY_PARALLEL_TOTAL).toBeUndefined();
+
+    await stdio.capture(() => (
+      Exec.run(['--parallel', '--', 'sleep', '0.1'])
+    ));
+
+    expect(stdio[2]).toHaveLength(0);
+    expect(stdio[1]).toHaveLength(6);
+
+    expect(process.env.PERCY_PARALLEL_TOTAL).toBe('-1');
+  });
+
   it('runs the command even when percy is disabled', async () => {
     process.env.PERCY_ENABLE = '0';
 
