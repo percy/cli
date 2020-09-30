@@ -1,5 +1,3 @@
-import nock from 'nock';
-import mock from 'mock-require';
 import mockAPI from '@percy/client/test/helper';
 
 beforeEach(() => {
@@ -12,9 +10,8 @@ afterEach(() => {
   delete process.env.PERCY_ENABLE;
   delete process.env.PERCY_PARALLEL_TOTAL;
   process.removeAllListeners();
-  nock.cleanAll();
-  mock.stopAll();
 });
 
 export { mockAPI };
 export { default as stdio } from '@percy/logger/test/helper';
+export { default as createTestServer } from '@percy/core/test/helpers/server';

@@ -4,6 +4,10 @@ import { stdio } from './helpers';
 import { Exec } from '../src/commands/exec';
 
 describe('percy exec', () => {
+  afterEach(() => {
+    mock.stopAll();
+  });
+
   it('logs an error when no command is provided', async () => {
     await expect(stdio.capture(() => (
       Exec.run([])

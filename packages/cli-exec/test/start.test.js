@@ -2,23 +2,15 @@ import expect from 'expect';
 import fetch from 'node-fetch';
 import { stdio } from './helpers';
 import { Start } from '../src/commands/exec/start';
+import { Stop } from '../src/commands/exec/stop';
 
 describe('percy exec:start', () => {
-  async function stop() {
-    await stdio.capture(() => (
-      fetch('http://localhost:5338/percy/stop', {
-        method: 'POST',
-        timeout: 100
-      }).catch(() => {})
-    ));
-  }
-
   beforeEach(async () => {
     await Start.run(['--quiet']);
   });
 
   afterEach(async () => {
-    await stop();
+    await Stop.run(['--silent']).catch(() => {});
   });
 
   it('starts a long-running percy process', async () => {
@@ -32,6 +24,8 @@ describe('percy exec:start', () => {
     ).resolves.toBeDefined();
 
     process.emit('SIGTERM');
+    // wait for event to be handled
+    await new Promise(r => setTimeout(r, 100));
 
     await expect(
       fetch('http://localhost:5338/percy/healthcheck', { timeout: 10 })
@@ -39,9 +33,8 @@ describe('percy exec:start', () => {
   });
 
   it('logs an error when percy is already running', async () => {
-    await expect(stdio.capture(() => (
-      Start.run([])
-    ))).rejects.toThrow('EEXIT: 1');
+    await expect(stdio.capture(() => Start.run([])))
+      .rejects.toThrow('EEXIT: 1');
 
     expect(stdio[1]).toHaveLength(0);
     expect(stdio[2]).toEqual([
@@ -50,7 +43,7 @@ describe('percy exec:start', () => {
   });
 
   it('logs when percy has been disabled', async () => {
-    await stop();
+    await Stop.run(['--quiet']);
 
     process.env.PERCY_ENABLE = '0';
     await stdio.capture(() => Start.run([]));

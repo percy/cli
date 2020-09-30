@@ -1,18 +1,28 @@
 import expect from 'expect';
-import nock from 'nock';
-import { stdio } from './helpers';
+import { stdio, createTestServer } from './helpers';
 import { Stop } from '../src/commands/exec/stop';
 
 describe('percy exec:stop', () => {
-  it('calls the /percy/stop endpoint and logs', async () => {
-    let request = nock('http://localhost:5338')
-      .post('/percy/stop').reply(200, { success: true });
+  let percyServer;
+
+  afterEach(async () => {
+    await percyServer?.close();
+  });
+
+  it('calls the /percy/stop endpoint and logs when the server is down', async () => {
+    percyServer = await createTestServer({
+      '/percy/stop': () => [200, 'application/json', { success: true }]
+    }, 5338);
 
     await stdio.capture(() => Stop.run([]));
 
+    expect(percyServer.requests).toEqual([
+      ['/percy/stop'],
+      ['/percy/healthcheck']
+    ]);
+
     expect(stdio[2]).toHaveLength(0);
     expect(stdio[1]).toEqual(['[percy] Percy has stopped\n']);
-    request.done();
   });
 
   it('logs when percy is disabled', async () => {
@@ -24,11 +34,8 @@ describe('percy exec:stop', () => {
   });
 
   it('logs an error when the endpoint errors', async () => {
-    nock('http://localhost:5338').post('/percy/stop').reply(500);
-
-    await expect(stdio.capture(() => (
-      Stop.run([])
-    ))).rejects.toThrow('EEXIT: 1');
+    await expect(stdio.capture(() => Stop.run([])))
+      .rejects.toThrow('EEXIT: 1');
 
     expect(stdio[1]).toHaveLength(0);
     expect(stdio[2]).toEqual(['[percy] Percy is not running\n']);
