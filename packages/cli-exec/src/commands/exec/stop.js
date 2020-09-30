@@ -12,19 +12,27 @@ export class Stop extends Command {
   };
 
   async run() {
+    let { port } = this.flags;
+
     if (!this.isPercyEnabled()) {
       log.info('Percy is disabled');
       return;
     }
 
     try {
-      let { port } = this.flags;
       await request(`http://localhost:${port}/percy/stop`, { method: 'POST' });
-      log.info('Percy has stopped');
     } catch (err) {
       log.error('Percy is not running');
       log.debug(err);
       this.exit(1);
     }
+
+    // retry heathcheck until it fails
+    await new Promise(function check(resolve) {
+      return request(`http://localhost:${port}/percy/healthcheck`, { method: 'GET' })
+        .then(() => setTimeout(check, 100, resolve)).catch(resolve);
+    });
+
+    log.info('Percy has stopped');
   }
 }
