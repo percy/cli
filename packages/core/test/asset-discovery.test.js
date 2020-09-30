@@ -57,7 +57,7 @@ describe('Asset Discovery', () => {
   afterEach(async () => {
     percy?.loglevel('error');
     await percy?.stop();
-    server.close();
+    await server.close();
   });
 
   it('gathers resources for a snapshot', async () => {
@@ -390,8 +390,8 @@ describe('Asset Discovery', () => {
       }, 8001);
     });
 
-    afterEach(() => {
-      server2.close();
+    afterEach(async () => {
+      await server2.close();
     });
 
     it('does not request or capture external assets', async () => {

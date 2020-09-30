@@ -164,8 +164,8 @@ describe('percy snapshot', () => {
       });
     });
 
-    afterEach(() => {
-      server.close();
+    afterEach(async () => {
+      await server.close();
     });
 
     it('snapshots pages from .yaml files', async () => {

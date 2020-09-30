@@ -101,7 +101,12 @@ export class Snapshot extends Command {
   // Called on error, interupt, or after running
   async finally() {
     await this.percy?.stop();
-    this.server?.close();
+
+    if (this.server) {
+      await new Promise(resolve => {
+        this.server.close(resolve);
+      });
+    }
   }
 
   // Serves a static directory at a base-url and resolves when listening.

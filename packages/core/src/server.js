@@ -35,6 +35,8 @@ export function createServer(routes) {
     }
   };
 
+  // create a simple server to route request responses
+  context.routes = routes;
   context.server = http.createServer((request, response) => {
     request.on('data', chunk => {
       request.body = (request.body || '') + chunk;
@@ -47,13 +49,26 @@ export function createServer(routes) {
     });
   });
 
-  context.close = () => context.server.close();
+  // track connections
+  context.sockets = new Set();
+  context.server.on('connection', s => {
+    context.sockets.add(s.on('close', () => context.sockets.delete(s)));
+  });
+
+  // immediately kill connections on close
+  context.close = () => new Promise(resolve => {
+    context.sockets.forEach(s => s.destroy());
+    context.server.close(resolve);
+  });
+
+  // starts the server
   context.listen = port => new Promise((resolve, reject) => {
     context.server.on('listening', () => resolve(context));
     context.server.on('error', reject);
     context.server.listen(port);
   });
 
+  // add routes programatically
   context.reply = (url, handler) => {
     routes[url] = handler;
     return context;
@@ -85,9 +100,10 @@ export default function createPercyServer(percy) {
     '/percy/snapshot': ({ body }) => percy.snapshot(body)
       .then(() => [200, 'application/json', { success: true }]),
 
-    // stops the instance
-    '/percy/stop': () => percy.stop()
-      .then(() => [200, 'application/json', { success: true }]),
+    // stops the instance async (connections will be closed)
+    '/percy/stop': () => percy.stop() && (
+      [200, 'application/json', { success: true }]
+    ),
 
     // other routes 404
     default: () => [404, 'application/json', {

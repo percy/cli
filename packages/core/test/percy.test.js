@@ -19,7 +19,7 @@ describe('Percy', () => {
   afterEach(async () => {
     percy.loglevel('error');
     await percy.stop();
-    server?.close();
+    await server?.close();
   });
 
   it('scrubs invalid config options and loads defaults', () => {

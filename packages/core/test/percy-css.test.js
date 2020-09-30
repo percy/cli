@@ -30,7 +30,7 @@ describe('Percy CSS', () => {
 
   afterEach(async () => {
     await percy?.stop();
-    server.close();
+    await server.close();
   });
 
   it('creates a percy-specific CSS file', async () => {

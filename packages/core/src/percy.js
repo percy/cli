@@ -108,7 +108,7 @@ export default class Percy {
     } catch (error) {
       // on error, close any running browser or server
       await this.discoverer.close();
-      this.server?.close();
+      await this.server?.close();
 
       // throw an easier-to understand error when the port is taken
       if (error.code === 'EADDRINUSE') {
@@ -139,16 +139,15 @@ export default class Percy {
 
       // wait for any queued captures or snapshots
       await this.idle();
-
-      // close the server and browser
-      this.server?.close();
-      await this.discoverer.close();
       this.#running = false;
 
-      // log build info
+      // close the discoverer and server
+      await this.discoverer.close();
+      await this.server?.close();
+
+      // finalize the build
       await this.client.finalizeBuild();
       log.info(`Finalized build #${build.number}: ${build.url}`, meta);
-
       log.info('Done!');
     }
   }
