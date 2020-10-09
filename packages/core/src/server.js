@@ -7,7 +7,11 @@ async function getReply(routes, request) {
 
   // cors preflight
   if (request.method === 'OPTIONS') {
-    reply = [204, { 'Access-Control-Allow-Methods': 'GET,POST' }];
+    reply = [204, {}];
+    reply[1]['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS';
+    reply[1]['Access-Control-Request-Headers'] = 'Vary';
+    let allowed = request.headers['access-control-request-headers'];
+    if (allowed?.length) reply[1]['Access-Control-Allow-Headers'] = allowed;
   } else {
     reply = await Promise.resolve()
       .then(() => routes.middleware?.(request))
