@@ -39,6 +39,6 @@
     "karma-webpack": "^4.0.2",
     "regenerator-runtime": "^0.13.7",
     "webpack": "^4.44.2",
-    "webpack-cli": "^3.3.12"
+    "webpack-cli": "^4.0.0"
   }
 }
