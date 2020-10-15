@@ -1,5 +1,6 @@
-import http from 'http';
 import fs from 'fs';
+import http from 'http';
+import { version } from '../package.json';
 
 async function getReply(routes, request) {
   let route = routes[request.url] || routes.default;
@@ -25,9 +26,10 @@ async function getReply(routes, request) {
   if (typeof headers === 'string') headers = { 'Content-Type': headers };
   // auto stringify json
   if (headers['Content-Type']?.includes('json')) body = JSON.stringify(body);
-  // add content length and cors headers
+  // add additional headers
   headers['Content-Length'] = body?.length ?? 0;
   headers['Access-Control-Allow-Origin'] = '*';
+  headers['X-PercyCLI-Version'] = version;
 
   return [status, headers, body];
 }

@@ -2,6 +2,7 @@ import expect from 'expect';
 import fetch from 'node-fetch';
 import PercyConfig from '@percy/config';
 import Percy from '../src';
+import { version } from '../package.json';
 
 describe('Snapshot Server', () => {
   let percy;
@@ -35,6 +36,7 @@ describe('Snapshot Server', () => {
     await percy.start();
 
     let response = await fetch('http://localhost:1337/percy/healthcheck');
+    expect(response.headers.get('x-percycli-version')).toMatch(version);
     await expect(response.json()).resolves.toEqual({
       success: true,
       loglevel: 'error',
@@ -54,6 +56,7 @@ describe('Snapshot Server', () => {
     ).push(undefined);
 
     let response = await fetch('http://localhost:1337/percy/idle');
+    expect(response.headers.get('x-percycli-version')).toMatch(version);
     await expect(response.json()).resolves.toEqual({ success: true });
     expect(percy.idle.calls).toHaveLength(1);
   });
@@ -74,6 +77,7 @@ describe('Snapshot Server', () => {
     ).push(undefined);
 
     let response = await fetch('http://localhost:1337/percy/stop', { method: 'post' });
+    expect(response.headers.get('x-percycli-version')).toMatch(version);
     await expect(response.json()).resolves.toEqual({ success: true });
     expect(percy.stop.calls).toHaveLength(1);
   });
@@ -89,6 +93,7 @@ describe('Snapshot Server', () => {
       body: '{ "test": true }'
     });
 
+    expect(response.headers.get('x-percycli-version')).toMatch(version);
     await expect(response.json()).resolves.toEqual({ success: true });
     expect(percy.snapshot.calls).toHaveLength(1);
     expect(percy.snapshot.calls[0]).toEqual({ test: true });
@@ -103,6 +108,7 @@ describe('Snapshot Server', () => {
       body: '{ "test": true }'
     });
 
+    expect(response.headers.get('x-percycli-version')).toMatch(version);
     await expect(response.json()).resolves.toEqual({
       success: false,
       error: 'test error'
@@ -115,6 +121,7 @@ describe('Snapshot Server', () => {
     let response = await fetch('http://localhost:1337/foobar');
     expect(response).toHaveProperty('status', 404);
 
+    expect(response.headers.get('x-percycli-version')).toMatch(version);
     await expect(response.json()).resolves.toEqual({
       success: false,
       error: 'Not found'
