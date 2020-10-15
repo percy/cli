@@ -1,8 +1,8 @@
 import fs from 'fs';
 import http from 'http';
-import { version } from '../package.json';
+import pkg from '../package.json';
 
-async function getReply(routes, request) {
+async function getReply({ version, routes }, request) {
   let route = routes[request.url] || routes.default;
   let reply;
 
@@ -29,13 +29,15 @@ async function getReply(routes, request) {
   // add additional headers
   headers['Content-Length'] = body?.length ?? 0;
   headers['Access-Control-Allow-Origin'] = '*';
-  headers['X-PercyCLI-Version'] = version;
+  headers['X-Percy-Core-Version'] = version;
 
   return [status, headers, body];
 }
 
 export function createServer(routes) {
   let context = {
+    version: pkg.version,
+
     get listening() {
       return context.server.listening;
     }
@@ -50,7 +52,7 @@ export function createServer(routes) {
 
     request.on('end', async () => {
       try { request.body = JSON.parse(request.body); } catch {}
-      let [status, headers, body] = await getReply(routes, request);
+      let [status, headers, body] = await getReply(context, request);
       response.writeHead(status, headers).end(body);
     });
   });
