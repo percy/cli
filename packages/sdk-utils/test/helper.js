@@ -3,8 +3,9 @@ const sdk = {};
 
 // mock serialization script
 const serializeDOM = (options) => {
-  let doc = (options.dom || document).documentElement;
-  if (options.domTransformation) options.domTransformation(doc);
+  let { dom = document, domTransformation } = options || {};
+  let doc = (dom || document).documentElement;
+  if (domTransformation) domTransformation(doc);
   return doc.outerHTML;
 };
 
