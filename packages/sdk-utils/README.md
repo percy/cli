@@ -50,7 +50,7 @@ info.loglevel === (process.env.PERCY_LOGLEVEL || 'info')
 // CLI version parts (requires isPercyEnabled call)
 info.version === (['1', '0', '0'] || undefined)
 
-// CLI config options (requires isPercyEnableld calll)
+// CLI config options (requires isPercyEnabled call)
 info.config === {}
 ```
 
