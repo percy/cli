@@ -43,6 +43,7 @@ jobs:
           - '@percy/cli-upload'
           - '@percy/cli-build'
           - '@percy/cli-config'
+          - '@percy/sdk-utils'
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
