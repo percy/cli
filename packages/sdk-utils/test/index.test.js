@@ -205,7 +205,7 @@ describe('SDK Utils', () => {
     it('fetches @percy/dom from the CLI API and caches the result', async () => {
       ({ fetchPercyDOM } = sdk.rerequire('..'));
       await expect(fetchPercyDOM()).resolves.toEqual(
-        'window.PercyDOM = { serialize: () => document.documentElement.outerHTML }');
+        `window.PercyDOM = { serialize: ${sdk.serializeDOM.toString()} }`);
       await expect(fetchPercyDOM()).resolves.toBeDefined();
       expect(sdk.server.requests).toEqual([['/percy/dom.js']]);
     });

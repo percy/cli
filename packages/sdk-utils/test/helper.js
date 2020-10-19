@@ -1,11 +1,18 @@
 const createTestServer = require('@percy/core/test/helpers/server');
 const sdk = {};
 
+// mock serialization script
+const serializeDOM = (options) => {
+  let doc = (options.dom || document).documentElement;
+  if (options.domTransformation) options.domTransformation(doc);
+  return doc.outerHTML;
+};
+
 sdk.setup = async function setup() {
   // mock percy server
   sdk.server = await createTestServer({
     '/percy/dom.js': () => [200, 'application/javascript', (
-      `window.PercyDOM = { serialize: ${sdk.serialize.toString()} }`)],
+      `window.PercyDOM = { serialize: ${sdk.serializeDOM.toString()} }`)],
     '/percy/healthcheck': () => [200, 'application/json', (
       { success: true, config: { snapshot: { widths: [1280] } } })],
     '/percy/snapshot': () => [200, 'application/json', { success: true }]
@@ -14,7 +21,7 @@ sdk.setup = async function setup() {
   // reset things
   delete process.env.PERCY_CLI_API;
   delete process.env.PERCY_LOGLEVEL;
-  sdk.serialize = () => document.documentElement.outerHTML;
+  sdk.serializeDOM = serializeDOM;
   sdk.stdio[1] = []; sdk.stdio[2] = [];
 
   let utils = require('..');
