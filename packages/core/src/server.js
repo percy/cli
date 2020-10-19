@@ -51,7 +51,7 @@ export function createServer(routes) {
     });
 
     request.on('end', async () => {
-      try { request.body = JSON.parse(request.body); } catch {}
+      try { request.body = JSON.parse(request.body); } catch (e) {}
       let [status, headers, body] = await getReply(context, request);
       response.writeHead(status, headers).end(body);
     });

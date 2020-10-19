@@ -1,14 +1,13 @@
 {
-  "name": "@percy/client",
+  "name": "@percy/sdk-utils",
   "version": "1.0.0-beta.19",
   "license": "MIT",
-  "main": "dist/index.js",
+  "main": "index.js",
   "files": [
-    "dist",
+    "index.js",
     "test/helper.js"
   ],
   "scripts": {
-    "build": "babel --root-mode upward src --out-dir dist",
     "lint": "eslint --ignore-path ../../.gitignore .",
     "test": "cross-env NODE_ENV=test mocha",
     "test:coverage": "nyc yarn test"
@@ -18,11 +17,5 @@
   },
   "mocha": {
     "require": "../../scripts/babel-register"
-  },
-  "devDependencies": {
-    "mock-require": "^3.0.3"
-  },
-  "dependencies": {
-    "@percy/env": "^1.0.0-beta.19"
   }
 }
