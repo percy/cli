@@ -5955,9 +5955,9 @@ inquirer@^6.2.0:
     through "^2.3.6"
 
 interactor.js@^2.0.0-beta.8:
-  version "2.0.0-beta.8"
-  resolved "https://registry.yarnpkg.com/interactor.js/-/interactor.js-2.0.0-beta.8.tgz#369508c5b321e4bfe5b078b8a5bd2fc989fa72f7"
-  integrity sha512-MT0CXGG58T2HWbztYELK0RlNCVsNrgHJhOASKouAyIuua/9zXl1fDuSOH31Aj5MaehKaS1e64f2jJrkR1/SUaQ==
+  version "2.0.0-beta.9"
+  resolved "https://registry.yarnpkg.com/interactor.js/-/interactor.js-2.0.0-beta.9.tgz#d66a14ad1979b57fe221847ff79121bca14b38fb"
+  integrity sha512-v6X8UA9c0suiHVPvFOTlgl6k4Z/qJvtd3kBu/2V0P4ArjpxDi85t3VD07SbFNrxUU3KS761OEJB+Z+CDmaCExw==
 
 interpret@^2.0.0:
   version "2.2.0"
