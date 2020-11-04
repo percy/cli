@@ -70,6 +70,11 @@ const mockAPI = {
     this.replies[path] = this.replies[path] || [];
     this.replies[path].push(handler);
     return this;
+  },
+
+  cleanAll() {
+    nock.cleanAll();
+    return this;
   }
 };
 
