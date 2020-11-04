@@ -1,7 +1,7 @@
 import { strict as assert } from 'assert';
 import expect from 'expect';
 import cheerio from 'cheerio';
-import { type, when } from 'interactor.js';
+import I, { when } from 'interactor.js';
 import { withExample } from './helpers';
 import serializeDOM from '../src';
 
@@ -23,7 +23,7 @@ describe('serializeFrames', () => {
 
     let $frameInput = document.getElementById('frame-input');
     await when(() => assert($frameInput.contentWindow.performance.timing.loadEventEnd, '#frame-input did not load in time'));
-    await type(() => $frameInput.contentDocument.querySelector('input'), 'iframe with an input');
+    await I.type(() => $frameInput.contentDocument.querySelector('input'), 'iframe with an input');
 
     let $frameJS = document.getElementById('frame-js-no-src');
     $frameJS.contentDocument.body.innerHTML = '<p>generated iframe</p>';
