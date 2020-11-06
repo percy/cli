@@ -1,7 +1,6 @@
 import { relative } from 'path';
 import { cosmiconfigSync } from 'cosmiconfig';
 import { isDirectorySync } from 'path-type';
-import merge from 'deepmerge';
 import log from '@percy/logger';
 import getDefaults from './defaults';
 import normalize from './normalize';
@@ -58,8 +57,7 @@ export default function load({
               : 'unsupported version'
           ));
         } else {
-          // normalize to remove empty values and convert snake-case to camelCase
-          config = normalize(result.config);
+          config = result.config;
           cache.set(path, config);
         }
       } else {
@@ -72,7 +70,7 @@ export default function load({
   }
 
   // merge found config with overrides and validate
-  config = merge(config || {}, overrides);
+  config = normalize(config || {}, overrides);
   if (!validate(config, { scrub: true }) && bail) return;
 
   // normalize again to remove empty values from overrides and validation scrubbing
