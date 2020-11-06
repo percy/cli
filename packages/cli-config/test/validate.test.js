@@ -68,8 +68,8 @@ describe('percy config:validate', () => {
     expect(stdio[1]).toEqual([
       '[percy] Found config file: .invalid.yml\n',
       '[percy] Invalid config:\n',
-      '[percy] - unknown property \'bar\'\n',
-      '[percy] - \'test.value\' should be a string, received a boolean\n'
+      '[percy] - bar: unknown property\n',
+      '[percy] - test.value: should be a string, received a boolean\n'
     ]);
   });
 });
