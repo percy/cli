@@ -25,7 +25,6 @@
     "@percy/logger": "^1.0.0-beta.20",
     "ajv": "^6.12.5",
     "cosmiconfig": "^7.0.0",
-    "deepmerge": "^4.2.2",
     "path-type": "^4.0.0",
     "yaml": "^1.10.0"
   },
