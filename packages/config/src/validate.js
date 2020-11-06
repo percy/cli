@@ -1,6 +1,4 @@
 import Ajv from 'ajv';
-import log from '@percy/logger';
-
 const { assign, entries } = Object;
 
 // Ajv manages and validates schemas.
@@ -53,37 +51,31 @@ export function resetSchema() {
 // Validates config data according to the config schema and logs warnings to the
 // console. Optionallly scrubs invalid values from the provided config. Returns
 // true when the validation success, false otherwise.
-export default function validate(config, { scrub } = {}) {
+export default function validate(config) {
   let result = ajv.validate('config', config);
+  let errors = [];
 
   if (!result) {
-    log.warn('Invalid config:');
-
     for (let error of ajv.errors) {
       let { dataPath, keyword, params, message, data } = error;
-      let pre = dataPath ? `'${dataPath.substr(1)}' ` : '';
+      let path = dataPath ? dataPath.substr(1).split('.') : [];
 
       if (keyword === 'required') {
-        message = `is missing required property '${params.missingProperty}'`;
+        message = 'missing required property';
+        path.push(params.missingProperty);
       } else if (keyword === 'additionalProperties') {
-        pre = pre ? `${pre}has ` : '';
-        message = `unknown property '${params.additionalProperty}'`;
-        if (scrub) delete data[params.additionalProperty];
+        message = 'unknown property';
+        path.push(params.additionalProperty);
       } else if (keyword === 'type') {
         let dataType = Array.isArray(data) ? 'array' : typeof data;
         message = `should be ${a(params.type)}, received ${a(dataType)}`;
-
-        if (scrub) {
-          let [key, ...path] = dataPath.substr(1).split('.').reverse();
-          delete path.reduceRight((d, k) => d[k], config)[key];
-        }
       }
 
-      log.warn(`- ${pre}${message}`);
+      errors.push({ message, path });
     }
   }
 
-  return result;
+  return { result, errors };
 }
 
 // Adds "a" or "an" to a word for readability.
