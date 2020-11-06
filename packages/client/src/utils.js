@@ -97,6 +97,22 @@ export function httpAgentFor(url) {
   });
 }
 
+const RETRY_ERROR_CODES = [
+  'ECONNREFUSED', 'ECONNRESET', 'EPIPE',
+  'EHOSTUNREACH', 'EAI_AGAIN'
+];
+
+// Returns true or false if an error should cause the request to be retried
+function shouldRetryRequest(error) {
+  if (error.response) {
+    return error.response.status >= 500 && error.response.status < 600;
+  } else if (error.code) {
+    return RETRY_ERROR_CODES.includes(error.code);
+  } else {
+    return false;
+  }
+}
+
 // Returns a promise that resolves when the request is successful and rejects
 // when a non-successful response is received. The rejected error contains
 // response data and any received error details. Server 500 errors are retried
@@ -107,45 +123,37 @@ export function request(url, { body, ...options }) {
   options = { ...options, protocol, hostname, port, path: pathname + search };
 
   return retry((resolve, reject, retry) => {
+    let handleError = error => {
+      return shouldRetryRequest(error)
+        ? retry(error) : reject(error);
+    };
+
     http.request(options)
       .on('response', res => {
         let status = res.statusCode;
         let raw = '';
 
-        res.setEncoding('utf8');
-        res.on('data', chunk => {
-          raw += chunk;
-        });
+        res.setEncoding('utf8')
+          .on('data', chunk => (raw += chunk))
+          .on('error', handleError)
+          .on('end', () => {
+            let body = raw;
+            try { body = JSON.parse(raw); } catch (e) {}
 
-        res.on('end', () => {
-          let body = raw;
-
-          // attempt to parse json responses
-          try { body = JSON.parse(raw); } catch (e) {}
-
-          // success
-          if (status >= 200 && status < 300) {
-            resolve(body);
-          } else {
-            // error
-            let err = Object.assign(new Error(), {
-              response: { status, body },
-              // use first error detail or the status message
-              message: body?.errors?.find(e => e.detail)?.detail || (
-                `${status} ${res.statusMessage || raw}`
-              )
-            });
-
-            // retry 500s
-            if (status >= 500) {
-              retry(err);
+            if (status >= 200 && status < 300) {
+              resolve(body);
             } else {
-              reject(err);
+              handleError(Object.assign(new Error(), {
+                response: { status, body },
+                // use first error detail or the status message
+                message: body?.errors?.find(e => e.detail)?.detail || (
+                  `${status} ${res.statusMessage || raw}`
+                )
+              }));
             }
-          }
-        });
+          });
       })
-      .on('error', reject)
+      .on('error', handleError)
       .end(body);
   });
 }
