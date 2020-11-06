@@ -70,10 +70,22 @@ export default function load({
   }
 
   // merge found config with overrides and validate
-  config = normalize(config || {}, overrides);
-  if (!validate(config, { scrub: true }) && bail) return;
+  config = normalize(config, overrides);
+  let validation = config && validate(config);
 
-  // normalize again to remove empty values from overrides and validation scrubbing
+  if (validation && !validation.result) {
+    log.warn('Invalid config:');
+
+    for (let { message, path } of validation.errors) {
+      log.warn(`- ${path.join('.')}: ${message}`);
+      let [k, t] = [path.pop(), path.reduce((d, p) => d[p], config)];
+      if (t && k in t) delete t[k];
+    }
+
+    if (bail) return;
+  }
+
+  // normalize again to remove empty values for logging
   config = normalize(config);
   if (config) log.debug(`Using config:\n${inspect(config)}`);
 
