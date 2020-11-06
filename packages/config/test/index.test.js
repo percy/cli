@@ -40,18 +40,19 @@ describe('PercyConfig', () => {
         foo: 'bar'
       });
 
-      expect(stdio.capture(() => (
-        PercyConfig.validate({
-          test: { foo: false },
-          baz: ['qux']
-        })
-      ))).toBe(false);
-
-      expect(stdio[1]).toEqual([
-        '[percy] Invalid config:\n',
-        "[percy] - 'test' has unknown property 'foo'\n",
-        "[percy] - 'baz' should be a number, received an array\n"
-      ]);
+      expect(PercyConfig.validate({
+        test: { foo: false },
+        baz: ['qux']
+      })).toEqual({
+        result: false,
+        errors: [{
+          path: ['test', 'foo'],
+          message: 'unknown property'
+        }, {
+          path: ['baz'],
+          message: 'should be a number, received an array'
+        }]
+      });
     });
 
     it('replaces existing properties in the schema', () => {
@@ -71,22 +72,25 @@ describe('PercyConfig', () => {
         version: 2
       });
 
-      expect(stdio.capture(() => (
-        PercyConfig.validate({
-          version: 2,
-          test: {
-            value: 'foo',
-            cov: 99
-          }
-        })
-      ))).toBe(false);
-
-      expect(stdio[1]).toEqual([
-        '[percy] Invalid config:\n',
-        "[percy] - 'test' has unknown property 'value'\n",
-        "[percy] - 'test' is missing required property 'foo'\n",
-        "[percy] - 'test.cov' should be >= 100\n"
-      ]);
+      expect(PercyConfig.validate({
+        version: 2,
+        test: {
+          value: 'foo',
+          cov: 99
+        }
+      })).toEqual({
+        result: false,
+        errors: [{
+          path: ['test', 'value'],
+          message: 'unknown property'
+        }, {
+          path: ['test', 'foo'],
+          message: 'missing required property'
+        }, {
+          path: ['test', 'cov'],
+          message: 'should be >= 100'
+        }]
+      });
     });
   });
 
@@ -109,33 +113,29 @@ describe('PercyConfig', () => {
   });
 
   describe('.validate()', () => {
-    it('returns true when passing', () => {
+    it('returns a passing result with no errors', () => {
       expect(PercyConfig.validate({
         version: 2,
         test: { value: 'testing' }
-      })).toBe(true);
+      })).toEqual({
+        result: true,
+        errors: []
+      });
     });
 
-    it('returns false and logs warnings when failing', () => {
-      expect(stdio.capture(() => PercyConfig.validate({
-        test: { value: 1, foo: false }
-      }))).toBe(false);
-
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
-        '[percy] Invalid config:\n',
-        "[percy] - 'test' has unknown property 'foo'\n",
-        "[percy] - 'test.value' should be a string, received a number\n"
-      ]);
-    });
-
-    it('can scrub invalid values when failing', () => {
-      let config = { test: { value: 'valid', foo: false } };
-      expect(stdio.capture(() => (
-        PercyConfig.validate(config, { scrub: true })
-      ))).toBe(false);
-      expect(config).toHaveProperty('test.value', 'valid');
-      expect(config).not.toHaveProperty('test.foo');
+    it('returns a failing result with errors', () => {
+      expect(PercyConfig.validate({
+        test: { value: 1, foo: 'bar' }
+      })).toEqual({
+        result: false,
+        errors: [{
+          path: ['test', 'foo'],
+          message: 'unknown property'
+        }, {
+          path: ['test', 'value'],
+          message: 'should be a string, received a number'
+        }]
+      });
     });
   });
 
@@ -287,21 +287,39 @@ describe('PercyConfig', () => {
     });
 
     it('logs loaded and provided config options', () => {
-      PercyConfig.addSchema({ fooBar: { type: 'string' } });
-      mockConfig('.foo.yml', 'version: 2\nfoo-bar: baz');
-      log.loglevel('debug');
+      PercyConfig.addSchema({
+        fooBar: { type: 'string' },
+        merge: { type: 'object' },
+        arr: {
+          type: 'array',
+          items: { type: 'string' },
+          default: ['1', '2', '3']
+        }
+      });
 
+      mockConfig('.foo.yml', [
+        'version: 2',
+        'foo-bar: baz',
+        'arr: [one, two]',
+        'merge:',
+        '  foo: bar'
+      ].join('\n'));
+
+      log.loglevel('debug');
       expect(stdio.capture(() => (
         PercyConfig.load({
           path: '.foo.yml',
           overrides: {
+            arr: ['three'],
             test: { value: 'hi' },
-            arr: []
+            merge: {}
           }
         })
       ))).toEqual({
         version: 2,
+        arr: ['one', 'two', 'three'],
         test: { value: 'hi' },
+        merge: { foo: 'bar' },
         fooBar: 'baz'
       });
 
@@ -312,6 +330,14 @@ describe('PercyConfig', () => {
           '{',
           '  version: 2,',
           '  fooBar: \'baz\',',
+          '  arr: [',
+          '    \'one\',',
+          '    \'two\',',
+          '    \'three\'',
+          '  ],',
+          '  merge: {',
+          '    foo: \'bar\'',
+          '  },',
           '  test: {',
           '    value: \'hi\'',
           '  }',
@@ -320,7 +346,7 @@ describe('PercyConfig', () => {
       ]);
     });
 
-    it('logs with an missing version and uses default options', () => {
+    it('logs with a missing version and uses default options', () => {
       mockConfig('.no-version.yml', 'test:\n  value: no-version');
       log.loglevel('debug');
 
@@ -358,31 +384,47 @@ describe('PercyConfig', () => {
 
     it('logs validation warnings and scrubs failing properties', () => {
       mockConfig('.invalid.yml', 'version: 2\nfoo: bar');
-      log.loglevel('debug');
+      PercyConfig.addSchema({
+        req: {
+          type: 'object',
+          required: ['foo', 'bar'],
+          properties: {
+            foo: { type: 'string' },
+            bar: { type: 'string' }
+          }
+        }
+      });
 
+      log.loglevel('debug');
       expect(stdio.capture(() => (
         PercyConfig.load({
           path: '.invalid.yml',
           overrides: {
             test: { value: 1 },
-            arr: {}
+            arr: { 1: 'one' },
+            req: { foo: 'bar' }
           }
         })
       ))).toEqual({
         version: 2,
-        test: { value: 'foo' }
+        test: { value: 'foo' },
+        req: { foo: 'bar' }
       });
 
       expect(stdio[2]).toHaveLength(0);
       expect(stdio[1]).toEqual([
         '[percy] Found config file: .invalid.yml\n',
         '[percy] Invalid config:\n',
-        '[percy] - unknown property \'foo\'\n',
-        '[percy] - \'test.value\' should be a string, received a number\n',
-        '[percy] - \'arr\' should be an array, received an object\n',
+        '[percy] - foo: unknown property\n',
+        '[percy] - test.value: should be a string, received a number\n',
+        '[percy] - arr: should be an array, received an object\n',
+        '[percy] - req.bar: missing required property\n',
         '[percy] Using config:\n' + [
           '{',
-          '  version: 2',
+          '  version: 2,',
+          '  req: {',
+          '    foo: \'bar\'',
+          '  }',
           '}\n'
         ].join('\n')
       ]);
@@ -398,7 +440,7 @@ describe('PercyConfig', () => {
           bail: true,
           overrides: {
             test: { value: 1 },
-            arr: {}
+            arr: { 1: 'one' }
           }
         })
       ))).toBeUndefined();
@@ -407,9 +449,9 @@ describe('PercyConfig', () => {
       expect(stdio[1]).toEqual([
         '[percy] Found config file: .invalid.yml\n',
         '[percy] Invalid config:\n',
-        '[percy] - unknown property \'foo\'\n',
-        '[percy] - \'test.value\' should be a string, received a number\n',
-        '[percy] - \'arr\' should be an array, received an object\n'
+        '[percy] - foo: unknown property\n',
+        '[percy] - test.value: should be a string, received a number\n',
+        '[percy] - arr: should be an array, received an object\n'
       ]);
     });
   });
