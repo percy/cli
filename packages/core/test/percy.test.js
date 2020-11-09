@@ -105,6 +105,11 @@ describe('Percy', () => {
   });
 
   describe('#start()', () => {
+    it('launches a browser', async () => {
+      await expect(percy.start()).resolves.toBeUndefined();
+      expect(percy.discoverer.isConnected()).toBe(true);
+    });
+
     it('creates a build', async () => {
       await expect(percy.start()).resolves.toBeUndefined();
       expect(mockAPI.requests['/builds']).toBeDefined();
@@ -115,9 +120,20 @@ describe('Percy', () => {
       await expect(fetch('http://localhost:5338')).resolves.toBeDefined();
     });
 
-    it('connects to a browser instance', async () => {
+    it('starts a server after launching a browser and creating a build', async () => {
+      let launch = percy.discoverer.launch.bind(percy.discoverer);
+      let create = percy.client.createBuild.bind(percy.client);
+      let start = percy.server.listen.bind(percy.server);
+      let launched, created, started;
+
+      percy.discoverer.launch = () => (launched = Date.now(), launch());
+      percy.client.createBuild = () => (created = Date.now(), create());
+      percy.server.listen = () => (started = Date.now(), start());
+
       await expect(percy.start()).resolves.toBeUndefined();
-      expect(percy.discoverer.isConnected()).toBe(true);
+
+      expect(launched).toBeLessThan(created);
+      expect(created).toBeLessThan(started);
     });
 
     it('does not error or launch multiple browsers', async () => {

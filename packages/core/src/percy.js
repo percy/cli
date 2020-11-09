@@ -90,12 +90,12 @@ export default class Percy {
     this.client.getToken();
 
     try {
-      // if there is a server, start listening
-      await this.server?.listen(this.port);
-
       // launch the discoverer browser and create a percy build
       await this.discoverer.launch();
       await this.client.createBuild();
+
+      // if there is a server, start listening
+      await this.server?.listen(this.port);
 
       // log build details
       let build = this.client.build;
@@ -106,9 +106,9 @@ export default class Percy {
       // mark this process as running
       this.#running = true;
     } catch (error) {
-      // on error, close any running browser or server
-      await this.discoverer.close();
+      // on error, close any running server or browser
       await this.server?.close();
+      await this.discoverer.close();
 
       // throw an easier-to understand error when the port is taken
       if (error.code === 'EADDRINUSE') {
