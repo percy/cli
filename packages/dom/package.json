@@ -1,6 +1,6 @@
 {
   "name": "@percy/dom",
-  "version": "1.0.0-beta.21",
+  "version": "1.0.0-beta.22",
   "license": "MIT",
   "main": "dist/index.js",
   "files": [
