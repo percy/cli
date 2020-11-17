@@ -42,7 +42,7 @@ const { getInfo } = require('@percy/sdk-utils');
 let info = getInfo();
 
 // CLI API address
-info.cliAPI === (process.env.PERCY_CLI_API || 'http://localhost:5338/percy')
+info.cliApi === (process.env.PERCY_CLI_API || 'http://localhost:5338')
 
 // CLI loglevel
 info.loglevel === (process.env.PERCY_LOGLEVEL || 'info')
