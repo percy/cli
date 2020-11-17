@@ -100,7 +100,7 @@ describe('Percy', () => {
 
   describe('#apiAddress()', () => {
     it('returns the server API address', async () => {
-      expect(percy.apiAddress()).toEqual('http://localhost:5338/percy');
+      expect(percy.apiAddress()).toEqual('http://localhost:5338');
     });
   });
 

@@ -1,6 +1,6 @@
 // Maybe get the CLI API address and loglevel from the environment
 const {
-  PERCY_CLI_API = 'http://localhost:5338/percy',
+  PERCY_CLI_API = 'http://localhost:5338',
   PERCY_LOGLEVEL = 'info'
 } = process.env;
 
@@ -80,7 +80,7 @@ async function isPercyEnabled() {
     let error;
 
     try {
-      let { headers, body } = await request('/healthcheck');
+      let { headers, body } = await request('/percy/healthcheck');
       getInfo.version = toVersionTuple(headers['x-percy-core-version']);
       getInfo.config = body.config;
       isPercyEnabled.result = true;
@@ -105,7 +105,7 @@ async function isPercyEnabled() {
 // Fetch and cache the @percy/dom script
 async function fetchPercyDOM() {
   if (fetchPercyDOM.result == null) {
-    let { body } = await request('/dom.js');
+    let { body } = await request('/percy/dom.js');
     fetchPercyDOM.result = body;
   }
 
@@ -114,7 +114,7 @@ async function fetchPercyDOM() {
 
 // Post snapshot data to the snapshot endpoint
 async function postSnapshot(options) {
-  await request('/snapshot', {
+  await request('/percy/snapshot', {
     method: 'POST',
     body: JSON.stringify(options)
   });

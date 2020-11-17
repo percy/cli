@@ -112,12 +112,12 @@ describe('SDK Utils', () => {
     it('returns the CLI API address as defined by PERCY_CLI_API', () => {
       expect(process.env.PERCY_CLI_API).toBeUndefined();
       expect(sdk.rerequire('..').getInfo())
-        .toHaveProperty('cliApi', 'http://localhost:5338/percy');
+        .toHaveProperty('cliApi', 'http://localhost:5338');
       delete require.cache[require.resolve('..')];
 
-      process.env.PERCY_CLI_API = 'http://localhost:1234/percy';
+      process.env.PERCY_CLI_API = 'http://localhost:1234';
       expect(sdk.rerequire('..').getInfo())
-        .toHaveProperty('cliApi', 'http://localhost:1234/percy');
+        .toHaveProperty('cliApi', 'http://localhost:1234');
     });
 
     it('returns the loglevel as defined by PERCY_LOGLEVEL', () => {

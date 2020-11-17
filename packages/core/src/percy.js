@@ -75,7 +75,7 @@ export default class Percy {
 
   // Snapshot server API address
   apiAddress() {
-    return `http://localhost:${this.port}/percy`;
+    return `http://localhost:${this.port}`;
   }
 
   // Returns a boolean indicating if this instance is running.
