@@ -2,7 +2,7 @@
 function isCSSOM(styleSheet) {
   // no href, has a rulesheet, and isn't already in the DOM
   return !styleSheet.href && styleSheet.cssRules &&
-    !styleSheet.ownerNode?.innerText.trim().length;
+    !styleSheet.ownerNode?.innerText?.trim().length;
 }
 
 // Outputs in-memory CSSOM into their respective DOM nodes.
