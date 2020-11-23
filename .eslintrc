@@ -8,6 +8,7 @@ rules:
   babel/no-unused-expressions: warn
   promise/param-names: off
   semi: [error, always]
+  multiline-ternary: off
   generator-star-spacing:
     - error
     - before: false

@@ -280,7 +280,7 @@ describe('Asset Discovery', () => {
 
     expect(stdio[2]).toHaveLength(0);
     expect(stdio[1]).toEqual(expect.arrayContaining([
-      expect.stringMatching(new RegExp(
+      expect.stringMatching(new RegExp( // eslint-disable-line prefer-regex-literals
         '^\\[percy\\] Request failed for http://localhost:8000/404/style\\.css - net::'
       ))
     ]));
