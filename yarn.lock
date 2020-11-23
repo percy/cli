@@ -1822,9 +1822,9 @@
     wrap-ansi "^4.0.0"
 
 "@oclif/plugin-plugins@^1.9.0":
-  version "1.9.3"
-  resolved "https://registry.yarnpkg.com/@oclif/plugin-plugins/-/plugin-plugins-1.9.3.tgz#50f74d91e6eef144c02bdd173d591aabcfdb9f12"
-  integrity sha512-DyrSP3sRPWOiQI0ae4OuUpjdYpCr5YS1cSzXNGL9uDVwKM4YVXvk9v0tzNzd1008oaNNXO/XDedPkAaoX110Mg==
+  version "1.9.4"
+  resolved "https://registry.yarnpkg.com/@oclif/plugin-plugins/-/plugin-plugins-1.9.4.tgz#0b6ba92c3886bc1867fa4fcefa8642124707baf5"
+  integrity sha512-C5hEbX4zzTjzbym2RJUE4wxz2aL2ocb826HDs3suscsjMPA3mRHyu8/rWJW1Cgc2MeoIybNdrfyPU/zmpWkaWw==
   dependencies:
     "@oclif/color" "^0.x"
     "@oclif/command" "^1.5.12"
