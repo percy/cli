@@ -283,7 +283,7 @@ export default class Percy {
     // the entire capture process happens within the async capture queue
     return this.#captures.push(async () => {
       let results = [];
-      let page;
+      let page, domScript;
 
       try {
         // borrow a page from the discoverer
@@ -296,8 +296,6 @@ export default class Percy {
         // @todo - resize viewport
         // go to and wait for network idle
         await page.goto(url, { waitUntil: 'networkidle2' });
-        // inject @percy/dom for serialization
-        await page.addScriptTag({ path: require.resolve('@percy/dom') });
         // wait for any other elements or timeout before snapshotting
         if (waitForTimeout) await page.waitForTimeout(waitForTimeout);
         if (waitForSelector) await page.waitForSelector(waitForSelector);
@@ -307,12 +305,20 @@ export default class Percy {
           // optionally execute a script to interact with the page
           if (execute) await execute(page);
 
+          // inject @percy/dom for serialization if it hasn't already been injected; this is done
+          // after running each execute method just in case page navigation has occurred.
+          /* istanbul ignore next: no instrumenting injected code */
+          if (!domScript || await domScript.evaluate(e => !e.isConnected)) {
+            domScript = await page.addScriptTag({ path: require.resolve('@percy/dom') });
+          }
+
           // serialize and capture a DOM snapshot
           /* istanbul ignore next: no instrumenting injected code */
-          let domSnapshot = await page.evaluate(({ enableJavaScript }) => (
+          let { url, domSnapshot } = await page.evaluate(({ enableJavaScript }) => ({
             /* eslint-disable-next-line no-undef */
-            PercyDOM.serialize({ enableJavaScript })
-          ), options);
+            domSnapshot: PercyDOM.serialize({ enableJavaScript }),
+            url: document.URL
+          }), options);
 
           // snapshots are awaited on concurrently after sequentially capturing their DOM
           results.push(this.snapshot({ ...options, url, name, domSnapshot }));

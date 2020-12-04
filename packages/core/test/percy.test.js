@@ -541,7 +541,8 @@ describe('Percy', () => {
       testDOM = '<p>Test</p>';
 
       server = await createTestServer({
-        default: () => [200, 'text/html', testDOM]
+        default: () => [200, 'text/html', testDOM],
+        '/foo': () => [200, 'text/html', '<p>Foo</p>']
       });
 
       await percy.start();
@@ -660,6 +661,28 @@ describe('Percy', () => {
         '[percy] Snapshot taken: test snapshot two\n',
         '[percy] Snapshot taken: test snapshot three\n'
       ]);
+    });
+
+    it('can successfully snapshot a page after executing page navigation', async () => {
+      testDOM += '<a href="/foo">Foo</a>';
+
+      await stdio.capture(() => percy.capture({
+        name: 'foo snapshot',
+        url: 'http://localhost:8000',
+        execute: page => page.click('a')
+      }));
+
+      expect(stdio[2]).toHaveLength(0);
+      expect(stdio[1]).toEqual([
+        '[percy] Snapshot taken: foo snapshot\n'
+      ]);
+
+      await percy.idle();
+
+      expect(Buffer.from((
+        mockAPI.requests['/builds/123/resources'][0]
+          .body.data.attributes['base64-content']
+      ), 'base64').toString()).toMatch('<p>Foo</p>');
     });
 
     it('logs any encountered errors and does not snapshot', async () => {
