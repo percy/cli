@@ -14,7 +14,7 @@ export default function injectPercyCSS(rootUrl, originalDOM, percyCSS, meta) {
   log.debug(`-> filename: ${filename}`, meta);
   log.debug(`-> content: ${percyCSS}`, meta);
 
-  let url = `${rootUrl}/${filename}`;
+  let url = `${new URL(rootUrl).origin}/${filename}`;
   let resource = createLocalResource(url, percyCSS, 'text/css', null, meta);
   let link = `<link data-percy-specific-css rel="stylesheet" href="/${filename}"/>`;
   let dom = originalDOM.replace(/(<\/body>)(?!.*\1)/is, link + '$&');

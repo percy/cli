@@ -45,7 +45,8 @@ describe('Percy CSS', () => {
       .body.data.relationships.resources.data;
 
     expect(resources[1].id).toBe(sha256hash('p { color: purple; }'));
-    expect(resources[1].attributes['resource-url']).toMatch(/\/percy-specific\.\d+\.css$/);
+    expect(resources[1].attributes['resource-url'])
+      .toMatch(/localhost\/percy-specific\.\d+\.css$/);
   });
 
   it('creates a percy-specific CSS file for the snapshot option', async () => {
@@ -62,7 +63,8 @@ describe('Percy CSS', () => {
       .body.data.relationships.resources.data;
 
     expect(resources[1].id).toBe(sha256hash('body { color: purple; }'));
-    expect(resources[1].attributes['resource-url']).toMatch(/\/percy-specific\.\d+\.css$/);
+    expect(resources[1].attributes['resource-url'])
+      .toMatch(/localhost\/percy-specific\.\d+\.css$/);
   });
 
   it('combines snapshot and global percy-specific CSS', async () => {
@@ -79,5 +81,21 @@ describe('Percy CSS', () => {
 
     expect(resources[1].id).toBe(sha256hash('p { color: purple; }\np { font-size: 2rem; }'));
     expect(resources[1].attributes['resource-url']).toMatch(/\/percy-specific\.\d+\.css$/);
+  });
+
+  it('correctly uploads CSS as a root asset', async () => {
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost/pathname',
+      domSnapshot: testDOM
+    });
+
+    await percy.idle();
+    let resources = mockAPI.requests['/builds/123/snapshots'][0]
+      .body.data.relationships.resources.data;
+
+    expect(resources[1].id).toBe(sha256hash('p { color: purple; }'));
+    expect(resources[1].attributes['resource-url'])
+      .toMatch(/localhost\/percy-specific\.\d+\.css$/);
   });
 });
