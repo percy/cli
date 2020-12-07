@@ -4069,10 +4069,10 @@ detect-indent@^6.0.0:
   resolved "https://registry.yarnpkg.com/detect-indent/-/detect-indent-6.0.0.tgz#0abd0f549f69fc6659a254fe96786186b6f528fd"
   integrity sha512-oSyFlqaTHCItVRGK5RmrmjB+CmaMOW7IaNA/kdxqhoa6d17j/5ce9O9eWXmV/KEdRwqpQA+Vqe8a8Bsybu4YnA==
 
-devtools-protocol@0.0.809251:
-  version "0.0.809251"
-  resolved "https://registry.yarnpkg.com/devtools-protocol/-/devtools-protocol-0.0.809251.tgz#300b3366be107d5c46114ecb85274173e3999518"
-  integrity sha512-pf+2OY6ghMDPjKkzSWxHMq+McD+9Ojmq5XVRYpv/kPd9sTMQxzEt21592a31API8qRjro0iYYOc3ag46qF/1FA==
+devtools-protocol@0.0.818844:
+  version "0.0.818844"
+  resolved "https://registry.yarnpkg.com/devtools-protocol/-/devtools-protocol-0.0.818844.tgz#d1947278ec85b53e4c8ca598f607a28fa785ba9e"
+  integrity sha512-AD1hi7iVJ8OD0aMLQU5VK0XH9LDlA1+BcPIgrAxPfaibx2DbWucuyOhc4oyQCbnvDDO68nN6/LcKfqTP343Jjg==
 
 dezalgo@^1.0.0:
   version "1.0.3"
@@ -8428,12 +8428,12 @@ pupa@^2.0.1:
     escape-goat "^2.0.0"
 
 puppeteer-core@^5.3.1:
-  version "5.4.1"
-  resolved "https://registry.yarnpkg.com/puppeteer-core/-/puppeteer-core-5.4.1.tgz#68b85c1aae2dcde8e41df1d12aad8852768a88bd"
-  integrity sha512-JfPCQgLvyBlpwQTbdnEwCEvD2KiRB2Hv+J1YCwz9o0PxlTqVSuzSQ4XeLhPmy6fZpBFynyQ+r4FSn6RUywawqA==
+  version "5.5.0"
+  resolved "https://registry.yarnpkg.com/puppeteer-core/-/puppeteer-core-5.5.0.tgz#dfb6266efe5a933cbf1a368d27025a6fd4f5a884"
+  integrity sha512-tlA+1n+ziW/Db03hVV+bAecDKse8ihFRXYiEypBe9IlLRvOCzYFG6qrCMBYK34HO/Q/Ecjc+tvkHRAfLVH+NgQ==
   dependencies:
     debug "^4.1.0"
-    devtools-protocol "0.0.809251"
+    devtools-protocol "0.0.818844"
     extract-zip "^2.0.0"
     https-proxy-agent "^4.0.0"
     node-fetch "^2.6.1"
