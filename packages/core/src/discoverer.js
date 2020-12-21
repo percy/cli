@@ -87,7 +87,8 @@ export default class PercyDiscoverer {
   // Gathers resources for a root URL and DOM. The accumulator should be a Map
   // and will be populated with resources by URL. Resolves when asset discovery
   // finishes, although shouldn't be awaited on as discovery happens concurrently.
-  gatherResources(accumulator, {
+  gatherResources({
+    onDiscovery,
     rootUrl,
     rootDom,
     enableJavaScript,
@@ -122,7 +123,7 @@ export default class PercyDiscoverer {
         }))
         .on('requestfinished', this._handleRequestFinished({
           onFinished: () => processing--,
-          accumulator,
+          onDiscovery,
           rootUrl,
           meta
         }))
@@ -193,10 +194,9 @@ export default class PercyDiscoverer {
     };
   }
 
-  // Creates a request finished handler for a specific root URL that will add
-  // resolved resources to an accumulator. Both the response and resource are
-  // cached for future snapshots and requests.
-  _handleRequestFinished({ rootUrl, accumulator, onFinished, meta }) {
+  // Creates a request finished handler for a specific root URL to discover resolved resources. Both
+  // the response and resource are cached for future snapshots and requests.
+  _handleRequestFinished({ rootUrl, onDiscovery, onFinished, meta }) {
     return async request => {
       let url = normalizeURL(request.url());
       meta = { ...meta, url };
@@ -223,8 +223,8 @@ export default class PercyDiscoverer {
           this.#cache.set(url, { response, resource });
         }
 
-        // add the resource to the accumulator
-        accumulator.set(url, this.#cache.get(url).resource);
+        // call `onDiscovery` with the resource
+        onDiscovery(this.#cache.get(url).resource);
       } catch (error) {
         if (error.name === 'PercyAssertionError') {
           log.debug(`Skipping - ${error.toString()}`, error.meta);

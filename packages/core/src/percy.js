@@ -229,7 +229,8 @@ export default class Percy {
 
       // gather resources at each width concurrently
       await Promise.all(widths.map(width => (
-        this.discoverer.gatherResources(resources, {
+        this.discoverer.gatherResources({
+          onDiscovery: r => resources.set(r.url, r),
           rootUrl: url,
           rootDom: domSnapshot,
           enableJavaScript,
