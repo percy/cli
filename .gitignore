@@ -5,3 +5,4 @@ coverage
 dist
 oclif.manifest.json
 .DS_Store
+.local-chromium
