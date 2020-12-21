@@ -38,7 +38,7 @@
     "karma-mocha-reporter": "^2.2.5",
     "karma-webpack": "^4.0.2",
     "regenerator-runtime": "^0.13.7",
-    "webpack": "^4.44.2",
+    "webpack": "^5.11.0",
     "webpack-cli": "^4.0.0"
   }
 }
