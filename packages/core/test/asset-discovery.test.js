@@ -356,11 +356,14 @@ describe('Asset Discovery', () => {
       ]));
     });
 
-    it('logs unhandled requestfinished errors gracefully', async () => {
-      // sabotage this method to trigger unexpected error handling
-      percy.discoverer._parseRequestResponse = url => {
-        throw new Error('some unhandled finished error');
-      };
+    it('logs unhandled response errors gracefully', async () => {
+      let i = 0;
+
+      // sabotage this property to trigger unexpected error handling
+      Object.defineProperty(percy.discoverer, 'disableAssetCache', {
+        // only throw ever other time when accessed within the response handler
+        get() { if (++i % 2) throw new Error('some unhandled response error'); }
+      });
 
       await stdio.capture(() => (
         percy.snapshot({
@@ -373,9 +376,9 @@ describe('Asset Discovery', () => {
       expect(stdio[1]).toHaveLength(0);
       expect(stdio[2]).toEqual(expect.arrayContaining([
         '[percy] Encountered an error for http://localhost:8000/style.css\n',
-        '[percy] Error: some unhandled finished error\n',
+        '[percy] Error: some unhandled response error\n',
         '[percy] Encountered an error for http://localhost:8000/img.gif\n',
-        '[percy] Error: some unhandled finished error\n'
+        '[percy] Error: some unhandled response error\n'
       ]));
     });
   });
