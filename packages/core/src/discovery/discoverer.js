@@ -1,9 +1,9 @@
 import log from '@percy/logger';
-import Queue from './queue';
+import Queue from '../queue';
+import assert from '../utils/assert';
+import { createLocalResource } from '../utils/resources';
+import { hostname, normalizeURL, domainMatch } from '../utils/url';
 import Browser from './browser';
-import assert from './utils/assert';
-import { createLocalResource } from './utils/resources';
-import { hostname, normalizeURL, domainMatch } from './utils/url';
 
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 

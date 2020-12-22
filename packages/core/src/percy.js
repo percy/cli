@@ -2,9 +2,10 @@ import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import log from '@percy/logger';
 import { schema } from './config';
-import Discoverer from './discoverer';
-import createPercyServer from './server';
 import Queue from './queue';
+import Discoverer from './discovery/discoverer';
+import createPercyServer from './server';
+
 import assert from './utils/assert';
 import injectPercyCSS from './utils/percy-css';
 import { createRootResource, createLogResource } from './utils/resources';
