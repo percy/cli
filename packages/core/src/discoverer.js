@@ -2,7 +2,6 @@ import log from '@percy/logger';
 import Queue from './queue';
 import Browser from './browser';
 import assert from './utils/assert';
-import idle from './utils/idle';
 import { createLocalResource } from './utils/resources';
 import { hostname, normalizeURL, domainMatch } from './utils/url';
 
@@ -58,8 +57,28 @@ export default class PercyDiscoverer {
   }
 
   // Returns a new browser page.
-  async page() {
-    return this.#browser.page();
+  async page({
+    cacheDisabled = false,
+    requestHeaders = {},
+    ignoreHTTPSErrors = true,
+    enableJavaScript = true,
+    deviceScaleFactor = 1,
+    mobile = false,
+    height = 1024,
+    width = 1280
+  }) {
+    let page = await this.#browser.page();
+
+    // set page options
+    await Promise.all([
+      page.send('Network.setCacheDisabled', { cacheDisabled }),
+      page.send('Network.setExtraHTTPHeaders', { headers: requestHeaders }),
+      page.send('Security.setIgnoreCertificateErrors', { ignore: ignoreHTTPSErrors }),
+      page.send('Emulation.setScriptExecutionDisabled', { value: !enableJavaScript }),
+      page.send('Emulation.setDeviceMetricsOverride', { deviceScaleFactor, mobile, height, width })
+    ]);
+
+    return page;
   }
 
   // Gathers resources for a root URL and DOM. The `onDiscovery` callback will be called whenever an
@@ -70,7 +89,6 @@ export default class PercyDiscoverer {
     rootDom,
     enableJavaScript,
     requestHeaders,
-    credentials,
     width,
     meta
   }) {
@@ -83,34 +101,24 @@ export default class PercyDiscoverer {
 
       try {
         // get a fresh page
-        page = await this.page();
-
-        // set page options
-        await Promise.all([
-          page.send('Network.setCacheDisabled', { cacheDisabled: true }),
-          page.send('Network.setExtraHTTPHeaders', { headers: requestHeaders }),
-          page.send('Security.setIgnoreCertificateErrors', { ignore: true }),
-          page.send('Emulation.setScriptExecutionDisabled', { value: !enableJavaScript }),
-          page.send('Emulation.setDeviceMetricsOverride', {
-            deviceScaleFactor: 1,
-            mobile: false,
-            height: 0,
-            width
-          })
-        ]);
+        page = await this.page({
+          cacheDisabled: true,
+          enableJavaScript,
+          requestHeaders,
+          width
+        });
 
         // set up request interception
-        let interceptor = new Interceptor(page, { credentials });
-        interceptor.onrequest = this._handleRequest({ meta, rootUrl, rootDom });
-        interceptor.onrequestfinished = this._handleRequestFinished({ meta, rootUrl, onDiscovery });
-        interceptor.onrequestfailed = this._handleRequestFailed({ meta });
-        await interceptor.enable();
+        page.network.onrequest = this._handleRequest({ meta, rootUrl, rootDom });
+        page.network.onrequestfinished = this._handleRequestFinished({ meta, rootUrl, onDiscovery });
+        page.network.onrequestfailed = this._handleRequestFailed({ meta });
+        await page.network.intercept();
 
         // navigate to the root URL
         await page.send('Page.navigate', { url: rootUrl });
 
         // wait for the network to idle
-        await interceptor.idle(this.networkIdleTimeout);
+        await page.network.idle(this.networkIdleTimeout);
       } finally {
         // safely close the page
         await page?.close();
@@ -229,177 +237,5 @@ export default class PercyDiscoverer {
         log.debug(`Request failed for ${url} - ${error}`, { ...meta, url });
       }
     };
-  }
-}
-
-// The Interceptor class creates common handlers for dealing with intercepting asset requests
-// for a given page using various devtools protocol events and commands.
-class Interceptor {
-  #pending = new Map();
-  #requests = new Map();
-  #intercepts = new Map();
-  #authentications = new Set();
-
-  constructor(page, { credentials }) {
-    this.page = page;
-    this.credentials = credentials;
-  }
-
-  async enable() {
-    // add and configure request listeners for intercepting
-    this.page.on('Fetch.authRequired', this._handleAuthRequired);
-    this.page.on('Fetch.requestPaused', this._handleRequestPaused);
-    this.page.on('Network.requestWillBeSent', this._handleRequestWillBeSent);
-    this.page.on('Network.responseReceived', this._handleResponseReceived);
-    this.page.on('Network.loadingFinished', this._handleLoadingFinished);
-    this.page.on('Network.loadingFailed', this._handleLoadingFailed);
-
-    // enable request interception
-    await Promise.all([
-      this.page.send('Network.enable'),
-      this.page.send('Fetch.enable', {
-        handleAuthRequests: true,
-        patterns: [{ urlPattern: '*' }]
-      })
-    ]);
-  }
-
-  // Resolves after the timeout when there are no more in-flight requests.
-  async idle(timeout) {
-    await idle(() => this.#requests.size, timeout);
-  }
-
-  // Called when a request requires authentication. Responds to the auth request with any provided
-  // authentication credentials.
-  _handleAuthRequired = async event => {
-    let { requestId } = event;
-    let { username, password } = this.credentials || {};
-    let response = 'Default';
-
-    if (this.#authentications.has(requestId)) {
-      response = 'CancelAuth';
-    } else if (username || password) {
-      response = 'ProvideCredentials';
-      this.#authentications.add(requestId);
-    }
-
-    await this.page.send('Fetch.continueWithAuth', {
-      requestId: event.requestId,
-      authChallengeResponse: { response, username, password }
-    });
-  }
-
-  // Called when a request is made. The request is paused until it is fulfilled, continued, or
-  // aborted. If the request is already pending, handle it; otherwise set it to be intercepted.
-  _handleRequestPaused = event => {
-    let { networkId, requestId } = event;
-
-    if (this.#pending.has(networkId)) {
-      let pending = this.#pending.get(networkId);
-      this._handleRequest(pending, requestId);
-      this.#pending.delete(networkId);
-    } else {
-      this.#intercepts.set(networkId, requestId);
-    }
-  }
-
-  // Called when a request will be sent. If the request has already been intercepted, handle it;
-  // otherwise set it to be pending until it is paused.
-  _handleRequestWillBeSent = event => {
-    let { requestId, request } = event;
-
-    // do not handle data urls
-    if (!request.url.startsWith('data:')) {
-      if (this.#intercepts.has(requestId)) {
-        let interceptId = this.#intercepts.get(requestId);
-        this._handleRequest(event, interceptId);
-        this.#intercepts.delete(requestId);
-      } else {
-        this.#pending.set(requestId, event);
-      }
-    }
-  }
-
-  // Called when a pending request is paused. Handles associating redirected requests with
-  // responses and calls this.onrequest with request info and callbacks to continue, respond,
-  // or abort a request. One of the callbacks is required to be called and only one.
-  _handleRequest = async (event, interceptId) => {
-    let { requestId, request } = event;
-    let redirectChain = [];
-
-    // if handling a redirected request, associate the response and add to its redirect chain
-    if (event.redirectResponse && this.#requests.has(requestId)) {
-      let req = this.#requests.get(requestId);
-      req.response = event.redirectResponse;
-      redirectChain = [...req.redirectChain, req];
-      // clean up auth redirects
-      this.#authentications.delete(interceptId);
-    }
-
-    request.interceptId = interceptId;
-    request.redirectChain = redirectChain;
-    this.#requests.set(requestId, request);
-
-    await this.onrequest({
-      ...request,
-      // call to continue the request as-is
-      continue: () => this.page.send('Fetch.continueRequest', {
-        requestId: interceptId
-      }),
-      // call to respond with a specific status, body, and headers
-      respond: payload => this.page.send('Fetch.fulfillRequest', {
-        requestId: interceptId,
-        responseCode: payload.status || 200,
-        body: payload.body && Buffer.from(payload.body).toString('base64'),
-        responseHeaders: Object.entries(payload.headers).map(([name, value]) => {
-          return { name: name.toLowerCase(), value: String(value) };
-        })
-      }),
-      // call to fail or abort the request
-      abort: error => this.page.send('Fetch.failRequest', {
-        requestId: interceptId,
-        errorReason: error ? 'Failed' : 'Aborted'
-      })
-    });
-  }
-
-  // Called when a response has been received for a specific request. Associates the response with
-  // the request data and adds a buffer method to fetch the response body when needed.
-  _handleResponseReceived = event => {
-    let { requestId, response } = event;
-    let request = this.#requests.get(requestId);
-    if (!request) return;
-
-    request.response = response;
-    request.response.buffer = async () => {
-      let { body, base64Encoded } = await this.page.send('Network.getResponseBody', { requestId });
-      return Buffer.from(body, base64Encoded ? 'base64' : 'utf8');
-    };
-  }
-
-  // Called when a request has finished loading which triggers the this.onrequestfinished
-  // callback. The request should have an associated response and be finished with any redirects.
-  _handleLoadingFinished = async event => {
-    let { requestId } = event;
-    let request = this.#requests.get(requestId);
-    if (!request) return;
-
-    await this.onrequestfinished(request);
-
-    this.#requests.delete(requestId);
-    this.#authentications.delete(request.interceptId);
-  }
-
-  // Called when a request has failed loading and triggers the this.onrequestfailed callback.
-  _handleLoadingFailed = async event => {
-    let { requestId, errorText } = event;
-    let request = this.#requests.get(requestId);
-    if (!request) return;
-
-    request.error = errorText;
-    await this.onrequestfailed(request);
-
-    this.#requests.delete(requestId);
-    this.#authentications.delete(request.interceptId);
   }
 }
