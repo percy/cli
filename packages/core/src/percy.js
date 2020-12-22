@@ -283,43 +283,74 @@ export default class Percy {
 
     // the entire capture process happens within the async capture queue
     return this.#captures.push(async () => {
+      let page, domScriptCheck;
       let results = [];
-      let page, domScript;
 
       try {
         // borrow a page from the discoverer
-        page = await this.discoverer.page();
+        page = await this.discoverer.page({
+          requestHeaders: options.requestHeaders
+        });
 
         // allow @percy/dom injection
-        await page.setBypassCSP(true);
-        // set any request headers
-        await page.setExtraHTTPHeaders(options.requestHeaders || {});
-        // @todo - resize viewport
-        // go to and wait for network idle
-        await page.goto(url, { waitUntil: 'networkidle2' });
-        // wait for any other elements or timeout before snapshotting
-        if (waitForTimeout) await page.waitForTimeout(waitForTimeout);
-        if (waitForSelector) await page.waitForSelector(waitForSelector);
+        await page.send('Page.setBypassCSP', { enabled: true }),
+
+        // navigate to the url and wait for network idle
+        await page.send('Page.navigate', { url });
+        await page.network.idle(this.discoverer.networkIdleTimeout);
+
+        // wait for any specified timeout
+        if (waitForTimeout) await new Promise(resolve => {
+          setTimeout(resolve, waitForTimeout);
+        });
+
+        // wait for any specified selector
+        /* istanbul ignore next: no instrumenting injected code */
+        if (waitForSelector) await page.eval(sel => {
+          return new Promise((resolve, reject) => {
+            (function check(t = Date.now()) {
+              if (t && Date.now() - t > 10000) {
+                reject(new Error(`Failed to find find "${sel}"`));
+              } else if (!document.querySelector(sel)) {
+                setTimeout(check, 10, t);
+              } else {
+                resolve();
+              }
+            })();
+          });
+        }, [waitForSelector]);
 
         // multiple snapshots can be captured on a single page
         for (let { name, execute } of snapshots) {
-          // optionally execute a script to interact with the page
-          if (execute) await execute(page);
+          // optionally execute a script within the page
+          if (execute) await page.eval(execute);
+          await page.network.idle(this.discoverer.networkIdleTimeout);
 
           // inject @percy/dom for serialization if it hasn't already been injected; this is done
           // after running each execute method just in case page navigation has occurred.
           /* istanbul ignore next: no instrumenting injected code */
-          if (!domScript || await domScript.evaluate(e => !e.isConnected)) {
-            domScript = await page.addScriptTag({ path: require.resolve('@percy/dom') });
+          if (await page.eval(() => !document.querySelector('[data-percy-dom-script]'))) {
+            await page.eval(content => {
+              let script = document.createElement('script')
+              let error = null;
+              script.onerror = e => (error = e);
+              script.type = 'text/javascript';
+              script.text = content;
+              document.head.appendChild(script);
+              if (error) throw error;
+            }, [
+              await require('fs').promises
+                .readFile(require.resolve('@percy/dom'), 'utf-8')
+            ]);
           }
 
           // serialize and capture a DOM snapshot
           /* istanbul ignore next: no instrumenting injected code */
-          let { url, domSnapshot } = await page.evaluate(({ enableJavaScript }) => ({
+          let { url, domSnapshot } = await page.eval(({ enableJavaScript }) => ({
             /* eslint-disable-next-line no-undef */
             domSnapshot: PercyDOM.serialize({ enableJavaScript }),
             url: document.URL
-          }), options);
+          }), [options]);
 
           // snapshots are awaited on concurrently after sequentially capturing their DOM
           results.push(this.snapshot({ ...options, url, name, domSnapshot }));
