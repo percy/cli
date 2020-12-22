@@ -616,10 +616,7 @@ describe('Percy', () => {
       await stdio.capture(() => percy.capture({
         name: 'test snapshot',
         url: 'http://localhost:8000',
-        async execute(page) {
-          let p = await page.$('p');
-          await p.evaluate(n => (n.id = 'eval'));
-        }
+        execute: () => (document.querySelector('p').id = 'eval')
       }));
 
       await percy.idle();
@@ -669,7 +666,7 @@ describe('Percy', () => {
       await stdio.capture(() => percy.capture({
         name: 'foo snapshot',
         url: 'http://localhost:8000',
-        execute: page => page.click('a')
+        execute: () => document.querySelector('a').click()
       }));
 
       expect(stdio[2]).toHaveLength(0);
@@ -697,7 +694,7 @@ describe('Percy', () => {
       expect(stdio[1]).toHaveLength(0);
       expect(stdio[2]).toEqual([
         '[percy] Encountered an error for page: http://localhost:8000\n',
-        '[percy] Error: test error\n'
+        '[percy] Error: test error\n    at <anonymous>:2:17\n'
       ]);
     });
   });
