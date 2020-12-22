@@ -178,12 +178,13 @@ describe('Percy', () => {
     });
 
     it('maybe downloads the browser for asset discovery', async function() {
+      let local = require('path').join(__dirname, '../.local-chromium');
       let { existsSync } = require('fs');
-      let local = require('path').resolve('../../node_modules/puppeteer-core/.local-chromium');
 
       this.retries(5); // this flakes on windows due to its non-atomic fs functions
       require('rimraf').sync(local);
       expect(existsSync(local)).toBe(false);
+      this.retries(0);
 
       this.timeout(0); // this might take a minute to download
       await stdio.capture(() => percy.start());
