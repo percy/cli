@@ -1,3 +1,4 @@
+/* istanbul ignore next: no instrumenting injected code */
 export default function waitFor(predicate, { poll = 10, timeout, ensure }) {
   return new Promise((resolve, reject) => {
     return (function check(start, done) {

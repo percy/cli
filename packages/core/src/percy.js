@@ -7,6 +7,7 @@ import Discoverer from './discovery/discoverer';
 import createPercyServer from './server';
 
 import assert from './utils/assert';
+import { navigatePage, preparePage } from './utils/capture';
 import injectPercyCSS from './utils/percy-css';
 import { createRootResource, createLogResource } from './utils/resources';
 import { normalizeURL } from './utils/url';
@@ -284,66 +285,21 @@ export default class Percy {
 
     // the entire capture process happens within the async capture queue
     return this.#captures.push(async () => {
-      let page, domScriptCheck;
+      let { requestHeaders } = options;
       let results = [];
+      let page;
 
       try {
         // borrow a page from the discoverer
-        page = await this.discoverer.page({
-          requestHeaders: options.requestHeaders
-        });
+        page = await this.discoverer.page({ requestHeaders });
 
-        // allow @percy/dom injection
-        await page.send('Page.setBypassCSP', { enabled: true }),
-
-        // navigate to the url and wait for network idle
-        await page.send('Page.navigate', { url });
-        await page.network.idle(this.discoverer.networkIdleTimeout);
-
-        // wait for any specified timeout
-        if (waitForTimeout) await new Promise(resolve => {
-          setTimeout(resolve, waitForTimeout);
-        });
-
-        // wait for any specified selector
-        /* istanbul ignore next: no instrumenting injected code */
-        if (waitForSelector) await page.eval(sel => {
-          return new Promise((resolve, reject) => {
-            (function check(t = Date.now()) {
-              if (t && Date.now() - t > 10000) {
-                reject(new Error(`Failed to find find "${sel}"`));
-              } else if (!document.querySelector(sel)) {
-                setTimeout(check, 10, t);
-              } else {
-                resolve();
-              }
-            })();
-          });
-        }, [waitForSelector]);
+        // navigate to the page and wait until ready
+        await navigatePage(page, url, { waitForTimeout, waitForSelector });
 
         // multiple snapshots can be captured on a single page
         for (let { name, execute } of snapshots) {
-          // optionally execute a script within the page
-          if (execute) await page.eval(execute);
-          await page.network.idle(this.discoverer.networkIdleTimeout);
-
-          // inject @percy/dom for serialization if it hasn't already been injected; this is done
-          // after running each execute method just in case page navigation has occurred.
-          /* istanbul ignore next: no instrumenting injected code */
-          if (await page.eval(() => !document.querySelector('[data-percy-dom-script]'))) {
-            await page.eval(content => {
-              let script = document.createElement('script')
-              let error = null;
-              script.onerror = e => (error = e);
-              script.type = 'text/javascript';
-              script.text = content;
-              document.head.appendChild(script);
-              if (error) throw error;
-            }, [
-              await require('fs').promises
-                .readFile(require.resolve('@percy/dom'), 'utf-8')
-            ]);
-          }
+          // prepare page for snapshotting
+          await preparePage(page, execute);
 
           // serialize and capture a DOM snapshot
           /* istanbul ignore next: no instrumenting injected code */
@@ -357,12 +313,14 @@ export default class Percy {
           results.push(this.snapshot({ ...options, url, name, domSnapshot }));
         }
       } catch (error) {
+        // handle errors
         log.error(`Encountered an error for page: ${url}`);
         log.error(error);
       } finally {
+        // close the page
+        await page?.close();
         // await on any resulting snapshots
         await Promise.all(results);
-        await page?.close();
       }
     });
   }

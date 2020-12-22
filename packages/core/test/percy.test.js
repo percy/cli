@@ -687,7 +687,7 @@ describe('Percy', () => {
       await stdio.capture(() => percy.capture({
         name: 'test snapshot',
         url: 'http://localhost:8000',
-        execute: () => {
+        execute() {
           throw new Error('test error');
         }
       }));
@@ -695,7 +695,9 @@ describe('Percy', () => {
       expect(stdio[1]).toHaveLength(0);
       expect(stdio[2]).toEqual([
         '[percy] Encountered an error for page: http://localhost:8000\n',
-        '[percy] Error: test error\n    at <anonymous>:2:17\n'
+        '[percy] Error: test error\n' +
+          '    at execute (<anonymous>:2:17)\n' +
+          '    at withPercyHelpers (<anonymous>:3:11)\n'
       ]);
     });
   });
