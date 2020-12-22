@@ -1,4 +1,4 @@
-import idle from './utils/idle';
+import waitFor from './utils/wait-for';
 
 // Concurrent task-based queue for handling snapshots and asset discovery.
 export default class Queue {
@@ -27,7 +27,9 @@ export default class Queue {
 
   // Resolves when there are no more queued or pending tasks.
   idle() {
-    return idle(() => this.length);
+    return waitFor(() => this.length === 0, {
+      timeout: 2 * 60 * 1000 // 2 minutes
+    });
   }
 
   // Clears the active queue. Tasks that were queued will not be executed and
