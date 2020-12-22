@@ -68,6 +68,7 @@ export default class PercyDiscoverer {
     width = 1280
   }) {
     let page = await this.#browser.page();
+    page.network.timeout = this.networkIdleTimeout;
 
     // set page options
     await Promise.all([

@@ -30,15 +30,15 @@ export default class Network {
   }
 
   // Resolves after the timeout when there are no more in-flight requests.
-  async idle(timeout) {
+  async idle(timeout = this.timeout) {
     await waitFor(() => this.#requests.size === 0, {
       timeout: 30 * 1000, // 30 second error timeout
       idle: timeout
     });
   }
 
-  // Called when a request requires authentication. Responds to the auth request with any provided
-  // authentication credentials.
+  // Called when a request requires authentication. Responds to the auth request with any
+  // provided authentication credentials.
   _handleAuthRequired = async event => {
     let { requestId } = event;
     let { username, password } = this.credentials || {};

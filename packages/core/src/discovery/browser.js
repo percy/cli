@@ -9,48 +9,6 @@ import assert from '../utils/assert';
 import install from '../utils/install-browser';
 import Page from './page';
 
-// watches the browser process's stderr and resolves when it emits the devtools protocol address or
-// rejects if the process exits for any reason or if the address does not appear after the timeout
-function getDevToolsAddress(proc, timeout) {
-  return new Promise((resolve, reject) => {
-    let stderr = '';
-
-    let handleData = chunk => {
-      stderr += (chunk = chunk.toString());
-      let match = chunk.match(/^DevTools listening on (ws:\/\/.*)$/m);
-      if (match) cleanup(() => resolve(match[1]));
-    };
-
-    let handleExit = () => handleError();
-    let handleClose = () => handleError();
-    let handleError = error => {
-      cleanup(() => reject(new Error([
-        'Failed to launch browser.',
-        (error ? ' ' + error.message : ''),
-        '\n', stderr, '\n\n'
-      ].join(''))));
-    };
-
-    let cleanup = callback => {
-      clearTimeout(timeoutId);
-      proc.stderr.off('data', handleData);
-      proc.stderr.off('close', handleClose);
-      proc.off('exit', handleExit);
-      proc.off('error', handleError);
-      callback();
-    };
-
-    let timeoutId = setTimeout(() => handleError(
-      new Error(`Timed out after ${timeout}ms`)
-    ), timeout);
-
-    proc.stderr.on('data', handleData);
-    proc.stderr.on('close', handleClose);
-    proc.on('exit', handleExit);
-    proc.on('error', handleError);
-  });
-}
-
 export default class Browser extends EventEmitter {
   #pages = new Map();
   #callbacks = new Map();
@@ -90,7 +48,7 @@ export default class Browser extends EventEmitter {
     executable,
     headless = true,
     args: uargs = [],
-    timeout = 30000
+    timeout
   } = {}) {
     if (this.isConnected()) return;
 
@@ -112,10 +70,8 @@ export default class Browser extends EventEmitter {
 
     // spawn the browser process detached in its own group and session
     this.process = spawn(this.executable, args, { detached: true });
-    // wait until the browser outputs its devtools address
-    this.address = await getDevToolsAddress(this.process, timeout);
-    // connect a websocket to the debug address
-    this.ws = new WebSocket(this.address, { perMessageDeflate: false });
+    // connect a websocket to the devtools address
+    this.ws = new WebSocket(await this.address(timeout), { perMessageDeflate: false });
 
     // wait until the websocket has connected before continuing
     await new Promise(resolve => this.ws.once('open', resolve));
@@ -196,6 +152,53 @@ export default class Browser extends EventEmitter {
         this.#callbacks.set(id, { error: new Error(), resolve, reject, method });
       });
     }
+  }
+
+  // Returns the devtools websocket address. If not already known, will watch the browser's
+  // stderr and resolves when it emits the devtools protocol address or rejects if the process
+  // exits for any reason or if the address does not appear after the timeout.
+  async address(timeout = 30000) {
+    if (this._address) return this._address;
+
+    this._address = await new Promise((resolve, reject) => {
+      let stderr = '';
+
+      let handleData = chunk => {
+        stderr += (chunk = chunk.toString());
+        let match = chunk.match(/^DevTools listening on (ws:\/\/.*)$/m);
+        if (match) cleanup(() => resolve(match[1]));
+      };
+
+      let handleExit = () => handleError();
+      let handleClose = () => handleError();
+      let handleError = error => {
+        cleanup(() => reject(new Error([
+          'Failed to launch browser.',
+          (error ? ' ' + error.message : ''),
+          '\n', stderr, '\n\n'
+        ].join(''))));
+      };
+
+      let cleanup = callback => {
+        clearTimeout(timeoutId);
+        this.process.stderr.off('data', handleData);
+        this.process.stderr.off('close', handleClose);
+        this.process.off('exit', handleExit);
+        this.process.off('error', handleError);
+        callback();
+      };
+
+      let timeoutId = setTimeout(() => handleError(
+        new Error(`Timed out after ${timeout}ms`)
+      ), timeout);
+
+      this.process.stderr.on('data', handleData);
+      this.process.stderr.on('close', handleClose);
+      this.process.on('exit', handleExit);
+      this.process.on('error', handleError);
+    });
+
+    return this._address;
   }
 
   _handleMessage(data) {

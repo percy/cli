@@ -39,7 +39,7 @@ export default class Page extends EventEmitter {
     this.#browser = null;
   }
 
-  async eval(fn, args = []) {
+  async eval(fn, ...args) {
     let { result, exceptionDetails } = await this.send('Runtime.callFunctionOn', {
       functionDeclaration: fn.toString(),
       arguments: args.map(value => ({ value })),
