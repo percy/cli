@@ -131,6 +131,8 @@ export default class PercyDiscoverer {
   // DOM for the root URL, respond with possible cached responses, skip resources that should not be
   // captured, and abort requests that result in an error.
   _handleRequest({ meta, rootUrl, rootDom }) {
+    let allowedHostnames = [hostname(rootUrl)].concat(this.allowedHostnames);
+
     return async request => {
       let url = request.url;
       meta = { ...meta, url };
@@ -147,7 +149,6 @@ export default class PercyDiscoverer {
           await request.respond(this.#cache.get(url).response);
         } else {
           // do not resolve resources that should not be captured
-          let allowedHostnames = [hostname(rootUrl)].concat(this.allowedHostnames);
           assert(allowedHostnames.some(h => domainMatch(h, url)), 'is remote', meta);
           await request.continue();
         }
@@ -156,7 +157,7 @@ export default class PercyDiscoverer {
           log.debug(`Skipping - ${error.toString()}`, error.meta);
           await request.abort();
         } else {
-          log.error(`Encountered an error for ${url}`, meta);
+          log.error(`Encountered an error handling request: ${url}`, meta);
           log.error(error);
           await request.abort(error);
         }
@@ -220,7 +221,7 @@ export default class PercyDiscoverer {
         if (error.name === 'PercyAssertionError') {
           log.debug(`Skipping - ${error.toString()}`, error.meta);
         } else {
-          log.error(`Encountered an error for ${url}`, meta);
+          log.error(`Encountered an error processing resource: ${url}`, meta);
           log.error(error);
         }
       }
@@ -235,7 +236,7 @@ export default class PercyDiscoverer {
       // do not log generic failures since the real error was most likely
       // already logged from elsewhere
       if (error !== 'net::ERR_FAILED') {
-        log.debug(`Request failed for ${url} - ${error}`, { ...meta, url });
+        log.debug(`Request failed for ${url}: ${error}`, { ...meta, url });
       }
     };
   }
