@@ -9,7 +9,6 @@ class PercyAssertionError extends Error {
     'is remote': () => 'Remote resource',
     'no response': () => 'No response',
     'too many bytes': ({ size }) => `Max file size exceeded [${size}]`,
-    'too many redirects': ({ length }) => `Too many redirects [${length}]`,
     'too many widths': ({ widths }) => `Too many widths requested: maximum is 10, requested ${widths}`
   }
 
