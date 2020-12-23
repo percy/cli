@@ -78,10 +78,13 @@ export default class Browser extends EventEmitter {
     await new Promise(resolve => this.ws.once('open', resolve));
     this.ws.on('message', data => this._handleMessage(data));
 
-    // close the initial page that automatically opened
+    // close any initial pages that automatically opened
     await this.send('Target.getTargets').then(({ targetInfos }) => {
-      let { targetId } = targetInfos.find(t => t.type === 'page');
-      return this.send('Target.closeTarget', { targetId });
+      return Promise.all(targetInfos.reduce((promises, target) => {
+        return target.type !== 'page' ? promises : promises.concat(
+          this.send('Target.closeTarget', { targetId: target.targetId })
+        );
+      }, []));
     });
   }
 
