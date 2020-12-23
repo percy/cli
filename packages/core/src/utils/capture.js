@@ -28,7 +28,7 @@ export async function navigatePage(page, url, {
   if (waitForSelector) {
     /* istanbul ignore next: no instrumenting injected code */
     await page.eval(wrapHelpers(({ waitFor }, sel) => (
-      waitFor(() => !!document.querySelector(sel), { timeout: 10000 })
+      waitFor(() => !!document.querySelector(sel), 10000)
         .catch(() => Promise.reject(new Error(`Failed to find "${sel}"`)))
     )), waitForSelector);
   }
