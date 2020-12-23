@@ -49,13 +49,11 @@ export default class Page extends EventEmitter {
 
   // Close the target page if not already closed
   async close() {
-    assert(this.#browser, 'Page already closed.');
+    if (!this.#browser) return;
 
     await this.#browser.send('Target.closeTarget', {
       targetId: this.#targetId
     });
-
-    this.#browser = null;
   }
 
   // Go to a URL and wait for navigation to occur
@@ -64,6 +62,7 @@ export default class Page extends EventEmitter {
     waitUntil = 'load'
   } = {}) {
     let handleNavigate = ({ frame }) => {
+      /* istanbul ignore next: sanity check */
       if (this.#frameId === frame.id) handleNavigate.done = true;
     };
 
