@@ -4,6 +4,7 @@ import { promises as fs, existsSync } from 'fs';
 import { spawn } from 'child_process';
 import EventEmitter from 'events';
 import WebSocket from 'ws';
+import rimraf from 'rimraf';
 import log from '@percy/logger';
 import assert from '../utils/assert';
 import install from '../utils/install-browser';
@@ -122,10 +123,17 @@ export default class Browser extends EventEmitter {
       }
     });
 
-    await closed;
+    // attempt to clean up the profile directory after closing
+    await closed.then(() => new Promise(resolve => {
+      rimraf(this.profile, error => {
+        if (error) {
+          log.debug('Could not clean up temporary browser profile directory.');
+          log.debug(error);
+        }
 
-    // clean up the profile directory
-    await fs.rmdir(this.profile, { recursive: true });
+        resolve();
+      });
+    }));
   }
 
   async page() {

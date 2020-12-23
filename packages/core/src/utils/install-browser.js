@@ -6,6 +6,7 @@ import {
   existsSync,
   createWriteStream
 } from 'fs';
+import rimraf from 'rimraf';
 import log from '@percy/logger';
 import readableBytes from './bytes';
 
@@ -72,7 +73,7 @@ export default async function install({
 
     // extract the downloaded file and cleanup
     await extract(dlpath, outdir);
-    await fs.unlink(dlpath);
+    await new Promise(resolve => rimraf(dlpath, resolve));
 
     // log success and restore previous loglevel
     log.info(`Successfully downloaded ${browser}`);
