@@ -307,7 +307,7 @@ export default class Percy {
             /* eslint-disable-next-line no-undef */
             domSnapshot: PercyDOM.serialize({ enableJavaScript }),
             url: document.URL
-          }), [options]);
+          }), options);
 
           // snapshots are awaited on concurrently after sequentially capturing their DOM
           results.push(this.snapshot({ ...options, url, name, domSnapshot }));
