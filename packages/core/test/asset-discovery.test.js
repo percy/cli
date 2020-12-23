@@ -281,7 +281,7 @@ describe('Asset Discovery', () => {
     expect(stdio[2]).toHaveLength(0);
     expect(stdio[1]).toEqual(expect.arrayContaining([
       expect.stringMatching(new RegExp( // eslint-disable-line prefer-regex-literals
-        '^\\[percy\\] Request failed for http://localhost:8000/404/style\\.css - net::'
+        '^\\[percy\\] Request failed for http://localhost:8000/404/style\\.css: net::'
       ))
     ]));
   });
@@ -349,20 +349,21 @@ describe('Asset Discovery', () => {
 
       expect(stdio[1]).toHaveLength(0);
       expect(stdio[2]).toEqual(expect.arrayContaining([
-        '[percy] Encountered an error for http://localhost:8000/style.css\n',
+        '[percy] Encountered an error handling request: http://localhost:8000/style.css\n',
         '[percy] Error: some unhandled request error\n',
-        '[percy] Encountered an error for http://localhost:8000/img.gif\n',
+        '[percy] Encountered an error handling request: http://localhost:8000/img.gif\n',
         '[percy] Error: some unhandled request error\n'
       ]));
     });
 
     it('logs unhandled response errors gracefully', async () => {
-      let i = 0;
-
       // sabotage this property to trigger unexpected error handling
-      Object.defineProperty(percy.discoverer, 'disableAssetCache', {
+      Object.defineProperty(percy.discoverer, 'disableCache', {
         // only throw ever other time when accessed within the response handler
-        get() { if (++i % 2) throw new Error('some unhandled response error'); }
+        get() {
+          let error = new Error('some unhandled response error');
+          if (error.stack.includes('onrequestfinished')) throw error;
+        }
       });
 
       await stdio.capture(() => (
@@ -375,9 +376,9 @@ describe('Asset Discovery', () => {
 
       expect(stdio[1]).toHaveLength(0);
       expect(stdio[2]).toEqual(expect.arrayContaining([
-        '[percy] Encountered an error for http://localhost:8000/style.css\n',
+        '[percy] Encountered an error processing resource: http://localhost:8000/style.css\n',
         '[percy] Error: some unhandled response error\n',
-        '[percy] Encountered an error for http://localhost:8000/img.gif\n',
+        '[percy] Encountered an error processing resource: http://localhost:8000/img.gif\n',
         '[percy] Error: some unhandled response error\n'
       ]));
     });
