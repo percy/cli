@@ -23,6 +23,7 @@ export default async function install({
     darwin: `Mac/${revision}/chrome-mac.zip`,
     win32: os.arch() === 'x64'
       ? `Win_x64/${revision}/chrome-win64.zip`
+      /* istanbul ignore next: hard to cover sans combined reports */
       : `Win/${revision}/chrome-win32.zip`
   }[os.platform()]}`,
   // default extraction method is to unzip
