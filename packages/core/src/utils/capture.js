@@ -14,7 +14,7 @@ export async function navigatePage(page, url, {
   waitForSelector
 }) {
   // navigate to the url and wait for network idle
-  await page.send('Page.navigate', { url });
+  await page.goto(url);
   await page.network.idle();
 
   // wait for any specified timeout

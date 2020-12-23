@@ -1,6 +1,7 @@
 import EventEmitter from 'events';
 import Network from './network';
 import assert from '../utils/assert';
+import waitFor from '../utils/wait-for';
 
 export default class Page extends EventEmitter {
   #browser = null;
@@ -8,7 +9,9 @@ export default class Page extends EventEmitter {
   #targetId = null;
   #frameId = null;
   #contextId = null;
+
   #callbacks = new Map();
+  #lifecycle = new Set();
 
   constructor(browser, { params }) {
     super();
@@ -19,13 +22,29 @@ export default class Page extends EventEmitter {
 
     this.network = new Network(this);
 
+    this.on('Page.lifecycleEvent', this._handleLifecycleEvent);
     this.on('Runtime.executionContextCreated', this._handleExecutionContextCreated);
     this.on('Runtime.executionContextDestroyed', this._handleExecutionContextDestroyed);
     this.on('Runtime.executionContextsCleared', this._handleExecutionContextsCleared);
+  }
 
-    this.send('Page.getFrameTree')
-      .then(({ frameTree }) => (this.#frameId = frameTree.frame.id))
-      .then(() => this.send('Runtime.enable'));
+  // initial page options asynchronously
+  async init() {
+    let [, { frameTree }] = await Promise.all([
+      this.send('Page.enable'),
+      this.send('Page.getFrameTree')
+    ]);
+
+    this.#frameId = frameTree.frame.id;
+
+    await Promise.all([
+      this.send('Runtime.enable'),
+      this.send('Page.setLifecycleEventsEnabled', {
+        enabled: true
+      })
+    ]);
+
+    return this;
   }
 
   // Close the target page if not already closed
@@ -39,6 +58,37 @@ export default class Page extends EventEmitter {
     this.#browser = null;
   }
 
+  // Go to a URL and wait for navigation to occur
+  async goto(url, {
+    timeout = 30000,
+    waitUntil = 'load'
+  } = {}) {
+    let handleNavigate = ({ frame }) => {
+      if (this.#frameId === frame.id) handleNavigate.done = true;
+    };
+
+    this.once('Page.frameNavigated', handleNavigate);
+
+    try {
+      await Promise.all([
+        this.send('Page.navigate', { url }).then(({ errorText }) => {
+          if (errorText) throw new Error(errorText);
+        }),
+        waitFor(() => {
+          return handleNavigate.done &&
+            this.#lifecycle.has(waitUntil);
+        }, { timeout })
+      ]);
+    } catch (error) {
+      this.off('Page.frameNavigated', handleNavigate);
+
+      throw Object.assign(error, {
+        message: `Navigation failed: ${error.message}`
+      });
+    }
+  }
+
+  // Evaluate JS functions within the page's execution context
   async eval(fn, ...args) {
     let { result, exceptionDetails } = await this.send('Runtime.callFunctionOn', {
       functionDeclaration: fn.toString(),
@@ -100,6 +150,13 @@ export default class Page extends EventEmitter {
     // clear callbacks and browser references
     this.#callbacks.clear();
     this.#browser = null;
+  }
+
+  _handleLifecycleEvent = ({ frameId, loaderId, name }) => {
+    if (this.#frameId === frameId) {
+      if (name === 'init') this.#lifecycle.clear();
+      this.#lifecycle.add(name);
+    }
   }
 
   _handleExecutionContextCreated = ({ context }) => {

@@ -115,11 +115,9 @@ export default class PercyDiscoverer {
         page.network.onrequestfailed = this._handleRequestFailed({ meta });
         await page.network.intercept();
 
-        // navigate to the root URL
-        await page.send('Page.navigate', { url: rootUrl });
-
-        // wait for the network to idle
-        await page.network.idle(this.networkIdleTimeout);
+        // navigate to the root URL and wait for the network to idle
+        await page.goto(rootUrl);
+        await page.network.idle();
       } finally {
         // safely close the page
         await page?.close();

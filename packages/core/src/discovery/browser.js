@@ -143,7 +143,7 @@ export default class Browser extends EventEmitter {
     // create and attach to a new page target returning the resulting page instance
     let { targetId } = await this.send('Target.createTarget', { url: 'about:blank' });
     let { sessionId } = await this.send('Target.attachToTarget', { targetId, flatten: true });
-    return this.#pages.get(sessionId);
+    return this.#pages.get(sessionId).init();
   }
 
   send(method, params) {
