@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@percy/logger": "^1.0.0-beta.25",
-    "ajv": "^6.12.5",
+    "ajv": "^7.0.2",
     "cosmiconfig": "^7.0.0",
     "path-type": "^4.0.0",
     "yaml": "^1.10.0"
