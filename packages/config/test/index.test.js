@@ -81,11 +81,11 @@ describe('PercyConfig', () => {
       })).toEqual({
         result: false,
         errors: [{
-          path: ['test', 'value'],
-          message: 'unknown property'
-        }, {
           path: ['test', 'foo'],
           message: 'missing required property'
+        }, {
+          path: ['test', 'value'],
+          message: 'unknown property'
         }, {
           path: ['test', 'cov'],
           message: 'should be >= 100'
