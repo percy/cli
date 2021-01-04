@@ -258,5 +258,46 @@ describe('Percy', () => {
         '[percy] Error: Navigation failed: net::ERR_ABORTED\n'
       ]);
     });
+
+    it('errors if parameters are invalid', async () => {
+      testDOM += '<style href="/404-cov.css"/>';
+
+      await stdio.capture(() => percy.capture({
+        name: 'invalid snapshot',
+        url: 'http://localhost:8000',
+        widths: ['not-a-width']
+      }));
+
+      expect(stdio[1]).toHaveLength(0);
+      expect(stdio[2]).toEqual([
+        '[percy] Encountered an error taking snapshot: invalid snapshot\n',
+        '[percy] Error: Protocol error (Emulation.setDeviceMetricsOverride): ' +
+          'Invalid parameters width: integer value expected\n'
+      ]);
+    });
+
+    it('gracefully handles exiting early', async () => {
+      // delay an asset so we can interupt it
+      testDOM += '<link href="/style.css"/>';
+      server.reply('/style.css', () => new Promise(resolve => {
+        setTimeout(resolve, 200, [200, 'text/css', '']);
+      }));
+
+      let capture = stdio.capture(() => percy.capture({
+        name: 'test snapshot',
+        url: 'http://localhost:8000'
+      }));
+
+      // wait until the page has at least loaded before exiting
+      await new Promise(resolve => setTimeout(resolve, 200));
+      percy.discoverer.close();
+      await capture;
+
+      expect(stdio[1]).toHaveLength(0);
+      expect(stdio[2]).toEqual([
+        expect.stringMatching('Encountered an error'),
+        expect.stringMatching('Page closed')
+      ]);
+    });
   });
 });
