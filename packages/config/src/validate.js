@@ -58,7 +58,7 @@ export default function validate(config) {
   if (!result) {
     for (let error of ajv.errors) {
       let { dataPath, keyword, params, message, data } = error;
-      let path = dataPath ? dataPath.substr(1).split('.') : [];
+      let path = dataPath ? dataPath.substr(1).split('/') : [];
 
       if (keyword === 'required') {
         message = 'missing required property';
