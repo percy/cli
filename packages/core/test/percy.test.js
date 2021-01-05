@@ -340,7 +340,17 @@ describe('Percy', () => {
       server = await createTestServer({
         '/': () => [200, 'text/html', testDOM],
         '/style.css': () => [200, 'text/css', testCSS],
-        '/img.gif': () => [200, 'image/gif', pixel]
+        '/img.gif': () => [200, 'image/gif', pixel],
+        '/auth/img.gif': ({ headers: { authorization } }) => {
+          if (authorization === 'Basic dGVzdDo=') {
+            return [200, 'image/gif', pixel];
+          } else {
+            return [401, {
+              'WWW-Authenticate': 'Basic',
+              'Content-Type': 'text/plain'
+            }, '401 Unauthorized'];
+          }
+        }
       });
 
       await percy.start();
@@ -449,6 +459,77 @@ describe('Percy', () => {
           }
         }])
       );
+    });
+
+    it('does not upload protected assets', async () => {
+      let domSnapshot = testDOM.replace('img.gif', 'auth/img.gif')
+
+      await percy.snapshot({
+        name: 'auth snapshot',
+        url: 'http://localhost:8000/auth',
+        domSnapshot
+      });
+
+      await percy.idle();
+
+      expect(mockAPI.requests['/builds/123/resources'].map(r => r.body))
+        .not.toEqual(expect.arrayContaining([{
+          data: {
+            type: 'resources',
+            id: sha256hash(pixel),
+            attributes: {
+              'base64-content': base64encode(pixel)
+            }
+          }
+        }]));
+    });
+
+    it('uploads protected assets with valid auth credentials', async () => {
+      let domSnapshot = testDOM.replace('img.gif', 'auth/img.gif')
+
+      await percy.snapshot({
+        name: 'auth snapshot',
+        url: 'http://localhost:8000/auth',
+        authorization: { username: 'test' },
+        domSnapshot
+      });
+
+      await percy.idle();
+
+      expect(mockAPI.requests['/builds/123/resources'].map(r => r.body))
+        .toEqual(expect.arrayContaining([{
+          data: {
+            type: 'resources',
+            id: sha256hash(pixel),
+            attributes: {
+              'base64-content': base64encode(pixel)
+            }
+          }
+        }]));
+    });
+
+    it('does not upload protected assets with invalid auth credentials', async () => {
+      let domSnapshot = testDOM.replace('img.gif', 'auth/img.gif')
+
+      await percy.snapshot({
+        name: 'auth snapshot',
+        url: 'http://localhost:8000/auth',
+        authorization: { username: 'invalid' },
+        domSnapshot
+      });
+
+      await percy.idle();
+
+      expect(mockAPI.requests['/builds/123/resources'].map(r => r.body))
+        .not.toEqual(expect.arrayContaining([{
+          data: {
+            type: 'resources',
+            id: sha256hash(pixel),
+            attributes: {
+              'base64-content': base64encode(pixel)
+            }
+          }
+        }]));
     });
 
     it('finalizes the snapshot', async () => {

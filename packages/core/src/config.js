@@ -22,6 +22,14 @@ export const schema = {
         additionalProperties: { type: 'string' },
         default: {}
       },
+      authorization: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          username: { type: 'string' },
+          password: { type: 'string' },
+        }
+      },
       enableJavaScript: {
         type: 'boolean'
       }

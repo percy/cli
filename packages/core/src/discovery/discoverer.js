@@ -60,6 +60,7 @@ export default class PercyDiscoverer {
   async page({
     cacheDisabled = false,
     requestHeaders = {},
+    authorization = {},
     ignoreHTTPSErrors = true,
     enableJavaScript = true,
     deviceScaleFactor = 1,
@@ -69,6 +70,7 @@ export default class PercyDiscoverer {
   }) {
     let page = await this.#browser.page();
     page.network.timeout = this.networkIdleTimeout;
+    page.network.authorization = authorization;
 
     // set page options
     await Promise.all([
@@ -90,6 +92,7 @@ export default class PercyDiscoverer {
     rootDom,
     enableJavaScript,
     requestHeaders,
+    authorization,
     width,
     meta
   }) {
@@ -106,6 +109,7 @@ export default class PercyDiscoverer {
           cacheDisabled: true,
           enableJavaScript,
           requestHeaders,
+          authorization,
           width
         });
 

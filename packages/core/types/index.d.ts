@@ -1,11 +1,20 @@
 type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'silent';
-interface Pojo { [x: string]: any; }
+
+interface Pojo {
+  [x: string]: any;
+}
+
+interface AuthCredentials {
+  username: string,
+  password: string
+}
 
 export interface SnapshotOptions {
   widths?: number[];
   minHeight?: number;
   percyCSS?: string;
   requestHeaders?: Pojo;
+  authorization?: AuthCredentials;
   enableJavaScript?: boolean;
 }
 

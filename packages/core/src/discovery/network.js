@@ -38,10 +38,10 @@ export default class Network {
   }
 
   // Called when a request requires authentication. Responds to the auth request with any
-  // provided authentication credentials.
+  // provided authorization credentials.
   _handleAuthRequired = async event => {
     let { requestId } = event;
-    let { username, password } = this.credentials || {};
+    let { username, password } = this.authorization;
     let response = 'Default';
 
     if (this.#authentications.has(requestId)) {
@@ -120,7 +120,7 @@ export default class Network {
         // call to respond with a specific status, body, and headers
         respond: payload => this.page.send('Fetch.fulfillRequest', {
           requestId: interceptId,
-          responseCode: payload.status || 200,
+          responseCode: payload.status,
           body: payload.body && Buffer.from(payload.body).toString('base64'),
           responseHeaders: Object.entries(payload.headers).map(([name, value]) => {
             return { name: name.toLowerCase(), value: String(value) };
@@ -140,6 +140,7 @@ export default class Network {
   _handleResponseReceived = event => {
     let { requestId, response } = event;
     let request = this.#requests.get(requestId);
+    /* istanbul ignore next: race condition paranioa */
     if (!request) return;
 
     request.response = response;
@@ -154,6 +155,7 @@ export default class Network {
   _handleLoadingFinished = async event => {
     let { requestId } = event;
     let request = this.#requests.get(requestId);
+    /* istanbul ignore next: race condition paranioa */
     if (!request) return;
 
     if (this._intercept) {
@@ -168,6 +170,7 @@ export default class Network {
   _handleLoadingFailed = async event => {
     let { requestId, errorText } = event;
     let request = this.#requests.get(requestId);
+    /* istanbul ignore next: race condition paranioa */
     if (!request) return;
 
     if (this._intercept) {

@@ -174,6 +174,7 @@ export default class Percy {
     minHeight,
     percyCSS,
     requestHeaders,
+    authorization,
     enableJavaScript,
     clientInfo,
     environmentInfo
@@ -214,6 +215,7 @@ export default class Percy {
     log.debug(`-> clientInfo: ${clientInfo}`, meta);
     log.debug(`-> environmentInfo: ${environmentInfo}`, meta);
     log.debug(`-> requestHeaders: ${JSON.stringify(requestHeaders)}`, meta);
+    log.debug(`-> authorization: ${JSON.stringify(authorization)}`, meta);
     log.debug(`-> domSnapshot:\n${(
       domSnapshot.length <= 1024 ? domSnapshot
         : (domSnapshot.substr(0, 1024) + '... [truncated]')
@@ -237,6 +239,7 @@ export default class Percy {
           rootDom: domSnapshot,
           enableJavaScript,
           requestHeaders,
+          authorization,
           width,
           meta
         })
@@ -285,13 +288,13 @@ export default class Percy {
 
     // the entire capture process happens within the async capture queue
     return this.#captures.push(async () => {
-      let { requestHeaders } = options;
+      let { requestHeaders, authorization } = options;
       let results = [];
       let page;
 
       try {
         // borrow a page from the discoverer
-        page = await this.discoverer.page({ requestHeaders });
+        page = await this.discoverer.page({ requestHeaders, authorization });
 
         // navigate to the page and wait until ready
         await navigatePage(page, url, { waitForTimeout, waitForSelector });
