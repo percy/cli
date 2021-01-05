@@ -18,7 +18,7 @@ export default class PercyDiscoverer {
 
   constructor({
     // asset discovery concurrency
-    concurrency,
+    concurrency = 5,
     // additional allowed hostnames besides the root URL hostname
     allowedHostnames,
     // how long to wait before the network is considered to be idle and assets

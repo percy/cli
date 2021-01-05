@@ -52,8 +52,7 @@ export const schema = {
         default: false
       },
       concurrency: {
-        type: 'integer',
-        default: 5
+        type: 'integer'
       },
       launchOptions: {
         type: 'object',
