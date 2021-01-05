@@ -20,7 +20,6 @@ export const schema = {
       requestHeaders: {
         type: 'object',
         additionalProperties: { type: 'string' },
-        default: {}
       },
       authorization: {
         type: 'object',

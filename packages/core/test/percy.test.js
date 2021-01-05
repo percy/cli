@@ -27,7 +27,6 @@ describe('Percy', () => {
 
     expect(percy.config.snapshot).toEqual({
       widths: [375, 1280],
-      requestHeaders: {},
       minHeight: 1024,
       percyCSS: ''
     });
@@ -41,7 +40,6 @@ describe('Percy', () => {
 
     expect(percy.config.snapshot).toEqual({
       widths: [375, 1280],
-      requestHeaders: {},
       minHeight: 1024,
       percyCSS: '',
       foo: 'bar'
