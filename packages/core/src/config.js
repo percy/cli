@@ -19,14 +19,14 @@ export const schema = {
       },
       requestHeaders: {
         type: 'object',
-        additionalProperties: { type: 'string' },
+        additionalProperties: { type: 'string' }
       },
       authorization: {
         type: 'object',
         additionalProperties: false,
         properties: {
           username: { type: 'string' },
-          password: { type: 'string' },
+          password: { type: 'string' }
         }
       },
       enableJavaScript: {

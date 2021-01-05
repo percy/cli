@@ -107,12 +107,14 @@ export default class Page extends EventEmitter {
   }
 
   async send(method, params) {
-    let error = new Error()
+    let error = new Error();
 
     /* istanbul ignore next: race condition paranoia */
-    if (this.#closedReason) return Promise.reject(Object.assign(errror, {
-      message: `Protocol error (${method}): ${this.#closedReason}`
-    }));
+    if (this.#closedReason) {
+      return Promise.reject(Object.assign(error, {
+        message: `Protocol error (${method}): ${this.#closedReason}`
+      }));
+    }
 
     // send a raw message to the browser so we can provide a sessionId
     let id = await this.#browser.send({ sessionId: this.#sessionId, method, params });

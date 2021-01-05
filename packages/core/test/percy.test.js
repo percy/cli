@@ -460,7 +460,7 @@ describe('Percy', () => {
     });
 
     it('does not upload protected assets', async () => {
-      let domSnapshot = testDOM.replace('img.gif', 'auth/img.gif')
+      let domSnapshot = testDOM.replace('img.gif', 'auth/img.gif');
 
       await percy.snapshot({
         name: 'auth snapshot',
@@ -483,7 +483,7 @@ describe('Percy', () => {
     });
 
     it('uploads protected assets with valid auth credentials', async () => {
-      let domSnapshot = testDOM.replace('img.gif', 'auth/img.gif')
+      let domSnapshot = testDOM.replace('img.gif', 'auth/img.gif');
 
       await percy.snapshot({
         name: 'auth snapshot',
@@ -507,7 +507,7 @@ describe('Percy', () => {
     });
 
     it('does not upload protected assets with invalid auth credentials', async () => {
-      let domSnapshot = testDOM.replace('img.gif', 'auth/img.gif')
+      let domSnapshot = testDOM.replace('img.gif', 'auth/img.gif');
 
       await percy.snapshot({
         name: 'auth snapshot',
