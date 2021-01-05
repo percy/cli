@@ -1,6 +1,5 @@
 import EventEmitter from 'events';
 import Network from './network';
-import assert from '../utils/assert';
 import waitFor from '../utils/wait-for';
 
 export default class Page extends EventEmitter {
@@ -9,6 +8,7 @@ export default class Page extends EventEmitter {
   #targetId = null;
   #frameId = null;
   #contextId = null;
+  #closedReason = null;
 
   #callbacks = new Map();
   #lifecycle = new Set();
@@ -26,6 +26,7 @@ export default class Page extends EventEmitter {
     this.on('Runtime.executionContextCreated', this._handleExecutionContextCreated);
     this.on('Runtime.executionContextDestroyed', this._handleExecutionContextDestroyed);
     this.on('Runtime.executionContextsCleared', this._handleExecutionContextsCleared);
+    this.on('Inspector.targetCrashed', this._handleTargetCrashed);
   }
 
   // initial page options asynchronously
@@ -106,14 +107,19 @@ export default class Page extends EventEmitter {
   }
 
   async send(method, params) {
-    assert(this.#browser, `Protocol error (${method}): Page closed.`);
+    let error = new Error()
+
+    /* istanbul ignore next: race condition paranoia */
+    if (this.#closedReason) return Promise.reject(Object.assign(errror, {
+      message: `Protocol error (${method}): ${this.#closedReason}`
+    }));
 
     // send a raw message to the browser so we can provide a sessionId
     let id = this.#browser.send({ sessionId: this.#sessionId, method, params });
 
     // return a promise that will resolve or reject when a response is received
     return new Promise((resolve, reject) => {
-      this.#callbacks.set(id, { error: new Error(), resolve, reject, method });
+      this.#callbacks.set(id, { error, resolve, reject, method });
     });
   }
 
@@ -125,9 +131,7 @@ export default class Page extends EventEmitter {
 
       if (data.error) {
         callback.reject(Object.assign(callback.error, {
-          message: `Protocol error (${callback.method}): ${data.error.message}${
-            'data' in data.error ? ` ${data.error.data}` : ''
-          }`
+          message: `Protocol error (${callback.method}): ${data.error.message} ${data.error.data}`
         }));
       } else {
         callback.resolve(data.result);
@@ -139,14 +143,15 @@ export default class Page extends EventEmitter {
   }
 
   _handleClose() {
+    this.#closedReason ||= 'Page closed.';
+
     // reject any pending callbacks
     for (let callback of this.#callbacks.values()) {
       callback.reject(Object.assign(callback.error, {
-        message: `Protocol error (${callback.method}): Page closed.`
+        message: `Protocol error (${callback.method}): ${this.#closedReason}`
       }));
     }
 
-    // clear callbacks and browser references
     this.#callbacks.clear();
     this.#browser = null;
   }
@@ -172,5 +177,10 @@ export default class Page extends EventEmitter {
 
   _handleExecutionContextsCleared = () => {
     this.#contextId = null;
+  }
+
+  _handleTargetCrashed = () => {
+    this.#closedReason = 'Page crashed!';
+    this.close();
   }
 }
