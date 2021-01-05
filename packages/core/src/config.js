@@ -56,7 +56,14 @@ export const schema = {
         default: 5
       },
       launchOptions: {
-        type: 'object'
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          executable: { type: 'string' },
+          headless: { type: 'boolean' },
+          args: { type: 'array', items: { type: 'string' } },
+          timeout: { type: 'integer' }
+        }
       }
     }
   }
