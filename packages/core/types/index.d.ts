@@ -9,6 +9,13 @@ interface AuthCredentials {
   password: string
 }
 
+interface DiscoveryLaunchOptions {
+  executable?: string,
+  args?: string[],
+  timeout?: number,
+  headless?: boolean
+}
+
 export interface SnapshotOptions {
   widths?: number[];
   minHeight?: number;
@@ -23,7 +30,7 @@ interface DiscoveryOptions {
   networkIdleTimeout?: number;
   disableCache?: boolean;
   concurrency?: number;
-  launchOptions?: Pojo;
+  launchOptions?: DiscoveryLaunchOptions;
 }
 
 export type PercyOptions<C = Pojo> = C & {

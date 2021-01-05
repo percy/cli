@@ -24,7 +24,7 @@ const percyOptions: PercyOptions = {
     disableCache: false,
     concurrency: 1,
     launchOptions: {
-      devtools: true
+      args: ['--foo-bar']
     }
   },
   foo: {
