@@ -130,7 +130,7 @@ $ percy snapshot pages.json
 #### JavaScript
 
 For JavaScript exports, an `execute` function and additional `snapshots` may be specified for each
-page to interact with the underlying Puppeteer Page object before snapshots are taken.
+page to execute JavaScript within the execution context before snapshots are taken.
 
 `pages.js`:
 
@@ -147,13 +147,14 @@ module.exports = [{
   waitForSelector: '.some-element',
   snapshots: [{
     name: 'Snapshot two - after click',
-    async execute(page) {
-      await page.click('.button')
+    execute() {
+      document.querySelector('.button').click();
     }
   }, {
     name: 'Snapshot two - after double click',
-    async execute(page) {
-      await page.click('.button', { clickCount: 2 })
+    execute() {
+      document.querySelector('.button').click();
+      document.querySelector('.button').click();
     }
   }]
 }]
