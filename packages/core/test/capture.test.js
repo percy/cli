@@ -276,10 +276,9 @@ describe('Percy Capture', () => {
   });
 
   it('gracefully handles exiting early', async () => {
-    // delay an asset so we can interupt it
-    testDOM += '<link href="/style.css"/>';
+    testDOM += '<link rel="stylesheet" href="/style.css"/>';
     server.reply('/style.css', () => new Promise(resolve => {
-      setTimeout(resolve, 200, [200, 'text/css', '']);
+      setTimeout(resolve, 100, [200, 'text/css', '']);
     }));
 
     let capture = stdio.capture(() => percy.capture({
