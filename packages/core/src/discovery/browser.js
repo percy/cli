@@ -6,7 +6,6 @@ import EventEmitter from 'events';
 import WebSocket from 'ws';
 import rimraf from 'rimraf';
 import log from '@percy/logger';
-import assert from '../utils/assert';
 import install from '../utils/install-browser';
 import Page from './page';
 
@@ -66,6 +65,7 @@ export default class Browser extends EventEmitter {
 
     // collect args to pass to the browser process
     let args = [...this.defaultArgs, `--user-data-dir=${this.profile}`];
+    /* istanbul ignore next: only false for debugging */
     if (headless) args.push('--headless', '--hide-scrollbars', '--mute-audio');
     for (let a of uargs) if (!args.includes(a)) args.push(a);
 
@@ -80,6 +80,7 @@ export default class Browser extends EventEmitter {
 
     // close any initial pages that automatically opened
     await this.send('Target.getTargets').then(({ targetInfos }) => {
+      /* istanbul ignore next: this doesn't happen in every environment */
       return Promise.all(targetInfos.reduce((promises, target) => {
         return target.type !== 'page' ? promises : promises.concat(
           this.send('Target.closeTarget', { targetId: target.targetId })
@@ -93,7 +94,7 @@ export default class Browser extends EventEmitter {
   }
 
   async close() {
-    if (!this.isConnected() || this.#closed) return;
+    if (this.#closed) return;
     this.#closed = true;
 
     // reject any pending callbacks
@@ -117,6 +118,8 @@ export default class Browser extends EventEmitter {
       this.process.on('exit', resolve);
     });
 
+    /* istanbul ignore next:
+     *   difficult to test failure here without mocking private properties */
     await this.send('Browser.close').catch(() => {
       // force close if needed and able to
       if (this.process?.pid && !this.process.killed) {
@@ -129,6 +132,8 @@ export default class Browser extends EventEmitter {
     // attempt to clean up the profile directory after closing
     await closed.then(() => new Promise(resolve => {
       rimraf(this.profile, error => {
+        /* istanbul ignore next:
+         *   this might happen on some systems but ultimately it is a temp file */
         if (error) {
           log.debug('Could not clean up temporary browser profile directory.');
           log.debug(error);
@@ -146,8 +151,8 @@ export default class Browser extends EventEmitter {
     return this.#pages.get(sessionId).init();
   }
 
-  send(method, params) {
-    assert(this.isConnected(), 'Browser not connected');
+  async send(method, params) {
+    if (!this.isConnected()) throw new Error('Browser not connected');
 
     // every command needs a unique id
     let id = ++this.#lastid;
@@ -169,6 +174,7 @@ export default class Browser extends EventEmitter {
   // stderr and resolves when it emits the devtools protocol address or rejects if the process
   // exits for any reason or if the address does not appear after the timeout.
   async address(timeout = 30000) {
+    /* istanbul ignore next: this is not called twice but might be in the future */
     if (this._address) return this._address;
 
     this._address = await new Promise((resolve, reject) => {
@@ -180,14 +186,14 @@ export default class Browser extends EventEmitter {
         if (match) cleanup(() => resolve(match[1]));
       };
 
+      /* istanbul ignore next: for sanity */
       let handleExit = () => handleError();
       let handleClose = () => handleError();
       let handleError = error => {
-        cleanup(() => reject(new Error([
-          'Failed to launch browser.',
-          (error ? ' ' + error.message : ''),
-          '\n', stderr, '\n\n'
-        ].join(''))));
+        cleanup(() => reject(new Error(
+          `Failed to launch browser. ${error?.message ?? ''}`
+            + '\n', stderr, '\n\n'
+        )));
       };
 
       let cleanup = callback => {
@@ -234,11 +240,11 @@ export default class Browser extends EventEmitter {
       let callback = this.#callbacks.get(data.id);
       this.#callbacks.delete(data.id);
 
+      /* istanbul ignore next:
+       *   currently does not happen during asset discovery but it's here just in case */
       if (data.error) {
         callback.reject(Object.assign(callback.error, {
-          message: `Protocol error (${callback.method}): ${data.error.message}${
-            'data' in data.error ? ` ${data.error.data}` : ''
-          }`
+          message: `Protocol error (${callback.method}): ${data.error.message} ${data.error.data}`
         }));
       } else {
         callback.resolve(data.result);

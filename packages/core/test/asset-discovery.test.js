@@ -525,4 +525,55 @@ describe('Asset Discovery', () => {
       ]);
     });
   });
+
+  describe('with launch options', () => {
+    beforeEach(async () => {
+      await percy.stop();
+    });
+
+    it('should log an error if a provided executable cannot be found', async () => {
+      percy = await stdio.capture(() => Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: {
+          launchOptions: {
+            executable: './404',
+            args: ['--no-sandbox', '--unknown-flag']
+          }
+        }
+      }));
+
+      expect(stdio[2]).toEqual([
+        '[percy] Browser executable not found: ./404\n'
+      ]);
+    });
+
+    it('should fail to launch if the devtools address is not logged', async () => {
+      await expect(Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: {
+          launchOptions: {
+            args: ['--remote-debugging-port=null']
+          }
+        }
+      })).rejects.toThrow(
+        'Failed to launch browser. '
+      );
+    });
+
+    it('should fail to launch after the timeout', async () => {
+      await expect(Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: {
+          launchOptions: {
+            timeout: 10 // unreasonable
+          }
+        }
+      })).rejects.toThrow(
+        'Failed to launch browser. Timed out after 10ms'
+      );
+    });
+  });
 });

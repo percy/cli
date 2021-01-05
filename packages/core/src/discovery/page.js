@@ -115,7 +115,7 @@ export default class Page extends EventEmitter {
     }));
 
     // send a raw message to the browser so we can provide a sessionId
-    let id = this.#browser.send({ sessionId: this.#sessionId, method, params });
+    let id = await this.#browser.send({ sessionId: this.#sessionId, method, params });
 
     // return a promise that will resolve or reject when a response is received
     return new Promise((resolve, reject) => {
