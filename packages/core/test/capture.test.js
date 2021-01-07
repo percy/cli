@@ -294,7 +294,7 @@ describe('Percy Capture', () => {
     expect(stdio[1]).toHaveLength(0);
     expect(stdio[2]).toEqual([
       expect.stringMatching('Encountered an error'),
-      expect.stringMatching('Page closed')
+      expect.stringMatching(/(Page|Browser) closed/)
     ]);
   });
 
