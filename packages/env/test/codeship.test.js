@@ -6,12 +6,13 @@ describe('CodeShip', () => {
 
   beforeEach(function() {
     env = new PercyEnvironment({
-      CI_NAME: 'codeship',
+      PERCY_PARALLEL_TOTAL: '-1',
       CI_BRANCH: 'codeship-branch',
       CI_BUILD_NUMBER: 'codeship-build-number',
       CI_BUILD_ID: 'codeship-build-id',
       CI_COMMIT_ID: 'codeship-commit-sha',
-      CI_PULL_REQUEST: 'false'
+      CI_PULL_REQUEST: 'false',
+      CI_NAME: 'codeship'
     });
   });
 
@@ -23,7 +24,7 @@ describe('CodeShip', () => {
     expect(env).toHaveProperty('target.branch', null);
     expect(env).toHaveProperty('pullRequest', null);
     expect(env).toHaveProperty('parallel.nonce', 'codeship-build-number');
-    expect(env).toHaveProperty('parallel.total', null);
+    expect(env).toHaveProperty('parallel.total', -1);
   });
 
   it('has nonce fallback for CodeShip Pro', () => {

@@ -11,6 +11,7 @@ describe('Semaphore', () => {
       REVISION: 'semaphore-commit-sha',
       SEMAPHORE_BRANCH_ID: 'semaphore-branch-id',
       SEMAPHORE_BUILD_NUMBER: 'semaphore-build-number',
+      PERCY_PARALLEL_TOTAL: '-1',
       PULL_REQUEST_NUMBER: '123'
     });
   });
@@ -24,7 +25,7 @@ describe('Semaphore', () => {
     expect(env).toHaveProperty('target.branch', null);
     expect(env).toHaveProperty('pullRequest', '123');
     expect(env).toHaveProperty('parallel.nonce', 'semaphore-branch-id/semaphore-build-number');
-    expect(env).toHaveProperty('parallel.total', null);
+    expect(env).toHaveProperty('parallel.total', -1);
   });
 
   describe('Semaphore 2.0', () => {
@@ -33,7 +34,8 @@ describe('Semaphore', () => {
         SEMAPHORE: 'true',
         SEMAPHORE_GIT_SHA: 'semaphore-2-sha',
         SEMAPHORE_GIT_BRANCH: 'semaphore-2-branch',
-        SEMAPHORE_WORKFLOW_ID: 'semaphore-2-workflow-id'
+        SEMAPHORE_WORKFLOW_ID: 'semaphore-2-workflow-id',
+        PERCY_PARALLEL_TOTAL: '-1'
       });
     });
 
@@ -46,7 +48,7 @@ describe('Semaphore', () => {
       expect(env).toHaveProperty('target.branch', null);
       expect(env).toHaveProperty('pullRequest', null);
       expect(env).toHaveProperty('parallel.nonce', 'semaphore-2-workflow-id');
-      expect(env).toHaveProperty('parallel.total', null);
+      expect(env).toHaveProperty('parallel.total', -1);
     });
 
     it('has the correct properties for PR builds', () => {
@@ -57,7 +59,8 @@ describe('Semaphore', () => {
         SEMAPHORE_GIT_BRANCH: 'semaphore-2-branch',
         SEMAPHORE_GIT_PR_BRANCH: 'semaphore-2-pr-branch',
         SEMAPHORE_GIT_PR_NUMBER: '50',
-        SEMAPHORE_WORKFLOW_ID: 'semaphore-2-workflow-id'
+        SEMAPHORE_WORKFLOW_ID: 'semaphore-2-workflow-id',
+        PERCY_PARALLEL_TOTAL: '-1'
       });
 
       expect(env).toHaveProperty('ci', 'semaphore');
@@ -68,7 +71,7 @@ describe('Semaphore', () => {
       expect(env).toHaveProperty('target.branch', null);
       expect(env).toHaveProperty('pullRequest', '50');
       expect(env).toHaveProperty('parallel.nonce', 'semaphore-2-workflow-id');
-      expect(env).toHaveProperty('parallel.total', null);
+      expect(env).toHaveProperty('parallel.total', -1);
     });
   });
 });

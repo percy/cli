@@ -6,10 +6,11 @@ describe('Appveyor', () => {
 
   beforeEach(() => {
     env = new PercyEnvironment({
-      APPVEYOR: 'True',
+      PERCY_PARALLEL_TOTAL: '-1',
       APPVEYOR_BUILD_ID: 'appveyor-build-id',
       APPVEYOR_REPO_COMMIT: 'appveyor-commit-sha',
-      APPVEYOR_REPO_BRANCH: 'appveyor-branch'
+      APPVEYOR_REPO_BRANCH: 'appveyor-branch',
+      APPVEYOR: 'True'
     });
   });
 
@@ -21,7 +22,7 @@ describe('Appveyor', () => {
     expect(env).toHaveProperty('target.branch', null);
     expect(env).toHaveProperty('pullRequest', null);
     expect(env).toHaveProperty('parallel.nonce', 'appveyor-build-id');
-    expect(env).toHaveProperty('parallel.total', null);
+    expect(env).toHaveProperty('parallel.total', -1);
   });
 
   it('has the correct properties for PR builds', () => {
