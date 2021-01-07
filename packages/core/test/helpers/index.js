@@ -11,8 +11,12 @@ beforeEach(() => {
 });
 
 afterEach(done => {
-  // cleanup tmp files
-  rimraf(path.join(os.tmpdir(), 'percy'), done);
+  // cleanup tmp files (avoid logfiles in windows since they might be open)
+  rimraf((
+    process.platform === 'win32'
+      ? path.join(os.tmpdir(), 'percy', '*[!.log]')
+      : path.join(os.tmpdir(), 'percy')
+  ), done);
 });
 
 export { mockAPI };
