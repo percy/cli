@@ -198,9 +198,13 @@ export default class PercyEnvironment {
     return pr || null;
   }
 
-  // parallel nonce & total
+  // parallel total & nonce
   get parallel() {
-    let nonce = (() => {
+    let total = parseInt(this.vars.PERCY_PARALLEL_TOTAL, 10);
+    if (!Number.isInteger(total)) total = null;
+
+    // no nonce if no total
+    let nonce = total && (() => {
       if (this.vars.PERCY_PARALLEL_NONCE) {
         return this.vars.PERCY_PARALLEL_NONCE;
       }
@@ -238,13 +242,9 @@ export default class PercyEnvironment {
       }
     })();
 
-    let total = (() => {
-      try { return parseInt(this.vars.PERCY_PARALLEL_TOTAL); } catch {}
-    })();
-
     return {
-      nonce: nonce || null,
-      total: total || null
+      total: total || null,
+      nonce: nonce || null
     };
   }
 
