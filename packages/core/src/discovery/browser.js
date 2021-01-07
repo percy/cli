@@ -114,6 +114,7 @@ export default class Browser extends EventEmitter {
     this.#pages.clear();
 
     // no executable means the browser never launched
+    /* istanbul ignore next: sanity */
     if (!this.executable) return;
 
     // attempt to close the browser gracefully

@@ -10,6 +10,7 @@ import log from '@percy/logger';
 import readableBytes from './bytes';
 
 // used to determine platform defaults
+/* istanbul ignore next: hard to cover sans combined reports */
 const platform = (
   process.platform === 'win32' && process.arch === 'x64'
     ? 'win64' : process.platform
@@ -19,8 +20,7 @@ export default async function install({
   // default discovery browser is chromium
   browser = 'Chromium',
   // default chromium version is 78.0.3904.x
-  /* istanbul ignore next: hard to cover sans combined reports */
-  revision = platform === 'win64' ? '693951' : '693954',
+  revision = platform === 'win64' ? /* istanbul ignore next */ '693951' : '693954',
   // default download directory is in @percy/core root
   directory = path.resolve(__dirname, '../../.local-chromium'),
   // default download url is dependent on platform and revision
@@ -58,6 +58,7 @@ export default async function install({
       // download the file at the given URL and log progress
       await new Promise((resolve, reject) => {
         https.get(url, response => {
+          /* istanbul ignore next: failsafe */
           if (response.statusCode !== 200) {
             response.resume();
             reject(new Error(`Download failed: ${response.statusCode} - ${url}`));
@@ -87,6 +88,7 @@ export default async function install({
       await extract(dlpath, outdir);
     } finally {
       // always cleanup
+      /* istanbul ignore next: hard to cover download failure */
       if (existsSync(dlpath)) {
         await new Promise(resolve => rimraf(dlpath, resolve));
       }
