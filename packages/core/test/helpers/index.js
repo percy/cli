@@ -10,9 +10,9 @@ beforeEach(() => {
   log.loglevel('error');
 });
 
-afterEach(() => {
+afterEach(done => {
   // cleanup tmp files
-  rimraf.sync(path.join(os.tmpdir(), 'percy'));
+  rimraf(path.join(os.tmpdir(), 'percy'), done);
 });
 
 export { mockAPI };
