@@ -113,6 +113,9 @@ export default class Browser extends EventEmitter {
     this.#callbacks.clear();
     this.#pages.clear();
 
+    // no executable means the browser never launched
+    if (!this.executable) return;
+
     // attempt to close the browser gracefully
     let closed = new Promise(resolve => {
       this.process.on('exit', resolve);
