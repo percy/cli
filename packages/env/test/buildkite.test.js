@@ -6,11 +6,12 @@ describe('Buildkite', () => {
 
   beforeEach(() => {
     env = new PercyEnvironment({
-      BUILDKITE: 'true',
+      PERCY_PARALLEL_TOTAL: '-1',
       BUILDKITE_COMMIT: 'buildkite-commit-sha',
       BUILDKITE_BRANCH: 'buildkite-branch',
       BUILDKITE_PULL_REQUEST: 'false',
-      BUILDKITE_BUILD_ID: 'buildkite-build-id'
+      BUILDKITE_BUILD_ID: 'buildkite-build-id',
+      BUILDKITE: 'true'
     });
   });
 
@@ -22,7 +23,7 @@ describe('Buildkite', () => {
     expect(env).toHaveProperty('target.branch', null);
     expect(env).toHaveProperty('pullRequest', null);
     expect(env).toHaveProperty('parallel.nonce', 'buildkite-build-id');
-    expect(env).toHaveProperty('parallel.total', null);
+    expect(env).toHaveProperty('parallel.total', -1);
   });
 
   it('has the correct properties for PR builds', () => {

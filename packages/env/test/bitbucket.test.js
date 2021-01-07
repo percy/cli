@@ -6,6 +6,7 @@ describe('Bitbucket', () => {
 
   beforeEach(() => {
     env = new PercyEnvironment({
+      PERCY_PARALLEL_TOTAL: '-1',
       BITBUCKET_BUILD_NUMBER: 'bitbucket-build-number',
       BITBUCKET_COMMIT: 'bitbucket-commit-sha',
       BITBUCKET_BRANCH: 'bitbucket-branch',
@@ -21,6 +22,6 @@ describe('Bitbucket', () => {
     expect(env).toHaveProperty('target.branch', null);
     expect(env).toHaveProperty('pullRequest', '981');
     expect(env).toHaveProperty('parallel.nonce', 'bitbucket-build-number');
-    expect(env).toHaveProperty('parallel.total', null);
+    expect(env).toHaveProperty('parallel.total', -1);
   });
 });

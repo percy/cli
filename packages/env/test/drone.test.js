@@ -10,6 +10,7 @@ describe('Drone', () => {
       DRONE_COMMIT: 'drone-commit-sha',
       DRONE_BRANCH: 'drone-branch',
       DRONE_BUILD_NUMBER: 'drone-build-number',
+      PERCY_PARALLEL_TOTAL: '-1',
       CI_PULL_REQUEST: '123'
     });
   });
@@ -22,6 +23,6 @@ describe('Drone', () => {
     expect(env).toHaveProperty('target.branch', null);
     expect(env).toHaveProperty('pullRequest', '123');
     expect(env).toHaveProperty('parallel.nonce', 'drone-build-number');
-    expect(env).toHaveProperty('parallel.total', null);
+    expect(env).toHaveProperty('parallel.total', -1);
   });
 });

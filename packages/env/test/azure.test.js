@@ -6,6 +6,7 @@ describe('Azure', () => {
 
   beforeEach(() => {
     env = new PercyEnvironment({
+      PERCY_PARALLEL_TOTAL: '-1',
       BUILD_BUILDID: 'azure-build-id',
       BUILD_SOURCEVERSION: 'azure-commit-sha',
       BUILD_SOURCEBRANCHNAME: 'azure-branch',
@@ -21,7 +22,7 @@ describe('Azure', () => {
     expect(env).toHaveProperty('target.branch', null);
     expect(env).toHaveProperty('pullRequest', null);
     expect(env).toHaveProperty('parallel.nonce', 'azure-build-id');
-    expect(env).toHaveProperty('parallel.total', null);
+    expect(env).toHaveProperty('parallel.total', -1);
   });
 
   it('has the correct properties for PR builds', () => {

@@ -10,7 +10,8 @@ describe('Jenkins', () => {
       JENKINS_URL: 'http://jenkins.local/',
       GIT_COMMIT: 'jenkins-commit-sha',
       GIT_BRANCH: 'jenkins-branch',
-      BUILD_TAG: 'xxxx-project-branch-build-number-123'
+      BUILD_TAG: 'xxxx-project-branch-build-number-123',
+      PERCY_PARALLEL_TOTAL: '-1'
     });
   });
 
@@ -22,7 +23,7 @@ describe('Jenkins', () => {
     expect(env).toHaveProperty('target.branch', null);
     expect(env).toHaveProperty('pullRequest', null);
     expect(env).toHaveProperty('parallel.nonce', '321-rebmun-dliub-hcnarb-tcejorp-xxxx');
-    expect(env).toHaveProperty('parallel.total', null);
+    expect(env).toHaveProperty('parallel.total', -1);
   });
 
   it('has the correct properties for PR builds', () => {
@@ -65,7 +66,8 @@ describe('Jenkins', () => {
         BUILD_NUMBER: '111',
         ghprbPullId: '256',
         ghprbActualCommit: 'jenkins-prb-commit-sha',
-        ghprbSourceBranch: 'jenkins-prb-branch'
+        ghprbSourceBranch: 'jenkins-prb-branch',
+        PERCY_PARALLEL_TOTAL: '-1'
       });
     });
 
@@ -77,7 +79,7 @@ describe('Jenkins', () => {
       expect(env).toHaveProperty('target.branch', null);
       expect(env).toHaveProperty('pullRequest', '256');
       expect(env).toHaveProperty('parallel.nonce', '111');
-      expect(env).toHaveProperty('parallel.total', null);
+      expect(env).toHaveProperty('parallel.total', -1);
     });
 
     it('has the correct fallback when PRB commit var is missing', () => {

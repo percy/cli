@@ -10,7 +10,8 @@ describe('GitLab', () => {
       CI_COMMIT_SHA: 'gitlab-commit-sha',
       CI_COMMIT_REF_NAME: 'gitlab-branch',
       CI_PIPELINE_ID: 'gitlab-job-id',
-      CI_SERVER_VERSION: '8.14.3-ee'
+      CI_SERVER_VERSION: '8.14.3-ee',
+      PERCY_PARALLEL_TOTAL: '-1'
     });
   });
 
@@ -23,7 +24,7 @@ describe('GitLab', () => {
     expect(env).toHaveProperty('target.branch', null);
     expect(env).toHaveProperty('pullRequest', null);
     expect(env).toHaveProperty('parallel.nonce', 'gitlab-job-id');
-    expect(env).toHaveProperty('parallel.total', null);
+    expect(env).toHaveProperty('parallel.total', -1);
   });
 
   it('has the correct properties for PR builds', () => {

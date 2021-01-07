@@ -10,7 +10,8 @@ describe('Probo', () => {
       BUILD_ID: 'probo-build-id',
       COMMIT_REF: 'probo-commit-sha',
       BRANCH_NAME: 'probo-branch',
-      PULL_REQUEST_LINK: 'https://github.com/owner/repo-name/pull/123'
+      PULL_REQUEST_LINK: 'https://github.com/owner/repo-name/pull/123',
+      PERCY_PARALLEL_TOTAL: '-1'
     });
   });
 
@@ -22,6 +23,6 @@ describe('Probo', () => {
     expect(env).toHaveProperty('target.branch', null);
     expect(env).toHaveProperty('pullRequest', '123');
     expect(env).toHaveProperty('parallel.nonce', 'probo-build-id');
-    expect(env).toHaveProperty('parallel.total', null);
+    expect(env).toHaveProperty('parallel.total', -1);
   });
 });

@@ -81,7 +81,7 @@ describe('Defaults', () => {
     expect(env).toHaveProperty('ci', 'bitbucket');
     expect(env).toHaveProperty('commit', 'bitbucket-commit-sha');
     expect(env).toHaveProperty('git.sha', 'fully-valid-git-sha');
-    expect(env).toHaveProperty('parallel.nonce', 'bitbucket-build-number');
+    expect(env).toHaveProperty('parallel.nonce', null);
   });
 
   it('can be overridden with PERCY env vars', () => {
@@ -130,6 +130,23 @@ describe('Defaults', () => {
     expect(env).toHaveProperty('git.committerEmail', 'percy git committer@email.com');
     expect(env).toHaveProperty('git.committedAt', 'percy git date');
     expect(env).toHaveProperty('git.message', 'percy git commit');
+  });
+
+  it('does not collect parallel nonce with invalid or no parallel total', () => {
+    env = new PercyEnvironment({
+      PERCY_PARALLEL_NONCE: 'percy-nonce',
+      PERCY_PARALLEL_TOTAL: 'invalid'
+    });
+
+    expect(env).toHaveProperty('parallel.nonce', null);
+    expect(env).toHaveProperty('parallel.total', null);
+
+    env = new PercyEnvironment({
+      PERCY_PARALLEL_NONCE: 'percy-nonce'
+    });
+
+    expect(env).toHaveProperty('parallel.nonce', null);
+    expect(env).toHaveProperty('parallel.total', null);
   });
 
   it('falls back to GIT env vars with missing or invalid git commit data', () => {
