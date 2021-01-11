@@ -27,11 +27,12 @@ function createImageResource(url, content, mimetype) {
 // designed to display an image at it's native size without margins or padding.
 export default function createImageResources(filename, content, width, height) {
   let { name, ext } = path.parse(filename);
-  let url = `/${encodeURIComponent(filename)}`;
+  let rootUrl = `/${encodeURIComponent(name)}`;
+  let imageUrl = `/${encodeURIComponent(filename)}`;
   let mimetype = ext === '.png' ? 'image/png' : 'image/jpeg';
 
   return [
-    createRootResource(encodeURIComponent(name), `
+    createRootResource(rootUrl, `
       <!doctype html>
       <html lang="en">
         <head>
@@ -44,10 +45,10 @@ export default function createImageResources(filename, content, width, height) {
           </style>
         </head>
         <body>
-          <img src="${url}" width="${width}px" height="${height}px"/>
+          <img src="${imageUrl}" width="${width}px" height="${height}px"/>
         </body>
       </html>
     `),
-    createImageResource(url, content, mimetype)
+    createImageResource(imageUrl, content, mimetype)
   ];
 }
