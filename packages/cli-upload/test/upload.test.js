@@ -100,6 +100,39 @@ describe('percy upload', () => {
       '[percy] Snapshot uploaded: test-3.jpeg\n',
       '[percy] Finalized build #1: https://percy.io/test/test/123\n'
     ]);
+
+    expect(mockAPI.requests['/builds/123/snapshots'][0].body).toEqual({
+      data: {
+        type: 'snapshots',
+        attributes: {
+          name: 'test-1.png',
+          widths: [10],
+          'minimum-height': 10,
+          'enable-javascript': null
+        },
+        relationships: {
+          resources: {
+            data: expect.arrayContaining([{
+              type: 'resources',
+              id: expect.any(String),
+              attributes: {
+                'resource-url': '/test-1',
+                mimetype: 'text/html',
+                'is-root': true
+              }
+            }, {
+              type: 'resources',
+              id: expect.any(String),
+              attributes: {
+                'resource-url': '/test-1.png',
+                mimetype: 'image/png',
+                'is-root': null
+              }
+            }])
+          }
+        }
+      }
+    });
   });
 
   it('skips unsupported image types', async () => {
