@@ -1,5 +1,6 @@
 import fs from 'fs';
 import http from 'http';
+import log from '@percy/logger';
 import pkg from '../package.json';
 
 async function getReply({ version, routes }, request) {
@@ -103,6 +104,16 @@ export default function createPercyServer(percy) {
     '/percy/dom.js': () => fs.promises
       .readFile(require.resolve('@percy/dom'), 'utf-8')
       .then(content => [200, 'applicaton/javascript', content]),
+
+    // serves the new DOM library, wrapped for compatability to `@percy/agent`
+    '/percy-agent.js': () => fs.promises
+      .readFile(require.resolve('@percy/dom'), 'utf-8')
+      .then(content => {
+        let wrapper = '(window.PercyAgent = class PercyAgent { snapshot(n, o) { return PercyDOM.serialize(o) } });';
+        log.warn('Warning: `percy-agent.js` is deprecated, please update to the latest SDK version');
+
+        return [200, 'applicaton/javascript', content.concat(wrapper)];
+      }),
 
     // forward snapshot requests
     '/percy/snapshot': ({ body }) => percy.snapshot(body)
