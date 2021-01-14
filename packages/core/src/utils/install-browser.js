@@ -41,7 +41,7 @@ export default async function install({
   }[platform]
 } = {}) {
   let outdir = path.join(directory, revision);
-  let dlpath = path.join(outdir, url.split('/').pop());
+  let dlpath = path.join(outdir, decodeURIComponent(url.split('/').pop()));
   let exec = path.join(outdir, path.parse(dlpath).name, executable);
 
   if (!existsSync(exec)) {
@@ -66,7 +66,7 @@ export default async function install({
           }
 
           let size = parseInt(response.headers['content-length'], 10);
-          let msg = `rev ${revision} - ${readableBytes(size)} [:bar] :percent :etas`;
+          let msg = `${readableBytes(size)} (${revision}) [:bar] :percent :etas`;
           let progress = new (require('progress'))(log.formatter(msg), {
             stream: process.stdout,
             incomplete: ' ',
