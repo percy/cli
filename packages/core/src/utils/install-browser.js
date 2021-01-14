@@ -86,17 +86,19 @@ export default async function install({
 
       // extract the downloaded file
       await extract(dlpath, outdir);
+
+      // log success
+      log.info(`Successfully downloaded ${browser}`);
     } finally {
       // always cleanup
       /* istanbul ignore next: hard to cover download failure */
       if (existsSync(dlpath)) {
         await new Promise(resolve => rimraf(dlpath, resolve));
       }
-    }
 
-    // log success and restore previous loglevel
-    log.info(`Successfully downloaded ${browser}`);
-    log.loglevel(loglevel);
+      // restore previous loglevel
+      log.loglevel(loglevel);
+    }
   }
 
   // return the path to the executable
