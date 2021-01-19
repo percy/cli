@@ -36,10 +36,12 @@ export default function load({
   path,
   overrides = {},
   reload = false,
-  bail = false
+  bail = false,
+  print = false
 } = {}) {
   // load cached config; when no path is specified, get the last config cached
   let config = path ? cache.get(path) : Array.from(cache)[cache.size - 1]?.[1];
+  let debug = print ? 'info' : 'debug';
   let log = logger('config');
 
   // load config or reload cached config
@@ -49,7 +51,7 @@ export default function load({
         ? explorer.search(path) : explorer.load(path);
 
       if (result && result.config) {
-        log.debug(`Found config file: ${relative('', result.filepath)}`);
+        log[debug](`Found config file: ${relative('', result.filepath)}`);
 
         if (result.config.version !== 2) {
           log.warn('Ignoring config file - ' + (
@@ -62,11 +64,11 @@ export default function load({
           cache.set(path, config);
         }
       } else {
-        log.debug('Config file not found');
+        log[debug]('Config file not found');
       }
     } catch (error) {
-      log.debug('Failed to load or parse config file');
-      log.debug(error);
+      log[debug]('Failed to load or parse config file');
+      log[print ? 'error' : 'debug'](error);
     }
   }
 
@@ -88,7 +90,7 @@ export default function load({
 
   // normalize again to remove empty values for logging
   config = normalize(config);
-  if (config) log.debug(`Using config:\n${inspect(config)}`);
+  if (config) log[debug](`Using config:\n${inspect(config)}`);
 
   // merge with defaults
   return getDefaults(config);
