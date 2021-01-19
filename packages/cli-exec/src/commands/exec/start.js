@@ -1,6 +1,6 @@
 import Command, { flags } from '@percy/cli-command';
 import Percy from '@percy/core';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 import execFlags from '../../flags';
 
 export class Start extends Command {
@@ -18,9 +18,11 @@ export class Start extends Command {
     '$ percy exec:start &> percy.log'
   ];
 
+  log = logger('cli:exec:start');
+
   async run() {
     if (!this.isPercyEnabled()) {
-      log.info('Percy has been disabled. Not starting');
+      this.log.info('Percy has been disabled. Not starting');
       return;
     }
 

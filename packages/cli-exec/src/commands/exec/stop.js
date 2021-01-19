@@ -1,6 +1,6 @@
 import Command, { flags } from '@percy/cli-command';
 import { request } from '@percy/client/dist/utils';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 import execFlags from '../../flags';
 
 export class Stop extends Command {
@@ -11,19 +11,21 @@ export class Stop extends Command {
     ...execFlags
   };
 
+  log = logger('cli:exec:stop');
+
   async run() {
     let { port } = this.flags;
 
     if (!this.isPercyEnabled()) {
-      log.info('Percy is disabled');
+      this.log.info('Percy is disabled');
       return;
     }
 
     try {
       await request(`http://localhost:${port}/percy/stop`, { method: 'POST' });
     } catch (err) {
-      log.error('Percy is not running');
-      log.debug(err);
+      this.log.error('Percy is not running');
+      this.log.debug(err);
       this.exit(1);
     }
 
@@ -33,6 +35,6 @@ export class Stop extends Command {
         .then(() => setTimeout(check, 100, resolve)).catch(resolve);
     });
 
-    log.info('Percy has stopped');
+    this.log.info('Percy has stopped');
   }
 }

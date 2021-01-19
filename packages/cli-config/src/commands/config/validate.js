@@ -1,6 +1,6 @@
 import Command from '@oclif/command';
 import PercyConfig from '@percy/config';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 
 export class Validate extends Command {
   static description = 'Validate a Percy config file';
@@ -15,13 +15,12 @@ export class Validate extends Command {
     '$ percy config:validate ./config/percy.yml'
   ];
 
+  log = logger('cli:config:validate');
+
   async run() {
     let { args: { filepath: path } } = this.parse();
-    log.loglevel('debug');
-
     // when `bail` is true, #load() returns undefined on validation warnings
-    if (!PercyConfig.load({ path, bail: true })) {
-      this.exit(1);
-    }
+    let config = PercyConfig.load({ path, bail: true, print: true });
+    if (!config) this.exit(1);
   }
 }

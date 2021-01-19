@@ -1,7 +1,7 @@
 import { relative } from 'path';
 import { cosmiconfigSync } from 'cosmiconfig';
 import { isDirectorySync } from 'path-type';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 import getDefaults from './defaults';
 import normalize from './normalize';
 import validate from './validate';
@@ -40,6 +40,7 @@ export default function load({
 } = {}) {
   // load cached config; when no path is specified, get the last config cached
   let config = path ? cache.get(path) : Array.from(cache)[cache.size - 1]?.[1];
+  let log = logger('config');
 
   // load config or reload cached config
   if (path !== false && (!config || reload)) {

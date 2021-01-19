@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import Command, { flags } from '@percy/cli-command';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 import globby from 'globby';
 import imageSize from 'image-size';
 import PercyClient from '@percy/client';
@@ -47,9 +47,11 @@ export class Upload extends Command {
     '$ percy upload ./images'
   ];
 
+  log = logger('cli:upload');
+
   async run() {
     if (!this.isPercyEnabled()) {
-      log.info('Percy is disabled. Skipping upload');
+      this.log.info('Percy is disabled. Skipping upload');
       return;
     }
 
@@ -70,8 +72,7 @@ export class Upload extends Command {
     if (!paths.length) {
       return this.error(`No matching files found in '${dirname}'`);
     } else if (this.flags['dry-run']) {
-      log.info('Matching files:');
-      return paths.forEach(p => console.log(p));
+      return this.log.info(`Matching files:\n${paths.join('\n')}`);
     }
 
     // we already have assets so we don't need asset discovery from @percy/core,
@@ -83,15 +84,15 @@ export class Upload extends Command {
     await this.client.createBuild();
     let { build } = this.client;
 
-    log.info('Percy has started!');
-    log.info(`Created build #${build.number}: ${build.url}`);
+    this.log.info('Percy has started!');
+    this.log.info(`Created build #${build.number}: ${build.url}`);
 
     for (let name of paths) {
-      log.debug(`Uploading snapshot: ${name}`);
+      this.log.debug(`Uploading snapshot: ${name}`);
 
       // only snapshot supported images
       if (!name.match(ALLOWED_IMAGE_TYPES)) {
-        log.info(`Skipping unsupported image type: ${name}`);
+        this.log.info(`Skipping unsupported image type: ${name}`);
         continue;
       }
 
@@ -107,7 +108,7 @@ export class Upload extends Command {
         name
       });
 
-      log.info(`Snapshot uploaded: ${name}`);
+      this.log.info(`Snapshot uploaded: ${name}`);
     }
   }
 
@@ -117,7 +118,7 @@ export class Upload extends Command {
 
     if (build?.id) {
       await this.client?.finalizeBuild();
-      log.info(`Finalized build #${build.number}: ${build.url}`);
+      this.log.info(`Finalized build #${build.number}: ${build.url}`);
     }
   }
 }

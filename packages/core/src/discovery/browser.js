@@ -5,11 +5,13 @@ import { spawn } from 'child_process';
 import EventEmitter from 'events';
 import WebSocket from 'ws';
 import rimraf from 'rimraf';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 import install from '../utils/install-browser';
 import Page from './page';
 
 export default class Browser extends EventEmitter {
+  log = logger('core:discovery:browser');
+
   #pages = new Map();
   #callbacks = new Map();
   #closed = false;
@@ -54,7 +56,7 @@ export default class Browser extends EventEmitter {
 
     // check if any provided executable exists
     if (executable && !existsSync(executable)) {
-      log.error(`Browser executable not found: ${executable}`);
+      this.log.error(`Browser executable not found: ${executable}`);
       executable = null;
     }
 
@@ -139,8 +141,8 @@ export default class Browser extends EventEmitter {
         /* istanbul ignore next:
          *   this might happen on some systems but ultimately it is a temp file */
         if (error) {
-          log.debug('Could not clean up temporary browser profile directory.');
-          log.debug(error);
+          this.log.debug('Could not clean up temporary browser profile directory.');
+          this.log.debug(error);
         }
 
         resolve();

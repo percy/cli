@@ -6,7 +6,7 @@ import {
   createWriteStream
 } from 'fs';
 import rimraf from 'rimraf';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 import readableBytes from './bytes';
 
 // used to determine platform defaults
@@ -46,10 +46,10 @@ export default async function install({
 
   if (!existsSync(exec)) {
     // always log this for progress bar context
-    let loglevel = log.loglevel();
-    log.loglevel('info');
+    let loglevel = logger.loglevel();
+    logger.loglevel('info');
 
-    log.info(`${browser} not found, downloading...`);
+    logger().info(`${browser} not found, downloading...`);
 
     try {
       // ensure the out directory exists
@@ -67,7 +67,7 @@ export default async function install({
 
           let size = parseInt(response.headers['content-length'], 10);
           let msg = `${readableBytes(size)} (${revision}) [:bar] :percent :etas`;
-          let progress = new (require('progress'))(log.formatter(msg), {
+          let progress = new (require('progress'))(logger.format(msg), {
             stream: process.stdout,
             incomplete: ' ',
             total: size,
@@ -88,7 +88,7 @@ export default async function install({
       await extract(dlpath, outdir);
 
       // log success
-      log.info(`Successfully downloaded ${browser}`);
+      logger().info(`Successfully downloaded ${browser}`);
     } finally {
       // always cleanup
       /* istanbul ignore next: hard to cover download failure */
@@ -97,7 +97,7 @@ export default async function install({
       }
 
       // restore previous loglevel
-      log.loglevel(loglevel);
+      logger.loglevel(loglevel);
     }
   }
 

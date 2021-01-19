@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Command, { flags } from '@percy/cli-command';
 import Percy from '@percy/core';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 import globby from 'globby';
 import YAML from 'yaml';
 import { schema } from '../config';
@@ -52,9 +52,11 @@ export class Snapshot extends Command {
     '$ percy snapshot pages.yml'
   ];
 
+  log = logger('cli:snapshot')
+
   async run() {
     if (!this.isPercyEnabled()) {
-      log.info('Percy is disabled. Skipping snapshots');
+      this.log.info('Percy is disabled. Skipping snapshots');
       return;
     }
 
@@ -78,12 +80,12 @@ export class Snapshot extends Command {
     if (this.flags['dry-run']) {
       let l = pages.length;
 
-      log.info(`Found ${l} snapshot${l === 1 ? '' : 's'}:`);
-
-      return pages.forEach(({ name, snapshots = [] }) => {
-        (name ? [{ name }].concat(snapshots) : snapshots)
-          .forEach(({ name }) => console.log(name));
-      });
+      return this.log.info(`Found ${l} snapshot${l === 1 ? '' : 's'}:\n` + (
+        pages.map(({ name, snapshots = [] }) => {
+          return (name ? [{ name }].concat(snapshots) : snapshots)
+            .map(({ name }) => name).join('\n');
+        }).join('\n')
+      ));
     }
 
     this.percy = await Percy.start({

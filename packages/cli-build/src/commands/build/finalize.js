@@ -1,6 +1,6 @@
 import Command, { flags } from '@percy/cli-command';
 import PercyClient from '@percy/client';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 
 export class Finalize extends Command {
   static description = 'Finalize parallel Percy builds where PERCY_PARALLEL_TOTAL=-1';
@@ -13,9 +13,11 @@ export class Finalize extends Command {
     '$ percy build:finalize'
   ];
 
+  log = logger('cli:build:finalize');
+
   async run() {
     if (!this.isPercyEnabled()) {
-      log.info('Percy is disabled');
+      this.log.info('Percy is disabled');
       return;
     }
 
@@ -28,16 +30,16 @@ export class Finalize extends Command {
 
     // ensure that this command is not used for other parallel totals
     if (client.env.parallel.total !== -1) {
-      log.error('This command should only be used with PERCY_PARALLEL_TOTAL=-1');
-      log.error(`Current value is "${client.env.parallel.total}"`);
+      this.log.error('This command should only be used with PERCY_PARALLEL_TOTAL=-1');
+      this.log.error(`Current value is "${client.env.parallel.total}"`);
       return this.exit(1);
     }
 
-    log.info('Finalizing parallel build...');
+    this.log.info('Finalizing parallel build...');
     await client.createBuild();
 
     let build = client.build;
     await client.finalizeBuild({ all: true });
-    log.info(`Finalized build #${build.number}: ${build.url}`);
+    this.log.info(`Finalized build #${build.number}: ${build.url}`);
   }
 }

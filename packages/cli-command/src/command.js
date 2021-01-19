@@ -1,11 +1,13 @@
 import Command from '@oclif/command';
 import PercyConfig from '@percy/config';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 
 // The PercyCommand class that all Percy CLI commands should extend
 // from. Provides common #init() and #catch() methods and provides other methods
 // for loading configuration and checking if Percy is enabled.
 export default class PercyCommand extends Command {
+  log = logger('cli:command');
+
   //  Initialize flags, args, the loglevel, and attach process handlers to allow
   //  commands to seemlessly cleanup on interupt or termination
   init() {
@@ -14,7 +16,7 @@ export default class PercyCommand extends Command {
     this.args = args;
 
     // sets the log level from verbose, quiet, and silent flags
-    log.loglevel('info', flags);
+    logger.loglevel('info', flags);
 
     // ensure cleanup is always performed
     let cleanup = () => this.finally();
@@ -32,7 +34,7 @@ export default class PercyCommand extends Command {
       // oclif exit method actually throws an error, let it continue
       if (err.oclif && err.code === 'EEXIT') throw err;
       // log all other errors and exit
-      log.error(err);
+      this.log.error(err);
       this.exit(1);
     }
   }

@@ -1,6 +1,6 @@
 import Command, { flags } from '@percy/cli-command';
 import { request } from '@percy/client/dist/utils';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 import execFlags from '../../flags';
 
 export class Ping extends Command {
@@ -11,14 +11,16 @@ export class Ping extends Command {
     ...execFlags
   };
 
+  log = logger('cli:exec:ping');
+
   async run() {
     try {
       let { port } = this.flags;
       await request(`http://localhost:${port}/percy/healthcheck`, { method: 'GET' });
-      log.info('Percy is running');
+      this.log.info('Percy is running');
     } catch (err) {
-      log.error('Percy is not running');
-      log.debug(err);
+      this.log.error('Percy is not running');
+      this.log.debug(err);
       this.exit(1);
     }
   }
