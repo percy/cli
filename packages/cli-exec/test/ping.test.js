@@ -1,5 +1,5 @@
 import expect from 'expect';
-import { stdio, createTestServer } from './helpers';
+import { logger, createTestServer } from './helpers';
 import { Ping } from '../src/commands/exec/ping';
 
 describe('percy exec:ping', () => {
@@ -14,19 +14,19 @@ describe('percy exec:ping', () => {
       '/percy/healthcheck': () => [200, 'application/json', { success: true }]
     }, 5338);
 
-    await stdio.capture(() => Ping.run([]));
+    await Ping.run([]);
 
     expect(percyServer.requests).toEqual([['/percy/healthcheck']]);
 
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual(['[percy] Percy is running\n']);
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(['[percy] Percy is running\n']);
   });
 
   it('logs an error when the endpoint errors', async () => {
-    await expect(stdio.capture(() => Ping.run([])))
+    await expect(Ping.run([]))
       .rejects.toThrow('EEXIT: 1');
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toEqual(['[percy] Percy is not running\n']);
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual(['[percy] Percy is not running\n']);
   });
 });

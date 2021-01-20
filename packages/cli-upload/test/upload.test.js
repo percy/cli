@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import expect from 'expect';
 import mockAPI from '@percy/client/test/helper';
-import stdio from '@percy/logger/test/helper';
+import logger from '@percy/logger/test/helper';
 import { Upload } from '../src/commands/upload';
 
 // http://png-pixel.com/
@@ -39,6 +39,7 @@ describe('percy upload', () => {
   beforeEach(() => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     mockAPI.start();
+    logger.mock();
   });
 
   afterEach(() => {
@@ -48,51 +49,47 @@ describe('percy upload', () => {
 
   it('skips uploading when percy is disabled', async () => {
     process.env.PERCY_ENABLE = '0';
+    await Upload.run(['./images']);
 
-    await stdio.capture(() => Upload.run(['./images']));
-
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual(['[percy] Percy is disabled. Skipping upload\n']);
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(['[percy] Percy is disabled. Skipping upload\n']);
   });
 
   it('errors when the directory is not found', async () => {
-    await expect(stdio.capture(() => (
-      Upload.run(['./404'])
-    ))).rejects.toThrow('EEXIT: 1');
+    await expect(Upload.run(['./404']))
+      .rejects.toThrow('EEXIT: 1');
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toEqual([
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
       '[percy] Error: Not found: ./404\n'
     ]);
   });
 
   it('errors when the path is not a directory', async () => {
-    await expect(stdio.capture(() => (
-      Upload.run(['./nope'])
-    ))).rejects.toThrow('EEXIT: 1');
+    await expect(Upload.run(['./nope']))
+      .rejects.toThrow('EEXIT: 1');
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toEqual([
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
       '[percy] Error: Not a directory: ./nope\n'
     ]);
   });
 
   it('errors when there are no matching files', async () => {
-    await expect(stdio.capture(() => (
-      Upload.run(['./images', '--files=no-match.png'])
-    ))).rejects.toThrow('EEXIT: 1');
+    await expect(Upload.run(['./images', '--files=no-match.png']))
+      .rejects.toThrow('EEXIT: 1');
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toEqual([
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
       '[percy] Error: No matching files found in \'./images\'\n'
     ]);
   });
 
   it('creates a new build and uploads snapshots', async () => {
-    await stdio.capture(() => Upload.run(['./images']));
+    await Upload.run(['./images']);
 
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual([
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
       '[percy] Percy has started!\n',
       '[percy] Created build #1: https://percy.io/test/test/123\n',
       '[percy] Snapshot uploaded: test-1.png\n',
@@ -136,10 +133,10 @@ describe('percy upload', () => {
   });
 
   it('skips unsupported image types', async () => {
-    await stdio.capture(() => Upload.run(['./images', '--files=*']));
+    await Upload.run(['./images', '--files=*']);
 
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual([
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
       '[percy] Percy has started!\n',
       '[percy] Created build #1: https://percy.io/test/test/123\n',
       '[percy] Snapshot uploaded: test-1.png\n',
@@ -151,10 +148,10 @@ describe('percy upload', () => {
   });
 
   it('does not upload snapshots and prints matching files with --dry-run', async () => {
-    await stdio.capture(() => Upload.run(['./images', '--dry-run']));
+    await Upload.run(['./images', '--dry-run']);
 
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual([
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
       '[percy] Matching files:\n' +
         'test-1.png\n' +
         'test-2.jpg\n' +

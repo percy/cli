@@ -1,9 +1,9 @@
 import os from 'os';
 import path from 'path';
 import expect from 'expect';
-import Percy from '../src';
-import { mockAPI, createTestServer, dedent, stdio } from './helpers';
 import { sha256hash } from '@percy/client/dist/utils';
+import { mockAPI, createTestServer, dedent, logger } from './helpers';
+import Percy from '../src';
 
 describe('Asset Discovery', () => {
   let percy, server, captured;
@@ -55,7 +55,6 @@ describe('Asset Discovery', () => {
   });
 
   afterEach(async () => {
-    percy?.loglevel('error');
     await percy?.stop();
     await server.close();
   });
@@ -184,13 +183,11 @@ describe('Asset Discovery', () => {
     server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(16_000_000)]);
 
     percy.loglevel('debug');
-    await stdio.capture(() => (
-      percy.snapshot({
-        name: 'test snapshot',
-        url: 'http://localhost:8000',
-        domSnapshot: testDOM.replace('style.css', 'large.css')
-      })
-    ));
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'large.css')
+    });
 
     await percy.idle();
     expect(captured[0]).toEqual([
@@ -211,28 +208,26 @@ describe('Asset Discovery', () => {
       })
     ]);
 
-    expect(stdio[2]).toContain(
+    expect(logger.stderr).toContain(
       '[percy:core:discovery] Skipping - Max file size exceeded [15.3MB]\n'
     );
   });
 
   it('logs detailed debug logs', async () => {
     percy.loglevel('debug');
-    await stdio.capture(() => (
-      percy.snapshot({
-        name: 'test snapshot',
-        url: 'http://localhost:8000',
-        domSnapshot: testDOM,
-        clientInfo: 'test client info',
-        environmentInfo: 'test env info',
-        widths: [400, 1200]
-      })
-    ));
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM,
+      clientInfo: 'test client info',
+      environmentInfo: 'test env info',
+      widths: [400, 1200]
+    });
 
-    expect(stdio[1]).toEqual([
+    expect(logger.stdout).toEqual(expect.arrayContaining([
       '[percy:core] Snapshot taken: test snapshot\n'
-    ]);
-    expect(stdio[2]).toEqual(expect.arrayContaining([
+    ]));
+    expect(logger.stderr).toEqual(expect.arrayContaining([
       '[percy:core] ---------\n',
       '[percy:core] Handling snapshot:\n',
       '[percy:core] -> name: test snapshot\n',
@@ -271,18 +266,16 @@ describe('Asset Discovery', () => {
 
   it('logs failed request errors with a debug loglevel', async () => {
     percy.loglevel('debug');
-    await stdio.capture(() => (
-      percy.snapshot({
-        name: 'test snapshot',
-        url: 'http://localhost:8000',
-        domSnapshot: testDOM.replace('style.css', '/404/style.css')
-      })
-    ));
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', '/404/style.css')
+    });
 
-    expect(stdio[1]).toEqual([
+    expect(logger.stdout).toEqual(expect.arrayContaining([
       '[percy:core] Snapshot taken: test snapshot\n'
-    ]);
-    expect(stdio[2]).toEqual(expect.arrayContaining([
+    ]));
+    expect(logger.stderr).toEqual(expect.arrayContaining([
       expect.stringMatching(new RegExp( // eslint-disable-line prefer-regex-literals
         '^\\[percy:core:discovery\\] Request failed for http://localhost:8000/404/style\\.css: net::'
       ))
@@ -343,18 +336,16 @@ describe('Asset Discovery', () => {
       });
 
       percy.loglevel('debug');
-      await stdio.capture(() => (
-        percy.snapshot({
-          name: 'test snapshot',
-          url: 'http://localhost:8000',
-          domSnapshot: testDOM
-        })
-      ));
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
 
-      expect(stdio[1]).toEqual([
+      expect(logger.stdout).toEqual(expect.arrayContaining([
         '[percy:core] Snapshot taken: test snapshot\n'
-      ]);
-      expect(stdio[2]).toEqual(expect.arrayContaining([
+      ]));
+      expect(logger.stderr).toEqual(expect.arrayContaining([
         '[percy:core:discovery] Encountered an error handling request: http://localhost:8000/style.css\n',
         expect.stringMatching('\\[percy:core:discovery] Error: some unhandled request error\n'),
         '[percy:core:discovery] Encountered an error handling request: http://localhost:8000/img.gif\n',
@@ -373,18 +364,16 @@ describe('Asset Discovery', () => {
       });
 
       percy.loglevel('debug');
-      await stdio.capture(() => (
-        percy.snapshot({
-          name: 'test snapshot',
-          url: 'http://localhost:8000',
-          domSnapshot: testDOM
-        })
-      ));
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
 
-      expect(stdio[1]).toEqual([
+      expect(logger.stdout).toEqual(expect.arrayContaining([
         '[percy:core] Snapshot taken: test snapshot\n'
-      ]);
-      expect(stdio[2]).toEqual(expect.arrayContaining([
+      ]));
+      expect(logger.stderr).toEqual(expect.arrayContaining([
         '[percy:core:discovery] Encountered an error processing resource: http://localhost:8000/style.css\n',
         expect.stringMatching('\\[percy:core:discovery] Error: some unhandled response error\n'),
         '[percy:core:discovery] Encountered an error processing resource: http://localhost:8000/img.gif\n',
@@ -541,7 +530,7 @@ describe('Asset Discovery', () => {
     });
 
     it('should log an error if a provided executable cannot be found', async () => {
-      percy = await stdio.capture(() => Percy.start({
+      percy = await Percy.start({
         token: 'PERCY_TOKEN',
         snapshot: { widths: [1000] },
         discovery: {
@@ -550,9 +539,9 @@ describe('Asset Discovery', () => {
             args: ['--no-sandbox', '--unknown-flag']
           }
         }
-      }));
+      });
 
-      expect(stdio[2]).toEqual([
+      expect(logger.stderr).toEqual([
         '[percy] Browser executable not found: ./404\n'
       ]);
     });
