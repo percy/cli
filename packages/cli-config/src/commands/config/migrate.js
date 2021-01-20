@@ -99,7 +99,7 @@ export class Migrate extends Command {
 
     this.log.info('Config file migrated!');
     // when dry-running, print config to stdout when finished
-    if (dry) process.stdout.write('\n' + config);
+    if (dry) logger.instance.stdout.write('\n' + config);
   }
 
   // Migrating config options is recursive so no matter which input version is

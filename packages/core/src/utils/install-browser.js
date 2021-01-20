@@ -68,7 +68,7 @@ export default async function install({
           let size = parseInt(response.headers['content-length'], 10);
           let msg = `${readableBytes(size)} (${revision}) [:bar] :percent :etas`;
           let progress = new (require('progress'))(logger.format(msg), {
-            stream: process.stdout,
+            stream: logger.instance.stdout,
             incomplete: ' ',
             total: size,
             width: 20
