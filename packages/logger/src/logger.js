@@ -22,8 +22,8 @@ export default class PercyLogger {
   deprecations = new Set();
 
   // default stdio streams can be overriden for testing
-  static stdout = process.stdout;
-  static stderr = process.stderr;
+  stdout = process.stdout;
+  stderr = process.stderr;
 
   constructor() {
     if (process.env.PERCY_DEBUG) {
@@ -96,7 +96,7 @@ export default class PercyLogger {
 
     // maybe write the message to stdio
     if (this.shouldLog(level, debug)) {
-      let stdio = PercyLogger[level === 'info' ? 'stdout' : 'stderr'];
+      let stdio = this[level === 'info' ? 'stdout' : 'stderr'];
       if (error && this.level !== 'debug') message = error.toString();
       stdio.write(this.format(message, debug, error ? 'error' : level) + '\n');
     }

@@ -1,52 +1,53 @@
-const stripAnsi = require('strip-ansi');
+const logger = require('@percy/logger');
+const { Writable } = require('stream');
 
-const og = {
-  out: process.stdout.write,
-  err: process.stderr.write
-};
+const ANSI_REG = new RegExp([
+  '[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)',
+  '(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))'
+].join('|'), 'g');
 
-function format(chunk, { ansi = false } = {}) {
-  // strip ansi and normalize line endings
-  return (ansi ? chunk : stripAnsi(chunk)).replace('\r\n', '\n');
-}
+class TestIO extends Writable {
+  data = [];
 
-function tryFinally(fn, cb) {
-  let done = (r, e) => {
-    if ((cb(), e)) throw e;
-    return r;
-  };
+  constructor({ ansi } = {}) {
+    super();
+    this.ansi = ansi;
+  }
 
-  let r, e;
-  try { r = fn(); } catch (err) { e = err; }
-
-  if (r && typeof r.then === 'function') {
-    return r.then(done, e => done(null, e));
-  } else {
-    return done(r, e);
+  _write(chunk, encoding, callback) {
+    // strip ansi and normalize line endings
+    chunk = chunk.toString().replace('\r\n', '\n');
+    if (!this.ansi) chunk = chunk.replace(ANSI_REG, '');
+    this.data.push(chunk);
+    callback();
   }
 }
 
-const stdio = {
-  1: [],
-  2: [],
+logger.mock = function mock(options) {
+  delete logger.instance;
+  logger();
 
-  capture(fn, options) {
-    stdio.flush();
-    process.stdout.write = chunk => stdio[1].push(format(chunk, options));
-    process.stderr.write = chunk => stdio[2].push(format(chunk, options));
-    return fn ? tryFinally(fn, stdio.restore) : null;
-  },
-
-  restore() {
-    process.stdout.write = og.out;
-    process.stderr.write = og.err;
-  },
-
-  flush() {
-    let output = [null, stdio[1], stdio[2]];
-    stdio[1] = []; stdio[2] = [];
-    return output;
-  }
+  logger.instance.stdout = new TestIO(options);
+  logger.instance.stderr = new TestIO(options);
+  logger.stdout = logger.instance.stdout.data;
+  logger.stderr = logger.instance.stderr.data;
 };
 
-module.exports = stdio;
+logger.clear = function clear() {
+  logger.stdout.length = 0;
+  logger.stderr.length = 0;
+};
+
+logger.dump = function dump() {
+  logger.loglevel('debug');
+
+  process.stderr.write(
+    logger.format('--- DUMPING LOGS ---', 'testing', 'warn') + '\n'
+  );
+
+  logger.instance.messages.forEach(({ debug, level, message }) => {
+    process.stderr.write(logger.format(message, debug, level) + '\n');
+  });
+};
+
+module.exports = logger;

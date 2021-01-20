@@ -18,8 +18,5 @@
   },
   "mocha": {
     "require": "../../scripts/babel-register"
-  },
-  "devDependencies": {
-    "strip-ansi": "^6.0.0"
   }
 }
