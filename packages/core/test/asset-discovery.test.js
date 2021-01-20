@@ -314,7 +314,7 @@ describe('Asset Discovery', () => {
     });
 
     it('does not cache resource requests when disabled', async () => {
-      percy.discoverer.disableAssetCache = true;
+      percy.discoverer.disableCache = true;
 
       // repeat above test
       await snapshot(1);
@@ -335,7 +335,7 @@ describe('Asset Discovery', () => {
   describe('with unhandled errors', async () => {
     it('logs unhandled request errors gracefully', async () => {
       // sabotage this property to trigger unexpected error handling
-      Object.defineProperty(percy.discoverer, 'disableAssetCache', {
+      Object.defineProperty(percy.discoverer, 'disableCache', {
         get() { throw new Error('some unhandled request error'); }
       });
 

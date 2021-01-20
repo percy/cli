@@ -31,9 +31,9 @@ const discovery = {
     description: 'asset discovery idle timeout',
     percyrc: 'discovery.networkIdleTimeout'
   }),
-  'disable-asset-cache': flags.boolean({
+  'disable-cache': flags.boolean({
     description: 'disable asset discovery caches',
-    percyrc: 'discovery.disableAssetCache'
+    percyrc: 'discovery.disableCache'
   })
 };
 

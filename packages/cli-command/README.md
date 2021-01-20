@@ -43,7 +43,7 @@ snapshot:
 discovery:
   allowedHostnames: []
   networkIdleTimeout: 100
-  disableAssetCache: false
+  disableCache: false
   concurrency: 5
 ```
 

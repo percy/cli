@@ -23,7 +23,7 @@ const percy = new Percy({
   discovery: {               // asset discovery options
     allowedHostnames: [],      // list of hostnames allowed to capture from
     networkIdleTimeout: 100,   // how long before network is considered idle
-    disableAssetCache: false,  // disable discovered asset caching
+    disableCache: false,  // disable discovered asset caching
     concurrency: 5,            // asset discovery concurrency
     launchOptions: {}          // browser launch options
   },

@@ -30,7 +30,7 @@ export default class PercyDiscoverer {
     // are determined to be fully discovered
     networkIdleTimeout,
     // disable resource caching, the cache is still used but overwritten for each resource
-    disableAssetCache,
+    disableCache,
     // browser launch options
     launchOptions
   }) {
@@ -39,7 +39,7 @@ export default class PercyDiscoverer {
     Object.assign(this, {
       allowedHostnames,
       networkIdleTimeout,
-      disableAssetCache,
+      disableCache,
       launchOptions
     });
   }
@@ -169,7 +169,7 @@ export default class PercyDiscoverer {
           // root resource
           log.debug(`Serving root resource for ${url}`, meta);
           request.respond({ status: 200, body: rootDom, contentType: 'text/html' });
-        } else if (!this.disableAssetCache && this.#cache.has(url)) {
+        } else if (!this.disableCache && this.#cache.has(url)) {
           // respond with cached response
           log.debug(`Response cache hit for ${url}`, meta);
           request.respond(this.#cache.get(url).response);
@@ -206,7 +206,7 @@ export default class PercyDiscoverer {
         if (url === rootUrl || url.startsWith('data:')) return;
 
         // process and cache the response and resource
-        if (this.disableAssetCache || !this.#cache.has(url)) {
+        if (this.disableCache || !this.#cache.has(url)) {
           log.debug(`Processing resource - ${url}`, meta);
           let response = await this._parseRequestResponse(url, request, meta);
 

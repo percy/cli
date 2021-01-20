@@ -21,7 +21,7 @@ const percyOptions: PercyOptions = {
   discovery: {
     allowedHostnames: ['*.percy.io'],
     networkIdleTimeout: 100,
-    disableAssetCache: false,
+    disableCache: false,
     concurrency: 1,
     launchOptions: {
       devtools: true

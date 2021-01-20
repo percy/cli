@@ -35,7 +35,7 @@ OPTIONS
 
   -v, --verbose                                    log everything
 
-  --disable-asset-cache                            disable asset discovery caches
+  --disable-cache                                  disable asset discovery caches
 
   --silent                                         log nothing
 

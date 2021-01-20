@@ -34,7 +34,7 @@ expectType<flags.PercyOptionFlag<boolean>>(flags.logging.quiet);
 expectType<flags.PercyOptionFlag<boolean>>(flags.logging.silent);
 expectType<flags.PercyOptionFlag<string[]>>(flags.discovery['allowed-hostnames']);
 expectType<flags.PercyOptionFlag<number>>(flags.discovery['network-idle-timeout']);
-expectType<flags.PercyOptionFlag<boolean>>(flags.discovery['disable-asset-cache']);
+expectType<flags.PercyOptionFlag<boolean>>(flags.discovery['disable-cache']);
 expectType<flags.PercyOptionFlag<string>>(flags.config.config);
 
 // Command methods and properties
