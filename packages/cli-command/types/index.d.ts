@@ -29,7 +29,7 @@ export namespace flags {
   const discovery: {
     ['allowed-hostnames']: PercyOptionFlag<string[]>,
     ['network-idle-timeout']: PercyOptionFlag<number>,
-    ['disable-asset-cache']: PercyOptionFlag<boolean>
+    ['disable-cache']: PercyOptionFlag<boolean>
   };
 
   const config: {

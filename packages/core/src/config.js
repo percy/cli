@@ -40,7 +40,7 @@ export const schema = {
         type: 'integer',
         default: 100
       },
-      disableAssetCache: {
+      disableCache: {
         type: 'boolean',
         default: false
       },

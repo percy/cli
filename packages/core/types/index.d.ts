@@ -15,7 +15,7 @@ export interface SnapshotOptions {
 interface DiscoveryOptions {
   allowedHostnames?: string[];
   networkIdleTimeout?: number;
-  disableAssetCache?: boolean;
+  disableCache?: boolean;
   concurrency?: number;
   launchOptions?: Pojo;
 }

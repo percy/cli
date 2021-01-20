@@ -43,7 +43,7 @@ describe('PercyCommand', () => {
     await TestPercyCommand.run([
       '--allowed-hostname', '*.percy.io',
       '--network-idle-timeout', '150',
-      '--disable-asset-cache',
+      '--disable-cache',
       'foo', 'bar'
     ]);
 
@@ -52,7 +52,7 @@ describe('PercyCommand', () => {
     expect(results[0]).toHaveProperty('flags', {
       'allowed-hostname': ['*.percy.io'],
       'network-idle-timeout': 150,
-      'disable-asset-cache': true
+      'disable-cache': true
     });
   });
 
@@ -130,7 +130,7 @@ describe('PercyCommand', () => {
       await expect(TestPercyCommand.run([
         '--allowed-hostname', '*.percy.io',
         '--network-idle-timeout', '150',
-        '--disable-asset-cache',
+        '--disable-cache',
         'foo', 'bar'
       ])).resolves.toBeUndefined();
 
@@ -144,7 +144,7 @@ describe('PercyCommand', () => {
         },
         discovery: {
           allowedHostnames: ['*.percy.io'],
-          disableAssetCache: true,
+          disableCache: true,
           networkIdleTimeout: 150,
           concurrency: 5
         }

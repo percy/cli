@@ -18,13 +18,14 @@ USAGE
   $ percy exec
 
 OPTIONS
+  -P, --port=port                                  [default: 5338] server port
   -c, --config=config                              configuration file path
   -h, --allowed-hostname=allowed-hostname          allowed hostnames
-  -p, --port=port                                  [default: 5338] server port
+  -p, --parallel                                   marks the build as one of many parallel builds
   -q, --quiet                                      log errors only
   -t, --network-idle-timeout=network-idle-timeout  asset discovery idle timeout
   -v, --verbose                                    log everything
-  --disable-asset-cache                            disable asset discovery caches
+  --disable-cache                                  disable asset discovery caches
   --silent                                         log nothing
 
 EXAMPLES
@@ -41,7 +42,7 @@ USAGE
   $ percy exec:ping
 
 OPTIONS
-  -p, --port=port  [default: 5338] server port
+  -P, --port=port  [default: 5338] server port
   -q, --quiet      log errors only
   -v, --verbose    log everything
   --silent         log nothing
@@ -56,13 +57,13 @@ USAGE
   $ percy exec:start
 
 OPTIONS
+  -P, --port=port                                  [default: 5338] server port
   -c, --config=config                              configuration file path
   -h, --allowed-hostname=allowed-hostname          allowed hostnames
-  -p, --port=port                                  [default: 5338] server port
   -q, --quiet                                      log errors only
   -t, --network-idle-timeout=network-idle-timeout  asset discovery idle timeout
   -v, --verbose                                    log everything
-  --disable-asset-cache                            disable asset discovery caches
+  --disable-cache                                  disable asset discovery caches
   --silent                                         log nothing
 
 EXAMPLES
@@ -79,7 +80,7 @@ USAGE
   $ percy exec:stop
 
 OPTIONS
-  -p, --port=port  [default: 5338] server port
+  -P, --port=port  [default: 5338] server port
   -q, --quiet      log errors only
   -v, --verbose    log everything
   --silent         log nothing
