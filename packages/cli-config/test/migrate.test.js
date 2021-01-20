@@ -98,9 +98,10 @@ describe('percy config:migrate', () => {
     mockConfig('.percy.yml', 'version: 2\n');
     await stdio.capture(() => Migrate.run([]));
 
-    expect(stdio[2]).toHaveLength(0);
     expect(stdio[1]).toEqual([
-      '[percy] Found config file: .percy.yml\n',
+      '[percy] Found config file: .percy.yml\n'
+    ]);
+    expect(stdio[2]).toEqual([
       '[percy] Config is already the latest version\n'
     ]);
 

@@ -1,13 +1,13 @@
 import os from 'os';
 import path from 'path';
 import rimraf from 'rimraf';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 import mockAPI from '@percy/client/test/helper';
 
 beforeEach(() => {
   mockAPI.start();
   // set the default log level for testing
-  log.loglevel('error');
+  logger.loglevel('error');
 });
 
 afterEach(done => {

@@ -1,5 +1,5 @@
 import expect from 'expect';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 import stdio from '@percy/logger/test/helper';
 import PercyConfig from '@percy/config';
 import PercyCommand, { flags } from '../src';
@@ -36,7 +36,7 @@ describe('PercyCommand', () => {
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
     process.removeAllListeners();
-    log.loglevel('error');
+    logger.loglevel('error');
   });
 
   it('initializes arguments and flags', async () => {
@@ -57,15 +57,15 @@ describe('PercyCommand', () => {
   });
 
   it('sets the appropriate loglevel', async () => {
-    expect(log.loglevel()).toBe('error');
+    expect(logger.loglevel()).toBe('error');
     await TestPercyCommand.run([]);
-    expect(log.loglevel()).toBe('info');
+    expect(logger.loglevel()).toBe('info');
     await TestPercyCommand.run(['--verbose']);
-    expect(log.loglevel()).toBe('debug');
+    expect(logger.loglevel()).toBe('debug');
     await TestPercyCommand.run(['--quiet']);
-    expect(log.loglevel()).toBe('warn');
+    expect(logger.loglevel()).toBe('warn');
     await TestPercyCommand.run(['--silent']);
-    expect(log.loglevel()).toBe('silent');
+    expect(logger.loglevel()).toBe('silent');
   });
 
   it('logs errors to the logger and exits', async () => {

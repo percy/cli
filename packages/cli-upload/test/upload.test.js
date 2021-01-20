@@ -155,10 +155,10 @@ describe('percy upload', () => {
 
     expect(stdio[2]).toHaveLength(0);
     expect(stdio[1]).toEqual([
-      '[percy] Matching files:\n',
-      'test-1.png\n',
-      'test-2.jpg\n',
-      'test-3.jpeg\n'
+      '[percy] Matching files:\n' +
+        'test-1.png\n' +
+        'test-2.jpg\n' +
+        'test-3.jpeg\n'
     ]);
   });
 });

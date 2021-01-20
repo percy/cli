@@ -211,8 +211,8 @@ describe('Asset Discovery', () => {
       })
     ]);
 
-    expect(stdio[1]).toContain(
-      '[percy] Skipping - Max file size exceeded [15.3MB]\n'
+    expect(stdio[2]).toContain(
+      '[percy:core:discovery] Skipping - Max file size exceeded [15.3MB]\n'
     );
   });
 
@@ -229,42 +229,43 @@ describe('Asset Discovery', () => {
       })
     ));
 
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual(expect.arrayContaining([
-      '[percy] ---------\n',
-      '[percy] Handling snapshot:\n',
-      '[percy] -> name: test snapshot\n',
-      '[percy] -> url: http://localhost:8000/\n',
-      '[percy] -> widths: 400px, 1200px\n',
-      '[percy] -> clientInfo: test client info\n',
-      '[percy] -> environmentInfo: test env info\n',
-      '[percy] -> requestHeaders: {}\n',
-      `[percy] -> domSnapshot:\n${testDOM.substr(0, 1024)}... [truncated]\n`,
-      '[percy] Discovering resources @400px for http://localhost:8000/\n',
-      '[percy] Handling request for http://localhost:8000/\n',
-      '[percy] Serving root resource for http://localhost:8000/\n',
-      '[percy] Handling request for http://localhost:8000/style.css\n',
-      '[percy] Handling request for http://localhost:8000/img.gif\n',
-      '[percy] Processing resource - http://localhost:8000/style.css\n',
-      '[percy] Making local copy of response - http://localhost:8000/style.css\n',
-      '[percy] -> url: http://localhost:8000/style.css\n',
-      `[percy] -> sha: ${sha256hash(testCSS)}\n`,
-      `[percy] -> filepath: ${path.join(os.tmpdir(), 'percy', sha256hash(testCSS))}\n`,
-      '[percy] -> mimetype: text/css\n',
-      '[percy] Processing resource - http://localhost:8000/img.gif\n',
-      '[percy] Making local copy of response - http://localhost:8000/img.gif\n',
-      '[percy] -> url: http://localhost:8000/img.gif\n',
-      `[percy] -> sha: ${sha256hash(pixel)}\n`,
-      `[percy] -> filepath: ${path.join(os.tmpdir(), 'percy', sha256hash(pixel))}\n`,
-      '[percy] -> mimetype: image/gif\n',
-      '[percy] Discovering resources @1200px for http://localhost:8000/\n',
-      '[percy] Handling request for http://localhost:8000/\n',
-      '[percy] Serving root resource for http://localhost:8000/\n',
-      '[percy] Handling request for http://localhost:8000/style.css\n',
-      '[percy] Response cache hit for http://localhost:8000/style.css\n',
-      '[percy] Handling request for http://localhost:8000/img.gif\n',
-      '[percy] Response cache hit for http://localhost:8000/img.gif\n',
-      '[percy] Snapshot taken: test snapshot\n'
+    expect(stdio[1]).toEqual([
+      '[percy:core] Snapshot taken: test snapshot\n'
+    ]);
+    expect(stdio[2]).toEqual(expect.arrayContaining([
+      '[percy:core] ---------\n',
+      '[percy:core] Handling snapshot:\n',
+      '[percy:core] -> name: test snapshot\n',
+      '[percy:core] -> url: http://localhost:8000/\n',
+      '[percy:core] -> widths: 400px, 1200px\n',
+      '[percy:core] -> clientInfo: test client info\n',
+      '[percy:core] -> environmentInfo: test env info\n',
+      '[percy:core] -> requestHeaders: {}\n',
+      `[percy:core] -> domSnapshot:\n${testDOM.substr(0, 1024)}... [truncated]\n`,
+      '[percy:core:discovery] Discovering resources @400px for http://localhost:8000/\n',
+      '[percy:core:discovery] Handling request for http://localhost:8000/\n',
+      '[percy:core:discovery] Serving root resource for http://localhost:8000/\n',
+      '[percy:core:discovery] Handling request for http://localhost:8000/style.css\n',
+      '[percy:core:discovery] Handling request for http://localhost:8000/img.gif\n',
+      '[percy:core:discovery] Processing resource - http://localhost:8000/style.css\n',
+      '[percy:core:discovery] Making local copy of response - http://localhost:8000/style.css\n',
+      '[percy:core:discovery] -> url: http://localhost:8000/style.css\n',
+      `[percy:core:discovery] -> sha: ${sha256hash(testCSS)}\n`,
+      `[percy:core:discovery] -> filepath: ${path.join(os.tmpdir(), 'percy', sha256hash(testCSS))}\n`,
+      '[percy:core:discovery] -> mimetype: text/css\n',
+      '[percy:core:discovery] Processing resource - http://localhost:8000/img.gif\n',
+      '[percy:core:discovery] Making local copy of response - http://localhost:8000/img.gif\n',
+      '[percy:core:discovery] -> url: http://localhost:8000/img.gif\n',
+      `[percy:core:discovery] -> sha: ${sha256hash(pixel)}\n`,
+      `[percy:core:discovery] -> filepath: ${path.join(os.tmpdir(), 'percy', sha256hash(pixel))}\n`,
+      '[percy:core:discovery] -> mimetype: image/gif\n',
+      '[percy:core:discovery] Discovering resources @1200px for http://localhost:8000/\n',
+      '[percy:core:discovery] Handling request for http://localhost:8000/\n',
+      '[percy:core:discovery] Serving root resource for http://localhost:8000/\n',
+      '[percy:core:discovery] Handling request for http://localhost:8000/style.css\n',
+      '[percy:core:discovery] Response cache hit for http://localhost:8000/style.css\n',
+      '[percy:core:discovery] Handling request for http://localhost:8000/img.gif\n',
+      '[percy:core:discovery] Response cache hit for http://localhost:8000/img.gif\n'
     ]));
   });
 
@@ -278,10 +279,12 @@ describe('Asset Discovery', () => {
       })
     ));
 
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual(expect.arrayContaining([
+    expect(stdio[1]).toEqual([
+      '[percy:core] Snapshot taken: test snapshot\n'
+    ]);
+    expect(stdio[2]).toEqual(expect.arrayContaining([
       expect.stringMatching(new RegExp( // eslint-disable-line prefer-regex-literals
-        '^\\[percy\\] Request failed for http://localhost:8000/404/style\\.css: net::'
+        '^\\[percy:core:discovery\\] Request failed for http://localhost:8000/404/style\\.css: net::'
       ))
     ]));
   });
@@ -332,13 +335,14 @@ describe('Asset Discovery', () => {
     });
   });
 
-  describe('with unhandled errors', async () => {
+  describe('with resource errors', async () => {
     it('logs unhandled request errors gracefully', async () => {
       // sabotage this property to trigger unexpected error handling
       Object.defineProperty(percy.discoverer, 'disableCache', {
         get() { throw new Error('some unhandled request error'); }
       });
 
+      percy.loglevel('debug');
       await stdio.capture(() => (
         percy.snapshot({
           name: 'test snapshot',
@@ -347,12 +351,14 @@ describe('Asset Discovery', () => {
         })
       ));
 
-      expect(stdio[1]).toHaveLength(0);
+      expect(stdio[1]).toEqual([
+        '[percy:core] Snapshot taken: test snapshot\n'
+      ]);
       expect(stdio[2]).toEqual(expect.arrayContaining([
-        '[percy] Encountered an error handling request: http://localhost:8000/style.css\n',
-        '[percy] Error: some unhandled request error\n',
-        '[percy] Encountered an error handling request: http://localhost:8000/img.gif\n',
-        '[percy] Error: some unhandled request error\n'
+        '[percy:core:discovery] Encountered an error handling request: http://localhost:8000/style.css\n',
+        expect.stringMatching('\\[percy:core:discovery] Error: some unhandled request error\n'),
+        '[percy:core:discovery] Encountered an error handling request: http://localhost:8000/img.gif\n',
+        expect.stringMatching('\\[percy:core:discovery] Error: some unhandled request error\n')
       ]));
     });
 
@@ -366,6 +372,7 @@ describe('Asset Discovery', () => {
         }
       });
 
+      percy.loglevel('debug');
       await stdio.capture(() => (
         percy.snapshot({
           name: 'test snapshot',
@@ -374,12 +381,14 @@ describe('Asset Discovery', () => {
         })
       ));
 
-      expect(stdio[1]).toHaveLength(0);
+      expect(stdio[1]).toEqual([
+        '[percy:core] Snapshot taken: test snapshot\n'
+      ]);
       expect(stdio[2]).toEqual(expect.arrayContaining([
-        '[percy] Encountered an error processing resource: http://localhost:8000/style.css\n',
-        '[percy] Error: some unhandled response error\n',
-        '[percy] Encountered an error processing resource: http://localhost:8000/img.gif\n',
-        '[percy] Error: some unhandled response error\n'
+        '[percy:core:discovery] Encountered an error processing resource: http://localhost:8000/style.css\n',
+        expect.stringMatching('\\[percy:core:discovery] Error: some unhandled response error\n'),
+        '[percy:core:discovery] Encountered an error processing resource: http://localhost:8000/img.gif\n',
+        expect.stringMatching('\\[percy:core:discovery] Error: some unhandled response error\n')
       ]));
     });
   });

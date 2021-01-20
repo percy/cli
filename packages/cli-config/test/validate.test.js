@@ -64,9 +64,10 @@ describe('percy config:validate', () => {
     mockConfig('.invalid.yml', 'version: 2\ntest:\n  value: false\nbar: baz');
     await expect(stdio.capture(() => Validate.run(['.invalid.yml']))).rejects.toThrow('EEXIT: 1');
 
-    expect(stdio[2]).toHaveLength(0);
     expect(stdio[1]).toEqual([
-      '[percy] Found config file: .invalid.yml\n',
+      '[percy] Found config file: .invalid.yml\n'
+    ]);
+    expect(stdio[2]).toEqual([
       '[percy] Invalid config:\n',
       '[percy] - bar: unknown property\n',
       '[percy] - test.value: should be a string, received a boolean\n'

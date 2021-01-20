@@ -15,7 +15,7 @@ import { normalizeURL } from './utils/url';
 // Register core config options
 PercyConfig.addSchema(schema);
 
-// A Percy instance will create a new build wh;17M4;155;17Men started, handle snapshot
+// A Percy instance will create a new build when started, handle snapshot
 // creation, asset discovery, and resource uploads, and will finalize the build
 // when stopped. Snapshots are processed concurrently and the build is not
 // finalized until all snapshots have been handled.

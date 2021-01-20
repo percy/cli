@@ -75,14 +75,14 @@ describe('Snapshot Server', () => {
   it('serves the legacy percy-agent.js dom bundle', async () => {
     let bundle = require('fs')
       .readFileSync(require.resolve('@percy/dom'), { encoding: 'utf-8' })
-      .concat('(window.PercyAgent = class PercyAgent { snapshot(n, o) { return PercyDOM.serialize(o) } });');
+      .concat('(window.PercyAgent = class PercyAgent { snapshot(n, o) { return PercyDOM.serialize(o); } });');
 
     await percy.start();
     percy.loglevel('warn');
     let response = await stdio.capture(() => fetch('http://localhost:1337/percy-agent.js'));
 
     await expect(response.text()).resolves.toBe(bundle);
-    expect(stdio[1]).toEqual([
+    expect(stdio[2]).toEqual([
       '[percy] Warning: `percy-agent.js` is deprecated, please update to the latest SDK version\n'
     ]);
   });
