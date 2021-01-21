@@ -86,9 +86,10 @@ export default class Page extends EventEmitter {
         });
 
       // wait until navigation was handled and the correct lifecycle happened
-      await Promise.all([navigate, waitFor(() => (
-        handleNavigate.done && this.#lifecycle.has(waitUntil)
-      ), { timeout })]);
+      await Promise.all([navigate, waitFor(() => {
+        if (this.closedReason) throw new Error(this.closedReason);
+        return handleNavigate.done && this.#lifecycle.has(waitUntil);
+      }, { timeout })]);
     } catch (error) {
       this.off('Page.frameNavigated', handleNavigate);
 
