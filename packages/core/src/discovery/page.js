@@ -9,7 +9,7 @@ export default class Page extends EventEmitter {
   #targetId = null;
   #frameId = null;
   #contextId = null;
-  #closedReason = null;
+  closedReason = null;
 
   #callbacks = new Map();
   #lifecycle = new Set();
@@ -168,9 +168,9 @@ export default class Page extends EventEmitter {
     let error = new Error();
 
     /* istanbul ignore next: race condition paranoia */
-    if (this.#closedReason) {
+    if (this.closedReason) {
       return Promise.reject(Object.assign(error, {
-        message: `Protocol error (${method}): ${this.#closedReason}`
+        message: `Protocol error (${method}): ${this.closedReason}`
       }));
     }
 
@@ -203,12 +203,12 @@ export default class Page extends EventEmitter {
   }
 
   _handleClose() {
-    this.#closedReason ||= 'Page closed.';
+    this.closedReason ||= 'Page closed.';
 
     // reject any pending callbacks
     for (let callback of this.#callbacks.values()) {
       callback.reject(Object.assign(callback.error, {
-        message: `Protocol error (${callback.method}): ${this.#closedReason}`
+        message: `Protocol error (${callback.method}): ${this.closedReason}`
       }));
     }
 
@@ -240,7 +240,7 @@ export default class Page extends EventEmitter {
   }
 
   _handleTargetCrashed = () => {
-    this.#closedReason = 'Page crashed!';
+    this.closedReason = 'Page crashed!';
     this.close();
   }
 }
