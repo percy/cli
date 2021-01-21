@@ -153,7 +153,7 @@ describe('percy config:migrate', () => {
       '    - cdn.example.com',
       '  network-idle-timeout: 500',
       '  concurrency: 50',
-      '  disable-asset-cache: true',
+      '  disable-cache: true',
       'upload:',
       '  files: "**/*.html"',
       '  ignore: "**/*.htm"',
