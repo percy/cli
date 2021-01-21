@@ -275,7 +275,7 @@ describe('Percy Capture', () => {
     ]);
   });
 
-  it('gracefully handles exiting early', async () => {
+  it('handles the page or browser closing early', async () => {
     let accessed = 0;
 
     testDOM += '<link rel="stylesheet" href="/style.css"/>';
@@ -297,11 +297,39 @@ describe('Percy Capture', () => {
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
       expect.stringMatching('Encountered an error'),
-      expect.stringMatching(/(Page|Browser) closed/)
+      expect.stringMatching('Navigation failed: Page closed')
     ]);
   });
 
-  it('gracefully handles page crashes', async () => {
+  it('handles closing during network idle', async () => {
+    let accessed;
+
+    server.reply('/img.png', () => new Promise(resolve => {
+      setTimeout(resolve, 500, [500, 'text/plain', 'Server Error']);
+      accessed = true;
+    }));
+
+    let capture = percy.capture({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      execute: () => {
+        document.body.innerHTML += '<img src="/img.png"/>';
+      }
+    });
+
+    // wait until the asset is requested before exiting
+    await waitFor(() => accessed);
+    percy.discoverer.close();
+    await capture;
+
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
+      expect.stringMatching('Encountered an error'),
+      expect.stringMatching('Network error: Page closed')
+    ]);
+  });
+
+  it('handles page crashes', async () => {
     await percy.capture({
       name: 'crash snapshot',
       url: 'http://localhost:8000',
