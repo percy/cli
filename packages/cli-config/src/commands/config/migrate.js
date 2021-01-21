@@ -134,7 +134,7 @@ export class Migrate extends Command {
         input.agent['asset-discovery']['page-pool-size-max']));
     // cache-responses was renamed to match the CLI flag
     if (input.agent?.['asset-discovery']?.['cache-responses'] != null)
-      output.discovery = assignOrCreate(output.discovery, 'disable-asset-cache', (
+      output.discovery = assignOrCreate(output.discovery, 'disable-cache', (
         !input.agent['asset-discovery']['cache-responses']));
     // image-snapshots was renamed
     if (input['image-snapshots'] != null)
