@@ -7,7 +7,7 @@ export default function waitFor(predicate, timeoutOrOptions) {
   let { poll = 10, timeout, ensure } =
     Number.isInteger(timeoutOrOptions)
       ? { timeout: timeoutOrOptions }
-      : timeoutOrOptions;
+      : (timeoutOrOptions || {});
 
   return new Promise((resolve, reject) => {
     return (function check(start, done) {

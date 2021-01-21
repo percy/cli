@@ -1,5 +1,6 @@
 import expect from 'expect';
 import { mockAPI, logger, createTestServer, dedent } from './helpers';
+import waitFor from '../src/utils/wait-for';
 import Percy from '../src';
 
 describe('Percy Capture', () => {
@@ -240,7 +241,7 @@ describe('Percy Capture', () => {
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
       '[percy] Encountered an error for page: http://localhost:8000\n',
-      '[percy] Error: The execute function is not serializable\n'
+      '[percy] Error: The provided function is not serializable\n'
     ]);
   });
 
@@ -275,9 +276,12 @@ describe('Percy Capture', () => {
   });
 
   it('gracefully handles exiting early', async () => {
+    let accessed = 0;
+
     testDOM += '<link rel="stylesheet" href="/style.css"/>';
     server.reply('/style.css', () => new Promise(resolve => {
-      setTimeout(resolve, 100, [200, 'text/css', '']);
+      if (!accessed++) return resolve([200, 'text/css', '']);
+      setTimeout(resolve, 500, [200, 'text/css', '']);
     }));
 
     let capture = percy.capture({
@@ -285,8 +289,8 @@ describe('Percy Capture', () => {
       url: 'http://localhost:8000'
     });
 
-    // wait until the page has at least loaded before exiting
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // wait until the page has at least loaded in asset discovery before exiting
+    await waitFor(() => accessed === 2);
     percy.discoverer.close();
     await capture;
 
