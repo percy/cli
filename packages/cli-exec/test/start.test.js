@@ -25,7 +25,7 @@ describe('percy exec:start', () => {
 
     process.emit('SIGTERM');
     // wait for event to be handled
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 500));
 
     await expect(
       fetch('http://localhost:5338/percy/healthcheck', { timeout: 10 })
