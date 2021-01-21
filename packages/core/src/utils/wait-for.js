@@ -11,16 +11,20 @@ export default function waitFor(predicate, timeoutOrOptions) {
 
   return new Promise((resolve, reject) => {
     return (function check(start, done) {
-      if (Date.now() - start >= timeout) {
-        reject(new Error(`Timeout of ${timeout}ms exceeded.`));
-      } else if (predicate()) {
-        if (ensure && !done) {
-          setTimeout(check, ensure, start, true);
+      try {
+        if (Date.now() - start >= timeout) {
+          throw new Error(`Timeout of ${timeout}ms exceeded.`);
+        } else if (predicate()) {
+          if (ensure && !done) {
+            setTimeout(check, ensure, start, true);
+          } else {
+            resolve();
+          }
         } else {
-          resolve();
+          setTimeout(check, poll, start);
         }
-      } else {
-        setTimeout(check, poll, start);
+      } catch (error) {
+        reject(error);
       }
     })(Date.now());
   });
