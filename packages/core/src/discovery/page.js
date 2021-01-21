@@ -1,4 +1,5 @@
 import EventEmitter from 'events';
+import logger from '@percy/logger';
 import Network from './network';
 import waitFor from '../utils/wait-for';
 
@@ -12,6 +13,8 @@ export default class Page extends EventEmitter {
 
   #callbacks = new Map();
   #lifecycle = new Set();
+
+  log = logger('core:page');
 
   constructor(browser, { params }) {
     super();
@@ -30,7 +33,10 @@ export default class Page extends EventEmitter {
   }
 
   // initial page options asynchronously
-  async init() {
+  async init({ meta }) {
+    this.meta = meta;
+    this.log.debug('Initialize page', this.meta);
+
     let [, { frameTree }] = await Promise.all([
       this.send('Page.enable'),
       this.send('Page.getFrameTree')
@@ -60,25 +66,29 @@ export default class Page extends EventEmitter {
   // Go to a URL and wait for navigation to occur
   async goto(url, {
     timeout = 30000,
-    waitUntil = 'load'
+    waitUntil = 'load',
+    waitForTimeout,
+    waitForSelector
   } = {}) {
     let handleNavigate = ({ frame }) => {
+      this.log.debug('Handle page navigation', { ...this.meta, frame });
       /* istanbul ignore next: sanity check */
       if (this.#frameId === frame.id) handleNavigate.done = true;
     };
 
-    this.once('Page.frameNavigated', handleNavigate);
-
     try {
-      await Promise.all([
-        this.send('Page.navigate', { url }).then(({ errorText }) => {
+      this.once('Page.frameNavigated', handleNavigate);
+
+      // trigger navigation and handle error responses
+      let navigate = this.send('Page.navigate', { url })
+        .then(({ errorText }) => {
           if (errorText) throw new Error(errorText);
-        }),
-        waitFor(() => {
-          return handleNavigate.done &&
-            this.#lifecycle.has(waitUntil);
-        }, { timeout })
-      ]);
+        });
+
+      // wait until navigation was handled and the correct lifecycle happened
+      await Promise.all([navigate, waitFor(() => (
+        handleNavigate.done && this.#lifecycle.has(waitUntil)
+      ), { timeout })]);
     } catch (error) {
       this.off('Page.frameNavigated', handleNavigate);
 
@@ -86,12 +96,60 @@ export default class Page extends EventEmitter {
         message: `Navigation failed: ${error.message}`
       });
     }
+
+    // wait for the network to idle
+    await this.network.idle();
+
+    // wait for any specified timeout
+    if (waitForTimeout) {
+      this.log.debug('Wait for page timeout', this.meta);
+
+      await new Promise(resolve => {
+        setTimeout(resolve, waitForTimeout);
+      });
+    }
+
+    // wait for any specified selector
+    if (waitForSelector) {
+      this.log.debug('Wait for page selector', this.meta);
+
+      /* istanbul ignore next: no instrumenting injected code */
+      await this.eval(function waitForSelector({ waitFor }, selector, timeout) {
+        return waitFor(() => !!document.querySelector(selector), timeout)
+          .catch(() => Promise.reject(new Error(`Failed to find "${selector}"`)));
+      }, waitForSelector, timeout);
+    }
   }
 
   // Evaluate JS functions within the page's execution context
   async eval(fn, ...args) {
+    let fnbody = fn.toString();
+
+    // we might have a function shorthand if this fails
+    /* eslint-disable-next-line no-new, no-new-func */
+    try { new Function(`(${fnbody})`); } catch (error) {
+      fnbody = fnbody.startsWith('async ')
+        ? fnbody.replace(/^async/, 'async function')
+        : `function ${fnbody}`;
+
+      /* eslint-disable-next-line no-new, no-new-func */
+      try { new Function(`(${fnbody})`); } catch (error) {
+        throw new Error('The provided function is not serializable');
+      }
+    }
+
+    // wrap the function body with percy helpers
+    fnbody = 'function withPercyHelpers() {' + (
+      `return (${fnbody})({` + (
+        `waitFor: ${waitFor}`
+      ) + '}, ...arguments)'
+    ) + '}';
+
+    this.log.debug('Evaluate function', this.meta);
+
+    // send the call function command
     let { result, exceptionDetails } = await this.send('Runtime.callFunctionOn', {
-      functionDeclaration: fn.toString(),
+      functionDeclaration: fnbody,
       arguments: args.map(value => ({ value })),
       executionContextId: this.#contextId,
       returnByValue: true,

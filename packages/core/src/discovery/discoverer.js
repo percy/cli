@@ -68,9 +68,10 @@ export default class PercyDiscoverer {
     deviceScaleFactor = 1,
     mobile = false,
     height = 1024,
-    width = 1280
+    width = 1280,
+    meta
   }) {
-    let page = await this.#browser.page();
+    let page = await this.#browser.page({ meta });
     page.network.timeout = this.networkIdleTimeout;
     page.network.authorization = authorization;
 
@@ -112,7 +113,8 @@ export default class PercyDiscoverer {
           enableJavaScript,
           requestHeaders,
           authorization,
-          width
+          width,
+          meta
         });
 
         // set up request interception
@@ -123,7 +125,6 @@ export default class PercyDiscoverer {
 
         // navigate to the root URL and wait for the network to idle
         await page.goto(rootUrl);
-        await page.network.idle();
       } finally {
         // safely close the page
         await page?.close();

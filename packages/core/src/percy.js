@@ -1,3 +1,4 @@
+import { promises as fs } from 'fs';
 import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
@@ -7,7 +8,6 @@ import Discoverer from './discovery/discoverer';
 import createPercyServer from './server';
 
 import assert from './utils/assert';
-import { navigatePage, preparePage } from './utils/capture';
 import injectPercyCSS from './utils/percy-css';
 import { createRootResource, createLogResource } from './utils/resources';
 import { normalizeURL } from './utils/url';
@@ -290,23 +290,50 @@ export default class Percy {
 
     // the entire capture process happens within the async capture queue
     return this.#captures.push(async () => {
+      let meta = { snapshot: { name, waitForTimeout, waitForSelector } };
       let { requestHeaders, authorization } = options;
       let results = [];
       let page;
+
+      this.log.debug('---------');
+      this.log.debug('Handling page capture:', meta);
+      this.log.debug(`-> url: ${url}`, meta);
+      this.log.debug(`-> name: ${url}`, meta);
+      this.log.debug(`-> waitForTimeout: ${waitForTimeout}`, meta);
+      this.log.debug(`-> waitForSelector: ${waitForSelector}`, meta);
+      this.log.debug(`-> execute: ${execute}`, meta);
 
       try {
         // borrow a page from the discoverer
         page = await this.discoverer.page({ requestHeaders, authorization });
 
         // navigate to the page and wait until ready
-        await navigatePage(page, url, { waitForTimeout, waitForSelector });
+        await page.goto(url, { waitForTimeout, waitForSelector });
 
         // multiple snapshots can be captured on a single page
         for (let { name, execute } of snapshots) {
-          // prepare page for snapshotting
-          await preparePage(page, execute);
+          if (execute) {
+            this.log.debug('Executing page JS', { ...meta, execute });
+            // accept function bodies as strings
+            if (typeof execute === 'string') execute = `async execute({ waitFor }) {\n${execute}\n}`;
+            // execute the provided function
+            await page.eval(execute);
+            // may cause additional network activity
+            await page.network.idle();
+          }
+
+          // inject @percy/dom for serialization by evaluating the file contents which adds a global
+          // PercyDOM object that we can later check against
+          /* istanbul ignore next: no instrumenting injected code */
+          if (await page.eval(() => !window.PercyDOM)) {
+            this.log.debug('Injecting @percy/dom', meta);
+            let script = await fs.readFile(require.resolve('@percy/dom'), 'utf-8');
+            /* eslint-disable-next-line no-new-func */
+            await page.eval(new Function(script));
+          }
 
           // serialize and capture a DOM snapshot
+          this.log.debug('Serializing DOM', meta);
           /* istanbul ignore next: no instrumenting injected code */
           let { url, domSnapshot } = await page.eval(({ enableJavaScript }) => ({
             /* eslint-disable-next-line no-undef */
@@ -319,8 +346,8 @@ export default class Percy {
         }
       } catch (error) {
         // handle errors
-        this.log.error(`Encountered an error for page: ${url}`);
-        this.log.error(error);
+        this.log.error(`Encountered an error for page: ${url}`, meta);
+        this.log.error(error, meta);
       } finally {
         // close the page
         await page?.close();
