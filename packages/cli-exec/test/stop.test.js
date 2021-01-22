@@ -1,5 +1,5 @@
 import expect from 'expect';
-import { stdio, createTestServer } from './helpers';
+import { logger, createTestServer } from './helpers';
 import { Stop } from '../src/commands/exec/stop';
 
 describe('percy exec:stop', () => {
@@ -14,30 +14,30 @@ describe('percy exec:stop', () => {
       '/percy/stop': () => [200, 'application/json', { success: true }]
     }, 5338);
 
-    await stdio.capture(() => Stop.run([]));
+    await Stop.run([]);
 
     expect(percyServer.requests).toEqual([
       ['/percy/stop'],
       ['/percy/healthcheck']
     ]);
 
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual(['[percy] Percy has stopped\n']);
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(['[percy] Percy has stopped\n']);
   });
 
   it('logs when percy is disabled', async () => {
     process.env.PERCY_ENABLE = '0';
-    await stdio.capture(() => Stop.run([]));
+    await Stop.run([]);
 
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual(['[percy] Percy is disabled\n']);
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(['[percy] Percy is disabled\n']);
   });
 
   it('logs an error when the endpoint errors', async () => {
-    await expect(stdio.capture(() => Stop.run([])))
+    await expect(Stop.run([]))
       .rejects.toThrow('EEXIT: 1');
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toEqual(['[percy] Percy is not running\n']);
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual(['[percy] Percy is not running\n']);
   });
 });

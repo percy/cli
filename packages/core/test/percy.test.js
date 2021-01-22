@@ -1,7 +1,7 @@
 import expect from 'expect';
 import fetch from 'node-fetch';
 import Percy from '../src';
-import { mockAPI, stdio, createTestServer, dedent } from './helpers';
+import { mockAPI, logger, createTestServer, dedent } from './helpers';
 import { sha256hash, base64encode } from '@percy/client/dist/utils';
 
 describe('Percy', () => {
@@ -17,7 +17,6 @@ describe('Percy', () => {
   });
 
   afterEach(async () => {
-    percy.loglevel('error');
     await percy.stop();
     await server?.close();
   });
@@ -81,7 +80,7 @@ describe('Percy', () => {
 
   describe('#loglevel()', () => {
     it('returns the default loglevel', () => {
-      expect(percy.loglevel()).toBe('error');
+      expect(percy.loglevel()).toBe('info');
     });
 
     it('returns the specified loglevel', () => {
@@ -90,7 +89,7 @@ describe('Percy', () => {
     });
 
     it('sets the loglevel', () => {
-      expect(percy.loglevel()).toBe('error');
+      expect(percy.loglevel()).toBe('info');
       percy.loglevel('debug');
       expect(percy.loglevel()).toBe('debug');
     });
@@ -144,12 +143,11 @@ describe('Percy', () => {
       expect(percy.isRunning()).toBe(true);
     });
 
-    it('logs once started with a loglevel', async () => {
-      percy.loglevel('info');
-      await stdio.capture(() => percy.start());
+    it('logs once started', async () => {
+      await percy.start();
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
         '[percy] Percy has started!\n',
         '[percy] Created build #1: https://percy.io/test/test/123\n'
       ]);
@@ -184,19 +182,23 @@ describe('Percy', () => {
       expect(existsSync(local)).toBe(false);
       this.retries(0);
 
+      // the install script will always log
+      percy.loglevel('silent');
+
       this.timeout(0); // this might take a minute to download
-      await stdio.capture(() => percy.start());
+      await percy.start();
       expect(existsSync(local)).toBe(true);
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1][0]).toEqual('[percy] Chromium not found, downloading...\n');
-      expect(stdio[1][stdio[1].length - 1]).toEqual('[percy] Successfully downloaded Chromium\n');
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout[0]).toEqual('[percy] Chromium not found, downloading...\n');
+      expect(logger.stdout[logger.stdout.length - 1]).toEqual('[percy] Successfully downloaded Chromium\n');
     });
   });
 
   describe('#stop()', () => {
     beforeEach(async () => {
       await percy.start();
+      logger.clear();
     });
 
     it('finalizes the build', async () => {
@@ -216,12 +218,11 @@ describe('Percy', () => {
       expect(percy.discoverer.isConnected()).toBe(false);
     });
 
-    it('logs when stopping with a loglevel', async () => {
-      percy.loglevel('info');
-      await stdio.capture(() => percy.stop());
+    it('logs when stopping', async () => {
+      await percy.stop();
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
         '[percy] Stopping percy...\n',
         '[percy] Finalized build #1: https://percy.io/test/test/123\n',
         '[percy] Done!\n'
@@ -236,11 +237,11 @@ describe('Percy', () => {
         widths: [1000]
       });
 
-      percy.loglevel('info');
-      await stdio.capture(() => percy.stop());
+      await percy.stop();
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
+        '[percy] Snapshot taken: test snapshot\n',
         '[percy] Stopping percy...\n',
         '[percy] Waiting for 1 snapshot(s) to finish uploading\n',
         '[percy] Finalized build #1: https://percy.io/test/test/123\n',
@@ -255,12 +256,10 @@ describe('Percy', () => {
 
       // not awaited on so it becomes pending
       percy.capture({ name: 'test snapshot', url: 'http://localhost:8000' });
+      await percy.stop();
 
-      percy.loglevel('info');
-      await stdio.capture(() => percy.stop());
-
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
         '[percy] Stopping percy...\n',
         '[percy] Waiting for 1 page(s) to finish snapshotting\n',
         '[percy] Snapshot taken: test snapshot\n',
@@ -284,6 +283,7 @@ describe('Percy', () => {
   describe('#idle()', () => {
     beforeEach(async () => {
       await percy.start();
+      logger.clear();
     });
 
     it('resolves after captures idle', async () => {
@@ -293,12 +293,10 @@ describe('Percy', () => {
 
       // not awaited on so it becomes pending
       percy.capture({ name: 'test snapshot', url: 'http://localhost:8000' });
+      await percy.idle();
 
-      percy.loglevel('info');
-      await stdio.capture(() => percy.idle());
-
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
         '[percy] Snapshot taken: test snapshot\n'
       ]);
     });
@@ -352,6 +350,7 @@ describe('Percy', () => {
       });
 
       await percy.start();
+      logger.clear();
     });
 
     it('creates a new snapshot for the build', async () => {
@@ -555,37 +554,32 @@ describe('Percy', () => {
       expect(() => percy.snapshot({})).toThrow('Not running');
     });
 
-    it('logs after taking the snapshot with a loglevel', async () => {
-      percy.loglevel('info');
-      await stdio.capture(() => (
-        percy.snapshot({
-          name: 'test snapshot',
-          url: 'http://localhost:8000',
-          domSnapshot: testDOM
-        })
-      ));
+    it('logs after taking the snapshot', async () => {
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
         '[percy] Snapshot taken: test snapshot\n'
       ]);
     });
 
     it('logs any encountered errors when snapshotting', async () => {
-      await stdio.capture(() => (
-        percy.snapshot({
-          name: 'test snapshot',
-          url: 'http://localhost:8000',
-          domSnapshot: testDOM,
-          // sabatoge an array to cause an unexpected error
-          widths: Object.assign([1000], {
-            map: () => { throw new Error('snapshot error'); }
-          })
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM,
+        // sabatoge an array to cause an unexpected error
+        widths: Object.assign([1000], {
+          map: () => { throw new Error('snapshot error'); }
         })
-      ));
+      });
 
-      expect(stdio[1]).toHaveLength(0);
-      expect(stdio[2]).toEqual([
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
         '[percy] Encountered an error taking snapshot: test snapshot\n',
         '[percy] Error: snapshot error\n'
       ]);
@@ -602,12 +596,11 @@ describe('Percy', () => {
         domSnapshot: testDOM
       });
 
-      await stdio.capture(() => (
-        percy.idle()
-      ));
+      logger.clear();
+      await percy.idle();
 
-      expect(stdio[1]).toHaveLength(0);
-      expect(stdio[2]).toEqual([
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
         '[percy] Encountered an error uploading snapshot: test snapshot\n',
         '[percy] Error: snapshot upload error\n'
       ]);

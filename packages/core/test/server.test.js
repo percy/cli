@@ -3,7 +3,7 @@ import fetch from 'node-fetch';
 import PercyConfig from '@percy/config';
 import Percy from '../src';
 import pkg from '../package.json';
-import { stdio } from './helpers';
+import { logger } from './helpers';
 
 describe('Snapshot Server', () => {
   let percy;
@@ -16,7 +16,6 @@ describe('Snapshot Server', () => {
   });
 
   afterEach(async () => {
-    percy.loglevel('error');
     delete percy.stop; // remove own mocks
     await percy.stop();
   });
@@ -41,7 +40,7 @@ describe('Snapshot Server', () => {
     expect(response.headers.get('x-percy-core-version')).toMatch(pkg.version);
     await expect(response.json()).resolves.toEqual({
       success: true,
-      loglevel: 'error',
+      loglevel: 'info',
       config: PercyConfig.getDefaults(),
       build: {
         id: '123',
@@ -75,14 +74,13 @@ describe('Snapshot Server', () => {
   it('serves the legacy percy-agent.js dom bundle', async () => {
     let bundle = require('fs')
       .readFileSync(require.resolve('@percy/dom'), { encoding: 'utf-8' })
-      .concat('(window.PercyAgent = class PercyAgent { snapshot(n, o) { return PercyDOM.serialize(o) } });');
+      .concat('(window.PercyAgent = class PercyAgent { snapshot(n, o) { return PercyDOM.serialize(o); } });');
 
     await percy.start();
-    percy.loglevel('warn');
-    let response = await stdio.capture(() => fetch('http://localhost:1337/percy-agent.js'));
+    let response = await fetch('http://localhost:1337/percy-agent.js');
 
     await expect(response.text()).resolves.toBe(bundle);
-    expect(stdio[1]).toEqual([
+    expect(logger.stderr).toEqual([
       '[percy] Warning: `percy-agent.js` is deprecated, please update to the latest SDK version\n'
     ]);
   });

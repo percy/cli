@@ -1,111 +1,13 @@
 import expect from 'expect';
-import colors from 'colors/safe';
 import sdk from './helper';
 
 describe('SDK Utils', () => {
-  let label = colors.magenta('percy');
-
   beforeEach(async () => {
     await sdk.setup();
   });
 
   afterEach(async () => {
     await sdk.teardown();
-  });
-
-  describe('log(level, msg)', () => {
-    let log;
-
-    it('logs info messages by default', () => {
-      ({ log } = sdk.rerequire('..'));
-
-      sdk.stdio(() => {
-        log('info', 'informational');
-        log('warn', 'warning');
-        log('error', new Error('test'));
-        log('debug', 'wat?');
-      }, { colors: true });
-
-      expect(sdk.stdio[1]).toEqual([
-        `[${label}] informational\n`
-      ]);
-      expect(sdk.stdio[2]).toEqual([
-        `[${label}] ${colors.yellow('warning')}\n`,
-        `[${label}] ${colors.red('Error: test')}\n`
-      ]);
-    });
-
-    it('logs warnings and errors when PERCY_LOGLEVEL is "warn"', () => {
-      process.env.PERCY_LOGLEVEL = 'warn';
-      ({ log } = sdk.rerequire('..'));
-
-      sdk.stdio(() => {
-        log('info', 'informational');
-        log('warn', 'warning');
-        log('error', new Error('test'));
-        log('debug', 'wat?');
-      }, { colors: true });
-
-      expect(sdk.stdio[1]).toEqual([]);
-      expect(sdk.stdio[2]).toEqual([
-        `[${label}] ${colors.yellow('warning')}\n`,
-        `[${label}] ${colors.red('Error: test')}\n`
-      ]);
-    });
-
-    it('logs only errors when PERCY_LOGLEVEL is "error"', () => {
-      process.env.PERCY_LOGLEVEL = 'error';
-      ({ log } = sdk.rerequire('..'));
-
-      sdk.stdio(() => {
-        log('info', 'informational');
-        log('warn', 'warning');
-        log('error', new Error('test'));
-        log('debug', 'wat?');
-      }, { colors: true });
-
-      expect(sdk.stdio[1]).toEqual([]);
-      expect(sdk.stdio[2]).toEqual([
-        `[${label}] ${colors.red('Error: test')}\n`
-      ]);
-    });
-
-    it('logs debug messages and errors stacks when PERCY_LOGLEVEL is "debug"', () => {
-      let error = new Error('test');
-      process.env.PERCY_LOGLEVEL = 'debug';
-
-      sdk.stdio(() => {
-        ({ log } = sdk.rerequire('..'));
-        log('info', 'informational');
-        log('warn', 'warning');
-        log('error', error);
-        log('debug', 'wat?');
-      }, { colors: true });
-
-      expect(sdk.stdio[1]).toEqual([
-        `[${label}] informational\n`,
-        `[${label}] wat?\n`
-      ]);
-      expect(sdk.stdio[2]).toEqual([
-        `[${label}] ${colors.yellow('warning')}\n`,
-        `[${label}] ${colors.red(error.stack)}\n`
-      ]);
-    });
-
-    it('does not log when PERCY_LOGLEVEL is unknown', () => {
-      process.env.PERCY_LOGLEVEL = 'silent';
-      ({ log } = sdk.rerequire('..'));
-
-      sdk.stdio(() => {
-        log('info', 'informational');
-        log('warn', 'warning');
-        log('error', new Error('test'));
-        log('debug', 'wat?');
-      }, { colors: true });
-
-      expect(sdk.stdio[1]).toEqual([]);
-      expect(sdk.stdio[2]).toEqual([]);
-    });
   });
 
   describe('getInfo()', () => {
@@ -121,10 +23,12 @@ describe('SDK Utils', () => {
     });
 
     it('returns the loglevel as defined by PERCY_LOGLEVEL', () => {
+      delete sdk.logger.instance;
       expect(process.env.PERCY_LOGLEVEL).toBeUndefined();
       expect(sdk.rerequire('..').getInfo()).toHaveProperty('loglevel', 'info');
       delete require.cache[require.resolve('..')];
 
+      delete sdk.logger.instance;
       process.env.PERCY_LOGLEVEL = 'debug';
       expect(sdk.rerequire('..').getInfo()).toHaveProperty('loglevel', 'debug');
     });
@@ -168,10 +72,10 @@ describe('SDK Utils', () => {
     it('disables snapshots when the healthcheck fails', async () => {
       sdk.test.failure('/percy/healthcheck');
 
-      await expect(sdk.stdio(() => isPercyEnabled()))
+      await expect(isPercyEnabled())
         .resolves.toBe(false);
 
-      expect(sdk.stdio[1]).toEqual([
+      expect(sdk.logger.stdout).toEqual([
         '[percy] Percy is not running, disabling snapshots\n'
       ]);
     });
@@ -179,10 +83,10 @@ describe('SDK Utils', () => {
     it('disables snapshots when the request errors', async () => {
       sdk.test.error('/percy/healthcheck');
 
-      await expect(sdk.stdio(() => isPercyEnabled()))
+      await expect(isPercyEnabled())
         .resolves.toBe(false);
 
-      expect(sdk.stdio[1]).toEqual([
+      expect(sdk.logger.stdout).toEqual([
         '[percy] Percy is not running, disabling snapshots\n'
       ]);
     });
@@ -190,10 +94,10 @@ describe('SDK Utils', () => {
     it('disables snapshots when the API version is unsupported', async () => {
       sdk.server.version = '';
 
-      await expect(sdk.stdio(() => isPercyEnabled()))
+      await expect(isPercyEnabled())
         .resolves.toBe(false);
 
-      expect(sdk.stdio[1]).toEqual([
+      expect(sdk.logger.stdout).toEqual([
         '[percy] Unsupported Percy CLI version, disabling snapshots\n'
       ]);
     });

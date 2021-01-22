@@ -1,12 +1,11 @@
 import expect from 'expect';
-import log from '@percy/logger';
-import stdio from '@percy/logger/test/helper';
+import logger from '@percy/logger/test/helper';
 import mockConfig from './helper';
 import PercyConfig from '../src';
 
 describe('PercyConfig', () => {
   beforeEach(() => {
-    log.loglevel('warn');
+    logger.mock();
     PercyConfig.addSchema({
       test: {
         type: 'object',
@@ -24,7 +23,6 @@ describe('PercyConfig', () => {
   afterEach(() => {
     PercyConfig.cache.clear();
     PercyConfig.resetSchema();
-    log.loglevel('error');
   });
 
   describe('.addSchema()', () => {
@@ -189,23 +187,20 @@ describe('PercyConfig', () => {
     });
 
     it('logs the path of a found config', () => {
-      log.loglevel('debug');
+      expect(PercyConfig.load({ print: true }))
+        .toEqual({
+          version: 2,
+          test: { value: 'percy' }
+        });
 
-      expect(stdio.capture(() => (
-        PercyConfig.load()
-      ))).toEqual({
-        version: 2,
-        test: { value: 'percy' }
-      });
-
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toContain(
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toContain(
         '[percy] Found config file: .percy.yml\n'
       );
     });
 
     it('can search a provided directory for a config file', () => {
-      log.loglevel('debug');
+      logger.loglevel('debug');
 
       mockConfig('config/.percy.yml', [
         'version: 2',
@@ -213,25 +208,25 @@ describe('PercyConfig', () => {
         '  value: config/percy'
       ].join('\n'));
 
-      expect(stdio.capture(() => (
-        PercyConfig.load({ path: 'config/' })
-      ))).toEqual({
-        version: 2,
-        test: { value: 'config/percy' }
-      });
+      expect(PercyConfig.load({ path: 'config/' }))
+        .toEqual({
+          version: 2,
+          test: { value: 'config/percy' }
+        });
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toContain(
-        '[percy] Found config file: config/.percy.yml\n'
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toContain(
+        '[percy:config] Found config file: config/.percy.yml\n'
       );
     });
 
     it('returns config options merged with defaults', () => {
-      expect(PercyConfig.load({ path: '.defaults.yml' })).toEqual({
-        version: 2,
-        test: { value: 'foo' },
-        arr: ['merged']
-      });
+      expect(PercyConfig.load({ path: '.defaults.yml' }))
+        .toEqual({
+          version: 2,
+          test: { value: 'foo' },
+          arr: ['merged']
+        });
     });
 
     it('caches config files on subsequent loads', () => {
@@ -253,34 +248,31 @@ describe('PercyConfig', () => {
     });
 
     it('logs when a config file cannot be found', () => {
-      log.loglevel('debug');
+      logger.loglevel('debug');
 
-      expect(stdio.capture(() => (
-        PercyConfig.load({ path: '.404.yml' })
-      ))).toEqual({
-        version: 2,
-        test: { value: 'foo' }
-      });
+      expect(PercyConfig.load({ path: '.404.yml' }))
+        .toEqual({
+          version: 2,
+          test: { value: 'foo' }
+        });
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
-        '[percy] Config file not found\n'
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
+        '[percy:config] Config file not found\n'
       ]);
     });
 
     it('logs when failing to load or parse the config file', () => {
       mockConfig('.error.yml', () => { throw new Error('test'); });
-      log.loglevel('debug');
 
-      expect(stdio.capture(() => (
-        PercyConfig.load({ path: '.error.yml' })
-      ))).toEqual({
-        version: 2,
-        test: { value: 'foo' }
-      });
+      expect(PercyConfig.load({ path: '.error.yml', print: true }))
+        .toEqual({
+          version: 2,
+          test: { value: 'foo' }
+        });
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
         '[percy] Failed to load or parse config file\n',
         expect.stringContaining('[percy] Error: test')
       ]);
@@ -305,17 +297,15 @@ describe('PercyConfig', () => {
         '  foo: bar'
       ].join('\n'));
 
-      log.loglevel('debug');
-      expect(stdio.capture(() => (
-        PercyConfig.load({
-          path: '.foo.yml',
-          overrides: {
-            arr: ['three'],
-            test: { value: 'hi' },
-            merge: {}
-          }
-        })
-      ))).toEqual({
+      logger.loglevel('debug');
+      expect(PercyConfig.load({
+        path: '.foo.yml',
+        overrides: {
+          arr: ['three'],
+          test: { value: 'hi' },
+          merge: {}
+        }
+      })).toEqual({
         version: 2,
         arr: ['one', 'two', 'three'],
         test: { value: 'hi' },
@@ -323,10 +313,10 @@ describe('PercyConfig', () => {
         fooBar: 'baz'
       });
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
-        '[percy] Found config file: .foo.yml\n',
-        '[percy] Using config:\n' + [
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
+        '[percy:config] Found config file: .foo.yml\n',
+        '[percy:config] Using config:\n' + [
           '{',
           '  version: 2,',
           '  fooBar: \'baz\',',
@@ -348,37 +338,35 @@ describe('PercyConfig', () => {
 
     it('logs with a missing version and uses default options', () => {
       mockConfig('.no-version.yml', 'test:\n  value: no-version');
-      log.loglevel('debug');
+      logger.loglevel('debug');
 
-      expect(stdio.capture(() => (
-        PercyConfig.load({ path: '.no-version.yml' })
-      ))).toEqual({
-        version: 2,
-        test: { value: 'foo' }
-      });
+      expect(PercyConfig.load({ path: '.no-version.yml' }))
+        .toEqual({
+          version: 2,
+          test: { value: 'foo' }
+        });
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
-        '[percy] Found config file: .no-version.yml\n',
-        '[percy] Ignoring config file - missing version\n'
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
+        '[percy:config] Found config file: .no-version.yml\n',
+        '[percy:config] Ignoring config file - missing version\n'
       ]);
     });
 
     it('logs with an invalid version and uses default options', () => {
       mockConfig('.bad-version.yml', 'version: 1\ntest:\n  value: bad-version');
-      log.loglevel('debug');
+      logger.loglevel('debug');
 
-      expect(stdio.capture(() => (
-        PercyConfig.load({ path: '.bad-version.yml' })
-      ))).toEqual({
-        version: 2,
-        test: { value: 'foo' }
-      });
+      expect(PercyConfig.load({ path: '.bad-version.yml' }))
+        .toEqual({
+          version: 2,
+          test: { value: 'foo' }
+        });
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
-        '[percy] Found config file: .bad-version.yml\n',
-        '[percy] Ignoring config file - unsupported version\n'
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
+        '[percy:config] Found config file: .bad-version.yml\n',
+        '[percy:config] Ignoring config file - unsupported version\n'
       ]);
     });
 
@@ -395,31 +383,29 @@ describe('PercyConfig', () => {
         }
       });
 
-      log.loglevel('debug');
-      expect(stdio.capture(() => (
-        PercyConfig.load({
-          path: '.invalid.yml',
-          overrides: {
-            test: { value: 1 },
-            arr: { 1: 'one' },
-            req: { foo: 'bar' }
-          }
-        })
-      ))).toEqual({
+      logger.loglevel('debug');
+      expect(PercyConfig.load({
+        path: '.invalid.yml',
+        overrides: {
+          test: { value: 1 },
+          arr: { 1: 'one' },
+          req: { foo: 'bar' }
+        }
+      })).toEqual({
         version: 2,
         test: { value: 'foo' },
         req: { foo: 'bar' }
       });
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
-        '[percy] Found config file: .invalid.yml\n',
-        '[percy] Invalid config:\n',
-        '[percy] - foo: unknown property\n',
-        '[percy] - test.value: should be a string, received a number\n',
-        '[percy] - arr: should be an array, received an object\n',
-        '[percy] - req.bar: missing required property\n',
-        '[percy] Using config:\n' + [
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
+        '[percy:config] Found config file: .invalid.yml\n',
+        '[percy:config] Invalid config:\n',
+        '[percy:config] - foo: unknown property\n',
+        '[percy:config] - test.value: should be a string, received a number\n',
+        '[percy:config] - arr: should be an array, received an object\n',
+        '[percy:config] - req.bar: missing required property\n',
+        '[percy:config] Using config:\n' + [
           '{',
           '  version: 2,',
           '  req: {',
@@ -432,26 +418,24 @@ describe('PercyConfig', () => {
 
     it('returns undefined on validation warnings when `bail` is true', () => {
       mockConfig('.invalid.yml', 'version: 2\nfoo: bar');
-      log.loglevel('debug');
+      logger.loglevel('debug');
 
-      expect(stdio.capture(() => (
-        PercyConfig.load({
-          path: '.invalid.yml',
-          bail: true,
-          overrides: {
-            test: { value: 1 },
-            arr: { 1: 'one' }
-          }
-        })
-      ))).toBeUndefined();
+      expect(PercyConfig.load({
+        path: '.invalid.yml',
+        bail: true,
+        overrides: {
+          test: { value: 1 },
+          arr: { 1: 'one' }
+        }
+      })).toBeUndefined();
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
-        '[percy] Found config file: .invalid.yml\n',
-        '[percy] Invalid config:\n',
-        '[percy] - foo: unknown property\n',
-        '[percy] - test.value: should be a string, received a number\n',
-        '[percy] - arr: should be an array, received an object\n'
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
+        '[percy:config] Found config file: .invalid.yml\n',
+        '[percy:config] Invalid config:\n',
+        '[percy:config] - foo: unknown property\n',
+        '[percy:config] - test.value: should be a string, received a number\n',
+        '[percy:config] - arr: should be an array, received an object\n'
       ]);
     });
   });

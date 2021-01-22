@@ -1,4 +1,4 @@
-import log from '@percy/logger';
+import logger from '@percy/logger';
 import { createLocalResource } from './resources';
 
 // Creates a local Percy CSS resource and injects a Percy CSS link into the
@@ -9,6 +9,7 @@ export default function injectPercyCSS(rootUrl, originalDOM, percyCSS, meta) {
   if (!percyCSS) return [originalDOM];
 
   let filename = `percy-specific.${Date.now()}.css`;
+  let log = logger('core');
 
   log.debug('Handling percy-specific css:', meta);
   log.debug(`-> filename: ${filename}`, meta);

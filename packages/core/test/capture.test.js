@@ -1,6 +1,7 @@
 import expect from 'expect';
+import { mockAPI, logger, createTestServer, dedent } from './helpers';
+import waitFor from '../src/utils/wait-for';
 import Percy from '../src';
-import { mockAPI, stdio, createTestServer, dedent } from './helpers';
 
 describe('Percy Capture', () => {
   let percy, server, testDOM;
@@ -21,11 +22,10 @@ describe('Percy Capture', () => {
       concurrency: 1
     });
 
-    percy.loglevel('info');
+    logger.clear();
   });
 
   afterEach(async () => {
-    percy.loglevel('error');
     await percy.stop();
     await server?.close();
   });
@@ -45,10 +45,10 @@ describe('Percy Capture', () => {
   });
 
   it('navigates to a url and takes a snapshot', async () => {
-    await stdio.capture(() => percy.capture({
+    await percy.capture({
       name: 'test snapshot',
       url: 'http://localhost:8000'
-    }));
+    });
 
     await percy.idle();
     expect(Buffer.from((
@@ -62,11 +62,11 @@ describe('Percy Capture', () => {
       'setTimeout(() => (document.querySelector("p").id = "test"), 500)'
     ) + '</script>');
 
-    await stdio.capture(() => percy.capture({
+    await percy.capture({
       name: 'test snapshot',
       url: 'http://localhost:8000',
       waitForTimeout: 600
-    }));
+    });
 
     await percy.idle();
     expect(Buffer.from((
@@ -80,11 +80,11 @@ describe('Percy Capture', () => {
       'setTimeout(() => (document.querySelector("p").id = "test"), 500)'
     ) + '</script>');
 
-    await stdio.capture(() => percy.capture({
+    await percy.capture({
       name: 'test snapshot',
       url: 'http://localhost:8000',
       waitForSelector: '#test'
-    }));
+    });
 
     await percy.idle();
     expect(Buffer.from((
@@ -94,11 +94,11 @@ describe('Percy Capture', () => {
   });
 
   it('navigates to a url and takes a snapshot after `execute`', async () => {
-    await stdio.capture(() => percy.capture({
+    await percy.capture({
       name: 'test snapshot',
       url: 'http://localhost:8000',
       execute: () => (document.querySelector('p').id = 'eval')
-    }));
+    });
 
     await percy.idle();
     expect(Buffer.from((
@@ -108,33 +108,33 @@ describe('Percy Capture', () => {
   });
 
   it('navigates to a url and takes multiple snapshots', async () => {
-    await stdio.capture(() => percy.capture({
+    await percy.capture({
       url: 'http://localhost:8000',
       snapshots: [
         { name: 'snapshot one' },
         { name: 'snapshot two' }
       ]
-    }));
+    });
 
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual([
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
       '[percy] Snapshot taken: snapshot one\n',
       '[percy] Snapshot taken: snapshot two\n'
     ]);
   });
 
   it('navigates to a url and takes additional snapshots', async () => {
-    await stdio.capture(() => percy.capture({
+    await percy.capture({
       name: 'test snapshot',
       url: 'http://localhost:8000',
       snapshots: [
         { name: 'test snapshot two' },
         { name: 'test snapshot three' }
       ]
-    }));
+    });
 
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual([
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
       '[percy] Snapshot taken: test snapshot\n',
       '[percy] Snapshot taken: test snapshot two\n',
       '[percy] Snapshot taken: test snapshot three\n'
@@ -144,14 +144,14 @@ describe('Percy Capture', () => {
   it('can successfully snapshot a page after executing page navigation', async () => {
     testDOM += '<a href="/foo">Foo</a>';
 
-    await stdio.capture(() => percy.capture({
+    await percy.capture({
       name: 'foo snapshot',
       url: 'http://localhost:8000',
       execute: () => document.querySelector('a').click()
-    }));
+    });
 
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual([
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
       '[percy] Snapshot taken: foo snapshot\n'
     ]);
 
@@ -164,7 +164,7 @@ describe('Percy Capture', () => {
   });
 
   it('accepts a function body string to execute', async () => {
-    await stdio.capture(() => percy.capture({
+    await percy.capture({
       name: 'test snapshot',
       url: 'http://localhost:8000',
       execute: dedent`
@@ -172,10 +172,10 @@ describe('Percy Capture', () => {
         setTimeout(() => ($p.id = 'timed'), 100);
         await waitFor(() => $p.id === 'timed', 200);
       `
-    }));
+    });
 
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual([
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
       '[percy] Snapshot taken: test snapshot\n'
     ]);
 
@@ -188,7 +188,7 @@ describe('Percy Capture', () => {
   });
 
   it('runs the execute callback in the correct frame', async () => {
-    await stdio.capture(() => percy.capture({
+    await percy.capture({
       name: 'framed snapshot',
       url: 'http://localhost:8000/framed',
       execute() {
@@ -198,10 +198,10 @@ describe('Percy Capture', () => {
         let $f = document.querySelector('iframe');
         if ($f) $f.src = '/foo';
       }
-    }));
+    });
 
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual([
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
       '[percy] Snapshot taken: framed snapshot\n'
     ]);
 
@@ -214,16 +214,16 @@ describe('Percy Capture', () => {
   });
 
   it('logs any encountered errors and does not snapshot', async () => {
-    await stdio.capture(() => percy.capture({
+    await percy.capture({
       name: 'test snapshot',
       url: 'http://localhost:8000',
       execute() {
         throw new Error('test error');
       }
-    }));
+    });
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toEqual([
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
       '[percy] Encountered an error for page: http://localhost:8000\n',
       '[percy] Error: test error\n' +
         '    at execute (<anonymous>:2:15)\n' +
@@ -232,27 +232,27 @@ describe('Percy Capture', () => {
   });
 
   it('errors if execute cannot be serialized', async () => {
-    await stdio.capture(() => percy.capture({
+    await percy.capture({
       name: 'test snapshot',
       url: 'http://localhost:8000',
       execute: 'function () => "parse this"'
-    }));
+    });
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toEqual([
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
       '[percy] Encountered an error for page: http://localhost:8000\n',
-      '[percy] Error: The execute function is not serializable\n'
+      '[percy] Error: The provided function is not serializable\n'
     ]);
   });
 
   it('errors if the url is invalid', async () => {
-    await stdio.capture(() => percy.capture({
+    await percy.capture({
       name: 'test snapshot',
       url: 'wat:/localhost:8000'
-    }));
+    });
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toEqual([
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
       '[percy] Encountered an error for page: wat:/localhost:8000\n',
       '[percy] Error: Navigation failed: net::ERR_ABORTED\n'
     ]);
@@ -261,52 +261,83 @@ describe('Percy Capture', () => {
   it('errors if parameters are invalid', async () => {
     testDOM += '<style href="/404-cov.css"/>';
 
-    await stdio.capture(() => percy.capture({
+    await percy.capture({
       name: 'invalid snapshot',
       url: 'http://localhost:8000',
       widths: ['not-a-width']
-    }));
+    });
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toEqual([
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
       '[percy] Encountered an error taking snapshot: invalid snapshot\n',
       '[percy] Error: Protocol error (Emulation.setDeviceMetricsOverride): ' +
         'Invalid parameters width: integer value expected\n'
     ]);
   });
 
-  it('gracefully handles exiting early', async () => {
+  it('handles the page or browser closing early', async () => {
+    let accessed = 0;
+
     testDOM += '<link rel="stylesheet" href="/style.css"/>';
     server.reply('/style.css', () => new Promise(resolve => {
-      setTimeout(resolve, 100, [200, 'text/css', '']);
+      if (!accessed++) return resolve([200, 'text/css', '']);
+      setTimeout(resolve, 500, [200, 'text/css', '']);
     }));
 
-    let capture = stdio.capture(() => percy.capture({
+    let capture = percy.capture({
       name: 'test snapshot',
       url: 'http://localhost:8000'
-    }));
+    });
 
-    // wait until the page has at least loaded before exiting
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // wait until the page has at least loaded in asset discovery before exiting
+    await waitFor(() => accessed === 2);
     percy.discoverer.close();
     await capture;
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toEqual([
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
       expect.stringMatching('Encountered an error'),
-      expect.stringMatching(/(Page|Browser) closed/)
+      expect.stringMatching('Navigation failed: Page closed')
     ]);
   });
 
-  it('gracefully handles page crashes', async () => {
-    await stdio.capture(() => percy.capture({
+  it('handles closing during network idle', async () => {
+    let accessed;
+
+    server.reply('/img.png', () => new Promise(resolve => {
+      setTimeout(resolve, 500, [500, 'text/plain', 'Server Error']);
+      accessed = true;
+    }));
+
+    let capture = percy.capture({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      execute: () => {
+        document.body.innerHTML += '<img src="/img.png"/>';
+      }
+    });
+
+    // wait until the asset is requested before exiting
+    await waitFor(() => accessed);
+    percy.discoverer.close();
+    await capture;
+
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
+      expect.stringMatching('Encountered an error'),
+      expect.stringMatching('Network error: Page closed')
+    ]);
+  });
+
+  it('handles page crashes', async () => {
+    await percy.capture({
       name: 'crash snapshot',
       url: 'http://localhost:8000',
       execute: () => window.location.replace('chrome://crash')
-    }));
+    });
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toEqual([
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
       expect.stringMatching('Encountered an error'),
       expect.stringMatching('Page crashed!')
     ]);

@@ -1,6 +1,6 @@
 import Command, { flags } from '@percy/cli-command';
 import Percy from '@percy/core';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 import spawn from 'cross-spawn';
 import which from 'which';
 import execFlags from '../../flags';
@@ -26,18 +26,20 @@ export class Exec extends Command {
     '$ percy exec -- yarn test'
   ];
 
+  log = logger('cli:exec');
+
   async run() {
     let { argv } = this.parse(Exec);
     let command = argv.shift();
 
     // validate the passed command
     if (!command) {
-      log.error('You must supply a command to run after --');
-      log.info('Example:');
-      log.info('$ percy exec -- echo "run your test suite"');
+      this.log.error('You must supply a command to run after --');
+      this.log.info('Example:');
+      this.log.info('$ percy exec -- echo "run your test suite"');
       return this.exit(1);
     } else if (!which.sync(command, { nothrow: true })) {
-      log.error(`Error: command not found "${command}"`);
+      this.log.error(`Error: command not found "${command}"`);
       return this.exit(127);
     }
 
@@ -55,16 +57,16 @@ export class Exec extends Command {
           ...this.percyrc()
         });
       } catch (err) {
-        log.info(`Skipping visual tests - ${err.message}`);
+        this.log.info(`Skipping visual tests - ${err.message}`);
       }
 
-      log.info(`Running "${[command].concat(argv).join(' ')}"`);
+      this.log.info(`Running "${[command].concat(argv).join(' ')}"`);
     }
 
     // provide SDKs with useful env vars
     let env = {
       PERCY_CLI_API: this.percy?.apiAddress(),
-      PERCY_LOGLEVEL: log.loglevel(),
+      PERCY_LOGLEVEL: logger.loglevel(),
       ...process.env
     };
 

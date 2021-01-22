@@ -3,7 +3,7 @@ import path from 'path';
 import { inspect } from 'util';
 import expect from 'expect';
 import mockAPI from '@percy/client/test/helper';
-import stdio from '@percy/logger/test/helper';
+import logger from '@percy/logger/test/helper';
 import { createTestServer } from '@percy/core/test/helpers';
 import { Snapshot } from '../src/commands/snapshot';
 
@@ -59,6 +59,7 @@ describe('percy snapshot', () => {
   beforeEach(() => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     mockAPI.start(50);
+    logger.mock();
   });
 
   afterEach(() => {
@@ -69,53 +70,50 @@ describe('percy snapshot', () => {
 
   it('skips snapshotting when Percy is disabled', async () => {
     process.env.PERCY_ENABLE = '0';
-    await stdio.capture(() => Snapshot.run(['./public']));
+    await Snapshot.run(['./public']);
 
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual([
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
       '[percy] Percy is disabled. Skipping snapshots\n'
     ]);
   });
 
   it('errors when the provided path doesn\'t exist', async () => {
-    await expect(stdio.capture(() => (
-      Snapshot.run(['./404'])
-    ))).rejects.toThrow('EEXIT: 1');
+    await expect(Snapshot.run(['./404']))
+      .rejects.toThrow('EEXIT: 1');
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toEqual([
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
       '[percy] Error: Not found: ./404\n'
     ]);
   });
 
   it('errors when the base-url is invalid', async () => {
-    await expect(stdio.capture(() => (
-      Snapshot.run(['./public', '--base-url=wrong'])
-    ))).rejects.toThrow('EEXIT: 1');
+    await expect(Snapshot.run(['./public', '--base-url=wrong']))
+      .rejects.toThrow('EEXIT: 1');
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toEqual([
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
       '[percy] Error: The base-url flag must begin with a forward slash (/)\n'
     ]);
   });
 
   it('errors when there are no snapshots to take', async () => {
-    await expect(stdio.capture(() => (
-      Snapshot.run(['./public', '--files=no-match'])
-    ))).rejects.toThrow('EEXIT: 1');
+    await expect(Snapshot.run(['./public', '--files=no-match']))
+      .rejects.toThrow('EEXIT: 1');
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toEqual([
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
       '[percy] Error: No snapshots found\n'
     ]);
   });
 
   describe('snapshotting static directories', () => {
     it('starts a static server and snapshots matching files', async () => {
-      await stdio.capture(() => Snapshot.run(['./public']));
+      await Snapshot.run(['./public']);
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual(expect.arrayContaining([
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual(expect.arrayContaining([
         '[percy] Percy has started!\n',
         '[percy] Created build #1: https://percy.io/test/test/123\n',
         '[percy] Snapshot taken: /test-3.htm\n',
@@ -128,10 +126,10 @@ describe('percy snapshot', () => {
     });
 
     it('snapshots matching files hosted with a base-url', async () => {
-      await stdio.capture(() => Snapshot.run(['./public', '--base-url=/base/']));
+      await Snapshot.run(['./public', '--base-url=/base/']);
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual(expect.arrayContaining([
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual(expect.arrayContaining([
         '[percy] Percy has started!\n',
         '[percy] Created build #1: https://percy.io/test/test/123\n',
         '[percy] Snapshot taken: /base/test-3.htm\n',
@@ -144,13 +142,13 @@ describe('percy snapshot', () => {
     });
 
     it('does not take snapshots and prints a list with --dry-run', async () => {
-      await stdio.capture(() => Snapshot.run(['./public', '--dry-run']));
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
-        '[percy] Found 3 snapshots:\n',
-        '/test-1.html\n',
-        '/test-2.html\n',
-        '/test-3.htm\n'
+      await Snapshot.run(['./public', '--dry-run']);
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
+        '[percy] Found 3 snapshots:\n' +
+          '/test-1.html\n' +
+          '/test-2.html\n' +
+          '/test-3.htm\n'
       ]);
     });
   });
@@ -169,10 +167,10 @@ describe('percy snapshot', () => {
     });
 
     it('snapshots pages from .yaml files', async () => {
-      await stdio.capture(() => Snapshot.run(['./pages.yml']));
+      await Snapshot.run(['./pages.yml']);
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
         '[percy] Percy has started!\n',
         '[percy] Created build #1: https://percy.io/test/test/123\n',
         '[percy] Snapshot taken: YAML Snapshot\n',
@@ -184,10 +182,10 @@ describe('percy snapshot', () => {
     });
 
     it('snapshots pages from .json files', async () => {
-      await stdio.capture(() => Snapshot.run(['./pages.json']));
+      await Snapshot.run(['./pages.json']);
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
         '[percy] Percy has started!\n',
         '[percy] Created build #1: https://percy.io/test/test/123\n',
         '[percy] Snapshot taken: JSON Snapshot\n',
@@ -199,10 +197,10 @@ describe('percy snapshot', () => {
     });
 
     it('snapshots pages from .js files', async () => {
-      await stdio.capture(() => Snapshot.run(['./pages.js']));
+      await Snapshot.run(['./pages.js']);
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
         '[percy] Percy has started!\n',
         '[percy] Created build #1: https://percy.io/test/test/123\n',
         '[percy] Snapshot taken: JS Snapshot\n',
@@ -214,10 +212,10 @@ describe('percy snapshot', () => {
     });
 
     it('snapshots pages from .js files that export a function', async () => {
-      await stdio.capture(() => Snapshot.run(['./pages-fn.js']));
+      await Snapshot.run(['./pages-fn.js']);
 
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
         '[percy] Percy has started!\n',
         '[percy] Created build #1: https://percy.io/test/test/123\n',
         '[percy] Snapshot taken: JS Function Snapshot\n',
@@ -229,22 +227,21 @@ describe('percy snapshot', () => {
     });
 
     it('errors with unknown file extensions', async () => {
-      await expect(stdio.capture(() => (
-        Snapshot.run(['./nope'])
-      ))).rejects.toThrow('EEXIT: 1');
+      await expect(Snapshot.run(['./nope']))
+        .rejects.toThrow('EEXIT: 1');
 
-      expect(stdio[1]).toHaveLength(0);
-      expect(stdio[2]).toEqual([
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
         '[percy] Error: Unsupported filetype: ./nope\n'
       ]);
     });
 
     it('prints a list with --dry-run', async () => {
-      await stdio.capture(() => Snapshot.run(['./pages.js', '--dry-run']));
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
-        '[percy] Found 1 snapshot:\n',
-        'JS Snapshot\n'
+      await Snapshot.run(['./pages.js', '--dry-run']);
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
+        '[percy] Found 1 snapshot:\n' +
+          'JS Snapshot\n'
       ]);
     });
   });

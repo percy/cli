@@ -1,5 +1,6 @@
 const createTestServer = require('@percy/core/test/helpers/server');
-const sdk = {};
+const logger = require('@percy/logger/test/helper');
+const sdk = { logger };
 
 // mock serialization script
 const serializeDOM = (options) => {
@@ -23,7 +24,7 @@ sdk.setup = async function setup() {
   delete process.env.PERCY_CLI_API;
   delete process.env.PERCY_LOGLEVEL;
   sdk.serializeDOM = serializeDOM;
-  sdk.stdio[1] = []; sdk.stdio[2] = [];
+  logger.mock();
 
   let utils = require('..');
   delete utils.getInfo.version;
@@ -52,31 +53,6 @@ sdk.testsite = {
     sdk.testsite = await createTestServer({
       default: () => [200, 'text/html', 'Snapshot Me']
     });
-  }
-};
-
-sdk.stdio = function stdio(fn, { colors = false } = {}) {
-  // eslint-disable-next-line no-control-regex
-  let format = s => colors ? s : s.replace(/\x1B\[\d+m/g, '');
-  let out = process.stdout.write;
-  let err = process.stderr.write;
-  let r, e;
-
-  let done = (r, e) => {
-    process.stdout.write = out;
-    process.stderr.write = err;
-    if (e) throw e;
-    return r;
-  };
-
-  process.stdout.write = s => stdio[1].push(format(s));
-  process.stderr.write = s => stdio[2].push(format(s));
-  try { r = fn(); } catch (err) { e = err; }
-
-  if (!e && r && typeof r.then === 'function') {
-    return r.then(done, e => done(r, e));
-  } else {
-    return done(r, e);
   }
 };
 

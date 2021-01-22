@@ -1,7 +1,7 @@
 import readline from 'readline';
 import Command, { flags } from '@percy/cli-command';
 import PercyClient from '@percy/client';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 
 export class Wait extends Command {
   static description = 'Wait for a build to be finished. Requires a full access PERCY_TOKEN';
@@ -50,9 +50,11 @@ export class Wait extends Command {
     '$ percy build:wait --project test --commit HEAD'
   ];
 
+  log = logger('cli:build:wait');
+
   async run() {
     if (!this.isPercyEnabled()) {
-      log.info('Percy is disabled');
+      this.log.info('Percy is disabled');
       return;
     }
 
@@ -74,24 +76,27 @@ export class Wait extends Command {
       'total-comparisons-finished': finished
     }
   }) {
+    let stdout = logger.instance.stdout;
+
     // update the same line each time
-    readline.cursorTo(process.stdout, 0);
+    readline.cursorTo(stdout, 0);
 
     // still recieving snapshots
     if (state === 'pending') {
-      process.stdout.write(log.formatter('Recieving snapshots...'));
+      stdout.write(logger.format('Recieving snapshots...', 'cli:build:wait'));
 
     // need to clear the line before finishing
     } else if (finished === total || state === 'finished') {
-      readline.clearLine(process.stdout);
+      readline.clearLine(stdout);
     }
 
     // processing snapshots
     if (state === 'processing') {
-      process.stdout.write(log.formatter(
+      stdout.write(logger.format(
         `Processing ${count} snapshots - ` + (
           finished === total ? 'finishing up...'
-            : `${finished} of ${total} comparisons finished...`)
+            : `${finished} of ${total} comparisons finished...`),
+        'cli:build:wait'
       ));
     }
   }
@@ -108,18 +113,18 @@ export class Wait extends Command {
     }
   }) {
     if (state === 'finished') {
-      log.info(`Build #${number} finished! ${url}`);
-      log.info(`Found ${diffs} changes`);
+      this.log.info(`Build #${number} finished! ${url}`);
+      this.log.info(`Found ${diffs} changes`);
 
       if (this.flags['fail-on-changes'] && diffs > 0) {
         return this.exit(1);
       }
     } else if (state === 'failed') {
-      log.error(`Build #${number} failed! ${url}`);
-      log.error(this.failure(failReason, failDetails));
+      this.log.error(`Build #${number} failed! ${url}`);
+      this.log.error(this.failure(failReason, failDetails));
       return this.exit(1);
     } else {
-      log.error(`Build #${number} is ${state}. ${url}`);
+      this.log.error(`Build #${number} is ${state}. ${url}`);
       return this.exit(1);
     }
   }

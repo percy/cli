@@ -1,58 +1,87 @@
 # @percy/logger
 
-Common [winston](https://github.com/winstonjs/winston) logger used throughout the Percy CLI.
+Common logger used throughout the Percy CLI and SDKs.
 
 ## Usage
 
 ``` js
-import log from '@percy/logger'
+import logger from '@percy/logger'
+
+const log = logger('foobar')
 
 log.info('info message')
 log.error('error message')
 log.warn('warning message')
 log.debug('debug message')
+log.deprecated('deprecation message')
 ```
 
-### `#loglevel([level][, flags])`
+### `logger([debug])`
 
-Sets or retrieves the log level of the console transport. If the second argument is provided,
-`level` is treated as a fallback when all logging flags are `false`. When no arguments are provided,
-the method will return the current log level of the console transport.
+Creates a group of logging functions that will be associated with the provided `debug` label. When
+debug logging is enabled, this label is printed with the `[percy:*]` label and can be filtered via
+the `PERCY_DEBUG` environment variable.
 
 ``` js
-log.loglevel('info', { verbose: true })
-log.loglevel() === 'debug'
+PERCY_DEBUG="one:*,*:a,-*:b"
 
-log.loglevel('info', { quiet: true })
-log.loglevel() === 'warn'
+logger.loglevel('debug')
 
-log.loglevel('info', { silent: true })
-log.loglevel() === 'silent'
+logger('one').debug('test')
+logger('one:a').debug('test')
+logger('one:b').debug('test')
+logger('one:c').debug('test')
+logger('two').debug('test')
+logger('two:a').debug('test')
 
-log.loglevel('info')
-log.loglevel() === 'info'
+// only logs from the matching debug string are printed
+//=> [percy:one] test
+//=> [percy:one:a] test
+//=> [percy:one:c] test
+//=> [percy:two:a] test
 ```
 
-### `#error(errorOrMessage)`
+### `logger.loglevel([level][, flags])`
 
-Patched `#error()` method that handles `Error` instance's and similar error objects. When
-`#loglevel()` is equal to `debug`, the `Error` instance's stack trace is logged.
+Sets or retrieves the log level of the shared logger. If the second argument is provided, `level` is
+treated as a fallback when all logging flags are `false`. When no arguments are provided, the method
+will return the current log level of the shared logger.
 
 ``` js
-log.loglevel('debug')
-log.error(new Error('example'))
-// [percy] Error: example
-//   at example:2:10
-//   ...
+logger.loglevel('info', { verbose: true })
+logger.loglevel() === 'debug'
+
+logger.loglevel('info', { quiet: true })
+logger.loglevel() === 'warn'
+
+logger.loglevel('info', { silent: true })
+logget.loglevel() === 'silent'
+
+logger.loglevel('info')
+logger.loglevel() === 'info'
 ```
 
-### `#query(options)`
+### `logger.format(message, debug[, level])`
 
-Patched `#query()` method that is promisified and allows a `filter` function option.
+Returns a formatted `message` depending on the provided level and logger's own log level. When
+debugging, the `debug` label is added to the prepended `[percy:*]` label.
 
 ``` js
-let logs = await log.query({
-  filter: log => true
-  // ...other query options (see winston docs)
+logger.format('foobar', 'test')
+//=> [percy] foobar
+
+logger.loglevel('debug')
+logger.format('foobar', 'test', warn')
+//=> [percy:test] foobar (yellow for warnings)
+```
+
+### `logger.query(filter)`
+
+Returns an array of logs matching the provided filter function.
+
+``` js
+let logs = logger.query(log => {
+  return log.level === 'debug' &&
+    log.message.match(/foobar/)
 })
 ```

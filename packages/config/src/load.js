@@ -1,7 +1,7 @@
 import { relative } from 'path';
 import { cosmiconfigSync } from 'cosmiconfig';
 import { isDirectorySync } from 'path-type';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 import getDefaults from './defaults';
 import normalize from './normalize';
 import validate from './validate';
@@ -36,10 +36,14 @@ export default function load({
   path,
   overrides = {},
   reload = false,
-  bail = false
+  bail = false,
+  print = false
 } = {}) {
   // load cached config; when no path is specified, get the last config cached
   let config = path ? cache.get(path) : Array.from(cache)[cache.size - 1]?.[1];
+  let infoDebug = print ? 'info' : 'debug';
+  let errorDebug = print ? 'error' : 'debug';
+  let log = logger('config');
 
   // load config or reload cached config
   if (path !== false && (!config || reload)) {
@@ -48,7 +52,7 @@ export default function load({
         ? explorer.search(path) : explorer.load(path);
 
       if (result && result.config) {
-        log.debug(`Found config file: ${relative('', result.filepath)}`);
+        log[infoDebug](`Found config file: ${relative('', result.filepath)}`);
 
         if (result.config.version !== 2) {
           log.warn('Ignoring config file - ' + (
@@ -61,11 +65,11 @@ export default function load({
           cache.set(path, config);
         }
       } else {
-        log.debug('Config file not found');
+        log[infoDebug]('Config file not found');
       }
     } catch (error) {
-      log.debug('Failed to load or parse config file');
-      log.debug(error);
+      log[errorDebug]('Failed to load or parse config file');
+      log[errorDebug](error);
     }
   }
 
@@ -87,7 +91,7 @@ export default function load({
 
   // normalize again to remove empty values for logging
   config = normalize(config);
-  if (config) log.debug(`Using config:\n${inspect(config)}`);
+  if (config) log[infoDebug](`Using config:\n${inspect(config)}`);
 
   // merge with defaults
   return getDefaults(config);

@@ -3,7 +3,7 @@ import path from 'path';
 import { isDirectorySync } from 'path-type';
 import Command, { flags } from '@oclif/command';
 import PercyConfig from '@percy/config';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 
 function assignOrCreate(obj, key, value) {
   return Object.assign(obj || {}, { [key]: value });
@@ -34,6 +34,8 @@ export class Migrate extends Command {
     '$ percy config:migrate .percy.yml .percy.js'
   ];
 
+  log = logger('cli:config:migrate');
+
   async run() {
     let config;
 
@@ -42,7 +44,7 @@ export class Migrate extends Command {
       flags: { 'dry-run': dry }
     } = this.parse();
 
-    log.loglevel('info');
+    logger.loglevel('info');
 
     // load config using the explorer directly rather than the load method to
     // better control logs and prevent validation
@@ -53,14 +55,14 @@ export class Migrate extends Command {
 
       if (result && result.config) {
         ({ config, filepath: input } = result);
-        log.info(`Found config file: ${path.relative('', input)}`);
+        this.log.info(`Found config file: ${path.relative('', input)}`);
         output = output ? path.resolve(output) : input;
       } else {
-        log.error('Config file not found');
+        this.log.error('Config file not found');
       }
     } catch (error) {
-      log.error('Failed to load or parse config file');
-      log.error(error);
+      this.log.error('Failed to load or parse config file');
+      this.log.error(error);
     }
 
     // no config, bail
@@ -68,12 +70,12 @@ export class Migrate extends Command {
 
     // if migrating versions, warn when latest
     if (input === output && config.version === 2) {
-      log.warn('Config is already the latest version');
+      this.log.warn('Config is already the latest version');
       return;
     }
 
     // migrate config
-    log.info('Migrating config file...');
+    this.log.info('Migrating config file...');
     let format = path.extname(output).replace(/^./, '') || 'yaml';
     config = PercyConfig.stringify(format, this.migrate(config));
 
@@ -95,9 +97,9 @@ export class Migrate extends Command {
       fs.writeFileSync(output, config);
     }
 
-    log.info('Config file migrated!');
+    this.log.info('Config file migrated!');
     // when dry-running, print config to stdout when finished
-    if (dry) process.stdout.write('\n' + config);
+    if (dry) logger.instance.stdout.write('\n' + config);
   }
 
   // Migrating config options is recursive so no matter which input version is

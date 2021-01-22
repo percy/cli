@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Command, { flags } from '@oclif/command';
 import PercyConfig from '@percy/config';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 
 const FILETYPES = ['rc', 'yaml', 'yml', 'json', 'js'];
 
@@ -46,9 +46,11 @@ export class Create extends Command {
     '$ percy config:create ./config/percy.yml'
   ];
 
+  log = logger('cli:config:create');
+
   async run() {
     let { flags, args } = this.parse();
-    log.loglevel('info');
+    logger.loglevel('info');
 
     // discern the filetype
     let filetype = args.filepath
@@ -57,7 +59,7 @@ export class Create extends Command {
 
     // validate the filetype for filepaths
     if (!FILETYPES.includes(filetype)) {
-      log.error(`Unsupported filetype: ${filetype}`);
+      this.log.error(`Unsupported filetype: ${filetype}`);
       return this.exit(1);
     }
 
@@ -72,7 +74,7 @@ export class Create extends Command {
 
     // validate the file does not already exist
     if (fs.existsSync(filepath)) {
-      log.error(`Percy config already exists: ${filepath}`);
+      this.log.error(`Percy config already exists: ${filepath}`);
       return this.exit(1);
     }
 
@@ -81,6 +83,6 @@ export class Create extends Command {
 
     // write stringified default config options to the filepath
     fs.writeFileSync(filepath, PercyConfig.stringify(format));
-    log.info(`Created Percy config: ${filepath}`);
+    this.log.info(`Created Percy config: ${filepath}`);
   }
 }

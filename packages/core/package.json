@@ -33,8 +33,5 @@
     "progress": "^2.0.3",
     "rimraf": "^3.0.2",
     "ws": "^7.4.1"
-  },
-  "devDependencies": {
-    "strip-ansi": "^6.0.0"
   }
 }

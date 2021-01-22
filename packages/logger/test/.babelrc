@@ -1,0 +1,10 @@
+{
+  "plugins": [
+    ["module-resolver", {
+      "alias": {
+        // for coverage during tests without needing to compile helper
+        "@percy/logger": "./src"
+      }
+    }]
+  ]
+}

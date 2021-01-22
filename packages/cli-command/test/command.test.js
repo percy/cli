@@ -1,6 +1,5 @@
 import expect from 'expect';
-import log from '@percy/logger';
-import stdio from '@percy/logger/test/helper';
+import logger from '@percy/logger/test/helper';
 import PercyConfig from '@percy/config';
 import PercyCommand, { flags } from '../src';
 
@@ -30,13 +29,13 @@ describe('PercyCommand', () => {
 
   beforeEach(() => {
     results = [];
+    logger.mock();
   });
 
   afterEach(() => {
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
     process.removeAllListeners();
-    log.loglevel('error');
   });
 
   it('initializes arguments and flags', async () => {
@@ -57,15 +56,16 @@ describe('PercyCommand', () => {
   });
 
   it('sets the appropriate loglevel', async () => {
-    expect(log.loglevel()).toBe('error');
+    logger.loglevel('error');
+    expect(logger.loglevel()).toBe('error');
     await TestPercyCommand.run([]);
-    expect(log.loglevel()).toBe('info');
+    expect(logger.loglevel()).toBe('info');
     await TestPercyCommand.run(['--verbose']);
-    expect(log.loglevel()).toBe('debug');
+    expect(logger.loglevel()).toBe('debug');
     await TestPercyCommand.run(['--quiet']);
-    expect(log.loglevel()).toBe('warn');
+    expect(logger.loglevel()).toBe('warn');
     await TestPercyCommand.run(['--silent']);
-    expect(log.loglevel()).toBe('silent');
+    expect(logger.loglevel()).toBe('silent');
   });
 
   it('logs errors to the logger and exits', async () => {
@@ -73,12 +73,11 @@ describe('PercyCommand', () => {
       test() { this.error('test error'); }
     }
 
-    await expect(stdio.capture(() => (
-      TestPercyCommandError.run([])
-    ))).rejects.toThrow('EEXIT: 1');
+    await expect(TestPercyCommandError.run([]))
+      .rejects.toThrow('EEXIT: 1');
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toEqual([
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
       '[percy] Error: test error\n'
     ]);
   });
@@ -88,12 +87,11 @@ describe('PercyCommand', () => {
       test() { this.exit(1); }
     }
 
-    await expect(stdio.capture(() => (
-      TestPercyCommandExit.run([])
-    ))).rejects.toThrow('EEXIT: 1');
+    await expect(TestPercyCommandExit.run([]))
+      .rejects.toThrow('EEXIT: 1');
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toHaveLength(0);
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([]);
   });
 
   it('calls #finally() when the process is terminated', async () => {

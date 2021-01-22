@@ -31,7 +31,13 @@ export default class Network {
 
   // Resolves after the timeout when there are no more in-flight requests.
   async idle(timeout = this.timeout) {
-    await waitFor(() => this.#requests.size === 0, {
+    await waitFor(() => {
+      if (this.page.closedReason) {
+        throw new Error(`Network error: ${this.page.closedReason}`);
+      }
+
+      return this.#requests.size === 0;
+    }, {
       timeout: 30 * 1000, // 30 second error timeout
       idle: timeout
     });

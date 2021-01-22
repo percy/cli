@@ -1,8 +1,10 @@
+import logger from '@percy/logger/test/helper';
 import mockAPI from '@percy/client/test/helper';
 
 beforeEach(() => {
   process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
   mockAPI.start();
+  logger.mock();
 });
 
 afterEach(() => {
@@ -12,6 +14,5 @@ afterEach(() => {
   process.removeAllListeners();
 });
 
-export { mockAPI };
-export { default as stdio } from '@percy/logger/test/helper';
+export { logger, mockAPI };
 export { default as createTestServer } from '@percy/core/test/helpers/server';

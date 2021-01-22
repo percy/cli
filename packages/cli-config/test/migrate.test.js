@@ -1,5 +1,5 @@
 import expect from 'expect';
-import { stdio, mockConfig, getMockConfig } from './helpers';
+import { logger, mockConfig, getMockConfig } from './helpers';
 import { Migrate } from '../src/commands/config/migrate';
 
 describe('percy config:migrate', () => {
@@ -8,10 +8,10 @@ describe('percy config:migrate', () => {
   });
 
   it('by default, renames the config before writing', async () => {
-    await stdio.capture(() => Migrate.run([]));
+    await Migrate.run([]);
 
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual([
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
       '[percy] Found config file: .percy.yml\n',
       '[percy] Migrating config file...\n',
       '[percy] Config file migrated!\n'
@@ -22,10 +22,10 @@ describe('percy config:migrate', () => {
   });
 
   it('prints config with the --dry-run flag', async () => {
-    await stdio.capture(() => Migrate.run(['--dry-run']));
+    await Migrate.run(['--dry-run']);
     expect(getMockConfig('.percy.yml')).toContain('version: 1');
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual([
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
       '[percy] Found config file: .percy.yml\n',
       '[percy] Migrating config file...\n',
       '[percy] Config file migrated!\n',
@@ -35,7 +35,7 @@ describe('percy config:migrate', () => {
 
   it('works with rc configs', async () => {
     mockConfig('.percyrc', 'version: 1\n');
-    await stdio.capture(() => Migrate.run(['.percyrc']));
+    await Migrate.run(['.percyrc']);
     expect(getMockConfig('.percyrc')).toEqual('version: 2\n');
   });
 
@@ -54,7 +54,7 @@ describe('percy config:migrate', () => {
     // this is mocked and reflected in `getMockConfig`
     require('fs').writeFileSync('package.json', json(pkg));
 
-    await stdio.capture(() => Migrate.run(['package.json']));
+    await Migrate.run(['package.json']);
 
     expect(getMockConfig('package.json')).toEqual(
       json({ ...pkg, percy: { version: 2 } })
@@ -62,18 +62,17 @@ describe('percy config:migrate', () => {
   });
 
   it('can convert between config types', async () => {
-    await stdio.capture(() => Migrate.run(['.percy.yml', '.percy.js']));
+    await Migrate.run(['.percy.yml', '.percy.js']);
     expect(getMockConfig('.percy.js'))
       .toEqual('module.exports = {\n  version: 2\n}');
   });
 
   it('errors and exits when a config cannot be found', async () => {
-    await expect(stdio.capture(() => (
-      Migrate.run(['.config/percy.yml'])
-    ))).rejects.toThrow('EEXIT: 1');
+    await expect(Migrate.run(['.config/percy.yml']))
+      .rejects.toThrow('EEXIT: 1');
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toEqual([
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
       '[percy] Config file not found\n'
     ]);
   });
@@ -83,12 +82,11 @@ describe('percy config:migrate', () => {
       throw new Error('test');
     });
 
-    await expect(stdio.capture(() => (
-      Migrate.run(['.config/percy.yml'])
-    ))).rejects.toThrow('EEXIT: 1');
+    await expect(Migrate.run(['.config/percy.yml']))
+      .rejects.toThrow('EEXIT: 1');
 
-    expect(stdio[1]).toHaveLength(0);
-    expect(stdio[2]).toEqual([
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
       '[percy] Failed to load or parse config file\n',
       '[percy] Error: test\n'
     ]);
@@ -96,11 +94,12 @@ describe('percy config:migrate', () => {
 
   it('warns when a config is already the latest version', async () => {
     mockConfig('.percy.yml', 'version: 2\n');
-    await stdio.capture(() => Migrate.run([]));
+    await Migrate.run([]);
 
-    expect(stdio[2]).toHaveLength(0);
-    expect(stdio[1]).toEqual([
-      '[percy] Found config file: .percy.yml\n',
+    expect(logger.stdout).toEqual([
+      '[percy] Found config file: .percy.yml\n'
+    ]);
+    expect(logger.stderr).toEqual([
       '[percy] Config is already the latest version\n'
     ]);
 
@@ -136,7 +135,7 @@ describe('percy config:migrate', () => {
       '  ignore: "**/*.htm"\n'
     ].join('\n'));
 
-    await stdio.capture(() => Migrate.run([]));
+    await Migrate.run([]);
 
     expect(getMockConfig('.percy.yml')).toEqual([
       'version: 2',

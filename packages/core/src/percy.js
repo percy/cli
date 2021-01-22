@@ -1,13 +1,13 @@
+import { promises as fs } from 'fs';
 import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
-import log from '@percy/logger';
+import logger from '@percy/logger';
 import { schema } from './config';
 import Queue from './queue';
 import Discoverer from './discovery/discoverer';
 import createPercyServer from './server';
 
 import assert from './utils/assert';
-import { navigatePage, preparePage } from './utils/capture';
 import injectPercyCSS from './utils/percy-css';
 import { createRootResource, createLogResource } from './utils/resources';
 import { normalizeURL } from './utils/url';
@@ -20,6 +20,8 @@ PercyConfig.addSchema(schema);
 // when stopped. Snapshots are processed concurrently and the build is not
 // finalized until all snapshots have been handled.
 export default class Percy {
+  log = logger('core');
+
   #captures = null;
   #snapshots = null;
   #stopping = false;
@@ -72,7 +74,7 @@ export default class Percy {
 
   // Shortcut for controlling the global logger's log level.
   loglevel(level) {
-    return log.loglevel(level);
+    return logger.loglevel(level);
   }
 
   // Snapshot server API address
@@ -102,8 +104,8 @@ export default class Percy {
       // log build details
       let build = this.client.build;
       let meta = { build: { id: build.id } };
-      log.info('Percy has started!', meta);
-      log.info(`Created build #${build.number}: ${build.url}`, meta);
+      this.log.info('Percy has started!', meta);
+      this.log.info(`Created build #${build.number}: ${build.url}`, meta);
 
       // mark this process as running
       this.#running = true;
@@ -130,13 +132,13 @@ export default class Percy {
 
       let build = this.client.build;
       let meta = { build: { id: build.id } };
-      log.info('Stopping percy...', meta);
+      this.log.info('Stopping percy...', meta);
 
       // log about queued captures or uploads
       if (this.#captures.length) {
-        log.info(`Waiting for ${this.#captures.length} page(s) to finish snapshotting`, meta);
+        this.log.info(`Waiting for ${this.#captures.length} page(s) to finish snapshotting`, meta);
       } else if (this.#snapshots.length) {
-        log.info(`Waiting for ${this.#snapshots.length} snapshot(s) to finish uploading`, meta);
+        this.log.info(`Waiting for ${this.#snapshots.length} snapshot(s) to finish uploading`, meta);
       }
 
       // wait for any queued captures or snapshots
@@ -149,8 +151,8 @@ export default class Percy {
 
       // finalize the build
       await this.client.finalizeBuild();
-      log.info(`Finalized build #${build.number}: ${build.url}`, meta);
-      log.info('Done!');
+      this.log.info(`Finalized build #${build.number}: ${build.url}`, meta);
+      this.log.info('Done!');
     }
   }
 
@@ -207,16 +209,16 @@ export default class Percy {
       build: { id: this.client.build.id }
     };
 
-    log.debug('---------');
-    log.debug('Handling snapshot:', meta);
-    log.debug(`-> name: ${name}`, meta);
-    log.debug(`-> url: ${url}`, meta);
-    log.debug(`-> widths: ${widths.join('px, ')}px`, meta);
-    log.debug(`-> clientInfo: ${clientInfo}`, meta);
-    log.debug(`-> environmentInfo: ${environmentInfo}`, meta);
-    log.debug(`-> requestHeaders: ${JSON.stringify(requestHeaders)}`, meta);
-    log.debug(`-> authorization: ${JSON.stringify(authorization)}`, meta);
-    log.debug(`-> domSnapshot:\n${(
+    this.log.debug('---------');
+    this.log.debug('Handling snapshot:', meta);
+    this.log.debug(`-> name: ${name}`, meta);
+    this.log.debug(`-> url: ${url}`, meta);
+    this.log.debug(`-> widths: ${widths.join('px, ')}px`, meta);
+    this.log.debug(`-> clientInfo: ${clientInfo}`, meta);
+    this.log.debug(`-> environmentInfo: ${environmentInfo}`, meta);
+    this.log.debug(`-> requestHeaders: ${JSON.stringify(requestHeaders)}`, meta);
+    this.log.debug(`-> authorization: ${JSON.stringify(authorization)}`, meta);
+    this.log.debug(`-> domSnapshot:\n${(
       domSnapshot.length <= 1024 ? domSnapshot
         : (domSnapshot.substr(0, 1024) + '... [truncated]')
     )}`, meta);
@@ -246,11 +248,11 @@ export default class Percy {
       )));
 
       // include a log resource for debugging
-      let logs = await log.query({ filter: ({ snapshot: s }) => s?.name === name });
+      let logs = logger.query(({ meta }) => meta.snapshot?.name === name);
       resources.set('percy-logs', createLogResource(logs));
 
       // log that the snapshot has been taken before uploading it
-      log.info(`Snapshot taken: ${name}`, meta);
+      this.log.info(`Snapshot taken: ${name}`, meta);
 
       // upload within the async snapshot queue
       this.#snapshots.push(() => this.client.sendSnapshot({
@@ -262,12 +264,12 @@ export default class Percy {
         environmentInfo,
         resources: Array.from(resources.values())
       }).catch(error => {
-        log.error(`Encountered an error uploading snapshot: ${name}`, meta);
-        log.error(error);
+        this.log.error(`Encountered an error uploading snapshot: ${name}`, meta);
+        this.log.error(error);
       }));
     }).catch(error => {
-      log.error(`Encountered an error taking snapshot: ${name}`, meta);
-      log.error(error);
+      this.log.error(`Encountered an error taking snapshot: ${name}`, meta);
+      this.log.error(error);
     });
   }
 
@@ -288,23 +290,50 @@ export default class Percy {
 
     // the entire capture process happens within the async capture queue
     return this.#captures.push(async () => {
+      let meta = { snapshot: { name, waitForTimeout, waitForSelector } };
       let { requestHeaders, authorization } = options;
       let results = [];
       let page;
+
+      this.log.debug('---------');
+      this.log.debug('Handling page capture:', meta);
+      this.log.debug(`-> url: ${url}`, meta);
+      this.log.debug(`-> name: ${url}`, meta);
+      this.log.debug(`-> waitForTimeout: ${waitForTimeout}`, meta);
+      this.log.debug(`-> waitForSelector: ${waitForSelector}`, meta);
+      this.log.debug(`-> execute: ${execute}`, meta);
 
       try {
         // borrow a page from the discoverer
         page = await this.discoverer.page({ requestHeaders, authorization });
 
         // navigate to the page and wait until ready
-        await navigatePage(page, url, { waitForTimeout, waitForSelector });
+        await page.goto(url, { waitForTimeout, waitForSelector });
 
         // multiple snapshots can be captured on a single page
         for (let { name, execute } of snapshots) {
-          // prepare page for snapshotting
-          await preparePage(page, execute);
+          if (execute) {
+            this.log.debug('Executing page JS', { ...meta, execute });
+            // accept function bodies as strings
+            if (typeof execute === 'string') execute = `async execute({ waitFor }) {\n${execute}\n}`;
+            // execute the provided function
+            await page.eval(execute);
+            // may cause additional network activity
+            await page.network.idle();
+          }
+
+          // inject @percy/dom for serialization by evaluating the file contents which adds a global
+          // PercyDOM object that we can later check against
+          /* istanbul ignore next: no instrumenting injected code */
+          if (await page.eval(() => !window.PercyDOM)) {
+            this.log.debug('Injecting @percy/dom', meta);
+            let script = await fs.readFile(require.resolve('@percy/dom'), 'utf-8');
+            /* eslint-disable-next-line no-new-func */
+            await page.eval(new Function(script));
+          }
 
           // serialize and capture a DOM snapshot
+          this.log.debug('Serializing DOM', meta);
           /* istanbul ignore next: no instrumenting injected code */
           let { url, domSnapshot } = await page.eval(({ enableJavaScript }) => ({
             /* eslint-disable-next-line no-undef */
@@ -317,8 +346,8 @@ export default class Percy {
         }
       } catch (error) {
         // handle errors
-        log.error(`Encountered an error for page: ${url}`);
-        log.error(error);
+        this.log.error(`Encountered an error for page: ${url}`, meta);
+        this.log.error(error, meta);
       } finally {
         // close the page
         await page?.close();

@@ -17,5 +17,8 @@
   },
   "mocha": {
     "require": "../../scripts/babel-register"
+  },
+  "dependencies": {
+    "@percy/logger": "1.0.0-beta.29"
   }
 }
