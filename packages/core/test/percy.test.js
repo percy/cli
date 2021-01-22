@@ -27,7 +27,6 @@ describe('Percy', () => {
 
     expect(percy.config.snapshot).toEqual({
       widths: [375, 1280],
-      requestHeaders: {},
       minHeight: 1024,
       percyCSS: ''
     });
@@ -41,7 +40,6 @@ describe('Percy', () => {
 
     expect(percy.config.snapshot).toEqual({
       widths: [375, 1280],
-      requestHeaders: {},
       minHeight: 1024,
       percyCSS: '',
       foo: 'bar'
@@ -178,12 +176,13 @@ describe('Percy', () => {
     });
 
     it('maybe downloads the browser for asset discovery', async function() {
+      let local = require('path').join(__dirname, '../.local-chromium');
       let { existsSync } = require('fs');
-      let local = require('path').resolve('../../node_modules/puppeteer-core/.local-chromium');
 
       this.retries(5); // this flakes on windows due to its non-atomic fs functions
       require('rimraf').sync(local);
       expect(existsSync(local)).toBe(false);
+      this.retries(0);
 
       this.timeout(0); // this might take a minute to download
       await stdio.capture(() => percy.start());
@@ -339,7 +338,17 @@ describe('Percy', () => {
       server = await createTestServer({
         '/': () => [200, 'text/html', testDOM],
         '/style.css': () => [200, 'text/css', testCSS],
-        '/img.gif': () => [200, 'image/gif', pixel]
+        '/img.gif': () => [200, 'image/gif', pixel],
+        '/auth/img.gif': ({ headers: { authorization } }) => {
+          if (authorization === 'Basic dGVzdDo=') {
+            return [200, 'image/gif', pixel];
+          } else {
+            return [401, {
+              'WWW-Authenticate': 'Basic',
+              'Content-Type': 'text/plain'
+            }, '401 Unauthorized'];
+          }
+        }
       });
 
       await percy.start();
@@ -450,6 +459,77 @@ describe('Percy', () => {
       );
     });
 
+    it('does not upload protected assets', async () => {
+      let domSnapshot = testDOM.replace('img.gif', 'auth/img.gif');
+
+      await percy.snapshot({
+        name: 'auth snapshot',
+        url: 'http://localhost:8000/auth',
+        domSnapshot
+      });
+
+      await percy.idle();
+
+      expect(mockAPI.requests['/builds/123/resources'].map(r => r.body))
+        .not.toEqual(expect.arrayContaining([{
+          data: {
+            type: 'resources',
+            id: sha256hash(pixel),
+            attributes: {
+              'base64-content': base64encode(pixel)
+            }
+          }
+        }]));
+    });
+
+    it('uploads protected assets with valid auth credentials', async () => {
+      let domSnapshot = testDOM.replace('img.gif', 'auth/img.gif');
+
+      await percy.snapshot({
+        name: 'auth snapshot',
+        url: 'http://localhost:8000/auth',
+        authorization: { username: 'test' },
+        domSnapshot
+      });
+
+      await percy.idle();
+
+      expect(mockAPI.requests['/builds/123/resources'].map(r => r.body))
+        .toEqual(expect.arrayContaining([{
+          data: {
+            type: 'resources',
+            id: sha256hash(pixel),
+            attributes: {
+              'base64-content': base64encode(pixel)
+            }
+          }
+        }]));
+    });
+
+    it('does not upload protected assets with invalid auth credentials', async () => {
+      let domSnapshot = testDOM.replace('img.gif', 'auth/img.gif');
+
+      await percy.snapshot({
+        name: 'auth snapshot',
+        url: 'http://localhost:8000/auth',
+        authorization: { username: 'invalid' },
+        domSnapshot
+      });
+
+      await percy.idle();
+
+      expect(mockAPI.requests['/builds/123/resources'].map(r => r.body))
+        .not.toEqual(expect.arrayContaining([{
+          data: {
+            type: 'resources',
+            id: sha256hash(pixel),
+            attributes: {
+              'base64-content': base64encode(pixel)
+            }
+          }
+        }]));
+    });
+
     it('finalizes the snapshot', async () => {
       await percy.snapshot({
         name: 'test snapshot',
@@ -530,174 +610,6 @@ describe('Percy', () => {
       expect(stdio[2]).toEqual([
         '[percy] Encountered an error uploading snapshot: test snapshot\n',
         '[percy] Error: snapshot upload error\n'
-      ]);
-    });
-  });
-
-  describe('#capture()', () => {
-    let testDOM;
-
-    beforeEach(async () => {
-      testDOM = '<p>Test</p>';
-
-      server = await createTestServer({
-        default: () => [200, 'text/html', testDOM],
-        '/foo': () => [200, 'text/html', '<p>Foo</p>']
-      });
-
-      await percy.start();
-      percy.loglevel('info');
-    });
-
-    it('errors when missing a url', () => {
-      expect(() => percy.capture({ name: 'test snapshot' }))
-        .toThrow('Missing URL for test snapshot');
-      expect(() => percy.capture({ snapshots: [{ name: 'test snapshot' }] }))
-        .toThrow('Missing URL for snapshots');
-    });
-
-    it('errors when missing a name or snapshot names', async () => {
-      expect(() => percy.capture({ url: 'http://localhost:8000' }))
-        .toThrow('Missing name for http://localhost:8000');
-      expect(() => percy.capture({ url: 'http://localhost:8000', snapshots: [{}] }))
-        .toThrow('Missing name for http://localhost:8000');
-    });
-
-    it('navigates to a url and takes a snapshot', async () => {
-      await stdio.capture(() => percy.capture({
-        name: 'test snapshot',
-        url: 'http://localhost:8000'
-      }));
-
-      await percy.idle();
-      expect(Buffer.from((
-        mockAPI.requests['/builds/123/resources'][0]
-          .body.data.attributes['base64-content']
-      ), 'base64').toString()).toMatch('<p>Test</p>');
-    });
-
-    it('navigates to a url and takes a snapshot after `waitForTimeout`', async () => {
-      testDOM = testDOM.replace('</p>', '</p><script>' + (
-        'setTimeout(() => (document.querySelector("p").id = "test"), 500)'
-      ) + '</script>');
-
-      await stdio.capture(() => percy.capture({
-        name: 'test snapshot',
-        url: 'http://localhost:8000',
-        waitForTimeout: 600
-      }));
-
-      await percy.idle();
-      expect(Buffer.from((
-        mockAPI.requests['/builds/123/resources'][0]
-          .body.data.attributes['base64-content']
-      ), 'base64').toString()).toMatch('<p id="test">Test</p>');
-    });
-
-    it('navigates to a url and takes a snapshot after `waitForSelector`', async () => {
-      testDOM = testDOM.replace('</p>', '</p><script>' + (
-        'setTimeout(() => (document.querySelector("p").id = "test"), 500)'
-      ) + '</script>');
-
-      await stdio.capture(() => percy.capture({
-        name: 'test snapshot',
-        url: 'http://localhost:8000',
-        waitForSelector: '#test'
-      }));
-
-      await percy.idle();
-      expect(Buffer.from((
-        mockAPI.requests['/builds/123/resources'][0]
-          .body.data.attributes['base64-content']
-      ), 'base64').toString()).toMatch('<p id="test">Test</p>');
-    });
-
-    it('navigates to a url and takes a snapshot after `execute`', async () => {
-      await stdio.capture(() => percy.capture({
-        name: 'test snapshot',
-        url: 'http://localhost:8000',
-        async execute(page) {
-          let p = await page.$('p');
-          await p.evaluate(n => (n.id = 'eval'));
-        }
-      }));
-
-      await percy.idle();
-      expect(Buffer.from((
-        mockAPI.requests['/builds/123/resources'][0]
-          .body.data.attributes['base64-content']
-      ), 'base64').toString()).toMatch('<p id="eval">Test</p>');
-    });
-
-    it('navigates to a url and takes multiple snapshots', async () => {
-      await stdio.capture(() => percy.capture({
-        url: 'http://localhost:8000',
-        snapshots: [
-          { name: 'snapshot one' },
-          { name: 'snapshot two' }
-        ]
-      }));
-
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
-        '[percy] Snapshot taken: snapshot one\n',
-        '[percy] Snapshot taken: snapshot two\n'
-      ]);
-    });
-
-    it('navigates to a url and takes additional snapshots', async () => {
-      await stdio.capture(() => percy.capture({
-        name: 'test snapshot',
-        url: 'http://localhost:8000',
-        snapshots: [
-          { name: 'test snapshot two' },
-          { name: 'test snapshot three' }
-        ]
-      }));
-
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
-        '[percy] Snapshot taken: test snapshot\n',
-        '[percy] Snapshot taken: test snapshot two\n',
-        '[percy] Snapshot taken: test snapshot three\n'
-      ]);
-    });
-
-    it('can successfully snapshot a page after executing page navigation', async () => {
-      testDOM += '<a href="/foo">Foo</a>';
-
-      await stdio.capture(() => percy.capture({
-        name: 'foo snapshot',
-        url: 'http://localhost:8000',
-        execute: page => page.click('a')
-      }));
-
-      expect(stdio[2]).toHaveLength(0);
-      expect(stdio[1]).toEqual([
-        '[percy] Snapshot taken: foo snapshot\n'
-      ]);
-
-      await percy.idle();
-
-      expect(Buffer.from((
-        mockAPI.requests['/builds/123/resources'][0]
-          .body.data.attributes['base64-content']
-      ), 'base64').toString()).toMatch('<p>Foo</p>');
-    });
-
-    it('logs any encountered errors and does not snapshot', async () => {
-      await stdio.capture(() => percy.capture({
-        name: 'test snapshot',
-        url: 'http://localhost:8000',
-        execute: () => {
-          throw new Error('test error');
-        }
-      }));
-
-      expect(stdio[1]).toHaveLength(0);
-      expect(stdio[2]).toEqual([
-        '[percy] Encountered an error for page: http://localhost:8000\n',
-        '[percy] Error: test error\n'
       ]);
     });
   });

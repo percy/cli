@@ -24,7 +24,7 @@ const percyOptions: PercyOptions = {
     disableCache: false,
     concurrency: 1,
     launchOptions: {
-      devtools: true
+      args: ['--foo-bar']
     }
   },
   foo: {
@@ -96,10 +96,10 @@ expectType<void>(await percy.capture({
   url: 'http://localhost:3000',
   waitForTimeout: 1000,
   waitForSelector: '.some-selector',
-  execute: async page => {},
+  execute() {},
   snapshots: [{
     name: 'test 2',
-    execute: async page => {}
+    async execute() {}
   }],
   widths: [1000],
   minHeight: 1000,
@@ -117,7 +117,7 @@ expectType<void>(await percy.capture({
   url: 'http://localhost:3000',
   snapshots: [{
     name: 'test snapshot',
-    execute: async page => {}
+    execute() {}
   }]
 }))
 
@@ -128,7 +128,7 @@ expectError(await percy.capture({
 expectError(await percy.capture({
   url: 'http://localhost:3000',
   snapshots: [{
-    execute: async page => {}
+    execute() {}
   }]
 }))
 

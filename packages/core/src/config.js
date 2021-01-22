@@ -19,8 +19,15 @@ export const schema = {
       },
       requestHeaders: {
         type: 'object',
-        additionalProperties: { type: 'string' },
-        default: {}
+        additionalProperties: { type: 'string' }
+      },
+      authorization: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          username: { type: 'string' },
+          password: { type: 'string' }
+        }
       },
       enableJavaScript: {
         type: 'boolean'
@@ -45,11 +52,17 @@ export const schema = {
         default: false
       },
       concurrency: {
-        type: 'integer',
-        default: 5
+        type: 'integer'
       },
       launchOptions: {
-        type: 'object'
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          executable: { type: 'string' },
+          headless: { type: 'boolean' },
+          args: { type: 'array', items: { type: 'string' } },
+          timeout: { type: 'integer' }
+        }
       }
     }
   }

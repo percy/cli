@@ -1,5 +1,5 @@
 import log from '@percy/logger';
-import { createLocalResource } from './utils/resources';
+import { createLocalResource } from './resources';
 
 // Creates a local Percy CSS resource and injects a Percy CSS link into the
 // provided DOM string. Returns both the new DOM string and local resource

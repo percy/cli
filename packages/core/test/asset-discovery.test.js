@@ -281,7 +281,7 @@ describe('Asset Discovery', () => {
     expect(stdio[2]).toHaveLength(0);
     expect(stdio[1]).toEqual(expect.arrayContaining([
       expect.stringMatching(new RegExp( // eslint-disable-line prefer-regex-literals
-        '^\\[percy\\] Request failed for http://localhost:8000/404/style\\.css - net::'
+        '^\\[percy\\] Request failed for http://localhost:8000/404/style\\.css: net::'
       ))
     ]));
   });
@@ -349,18 +349,22 @@ describe('Asset Discovery', () => {
 
       expect(stdio[1]).toHaveLength(0);
       expect(stdio[2]).toEqual(expect.arrayContaining([
-        '[percy] Encountered an error for http://localhost:8000/style.css\n',
+        '[percy] Encountered an error handling request: http://localhost:8000/style.css\n',
         '[percy] Error: some unhandled request error\n',
-        '[percy] Encountered an error for http://localhost:8000/img.gif\n',
+        '[percy] Encountered an error handling request: http://localhost:8000/img.gif\n',
         '[percy] Error: some unhandled request error\n'
       ]));
     });
 
-    it('logs unhandled requestfinished errors gracefully', async () => {
-      // sabotage this method to trigger unexpected error handling
-      percy.discoverer._parseRequestResponse = url => {
-        throw new Error('some unhandled finished error');
-      };
+    it('logs unhandled response errors gracefully', async () => {
+      // sabotage this property to trigger unexpected error handling
+      Object.defineProperty(percy.discoverer, 'disableCache', {
+        // only throw ever other time when accessed within the response handler
+        get() {
+          let error = new Error('some unhandled response error');
+          if (error.stack.includes('onrequestfinished')) throw error;
+        }
+      });
 
       await stdio.capture(() => (
         percy.snapshot({
@@ -372,10 +376,10 @@ describe('Asset Discovery', () => {
 
       expect(stdio[1]).toHaveLength(0);
       expect(stdio[2]).toEqual(expect.arrayContaining([
-        '[percy] Encountered an error for http://localhost:8000/style.css\n',
-        '[percy] Error: some unhandled finished error\n',
-        '[percy] Encountered an error for http://localhost:8000/img.gif\n',
-        '[percy] Error: some unhandled finished error\n'
+        '[percy] Encountered an error processing resource: http://localhost:8000/style.css\n',
+        '[percy] Error: some unhandled response error\n',
+        '[percy] Encountered an error processing resource: http://localhost:8000/img.gif\n',
+        '[percy] Error: some unhandled response error\n'
       ]));
     });
   });
@@ -519,6 +523,57 @@ describe('Asset Discovery', () => {
           })
         })
       ]);
+    });
+  });
+
+  describe('with launch options', () => {
+    beforeEach(async () => {
+      await percy.stop();
+    });
+
+    it('should log an error if a provided executable cannot be found', async () => {
+      percy = await stdio.capture(() => Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: {
+          launchOptions: {
+            executable: './404',
+            args: ['--no-sandbox', '--unknown-flag']
+          }
+        }
+      }));
+
+      expect(stdio[2]).toEqual([
+        '[percy] Browser executable not found: ./404\n'
+      ]);
+    });
+
+    it('should fail to launch if the devtools address is not logged', async () => {
+      await expect(Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: {
+          launchOptions: {
+            args: ['--remote-debugging-port=null']
+          }
+        }
+      })).rejects.toThrow(
+        'Failed to launch browser. '
+      );
+    });
+
+    it('should fail to launch after the timeout', async () => {
+      await expect(Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: {
+          launchOptions: {
+            timeout: 10 // unreasonable
+          }
+        }
+      })).rejects.toThrow(
+        'Failed to launch browser. Timed out after 10ms'
+      );
     });
   });
 });

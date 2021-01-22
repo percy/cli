@@ -10,9 +10,13 @@ beforeEach(() => {
   log.loglevel('error');
 });
 
-afterEach(() => {
-  // cleanup tmp files
-  rimraf.sync(path.join(os.tmpdir(), 'percy'));
+afterEach(done => {
+  // cleanup tmp files (avoid logfiles in windows since they might be open)
+  rimraf((
+    process.platform === 'win32'
+      ? path.join(os.tmpdir(), 'percy', '*[!.log]')
+      : path.join(os.tmpdir(), 'percy')
+  ), done);
 });
 
 export { mockAPI };

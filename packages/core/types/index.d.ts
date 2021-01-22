@@ -1,14 +1,27 @@
-/// <reference lib="dom"/>
-import * as Puppeteer from 'puppeteer-core/lib/cjs/puppeteer/common/Page';
-
 type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'silent';
-interface Pojo { [x: string]: any; }
+
+interface Pojo {
+  [x: string]: any;
+}
+
+interface AuthCredentials {
+  username: string,
+  password: string
+}
+
+interface DiscoveryLaunchOptions {
+  executable?: string,
+  args?: string[],
+  timeout?: number,
+  headless?: boolean
+}
 
 export interface SnapshotOptions {
   widths?: number[];
   minHeight?: number;
   percyCSS?: string;
   requestHeaders?: Pojo;
+  authorization?: AuthCredentials;
   enableJavaScript?: boolean;
 }
 
@@ -17,7 +30,7 @@ interface DiscoveryOptions {
   networkIdleTimeout?: number;
   disableCache?: boolean;
   concurrency?: number;
-  launchOptions?: Pojo;
+  launchOptions?: DiscoveryLaunchOptions;
 }
 
 export type PercyOptions<C = Pojo> = C & {
@@ -33,7 +46,7 @@ export type PercyOptions<C = Pojo> = C & {
   discovery?: DiscoveryOptions
 };
 
-type CaptureExec = (page: Puppeteer.Page) => Promise<void>;
+type CaptureExec = () => void | Promise<void>;
 type CaptureSnapshots = Array<{ name: string, execute: CaptureExec }>;
 
 declare class Percy {

@@ -67,6 +67,7 @@ percy.snapshot({
   minHeight: 1024,               // minimum height used when screenshotting
   percyCSS: '',                  // percy specific css to inject
   requestHeaders: {},            // asset request headers such as authorization
+  authorization: {},             // asset authorization credentials
   clientInfo: '',                // user-agent client info for the SDK
   environmentInfo: ''            // user-agent environment info for the SDK
 })
@@ -85,10 +86,10 @@ percy.capture({
   url: 'http://localhost:3000/',  // required page URL
   waitForTimeout: 1000,           // timeout to wait before snapshotting
   waitForSelector: '.selector',   // selector to wait for before snapshotting
-  execute: async (page) => {},    // async page function to execute before snapshotting
+  execute: async () => {},        // function to execute within the page context
   snapshots: [{                   // additional snapshots to take on this page
     name: 'Second Snapshot',        // additional snapshot name
-    execute: async (page) => {},    // additional snapshot page function
+    execute: async () => {},        // additional snapshot execute function
     ...options                      // ...additional snapshot options
   }],
   ...options                      // ...other snapshot options
@@ -111,9 +112,10 @@ await percy.stop()
 
 ## Advanced
 
-### Puppeteer Executable Path
+### Chromium Executable Path
 
-To avoid downloading the browser used for asset discovery, the local browser executable can be
-defined with an `executablePath` option provided within `discovery.launchOptions`. This options
-falls back to the `PUPPETEER_EXECUTABLE_PATH` environment variable if defined.
+**Use with caution as asset discovery may not work with some versions of Chromium.** To avoid
+downloading the browser used for asset discovery, the local browser executable can be defined with
+an `executable` option provided within `discovery.launchOptions`. This option should be a path to
+Chromium's binary executable and falls back to downloading a compatible browser when not found.
 

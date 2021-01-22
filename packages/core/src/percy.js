@@ -2,11 +2,13 @@ import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import log from '@percy/logger';
 import { schema } from './config';
-import Discoverer from './discoverer';
-import injectPercyCSS from './percy-css';
-import createPercyServer from './server';
 import Queue from './queue';
+import Discoverer from './discovery/discoverer';
+import createPercyServer from './server';
+
 import assert from './utils/assert';
+import { navigatePage, preparePage } from './utils/capture';
+import injectPercyCSS from './utils/percy-css';
 import { createRootResource, createLogResource } from './utils/resources';
 import { normalizeURL } from './utils/url';
 
@@ -172,6 +174,7 @@ export default class Percy {
     minHeight,
     percyCSS,
     requestHeaders,
+    authorization,
     enableJavaScript,
     clientInfo,
     environmentInfo
@@ -212,6 +215,7 @@ export default class Percy {
     log.debug(`-> clientInfo: ${clientInfo}`, meta);
     log.debug(`-> environmentInfo: ${environmentInfo}`, meta);
     log.debug(`-> requestHeaders: ${JSON.stringify(requestHeaders)}`, meta);
+    log.debug(`-> authorization: ${JSON.stringify(authorization)}`, meta);
     log.debug(`-> domSnapshot:\n${(
       domSnapshot.length <= 1024 ? domSnapshot
         : (domSnapshot.substr(0, 1024) + '... [truncated]')
@@ -229,11 +233,13 @@ export default class Percy {
 
       // gather resources at each width concurrently
       await Promise.all(widths.map(width => (
-        this.discoverer.gatherResources(resources, {
+        this.discoverer.gatherResources({
+          onDiscovery: r => resources.set(r.url, r),
           rootUrl: url,
           rootDom: domSnapshot,
           enableJavaScript,
           requestHeaders,
+          authorization,
           width,
           meta
         })
@@ -282,39 +288,25 @@ export default class Percy {
 
     // the entire capture process happens within the async capture queue
     return this.#captures.push(async () => {
+      let { requestHeaders, authorization } = options;
       let results = [];
-      let page, domScript;
+      let page;
 
       try {
         // borrow a page from the discoverer
-        page = await this.discoverer.page();
+        page = await this.discoverer.page({ requestHeaders, authorization });
 
-        // allow @percy/dom injection
-        await page.setBypassCSP(true);
-        // set any request headers
-        await page.setExtraHTTPHeaders(options.requestHeaders || {});
-        // @todo - resize viewport
-        // go to and wait for network idle
-        await page.goto(url, { waitUntil: 'networkidle2' });
-        // wait for any other elements or timeout before snapshotting
-        if (waitForTimeout) await page.waitForTimeout(waitForTimeout);
-        if (waitForSelector) await page.waitForSelector(waitForSelector);
+        // navigate to the page and wait until ready
+        await navigatePage(page, url, { waitForTimeout, waitForSelector });
 
         // multiple snapshots can be captured on a single page
         for (let { name, execute } of snapshots) {
-          // optionally execute a script to interact with the page
-          if (execute) await execute(page);
-
-          // inject @percy/dom for serialization if it hasn't already been injected; this is done
-          // after running each execute method just in case page navigation has occurred.
-          /* istanbul ignore next: no instrumenting injected code */
-          if (!domScript || await domScript.evaluate(e => !e.isConnected)) {
-            domScript = await page.addScriptTag({ path: require.resolve('@percy/dom') });
-          }
+          // prepare page for snapshotting
+          await preparePage(page, execute);
 
           // serialize and capture a DOM snapshot
           /* istanbul ignore next: no instrumenting injected code */
-          let { url, domSnapshot } = await page.evaluate(({ enableJavaScript }) => ({
+          let { url, domSnapshot } = await page.eval(({ enableJavaScript }) => ({
             /* eslint-disable-next-line no-undef */
             domSnapshot: PercyDOM.serialize({ enableJavaScript }),
             url: document.URL
@@ -324,12 +316,14 @@ export default class Percy {
           results.push(this.snapshot({ ...options, url, name, domSnapshot }));
         }
       } catch (error) {
+        // handle errors
         log.error(`Encountered an error for page: ${url}`);
         log.error(error);
       } finally {
+        // close the page
+        await page?.close();
         // await on any resulting snapshots
         await Promise.all(results);
-        await page?.close();
       }
     });
   }
