@@ -1,8 +1,8 @@
-// Maybe get the CLI API address and loglevel from the environment
-const {
-  PERCY_CLI_API = 'http://localhost:5338',
-  PERCY_LOGLEVEL = 'info'
-} = process.env;
+const logger = require('@percy/logger');
+const log = logger('util');
+
+// Maybe get the CLI API address from the environment
+const { PERCY_CLI_API = 'http://localhost:5338' } = process.env;
 
 // Helper to send a request to the local CLI API
 function request(path, { body, ...options } = {}) {
@@ -39,28 +39,11 @@ function request(path, { body, ...options } = {}) {
   });
 }
 
-// Log colored labels and errors using loglevels
-let linereg = /^.*$/gm;
-function log(level, msg) {
-  let l = { debug: 0, info: 1, warn: 2, error: 3 };
-  if (l[PERCY_LOGLEVEL] == null || l[level] < l[PERCY_LOGLEVEL]) return;
-  let c = (n, s) => s.replace(linereg, l => `\u001b[${n}m${l}\u001b[39m`);
-
-  if (level === 'error' || msg.stack) {
-    msg = (PERCY_LOGLEVEL === 'debug' && msg.stack) || msg.toString();
-    console.error(`[${c(35, 'percy')}] ${c(31, msg)}`);
-  } else if (level === 'warn') {
-    console.warn(`[${c(35, 'percy')}] ${c(33, msg)}`);
-  } else {
-    console.log(`[${c(35, 'percy')}] ${msg}`);
-  }
-}
-
 // Returns CLI information
 function getInfo() {
   return {
     cliApi: PERCY_CLI_API,
-    loglevel: PERCY_LOGLEVEL,
+    loglevel: logger.loglevel(),
     version: getInfo.version,
     config: getInfo.config
   };
@@ -90,12 +73,12 @@ async function isPercyEnabled() {
     }
 
     if (getInfo.version && getInfo.version[0] !== 1) {
-      log('info', 'Unsupported Percy CLI version, disabling snapshots');
-      log('debug', `Found version: ${getInfo.version}`);
+      log.info('Unsupported Percy CLI version, disabling snapshots');
+      log.debug(`Found version: ${getInfo.version}`);
       isPercyEnabled.result = false;
     } else if (!isPercyEnabled.result) {
-      log('info', 'Percy is not running, disabling snapshots');
-      log('debug', error);
+      log.info('Percy is not running, disabling snapshots');
+      log.debug(error);
     }
   }
 
@@ -121,7 +104,7 @@ async function postSnapshot(options) {
 }
 
 module.exports = {
-  log,
+  logger,
   getInfo,
   isPercyEnabled,
   fetchPercyDOM,
