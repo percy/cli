@@ -1,5 +1,4 @@
 const logger = require('@percy/logger');
-const log = logger('util');
 
 // Maybe get the CLI API address from the environment
 const { PERCY_CLI_API = 'http://localhost:5338' } = process.env;
@@ -60,6 +59,7 @@ function toVersionTuple(s) {
 // Check if Percy is enabled using the healthcheck endpoint
 async function isPercyEnabled() {
   if (isPercyEnabled.result == null) {
+    let log = logger('util');
     let error;
 
     try {
