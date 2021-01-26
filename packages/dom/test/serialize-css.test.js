@@ -1,7 +1,5 @@
-import expect from 'expect';
-import cheerio from 'cheerio';
-import { withExample, withCSSOM } from './helpers';
-import serializeDOM from '../src';
+import { expect, withExample, withCSSOM, parseDOM } from 'test/helpers';
+import serializeDOM from '@percy/dom';
 
 describe('serializeCSSOM', () => {
   beforeEach(() => {
@@ -10,23 +8,23 @@ describe('serializeCSSOM', () => {
   });
 
   it('serializes CSSOM and does not mutate the orignal DOM', () => {
-    let $cssom = cheerio.load(serializeDOM())('[data-percy-cssom-serialized]');
+    let $cssom = parseDOM(serializeDOM())('[data-percy-cssom-serialized]');
 
     expect($cssom).toHaveLength(1);
-    expect($cssom.html()).toBe('.box { height: 500px; width: 500px; background-color: green; }');
+    expect($cssom[0].innerHTML).toBe('.box { height: 500px; width: 500px; background-color: green; }');
     expect(document.styleSheets[0]).toHaveProperty('ownerNode.innerText', '');
     expect(document.querySelectorAll('[data-percy-cssom-serialized]')).toHaveLength(0);
   });
 
   it('does not serialize CSSOM that exists outside of memory', () => {
-    let $css = cheerio.load(serializeDOM())('style');
+    let $css = parseDOM(serializeDOM())('style');
 
     expect($css).toHaveLength(3);
-    expect($css.eq(0).html()).toBe('.box { height: 500px; width: 500px; background-color: green; }');
-    expect($css.eq(0).attr('data-percy-cssom-serialized')).toBeDefined();
+    expect($css[0].innerHTML).toBe('.box { height: 500px; width: 500px; background-color: green; }');
+    expect($css[0].getAttribute('data-percy-cssom-serialized')).toBeDefined();
     // style #2 (index 1) is the original injected style tag for `withCSSOM`
-    expect($css.eq(2).html()).toBe('div { display: inline-block; }');
-    expect($css.eq(2).attr('data-percy-cssom-serialized')).toBeUndefined();
+    expect($css[2].innerHTML).toBe('div { display: inline-block; }');
+    expect($css[2].getAttribute('data-percy-cssom-serialized')).toBeUndefined();
   });
 
   it('does not break the CSSOM by adding new styles after serializng', () => {
@@ -50,15 +48,15 @@ describe('serializeCSSOM', () => {
       $style => ($style.innerText = '    ')
     );
 
-    let $ = cheerio.load(serializeDOM());
+    let $ = parseDOM(serializeDOM());
     let $cssom = $('[data-percy-cssom-serialized]');
 
     expect($cssom).toHaveLength(1);
-    expect($cssom.html()).toBe('.box { height: 500px; width: 500px; background-color: green; }');
+    expect($cssom[0].innerHTML).toBe('.box { height: 500px; width: 500px; background-color: green; }');
   });
 
   it('does not serialize the CSSOM when JS is enabled', () => {
-    let $ = cheerio.load(serializeDOM({ enableJavaScript: true }));
+    let $ = parseDOM(serializeDOM({ enableJavaScript: true }));
     expect(document.styleSheets[0]).toHaveProperty('ownerNode.innerText', '');
     expect($('[data-percy-cssom-serialized]')).toHaveLength(0);
   });

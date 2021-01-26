@@ -1,6 +1,5 @@
-import expect from 'expect';
-import { withExample, replaceDoctype } from './helpers';
-import serializeDOM from '../src';
+import { expect, withExample, replaceDoctype } from 'test/helpers';
+import serializeDOM from '@percy/dom';
 
 describe('serializeDOM', () => {
   it('always has a doctype', () => {
