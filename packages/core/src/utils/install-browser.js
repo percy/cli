@@ -34,15 +34,15 @@ export default async function install({
   extract = (i, o) => require('extract-zip')(i, { dir: o }),
   // default exectuable location within the extracted archive
   executable = {
-    linux: 'chrome',
-    win64: 'chrome.exe',
-    win32: 'chrome.exe',
-    darwin: path.join('Chromium.app', 'Contents', 'MacOS', 'Chromium')
+    linux: path.join('chrome-linux', 'chrome'),
+    win64: path.join('chrome-win', 'chrome.exe'),
+    win32: path.join('chrome-win32', 'chrome.exe'),
+    darwin: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')
   }[platform]
 } = {}) {
   let outdir = path.join(directory, revision);
   let dlpath = path.join(outdir, decodeURIComponent(url.split('/').pop()));
-  let exec = path.join(outdir, path.parse(dlpath).name, executable);
+  let exec = path.join(outdir, executable);
 
   if (!existsSync(exec)) {
     // always log this for progress bar context
