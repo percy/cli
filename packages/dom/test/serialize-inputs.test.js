@@ -1,8 +1,6 @@
-import expect from 'expect';
-import cheerio from 'cheerio';
 import I from 'interactor.js';
-import { withExample } from './helpers';
-import serializeDOM from '../src';
+import { expect, withExample, parseDOM } from 'test/helpers';
+import serializeDOM from '@percy/dom';
 
 describe('serializeInputs', () => {
   let $;
@@ -56,39 +54,39 @@ describe('serializeInputs', () => {
       .find('#multiselect').select([I.find.text('Shelby GT350'), I.find.text('NA Miata')])
       .find('#mailing').check();
 
-    $ = cheerio.load(serializeDOM());
+    $ = parseDOM(serializeDOM());
   });
 
   it('serializes checked checkboxes', () => {
-    expect($('#mailing').attr('checked')).toBe('checked');
+    expect($('#mailing')[0].checked).toBe(true);
   });
 
   it('leaves unchecked checkboxes alone', () => {
-    expect($('#nevercheckedradio').attr('checked')).toBeUndefined();
+    expect($('#nevercheckedradio')[0].checked).toBe(false);
   });
 
   it('serializes checked radio buttons', () => {
-    expect($('#radio').attr('checked')).toBe('checked');
+    expect($('#radio')[0].checked).toBe(true);
   });
 
   it('serializes textareas', () => {
-    expect($('#feedback').text()).toBe('This is my feedback... And it is not very helpful');
+    expect($('#feedback')[0].innerText).toBe('This is my feedback... And it is not very helpful');
   });
 
   it('serializes input elements', () => {
-    expect($('#name').attr('value')).toBe('Bob Boberson');
+    expect($('#name')[0].getAttribute('value')).toBe('Bob Boberson');
   });
 
   it('serializes single select elements', () => {
-    expect($('#singleSelect>:nth-child(1)').attr('selected')).toBeUndefined();
-    expect($('#singleSelect>:nth-child(2)').attr('selected')).toBeUndefined();
-    expect($('#singleSelect>:nth-child(3)').attr('selected')).toBe('selected');
+    expect($('#singleSelect>:nth-child(1)')[0].selected).toBe(false);
+    expect($('#singleSelect>:nth-child(2)')[0].selected).toBe(false);
+    expect($('#singleSelect>:nth-child(3)')[0].selected).toBe(true);
   });
 
   it('serializes multi-select elements', () => {
-    expect($('#multiselect>:nth-child(1)').attr('selected')).toBe('selected');
-    expect($('#multiselect>:nth-child(2)').attr('selected')).toBeUndefined();
-    expect($('#multiselect>:nth-child(3)').attr('selected')).toBe('selected');
+    expect($('#multiselect>:nth-child(1)')[0].selected).toBe(true);
+    expect($('#multiselect>:nth-child(2)')[0].selected).toBe(false);
+    expect($('#multiselect>:nth-child(3)')[0].selected).toBe(true);
   });
 
   it('does not mutate original select elements', () => {
@@ -103,7 +101,7 @@ describe('serializeInputs', () => {
   });
 
   it('serializes inputs with already present value attributes', () => {
-    expect($('#valueAttr').attr('value')).toBe('Replacement Value!');
+    expect($('#valueAttr')[0].getAttribute('value')).toBe('Replacement Value!');
   });
 
   it('adds a guid data-attribute to the original DOM', () => {
@@ -112,7 +110,7 @@ describe('serializeInputs', () => {
 
   it('adds matching guids to the orignal DOM and cloned DOM', () => {
     let og = document.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
-    expect(og).toEqual($('[data-percy-element-id]').attr('data-percy-element-id'));
+    expect(og).toEqual($('[data-percy-element-id]')[0].getAttribute('data-percy-element-id'));
   });
 
   it('does not override previous guids when reserializing', () => {
@@ -124,7 +122,7 @@ describe('serializeInputs', () => {
   });
 
   it('does not mutate values in origial DOM', () => {
-    expect($('#name').attr('value')).toBe('Bob Boberson');
+    expect($('#name')[0].getAttribute('value')).toBe('Bob Boberson');
     expect(document.querySelector('#name').getAttribute('value')).toBeNull();
   });
 });

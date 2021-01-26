@@ -1,7 +1,5 @@
-import expect from 'expect';
-import cheerio from 'cheerio';
-import { withExample } from './helpers';
-import serializeDOM from '../src';
+import { expect, withExample, parseDOM } from 'test/helpers';
+import serializeDOM from '@percy/dom';
 
 describe('serializeCanvas', () => {
   let $, src;
@@ -34,31 +32,31 @@ describe('serializeCanvas', () => {
     ctx.arc(90, 65, 5, 0, Math.PI * 2, true);
     ctx.stroke();
 
-    $ = cheerio.load(serializeDOM());
+    $ = parseDOM(serializeDOM());
     src = canvas.toDataURL();
   });
 
   it('serializes canvas elements', () => {
     let $canvas = $('#canvas');
-    expect($canvas[0].tagName).toBe('img');
-    expect($canvas.attr('src')).toBe(src);
-    expect($canvas.attr('width')).toBe('150px');
-    expect($canvas.attr('height')).toBe('150px');
-    expect($canvas.attr('style')).toBe('border: 5px solid black; max-width: 100%;');
-    expect($canvas.is('[data-percy-canvas-serialized]')).toBe(true);
+    expect($canvas[0].tagName).toBe('IMG');
+    expect($canvas[0].getAttribute('src')).toBe(src);
+    expect($canvas[0].getAttribute('width')).toBe('150px');
+    expect($canvas[0].getAttribute('height')).toBe('150px');
+    expect($canvas[0].getAttribute('style')).toBe('border: 5px solid black; max-width: 100%;');
+    expect($canvas[0].matches('[data-percy-canvas-serialized]')).toBe(true);
   });
 
   it('does not serialize canvas elements when JS is enabled', () => {
-    $ = cheerio.load(serializeDOM({ enableJavaScript: true }));
+    $ = parseDOM(serializeDOM({ enableJavaScript: true }));
 
     let $canvas = $('#canvas');
-    expect($canvas[0].tagName).toBe('canvas');
-    expect($canvas.is('[data-percy-canvas-serialized]')).toBe(false);
+    expect($canvas[0].tagName).toBe('CANVAS');
+    expect($canvas[0].matches('[data-percy-canvas-serialized]')).toBe(false);
   });
 
   it('does not serialize empty canvas elements', () => {
     let $canvas = $('#empty');
-    expect($canvas[0].tagName).toBe('canvas');
-    expect($canvas.is('[data-percy-canvas-serialized]')).toBe(false);
+    expect($canvas[0].tagName).toBe('CANVAS');
+    expect($canvas[0].matches('[data-percy-canvas-serialized]')).toBe(false);
   });
 });

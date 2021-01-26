@@ -1,9 +1,6 @@
-import { strict as assert } from 'assert';
-import expect from 'expect';
-import cheerio from 'cheerio';
 import I, { when } from 'interactor.js';
-import { withExample } from './helpers';
-import serializeDOM from '../src';
+import { assert, expect, withExample, parseDOM } from 'test/helpers';
+import serializeDOM from '@percy/dom';
 
 describe('serializeFrames', () => {
   let $;
@@ -42,7 +39,7 @@ describe('serializeFrames', () => {
     $frameInject.sandbox = '';
     document.getElementById('test').appendChild($frameInject);
 
-    $ = cheerio.load(serializeDOM());
+    $ = parseDOM(serializeDOM());
   });
 
   afterEach(() => {
@@ -50,15 +47,15 @@ describe('serializeFrames', () => {
   });
 
   it('serializes iframes created with JS', () => {
-    expect($('#frame-js').attr('src')).toBeUndefined();
-    expect($('#frame-js').attr('srcdoc')).toBe([
+    expect($('#frame-js')[0].getAttribute('src')).toBeUndefined();
+    expect($('#frame-js')[0].getAttribute('srcdoc')).toBe([
       '<!DOCTYPE html><html><head></head><body>',
       '<p>made with js src</p>',
       '</body></html>'
     ].join(''));
 
-    expect($('#frame-js-no-src').attr('src')).toBeUndefined();
-    expect($('#frame-js-no-src').attr('srcdoc')).toBe([
+    expect($('#frame-js-no-src')[0].getAttribute('src')).toBeUndefined();
+    expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toBe([
       '<!DOCTYPE html><html><head></head><body>',
       '<p>generated iframe</p>',
       '</body></html>'
@@ -66,7 +63,7 @@ describe('serializeFrames', () => {
   });
 
   it('serializes iframes that have been interacted with', () => {
-    expect($('#frame-input').attr('srcdoc')).toMatch(new RegExp([
+    expect($('#frame-input')[0].getAttribute('srcdoc')).toMatch(new RegExp([
       '^<!DOCTYPE html><html><head></head><body>',
       '<input data-percy-element-id=".+?" value="iframe with an input">',
       '</body></html>$'
@@ -74,17 +71,17 @@ describe('serializeFrames', () => {
   });
 
   it('does not serialize iframes with CORS', () => {
-    expect($('#frame-external').attr('src')).toBe('https://example.com');
-    expect($('#frame-external-fail').attr('src')).toBe('https://google.com');
-    expect($('#frame-external').attr('srcdoc')).toBeUndefined();
-    expect($('#frame-external-fail').attr('srcdoc')).toBeUndefined();
+    expect($('#frame-external')[0].getAttribute('src')).toBe('https://example.com');
+    expect($('#frame-external-fail')[0].getAttribute('src')).toBe('https://google.com');
+    expect($('#frame-external')[0].getAttribute('srcdoc')).toBeUndefined();
+    expect($('#frame-external-fail')[0].getAttribute('srcdoc')).toBeUndefined();
   });
 
   it('does not serialize iframes created by JS when JS is enabled', () => {
-    $ = cheerio.load(serializeDOM({ enableJavaScript: true }));
-    expect($('#frame-js').attr('src')).not.toBeUndefined();
-    expect($('#frame-js').attr('srcdoc')).toBeUndefined();
-    expect($('#frame-js-no-src').attr('srcdoc')).toBeUndefined();
+    $ = parseDOM(serializeDOM({ enableJavaScript: true }));
+    expect($('#frame-js')[0].getAttribute('src')).not.toBeUndefined();
+    expect($('#frame-js')[0].getAttribute('srcdoc')).toBeUndefined();
+    expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toBeUndefined();
   });
 
   it('removes iframes from the head element', () => {
