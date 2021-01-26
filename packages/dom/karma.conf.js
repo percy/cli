@@ -13,11 +13,15 @@ module.exports = config => {
     ],
 
     files: [
-      { pattern: 'test/index.js', watched: false }
+      { pattern: 'src/index.js', watched: false },
+      { pattern: 'test/helpers.js', watched: false },
+      { pattern: 'test/**/*.test.js', watched: false }
     ],
 
     preprocessors: {
-      'test/index.js': ['webpack']
+      'src/index.js': ['rollup'],
+      'test/helpers.js': ['rollupTestHelpers'],
+      'test/**/*.test.js': ['rollupTest']
     },
 
     mochaReporter: {
@@ -25,9 +29,8 @@ module.exports = config => {
     },
 
     coverageReporter: {
-      type: config.coverage === true ? 'text'
-        : (config.coverage || 'none'),
-      check: {
+      type: process.env.COVERAGE || 'none',
+      check: process.env.COVERAGE && {
         global: {
           statements: 100,
           lines: 100,
@@ -37,18 +40,57 @@ module.exports = config => {
       }
     },
 
-    webpack: {
-      mode: 'development',
-      module: require('./webpack.config').module,
-      externals: {
-        // referenced by jest expect
-        fs: '{}',
-        module: '{}'
+    rollupPreprocessor: {
+      plugins: [
+        require('@rollup/plugin-node-resolve').default(),
+        require('@rollup/plugin-commonjs')(),
+        require('@rollup/plugin-babel').default({
+          babelHelpers: 'inline'
+        })
+      ],
+      output: {
+        format: 'umd',
+        exports: 'named',
+        name: 'PercyDOM',
+        sourcemap: 'inline'
+      },
+      onwarn: message => {
+        if (/circular dependency/i.test(message)) return;
+        console.warn(message);
       }
     },
 
-    webpackMiddleware: {
-      stats: 'minimal'
+    customPreprocessors: {
+      rollupTestHelpers: {
+        base: 'rollup',
+        options: {
+          output: {
+            name: 'TestHelpers',
+            format: 'iife',
+            exports: 'named',
+            sourcemap: 'inline'
+          }
+        }
+      },
+
+      rollupTest: {
+        base: 'rollup',
+        options: {
+          external: [
+            '@percy/dom',
+            'test/helpers'
+          ],
+          output: {
+            name: 'Tests',
+            format: 'iife',
+            sourcemap: 'inline',
+            globals: {
+              '@percy/dom': 'PercyDOM',
+              'test/helpers': 'TestHelpers'
+            }
+          }
+        }
+      }
     },
 
     plugins: [
@@ -57,7 +99,7 @@ module.exports = config => {
       'karma-coverage',
       'karma-mocha',
       'karma-mocha-reporter',
-      'karma-webpack'
+      'karma-rollup-preprocessor'
     ]
   });
 };
