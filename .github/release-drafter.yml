@@ -15,7 +15,7 @@ categories:
       - bug
   - title: '🏗  Maintenance'
     labels:
-      - chore
+      - maintenance
       - dependencies
 change-title-escapes: '\<*_&#@'
 version-resolver:
