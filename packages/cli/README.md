@@ -72,6 +72,5 @@ $ yarn workspace @percy/core test
 1. Run `yarn bump-version` and choose an appropriate version.
 2. Commit the updated version with a matching commit (e.g. `🔖v1.0.0`).
 3. Push the commit to GitHub and wait for CI to pass.
-4. Run `yarn -s release-notes` to generate release notes since the last tag.
-5. Create a new GitHub release using the release notes.
-6. The GitHub release will trigger an [automated NPM release](https://github.com/percy/cli/actions?query=workflow%3ARelease).
+4. Edit and publish the GitHub release draft from the releases page.
+5. The GitHub release will trigger an [automated NPM release](https://github.com/percy/cli/actions?query=workflow%3ARelease).
