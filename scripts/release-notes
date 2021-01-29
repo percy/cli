@@ -1,8 +1,0 @@
-#!/bin/bash
-
-rev=${1:-"$(git describe --tags --abbrev=0)..@"}
-ver_reg="^(.+?\s)?(v\d+(\.\d+){2}(-.+\.\d+)?)\s*$"
-
-git log --pretty=format:"%h - %s" $rev \
-  | grep --extended --invert $ver_reg
-
