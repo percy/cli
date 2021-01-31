@@ -331,11 +331,17 @@ describe('Percy Capture', () => {
   });
 
   it('handles page crashes', async () => {
-    await percy.capture({
+    let capture = percy.capture({
       name: 'crash snapshot',
       url: 'http://localhost:8000',
-      execute: () => window.location.replace('chrome://crash')
+      execute: () => new Promise(r => setTimeout(r, 1000))
     });
+
+    // wait for page creation
+    await new Promise(r => setTimeout(r, 500));
+    let [[, page]] = percy.discoverer.browser.pages;
+    await page.send('Page.crash').catch(() => {});
+    await capture;
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
