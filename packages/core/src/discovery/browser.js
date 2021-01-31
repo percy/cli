@@ -10,7 +10,7 @@ import install from '../utils/install-browser';
 import Page from './page';
 
 export default class Browser extends EventEmitter {
-  log = logger('core:discovery:browser');
+  log = logger('core:browser');
 
   #pages = new Map();
   #callbacks = new Map();
@@ -250,7 +250,8 @@ export default class Browser extends EventEmitter {
        *   currently does not happen during asset discovery but it's here just in case */
       if (data.error) {
         callback.reject(Object.assign(callback.error, {
-          message: `Protocol error (${callback.method}): ${data.error.message} ${data.error.data}`
+          message: `Protocol error (${callback.method}): ${data.error.message}` +
+            ('data' in data.error ? `: ${data.error.data}` : '')
         }));
       } else {
         callback.resolve(data.result);

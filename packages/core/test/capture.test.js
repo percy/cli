@@ -271,7 +271,7 @@ describe('Percy Capture', () => {
     expect(logger.stderr).toEqual([
       '[percy] Encountered an error taking snapshot: invalid snapshot\n',
       '[percy] Error: Protocol error (Emulation.setDeviceMetricsOverride): ' +
-        'Invalid parameters Failed to deserialize params.width ' +
+        'Invalid parameters: Failed to deserialize params.width ' +
         '- BINDINGS: int32 value expected at position 50\n'
     ]);
   });
