@@ -12,11 +12,11 @@ const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 // additional allowed hostnames are defined. Captured resources are cached so future requests
 // resolve much quicker and snapshots can share cached resources.
 export default class PercyDiscoverer {
+  queue = null;
+  browser = null;
   log = logger('core:discovery');
 
-  #queue = null
-  #browser = null
-  #cache = new Map()
+  #cache = new Map();
 
   constructor({
     // asset discovery concurrency
@@ -31,8 +31,8 @@ export default class PercyDiscoverer {
     // browser launch options
     launchOptions
   }) {
-    this.#queue = new Queue(concurrency);
-    this.#browser = new Browser();
+    this.queue = new Queue(concurrency);
+    this.browser = new Browser();
 
     Object.assign(this, {
       allowedHostnames,
@@ -44,18 +44,18 @@ export default class PercyDiscoverer {
 
   // Installs the browser executable if necessary then launches and connects to a browser process.
   async launch() {
-    await this.#browser.launch(this.launchOptions);
+    await this.browser.launch(this.launchOptions);
   }
 
   // Returns true or false when the browser is connected.
   isConnected() {
-    return this.#browser.isConnected();
+    return this.browser.isConnected();
   }
 
   // Clears any unstarted discovery tasks and closes the browser.
   async close() {
-    this.#queue.clear();
-    await this.#browser.close();
+    this.queue.clear();
+    await this.browser.close();
   }
 
   // Returns a new browser page.
@@ -71,7 +71,7 @@ export default class PercyDiscoverer {
     width = 1280,
     meta
   }) {
-    let page = await this.#browser.page({ meta });
+    let page = await this.browser.page({ meta });
     page.network.timeout = this.networkIdleTimeout;
     page.network.authorization = authorization;
 
@@ -102,7 +102,7 @@ export default class PercyDiscoverer {
     assert(this.isConnected(), 'Browser not connected');
 
     // discover assets concurrently
-    return this.#queue.push(async () => {
+    return this.queue.push(async () => {
       this.log.debug(`Discovering resources @${width}px for ${rootUrl}`, { ...meta, url: rootUrl });
       let page;
 
