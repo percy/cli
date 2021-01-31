@@ -9,15 +9,20 @@ const ANSI_REG = new RegExp([
 class TestIO extends Writable {
   data = [];
 
-  constructor({ ansi } = {}) {
+  constructor({ ansi, elapsed } = {}) {
     super();
     this.ansi = ansi;
+    this.elapsed = elapsed;
   }
 
   _write(chunk, encoding, callback) {
-    // strip ansi and normalize line endings
+    // normalize line endings
     chunk = chunk.toString().replace('\r\n', '\n');
+    // strip ansi colors
     if (!this.ansi) chunk = chunk.replace(ANSI_REG, '');
+    // strip elapsed time
+    if (!this.elapsed) chunk = chunk.replace(/\s\S*?\(\d+ms\)\S*?\n$/, '\n');
+
     this.data.push(chunk);
     callback();
   }
@@ -45,9 +50,12 @@ logger.dump = function dump() {
     logger.format('--- DUMPING LOGS ---', 'testing', 'warn') + '\n'
   );
 
-  logger.instance.messages.forEach(({ debug, level, message }) => {
-    process.stderr.write(logger.format(message, debug, level) + '\n');
-  });
+  Array.from(logger.instance.messages)
+    .reduce((lastlog, { debug, level, message, timestamp }) => {
+      let elapsed = timestamp - (lastlog || timestamp);
+      process.stderr.write(logger.format(message, debug, level, elapsed) + '\n');
+      return timestamp;
+    });
 };
 
 module.exports = logger;

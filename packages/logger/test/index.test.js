@@ -138,6 +138,10 @@ describe('logger', () => {
 
     logger.loglevel('debug');
 
+    expect(logger.format('wat')).toEqual(
+      `[${colors.magenta('percy')}] wat`
+    );
+
     expect(logger.format('debugging', 'test')).toEqual(
       `[${colors.magenta('percy:test')}] debugging`
     );
@@ -236,6 +240,30 @@ describe('logger', () => {
 
       expect(helper.stderr).toEqual([
         `[${colors.magenta('percy:test')}] ${colors.red('ERROR')}\n`
+      ]);
+    });
+
+    it('logs elapsed time when loglevel is "debug"', async () => {
+      // it is hard to escape ansi colors with `stringMatching`, which is needed because the time
+      // between logs can vary by a few milliseconds
+      helper.mock({ elapsed: true });
+      logger.loglevel('debug');
+      log = logger('test');
+
+      log.info('Info log');
+      log.warn('Warn log');
+      log.error('Error log');
+      await new Promise(r => setTimeout(r, 100));
+      log.debug('Debug log');
+
+      expect(helper.stdout).toEqual([
+        expect.stringMatching('Info log \\(\\dms\\)\\n')
+      ]);
+
+      expect(helper.stderr).toEqual([
+        expect.stringMatching('Warn log \\(\\dms\\)\\n'),
+        expect.stringMatching('Error log \\(\\dms\\)\\n'),
+        expect.stringMatching('Debug log \\(10\\dms\\)\\n')
       ]);
     });
   });
