@@ -4,7 +4,7 @@
 // `percy#capture()` method's `execute` option.
 /* istanbul ignore next: no instrumenting injected code */
 export default function waitFor(predicate, timeoutOrOptions) {
-  let { poll = 10, timeout, ensure } =
+  let { poll = 10, timeout, idle } =
     Number.isInteger(timeoutOrOptions)
       ? { timeout: timeoutOrOptions }
       : (timeoutOrOptions || {});
@@ -15,8 +15,8 @@ export default function waitFor(predicate, timeoutOrOptions) {
         if (Date.now() - start >= timeout) {
           throw new Error(`Timeout of ${timeout}ms exceeded.`);
         } else if (predicate()) {
-          if (ensure && !done) {
-            setTimeout(check, ensure, start, true);
+          if (idle && !done) {
+            setTimeout(check, idle, start, true);
           } else {
             resolve();
           }
