@@ -9,11 +9,11 @@ export default class Page extends EventEmitter {
   #targetId = null;
   #frameId = null;
   #contextId = null;
-  closedReason = null;
 
   #callbacks = new Map();
   #lifecycle = new Set();
 
+  closedReason = null;
   log = logger('core:page');
 
   constructor(browser, { params }) {
@@ -70,14 +70,14 @@ export default class Page extends EventEmitter {
     waitForTimeout,
     waitForSelector
   } = {}) {
-    let handleNavigate = ({ frame }) => {
-      this.log.debug('Handle page navigation', { ...this.meta, frame });
+    let handleNavigate = event => {
       /* istanbul ignore next: sanity check */
-      if (this.#frameId === frame.id) handleNavigate.done = true;
+      if (this.#frameId === event.frame.id) handleNavigate.done = true;
     };
 
     try {
       this.once('Page.frameNavigated', handleNavigate);
+      this.log.debug(`Navigate to: ${url}`, this.meta);
 
       // trigger navigation and handle error responses
       let navigate = this.send('Page.navigate', { url })
@@ -98,6 +98,7 @@ export default class Page extends EventEmitter {
       });
     }
 
+    this.log.debug('Page navigated', this.meta);
     // wait for the network to idle
     await this.network.idle();
 
@@ -146,8 +147,6 @@ export default class Page extends EventEmitter {
       ) + '}, ...arguments)'
     ) + '}';
 
-    this.log.debug('Evaluate function', this.meta);
-
     // send the call function command
     let { result, exceptionDetails } = await this.send('Runtime.callFunctionOn', {
       functionDeclaration: fnbody,
@@ -192,7 +191,9 @@ export default class Page extends EventEmitter {
 
       if (data.error) {
         callback.reject(Object.assign(callback.error, {
-          message: `Protocol error (${callback.method}): ${data.error.message} ${data.error.data}`
+          message: `Protocol error (${callback.method}): ${data.error.message}` +
+            /* istanbul ignore next: doesn't always exist so don't print undefined */
+            ('data' in data.error ? `: ${data.error.data}` : '')
         }));
       } else {
         callback.resolve(data.result);
@@ -204,6 +205,7 @@ export default class Page extends EventEmitter {
   }
 
   _handleClose() {
+    this.log.debug('Page closing', this.meta);
     this.closedReason ||= 'Page closed.';
 
     // reject any pending callbacks
@@ -217,21 +219,22 @@ export default class Page extends EventEmitter {
     this.#browser = null;
   }
 
-  _handleLifecycleEvent = ({ frameId, loaderId, name }) => {
-    if (this.#frameId === frameId) {
-      if (name === 'init') this.#lifecycle.clear();
-      this.#lifecycle.add(name);
+  _handleLifecycleEvent = event => {
+    if (this.#frameId === event.frameId) {
+      if (event.name === 'init') this.#lifecycle.clear();
+      this.#lifecycle.add(event.name);
     }
   }
 
-  _handleExecutionContextCreated = ({ context }) => {
-    if (this.#frameId === context.auxData.frameId) {
-      this.#contextId = context.id;
+  _handleExecutionContextCreated = event => {
+    if (this.#frameId === event.context.auxData.frameId) {
+      this.#contextId = event.context.id;
     }
   }
 
-  _handleExecutionContextDestroyed = ({ executionContextId }) => {
-    if (this.#contextId === executionContextId) {
+  _handleExecutionContextDestroyed = event => {
+    /* istanbul ignore next: context cleared is usually called first */
+    if (this.#contextId === event.executionContextId) {
       this.#contextId = null;
     }
   }

@@ -10,11 +10,11 @@ import install from '../utils/install-browser';
 import Page from './page';
 
 export default class Browser extends EventEmitter {
-  log = logger('core:discovery:browser');
+  log = logger('core:browser');
+  pages = new Map();
+  closed = false;
 
-  #pages = new Map();
   #callbacks = new Map();
-  #closed = false;
   #lastid = 0;
 
   defaultArgs = [
@@ -96,8 +96,8 @@ export default class Browser extends EventEmitter {
   }
 
   async close() {
-    if (this.#closed) return;
-    this.#closed = true;
+    if (this.closed) return;
+    this.closed = true;
 
     // reject any pending callbacks
     for (let callback of this.#callbacks.values()) {
@@ -107,13 +107,13 @@ export default class Browser extends EventEmitter {
     }
 
     // trigger rejecting pending page callbacks
-    for (let page of this.#pages.values()) {
+    for (let page of this.pages.values()) {
       page._handleClose();
     }
 
     // clear callback and page references
     this.#callbacks.clear();
-    this.#pages.clear();
+    this.pages.clear();
 
     // no executable means the browser never launched
     /* istanbul ignore next: sanity */
@@ -154,7 +154,7 @@ export default class Browser extends EventEmitter {
     // create and attach to a new page target returning the resulting page instance
     let { targetId } = await this.send('Target.createTarget', { url: 'about:blank' });
     let { sessionId } = await this.send('Target.attachToTarget', { targetId, flatten: true });
-    return this.#pages.get(sessionId).init({ meta });
+    return this.pages.get(sessionId).init({ meta });
   }
 
   async send(method, params) {
@@ -180,10 +180,7 @@ export default class Browser extends EventEmitter {
   // stderr and resolves when it emits the devtools protocol address or rejects if the process
   // exits for any reason or if the address does not appear after the timeout.
   async address(timeout = 30000) {
-    /* istanbul ignore next: this is not called twice but might be in the future */
-    if (this._address) return this._address;
-
-    this._address = await new Promise((resolve, reject) => {
+    this._address ||= await new Promise((resolve, reject) => {
       let stderr = '';
 
       let handleData = chunk => {
@@ -229,17 +226,17 @@ export default class Browser extends EventEmitter {
 
     if (data.method === 'Target.attachedToTarget') {
       // create a new page reference when attached to a target
-      this.#pages.set(data.params.sessionId, new Page(this, data));
+      this.pages.set(data.params.sessionId, new Page(this, data));
     } else if (data.method === 'Target.detachedFromTarget') {
       // remove the old page reference when detached from a target
-      let page = this.#pages.get(data.params.sessionId);
-      this.#pages.delete(data.params.sessionId);
+      let page = this.pages.get(data.params.sessionId);
+      this.pages.delete(data.params.sessionId);
       page?._handleClose();
     }
 
     if (data.sessionId) {
       // message was for a specific page that sent it
-      let page = this.#pages.get(data.sessionId);
+      let page = this.pages.get(data.sessionId);
       page?._handleMessage(data);
     } else if (data.id && this.#callbacks.has(data.id)) {
       // resolve or reject a pending promise created with #send()
@@ -250,7 +247,8 @@ export default class Browser extends EventEmitter {
        *   currently does not happen during asset discovery but it's here just in case */
       if (data.error) {
         callback.reject(Object.assign(callback.error, {
-          message: `Protocol error (${callback.method}): ${data.error.message} ${data.error.data}`
+          message: `Protocol error (${callback.method}): ${data.error.message}` +
+            ('data' in data.error ? `: ${data.error.data}` : '')
         }));
       } else {
         callback.resolve(data.result);

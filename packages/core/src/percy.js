@@ -313,7 +313,7 @@ export default class Percy {
         // multiple snapshots can be captured on a single page
         for (let { name, execute } of snapshots) {
           if (execute) {
-            this.log.debug('Executing page JS', { ...meta, execute });
+            this.log.debug('Executing JavaScript', { ...meta, execute });
             // accept function bodies as strings
             if (typeof execute === 'string') execute = `async execute({ waitFor }) {\n${execute}\n}`;
             // execute the provided function

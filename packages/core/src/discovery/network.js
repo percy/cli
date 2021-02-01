@@ -1,3 +1,4 @@
+import logger from '@percy/logger';
 import waitFor from '../utils/wait-for';
 
 // The Interceptor class creates common handlers for dealing with intercepting asset requests
@@ -7,6 +8,8 @@ export default class Network {
   #requests = new Map();
   #intercepts = new Map();
   #authentications = new Set();
+
+  log = logger('core:network');
 
   constructor(page) {
     this.page = page;
@@ -31,6 +34,8 @@ export default class Network {
 
   // Resolves after the timeout when there are no more in-flight requests.
   async idle(timeout = this.timeout) {
+    this.log.debug(`Wait for ${timeout}ms idle`, this.page.meta);
+
     await waitFor(() => {
       if (this.page.closedReason) {
         throw new Error(`Network error: ${this.page.closedReason}`);

@@ -19,8 +19,13 @@ const platform = (
 export default async function install({
   // default discovery browser is chromium
   browser = 'Chromium',
-  // default chromium version is 78.0.3904.x
-  revision = platform === 'win64' ? /* istanbul ignore next */ '693951' : '693954',
+  // default chromium version is 87.0.4280.xx
+  revision = {
+    linux: '812847',
+    win64: '812845',
+    win32: '812822',
+    darwin: '812851'
+  }[platform],
   // default download directory is in @percy/core root
   directory = path.resolve(__dirname, '../../.local-chromium'),
   // default download url is dependent on platform and revision
