@@ -98,7 +98,9 @@ export default class PercyLogger {
     if (this.shouldLog(level, debug)) {
       let stdio = this[level === 'info' ? 'stdout' : 'stderr'];
       if (error && this.level !== 'debug') message = error.toString();
-      stdio.write(this.format(message, debug, error ? 'error' : level) + '\n');
+      let elapsed = timestamp - (this.lastlog || timestamp);
+      stdio.write(this.format(message, debug, error ? 'error' : level, elapsed) + '\n');
+      this.lastlog ||= timestamp;
     }
   }
 
@@ -111,12 +113,18 @@ export default class PercyLogger {
   }
 
   // Formats messages before they are logged to stdio
-  format(message, debug, level) {
+  format(message, debug, level, elapsed) {
     let label = 'percy';
+    let suffix = '';
 
-    // include debug info in the label
-    if (debug && this.level === 'debug') {
-      label += `:${debug}`;
+    if (this.level === 'debug') {
+      // include debug info in the label
+      if (debug) label += `:${debug}`;
+
+      // include elapsed time since last log
+      if (elapsed != null) {
+        suffix = ' ' + colors.grey(`(${elapsed}ms)`);
+      }
     }
 
     label = colors.magenta(label);
@@ -132,7 +140,7 @@ export default class PercyLogger {
       message = message.replace(URL_REGEXP, colors.blue('$&'));
     }
 
-    return `[${label}] ${message}`;
+    return `[${label}] ${message}${suffix}`;
   }
 
   // Query for a set of logs by filtering the in-memory store

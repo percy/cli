@@ -10,5 +10,6 @@ export default {
   red: str => colorize(31, str),
   yellow: str => colorize(33, str),
   blue: str => colorize(34, str),
-  magenta: str => colorize(35, str)
+  magenta: str => colorize(35, str),
+  grey: str => colorize(90, str)
 };
