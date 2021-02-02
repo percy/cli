@@ -12,7 +12,7 @@
     "lint": "eslint --ignore-path ../../.gitignore .",
     "postbuild": "oclif-dev manifest",
     "readme": "oclif-dev readme",
-    "test": "cross-env NODE_ENV=test mocha",
+    "test": "cross-env NODE_ENV=test mocha --recursive",
     "test:coverage": "nyc yarn test"
   },
   "publishConfig": {
