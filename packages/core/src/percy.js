@@ -2,7 +2,6 @@ import { promises as fs } from 'fs';
 import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
-import { schema } from './config';
 import Queue from './queue';
 import Discoverer from './discovery/discoverer';
 import createPercyServer from './server';
@@ -11,9 +10,6 @@ import assert from './utils/assert';
 import injectPercyCSS from './utils/percy-css';
 import { createRootResource, createLogResource } from './utils/resources';
 import { normalizeURL } from './utils/url';
-
-// Register core config options
-PercyConfig.addSchema(schema);
 
 // A Percy instance will create a new build when started, handle snapshot
 // creation, asset discovery, and resource uploads, and will finalize the build
