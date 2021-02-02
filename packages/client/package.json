@@ -7,6 +7,9 @@
     "dist",
     "test/helper.js"
   ],
+  "engines": {
+    "node": ">=12"
+  },
   "scripts": {
     "build": "babel --root-mode upward src --out-dir dist",
     "lint": "eslint --ignore-path ../../.gitignore .",

@@ -6,6 +6,9 @@
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=12"
+  },
   "scripts": {
     "build": "rollup --config",
     "lint": "eslint --ignore-path ../../.gitignore .",

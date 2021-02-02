@@ -7,6 +7,9 @@
     "index.js",
     "test/helper.js"
   ],
+  "engines": {
+    "node": ">=12"
+  },
   "scripts": {
     "lint": "eslint --ignore-path ../../.gitignore .",
     "test": "cross-env NODE_ENV=test mocha",
