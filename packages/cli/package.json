@@ -11,6 +11,9 @@
     "index.js",
     "oclif.manifest.json"
   ],
+  "engines": {
+    "node": ">=12"
+  },
   "scripts": {
     "lint": "eslint --ignore-path ../../.gitignore .",
     "postbuild": "oclif-dev manifest"

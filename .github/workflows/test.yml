@@ -8,15 +8,15 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v1
         with:
-          node-version: 10
+          node-version: 12
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
         run: echo "::set-output name=dir::$(yarn cache dir)"
       - uses: actions/cache@v2
         with:
           path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: v1/${{ runner.os }}/node-10/${{ hashFiles('**/yarn.lock') }}
-          restore-keys: v1/${{ runner.os }}/node-10/
+          key: v1/${{ runner.os }}/node-12/${{ hashFiles('**/yarn.lock') }}
+          restore-keys: v1/${{ runner.os }}/node-12/
       - run: yarn
       - run: yarn build
       - uses: actions/upload-artifact@v2
@@ -30,7 +30,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        node: [10]
+        node: [12]
         package:
           - '@percy/env'
           - '@percy/client'
