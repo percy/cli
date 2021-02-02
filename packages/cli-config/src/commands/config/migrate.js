@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import { isDirectorySync } from 'path-type';
 import Command, { flags } from '@oclif/command';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
@@ -43,7 +42,7 @@ export class Migrate extends Command {
     // load config using the explorer directly rather than the load method to
     // better control logs and prevent validation
     try {
-      let result = !input || isDirectorySync(input)
+      let result = !input || fs.statSync(input).isDirectory()
         ? PercyConfig.explorer.search(input)
         : PercyConfig.explorer.load(input);
 
