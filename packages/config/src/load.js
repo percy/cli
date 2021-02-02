@@ -1,6 +1,6 @@
 import { relative } from 'path';
+import { statSync } from 'fs';
 import { cosmiconfigSync } from 'cosmiconfig';
-import { isDirectorySync } from 'path-type';
 import logger from '@percy/logger';
 import getDefaults from './defaults';
 import migrate from './migrate';
@@ -49,7 +49,7 @@ export default function load({
   // load config or reload cached config
   if (path !== false && (!config || reload)) {
     try {
-      let result = !path || isDirectorySync(path)
+      let result = !path || statSync(path).isDirectory()
         ? explorer.search(path) : explorer.load(path);
 
       if (result && result.config) {
