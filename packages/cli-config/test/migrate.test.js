@@ -1,10 +1,18 @@
 import expect from 'expect';
+import PercyConfig from '@percy/config';
 import { logger, mockConfig, getMockConfig } from './helpers';
 import { Migrate } from '../src/commands/config/migrate';
 
 describe('percy config:migrate', () => {
   beforeEach(() => {
     mockConfig('.percy.yml', 'version: 1\n');
+    PercyConfig.addMigration((input, set) => {
+      if (input.migrate != null) set('migrated', input.migrate.replace('old', 'new'));
+    });
+  });
+
+  afterEach(() => {
+    PercyConfig.clearMigrations();
   });
 
   it('by default, renames the config before writing', async () => {
@@ -106,60 +114,17 @@ describe('percy config:migrate', () => {
     expect(getMockConfig('.percy.old.yml')).toBeUndefined();
   });
 
-  it('migrates v1 config', async () => {
+  it('runs registered migrations on the config', async () => {
     mockConfig('.percy.yml', [
       'version: 1',
-      'snapshot:',
-      '  widths: [1000]',
-      '  min-height: 1000',
-      '  enable-javascript: true',
-      '  percy-css: "iframe { display: none; }"',
-      'agent:',
-      '  asset-discovery:',
-      '    allowed-hostnames:',
-      '      - cdn.example.com',
-      '    request-headers:',
-      '      Authorization: Basic dXNlcm5hbWU6cGFzc3dvcmQ=',
-      '    network-idle-timeout: 500',
-      '    cache-responses: false',
-      '    page-pool-size-min: 10',
-      '    page-pool-size-max: 50',
-      'static-snapshots:',
-      '  path: _site/',
-      '  base-url: /blog/',
-      '  snapshot-files: "**/*.html"',
-      '  ignore-files: "**/*.htm"',
-      'image-snapshots:',
-      '  path: _images/',
-      '  files: "**/*.html"',
-      '  ignore: "**/*.htm"\n'
+      'migrate: old-value'
     ].join('\n'));
 
     await Migrate.run([]);
 
     expect(getMockConfig('.percy.yml')).toEqual([
       'version: 2',
-      'snapshot:',
-      '  widths:',
-      '    - 1000',
-      '  min-height: 1000',
-      '  enable-javascript: true',
-      '  percy-css: "iframe { display: none; }"',
-      '  request-headers:',
-      '    Authorization: Basic dXNlcm5hbWU6cGFzc3dvcmQ=',
-      'discovery:',
-      '  allowed-hostnames:',
-      '    - cdn.example.com',
-      '  network-idle-timeout: 500',
-      '  concurrency: 50',
-      '  disable-cache: true',
-      'upload:',
-      '  files: "**/*.html"',
-      '  ignore: "**/*.htm"',
-      'static:',
-      '  base-url: /blog/',
-      '  files: "**/*.html"',
-      '  ignore: "**/*.htm"\n'
-    ].join('\n'));
+      'migrated: new-value'
+    ].join('\n') + '\n');
   });
 });

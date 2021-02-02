@@ -23,6 +23,7 @@ describe('PercyConfig', () => {
   afterEach(() => {
     PercyConfig.cache.clear();
     PercyConfig.resetSchema();
+    PercyConfig.clearMigrations();
   });
 
   describe('.addSchema()', () => {
@@ -133,6 +134,30 @@ describe('PercyConfig', () => {
           path: ['test', 'value'],
           message: 'should be a string, received a number'
         }]
+      });
+    });
+  });
+
+  describe('.migrate()', () => {
+    beforeEach(() => {
+      PercyConfig.addMigration((input, set) => {
+        if (input.test != null) set('value', input.test);
+      });
+
+      PercyConfig.addMigration((input, set) => {
+        if (input.foo != null) set('foo.bar', input.foo);
+      });
+    });
+
+    it('runs registered migration functions', () => {
+      expect(PercyConfig.migrate({
+        version: 1,
+        test: 'testing',
+        foo: 'baz'
+      })).toEqual({
+        version: 2,
+        value: 'testing',
+        foo: { bar: 'baz' }
       });
     });
   });
@@ -336,7 +361,7 @@ describe('PercyConfig', () => {
       ]);
     });
 
-    it('logs with a missing version and uses default options', () => {
+    it('warns with a missing version and uses default options', () => {
       mockConfig('.no-version.yml', 'test:\n  value: no-version');
       logger.loglevel('debug');
 
@@ -349,12 +374,12 @@ describe('PercyConfig', () => {
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
         '[percy:config] Found config file: .no-version.yml\n',
-        '[percy:config] Ignoring config file - missing version\n'
+        '[percy:config] Ignoring config file - missing or invalid version\n'
       ]);
     });
 
-    it('logs with an invalid version and uses default options', () => {
-      mockConfig('.bad-version.yml', 'version: 1\ntest:\n  value: bad-version');
+    it('warns with an unsupported version and uses default options', () => {
+      mockConfig('.bad-version.yml', 'version: 3\ntest:\n  value: bad-version');
       logger.loglevel('debug');
 
       expect(PercyConfig.load({ path: '.bad-version.yml' }))
@@ -366,7 +391,37 @@ describe('PercyConfig', () => {
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
         '[percy:config] Found config file: .bad-version.yml\n',
-        '[percy:config] Ignoring config file - unsupported version\n'
+        '[percy:config] Ignoring config file - unsupported version "3"\n'
+      ]);
+    });
+
+    it('warns with an older version and uses migrated options', () => {
+      mockConfig('.old-version.yml', 'version: 1\nvalue: old-value');
+      logger.loglevel('debug');
+
+      PercyConfig.addMigration((input, set) => {
+        set('test.value', input.value.replace('old', 'new'));
+      });
+
+      expect(PercyConfig.load({ path: '.old-version.yml' }))
+        .toEqual({
+          version: 2,
+          test: { value: 'new-value' }
+        });
+
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
+        '[percy:config] Found config file: .old-version.yml\n',
+        '[percy:config] Found older config file version, please run ' +
+          '`percy config:migrate` to update to the latest version\n',
+        '[percy:config] Using config:\n' + [
+          '{',
+          '  version: 2,',
+          '  test: {',
+          '    value: \'new-value\'',
+          '  }',
+          '}\n'
+        ].join('\n')
       ]);
     });
 

@@ -3,9 +3,10 @@ import { cosmiconfigSync } from 'cosmiconfig';
 import { isDirectorySync } from 'path-type';
 import logger from '@percy/logger';
 import getDefaults from './defaults';
+import migrate from './migrate';
 import normalize from './normalize';
-import validate from './validate';
 import { inspect } from './stringify';
+import validate from './validate';
 
 // Loaded configuration file cache
 export const cache = new Map();
@@ -30,8 +31,8 @@ export const explorer = cosmiconfigSync('percy', {
 // unless `reload` is true in which the file will be reloaded and the cache
 // updated. Validation errors are logged as warnings and the config is returned
 // unless `bail` is true. Supports kebab-case and camelCase config options and
-// always returns camelCase options. Currently only supports version 2 config
-// files; missing versions or other versions are discarded.
+// always returns camelCase options. Will automatically convert older config
+// versions to the latest version while printing a warning.
 export default function load({
   path,
   overrides = {},
@@ -53,15 +54,21 @@ export default function load({
 
       if (result && result.config) {
         log[infoDebug](`Found config file: ${relative('', result.filepath)}`);
+        let version = parseInt(result.config.version, 10);
 
-        if (result.config.version !== 2) {
-          log.warn('Ignoring config file - ' + (
-            !result.config.version
-              ? 'missing version'
-              : 'unsupported version'
-          ));
+        if (Number.isNaN(version)) {
+          log.warn('Ignoring config file - missing or invalid version');
+        } else if (version > 2) {
+          log.warn(`Ignoring config file - unsupported version "${version}"`);
         } else {
-          config = result.config;
+          if (version < 2) {
+            log.warn('Found older config file version, please run ' + (
+              '`percy config:migrate` to update to the latest version'));
+            config = migrate(result.config);
+          } else {
+            config = result.config;
+          }
+
           cache.set(path, config);
         }
       } else {

@@ -1,5 +1,5 @@
 import expect from 'expect';
-import Queue from '../src/queue';
+import Queue from '../../src/queue';
 
 function task(timeout = 0, cb) {
   return async function t() {
@@ -11,7 +11,7 @@ function task(timeout = 0, cb) {
   };
 }
 
-describe('Tasks Queue', () => {
+describe('Unit / Tasks Queue', () => {
   let q;
 
   beforeEach(() => {

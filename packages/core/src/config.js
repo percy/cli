@@ -67,3 +67,28 @@ export const schema = {
     }
   }
 };
+
+// Migration function
+export function migration(input, set) {
+  /* eslint-disable curly */
+  if (input.version < 2) {
+    // previous snapshot options map 1:1
+    if (input.snapshot != null)
+      set('snapshot', input.snapshot);
+    // request-headers option moved
+    if (input.agent?.assetDiscovery?.requestHeaders != null)
+      set('snapshot.requestHeaders', input.agent.assetDiscovery.requestHeaders);
+    // allowed-hostnames moved
+    if (input.agent?.assetDiscovery?.allowedHostnames != null)
+      set('discovery.allowedHostnames', input.agent.assetDiscovery.allowedHostnames);
+    // network-idle-timeout moved
+    if (input.agent?.assetDiscovery?.networkIdleTimeout != null)
+      set('discovery.networkIdleTimeout', input.agent.assetDiscovery.networkIdleTimeout);
+    // page pooling was rewritten to be a concurrent task queue
+    if (input.agent?.assetDiscovery?.pagePoolSizeMax != null)
+      set('discovery.concurrency', input.agent.assetDiscovery.pagePoolSizeMax);
+    // cache-responses was renamed to match the CLI flag
+    if (input.agent?.assetDiscovery?.cacheResponses != null)
+      set('discovery.disableCache', !input.agent.assetDiscovery.cacheResponses);
+  }
+}
