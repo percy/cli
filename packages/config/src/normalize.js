@@ -7,10 +7,12 @@ const CAMELIZE_MAP = {
   javascript: 'JavaScript'
 };
 
-// Converts a kebab-cased string to camelCase.
+// Converts kebab-cased and snake_cased strings to camelCase.
+const KEBAB_SNAKE_REG = /(-|_)([^\1]+)/g;
+
 function camelize(str) {
-  return str.replace(/-([^-]+)/g, (_, w) => (
-    CAMELIZE_MAP[w] || (w[0].toUpperCase() + w.slice(1))
+  return str.replace(KEBAB_SNAKE_REG, (match, sep, word) => (
+    CAMELIZE_MAP[word] || (word[0].toUpperCase() + word.slice(1))
   ));
 }
 
