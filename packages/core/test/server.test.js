@@ -97,7 +97,7 @@ describe('Snapshot Server', () => {
     expect(percy.stop.calls).toHaveLength(1);
   });
 
-  it('has a /snapshot endpoint that calls #snapshot()', async () => {
+  it('has a /snapshot endpoint that calls #snapshot() with normalized options', async () => {
     await percy.start();
     percy.snapshot = async data => (
       percy.snapshot.calls = percy.snapshot.calls || []
@@ -105,13 +105,13 @@ describe('Snapshot Server', () => {
 
     let response = await fetch('http://localhost:1337/percy/snapshot', {
       method: 'post',
-      body: '{ "test": true }'
+      body: '{ "test-me": true, "me_too": true }'
     });
 
     expect(response.headers.get('x-percy-core-version')).toMatch(pkg.version);
     await expect(response.json()).resolves.toEqual({ success: true });
     expect(percy.snapshot.calls).toHaveLength(1);
-    expect(percy.snapshot.calls[0]).toEqual({ test: true });
+    expect(percy.snapshot.calls[0]).toEqual({ testMe: true, meToo: true });
   });
 
   it('returns a 500 error when an endpoint throws', async () => {

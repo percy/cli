@@ -24,8 +24,9 @@ function doctype(dom) {
 export default function serializeDOM(options) {
   let {
     dom = document,
-    enableJavaScript,
-    domTransformation
+    // allow snake_case or camelCase
+    enableJavaScript = options?.enable_javascript,
+    domTransformation = options?.dom_transformation
   } = options || {};
 
   prepareDOM(dom);
