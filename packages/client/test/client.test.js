@@ -59,11 +59,13 @@ describe('PercyClient', () => {
       client.addClientInfo('');
       client.addClientInfo('client-info');
       client.addClientInfo('client-info');
+      client.addClientInfo(['client-info', 'client-info']);
       client.addEnvironmentInfo(null);
       client.addEnvironmentInfo(undefined);
       client.addEnvironmentInfo('');
       client.addEnvironmentInfo('env-info');
       client.addEnvironmentInfo('env-info');
+      client.addEnvironmentInfo(['env-info', 'env-info']);
 
       expect(client.userAgent()).toMatch(
         /^Percy\/v1 @percy\/client\/\S+ client-info \(env-info; node\/v[\d.]+.*\)$/
