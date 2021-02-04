@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-snapshot",
-  "version": "1.0.0-beta.32",
+  "version": "1.0.0-beta.33",
   "license": "MIT",
   "main": "dist/index.js",
   "files": [
@@ -34,11 +34,11 @@
     }
   },
   "dependencies": {
-    "@percy/cli-command": "^1.0.0-beta.32",
-    "@percy/config": "^1.0.0-beta.32",
-    "@percy/core": "^1.0.0-beta.32",
-    "@percy/dom": "^1.0.0-beta.32",
-    "@percy/logger": "^1.0.0-beta.32",
+    "@percy/cli-command": "^1.0.0-beta.33",
+    "@percy/config": "^1.0.0-beta.33",
+    "@percy/core": "^1.0.0-beta.33",
+    "@percy/dom": "^1.0.0-beta.33",
+    "@percy/logger": "^1.0.0-beta.33",
     "globby": "^11.0.1",
     "serve-handler": "^6.1.3",
     "yaml": "^1.10.0"

@@ -1,7 +1,7 @@
 {
   "name": "@percy/cli-exec",
   "description": "capture and upload snapshots",
-  "version": "1.0.0-beta.32",
+  "version": "1.0.0-beta.33",
   "license": "MIT",
   "main": "dist/index.js",
   "files": [
@@ -37,9 +37,9 @@
     }
   },
   "dependencies": {
-    "@percy/cli-command": "^1.0.0-beta.32",
-    "@percy/core": "^1.0.0-beta.32",
-    "@percy/logger": "^1.0.0-beta.32",
+    "@percy/cli-command": "^1.0.0-beta.33",
+    "@percy/core": "^1.0.0-beta.33",
+    "@percy/logger": "^1.0.0-beta.33",
     "cross-spawn": "^7.0.3",
     "which": "^2.0.2"
   }
