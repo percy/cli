@@ -45,7 +45,7 @@ module.exports = config => {
         require('@rollup/plugin-node-resolve').default(),
         require('@rollup/plugin-commonjs')(),
         require('@rollup/plugin-babel').default({
-          babelHelpers: 'inline'
+          babelHelpers: 'bundled'
         })
       ],
       output: {
