@@ -27,8 +27,8 @@ export default class PercyClient {
       token,
       apiUrl,
       httpAgent: httpAgentFor(apiUrl),
-      clientInfo: [].concat(clientInfo),
-      environmentInfo: [].concat(environmentInfo),
+      clientInfo: new Set([].concat(clientInfo)),
+      environmentInfo: new Set([].concat(environmentInfo)),
       env: new PercyEnvironment(process.env),
       // build info is stored for reference
       build: { id: null, number: null, url: null }
@@ -37,25 +37,25 @@ export default class PercyClient {
 
   // Adds additional unique client info.
   addClientInfo(info) {
-    if (info && this.clientInfo.indexOf(info) === -1) {
-      this.clientInfo.push(info);
+    for (let i of [].concat(info)) {
+      if (i) this.clientInfo.add(i);
     }
   }
 
   // Adds additional unique environment info.
   addEnvironmentInfo(info) {
-    if (info && this.environmentInfo.indexOf(info) === -1) {
-      this.environmentInfo.push(info);
+    for (let i of [].concat(info)) {
+      if (i) this.environmentInfo.add(i);
     }
   }
 
   // Stringifies client and environment info.
   userAgent() {
     let client = [`Percy/${/\w+$/.exec(this.apiUrl)}`]
-      .concat(`${pkg.name}/${pkg.version}`, this.clientInfo)
+      .concat(`${pkg.name}/${pkg.version}`, ...this.clientInfo)
       .filter(Boolean).join(' ');
-    let environment = this.environmentInfo
-      .concat([`node/${process.version}`, this.env.info])
+    let environment = [...this.environmentInfo]
+      .concat(`node/${process.version}`, this.env.info)
       .filter(Boolean).join('; ');
     return `${client} (${environment})`;
   }
