@@ -81,7 +81,7 @@ export default function load({
   }
 
   // merge found config with overrides and validate
-  config = normalize(config, overrides);
+  config = normalize(config, { overrides });
   let validation = config && validate(config);
 
   if (validation && !validation.result) {

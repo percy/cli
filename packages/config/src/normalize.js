@@ -34,6 +34,9 @@ export function merge(target, source, options) {
 
 // Recursively reduces config objects and arrays to remove undefined and empty values and rename
 // kebab-case properties to camelCase. Optionally allows deep merging of override values
-export default function normalize(object, overrides) {
-  return merge(merge(undefined, object), overrides);
+export default function normalize(object, options) {
+  object = merge(undefined, object, options);
+  return options?.overrides
+    ? merge(object, options.overrides, options)
+    : object;
 }
