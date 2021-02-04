@@ -12,7 +12,7 @@ export default {
   },
   plugins: [
     resolve(),
-    babel({ babelHelpers: 'inline' })
+    babel({ babelHelpers: 'bundled' })
   ],
   onwarn: message => {
     if (/circular dependency/i.test(message)) return;
