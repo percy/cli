@@ -1,7 +1,8 @@
 import PercyConfig from '@percy/config';
-import { schema } from '@percy/core/dist/config';
+import { schema, migration } from '@percy/core/dist/config';
 
-// ensures the core schema is loaded
+// ensures the core schema and migration is loaded
 export default function() {
   PercyConfig.addSchema(schema);
+  PercyConfig.addMigration(migration);
 }
