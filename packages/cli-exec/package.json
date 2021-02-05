@@ -30,6 +30,9 @@
   "oclif": {
     "bin": "percy",
     "commands": "./dist/commands",
+    "hooks": {
+      "init": "./dist/hooks/init"
+    },
     "topics": {
       "exec": {
         "description": "capture and upload snapshots"

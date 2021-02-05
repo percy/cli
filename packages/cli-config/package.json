@@ -27,9 +27,6 @@
   "oclif": {
     "bin": "percy",
     "commands": "./dist/commands",
-    "hooks": {
-      "init": "./dist/hooks/init"
-    },
     "topics": {
       "config": {
         "description": "manage Percy config files"
@@ -40,7 +37,6 @@
     "@oclif/command": "^1.8.0",
     "@oclif/config": "^1.17.0",
     "@percy/config": "^1.0.0-beta.33",
-    "@percy/core": "^1.0.0-beta.33",
     "@percy/logger": "^1.0.0-beta.33"
   }
 }

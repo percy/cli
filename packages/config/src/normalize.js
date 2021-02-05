@@ -8,10 +8,10 @@ const CAMELIZE_MAP = {
 };
 
 // Converts kebab-cased and snake_cased strings to camelCase.
-const KEBAB_SNAKE_REG = /(-|_)([^\1]+)/g;
+const KEBAB_SNAKE_REG = /[-_]([^-_]+)/g;
 
 function camelize(str) {
-  return str.replace(KEBAB_SNAKE_REG, (match, sep, word) => (
+  return str.replace(KEBAB_SNAKE_REG, (match, word) => (
     CAMELIZE_MAP[word] || (word[0].toUpperCase() + word.slice(1))
   ));
 }

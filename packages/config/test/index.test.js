@@ -495,6 +495,31 @@ describe('PercyConfig', () => {
     });
   });
 
+  describe('.normalize()', () => {
+    it('removes empty values', () => {
+      expect(PercyConfig.normalize({
+        foo: 'bar',
+        arr: [{}, {}],
+        obj: { val: undefined },
+        nested: { arr: [undefined] }
+      })).toEqual({
+        foo: 'bar'
+      });
+    });
+
+    it('converts keys to camelCase', () => {
+      expect(PercyConfig.normalize({
+        'foo-bar': 'baz',
+        foo: { bar_baz: 'qux' },
+        'foo_bar-baz': 'qux'
+      })).toEqual({
+        fooBar: 'baz',
+        foo: { barBaz: 'qux' },
+        fooBarBaz: 'qux'
+      });
+    });
+  });
+
   describe('.stringify()', () => {
     it('formats the default config', () => {
       expect(PercyConfig.stringify('json')).toBe([
