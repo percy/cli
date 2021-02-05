@@ -71,6 +71,13 @@ export class Migrate extends Command {
     this.log.info('Migrating config file...');
     let format = path.extname(output).replace(/^./, '') || 'yaml';
     let migrated = PercyConfig.migrate(config);
+
+    // prefer kebab-case for yaml
+    if (/^ya?ml$/.test(format)) {
+      migrated = PercyConfig.normalize(migrated, { kebab: true });
+    }
+
+    // stringify to the desired format
     let body = PercyConfig.stringify(format, migrated);
 
     // update the package.json entry via string replacement
