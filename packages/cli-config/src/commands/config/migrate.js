@@ -80,22 +80,21 @@ export class Migrate extends Command {
     // stringify to the desired format
     let body = PercyConfig.stringify(format, migrated);
 
-    // update the package.json entry via string replacement
-    if (!dry && path.basename(output) === 'package.json') {
-      fs.writeFileSync(output, fs.readFileSync(output).replace(
-        /(\s+)("percy":\s*){.*\1}/s,
-        `$1$2${body.replace(/\n/g, '$$1')}`
-      ));
-    // write to output
-    } else if (!dry) {
+    if (!dry) {
+      let content = body;
+
+      // update the package.json entry by requiring it and modifying it
+      if (path.basename(output) === 'package.json') {
+        let pkg = JSON.parse(fs.readFileSync(output));
+        content = PercyConfig.stringify(format, { ...pkg, percy: migrated });
       // rename input if it is the output
-      if (input === output) {
-        let ext = path.extname(input);
-        let old = input.replace(ext, `.old${ext}`);
+      } else if (input === output) {
+        let old = input.replace(path.extname(input), '.old$&');
         fs.renameSync(input, old);
       }
 
-      fs.writeFileSync(output, body);
+      // write to output
+      fs.writeFileSync(output, content);
     }
 
     this.log.info('Config file migrated!');
