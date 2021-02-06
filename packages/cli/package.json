@@ -29,13 +29,11 @@
       "@percy/cli-build",
       "@percy/cli-snapshot",
       "@percy/cli-upload",
-      "@oclif/plugin-help",
-      "@oclif/plugin-plugins"
+      "@oclif/plugin-help"
     ]
   },
   "dependencies": {
     "@oclif/plugin-help": "^3.2.0",
-    "@oclif/plugin-plugins": "^1.9.0",
     "@percy/cli-build": "^1.0.0-beta.34",
     "@percy/cli-config": "^1.0.0-beta.34",
     "@percy/cli-exec": "^1.0.0-beta.34",
