@@ -548,7 +548,7 @@ describe('PercyConfig', () => {
         '  "test": {',
         '    "value": "foo"',
         '  }',
-        '}'
+        '}\n'
       ].join('\n'));
     });
 
@@ -576,7 +576,7 @@ describe('PercyConfig', () => {
         '  "foo": {',
         '    "bar": "baz"',
         '  }',
-        '}'
+        '}\n'
       ].join('\n'));
     });
 
@@ -588,7 +588,7 @@ describe('PercyConfig', () => {
         '  foo: {',
         '    bar: \'baz\'',
         '  }',
-        '}'
+        '}\n'
       ].join('\n'));
     });
 

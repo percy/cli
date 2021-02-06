@@ -48,7 +48,7 @@ describe('percy config:migrate', () => {
   });
 
   it('works with package.json configs', async () => {
-    let json = o => JSON.stringify(o, null, 2);
+    let json = o => JSON.stringify(o, null, 2) + '\n';
 
     let pkg = {
       name: 'some-package',
@@ -72,7 +72,7 @@ describe('percy config:migrate', () => {
   it('can convert between config types', async () => {
     await Migrate.run(['.percy.yml', '.percy.js']);
     expect(getMockConfig('.percy.js'))
-      .toEqual('module.exports = {\n  version: 2\n}');
+      .toEqual('module.exports = {\n  version: 2\n}\n');
   });
 
   it('errors and exits when a config cannot be found', async () => {
