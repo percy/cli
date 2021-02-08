@@ -35,6 +35,7 @@ jobs:
           - '@percy/env'
           - '@percy/client'
           - '@percy/dom'
+          - '@percy/logger'
           - '@percy/config'
           - '@percy/core'
           - '@percy/cli-command'
