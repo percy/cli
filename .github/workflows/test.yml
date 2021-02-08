@@ -38,6 +38,7 @@ jobs:
           - '@percy/logger'
           - '@percy/config'
           - '@percy/core'
+          - '@percy/cli'
           - '@percy/cli-command'
           - '@percy/cli-exec'
           - '@percy/cli-snapshot'
