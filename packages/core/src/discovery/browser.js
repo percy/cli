@@ -47,7 +47,7 @@ export default class Browser extends EventEmitter {
   ];
 
   async launch({
-    executable,
+    executable = process.env.PERCY_BROWSER_EXECUTABLE,
     headless = true,
     args: uargs = [],
     timeout
