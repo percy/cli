@@ -15,9 +15,9 @@ export default function stringify(format, config = getDefaults()) {
     case 'yaml':
       return YAML.stringify(config);
     case 'json':
-      return JSON.stringify(config, null, 2);
+      return JSON.stringify(config, null, 2) + '\n';
     case 'js':
-      return `module.exports = ${inspect(config)}`;
+      return `module.exports = ${inspect(config)}\n`;
     default:
       throw new Error(`Unsupported format: ${format}`);
   }
