@@ -1,6 +1,6 @@
 {
   "name": "@percy/client",
-  "version": "1.0.0-beta.34",
+  "version": "1.0.0-beta.35",
   "license": "MIT",
   "main": "dist/index.js",
   "files": [
@@ -26,6 +26,6 @@
     "mock-require": "^3.0.3"
   },
   "dependencies": {
-    "@percy/env": "^1.0.0-beta.34"
+    "@percy/env": "^1.0.0-beta.35"
   }
 }
