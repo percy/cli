@@ -24,12 +24,14 @@ describe('percy exec:start', () => {
     ).resolves.toBeDefined();
 
     process.emit('SIGTERM');
-    // wait for event to be handled
-    await new Promise(r => setTimeout(r, 500));
 
-    await expect(
-      fetch('http://localhost:5338/percy/healthcheck', { timeout: 10 })
-    ).rejects.toThrow();
+    // check a few times rather than wait on a timeout to be deterministic
+    await expect(function check(i = 0) {
+      return fetch('http://localhost:5338/percy/healthcheck', { timeout: 10 })
+        .then(r => i >= 10 ? r : new Promise((res, rej) => {
+          setTimeout(() => check(i++).then(res, rej), 100);
+        }));
+    }()).rejects.toThrow();
   });
 
   it('logs an error when percy is already running', async () => {
