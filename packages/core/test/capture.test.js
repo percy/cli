@@ -306,8 +306,8 @@ describe('Percy Capture', () => {
     let accessed;
 
     server.reply('/img.png', () => new Promise(resolve => {
+      setTimeout(() => (accessed = true), 100);
       setTimeout(resolve, 500, [500, 'text/plain', 'Server Error']);
-      accessed = true;
     }));
 
     let capture = percy.capture({
