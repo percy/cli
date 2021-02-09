@@ -11,7 +11,8 @@ export function pluginMocker() {
     }
 
     for (let [name, plugin] of Object.entries(packages)) {
-      let dir = path.resolve(__dirname, name.startsWith('@percy') ? '../..' : '../../..');
+      let dir = path.resolve(__dirname, '../node_modules');
+      if (name.startsWith('@percy')) dir = path.resolve(dir, '@percy');
       let dirname = name.replace('@percy', '');
 
       mock.dir[dir].push(dirname);
@@ -27,8 +28,8 @@ export function pluginMocker() {
   };
 
   mock.dir = {
-    [path.resolve(__dirname, '../..')]: [],
-    [path.resolve(__dirname, '../../..')]: []
+    [path.resolve(__dirname, '../node_modules/@percy')]: [],
+    [path.resolve(__dirname, '../node_modules')]: []
   };
 
   mockRequire(pkgPath, mock.pkg);
