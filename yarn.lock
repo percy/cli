@@ -5161,7 +5161,7 @@ inquirer@^6.2.0:
     strip-ansi "^5.1.0"
     through "^2.3.6"
 
-interactor.js@^2.0.0-beta.8:
+interactor.js@^2.0.0-beta.10:
   version "2.0.0-beta.10"
   resolved "https://registry.yarnpkg.com/interactor.js/-/interactor.js-2.0.0-beta.10.tgz#f009c769d535bfe78794caf3d85b6c46675b9b18"
   integrity sha512-PI6bW6spipafmdT0BdodS90wDIeFSK4OL/0WK79Vb3z7a0GYsQyZSgIIH11zWqofe0CNpxIrdj6pbG/EpQ8+Tw==
