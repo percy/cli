@@ -276,7 +276,33 @@ describe('Percy Capture', () => {
     ]);
   });
 
-  it('handles the page or browser closing early', async () => {
+  it('handles the browser closing early', async () => {
+    let created;
+
+    let page = percy.discoverer.page;
+    percy.discoverer.page = function() {
+      created = true;
+      return page.apply(this, arguments);
+    };
+
+    let capture = percy.capture({
+      name: 'test snapshot',
+      url: 'http://localhost:8000'
+    });
+
+    // wait until a page is requested
+    await waitFor(() => created);
+    percy.discoverer.close();
+    await capture;
+
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
+      expect.stringMatching('Encountered an error'),
+      expect.stringMatching('Protocol error \\(Target\\.createTarget\\): Browser closed')
+    ]);
+  });
+
+  it('handles the page closing early', async () => {
     let accessed = 0;
 
     testDOM += '<link rel="stylesheet" href="/style.css"/>';
@@ -306,8 +332,8 @@ describe('Percy Capture', () => {
     let accessed;
 
     server.reply('/img.png', () => new Promise(resolve => {
+      setTimeout(() => (accessed = true), 100);
       setTimeout(resolve, 500, [500, 'text/plain', 'Server Error']);
-      accessed = true;
     }));
 
     let capture = percy.capture({

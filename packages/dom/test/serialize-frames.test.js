@@ -5,8 +5,16 @@ import serializeDOM from '@percy/dom';
 describe('serializeFrames', () => {
   let $;
 
+  const getFrame = id => when(() => {
+    let $frame = document.getElementById(id);
+    let accessible = !!$frame.contentDocument;
+    let loaded = accessible && $frame.contentWindow.performance.timing.loadEventEnd;
+    assert(!accessible || loaded, `#${id} did not load in time`, 5000);
+    return $frame;
+  });
+
   beforeEach(async function() {
-    this.timeout(5000);
+    this.timeout(0); // frames may take a bit to load
 
     withExample(`
       <iframe id="frame-external" src="https://example.com"></iframe>
@@ -18,26 +26,24 @@ describe('serializeFrames', () => {
       <iframe id="frame-js-no-src"></iframe>
     `);
 
-    let $frameInput = document.getElementById('frame-input');
-    await when(() => assert($frameInput.contentWindow.performance.timing.loadEventEnd, '#frame-input did not load in time'));
+    let $frameInput = await getFrame('frame-input');
     await I.type(() => $frameInput.contentDocument.querySelector('input'), 'iframe with an input');
 
-    let $frameJS = document.getElementById('frame-js-no-src');
+    let $frameJS = await getFrame('frame-js-no-src');
     $frameJS.contentDocument.body.innerHTML = '<p>generated iframe</p>';
 
     let $frameHead = document.createElement('iframe');
     $frameHead.id = 'frame-head';
     document.head.appendChild($frameHead);
 
-    // ensure external frame has loaded for coverage
-    let $frameExt = document.getElementById('frame-external');
-    await when(() => assert(!$frameExt.contentDocument, '#frame-external did not load in time'), 3000);
-
     let $frameInject = document.createElement('iframe');
     $frameInject.id = 'frame-inject';
     $frameInject.src = 'javascript:false';
     $frameInject.sandbox = '';
     document.getElementById('test').appendChild($frameInject);
+
+    // ensure external frame has loaded for coverage
+    await getFrame('frame-external');
 
     $ = parseDOM(serializeDOM());
   });
