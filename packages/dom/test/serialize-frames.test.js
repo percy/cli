@@ -9,9 +9,9 @@ describe('serializeFrames', () => {
     let $frame = document.getElementById(id);
     let accessible = !!$frame.contentDocument;
     let loaded = accessible && $frame.contentWindow.performance.timing.loadEventEnd;
-    assert(!accessible || loaded, `#${id} did not load in time`, 5000);
+    assert(!accessible || loaded, `#${id} did not load in time`);
     return $frame;
-  });
+  }, 5000);
 
   beforeEach(async function() {
     this.timeout(0); // frames may take a bit to load
