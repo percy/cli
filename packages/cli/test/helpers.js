@@ -4,7 +4,7 @@ import mockRequire from 'mock-require';
 export function pluginMocker() {
   let pkgPath = path.resolve(__dirname, '../package.json');
 
-  let mock = ({ plugins, packages }) => {
+  let mock = ({ plugins, packages = {} }) => {
     for (let [name, dep] of Object.entries(plugins)) {
       if (dep) mock.pkg.dependencies[name] = true;
       mock.pkg.oclif.plugins.push(name);
@@ -15,21 +15,17 @@ export function pluginMocker() {
       if (name.startsWith('@percy')) dir = path.resolve(dir, '@percy');
       let dirname = name.replace('@percy', '');
 
-      mock.dir[dir].push(dirname);
+      (mock.dir[dir] ||= []).push(dirname);
       mockRequire(`${dir}/${dirname}/package.json`, plugin ? (
         { name, oclif: { bin: 'percy' } }
       ) : { name });
     }
   };
 
+  mock.dir = {};
   mock.pkg = {
     oclif: { plugins: [] },
     dependencies: {}
-  };
-
-  mock.dir = {
-    [path.resolve(__dirname, '../node_modules/@percy')]: [],
-    [path.resolve(__dirname, '../node_modules')]: []
   };
 
   mockRequire(pkgPath, mock.pkg);
@@ -37,7 +33,10 @@ export function pluginMocker() {
     ...require('fs'),
 
     promises: {
-      readdir: async dir => mock.dir[dir],
+      readdir: async dir => {
+        if (mock.dir[dir]) return mock.dir[dir];
+        throw new Error('ENOENT');
+      },
       writeFile: async (path, contents) => {
         if (path === pkgPath) {
           mock.pkg = JSON.parse(contents);
