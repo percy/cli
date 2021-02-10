@@ -172,27 +172,6 @@ describe('Percy', () => {
       await expect(Percy.start({ token: 'PERCY_TOKEN' })).rejects
         .toThrow('Percy is already running or the port is in use');
     });
-
-    it('maybe downloads the browser for asset discovery', async function() {
-      let local = require('path').join(__dirname, '../.local-chromium');
-      let { existsSync } = require('fs');
-
-      this.retries(5); // this flakes on windows due to its non-atomic fs functions
-      require('rimraf').sync(local);
-      expect(existsSync(local)).toBe(false);
-      this.retries(0);
-
-      // the install script will always log
-      percy.loglevel('silent');
-
-      this.timeout(0); // this might take a minute to download
-      await percy.start();
-      expect(existsSync(local)).toBe(true);
-
-      expect(logger.stderr).toEqual([]);
-      expect(logger.stdout[0]).toEqual('[percy] Chromium not found, downloading...\n');
-      expect(logger.stdout[logger.stdout.length - 1]).toEqual('[percy] Successfully downloaded Chromium\n');
-    });
   });
 
   describe('#stop()', () => {
