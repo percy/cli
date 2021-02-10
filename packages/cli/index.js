@@ -23,7 +23,7 @@ function findPlugins(dir, pattern, registered) {
     }
 
     return plugins;
-  }, []));
+  }, []), () => []);
 }
 
 // automatically register/unregister plugins by altering the CLI's package.json within node_modules

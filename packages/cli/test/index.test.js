@@ -77,4 +77,19 @@ describe('Plugin auto-registration', () => {
       '@percy/cli-other'
     ]);
   });
+
+  it('ignores missing node_modules directory', async () => {
+    // not mocking packages will not create mock directories
+    mock({
+      plugins: {
+        '@percy/cli-exec': true
+      }
+    });
+
+    await run();
+
+    expect(mock.pkg.oclif.plugins).toEqual([
+      '@percy/cli-exec'
+    ]);
+  });
 });
