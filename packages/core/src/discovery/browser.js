@@ -116,8 +116,9 @@ export default class Browser extends EventEmitter {
     this.pages.clear();
 
     // no executable means the browser never launched
+    // an exit code means the browser has already closed
     /* istanbul ignore next: sanity */
-    if (!this.executable) return;
+    if (!this.executable || this.process.exitCode) return;
 
     // attempt to close the browser gracefully
     let closed = new Promise(resolve => {
@@ -194,8 +195,7 @@ export default class Browser extends EventEmitter {
       let handleClose = () => handleError();
       let handleError = error => {
         cleanup(() => reject(new Error(
-          `Failed to launch browser. ${error?.message ?? ''}` +
-            '\n', stderr, '\n\n'
+          `Failed to launch browser. ${error?.message ?? ''}\n${stderr}'\n\n`
         )));
       };
 
