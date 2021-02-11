@@ -1,7 +1,7 @@
 import os from 'os';
 import path from 'path';
 import { promises as fs, existsSync } from 'fs';
-import { spawn } from 'child_process';
+import spawn from 'cross-spawn';
 import EventEmitter from 'events';
 import WebSocket from 'ws';
 import rimraf from 'rimraf';
