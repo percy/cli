@@ -32,13 +32,13 @@ describe('percy exec', () => {
   });
 
   it('starts and stops the percy process around the command', async () => {
-    await Exec.run(['--', 'sleep', '0.1']);
+    await Exec.run(['--', 'node', '--eval', '']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!\n',
       '[percy] Created build #1: https://percy.io/test/test/123\n',
-      '[percy] Running "sleep 0.1"\n',
+      '[percy] Running "node --eval "\n',
       '[percy] Stopping percy...\n',
       '[percy] Finalized build #1: https://percy.io/test/test/123\n',
       '[percy] Done!\n'
@@ -47,13 +47,13 @@ describe('percy exec', () => {
 
   it('sets the parallel total when the --parallel flag is provided', async () => {
     expect(process.env.PERCY_PARALLEL_TOTAL).toBeUndefined();
-    await Exec.run(['--parallel', '--', 'sleep', '0.1']);
+    await Exec.run(['--parallel', '--', 'node', '--eval', '']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!\n',
       '[percy] Created build #1: https://percy.io/test/test/123\n',
-      '[percy] Running "sleep 0.1"\n',
+      '[percy] Running "node --eval "\n',
       '[percy] Stopping percy...\n',
       '[percy] Finalized build #1: https://percy.io/test/test/123\n',
       '[percy] Done!\n'
@@ -64,7 +64,7 @@ describe('percy exec', () => {
 
   it('runs the command even when percy is disabled', async () => {
     process.env.PERCY_ENABLE = '0';
-    await Exec.run(['--', 'sleep', '0.1']);
+    await Exec.run(['--', 'node', '--eval', '']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([]);
@@ -72,24 +72,24 @@ describe('percy exec', () => {
 
   it('runs the command even when PERCY_TOKEN is missing', async () => {
     delete process.env.PERCY_TOKEN;
-    await Exec.run(['--', 'sleep', '0.1']);
+    await Exec.run(['--', 'node', '--eval', '']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Skipping visual tests - Missing Percy token\n',
-      '[percy] Running "sleep 0.1"\n'
+      '[percy] Running "node --eval "\n'
     ]);
   });
 
   it('forwards the command status', async () => {
-    await expect(Exec.run(['--', 'bash', '-c', 'exit 3']))
+    await expect(Exec.run(['--', 'node', '--eval', 'process.exit(3)']))
       .rejects.toThrow('EEXIT: 3');
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!\n',
       '[percy] Created build #1: https://percy.io/test/test/123\n',
-      '[percy] Running "bash -c exit 3"\n',
+      '[percy] Running "node --eval process.exit(3)"\n',
       '[percy] Stopping percy...\n',
       '[percy] Finalized build #1: https://percy.io/test/test/123\n',
       '[percy] Done!\n'
