@@ -72,9 +72,14 @@ export default class Browser extends EventEmitter {
     for (let a of uargs) if (!args.includes(a)) args.push(a);
 
     // spawn the browser process detached in its own group and session
-    this.process = spawn(this.executable, args, { detached: true });
+    this.process = spawn(this.executable, args, {
+      detached: process.platform !== 'win32'
+    });
+
     // connect a websocket to the devtools address
-    this.ws = new WebSocket(await this.address(timeout), { perMessageDeflate: false });
+    this.ws = new WebSocket(await this.address(timeout), {
+      perMessageDeflate: false
+    });
 
     // wait until the websocket has connected before continuing
     await new Promise(resolve => this.ws.once('open', resolve));
