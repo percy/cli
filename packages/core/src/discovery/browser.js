@@ -120,39 +120,46 @@ export default class Browser extends EventEmitter {
     this.#callbacks.clear();
     this.pages.clear();
 
-    // no executable means the browser never launched
-    // an exit code means the browser has already closed
-    /* istanbul ignore next: sanity */
-    if (!this.executable || this.process.exitCode) return;
-
-    // attempt to close the browser gracefully
+    // resolves when the browser has closed
     let closed = new Promise(resolve => {
-      this.process.on('exit', resolve);
+      /* istanbul ignore next: race condition paranoia */
+      if (!this.process || this.process.exitCode) resolve();
+      else this.process.on('exit', resolve);
     });
 
-    /* istanbul ignore next:
-     *   difficult to test failure here without mocking private properties */
-    await this.send('Browser.close').catch(() => {
-      // force close if needed and able to
+    // force close if needed and able to
+    let kill = () => {
+      /* istanbul ignore next:
+       *   difficult to test failure here without mocking private properties */
       if (this.process?.pid && !this.process.killed) {
         try { this.process.kill('SIGKILL'); } catch (error) {
           throw new Error(`Unable to close the browser: ${error.stack}`);
         }
       }
-    });
+    };
 
-    // attempt to clean up the profile directory after closing
+    /* istanbul ignore else:
+     *   difficult to test failure here without mocking private properties */
+    if (this.profile) kill();
+    else this.send('Browser.close').catch(() => kill());
+
+    // after closing, attempt to clean up the profile directory
     await closed.then(() => new Promise(resolve => {
-      rimraf(this.profile, error => {
-        /* istanbul ignore next:
-         *   this might happen on some systems but ultimately it is a temp file */
-        if (error) {
-          this.log.debug('Could not clean up temporary browser profile directory.');
-          this.log.debug(error);
-        }
+      /* istanbul ignore else: sanity */
+      if (this.profile) {
+        rimraf(this.profile, error => {
+          /* istanbul ignore next:
+           *   this might happen on some systems but ultimately it is a temp file */
+          if (error) {
+            this.log.debug('Could not clean up temporary browser profile directory.');
+            this.log.debug(error);
+          }
 
+          resolve();
+        });
+      } else {
         resolve();
-      });
+      }
     }));
   }
 
@@ -164,6 +171,8 @@ export default class Browser extends EventEmitter {
   }
 
   async send(method, params) {
+    /* istanbul ignore next:
+     *   difficult to test failure here without mocking private properties */
     if (!this.isConnected()) throw new Error('Browser not connected');
 
     // every command needs a unique id
