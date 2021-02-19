@@ -113,7 +113,8 @@ export default function createPercyServer(percy) {
       .readFile(require.resolve('@percy/dom'), 'utf-8')
       .then(content => {
         let wrapper = '(window.PercyAgent = class PercyAgent { snapshot(n, o) { return PercyDOM.serialize(o); } });';
-        log.deprecated('`percy-agent.js` is deprecated, please update to the latest SDK version');
+        log.deprecated('It looks like you’re using @percy/cli with an older SDK. Please upgrade to the latest version' +
+          ' to fix this warning. See these docs for more info: https://docs.percy.io/docs/migrating-to-percy-cli');
         return [200, 'applicaton/javascript', content.concat(wrapper)];
       }),
 

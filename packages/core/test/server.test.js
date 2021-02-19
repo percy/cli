@@ -81,7 +81,8 @@ describe('Snapshot Server', () => {
 
     await expect(response.text()).resolves.toBe(bundle);
     expect(logger.stderr).toEqual([
-      '[percy] Warning: `percy-agent.js` is deprecated, please update to the latest SDK version\n'
+      '[percy] Warning: It looks like you’re using @percy/cli with an older SDK. Please upgrade to the latest version' +
+        ' to fix this warning. See these docs for more info: https://docs.percy.io/docs/migrating-to-percy-cli\n'
     ]);
   });
 
