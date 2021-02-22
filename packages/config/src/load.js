@@ -25,6 +25,13 @@ export const explorer = cosmiconfigSync('percy', {
   ]
 });
 
+// Searches within a provided directory, or loads the provided config path
+export function search(path) {
+  let result = !path || statSync(path).isDirectory()
+    ? explorer.search(path) : explorer.load(path);
+  return result?.config ? result : {};
+}
+
 // Finds and loads a config file using cosmiconfig, merges it with optional
 // inputs, validates the combined config according to the schema, and returns
 // the combined config. Loaded config files are cached and reused on next load,
@@ -49,10 +56,9 @@ export default function load({
   // load config or reload cached config
   if (path !== false && (!config || reload)) {
     try {
-      let result = !path || statSync(path).isDirectory()
-        ? explorer.search(path) : explorer.load(path);
+      let result = search(path);
 
-      if (result && result.config) {
+      if (result.config) {
         log[infoDebug](`Found config file: ${relative('', result.filepath)}`);
         let version = parseInt(result.config.version, 10);
 
@@ -75,7 +81,6 @@ export default function load({
         log[infoDebug]('Config file not found');
       }
     } catch (error) {
-      log[errorDebug]('Failed to load or parse config file');
       log[errorDebug](error);
     }
   }
