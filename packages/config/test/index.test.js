@@ -538,6 +538,18 @@ describe('PercyConfig', () => {
         'enable-javascript': false
       });
     });
+
+    it('ignores normalizing specific nested objects', () => {
+      expect(PercyConfig.normalize({
+        'request-headers': {
+          'X-Custom-Header': 'custom header'
+        }
+      })).toEqual({
+        requestHeaders: {
+          'X-Custom-Header': 'custom header'
+        }
+      });
+    });
   });
 
   describe('.stringify()', () => {

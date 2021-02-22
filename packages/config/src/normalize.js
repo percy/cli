@@ -36,13 +36,17 @@ export function merge(target, source, options) {
   if (options?.replaceArrays && isSourceArray) return source;
   if (typeof source !== 'object') return source != null ? source : target;
   let convertcase = options?.kebab ? kebabcase : camelcase;
+  let skipMerge = [convertcase('request-headers')];
 
   return entries(source).reduce((result, [key, value]) => {
-    value = merge(result?.[key], value, options);
+    let k = convertcase(key);
+
+    value = skipMerge.includes(k) ? value
+      : merge(result?.[key], value, options);
 
     return value == null ? result
       : isSourceArray ? (result || []).concat(value)
-        : assign(result || {}, { [convertcase(key)]: value });
+        : assign(result || {}, { [k]: value });
   }, target);
 }
 
