@@ -39,27 +39,20 @@ export class Migrate extends Command {
       flags: { 'dry-run': dry }
     } = this.parse();
 
-    // load config using the explorer directly rather than the load method to
-    // better control logs and prevent validation
     try {
-      let result = !input || fs.statSync(input).isDirectory()
-        ? PercyConfig.explorer.search(input)
-        : PercyConfig.explorer.load(input);
-
-      if (result && result.config) {
-        ({ config, filepath: input } = result);
-        this.log.info(`Found config file: ${path.relative('', input)}`);
-        output = output ? path.resolve(output) : input;
-      } else {
-        this.log.error('Config file not found');
-      }
+      ({ config, filepath: input } = PercyConfig.search(input));
     } catch (error) {
-      this.log.error('Failed to load or parse config file');
       this.log.error(error);
+      this.exit(1);
     }
 
-    // no config, bail
-    if (!config) return this.exit(1);
+    if (config) {
+      this.log.info(`Found config file: ${path.relative('', input)}`);
+      output = output ? path.resolve(output) : input;
+    } else {
+      this.log.error('Config file not found');
+      this.exit(1);
+    }
 
     // if migrating versions, warn when latest
     if (input === output && config.version === 2) {
