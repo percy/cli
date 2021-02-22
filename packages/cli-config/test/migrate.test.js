@@ -95,7 +95,6 @@ describe('percy config:migrate', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Failed to load or parse config file\n',
       '[percy] Error: test\n'
     ]);
   });

@@ -298,7 +298,6 @@ describe('PercyConfig', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
-        '[percy] Failed to load or parse config file\n',
         expect.stringContaining('[percy] Error: test')
       ]);
     });
