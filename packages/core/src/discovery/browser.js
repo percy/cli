@@ -145,6 +145,11 @@ export default class Browser extends EventEmitter {
 
     // after closing, attempt to clean up the profile directory
     await closed.then(() => new Promise(resolve => {
+      // needed due to a bug in Node 12 - https://github.com/nodejs/node/issues/27097
+      this.process?.stdin.end();
+      this.process?.stdout.end();
+      this.process?.stderr.end();
+
       /* istanbul ignore else: sanity */
       if (this.profile) {
         rimraf(this.profile, error => {
