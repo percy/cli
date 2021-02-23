@@ -1,7 +1,7 @@
 import os from 'os';
 import path from 'path';
 import { promises as fs, existsSync } from 'fs';
-import { spawn } from 'child_process';
+import spawn from 'cross-spawn';
 import EventEmitter from 'events';
 import WebSocket from 'ws';
 import rimraf from 'rimraf';
@@ -72,9 +72,14 @@ export default class Browser extends EventEmitter {
     for (let a of uargs) if (!args.includes(a)) args.push(a);
 
     // spawn the browser process detached in its own group and session
-    this.process = spawn(this.executable, args, { detached: true });
+    this.process = spawn(this.executable, args, {
+      detached: process.platform !== 'win32'
+    });
+
     // connect a websocket to the devtools address
-    this.ws = new WebSocket(await this.address(timeout), { perMessageDeflate: false });
+    this.ws = new WebSocket(await this.address(timeout), {
+      perMessageDeflate: false
+    });
 
     // wait until the websocket has connected before continuing
     await new Promise(resolve => this.ws.once('open', resolve));
@@ -115,38 +120,46 @@ export default class Browser extends EventEmitter {
     this.#callbacks.clear();
     this.pages.clear();
 
-    // no executable means the browser never launched
-    /* istanbul ignore next: sanity */
-    if (!this.executable) return;
-
-    // attempt to close the browser gracefully
+    // resolves when the browser has closed
     let closed = new Promise(resolve => {
-      this.process.on('exit', resolve);
+      /* istanbul ignore next: race condition paranoia */
+      if (!this.process || this.process.exitCode) resolve();
+      else this.process.on('exit', resolve);
     });
 
-    /* istanbul ignore next:
-     *   difficult to test failure here without mocking private properties */
-    await this.send('Browser.close').catch(() => {
-      // force close if needed and able to
+    // force close if needed and able to
+    let kill = () => {
+      /* istanbul ignore next:
+       *   difficult to test failure here without mocking private properties */
       if (this.process?.pid && !this.process.killed) {
         try { this.process.kill('SIGKILL'); } catch (error) {
           throw new Error(`Unable to close the browser: ${error.stack}`);
         }
       }
-    });
+    };
 
-    // attempt to clean up the profile directory after closing
+    /* istanbul ignore else:
+     *   difficult to test failure here without mocking private properties */
+    if (this.profile) kill();
+    else this.send('Browser.close').catch(() => kill());
+
+    // after closing, attempt to clean up the profile directory
     await closed.then(() => new Promise(resolve => {
-      rimraf(this.profile, error => {
-        /* istanbul ignore next:
-         *   this might happen on some systems but ultimately it is a temp file */
-        if (error) {
-          this.log.debug('Could not clean up temporary browser profile directory.');
-          this.log.debug(error);
-        }
+      /* istanbul ignore else: sanity */
+      if (this.profile) {
+        rimraf(this.profile, error => {
+          /* istanbul ignore next:
+           *   this might happen on some systems but ultimately it is a temp file */
+          if (error) {
+            this.log.debug('Could not clean up temporary browser profile directory.');
+            this.log.debug(error);
+          }
 
+          resolve();
+        });
+      } else {
         resolve();
-      });
+      }
     }));
   }
 
@@ -158,6 +171,8 @@ export default class Browser extends EventEmitter {
   }
 
   async send(method, params) {
+    /* istanbul ignore next:
+     *   difficult to test failure here without mocking private properties */
     if (!this.isConnected()) throw new Error('Browser not connected');
 
     // every command needs a unique id
@@ -194,8 +209,7 @@ export default class Browser extends EventEmitter {
       let handleClose = () => handleError();
       let handleError = error => {
         cleanup(() => reject(new Error(
-          `Failed to launch browser. ${error?.message ?? ''}` +
-            '\n', stderr, '\n\n'
+          `Failed to launch browser. ${error?.message ?? ''}\n${stderr}'\n\n`
         )));
       };
 
