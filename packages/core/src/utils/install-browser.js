@@ -1,3 +1,5 @@
+/* istanbul ignore file: this utility is required to work before tests to download the browser
+ * binary; since it is technically tested before the tests run, it does not generate coverage */
 import path from 'path';
 import https from 'https';
 import {
@@ -10,7 +12,6 @@ import logger from '@percy/logger';
 import readableBytes from './bytes';
 
 // used to determine platform defaults
-/* istanbul ignore next: hard to cover sans combined reports */
 const platform = (
   process.platform === 'win32' && process.arch === 'x64'
     ? 'win64' : process.platform
@@ -63,7 +64,6 @@ export default async function install({
       // download the file at the given URL and log progress
       await new Promise((resolve, reject) => {
         https.get(url, response => {
-          /* istanbul ignore next: failsafe */
           if (response.statusCode !== 200) {
             response.resume();
             reject(new Error(`Download failed: ${response.statusCode} - ${url}`));
@@ -96,7 +96,6 @@ export default async function install({
       logger().info(`Successfully downloaded ${browser}`);
     } finally {
       // always cleanup
-      /* istanbul ignore next: hard to cover download failure */
       if (existsSync(dlpath)) {
         await new Promise(resolve => rimraf(dlpath, resolve));
       }

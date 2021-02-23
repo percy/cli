@@ -1,3 +1,4 @@
+import path from 'path';
 import expect from 'expect';
 import { logger, mockConfig } from './helpers';
 import { Validate } from '../src/commands/config/validate';
@@ -43,12 +44,13 @@ describe('percy config:validate', () => {
   });
 
   it('logs debug info for a provided valid config file', async () => {
-    mockConfig('config/percy.yml', 'version: 2\ntest:\n  value: config');
-    await Validate.run(['config/percy.yml']);
+    let filename = path.join('.config', 'percy.yml');
+    mockConfig(filename, 'version: 2\ntest:\n  value: config');
+    await Validate.run([filename]);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Found config file: config/percy.yml\n',
+      `[percy] Found config file: ${filename}\n`,
       '[percy] Using config:\n' + [
         '{',
         '  version: 2,',

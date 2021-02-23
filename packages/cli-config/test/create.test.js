@@ -1,3 +1,4 @@
+import path from 'path';
 import expect from 'expect';
 import { logger, getMockConfig } from './helpers';
 import { Create } from '../src/commands/config/create';
@@ -47,14 +48,16 @@ describe('percy config:create', () => {
   });
 
   it('can create specific config files', async () => {
-    await Create.run(['config/percy.config.js']);
+    let filename = path.join('.config', 'percy.config.js');
+    await Create.run([filename]);
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual(['[percy] Created Percy config: config/percy.config.js\n']);
-    expect(getMockConfig('config/percy.config.js')).toBe(PercyConfig.stringify('js'));
+    expect(logger.stdout).toEqual([`[percy] Created Percy config: ${filename}\n`]);
+    expect(getMockConfig(filename)).toBe(PercyConfig.stringify('js'));
   });
 
   it('logs an error and exits when the filetype is unsupported', async () => {
-    await expect(Create.run(['config/percy.config.php'])).rejects.toThrow('EEXIT: 1');
+    await expect(Create.run([path.join('.config', 'percy.config.php')]))
+      .rejects.toThrow('EEXIT: 1');
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual(['[percy] Unsupported filetype: php\n']);
   });

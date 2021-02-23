@@ -1,3 +1,4 @@
+import path from 'path';
 import expect from 'expect';
 import PercyConfig from '@percy/config';
 import { logger, mockConfig, getMockConfig } from './helpers';
@@ -76,7 +77,7 @@ describe('percy config:migrate', () => {
   });
 
   it('errors and exits when a config cannot be found', async () => {
-    await expect(Migrate.run(['.config/percy.yml']))
+    await expect(Migrate.run([path.join('.config', 'percy.yml')]))
       .rejects.toThrow('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
@@ -86,11 +87,13 @@ describe('percy config:migrate', () => {
   });
 
   it('errors and exits when a config cannot be parsed', async () => {
-    mockConfig('.config/percy.yml', () => {
+    let filename = path.join('.config', 'percy.yml');
+
+    mockConfig(filename, () => {
       throw new Error('test');
     });
 
-    await expect(Migrate.run(['.config/percy.yml']))
+    await expect(Migrate.run([filename]))
       .rejects.toThrow('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
