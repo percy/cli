@@ -16,7 +16,6 @@
     "lint": "eslint --ignore-path ../../.gitignore .",
     "postbuild": "oclif-dev manifest",
     "readme": "oclif-dev readme",
-    "pretest": "node ../../scripts/install-browser",
     "test": "cross-env NODE_ENV=test mocha",
     "test:coverage": "nyc yarn test"
   },
