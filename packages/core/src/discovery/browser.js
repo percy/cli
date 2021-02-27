@@ -6,7 +6,7 @@ import EventEmitter from 'events';
 import WebSocket from 'ws';
 import rimraf from 'rimraf';
 import logger from '@percy/logger';
-import install from '../utils/install-browser';
+import install from '../install';
 import Page from './page';
 
 export default class Browser extends EventEmitter {
@@ -61,7 +61,7 @@ export default class Browser extends EventEmitter {
     }
 
     // download and install the browser if not already present
-    this.executable = executable || await install();
+    this.executable = executable || await install.chromium();
     // create a temporary profile directory
     this.profile = await fs.mkdtemp(path.join(os.tmpdir(), 'percy-browser-'));
 
