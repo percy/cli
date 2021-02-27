@@ -67,7 +67,8 @@ export default class PercyLogger {
       .reduce((group, level) => Object.assign(group, {
         [level]: this.log.bind(this, name, level)
       }), {
-        deprecated: this.deprecated.bind(this, name)
+        deprecated: this.deprecated.bind(this, name),
+        shouldLog: this.shouldLog.bind(this, name)
       });
   }
 
@@ -77,6 +78,14 @@ export default class PercyLogger {
     this.deprecations.add(message);
 
     this.log(debug, 'warn', `Warning: ${message}`, meta);
+  }
+
+  // Returns true or false if the level and debug group can write messages to stdio
+  shouldLog(debug, level) {
+    return LOG_LEVELS[level] != null &&
+      LOG_LEVELS[level] >= LOG_LEVELS[this.level] &&
+      !this.namespaces.exclude.some(ns => ns.test(debug)) &&
+      this.namespaces.include.some(ns => ns.test(debug));
   }
 
   // Generic log method accepts a debug group, log level, log message, and optional meta
@@ -95,21 +104,13 @@ export default class PercyLogger {
     this.messages.add({ debug, level, message, meta, timestamp });
 
     // maybe write the message to stdio
-    if (this.shouldLog(level, debug)) {
+    if (this.shouldLog(debug, level)) {
       let stdio = this[level === 'info' ? 'stdout' : 'stderr'];
       if (error && this.level !== 'debug') message = error.toString();
       let elapsed = timestamp - (this.lastlog || timestamp);
       stdio.write(this.format(message, debug, error ? 'error' : level, elapsed) + '\n');
       this.lastlog ||= timestamp;
     }
-  }
-
-  // Returns true or false if the level and debug group can write messages to stdio
-  shouldLog(level, debug) {
-    return LOG_LEVELS[level] != null &&
-      LOG_LEVELS[level] >= LOG_LEVELS[this.level] &&
-      !this.namespaces.exclude.some(ns => ns.test(debug)) &&
-      this.namespaces.include.some(ns => ns.test(debug));
   }
 
   // Formats messages before they are logged to stdio
