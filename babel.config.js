@@ -1,4 +1,4 @@
-module.exports = {
+const base = {
   presets: [
     ['@babel/env', {
       targets: {
@@ -8,14 +8,32 @@ module.exports = {
   ],
   plugins: [
     '@babel/proposal-class-properties'
-  ],
+  ]
+};
+
+const development = {
+  plugins: [
+    ['module-resolver', {
+      cwd: __dirname,
+      alias: {
+        '^@percy/((?!dom)[^/]+)$': './packages/\\1/src',
+        '^@percy/(.+)/dist/(.+)$': './packages/\\1/src/\\2'
+      }
+    }]
+  ]
+};
+
+const test = {
+  plugins: [
+    ...development.plugins,
+    ['istanbul', { exclude: ['dist', 'test'] }]
+  ]
+};
+
+module.exports = {
+  ...base,
   env: {
-    test: {
-      plugins: [
-        ['istanbul', {
-          exclude: ['dist', 'test']
-        }]
-      ]
-    }
+    development,
+    test
   }
 };
