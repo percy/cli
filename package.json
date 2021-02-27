@@ -11,6 +11,7 @@
     "clean": "rm -rf packages/**/{dist,.nyc_output,coverage,oclif.manifest.json}",
     "lint": "eslint --ignore-path .gitignore .",
     "readme": "lerna run --parallel readme",
+    "postinstall": "lerna run --stream postinstall",
     "test": "lerna run --stream --concurrency=1 test -- --colors",
     "test:coverage": "lerna run --stream --concurrency=1 test:coverage -- --colors",
     "test:types": "lerna run --parallel test:types"
