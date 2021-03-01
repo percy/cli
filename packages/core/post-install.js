@@ -5,8 +5,8 @@ if (process.env.PERCY_POSTINSTALL_BROWSER || require.main !== module) {
   const fs = require('fs');
   const path = require('path');
 
-  // the test directory indicates postinstall during development
-  const isDev = fs.existsSync(path.join(__dirname, 'test'));
+  // the src directory indicates postinstall during development
+  const isDev = fs.existsSync(path.join(__dirname, 'src'));
 
   // register babel transforms for development install
   if (isDev) require('../../scripts/babel-register');
