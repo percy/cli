@@ -47,7 +47,6 @@ mock('child_process', {
 
 mock.reRequire('child_process');
 mock.reRequire('../src/git');
-mock.reRequire('../dist/git');
 mock.reRequire('../src/environment');
 mock.reRequire('../src');
 beforeEach(reset);

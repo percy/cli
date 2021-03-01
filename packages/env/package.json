@@ -10,7 +10,7 @@
     "node": ">=12"
   },
   "scripts": {
-    "build": "babel --root-mode upward src --out-dir dist",
+    "build": "cross-env NODE_ENV=production babel src --out-dir dist --root-mode upward",
     "lint": "eslint --ignore-path ../../.gitignore .",
     "test": "cross-env NODE_ENV=test mocha",
     "test:coverage": "nyc yarn test"
