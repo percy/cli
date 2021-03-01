@@ -10,7 +10,7 @@
     "node": ">=12"
   },
   "scripts": {
-    "build": "rollup --config",
+    "build": "cross-env NODE_ENV=production rollup --config",
     "lint": "eslint --ignore-path ../../.gitignore .",
     "test": "cross-env NODE_ENV=test karma start --single-run",
     "test:coverage": "cross-env COVERAGE=text yarn test"
