@@ -6,6 +6,7 @@
   "types": "types/index.d.ts",
   "files": [
     "dist",
+    "post-install.js",
     "types/index.d.ts",
     "test/helpers/server.js"
   ],
