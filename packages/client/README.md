@@ -1,8 +1,8 @@
 # @percy/client
 
 Communicate with Percy's API to create builds and snapshots, upload resources, and finalize builds
-and snapshots. Uses `@percy/env` to send environment information with new builds. Can also be used
-to query for a project's builds using a read access token.
+and snapshots. Uses [`@percy/env`](.packages/env) to send environment information with new
+builds. Can also be used to query for a project's builds using a read access token.
 
 - [Usage](#usage)
 - [Create a build](#create-a-build)
