@@ -2,57 +2,39 @@
 
 Common Node SDK utils
 
+- [Usage](#usage)
+  - [`logger()`](#loggerdebug)
+  - [`getInfo()`](#getinfo)
+  - [`isPercyEnabled()`](#ispercyenabled)
+  - [`postSnapshot()`](#postsnapshot)
+
 ## Usage
 
-### `log(level, message)`
+### `logger([debug])`
 
-Logs colored output and stack traces based on the loglevel defined by the `PERCY_LOGLEVEL`
-environment variable.
-
-``` js
-const { log } = require('@percy/sdk-utils');
-
-// logs unless loglevel is quiet or silent
-log('info', 'foobar');
-// [percy] foobar
-
-// logs a red error message unless the loglevel is silent
-log('error', 'bad');
-// [percy] bad
-
-// logs the stack trace when loglevel is debug
-log('error', new Error('some error'));
-// [percy] Error: some error
-//     at example (/path/to/example.js:2:10)
-//     at ...
-
-// only logs when the loglevel is debug
-log('debug', 'debug message');
-// [percy] debug message
-```
+This function is a direct export of [`@percy/logger`](./packages/logger).
 
 ### `getInfo()`
 
 Returns information about any running Percy CLI server. Some information is only available after
-[`isPercyEnabled`](#isPercyEnabled) has been called.
+[`isPercyEnabled`](#ispercyenabled) has been called.
 
 ``` js
 const { getInfo } = require('@percy/sdk-utils');
 
-let info = getInfo();
-
-// CLI API address
-info.cliApi === (process.env.PERCY_CLI_API || 'http://localhost:5338')
-
-// CLI loglevel
-info.loglevel === (process.env.PERCY_LOGLEVEL || 'info')
-
-// CLI version parts (requires isPercyEnabled call)
-info.version === (['1', '0', '0'] || undefined)
-
-// CLI config options (requires isPercyEnabled call)
-info.config === {}
+const { cliApi, loglevel, version, config } = getInfo();
 ```
+
+#### Returned properties
+
+- `cliApi` — CLI API address (`process.env.PERCY_CLI_API || 'http://localhost:5338'`)
+- `loglevel` — CLI log level  (`process.env.PERCY_LOGLEVEL || 'info'`)
+
+The following properties are only populated after [`isPercyEnabled`](#ispercyenabled) has been
+called.
+
+- `version` — CLI version parts (e.g. `['1', '0', '0']`)
+- `config` — CLI config options
 
 ### `isPercyEnabled()`
 

@@ -59,9 +59,9 @@ export const schema = {
         additionalProperties: false,
         properties: {
           executable: { type: 'string' },
-          headless: { type: 'boolean' },
+          timeout: { type: 'integer' },
           args: { type: 'array', items: { type: 'string' } },
-          timeout: { type: 'integer' }
+          headless: { type: 'boolean' }
         }
       }
     }
