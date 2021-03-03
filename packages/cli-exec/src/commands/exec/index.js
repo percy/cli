@@ -16,7 +16,6 @@ export class Exec extends Command {
     ...execFlags,
 
     parallel: flags.boolean({
-      char: 'p',
       description: 'marks the build as one of many parallel builds'
     }),
 
