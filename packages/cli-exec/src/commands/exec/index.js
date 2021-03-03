@@ -18,6 +18,10 @@ export class Exec extends Command {
     parallel: flags.boolean({
       char: 'p',
       description: 'marks the build as one of many parallel builds'
+    }),
+
+    partial: flags.boolean({
+      description: 'marks the build as a partial build'
     })
   };
 
@@ -46,6 +50,11 @@ export class Exec extends Command {
     // set environment parallel total for `n` parallel builds (use with build:finalize)
     if (this.flags.parallel && !process.env.PERCY_PARALLEL_TOTAL) {
       process.env.PERCY_PARALLEL_TOTAL = '-1';
+    }
+
+    // set environment partial build flag
+    if (this.flags.partial) {
+      process.env.PERCY_PARTIAL_BUILD = '1';
     }
 
     // attempt to start percy if enabled

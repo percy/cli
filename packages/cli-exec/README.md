@@ -26,6 +26,7 @@ OPTIONS
   -t, --network-idle-timeout=network-idle-timeout  asset discovery idle timeout
   -v, --verbose                                    log everything
   --disable-cache                                  disable asset discovery caches
+  --partial                                        marks the build as a partial build
   --silent                                         log nothing
 
 EXAMPLES

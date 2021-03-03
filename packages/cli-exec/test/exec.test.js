@@ -48,18 +48,13 @@ describe('percy exec', () => {
   it('sets the parallel total when the --parallel flag is provided', async () => {
     expect(process.env.PERCY_PARALLEL_TOTAL).toBeUndefined();
     await Exec.run(['--parallel', '--', 'node', '--eval', '']);
-
-    expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
-      '[percy] Percy has started!\n',
-      '[percy] Created build #1: https://percy.io/test/test/123\n',
-      '[percy] Running "node --eval "\n',
-      '[percy] Stopping percy...\n',
-      '[percy] Finalized build #1: https://percy.io/test/test/123\n',
-      '[percy] Done!\n'
-    ]);
-
     expect(process.env.PERCY_PARALLEL_TOTAL).toBe('-1');
+  });
+
+  it('sets the partial env var when the --partial flag is provided', async () => {
+    expect(process.env.PERCY_PARTIAL_BUILD).toBeUndefined();
+    await Exec.run(['--partial', '--', 'node', '--eval', '']);
+    expect(process.env.PERCY_PARTIAL_BUILD).toBe('1');
   });
 
   it('runs the command even when percy is disabled', async () => {
