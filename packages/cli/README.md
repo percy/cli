@@ -1,22 +1,20 @@
 # Percy CLI
 
-![Test](https://github.com/percy/cli/workflows/Test/badge.svg)
+[![Test](https://github.com/percy/cli/workflows/Test/badge.svg)](https://github.com/percy/cli/actions)
 
-The Percy CLI is used to capture and upload snapshots to [percy.io](https://percy.io) from the
-command line.
+The Percy CLI is used to interact with, and upload snapshots to, [percy.io](https://percy.io) via
+the command line.
+
+- [Installation](#installation)
+- [Command Topics](#command-topics)
+- [Advanced](#advanced)
+- [Issues](#issues)
+- [Developing](#developing)
 
 ## Installation
 
-Using yarn: 
-
 ```sh-session
-$ yarn add @percy/cli --dev
-```
-
-Using npm: 
-
-```sh-session
-$ npm install @percy/cli --save-dev
+$ npm install --save-dev @percy/cli
 ```
 
 ## Command Topics
@@ -30,27 +28,29 @@ $ npm install @percy/cli --save-dev
 ### Advanced
 
 In addition to the CLI packages, this repo contains core libraries responsible for Percy's CI/CD
-integrations, Percy API communication, DOM snapshotting, and asset discovery.
+integrations, Percy API communication, DOM serialization, asset discovery, etc.
 
 - [`@percy/core`](./packages/core#readme) - performs snapshot asset discovery and uploading
-- [`@percy/config`](./packages/config#readme) - loads Percy configuration files
+- [`@percy/client`](./packages/client#readme) - handles communicating with the Percy API
 - [`@percy/dom`](./packages/dom#readme) - serializes DOM snapshots
 - [`@percy/env`](./packages/env#readme) - captures CI build environment variables
-- [`@percy/client`](./packages/client#readme) - handles communicating with the Percy API
+- [`@percy/config`](./packages/config#readme) - loads Percy configuration files
 - [`@percy/logger`](./packages/logger#readme) - common logger used throughout the CLI
+- [`@percy/sdk-utils`](./packages/sdk-utils#readme) - shared helpers for JavaScript SDKs
 
 ## Issues
 
 For problems directly related to the CLI, [add an issue on
 GitHub](https://github.com/percy/cli/issues/new).
 
-For other issues, [open a support request](https://percy.io).
+For other issues, [open a support
+request](https://www.browserstack.com/contact?ref=percy#technical-support).
 
 ## Developing
 
 This project is built with [lerna](https://lerna.js.org/). The core libaries and CLI plugins are
-located in [./packages](./packages). Run `yarn` to install dependencies after cloning the repo and use
-the following scripts for various development tasks:
+located in [./packages](./packages). Run `yarn` to install dependencies after cloning the repo and
+use the following scripts for various development tasks:
 
 - `yarn build` - build all packages
 - `yarn build:watch` - build and watch all packages in parallel
@@ -66,11 +66,3 @@ Individual package scripts can be invoked using yarn's
 ```sh-session
 $ yarn workspace @percy/core test
 ```
-
-### Releasing
-
-1. Run `yarn bump-version` and choose an appropriate version.
-2. Commit the updated version with a matching commit (e.g. `🔖v1.0.0`).
-3. Push the commit to GitHub and wait for CI to pass.
-4. Edit and publish the GitHub release draft from the releases page.
-5. The GitHub release will trigger an [automated NPM release](https://github.com/percy/cli/actions?query=workflow%3ARelease).

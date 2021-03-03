@@ -193,7 +193,7 @@ export default class PercyClient {
     project,
     commit,
     progress,
-    timeout = 600000,
+    timeout = 10 * 60 * 1000,
     interval = 1000
   }) {
     if (commit && !project) {

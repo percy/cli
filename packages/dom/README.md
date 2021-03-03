@@ -2,6 +2,17 @@
 
 Serializes a document's DOM into a DOM string suitable for re-rendering.
 
+- [Usage](#usage)
+  - [ES6 imports](#es6-imports)
+  - [Browser injection](#browser-injection)
+  - [Options](#options)
+- [Serialized Content](#serialize-content)
+  - [Input elements](#input-elements)
+  - [Frame elements](#frame-elements)
+  - [CSSOM rules](#cssom-rules)
+  - [Canvas elements](#canvas-elements)
+  - [Other elements](#other-elements)
+
 ## Usage
 
 ### ES6 imports
@@ -10,7 +21,7 @@ Serializes a document's DOM into a DOM string suitable for re-rendering.
 import serializeDOM from '@percy/dom';
 
 // optional arguments shown with defaults
-const domSnapshot = serializeDOM(/* options */)
+const domSnapshot = serializeDOM(options)
 ```
 
 ### Browser injection
@@ -18,13 +29,13 @@ const domSnapshot = serializeDOM(/* options */)
 ```js
 // via puppeteer
 await page.addScriptTag({ path: require.resolve('@percy/dom') })
-const domSnapshot = await page.evaluate(() => PercyDOM.serialize(/* options */))
+const domSnapshot = await page.evaluate(() => PercyDOM.serialize(options))
 ```
 
-### Available options
+### Options
 
-- `enableJavaScript` - when true, does not serialize some DOM elements
-- `domTransformation` - function to transform the DOM after serialization
+- `enableJavaScript` — When true, does not serialize some DOM elements
+- `domTransformation` — Function to transform the DOM after serialization
 
 ## Serialized Content
 

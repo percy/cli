@@ -2,6 +2,12 @@
 
 Common logger used throughout the Percy CLI and SDKs.
 
+- [Usage](#usage)
+  - [`logger()`](#loggerdebug)
+  - [`logger.loglevel()`](#loggerloglevel)
+  - [`logger.format()`](#loggerformat)
+  - [`logger.query()`](#loggerquery)
+
 ## Usage
 
 ``` js
