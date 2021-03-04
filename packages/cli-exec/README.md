@@ -21,11 +21,12 @@ OPTIONS
   -P, --port=port                                  [default: 5338] server port
   -c, --config=config                              configuration file path
   -h, --allowed-hostname=allowed-hostname          allowed hostnames
-  -p, --parallel                                   marks the build as one of many parallel builds
   -q, --quiet                                      log errors only
   -t, --network-idle-timeout=network-idle-timeout  asset discovery idle timeout
   -v, --verbose                                    log everything
   --disable-cache                                  disable asset discovery caches
+  --parallel                                       marks the build as one of many parallel builds
+  --partial                                        marks the build as a partial build
   --silent                                         log nothing
 
 EXAMPLES
