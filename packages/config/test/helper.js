@@ -38,7 +38,7 @@ mock('fs', Object.assign({}, require('fs'), {
 // re-required so future imports are not cached
 mock.reRequire('fs');
 
-after(() => {
+afterAll(() => {
   mock.stopAll();
 });
 
