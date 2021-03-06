@@ -1,4 +1,3 @@
-import expect from 'expect';
 import mock from 'mock-require';
 import mockgit from '@percy/env/test/mockgit';
 import PercyClient from '../src';
@@ -75,10 +74,10 @@ describe('PercyClient', () => {
 
   describe('#get()', () => {
     it('sends a GET request to the API', async () => {
-      await expect(client.get('foobar')).resolves.toBeDefined();
+      await expectAsync(client.get('foobar')).toBeResolved();
       expect(mockAPI.requests['/foobar'][0].method).toBe('GET');
       expect(mockAPI.requests['/foobar'][0].headers).toEqual(
-        expect.objectContaining({
+        jasmine.objectContaining({
           authorization: 'Token token=PERCY_TOKEN'
         })
       );
@@ -86,17 +85,17 @@ describe('PercyClient', () => {
 
     it('throws an error with a missing token', () => {
       expect(() => new PercyClient().get('foobar'))
-        .toThrow('Missing Percy token');
+        .toThrowError('Missing Percy token');
     });
   });
 
   describe('#post()', () => {
     it('sends a POST request to the API', async () => {
-      await expect(client.post('foobar', { test: '123' })).resolves.toBeDefined();
+      await expectAsync(client.post('foobar', { test: '123' })).toBeResolved();
       expect(mockAPI.requests['/foobar'][0].body).toEqual({ test: '123' });
       expect(mockAPI.requests['/foobar'][0].method).toBe('POST');
       expect(mockAPI.requests['/foobar'][0].headers).toEqual(
-        expect.objectContaining({
+        jasmine.objectContaining({
           authorization: 'Token token=PERCY_TOKEN',
           'content-type': 'application/vnd.api+json'
         })
@@ -105,13 +104,13 @@ describe('PercyClient', () => {
 
     it('throws an error with a missing token', () => {
       expect(() => new PercyClient().post('foobar', {}))
-        .toThrow('Missing Percy token');
+        .toThrowError('Missing Percy token');
     });
   });
 
   describe('#createBuild()', () => {
     it('creates a new build', async () => {
-      await expect(
+      await expectAsync(
         client.createBuild({
           resources: [{
             url: '/foobar',
@@ -123,7 +122,7 @@ describe('PercyClient', () => {
             content: 'content-sha'
           }]
         })
-      ).resolves.toEqual({
+      ).toBeResolvedTo({
         data: {
           id: '123',
           attributes: {
@@ -184,22 +183,22 @@ describe('PercyClient', () => {
     });
 
     it('throws an error when there is an active build', async () => {
-      await expect(client.setBuildData({ id: 123 }).createBuild())
-        .rejects.toThrow('This client instance has not finalized the previous build');
+      await expectAsync(client.setBuildData({ id: 123 }).createBuild())
+        .toBeRejectedWithError('This client instance has not finalized the previous build');
     });
   });
 
   describe('#getBuild()', () => {
     it('gets build data', async () => {
       mockAPI.reply('/builds/100', () => [200, { data: '<<build-data>>' }]);
-      await expect(client.getBuild(100)).resolves.toEqual({ data: '<<build-data>>' });
+      await expectAsync(client.getBuild(100)).toBeResolvedTo({ data: '<<build-data>>' });
     });
   });
 
   describe('#getBuilds()', () => {
     it('gets project builds data', async () => {
       mockAPI.reply('/projects/test/builds', () => [200, { data: ['<<build-data>>'] }]);
-      await expect(client.getBuilds('test')).resolves.toEqual({ data: ['<<build-data>>'] });
+      await expectAsync(client.getBuilds('test')).toBeResolvedTo({ data: ['<<build-data>>'] });
     });
 
     it('gets project builds data filtered by a sha', async () => {
@@ -207,8 +206,8 @@ describe('PercyClient', () => {
         [200, { data: ['<<build-data>>'] }]
       ));
 
-      await expect(client.getBuilds('test', { sha: 'test-sha' }))
-        .resolves.toEqual({ data: ['<<build-data>>'] });
+      await expectAsync(client.getBuilds('test', { sha: 'test-sha' }))
+        .toBeResolvedTo({ data: ['<<build-data>>'] });
     });
 
     it('gets project builds data filtered by state, branch, and shas', async () => {
@@ -221,13 +220,13 @@ describe('PercyClient', () => {
         data: ['<<build-data>>']
       }]);
 
-      await expect(
+      await expectAsync(
         client.getBuilds('test', {
           branch: 'master',
           state: 'finished',
           shas: ['test-sha-1', 'test-sha-2']
         })
-      ).resolves.toEqual({
+      ).toBeResolvedTo({
         data: ['<<build-data>>']
       });
     });
@@ -236,12 +235,12 @@ describe('PercyClient', () => {
   describe('#waitForBuild()', () => {
     it('throws an error when missing a build or commit sha', () => {
       expect(() => client.waitForBuild({}))
-        .toThrow('Missing build ID or commit SHA');
+        .toThrowError('Missing build ID or commit SHA');
     });
 
     it('throws an error when missing a project with a commit sha', () => {
       expect(() => client.waitForBuild({ commit: '...' }))
-        .toThrow('Missing project for commit');
+        .toThrowError('Missing project for commit');
     });
 
     it('calls the progress function each interval while waiting', async () => {
@@ -272,8 +271,8 @@ describe('PercyClient', () => {
         data: { attributes: { state: 'processing' } }
       }]);
 
-      await expect(client.waitForBuild({ build: '123', timeout: 1500, interval: 50 }))
-        .rejects.toThrow('Timeout exceeded without an update');
+      await expectAsync(client.waitForBuild({ build: '123', timeout: 1500, interval: 50 }))
+        .toBeRejectedWithError('Timeout exceeded without an update');
     });
 
     it('resolves when the build completes', async () => {
@@ -285,8 +284,8 @@ describe('PercyClient', () => {
           data: { attributes: { state: 'finished' } }
         }]);
 
-      await expect(client.waitForBuild({ build: '123', interval: 50 }))
-        .resolves.toEqual({ attributes: { state: 'finished' } });
+      await expectAsync(client.waitForBuild({ build: '123', interval: 50 }))
+        .toBeResolvedTo({ attributes: { state: 'finished' } });
     });
 
     it('resolves when the build matching a commit revision completes', async () => {
@@ -300,8 +299,8 @@ describe('PercyClient', () => {
           data: [{ attributes: { state: 'finished' } }]
         }]);
 
-      await expect(client.waitForBuild({ project: 'test', commit: 'HEAD', interval: 50 }))
-        .resolves.toEqual({ attributes: { state: 'finished' } });
+      await expectAsync(client.waitForBuild({ project: 'test', commit: 'HEAD', interval: 50 }))
+        .toBeResolvedTo({ attributes: { state: 'finished' } });
     });
 
     it('defaults to the provided commit when revision parsing fails', async () => {
@@ -311,21 +310,21 @@ describe('PercyClient', () => {
         data: [{ attributes: { state: 'finished' } }]
       }]);
 
-      await expect(client.waitForBuild({ project: 'test', commit: 'abcdef' }))
-        .resolves.toEqual({ attributes: { state: 'finished' } });
+      await expectAsync(client.waitForBuild({ project: 'test', commit: 'abcdef' }))
+        .toBeResolvedTo({ attributes: { state: 'finished' } });
     });
   });
 
   describe('#finalizeBuild()', () => {
     it('throws an error when there is no active build', async () => {
-      await expect(client.finalizeBuild())
-        .rejects.toThrow('This client instance has no active build');
+      await expectAsync(client.finalizeBuild())
+        .toBeRejectedWithError('This client instance has no active build');
     });
 
     it('finalizes the build', async () => {
-      await expect(
+      await expectAsync(
         client.setBuildData({ id: 123 }).finalizeBuild()
-      ).resolves.toBeDefined();
+      ).toBeResolved();
 
       expect(client.build.id).toBeUndefined();
       expect(client.build.number).toBeUndefined();
@@ -335,9 +334,9 @@ describe('PercyClient', () => {
     });
 
     it('can finalize all shards of a build', async () => {
-      await expect(
+      await expectAsync(
         client.setBuildData({ id: 123 }).finalizeBuild({ all: true })
-      ).resolves.toBeDefined();
+      ).toBeResolved();
 
       expect(mockAPI.requests['/builds/123/finalize?all-shards=true']).toBeDefined();
     });
@@ -345,14 +344,14 @@ describe('PercyClient', () => {
 
   describe('#uploadResource()', () => {
     it('throws an error when there is no active build', async () => {
-      await expect(client.uploadResource({}))
-        .rejects.toThrow('This client instance has no active build');
+      await expectAsync(client.uploadResource({}))
+        .toBeRejectedWithError('This client instance has no active build');
     });
 
     it('uploads a resource for the current active build', async () => {
-      await expect(
+      await expectAsync(
         client.setBuildData({ id: 123 }).uploadResource({ content: 'foo' })
-      ).resolves.toBeDefined();
+      ).toBeResolved();
 
       expect(mockAPI.requests['/builds/123/resources'][0].body).toEqual({
         data: {
@@ -368,14 +367,14 @@ describe('PercyClient', () => {
     it('uploads a resource from a local path', async () => {
       mock('fs', { readFileSync: path => `contents of ${path}` });
 
-      await expect(
+      await expectAsync(
         client
           .setBuildData({ id: 123 })
           .uploadResource({
             sha: 'foo-sha',
             filepath: 'foo/bar'
           })
-      ).resolves.toBeDefined();
+      ).toBeResolved();
 
       expect(mockAPI.requests['/builds/123/resources'][0].body).toEqual({
         data: {
@@ -391,13 +390,13 @@ describe('PercyClient', () => {
 
   describe('#uploadResources()', () => {
     it('throws an error when there is no active build', async () => {
-      await expect(client.uploadResources([{}]))
-        .rejects.toThrow('This client instance has no active build');
+      await expectAsync(client.uploadResources([{}]))
+        .toBeRejectedWithError('This client instance has no active build');
     });
 
     it('does nothing when no resources are provided', async () => {
-      await expect(client.setBuildData({ id: 123 }).uploadResources([]))
-        .resolves.toEqual([]);
+      await expectAsync(client.setBuildData({ id: 123 }).uploadResources([]))
+        .toBeResolvedTo([]);
     });
 
     it('uploads multiple resources two at a time', async () => {
@@ -414,7 +413,7 @@ describe('PercyClient', () => {
       mock('fs', { readFileSync: () => content });
 
       // ... which should result in every 2 uploads being identical
-      await expect(
+      await expectAsync(
         client
           .setBuildData({ id: 123 })
           .uploadResources([
@@ -423,7 +422,7 @@ describe('PercyClient', () => {
             { filepath: 'foo/bar' },
             { filepath: 'foo/bar' }
           ])
-      ).resolves.toEqual([
+      ).toBeResolvedTo([
         { success: 'foo' },
         { success: 'foo' },
         { success: 'bar' },
@@ -432,18 +431,18 @@ describe('PercyClient', () => {
     });
 
     it('throws any errors from uploading', async () => {
-      await expect(client.setBuildData({ id: 123 }).uploadResources([{}])).rejects.toThrow();
+      await expectAsync(client.setBuildData({ id: 123 }).uploadResources([{}])).toBeRejectedWithError();
     });
   });
 
   describe('#createSnapshot()', () => {
     it('throws an error when there is no active build', async () => {
-      await expect(client.createSnapshot())
-        .rejects.toThrow('This client instance has no active build');
+      await expectAsync(client.createSnapshot())
+        .toBeRejectedWithError('This client instance has no active build');
     });
 
     it('creates a snapshot', async () => {
-      await expect(
+      await expectAsync(
         client
           .setBuildData({ id: 123 })
           .createSnapshot({
@@ -460,11 +459,11 @@ describe('PercyClient', () => {
               root: true
             }]
           })
-      ).resolves.toBeDefined();
+      ).toBeResolved();
 
       expect(mockAPI.requests['/builds/123/snapshots'][0].headers).toEqual(
-        expect.objectContaining({
-          'user-agent': expect.stringMatching(
+        jasmine.objectContaining({
+          'user-agent': jasmine.stringMatching(
             /^Percy\/v1 @percy\/client\/\S+ sdk\/info \(sdk\/env; node\/v[\d.]+.*\)$/
           )
         })
@@ -497,11 +496,11 @@ describe('PercyClient', () => {
     });
 
     it('falls back to null attributes for various properties', async () => {
-      await expect(
+      await expectAsync(
         client
           .setBuildData({ id: 123 })
           .createSnapshot({ resources: [{ sha: 'sha' }] })
-      ).resolves.toBeDefined();
+      ).toBeResolved();
 
       expect(mockAPI.requests['/builds/123/snapshots'][0].body).toEqual({
         data: {
@@ -532,7 +531,7 @@ describe('PercyClient', () => {
 
   describe('#finalizeSnapshot()', () => {
     it('finalizes a snapshot', async () => {
-      await expect(client.finalizeSnapshot(123)).resolves.toBeDefined();
+      await expectAsync(client.finalizeSnapshot(123)).toBeResolved();
       expect(mockAPI.requests['/snapshots/123/finalize']).toBeDefined();
     });
 
@@ -543,8 +542,8 @@ describe('PercyClient', () => {
         .reply('/snapshots/123/finalize', () => [520])
         .reply('/snapshots/123/finalize', () => [200, { success: true }]);
 
-      await expect(client.finalizeSnapshot(123)).resolves.toEqual({ success: true });
-      expect(mockAPI.requests['/snapshots/123/finalize']).toHaveLength(4);
+      await expectAsync(client.finalizeSnapshot(123)).toBeResolvedTo({ success: true });
+      expect(mockAPI.requests['/snapshots/123/finalize']).toHaveSize(4);
     });
 
     it('retries certain request errors', async () => {
@@ -555,25 +554,25 @@ describe('PercyClient', () => {
         .post('/snapshots/123/finalize').replyWithError({ code: 'EAI_AGAIN' })
         .post('/snapshots/123/finalize').reply(200, { success: true });
 
-      await expect(client.finalizeSnapshot(123)).resolves.toEqual({ success: true });
+      await expectAsync(client.finalizeSnapshot(123)).toBeResolvedTo({ success: true });
       expect(mockAPI.nock.isDone()).toBe(true);
     });
 
     it('does not retry bad requests or unknown errors', async () => {
       mockAPI.reply('/snapshots/123/finalize', () => [400, { errors: [{ detail: 'Wrong' }] }]);
-      await expect(client.finalizeSnapshot(123)).rejects.toThrow('Wrong');
-      expect(mockAPI.requests['/snapshots/123/finalize']).toHaveLength(1);
+      await expectAsync(client.finalizeSnapshot(123)).toBeRejectedWithError('Wrong');
+      expect(mockAPI.requests['/snapshots/123/finalize']).toHaveSize(1);
 
       mockAPI.cleanAll().nock.persist(false)
         .post('/snapshots/123/finalize').replyWithError(new Error('Unknown'));
-      await expect(client.finalizeSnapshot(123)).rejects.toThrow('Unknown');
+      await expectAsync(client.finalizeSnapshot(123)).toBeRejectedWithError('Unknown');
       expect(mockAPI.nock.isDone()).toBe(true);
     });
 
     it('fails retrying after 5 attempts', async () => {
       mockAPI.reply('/snapshots/123/finalize', () => [502, { success: false }]);
-      await expect(client.finalizeSnapshot(123)).rejects.toThrow('502 {"success":false}');
-      expect(mockAPI.requests['/snapshots/123/finalize']).toHaveLength(5);
+      await expectAsync(client.finalizeSnapshot(123)).toBeRejectedWithError('502 {"success":false}');
+      expect(mockAPI.requests['/snapshots/123/finalize']).toHaveSize(5);
     });
   });
 
@@ -591,7 +590,7 @@ describe('PercyClient', () => {
     });
 
     it('creates a snapshot', async () => {
-      await expect(
+      await expectAsync(
         client.sendSnapshot({
           name: 'test snapshot name',
           resources: [{
@@ -601,7 +600,7 @@ describe('PercyClient', () => {
             root: true
           }]
         })
-      ).resolves.toBeUndefined();
+      ).toBeResolved();
 
       expect(mockAPI.requests['/builds/123/snapshots'][0].body).toEqual({
         data: {
@@ -630,7 +629,7 @@ describe('PercyClient', () => {
     });
 
     it('uploads missing resources', async () => {
-      await expect(
+      await expectAsync(
         client.sendSnapshot({
           name: 'test snapshot name',
           resources: [{
@@ -640,7 +639,7 @@ describe('PercyClient', () => {
             root: true
           }]
         })
-      ).resolves.toBeUndefined();
+      ).toBeResolved();
 
       expect(mockAPI.requests['/builds/123/resources'][0].body).toEqual({
         data: {
@@ -654,7 +653,7 @@ describe('PercyClient', () => {
     });
 
     it('finalizes a snapshot', async () => {
-      await expect(client.sendSnapshot({ name: 'test snapshot name' })).resolves.toBeUndefined();
+      await expectAsync(client.sendSnapshot({ name: 'test snapshot name' })).toBeResolved();
       expect(mockAPI.requests['/snapshots/4567/finalize']).toBeDefined();
     });
   });
