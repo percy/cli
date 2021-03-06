@@ -1,4 +1,3 @@
-import expect from 'expect';
 import colors from '../src/colors';
 import helper from './helper';
 import logger from '../src';
@@ -17,11 +16,11 @@ describe('logger', () => {
   });
 
   it('creates a namespaced logger', () => {
-    expect(log).toHaveProperty('info', expect.any(Function));
-    expect(log).toHaveProperty('warn', expect.any(Function));
-    expect(log).toHaveProperty('error', expect.any(Function));
-    expect(log).toHaveProperty('debug', expect.any(Function));
-    expect(log).toHaveProperty('deprecated', expect.any(Function));
+    expect(log).toHaveProperty('info', jasmine.any(Function));
+    expect(log).toHaveProperty('warn', jasmine.any(Function));
+    expect(log).toHaveProperty('error', jasmine.any(Function));
+    expect(log).toHaveProperty('debug', jasmine.any(Function));
+    expect(log).toHaveProperty('deprecated', jasmine.any(Function));
   });
 
   it('has a default log level', () => {
@@ -36,7 +35,7 @@ describe('logger', () => {
     log.deprecated('Deprecation log', { test: 'me' });
 
     let entry = (level, message, meta) => ({
-      timestamp: expect.any(Number),
+      timestamp: jasmine.any(Number),
       debug: 'test',
       level,
       message,
@@ -84,11 +83,11 @@ describe('logger', () => {
     let error = new Error('test');
     log.error(error);
 
-    expect(logger.instance.messages).toContainEqual({
+    expect(logger.instance.messages).toContain({
       debug: 'test',
       level: 'error',
       message: error.stack,
-      timestamp: expect.any(Number),
+      timestamp: jasmine.any(Number),
       meta: {}
     });
 
@@ -126,7 +125,7 @@ describe('logger', () => {
       debug: 'test',
       level: 'info',
       message: 'Yes me',
-      timestamp: expect.any(Number),
+      timestamp: jasmine.any(Number),
       meta: { match: true }
     }]);
   });
@@ -257,13 +256,13 @@ describe('logger', () => {
       log.debug('Debug log');
 
       expect(helper.stdout).toEqual([
-        expect.stringMatching('Info log \\(\\dms\\)\\n')
+        jasmine.stringMatching('Info log \\(\\dms\\)\\n')
       ]);
 
       expect(helper.stderr).toEqual([
-        expect.stringMatching('Warn log \\(\\dms\\)\\n'),
-        expect.stringMatching('Error log \\(\\dms\\)\\n'),
-        expect.stringMatching('Debug log \\(10\\dms\\)\\n')
+        jasmine.stringMatching('Warn log \\(\\dms\\)\\n'),
+        jasmine.stringMatching('Error log \\(\\dms\\)\\n'),
+        jasmine.stringMatching('Debug log \\(10\\dms\\)\\n')
       ]);
     });
   });
