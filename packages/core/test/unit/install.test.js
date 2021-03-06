@@ -205,7 +205,7 @@ describe('Unit / Install', () => {
         stub(process, 'arch', platform === 'win32' ? 'x32' : 'x64');
 
         await expectAsync(install.chromium()).toBeResolvedTo(
-          jasmine.stringMatching(expected.return)
+          jasmine.stringMatching(expected.return.replace(/[.\\]/g, '\\$&'))
         );
 
         expect(dlnock.isDone()).toBe(true);
