@@ -1,6 +1,10 @@
 /* eslint-env jasmine */
 
 beforeAll(() => {
+  // default timeout to 10s
+  jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
+
+  // add or patch missing or broken matchers
   jasmine.addMatchers({
     // If any property within the path is not defined, it will show a failure rather than error
     // about accessing a property of an undefined value.
