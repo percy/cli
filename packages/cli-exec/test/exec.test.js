@@ -1,4 +1,3 @@
-import expect from 'expect';
 import mock from 'mock-require';
 import { logger } from './helpers';
 import { Exec } from '../src/commands/exec';
@@ -9,8 +8,7 @@ describe('percy exec', () => {
   });
 
   it('logs an error when no command is provided', async () => {
-    await expect(Exec.run([]))
-      .rejects.toThrow('EEXIT: 1');
+    await expectAsync(Exec.run([])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stderr).toEqual([
       '[percy] You must supply a command to run after --\n'
@@ -22,8 +20,7 @@ describe('percy exec', () => {
   });
 
   it('logs an error when the command cannot be found', async () => {
-    await expect(Exec.run(['--', 'foobar']))
-      .rejects.toThrow('EEXIT: 127');
+    await expectAsync(Exec.run(['--', 'foobar'])).toBeRejectedWithError('EEXIT: 127');
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -77,8 +74,7 @@ describe('percy exec', () => {
   });
 
   it('forwards the command status', async () => {
-    await expect(Exec.run(['--', 'node', '--eval', 'process.exit(3)']))
-      .rejects.toThrow('EEXIT: 3');
+    await expectAsync(Exec.run(['--', 'node', '--eval', 'process.exit(3)'])).toBeRejectedWithError('EEXIT: 3');
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
@@ -96,8 +92,7 @@ describe('percy exec', () => {
     mock('which', { sync: () => true });
     let { Exec } = mock.reRequire('../src/commands/exec');
 
-    await expect(Exec.run(['--', 'foobar']))
-      .rejects.toThrow('EEXIT: 1');
+    await expectAsync(Exec.run(['--', 'foobar'])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stderr).toEqual([
       '[percy] Error: spawn foobar ENOENT\n'

@@ -1,4 +1,3 @@
-import expect from 'expect';
 import { logger, createTestServer } from './helpers';
 import { Ping } from '../src/commands/exec/ping';
 
@@ -23,8 +22,7 @@ describe('percy exec:ping', () => {
   });
 
   it('logs an error when the endpoint errors', async () => {
-    await expect(Ping.run([]))
-      .rejects.toThrow('EEXIT: 1');
+    await expectAsync(Ping.run([])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual(['[percy] Percy is not running\n']);
