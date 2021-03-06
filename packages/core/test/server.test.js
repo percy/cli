@@ -1,4 +1,3 @@
-import expect from 'expect';
 import fetch from 'node-fetch';
 import PercyConfig from '@percy/config';
 import Percy from '../src';
@@ -29,8 +28,8 @@ describe('Snapshot Server', () => {
   });
 
   it('starts a server at the specified port', async () => {
-    await expect(percy.start()).resolves.toBeUndefined();
-    await expect(fetch('http://localhost:1337')).resolves.toBeDefined();
+    await expectAsync(percy.start()).toBeResolved();
+    await expectAsync(fetch('http://localhost:1337')).toBeResolved();
   });
 
   it('has a /healthcheck endpoint', async () => {
@@ -38,7 +37,7 @@ describe('Snapshot Server', () => {
 
     let response = await fetch('http://localhost:1337/percy/healthcheck');
     expect(response.headers.get('x-percy-core-version')).toMatch(pkg.version);
-    await expect(response.json()).resolves.toEqual({
+    await expectAsync(response.json()).toBeResolvedTo({
       success: true,
       loglevel: 'info',
       config: PercyConfig.getDefaults(),
@@ -58,8 +57,8 @@ describe('Snapshot Server', () => {
 
     let response = await fetch('http://localhost:1337/percy/idle');
     expect(response.headers.get('x-percy-core-version')).toMatch(pkg.version);
-    await expect(response.json()).resolves.toEqual({ success: true });
-    expect(percy.idle.calls).toHaveLength(1);
+    await expectAsync(response.json()).toBeResolvedTo({ success: true });
+    expect(percy.idle.calls).toHaveSize(1);
   });
 
   it('serves the @percy/dom bundle', async () => {
@@ -68,7 +67,7 @@ describe('Snapshot Server', () => {
 
     await percy.start();
     let response = await fetch('http://localhost:1337/percy/dom.js');
-    await expect(response.text()).resolves.toBe(bundle);
+    await expectAsync(response.text()).toBeResolvedTo(bundle);
   });
 
   it('serves the legacy percy-agent.js dom bundle', async () => {
@@ -79,7 +78,7 @@ describe('Snapshot Server', () => {
     await percy.start();
     let response = await fetch('http://localhost:1337/percy-agent.js');
 
-    await expect(response.text()).resolves.toBe(bundle);
+    await expectAsync(response.text()).toBeResolvedTo(bundle);
     expect(logger.stderr).toEqual([
       '[percy] Warning: It looks like you’re using @percy/cli with an older SDK. Please upgrade to the latest version' +
         ' to fix this warning. See these docs for more info: https://docs.percy.io/docs/migrating-to-percy-cli\n'
@@ -94,8 +93,8 @@ describe('Snapshot Server', () => {
 
     let response = await fetch('http://localhost:1337/percy/stop', { method: 'post' });
     expect(response.headers.get('x-percy-core-version')).toMatch(pkg.version);
-    await expect(response.json()).resolves.toEqual({ success: true });
-    expect(percy.stop.calls).toHaveLength(1);
+    await expectAsync(response.json()).toBeResolvedTo({ success: true });
+    expect(percy.stop.calls).toHaveSize(1);
   });
 
   it('has a /snapshot endpoint that calls #snapshot() with normalized options', async () => {
@@ -110,8 +109,8 @@ describe('Snapshot Server', () => {
     });
 
     expect(response.headers.get('x-percy-core-version')).toMatch(pkg.version);
-    await expect(response.json()).resolves.toEqual({ success: true });
-    expect(percy.snapshot.calls).toHaveLength(1);
+    await expectAsync(response.json()).toBeResolvedTo({ success: true });
+    expect(percy.snapshot.calls).toHaveSize(1);
     expect(percy.snapshot.calls[0]).toEqual({ testMe: true, meToo: true });
   });
 
@@ -125,7 +124,7 @@ describe('Snapshot Server', () => {
     });
 
     expect(response.headers.get('x-percy-core-version')).toMatch(pkg.version);
-    await expect(response.json()).resolves.toEqual({
+    await expectAsync(response.json()).toBeResolvedTo({
       success: false,
       error: 'test error'
     });
@@ -138,7 +137,7 @@ describe('Snapshot Server', () => {
     expect(response).toHaveProperty('status', 404);
 
     expect(response.headers.get('x-percy-core-version')).toMatch(pkg.version);
-    await expect(response.json()).resolves.toEqual({
+    await expectAsync(response.json()).toBeResolvedTo({
       success: false,
       error: 'Not found'
     });
@@ -180,11 +179,12 @@ describe('Snapshot Server', () => {
     });
 
     it('does not start a server with #start()', async () => {
-      await expect(fetch('http://localhost:5883')).rejects.toThrow('ECONNREFUSED');
+      await expectAsync(fetch('http://localhost:5883'))
+        .toBeRejectedWithError(/ECONNREFUSED/);
     });
 
     it('does not error when stopping', async () => {
-      await expect(percy.stop()).resolves.toBeUndefined();
+      await expectAsync(percy.stop()).toBeResolved();
     });
   });
 });

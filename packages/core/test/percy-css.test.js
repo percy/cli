@@ -1,4 +1,3 @@
-import expect from 'expect';
 import Percy from '../src';
 import { mockAPI, createTestServer, dedent } from './helpers';
 import { sha256hash } from '@percy/client/dist/utils';

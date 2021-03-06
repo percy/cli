@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import { Writable } from 'stream';
-import expect from 'expect';
 import nock from 'nock';
 import mockRequire from 'mock-require';
 import logger from '@percy/logger';
@@ -144,16 +143,15 @@ describe('Unit / Install', () => {
   it('handles failed downloads', async () => {
     dlcallback = () => [404];
 
-    await expect(install(options))
-      .rejects.toThrow('Download failed: 404 - https://fake-download.org/archive.zip');
+    await expectAsync(install(options)).toBeRejectedWithError('Download failed: 404 - https://fake-download.org/archive.zip');
 
     expect(fs.promises.unlink.calls[0])
       .toEqual([path.join('.downloads', 'v0', 'archive.zip')]);
   });
 
   it('returns the full path of the executable', async () => {
-    await expect(install(options)).resolves
-      .toEqual(path.join('.downloads', 'v0', 'extracted', 'bin.exe'));
+    await expectAsync(install(options))
+      .toBeResolvedTo(path.join('.downloads', 'v0', 'extracted', 'bin.exe'));
   });
 
   describe('Chromium', () => {
@@ -175,30 +173,30 @@ describe('Unit / Install', () => {
     it('extracts to a .local-chromium directory', async () => {
       await install.chromium();
 
-      expect(extract.calls[0]).toEqual([expect.any(String), {
-        dir: expect.stringMatching('(/|\\\\).local-chromium(/|\\\\)')
+      expect(extract.calls[0]).toEqual([jasmine.any(String), {
+        dir: jasmine.stringMatching('(/|\\\\).local-chromium(/|\\\\)')
       }]);
     });
 
     for (let [platform, expected] of Object.entries({
       linux: {
         revision: '812847',
-        url: expect.stringMatching('Linux_x64/812847/chrome-linux.zip'),
+        url: jasmine.stringMatching('Linux_x64/812847/chrome-linux.zip'),
         return: path.join('chrome-linux', 'chrome')
       },
       darwin: {
         revision: '812851',
-        url: expect.stringMatching('Mac/812851/chrome-mac.zip'),
+        url: jasmine.stringMatching('Mac/812851/chrome-mac.zip'),
         return: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')
       },
       win64: {
         revision: '812845',
-        url: expect.stringMatching('Win_x64/812845/chrome-win.zip'),
+        url: jasmine.stringMatching('Win_x64/812845/chrome-win.zip'),
         return: path.join('chrome-win', 'chrome.exe')
       },
       win32: {
         revision: '812822',
-        url: expect.stringMatching('Win/812822/chrome-win32.zip'),
+        url: jasmine.stringMatching('Win/812822/chrome-win32.zip'),
         return: path.join('chrome-win32', 'chrome.exe')
       }
     })) {
@@ -206,8 +204,8 @@ describe('Unit / Install', () => {
         stub(process, 'platform', platform === 'win64' ? 'win32' : platform);
         stub(process, 'arch', platform === 'win32' ? 'x32' : 'x64');
 
-        await expect(install.chromium()).resolves.toEqual(
-          expect.stringContaining(expected.return)
+        await expectAsync(install.chromium()).toBeResolvedTo(
+          jasmine.stringMatching(expected.return)
         );
 
         expect(dlnock.isDone()).toBe(true);
@@ -216,7 +214,7 @@ describe('Unit / Install', () => {
         expect(logger.stderr).toEqual([]);
         expect(logger.stdout).toEqual([
           '[percy] Chromium not found, downloading...\n',
-          expect.stringMatching(`(${expected.revision})`), '\n',
+          jasmine.stringMatching(`(${expected.revision})`), '\n',
           '[percy] Successfully downloaded Chromium\n'
         ]);
       });

@@ -1,11 +1,10 @@
-import expect from 'expect';
 import Queue from '../../src/queue';
 
 function task(timeout = 0, cb) {
   return async function t() {
     t.running = true;
     await new Promise(r => setTimeout(r, timeout));
-    let v = cb && await cb();
+    let v = cb && (await cb());
     t.running = false;
     return v;
   };
@@ -42,12 +41,12 @@ describe('Unit / Tasks Queue', () => {
       q.push(task(50, () => n++));
 
       expect(n).toBe(0);
-      await expect(q.push(task(100, () => n++))).resolves.toBe(1);
+      await expectAsync(q.push(task(100, () => n++))).toBeResolvedTo(1);
       expect(n).toBe(2);
 
-      await expect(q.push(task(0, () => {
+      await expectAsync(q.push(task(0, () => {
         throw new Error('some error');
-      }))).rejects.toThrow('some error');
+      }))).toBeRejectedWithError('some error');
     });
   });
 
@@ -71,7 +70,7 @@ describe('Unit / Tasks Queue', () => {
         throw new Error('technically settled');
       })).catch(() => {}); // we're catching the promise, not the task
 
-      await expect(q.idle()).resolves.toBeUndefined();
+      await expectAsync(q.idle()).toBeResolved();
       tasks.forEach(t => expect(t).toHaveProperty('running', false));
     });
   });
