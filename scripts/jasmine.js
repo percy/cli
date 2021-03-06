@@ -13,5 +13,10 @@ jasmine.loadConfig({
 });
 
 jasmine.clearReporters();
-jasmine.addReporter(new SpecReporter());
+jasmine.addReporter(new SpecReporter({
+  summary: {
+    displayStacktrace: 'pretty'
+  }
+}));
+
 jasmine.execute();
