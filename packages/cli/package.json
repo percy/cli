@@ -16,14 +16,11 @@
   },
   "scripts": {
     "lint": "eslint --ignore-path ../../.gitignore .",
-    "test": "cross-env NODE_ENV=test mocha",
+    "test": "node ../../scripts/jasmine",
     "test:coverage": "nyc yarn test"
   },
   "publishConfig": {
     "access": "public"
-  },
-  "mocha": {
-    "require": "../../scripts/babel-register"
   },
   "oclif": {
     "bin": "percy",

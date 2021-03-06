@@ -1,5 +1,5 @@
 env:
-  mocha: true
+  jasmine: true
 rules:
   no-return-assign: off
   no-sequences: off

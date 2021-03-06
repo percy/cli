@@ -17,17 +17,12 @@
     "build": "cross-env NODE_ENV=production babel src --out-dir dist --root-mode upward",
     "lint": "eslint --ignore-path ../../.gitignore .",
     "postinstall": "node ./post-install",
-    "test": "cross-env NODE_ENV=test mocha",
+    "test": "node ../../scripts/jasmine",
     "test:coverage": "nyc yarn test",
     "test:types": "tsd"
   },
   "publishConfig": {
     "access": "public"
-  },
-  "mocha": {
-    "require": "../../scripts/babel-register",
-    "recursive": true,
-    "timeout": 10000
   },
   "dependencies": {
     "@percy/client": "^1.0.0-beta.39",

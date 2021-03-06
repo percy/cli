@@ -1,6 +1,6 @@
 module.exports = config => {
   config.set({
-    frameworks: ['mocha'],
+    frameworks: ['jasmine'],
 
     browsers: [
       'ChromeHeadless',
@@ -8,14 +8,15 @@ module.exports = config => {
     ],
 
     reporters: [
-      'mocha',
+      'spec',
       'coverage'
     ],
 
     files: [
       { pattern: 'src/index.js', watched: false },
       { pattern: 'test/helpers.js', watched: false },
-      { pattern: 'test/**/*.test.js', watched: false }
+      { pattern: 'test/**/*.test.js', watched: false },
+      { pattern: '../../scripts/jasmine-helpers.js', watched: false }
     ],
 
     preprocessors: {
@@ -24,8 +25,10 @@ module.exports = config => {
       'test/**/*.test.js': ['rollupTest']
     },
 
-    mochaReporter: {
-      showDiff: true
+    client: {
+      jasmine: {
+        random: false
+      }
     },
 
     coverageReporter: {
@@ -97,8 +100,8 @@ module.exports = config => {
       'karma-chrome-launcher',
       'karma-firefox-launcher',
       'karma-coverage',
-      'karma-mocha',
-      'karma-mocha-reporter',
+      'karma-jasmine',
+      'karma-spec-reporter',
       'karma-rollup-preprocessor'
     ]
   });
