@@ -245,6 +245,6 @@ export default class Page extends EventEmitter {
 
   _handleTargetCrashed = () => {
     this.closedReason = 'Page crashed!';
-    this.close();
+    this.close().catch(error => this.log.debug(error));
   }
 }
