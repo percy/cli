@@ -1,4 +1,3 @@
-import expect from 'expect';
 import { pluginMocker, mockRequire } from './helpers';
 
 describe('Plugin auto-registration', () => {
