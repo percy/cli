@@ -1,4 +1,3 @@
-import expect from 'expect';
 import logger from '@percy/logger/test/helper';
 import mockAPI from '@percy/client/test/helper';
 import { Wait } from '../src/commands/build/wait';
@@ -41,8 +40,7 @@ describe('percy build:wait', () => {
   });
 
   it('logs an error and exits when required args are missing', async () => {
-    await expect(Wait.run([]))
-      .rejects.toThrow('EEXIT: 1');
+    await expectAsync(Wait.run([])).toBeRejectedWithError('EEXIT: 1');
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
       '[percy] Error: Missing build ID or commit SHA\n'
@@ -62,7 +60,7 @@ describe('percy build:wait', () => {
     await Wait.run(['--build=123', '--interval=50']);
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual(expect.arrayContaining([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Recieving snapshots...'
     ]));
   });
@@ -85,7 +83,7 @@ describe('percy build:wait', () => {
     await Wait.run(['--build=123', '--interval=50']);
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual(expect.arrayContaining([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Processing 18 snapshots - 16 of 72 comparisons finished...',
       '[percy] Processing 18 snapshots - 32 of 72 comparisons finished...',
       '[percy] Processing 18 snapshots - finishing up...'
@@ -101,7 +99,7 @@ describe('percy build:wait', () => {
     await Wait.run(['--build=123']);
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual(expect.arrayContaining([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Build #10 finished! https://percy.io/test/test/123\n',
       '[percy] Found 16 changes\n'
     ]));
@@ -113,11 +111,10 @@ describe('percy build:wait', () => {
       state: 'finished'
     })]);
 
-    await expect(Wait.run(['--build=123', '-f']))
-      .rejects.toThrow('EEXIT: 1');
+    await expectAsync(Wait.run(['--build=123', '-f'])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual(expect.arrayContaining([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Build #10 finished! https://percy.io/test/test/123\n',
       '[percy] Found 16 changes\n'
     ]));
@@ -132,7 +129,7 @@ describe('percy build:wait', () => {
     await Wait.run(['--build=123', '-f']);
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual(expect.arrayContaining([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Build #10 finished! https://percy.io/test/test/123\n',
       '[percy] Found 0 changes\n'
     ]));
@@ -140,11 +137,10 @@ describe('percy build:wait', () => {
 
   it('exits and logs the build state when unrecognized', async () => {
     mockAPI.reply('/builds/123', () => [200, build({ state: 'expired' })]);
-    await expect(Wait.run(['--build=123']))
-      .rejects.toThrow('EEXIT: 1');
+    await expectAsync(Wait.run(['--build=123'])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
-    expect(logger.stderr).toEqual(expect.arrayContaining([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Build #10 is expired. https://percy.io/test/test/123\n'
     ]));
   });
@@ -156,11 +152,10 @@ describe('percy build:wait', () => {
         'failure-reason': 'render_timeout'
       })]);
 
-      await expect(Wait.run(['--build=123']))
-        .rejects.toThrow('EEXIT: 1');
+      await expectAsync(Wait.run(['--build=123'])).toBeRejectedWithError('EEXIT: 1');
 
       expect(logger.stdout).toEqual([]);
-      expect(logger.stderr).toEqual(expect.arrayContaining([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Build #10 failed! https://percy.io/test/test/123\n',
         '[percy] Some snapshots in this build took too long to render ' +
           'even after multiple retries.\n'
@@ -173,11 +168,10 @@ describe('percy build:wait', () => {
         'failure-reason': 'no_snapshots'
       })]);
 
-      await expect(Wait.run(['--build=123']))
-        .rejects.toThrow('EEXIT: 1');
+      await expectAsync(Wait.run(['--build=123'])).toBeRejectedWithError('EEXIT: 1');
 
       expect(logger.stdout).toEqual([]);
-      expect(logger.stderr).toEqual(expect.arrayContaining([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Build #10 failed! https://percy.io/test/test/123\n',
         '[percy] No snapshots were uploaded to this build.\n'
       ]));
@@ -189,11 +183,10 @@ describe('percy build:wait', () => {
         'failure-reason': 'missing_finalize'
       })]);
 
-      await expect(Wait.run(['--build=123']))
-        .rejects.toThrow('EEXIT: 1');
+      await expectAsync(Wait.run(['--build=123'])).toBeRejectedWithError('EEXIT: 1');
 
       expect(logger.stdout).toEqual([]);
-      expect(logger.stderr).toEqual(expect.arrayContaining([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Build #10 failed! https://percy.io/test/test/123\n',
         '[percy] Failed to correctly finalize.\n'
       ]));
@@ -205,11 +198,10 @@ describe('percy build:wait', () => {
         'failure-reason': 'missing_resources'
       })]);
 
-      await expect(Wait.run(['--build=123']))
-        .rejects.toThrow('EEXIT: 1');
+      await expectAsync(Wait.run(['--build=123'])).toBeRejectedWithError('EEXIT: 1');
 
       expect(logger.stdout).toEqual([]);
-      expect(logger.stderr).toEqual(expect.arrayContaining([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Build #10 failed! https://percy.io/test/test/123\n',
         '[percy] Some build or snapshot resources failed to correctly upload.\n'
       ]));
@@ -226,11 +218,10 @@ describe('percy build:wait', () => {
         }
       })]);
 
-      await expect(Wait.run(['--build=123']))
-        .rejects.toThrow('EEXIT: 1');
+      await expectAsync(Wait.run(['--build=123'])).toBeRejectedWithError('EEXIT: 1');
 
       expect(logger.stdout).toEqual([]);
-      expect(logger.stderr).toEqual(expect.arrayContaining([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Build #10 failed! https://percy.io/test/test/123\n',
         '[percy] Only 3 of 4 parallelized build processes finished.\n'
       ]));
@@ -242,11 +233,10 @@ describe('percy build:wait', () => {
         'failure-reason': 'unrecognized_reason'
       })]);
 
-      await expect(Wait.run(['--build=123']))
-        .rejects.toThrow('EEXIT: 1');
+      await expectAsync(Wait.run(['--build=123'])).toBeRejectedWithError('EEXIT: 1');
 
       expect(logger.stdout).toEqual([]);
-      expect(logger.stderr).toEqual(expect.arrayContaining([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Build #10 failed! https://percy.io/test/test/123\n',
         '[percy] Error: unrecognized_reason\n'
       ]));
