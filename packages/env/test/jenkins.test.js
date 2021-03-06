@@ -1,4 +1,3 @@
-import expect from 'expect';
 import mockgit from './mockgit';
 import PercyEnvironment from '../src';
 

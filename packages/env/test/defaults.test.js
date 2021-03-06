@@ -1,4 +1,3 @@
-import expect from 'expect';
 import mockgit from './mockgit';
 import PercyEnvironment from '../src';
 
@@ -54,11 +53,11 @@ describe('Defaults', () => {
     expect(env.git).toHaveProperty('committerEmail', 'mock committer@email.com');
     expect(env.git).toHaveProperty('message', 'mock commit');
 
-    expect(mockgit.branch.calls).toHaveLength(1);
+    expect(mockgit.branch.calls).toHaveSize(1);
     expect(mockgit.branch.calls[0]).toEqual(['rev-parse', '--abbrev-ref', 'HEAD']);
-    expect(mockgit.commit.calls).toHaveLength(1);
+    expect(mockgit.commit.calls).toHaveSize(1);
     expect(mockgit.commit.calls[0])
-      .toEqual(['show', 'HEAD', '--quiet', expect.stringMatching(/--format=.*/)]);
+      .toEqual(['show', 'HEAD', '--quiet', jasmine.stringMatching(/--format=.*/)]);
   });
 
   it('uses raw branch data when git commit data is missing', () => {
@@ -66,7 +65,7 @@ describe('Defaults', () => {
 
     expect(env.git).toHaveProperty('branch', 'mock-branch');
 
-    expect(mockgit.branch.calls).toHaveLength(1);
+    expect(mockgit.branch.calls).toHaveSize(1);
     expect(mockgit.branch.calls[0]).toEqual(['rev-parse', '--abbrev-ref', 'HEAD']);
   });
 

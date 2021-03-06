@@ -1,4 +1,3 @@
-import expect from 'expect';
 import PercyEnvironment from '../src';
 
 describe('Bitbucket', () => {

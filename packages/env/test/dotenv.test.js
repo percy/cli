@@ -1,17 +1,16 @@
-import expect from 'expect';
 import mock from 'mock-require';
 
 describe('dotenv files', () => {
   let env, dotenvs;
 
-  before(() => {
+  beforeAll(() => {
     env = process.env;
     mock('fs', { readFileSync: path => dotenvs[path] ?? '' });
     mock.reRequire('dotenv');
     mock.reRequire('../src/dotenv');
   });
 
-  after(() => {
+  afterAll(() => {
     process.env = env;
     mock.stop('fs');
   });
