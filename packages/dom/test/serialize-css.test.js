@@ -1,4 +1,4 @@
-import { expect, withExample, withCSSOM, parseDOM } from 'test/helpers';
+import { withExample, withCSSOM, parseDOM } from 'test/helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeCSSOM', () => {
@@ -10,21 +10,21 @@ describe('serializeCSSOM', () => {
   it('serializes CSSOM and does not mutate the orignal DOM', () => {
     let $cssom = parseDOM(serializeDOM())('[data-percy-cssom-serialized]');
 
-    expect($cssom).toHaveLength(1);
+    expect($cssom).toHaveSize(1);
     expect($cssom[0].innerHTML).toBe('.box { height: 500px; width: 500px; background-color: green; }');
     expect(document.styleSheets[0]).toHaveProperty('ownerNode.innerText', '');
-    expect(document.querySelectorAll('[data-percy-cssom-serialized]')).toHaveLength(0);
+    expect(document.querySelectorAll('[data-percy-cssom-serialized]')).toHaveSize(0);
   });
 
   it('does not serialize CSSOM that exists outside of memory', () => {
     let $css = parseDOM(serializeDOM())('style');
 
-    expect($css).toHaveLength(3);
+    expect($css).toHaveSize(3);
     expect($css[0].innerHTML).toBe('.box { height: 500px; width: 500px; background-color: green; }');
     expect($css[0].getAttribute('data-percy-cssom-serialized')).toBeDefined();
     // style #2 (index 1) is the original injected style tag for `withCSSOM`
     expect($css[2].innerHTML).toBe('div { display: inline-block; }');
-    expect($css[2].getAttribute('data-percy-cssom-serialized')).toBeUndefined();
+    expect($css[2].getAttribute('data-percy-cssom-serialized')).toBeNull();
   });
 
   it('does not break the CSSOM by adding new styles after serializng', () => {
@@ -37,7 +37,7 @@ describe('serializeCSSOM', () => {
     cssomSheet.deleteRule(0);
     cssomSheet.insertRule('.box { height: 200px; width: 200px; background-color: blue; }');
 
-    expect(cssomSheet.cssRules).toHaveLength(1);
+    expect(cssomSheet.cssRules).toHaveSize(1);
     expect(cssomSheet.cssRules[0].cssText)
       .toBe('.box { height: 200px; width: 200px; background-color: blue; }');
   });
@@ -51,13 +51,13 @@ describe('serializeCSSOM', () => {
     let $ = parseDOM(serializeDOM());
     let $cssom = $('[data-percy-cssom-serialized]');
 
-    expect($cssom).toHaveLength(1);
+    expect($cssom).toHaveSize(1);
     expect($cssom[0].innerHTML).toBe('.box { height: 500px; width: 500px; background-color: green; }');
   });
 
   it('does not serialize the CSSOM when JS is enabled', () => {
     let $ = parseDOM(serializeDOM({ enableJavaScript: true }));
     expect(document.styleSheets[0]).toHaveProperty('ownerNode.innerText', '');
-    expect($('[data-percy-cssom-serialized]')).toHaveLength(0);
+    expect($('[data-percy-cssom-serialized]')).toHaveSize(0);
   });
 });

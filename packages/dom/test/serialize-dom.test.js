@@ -1,4 +1,4 @@
-import { expect, withExample, replaceDoctype } from 'test/helpers';
+import { withExample, replaceDoctype } from 'test/helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeDOM', () => {
@@ -60,7 +60,7 @@ describe('serializeDOM', () => {
       });
 
       expect(dom).toMatch('Delete me');
-      expect(stub.calls).toHaveLength(1);
+      expect(stub.calls).toHaveSize(1);
       expect(stub.calls[0]).toEqual(['Could not transform the dom:', 'test error']);
     });
   });

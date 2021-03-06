@@ -1,5 +1,5 @@
 import I from 'interactor.js';
-import { expect, withExample, parseDOM } from 'test/helpers';
+import { withExample, parseDOM } from 'test/helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeInputs', () => {
@@ -105,7 +105,7 @@ describe('serializeInputs', () => {
   });
 
   it('adds a guid data-attribute to the original DOM', () => {
-    expect(document.querySelectorAll('[data-percy-element-id]')).toHaveLength(9);
+    expect(document.querySelectorAll('[data-percy-element-id]')).toHaveSize(9);
   });
 
   it('adds matching guids to the orignal DOM and cloned DOM', () => {
