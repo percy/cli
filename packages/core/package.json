@@ -17,7 +17,7 @@
     "build": "cross-env NODE_ENV=production babel src --out-dir dist --root-mode upward",
     "lint": "eslint --ignore-path ../../.gitignore .",
     "postinstall": "node ./post-install",
-    "test": "node ../../scripts/jasmine",
+    "test": "node ../../scripts/test",
     "test:coverage": "nyc yarn test",
     "test:types": "tsd"
   },

@@ -16,7 +16,7 @@
   },
   "scripts": {
     "lint": "eslint --ignore-path ../../.gitignore .",
-    "test": "node ../../scripts/jasmine",
+    "test": "node ../../scripts/test",
     "test:coverage": "nyc yarn test"
   },
   "publishConfig": {

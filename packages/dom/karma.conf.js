@@ -16,7 +16,7 @@ module.exports = config => {
       { pattern: 'src/index.js', watched: false },
       { pattern: 'test/helpers.js', watched: false },
       { pattern: 'test/**/*.test.js', watched: false },
-      { pattern: '../../scripts/jasmine-helpers.js', watched: false }
+      { pattern: '../../scripts/test-helpers.js', watched: false }
     ],
 
     preprocessors: {
