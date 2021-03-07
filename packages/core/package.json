@@ -14,7 +14,7 @@
     "node": ">=12"
   },
   "scripts": {
-    "build": "cross-env NODE_ENV=production babel src --out-dir dist --root-mode upward",
+    "build": "node ../../scripts/build",
     "lint": "eslint --ignore-path ../../.gitignore .",
     "postinstall": "node ./post-install",
     "test": "node ../../scripts/test",

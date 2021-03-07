@@ -12,7 +12,7 @@
     "node": ">=12"
   },
   "scripts": {
-    "build": "cross-env NODE_ENV=production babel src --out-dir dist --root-mode upward",
+    "build": "node ../../scripts/build",
     "lint": "eslint --ignore-path ../../.gitignore .",
     "postbuild": "oclif-dev manifest",
     "readme": "oclif-dev readme",

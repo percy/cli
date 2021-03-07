@@ -8,7 +8,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "cross-env NODE_ENV=production rollup --config",
+    "build": "node ../../scripts/build",
     "lint": "eslint --ignore-path ../../.gitignore .",
     "test": "node ../../scripts/test",
     "test:coverage": "yarn test --coverage"
@@ -16,19 +16,12 @@
   "publishConfig": {
     "access": "public"
   },
-  "babel": {
-    "extends": "../../babel.config.js",
-    "presets": [
-      ["@babel/env", {
-        "targets": "last 2 version"
-      }]
-    ]
+  "rollup": {
+    "output": {
+      "name": "PercyDOM"
+    }
   },
   "devDependencies": {
-    "@rollup/plugin-babel": "^5.2.2",
-    "@rollup/plugin-commonjs": "^17.0.0",
-    "@rollup/plugin-node-resolve": "^11.1.0",
-    "interactor.js": "^2.0.0-beta.10",
-    "rollup": "^2.38.0"
+    "interactor.js": "^2.0.0-beta.10"
   }
 }
