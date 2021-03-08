@@ -87,6 +87,11 @@ function httpModuleFor(url) {
   return url.match(/^https:\/\//) ? require('https') : require('http');
 }
 
+// Returns the appropriate http proxy agent or https proxy agent for a given proxy URL.
+function proxyModuleFor(url) {
+  return url.match(/^https:\/\//) ? require('https-proxy-agent') : require('http-proxy-agent');
+}
+
 // Returns the appropriate http or https Agent instance for a given URL.
 export function httpAgentFor(url) {
   let { Agent } = httpModuleFor(url);
@@ -119,9 +124,16 @@ function shouldRetryRequest(error) {
 // up to 5 times at 50ms intervals.
 export function request(url, { body, ...options }) {
   let http = httpModuleFor(url);
+  var getProxyFromUrl = require("proxy-from-env").getProxyForUrl;
+  var proxyUrl = getProxyFromUrl(url);
   let { protocol, hostname, port, pathname, search } = new URL(url);
   options = { ...options, protocol, hostname, port, path: pathname + search };
-
+  if(proxyUrl)
+  {
+    var HttpsProxyAgent = proxyModuleFor(proxyUrl); 
+    var agent = HttpsProxyAgent(proxyUrl);
+    options.agent = agent 
+  }
   return retry((resolve, reject, retry) => {
     let handleError = error => {
       return shouldRetryRequest(error)

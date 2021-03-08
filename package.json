@@ -39,5 +39,10 @@
     "nock": "^13.0.4",
     "nyc": "^15.1.0",
     "tsd": "^0.14.0"
+  },
+  "dependencies": {
+    "http-proxy-agent": "^4.0.1",
+    "https-proxy-agent": "^5.0.0",
+    "proxy-from-env": "^1.1.0"
   }
 }
