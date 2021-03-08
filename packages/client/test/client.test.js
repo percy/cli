@@ -1,5 +1,5 @@
 import mock from 'mock-require';
-import mockgit from '@percy/env/test/mockgit';
+import { mockgit } from '@percy/env/test/helper';
 import PercyClient from '../src';
 import { sha256hash, base64encode } from '../src/utils';
 import mockAPI from './helper';
@@ -289,7 +289,9 @@ describe('PercyClient', () => {
     });
 
     it('resolves when the build matching a commit revision completes', async () => {
-      mockgit.commit(([, rev]) => rev === 'HEAD' && 'parsed-sha');
+      mockgit.commit
+        .withArgs([jasmine.anything(), 'HEAD'])
+        .and.returnValue('parsed-sha');
 
       mockAPI
         .reply('/projects/test/builds?filter[sha]=parsed-sha', () => [200, {
@@ -304,7 +306,7 @@ describe('PercyClient', () => {
     });
 
     it('defaults to the provided commit when revision parsing fails', async () => {
-      mockgit.commit(() => { throw new Error('test'); });
+      mockgit.commit.and.throwError(new Error('test'));
 
       mockAPI.reply('/projects/test/builds?filter[sha]=abcdef', () => [200, {
         data: [{ attributes: { state: 'finished' } }]

@@ -276,13 +276,7 @@ describe('Percy Capture', () => {
   });
 
   it('handles the browser closing early', async () => {
-    let created;
-
-    let page = percy.discoverer.page;
-    percy.discoverer.page = function() {
-      created = true;
-      return page.apply(this, arguments);
-    };
+    spyOn(percy.discoverer, 'page').and.callThrough();
 
     let capture = percy.capture({
       name: 'test snapshot',
@@ -290,7 +284,7 @@ describe('Percy Capture', () => {
     });
 
     // wait until a page is requested
-    await waitFor(() => created);
+    await waitFor(() => percy.discoverer.page.calls.any());
     percy.discoverer.close();
     await capture;
 

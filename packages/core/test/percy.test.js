@@ -117,19 +117,16 @@ describe('Percy', () => {
     });
 
     it('starts a server after launching a browser and creating a build', async () => {
-      let launch = percy.discoverer.launch.bind(percy.discoverer);
-      let create = percy.client.createBuild.bind(percy.client);
-      let start = percy.server.listen.bind(percy.server);
-      let launched, created, started;
-
-      percy.discoverer.launch = () => (launched = Date.now(), launch());
-      percy.client.createBuild = () => (created = Date.now(), create());
-      percy.server.listen = () => (started = Date.now(), start());
+      spyOn(percy.discoverer, 'launch').and.callThrough();
+      spyOn(percy.client, 'createBuild').and.callThrough();
+      spyOn(percy.server, 'listen').and.callThrough();
 
       await expectAsync(percy.start()).toBeResolved();
 
-      expect(launched).toBeLessThan(created);
-      expect(created).toBeLessThan(started);
+      expect(percy.discoverer.launch)
+        .toHaveBeenCalledBefore(percy.client.createBuild);
+      expect(percy.client.createBuild)
+        .toHaveBeenCalledBefore(percy.server.listen);
     });
 
     it('does not error or launch multiple browsers', async () => {

@@ -1,4 +1,4 @@
-import mockgit from './mockgit';
+import { mockgit } from './helper';
 import PercyEnvironment from '../src';
 
 describe('Jenkins', () => {
@@ -43,7 +43,7 @@ describe('Jenkins', () => {
       CHANGE_BRANCH: 'jenkins-branch'
     });
 
-    mockgit.commit(([, sha]) => [
+    mockgit.commit.and.callFake(([, sha]) => [
       `COMMIT_SHA:${sha === 'HEAD' ? 'jenkins-merge-sha' : 'jenkins-non-merge-sha'}`,
       `AUTHOR_NAME:${sha === 'HEAD' ? 'Jenkins' : 'mock author'}`,
       `AUTHOR_EMAIL:${sha === 'HEAD' ? 'nobody@nowhere' : 'mock author@email.com'}`,

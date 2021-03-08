@@ -15,7 +15,7 @@ describe('Snapshot Server', () => {
   });
 
   afterEach(async () => {
-    delete percy.stop; // remove own mocks
+    percy.stop.and?.callThrough();
     await percy.stop();
   });
 
@@ -50,15 +50,13 @@ describe('Snapshot Server', () => {
   });
 
   it('has an /idle endpoint that calls #idle()', async () => {
+    spyOn(percy, 'idle').and.resolveTo();
     await percy.start();
-    percy.idle = async () => (
-      percy.idle.calls = percy.idle.calls || []
-    ).push(undefined);
 
     let response = await fetch('http://localhost:1337/percy/idle');
     expect(response.headers.get('x-percy-core-version')).toMatch(pkg.version);
     await expectAsync(response.json()).toBeResolvedTo({ success: true });
-    expect(percy.idle.calls).toHaveSize(1);
+    expect(percy.idle).toHaveBeenCalled();
   });
 
   it('serves the @percy/dom bundle', async () => {
@@ -86,22 +84,18 @@ describe('Snapshot Server', () => {
   });
 
   it('has a /stop endpoint that calls #stop()', async () => {
+    spyOn(percy, 'stop').and.resolveTo();
     await percy.start();
-    percy.stop = async () => (
-      percy.stop.calls = percy.stop.calls || []
-    ).push(undefined);
 
     let response = await fetch('http://localhost:1337/percy/stop', { method: 'post' });
     expect(response.headers.get('x-percy-core-version')).toMatch(pkg.version);
     await expectAsync(response.json()).toBeResolvedTo({ success: true });
-    expect(percy.stop.calls).toHaveSize(1);
+    expect(percy.stop).toHaveBeenCalled();
   });
 
   it('has a /snapshot endpoint that calls #snapshot() with normalized options', async () => {
+    spyOn(percy, 'snapshot').and.resolveTo();
     await percy.start();
-    percy.snapshot = async data => (
-      percy.snapshot.calls = percy.snapshot.calls || []
-    ).push(data);
 
     let response = await fetch('http://localhost:1337/percy/snapshot', {
       method: 'post',
@@ -110,13 +104,12 @@ describe('Snapshot Server', () => {
 
     expect(response.headers.get('x-percy-core-version')).toMatch(pkg.version);
     await expectAsync(response.json()).toBeResolvedTo({ success: true });
-    expect(percy.snapshot.calls).toHaveSize(1);
-    expect(percy.snapshot.calls[0]).toEqual({ testMe: true, meToo: true });
+    expect(percy.snapshot).toHaveBeenCalledOnceWith({ testMe: true, meToo: true });
   });
 
   it('returns a 500 error when an endpoint throws', async () => {
+    spyOn(percy, 'snapshot').and.rejectWith(new Error('test error'));
     await percy.start();
-    percy.snapshot = () => Promise.reject(new Error('test error'));
 
     let response = await fetch('http://localhost:1337/percy/snapshot', {
       method: 'post',
@@ -144,11 +137,10 @@ describe('Snapshot Server', () => {
   });
 
   it('accepts preflight cors checks', async () => {
-    let called = false;
     let response;
 
+    spyOn(percy, 'snapshot').and.resolveTo();
     await percy.start();
-    percy.snapshot = async () => (called = true);
 
     response = await fetch('http://localhost:1337/percy/snapshot', {
       method: 'OPTIONS'
@@ -158,7 +150,7 @@ describe('Snapshot Server', () => {
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
     expect(response.headers.get('Access-Control-Allow-Methods')).toBe('GET,POST,OPTIONS');
     expect(response.headers.get('Access-Control-Request-Headers')).toBe('Vary');
-    expect(called).toBe(false);
+    expect(percy.snapshot).not.toHaveBeenCalled();
 
     response = await fetch('http://localhost:1337/percy/snapshot', {
       headers: { 'Access-Control-Request-Headers': 'Content-Type' },
@@ -167,7 +159,7 @@ describe('Snapshot Server', () => {
 
     expect(response.status).toBe(204);
     expect(response.headers.get('Access-Control-Allow-Headers')).toBe('Content-Type');
-    expect(called).toBe(false);
+    expect(percy.snapshot).not.toHaveBeenCalled();
   });
 
   describe('when the server is disabled', () => {
