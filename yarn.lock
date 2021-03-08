@@ -750,9 +750,9 @@
     "@babel/helper-plugin-utils" "^7.12.13"
 
 "@babel/preset-env@^7.11.5":
-  version "7.13.8"
-  resolved "https://registry.yarnpkg.com/@babel/preset-env/-/preset-env-7.13.8.tgz#1133d7ae806d6bf981b7a1a49e336d4d88db1953"
-  integrity sha512-Sso1xOpV4S3ofnxW2DsWTE5ziRk62jEAKLGuQ+EJHC+YHTbFG38QUTixO3JVa1cYET9gkJhO1pMu+/+2dDhKvw==
+  version "7.13.9"
+  resolved "https://registry.yarnpkg.com/@babel/preset-env/-/preset-env-7.13.9.tgz#3ee5f233316b10d066d7f379c6d1e13a96853654"
+  integrity sha512-mcsHUlh2rIhViqMG823JpscLMesRt3QbMsv1+jhopXEb3W2wXvQ9QoiOlZI9ZbR3XqPtaFpZwEZKYqGJnGMZTQ==
   dependencies:
     "@babel/compat-data" "^7.13.8"
     "@babel/helper-compilation-targets" "^7.13.8"
@@ -2194,9 +2194,9 @@ ajv@^6.10.0, ajv@^6.12.3, ajv@^6.12.4:
     uri-js "^4.2.2"
 
 ajv@^7.0.2, ajv@^7.0.3:
-  version "7.1.1"
-  resolved "https://registry.yarnpkg.com/ajv/-/ajv-7.1.1.tgz#1e6b37a454021fa9941713f38b952fc1c8d32a84"
-  integrity sha512-ga/aqDYnUy/o7vbsRTFhhTsNeXiYb5JWDIcRIeZfwRNCefwjNTVYCGdGSUrEmiu3yDK3vFvNbgJxvrQW4JXrYQ==
+  version "7.2.1"
+  resolved "https://registry.yarnpkg.com/ajv/-/ajv-7.2.1.tgz#a5ac226171912447683524fa2f1248fcf8bac83d"
+  integrity sha512-+nu0HDv7kNSOua9apAVc979qd932rrZeb3WOvoiD31A/p1mIE5/9bN2027pE2rOPYEdS3UHzsvof4hY+lM9/WQ==
   dependencies:
     fast-deep-equal "^3.1.1"
     json-schema-traverse "^1.0.0"
