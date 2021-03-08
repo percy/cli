@@ -1,4 +1,3 @@
-import expect from 'expect';
 import { mockAPI, logger, createTestServer, dedent } from './helpers';
 import waitFor from '../src/utils/wait-for';
 import Percy from '../src';
@@ -32,16 +31,16 @@ describe('Percy Capture', () => {
 
   it('errors when missing a url', () => {
     expect(() => percy.capture({ name: 'test snapshot' }))
-      .toThrow('Missing URL for test snapshot');
+      .toThrowError('Missing URL for test snapshot');
     expect(() => percy.capture({ snapshots: [{ name: 'test snapshot' }] }))
-      .toThrow('Missing URL for snapshots');
+      .toThrowError('Missing URL for snapshots');
   });
 
   it('errors when missing a name or snapshot names', async () => {
     expect(() => percy.capture({ url: 'http://localhost:8000' }))
-      .toThrow('Missing name for http://localhost:8000');
+      .toThrowError('Missing name for http://localhost:8000');
     expect(() => percy.capture({ url: 'http://localhost:8000', snapshots: [{}] }))
-      .toThrow('Missing name for http://localhost:8000');
+      .toThrowError('Missing name for http://localhost:8000');
   });
 
   it('navigates to a url and takes a snapshot', async () => {
@@ -277,13 +276,7 @@ describe('Percy Capture', () => {
   });
 
   it('handles the browser closing early', async () => {
-    let created;
-
-    let page = percy.discoverer.page;
-    percy.discoverer.page = function() {
-      created = true;
-      return page.apply(this, arguments);
-    };
+    spyOn(percy.discoverer, 'page').and.callThrough();
 
     let capture = percy.capture({
       name: 'test snapshot',
@@ -291,14 +284,14 @@ describe('Percy Capture', () => {
     });
 
     // wait until a page is requested
-    await waitFor(() => created);
+    await waitFor(() => percy.discoverer.page.calls.any());
     percy.discoverer.close();
     await capture;
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      expect.stringMatching('Encountered an error'),
-      expect.stringMatching('Protocol error \\(Target\\.createTarget\\): Browser closed')
+      jasmine.stringMatching('Encountered an error'),
+      jasmine.stringMatching('Protocol error \\(Target\\.createTarget\\): Browser closed')
     ]);
   });
 
@@ -323,8 +316,8 @@ describe('Percy Capture', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      expect.stringMatching('Encountered an error'),
-      expect.stringMatching('Navigation failed: Page closed')
+      jasmine.stringMatching('Encountered an error'),
+      jasmine.stringMatching('Navigation failed: Page closed')
     ]);
   });
 
@@ -351,8 +344,8 @@ describe('Percy Capture', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      expect.stringMatching('Encountered an error'),
-      expect.stringMatching('Network error: Page closed')
+      jasmine.stringMatching('Encountered an error'),
+      jasmine.stringMatching('Network error: Page closed')
     ]);
   });
 
@@ -371,8 +364,8 @@ describe('Percy Capture', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      expect.stringMatching('Encountered an error'),
-      expect.stringMatching('Page crashed!')
+      jasmine.stringMatching('Encountered an error'),
+      jasmine.stringMatching('Page crashed!')
     ]);
   });
 });

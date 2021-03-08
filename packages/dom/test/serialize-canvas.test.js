@@ -1,10 +1,10 @@
-import { expect, withExample, parseDOM } from 'test/helpers';
+import { withExample, parseDOM } from 'test/helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeCanvas', () => {
   let $, src;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     withExample(`
       <canvas
         id="canvas"

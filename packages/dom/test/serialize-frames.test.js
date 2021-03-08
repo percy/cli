@@ -1,5 +1,5 @@
 import I, { when } from 'interactor.js';
-import { assert, expect, withExample, parseDOM } from 'test/helpers';
+import { assert, withExample, parseDOM } from 'test/helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeFrames', () => {
@@ -14,8 +14,6 @@ describe('serializeFrames', () => {
   }, 5000);
 
   beforeEach(async function() {
-    this.timeout(0); // frames may take a bit to load
-
     withExample(`
       <iframe id="frame-external" src="https://example.com"></iframe>
       <iframe id="frame-external-fail" src="https://google.com"></iframe>
@@ -46,21 +44,21 @@ describe('serializeFrames', () => {
     await getFrame('frame-external');
 
     $ = parseDOM(serializeDOM());
-  });
+  }, 0); // frames may take a bit to load
 
   afterEach(() => {
     document.querySelector('#frame-head').remove();
   });
 
   it('serializes iframes created with JS', () => {
-    expect($('#frame-js')[0].getAttribute('src')).toBeUndefined();
+    expect($('#frame-js')[0].getAttribute('src')).toBeNull();
     expect($('#frame-js')[0].getAttribute('srcdoc')).toBe([
       '<!DOCTYPE html><html><head></head><body>',
       '<p>made with js src</p>',
       '</body></html>'
     ].join(''));
 
-    expect($('#frame-js-no-src')[0].getAttribute('src')).toBeUndefined();
+    expect($('#frame-js-no-src')[0].getAttribute('src')).toBeNull();
     expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toBe([
       '<!DOCTYPE html><html><head></head><body>',
       '<p>generated iframe</p>',
@@ -79,22 +77,22 @@ describe('serializeFrames', () => {
   it('does not serialize iframes with CORS', () => {
     expect($('#frame-external')[0].getAttribute('src')).toBe('https://example.com');
     expect($('#frame-external-fail')[0].getAttribute('src')).toBe('https://google.com');
-    expect($('#frame-external')[0].getAttribute('srcdoc')).toBeUndefined();
-    expect($('#frame-external-fail')[0].getAttribute('srcdoc')).toBeUndefined();
+    expect($('#frame-external')[0].getAttribute('srcdoc')).toBeNull();
+    expect($('#frame-external-fail')[0].getAttribute('srcdoc')).toBeNull();
   });
 
   it('does not serialize iframes created by JS when JS is enabled', () => {
     $ = parseDOM(serializeDOM({ enableJavaScript: true }));
-    expect($('#frame-js')[0].getAttribute('src')).not.toBeUndefined();
-    expect($('#frame-js')[0].getAttribute('srcdoc')).toBeUndefined();
-    expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toBeUndefined();
+    expect($('#frame-js')[0].getAttribute('src')).not.toBeNull();
+    expect($('#frame-js')[0].getAttribute('srcdoc')).toBeNull();
+    expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toBeNull();
   });
 
   it('removes iframes from the head element', () => {
-    expect($('#frame-head')).toHaveLength(0);
+    expect($('#frame-head')).toHaveSize(0);
   });
 
   it('removes inaccessible JS frames', () => {
-    expect($('#frame-inject')).toHaveLength(0);
+    expect($('#frame-inject')).toHaveSize(0);
   });
 });

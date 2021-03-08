@@ -21,12 +21,9 @@
   "babel": {
     "extends": "../../babel.config.js",
     "presets": [
-      [
-        "@babel/env",
-        {
-          "targets": "last 2 version"
-        }
-      ]
+      ["@babel/env", {
+        "targets": "last 2 version"
+      }]
     ]
   },
   "devDependencies": {
@@ -38,9 +35,9 @@
     "karma-chrome-launcher": "^3.1.0",
     "karma-coverage": "^2.0.3",
     "karma-firefox-launcher": "^2.0.0",
-    "karma-mocha": "^2.0.1",
-    "karma-mocha-reporter": "^2.2.5",
+    "karma-jasmine": "^4.0.1",
     "karma-rollup-preprocessor": "^7.0.5",
+    "karma-spec-reporter": "^0.0.32",
     "rollup": "^2.38.0"
   }
 }

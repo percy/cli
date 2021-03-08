@@ -1,5 +1,4 @@
 import path from 'path';
-import expect from 'expect';
 import { logger, getMockConfig } from './helpers';
 import { Create } from '../src/commands/config/create';
 import PercyConfig from '@percy/config';
@@ -56,8 +55,7 @@ describe('percy config:create', () => {
   });
 
   it('logs an error and exits when the filetype is unsupported', async () => {
-    await expect(Create.run([path.join('.config', 'percy.config.php')]))
-      .rejects.toThrow('EEXIT: 1');
+    await expectAsync(Create.run([path.join('.config', 'percy.config.php')])).toBeRejectedWithError('EEXIT: 1');
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual(['[percy] Unsupported filetype: php\n']);
   });
@@ -66,7 +64,7 @@ describe('percy config:create', () => {
     await Create.run(['.percy.yml']);
     logger.clear();
 
-    await expect(Create.run(['.percy.yml'])).rejects.toThrow('EEXIT: 1');
+    await expectAsync(Create.run(['.percy.yml'])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual(['[percy] Percy config already exists: .percy.yml\n']);

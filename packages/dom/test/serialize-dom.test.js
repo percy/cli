@@ -1,4 +1,4 @@
-import { expect, withExample, replaceDoctype } from 'test/helpers';
+import { withExample, replaceDoctype } from 'test/helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeDOM', () => {
@@ -22,21 +22,9 @@ describe('serializeDOM', () => {
   });
 
   describe('with `domTransformation`', () => {
-    let stub = (...args) => {
-      stub.calls.push(args);
-    };
-
     beforeEach(() => {
       withExample('<span class="delete-me">Delete me</span>');
-
-      stub.calls = [];
-      stub.og = console.error;
-      console.error = stub;
-    });
-
-    afterEach(() => {
-      console.error = stub.og;
-      delete stub.og;
+      spyOn(console, 'error');
     });
 
     it('transforms the DOM without modifying the original DOM', () => {
@@ -60,8 +48,8 @@ describe('serializeDOM', () => {
       });
 
       expect(dom).toMatch('Delete me');
-      expect(stub.calls).toHaveLength(1);
-      expect(stub.calls[0]).toEqual(['Could not transform the dom:', 'test error']);
+      expect(console.error)
+        .toHaveBeenCalledOnceWith('Could not transform the dom:', 'test error');
     });
   });
 });

@@ -1,4 +1,3 @@
-import expect from 'expect';
 import { migration } from '../../src/config';
 
 describe('unit / config', () => {

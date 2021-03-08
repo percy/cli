@@ -1,4 +1,3 @@
-import expect from 'expect';
 import fetch from 'node-fetch';
 import Percy from '../src';
 import { mockAPI, logger, createTestServer, dedent } from './helpers';
@@ -103,42 +102,39 @@ describe('Percy', () => {
 
   describe('#start()', () => {
     it('launches a browser', async () => {
-      await expect(percy.start()).resolves.toBeUndefined();
+      await expectAsync(percy.start()).toBeResolved();
       expect(percy.discoverer.isConnected()).toBe(true);
     });
 
     it('creates a build', async () => {
-      await expect(percy.start()).resolves.toBeUndefined();
+      await expectAsync(percy.start()).toBeResolved();
       expect(mockAPI.requests['/builds']).toBeDefined();
     });
 
     it('starts a server', async () => {
-      await expect(percy.start()).resolves.toBeUndefined();
-      await expect(fetch('http://localhost:5338')).resolves.toBeDefined();
+      await expectAsync(percy.start()).toBeResolved();
+      await expectAsync(fetch('http://localhost:5338')).toBeResolved();
     });
 
     it('starts a server after launching a browser and creating a build', async () => {
-      let launch = percy.discoverer.launch.bind(percy.discoverer);
-      let create = percy.client.createBuild.bind(percy.client);
-      let start = percy.server.listen.bind(percy.server);
-      let launched, created, started;
+      spyOn(percy.discoverer, 'launch').and.callThrough();
+      spyOn(percy.client, 'createBuild').and.callThrough();
+      spyOn(percy.server, 'listen').and.callThrough();
 
-      percy.discoverer.launch = () => (launched = Date.now(), launch());
-      percy.client.createBuild = () => (created = Date.now(), create());
-      percy.server.listen = () => (started = Date.now(), start());
+      await expectAsync(percy.start()).toBeResolved();
 
-      await expect(percy.start()).resolves.toBeUndefined();
-
-      expect(launched).toBeLessThan(created);
-      expect(created).toBeLessThan(started);
+      expect(percy.discoverer.launch)
+        .toHaveBeenCalledBefore(percy.client.createBuild);
+      expect(percy.client.createBuild)
+        .toHaveBeenCalledBefore(percy.server.listen);
     });
 
     it('does not error or launch multiple browsers', async () => {
-      await expect(percy.discoverer.launch()).resolves.toBeUndefined();
+      await expectAsync(percy.discoverer.launch()).toBeResolved();
       expect(percy.discoverer.isConnected()).toBe(true);
       expect(percy.isRunning()).toBe(false);
 
-      await expect(percy.start()).resolves.toBeUndefined();
+      await expectAsync(percy.start()).toBeResolved();
       expect(percy.discoverer.isConnected()).toBe(true);
       expect(percy.isRunning()).toBe(true);
     });
@@ -159,8 +155,7 @@ describe('Percy', () => {
         errors: [{ detail: 'build error' }]
       }]);
 
-      await expect(percy.start())
-        .rejects.toThrow('build error');
+      await expectAsync(percy.start()).toBeRejectedWithError('build error');
 
       expect(percy.isRunning()).toBe(false);
       expect(percy.server.listening).toBe(false);
@@ -168,9 +163,9 @@ describe('Percy', () => {
     });
 
     it('throws when the port is in use', async () => {
-      await expect(percy.start()).resolves.toBeUndefined();
-      await expect(Percy.start({ token: 'PERCY_TOKEN' })).rejects
-        .toThrow('Percy is already running or the port is in use');
+      await expectAsync(percy.start()).toBeResolved();
+      await expectAsync(Percy.start({ token: 'PERCY_TOKEN' }))
+        .toBeRejectedWithError('Percy is already running or the port is in use');
     });
   });
 
@@ -181,19 +176,19 @@ describe('Percy', () => {
     });
 
     it('finalizes the build', async () => {
-      await expect(percy.stop()).resolves.toBeUndefined();
+      await expectAsync(percy.stop()).toBeResolved();
       expect(mockAPI.requests['/builds/123/finalize']).toBeDefined();
     });
 
     it('stops the server', async () => {
-      await expect(fetch('http://localhost:5338')).resolves.toBeDefined();
-      await expect(percy.stop()).resolves.toBeUndefined();
+      await expectAsync(fetch('http://localhost:5338')).toBeResolved();
+      await expectAsync(percy.stop()).toBeResolved();
       expect(percy.server.listening).toBe(false);
     });
 
     it('closes the browser instance', async () => {
       expect(percy.discoverer.isConnected()).toBe(true);
-      await expect(percy.stop()).resolves.toBeUndefined();
+      await expectAsync(percy.stop()).toBeResolved();
       expect(percy.discoverer.isConnected()).toBe(false);
     });
 
@@ -253,7 +248,7 @@ describe('Percy', () => {
         errors: [{ detail: 'finalize error' }]
       }]);
 
-      await expect(percy.stop()).rejects.toThrow('finalize error');
+      await expectAsync(percy.stop()).toBeRejectedWithError('finalize error');
       expect(percy.server.listening).toBe(false);
       expect(percy.discoverer.isConnected()).toBe(false);
     });
@@ -292,7 +287,7 @@ describe('Percy', () => {
 
       await percy.idle();
 
-      expect(mockAPI.requests['/builds/123/snapshots']).toHaveLength(1);
+      expect(mockAPI.requests['/builds/123/snapshots']).toHaveSize(1);
     });
   });
 
@@ -351,7 +346,7 @@ describe('Percy', () => {
           },
           relationships: {
             resources: {
-              data: expect.arrayContaining([{
+              data: jasmine.arrayContaining([{
                 type: 'resources',
                 id: sha256hash(testDOM),
                 attributes: {
@@ -377,9 +372,9 @@ describe('Percy', () => {
                 }
               }, {
                 type: 'resources',
-                id: expect.any(String),
+                id: jasmine.any(String),
                 attributes: {
-                  'resource-url': expect.stringMatching(/^\/percy\.\d+\.log$/),
+                  'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/),
                   'is-root': null,
                   mimetype: 'text/plain'
                 }
@@ -398,9 +393,9 @@ describe('Percy', () => {
       });
 
       await percy.idle();
-      expect(mockAPI.requests['/builds/123/resources']).toHaveLength(4);
+      expect(mockAPI.requests['/builds/123/resources']).toHaveSize(4);
       expect(mockAPI.requests['/builds/123/resources'].map(r => r.body)).toEqual(
-        expect.arrayContaining([{
+        jasmine.arrayContaining([{
           data: {
             type: 'resources',
             id: sha256hash(testDOM),
@@ -430,7 +425,7 @@ describe('Percy', () => {
             id: mockAPI.requests['/builds/123/snapshots'][0]
               .body.data.relationships.resources.data[3].id,
             attributes: {
-              'base64-content': expect.any(String)
+              'base64-content': jasmine.any(String)
             }
           }
         }])
@@ -449,7 +444,7 @@ describe('Percy', () => {
       await percy.idle();
 
       expect(mockAPI.requests['/builds/123/resources'].map(r => r.body))
-        .not.toEqual(expect.arrayContaining([{
+        .not.toEqual(jasmine.arrayContaining([{
           data: {
             type: 'resources',
             id: sha256hash(pixel),
@@ -473,7 +468,7 @@ describe('Percy', () => {
       await percy.idle();
 
       expect(mockAPI.requests['/builds/123/resources'].map(r => r.body))
-        .toEqual(expect.arrayContaining([{
+        .toEqual(jasmine.arrayContaining([{
           data: {
             type: 'resources',
             id: sha256hash(pixel),
@@ -497,7 +492,7 @@ describe('Percy', () => {
       await percy.idle();
 
       expect(mockAPI.requests['/builds/123/resources'].map(r => r.body))
-        .not.toEqual(expect.arrayContaining([{
+        .not.toEqual(jasmine.arrayContaining([{
           data: {
             type: 'resources',
             id: sha256hash(pixel),
@@ -521,16 +516,16 @@ describe('Percy', () => {
 
     it('throws an error when missing required arguments', () => {
       expect(() => percy.snapshot({ url: 'test' }))
-        .toThrow('Missing required argument: name');
+        .toThrowError('Missing required argument: name');
       expect(() => percy.snapshot({ name: 'test' }))
-        .toThrow('Missing required argument: url');
+        .toThrowError('Missing required argument: url');
       expect(() => percy.snapshot({ name: 'test', url: 'test' }))
-        .toThrow('Missing required argument: domSnapshot');
+        .toThrowError('Missing required argument: domSnapshot');
     });
 
     it('throws when not running', async () => {
       await percy.stop();
-      expect(() => percy.snapshot({})).toThrow('Not running');
+      expect(() => percy.snapshot({})).toThrowError('Not running');
     });
 
     it('logs after taking the snapshot', async () => {

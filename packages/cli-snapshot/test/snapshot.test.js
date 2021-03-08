@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import { inspect } from 'util';
-import expect from 'expect';
 import mockAPI from '@percy/client/test/helper';
 import logger from '@percy/logger/test/helper';
 import { createTestServer } from '@percy/core/test/helpers';
@@ -10,7 +9,7 @@ import { Snapshot } from '../src/commands/snapshot';
 const cwd = process.cwd();
 
 describe('percy snapshot', () => {
-  before(() => {
+  beforeAll(() => {
     require('../src/hooks/init').default();
 
     fs.mkdirSync(path.join(__dirname, 'tmp'));
@@ -40,7 +39,7 @@ describe('percy snapshot', () => {
     fs.writeFileSync('nope', 'not here');
   });
 
-  after(() => {
+  afterAll(() => {
     fs.unlinkSync('nope');
     fs.unlinkSync('pages.js');
     fs.unlinkSync('pages-fn.js');
@@ -79,8 +78,7 @@ describe('percy snapshot', () => {
   });
 
   it('errors when the provided path doesn\'t exist', async () => {
-    await expect(Snapshot.run(['./404']))
-      .rejects.toThrow('EEXIT: 1');
+    await expectAsync(Snapshot.run(['./404'])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -89,8 +87,7 @@ describe('percy snapshot', () => {
   });
 
   it('errors when the base-url is invalid', async () => {
-    await expect(Snapshot.run(['./public', '--base-url=wrong']))
-      .rejects.toThrow('EEXIT: 1');
+    await expectAsync(Snapshot.run(['./public', '--base-url=wrong'])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -99,8 +96,7 @@ describe('percy snapshot', () => {
   });
 
   it('errors when there are no snapshots to take', async () => {
-    await expect(Snapshot.run(['./public', '--files=no-match']))
-      .rejects.toThrow('EEXIT: 1');
+    await expectAsync(Snapshot.run(['./public', '--files=no-match'])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -113,7 +109,7 @@ describe('percy snapshot', () => {
       await Snapshot.run(['./public']);
 
       expect(logger.stderr).toEqual([]);
-      expect(logger.stdout).toEqual(expect.arrayContaining([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy has started!\n',
         '[percy] Created build #1: https://percy.io/test/test/123\n',
         '[percy] Snapshot taken: /test-3.htm\n',
@@ -129,7 +125,7 @@ describe('percy snapshot', () => {
       await Snapshot.run(['./public', '--base-url=/base/']);
 
       expect(logger.stderr).toEqual([]);
-      expect(logger.stdout).toEqual(expect.arrayContaining([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy has started!\n',
         '[percy] Created build #1: https://percy.io/test/test/123\n',
         '[percy] Snapshot taken: /base/test-3.htm\n',
@@ -227,8 +223,7 @@ describe('percy snapshot', () => {
     });
 
     it('errors with unknown file extensions', async () => {
-      await expect(Snapshot.run(['./nope']))
-        .rejects.toThrow('EEXIT: 1');
+      await expectAsync(Snapshot.run(['./nope'])).toBeRejectedWithError('EEXIT: 1');
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([

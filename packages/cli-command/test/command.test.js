@@ -1,4 +1,3 @@
-import expect from 'expect';
 import logger from '@percy/logger/test/helper';
 import PercyConfig from '@percy/config';
 import PercyCommand, { flags } from '../src';
@@ -73,8 +72,7 @@ describe('PercyCommand', () => {
       test() { this.error('test error'); }
     }
 
-    await expect(TestPercyCommandError.run([]))
-      .rejects.toThrow('EEXIT: 1');
+    await expectAsync(TestPercyCommandError.run([])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -87,8 +85,7 @@ describe('PercyCommand', () => {
       test() { this.exit(1); }
     }
 
-    await expect(TestPercyCommandExit.run([]))
-      .rejects.toThrow('EEXIT: 1');
+    await expectAsync(TestPercyCommandExit.run([])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([]);
@@ -125,12 +122,12 @@ describe('PercyCommand', () => {
     it('returns Percy config and parsed flags', async () => {
       process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
 
-      await expect(TestPercyCommand.run([
+      await expectAsync(TestPercyCommand.run([
         '--allowed-hostname', '*.percy.io',
         '--network-idle-timeout', '150',
         '--disable-cache',
         'foo', 'bar'
-      ])).resolves.toBeUndefined();
+      ])).toBeResolved();
 
       expect(results[0].percyrc()).toEqual({
         version: 2,

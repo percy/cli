@@ -1,45 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import { Writable } from 'stream';
-import expect from 'expect';
 import nock from 'nock';
 import mockRequire from 'mock-require';
 import logger from '@percy/logger';
 import install from '../../src/install';
-
-// mock & stub helpers
-function mock(fn) {
-  return function mocked(...args) {
-    (mocked.calls ||= []).push(args);
-    return fn(...args);
-  };
-}
-
-function stub(obj, prop, fn) {
-  let og = Object.getOwnPropertyDescriptor(obj, prop);
-  let descr = 'value';
-
-  if (typeof fn !== 'function') {
-    let value = fn;
-    fn = () => value;
-    descr = 'get';
-  }
-
-  let mocked = Object.assign(mock(fn), {
-    restore: () => og.value?.restore?.() ??
-      Object.defineProperty(obj, prop, og)
-  });
-
-  Object.defineProperty(obj, prop, { [descr]: mocked });
-  stub.all.add(mocked);
-  return mocked;
-}
-
-stub.all = new Set();
-stub.restoreAll = () => {
-  for (let s of stub.all) s.restore();
-  stub.all.clear();
-};
 
 // mock writable stream
 class MockWritable extends Writable {
@@ -61,15 +26,16 @@ describe('Unit / Install', () => {
     });
 
     // stub fs methods
-    stub(fs.promises, 'mkdir', async () => {});
-    stub(fs.promises, 'unlink', async () => {});
-    stub(fs, 'existsSync', p => p.endsWith('archive.zip'));
-    stub(fs, 'createWriteStream', () => new MockWritable());
+    spyOn(fs.promises, 'mkdir');
+    spyOn(fs.promises, 'unlink');
+    spyOn(fs, 'existsSync').and.callFake(p => p.endsWith('archive.zip'));
+    spyOn(fs, 'createWriteStream').and.returnValue(new MockWritable());
 
     // mock a fake download api
     nock.disableNetConnect();
     nock.enableNetConnect('localhost|127.0.0.1');
-    dlcallback = mock(s => [200, s, { 'content-length': s.length }]);
+    dlcallback = jasmine.createSpy('dlcallback')
+      .and.callFake(s => [200, s, { 'content-length': s.length }]);
     dlnock = nock('https://fake-download.org').get('/archive.zip')
       .reply(() => dlcallback('archive contents'));
 
@@ -78,32 +44,31 @@ describe('Unit / Install', () => {
       name: 'Test Download',
       revision: 'v0',
       url: 'https://fake-download.org/archive.zip',
-      extract: mock(async () => {}),
+      extract: jasmine.createSpy('extract').and.resolveTo(),
       directory: '.downloads',
       executable: 'extracted/bin.exe'
     };
   });
 
   afterEach(() => {
-    stub.restoreAll();
     nock.cleanAll();
   });
 
   it('does nothing if the executable already exists in the output directory', async () => {
-    stub(fs, 'existsSync', () => true);
+    fs.existsSync.and.returnValue(true);
     await install(options);
 
-    expect(fs.promises.mkdir.calls).toBeUndefined();
-    expect(fs.promises.unlink.calls).toBeUndefined();
-    expect(fs.createWriteStream.calls).toBeUndefined();
+    expect(fs.promises.mkdir).not.toHaveBeenCalled();
+    expect(fs.promises.unlink).not.toHaveBeenCalled();
+    expect(fs.createWriteStream).not.toHaveBeenCalled();
     expect(dlnock.isDone()).toBe(false);
   });
 
   it('creates the output directory when it does not exist', async () => {
     await install(options);
 
-    expect(fs.promises.mkdir.calls[0])
-      .toEqual([path.join('.downloads', 'v0'), { recursive: true }]);
+    expect(fs.promises.mkdir)
+      .toHaveBeenCalledOnceWith(path.join('.downloads', 'v0'), { recursive: true });
   });
 
   it('fetches the archive from the provided url', async () => {
@@ -135,35 +100,43 @@ describe('Unit / Install', () => {
   it('extracts the downloaded archive to the output directory', async () => {
     await install(options);
 
-    expect(options.extract.calls[0]).toEqual([
+    expect(options.extract).toHaveBeenCalledOnceWith(
       path.join('.downloads', 'v0', 'archive.zip'),
       path.join('.downloads', 'v0')
-    ]);
+    );
   });
 
   it('handles failed downloads', async () => {
-    dlcallback = () => [404];
+    dlcallback.and.returnValue([404]);
 
-    await expect(install(options))
-      .rejects.toThrow('Download failed: 404 - https://fake-download.org/archive.zip');
+    await expectAsync(install(options))
+      .toBeRejectedWithError('Download failed: 404 - https://fake-download.org/archive.zip');
 
-    expect(fs.promises.unlink.calls[0])
-      .toEqual([path.join('.downloads', 'v0', 'archive.zip')]);
+    expect(fs.promises.unlink)
+      .toHaveBeenCalledOnceWith(path.join('.downloads', 'v0', 'archive.zip'));
   });
 
   it('returns the full path of the executable', async () => {
-    await expect(install(options)).resolves
-      .toEqual(path.join('.downloads', 'v0', 'extracted', 'bin.exe'));
+    await expectAsync(install(options))
+      .toBeResolvedTo(path.join('.downloads', 'v0', 'extracted', 'bin.exe'));
   });
 
   describe('Chromium', () => {
-    let extract;
+    let extractZip;
 
     beforeEach(() => {
-      extract = mock(async () => {});
-      mockRequire('extract-zip', extract);
+      extractZip = jasmine.createSpy('extract-zip').and.resolveTo();
+      mockRequire('extract-zip', extractZip);
+
       dlnock = nock('https://storage.googleapis.com/chromium-browser-snapshots')
         .persist().get(/.*/).reply(uri => dlcallback(uri));
+
+      // make getters for jasmine property spy
+      let { platform, arch } = process;
+      Object.defineProperties(process, {
+        platform: { get: () => platform },
+        arch: { get: () => arch }
+      });
     });
 
     it('downloads from the google storage api', async () => {
@@ -175,48 +148,48 @@ describe('Unit / Install', () => {
     it('extracts to a .local-chromium directory', async () => {
       await install.chromium();
 
-      expect(extract.calls[0]).toEqual([expect.any(String), {
-        dir: expect.stringMatching('(/|\\\\).local-chromium(/|\\\\)')
-      }]);
+      expect(extractZip).toHaveBeenCalledOnceWith(jasmine.any(String), {
+        dir: jasmine.stringMatching('(/|\\\\).local-chromium(/|\\\\)')
+      });
     });
 
     for (let [platform, expected] of Object.entries({
       linux: {
         revision: '812847',
-        url: expect.stringMatching('Linux_x64/812847/chrome-linux.zip'),
+        url: jasmine.stringMatching('Linux_x64/812847/chrome-linux.zip'),
         return: path.join('chrome-linux', 'chrome')
       },
       darwin: {
         revision: '812851',
-        url: expect.stringMatching('Mac/812851/chrome-mac.zip'),
+        url: jasmine.stringMatching('Mac/812851/chrome-mac.zip'),
         return: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')
       },
       win64: {
         revision: '812845',
-        url: expect.stringMatching('Win_x64/812845/chrome-win.zip'),
+        url: jasmine.stringMatching('Win_x64/812845/chrome-win.zip'),
         return: path.join('chrome-win', 'chrome.exe')
       },
       win32: {
         revision: '812822',
-        url: expect.stringMatching('Win/812822/chrome-win32.zip'),
+        url: jasmine.stringMatching('Win/812822/chrome-win32.zip'),
         return: path.join('chrome-win32', 'chrome.exe')
       }
     })) {
       it(`downloads the correct files for ${platform}`, async () => {
-        stub(process, 'platform', platform === 'win64' ? 'win32' : platform);
-        stub(process, 'arch', platform === 'win32' ? 'x32' : 'x64');
+        spyOnProperty(process, 'platform').and.returnValue(platform === 'win64' ? 'win32' : platform);
+        spyOnProperty(process, 'arch').and.returnValue(platform === 'win32' ? 'x32' : 'x64');
 
-        await expect(install.chromium()).resolves.toEqual(
-          expect.stringContaining(expected.return)
+        await expectAsync(install.chromium()).toBeResolvedTo(
+          jasmine.stringMatching(expected.return.replace(/[.\\]/g, '\\$&'))
         );
 
         expect(dlnock.isDone()).toBe(true);
-        expect(dlcallback.calls[0]).toEqual([expected.url]);
+        expect(dlcallback).toHaveBeenCalledOnceWith(expected.url);
 
         expect(logger.stderr).toEqual([]);
         expect(logger.stdout).toEqual([
           '[percy] Chromium not found, downloading...\n',
-          expect.stringMatching(`(${expected.revision})`), '\n',
+          jasmine.stringMatching(`(${expected.revision})`), '\n',
           '[percy] Successfully downloaded Chromium\n'
         ]);
       });

@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import expect from 'expect';
 import mockAPI from '@percy/client/test/helper';
 import logger from '@percy/logger/test/helper';
 import { Upload } from '../src/commands/upload';
@@ -10,7 +9,7 @@ const pixel = Buffer.from('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICR
 const cwd = process.cwd();
 
 describe('percy upload', () => {
-  before(() => {
+  beforeAll(() => {
     require('../src/hooks/init').default();
 
     fs.mkdirSync(path.join(__dirname, 'tmp'));
@@ -24,7 +23,7 @@ describe('percy upload', () => {
     fs.writeFileSync('nope', 'not here');
   });
 
-  after(() => {
+  afterAll(() => {
     fs.unlinkSync('nope');
     fs.unlinkSync(path.join('images', 'test-1.png'));
     fs.unlinkSync(path.join('images', 'test-2.jpg'));
@@ -56,8 +55,7 @@ describe('percy upload', () => {
   });
 
   it('errors when the directory is not found', async () => {
-    await expect(Upload.run(['./404']))
-      .rejects.toThrow('EEXIT: 1');
+    await expectAsync(Upload.run(['./404'])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -66,8 +64,7 @@ describe('percy upload', () => {
   });
 
   it('errors when the path is not a directory', async () => {
-    await expect(Upload.run(['./nope']))
-      .rejects.toThrow('EEXIT: 1');
+    await expectAsync(Upload.run(['./nope'])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -76,8 +73,7 @@ describe('percy upload', () => {
   });
 
   it('errors when there are no matching files', async () => {
-    await expect(Upload.run(['./images', '--files=no-match.png']))
-      .rejects.toThrow('EEXIT: 1');
+    await expectAsync(Upload.run(['./images', '--files=no-match.png'])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -109,9 +105,9 @@ describe('percy upload', () => {
         },
         relationships: {
           resources: {
-            data: expect.arrayContaining([{
+            data: jasmine.arrayContaining([{
               type: 'resources',
-              id: expect.any(String),
+              id: jasmine.any(String),
               attributes: {
                 'resource-url': '/test-1',
                 mimetype: 'text/html',
@@ -119,7 +115,7 @@ describe('percy upload', () => {
               }
             }, {
               type: 'resources',
-              id: expect.any(String),
+              id: jasmine.any(String),
               attributes: {
                 'resource-url': '/test-1.png',
                 mimetype: 'image/png',

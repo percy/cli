@@ -1,4 +1,3 @@
-import expect from 'expect';
 import sdk from './helper';
 
 describe('SDK Utils', () => {
@@ -44,7 +43,7 @@ describe('SDK Utils', () => {
           success: true
         }]);
 
-        await expect(isPercyEnabled()).resolves.toBe(true);
+        await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
       });
 
       it('returns the CLI version', () => {
@@ -63,17 +62,16 @@ describe('SDK Utils', () => {
     beforeEach(() => ({ isPercyEnabled } = sdk.rerequire('..')));
 
     it('calls the healthcheck endpoint once and caches the result', async () => {
-      await expect(isPercyEnabled()).resolves.toBe(true);
-      await expect(isPercyEnabled()).resolves.toBe(true);
-      await expect(isPercyEnabled()).resolves.toBe(true);
+      await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
+      await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
+      await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
       expect(sdk.server.requests).toEqual([['/percy/healthcheck']]);
     });
 
     it('disables snapshots when the healthcheck fails', async () => {
       sdk.test.failure('/percy/healthcheck');
 
-      await expect(isPercyEnabled())
-        .resolves.toBe(false);
+      await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
 
       expect(sdk.logger.stdout).toEqual([
         '[percy] Percy is not running, disabling snapshots\n'
@@ -83,8 +81,7 @@ describe('SDK Utils', () => {
     it('disables snapshots when the request errors', async () => {
       sdk.test.error('/percy/healthcheck');
 
-      await expect(isPercyEnabled())
-        .resolves.toBe(false);
+      await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
 
       expect(sdk.logger.stdout).toEqual([
         '[percy] Percy is not running, disabling snapshots\n'
@@ -94,8 +91,7 @@ describe('SDK Utils', () => {
     it('disables snapshots when the API version is unsupported', async () => {
       sdk.server.version = '';
 
-      await expect(isPercyEnabled())
-        .resolves.toBe(false);
+      await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
 
       expect(sdk.logger.stdout).toEqual([
         '[percy] Unsupported Percy CLI version, disabling snapshots\n'
@@ -106,22 +102,25 @@ describe('SDK Utils', () => {
   describe('fetchPercyDOM()', () => {
     let fetchPercyDOM;
 
-    it('fetches @percy/dom from the CLI API and caches the result', async () => {
+    beforeEach(() => {
       ({ fetchPercyDOM } = sdk.rerequire('..'));
-      await expect(fetchPercyDOM()).resolves.toEqual(
+    });
+
+    it('fetches @percy/dom from the CLI API and caches the result', async () => {
+      await expectAsync(fetchPercyDOM()).toBeResolvedTo(
         `window.PercyDOM = { serialize: ${sdk.serializeDOM.toString()} }`);
-      await expect(fetchPercyDOM()).resolves.toBeDefined();
+      await expectAsync(fetchPercyDOM()).toBeResolved();
       expect(sdk.server.requests).toEqual([['/percy/dom.js']]);
     });
   });
 
   describe('postSnapshot(options)', () => {
-    let postSnapshot;
+    let postSnapshot, options;
 
-    it('posts snapshot options to the CLI API snapshot endpoint', async () => {
+    beforeEach(() => {
       ({ postSnapshot } = sdk.rerequire('..'));
 
-      let options = {
+      options = {
         name: 'Snapshot Name',
         url: 'http://localhost:8000/',
         domSnapshot: '<SERIALIZED_DOM>',
@@ -129,14 +128,16 @@ describe('SDK Utils', () => {
         environmentInfo: ['lib/version', 'lang/version'],
         enableJavaScript: true
       };
+    });
 
-      await expect(postSnapshot(options)).resolves.toBeUndefined();
+    it('posts snapshot options to the CLI API snapshot endpoint', async () => {
+      await expectAsync(postSnapshot(options)).toBeResolved();
       expect(sdk.server.requests).toEqual([['/percy/snapshot', options]]);
     });
 
     it('throws when the snapshot API fails', async () => {
       sdk.test.failure('/percy/snapshot', 'foobar');
-      await expect(postSnapshot({})).rejects.toThrow('foobar');
+      await expectAsync(postSnapshot({})).toBeRejectedWithError('foobar');
     });
   });
 });

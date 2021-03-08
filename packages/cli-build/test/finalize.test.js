@@ -1,4 +1,3 @@
-import expect from 'expect';
 import mockAPI from '@percy/client/test/helper';
 import logger from '@percy/logger/test/helper';
 import { Finalize } from '../src/commands/build/finalize';
@@ -27,8 +26,7 @@ describe('percy build:finalize', () => {
   it('logs an error when PERCY_PARALLEL_TOTAL is not -1', async () => {
     process.env.PERCY_PARALLEL_TOTAL = '5';
 
-    await expect(Finalize.run([]))
-      .rejects.toThrow('EEXIT: 1');
+    await expectAsync(Finalize.run([])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([

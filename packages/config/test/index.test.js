@@ -1,5 +1,4 @@
 import path from 'path';
-import expect from 'expect';
 import logger from '@percy/logger/test/helper';
 import mockConfig from './helper';
 import PercyConfig from '../src';
@@ -300,7 +299,7 @@ describe('PercyConfig', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
-        expect.stringContaining('[percy] Error: test')
+        jasmine.stringMatching('\\[percy] Error: test')
       ]);
     });
 
@@ -607,7 +606,7 @@ describe('PercyConfig', () => {
 
     it('throws an error with an unrecognized format', () => {
       expect(() => PercyConfig.stringify('foo'))
-        .toThrow('Unsupported format: foo');
+        .toThrowError('Unsupported format: foo');
     });
   });
 });

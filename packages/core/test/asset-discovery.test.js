@@ -1,6 +1,5 @@
 import os from 'os';
 import path from 'path';
-import expect from 'expect';
 import { sha256hash } from '@percy/client/dist/utils';
 import { mockAPI, createTestServer, dedent, logger } from './helpers';
 import Percy from '../src';
@@ -74,26 +73,26 @@ describe('Asset Discovery', () => {
     expect(paths).toContain('/img.gif');
 
     expect(captured[0]).toEqual([
-      expect.objectContaining({
-        attributes: expect.objectContaining({
-          'resource-url': expect.stringMatching(/^\/percy\.\d+\.log$/)
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
         })
       }),
-      expect.objectContaining({
+      jasmine.objectContaining({
         id: sha256hash(testDOM),
-        attributes: expect.objectContaining({
+        attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/'
         })
       }),
-      expect.objectContaining({
+      jasmine.objectContaining({
         id: sha256hash(pixel),
-        attributes: expect.objectContaining({
+        attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/img.gif'
         })
       }),
-      expect.objectContaining({
+      jasmine.objectContaining({
         id: sha256hash(testCSS),
-        attributes: expect.objectContaining({
+        attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/style.css'
         })
       })
@@ -114,20 +113,20 @@ describe('Asset Discovery', () => {
     expect(paths).toContain('/style.css');
 
     expect(captured[0]).toEqual([
-      expect.objectContaining({
-        attributes: expect.objectContaining({
-          'resource-url': expect.stringMatching(/^\/percy\.\d+\.log$/)
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
         })
       }),
-      expect.objectContaining({
+      jasmine.objectContaining({
         id: sha256hash(prefetchDOM),
-        attributes: expect.objectContaining({
+        attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/'
         })
       }),
-      expect.objectContaining({
+      jasmine.objectContaining({
         id: sha256hash(pixel),
-        attributes: expect.objectContaining({
+        attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/img.gif'
         })
       })
@@ -145,9 +144,9 @@ describe('Asset Discovery', () => {
     });
 
     await percy.idle();
-    expect(captured[0]).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        attributes: expect.objectContaining({
+    expect(captured[0]).not.toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
           'resource-url': dataUrl.replace('data:', 'data://')
         })
       })
@@ -169,10 +168,10 @@ describe('Asset Discovery', () => {
     expect(paths).toContain('/style.css');
 
     // first ordered asset is the percy log
-    expect(captured[0]).toEqual(expect.arrayContaining([
-      expect.objectContaining({
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
         id: sha256hash(testCSS),
-        attributes: expect.objectContaining({
+        attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/stylesheet.css'
         })
       })
@@ -191,18 +190,18 @@ describe('Asset Discovery', () => {
 
     await percy.idle();
     expect(captured[0]).toEqual([
-      expect.objectContaining({
-        attributes: expect.objectContaining({
-          'resource-url': expect.stringMatching(/^\/percy\.\d+\.log$/)
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
         })
       }),
-      expect.objectContaining({
-        attributes: expect.objectContaining({
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/'
         })
       }),
-      expect.objectContaining({
-        attributes: expect.objectContaining({
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/img.gif'
         })
       })
@@ -224,10 +223,10 @@ describe('Asset Discovery', () => {
       widths: [400, 1200]
     });
 
-    expect(logger.stdout).toEqual(expect.arrayContaining([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy:core] Snapshot taken: test snapshot\n'
     ]));
-    expect(logger.stderr).toEqual(expect.arrayContaining([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy:core] ---------\n',
       '[percy:core] Handling snapshot:\n',
       '[percy:core] -> name: test snapshot\n',
@@ -272,11 +271,11 @@ describe('Asset Discovery', () => {
       domSnapshot: testDOM.replace('style.css', '/404/style.css')
     });
 
-    expect(logger.stdout).toEqual(expect.arrayContaining([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy:core] Snapshot taken: test snapshot\n'
     ]));
-    expect(logger.stderr).toEqual(expect.arrayContaining([
-      expect.stringMatching(new RegExp( // eslint-disable-line prefer-regex-literals
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(new RegExp( // eslint-disable-line prefer-regex-literals
         '^\\[percy:core:discovery\\] Request failed for http://localhost:8000/404/style\\.css: net::'
       ))
     ]));
@@ -328,7 +327,7 @@ describe('Asset Discovery', () => {
     });
   });
 
-  describe('with resource errors', async () => {
+  describe('with resource errors', () => {
     it('logs unhandled request errors gracefully', async () => {
       // sabotage this property to trigger unexpected error handling
       Object.defineProperty(percy.discoverer, 'disableCache', {
@@ -342,14 +341,14 @@ describe('Asset Discovery', () => {
         domSnapshot: testDOM
       });
 
-      expect(logger.stdout).toEqual(expect.arrayContaining([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy:core] Snapshot taken: test snapshot\n'
       ]));
-      expect(logger.stderr).toEqual(expect.arrayContaining([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy:core:discovery] Encountered an error handling request: http://localhost:8000/style.css\n',
-        expect.stringMatching('\\[percy:core:discovery] Error: some unhandled request error\n'),
+        jasmine.stringMatching('\\[percy:core:discovery] Error: some unhandled request error\n'),
         '[percy:core:discovery] Encountered an error handling request: http://localhost:8000/img.gif\n',
-        expect.stringMatching('\\[percy:core:discovery] Error: some unhandled request error\n')
+        jasmine.stringMatching('\\[percy:core:discovery] Error: some unhandled request error\n')
       ]));
     });
 
@@ -370,14 +369,14 @@ describe('Asset Discovery', () => {
         domSnapshot: testDOM
       });
 
-      expect(logger.stdout).toEqual(expect.arrayContaining([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy:core] Snapshot taken: test snapshot\n'
       ]));
-      expect(logger.stderr).toEqual(expect.arrayContaining([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy:core:discovery] Encountered an error processing resource: http://localhost:8000/style.css\n',
-        expect.stringMatching('\\[percy:core:discovery] Error: some unhandled response error\n'),
+        jasmine.stringMatching('\\[percy:core:discovery] Error: some unhandled response error\n'),
         '[percy:core:discovery] Encountered an error processing resource: http://localhost:8000/img.gif\n',
-        expect.stringMatching('\\[percy:core:discovery] Error: some unhandled response error\n')
+        jasmine.stringMatching('\\[percy:core:discovery] Error: some unhandled response error\n')
       ]));
     });
   });
@@ -411,18 +410,18 @@ describe('Asset Discovery', () => {
       expect(paths2).not.toContain('/img.gif');
 
       expect(captured[0]).toEqual([
-        expect.objectContaining({
-          attributes: expect.objectContaining({
-            'resource-url': expect.stringMatching(/^\/percy\.\d+\.log$/)
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
           })
         }),
-        expect.objectContaining({
-          attributes: expect.objectContaining({
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
             'resource-url': 'http://localhost:8000/'
           })
         }),
-        expect.objectContaining({
-          attributes: expect.objectContaining({
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
             'resource-url': 'http://localhost:8000/style.css'
           })
         })
@@ -449,8 +448,8 @@ describe('Asset Discovery', () => {
 
       await percy.idle();
       expect(captured[0][3]).toEqual(
-        expect.objectContaining({
-          attributes: expect.objectContaining({
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
             'resource-url': 'http://test.localtest.me:8001/img.gif'
           })
         })
@@ -477,8 +476,8 @@ describe('Asset Discovery', () => {
 
       await percy.idle();
       expect(captured[0][3]).toEqual(
-        expect.objectContaining({
-          attributes: expect.objectContaining({
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
             'resource-url': 'http://test.localtest.me:8001/img.gif'
           })
         })
@@ -505,18 +504,18 @@ describe('Asset Discovery', () => {
 
       await percy.idle();
       expect(captured[0]).toEqual([
-        expect.objectContaining({
-          attributes: expect.objectContaining({
-            'resource-url': expect.stringMatching(/^\/percy\.\d+\.log$/)
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
           })
         }),
-        expect.objectContaining({
-          attributes: expect.objectContaining({
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
             'resource-url': 'http://localhost:8000/'
           })
         }),
-        expect.objectContaining({
-          attributes: expect.objectContaining({
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
             'resource-url': 'http://localhost:8000/style.css'
           })
         })
@@ -547,7 +546,7 @@ describe('Asset Discovery', () => {
     });
 
     it('should fail to launch if the devtools address is not logged', async () => {
-      await expect(Percy.start({
+      await expectAsync(Percy.start({
         token: 'PERCY_TOKEN',
         snapshot: { widths: [1000] },
         discovery: {
@@ -555,13 +554,13 @@ describe('Asset Discovery', () => {
             args: ['--remote-debugging-port=null']
           }
         }
-      })).rejects.toThrow(
-        'Failed to launch browser. '
+      })).toBeRejectedWithError(
+        /Failed to launch browser/
       );
     });
 
     it('should fail to launch after the timeout', async () => {
-      await expect(Percy.start({
+      await expectAsync(Percy.start({
         token: 'PERCY_TOKEN',
         snapshot: { widths: [1000] },
         discovery: {
@@ -569,8 +568,8 @@ describe('Asset Discovery', () => {
             timeout: 10 // unreasonable
           }
         }
-      })).rejects.toThrow(
-        'Failed to launch browser. Timed out after 10ms'
+      })).toBeRejectedWithError(
+        /Failed to launch browser\. Timed out after 10ms/
       );
     });
   });

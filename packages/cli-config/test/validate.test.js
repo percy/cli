@@ -1,5 +1,4 @@
 import path from 'path';
-import expect from 'expect';
 import { logger, mockConfig } from './helpers';
 import { Validate } from '../src/commands/config/validate';
 import PercyConfig from '@percy/config';
@@ -64,7 +63,7 @@ describe('percy config:validate', () => {
 
   it('logs an error and exits for invalid or unkown config options', async () => {
     mockConfig('.invalid.yml', 'version: 2\ntest:\n  value: false\nbar: baz');
-    await expect(Validate.run(['.invalid.yml'])).rejects.toThrow('EEXIT: 1');
+    await expectAsync(Validate.run(['.invalid.yml'])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([
       '[percy] Found config file: .invalid.yml\n'
