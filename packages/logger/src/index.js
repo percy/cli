@@ -9,19 +9,15 @@ function logger(name) {
 }
 
 Object.assign(logger, {
+  format: (...args) => new Logger().format(...args),
+  query: (...args) => new Logger().query(...args),
+  connect: (...args) => new Logger().connect(...args),
+  remote: (...args) => new Logger().remote(...args),
   loglevel(level, flags = {}) {
     if (flags.verbose) level = 'debug';
     else if (flags.quiet) level = 'warn';
     else if (flags.silent) level = 'silent';
     return new Logger().loglevel(level);
-  },
-
-  format(...args) {
-    return new Logger().format(...args);
-  },
-
-  query(filter) {
-    return new Logger().query(filter);
   }
 });
 

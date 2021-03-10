@@ -1,4 +1,4 @@
-import { colors } from './util';
+import { colors, listen } from './util';
 
 const URL_REGEXP = /\bhttps?:\/\/[^\s/$.?#].[^\s]*\b/i;
 const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
@@ -135,16 +135,34 @@ export default class PercyLogger {
     this.log(debug, 'warn', `Warning: ${message}`, meta);
   }
 
+  // Returns true if a socket is present and ready
+  get isRemote() {
+    return this.socket?.readyState === 1;
+  }
+
   // Generic log method accepts a debug group, log level, log message, and optional meta
   // information to store with the message and other info
   log(debug, level, message, meta = {}) {
-    let error;
+    // message might be an error object
+    let isError = typeof message !== 'string' && (level === 'error' || level === 'debug');
+    let error = isError && message;
 
-    // message must be an error object
-    if (typeof message !== 'string' && (level === 'error' || level === 'debug')) {
-      error = message;
-      message = 'stack' in error ? error.stack : error.toString();
+    // if remote, send logs there
+    if (this.isRemote) {
+      // serialize error messages
+      message = isError && 'stack' in error ? {
+        message: error.message,
+        stack: error.stack
+      } : message;
+
+      return this.socket.send(JSON.stringify({
+        log: [debug, level, message, { remote: true, ...meta }]
+      }));
     }
+
+    // ensure the message is a string
+    message = (isError && message.stack) ||
+      message.message || message.toString();
 
     // timestamp each log
     let timestamp = Date.now();
@@ -154,14 +172,78 @@ export default class PercyLogger {
     // maybe write the message to stdio
     if (this.shouldLog(debug, level)) {
       let elapsed = timestamp - (this.lastlog || timestamp);
-      if (error && this.level !== 'debug') message = error.toString();
+      if (isError && this.level !== 'debug') message = error.toString();
       this.write(level, this.format(message, debug, error ? 'error' : level, elapsed));
       this.lastlog ||= timestamp;
     }
   }
 
+  // Writes a message to stdio based on the loglevel
   write(level, message) {
     let stdio = level === 'info' ? 'stdout' : 'stderr';
     this.constructor[stdio].write(message + '\n');
+  }
+
+  // Opens a socket logging connection
+  connect(socket) {
+    // send logging environment info
+    let PERCY_DEBUG = process.env.PERCY_DEBUG;
+    let PERCY_LOGLEVEL = process.env.PERCY_LOGLEVEL || this.loglevel();
+    socket.send(JSON.stringify({ env: { PERCY_DEBUG, PERCY_LOGLEVEL } }));
+
+    // attach remote logging handler and return a cleanup function
+    return listen(socket, 'message', ({ data }) => {
+      let { log, logAll } = JSON.parse(data);
+      if (logAll) logAll.forEach(e => this.messages.add(e));
+      if (log) this.log(...log);
+    });
+  }
+
+  // Connects to a remote logger
+  async remote(socket, timeout = 1000) {
+    if (this.isRemote) return;
+    this.socket = socket;
+    let err;
+
+    // if not already connected, wait until the timeout
+    if (!this.isRemote) {
+      err = await new Promise(resolve => {
+        let done = error => {
+          socket.removeEventListener('error', done);
+          socket.removeEventListener('open', done);
+          clearTimeout(timeoutid);
+          resolve(error);
+        };
+
+        let timeoutid = setTimeout(done, timeout, (
+          'Error: Socket connection timed out'));
+
+        socket.addEventListener('open', () => done());
+        socket.addEventListener('error', ({ error }) => done(error));
+      });
+    }
+
+    // there was an error connecting, will fallback to normal logging
+    if (err) {
+      this.log('logger', 'debug', 'Unable to connect to remote logger');
+      this.log('logger', 'debug', err);
+      return;
+    }
+
+    // send any messages already logged in this environment
+    if (this.messages.size) {
+      socket.send(JSON.stringify({
+        logAll: Array.from(this.messages).map(entry => ({
+          ...entry, meta: { remote: true, ...entry.meta }
+        }))
+      }));
+    }
+
+    // attach an incoming message handler and return a cleanup function
+    return listen(socket, 'message', ({ data }) => {
+      let { env } = JSON.parse(data);
+      // update local environment info
+      if (env) Object.assign(process.env, env);
+    }, () => (this.socket = null));
   }
 }
