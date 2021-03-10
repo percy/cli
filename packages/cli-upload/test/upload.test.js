@@ -51,7 +51,7 @@ describe('percy upload', () => {
     await Upload.run(['./images']);
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual(['[percy] Percy is disabled. Skipping upload\n']);
+    expect(logger.stdout).toEqual(['[percy] Percy is disabled. Skipping upload']);
   });
 
   it('errors when the directory is not found', async () => {
@@ -59,7 +59,7 @@ describe('percy upload', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: Not found: ./404\n'
+      '[percy] Error: Not found: ./404'
     ]);
   });
 
@@ -68,7 +68,7 @@ describe('percy upload', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: Not a directory: ./nope\n'
+      '[percy] Error: Not a directory: ./nope'
     ]);
   });
 
@@ -77,7 +77,7 @@ describe('percy upload', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: No matching files found in \'./images\'\n'
+      '[percy] Error: No matching files found in \'./images\''
     ]);
   });
 
@@ -86,12 +86,12 @@ describe('percy upload', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Percy has started!\n',
-      '[percy] Created build #1: https://percy.io/test/test/123\n',
-      '[percy] Snapshot uploaded: test-1.png\n',
-      '[percy] Snapshot uploaded: test-2.jpg\n',
-      '[percy] Snapshot uploaded: test-3.jpeg\n',
-      '[percy] Finalized build #1: https://percy.io/test/test/123\n'
+      '[percy] Percy has started!',
+      '[percy] Created build #1: https://percy.io/test/test/123',
+      '[percy] Snapshot uploaded: test-1.png',
+      '[percy] Snapshot uploaded: test-2.jpg',
+      '[percy] Snapshot uploaded: test-3.jpeg',
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
 
     expect(mockAPI.requests['/builds/123/snapshots'][0].body).toEqual({
@@ -133,13 +133,13 @@ describe('percy upload', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Percy has started!\n',
-      '[percy] Created build #1: https://percy.io/test/test/123\n',
-      '[percy] Snapshot uploaded: test-1.png\n',
-      '[percy] Snapshot uploaded: test-2.jpg\n',
-      '[percy] Snapshot uploaded: test-3.jpeg\n',
-      '[percy] Skipping unsupported image type: test-4.gif\n',
-      '[percy] Finalized build #1: https://percy.io/test/test/123\n'
+      '[percy] Percy has started!',
+      '[percy] Created build #1: https://percy.io/test/test/123',
+      '[percy] Snapshot uploaded: test-1.png',
+      '[percy] Snapshot uploaded: test-2.jpg',
+      '[percy] Snapshot uploaded: test-3.jpeg',
+      '[percy] Skipping unsupported image type: test-4.gif',
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
   });
 
@@ -151,7 +151,7 @@ describe('percy upload', () => {
       '[percy] Matching files:\n' +
         'test-1.png\n' +
         'test-2.jpg\n' +
-        'test-3.jpeg\n'
+        'test-3.jpeg'
     ]);
   });
 });

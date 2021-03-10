@@ -21,7 +21,7 @@ describe('Percy Capture', () => {
       concurrency: 1
     });
 
-    logger.clear();
+    logger.reset();
   });
 
   afterEach(async () => {
@@ -117,8 +117,8 @@ describe('Percy Capture', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Snapshot taken: snapshot one\n',
-      '[percy] Snapshot taken: snapshot two\n'
+      '[percy] Snapshot taken: snapshot one',
+      '[percy] Snapshot taken: snapshot two'
     ]);
   });
 
@@ -134,9 +134,9 @@ describe('Percy Capture', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Snapshot taken: test snapshot\n',
-      '[percy] Snapshot taken: test snapshot two\n',
-      '[percy] Snapshot taken: test snapshot three\n'
+      '[percy] Snapshot taken: test snapshot',
+      '[percy] Snapshot taken: test snapshot two',
+      '[percy] Snapshot taken: test snapshot three'
     ]);
   });
 
@@ -151,7 +151,7 @@ describe('Percy Capture', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Snapshot taken: foo snapshot\n'
+      '[percy] Snapshot taken: foo snapshot'
     ]);
 
     await percy.idle();
@@ -175,7 +175,7 @@ describe('Percy Capture', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Snapshot taken: test snapshot\n'
+      '[percy] Snapshot taken: test snapshot'
     ]);
 
     await percy.idle();
@@ -201,7 +201,7 @@ describe('Percy Capture', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Snapshot taken: framed snapshot\n'
+      '[percy] Snapshot taken: framed snapshot'
     ]);
 
     await percy.idle();
@@ -223,10 +223,10 @@ describe('Percy Capture', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Encountered an error for page: http://localhost:8000\n',
+      '[percy] Encountered an error for page: http://localhost:8000',
       '[percy] Error: test error\n' +
         '    at execute (<anonymous>:2:15)\n' +
-        '    at withPercyHelpers (<anonymous>:3:9)\n'
+        '    at withPercyHelpers (<anonymous>:3:9)'
     ]);
   });
 
@@ -239,8 +239,8 @@ describe('Percy Capture', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Encountered an error for page: http://localhost:8000\n',
-      '[percy] Error: The provided function is not serializable\n'
+      '[percy] Encountered an error for page: http://localhost:8000',
+      '[percy] Error: The provided function is not serializable'
     ]);
   });
 
@@ -252,8 +252,8 @@ describe('Percy Capture', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Encountered an error for page: wat:/localhost:8000\n',
-      '[percy] Error: Navigation failed: net::ERR_ABORTED\n'
+      '[percy] Encountered an error for page: wat:/localhost:8000',
+      '[percy] Error: Navigation failed: net::ERR_ABORTED'
     ]);
   });
 
@@ -268,10 +268,10 @@ describe('Percy Capture', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Encountered an error taking snapshot: invalid snapshot\n',
+      '[percy] Encountered an error taking snapshot: invalid snapshot',
       '[percy] Error: Protocol error (Emulation.setDeviceMetricsOverride): ' +
         'Invalid parameters: Failed to deserialize params.width ' +
-        '- BINDINGS: int32 value expected at position 50\n'
+        '- BINDINGS: int32 value expected at position 50'
     ]);
   });
 

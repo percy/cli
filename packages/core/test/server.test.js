@@ -79,7 +79,7 @@ describe('Snapshot Server', () => {
     await expectAsync(response.text()).toBeResolvedTo(bundle);
     expect(logger.stderr).toEqual([
       '[percy] Warning: It looks like you’re using @percy/cli with an older SDK. Please upgrade to the latest version' +
-        ' to fix this warning. See these docs for more info: https://docs.percy.io/docs/migrating-to-percy-cli\n'
+        ' to fix this warning. See these docs for more info: https://docs.percy.io/docs/migrating-to-percy-cli'
     ]);
   });
 

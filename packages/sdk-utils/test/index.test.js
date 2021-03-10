@@ -22,12 +22,12 @@ describe('SDK Utils', () => {
     });
 
     it('returns the loglevel as defined by PERCY_LOGLEVEL', () => {
-      delete sdk.logger.reset();
+      sdk.logger.reset();
       expect(process.env.PERCY_LOGLEVEL).toBeUndefined();
       expect(sdk.rerequire('..').getInfo()).toHaveProperty('loglevel', 'info');
       delete require.cache[require.resolve('..')];
 
-      delete sdk.logger.reset();
+      sdk.logger.reset();
       process.env.PERCY_LOGLEVEL = 'debug';
       expect(sdk.rerequire('..').getInfo()).toHaveProperty('loglevel', 'debug');
     });
@@ -74,7 +74,7 @@ describe('SDK Utils', () => {
       await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
 
       expect(sdk.logger.stdout).toEqual([
-        '[percy] Percy is not running, disabling snapshots\n'
+        '[percy] Percy is not running, disabling snapshots'
       ]);
     });
 
@@ -84,7 +84,7 @@ describe('SDK Utils', () => {
       await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
 
       expect(sdk.logger.stdout).toEqual([
-        '[percy] Percy is not running, disabling snapshots\n'
+        '[percy] Percy is not running, disabling snapshots'
       ]);
     });
 
@@ -94,7 +94,7 @@ describe('SDK Utils', () => {
       await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
 
       expect(sdk.logger.stdout).toEqual([
-        '[percy] Unsupported Percy CLI version, disabling snapshots\n'
+        '[percy] Unsupported Percy CLI version, disabling snapshots'
       ]);
     });
   });

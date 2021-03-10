@@ -20,9 +20,9 @@ describe('percy config:migrate', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Found config file: .percy.yml\n',
-      '[percy] Migrating config file...\n',
-      '[percy] Config file migrated!\n'
+      '[percy] Found config file: .percy.yml',
+      '[percy] Migrating config file...',
+      '[percy] Config file migrated!'
     ]);
 
     expect(getMockConfig('.percy.old.yml')).toContain('version: 1');
@@ -34,10 +34,10 @@ describe('percy config:migrate', () => {
     expect(getMockConfig('.percy.yml')).toContain('version: 1');
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Found config file: .percy.yml\n',
-      '[percy] Migrating config file...\n',
-      '[percy] Config file migrated!\n',
-      '\nversion: 2\n'
+      '[percy] Found config file: .percy.yml',
+      '[percy] Migrating config file...',
+      '[percy] Config file migrated!',
+      '\nversion: 2'
     ]);
   });
 
@@ -80,7 +80,7 @@ describe('percy config:migrate', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Config file not found\n'
+      '[percy] Config file not found'
     ]);
   });
 
@@ -95,7 +95,7 @@ describe('percy config:migrate', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: test\n'
+      '[percy] Error: test'
     ]);
   });
 
@@ -104,10 +104,10 @@ describe('percy config:migrate', () => {
     await Migrate.run([]);
 
     expect(logger.stdout).toEqual([
-      '[percy] Found config file: .percy.yml\n'
+      '[percy] Found config file: .percy.yml'
     ]);
     expect(logger.stderr).toEqual([
-      '[percy] Config is already the latest version\n'
+      '[percy] Config is already the latest version'
     ]);
 
     expect(getMockConfig('.percy.old.yml')).toBeUndefined();

@@ -76,7 +76,7 @@ describe('PercyCommand', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: test error\n'
+      '[percy] Error: test error'
     ]);
   });
 

@@ -35,7 +35,7 @@ describe('percy build:wait', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Percy is disabled\n'
+      '[percy] Percy is disabled'
     ]);
   });
 
@@ -43,7 +43,7 @@ describe('percy build:wait', () => {
     await expectAsync(Wait.run([])).toBeRejectedWithError('EEXIT: 1');
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: Missing build ID or commit SHA\n'
+      '[percy] Error: Missing build ID or commit SHA'
     ]);
   });
 
@@ -100,8 +100,8 @@ describe('percy build:wait', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
-      '[percy] Build #10 finished! https://percy.io/test/test/123\n',
-      '[percy] Found 16 changes\n'
+      '[percy] Build #10 finished! https://percy.io/test/test/123',
+      '[percy] Found 16 changes'
     ]));
   });
 
@@ -115,8 +115,8 @@ describe('percy build:wait', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
-      '[percy] Build #10 finished! https://percy.io/test/test/123\n',
-      '[percy] Found 16 changes\n'
+      '[percy] Build #10 finished! https://percy.io/test/test/123',
+      '[percy] Found 16 changes'
     ]));
   });
 
@@ -130,8 +130,8 @@ describe('percy build:wait', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
-      '[percy] Build #10 finished! https://percy.io/test/test/123\n',
-      '[percy] Found 0 changes\n'
+      '[percy] Build #10 finished! https://percy.io/test/test/123',
+      '[percy] Found 0 changes'
     ]));
   });
 
@@ -141,7 +141,7 @@ describe('percy build:wait', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
-      '[percy] Build #10 is expired. https://percy.io/test/test/123\n'
+      '[percy] Build #10 is expired. https://percy.io/test/test/123'
     ]));
   });
 
@@ -156,9 +156,9 @@ describe('percy build:wait', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        '[percy] Build #10 failed! https://percy.io/test/test/123\n',
+        '[percy] Build #10 failed! https://percy.io/test/test/123',
         '[percy] Some snapshots in this build took too long to render ' +
-          'even after multiple retries.\n'
+          'even after multiple retries.'
       ]));
     });
 
@@ -172,8 +172,8 @@ describe('percy build:wait', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        '[percy] Build #10 failed! https://percy.io/test/test/123\n',
-        '[percy] No snapshots were uploaded to this build.\n'
+        '[percy] Build #10 failed! https://percy.io/test/test/123',
+        '[percy] No snapshots were uploaded to this build.'
       ]));
     });
 
@@ -187,8 +187,8 @@ describe('percy build:wait', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        '[percy] Build #10 failed! https://percy.io/test/test/123\n',
-        '[percy] Failed to correctly finalize.\n'
+        '[percy] Build #10 failed! https://percy.io/test/test/123',
+        '[percy] Failed to correctly finalize.'
       ]));
     });
 
@@ -202,8 +202,8 @@ describe('percy build:wait', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        '[percy] Build #10 failed! https://percy.io/test/test/123\n',
-        '[percy] Some build or snapshot resources failed to correctly upload.\n'
+        '[percy] Build #10 failed! https://percy.io/test/test/123',
+        '[percy] Some build or snapshot resources failed to correctly upload.'
       ]));
     });
 
@@ -222,8 +222,8 @@ describe('percy build:wait', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        '[percy] Build #10 failed! https://percy.io/test/test/123\n',
-        '[percy] Only 3 of 4 parallelized build processes finished.\n'
+        '[percy] Build #10 failed! https://percy.io/test/test/123',
+        '[percy] Only 3 of 4 parallelized build processes finished.'
       ]));
     });
 
@@ -237,8 +237,8 @@ describe('percy build:wait', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        '[percy] Build #10 failed! https://percy.io/test/test/123\n',
-        '[percy] Error: unrecognized_reason\n'
+        '[percy] Build #10 failed! https://percy.io/test/test/123',
+        '[percy] Error: unrecognized_reason'
       ]));
     });
   });

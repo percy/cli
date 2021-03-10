@@ -39,7 +39,7 @@ describe('percy exec:start', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: Percy is already running or the port is in use\n'
+      '[percy] Error: Percy is already running or the port is in use'
     ]);
   });
 
@@ -51,7 +51,7 @@ describe('percy exec:start', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Percy has been disabled. Not starting\n'
+      '[percy] Percy has been disabled. Not starting'
     ]);
   });
 });

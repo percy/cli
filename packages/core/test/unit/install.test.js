@@ -82,9 +82,9 @@ describe('Unit / Install', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Test Download not found, downloading...\n',
-      '[percy] 16B (v0) [====================] 100% 0.0s', '\n',
-      '[percy] Successfully downloaded Test Download\n'
+      '[percy] Test Download not found, downloading...',
+      '[percy] 16B (v0) [====================] 100% 0.0s', '',
+      '[percy] Successfully downloaded Test Download'
     ]);
   });
 
@@ -188,9 +188,9 @@ describe('Unit / Install', () => {
 
         expect(logger.stderr).toEqual([]);
         expect(logger.stdout).toEqual([
-          '[percy] Chromium not found, downloading...\n',
-          jasmine.stringMatching(`(${expected.revision})`), '\n',
-          '[percy] Successfully downloaded Chromium\n'
+          '[percy] Chromium not found, downloading...',
+          jasmine.stringMatching(`(${expected.revision})`), '',
+          '[percy] Successfully downloaded Chromium'
         ]);
       });
     }

@@ -144,8 +144,8 @@ describe('Percy', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
-        '[percy] Percy has started!\n',
-        '[percy] Created build #1: https://percy.io/test/test/123\n'
+        '[percy] Percy has started!',
+        '[percy] Created build #1: https://percy.io/test/test/123'
       ]);
     });
 
@@ -172,7 +172,7 @@ describe('Percy', () => {
   describe('#stop()', () => {
     beforeEach(async () => {
       await percy.start();
-      logger.clear();
+      logger.reset();
     });
 
     it('finalizes the build', async () => {
@@ -197,9 +197,9 @@ describe('Percy', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
-        '[percy] Stopping percy...\n',
-        '[percy] Finalized build #1: https://percy.io/test/test/123\n',
-        '[percy] Done!\n'
+        '[percy] Stopping percy...',
+        '[percy] Finalized build #1: https://percy.io/test/test/123',
+        '[percy] Done!'
       ]);
     });
 
@@ -215,11 +215,11 @@ describe('Percy', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
-        '[percy] Snapshot taken: test snapshot\n',
-        '[percy] Stopping percy...\n',
-        '[percy] Waiting for 1 snapshot(s) to finish uploading\n',
-        '[percy] Finalized build #1: https://percy.io/test/test/123\n',
-        '[percy] Done!\n'
+        '[percy] Snapshot taken: test snapshot',
+        '[percy] Stopping percy...',
+        '[percy] Waiting for 1 snapshot(s) to finish uploading',
+        '[percy] Finalized build #1: https://percy.io/test/test/123',
+        '[percy] Done!'
       ]);
     });
 
@@ -234,11 +234,11 @@ describe('Percy', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
-        '[percy] Stopping percy...\n',
-        '[percy] Waiting for 1 page(s) to finish snapshotting\n',
-        '[percy] Snapshot taken: test snapshot\n',
-        '[percy] Finalized build #1: https://percy.io/test/test/123\n',
-        '[percy] Done!\n'
+        '[percy] Stopping percy...',
+        '[percy] Waiting for 1 page(s) to finish snapshotting',
+        '[percy] Snapshot taken: test snapshot',
+        '[percy] Finalized build #1: https://percy.io/test/test/123',
+        '[percy] Done!'
       ]);
     });
 
@@ -257,7 +257,7 @@ describe('Percy', () => {
   describe('#idle()', () => {
     beforeEach(async () => {
       await percy.start();
-      logger.clear();
+      logger.reset();
     });
 
     it('resolves after captures idle', async () => {
@@ -271,7 +271,7 @@ describe('Percy', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
-        '[percy] Snapshot taken: test snapshot\n'
+        '[percy] Snapshot taken: test snapshot'
       ]);
     });
 
@@ -324,7 +324,7 @@ describe('Percy', () => {
       });
 
       await percy.start();
-      logger.clear();
+      logger.reset();
     });
 
     it('creates a new snapshot for the build', async () => {
@@ -537,7 +537,7 @@ describe('Percy', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
-        '[percy] Snapshot taken: test snapshot\n'
+        '[percy] Snapshot taken: test snapshot'
       ]);
     });
 
@@ -554,8 +554,8 @@ describe('Percy', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
-        '[percy] Encountered an error taking snapshot: test snapshot\n',
-        '[percy] Error: snapshot error\n'
+        '[percy] Encountered an error taking snapshot: test snapshot',
+        '[percy] Error: snapshot error'
       ]);
     });
 
@@ -570,13 +570,13 @@ describe('Percy', () => {
         domSnapshot: testDOM
       });
 
-      logger.clear();
+      logger.reset();
       await percy.idle();
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
-        '[percy] Encountered an error uploading snapshot: test snapshot\n',
-        '[percy] Error: snapshot upload error\n'
+        '[percy] Encountered an error uploading snapshot: test snapshot',
+        '[percy] Error: snapshot upload error'
       ]);
     });
   });

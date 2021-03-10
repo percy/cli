@@ -21,7 +21,7 @@ describe('percy exec:stop', () => {
     ]);
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual(['[percy] Percy has stopped\n']);
+    expect(logger.stdout).toEqual(['[percy] Percy has stopped']);
   });
 
   it('logs when percy is disabled', async () => {
@@ -29,13 +29,13 @@ describe('percy exec:stop', () => {
     await Stop.run([]);
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual(['[percy] Percy is disabled\n']);
+    expect(logger.stdout).toEqual(['[percy] Percy is disabled']);
   });
 
   it('logs an error when the endpoint errors', async () => {
     await expectAsync(Stop.run([])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
-    expect(logger.stderr).toEqual(['[percy] Percy is not running\n']);
+    expect(logger.stderr).toEqual(['[percy] Percy is not running']);
   });
 });

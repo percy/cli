@@ -220,7 +220,7 @@ describe('PercyConfig', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toContain(
-        '[percy] Found config file: .percy.yml\n'
+        '[percy] Found config file: .percy.yml'
       );
     });
 
@@ -242,7 +242,7 @@ describe('PercyConfig', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toContain(
-        `[percy:config] Found config file: ${filename}\n`
+        `[percy:config] Found config file: ${filename}`
       );
     });
 
@@ -284,7 +284,7 @@ describe('PercyConfig', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
-        '[percy:config] Config file not found\n'
+        '[percy:config] Config file not found'
       ]);
     });
 
@@ -340,7 +340,7 @@ describe('PercyConfig', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
-        '[percy:config] Found config file: .foo.yml\n',
+        '[percy:config] Found config file: .foo.yml',
         '[percy:config] Using config:\n' + [
           '{',
           '  version: 2,',
@@ -356,7 +356,7 @@ describe('PercyConfig', () => {
           '  test: {',
           '    value: \'hi\'',
           '  }',
-          '}\n'
+          '}'
         ].join('\n')
       ]);
     });
@@ -373,8 +373,8 @@ describe('PercyConfig', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
-        '[percy:config] Found config file: .no-version.yml\n',
-        '[percy:config] Ignoring config file - missing or invalid version\n'
+        '[percy:config] Found config file: .no-version.yml',
+        '[percy:config] Ignoring config file - missing or invalid version'
       ]);
     });
 
@@ -390,8 +390,8 @@ describe('PercyConfig', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
-        '[percy:config] Found config file: .bad-version.yml\n',
-        '[percy:config] Ignoring config file - unsupported version "3"\n'
+        '[percy:config] Found config file: .bad-version.yml',
+        '[percy:config] Ignoring config file - unsupported version "3"'
       ]);
     });
 
@@ -411,16 +411,16 @@ describe('PercyConfig', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
-        '[percy:config] Found config file: .old-version.yml\n',
+        '[percy:config] Found config file: .old-version.yml',
         '[percy:config] Found older config file version, please run ' +
-          '`percy config:migrate` to update to the latest version\n',
+          '`percy config:migrate` to update to the latest version',
         '[percy:config] Using config:\n' + [
           '{',
           '  version: 2,',
           '  test: {',
           '    value: \'new-value\'',
           '  }',
-          '}\n'
+          '}'
         ].join('\n')
       ]);
     });
@@ -454,19 +454,19 @@ describe('PercyConfig', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
-        '[percy:config] Found config file: .invalid.yml\n',
-        '[percy:config] Invalid config:\n',
-        '[percy:config] - foo: unknown property\n',
-        '[percy:config] - test.value: should be a string, received a number\n',
-        '[percy:config] - arr: should be an array, received an object\n',
-        '[percy:config] - req.bar: missing required property\n',
+        '[percy:config] Found config file: .invalid.yml',
+        '[percy:config] Invalid config:',
+        '[percy:config] - foo: unknown property',
+        '[percy:config] - test.value: should be a string, received a number',
+        '[percy:config] - arr: should be an array, received an object',
+        '[percy:config] - req.bar: missing required property',
         '[percy:config] Using config:\n' + [
           '{',
           '  version: 2,',
           '  req: {',
           '    foo: \'bar\'',
           '  }',
-          '}\n'
+          '}'
         ].join('\n')
       ]);
     });
@@ -486,11 +486,11 @@ describe('PercyConfig', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
-        '[percy:config] Found config file: .invalid.yml\n',
-        '[percy:config] Invalid config:\n',
-        '[percy:config] - foo: unknown property\n',
-        '[percy:config] - test.value: should be a string, received a number\n',
-        '[percy:config] - arr: should be an array, received an object\n'
+        '[percy:config] Found config file: .invalid.yml',
+        '[percy:config] Invalid config:',
+        '[percy:config] - foo: unknown property',
+        '[percy:config] - test.value: should be a string, received a number',
+        '[percy:config] - arr: should be an array, received an object'
       ]);
     });
   });

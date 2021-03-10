@@ -73,7 +73,7 @@ describe('percy snapshot', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Percy is disabled. Skipping snapshots\n'
+      '[percy] Percy is disabled. Skipping snapshots'
     ]);
   });
 
@@ -82,7 +82,7 @@ describe('percy snapshot', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: Not found: ./404\n'
+      '[percy] Error: Not found: ./404'
     ]);
   });
 
@@ -91,7 +91,7 @@ describe('percy snapshot', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: The base-url flag must begin with a forward slash (/)\n'
+      '[percy] Error: The base-url flag must begin with a forward slash (/)'
     ]);
   });
 
@@ -100,7 +100,7 @@ describe('percy snapshot', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: No snapshots found\n'
+      '[percy] Error: No snapshots found'
     ]);
   });
 
@@ -110,14 +110,14 @@ describe('percy snapshot', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
-        '[percy] Percy has started!\n',
-        '[percy] Created build #1: https://percy.io/test/test/123\n',
-        '[percy] Snapshot taken: /test-3.htm\n',
-        '[percy] Snapshot taken: /test-2.html\n',
-        '[percy] Snapshot taken: /test-1.html\n',
-        '[percy] Stopping percy...\n',
-        '[percy] Finalized build #1: https://percy.io/test/test/123\n',
-        '[percy] Done!\n'
+        '[percy] Percy has started!',
+        '[percy] Created build #1: https://percy.io/test/test/123',
+        '[percy] Snapshot taken: /test-3.htm',
+        '[percy] Snapshot taken: /test-2.html',
+        '[percy] Snapshot taken: /test-1.html',
+        '[percy] Stopping percy...',
+        '[percy] Finalized build #1: https://percy.io/test/test/123',
+        '[percy] Done!'
       ]));
     });
 
@@ -126,14 +126,14 @@ describe('percy snapshot', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
-        '[percy] Percy has started!\n',
-        '[percy] Created build #1: https://percy.io/test/test/123\n',
-        '[percy] Snapshot taken: /base/test-3.htm\n',
-        '[percy] Snapshot taken: /base/test-2.html\n',
-        '[percy] Snapshot taken: /base/test-1.html\n',
-        '[percy] Stopping percy...\n',
-        '[percy] Finalized build #1: https://percy.io/test/test/123\n',
-        '[percy] Done!\n'
+        '[percy] Percy has started!',
+        '[percy] Created build #1: https://percy.io/test/test/123',
+        '[percy] Snapshot taken: /base/test-3.htm',
+        '[percy] Snapshot taken: /base/test-2.html',
+        '[percy] Snapshot taken: /base/test-1.html',
+        '[percy] Stopping percy...',
+        '[percy] Finalized build #1: https://percy.io/test/test/123',
+        '[percy] Done!'
       ]));
     });
 
@@ -144,7 +144,7 @@ describe('percy snapshot', () => {
         '[percy] Found 3 snapshots:\n' +
           '/test-1.html\n' +
           '/test-2.html\n' +
-          '/test-3.htm\n'
+          '/test-3.htm'
       ]);
     });
   });
@@ -167,13 +167,13 @@ describe('percy snapshot', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
-        '[percy] Percy has started!\n',
-        '[percy] Created build #1: https://percy.io/test/test/123\n',
-        '[percy] Snapshot taken: YAML Snapshot\n',
-        '[percy] Stopping percy...\n',
-        '[percy] Waiting for 1 snapshot(s) to finish uploading\n',
-        '[percy] Finalized build #1: https://percy.io/test/test/123\n',
-        '[percy] Done!\n'
+        '[percy] Percy has started!',
+        '[percy] Created build #1: https://percy.io/test/test/123',
+        '[percy] Snapshot taken: YAML Snapshot',
+        '[percy] Stopping percy...',
+        '[percy] Waiting for 1 snapshot(s) to finish uploading',
+        '[percy] Finalized build #1: https://percy.io/test/test/123',
+        '[percy] Done!'
       ]);
     });
 
@@ -182,13 +182,13 @@ describe('percy snapshot', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
-        '[percy] Percy has started!\n',
-        '[percy] Created build #1: https://percy.io/test/test/123\n',
-        '[percy] Snapshot taken: JSON Snapshot\n',
-        '[percy] Stopping percy...\n',
-        '[percy] Waiting for 1 snapshot(s) to finish uploading\n',
-        '[percy] Finalized build #1: https://percy.io/test/test/123\n',
-        '[percy] Done!\n'
+        '[percy] Percy has started!',
+        '[percy] Created build #1: https://percy.io/test/test/123',
+        '[percy] Snapshot taken: JSON Snapshot',
+        '[percy] Stopping percy...',
+        '[percy] Waiting for 1 snapshot(s) to finish uploading',
+        '[percy] Finalized build #1: https://percy.io/test/test/123',
+        '[percy] Done!'
       ]);
     });
 
@@ -197,13 +197,13 @@ describe('percy snapshot', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
-        '[percy] Percy has started!\n',
-        '[percy] Created build #1: https://percy.io/test/test/123\n',
-        '[percy] Snapshot taken: JS Snapshot\n',
-        '[percy] Stopping percy...\n',
-        '[percy] Waiting for 1 snapshot(s) to finish uploading\n',
-        '[percy] Finalized build #1: https://percy.io/test/test/123\n',
-        '[percy] Done!\n'
+        '[percy] Percy has started!',
+        '[percy] Created build #1: https://percy.io/test/test/123',
+        '[percy] Snapshot taken: JS Snapshot',
+        '[percy] Stopping percy...',
+        '[percy] Waiting for 1 snapshot(s) to finish uploading',
+        '[percy] Finalized build #1: https://percy.io/test/test/123',
+        '[percy] Done!'
       ]);
     });
 
@@ -212,13 +212,13 @@ describe('percy snapshot', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
-        '[percy] Percy has started!\n',
-        '[percy] Created build #1: https://percy.io/test/test/123\n',
-        '[percy] Snapshot taken: JS Function Snapshot\n',
-        '[percy] Stopping percy...\n',
-        '[percy] Waiting for 1 snapshot(s) to finish uploading\n',
-        '[percy] Finalized build #1: https://percy.io/test/test/123\n',
-        '[percy] Done!\n'
+        '[percy] Percy has started!',
+        '[percy] Created build #1: https://percy.io/test/test/123',
+        '[percy] Snapshot taken: JS Function Snapshot',
+        '[percy] Stopping percy...',
+        '[percy] Waiting for 1 snapshot(s) to finish uploading',
+        '[percy] Finalized build #1: https://percy.io/test/test/123',
+        '[percy] Done!'
       ]);
     });
 
@@ -227,7 +227,7 @@ describe('percy snapshot', () => {
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
-        '[percy] Error: Unsupported filetype: ./nope\n'
+        '[percy] Error: Unsupported filetype: ./nope'
       ]);
     });
 
@@ -236,7 +236,7 @@ describe('percy snapshot', () => {
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
         '[percy] Found 1 snapshot:\n' +
-          'JS Snapshot\n'
+          'JS Snapshot'
       ]);
     });
   });
