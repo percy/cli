@@ -1,4 +1,4 @@
-import { withExample, withCSSOM, parseDOM } from 'test/helpers';
+import { withExample, withCSSOM, parseDOM } from './helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeCSSOM', () => {

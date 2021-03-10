@@ -1,5 +1,5 @@
 import I, { when } from 'interactor.js';
-import { assert, withExample, parseDOM } from 'test/helpers';
+import { assert, withExample, parseDOM } from './helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeFrames', () => {

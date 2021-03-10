@@ -1,4 +1,4 @@
-import { withExample, replaceDoctype } from 'test/helpers';
+import { withExample, replaceDoctype } from './helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeDOM', () => {
