@@ -1,6 +1,6 @@
 {
   "name": "@percy/sdk-utils",
-  "version": "1.0.0-beta.39",
+  "version": "1.0.0-beta.40",
   "license": "MIT",
   "main": "index.js",
   "files": [
@@ -19,6 +19,6 @@
     "access": "public"
   },
   "dependencies": {
-    "@percy/logger": "^1.0.0-beta.39"
+    "@percy/logger": "^1.0.0-beta.40"
   }
 }
