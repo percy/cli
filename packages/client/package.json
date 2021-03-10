@@ -11,10 +11,10 @@
     "node": ">=12"
   },
   "scripts": {
-    "build": "cross-env NODE_ENV=production babel src --out-dir dist --root-mode upward",
+    "build": "node ../../scripts/build",
     "lint": "eslint --ignore-path ../../.gitignore .",
     "test": "node ../../scripts/test",
-    "test:coverage": "nyc yarn test"
+    "test:coverage": "yarn test --coverage"
   },
   "publishConfig": {
     "access": "public"
