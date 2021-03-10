@@ -76,23 +76,21 @@ export class Wait extends Command {
       'total-comparisons-finished': finished
     }
   }) {
-    let stdout = logger.instance.stdout;
-
     // update the same line each time
-    readline.cursorTo(stdout, 0);
+    readline.cursorTo(logger.stdout, 0);
 
     // still recieving snapshots
     if (state === 'pending') {
-      stdout.write(logger.format('Recieving snapshots...', 'cli:build:wait'));
+      logger.stdout.write(logger.format('Recieving snapshots...', 'cli:build:wait'));
 
     // need to clear the line before finishing
     } else if (finished === total || state === 'finished') {
-      readline.clearLine(stdout);
+      readline.clearLine(logger.stdout);
     }
 
     // processing snapshots
     if (state === 'processing') {
-      stdout.write(logger.format(
+      logger.stdout.write(logger.format(
         `Processing ${count} snapshots - ` + (
           finished === total ? 'finishing up...'
             : `${finished} of ${total} comparisons finished...`),

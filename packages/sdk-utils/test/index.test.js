@@ -22,12 +22,12 @@ describe('SDK Utils', () => {
     });
 
     it('returns the loglevel as defined by PERCY_LOGLEVEL', () => {
-      delete sdk.logger.instance;
+      delete sdk.logger.reset();
       expect(process.env.PERCY_LOGLEVEL).toBeUndefined();
       expect(sdk.rerequire('..').getInfo()).toHaveProperty('loglevel', 'info');
       delete require.cache[require.resolve('..')];
 
-      delete sdk.logger.instance;
+      delete sdk.logger.reset();
       process.env.PERCY_LOGLEVEL = 'debug';
       expect(sdk.rerequire('..').getInfo()).toHaveProperty('loglevel', 'debug');
     });

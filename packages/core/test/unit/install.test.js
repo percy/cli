@@ -3,7 +3,7 @@ import path from 'path';
 import { Writable } from 'stream';
 import nock from 'nock';
 import mockRequire from 'mock-require';
-import logger from '@percy/logger';
+import logger from '@percy/logger/test/helper';
 import install from '../../src/install';
 
 // mock writable stream
@@ -18,7 +18,7 @@ describe('Unit / Install', () => {
 
   beforeEach(() => {
     // emulate tty properties for testing
-    Object.assign(logger.instance.stdout, {
+    Object.assign(logger.constructor.stdout, {
       isTTY: true,
       columns: 80,
       cursorTo() {},
