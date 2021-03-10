@@ -57,16 +57,19 @@ async function main({
     await new Promise(r => rimraf(path.join(cwd, '{.nyc_output,coverage}'), r));
     await child('spawn', nycbin, ['--silent', '--no-clean', 'node', __filename, ...flags]);
     await child('spawn', nycbin, ['report', '--check-coverage', ...flagify({ reporter })]);
-  } else if (testNode && testBrowsers) {
-    // test runners assume they have control over the entire process, so give them each their own
-    // forked process when both are requested to avoid processes clashing
+  } else if (!process.send) {
+    // test runners assume they have control over the entire process, so give them each forks
     let flags = flagify({ coverage });
 
-    await child('fork', __filename, ['--node', ...flags]);
-    process.stdout.write('\n');
+    if (testNode) {
+      await child('fork', __filename, ['--node', ...flags]);
+      process.stdout.write('\n');
+    }
 
-    await child('fork', __filename, ['--browsers', ...flags]);
-    process.stdout.write('\n');
+    if (testBrowsers) {
+      await child('fork', __filename, ['--browsers', ...flags]);
+      process.stdout.write('\n');
+    }
   } else if (testNode) {
     // $ jasmine <cwd>/test/**/*.test.js --config <config>
     let Jasmine = require('jasmine');
@@ -111,10 +114,10 @@ async function main({
 // handle errors
 function handleError(err) {
   if (!err.exitCode) console.error(err);
-  process.exit(err.exitCode || 1);
+  if (!argv.watch) process.exit(err.exitCode || 1);
 }
 
 // run everything and maybe watch for changes
-main().then(() => argv.watch && (
+main().catch(handleError).then(() => argv.watch && (
   require('./watch')(() => main().catch(handleError))
-)).catch(handleError);
+));

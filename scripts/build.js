@@ -48,10 +48,10 @@ async function main({ node, bundle } = argv) {
 // handle errors
 function handleError(err) {
   if (!err.exitCode) console.error(err);
-  process.exit(err.exitCode || 1);
+  if (!argv.watch) process.exit(err.exitCode || 1);
 }
 
 // run everything and maybe watch for changes
-main().then(() => argv.watch && (
+main().catch(handleError).then(() => argv.watch && (
   require('./watch')(() => main().catch(handleError))
-)).catch(handleError);
+));
