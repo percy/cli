@@ -1,61 +1,96 @@
 const logger = require('@percy/logger');
-const { Writable } = require('stream');
+const { ANSI_REG } = require('@percy/logger/dist/colors');
+const { Logger } = logger;
 
-const ANSI_REG = new RegExp([
-  '[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)',
-  '(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))'
-].join('|'), 'g');
+const ELAPSED_REG = /\s\S*?\(\d+ms\)\S*/;
+const NEWLINE_REG = /\r\n/g;
+const LASTLINE_REG = /\n$/;
 
-class TestIO extends Writable {
-  data = [];
+function sanitizeLog(str, { ansi, elapsed } = {}) {
+  // normalize line endings
+  str = str.replace(NEWLINE_REG, '\n');
+  // strip ansi colors
+  if (!ansi) str = str.replace(ANSI_REG, '');
+  // strip elapsed time
+  if (!elapsed) str = str.replace(ELAPSED_REG, '');
+  // strip trailing line endings
+  return str.replace(LASTLINE_REG, '');
+}
 
-  constructor({ ansi, elapsed } = {}) {
-    super();
-    this.ansi = ansi;
-    this.elapsed = elapsed;
-  }
+function TestIO(data, options) {
+  if (!process.env.__PERCY_BROWSERIFIED__) {
+    let { Writable } = require('stream');
 
-  _write(chunk, encoding, callback) {
-    // normalize line endings
-    chunk = chunk.toString().replace('\r\n', '\n');
-    // strip ansi colors
-    if (!this.ansi) chunk = chunk.replace(ANSI_REG, '');
-    // strip elapsed time
-    if (!this.elapsed) chunk = chunk.replace(/\s\S*?\(\d+ms\)\S*?\n$/, '\n');
-
-    this.data.push(chunk);
-    callback();
+    return Object.assign(new Writable(), {
+      _write(chunk, encoding, callback) {
+        data.push(sanitizeLog(chunk.toString(), options));
+        callback();
+      }
+    });
   }
 }
 
-logger.mock = function mock(options) {
-  delete logger.instance;
-  logger();
+const helper = {
+  constructor: Logger,
+  loglevel: logger.loglevel,
+  stdout: [],
+  stderr: [],
 
-  logger.instance.stdout = new TestIO(options);
-  logger.instance.stderr = new TestIO(options);
-  logger.stdout = logger.instance.stdout.data;
-  logger.stderr = logger.instance.stderr.data;
+  get messages() {
+    return Logger.instance?.messages;
+  },
+
+  mock(options) {
+    helper.reset();
+    helper.options = options;
+
+    if (!process.env.__PERCY_BROWSERIFIED__) {
+      Logger.stdout = TestIO(helper.stdout, options);
+      Logger.stderr = TestIO(helper.stderr, options);
+    } else {
+      let write = Logger.prototype.write;
+
+      if (!write.and) {
+        spyOn(Logger.prototype, 'write').and.callFake(function(lvl, msg) {
+          let stdio = lvl === 'info' ? 'stdout' : 'stderr';
+          helper[stdio].push(sanitizeLog(msg, helper.options));
+          return write.call(this, lvl, msg);
+        });
+      }
+
+      if (!console.log.and) {
+        spyOn(console, 'log');
+        spyOn(console, 'warn');
+        spyOn(console, 'error');
+      }
+    }
+  },
+
+  reset() {
+    delete Logger.instance;
+
+    helper.stdout.length = 0;
+    helper.stderr.length = 0;
+
+    console.log.calls?.reset();
+    console.warn.calls?.reset();
+    console.error.calls?.reset();
+  },
+
+  dump() {
+    const write = m => process.env.__PERCY_BROWSERIFIED__
+      ? console.log(m) : process.stderr.write(`${m}\n`);
+
+    logger.loglevel('debug');
+    write(logger.format('--- DUMPING LOGS ---', 'testing', 'warn'));
+
+    Array.from(helper.messages)
+      .reduce((lastlog, { debug, level, message, timestamp }) => {
+        let elapsed = timestamp - (lastlog || timestamp);
+        write(logger.format(message, debug, level, elapsed));
+        return timestamp;
+      });
+  }
 };
 
-logger.clear = function clear() {
-  logger.stdout.length = 0;
-  logger.stderr.length = 0;
-};
-
-logger.dump = function dump() {
-  logger.loglevel('debug');
-
-  process.stderr.write(
-    logger.format('--- DUMPING LOGS ---', 'testing', 'warn') + '\n'
-  );
-
-  Array.from(logger.instance.messages)
-    .reduce((lastlog, { debug, level, message, timestamp }) => {
-      let elapsed = timestamp - (lastlog || timestamp);
-      process.stderr.write(logger.format(message, debug, level, elapsed) + '\n');
-      return timestamp;
-    });
-};
-
-module.exports = logger;
+module.exports = helper;
