@@ -17,7 +17,7 @@
     "postbuild": "oclif-dev manifest",
     "readme": "oclif-dev readme",
     "test": "node ../../scripts/test",
-    "test:coverage": "nyc yarn test"
+    "test:coverage": "yarn test --coverage"
   },
   "publishConfig": {
     "access": "public"

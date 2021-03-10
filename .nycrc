@@ -1,6 +1,6 @@
 {
   "exclude": ["dist", "test"],
-  "check-coverage": true,
+  "instrument": false,
   "branches": 100,
   "lines": 100,
   "functions": 100,

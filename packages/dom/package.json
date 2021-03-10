@@ -11,7 +11,7 @@
     "build": "cross-env NODE_ENV=production rollup --config",
     "lint": "eslint --ignore-path ../../.gitignore .",
     "test": "node ../../scripts/test",
-    "test:coverage": "nyc yarn test"
+    "test:coverage": "yarn test --coverage"
   },
   "publishConfig": {
     "access": "public"
