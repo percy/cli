@@ -1,5 +1,5 @@
 const logger = require('@percy/logger');
-const { ANSI_REG } = require('@percy/logger/dist/colors');
+const { ANSI_REG } = require('@percy/logger/dist/util');
 const { Logger } = logger;
 
 const ELAPSED_REG = /\s\S*?\(\d+ms\)\S*/;

@@ -1,4 +1,4 @@
-import { ANSI_COLORS, ANSI_REG } from './colors';
+import { ANSI_COLORS, ANSI_REG } from './util';
 import PercyLogger from './logger';
 
 export default class BrowserLogger extends PercyLogger {

@@ -1,5 +1,5 @@
 import helper from './helper';
-import colors from '../src/colors';
+import { colors } from '../src/util';
 import logger from '../src';
 
 describe('logger', () => {
