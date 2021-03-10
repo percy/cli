@@ -45,7 +45,8 @@ const base = {
     ...pkg.rollup.output,
     intro: [
       // provide the bundle with a fake process.env if needed
-      'const process = globalThis.process || {};',
+      'let process = {};',
+      'try { process = globalThis.process || {}; } catch (e) {}',
       'process.env = process.env || {};',
       // signals that the package is running in a browserified bundle
       'process.env.__PERCY_BROWSERIFIED__ = true;'
