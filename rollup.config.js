@@ -62,9 +62,10 @@ const base = {
 };
 
 // used to match external bundles
-const isLib = id => id === pkg.name || id.endsWith('/src');
+const ENTRY_REG = /[/\\]src$/;
 const BUILTINS_REG = /^(?:stream)(\/.+)?$/;
-const TESTHELPERS_REG = /\/test\/helpers?\.js$/;
+const TESTHELPERS_REG = /[/\\]test[/\\]helpers?(?:\.js)?$/;
+const isLib = id => id === pkg.name || ENTRY_REG.test(id);
 
 // test config used for test bundles
 const test = {
