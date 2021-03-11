@@ -1,27 +1,30 @@
-const Logger = require('./logger').default;
+const { default: Logger } = (
+  process.env.__PERCY_BROWSERIFIED__
+    ? require('./browser')
+    : require('./logger')
+);
 
 function logger(name) {
-  logger.instance ||= new Logger();
-  return logger.instance.group(name);
+  return new Logger().group(name);
 }
 
-logger.loglevel = function loglevel(level, flags = {}) {
-  logger.instance ||= new Logger();
-  if (!level) return logger.instance.loglevel();
-  if (flags.verbose) level = 'debug';
-  else if (flags.quiet) level = 'warn';
-  else if (flags.silent) level = 'silent';
-  return logger.instance.loglevel(level);
-};
+Object.assign(logger, {
+  format: (...args) => new Logger().format(...args),
+  query: (...args) => new Logger().query(...args),
+  connect: (...args) => new Logger().connect(...args),
+  remote: (...args) => new Logger().remote(...args),
+  loglevel(level, flags = {}) {
+    if (flags.verbose) level = 'debug';
+    else if (flags.quiet) level = 'warn';
+    else if (flags.silent) level = 'silent';
+    return new Logger().loglevel(level);
+  }
+});
 
-logger.format = function format(...args) {
-  logger.instance ||= new Logger();
-  return logger.instance.format(...args);
-};
-
-logger.query = function query(filter) {
-  logger.instance ||= new Logger();
-  return logger.instance.query(filter);
-};
+Object.defineProperties(logger, {
+  stdout: { get: () => Logger.stdout },
+  stderr: { get: () => Logger.stderr }
+});
 
 module.exports = logger;
+module.exports.Logger = Logger;

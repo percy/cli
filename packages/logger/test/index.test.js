@@ -1,5 +1,5 @@
-import colors from '../src/colors';
 import helper from './helper';
+import { colors } from '../src/util';
 import logger from '../src';
 
 describe('logger', () => {
@@ -42,7 +42,7 @@ describe('logger', () => {
       meta
     });
 
-    expect(logger.instance.messages).toEqual(new Set([
+    expect(helper.messages).toEqual(new Set([
       entry('info', 'Info log', { foo: 'bar' }),
       entry('warn', 'Warn log', { bar: 'baz' }),
       entry('error', 'Error log', { to: 'be' }),
@@ -56,7 +56,7 @@ describe('logger', () => {
 
     expect(helper.stderr).toEqual([]);
     expect(helper.stdout).toEqual([
-      `[${colors.magenta('percy')}] Info log\n`
+      `[${colors.magenta('percy')}] Info log`
     ]);
   });
 
@@ -66,8 +66,8 @@ describe('logger', () => {
 
     expect(helper.stdout).toEqual([]);
     expect(helper.stderr).toEqual([
-      `[${colors.magenta('percy')}] ${colors.yellow('Warn log')}\n`,
-      `[${colors.magenta('percy')}] ${colors.red('Error log')}\n`
+      `[${colors.magenta('percy')}] ${colors.yellow('Warn log')}`,
+      `[${colors.magenta('percy')}] ${colors.red('Error log')}`
     ]);
   });
 
@@ -75,7 +75,7 @@ describe('logger', () => {
     log.info('URL: https://percy.io');
 
     expect(helper.stdout).toEqual([
-      `[${colors.magenta('percy')}] URL: ${colors.blue('https://percy.io')}\n`
+      `[${colors.magenta('percy')}] URL: ${colors.blue('https://percy.io')}`
     ]);
   });
 
@@ -83,7 +83,7 @@ describe('logger', () => {
     let error = new Error('test');
     log.error(error);
 
-    expect(logger.instance.messages).toContain({
+    expect(helper.messages).toContain({
       debug: 'test',
       level: 'error',
       message: error.stack,
@@ -92,7 +92,7 @@ describe('logger', () => {
     });
 
     expect(helper.stderr).toEqual([
-      `[${colors.magenta('percy')}] ${colors.red('Error: test')}\n`
+      `[${colors.magenta('percy')}] ${colors.red('Error: test')}`
     ]);
   });
 
@@ -109,8 +109,8 @@ describe('logger', () => {
     log.deprecated('Update me too');
 
     expect(helper.stderr).toEqual([
-      `[${colors.magenta('percy')}] ${colors.yellow('Warning: Update me')}\n`,
-      `[${colors.magenta('percy')}] ${colors.yellow('Warning: Update me too')}\n`
+      `[${colors.magenta('percy')}] ${colors.yellow('Warning: Update me')}`,
+      `[${colors.magenta('percy')}] ${colors.yellow('Warning: Update me too')}`
     ]);
   });
 
@@ -156,10 +156,16 @@ describe('logger', () => {
     );
   });
 
+  it('exposes own stdout and stderr streams', () => {
+    expect(logger.stdout).toBe(logger.Logger.stdout);
+    expect(logger.stderr).toBe(logger.Logger.stderr);
+  });
+
   describe('levels', () => {
     it('can be initially set by defining PERCY_LOGLEVEL', () => {
-      delete logger.instance;
       process.env.PERCY_LOGLEVEL = 'error';
+      helper.reset();
+
       expect(logger.loglevel()).toEqual('error');
     });
 
@@ -184,8 +190,8 @@ describe('logger', () => {
 
       expect(helper.stdout).toEqual([]);
       expect(helper.stderr).toEqual([
-        `[${colors.magenta('percy')}] ${colors.yellow('Warn log')}\n`,
-        `[${colors.magenta('percy')}] ${colors.red('Error log')}\n`
+        `[${colors.magenta('percy')}] ${colors.yellow('Warn log')}`,
+        `[${colors.magenta('percy')}] ${colors.red('Error log')}`
       ]);
     });
 
@@ -199,7 +205,7 @@ describe('logger', () => {
 
       expect(helper.stdout).toEqual([]);
       expect(helper.stderr).toEqual([
-        `[${colors.magenta('percy')}] ${colors.red('Error log')}\n`
+        `[${colors.magenta('percy')}] ${colors.red('Error log')}`
       ]);
     });
 
@@ -212,13 +218,12 @@ describe('logger', () => {
       log.debug('Debug log');
 
       expect(helper.stdout).toEqual([
-        `[${colors.magenta('percy:test')}] Info log\n`
+        `[${colors.magenta('percy:test')}] Info log`
       ]);
-
       expect(helper.stderr).toEqual([
-        `[${colors.magenta('percy:test')}] ${colors.yellow('Warn log')}\n`,
-        `[${colors.magenta('percy:test')}] ${colors.red('Error log')}\n`,
-        `[${colors.magenta('percy:test')}] Debug log\n`
+        `[${colors.magenta('percy:test')}] ${colors.yellow('Warn log')}`,
+        `[${colors.magenta('percy:test')}] ${colors.red('Error log')}`,
+        `[${colors.magenta('percy:test')}] Debug log`
       ]);
     });
 
@@ -228,7 +233,7 @@ describe('logger', () => {
       log.error(error);
 
       expect(helper.stderr).toEqual([
-        `[${colors.magenta('percy:test')}] ${colors.red(error.stack)}\n`
+        `[${colors.magenta('percy:test')}] ${colors.red(error.stack)}`
       ]);
     });
 
@@ -238,13 +243,11 @@ describe('logger', () => {
       log.debug(errorlike);
 
       expect(helper.stderr).toEqual([
-        `[${colors.magenta('percy:test')}] ${colors.red('ERROR')}\n`
+        `[${colors.magenta('percy:test')}] ${colors.red('ERROR')}`
       ]);
     });
 
     it('logs elapsed time when loglevel is "debug"', async () => {
-      // it is hard to escape ansi colors with `stringMatching`, which is needed because the time
-      // between logs can vary by a few milliseconds
       helper.mock({ elapsed: true });
       logger.loglevel('debug');
       log = logger('test');
@@ -256,20 +259,20 @@ describe('logger', () => {
       log.debug('Debug log');
 
       expect(helper.stdout).toEqual([
-        jasmine.stringMatching('Info log \\(\\dms\\)\\n')
+        jasmine.stringMatching('Info log \\(\\dms\\)')
       ]);
 
       expect(helper.stderr).toEqual([
-        jasmine.stringMatching('Warn log \\(\\dms\\)\\n'),
-        jasmine.stringMatching('Error log \\(\\dms\\)\\n'),
-        jasmine.stringMatching('Debug log \\(10\\dms\\)\\n')
+        jasmine.stringMatching('Warn log \\(\\dms\\)'),
+        jasmine.stringMatching('Error log \\(\\dms\\)'),
+        jasmine.stringMatching('Debug log \\(10\\dms\\)')
       ]);
     });
   });
 
   describe('debugging', () => {
     beforeEach(() => {
-      delete logger.instance;
+      helper.reset();
     });
 
     it('enables debug logging when PERCY_DEBUG is defined', () => {
@@ -280,7 +283,7 @@ describe('logger', () => {
 
       expect(logger.loglevel()).toEqual('debug');
       expect(helper.stderr).toEqual([
-        `[${colors.magenta('percy:test')}] Debug log\n`
+        `[${colors.magenta('percy:test')}] Debug log`
       ]);
     });
 
@@ -294,9 +297,9 @@ describe('logger', () => {
       logger('test:3').debug('Debug test 3');
 
       expect(helper.stderr).toEqual([
-        `[${colors.magenta('percy:test')}] Debug test\n`,
-        `[${colors.magenta('percy:test:1')}] Debug test 1\n`,
-        `[${colors.magenta('percy:test:3')}] Debug test 3\n`
+        `[${colors.magenta('percy:test')}] Debug test`,
+        `[${colors.magenta('percy:test:1')}] Debug test 1`,
+        `[${colors.magenta('percy:test:3')}] Debug test 3`
       ]);
     });
 
@@ -310,4 +313,29 @@ describe('logger', () => {
       expect(helper.stderr).toEqual([]);
     });
   });
+
+  if (process.env.__PERCY_BROWSERIFIED__) {
+    describe('browser support', () => {
+      it('logs messages with CSS colors', () => {
+        log.info('Colorful!');
+
+        expect(console.log).toHaveBeenCalledOnceWith(
+          '[%cpercy%c] Colorful!', 'color:magenta', 'color:inherit');
+      });
+
+      it('logs errors with console.error', () => {
+        log.error('ERR!');
+
+        expect(console.error).toHaveBeenCalledOnceWith(
+          '[%cpercy%c] %cERR!%c', 'color:magenta', 'color:inherit', 'color:red', 'color:inherit');
+      });
+
+      it('logs warnings with console.warn', () => {
+        log.warn('Warning!');
+
+        expect(console.warn).toHaveBeenCalledOnceWith(
+          '[%cpercy%c] %cWarning!%c', 'color:magenta', 'color:inherit', 'color:yellow', 'color:inherit');
+      });
+    });
+  }
 });

@@ -3,6 +3,7 @@
   "version": "1.0.0-beta.41",
   "license": "MIT",
   "main": "dist/index.js",
+  "browser": "dist/bundle.js",
   "files": [
     "dist",
     "test/helper.js"
@@ -18,5 +19,10 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "rollup": {
+    "output": {
+      "name": "PercyLogger"
+    }
   }
 }

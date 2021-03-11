@@ -11,11 +11,11 @@ describe('percy exec', () => {
     await expectAsync(Exec.run([])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stderr).toEqual([
-      '[percy] You must supply a command to run after --\n'
+      '[percy] You must supply a command to run after --'
     ]);
     expect(logger.stdout).toEqual([
-      '[percy] Example:\n',
-      '[percy] $ percy exec -- echo "run your test suite"\n'
+      '[percy] Example:',
+      '[percy] $ percy exec -- echo "run your test suite"'
     ]);
   });
 
@@ -24,7 +24,7 @@ describe('percy exec', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: command not found "foobar"\n'
+      '[percy] Error: command not found "foobar"'
     ]);
   });
 
@@ -33,12 +33,12 @@ describe('percy exec', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Percy has started!\n',
-      '[percy] Created build #1: https://percy.io/test/test/123\n',
-      '[percy] Running "node --eval "\n',
-      '[percy] Stopping percy...\n',
-      '[percy] Finalized build #1: https://percy.io/test/test/123\n',
-      '[percy] Done!\n'
+      '[percy] Percy has started!',
+      '[percy] Created build #1: https://percy.io/test/test/123',
+      '[percy] Running "node --eval "',
+      '[percy] Stopping percy...',
+      '[percy] Finalized build #1: https://percy.io/test/test/123',
+      '[percy] Done!'
     ]);
   });
 
@@ -68,8 +68,8 @@ describe('percy exec', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Skipping visual tests - Missing Percy token\n',
-      '[percy] Running "node --eval "\n'
+      '[percy] Skipping visual tests - Missing Percy token',
+      '[percy] Running "node --eval "'
     ]);
   });
 
@@ -78,12 +78,12 @@ describe('percy exec', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Percy has started!\n',
-      '[percy] Created build #1: https://percy.io/test/test/123\n',
-      '[percy] Running "node --eval process.exit(3)"\n',
-      '[percy] Stopping percy...\n',
-      '[percy] Finalized build #1: https://percy.io/test/test/123\n',
-      '[percy] Done!\n'
+      '[percy] Percy has started!',
+      '[percy] Created build #1: https://percy.io/test/test/123',
+      '[percy] Running "node --eval process.exit(3)"',
+      '[percy] Stopping percy...',
+      '[percy] Finalized build #1: https://percy.io/test/test/123',
+      '[percy] Done!'
     ]);
   });
 
@@ -95,15 +95,15 @@ describe('percy exec', () => {
     await expectAsync(Exec.run(['--', 'foobar'])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stderr).toEqual([
-      '[percy] Error: spawn foobar ENOENT\n'
+      '[percy] Error: spawn foobar ENOENT'
     ]);
     expect(logger.stdout).toEqual([
-      '[percy] Percy has started!\n',
-      '[percy] Created build #1: https://percy.io/test/test/123\n',
-      '[percy] Running "foobar"\n',
-      '[percy] Stopping percy...\n',
-      '[percy] Finalized build #1: https://percy.io/test/test/123\n',
-      '[percy] Done!\n'
+      '[percy] Percy has started!',
+      '[percy] Created build #1: https://percy.io/test/test/123',
+      '[percy] Running "foobar"',
+      '[percy] Stopping percy...',
+      '[percy] Finalized build #1: https://percy.io/test/test/123',
+      '[percy] Done!'
     ]);
   });
 });

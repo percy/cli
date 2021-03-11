@@ -19,7 +19,7 @@ describe('percy build:finalize', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Percy is disabled\n'
+      '[percy] Percy is disabled'
     ]);
   });
 
@@ -30,8 +30,8 @@ describe('percy build:finalize', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] This command should only be used with PERCY_PARALLEL_TOTAL=-1\n',
-      '[percy] Current value is "5"\n'
+      '[percy] This command should only be used with PERCY_PARALLEL_TOTAL=-1',
+      '[percy] Current value is "5"'
     ]);
   });
 
@@ -49,8 +49,8 @@ describe('percy build:finalize', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Finalizing parallel build...\n',
-      '[percy] Finalized build #1: https://percy.io/test/test/123\n'
+      '[percy] Finalizing parallel build...',
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
   });
 });

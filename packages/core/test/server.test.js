@@ -79,7 +79,7 @@ describe('Snapshot Server', () => {
     await expectAsync(response.text()).toBeResolvedTo(bundle);
     expect(logger.stderr).toEqual([
       '[percy] Warning: It looks like you’re using @percy/cli with an older SDK. Please upgrade to the latest version' +
-        ' to fix this warning. See these docs for more info: https://docs.percy.io/docs/migrating-to-percy-cli\n'
+        ' to fix this warning. See these docs for more info: https://docs.percy.io/docs/migrating-to-percy-cli'
     ]);
   });
 
@@ -160,6 +160,40 @@ describe('Snapshot Server', () => {
     expect(response.status).toBe(204);
     expect(response.headers.get('Access-Control-Allow-Headers')).toBe('Content-Type');
     expect(percy.snapshot).not.toHaveBeenCalled();
+  });
+
+  it('facilitates logger websocket connections', async () => {
+    await percy.start();
+
+    logger.reset();
+    logger.loglevel('debug');
+
+    // log from a separate async process
+    let [stdout, stderr] = await new Promise((resolve, reject) => {
+      require('child_process').exec('node -e "' + [
+        "const logger = require('@percy/logger');",
+        // connect to the local websocket server for logging and unref the socket
+        "const ws = new (require('ws'))('http://localhost:1337');",
+        "ws.on('open', () => ws._socket.unref());",
+        // set loglevel to debug failures
+        "logger.loglevel('debug');",
+        // connect and send a remote log
+        'logger.remote(ws).then(() => ',
+        "logger('remote-sdk').info('whoa'));"
+      ].join('') + '"', (err, stdout, stderr) => {
+        if (!err) resolve([stdout, stderr]);
+        else reject(err);
+      });
+    });
+
+    // child logs are present on connection failure
+    expect(stdout.toString()).toEqual('');
+    expect(stderr.toString()).toEqual('');
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy:remote-sdk] whoa'
+    ]);
   });
 
   describe('when the server is disabled', () => {

@@ -92,6 +92,6 @@ export class Migrate extends Command {
 
     this.log.info('Config file migrated!');
     // when dry-running, print config to stdout when finished
-    if (dry) logger.instance.stdout.write('\n' + body);
+    if (dry) logger.stdout.write('\n' + body);
   }
 }

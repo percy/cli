@@ -1,5 +1,6 @@
 import fs from 'fs';
 import http from 'http';
+import { Server as WSS } from 'ws';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
 import pkg from '../package.json';
@@ -90,7 +91,7 @@ export function createServer(routes) {
 export default function createPercyServer(percy) {
   let log = logger('core:server');
 
-  return createServer({
+  let context = createServer({
     // healthcheck returns meta info on success
     '/percy/healthcheck': () => [200, 'application/json', {
       success: true,
@@ -113,8 +114,8 @@ export default function createPercyServer(percy) {
       .readFile(require.resolve('@percy/dom'), 'utf-8')
       .then(content => {
         let wrapper = '(window.PercyAgent = class PercyAgent { snapshot(n, o) { return PercyDOM.serialize(o); } });';
-        log.deprecated('It looks like you’re using @percy/cli with an older SDK. Please upgrade to the latest version' +
-          ' to fix this warning. See these docs for more info: https://docs.percy.io/docs/migrating-to-percy-cli');
+        log.deprecated('It looks like you’re using @percy/cli with an older SDK. Please upgrade to the latest version' + (
+          ' to fix this warning. See these docs for more info: https://docs.percy.io/docs/migrating-to-percy-cli'));
         return [200, 'applicaton/javascript', content.concat(wrapper)];
       }),
 
@@ -141,4 +142,18 @@ export default function createPercyServer(percy) {
       success: false
     }]
   });
+
+  // start a websocket server
+  context.wss = new WSS({ noServer: true });
+
+  // manually handle upgrades to avoid wss handling all events
+  context.server.on('upgrade', (req, sock, head) => {
+    context.wss.handleUpgrade(req, sock, head, socket => {
+      // allow remote logging connections
+      let disconnect = logger.connect(socket);
+      socket.once('close', () => disconnect());
+    });
+  });
+
+  return context;
 }

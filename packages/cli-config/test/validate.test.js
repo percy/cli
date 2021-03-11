@@ -30,14 +30,14 @@ describe('percy config:validate', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Found config file: .percy.yml\n',
+      '[percy] Found config file: .percy.yml',
       '[percy] Using config:\n' + [
         '{',
         '  version: 2,',
         '  test: {',
         '    value: \'percy\'',
         '  }',
-        '}\n'
+        '}'
       ].join('\n')
     ]);
   });
@@ -49,14 +49,14 @@ describe('percy config:validate', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      `[percy] Found config file: ${filename}\n`,
+      `[percy] Found config file: ${filename}`,
       '[percy] Using config:\n' + [
         '{',
         '  version: 2,',
         '  test: {',
         '    value: \'config\'',
         '  }',
-        '}\n'
+        '}'
       ].join('\n')
     ]);
   });
@@ -66,12 +66,12 @@ describe('percy config:validate', () => {
     await expectAsync(Validate.run(['.invalid.yml'])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([
-      '[percy] Found config file: .invalid.yml\n'
+      '[percy] Found config file: .invalid.yml'
     ]);
     expect(logger.stderr).toEqual([
-      '[percy] Invalid config:\n',
-      '[percy] - bar: unknown property\n',
-      '[percy] - test.value: should be a string, received a boolean\n'
+      '[percy] Invalid config:',
+      '[percy] - bar: unknown property',
+      '[percy] - test.value: should be a string, received a boolean'
     ]);
   });
 });

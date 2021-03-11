@@ -47,10 +47,10 @@ async function task({ message, state: init, function: fn }) {
       let i = state.i = (state.i || 0) + 1;
 
       // clear the current line
-      readline.clearLine(logger.instance.stdout);
-      readline.cursorTo(logger.instance.stdout, 0);
+      readline.clearLine(logger.stdout);
+      readline.cursorTo(logger.stdout, 0);
       // log the message with an additional period for each iteration
-      logger.instance.stdout.write(
+      logger.stdout.write(
         logger.format(message(state, '.'.repeat(i)), 'script')
       );
 
@@ -59,7 +59,7 @@ async function task({ message, state: init, function: fn }) {
     })((init?.() || {}));
   } finally {
     // this ensures errors will log on their own line
-    logger.instance.stdout.write('\n');
+    logger.stdout.write('\n');
   }
 }
 
@@ -156,7 +156,7 @@ async function printVersionRevisions(version) {
   });
 
   // log all matching revisions
-  logger.instance.stdout.write('\n' + (
+  logger.stdout.write('\n' + (
     Object.entries(revisions).map(([platform, i]) => (
       `${platform}: ${i.revision} (${i.sha}; ${i.version})`
     )).join('\n') + '\n\n'));

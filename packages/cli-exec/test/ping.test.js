@@ -18,13 +18,13 @@ describe('percy exec:ping', () => {
     expect(percyServer.requests).toEqual([['/percy/healthcheck']]);
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual(['[percy] Percy is running\n']);
+    expect(logger.stdout).toEqual(['[percy] Percy is running']);
   });
 
   it('logs an error when the endpoint errors', async () => {
     await expectAsync(Ping.run([])).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
-    expect(logger.stderr).toEqual(['[percy] Percy is not running\n']);
+    expect(logger.stderr).toEqual(['[percy] Percy is not running']);
   });
 });
