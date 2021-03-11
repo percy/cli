@@ -11,13 +11,7 @@ beforeEach(() => {
   mockAPI.start();
 });
 
-afterEach(function(done) {
-  // dump logs for failed tests when debugging
-  if (process.env.DEBUG_FAILING &&
-      this.currentTest.state === 'failed') {
-    logger.dump();
-  }
-
+afterEach(done => {
   // cleanup tmp files
   rimraf(path.join(os.tmpdir(), 'percy'), () => done());
 });

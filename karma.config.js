@@ -29,8 +29,12 @@ module.exports = config => config.set({
     'test/**/*.test.js': ['rollupTestFiles']
   },
 
-  // reports look better when not randomized
   client: {
+    env: {
+      // used in the test helper to add failed test debug logs
+      DUMP_FAILED_TEST_LOGS: process.env.DUMP_FAILED_TEST_LOGS
+    },
+    // reports look better when not randomized
     jasmine: {
       random: false
     }
