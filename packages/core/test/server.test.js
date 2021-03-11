@@ -162,6 +162,40 @@ describe('Snapshot Server', () => {
     expect(percy.snapshot).not.toHaveBeenCalled();
   });
 
+  it('facilitates logger websocket connections', async () => {
+    await percy.start();
+
+    logger.reset();
+    logger.loglevel('debug');
+
+    // log from a separate async process
+    let [stdout, stderr] = await new Promise((resolve, reject) => {
+      require('child_process').exec('node -e \'' + [
+        'const logger = require("@percy/logger");',
+        // connect to the local websocket server for logging and unref the socket
+        'const ws = new (require("ws"))("http://localhost:1337");',
+        'ws.on("open", () => ws._socket.unref());',
+        // set loglevel to debug failures
+        'logger.loglevel("debug");',
+        // connect and send a remote log
+        'logger.remote(ws).then(() => ',
+        'logger("remote-sdk").info("whoa"));'
+      ].join('') + '\'', (err, stdout, stderr) => {
+        if (!err) resolve([stdout, stderr]);
+        else reject(err);
+      });
+    });
+
+    // child logs are present on connection failure
+    expect(stdout.toString()).toEqual('');
+    expect(stderr.toString()).toEqual('');
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy:remote-sdk] whoa'
+    ]);
+  });
+
   describe('when the server is disabled', () => {
     beforeEach(async () => {
       percy = await Percy.start({
