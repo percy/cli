@@ -15,7 +15,10 @@ const IGNORE_WARNINGS = [
 const plugins = {
   alias: alias({
     entries: [{
-      find: /^@percy\/(.+)\/dist\/(.+)$/,
+      find: /^@percy\/([^/]+)$/,
+      replacement: path.join(__dirname, '/packages/$1/src/index.js')
+    }, {
+      find: /^@percy\/([^/]+)\/dist\/(.+)$/,
       replacement: path.join(__dirname, '/packages/$1/src/$2')
     }]
   }),
@@ -52,6 +55,7 @@ const base = {
     ].join('\n')
   },
   plugins: [
+    plugins.alias,
     plugins.babel,
     plugins.commonjs
   ],
