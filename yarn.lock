@@ -5484,9 +5484,9 @@ karma-mocha-reporter@^2.2.5:
     strip-ansi "^4.0.0"
 
 karma-rollup-preprocessor@^7.0.5:
-  version "7.0.6"
-  resolved "https://registry.yarnpkg.com/karma-rollup-preprocessor/-/karma-rollup-preprocessor-7.0.6.tgz#7abb3b037ed5c8351bab17d8f0c6aa3912ed2b5a"
-  integrity sha512-Qghr/oNnmNKB4Ry5n81QX+tB6+vSy0kjn+rwzH1dp80ZVf9WiA19NQqVFZLc0f76tBoE7is2Qef8dqbVNjVtjw==
+  version "7.0.7"
+  resolved "https://registry.yarnpkg.com/karma-rollup-preprocessor/-/karma-rollup-preprocessor-7.0.7.tgz#d06e587b108273ae564cbd5c5914a75602191a23"
+  integrity sha512-Y1QwsTCiCBp8sSALZdqmqry/mWIWIy0V6zonUIpy+0/D/Kpb2XZvR+JZrWfacQvcvKQdZFJvg6EwlnKtjepu3Q==
   dependencies:
     chokidar "^3.3.1"
     debounce "^1.2.0"
