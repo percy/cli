@@ -1,5 +1,5 @@
 const createTestServer = require('@percy/core/test/helpers/server');
-const logger = require('@percy/logger/test/helper');
+const logger = require('@percy/logger/test/helpers');
 const sdk = { logger };
 
 // mock serialization script

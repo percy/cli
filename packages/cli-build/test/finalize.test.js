@@ -1,5 +1,5 @@
-import mockAPI from '@percy/client/test/helper';
-import logger from '@percy/logger/test/helper';
+import mockAPI from '@percy/client/test/helpers';
+import logger from '@percy/logger/test/helpers';
 import { Finalize } from '../src/commands/build/finalize';
 
 describe('percy build:finalize', () => {

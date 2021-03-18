@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import mockAPI from '@percy/client/test/helper';
-import logger from '@percy/logger/test/helper';
+import mockAPI from '@percy/client/test/helpers';
+import logger from '@percy/logger/test/helpers';
 import { Upload } from '../src/commands/upload';
 
 // http://png-pixel.com/

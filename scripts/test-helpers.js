@@ -55,7 +55,7 @@ if (DUMP_FAILED_TEST_LOGS) {
   jasmine.getEnv().addReporter({
     specDone: ({ status }) => {
       if (status === 'failed') {
-        require('@percy/logger/test/helper').dump();
+        require('@percy/logger/test/helpers').dump();
       }
     }
   });

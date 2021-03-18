@@ -1,4 +1,4 @@
-import sdk from './helper';
+import sdk from './helpers';
 
 describe('SDK Utils', () => {
   beforeEach(async () => {

@@ -1,8 +1,8 @@
 import mock from 'mock-require';
-import { mockgit } from '@percy/env/test/helper';
+import { mockgit } from '@percy/env/test/helpers';
 import PercyClient from '../src';
 import { sha256hash, base64encode } from '../src/utils';
-import mockAPI from './helper';
+import mockAPI from './helpers';
 
 describe('PercyClient', () => {
   let client;

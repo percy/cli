@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { inspect } from 'util';
-import mockAPI from '@percy/client/test/helper';
-import logger from '@percy/logger/test/helper';
+import mockAPI from '@percy/client/test/helpers';
+import logger from '@percy/logger/test/helpers';
 import { createTestServer } from '@percy/core/test/helpers';
 import { Snapshot } from '../src/commands/snapshot';
 
