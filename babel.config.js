@@ -1,4 +1,7 @@
+const pkg = require(`${process.cwd()}/package.json`);
+
 const base = {
+  ignore: pkg.files,
   presets: [
     ['@babel/env', {
       targets: {
