@@ -1,5 +1,5 @@
-import logger from '@percy/logger/test/helper';
-import mockAPI from '@percy/client/test/helper';
+import logger from '@percy/logger/test/helpers';
+import mockAPI from '@percy/client/test/helpers';
 
 beforeEach(() => {
   process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';

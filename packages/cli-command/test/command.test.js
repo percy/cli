@@ -1,4 +1,4 @@
-import logger from '@percy/logger/test/helper';
+import logger from '@percy/logger/test/helpers';
 import PercyConfig from '@percy/config';
 import PercyCommand, { flags } from '../src';
 

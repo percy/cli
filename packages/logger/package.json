@@ -6,7 +6,7 @@
   "browser": "dist/bundle.js",
   "files": [
     "dist",
-    "test/helper.js"
+    "test/helpers.js"
   ],
   "engines": {
     "node": ">=12"

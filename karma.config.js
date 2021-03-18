@@ -18,14 +18,14 @@ module.exports = config => config.set({
     { pattern: require.resolve('./scripts/test-helpers'), watched: false },
     // local package files
     { pattern: 'src/index.js', watched: false },
-    { pattern: 'test/helper*(s).js', watched: false },
+    { pattern: 'test/helpers.js', watched: false },
     { pattern: 'test/**/*.test.js', watched: false }
   ],
 
   // create dedicated bundles for src, test helpers, and each test suite
   preprocessors: {
     'src/index.js': ['rollup'],
-    'test/helper*(s).js': ['rollupTestHelpers'],
+    'test/helpers.js': ['rollupTestHelpers'],
     'test/**/*.test.js': ['rollupTestFiles']
   },
 

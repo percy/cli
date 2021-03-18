@@ -1,4 +1,4 @@
-import helper from './helper';
+import helpers from './helpers';
 import { colors } from '../src/util';
 import logger from '../src';
 
@@ -6,7 +6,7 @@ describe('logger', () => {
   let log;
 
   beforeEach(() => {
-    helper.mock({ ansi: true });
+    helpers.mock({ ansi: true });
     log = logger('test');
   });
 
@@ -42,7 +42,7 @@ describe('logger', () => {
       meta
     });
 
-    expect(helper.messages).toEqual(new Set([
+    expect(helpers.messages).toEqual(new Set([
       entry('info', 'Info log', { foo: 'bar' }),
       entry('warn', 'Warn log', { bar: 'baz' }),
       entry('error', 'Error log', { to: 'be' }),
@@ -54,8 +54,8 @@ describe('logger', () => {
   it('writes info logs to stdout', () => {
     log.info('Info log');
 
-    expect(helper.stderr).toEqual([]);
-    expect(helper.stdout).toEqual([
+    expect(helpers.stderr).toEqual([]);
+    expect(helpers.stdout).toEqual([
       `[${colors.magenta('percy')}] Info log`
     ]);
   });
@@ -64,8 +64,8 @@ describe('logger', () => {
     log.warn('Warn log');
     log.error('Error log');
 
-    expect(helper.stdout).toEqual([]);
-    expect(helper.stderr).toEqual([
+    expect(helpers.stdout).toEqual([]);
+    expect(helpers.stderr).toEqual([
       `[${colors.magenta('percy')}] ${colors.yellow('Warn log')}`,
       `[${colors.magenta('percy')}] ${colors.red('Error log')}`
     ]);
@@ -74,7 +74,7 @@ describe('logger', () => {
   it('highlights info URLs blue', () => {
     log.info('URL: https://percy.io');
 
-    expect(helper.stdout).toEqual([
+    expect(helpers.stdout).toEqual([
       `[${colors.magenta('percy')}] URL: ${colors.blue('https://percy.io')}`
     ]);
   });
@@ -83,7 +83,7 @@ describe('logger', () => {
     let error = new Error('test');
     log.error(error);
 
-    expect(helper.messages).toContain({
+    expect(helpers.messages).toContain({
       debug: 'test',
       level: 'error',
       message: error.stack,
@@ -91,15 +91,15 @@ describe('logger', () => {
       meta: {}
     });
 
-    expect(helper.stderr).toEqual([
+    expect(helpers.stderr).toEqual([
       `[${colors.magenta('percy')}] ${colors.red('Error: test')}`
     ]);
   });
 
   it('does not write debug logs by default', () => {
     log.debug('Debug log');
-    expect(helper.stdout).toEqual([]);
-    expect(helper.stderr).toEqual([]);
+    expect(helpers.stdout).toEqual([]);
+    expect(helpers.stderr).toEqual([]);
   });
 
   it('prevents duplicate deprecation logs', () => {
@@ -108,7 +108,7 @@ describe('logger', () => {
     log.deprecated('Update me');
     log.deprecated('Update me too');
 
-    expect(helper.stderr).toEqual([
+    expect(helpers.stderr).toEqual([
       `[${colors.magenta('percy')}] ${colors.yellow('Warning: Update me')}`,
       `[${colors.magenta('percy')}] ${colors.yellow('Warning: Update me too')}`
     ]);
@@ -164,7 +164,7 @@ describe('logger', () => {
   describe('levels', () => {
     it('can be initially set by defining PERCY_LOGLEVEL', () => {
       process.env.PERCY_LOGLEVEL = 'error';
-      helper.reset();
+      helpers.reset();
 
       expect(logger.loglevel()).toEqual('error');
     });
@@ -188,8 +188,8 @@ describe('logger', () => {
       log.error('Error log');
       log.debug('Debug log');
 
-      expect(helper.stdout).toEqual([]);
-      expect(helper.stderr).toEqual([
+      expect(helpers.stdout).toEqual([]);
+      expect(helpers.stderr).toEqual([
         `[${colors.magenta('percy')}] ${colors.yellow('Warn log')}`,
         `[${colors.magenta('percy')}] ${colors.red('Error log')}`
       ]);
@@ -203,8 +203,8 @@ describe('logger', () => {
       log.error('Error log');
       log.debug('Debug log');
 
-      expect(helper.stdout).toEqual([]);
-      expect(helper.stderr).toEqual([
+      expect(helpers.stdout).toEqual([]);
+      expect(helpers.stderr).toEqual([
         `[${colors.magenta('percy')}] ${colors.red('Error log')}`
       ]);
     });
@@ -217,10 +217,10 @@ describe('logger', () => {
       log.error('Error log');
       log.debug('Debug log');
 
-      expect(helper.stdout).toEqual([
+      expect(helpers.stdout).toEqual([
         `[${colors.magenta('percy:test')}] Info log`
       ]);
-      expect(helper.stderr).toEqual([
+      expect(helpers.stderr).toEqual([
         `[${colors.magenta('percy:test')}] ${colors.yellow('Warn log')}`,
         `[${colors.magenta('percy:test')}] ${colors.red('Error log')}`,
         `[${colors.magenta('percy:test')}] Debug log`
@@ -232,7 +232,7 @@ describe('logger', () => {
       logger.loglevel('debug');
       log.error(error);
 
-      expect(helper.stderr).toEqual([
+      expect(helpers.stderr).toEqual([
         `[${colors.magenta('percy:test')}] ${colors.red(error.stack)}`
       ]);
     });
@@ -242,13 +242,13 @@ describe('logger', () => {
       logger.loglevel('debug');
       log.debug(errorlike);
 
-      expect(helper.stderr).toEqual([
+      expect(helpers.stderr).toEqual([
         `[${colors.magenta('percy:test')}] ${colors.red('ERROR')}`
       ]);
     });
 
     it('logs elapsed time when loglevel is "debug"', async () => {
-      helper.mock({ elapsed: true });
+      helpers.mock({ elapsed: true });
       logger.loglevel('debug');
       log = logger('test');
 
@@ -258,11 +258,11 @@ describe('logger', () => {
       await new Promise(r => setTimeout(r, 100));
       log.debug('Debug log');
 
-      expect(helper.stdout).toEqual([
+      expect(helpers.stdout).toEqual([
         jasmine.stringMatching('Info log \\(\\dms\\)')
       ]);
 
-      expect(helper.stderr).toEqual([
+      expect(helpers.stderr).toEqual([
         jasmine.stringMatching('Warn log \\(\\dms\\)'),
         jasmine.stringMatching('Error log \\(\\dms\\)'),
         jasmine.stringMatching('Debug log \\(10\\dms\\)')
@@ -272,31 +272,31 @@ describe('logger', () => {
 
   describe('debugging', () => {
     beforeEach(() => {
-      helper.reset();
+      helpers.reset();
     });
 
     it('enables debug logging when PERCY_DEBUG is defined', () => {
       process.env.PERCY_DEBUG = '*';
-      helper.mock({ ansi: true });
+      helpers.mock({ ansi: true });
 
       logger('test').debug('Debug log');
 
       expect(logger.loglevel()).toEqual('debug');
-      expect(helper.stderr).toEqual([
+      expect(helpers.stderr).toEqual([
         `[${colors.magenta('percy:test')}] Debug log`
       ]);
     });
 
     it('filters specific logs for debugging', () => {
       process.env.PERCY_DEBUG = 'test:*,-test:2,';
-      helper.mock({ ansi: true });
+      helpers.mock({ ansi: true });
 
       logger('test').debug('Debug test');
       logger('test:1').debug('Debug test 1');
       logger('test:2').debug('Debug test 2');
       logger('test:3').debug('Debug test 3');
 
-      expect(helper.stderr).toEqual([
+      expect(helpers.stderr).toEqual([
         `[${colors.magenta('percy:test')}] Debug test`,
         `[${colors.magenta('percy:test:1')}] Debug test 1`,
         `[${colors.magenta('percy:test:3')}] Debug test 3`
@@ -305,12 +305,12 @@ describe('logger', () => {
 
     it('does not do anything when PERCY_DEBUG is blank', () => {
       process.env.PERCY_DEBUG = ' ';
-      helper.mock({ ansi: true });
+      helpers.mock({ ansi: true });
 
       logger('test').debug('Debug log');
 
       expect(logger.loglevel()).toEqual('info');
-      expect(helper.stderr).toEqual([]);
+      expect(helpers.stderr).toEqual([]);
     });
   });
 

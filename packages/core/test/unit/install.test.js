@@ -3,7 +3,7 @@ import path from 'path';
 import { Writable } from 'stream';
 import nock from 'nock';
 import mockRequire from 'mock-require';
-import logger from '@percy/logger/test/helper';
+import logger from '@percy/logger/test/helpers';
 import install from '../../src/install';
 
 // mock writable stream

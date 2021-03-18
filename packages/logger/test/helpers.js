@@ -30,30 +30,31 @@ function TestIO(data, options) {
   }
 }
 
-const helper = {
+const helpers = {
   constructor: Logger,
   loglevel: logger.loglevel,
   stdout: [],
   stderr: [],
 
   get messages() {
-    return Logger.instance?.messages;
+    return Logger.instance &&
+      Logger.instance.messages;
   },
 
   mock(options) {
-    helper.reset();
-    helper.options = options;
+    helpers.reset();
+    helpers.options = options;
 
     if (!process.env.__PERCY_BROWSERIFIED__) {
-      Logger.stdout = TestIO(helper.stdout, options);
-      Logger.stderr = TestIO(helper.stderr, options);
+      Logger.stdout = TestIO(helpers.stdout, options);
+      Logger.stderr = TestIO(helpers.stderr, options);
     } else {
       let write = Logger.prototype.write;
 
       if (!write.and) {
         spyOn(Logger.prototype, 'write').and.callFake(function(lvl, msg) {
           let stdio = lvl === 'info' ? 'stdout' : 'stderr';
-          helper[stdio].push(sanitizeLog(msg, helper.options));
+          helpers[stdio].push(sanitizeLog(msg, helpers.options));
           return write.call(this, lvl, msg);
         });
       }
@@ -69,28 +70,33 @@ const helper = {
   reset() {
     delete Logger.instance;
 
-    helper.stdout.length = 0;
-    helper.stderr.length = 0;
+    helpers.stdout.length = 0;
+    helpers.stderr.length = 0;
 
-    console.log.calls?.reset();
-    console.warn.calls?.reset();
-    console.error.calls?.reset();
+    if (console.log.and) {
+      console.log.calls.reset();
+      console.warn.calls.reset();
+      console.error.calls.reset();
+    }
   },
 
   dump() {
-    const write = m => process.env.__PERCY_BROWSERIFIED__
+    if (!helpers.message) return;
+    if (console.log.and) console.log.and.callThrough();
+
+    let write = m => process.env.__PERCY_BROWSERIFIED__
       ? console.log(m) : process.stderr.write(`${m}\n`);
+    let logs = Array.from(helpers.messages);
 
     logger.loglevel('debug');
+
     write(logger.format('--- DUMPING LOGS ---', 'testing', 'warn'));
 
-    Array.from(helper.messages)
-      .reduce((lastlog, { debug, level, message, timestamp }) => {
-        let elapsed = timestamp - (lastlog || timestamp);
-        write(logger.format(message, debug, level, elapsed));
-        return timestamp;
-      });
+    logs.reduce((lastlog, { debug, level, message, timestamp }) => {
+      write(logger.format(message, debug, level, timestamp - lastlog));
+      return timestamp;
+    }, logs[0].timestamp);
   }
 };
 
-module.exports = helper;
+module.exports = helpers;

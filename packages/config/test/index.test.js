@@ -1,6 +1,6 @@
 import path from 'path';
-import logger from '@percy/logger/test/helper';
-import mockConfig from './helper';
+import logger from '@percy/logger/test/helpers';
+import mockConfig from './helpers';
 import PercyConfig from '../src';
 
 describe('PercyConfig', () => {

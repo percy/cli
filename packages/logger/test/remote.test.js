@@ -1,4 +1,4 @@
-import helper from './helper';
+import helpers from './helpers';
 import logger from '../src';
 
 // very shallow mock websocket
@@ -34,7 +34,7 @@ describe('remote logging', () => {
   let log, socket;
 
   beforeEach(async () => {
-    helper.mock();
+    helpers.mock();
     log = logger('remote');
     socket = new MockSocket();
   });
@@ -60,7 +60,7 @@ describe('remote logging', () => {
     logger.loglevel('debug');
     await logger.remote(socket);
 
-    expect(helper.stderr).toEqual([
+    expect(helpers.stderr).toEqual([
       '[percy:logger] Unable to connect to remote logger',
       '[percy:logger] Socket Error'
     ]);
@@ -70,7 +70,7 @@ describe('remote logging', () => {
     logger.loglevel('debug');
     await logger.remote(socket, 10);
 
-    expect(helper.stderr).toEqual([
+    expect(helpers.stderr).toEqual([
       '[percy:logger] Unable to connect to remote logger',
       '[percy:logger] Error: Socket connection timed out'
     ]);
@@ -176,7 +176,7 @@ describe('remote logging', () => {
   });
 
   it('does not connect to more than one socket', async () => {
-    let { instance } = helper.constructor;
+    let { instance } = helpers.constructor;
     let socket2 = new MockSocket();
 
     socket.readyState = 1;
@@ -209,8 +209,8 @@ describe('remote logging', () => {
     send({ log: ['test2', 'info', 'Test 2'] });
     send({ foo: 'bar' });
 
-    expect(helper.stdout).toEqual(['[percy] Test 2']);
-    expect(helper.messages).toEqual(new Set([{
+    expect(helpers.stdout).toEqual(['[percy] Test 2']);
+    expect(helpers.messages).toEqual(new Set([{
       debug: 'test1',
       level: 'warn',
       message: 'Test 1'

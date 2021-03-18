@@ -1,8 +1,8 @@
 import os from 'os';
 import path from 'path';
 import rimraf from 'rimraf';
-import logger from '@percy/logger/test/helper';
-import mockAPI from '@percy/client/test/helper';
+import logger from '@percy/logger/test/helpers';
+import mockAPI from '@percy/client/test/helpers';
 
 beforeEach(() => {
   // mock logging

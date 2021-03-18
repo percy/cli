@@ -1,5 +1,5 @@
-import logger from '@percy/logger/test/helper';
-import mockAPI from '@percy/client/test/helper';
+import logger from '@percy/logger/test/helpers';
+import mockAPI from '@percy/client/test/helpers';
 import { Wait } from '../src/commands/build/wait';
 
 describe('percy build:wait', () => {
