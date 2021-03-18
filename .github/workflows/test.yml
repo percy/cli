@@ -15,8 +15,13 @@ jobs:
             node_modules
             packages/*/node_modules
             packages/core/.local-chromium
-          key: v1/${{ runner.os }}/node-12/${{ hashFiles('**/yarn.lock') }}
-          restore-keys: v1/${{ runner.os }}/node-12/
+          key: >
+            ${{ runner.os }}/node-12/
+            ${{ hashFiles('.github/.cache-key') }}/
+            ${{ hashFiles('**/yarn.lock') }}
+          restore-keys: >
+            ${{ runner.os }}/node-12/
+            ${{ hashFiles('.github/.cache-key') }}/
       - run: yarn
         env:
           PERCY_POSTINSTALL_BROWSER: true
@@ -60,8 +65,13 @@ jobs:
             node_modules
             packages/*/node_modules
             packages/core/.local-chromium
-          key: v1/${{ runner.os }}/node-${{ matrix.node }}/${{ hashFiles('**/yarn.lock') }}
-          restore-keys: v1/${{ runner.os }}/node-${{ matrix.node }}/
+          key: >
+            ${{ runner.os }}/node-${{ matrix.node }}/
+            ${{ hashFiles('.github/.cache-key') }}/
+            ${{ hashFiles('**/yarn.lock') }}
+          restore-keys: >
+            ${{ runner.os }}/node-${{ matrix.node }}/
+            ${{ hashFiles('.github/.cache-key') }}/
       - uses: actions/download-artifact@v2
         with:
           name: dist

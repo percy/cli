@@ -15,8 +15,13 @@ jobs:
             node_modules
             packages/*/node_modules
             packages/core/.local-chromium
-          key: v1/${{ runner.os }}/node-14/${{ hashFiles('**/yarn.lock') }}
-          restore-keys: v1/${{ runner.os }}/node-14/
+          key: >
+            ${{ runner.os }}/node-14/
+            ${{ hashFiles('.github/.cache-key') }}/
+            ${{ hashFiles('**/yarn.lock') }}
+          restore-keys: >
+            ${{ runner.os }}/node-14/
+            ${{ hashFiles('.github/.cache-key') }}/
       - run: yarn
         env:
           PERCY_POSTINSTALL_BROWSER: true
