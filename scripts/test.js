@@ -6,6 +6,7 @@ process.env.NODE_ENV = 'test';
 
 // borrow yargs-parser to process command arguments
 const argv = require('yargs-parser')(process.argv.slice(2), {
+  configuration: { 'strip-aliased': true },
   alias: { node: 'n', browsers: 'b', coverage: 'c', reporter: 'r', watch: 'w' },
   boolean: ['node', 'browsers', 'coverage', 'watch'],
   array: ['karma.browsers', 'karma.reporters'],
@@ -27,10 +28,23 @@ function child(type, cmd, args, options) {
 }
 
 // util to turn a flags object into an array of flag strings and possible values
-function flagify(flags) {
-  return Object.entries(flags).reduce((a, [k, v]) => (
-    a.concat([v && `--${k}`, typeof v !== 'boolean' && v])
-  ), []);
+function flagify(flags, prefix = '', args = []) {
+  return Object.entries(flags).reduce((args, [key, val]) => {
+    let push = (f, ...v) => args.includes(f) ? args : args.push(f, ...v);
+    key = key.replace(/([a-z])([A-Z])/g, (_, l, u) => `${l}-${u.toLowerCase()}`);
+
+    for (let v of [].concat(val)) {
+      if (typeof v === 'object') {
+        flagify(v, `${prefix}${key}.`, args);
+      } else if (typeof v === 'boolean') {
+        push(`--${v ? '' : 'no-'}${prefix}${key}`);
+      } else if (v) {
+        push(`--${prefix}${key}`, v);
+      }
+    }
+
+    return args;
+  }, args);
 }
 
 // main program
@@ -59,7 +73,7 @@ async function main({
     await child('spawn', nycbin, ['report', '--check-coverage', ...flagify({ reporter })]);
   } else if (!process.send) {
     // test runners assume they have control over the entire process, so give them each forks
-    let flags = flagify({ coverage });
+    let flags = flagify({ coverage, karma: karmaArgs });
 
     if (testNode) {
       await child('fork', __filename, ['--node', ...flags]);
