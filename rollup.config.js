@@ -129,7 +129,10 @@ const testFiles = {
   ]
 };
 
-module.exports.default = base;
+// export default bundle config
+const bundles = [base];
+
+module.exports.default = bundles;
 module.exports.test = test;
 module.exports.testHelpers = testHelpers;
 module.exports.testFiles = testFiles;

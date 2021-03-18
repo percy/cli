@@ -33,15 +33,16 @@ async function main({ node, bundle } = argv) {
     let start = Date.now();
 
     // $ rollup --config <root>/rollup.config.js
-    let config = require('../rollup.config').default;
-    let bundle = await require('rollup').rollup(config);
-    await bundle.write(config.output);
-    await bundle.close();
+    for (let config of require('../rollup.config').default) {
+      let bundle = await require('rollup').rollup(config);
+      await bundle.write(config.output);
+      await bundle.close();
 
-    // programatic rollup api doesn't log
-    console.log(`${
-      colors.green(`${config.input} → ${config.output.file}`)
-    } (${Date.now() - start}ms)`);
+      // programatic rollup api doesn't log
+      console.log(`${
+        colors.green(`${config.input} → ${config.output.file}`)
+      } (${Date.now() - start}ms)`);
+    }
   }
 }
 
