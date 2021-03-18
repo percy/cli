@@ -19,6 +19,11 @@
   "rollup": {
     "output": {
       "name": "PercyDOM"
+    },
+    "test": {
+      "output": {
+        "exports": "named"
+      }
     }
   },
   "devDependencies": {
