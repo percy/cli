@@ -8,7 +8,7 @@
     "build:watch": "lerna run build --stream -- --watch",
     "bump-version": "lerna version --no-git-tag-version --no-push",
     "chromium-revision": "./scripts/chromium-revision",
-    "clean": "rm -rf packages/**/{dist,.nyc_output,coverage,oclif.manifest.json,.local-chromium}",
+    "clean": "git clean -Xdf --exclude '!node_modules'",
     "lint": "eslint --ignore-path .gitignore .",
     "readme": "lerna run --parallel readme",
     "postinstall": "lerna run --stream postinstall",
