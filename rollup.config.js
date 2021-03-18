@@ -63,7 +63,26 @@ const plugins = {
   }),
   resolve: resolve({
     browser: true
-  })
+  }),
+  customWrapper: {
+    name: 'custom-wrapper',
+    generateBundle(options, bundle) {
+      let indent = s => s.replace(/^.+/gm, '  $&');
+
+      if (options.format === 'iife') {
+        for (let file in bundle) {
+          bundle[file].code = [
+            // explicitly execute the iife with a window context
+            `(function() {\n${indent(bundle[file].code)}}).call(window);\n`,
+            // support commonjs format by exporting the global
+            'if (typeof exports === "object" && typeof module !== "undefined") {',
+            `  module.exports = window.${options.name};`,
+            '}\n'
+          ].join('\n');
+        }
+      }
+    }
+  }
 };
 
 // default config used for production bundles
@@ -74,8 +93,9 @@ const base = {
     !!definedExternal(pkg.rollup, id)
   ),
   output: {
-    format: 'umd',
+    format: 'iife',
     exports: 'named',
+    extend: true,
     file: pkg.browser,
     ...pkg.rollup.output,
     globals: id => {
@@ -94,7 +114,8 @@ const base = {
     plugins.alias,
     plugins.babel,
     plugins.resolve,
-    plugins.commonjs
+    plugins.commonjs,
+    plugins.customWrapper
   ],
   onwarn: warning => {
     if (IGNORE_WARNINGS.includes(warning.code)) return;
@@ -141,7 +162,8 @@ const testHelpers = {
     plugins.alias,
     plugins.resolve,
     plugins.commonjs,
-    plugins.babel
+    plugins.babel,
+    plugins.customWrapper
   ]
 };
 
