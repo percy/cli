@@ -44,18 +44,23 @@ beforeAll(() => {
 });
 
 // dump logs for failed tests when debugging
-let DUMP_FAILED_TEST_LOGS = false;
-
-// get the value from the env or from karma
-try { ({ DUMP_FAILED_TEST_LOGS } = process.env); } catch (e) {}
-try { ({ DUMP_FAILED_TEST_LOGS } = window.__karma__.config.env); } catch (e) {}
+const { DUMP_FAILED_TEST_LOGS } = (
+  typeof window !== 'undefined'
+    ? window.__karma__.config.env
+    : process.env
+);
 
 if (DUMP_FAILED_TEST_LOGS) {
   // add a spec reporter to dump failed logs
   jasmine.getEnv().addReporter({
     specDone: ({ status }) => {
-      if (status === 'failed') {
-        require('@percy/logger/test/helpers').dump();
+      let logger = typeof window !== 'undefined'
+        ? (window.PercyLogger && window.PercyLogger.TestHelpers) ||
+          (window.PercySDKUtils && window.PercySDKUtils.TestHelpers.logger)
+        : require('@percy/logger/test/helpers');
+
+      if (logger && status === 'failed') {
+        logger.dump();
       }
     }
   });

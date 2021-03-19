@@ -81,7 +81,7 @@ const helpers = {
   },
 
   dump() {
-    if (!helpers.message) return;
+    if (!helpers.messages?.size) return;
     if (console.log.and) console.log.and.callThrough();
 
     let write = m => process.env.__PERCY_BROWSERIFIED__
