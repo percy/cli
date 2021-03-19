@@ -22,9 +22,9 @@ Object.assign(logger, {
 });
 
 Object.defineProperties(logger, {
+  Logger: { get: () => Logger },
   stdout: { get: () => Logger.stdout },
   stderr: { get: () => Logger.stderr }
 });
 
 module.exports = logger;
-module.exports.Logger = Logger;

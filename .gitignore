@@ -6,3 +6,4 @@ dist
 oclif.manifest.json
 .DS_Store
 .local-chromium
+packages/logger/test/client.js
