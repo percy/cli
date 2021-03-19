@@ -208,18 +208,21 @@ export default class PercyLogger {
     // if not already connected, wait until the timeout
     if (!this.isRemote) {
       err = await new Promise(resolve => {
-        let done = error => {
+        let done = event => {
           socket.removeEventListener('error', done);
           socket.removeEventListener('open', done);
           clearTimeout(timeoutid);
-          resolve(error);
+
+          resolve(event?.error || (event?.type === 'error' && (
+            'Error: Socket connection failed')));
         };
 
-        let timeoutid = setTimeout(done, timeout, (
-          'Error: Socket connection timed out'));
+        let timeoutid = setTimeout(done, timeout, {
+          error: 'Error: Socket connection timed out'
+        });
 
-        socket.addEventListener('open', () => done());
-        socket.addEventListener('error', ({ error }) => done(error));
+        socket.addEventListener('open', done);
+        socket.addEventListener('error', done);
       });
     }
 
