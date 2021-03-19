@@ -31,7 +31,10 @@ async function getReply({ version, routes }, request) {
   if (headers['Content-Type']?.includes('json')) body = JSON.stringify(body);
   // add additional headers
   headers['Content-Length'] = body?.length ?? 0;
+  // cors headers
+  headers['Access-Control-Expose-Headers'] = 'X-Percy-Core-Version';
   headers['Access-Control-Allow-Origin'] = '*';
+  // version header
   headers['X-Percy-Core-Version'] = version;
 
   return [status, headers, body];

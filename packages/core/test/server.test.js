@@ -150,6 +150,7 @@ describe('Snapshot Server', () => {
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
     expect(response.headers.get('Access-Control-Allow-Methods')).toBe('GET,POST,OPTIONS');
     expect(response.headers.get('Access-Control-Request-Headers')).toBe('Vary');
+    expect(response.headers.get('Access-Control-Expose-Headers')).toBe('X-Percy-Core-Version');
     expect(percy.snapshot).not.toHaveBeenCalled();
 
     response = await fetch('http://localhost:1337/percy/snapshot', {
