@@ -265,7 +265,7 @@ describe('logger', () => {
       expect(helpers.stderr).toEqual([
         jasmine.stringMatching('Warn log \\(\\dms\\)'),
         jasmine.stringMatching('Error log \\(\\dms\\)'),
-        jasmine.stringMatching('Debug log \\(10\\dms\\)')
+        jasmine.stringMatching('Debug log \\((9[0-9]|1[01][0-9])ms\\)')
       ]);
     });
   });
