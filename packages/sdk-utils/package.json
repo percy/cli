@@ -6,7 +6,9 @@
   "browser": "dist/bundle.js",
   "files": [
     "dist",
-    "test/helpers.js"
+    "test/helpers.js",
+    "test/server.js",
+    "test/client.js"
   ],
   "engines": {
     "node": ">=12"
@@ -20,10 +22,22 @@
   "publishConfig": {
     "access": "public"
   },
+  "karma": {
+    "run_start": "node test/server start &",
+    "run_complete": "node test/server stop"
+  },
   "rollup": {
     "external": ["ws"],
     "output": {
       "name": "PercySDKUtils"
+    },
+    "test": {
+      "external": ["@percy/logger", "test/server"],
+      "output": {
+        "globals": {
+          "@percy/logger": "PercySDKUtils.logger"
+        }
+      }
     }
   },
   "dependencies": {

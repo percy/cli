@@ -1,59 +1,75 @@
-const createTestServer = require('@percy/core/test/helpers/server');
 const logger = require('@percy/logger/test/helpers');
-const sdk = { logger };
+const utils = require('@percy/sdk-utils');
 
-// mock serialization script
-const serializeDOM = (options) => {
-  let { dom = document, domTransformation } = options || {};
-  let doc = (dom || document).documentElement;
-  if (domTransformation) domTransformation(doc);
-  return doc.outerHTML;
+const helpers = {
+  logger,
+
+  async setup() {
+    utils.percy.version = '';
+    delete utils.percy.config;
+    delete utils.percy.enabled;
+    delete utils.percy.domScript;
+    delete process.env.PERCY_SERVER_ADDRESS;
+    await helpers.call('server.mock');
+    logger.mock();
+  },
+
+  teardown: () => helpers.call('server.close'),
+  getRequests: () => helpers.call('server.requests'),
+  testReply: (path, reply) => helpers.call('server.reply', path, reply),
+  testFailure: (path, error) => helpers.call('server.test.failure', path, error),
+  testError: path => helpers.call('server.test.error', path),
+  testSerialize: fn => helpers.call('server.test.serialize', fn && fn.toString()),
+  mockSite: () => helpers.call('site.mock'),
+  closeSite: () => helpers.call('site.close')
 };
 
-sdk.setup = async function setup() {
-  // mock percy server
-  sdk.server = await createTestServer({
-    '/percy/dom.js': () => [200, 'application/javascript', (
-      `window.PercyDOM = { serialize: ${sdk.serializeDOM.toString()} }`)],
-    '/percy/healthcheck': () => [200, 'application/json', (
-      { success: true, config: { snapshot: { widths: [1280] } } })],
-    '/percy/snapshot': () => [200, 'application/json', { success: true }]
-  }, 5338);
+if (process.env.__PERCY_BROWSERIFIED__) {
+  helpers.call = async function call(event, ...args) {
+    let { socket, pending = {} } = helpers.call;
 
-  // reset things
-  delete process.env.PERCY_SERVER_ADDRESS;
-  delete process.env.PERCY_LOGLEVEL;
-  sdk.serializeDOM = serializeDOM;
-  logger.mock();
+    if (!socket) {
+      socket = new window.WebSocket('ws://localhost:5339');
 
-  let utils = require('..');
-  delete utils.getInfo.version;
-  delete utils.getInfo.config;
-  delete utils.isPercyEnabled.result;
-  delete utils.fetchPercyDOM.result;
-};
+      await new Promise((resolve, reject) => {
+        let done = event => {
+          clearTimeout(timeoutid);
+          socket.onopen = socket.onerror = null;
+          if (event && (event.error || event.type === 'error')) {
+            reject(event.error || new Error('Test client connection failed'));
+          } else resolve(socket);
+        };
 
-sdk.teardown = async function teardown() {
-  await sdk.server.close();
-};
+        let timeoutid = setTimeout(done, 1000, {
+          error: new Error('Test client connection timed out')
+        });
 
-sdk.rerequire = function rerequire(module) {
-  delete require.cache[require.resolve(module)];
-  return require(module);
-};
+        socket.onopen = socket.onerror = done;
+      });
 
-sdk.test = {
-  failure: (path, error) => sdk.server.reply(path, () => (
-    [500, 'application/json', { success: false, error }])),
-  error: path => sdk.server.reply(path, r => r.connection.destroy())
-};
+      socket.onmessage = ({ data }) => {
+        let { id, resolve, reject } = JSON.parse(data);
+        if (!pending[id]) return;
+        if (resolve) pending[id].resolve(resolve.result);
+        if (reject) pending[id].reject(reject.error);
+      };
 
-sdk.testsite = {
-  mock: async () => {
-    sdk.testsite = await createTestServer({
-      default: () => [200, 'text/html', 'Snapshot Me']
-    });
-  }
-};
+      Object.assign(helpers.call, { socket, pending });
+    }
 
-module.exports = sdk;
+    let id = helpers.call.uid = (helpers.call.uid || 0) + 1;
+    args = args.map(a => typeof a === 'function' ? a.toString() : a);
+    socket.send(JSON.stringify({ id, event, args }));
+
+    return ((pending[id] = {}).promise = (
+      new Promise((resolve, reject) => {
+        Object.assign(pending[id], { resolve, reject });
+      })
+    ));
+  };
+} else {
+  helpers.context = require('./server').context();
+  helpers.call = helpers.context.call;
+}
+
+module.exports = helpers;

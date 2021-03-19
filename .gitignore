@@ -7,3 +7,4 @@ oclif.manifest.json
 .DS_Store
 .local-chromium
 packages/logger/test/client.js
+packages/sdk-utils/test/client.js
