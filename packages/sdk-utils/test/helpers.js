@@ -21,7 +21,7 @@ sdk.setup = async function setup() {
   }, 5338);
 
   // reset things
-  delete process.env.PERCY_CLI_API;
+  delete process.env.PERCY_SERVER_ADDRESS;
   delete process.env.PERCY_LOGLEVEL;
   sdk.serializeDOM = serializeDOM;
   logger.mock();
