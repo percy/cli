@@ -21,6 +21,7 @@
     "access": "public"
   },
   "rollup": {
+    "external": ["ws"],
     "output": {
       "name": "PercySDKUtils"
     }
