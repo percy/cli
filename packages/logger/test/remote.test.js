@@ -66,6 +66,18 @@ describe('remote logging', () => {
     ]);
   });
 
+  it('logs a fallback debug message when an error is emitted without one', async () => {
+    setTimeout(() => socket.emit('error', { type: 'error' }), 100);
+
+    logger.loglevel('debug');
+    await logger.remote(socket);
+
+    expect(helpers.stderr).toEqual([
+      '[percy:logger] Unable to connect to remote logger',
+      '[percy:logger] Error: Socket connection failed'
+    ]);
+  });
+
   it('logs a local debug error when the connection times out', async () => {
     logger.loglevel('debug');
     await logger.remote(socket, 10);
