@@ -74,7 +74,7 @@ export default class Percy {
   }
 
   // Snapshot server API address
-  apiAddress() {
+  address() {
     return `http://localhost:${this.port}`;
   }
 

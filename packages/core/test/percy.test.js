@@ -94,9 +94,9 @@ describe('Percy', () => {
     });
   });
 
-  describe('#apiAddress()', () => {
+  describe('#address()', () => {
     it('returns the server API address', async () => {
-      expect(percy.apiAddress()).toEqual('http://localhost:5338');
+      expect(percy.address()).toEqual('http://localhost:5338');
     });
   });
 

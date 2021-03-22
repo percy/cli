@@ -10,13 +10,13 @@ describe('SDK Utils', () => {
   });
 
   describe('getInfo()', () => {
-    it('returns the CLI API address as defined by PERCY_CLI_API', () => {
-      expect(process.env.PERCY_CLI_API).toBeUndefined();
+    it('returns the CLI API address as defined by PERCY_SERVER_ADDRESS', () => {
+      expect(process.env.PERCY_SERVER_ADDRESS).toBeUndefined();
       expect(sdk.rerequire('..').getInfo())
         .toHaveProperty('cliApi', 'http://localhost:5338');
       delete require.cache[require.resolve('..')];
 
-      process.env.PERCY_CLI_API = 'http://localhost:1234';
+      process.env.PERCY_SERVER_ADDRESS = 'http://localhost:1234';
       expect(sdk.rerequire('..').getInfo())
         .toHaveProperty('cliApi', 'http://localhost:1234');
     });

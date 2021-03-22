@@ -73,7 +73,7 @@ export class Exec extends Command {
 
     // provide SDKs with useful env vars
     let env = {
-      PERCY_CLI_API: this.percy?.apiAddress(),
+      PERCY_SERVER_ADDRESS: this.percy?.address(),
       PERCY_LOGLEVEL: logger.loglevel(),
       ...process.env
     };

@@ -1,11 +1,11 @@
 const logger = require('@percy/logger');
 
 // Maybe get the CLI API address from the environment
-const { PERCY_CLI_API = 'http://localhost:5338' } = process.env;
+const { PERCY_SERVER_ADDRESS = 'http://localhost:5338' } = process.env;
 
 // Helper to send a request to the local CLI API
 function request(path, { body, ...options } = {}) {
-  let { protocol, hostname, port, pathname, search } = new URL(PERCY_CLI_API + path);
+  let { protocol, hostname, port, pathname, search } = new URL(PERCY_SERVER_ADDRESS + path);
   options = { ...options, protocol, hostname, port, path: pathname + search };
 
   return new Promise((resolve, reject) => {
@@ -41,7 +41,7 @@ function request(path, { body, ...options } = {}) {
 // Returns CLI information
 function getInfo() {
   return {
-    cliApi: PERCY_CLI_API,
+    cliApi: PERCY_SERVER_ADDRESS,
     loglevel: logger.loglevel(),
     version: getInfo.version,
     config: getInfo.config

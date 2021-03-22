@@ -27,7 +27,7 @@ const { cliApi, loglevel, version, config } = getInfo();
 
 #### Returned properties
 
-- `cliApi` — CLI API address (`process.env.PERCY_CLI_API || 'http://localhost:5338'`)
+- `cliApi` — CLI API address (`process.env.PERCY_SERVER_ADDRESS || 'http://localhost:5338'`)
 - `loglevel` — CLI log level  (`process.env.PERCY_LOGLEVEL || 'info'`)
 
 The following properties are only populated after [`isPercyEnabled`](#ispercyenabled) has been
