@@ -30,13 +30,3 @@ export const colors = entries(ANSI_COLORS)
       [name]: colorize.bind(null, code)
     });
   }, {});
-
-// adds an event listener and returns a teardown function
-export function listen(subject, event, handler, teardown) {
-  subject.addEventListener(event, handler);
-
-  return () => {
-    subject.removeEventListener(event, handler);
-    return teardown?.();
-  };
-}
