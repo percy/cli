@@ -1,4 +1,4 @@
-import { colors, listen } from './util';
+import { colors } from './util';
 
 const URL_REGEXP = /\bhttps?:\/\/[^\s/$.?#].[^\s]*\b/i;
 const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
@@ -191,12 +191,17 @@ export default class PercyLogger {
     let PERCY_LOGLEVEL = process.env.PERCY_LOGLEVEL || this.loglevel();
     socket.send(JSON.stringify({ env: { PERCY_DEBUG, PERCY_LOGLEVEL } }));
 
-    // attach remote logging handler and return a cleanup function
-    return listen(socket, 'message', ({ data }) => {
+    // attach remote logging handler
+    socket.onmessage = ({ data }) => {
       let { log, logAll } = JSON.parse(data);
       if (logAll) logAll.forEach(e => this.messages.add(e));
       if (log) this.log(...log);
-    });
+    };
+
+    // return a cleanup function
+    return () => {
+      socket.onmessage = null;
+    };
   }
 
   // Connects to a remote logger
@@ -209,10 +214,8 @@ export default class PercyLogger {
     if (!this.isRemote) {
       err = await new Promise(resolve => {
         let done = event => {
-          socket.removeEventListener('error', done);
-          socket.removeEventListener('open', done);
           clearTimeout(timeoutid);
-
+          socket.onopen = socket.onerror = null;
           resolve(event?.error || (event?.type === 'error' && (
             'Error: Socket connection failed')));
         };
@@ -221,8 +224,7 @@ export default class PercyLogger {
           error: 'Error: Socket connection timed out'
         });
 
-        socket.addEventListener('open', done);
-        socket.addEventListener('error', done);
+        socket.onopen = socket.onerror = done;
       });
     }
 
@@ -242,11 +244,17 @@ export default class PercyLogger {
       }));
     }
 
-    // attach an incoming message handler and return a cleanup function
-    return listen(socket, 'message', ({ data }) => {
+    // attach an incoming message handler
+    socket.onmessage = ({ data }) => {
       let { env } = JSON.parse(data);
       // update local environment info
       if (env) Object.assign(process.env, env);
-    }, () => (this.socket = null));
+    };
+
+    // return a cleanup function
+    return () => {
+      socket.onmessage = null;
+      this.socket = null;
+    };
   }
 }

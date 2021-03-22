@@ -6,27 +6,10 @@ class MockSocket {
   constructor(client) {
     this.client = client || new MockSocket(this);
     this.readyState = 0;
-    this.listeners = {};
-  }
-
-  addEventListener(event, callback) {
-    (this.listeners[event] ||= []).push(callback);
-  }
-
-  removeEventListener(event, callback) {
-    let listeners = this.listeners[event];
-    listeners.splice(listeners.indexOf(callback), 1);
-  }
-
-  emit(event, ...args) {
-    this.listeners[event] ||= [];
-    for (let callback of this.listeners[event]) {
-      callback.apply(this, args);
-    }
   }
 
   send(message) {
-    this.client.emit('message', { data: message });
+    this.client.onmessage?.({ data: message });
   }
 }
 
@@ -49,13 +32,13 @@ describe('remote logging', () => {
     await expectAsync(connected).toBePending();
 
     socket.readyState = 1;
-    socket.emit('open');
+    socket.onopen();
 
     await expectAsync(connected).toBeResolved();
   });
 
   it('logs a local debug error when unable to connect remotely', async () => {
-    setTimeout(() => socket.emit('error', { error: 'Socket Error' }), 100);
+    setTimeout(e => socket.onerror(e), 100, { error: 'Socket Error' });
 
     logger.loglevel('debug');
     await logger.remote(socket);
@@ -67,7 +50,7 @@ describe('remote logging', () => {
   });
 
   it('logs a fallback debug message when an error is emitted without one', async () => {
-    setTimeout(() => socket.emit('error', { type: 'error' }), 100);
+    setTimeout(e => socket.onerror(e), 100, { type: 'error' });
 
     logger.loglevel('debug');
     await logger.remote(socket);
@@ -233,5 +216,13 @@ describe('remote logging', () => {
       timestamp: jasmine.any(Number),
       meta: {}
     }]));
+  });
+
+  it('returns a cleanup function when connecting from remote', () => {
+    expect(socket.onmessage).toBeUndefined();
+    let disconnect = logger.connect(socket);
+    expect(socket.onmessage).toEqual(jasmine.any(Function));
+    disconnect();
+    expect(socket.onmessage).toBeNull();
   });
 });
