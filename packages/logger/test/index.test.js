@@ -319,22 +319,25 @@ describe('logger', () => {
       it('logs messages with CSS colors', () => {
         log.info('Colorful!');
 
-        expect(console.log).toHaveBeenCalledOnceWith(
-          '[%cpercy%c] Colorful!', 'color:magenta', 'color:inherit');
+        expect(console.log.calls).toEqual([
+          ['[%cpercy%c] Colorful!', 'color:magenta', 'color:inherit']
+        ]);
       });
 
       it('logs errors with console.error', () => {
         log.error('ERR!');
 
-        expect(console.error).toHaveBeenCalledOnceWith(
-          '[%cpercy%c] %cERR!%c', 'color:magenta', 'color:inherit', 'color:red', 'color:inherit');
+        expect(console.error.calls).toEqual([
+          ['[%cpercy%c] %cERR!%c', 'color:magenta', 'color:inherit', 'color:red', 'color:inherit']
+        ]);
       });
 
       it('logs warnings with console.warn', () => {
         log.warn('Warning!');
 
-        expect(console.warn).toHaveBeenCalledOnceWith(
-          '[%cpercy%c] %cWarning!%c', 'color:magenta', 'color:inherit', 'color:yellow', 'color:inherit');
+        expect(console.warn.calls).toEqual([
+          ['[%cpercy%c] %cWarning!%c', 'color:magenta', 'color:inherit', 'color:yellow', 'color:inherit']
+        ]);
       });
     });
   }

@@ -30,6 +30,26 @@ function TestIO(data, options) {
   }
 }
 
+function spy(object, method, func) {
+  if (object[method].reset) {
+    object[method].reset();
+    return object[method];
+  }
+
+  let spy = Object.assign(function spy(...args) {
+    spy.calls.push(args);
+    if (func) return func.apply(this, args);
+  }, {
+    restore: () => (object[method] = spy.originalValue),
+    reset: () => (spy.calls.length = 0),
+    originalValue: object[method],
+    calls: []
+  });
+
+  object[method] = spy;
+  return spy;
+}
+
 const helpers = {
   constructor: Logger,
   loglevel: logger.loglevel,
@@ -49,21 +69,15 @@ const helpers = {
       Logger.stdout = TestIO(helpers.stdout, options);
       Logger.stderr = TestIO(helpers.stderr, options);
     } else {
-      let write = Logger.prototype.write;
+      spy(Logger.prototype, 'write', function(lvl, msg) {
+        let stdio = lvl === 'info' ? 'stdout' : 'stderr';
+        helpers[stdio].push(sanitizeLog(msg, helpers.options));
+        return this.write.originalValue.call(this, lvl, msg);
+      });
 
-      if (!write.and) {
-        spyOn(Logger.prototype, 'write').and.callFake(function(lvl, msg) {
-          let stdio = lvl === 'info' ? 'stdout' : 'stderr';
-          helpers[stdio].push(sanitizeLog(msg, helpers.options));
-          return write.call(this, lvl, msg);
-        });
-      }
-
-      if (!console.log.and) {
-        spyOn(console, 'log');
-        spyOn(console, 'warn');
-        spyOn(console, 'error');
-      }
+      spy(console, 'log');
+      spy(console, 'warn');
+      spy(console, 'error');
     }
   },
 
@@ -73,10 +87,10 @@ const helpers = {
     helpers.stdout.length = 0;
     helpers.stderr.length = 0;
 
-    if (console.log.and) {
-      console.log.calls.reset();
-      console.warn.calls.reset();
-      console.error.calls.reset();
+    if (console.log.reset) {
+      console.log.reset();
+      console.warn.reset();
+      console.error.reset();
     }
   },
 
