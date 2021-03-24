@@ -15,6 +15,13 @@ const argv = require('yargs-parser')(process.argv.slice(2), {
 
 // promisified child_process util
 function child(type, cmd, args, options) {
+  if (type === 'exec') {
+    // convert exec args to spawn args for better stdio handling
+    [type, cmd, args, options] = cmd.split(' ').reduce((args, word) => (
+      args[1] ? args[2].push(word) : (args[1] = word)
+    ) && args, ['spawn', '', [], args]);
+  }
+
   options = { stdio: 'inherit', ...options };
   args = args.filter(Boolean);
 
@@ -114,6 +121,13 @@ async function main({
     let configFile = require.resolve('../karma.config');
     let config = parseConfig(configFile, karmaArgs, { throwErrors: true });
     let karma = new KarmaServer(config);
+
+    // attach any karma hooks
+    if (pkg.karma) {
+      for (let [event, exec] of Object.entries(pkg.karma)) {
+        karma.on(event, () => child('exec', exec));
+      }
+    }
 
     // collect coverage for nyc here rather than use a karma plugin
     let cov = require('istanbul-lib-coverage').createCoverageMap();
