@@ -1,12 +1,13 @@
 # @percy/sdk-utils
 
-Common Node SDK utils
+Common JavaScript SDK utils
 
 - [Usage](#usage)
   - [`logger()`](#loggerdebug)
-  - [`getInfo()`](#getinfo)
+  - [`percy`](#percy)
   - [`isPercyEnabled()`](#ispercyenabled)
   - [`postSnapshot()`](#postsnapshot)
+  - [`request`](#requesturl-options)
 
 ## Usage
 
@@ -14,37 +15,38 @@ Common Node SDK utils
 
 This function is a direct export of [`@percy/logger`](./packages/logger).
 
-### `getInfo()`
+### `percy`
 
-Returns information about any running Percy CLI server. Some information is only available after
-[`isPercyEnabled`](#ispercyenabled) has been called.
+This object contains information about the local Percy environment and is updated when
+[`isPercyEnabled`](#ispercyenabled) is called for the first time.
 
 ``` js
-const { getInfo } = require('@percy/sdk-utils');
+const { percy } = require('@percy/sdk-utils')
 
-const { cliApi, loglevel, version, config } = getInfo();
+// reflects/updates process.env.PERCY_SERVER_ADDRESS
+percy.address === 'http://localhost:5338'
+
+// updated after isPercyEnabled() is called
+percy.enabled === true|false
+percy.version.major === 1
+percy.version.minor === 2
+percy.version.patch === 3
+percy.version.toString() === '1.2.3'
+
+// updated after fetchPercyDOM() is called
+percy.domScript === fs.readFile(require.resolve('@percy/dom'))
 ```
-
-#### Returned properties
-
-- `cliApi` — CLI API address (`process.env.PERCY_SERVER_ADDRESS || 'http://localhost:5338'`)
-- `loglevel` — CLI log level  (`process.env.PERCY_LOGLEVEL || 'info'`)
-
-The following properties are only populated after [`isPercyEnabled`](#ispercyenabled) has been
-called.
-
-- `version` — CLI version parts (e.g. `['1', '0', '0']`)
-- `config` — CLI config options
 
 ### `isPercyEnabled()`
 
 Returns `true` or `false` if the Percy CLI API server is running. Calls the server's `/healthcheck`
-endpoint and populates information for [`getInfo`](#getInfo). The result of this function is cached
-and subsequent calls will return the first cached result. If the healthcheck fails, will log a
-message unless the CLI loglevel is `quiet` or `silent`.
+endpoint and populates information for the [`percy`](#percy) property. The result of this function
+is cached and subsequent calls will return the first cached result. If the healthcheck fails, will
+log a message unless the CLI loglevel is `quiet` or `silent`. Upon a successful health check, a
+remote logging connection is also established.
 
 ``` js
-const { isPercyEnabled } = require('@percy/sdk-utils');
+const { isPercyEnabled } = require('@percy/sdk-utils')
 
 // CLI API not running
 await isPercyEnabled() === false
@@ -56,32 +58,32 @@ await isPercyEnabled() === true
 
 ### `fetchPercyDOM()`
 
-Fetches and returns the `@percy/dom` serialization script hosted by the CLI API server. The
+Fetches and returns the `@percy/dom` serialization script hosted by the local Percy API server. The
 resulting string can be evaulated within a browser context to add the `PercyDOM.serialize` function
 to the global scope. Subsequent calls return the first cached result.
 
 ``` js
-const { fetchPercyDOM } = require('@percy/sdk-utils');
+const { fetchPercyDOM } = require('@percy/sdk-utils')
 
-let script = await fetchPercyDOM();
+let script = await fetchPercyDOM()
 
 // selenium-webdriver
-driver.executeScript(script);
+driver.executeScript(script)
 // webdriverio
-browser.execute(script);
+browser.execute(script)
 // puppeteer
-page.evaluate(script);
+page.evaluate(script)
 // protractor
-browser.executeScript(script);
+browser.executeScript(script)
 // etc...
 ```
 
 ### `postSnapshot(options)`
 
-Posts snapshot options to the CLI API server.
+Posts snapshot options to the local Percy API server.
 
 ``` js
-const { postSnapshot } = require('@percy/sdk-utils');
+const { postSnapshot } = require('@percy/sdk-utils')
 
 await postSnapshot({
   // required
@@ -95,5 +97,35 @@ await postSnapshot({
   minHeight: 1024,
   enableJavaScript: false,
   requestHeaders: {}
-});
+})
+```
+
+### `request(url[, options])`
+
+Sends a request to the local Percy API server. Used internally by the other SDK utils.
+
+``` js
+const { request } = require('@percy/sdk-utils')
+
+await request('/percy/idle')
+await request('/percy/stop')
+```
+
+#### `request.fetch(url, options)`
+
+The underlying implementation of the `request()` util. For Node environments, `http.request` is
+used; for browser environments, `window.fetch` is used. Can be overridden by the SDK's framework to
+work around CORS/CSP issues.
+
+The returned object must contain the following normalized properties from the request response:
+`status`, `statusText`, `headers`, `body`
+
+``` js
+const { request } = require('@percy/sdk-utils')
+
+// Cypress SDK example
+request.fetch = async function fetch(url, options) {
+  options = { url, retryOnNetworkFailure: false, ...options }
+  return Cypress.backend('http:request', options)
+}
 ```
