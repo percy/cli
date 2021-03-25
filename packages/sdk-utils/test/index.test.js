@@ -71,7 +71,7 @@ describe('SDK Utils', () => {
       await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
       await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
       await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
-      // no matter how many calls, we should only have one healthcheck and one websocket request
+      // no matter how many calls, we should only have one healthcheck request
       await expectAsync(helpers.getRequests()).toBeResolvedTo([['/percy/healthcheck']]);
     });
 
