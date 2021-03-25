@@ -2,21 +2,43 @@
   "name": "@percy/sdk-utils",
   "version": "1.0.0-beta.42",
   "license": "MIT",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "browser": "dist/bundle.js",
   "files": [
-    "index.js",
-    "test/helpers.js"
+    "dist",
+    "test/helpers.js",
+    "test/server.js",
+    "test/client.js"
   ],
   "engines": {
     "node": ">=12"
   },
   "scripts": {
+    "build": "node ../../scripts/build",
     "lint": "eslint --ignore-path ../../.gitignore .",
     "test": "node ../../scripts/test",
     "test:coverage": "yarn test --coverage"
   },
   "publishConfig": {
     "access": "public"
+  },
+  "karma": {
+    "run_start": "node test/server start &",
+    "run_complete": "node test/server stop"
+  },
+  "rollup": {
+    "external": ["ws"],
+    "output": {
+      "name": "PercySDKUtils"
+    },
+    "test": {
+      "external": ["@percy/logger", "test/server"],
+      "output": {
+        "globals": {
+          "@percy/logger": "PercySDKUtils.logger"
+        }
+      }
+    }
   },
   "dependencies": {
     "@percy/logger": "^1.0.0-beta.42"
