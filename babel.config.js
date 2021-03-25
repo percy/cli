@@ -1,17 +1,24 @@
-const pkg = require(`${process.cwd()}/package.json`);
+const cwd = process.cwd();
+const path = require('path');
+const pkg = require(`${cwd}/package.json`);
 
 const base = {
-  ignore: pkg.files,
-  presets: [
-    ['@babel/env', {
-      targets: {
-        node: '12'
-      }
-    }]
-  ],
-  plugins: [
-    '@babel/proposal-class-properties'
-  ]
+  overrides: [{
+    exclude: pkg.files && (
+      pkg.files.map(f => (
+        path.join(cwd, f)
+      ))),
+    presets: [
+      ['@babel/env', {
+        targets: {
+          node: '12'
+        }
+      }]
+    ],
+    plugins: [
+      '@babel/proposal-class-properties'
+    ]
+  }]
 };
 
 const development = {
