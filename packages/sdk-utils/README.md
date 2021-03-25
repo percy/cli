@@ -32,6 +32,7 @@ percy.version.major === 1
 percy.version.minor === 2
 percy.version.patch === 3
 percy.version.toString() === '1.2.3'
+percy.config === {} // .percy.yml config
 
 // updated after fetchPercyDOM() is called
 percy.domScript === fs.readFile(require.resolve('@percy/dom'))
