@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-build",
-  "version": "1.0.0-beta.42",
+  "version": "1.0.0-beta.43",
   "license": "MIT",
   "main": "dist/index.js",
   "files": [
@@ -31,9 +31,9 @@
     }
   },
   "dependencies": {
-    "@percy/cli-command": "^1.0.0-beta.42",
-    "@percy/client": "^1.0.0-beta.42",
-    "@percy/env": "^1.0.0-beta.42",
-    "@percy/logger": "^1.0.0-beta.42"
+    "@percy/cli-command": "^1.0.0-beta.43",
+    "@percy/client": "^1.0.0-beta.43",
+    "@percy/env": "^1.0.0-beta.43",
+    "@percy/logger": "^1.0.0-beta.43"
   }
 }

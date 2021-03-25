@@ -1,6 +1,6 @@
 {
   "name": "@percy/sdk-utils",
-  "version": "1.0.0-beta.42",
+  "version": "1.0.0-beta.43",
   "license": "MIT",
   "main": "dist/index.js",
   "browser": "dist/bundle.js",
@@ -27,12 +27,17 @@
     "run_complete": "node test/server stop"
   },
   "rollup": {
-    "external": ["ws"],
+    "external": [
+      "ws"
+    ],
     "output": {
       "name": "PercySDKUtils"
     },
     "test": {
-      "external": ["@percy/logger", "test/server"],
+      "external": [
+        "@percy/logger",
+        "test/server"
+      ],
       "output": {
         "globals": {
           "@percy/logger": "PercySDKUtils.logger"
@@ -41,6 +46,6 @@
     }
   },
   "dependencies": {
-    "@percy/logger": "^1.0.0-beta.42"
+    "@percy/logger": "^1.0.0-beta.43"
   }
 }
