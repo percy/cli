@@ -54,7 +54,11 @@ const plugins = {
     babelHelpers: 'bundled',
     presets: [
       ['@babel/env', {
-        targets: 'last 2 version'
+        targets: {
+          browsers: [
+            'last 2 versions and supports async-functions'
+          ]
+        }
       }]
     ]
   }),
