@@ -155,23 +155,23 @@ describe('Unit / Install', () => {
 
     for (let [platform, expected] of Object.entries({
       linux: {
-        revision: '812847',
-        url: jasmine.stringMatching('Linux_x64/812847/chrome-linux.zip'),
+        revision: install.chromeRevisions.linux,
+        url: jasmine.stringMatching(`Linux_x64/${install.chromeRevisions.linux}/chrome-linux.zip`),
         return: path.join('chrome-linux', 'chrome')
       },
       darwin: {
-        revision: '812851',
-        url: jasmine.stringMatching('Mac/812851/chrome-mac.zip'),
+        revision: install.chromeRevisions.darwin,
+        url: jasmine.stringMatching(`Mac/${install.chromeRevisions.darwin}/chrome-mac.zip`),
         return: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')
       },
       win64: {
-        revision: '812845',
-        url: jasmine.stringMatching('Win_x64/812845/chrome-win.zip'),
+        revision: install.chromeRevisions.win64,
+        url: jasmine.stringMatching(`Win_x64/${install.chromeRevisions.win64}/chrome-win.zip`),
         return: path.join('chrome-win', 'chrome.exe')
       },
       win32: {
-        revision: '812822',
-        url: jasmine.stringMatching('Win/812822/chrome-win32.zip'),
+        revision: install.chromeRevisions.win32,
+        url: jasmine.stringMatching(`Win/${install.chromeRevisions.win32}/chrome-win32.zip`),
         return: path.join('chrome-win32', 'chrome.exe')
       }
     })) {

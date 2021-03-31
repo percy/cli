@@ -4,6 +4,13 @@ import https from 'https';
 import logger from '@percy/logger';
 import readableBytes from './utils/bytes';
 
+const chromeRevisions = {
+  linux: '812847',
+  win64: '812845',
+  win32: '812822',
+  darwin: '812851'
+};
+
 // Returns an item from the map keyed by the current platform
 function selectByPlatform(map) {
   let { platform, arch } = process;
@@ -15,12 +22,7 @@ function installChromium({
   // default directory is within @percy/core package root
   directory = path.resolve(__dirname, '../.local-chromium'),
   // default revision corresponds to v87.0.4280.x
-  revision = selectByPlatform({
-    linux: '812847',
-    win64: '812845',
-    win32: '812822',
-    darwin: '812851'
-  })
+  revision = selectByPlatform(chromeRevisions),
 } = {}) {
   let extract = (i, o) => require('extract-zip')(i, { dir: o });
 
@@ -124,4 +126,5 @@ async function install({
 // commonjs friendly
 module.exports = install;
 module.exports.chromium = installChromium;
+module.exports.chromeRevisions = chromeRevisions;
 module.exports.selectByPlatform = selectByPlatform;
