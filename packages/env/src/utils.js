@@ -1,4 +1,5 @@
 import { execSync } from 'child_process';
+import { existsSync, readFileSync } from 'fs';
 
 const GIT_COMMIT_FORMAT = [
   'COMMIT_SHA:%H',
@@ -15,10 +16,8 @@ export function git(args) {
   try {
     return execSync(`git ${args}`, { encoding: 'utf-8' });
   } catch (e) {
-    // do something?
+    return '';
   }
-
-  return '';
 }
 
 // get raw commit data
@@ -50,4 +49,13 @@ export function getJenkinsSha() {
     data.authorEmail === 'nobody@nowhere' &&
     data.message.match(/^Merge commit [^\s]+ into HEAD$/) &&
     git('rev-parse HEAD^');
+}
+
+// github actions are triggered by webhook events which are saved to the filesystem
+export function github({ GITHUB_EVENT_PATH }) {
+  if (!github.payload && GITHUB_EVENT_PATH && existsSync(GITHUB_EVENT_PATH)) {
+    try { github.payload = JSON.parse(readFileSync(GITHUB_EVENT_PATH, 'utf8')); } catch (e) {}
+  }
+
+  return (github.payload ||= {});
 }
