@@ -183,7 +183,11 @@ export default class PercyEnvironment {
         case 'gitlab':
           return this.vars.CI_MERGE_REQUEST_IID;
         case 'azure':
-          return this.vars.SYSTEM_PULLREQUEST_PULLREQUESTNUMBER;
+          return (
+            this.vars.SYSTEM_PULLREQUEST_PULLREQUESTID ||
+            this.vars.SYSTEM_PULLREQUEST_PULLREQUESTNUMBER ||
+            null
+          );
         case 'appveyor':
           return this.vars.APPVEYOR_PULL_REQUEST_NUMBER;
         case 'probo':

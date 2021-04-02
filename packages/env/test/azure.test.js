@@ -27,12 +27,13 @@ describe('Azure', () => {
   it('has the correct properties for PR builds', () => {
     env = new PercyEnvironment({
       ...env.vars,
+      SYSTEM_PULLREQUEST_PULLREQUESTID: '502',
       SYSTEM_PULLREQUEST_PULLREQUESTNUMBER: '512',
       SYSTEM_PULLREQUEST_SOURCECOMMITID: 'azure-pr-commit-sha',
       SYSTEM_PULLREQUEST_SOURCEBRANCH: 'azure-pr-branch'
     });
 
-    expect(env).toHaveProperty('pullRequest', '512');
+    expect(env).toHaveProperty('pullRequest', '502');
     expect(env).toHaveProperty('branch', 'azure-pr-branch');
     expect(env).toHaveProperty('commit', 'azure-pr-commit-sha');
   });
