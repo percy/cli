@@ -34,7 +34,7 @@ function context() {
 
     let serializeDOM = options => {
       let { dom = document, domTransformation } = options || {};
-      let doc = (dom || document).documentElement;
+      let doc = (dom || document).cloneNode(true).documentElement;
       if (domTransformation) domTransformation(doc);
       return doc.outerHTML;
     };

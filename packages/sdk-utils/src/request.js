@@ -25,8 +25,10 @@ export default async function request(path, options = {}) {
 // environment specific implementation
 if (process.env.__PERCY_BROWSERIFIED__) {
   // use window.fetch in browsers
+  const winFetch = window.fetch;
+
   request.fetch = async function fetch(url, options) {
-    let response = await window.fetch(url, options);
+    let response = await winFetch(url, options);
 
     return {
       status: response.status,
@@ -37,9 +39,11 @@ if (process.env.__PERCY_BROWSERIFIED__) {
   };
 } else {
   // use http.request in node
+  const http = require('http');
+
   request.fetch = async function fetch(url, options) {
     return new Promise((resolve, reject) => {
-      require('http').request(url, options)
+      http.request(url, options)
         .on('response', response => {
           let body = '';
 
