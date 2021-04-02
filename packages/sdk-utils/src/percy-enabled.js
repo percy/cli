@@ -4,18 +4,18 @@ import request from './request';
 
 // Create a socket to connect to a remote logger
 async function connectRemoteLogger() {
-  let url = percy.address.replace('http', 'ws');
-  let socket;
+  await logger.remote(() => {
+    let url = percy.address.replace('http', 'ws');
 
-  if (process.env.__PERCY_BROWSERIFIED__) {
-    socket = new window.WebSocket(url);
-  } else {
-    socket = new (require('ws'))(url);
-    // allow node to exit with an active connection
-    socket.once('open', () => socket._socket.unref());
-  }
-
-  await logger.remote(socket);
+    if (process.env.__PERCY_BROWSERIFIED__) {
+      return new window.WebSocket(url);
+    } else {
+      let socket = new (require('ws'))(url);
+      // allow node to exit with an active connection
+      socket.once('open', () => socket._socket.unref());
+      return socket;
+    }
+  });
 }
 
 // Check if Percy is enabled using the healthcheck endpoint
@@ -44,10 +44,7 @@ export default async function isPercyEnabled() {
     }
 
     if (percy.enabled) {
-      await connectRemoteLogger().catch(err => {
-        log.debug('Unable to connect to remote logger');
-        log.debug(err);
-      });
+      await connectRemoteLogger();
     }
   }
 

@@ -205,28 +205,29 @@ export default class PercyLogger {
   }
 
   // Connects to a remote logger
-  async remote(socket, timeout = 1000) {
+  async remote(createSocket, timeout = 1000) {
     if (this.isRemote) return;
-    this.socket = socket;
-    let err;
 
     // if not already connected, wait until the timeout
-    if (!this.isRemote) {
-      err = await new Promise(resolve => {
-        let done = event => {
-          clearTimeout(timeoutid);
-          socket.onopen = socket.onerror = null;
-          resolve(event?.error || (event?.type === 'error' && (
-            'Error: Socket connection failed')));
-        };
+    let err = await new Promise(resolve => {
+      let done = event => {
+        if (timeoutid == null) return;
+        timeoutid = clearTimeout(timeoutid);
+        if (this.socket) this.socket.onopen = this.socket.onerror = null;
+        resolve(event?.error || (event?.type === 'error' && (
+          'Error: Socket connection failed')));
+      };
 
-        let timeoutid = setTimeout(done, timeout, {
-          error: 'Error: Socket connection timed out'
-        });
-
-        socket.onopen = socket.onerror = done;
+      let timeoutid = setTimeout(done, timeout, {
+        error: 'Error: Socket connection timed out'
       });
-    }
+
+      Promise.resolve().then(async () => {
+        this.socket = await createSocket();
+        if (this.isRemote) return done();
+        this.socket.onopen = this.socket.onerror = done;
+      }).catch(error => done({ error }));
+    });
 
     // there was an error connecting, will fallback to normal logging
     if (err) {
@@ -237,7 +238,7 @@ export default class PercyLogger {
 
     // send any messages already logged in this environment
     if (this.messages.size) {
-      socket.send(JSON.stringify({
+      this.socket.send(JSON.stringify({
         logAll: Array.from(this.messages).map(entry => ({
           ...entry, meta: { remote: true, ...entry.meta }
         }))
@@ -245,7 +246,7 @@ export default class PercyLogger {
     }
 
     // attach an incoming message handler
-    socket.onmessage = ({ data }) => {
+    this.socket.onmessage = ({ data }) => {
       let { env } = JSON.parse(data);
       // update local environment info
       if (env) Object.assign(process.env, env);
@@ -253,7 +254,7 @@ export default class PercyLogger {
 
     // return a cleanup function
     return () => {
-      socket.onmessage = null;
+      this.socket.onmessage = null;
       this.socket = null;
     };
   }

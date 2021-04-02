@@ -116,26 +116,6 @@ describe('SDK Utils', () => {
         log: ['testing:utils', 'info', 'Test remote logging', { remote: true }]
       })]);
     });
-
-    it('logs debug info when the remote logger fails to connect', async () => {
-      // trigger an unexpected error via percy.address
-      let t = { i: 0, addr: utils.percy.address };
-      spyOnProperty(utils.percy, 'address').and.callFake(() => t.i++ || t.addr);
-
-      utils.logger.loglevel('debug');
-      await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
-      utils.logger('testing:utils').info('Test remote logging');
-
-      // wait briefly for remote to receive the message
-      await new Promise(r => setTimeout(r, 100));
-
-      expect(helpers.logger.stderr[0]).toEqual(
-        '[percy:utils] Unable to connect to remote logger');
-      expect(helpers.logger.stdout).toEqual([
-        '[percy:testing:utils] Test remote logging']);
-      expectAsync(helpers.call('server.messages'))
-        .toBeResolvedTo([]);
-    });
   });
 
   describe('fetchPercyDOM()', () => {

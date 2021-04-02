@@ -28,7 +28,7 @@ describe('remote logging', () => {
   });
 
   it('can connect to a remote logger', async () => {
-    let connected = logger.remote(socket);
+    let connected = logger.remote(() => socket);
     await expectAsync(connected).toBePending();
 
     socket.readyState = 1;
@@ -37,11 +37,23 @@ describe('remote logging', () => {
     await expectAsync(connected).toBeResolved();
   });
 
-  it('logs a local debug error when unable to connect remotely', async () => {
+  it('logs a local debug error when unable to create a connection', async () => {
+    let error = new Error('Callback Error');
+    logger.loglevel('debug');
+
+    await logger.remote(() => { throw error; });
+
+    expect(helpers.stderr).toEqual([
+      '[percy:logger] Unable to connect to remote logger',
+      `[percy:logger] ${error.stack.trim()}`
+    ]);
+  });
+
+  it('logs a local debug error when the socket emits an error', async () => {
     setTimeout(e => socket.onerror(e), 100, { error: 'Socket Error' });
 
     logger.loglevel('debug');
-    await logger.remote(socket);
+    await logger.remote(() => socket);
 
     expect(helpers.stderr).toEqual([
       '[percy:logger] Unable to connect to remote logger',
@@ -53,7 +65,7 @@ describe('remote logging', () => {
     setTimeout(e => socket.onerror(e), 100, { type: 'error' });
 
     logger.loglevel('debug');
-    await logger.remote(socket);
+    await logger.remote(() => socket);
 
     expect(helpers.stderr).toEqual([
       '[percy:logger] Unable to connect to remote logger',
@@ -63,8 +75,31 @@ describe('remote logging', () => {
 
   it('logs a local debug error when the connection times out', async () => {
     logger.loglevel('debug');
-    await logger.remote(socket, 10);
+    await logger.remote(() => socket, 10);
 
+    expect(helpers.stderr).toEqual([
+      '[percy:logger] Unable to connect to remote logger',
+      '[percy:logger] Error: Socket connection timed out'
+    ]);
+  });
+
+  it('does not log errors that occur after the connection times out', async () => {
+    logger.loglevel('debug');
+
+    let delayedError = new Promise((_, r) => setTimeout(r, 200, 'Delayed'));
+    await logger.remote(() => delayedError, 100);
+
+    expect(helpers.stderr).toEqual([
+      '[percy:logger] Unable to connect to remote logger',
+      '[percy:logger] Error: Socket connection timed out'
+    ]);
+
+    // still pending after timeout error is handled
+    await expectAsync(delayedError).toBePending();
+    // wait for rejection before further expectations
+    await expectAsync(delayedError).toBeRejected();
+
+    // stderr hasn't changed
     expect(helpers.stderr).toEqual([
       '[percy:logger] Unable to connect to remote logger',
       '[percy:logger] Error: Socket connection timed out'
@@ -77,7 +112,7 @@ describe('remote logging', () => {
 
     spyOn(socket, 'send');
     socket.readyState = 1;
-    await logger.remote(socket);
+    await logger.remote(() => socket);
 
     expect(socket.send).toHaveBeenCalled();
     expect(JSON.parse(socket.send.calls.first().args[0])).toEqual({
@@ -100,7 +135,7 @@ describe('remote logging', () => {
   it('sends logs remotely when connected', async () => {
     spyOn(socket, 'send');
     socket.readyState = 1;
-    await logger.remote(socket);
+    await logger.remote(() => socket);
 
     expect(socket.send).not.toHaveBeenCalled();
 
@@ -115,7 +150,7 @@ describe('remote logging', () => {
   it('sends serialized error logs remotely when conected', async () => {
     spyOn(socket, 'send');
     socket.readyState = 1;
-    await logger.remote(socket);
+    await logger.remote(() => socket);
 
     expect(socket.send).not.toHaveBeenCalled();
 
@@ -133,7 +168,7 @@ describe('remote logging', () => {
 
   it('updates local env info when connected remotely', async () => {
     socket.readyState = 1;
-    await logger.remote(socket);
+    await logger.remote(() => socket);
 
     expect(process.env.PERCY_LOGLEVEL).toBeUndefined();
     expect(process.env.PERCY_DEBUG).toBeUndefined();
@@ -157,7 +192,7 @@ describe('remote logging', () => {
   it('can disconnect by running the returned function', async () => {
     spyOn(socket, 'send');
     socket.readyState = 1;
-    let disconnect = await logger.remote(socket);
+    let disconnect = await logger.remote(() => socket);
 
     log.info('Remote connection test 1');
     log.info('Remote connection test 2');
@@ -179,10 +214,10 @@ describe('remote logging', () => {
 
     expect(instance.socket).toBeUndefined();
 
-    await logger.remote(socket);
+    await logger.remote(() => socket);
     expect(instance.socket).toBe(socket);
 
-    await logger.remote(socket2);
+    await logger.remote(() => socket2);
     expect(instance.socket).not.toBe(socket2);
     expect(instance.socket).toBe(socket);
   });
