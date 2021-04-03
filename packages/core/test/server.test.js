@@ -178,7 +178,7 @@ describe('Snapshot Server', () => {
         'logger.remote(() => ws)',
         "  .then(() => logger('remote-sdk').info('whoa'))",
         '  .then(() => setTimeout(() => ws.close(), 100));'
-      ].join('\n') + '"', (err, stdout, stderr) => {
+      ].join('') + '"', (err, stdout, stderr) => {
         if (!err) resolve([stdout, stderr]);
         else reject(err);
       });
