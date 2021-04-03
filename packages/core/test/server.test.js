@@ -172,16 +172,13 @@ describe('Snapshot Server', () => {
     // log from a separate async process
     let [stdout, stderr] = await new Promise((resolve, reject) => {
       require('child_process').exec('node -e "' + [
-        "const logger = require('@percy/logger');",
-        // connect to the local websocket server for logging and unref the socket
-        "const ws = new (require('ws'))('http://localhost:1337');",
-        "ws.on('open', () => ws._socket.unref());",
-        // set loglevel to debug failures
+        "let logger = require('@percy/logger');",
+        "let ws = new (require('ws'))('ws://localhost:1337');",
         "logger.loglevel('debug');",
-        // connect and send a remote log
-        'logger.remote(ws).then(() => ',
-        "logger('remote-sdk').info('whoa'));"
-      ].join('') + '"', (err, stdout, stderr) => {
+        'logger.remote(() => ws)',
+        "  .then(() => logger('remote-sdk').info('whoa'))",
+        '  .then(() => setTimeout(() => ws.close(), 100));'
+      ].join('\n') + '"', (err, stdout, stderr) => {
         if (!err) resolve([stdout, stderr]);
         else reject(err);
       });
