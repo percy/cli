@@ -257,6 +257,7 @@ describe('logger', () => {
       log.error('Error log');
       await new Promise(r => setTimeout(r, 100));
       log.debug('Debug log');
+      log.error('Final log');
 
       expect(helpers.stdout).toEqual([
         jasmine.stringMatching('Info log \\(\\dms\\)')
@@ -265,7 +266,8 @@ describe('logger', () => {
       expect(helpers.stderr).toEqual([
         jasmine.stringMatching('Warn log \\(\\dms\\)'),
         jasmine.stringMatching('Error log \\(\\dms\\)'),
-        jasmine.stringMatching('Debug log \\((9[0-9]|1[01][0-9])ms\\)')
+        jasmine.stringMatching('Debug log \\((9[0-9]|1[01][0-9])ms\\)'),
+        jasmine.stringMatching('Final log \\(\\dms\\)')
       ]);
     });
   });

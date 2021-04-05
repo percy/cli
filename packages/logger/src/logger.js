@@ -174,7 +174,7 @@ export default class PercyLogger {
       let elapsed = timestamp - (this.lastlog || timestamp);
       if (isError && this.level !== 'debug') message = error.toString();
       this.write(level, this.format(message, debug, error ? 'error' : level, elapsed));
-      this.lastlog ||= timestamp;
+      this.lastlog = timestamp;
     }
   }
 
