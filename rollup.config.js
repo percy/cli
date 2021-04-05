@@ -80,7 +80,7 @@ const plugins = {
             `(function() {\n${indent(bundle[file].code)}}).call(window);\n`,
             // support amd & commonjs modules by referencing the global
             'if (typeof define === "function" && define.amd) {',
-            `  define(["${pkg.name}"], () => window.${options.name});`,
+            `  define([], () => window.${options.name});`,
             '} else if (typeof module === "object" && module.exports) {',
             `  module.exports = window.${options.name};`,
             '}\n'
