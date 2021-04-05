@@ -57,8 +57,8 @@ export default function validate(config) {
 
   if (!result) {
     for (let error of ajv.errors) {
-      let { dataPath, keyword, params, message, data } = error;
-      let path = dataPath ? dataPath.substr(1).split('/') : [];
+      let { instancePath, keyword, params, message, data } = error;
+      let path = instancePath ? instancePath.substr(1).split('/') : [];
 
       if (keyword === 'required') {
         message = 'missing required property';
@@ -68,7 +68,7 @@ export default function validate(config) {
         path.push(params.additionalProperty);
       } else if (keyword === 'type') {
         let dataType = Array.isArray(data) ? 'array' : typeof data;
-        message = `should be ${a(params.type)}, received ${a(dataType)}`;
+        message = `must be ${a(params.type)}, received ${a(dataType)}`;
       }
 
       errors.push({ message, path });

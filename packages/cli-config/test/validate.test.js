@@ -71,7 +71,7 @@ describe('percy config:validate', () => {
     expect(logger.stderr).toEqual([
       '[percy] Invalid config:',
       '[percy] - bar: unknown property',
-      '[percy] - test.value: should be a string, received a boolean'
+      '[percy] - test.value: must be a string, received a boolean'
     ]);
   });
 });
