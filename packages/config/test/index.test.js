@@ -49,7 +49,7 @@ describe('PercyConfig', () => {
           message: 'unknown property'
         }, {
           path: ['baz'],
-          message: 'should be a number, received an array'
+          message: 'must be a number, received an array'
         }]
       });
     });
@@ -87,7 +87,7 @@ describe('PercyConfig', () => {
           message: 'unknown property'
         }, {
           path: ['test', 'cov'],
-          message: 'should be >= 100'
+          message: 'must be >= 100'
         }]
       });
     });
@@ -132,7 +132,7 @@ describe('PercyConfig', () => {
           message: 'unknown property'
         }, {
           path: ['test', 'value'],
-          message: 'should be a string, received a number'
+          message: 'must be a string, received a number'
         }]
       });
     });
@@ -457,8 +457,8 @@ describe('PercyConfig', () => {
         '[percy:config] Found config file: .invalid.yml',
         '[percy:config] Invalid config:',
         '[percy:config] - foo: unknown property',
-        '[percy:config] - test.value: should be a string, received a number',
-        '[percy:config] - arr: should be an array, received an object',
+        '[percy:config] - test.value: must be a string, received a number',
+        '[percy:config] - arr: must be an array, received an object',
         '[percy:config] - req.bar: missing required property',
         '[percy:config] Using config:\n' + [
           '{',
@@ -489,8 +489,8 @@ describe('PercyConfig', () => {
         '[percy:config] Found config file: .invalid.yml',
         '[percy:config] Invalid config:',
         '[percy:config] - foo: unknown property',
-        '[percy:config] - test.value: should be a string, received a number',
-        '[percy:config] - arr: should be an array, received an object'
+        '[percy:config] - test.value: must be a string, received a number',
+        '[percy:config] - arr: must be an array, received an object'
       ]);
     });
   });
