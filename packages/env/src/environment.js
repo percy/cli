@@ -1,7 +1,8 @@
 import {
   getCommitData,
-  getJenkinsSha
-} from './git';
+  getJenkinsSha,
+  github
+} from './utils';
 
 export default class PercyEnvironment {
   constructor(vars = process.env) {
@@ -53,7 +54,7 @@ export default class PercyEnvironment {
   get info() {
     switch (this.ci) {
       case 'github':
-        return `github/${this.vars.PERCY_GITHUB_ACTION ?? 'unknown'}`;
+        return this.vars.PERCY_GITHUB_ACTION ? `github/${this.vars.PERCY_GITHUB_ACTION}` : this.ci;
       case 'gitlab':
         return `gitlab/${this.vars.CI_SERVER_VERSION}`;
       case 'semaphore':
@@ -101,7 +102,7 @@ export default class PercyEnvironment {
         case 'bitbucket':
           return this.vars.BITBUCKET_COMMIT;
         case 'github':
-          return this.vars.GITHUB_SHA;
+          return github(this.vars).pull_request?.head.sha || this.vars.GITHUB_SHA;
       }
     })();
 
@@ -145,15 +146,13 @@ export default class PercyEnvironment {
         case 'bitbucket':
           return this.vars.BITBUCKET_BRANCH;
         case 'github':
-          return this.vars.GITHUB_REF?.match(/^refs\//)
-            ? this.vars.GITHUB_REF.replace(/^refs\/\w+?\//, '')
-            : this.vars.GITHUB_REF;
+          return github(this.vars).pull_request?.head.ref || this.vars.GITHUB_REF;
         case 'netlify':
           return this.vars.HEAD;
       }
     })();
 
-    return branch || null;
+    return branch?.replace(/^refs\/\w+?\//, '') || null;
   }
 
   // pull request number
@@ -192,6 +191,8 @@ export default class PercyEnvironment {
           return this.vars.BITBUCKET_PR_ID;
         case 'netlify':
           return this.vars.PULL_REQUEST !== 'false' && this.vars.REVIEW_ID;
+        case 'github':
+          return github(this.vars).pull_request?.number;
       }
     })();
 

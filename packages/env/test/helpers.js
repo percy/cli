@@ -30,6 +30,6 @@ mock('child_process', {
 });
 
 mock.reRequire('child_process');
-mock.reRequire('../src/git');
+mock.reRequire('../src/utils');
 mock.reRequire('../src/environment');
 mock.reRequire('../src');

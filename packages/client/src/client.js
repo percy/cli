@@ -1,5 +1,5 @@
 import PercyEnvironment from '@percy/env';
-import { git } from '@percy/env/dist/git';
+import { git } from '@percy/env/dist/utils';
 import pkg from '../package.json';
 
 import {
