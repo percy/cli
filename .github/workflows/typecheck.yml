@@ -1,5 +1,9 @@
 name: Typecheck
-on: push
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
 jobs:
   typecheck:
     name: Typecheck
