@@ -4,13 +4,6 @@ import https from 'https';
 import logger from '@percy/logger';
 import readableBytes from './utils/bytes';
 
-const revisions = {
-  linux: '812847',
-  win64: '812845',
-  win32: '812822',
-  darwin: '812851'
-};
-
 // Returns an item from the map keyed by the current platform
 function selectByPlatform(map) {
   let { platform, arch } = process;
@@ -21,8 +14,8 @@ function selectByPlatform(map) {
 function installChromium({
   // default directory is within @percy/core package root
   directory = path.resolve(__dirname, '../.local-chromium'),
-  // default revision corresponds to v87.0.4280.x
-  revision = selectByPlatform(revisions),
+  // default chromium revision by platform (see installChromium.revisions)
+  revision = selectByPlatform(installChromium.revisions)
 } = {}) {
   let extract = (i, o) => require('extract-zip')(i, { dir: o });
 
@@ -51,7 +44,13 @@ function installChromium({
   });
 }
 
-installChromium.revisions = revisions;
+// default chromium revisions corresponds to v87.0.4280.x
+installChromium.revisions = {
+  linux: '812847',
+  win64: '812845',
+  win32: '812822',
+  darwin: '812851'
+};
 
 // Installs an executable from a url to a local directory, returning the full path to the extracted
 // binary. Skips installation if the executable already exists at the binary path.
