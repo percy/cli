@@ -4,7 +4,7 @@ import https from 'https';
 import logger from '@percy/logger';
 import readableBytes from './utils/bytes';
 
-const chromiumRevisions = {
+const revisions = {
   linux: '812847',
   win64: '812845',
   win32: '812822',
@@ -22,7 +22,7 @@ function installChromium({
   // default directory is within @percy/core package root
   directory = path.resolve(__dirname, '../.local-chromium'),
   // default revision corresponds to v87.0.4280.x
-  revision = selectByPlatform(chromiumRevisions),
+  revision = selectByPlatform(revisions),
 } = {}) {
   let extract = (i, o) => require('extract-zip')(i, { dir: o });
 
@@ -50,6 +50,8 @@ function installChromium({
     executable
   });
 }
+
+installChromium.revisions = revisions;
 
 // Installs an executable from a url to a local directory, returning the full path to the extracted
 // binary. Skips installation if the executable already exists at the binary path.
@@ -126,5 +128,4 @@ async function install({
 // commonjs friendly
 module.exports = install;
 module.exports.chromium = installChromium;
-module.exports.chromiumRevisions = chromiumRevisions;
 module.exports.selectByPlatform = selectByPlatform;
