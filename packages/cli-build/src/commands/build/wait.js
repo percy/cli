@@ -47,7 +47,7 @@ export class Wait extends Command {
 
   static examples = [
     '$ percy build:wait --build 2222222',
-    '$ percy build:wait --project org-slug/test --commit HEAD'
+    '$ percy build:wait --project org/project --commit HEAD'
   ];
 
   log = logger('cli:build:wait');
