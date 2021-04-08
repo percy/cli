@@ -29,4 +29,9 @@ describe('CircleCI', () => {
     env = new PercyEnvironment({ ...env.vars, CIRCLE_WORKFLOW_ID: 'workflow-id' });
     expect(env).toHaveProperty('parallel.nonce', 'workflow-id');
   });
+
+  it('has the correct parallel total', () => {
+    env = new PercyEnvironment({ ...env.vars, PERCY_PARALLEL_TOTAL: '', CIRCLE_NODE_TOTAL: '15' });
+    expect(env).toHaveProperty('parallel.total', 15);
+  });
 });

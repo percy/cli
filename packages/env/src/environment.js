@@ -202,7 +202,16 @@ export default class PercyEnvironment {
   // parallel total & nonce
   get parallel() {
     let total = parseInt(this.vars.PERCY_PARALLEL_TOTAL, 10);
-    if (!Number.isInteger(total)) total = null;
+    if (!Number.isInteger(total)) {
+      switch (this.ci) {
+        case 'circle':
+          total = parseInt(this.vars.CIRCLE_NODE_TOTAL, 10);
+          break;
+      }
+      if (!Number.isInteger(total)) {
+        total = null;
+      }
+    }
 
     // no nonce if no total
     let nonce = total && (() => {
