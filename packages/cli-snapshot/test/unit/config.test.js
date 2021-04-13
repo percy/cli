@@ -1,11 +1,13 @@
 import { migration } from '../../src/config';
 
 describe('unit / config', () => {
-  let migrate;
-  let set = (key, value) => (migrate[key] = value);
+  let mocked = {
+    map: (...a) => mocked.migrate.map.push(a),
+    del: (...a) => mocked.migrate.del.push(a)
+  };
 
   beforeEach(() => {
-    migrate = {};
+    mocked.migrate = { map: [], del: [] };
   });
 
   it('migrates v1 config', () => {
@@ -16,26 +18,17 @@ describe('unit / config', () => {
         snapshotFiles: '*.html',
         ignoreFiles: '*.htm'
       }
-    }, set);
+    }, mocked);
 
-    expect(migrate).toEqual({
-      'static.baseUrl': 'base-url',
-      'static.files': '*.html',
-      'static.ignore': '*.htm'
-    });
-  });
+    expect(mocked.migrate.map).toEqual([
+      ['staticSnapshots.baseUrl', 'static.baseUrl'],
+      ['staticSnapshots.snapshotFiles', 'static.files'],
+      ['staticSnapshots.ignoreFiles', 'static.ignore']
+    ]);
 
-  it('only migrates own config options', () => {
-    migration({
-      version: 1,
-      otherOptions: {
-        baseUrl: 'base-url',
-        snapshotFiles: '*.html',
-        ignoreFiles: '*.htm'
-      }
-    }, set);
-
-    expect(migrate).toEqual({});
+    expect(mocked.migrate.del).toEqual([
+      ['staticSnapshots']
+    ]);
   });
 
   it('does not migrate when not needed', () => {
@@ -46,8 +39,9 @@ describe('unit / config', () => {
         files: '*.html',
         ignore: '*.htm'
       }
-    }, set);
+    }, mocked);
 
-    expect(migrate).toEqual({});
+    expect(mocked.migrate.map).toEqual([]);
+    expect(mocked.migrate.del).toEqual([]);
   });
 });
