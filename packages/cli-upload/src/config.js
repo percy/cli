@@ -21,13 +21,12 @@ export const schema = {
   }
 };
 
-export function migration(input, set) {
+export function migration(config, { map, del }) {
   /* eslint-disable curly */
-  if (input.version < 2) {
+  if (config.version < 2) {
     // image-snapshots and options were renamed
-    if (input.imageSnapshots?.files != null)
-      set('upload.files', input.imageSnapshots.files);
-    if (input.imageSnapshots?.ignore != null)
-      set('upload.ignore', input.imageSnapshots.ignore);
+    map('imageSnapshots.files', 'upload.files');
+    map('imageSnapshots.ignore', 'upload.ignore');
+    del('imageSnapshots');
   }
 }
