@@ -70,11 +70,9 @@ export default function load({
           if (version < 2) {
             log.warn('Found older config file version, please run ' + (
               '`percy config:migrate` to update to the latest version'));
-            config = migrate(result.config);
-          } else {
-            config = result.config;
           }
 
+          config = migrate(result.config);
           cache.set(path, config);
         }
       } else {
