@@ -140,24 +140,63 @@ describe('PercyConfig', () => {
 
   describe('.migrate()', () => {
     beforeEach(() => {
-      PercyConfig.addMigration((input, set) => {
-        if (input.test != null) set('value', input.test);
+      PercyConfig.addMigration((config, util) => {
+        if (config.foo) util.map('foo', 'foo.bar');
       });
 
-      PercyConfig.addMigration((input, set) => {
-        if (input.foo != null) set('foo.bar', input.foo);
+      PercyConfig.addMigration((config, util) => {
+        if (config.test?.set) util.set('test.value', config.test.set);
+        if (config.test?.map) util.map('value.test', 'test.value');
+        if (config.test?.map2) util.map('value.test', 'test.value', v => v * 2);
+        if (config.test?.del) util.del('value');
+        util.del('test.set', 'test.map', 'test.map2', 'test.del');
       });
     });
 
     it('runs registered migration functions', () => {
       expect(PercyConfig.migrate({
         version: 1,
-        test: 'testing',
-        foo: 'baz'
+        foo: 'baz',
+        test: { map: true }
       })).toEqual({
         version: 2,
-        value: 'testing',
         foo: { bar: 'baz' }
+      });
+    });
+
+    it('can set, map, or delete values', () => {
+      expect(PercyConfig.migrate({
+        version: 1,
+        test: { set: 'test' }
+      })).toEqual({
+        version: 2,
+        test: { value: 'test' }
+      });
+
+      expect(PercyConfig.migrate({
+        version: 1,
+        test: { map: true },
+        value: { test: 'foo' }
+      })).toEqual({
+        version: 2,
+        test: { value: 'foo' }
+      });
+
+      expect(PercyConfig.migrate({
+        version: 1,
+        test: { map2: true },
+        value: { test: 15 }
+      })).toEqual({
+        version: 2,
+        test: { value: 30 }
+      });
+
+      expect(PercyConfig.migrate({
+        version: 1,
+        test: { del: true },
+        value: 'testing'
+      })).toEqual({
+        version: 2
       });
     });
   });
@@ -399,8 +438,8 @@ describe('PercyConfig', () => {
       mockConfig('.old-version.yml', 'version: 1\nvalue: old-value');
       logger.loglevel('debug');
 
-      PercyConfig.addMigration((input, set) => {
-        set('test.value', input.value.replace('old', 'new'));
+      PercyConfig.addMigration((config, util) => {
+        util.map('value', 'test.value', v => v.replace('old', 'new'));
       });
 
       expect(PercyConfig.load({ path: '.old-version.yml' }))

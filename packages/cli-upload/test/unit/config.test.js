@@ -1,11 +1,13 @@
 import { migration } from '../../src/config';
 
 describe('unit / config', () => {
-  let migrate;
-  let set = (key, value) => (migrate[key] = value);
+  let mocked = {
+    map: (...a) => mocked.migrate.map.push(a),
+    del: (...a) => mocked.migrate.del.push(a)
+  };
 
   beforeEach(() => {
-    migrate = {};
+    mocked.migrate = { map: [], del: [] };
   });
 
   it('migrates v1 config', () => {
@@ -16,25 +18,16 @@ describe('unit / config', () => {
         files: '*.png',
         ignore: '*.jpg'
       }
-    }, set);
+    }, mocked);
 
-    expect(migrate).toEqual({
-      'upload.files': '*.png',
-      'upload.ignore': '*.jpg'
-    });
-  });
+    expect(mocked.migrate.map).toEqual([
+      ['imageSnapshots.files', 'upload.files'],
+      ['imageSnapshots.ignore', 'upload.ignore']
+    ]);
 
-  it('only migrates own config options', () => {
-    migration({
-      version: 1,
-      otherOptions: {
-        path: '~/pathname/',
-        files: '*.png',
-        ignore: '*.jpg'
-      }
-    }, set);
-
-    expect(migrate).toEqual({});
+    expect(mocked.migrate.del).toEqual([
+      ['imageSnapshots']
+    ]);
   });
 
   it('does not migrate when not needed', () => {
@@ -44,8 +37,9 @@ describe('unit / config', () => {
         files: '*.png',
         ignore: '*.jpg'
       }
-    }, set);
+    }, mocked);
 
-    expect(migrate).toEqual({});
+    expect(mocked.migrate.map).toEqual([]);
+    expect(mocked.migrate.del).toEqual([]);
   });
 });

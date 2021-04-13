@@ -1,3 +1,4 @@
+import logger from '@percy/logger';
 import normalize from './normalize';
 
 // Global set of registered migrations
@@ -13,9 +14,9 @@ export function clearMigrations() {
   migrations.clear();
 }
 
-// Assigns a value to the object at the path creating any necessary nested
+// Sets a value to the object at the path creating any necessary nested
 // objects along the way
-function assign(obj, path, value) {
+function set(obj, path, value) {
   path.split('.').reduce((loc, key, i, a) => (
     loc[key] = i === a.length - 1 ? value : (loc[key] || {})
   ), obj);
@@ -23,16 +24,46 @@ function assign(obj, path, value) {
   return obj;
 }
 
+// Maps a value from one path to another, deleting the first path
+function map(obj, from, to, map = v => v) {
+  let val = from.split('.').reduce((loc, key, i, a) => {
+    let val = loc && loc[key];
+    if (loc && i === a.length - 1) delete loc[key];
+    return val;
+  }, obj);
+
+  return set(obj, to, map(val));
+}
+
+// Deletes properties from an object at the paths
+function del(obj, ...paths) {
+  for (let path of paths) {
+    path.split('.').reduce((loc, key, i, a) => {
+      if (loc && i === a.length - 1) delete loc[key];
+      return loc && loc[key];
+    }, obj);
+  }
+
+  return obj;
+}
+
 // Calls each registered migration function with a normalize provided config
-// and a `set` function which assigns values to the returned output
+// and util functions for working with the config object
 export default function migrate(config) {
-  let output = { version: 2 };
-  let input = normalize(config);
-  let set = assign.bind(null, output);
+  config = normalize(config);
+
+  let util = {
+    set: set.bind(null, config),
+    map: map.bind(null, config),
+    del: del.bind(null, config),
+    log: logger('config')
+  };
 
   migrations.forEach(migration => {
-    migration(input, set);
+    migration(config, util);
   });
 
-  return output;
+  return normalize(config, {
+    overrides: { version: 2 }
+  });
 }

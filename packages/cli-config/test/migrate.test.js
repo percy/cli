@@ -6,8 +6,8 @@ import { Migrate } from '../src/commands/config/migrate';
 describe('percy config:migrate', () => {
   beforeEach(() => {
     mockConfig('.percy.yml', 'version: 1\n');
-    PercyConfig.addMigration((input, set) => {
-      if (input.migrate != null) set('migrated', input.migrate.replace('old', 'new'));
+    PercyConfig.addMigration((config, util) => {
+      if (config.migrate) util.map('migrate', 'migrated', v => v.replace('old', 'new'));
     });
   });
 

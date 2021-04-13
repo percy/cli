@@ -1,11 +1,13 @@
 import { migration } from '../../src/config';
 
 describe('Unit / Config', () => {
-  let migrate;
-  let set = (key, value) => (migrate[key] = value);
+  let mocked = {
+    map: (...a) => mocked.migrate.map.push(a),
+    del: (...a) => mocked.migrate.del.push(a)
+  };
 
   beforeEach(() => {
-    migrate = {};
+    mocked.migrate = { map: [], del: [] };
   });
 
   it('migrates v1 config', () => {
@@ -24,29 +26,23 @@ describe('Unit / Config', () => {
           cacheResponses: false
         }
       }
-    }, set);
+    }, mocked);
 
-    expect(migrate).toEqual({
-      snapshot: { widths: [1000] },
-      'snapshot.requestHeaders': { foo: 'bar' },
-      'discovery.allowedHostnames': ['allowed'],
-      'discovery.networkIdleTimeout': 150,
-      'discovery.concurrency': 5,
-      'discovery.disableCache': true
-    });
-  });
+    expect(mocked.migrate.map).toEqual([
+      ['agent.assetDiscovery.allowedHostnames', 'discovery.allowedHostnames'],
+      ['agent.assetDiscovery.networkIdleTimeout', 'discovery.networkIdleTimeout'],
+      ['agent.assetDiscovery.cacheResponses', 'discovery.disableCache', jasmine.any(Function)],
+      ['agent.assetDiscovery.requestHeaders', 'discovery.requestHeaders'],
+      ['agent.assetDiscovery.pagePoolSizeMax', 'discovery.concurrency']
+    ]);
 
-  it('only migrates own config options', () => {
-    migration({
-      version: 1,
-      otherOptions: {
-        baseUrl: 'base-url',
-        snapshotFiles: '*.html',
-        ignoreFiles: '*.htm'
-      }
-    }, set);
+    expect(mocked.migrate.del).toEqual([
+      ['agent']
+    ]);
 
-    expect(migrate).toEqual({});
+    // cacheResponse -> disabeCache map
+    expect(mocked.migrate.map[2][2](true)).toEqual(false);
+    expect(mocked.migrate.map[2][2](false)).toEqual(true);
   });
 
   it('does not migrate when not needed', () => {
@@ -55,8 +51,9 @@ describe('Unit / Config', () => {
       discovery: {
         allowedHostnames: ['allowed']
       }
-    }, set);
+    }, mocked);
 
-    expect(migrate).toEqual({});
+    expect(mocked.migrate.map).toEqual([]);
+    expect(mocked.migrate.del).toEqual([]);
   });
 });
