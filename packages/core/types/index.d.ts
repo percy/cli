@@ -12,6 +12,8 @@ interface AuthCredentials {
 interface DiscoveryOptions {
   requestHeaders?: Pojo;
   authorization?: AuthCredentials;
+  allowedHostnames?: string[];
+  disableCache?: boolean;
 }
 
 interface DiscoveryLaunchOptions {
@@ -22,9 +24,7 @@ interface DiscoveryLaunchOptions {
 }
 
 interface AllDiscoveryOptions extends DiscoveryOptions {
-  allowedHostnames?: string[];
   networkIdleTimeout?: number;
-  disableCache?: boolean;
   concurrency?: number;
   launchOptions?: DiscoveryLaunchOptions;
 }
