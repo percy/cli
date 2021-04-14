@@ -5,32 +5,39 @@ interface Pojo {
 }
 
 interface AuthCredentials {
-  username: string,
-  password: string
-}
-
-interface DiscoveryLaunchOptions {
-  executable?: string,
-  args?: string[],
-  timeout?: number,
-  headless?: boolean
-}
-
-export interface SnapshotOptions {
-  widths?: number[];
-  minHeight?: number;
-  percyCSS?: string;
-  requestHeaders?: Pojo;
-  authorization?: AuthCredentials;
-  enableJavaScript?: boolean;
+  username: string;
+  password: string;
 }
 
 interface DiscoveryOptions {
+  requestHeaders?: Pojo;
+  authorization?: AuthCredentials;
+}
+
+interface DiscoveryLaunchOptions {
+  executable?: string;
+  args?: string[];
+  timeout?: number;
+  headless?: boolean;
+}
+
+interface AllDiscoveryOptions extends DiscoveryOptions {
   allowedHostnames?: string[];
   networkIdleTimeout?: number;
   disableCache?: boolean;
   concurrency?: number;
   launchOptions?: DiscoveryLaunchOptions;
+}
+
+interface BaseSnapshotOptions {
+  widths?: number[];
+  minHeight?: number;
+  percyCSS?: string;
+  enableJavaScript?: boolean;
+}
+
+export interface SnapshotOptions extends BaseSnapshotOptions {
+  discovery?: DiscoveryOptions;
 }
 
 export type PercyOptions<C = Pojo> = C & {
@@ -42,8 +49,8 @@ export type PercyOptions<C = Pojo> = C & {
   concurrency?: number,
   loglevel?: LogLevel,
   config?: undefined | string | false,
-  snapshot?: SnapshotOptions,
-  discovery?: DiscoveryOptions
+  snapshot?: BaseSnapshotOptions,
+  discovery?: AllDiscoveryOptions
 };
 
 type CaptureExec = () => void | Promise<void>;
