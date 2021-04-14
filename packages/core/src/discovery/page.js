@@ -39,6 +39,7 @@ export default class Page extends EventEmitter {
     networkIdleTimeout,
     requestHeaders,
     authorization,
+    userAgent,
     height = 1024,
     width = 1280,
     meta
@@ -48,18 +49,22 @@ export default class Page extends EventEmitter {
     this.network.authorization = authorization;
     this.meta = meta;
 
-    let [, { frameTree }] = await Promise.all([
+    let [, { frameTree }, version] = await Promise.all([
       this.send('Page.enable'),
-      this.send('Page.getFrameTree')
+      this.send('Page.getFrameTree'),
+      this.send('Browser.getVersion')
     ]);
 
     this.#frameId = frameTree.frame.id;
+    // by default, emulate a non-headless browser
+    userAgent ||= version.userAgent.replace('Headless', '');
 
     await Promise.all([
       this.send('Runtime.enable'),
       this.send('Page.setLifecycleEventsEnabled', { enabled: true }),
       this.send('Network.setCacheDisabled', { cacheDisabled }),
       this.send('Network.setExtraHTTPHeaders', { headers: requestHeaders }),
+      this.send('Network.setUserAgentOverride', { userAgent }),
       this.send('Security.setIgnoreCertificateErrors', { ignore: true }),
       this.send('Emulation.setScriptExecutionDisabled', { value: !enableJavaScript }),
       this.send('Emulation.setDeviceMetricsOverride', {
