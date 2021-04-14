@@ -33,9 +33,20 @@ export default class Page extends EventEmitter {
   }
 
   // initial page options asynchronously
-  async init({ meta }) {
+  async init({
+    cacheDisabled = false,
+    enableJavaScript = true,
+    networkIdleTimeout,
+    requestHeaders,
+    authorization,
+    height = 1024,
+    width = 1280,
+    meta
+  }) {
+    this.log.debug('Initialize page', meta);
+    this.network.timeout = networkIdleTimeout;
+    this.network.authorization = authorization;
     this.meta = meta;
-    this.log.debug('Initialize page', this.meta);
 
     let [, { frameTree }] = await Promise.all([
       this.send('Page.enable'),
@@ -46,8 +57,16 @@ export default class Page extends EventEmitter {
 
     await Promise.all([
       this.send('Runtime.enable'),
-      this.send('Page.setLifecycleEventsEnabled', {
-        enabled: true
+      this.send('Page.setLifecycleEventsEnabled', { enabled: true }),
+      this.send('Network.setCacheDisabled', { cacheDisabled }),
+      this.send('Network.setExtraHTTPHeaders', { headers: requestHeaders }),
+      this.send('Security.setIgnoreCertificateErrors', { ignore: true }),
+      this.send('Emulation.setScriptExecutionDisabled', { value: !enableJavaScript }),
+      this.send('Emulation.setDeviceMetricsOverride', {
+        deviceScaleFactor: 1,
+        mobile: false,
+        height,
+        width
       })
     ]);
 

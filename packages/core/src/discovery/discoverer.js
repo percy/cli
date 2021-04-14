@@ -18,39 +18,15 @@ export default class PercyDiscoverer {
 
   #cache = new Map();
 
-  constructor({
-    // asset discovery concurrency
-    concurrency = 5,
-    // additional allowed hostnames besides the root URL hostname
-    allowedHostnames,
-    // how long to wait before the network is considered to be idle and assets
-    // are determined to be fully discovered
-    networkIdleTimeout,
-    // disable resource caching, the cache is still used but overwritten for each resource
-    disableCache,
-    // request headers such as auth tokens
-    requestHeaders,
-    // basic auth credentials
-    authorization,
-    // browser launch options
-    launchOptions
-  }) {
+  constructor({ concurrency = 5, ...config }) {
     this.queue = new Queue(concurrency);
     this.browser = new Browser();
-
-    Object.assign(this, {
-      allowedHostnames,
-      networkIdleTimeout,
-      disableCache,
-      requestHeaders,
-      authorization,
-      launchOptions
-    });
+    this.config = config;
   }
 
   // Installs the browser executable if necessary then launches and connects to a browser process.
   async launch() {
-    await this.browser.launch(this.launchOptions);
+    await this.browser.launch(this.config.launchOptions);
   }
 
   // Returns true or false when the browser is connected.
@@ -65,72 +41,41 @@ export default class PercyDiscoverer {
   }
 
   // Returns a new browser page.
-  async page({
-    cacheDisabled = false,
-    requestHeaders = {},
-    authorization = {},
-    ignoreHTTPSErrors = true,
-    enableJavaScript = true,
-    deviceScaleFactor = 1,
-    mobile = false,
-    height = 1024,
-    width = 1280,
-    meta
-  }) {
-    let page = await this.browser.page({ meta });
-    page.network.timeout = this.networkIdleTimeout;
-    page.network.authorization = { ...authorization, ...this.authorization };
+  async page(options) {
+    let { requestHeaders, authorization, networkIdleTimeout } = this.config;
 
-    // set page options
-    await Promise.all([
-      page.send('Network.setCacheDisabled', { cacheDisabled }),
-      page.send('Network.setExtraHTTPHeaders', { headers: { ...requestHeaders, ...this.requestHeaders } }),
-      page.send('Security.setIgnoreCertificateErrors', { ignore: ignoreHTTPSErrors }),
-      page.send('Emulation.setScriptExecutionDisabled', { value: !enableJavaScript }),
-      page.send('Emulation.setDeviceMetricsOverride', { deviceScaleFactor, mobile, height, width })
-    ]);
-
-    return page;
+    return this.browser.page({
+      ...options,
+      requestHeaders: { ...requestHeaders, ...options.requestHeader },
+      authorization: { ...authorization, ...options.authorization },
+      networkIdleTimeout
+    });
   }
 
   // Gathers resources for a root URL and DOM. The `onDiscovery` callback will be called whenever an
   // asset is requested. The returned promise resolves when asset discovery finishes.
-  gatherResources({
-    onDiscovery,
-    rootUrl,
-    rootDom,
-    enableJavaScript,
-    requestHeaders,
-    authorization,
-    width,
-    meta
-  }) {
+  gatherResources(options) {
     assert(this.isConnected(), 'Browser not connected');
 
     // discover assets concurrently
     return this.queue.push(async () => {
-      this.log.debug(`Discovering resources @${width}px for ${rootUrl}`, { ...meta, url: rootUrl });
+      let { width, rootUrl: url, meta } = options;
       let page;
+
+      this.log.debug(`Discovering resources @${width}px for ${url}`, { ...meta, url });
 
       try {
         // get a fresh page
-        page = await this.page({
-          cacheDisabled: true,
-          enableJavaScript,
-          requestHeaders,
-          authorization,
-          width,
-          meta
-        });
+        page = await this.page({ ...options, cacheDisabled: true });
 
         // set up request interception
-        page.network.onrequest = this._handleRequest({ meta, rootUrl, rootDom });
-        page.network.onrequestfinished = this._handleRequestFinished({ meta, rootUrl, onDiscovery });
-        page.network.onrequestfailed = this._handleRequestFailed({ meta });
+        page.network.onrequest = this._handleRequest(options);
+        page.network.onrequestfinished = this._handleRequestFinished(options);
+        page.network.onrequestfailed = this._handleRequestFailed(options);
         await page.network.intercept();
 
         // navigate to the root URL and wait for the network to idle
-        await page.goto(rootUrl);
+        await page.goto(url);
       } finally {
         // safely close the page
         await page?.close();
@@ -142,7 +87,7 @@ export default class PercyDiscoverer {
   // DOM for the root URL, respond with possible cached responses, skip resources that should not be
   // captured, and abort requests that result in an error.
   _handleRequest({ meta, rootUrl, rootDom }) {
-    let allowedHostnames = [hostname(rootUrl)].concat(this.allowedHostnames);
+    let rootHost = hostname(rootUrl);
 
     return async request => {
       let url = request.url;
@@ -155,13 +100,17 @@ export default class PercyDiscoverer {
           // root resource
           this.log.debug(`Serving root resource for ${url}`, meta);
           await request.respond({ status: 200, body: rootDom, headers: { 'content-type': 'text/html' } });
-        } else if (!this.disableCache && this.#cache.has(url)) {
+        } else if (!this.config.disableCache && this.#cache.has(url)) {
           // respond with cached response
           this.log.debug(`Response cache hit for ${url}`, meta);
           await request.respond(this.#cache.get(url).response);
         } else {
           // do not resolve resources that should not be captured
-          assert(allowedHostnames.some(h => domainMatch(h, url)), 'is remote', meta);
+          assert((
+            domainMatch(rootHost, url) ||
+            domainMatch(this.config.allowedHostnames, url)
+          ), 'is remote', meta);
+
           await request.continue();
         }
       } catch (error) {
@@ -190,7 +139,7 @@ export default class PercyDiscoverer {
 
       try {
         // process and cache the response and resource
-        if (this.disableCache || !this.#cache.has(url)) {
+        if (this.config.disableCache || !this.#cache.has(url)) {
           this.log.debug(`Processing resource - ${url}`, meta);
 
           // get and validate response
