@@ -86,7 +86,13 @@ export default class PercyDiscoverer {
   // Creates a request handler for the specific root URL and DOM. The handler will serve the root
   // DOM for the root URL, respond with possible cached responses, skip resources that should not be
   // captured, and abort requests that result in an error.
-  _handleRequest({ meta, rootUrl, rootDom }) {
+  _handleRequest({
+    meta,
+    rootUrl,
+    rootDom,
+    disableCache,
+    allowedHostnames
+  }) {
     let rootHost = hostname(rootUrl);
 
     return async request => {
@@ -100,7 +106,7 @@ export default class PercyDiscoverer {
           // root resource
           this.log.debug(`Serving root resource for ${url}`, meta);
           await request.respond({ status: 200, body: rootDom, headers: { 'content-type': 'text/html' } });
-        } else if (!this.config.disableCache && this.#cache.has(url)) {
+        } else if (!disableCache && !this.config.disableCache && this.#cache.has(url)) {
           // respond with cached response
           this.log.debug(`Response cache hit for ${url}`, meta);
           await request.respond(this.#cache.get(url).response);
@@ -108,6 +114,7 @@ export default class PercyDiscoverer {
           // do not resolve resources that should not be captured
           assert((
             domainMatch(rootHost, url) ||
+            domainMatch(allowedHostnames, url) ||
             domainMatch(this.config.allowedHostnames, url)
           ), 'is remote', meta);
 
@@ -128,7 +135,12 @@ export default class PercyDiscoverer {
 
   // Creates a request finished handler for a specific root URL to discover resolved resources. Both
   // the response and resource are cached for future snapshots and requests.
-  _handleRequestFinished({ meta, rootUrl, onDiscovery }) {
+  _handleRequestFinished({
+    meta,
+    rootUrl,
+    onDiscovery,
+    disableCache
+  }) {
     return async request => {
       let origin = request.redirectChain[0] || request;
       let url = normalizeURL(origin.url);
@@ -139,7 +151,7 @@ export default class PercyDiscoverer {
 
       try {
         // process and cache the response and resource
-        if (this.config.disableCache || !this.#cache.has(url)) {
+        if (disableCache || this.config.disableCache || !this.#cache.has(url)) {
           this.log.debug(`Processing resource - ${url}`, meta);
 
           // get and validate response
