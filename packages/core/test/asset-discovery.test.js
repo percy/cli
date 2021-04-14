@@ -283,6 +283,28 @@ describe('Asset Discovery', () => {
     ]));
   });
 
+  it('allows setting a custom discovery user-agent', async () => {
+    let userAgent;
+
+    server.reply('/img.gif', req => {
+      userAgent = req.headers['user-agent'];
+      return [200, 'image/gif', pixel];
+    });
+
+    await percy.snapshot({
+      name: 'test ua',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM,
+      discovery: { userAgent: 'fake/ua' }
+    });
+
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Snapshot taken: test ua'
+    ]));
+
+    expect(userAgent).toEqual('fake/ua');
+  });
+
   describe('resource caching', () => {
     let snapshot = async n => {
       await percy.snapshot({

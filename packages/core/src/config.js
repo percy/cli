@@ -51,6 +51,9 @@ export const schema = {
           password: { type: 'string' }
         }
       },
+      userAgent: {
+        type: 'string'
+      },
       concurrency: {
         type: 'integer'
       },
