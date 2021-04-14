@@ -28,6 +28,10 @@ export default class PercyDiscoverer {
     networkIdleTimeout,
     // disable resource caching, the cache is still used but overwritten for each resource
     disableCache,
+    // request headers such as auth tokens
+    requestHeaders,
+    // basic auth credentials
+    authorization,
     // browser launch options
     launchOptions
   }) {
@@ -38,6 +42,8 @@ export default class PercyDiscoverer {
       allowedHostnames,
       networkIdleTimeout,
       disableCache,
+      requestHeaders,
+      authorization,
       launchOptions
     });
   }
@@ -73,12 +79,12 @@ export default class PercyDiscoverer {
   }) {
     let page = await this.browser.page({ meta });
     page.network.timeout = this.networkIdleTimeout;
-    page.network.authorization = authorization;
+    page.network.authorization = { ...authorization, ...this.authorization };
 
     // set page options
     await Promise.all([
       page.send('Network.setCacheDisabled', { cacheDisabled }),
-      page.send('Network.setExtraHTTPHeaders', { headers: requestHeaders }),
+      page.send('Network.setExtraHTTPHeaders', { headers: { ...requestHeaders, ...this.requestHeaders } }),
       page.send('Security.setIgnoreCertificateErrors', { ignore: ignoreHTTPSErrors }),
       page.send('Emulation.setScriptExecutionDisabled', { value: !enableJavaScript }),
       page.send('Emulation.setDeviceMetricsOverride', { deviceScaleFactor, mobile, height, width })

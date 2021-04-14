@@ -15,10 +15,10 @@ const percyOptions: PercyOptions = {
     widths: [1280],
     minHeight: 1024,
     percyCSS: '.percy { color: purple; }',
-    requestHeaders: { Authorization: 'foobar' },
     enableJavaScript: false
   },
   discovery: {
+    requestHeaders: { Authorization: 'foobar' },
     allowedHostnames: ['*.percy.io'],
     networkIdleTimeout: 100,
     disableCache: false,
@@ -37,8 +37,8 @@ const percy = new Percy();
 expectType<Percy>(percy);
 expectType<Percy>(new Percy(percyOptions));
 // Percy.start()
-expectType<Percy>(await Percy.start());
-expectType<Percy>(await Percy.start(percyOptions));
+expectType<Promise<Percy>>(Percy.start());
+expectType<Promise<Percy>>(Percy.start(percyOptions));
 
 // #loglevel()
 expectType<'error' | 'warn' | 'info' | 'debug' | 'silent'>(percy.loglevel());
@@ -48,50 +48,53 @@ expectType<void>(percy.loglevel('error'));
 expectType<boolean>(percy.isRunning());
 
 // #start()
-expectType<void>(await percy.start());
+expectType<Promise<void>>(percy.start());
 // #stop()
-expectType<void>(await percy.stop());
+expectType<Promise<void>>(percy.stop());
 // #idle()
-expectType<void>(await percy.idle());
+expectType<Promise<void>>(percy.idle());
 
 // #snapshot()
-expectType<void>(await percy.snapshot({
+expectType<Promise<void>>(percy.snapshot({
   name: 'test snapshot',
   url: 'http://localhost:3000',
   domSnapshot: '...',
   widths: [1000],
   minHeight: 1000,
   percyCSS: '.foo { font-weight: 900; }',
-  requestHeaders: { 'x-testing': 'test' },
-  enableJavaScript: true
+  enableJavaScript: true,
+  discovery: {
+    authorization: { username: 'u', password: '*' },
+    requestHeaders: { 'x-testing': 'test' }
+  }
 }));
 
-expectType<void>(await percy.snapshot({
+expectType<Promise<void>>(percy.snapshot({
   name: 'test snapshot',
   url: 'http://localhost:3000',
   domSnapshot: '...'
 }));
 
-expectError(await percy.snapshot({
+expectError(percy.snapshot({
   name: 'test snapshot',
   url: 'http://localhost:3000',
   domSnapshot: '...',
   foo: true
 }));
 
-expectError(await percy.snapshot({
+expectError(percy.snapshot({
   name: 'test snapshot',
   url: 'http://localhost:3000'
 }));
 
-expectError(await percy.snapshot({
+expectError(percy.snapshot({
   name: 'test snapshot'
 }));
 
-expectError(await percy.snapshot());
+expectError(percy.snapshot());
 
 // #capture()
-expectType<void>(await percy.capture({
+expectType<Promise<void>>(percy.capture({
   name: 'test snapshot',
   url: 'http://localhost:3000',
   waitForTimeout: 1000,
@@ -104,16 +107,19 @@ expectType<void>(await percy.capture({
   widths: [1000],
   minHeight: 1000,
   percyCSS: '.foo { font-weight: 900; }',
-  requestHeaders: { 'x-testing': 'test' },
-  enableJavaScript: true
+  enableJavaScript: true,
+  discovery: {
+    authorization: { username: 'u', password: '*' },
+    requestHeaders: { 'x-testing': 'test' }
+  }
 }));
 
-expectType<void>(await percy.capture({
+expectType<Promise<void>>(percy.capture({
   name: 'test snapshot',
   url: 'http://localhost:3000'
 }))
 
-expectType<void>(await percy.capture({
+expectType<Promise<void>>(percy.capture({
   url: 'http://localhost:3000',
   snapshots: [{
     name: 'test snapshot',
@@ -121,26 +127,26 @@ expectType<void>(await percy.capture({
   }]
 }))
 
-expectError(await percy.capture({
+expectError(percy.capture({
   url: 'http://localhost:3000'
 }))
 
-expectError(await percy.capture({
+expectError(percy.capture({
   url: 'http://localhost:3000',
   snapshots: [{
     execute() {}
   }]
 }))
 
-expectError(await percy.capture({
+expectError(percy.capture({
   url: 'http://localhost:3000',
   snapshots: [{
     name: 'test snapshot'
   }]
 }))
 
-expectError(await percy.capture({
+expectError(percy.capture({
   name: 'test snapshot'
 }))
 
-expectError(await percy.capture())
+expectError(percy.capture())

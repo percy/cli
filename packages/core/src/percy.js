@@ -171,11 +171,11 @@ export default class Percy {
     widths,
     minHeight,
     percyCSS,
-    requestHeaders,
-    authorization,
     enableJavaScript,
     clientInfo,
-    environmentInfo
+    environmentInfo,
+    discovery = {},
+    ...deprecated
   }) {
     // required assertions
     assert(this.isRunning(), 'Not running');
@@ -194,10 +194,18 @@ export default class Percy {
     minHeight = minHeight ?? this.config.snapshot.minHeight;
     // combine snapshot Percy CSS with instance Percy CSS
     percyCSS = [this.config.snapshot.percyCSS, percyCSS].filter(Boolean).join('\n');
-    // combine snapshot request headers with instance request headers
-    requestHeaders = { ...this.config.snapshot.requestHeaders, ...requestHeaders };
     // fallback to instance enable JS flag
     enableJavaScript = enableJavaScript ?? this.config.snapshot.enableJavaScript ?? false;
+
+    // discovery options have moved
+    for (let k of ['authorization', 'requestHeaders']) {
+      if (deprecated[k]) {
+        this.log.warn(
+          `Warning: The snapshot option \`${k}\` will be removed in 1.0.0. ` +
+          `Use \`discovery.${k}\` instead.`);
+        discovery[k] = deprecated[k];
+      }
+    }
 
     // useful meta info for the logfile
     let meta = {
@@ -210,10 +218,11 @@ export default class Percy {
     this.log.debug(`-> name: ${name}`, meta);
     this.log.debug(`-> url: ${url}`, meta);
     this.log.debug(`-> widths: ${widths.join('px, ')}px`, meta);
+    this.log.debug(`-> minHeight: ${minHeight}px`, meta);
+    this.log.debug(`-> enableJavaScript: ${enableJavaScript}`, meta);
+    this.log.debug(`-> discovery: ${JSON.stringify(discovery)}`, meta);
     this.log.debug(`-> clientInfo: ${clientInfo}`, meta);
     this.log.debug(`-> environmentInfo: ${environmentInfo}`, meta);
-    this.log.debug(`-> requestHeaders: ${JSON.stringify(requestHeaders)}`, meta);
-    this.log.debug(`-> authorization: ${JSON.stringify(authorization)}`, meta);
     this.log.debug(`-> domSnapshot:\n${(
       domSnapshot.length <= 1024 ? domSnapshot
         : (domSnapshot.substr(0, 1024) + '... [truncated]')
@@ -232,12 +241,11 @@ export default class Percy {
       // gather resources at each width concurrently
       await Promise.all(widths.map(width => (
         this.discoverer.gatherResources({
+          ...discovery,
           onDiscovery: r => resources.set(r.url, r),
           rootUrl: url,
           rootDom: domSnapshot,
           enableJavaScript,
-          requestHeaders,
-          authorization,
           width,
           meta
         })
@@ -287,9 +295,12 @@ export default class Percy {
     // the entire capture process happens within the async capture queue
     return this.#captures.push(async () => {
       let meta = { snapshot: { name, waitForTimeout, waitForSelector } };
-      let { requestHeaders, authorization } = options;
       let results = [];
       let page;
+
+      // discovery options have moved, a warning will be logged during the snapshot phase
+      let { requestHeaders, authorization } = options;
+      options.discovery ||= { requestHeaders, authorization };
 
       this.log.debug('---------');
       this.log.debug('Handling page capture:', meta);
@@ -301,7 +312,7 @@ export default class Percy {
 
       try {
         // borrow a page from the discoverer
-        page = await this.discoverer.page({ requestHeaders, authorization });
+        page = await this.discoverer.page(options.discovery);
 
         // navigate to the page and wait until ready
         await page.goto(url, { waitForTimeout, waitForSelector });

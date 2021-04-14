@@ -1,13 +1,16 @@
+import logger from '@percy/logger/test/helpers';
 import { migration } from '../../src/config';
 
 describe('Unit / Config', () => {
   let mocked = {
     map: (...a) => mocked.migrate.map.push(a),
-    del: (...a) => mocked.migrate.del.push(a)
+    del: (...a) => mocked.migrate.del.push(a),
+    log: require('@percy/logger')('test')
   };
 
   beforeEach(() => {
     mocked.migrate = { map: [], del: [] };
+    logger.mock();
   });
 
   it('migrates v1 config', () => {
@@ -43,6 +46,28 @@ describe('Unit / Config', () => {
     // cacheResponse -> disabeCache map
     expect(mocked.migrate.map[2][2](true)).toEqual(false);
     expect(mocked.migrate.map[2][2](false)).toEqual(true);
+  });
+
+  it('logs for currently deprecated options', () => {
+    migration({
+      version: 2,
+      snapshot: {
+        authorization: {},
+        requestHeaders: {}
+      }
+    }, mocked);
+
+    expect(mocked.migrate.map).toEqual([
+      ['snapshot.authorization', 'discovery.authorization'],
+      ['snapshot.requestHeaders', 'discovery.requestHeaders']
+    ]);
+
+    expect(logger.stderr).toEqual([
+      '[percy] Warning: The config option `snapshot.authorization` ' +
+        'will be removed in 1.0.0. Use `discovery.authorization` instead.',
+      '[percy] Warning: The config option `snapshot.requestHeaders` ' +
+        'will be removed in 1.0.0. Use `discovery.requestHeaders` instead.'
+    ]);
   });
 
   it('does not migrate when not needed', () => {
