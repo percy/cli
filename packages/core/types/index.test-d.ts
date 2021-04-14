@@ -65,7 +65,9 @@ expectType<Promise<void>>(percy.snapshot({
   enableJavaScript: true,
   discovery: {
     authorization: { username: 'u', password: '*' },
-    requestHeaders: { 'x-testing': 'test' }
+    requestHeaders: { 'x-testing': 'test' },
+    allowedHostnames: ['foobar'],
+    disableCache: true
   }
 }));
 

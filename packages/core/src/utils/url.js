@@ -27,24 +27,30 @@ function domainCheck(domain, host, isWild) {
 }
 
 // Returns true or false if `url` matches the provided domain `pattern`.
-export function domainMatch(pattern, url) {
-  if (pattern === '*') {
-    return true;
-  } else if (!pattern) {
-    return false;
+export function domainMatch(patterns, url) {
+  for (let pattern of [].concat(patterns)) {
+    if (pattern === '*') {
+      return true;
+    } else if (!pattern) {
+      continue;
+    }
+
+    // check for wildcard patterns
+    let isWild = (pattern.indexOf('*.') === 0) || (pattern.indexOf('*/') === 0);
+    // get the pattern's domain and path prefix
+    let slashed = pattern.split('/');
+    let domain = isWild ? slashed.shift().substr(2) : slashed.shift();
+    let pathprefix = `/${slashed.join('/')}`;
+
+    // parse the provided URL
+    let { hostname, pathname } = new URL(url);
+
+    // check that the URL matches the pattern's domain and path prefix
+    if (domainCheck(domain, hostname, isWild) &&
+        pathname.indexOf(pathprefix) === 0) {
+      return true;
+    }
   }
 
-  // check for wildcard patterns
-  let isWild = (pattern.indexOf('*.') === 0) || (pattern.indexOf('*/') === 0);
-  // get the pattern's domain and path prefix
-  let slashed = pattern.split('/');
-  let domain = isWild ? slashed.shift().substr(2) : slashed.shift();
-  let pathprefix = `/${slashed.join('/')}`;
-
-  // parse the provided URL
-  let { hostname, pathname } = new URL(url);
-
-  // check that the URL matches the pattern's domain and path prefix
-  return domainCheck(domain, hostname, isWild) &&
-    pathname.indexOf(pathprefix) === 0;
+  return false;
 }
