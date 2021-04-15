@@ -45,12 +45,13 @@ The following options can also be defined within a Percy config file
   - `minHeight` — Minimum screenshot height (**default** `1024`)
   - `percyCSS` — Percy specific CSS to inject into the snapshot
   - `enableJavaScript` — Enable JavaScript for screenshots (**default** `false`)
-  - `requestHeaders` — Request headers used when discovering snapshot assets
-  - `authorization` — Basic auth `username` and `password` for protected snapshot assets
 - `discovery` — Asset discovery options
   - `allowedHostnames` — Array of allowed hostnames to capture assets from
-  - `networkIdleTimeout` — Milliseconds to wait for the network to idle (**default** `100`)
+  - `requestHeaders` — Request headers used when discovering snapshot assets
+  - `authorization` — Basic auth `username` and `password` for protected snapshot assets
   - `disableCache` — Disable asset caching (**default** `false`)
+  - `userAgent` — Custom user-agent string used when requesting assets
+  - `networkIdleTimeout` — Milliseconds to wait for the network to idle (**default** `100`)
   - `concurrency` — Asset discovery concerrency (**default** `5`)
   - `launchOptions` — Asset discovery browser launch options
     - `executable` — Browser executable path (**default** `process.env.PERCY_BROWSER_EXECUTABLE`)
@@ -121,9 +122,11 @@ percy.snapshot({
 - `domSnapshot` — Snapshot DOM string (**required**)
 - `clientInfo` — Additional client info
 - `environmentInfo` — Additional environment info
+- `discovery` - Limited snapshot specific discovery options
+  - `allowedHostnames`, `requestHeaders`, `authorization`, `disableCache`, `userAgent`
 
 Common snapshot options are also accepted and will override instance snapshot options. [See intance
-options](#options)
+options](#options) for common snapshot and discovery options.
 
 ### `#capture(options)`
 
