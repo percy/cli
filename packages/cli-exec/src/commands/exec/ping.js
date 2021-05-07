@@ -1,5 +1,5 @@
 import Command, { flags } from '@percy/cli-command';
-import { request } from '@percy/client/dist/utils';
+import request from '@percy/client/dist/request';
 import logger from '@percy/logger';
 import execFlags from '../../flags';
 
