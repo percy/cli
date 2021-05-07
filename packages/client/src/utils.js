@@ -1,5 +1,4 @@
 import crypto from 'crypto';
-import { URL } from 'url';
 
 // Returns a sha256 hash of a string.
 export function sha256hash(content) {
@@ -60,7 +59,7 @@ export function pool(generator, context, concurrency) {
 // will recursively call the function at the specified interval until retries
 // are exhausted, at which point the promise will reject with the last error
 // passed to `retry`.
-function retry(fn, { retries = 5, interval = 50 } = {}) {
+export function retry(fn, { retries = 5, interval = 50 } = {}) {
   return new Promise((resolve, reject) => {
     // run the function, decrement retries
     let run = () => {
@@ -82,78 +81,40 @@ function retry(fn, { retries = 5, interval = 50 } = {}) {
   });
 }
 
-// Returns the appropriate http or https module for a given URL.
-function httpModuleFor(url) {
-  return url.match(/^https:\/\//) ? require('https') : require('http');
-}
+// Returns true if the URL hostname matches any patterns
+export function hostnameMatches(patterns, url) {
+  let subject = new URL(url);
 
-// Returns the appropriate http or https Agent instance for a given URL.
-export function httpAgentFor(url) {
-  let { Agent } = httpModuleFor(url);
+  /* istanbul ignore next: only strings are provided internally by the client proxy; core (which
+   * borrows this util) sometimes provides an array of patterns or undefined */
+  patterns = typeof patterns === 'string'
+    ? patterns.split(/[\s,]+/)
+    : [].concat(patterns);
 
-  return new Agent({
-    keepAlive: true,
-    maxSockets: 5
-  });
-}
+  for (let pattern of patterns) {
+    if (pattern === '*') return true;
+    if (!pattern) continue;
 
-const RETRY_ERROR_CODES = [
-  'ECONNREFUSED', 'ECONNRESET', 'EPIPE',
-  'EHOSTUNREACH', 'EAI_AGAIN'
-];
+    // parse pattern
+    let { groups: rule } = pattern.match(
+      /^(?<hostname>.+?)(?::(?<port>\d+))?$/
+    );
 
-// Returns true or false if an error should cause the request to be retried
-function shouldRetryRequest(error) {
-  if (error.response) {
-    return error.response.status >= 500 && error.response.status < 600;
-  } else if (error.code) {
-    return RETRY_ERROR_CODES.includes(error.code);
-  } else {
-    return false;
+    // missing a hostname or ports do not match
+    if (!rule.hostname || (rule.port && rule.port !== subject.port)) {
+      continue;
+    }
+
+    // wildcards are treated the same as leading dots
+    rule.hostname = rule.hostname.replace(/^\*/, '');
+
+    // hostnames are equal or end with a wildcard rule
+    if (rule.hostname === subject.hostname ||
+        (rule.hostname.startsWith('.') &&
+         subject.hostname.endsWith(rule.hostname))) {
+      return true;
+    }
   }
-}
 
-// Returns a promise that resolves when the request is successful and rejects
-// when a non-successful response is received. The rejected error contains
-// response data and any received error details. Server 500 errors are retried
-// up to 5 times at 50ms intervals.
-export function request(url, { body, ...options }) {
-  let http = httpModuleFor(url);
-  let { protocol, hostname, port, pathname, search } = new URL(url);
-  options = { ...options, protocol, hostname, port, path: pathname + search };
-
-  return retry((resolve, reject, retry) => {
-    let handleError = error => {
-      return shouldRetryRequest(error)
-        ? retry(error) : reject(error);
-    };
-
-    http.request(options)
-      .on('response', res => {
-        let status = res.statusCode;
-        let raw = '';
-
-        res.setEncoding('utf8')
-          .on('data', chunk => (raw += chunk))
-          .on('error', handleError)
-          .on('end', () => {
-            let body = raw;
-            try { body = JSON.parse(raw); } catch (e) {}
-
-            if (status >= 200 && status < 300) {
-              resolve(body);
-            } else {
-              handleError(Object.assign(new Error(), {
-                response: { status, body },
-                // use first error detail or the status message
-                message: body?.errors?.find(e => e.detail)?.detail || (
-                  `${status} ${res.statusMessage || raw}`
-                )
-              }));
-            }
-          });
-      })
-      .on('error', handleError)
-      .end(body);
-  });
+  return false;
 }

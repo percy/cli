@@ -2,13 +2,8 @@ import PercyEnvironment from '@percy/env';
 import { git } from '@percy/env/dist/utils';
 import pkg from '../package.json';
 
-import {
-  sha256hash,
-  base64encode,
-  pool,
-  httpAgentFor,
-  request
-} from './utils';
+import { sha256hash, base64encode, pool } from './utils';
+import request, { ProxyHttpsAgent } from './request';
 
 // PercyClient is used to communicate with the Percy API to create and finalize
 // builds and snapshot. Uses @percy/env to collect environment information used
@@ -26,9 +21,9 @@ export default class PercyClient {
     Object.assign(this, {
       token,
       apiUrl,
-      httpAgent: httpAgentFor(apiUrl),
       clientInfo: new Set([].concat(clientInfo)),
       environmentInfo: new Set([].concat(environmentInfo)),
+      httpsAgent: new ProxyHttpsAgent({ keepAlive: true, maxSockets: 5 }),
       env: new PercyEnvironment(process.env),
       // build info is stored for reference
       build: { id: null, number: null, url: null }
@@ -81,7 +76,7 @@ export default class PercyClient {
   get(path) {
     return request(`${this.apiUrl}/${path}`, {
       method: 'GET',
-      agent: this.httpAgent,
+      agent: this.httpsAgent,
       headers: this.headers()
     });
   }
@@ -90,7 +85,7 @@ export default class PercyClient {
   post(path, body = {}) {
     return request(`${this.apiUrl}/${path}`, {
       method: 'POST',
-      agent: this.httpAgent,
+      agent: this.httpsAgent,
       body: JSON.stringify(body),
       headers: this.headers({
         'Content-Type': 'application/vnd.api+json'
