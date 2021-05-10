@@ -2,7 +2,7 @@ import logger from '@percy/logger';
 import Queue from '../queue';
 import assert from '../utils/assert';
 import { createLocalResource } from '../utils/resources';
-import { hostname, normalizeURL, domainMatch } from '../utils/url';
+import { hostname, normalizeURL, hostnameMatches } from '../utils/url';
 import Browser from './browser';
 
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
@@ -113,9 +113,9 @@ export default class PercyDiscoverer {
         } else {
           // do not resolve resources that should not be captured
           assert((
-            domainMatch(rootHost, url) ||
-            domainMatch(allowedHostnames, url) ||
-            domainMatch(this.config.allowedHostnames, url)
+            hostnameMatches(rootHost, url) ||
+            hostnameMatches(allowedHostnames, url) ||
+            hostnameMatches(this.config.allowedHostnames, url)
           ), 'is remote', meta);
 
           await request.continue();

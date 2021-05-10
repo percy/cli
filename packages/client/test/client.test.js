@@ -18,21 +18,6 @@ describe('PercyClient', () => {
     mock.stopAll();
   });
 
-  it('uses the correct http agent determined by the apiUrl', () => {
-    let httpsAgent = require('https').Agent;
-    let httpAgent = require('http').Agent;
-
-    expect(client.httpAgent).toBeInstanceOf(httpsAgent);
-
-    client = new PercyClient({
-      token: 'PERCY_AGENT',
-      apiUrl: 'http://localhost'
-    });
-
-    expect(client.httpAgent).not.toBeInstanceOf(httpsAgent);
-    expect(client.httpAgent).toBeInstanceOf(httpAgent);
-  });
-
   describe('#userAgent()', () => {
     it('contains client and environment information', () => {
       expect(client.userAgent()).toMatch(
