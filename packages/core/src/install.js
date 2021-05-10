@@ -24,13 +24,13 @@ function installChromium({
       linux: `Linux_x64/${revision}/chrome-linux.zip`,
       darwin: `Mac/${revision}/chrome-mac.zip`,
       win64: `Win_x64/${revision}/chrome-win.zip`,
-      win32: `Win/${revision}/chrome-win32.zip`
+      win32: `Win/${revision}/chrome-win.zip`
     });
 
   let executable = selectByPlatform({
     linux: path.join('chrome-linux', 'chrome'),
     win64: path.join('chrome-win', 'chrome.exe'),
-    win32: path.join('chrome-win32', 'chrome.exe'),
+    win32: path.join('chrome-win', 'chrome.exe'),
     darwin: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')
   });
 
