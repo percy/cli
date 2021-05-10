@@ -1,6 +1,6 @@
 {
   "name": "@percy/config",
-  "version": "1.0.0-beta.48",
+  "version": "1.0.0-beta.49",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "types/index.d.ts",
@@ -22,7 +22,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@percy/logger": "^1.0.0-beta.48",
+    "@percy/logger": "^1.0.0-beta.49",
     "ajv": "^8.0.5",
     "cosmiconfig": "^7.0.0",
     "yaml": "^1.10.0"
