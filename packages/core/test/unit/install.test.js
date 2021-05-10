@@ -171,8 +171,8 @@ describe('Unit / Install', () => {
       },
       win32: {
         revision: install.chromium.revisions.win32,
-        url: jasmine.stringMatching(`Win/${install.chromium.revisions.win32}/chrome-win32.zip`),
-        return: path.join('chrome-win32', 'chrome.exe')
+        url: jasmine.stringMatching(`Win/${install.chromium.revisions.win32}/chrome-win.zip`),
+        return: path.join('chrome-win', 'chrome.exe')
       }
     })) {
       it(`downloads the correct files for ${platform}`, async () => {
