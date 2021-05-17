@@ -2243,9 +2243,9 @@ ajv@^7.0.2:
     uri-js "^4.2.2"
 
 ajv@^8.0.5:
-  version "8.2.0"
-  resolved "https://registry.yarnpkg.com/ajv/-/ajv-8.2.0.tgz#c89d3380a784ce81b2085f48811c4c101df4c602"
-  integrity sha512-WSNGFuyWd//XO8n/m/EaOlNLtO0yL8EXT/74LqT4khdhpZjP7lkj/kT5uwRmGitKEVp/Oj7ZUHeGfPtgHhQ5CA==
+  version "8.4.0"
+  resolved "https://registry.yarnpkg.com/ajv/-/ajv-8.4.0.tgz#48984fdb2ce225cab15795f0772a8d85669075e4"
+  integrity sha512-7QD2l6+KBSLwf+7MuYocbWvRPdOu63/trReTLu2KFwkgctnub1auoF+Y1WYcm09CTM7quuscrzqmASaLHC/K4Q==
   dependencies:
     fast-deep-equal "^3.1.1"
     json-schema-traverse "^1.0.0"
@@ -3597,10 +3597,10 @@ dot-prop@^6.0.1:
   dependencies:
     is-obj "^2.0.0"
 
-dotenv@^8.2.0:
-  version "8.2.0"
-  resolved "https://registry.yarnpkg.com/dotenv/-/dotenv-8.2.0.tgz#97e619259ada750eea3e4ea3e26bceea5424b16a"
-  integrity sha512-8sJ78ElpbDJBHNeBzUbUVLsqKdccaa/BXF1uPTw3GrvQTBgrQrtObr2mUrE38vzYd8cEv+m/JBfDLioYcfXoaw==
+dotenv@^9.0.2:
+  version "9.0.2"
+  resolved "https://registry.yarnpkg.com/dotenv/-/dotenv-9.0.2.tgz#dacc20160935a37dea6364aa1bef819fb9b6ab05"
+  integrity sha512-I9OvvrHp4pIARv4+x9iuewrWycX6CcZtoAu1XrzPxc5UygMJXJZYmBsynku8IkrJwgypE5DGNjDPmPRhDCptUg==
 
 duplexer3@^0.1.4:
   version "0.1.4"
@@ -8564,10 +8564,10 @@ tsconfig-paths@^3.9.0:
     minimist "^1.2.0"
     strip-bom "^3.0.0"
 
-tsd@^0.14.0:
-  version "0.14.0"
-  resolved "https://registry.yarnpkg.com/tsd/-/tsd-0.14.0.tgz#9bd1c93e925408846949d59fe4754655749a5f2b"
-  integrity sha512-fl1gS5orAwqIb0P2xMdppgCrwv1BfCJn67wBzRBCV9OUaWHVXHqiIqL6yX/519xFgT1ZOaLMhr5W9XDo8kuuRA==
+tsd@^0.15.1:
+  version "0.15.1"
+  resolved "https://registry.yarnpkg.com/tsd/-/tsd-0.15.1.tgz#d0c733c623d59de52f180ae7af66a1fde9e6c533"
+  integrity sha512-8ADO2rPntfNiJV4KiqJiiiitfkXLxCbKEFN672JgwNiaEIuiyurTc1+w3InZ+0DqBz73B6Z3UflZcNGw5xMaDA==
   dependencies:
     eslint-formatter-pretty "^4.0.0"
     globby "^11.0.1"
