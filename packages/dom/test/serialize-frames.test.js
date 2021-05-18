@@ -22,6 +22,10 @@ describe('serializeFrames', () => {
         this.document.body.innerHTML = '<p>made with js src</p>'
       )"></iframe>
       <iframe id="frame-js-no-src"></iframe>
+      <iframe id="frame-empty" srcdoc="<input/>"></iframe>
+      <iframe id="frame-empty-self" src="javascript:void(
+        Object.defineProperty(this.document, 'documentElement', { value: null })
+      )"></iframe>
     `);
 
     let $frameInput = await getFrame('frame-input');
@@ -29,6 +33,10 @@ describe('serializeFrames', () => {
 
     let $frameJS = await getFrame('frame-js-no-src');
     $frameJS.contentDocument.body.innerHTML = '<p>generated iframe</p>';
+
+    let $frameEmpty = await getFrame('frame-empty');
+    await I.type(() => $frameEmpty.contentDocument.querySelector('input'), 'no document element');
+    Object.defineProperty($frameEmpty.contentDocument, 'documentElement', { value: null });
 
     let $frameHead = document.createElement('iframe');
     $frameHead.id = 'frame-head';
@@ -86,6 +94,12 @@ describe('serializeFrames', () => {
     expect($('#frame-js')[0].getAttribute('src')).not.toBeNull();
     expect($('#frame-js')[0].getAttribute('srcdoc')).toBeNull();
     expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toBeNull();
+  });
+
+  it('does not serialize iframes without document elements', () => {
+    expect($('#frame-empty')[0]).toBeDefined();
+    expect($('#frame-empty')[0].getAttribute('srcdoc')).toBe('<input/>');
+    expect($('#frame-empty-self')).toHaveSize(0);
   });
 
   it('removes iframes from the head element', () => {

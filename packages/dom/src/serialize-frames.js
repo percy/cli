@@ -12,13 +12,13 @@ export default function serializeFrames(dom, clone, { enableJavaScript }) {
     if (clone.head.contains(cloneEl)) {
       cloneEl.remove();
 
-    // if the frame document is accessible, we can serialize it
-    } else if (frame.contentDocument) {
+    // if the frame document is accessible and not empty, we can serialize it
+    } else if (frame.contentDocument && frame.contentDocument.documentElement) {
       // js is enabled and this frame was built with js, don't serialize it
-      if (enableJavaScript && builtWithJs) { continue; }
+      if (enableJavaScript && builtWithJs) continue;
 
       // the frame has yet to load and wasn't built with js, it is unsafe to serialize
-      if (!builtWithJs && !frame.contentWindow.performance.timing.loadEventEnd) { continue; }
+      if (!builtWithJs && !frame.contentWindow.performance.timing.loadEventEnd) continue;
 
       // recersively serialize contents
       let serialized = serializeDOM({
