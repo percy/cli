@@ -125,7 +125,7 @@ percy.snapshot({
 - `discovery` - Limited snapshot specific discovery options
   - `allowedHostnames`, `requestHeaders`, `authorization`, `disableCache`, `userAgent`
 
-Common snapshot options are also accepted and will override instance snapshot options. [See intance
+Common snapshot options are also accepted and will override instance snapshot options. [See instance
 options](#options) for common snapshot and discovery options.
 
 ### `#capture(options)`
@@ -164,7 +164,7 @@ percy.capture({
   - `name` — Snapshot name (**required**)
   - `execute` — Function or function body to execute
 
-Common snapshot options are also accepted and will override instance snapshot options. [See intance
+Common snapshot options are also accepted and will override instance snapshot options. [See instance
 options](#options)
 
 ## Advanced
