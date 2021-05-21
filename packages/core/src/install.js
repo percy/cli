@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import https from 'https';
 import logger from '@percy/logger';
+import { ProxyHttpsAgent } from '@percy/client/dist/request';
 import readableBytes from './utils/bytes';
 
 // Returns an item from the map keyed by the current platform
@@ -75,7 +76,9 @@ async function install({
       await fs.promises.mkdir(outdir, { recursive: true });
 
       // download the file at the given URL
-      await new Promise((resolve, reject) => https.get(url, response => {
+      await new Promise((resolve, reject) => https.get(url, {
+        agent: new ProxyHttpsAgent() // allow proxied requests
+      }, response => {
         // on failure, resume the response before rejecting
         if (response.statusCode !== 200) {
           response.resume();
