@@ -90,10 +90,9 @@ export class ProxyHttpsAgent extends https.Agent {
     };
 
     // write proxy connect message to the socket
-    let connectMessage = [
-      `CONNECT ${uri.host} HTTP/1.1`,
-      `Host: ${uri.host}`
-    ];
+    /* istanbul ignore next: port is always present for localhost tests */
+    let host = `${uri.hostname}:${uri.port || 443}`;
+    let connectMessage = [`CONNECT ${host} HTTP/1.1`, `Host: ${host}`];
 
     if (proxy.username) {
       let auth = proxy.username;
