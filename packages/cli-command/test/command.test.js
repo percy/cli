@@ -131,6 +131,7 @@ describe('PercyCommand', () => {
 
       expect(results[0].percyrc()).toEqual({
         version: 2,
+        config: false,
         snapshot: {
           widths: [375, 1280],
           minHeight: 1024,
