@@ -129,7 +129,7 @@ function shouldRetryRequest(error) {
 // when a non-successful response is received. The rejected error contains
 // response data and any received error details. Server 500 errors are retried
 // up to 5 times at 50ms intervals.
-export default function request(url, { body, retries, interval, ...options } = {}) {
+export default function request(url, { body, retries, interval, ...options }) {
   /* istanbul ignore next: the client api is https only, but this helper is borrowed in some
    * cli-exec commands for its retryability with the internal api */
   let { request } = url.startsWith('https:') ? https : http;
