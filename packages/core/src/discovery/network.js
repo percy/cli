@@ -17,6 +17,7 @@ export default class Network {
     this.page.on('Fetch.requestPaused', this._handleRequestPaused);
     this.page.on('Network.requestWillBeSent', this._handleRequestWillBeSent);
     this.page.on('Network.responseReceived', this._handleResponseReceived);
+    this.page.on('Network.eventSourceMessageReceived', this._handleEventSourceMessageReceived);
     this.page.on('Network.loadingFinished', this._handleLoadingFinished);
     this.page.on('Network.loadingFailed', this._handleLoadingFailed);
     this.page.send('Network.enable');
@@ -159,6 +160,18 @@ export default class Network {
       let { body, base64Encoded } = await this.page.send('Network.getResponseBody', { requestId });
       return Buffer.from(body, base64Encoded ? 'base64' : 'utf8');
     };
+  }
+
+  // Called when a request streams events. These types of requests break asset discovery because
+  // they never finish loading, so we untrack them to signal idle after the first event.
+  _handleEventSourceMessageReceived = event => {
+    let { requestId } = event;
+    let request = this.#requests.get(requestId);
+    /* istanbul ignore next: race condition paranioa */
+    if (!request) return;
+
+    this.#requests.delete(requestId);
+    this.#authentications.delete(request.interceptId);
   }
 
   // Called when a request has finished loading which triggers the this.onrequestfinished
