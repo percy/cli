@@ -59,7 +59,7 @@ export function pool(generator, context, concurrency) {
 // will recursively call the function at the specified interval until retries
 // are exhausted, at which point the promise will reject with the last error
 // passed to `retry`.
-export function retry(fn, { retries = 5, interval = 50 } = {}) {
+export function retry(fn, { retries = 5, interval = 50 }) {
   return new Promise((resolve, reject) => {
     // run the function, decrement retries
     let run = () => {
