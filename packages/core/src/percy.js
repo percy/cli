@@ -305,7 +305,7 @@ export default class Percy {
       this.log.debug('---------');
       this.log.debug('Handling page capture:', meta);
       this.log.debug(`-> url: ${url}`, meta);
-      this.log.debug(`-> name: ${url}`, meta);
+      this.log.debug(`-> name: ${name}`, meta);
       this.log.debug(`-> waitForTimeout: ${waitForTimeout}`, meta);
       this.log.debug(`-> waitForSelector: ${waitForSelector}`, meta);
       this.log.debug(`-> execute: ${execute}`, meta);
