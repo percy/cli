@@ -153,6 +153,52 @@ describe('Asset Discovery', () => {
     ]));
   });
 
+  it('does not capture event-stream reqeusts', async () => {
+    let eventStreamDOM = dedent`<!DOCTYPE html><html><head></head><body><script>
+      new EventSource('/event-stream').onmessage = event => {
+        let p = document.createElement('p');
+        p.textContent = event.data;
+        document.body.appendChild(p);
+      };
+    </script></body></html>`;
+
+    server.reply('/events', () => [200, 'text/html', eventStreamDOM]);
+    server.reply('/event-stream', (req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      // network idle should wait for the first event, so delay it to make sure
+      setTimeout(() => res.write('data: This came from a server-sent event\n\n'), 1000);
+    });
+
+    // use capture here to test that the first event modifies the dom
+    await percy.capture({
+      name: 'test event snapshot',
+      url: 'http://localhost:8000/events',
+      enableJavaScript: true
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        // the dom should have been captured after the first event
+        id: sha256hash(eventStreamDOM.replace('</body>', (
+          '<p>This came from a server-sent event</p></body>'))),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/events'
+        })
+      })
+    ]));
+
+    // the event stream request is not captured
+    expect(captured[0]).not.toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/event-stream'
+        })
+      })
+    ]));
+  });
+
   it('follows redirects', async () => {
     server.reply('/stylesheet.css', () => [301, { Location: '/style.css' }]);
 

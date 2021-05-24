@@ -5,8 +5,9 @@ import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
 import pkg from '../package.json';
 
-async function getReply({ version, routes }, request) {
-  let route = routes[request.url] || routes.default;
+async function getReply({ version, routes }, request, response) {
+  let [url] = request.url.split('?');
+  let route = routes[url] || routes.default;
   let reply;
 
   // cors preflight
@@ -18,10 +19,13 @@ async function getReply({ version, routes }, request) {
     if (allowed?.length) reply[1]['Access-Control-Allow-Headers'] = allowed;
   } else {
     reply = await Promise.resolve()
-      .then(() => routes.middleware?.(request))
-      .then(() => route?.(request))
+      .then(() => routes.middleware?.(request, response))
+      .then(() => route?.(request, response))
       .catch(routes.catch);
   }
+
+  // response was handled
+  if (response.headersSent) return [];
 
   // default 404 when reply is not an array
   let [status, headers, body] = Array.isArray(reply) ? reply : [404, {}];
@@ -58,8 +62,8 @@ export function createServer(routes) {
 
     request.on('end', async () => {
       try { request.body = JSON.parse(request.body); } catch (e) {}
-      let [status, headers, body] = await getReply(context, request);
-      response.writeHead(status, headers).end(body);
+      let [status, headers, body] = await getReply(context, request, response);
+      if (!response.headersSent) response.writeHead(status, headers).end(body);
     });
   });
 
