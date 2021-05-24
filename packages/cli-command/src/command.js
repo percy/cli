@@ -59,9 +59,14 @@ export default class PercyCommand extends Command {
     ), {});
 
     // will also validate config and log warnings
-    return PercyConfig.load({
+    let config = PercyConfig.load({
       path: this.flags.config,
       overrides
+    });
+
+    // set config: false to prevent core from reloading config
+    return Object.assign(config, {
+      config: false
     });
   }
 }
