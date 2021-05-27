@@ -115,9 +115,11 @@ export class ProxyHttpsAgent extends https.Agent {
 }
 
 // Returns true or false if an error should cause the request to be retried
-function shouldRetryRequest(error) {
+function shouldRetryRequest(error, retryNotFound) {
   if (error.response) {
-    return error.response.status >= 500 && error.response.status < 600;
+    /* istanbul ignore next: client does not retry 404s, but other internal libs may want to */
+    return (!!retryNotFound && error.response.status === 404) ||
+      (error.response.status >= 500 && error.response.status < 600);
   } else if (error.code) {
     return RETRY_ERROR_CODES.includes(error.code);
   } else {
@@ -129,7 +131,7 @@ function shouldRetryRequest(error) {
 // when a non-successful response is received. The rejected error contains
 // response data and any received error details. Server 500 errors are retried
 // up to 5 times at 50ms intervals.
-export default function request(url, { body, retries, interval, ...options }) {
+export default function request(url, { body, retries, retryNotFound, interval, ...options }) {
   /* istanbul ignore next: the client api is https only, but this helper is borrowed in some
    * cli-exec commands for its retryability with the internal api */
   let { request } = url.startsWith('https:') ? https : http;
@@ -138,7 +140,7 @@ export default function request(url, { body, retries, interval, ...options }) {
 
   return retry((resolve, reject, retry) => {
     let handleError = error => {
-      return shouldRetryRequest(error)
+      return shouldRetryRequest(error, retryNotFound)
         ? retry(error) : reject(error);
     };
 
