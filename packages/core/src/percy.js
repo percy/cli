@@ -238,18 +238,16 @@ export default class Percy {
       // include the Percy CSS resource if there was one
       if (percyCSSResource) resources.set('percy-css', percyCSSResource);
 
-      // gather resources at each width concurrently
-      await Promise.all(widths.map(width => (
-        this.discoverer.gatherResources({
-          ...discovery,
-          onDiscovery: r => resources.set(r.url, r),
-          rootUrl: url,
-          rootDom: domSnapshot,
-          enableJavaScript,
-          width,
-          meta
-        })
-      )));
+      // gather resources using asset discovery
+      await this.discoverer.gatherResources({
+        ...discovery,
+        onDiscovery: r => resources.set(r.url, r),
+        rootUrl: url,
+        rootDom: domSnapshot,
+        enableJavaScript,
+        widths,
+        meta
+      });
 
       // include a log resource for debugging
       let logs = logger.query(({ meta }) => meta.snapshot?.name === name);

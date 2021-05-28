@@ -1,5 +1,4 @@
 import logger from '@percy/logger';
-import Queue from '../queue';
 import assert from '../utils/assert';
 import { createLocalResource } from '../utils/resources';
 import { hostname, normalizeURL, hostnameMatches } from '../utils/url';
@@ -12,14 +11,12 @@ const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 // additional allowed hostnames are defined. Captured resources are cached so future requests
 // resolve much quicker and snapshots can share cached resources.
 export default class PercyDiscoverer {
-  queue = null;
-  browser = null;
   log = logger('core:discovery');
+  browser = null;
 
   #cache = new Map();
 
-  constructor({ concurrency = 5, ...config }) {
-    this.queue = new Queue(concurrency);
+  constructor(config) {
     this.browser = new Browser();
     this.config = config;
   }
@@ -36,7 +33,6 @@ export default class PercyDiscoverer {
 
   // Clears any unstarted discovery tasks and closes the browser.
   async close() {
-    this.queue.clear();
     await this.browser.close();
   }
 
@@ -54,33 +50,43 @@ export default class PercyDiscoverer {
 
   // Gathers resources for a root URL and DOM. The `onDiscovery` callback will be called whenever an
   // asset is requested. The returned promise resolves when asset discovery finishes.
-  gatherResources(options) {
+  async gatherResources({ widths, ...options }) {
     assert(this.isConnected(), 'Browser not connected');
 
-    // discover assets concurrently
-    return this.queue.push(async () => {
-      let { width, rootUrl: url, meta } = options;
-      let page;
+    widths = [...widths].sort((a, b) => a - b);
+    let { rootUrl: url, meta } = options;
+    let page;
 
-      this.log.debug(`Discovering resources @${width}px for ${url}`, { ...meta, url });
+    this.log.debug(`Discovering resources for ${url}`, { ...meta, url });
 
-      try {
-        // get a fresh page
-        page = await this.page({ ...options, cacheDisabled: true });
+    try {
+      // get a fresh page
+      page = await this.page({
+        ...options,
+        width: widths.shift(),
+        cacheDisabled: true
+      });
 
-        // set up request interception
-        page.network.onrequest = this._handleRequest(options);
-        page.network.onrequestfinished = this._handleRequestFinished(options);
-        page.network.onrequestfailed = this._handleRequestFailed(options);
-        await page.network.intercept();
+      // set up request interception
+      page.network.onrequest = this._handleRequest(options);
+      page.network.onrequestfinished = this._handleRequestFinished(options);
+      page.network.onrequestfailed = this._handleRequestFailed(options);
+      await page.network.intercept();
 
-        // navigate to the root URL and wait for the network to idle
-        await page.goto(url);
-      } finally {
-        // safely close the page
-        await page?.close();
+      // navigate to the root URL without waiting for the network to idle
+      await page.goto(url, { waitForNetworkIdle: false });
+
+      // resize the page serially to trigger any requests from media queries
+      for (let width of widths) {
+        await page.resize({ width });
       }
-    });
+
+      // wait for network idle after resizing
+      await page.network.idle();
+    } finally {
+      // safely close the page
+      await page?.close();
+    }
   }
 
   // Creates a request handler for the specific root URL and DOM. The handler will serve the root

@@ -40,8 +40,8 @@ export default class Page extends EventEmitter {
     requestHeaders,
     authorization,
     userAgent,
-    height = 1024,
-    width = 1280,
+    height,
+    width,
     meta
   }) {
     this.log.debug('Initialize page', meta);
@@ -67,12 +67,7 @@ export default class Page extends EventEmitter {
       this.send('Network.setUserAgentOverride', { userAgent }),
       this.send('Security.setIgnoreCertificateErrors', { ignore: true }),
       this.send('Emulation.setScriptExecutionDisabled', { value: !enableJavaScript }),
-      this.send('Emulation.setDeviceMetricsOverride', {
-        deviceScaleFactor: 1,
-        mobile: false,
-        height,
-        width
-      })
+      this.resize({ width, height })
     ]);
 
     return this;
@@ -87,10 +82,25 @@ export default class Page extends EventEmitter {
     });
   }
 
+  async resize({
+    deviceScaleFactor = 1,
+    mobile = false,
+    height = 1024,
+    width = 1280
+  }) {
+    await this.send('Emulation.setDeviceMetricsOverride', {
+      deviceScaleFactor,
+      mobile,
+      height,
+      width
+    });
+  }
+
   // Go to a URL and wait for navigation to occur
   async goto(url, {
     timeout = 30000,
     waitUntil = 'load',
+    waitForNetworkIdle = true,
     waitForTimeout,
     waitForSelector
   } = {}) {
@@ -123,8 +133,11 @@ export default class Page extends EventEmitter {
     }
 
     this.log.debug('Page navigated', this.meta);
+
     // wait for the network to idle
-    await this.network.idle();
+    if (waitForNetworkIdle) {
+      await this.network.idle();
+    }
 
     // wait for any specified timeout
     if (waitForTimeout) {

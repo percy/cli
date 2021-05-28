@@ -351,6 +351,54 @@ describe('Asset Discovery', () => {
     expect(userAgent).toEqual('fake/ua');
   });
 
+  it('captures responsive assets', async () => {
+    testDOM = dedent`
+      <html>
+      <head><link href="style.css" rel="stylesheet"/></head>
+      <body>
+        <p>Hello Percy!<p>
+        <img srcset="/img-400w.gif 400w, /img-800w.gif 800w"
+             sizes="(max-width: 600px) 400px, 800px"
+             src="/img-800w.gif">
+      </body>
+      </html>
+    `;
+
+    testCSS = dedent`
+      body { background: url('/img-bg-1.gif'); }
+      @media (max-width: 600px) {
+        body { background: url('/img-bg-2.gif'); }
+      }
+    `;
+
+    server.reply('/img-400w.gif', () => [200, 'image/gif', pixel]);
+    server.reply('/img-800w.gif', () => [200, 'image/gif', pixel]);
+    server.reply('/img-bg-1.gif', () => [200, 'image/gif', pixel]);
+    server.reply('/img-bg-2.gif', () => [200, 'image/gif', pixel]);
+
+    await percy.snapshot({
+      name: 'test responsive',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM,
+      widths: [400, 1200]
+    });
+
+    await percy.idle();
+
+    let resource = path => jasmine.objectContaining({
+      attributes: jasmine.objectContaining({
+        'resource-url': `http://localhost:8000${path}`
+      })
+    });
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      resource('/img-400w.gif'),
+      resource('/img-800w.gif'),
+      resource('/img-bg-1.gif'),
+      resource('/img-bg-2.gif')
+    ]));
+  });
+
   describe('resource caching', () => {
     let snapshot = async n => {
       await percy.snapshot({
