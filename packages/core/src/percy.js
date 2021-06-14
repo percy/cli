@@ -197,7 +197,10 @@ export default class Percy {
     await this.server?.close();
     await this.browser.close();
 
-    if (this.build) {
+    if (this.build?.failed) {
+      // do not finalize failed builds
+      this.log.warn(`Build #${this.build.number} failed: ${this.build.url}`, meta);
+    } else if (this.build) {
       // finalize the build
       await this.client.finalizeBuild(this.build.id);
       this.log.info(`Finalized build #${this.build.number}: ${this.build.url}`, meta);
@@ -357,8 +360,19 @@ export default class Percy {
         });
       } catch (error) {
         let meta = { snapshot: { name }, build: this.build };
+        let failed = error.response?.status === 422 && (
+          error.response.body.errors.find(e => (
+            e.source?.pointer === '/data/attributes/build'
+          )));
+
         this.log.error(`Encountered an error uploading snapshot: ${name}`, meta);
-        this.log.error(error);
+        this.log.error(failed?.detail ?? error, meta);
+
+        // build failed at some point, stop accepting snapshots
+        if (failed) {
+          this.build.failed = true;
+          this.close();
+        }
       }
     });
   }

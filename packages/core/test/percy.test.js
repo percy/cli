@@ -337,6 +337,33 @@ describe('Percy', () => {
       expect(percy.server.listening).toBe(false);
       expect(percy.browser.isConnected()).toBe(false);
     });
+
+    it('logs when the build has failed upstream', async () => {
+      mockAPI.reply('/builds/123/snapshots', () => [422, {
+        errors: [
+          { detail: 'Cannot create snapshot in failed builds' },
+          { detail: 'Build has failed', source: { pointer: '/data/attributes/build' } }
+        ]
+      }]);
+
+      // does not fail on upstream errors
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>'
+      });
+
+      await expectAsync(percy.stop()).toBeResolved();
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: test snapshot'
+      ]));
+      expect(logger.stderr).toEqual([
+        '[percy] Encountered an error uploading snapshot: test snapshot',
+        '[percy] Build has failed',
+        '[percy] Build #1 failed: https://percy.io/test/test/123'
+      ]);
+    });
   });
 
   describe('#idle()', () => {
