@@ -3,6 +3,7 @@ import net from 'net';
 import tls from 'tls';
 import http from 'http';
 import https from 'https';
+import logger from '@percy/logger';
 import { retry, hostnameMatches } from './utils';
 
 const CRLF = '\r\n';
@@ -105,6 +106,8 @@ export class ProxyHttpsAgent extends https.Agent {
 
     connectMessage = connectMessage.join(CRLF);
     connectMessage += CRLF.repeat(2);
+
+    logger('client:proxy').debug(`Proxying request: ${options.href}`);
 
     socket
       .on('error', handleError)
