@@ -116,6 +116,13 @@ describe('SDK Utils', () => {
         log: ['testing:utils', 'info', 'Test remote logging', { remote: true }]
       })]);
     });
+
+    it('returns false if a snapshot is sent when the API is closed', async () => {
+      await helpers.testFailure('/percy/snapshot', 'Closed');
+      await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
+      await expectAsync(utils.postSnapshot({})).toBeResolved();
+      await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
+    });
   });
 
   describe('fetchPercyDOM()', () => {
@@ -152,6 +159,13 @@ describe('SDK Utils', () => {
     it('throws when the snapshot API fails', async () => {
       await helpers.testFailure('/percy/snapshot', 'foobar');
       await expectAsync(postSnapshot({})).toBeRejectedWithError('foobar');
+    });
+
+    it('disables snapshots when the API is closed', async () => {
+      utils.percy.enabled = true;
+      await helpers.testFailure('/percy/snapshot', 'Closed');
+      await expectAsync(postSnapshot({})).toBeResolved();
+      expect(utils.percy.enabled).toEqual(false);
     });
   });
 });
