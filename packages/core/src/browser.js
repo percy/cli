@@ -6,7 +6,7 @@ import EventEmitter from 'events';
 import WebSocket from 'ws';
 import rimraf from 'rimraf';
 import logger from '@percy/logger';
-import install from '../install';
+import install from './install';
 import Page from './page';
 
 export default class Browser extends EventEmitter {

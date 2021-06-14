@@ -1,5 +1,10 @@
 import logger from '@percy/logger';
-import waitFor from '../utils/wait-for';
+import { waitFor } from './utils';
+import {
+  createRequestHandler,
+  createRequestFinishedHandler,
+  createRequestFailedHandler
+} from './discovery';
 
 // The Interceptor class creates common handlers for dealing with intercepting asset requests
 // for a given page using various devtools protocol events and commands.
@@ -23,10 +28,14 @@ export default class Network {
     this.page.send('Network.enable');
   }
 
-  async intercept() {
+  // Enable request interception
+  async intercept(options) {
     this._intercept = true;
 
-    // enable request interception
+    this.onrequest = createRequestHandler(options, this.page.meta);
+    this.onrequestfinished = createRequestFinishedHandler(options, this.page.meta);
+    this.onrequestfailed = createRequestFailedHandler(options, this.page.meta);
+
     await this.page.send('Fetch.enable', {
       handleAuthRequests: true,
       patterns: [{ urlPattern: '*' }]
@@ -34,7 +43,7 @@ export default class Network {
   }
 
   // Resolves after the timeout when there are no more in-flight requests.
-  async idle(timeout = this.timeout) {
+  async idle(timeout = this.timeout || 100) {
     this.log.debug(`Wait for ${timeout}ms idle`, this.page.meta);
 
     await waitFor(() => {
@@ -52,8 +61,8 @@ export default class Network {
   // Called when a request requires authentication. Responds to the auth request with any
   // provided authorization credentials.
   _handleAuthRequired = async event => {
+    let { username, password } = this.authorization ?? {};
     let { requestId } = event;
-    let { username, password } = this.authorization;
     let response = 'Default';
 
     if (this.#authentications.has(requestId)) {
@@ -129,19 +138,21 @@ export default class Network {
         continue: () => this.page.send('Fetch.continueRequest', {
           requestId: interceptId
         }),
-        // call to respond with a specific status, body, and headers
-        respond: payload => this.page.send('Fetch.fulfillRequest', {
+        // call to respond with a specific status, content, and headers
+        respond: ({ status, content, headers }) => this.page.send('Fetch.fulfillRequest', {
           requestId: interceptId,
-          responseCode: payload.status,
-          body: payload.body && Buffer.from(payload.body).toString('base64'),
-          responseHeaders: Object.entries(payload.headers).map(([name, value]) => {
+          responseCode: status || 200,
+          body: Buffer.from(content).toString('base64'),
+          responseHeaders: Object.entries(headers || {}).map(([name, value]) => {
             return { name: name.toLowerCase(), value: String(value) };
           })
         }),
         // call to fail or abort the request
         abort: error => this.page.send('Fetch.failRequest', {
           requestId: interceptId,
-          errorReason: error ? 'Failed' : 'Aborted'
+          // istanbul note: this check used to be necessary and might be again in the future if we
+          // ever need to abort a request due to reasons other than failures
+          errorReason: error ? 'Failed' : /* istanbul ignore next */ 'Aborted'
         })
       });
     }

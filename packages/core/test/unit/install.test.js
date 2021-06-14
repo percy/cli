@@ -116,6 +116,21 @@ describe('Unit / Install', () => {
       .toHaveBeenCalledOnceWith(path.join('.downloads', 'v0', 'archive.zip'));
   });
 
+  it('logs the file size in a readable format', async () => {
+    let archive = '1'.repeat(20_000_000);
+
+    dlcallback.and.returnValue([200, archive, {
+      'content-length': archive.length
+    }]);
+
+    await install(options);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toContain(
+      '[percy] 19.1MB (v0) [====================] 100% 0.0s'
+    );
+  });
+
   it('returns the full path of the executable', async () => {
     await expectAsync(install(options))
       .toBeResolvedTo(path.join('.downloads', 'v0', 'extracted', 'bin.exe'));

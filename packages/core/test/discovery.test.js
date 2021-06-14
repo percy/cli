@@ -1,10 +1,8 @@
-import os from 'os';
-import path from 'path';
 import { sha256hash } from '@percy/client/dist/utils';
 import { mockAPI, createTestServer, dedent, logger } from './helpers';
 import Percy from '../src';
 
-describe('Asset Discovery', () => {
+describe('Discovery', () => {
   let percy, server, captured;
 
   let testDOM = dedent`
@@ -54,7 +52,7 @@ describe('Asset Discovery', () => {
   });
 
   afterEach(async () => {
-    await percy?.stop();
+    await percy?.stop(true);
     await server.close();
   });
 
@@ -66,6 +64,7 @@ describe('Asset Discovery', () => {
     });
 
     await percy.idle();
+
     let paths = server.requests.map(r => r[0]);
     // does not request the root url (serves domSnapshot instead)
     expect(paths).not.toContain('/');
@@ -99,8 +98,33 @@ describe('Asset Discovery', () => {
     ]);
   });
 
+  it('follows redirects', async () => {
+    server.reply('/stylesheet.css', () => [301, { Location: '/style.css' }]);
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'stylesheet.css')
+    });
+
+    await percy.idle();
+    let paths = server.requests.map(r => r[0]);
+    expect(paths).toContain('/stylesheet.css');
+    expect(paths).toContain('/style.css');
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        id: sha256hash(testCSS),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/stylesheet.css'
+        })
+      })
+    ]));
+  });
+
   it('does not capture prefetch requests', async () => {
     let prefetchDOM = testDOM.replace('stylesheet', 'prefetch');
+    percy.loglevel('debug');
 
     await percy.snapshot({
       name: 'test snapshot',
@@ -131,6 +155,10 @@ describe('Asset Discovery', () => {
         })
       })
     ]);
+
+    expect(logger.stderr).toContain(
+      '[percy:core:discovery] -> Skipping empty response'
+    );
   });
 
   it('does not capture data url requests', async () => {
@@ -144,6 +172,7 @@ describe('Asset Discovery', () => {
     });
 
     await percy.idle();
+
     expect(captured[0]).not.toEqual(jasmine.arrayContaining([
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
@@ -169,8 +198,7 @@ describe('Asset Discovery', () => {
       setTimeout(() => res.write('data: This came from a server-sent event\n\n'), 1000);
     });
 
-    // use capture here to test that the first event modifies the dom
-    await percy.capture({
+    await percy.snapshot({
       name: 'test event snapshot',
       url: 'http://localhost:8000/events',
       enableJavaScript: true
@@ -199,35 +227,38 @@ describe('Asset Discovery', () => {
     ]));
   });
 
-  it('follows redirects', async () => {
-    server.reply('/stylesheet.css', () => [301, { Location: '/style.css' }]);
+  it('does not capture resources with a disallowed status', async () => {
+    server.reply('/style.css', () => [202, 'text/css', testCSS]);
+    percy.loglevel('debug');
 
     await percy.snapshot({
       name: 'test snapshot',
       url: 'http://localhost:8000',
-      domSnapshot: testDOM.replace('style.css', 'stylesheet.css')
+      domSnapshot: testDOM
     });
 
     await percy.idle();
     let paths = server.requests.map(r => r[0]);
-    expect(paths).toContain('/stylesheet.css');
     expect(paths).toContain('/style.css');
 
-    // first ordered asset is the percy log
-    expect(captured[0]).toEqual(jasmine.arrayContaining([
+    expect(captured).not.toContain(jasmine.arrayContaining([
       jasmine.objectContaining({
         id: sha256hash(testCSS),
         attributes: jasmine.objectContaining({
-          'resource-url': 'http://localhost:8000/stylesheet.css'
+          'resource-url': 'http://localhost:8000/style.css'
         })
       })
     ]));
+
+    expect(logger.stderr).toContain(
+      '[percy:core:discovery] -> Skipping disallowed status [202]'
+    );
   });
 
-  it('skips capturing large files', async () => {
+  it('does not capture large files', async () => {
     server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(16_000_000)]);
-
     percy.loglevel('debug');
+
     await percy.snapshot({
       name: 'test snapshot',
       url: 'http://localhost:8000',
@@ -235,6 +266,7 @@ describe('Asset Discovery', () => {
     });
 
     await percy.idle();
+
     expect(captured[0]).toEqual([
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
@@ -254,60 +286,57 @@ describe('Asset Discovery', () => {
     ]);
 
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] Skipping - Max file size exceeded [15.3MB]'
+      '[percy:core:discovery] -> Skipping resource larger than 15MB'
     );
   });
 
   it('logs detailed debug logs', async () => {
     percy.loglevel('debug');
+
     await percy.snapshot({
       name: 'test snapshot',
       url: 'http://localhost:8000',
       domSnapshot: testDOM,
       clientInfo: 'test client info',
       environmentInfo: 'test env info',
-      widths: [400, 1200]
+      widths: [400, 1200],
+      discovery: {
+        requestHeaders: {
+          'X-Foo': 'Bar'
+        }
+      }
     });
 
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy:core] Snapshot taken: test snapshot'
     ]));
+
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy:core] ---------',
       '[percy:core] Handling snapshot:',
       '[percy:core] -> name: test snapshot',
-      '[percy:core] -> url: http://localhost:8000/',
+      '[percy:core] -> url: http://localhost:8000',
       '[percy:core] -> widths: 400px, 1200px',
       '[percy:core] -> minHeight: 1024px',
-      '[percy:core] -> enableJavaScript: false',
-      '[percy:core] -> discovery: {}',
+      '[percy:core] -> discovery.allowedHostnames: localhost',
+      '[percy:core] -> discovery.requestHeaders: {"X-Foo":"Bar"}',
       '[percy:core] -> clientInfo: test client info',
       '[percy:core] -> environmentInfo: test env info',
-      `[percy:core] -> domSnapshot:\n${testDOM.substr(0, 1024)}... [truncated]`,
-      '[percy:core:discovery] Discovering resources @400px for http://localhost:8000/',
-      '[percy:core:discovery] Handling request for http://localhost:8000/',
-      '[percy:core:discovery] Serving root resource for http://localhost:8000/',
-      '[percy:core:discovery] Handling request for http://localhost:8000/style.css',
-      '[percy:core:discovery] Handling request for http://localhost:8000/img.gif',
-      '[percy:core:discovery] Processing resource - http://localhost:8000/style.css',
-      '[percy:core:discovery] Making local copy of response - http://localhost:8000/style.css',
-      '[percy:core:discovery] -> url: http://localhost:8000/style.css',
+      '[percy:core:page] Initialize page',
+      '[percy:core:page] Navigate to: http://localhost:8000',
+      '[percy:core:discovery] Handling request: http://localhost:8000/',
+      '[percy:core:discovery] -> Serving root resource',
+      '[percy:core:discovery] Handling request: http://localhost:8000/style.css',
+      '[percy:core:discovery] Handling request: http://localhost:8000/img.gif',
+      '[percy:core:discovery] Processing resource: http://localhost:8000/style.css',
       `[percy:core:discovery] -> sha: ${sha256hash(testCSS)}`,
-      `[percy:core:discovery] -> filepath: ${path.join(os.tmpdir(), 'percy', sha256hash(testCSS))}`,
       '[percy:core:discovery] -> mimetype: text/css',
-      '[percy:core:discovery] Processing resource - http://localhost:8000/img.gif',
-      '[percy:core:discovery] Making local copy of response - http://localhost:8000/img.gif',
-      '[percy:core:discovery] -> url: http://localhost:8000/img.gif',
+      '[percy:core:discovery] Processing resource: http://localhost:8000/img.gif',
       `[percy:core:discovery] -> sha: ${sha256hash(pixel)}`,
-      `[percy:core:discovery] -> filepath: ${path.join(os.tmpdir(), 'percy', sha256hash(pixel))}`,
       '[percy:core:discovery] -> mimetype: image/gif',
-      '[percy:core:discovery] Discovering resources @1200px for http://localhost:8000/',
-      '[percy:core:discovery] Handling request for http://localhost:8000/',
-      '[percy:core:discovery] Serving root resource for http://localhost:8000/',
-      '[percy:core:discovery] Handling request for http://localhost:8000/style.css',
-      '[percy:core:discovery] Response cache hit for http://localhost:8000/style.css',
-      '[percy:core:discovery] Handling request for http://localhost:8000/img.gif',
-      '[percy:core:discovery] Response cache hit for http://localhost:8000/img.gif'
+      '[percy:core:page] Page navigated',
+      '[percy:core:network] Wait for 100ms idle',
+      '[percy:core:page] Page closing'
     ]));
   });
 
@@ -352,7 +381,7 @@ describe('Asset Discovery', () => {
   });
 
   it('captures responsive assets', async () => {
-    testDOM = dedent`
+    let responsiveDOM = dedent`
       <html>
       <head><link href="style.css" rel="stylesheet"/></head>
       <body>
@@ -364,13 +393,15 @@ describe('Asset Discovery', () => {
       </html>
     `;
 
-    testCSS = dedent`
+    let responsiveCSS = dedent`
       body { background: url('/img-bg-1.gif'); }
       @media (max-width: 600px) {
         body { background: url('/img-bg-2.gif'); }
       }
     `;
 
+    server.reply('/', () => [200, 'text/html', responsiveDOM]);
+    server.reply('/style.css', () => [200, 'text/css', responsiveCSS]);
     server.reply('/img-400w.gif', () => [200, 'image/gif', pixel]);
     server.reply('/img-800w.gif', () => [200, 'image/gif', pixel]);
     server.reply('/img-bg-1.gif', () => [200, 'image/gif', pixel]);
@@ -379,7 +410,7 @@ describe('Asset Discovery', () => {
     await percy.snapshot({
       name: 'test responsive',
       url: 'http://localhost:8000',
-      domSnapshot: testDOM,
+      domSnapshot: responsiveDOM,
       widths: [400, 1200]
     });
 
@@ -397,6 +428,83 @@ describe('Asset Discovery', () => {
       resource('/img-bg-1.gif'),
       resource('/img-bg-2.gif')
     ]));
+  });
+
+  describe('protected resources', () => {
+    let authDOM = testDOM.replace('img.gif', 'auth/img.gif');
+
+    beforeEach(() => {
+      server.reply('/auth/img.gif', ({ headers: { authorization } }) => {
+        if (authorization === 'Basic dGVzdDo=') {
+          return [200, 'image/gif', pixel];
+        } else {
+          return [401, {
+            'WWW-Authenticate': 'Basic',
+            'Content-Type': 'text/plain'
+          }, '401 Unauthorized'];
+        }
+      });
+    });
+
+    it('captures with valid auth credentials', async () => {
+      await percy.snapshot({
+        name: 'auth snapshot',
+        url: 'http://localhost:8000/auth',
+        domSnapshot: authDOM,
+        discovery: {
+          authorization: { username: 'test' }
+        }
+      });
+
+      await percy.idle();
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/auth/img.gif'
+          })
+        })
+      ]));
+    });
+
+    it('does not capture without auth credentials', async () => {
+      await percy.snapshot({
+        name: 'auth snapshot',
+        url: 'http://localhost:8000/auth',
+        domSnapshot: authDOM
+      });
+
+      await percy.idle();
+
+      expect(captured[0]).not.toEqual(jasmine.arrayContaining([
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/auth/img.gif'
+          })
+        })
+      ]));
+    });
+
+    it('does not capture with invalid auth credentials', async () => {
+      await percy.snapshot({
+        name: 'auth snapshot',
+        url: 'http://localhost:8000/auth',
+        domSnapshot: authDOM,
+        discovery: {
+          authorization: { username: 'invalid' }
+        }
+      });
+
+      await percy.idle();
+
+      expect(captured[0]).not.toEqual(jasmine.arrayContaining([
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/auth/img.gif'
+          })
+        })
+      ]));
+    });
   });
 
   describe('resource caching', () => {
@@ -427,7 +535,7 @@ describe('Asset Discovery', () => {
     });
 
     it('does not cache resource requests when disabled', async () => {
-      percy.discoverer.config.disableCache = true;
+      percy.config.discovery.disableCache = true;
 
       // repeat above test
       await snapshot(1);
@@ -446,13 +554,25 @@ describe('Asset Discovery', () => {
   });
 
   describe('with resource errors', () => {
-    it('logs unhandled request errors gracefully', async () => {
-      // sabotage this property to trigger unexpected error handling
-      Object.defineProperty(percy.discoverer.config, 'disableCache', {
-        get() { throw new Error('some unhandled request error'); }
-      });
+    const Page = require('../src/page').default;
 
+    // sabotage this method to trigger unexpected error handling
+    function spyOnPageEvent(event, fn) {
+      let spy = spyOn(Page.prototype, 'send')
+        .and.callFake(function(...args) {
+          if (args[0] === event) return fn();
+          return spy.and.originalFn.apply(this, args);
+        });
+    }
+
+    beforeEach(() => {
       percy.loglevel('debug');
+    });
+
+    it('logs unhandled request errors gracefully', async () => {
+      let err = new Error('some unhandled request error');
+      spyOnPageEvent('Fetch.continueRequest', () => Promise.reject(err));
+
       await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
@@ -464,23 +584,16 @@ describe('Asset Discovery', () => {
       ]));
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy:core:discovery] Encountered an error handling request: http://localhost:8000/style.css',
-        jasmine.stringMatching('\\[percy:core:discovery] Error: some unhandled request error\n'),
+        `[percy:core:discovery] ${err.stack}`,
         '[percy:core:discovery] Encountered an error handling request: http://localhost:8000/img.gif',
-        jasmine.stringMatching('\\[percy:core:discovery] Error: some unhandled request error\n')
+        `[percy:core:discovery] ${err.stack}`
       ]));
     });
 
     it('logs unhandled response errors gracefully', async () => {
-      // sabotage this property to trigger unexpected error handling
-      Object.defineProperty(percy.discoverer.config, 'disableCache', {
-        // only throw ever other time when accessed within the response handler
-        get() {
-          let error = new Error('some unhandled response error');
-          if (error.stack.includes('onrequestfinished')) throw error;
-        }
-      });
+      let err = new Error('some unhandled request error');
+      spyOnPageEvent('Network.getResponseBody', () => Promise.reject(err));
 
-      percy.loglevel('debug');
       await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
@@ -492,9 +605,9 @@ describe('Asset Discovery', () => {
       ]));
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy:core:discovery] Encountered an error processing resource: http://localhost:8000/style.css',
-        jasmine.stringMatching('\\[percy:core:discovery] Error: some unhandled response error\n'),
+        `[percy:core:discovery] ${err.stack}`,
         '[percy:core:discovery] Encountered an error processing resource: http://localhost:8000/img.gif',
-        jasmine.stringMatching('\\[percy:core:discovery] Error: some unhandled response error\n')
+        `[percy:core:discovery] ${err.stack}`
       ]));
     });
   });
@@ -513,7 +626,7 @@ describe('Asset Discovery', () => {
       await server2.close();
     });
 
-    it('does not request or capture external assets', async () => {
+    it('does not capture external assets', async () => {
       await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
@@ -521,11 +634,12 @@ describe('Asset Discovery', () => {
       });
 
       await percy.idle();
+
       let paths = server.requests.map(r => r[0]);
       expect(paths).toContain('/style.css');
       expect(paths).not.toContain('/img.gif');
       let paths2 = server2.requests.map(r => r[0]);
-      expect(paths2).not.toContain('/img.gif');
+      expect(paths2).toContain('/img.gif');
 
       expect(captured[0]).toEqual([
         jasmine.objectContaining({
@@ -565,6 +679,7 @@ describe('Asset Discovery', () => {
       });
 
       await percy.idle();
+
       expect(captured[0][3]).toEqual(
         jasmine.objectContaining({
           attributes: jasmine.objectContaining({
@@ -601,49 +716,11 @@ describe('Asset Discovery', () => {
         })
       );
     });
-
-    it('does nothing for empty allowed hostnames', async () => {
-      // stop current instance to create a new one
-      await percy.stop();
-
-      percy = await Percy.start({
-        token: 'PERCY_TOKEN',
-        discovery: {
-          allowedHostnames: ['']
-        }
-      });
-
-      await percy.snapshot({
-        name: 'test snapshot',
-        url: 'http://localhost:8000',
-        domSnapshot: testExternalDOM,
-        widths: [1000]
-      });
-
-      await percy.idle();
-      expect(captured[0]).toEqual([
-        jasmine.objectContaining({
-          attributes: jasmine.objectContaining({
-            'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-          })
-        }),
-        jasmine.objectContaining({
-          attributes: jasmine.objectContaining({
-            'resource-url': 'http://localhost:8000/'
-          })
-        }),
-        jasmine.objectContaining({
-          attributes: jasmine.objectContaining({
-            'resource-url': 'http://localhost:8000/style.css'
-          })
-        })
-      ]);
-    });
   });
 
   describe('with launch options', () => {
     beforeEach(async () => {
-      await percy.stop();
+      await percy.stop(true);
     });
 
     it('should log an error if a provided executable cannot be found', async () => {
