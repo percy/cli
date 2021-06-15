@@ -53,18 +53,13 @@ export class Wait extends Command {
   log = logger('cli:build:wait');
 
   async run() {
-    if (!this.isPercyEnabled()) {
+    if (this.isPercyEnabled()) {
+      let client = new PercyClient();
+      let result = await client.waitForBuild(this.flags, this.progress);
+      this.finish(result.data);
+    } else {
       this.log.info('Percy is disabled');
-      return;
     }
-
-    let client = new PercyClient();
-    let result = await client.waitForBuild({
-      progress: this.progress,
-      ...this.flags
-    });
-
-    return this.finish(result);
   }
 
   // Log build progress

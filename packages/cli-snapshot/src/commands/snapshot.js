@@ -81,28 +81,29 @@ export class Snapshot extends Command {
       let l = pages.length;
 
       return this.log.info(`Found ${l} snapshot${l === 1 ? '' : 's'}:\n` + (
-        pages.map(({ name, snapshots = [] }) => {
-          return (name ? [{ name }].concat(snapshots) : snapshots)
-            .map(({ name }) => name).join('\n');
-        }).join('\n')
+        pages.map(({ name, snapshots = [] }) => (
+          [{ name }].concat(snapshots)
+            .map(({ name }) => name).join('\n')
+        )).join('\n')
       ));
     }
 
     this.percy = await Percy.start({
       clientInfo: `${pkg.name}/${pkg.version}`,
       server: false,
-      config: false,
       ...config
     });
 
-    await Promise.all(pages.map(page => (
-      this.percy.capture(page)
-    )));
+    for (let page of pages) {
+      this.percy.snapshot(page);
+    }
+
+    await this.percy.idle();
   }
 
   // Called on error, interupt, or after running
-  async finally() {
-    await this.percy?.stop();
+  async finally(error) {
+    await this.percy?.stop(!!error);
 
     if (this.server) {
       await new Promise(resolve => {

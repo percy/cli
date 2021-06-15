@@ -61,7 +61,6 @@ export class Exec extends Command {
       try {
         this.percy = await Percy.start({
           port: this.flags.port,
-          config: false,
           ...this.percyrc()
         });
       } catch (err) {
@@ -92,7 +91,7 @@ export class Exec extends Command {
   }
 
   // Called on error, interupt, or after running
-  async finally() {
-    await this.percy?.stop();
+  async finally(error) {
+    await this.percy?.stop(!!error);
   }
 }

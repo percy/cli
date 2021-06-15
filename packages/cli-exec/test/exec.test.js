@@ -34,11 +34,8 @@ describe('percy exec', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
-      '[percy] Created build #1: https://percy.io/test/test/123',
       '[percy] Running "node --eval "',
-      '[percy] Stopping percy...',
-      '[percy] Finalized build #1: https://percy.io/test/test/123',
-      '[percy] Done!'
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
   });
 
@@ -79,11 +76,9 @@ describe('percy exec', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
-      '[percy] Created build #1: https://percy.io/test/test/123',
       '[percy] Running "node --eval process.exit(3)"',
       '[percy] Stopping percy...',
-      '[percy] Finalized build #1: https://percy.io/test/test/123',
-      '[percy] Done!'
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
   });
 
@@ -99,11 +94,9 @@ describe('percy exec', () => {
     ]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
-      '[percy] Created build #1: https://percy.io/test/test/123',
       '[percy] Running "foobar"',
       '[percy] Stopping percy...',
-      '[percy] Finalized build #1: https://percy.io/test/test/123',
-      '[percy] Done!'
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
   });
 });

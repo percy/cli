@@ -8,7 +8,7 @@ describe('percy exec:stop', () => {
     await percyServer?.close();
   });
 
-  it('calls the /percy/stop endpoint and logs when the server is down', async () => {
+  it('calls the /percy/stop endpoint and logs after the server goes down', async () => {
     percyServer = await createTestServer({
       '/percy/stop': () => [200, 'application/json', { success: true }]
     }, 5338);
@@ -22,6 +22,20 @@ describe('percy exec:stop', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(['[percy] Percy has stopped']);
+  });
+
+  it('waits for the /percy/healthcheck endpoint to fail', async () => {
+    let check = 0;
+
+    percyServer = await createTestServer({
+      '/percy/stop': () => [200, 'application/json', { success: true }],
+      '/percy/healthcheck': () => ++check === 2
+        ? [400, 'application/json', { success: false }]
+        : [200, 'application/json', { success: true }]
+    }, 5338);
+
+    await Stop.run([]);
+    expect(check).toEqual(2);
   });
 
   it('logs when percy is disabled', async () => {

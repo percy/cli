@@ -81,8 +81,10 @@ export class Upload extends Command {
       clientInfo: `${pkg.name}/${pkg.version}`
     });
 
-    await this.client.createBuild();
-    let { build } = this.client;
+    let { data: build } = await this.client.createBuild();
+    build.number = build.attributes['build-number'];
+    build.url = build.attributes['web-url'];
+    this.build = build;
 
     this.log.info('Percy has started!');
     this.log.info(`Created build #${build.number}: ${build.url}`);
@@ -100,7 +102,7 @@ export class Upload extends Command {
       let buffer = fs.readFileSync(filepath);
       let { width, height } = imageSize(filepath);
 
-      await this.client.sendSnapshot({
+      await this.client.sendSnapshot(build.id, {
         // width and height is clamped to API min and max
         widths: [Math.max(10, Math.min(width, 2000))],
         minHeight: Math.max(10, Math.min(height, 2000)),
@@ -114,11 +116,9 @@ export class Upload extends Command {
 
   // Finalize the build when finished
   async finally() {
-    let build = this.client?.build;
-
-    if (build?.id) {
-      await this.client?.finalizeBuild();
-      this.log.info(`Finalized build #${build.number}: ${build.url}`);
+    if (this.build?.id) {
+      await this.client.finalizeBuild(this.build.id);
+      this.log.info(`Finalized build #${this.build.number}: ${this.build.url}`);
     }
   }
 }
