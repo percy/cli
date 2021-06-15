@@ -131,6 +131,7 @@ async function start(args, log) {
 
       Promise.resolve().then(async () => {
         let result = await ctx.call(event, ...args);
+        if (typeof result === 'function') result = result.toString();
         ws.send(JSON.stringify({ id, resolve: { result } }));
         log('debug', `${event}: ${JSON.stringify({ args, result })}`);
       }).catch(err => {
