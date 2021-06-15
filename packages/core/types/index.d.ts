@@ -1,3 +1,7 @@
+// utility types
+type Without<T, U> = { [P in Exclude<keyof T, keyof U>]?: never };
+type XOR<T, U> = (T | U) extends object ? (Without<T, U> & U) | (Without<U, T> & T) : T | U;
+
 type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'silent';
 
 interface Pojo {
@@ -29,14 +33,14 @@ interface AllDiscoveryOptions extends DiscoveryOptions {
   launchOptions?: DiscoveryLaunchOptions;
 }
 
-interface BaseSnapshotOptions {
+interface CommonSnapshotOptions {
   widths?: number[];
   minHeight?: number;
   percyCSS?: string;
   enableJavaScript?: boolean;
 }
 
-export interface SnapshotOptions extends BaseSnapshotOptions {
+export interface SnapshotOptions extends CommonSnapshotOptions {
   discovery?: DiscoveryOptions;
 }
 
@@ -49,45 +53,41 @@ export type PercyOptions<C = Pojo> = C & {
   concurrency?: number,
   loglevel?: LogLevel,
   config?: undefined | string | false,
-  snapshot?: BaseSnapshotOptions,
+  snapshot?: CommonSnapshotOptions,
   discovery?: AllDiscoveryOptions
 };
 
-type CaptureExec = () => void | Promise<void>;
-type CaptureSnapshots = Array<{ name: string, execute: CaptureExec }>;
+type SnapshotExec = () => void | Promise<void>;
+
+type AdditionalSnapshot = (XOR<XOR<
+  { name: string },
+  { prefix: string, suffix?: string }>,
+  { suffix: string, prefix?: string }>
+) & { execute: SnapshotExec };
 
 declare class Percy {
   static start(options?: PercyOptions): Promise<Percy>;
   constructor(options?: PercyOptions);
   loglevel(): LogLevel;
   loglevel(level: LogLevel): void;
-  isRunning(): boolean;
   start(): Promise<void>;
-  stop(): Promise<void>;
+  stop(force?: boolean): Promise<void>;
   idle(): Promise<void>;
+  close(): void;
 
-  snapshot(options: SnapshotOptions & {
+  snapshot(options: {
     url: string,
-    name: string,
-    domSnapshot: string,
+    name?: string,
     clientInfo?: string,
     environmentInfo?: string
-  }): Promise<void>;
-
-  capture(options: SnapshotOptions & ({
-    url: string,
-    name: string,
-    snapshots?: CaptureSnapshots,
+  } & XOR<{
+    domSnapshot: string
+  }, {
     waitForTimeout?: number,
     waitForSelector?: string,
-    execute?: CaptureExec,
-  } | {
-    url: string,
-    snapshots: CaptureSnapshots,
-    waitForTimeout?: number,
-    waitForSelector?: string,
-    execute?: CaptureExec
-  })): Promise<void>;
+    execute?: SnapshotExec,
+    additionalSnapshots?: AdditionalSnapshot[]
+  }> & SnapshotOptions): Promise<void>;
 }
 
 export default Percy;

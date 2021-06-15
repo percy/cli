@@ -36,6 +36,7 @@ const percyOptions: PercyOptions = {
 const percy = new Percy();
 expectType<Percy>(percy);
 expectType<Percy>(new Percy(percyOptions));
+
 // Percy.start()
 expectType<Promise<Percy>>(Percy.start());
 expectType<Promise<Percy>>(Percy.start(percyOptions));
@@ -44,15 +45,18 @@ expectType<Promise<Percy>>(Percy.start(percyOptions));
 expectType<'error' | 'warn' | 'info' | 'debug' | 'silent'>(percy.loglevel());
 expectType<void>(percy.loglevel('error'));
 
-// #isRunning()
-expectType<boolean>(percy.isRunning());
-
 // #start()
 expectType<Promise<void>>(percy.start());
+
 // #stop()
 expectType<Promise<void>>(percy.stop());
+expectType<Promise<void>>(percy.stop(true));
+
 // #idle()
 expectType<Promise<void>>(percy.idle());
+
+// #close()
+expectType<void>(percy.close());
 
 // #snapshot()
 expectType<Promise<void>>(percy.snapshot({
@@ -77,78 +81,94 @@ expectType<Promise<void>>(percy.snapshot({
   domSnapshot: '...'
 }));
 
-expectError(percy.snapshot({
-  name: 'test snapshot',
-  url: 'http://localhost:3000',
-  domSnapshot: '...',
-  foo: true
-}));
-
-expectError(percy.snapshot({
-  name: 'test snapshot',
-  url: 'http://localhost:3000'
-}));
-
-expectError(percy.snapshot({
-  name: 'test snapshot'
-}));
-
-expectError(percy.snapshot());
-
-// #capture()
-expectType<Promise<void>>(percy.capture({
+expectType<Promise<void>>(percy.snapshot({
   name: 'test snapshot',
   url: 'http://localhost:3000',
   waitForTimeout: 1000,
   waitForSelector: '.some-selector',
   execute() {},
-  snapshots: [{
+  additionalSnapshots: [{
     name: 'test 2',
     async execute() {}
-  }],
-  widths: [1000],
-  minHeight: 1000,
-  percyCSS: '.foo { font-weight: 900; }',
-  enableJavaScript: true,
-  discovery: {
-    authorization: { username: 'u', password: '*' },
-    requestHeaders: { 'x-testing': 'test' }
-  }
+  }]
 }));
 
-expectType<Promise<void>>(percy.capture({
+expectType<Promise<void>>(percy.snapshot({
   name: 'test snapshot',
   url: 'http://localhost:3000'
-}))
+}));
 
-expectType<Promise<void>>(percy.capture({
+expectType<Promise<void>>(percy.snapshot({
   url: 'http://localhost:3000',
-  snapshots: [{
-    name: 'test snapshot',
+  additionalSnapshots: [{
+    suffix: '- additional',
     execute() {}
   }]
-}))
+}));
 
-expectError(percy.capture({
-  url: 'http://localhost:3000'
-}))
-
-expectError(percy.capture({
+expectType<Promise<void>>(percy.snapshot({
   url: 'http://localhost:3000',
-  snapshots: [{
+  additionalSnapshots: [{
+    prefix: 'additional - ',
     execute() {}
   }]
-}))
+}));
 
-expectError(percy.capture({
+expectType<Promise<void>>(percy.snapshot({
   url: 'http://localhost:3000',
-  snapshots: [{
+  additionalSnapshots: [{
+    prefix: '- ',
+    suffix: ' -',
+    execute() {}
+  }]
+}));
+
+expectError(percy.snapshot());
+
+expectError(percy.snapshot({
+  name: 'test snapshot'
+}));
+
+expectError(percy.snapshot({
+  name: 'test snapshot',
+  url: 'http://localhost:3000',
+  foo: true
+}));
+
+expectError(percy.snapshot({
+  url: 'http://localhost:3000',
+  additionalSnapshots: [{
+    execute() {}
+  }]
+}));
+
+expectError(percy.snapshot({
+  url: 'http://localhost:3000',
+  additionalSnapshots: [{
     name: 'test snapshot'
   }]
-}))
+}));
 
-expectError(percy.capture({
-  name: 'test snapshot'
-}))
+expectError(percy.snapshot({
+  url: 'http://localhost:3000',
+  additionalSnapshots: [{
+    name: 'test snapshot',
+    prefix: '- ',
+    execute() {}
+  }]
+}));
 
-expectError(percy.capture())
+expectError(percy.snapshot({
+  url: 'http://localhost:3000',
+  additionalSnapshots: [{
+    name: 'test snapshot',
+    suffix: ' -',
+    execute() {}
+  }]
+}));
+
+expectError(percy.snapshot({
+  url: 'http://localhost:3000',
+  domSnapshot: '...',
+  waitForTimeout: 200
+}));
