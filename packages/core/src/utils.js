@@ -12,16 +12,14 @@ export function normalizeURL(url) {
   return `${protocol}//${host}${pathname}${search}`;
 }
 
-// Creates a local resource object containing the resource URL, SHA, mimetype,
-// and local filepath in the OS temp directory. If the file does not exist, it
-// is created unless it exceeds the file size limit.
+// Creates a local resource object containing the resource URL, mimetype, content, sha, and any
+// other additional resources attributes.
 export function createResource(url, content, mimetype, attrs) {
   return { ...attrs, sha: sha256hash(content), mimetype, content, url };
 }
 
-// Creates a root resource object containing the URL, SHA, content, and mimetype with an
-// additional `root: true` property. The URL is normalized here as a convenience since root
-// resources are usually created outside of asset discovery.
+// Creates a root resource object with an additional `root: true` property. The URL is normalized
+// here as a convenience since root resources are usually created outside of asset discovery.
 export function createRootResource(url, content) {
   return createResource(normalizeURL(url), content, 'text/html', { root: true });
 }
@@ -44,8 +42,8 @@ export function injectPercyCSS(root, percyCSS) {
 }
 
 // Polls for the predicate to be truthy within a timeout or the returned promise rejects. If
-// the second argument is an options object and `ensure` is provided, the predicate will be
-// checked again after the ensure period. This helper is injected as an argument when using
+// the second argument is an options object and `idle` is provided, the predicate will be
+// checked again after the idle period. This helper is injected as an argument when using
 // the `page#eval()` method, such as for the snapshot `execute` option.
 /* istanbul ignore next: no instrumenting injected code */
 export function waitFor(predicate, timeoutOrOptions) {

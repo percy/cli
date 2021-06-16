@@ -101,8 +101,8 @@ export default class Percy {
     this.#uploads.close().clear();
   }
 
-  // Starts a local API server and browser process. Adds a new Percy build creation request to an
-  // internal queue which will run upon the first snapshot upload request.
+  // Starts a local API server, a browser process, and queues creating a new Percy build which will run
+  // at a later time when uploads are deferred, or run immediately when not deferred.
   async start() {
     // throws when the token is missing
     this.client.getToken();
