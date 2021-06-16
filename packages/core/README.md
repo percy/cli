@@ -7,11 +7,12 @@ other processes.
 
 - [Usage](#usage)
   - [`#start()`](#start)
-  - [`#stop()`](#stop)
+  - [`#stop()`](#stopforce)
+  - [`#idle()`](#idle)
   - [`#snapshot()`](#snapshotoptions)
-  - [`#capture()`](#captureoptions)
 - [Advanced](#advanced)
   - [Download discovery browser on install](#download-discovery-browser-on-install)
+  - [Skipping discovery browser download](#skipping-discovery-browser-download)
 
 ## Usage
 
@@ -36,7 +37,7 @@ const percy = await Percy.start(percyOptions)
 - `port` — API server port (**default** `5338`)
 - `clientInfo` — Client info sent to Percy via a user-agent string
 - `environmentInfo` — Environment info also sent with the user-agent string
-- `concurrency` — Page [`#capture()`](#captureoptions) concurrency (**default** `5`)
+- `deferUploads` — Defer creating a build and uploading snapshots until later
 
 The following options can also be defined within a Percy config file
 
@@ -71,7 +72,6 @@ create a new Percy build. If an asset discovery browser is not found, one will b
 ``` js
 await percy.start()
 // [percy] Percy has started!
-// [percy] Created build #1: https://percy.io/org/project/123
 ```
 
 #### API Server
@@ -81,37 +81,80 @@ be found at `http://localhost:5338/` or at the provided `port` number.
 
 - GET `/percy/healthcheck` – Responds with information about the running instance
 - GET `/percy/dom.js` – Responds with the [`@percy/dom`](./packages/dom) library
+- GET `/percy/idle` - Responds when the running instance is [idle](#idle)
 - POST `/percy/snapshot` – Calls [`#snapshot()`](#snapshotoptions) with provided snapshot options
-- POST `/percy/stop` - Remotely [stops](#stop) the running `Percy` instance
+- POST `/percy/stop` - Remotely [stops](#stopforce) the running `Percy` instance
 
-### `#stop()`
+### `#stop([force])`
 
 Stopping a `Percy` instance will wait for any pending snapshots, close the asset discovery browser,
-close the local API server, and finalize the current Percy build.
+close the local API server, and finalize the current Percy build. When uploads are deferred,
+stopping the instance will also trigger processing of the upload queue. When `force` is `true`,
+queues are cleared and closed to prevent queued snapshots from running.
 
 ``` js
 await percy.stop()
-// [percy] Stopping percy...
-// [percy] Waiting for 1 snapshot(s) to complete
-// [percy] Snapshot taken: My Snapshot
+// [percy] Waiting for snapshots to finish processing...
+// [percy] Snapshot taken: Snapshot one
+// [percy] Snapshot taken: Snapshot two
+// [percy] Snapshot taken: Snapshot three
+// [percy] Uploading snapshots...
 // [percy] Finalized build #1: https://percy.io/org/project/123
-// [percy] Done
+
+await percy.stop(true)
+// [percy] Stopping percy...
+// [percy] Finalized build #1: https://percy.io/org/project/123
+```
+
+### `#idle()`
+
+This method will resolve shortly after pending snapshots and uploads have completed and no more have
+started. Queued tasks are not considered pending unless they are actively running, so deferred
+uploads will not be awaited on with this method.
+
+``` js
+percy.snapshot(...);
+percy.snapshot(...);
+percy.snapshot(...);
+
+await percy.idle()
+// [percy] Snapshot taken: ...
+// [percy] Snapshot taken: ...
+// [percy] Snapshot taken: ...
 ```
 
 ### `#snapshot(options)`
 
-Performs asset discovery for the provided DOM snapshot. This is the primary method used by Percy
-SDKs to upload snapshots to the associated Percy build.
+Performs asset discovery for a snapshot and queues uploading the snapshot to the associated Percy
+build. When an existing DOM snapshot is provided, it is served as the root resource during asset
+discovery. When no existing DOM snapshot is provided, a new one will be captured using any provided
+snapshot capture options.
 
 ``` js
 // snapshots can be handled concurrently, no need to await
 percy.snapshot({
-  name: 'My Snapshot',
+  name: 'Snapshot 1',
   url: 'http://localhost:3000',
   domSnapshot: domSnapshot,
   clientInfo: 'my-sdk',
   environmentInfo: 'my-lib'
   ...snapshotOptions
+})
+
+percy.snapshot({
+  name: 'Snapshot 2',
+  url: 'http://localhost:3000/',
+  ...snapshotOptions,
+  
+  // without a domSnapshot, capture options will be used to take one
+  waitForTimeout: 1000,
+  waitForSelector: '.done-loading',
+  execute: async () => {},
+  additionalSnapshots: [{
+    name: 'Snapshot 2.1',
+    execute: () => {},
+    ...snapshotOptions
+  }]
 })
 ```
 
@@ -119,53 +162,25 @@ percy.snapshot({
 
 - `name` — Snapshot name (**required**)
 - `url` — Snapshot URL (**required**)
-- `domSnapshot` — Snapshot DOM string (**required**)
+- `domSnapshot` — Snapshot DOM string
 - `clientInfo` — Additional client info
 - `environmentInfo` — Additional environment info
 - `discovery` - Limited snapshot specific discovery options
   - `allowedHostnames`, `requestHeaders`, `authorization`, `disableCache`, `userAgent`
 
+**Capture options** can only be provided when `domSnapshot` is missing.
+
+- `waitForTimeout` — Milliseconds to wait before taking a snapshot
+- `waitForSelector` — CSS selector to wait for before taking a snapshot
+- `execute` — Function or function body to execute within the page before taking a snapshot
+- `additionalSnapshots` — Array of additional sequential snapshots to take of the page
+  - `name` — Snapshot name (**required** if no `prefix` or `suffix`)
+  - `prefix` — Snapshot name prefix (**required** if no `name` or `suffix`)
+  - `suffix` — Snapshot name suffix (**required** if no `name` or `prefix`)
+  - `waitForTimeout`, `waitForSelector`, `execute` — See above
+
 Common snapshot options are also accepted and will override instance snapshot options. [See instance
 options](#options) for common snapshot and discovery options.
-
-### `#capture(options)`
-
-Navigates to a URL and captures one or more snapshots of a page. Before the snapshot is captured,
-the page can be waited on and interacted with via various options. The resulting snapshot is then
-uploaded using the [`#snapshot()`](#snapshotoptions) method.
-
-``` js
-// pages can be captured concurrently, no need to await
-percy.capture({
-  name: 'My Snapshot',
-  url: 'http://localhost:3000/',
-  waitForTimeout: 1000,
-  waitForSelector: '.done-loading',
-  execute: async () => {},
-  snapshots: [{
-    name: 'Second Snapshot',
-    execute: async () => {},
-    ...snapshotOptions
-  }],
-  ...snapshotOptions
-})
-```
-
-#### Options
-
-- `name` — Snapshot name (**required** for single snapshots)
-- `url` — Snapshot URL (**required**)
-- `waitForTimeout` — Milliseconds to wait before snapshotting
-- `waitForSelector` — CSS selector to wait for before snapshotting
-- `execute` — Function or function body to execute within the page
-- `clientInfo` — Additional client info
-- `environmentInfo` — Additional environment info
-- `snapshots` — Array of additional sequential snapshots to take
-  - `name` — Snapshot name (**required**)
-  - `execute` — Function or function body to execute
-
-Common snapshot options are also accepted and will override instance snapshot options. [See instance
-options](#options)
 
 ## Advanced
 
@@ -181,3 +196,13 @@ If the environment variable `PERCY_POSTINSTALL_BROWSER` is present and truthy, t
 be downloaded after the package is installed to allow it to be cached. You can also require
 `@percy/core/post-install` within another node module to trigger the browser download manually.
 
+### Skipping discovery browser download
+
+If your CI comes with a Chromium binary pre-installed and you wish to skip Percy's own browser
+installation, you can set the respective `discovery.launchOptions.executable` config option. When
+the executable at the provided path exists, the default download will be skipped and the provided
+binary will be used instead. This option can also be set using the `PERCY_BROWSER_EXECUTABLE`
+environment variable.
+
+> **Warning!** Percy is only tested against the browser it downloads automatically. When providing a
+> custom browser executable, you may experience unexpected issues.

@@ -43,12 +43,12 @@ This method combines the work of creating a snapshot, uploading any missing reso
 finalizng the snapshot.
 
 ``` js
-await client.sendSnapshot(snapshotOptions)
+await client.sendSnapshot(buildId, snapshotOptions)
 ```
 
 #### Options
 
-- `name` — Snapshot name (**required**)
+- `name` — Snapshot name
 - `widths` — Widths to take screenshots at
 - `minHeight` — Miniumum screenshot height
 - `enableJavaScript` — Enable JavaScript for screenshots
@@ -57,21 +57,21 @@ await client.sendSnapshot(snapshotOptions)
 - `resources` — Array of snapshot resources
   - `url` — Resource URL (**required**)
   - `mimetype` — Resource mimetype (**required**)
-  - `content` — Resource content (**required** when missing `sha`)
-  - `sha` — Resource content sha (**required** when missing `content`)
+  - `content` — Resource content (**required**)
+  - `sha` — Resource content sha
   - `root` — Boolean indicating a root resource
 
 ## Finalize a build
 
-Finalizes the active build. When `all` is true, `all-shards=true` is added as a query param so the
+Finalizes a build. When `all` is true, `all-shards=true` is added as a query param so the
 API finalizes all other parallel build shards associated with the build.
 
 ``` js
-// finalize the active build
-await client.finalizeBuild()
+// finalize a build
+await client.finalizeBuild(buildId)
 
 // finalize all parallel build shards
-await client.finalizeBuild({ all: true })
+await client.finalizeBuild(buildId, { all: true })
 ```
 
 ## Query for a build
@@ -119,6 +119,9 @@ it will time out if there is no update after 10 minutes.
 await client.waitForBuild({
   project: 'percy/example',
   commit: '40-char-sha'
+}, data => {
+  // called whenever data changes
+  console.log(JSON.stringify(data));
 })
 ```
 
@@ -129,4 +132,3 @@ await client.waitForBuild({
 - `project` — Project slug (**required** when using `commit`)
 - `timeout` — Timeout in milliseconds to wait with no updates (**default** `10 * 60 * 1000`)
 - `interval` — Interval in miliseconds to check for updates (**default** `1000`)
-- `progress` — Function to call on each update with build data
