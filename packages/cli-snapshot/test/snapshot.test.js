@@ -30,7 +30,11 @@ describe('percy snapshot', () => {
     }]));
     fs.writeFileSync('pages.js', 'module.exports = ' + inspect([{
       name: 'JS Snapshot',
-      url: 'http://localhost:8000'
+      url: 'http://localhost:8000',
+      additionalSnapshots: [
+        { suffix: ' 2' },
+        { prefix: 'Other ' }
+      ]
     }], { depth: null }));
     fs.writeFileSync('pages-fn.js', 'module.exports = () => (' + inspect([{
       name: 'JS Function Snapshot',
@@ -185,6 +189,8 @@ describe('percy snapshot', () => {
       expect(logger.stdout).toEqual([
         '[percy] Percy has started!',
         '[percy] Snapshot taken: JS Snapshot',
+        '[percy] Snapshot taken: JS Snapshot 2',
+        '[percy] Snapshot taken: Other JS Snapshot',
         '[percy] Finalized build #1: https://percy.io/test/test/123'
       ]);
     });
@@ -209,12 +215,23 @@ describe('percy snapshot', () => {
       ]);
     });
 
-    it('prints a list with --dry-run', async () => {
-      await Snapshot.run(['./pages.js', '--dry-run']);
+    it('does not take snapshots and prints a list with --dry-run', async () => {
+      await Snapshot.run(['./pages.yml', '--dry-run']);
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
         '[percy] Found 1 snapshot:\n' +
-          'JS Snapshot'
+          'YAML Snapshot'
+      ]);
+
+      logger.reset();
+
+      await Snapshot.run(['./pages.js', '--dry-run']);
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
+        '[percy] Found 3 snapshots:\n' +
+          'JS Snapshot\n' +
+          'JS Snapshot 2\n' +
+          'Other JS Snapshot'
       ]);
     });
   });

@@ -78,13 +78,16 @@ export class Snapshot extends Command {
     }
 
     if (this.flags['dry-run']) {
-      let l = pages.length;
+      let list = pages.reduce((acc, { name, additionalSnapshots = [] }) => {
+        return acc.concat(name, additionalSnapshots.map(add => {
+          let { prefix = '', suffix = '' } = add;
+          return add.name || `${prefix}${name}${suffix}`;
+        }));
+      }, []);
 
-      return this.log.info(`Found ${l} snapshot${l === 1 ? '' : 's'}:\n` + (
-        pages.map(({ name, snapshots = [] }) => (
-          [{ name }].concat(snapshots)
-            .map(({ name }) => name).join('\n')
-        )).join('\n')
+      return this.log.info(`Found ${list.length} ` + (
+        `snapshot${list.length === 1 ? '' : 's'}:\n` +
+        list.join('\n')
       ));
     }
 
