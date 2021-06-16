@@ -4,7 +4,7 @@ import Percy from '../src';
 import pkg from '../package.json';
 import { logger } from './helpers';
 
-describe('Snapshot Server', () => {
+describe('Server', () => {
   let percy;
 
   beforeEach(() => {

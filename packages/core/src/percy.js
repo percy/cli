@@ -1,15 +1,17 @@
-import { promises as fs } from 'fs';
 import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
 import Queue from './queue';
-import Discoverer from './discovery/discoverer';
+import Browser from './browser';
 import createPercyServer from './server';
+import { getSnapshotConfig } from './config';
 
-import assert from './utils/assert';
-import injectPercyCSS from './utils/percy-css';
-import { createRootResource, createLogResource } from './utils/resources';
-import { normalizeURL } from './utils/url';
+import {
+  createRootResource,
+  createLogResource,
+  createPercyCSSResource,
+  injectPercyCSS
+} from './utils';
 
 // A Percy instance will create a new build when started, handle snapshot
 // creation, asset discovery, and resource uploads, and will finalize the build
@@ -17,11 +19,12 @@ import { normalizeURL } from './utils/url';
 // finalized until all snapshots have been handled.
 export default class Percy {
   log = logger('core');
+  browser = new Browser();
+  readyState = null;
 
-  #captures = null;
-  #snapshots = null;
-  #stopping = false;
-  #running = false;
+  #cache = new Map();
+  #uploads = new Queue();
+  #snapshots = new Queue();
 
   // Static shortcut to create and start an instance in one call
   static async start(options) {
@@ -31,6 +34,12 @@ export default class Percy {
   }
 
   constructor({
+    // initial log level
+    loglevel,
+    // upload snapshots eagerly by default
+    deferUploads = false,
+    // configuration filepath
+    config,
     // provided to @percy/client
     token,
     clientInfo = '',
@@ -38,34 +47,30 @@ export default class Percy {
     // snapshot server options
     server = true,
     port = 5338,
-    // capture concurrency
-    concurrency = 5,
-    // initial log level
-    loglevel,
-    // configuration filepath
-    config,
     // options such as `snapshot` and `discovery` that are valid Percy config
-    // options which will become accessible via the `#config` property
+    // options which will become accessible via the `.config` property
     ...options
   } = {}) {
-    if (loglevel) {
-      this.loglevel(loglevel);
-    }
-
-    if (server) {
-      this.port = port;
-      this.server = createPercyServer(this);
-    }
-
-    this.#snapshots = new Queue();
-    this.#captures = new Queue(concurrency);
+    if (loglevel) this.loglevel(loglevel);
+    this.deferUploads = deferUploads;
 
     this.config = config === false
       ? PercyConfig.getDefaults(options)
       : PercyConfig.load({ path: config, overrides: options });
 
-    this.discoverer = new Discoverer(this.config.discovery);
-    this.client = new PercyClient({ token, clientInfo, environmentInfo });
+    this.#snapshots.concurrency = this.config.discovery.concurrency;
+    if (this.deferUploads) this.#uploads.pause();
+
+    this.client = new PercyClient({
+      token,
+      clientInfo,
+      environmentInfo
+    });
+
+    if (server) {
+      this.server = createPercyServer(this);
+      this.port = port;
+    }
   }
 
   // Shortcut for controlling the global logger's log level.
@@ -78,39 +83,76 @@ export default class Percy {
     return `http://localhost:${this.port}`;
   }
 
-  // Returns a boolean indicating if this instance is running.
-  isRunning() {
-    return this.#running;
+  // Resolves once snapshot and upload queues are idle
+  async idle() {
+    await this.#snapshots.idle();
+    await this.#uploads.idle();
   }
 
-  // Starts the local API server, the asset discovery process, and creates a new
-  // Percy build. When an error is encountered, the discoverer and server are closed.
+  // Waits for snapshot idle and flushes the upload queue
+  async dispatch() {
+    await this.#snapshots.idle();
+    await this.#uploads.flush();
+  }
+
+  // Immediately closes and clears all queues, preventing any more tasks from running
+  close() {
+    this.#snapshots.close().clear();
+    this.#uploads.close().clear();
+  }
+
+  // Starts a local API server, a browser process, and queues creating a new Percy build which will run
+  // at a later time when uploads are deferred, or run immediately when not deferred.
   async start() {
     // throws when the token is missing
     this.client.getToken();
 
-    try {
-      // launch the discoverer browser and create a percy build
-      await this.discoverer.launch();
-      await this.client.createBuild();
+    // already starting or started
+    if (this.readyState != null) return;
+    this.readyState = 0;
 
+    try {
+      // create a percy build as the first immediately queued task
+      let buildTask = this.#uploads.push('build/create', () => {
+        // pause other queued tasks until after the build is created
+        this.#uploads.pause();
+
+        return this.client.createBuild()
+          .then(({ data: { id, attributes } }) => {
+            this.build = { id };
+            this.build.number = attributes['build-number'];
+            this.build.url = attributes['web-url'];
+            this.#uploads.run();
+          });
+      }, 0);
+
+      if (!this.deferUploads) {
+        // when not deferred, wait until the build is created
+        await buildTask;
+      } else {
+        // handle deferred build errors
+        buildTask.catch(err => {
+          this.log.error('Failed to create build');
+          this.log.error(err);
+          this.close();
+        });
+      }
+
+      // launch the discovery browser
+      await this.browser.launch(this.config.discovery.launchOptions);
       // if there is a server, start listening
       await this.server?.listen(this.port);
 
-      // log build details
-      let build = this.client.build;
-      let meta = { build: { id: build.id } };
-      this.log.info('Percy has started!', meta);
-      this.log.info(`Created build #${build.number}: ${build.url}`, meta);
-
       // mark this process as running
-      this.#running = true;
+      this.log.info('Percy has started!');
+      this.readyState = 1;
     } catch (error) {
-      // on error, close any running server or browser
+      // on error, close any running server and browser
       await this.server?.close();
-      await this.discoverer.close();
+      await this.browser.close();
+      this.readyState = 3;
 
-      // throw an easier-to understand error when the port is taken
+      // throw an easier-to-understand error when the port is taken
       if (error.code === 'EADDRINUSE') {
         throw new Error('Percy is already running or the port is in use');
       } else {
@@ -119,247 +161,225 @@ export default class Percy {
     }
   }
 
-  // Stops the local API server and discoverer once snapshots have completed and
-  // finalizes the Percy build. Does nothing if not running.
-  async stop() {
-    // do nothing if not running or already stopping
-    if (this.isRunning() && !this.#stopping) {
-      this.#stopping = true;
+  // Stops the local API server and browser once snapshots have completed and finalizes the Percy
+  // build. Does nothing if not running. When `force` is true, any queued tasks are cleared.
+  async stop(force) {
+    // not started or already stopped
+    if (!this.readyState || this.readyState > 2) return;
 
-      let build = this.client.build;
-      let meta = { build: { id: build.id } };
-      this.log.info('Stopping percy...', meta);
+    // clear queued tasks
+    if (force) {
+      this.#snapshots.clear();
+      this.#uploads.clear();
+    }
 
-      // log about queued captures or uploads
-      if (this.#captures.length) {
-        this.log.info(`Waiting for ${this.#captures.length} page(s) to finish snapshotting`, meta);
-      } else if (this.#snapshots.length) {
-        this.log.info(`Waiting for ${this.#snapshots.length} snapshot(s) to finish uploading`, meta);
-      }
+    // already stopping
+    if (this.readyState === 2) return;
+    this.readyState = 2;
 
-      // wait for any queued captures or snapshots
-      await this.idle();
-      this.#running = false;
+    // log when force stopping
+    let meta = { build: this.build };
+    if (force) this.log.info('Stopping percy...', meta);
 
-      // close the discoverer and server
-      await this.discoverer.close();
-      await this.server?.close();
+    // close the snapshot queue and wait for it to empty
+    if (this.#snapshots.close().length) {
+      this.log.info('Waiting for snapshots to finish processing...', meta);
+      await this.#snapshots.empty();
+    }
 
+    // run, close, and wait for the upload queue to empty
+    if (this.#uploads.run().close().length) {
+      this.log.info('Uploading snapshots...', meta);
+      await this.#uploads.empty();
+    }
+
+    // close the any running server and browser
+    await this.server?.close();
+    await this.browser.close();
+
+    if (this.build?.failed) {
+      // do not finalize failed builds
+      this.log.warn(`Build #${this.build.number} failed: ${this.build.url}`, meta);
+    } else if (this.build) {
       // finalize the build
-      await this.client.finalizeBuild();
-      this.log.info(`Finalized build #${build.number}: ${build.url}`, meta);
-      this.log.info('Done!');
-    }
-  }
-
-  // Resolves when captures and snapshots are idle.
-  async idle() {
-    await Promise.all([
-      this.#captures.idle(),
-      this.#snapshots.idle()
-    ]);
-  }
-
-  // Handles asset discovery for the URL and DOM snapshot at each requested
-  // width with the provided options. Resolves when the snapshot has been taken
-  // and asset discovery is finished, but does not gaurantee that the snapshot
-  // will be succesfully uploaded.
-  snapshot({
-    url,
-    name,
-    domSnapshot,
-    widths,
-    minHeight,
-    percyCSS,
-    enableJavaScript,
-    clientInfo,
-    environmentInfo,
-    discovery = {},
-    ...deprecated
-  }) {
-    // required assertions
-    assert(this.isRunning(), 'Not running');
-    assert(url, 'Missing required argument: url');
-    assert(name, 'Missing required argument: name');
-    assert(domSnapshot, 'Missing required argument: domSnapshot');
-
-    // fallback to instance snapshot widths
-    widths = widths?.length ? widths : this.config.snapshot.widths;
-    assert(widths?.length, 'Missing required argument: widths');
-    assert(widths.length <= 10, 'too many widths');
-
-    // normalize the URL
-    url = normalizeURL(url);
-    // fallback to instance minimum height
-    minHeight = minHeight ?? this.config.snapshot.minHeight;
-    // combine snapshot Percy CSS with instance Percy CSS
-    percyCSS = [this.config.snapshot.percyCSS, percyCSS].filter(Boolean).join('\n');
-    // fallback to instance enable JS flag
-    enableJavaScript = enableJavaScript ?? this.config.snapshot.enableJavaScript ?? false;
-
-    // discovery options have moved
-    for (let k of ['authorization', 'requestHeaders']) {
-      if (deprecated[k]) {
-        this.log.warn(
-          `Warning: The snapshot option \`${k}\` will be removed in 1.0.0. ` +
-          `Use \`discovery.${k}\` instead.`);
-        discovery[k] = deprecated[k];
-      }
+      await this.client.finalizeBuild(this.build.id);
+      this.log.info(`Finalized build #${this.build.number}: ${this.build.url}`, meta);
+    } else {
+      // no build was ever created (likely failed while deferred)
+      this.log.warn('Build not created', meta);
     }
 
-    // useful meta info for the logfile
+    this.readyState = 3;
+  }
+
+  // Deprecated capture method
+  capture(options) {
+    this.log.deprecated('The #capture() method will be ' + (
+      'removed in 1.0.0. Use #snapshot() instead.'));
+    return this.snapshot(options);
+  }
+
+  // Takes one or more snapshots of a page while discovering resources to upload with the
+  // snapshot. If an existing dom snapshot is provided, it will be served as the root resource
+  // during asset discovery. Once asset discovery has completed, the queued snapshot will resolve
+  // and an upload task will be queued separately.
+  snapshot(options) {
+    if (this.readyState !== 1) {
+      throw new Error('Not running');
+    }
+
+    let {
+      url,
+      name,
+      discovery,
+      domSnapshot,
+      execute,
+      waitForTimeout,
+      waitForSelector,
+      additionalSnapshots,
+      ...conf
+    } = getSnapshotConfig(options, this.config, this.log);
+
     let meta = {
       snapshot: { name },
-      build: { id: this.client.build.id }
+      build: this.build
     };
 
-    this.log.debug('---------');
-    this.log.debug('Handling snapshot:', meta);
-    this.log.debug(`-> name: ${name}`, meta);
-    this.log.debug(`-> url: ${url}`, meta);
-    this.log.debug(`-> widths: ${widths.join('px, ')}px`, meta);
-    this.log.debug(`-> minHeight: ${minHeight}px`, meta);
-    this.log.debug(`-> enableJavaScript: ${enableJavaScript}`, meta);
-    this.log.debug(`-> discovery: ${JSON.stringify(discovery)}`, meta);
-    this.log.debug(`-> clientInfo: ${clientInfo}`, meta);
-    this.log.debug(`-> environmentInfo: ${environmentInfo}`, meta);
-    this.log.debug(`-> domSnapshot:\n${(
-      domSnapshot.length <= 1024 ? domSnapshot
-        : (domSnapshot.substr(0, 1024) + '... [truncated]')
-    )}`, meta);
+    let maybeDebug = (val, msg) => {
+      if (val != null) this.log.debug(msg(val), meta);
+    };
 
-    // use a promise as a try-catch so we can do the remaining work
-    // asynchronously, but perform the above synchronously
-    return Promise.resolve().then(async () => {
-      // inject Percy CSS
-      let [percyDOM, percyCSSResource] = injectPercyCSS(url, domSnapshot, percyCSS, meta);
-      // use a map so resources remain unique by url
-      let resources = new Map([[url, createRootResource(url, percyDOM)]]);
-      // include the Percy CSS resource if there was one
-      if (percyCSSResource) resources.set('percy-css', percyCSSResource);
+    // clear any existing pending upload for the same snapshot (for retries)
+    this.#uploads.clear(`upload/${name}`);
 
-      // gather resources at each width concurrently
-      await Promise.all(widths.map(width => (
-        this.discoverer.gatherResources({
-          ...discovery,
-          onDiscovery: r => resources.set(r.url, r),
-          rootUrl: url,
-          rootDom: domSnapshot,
-          enableJavaScript,
-          width,
-          meta
-        })
-      )));
+    // resolves after asset discovery has finished and the upload has been queued
+    return this.#snapshots.push(`snapshot/${name}`, async () => {
+      let resources = new Map();
+      let root, page;
 
-      // include a log resource for debugging
-      let logs = logger.query(({ meta }) => meta.snapshot?.name === name);
-      resources.set('percy-logs', createLogResource(logs));
+      try {
+        this.log.debug('---------');
+        this.log.debug('Handling snapshot:', meta);
+        this.log.debug(`-> name: ${name}`, meta);
+        this.log.debug(`-> url: ${url}`, meta);
+        maybeDebug(conf.widths, v => `-> widths: ${v.join('px, ')}px`);
+        maybeDebug(conf.minHeight, v => `-> minHeight: ${v}px`);
+        maybeDebug(conf.enableJavaScript, v => `-> enableJavaScript: ${v}`);
+        maybeDebug(discovery.allowedHostnames, v => `-> discovery.allowedHostnames: ${v}`);
+        maybeDebug(discovery.requestHeaders, v => `-> discovery.requestHeaders: ${JSON.stringify(v)}`);
+        maybeDebug(discovery.authorization, v => `-> discovery.authorization: ${JSON.stringify(v)}`);
+        maybeDebug(discovery.disableCache, v => `-> discovery.disableCache: ${v}`);
+        maybeDebug(discovery.userAgent, v => `-> discovery.userAgent: ${v}`);
+        maybeDebug(waitForTimeout, v => `-> waitForTimeout: ${v}`);
+        maybeDebug(waitForSelector, v => `-> waitForSelector: ${v}`);
+        maybeDebug(execute, v => `-> execute: ${v}`);
+        maybeDebug(conf.clientInfo, v => `-> clientInfo: ${v}`);
+        maybeDebug(conf.environmentInfo, v => `-> environmentInfo: ${v}`);
 
-      // log that the snapshot has been taken before uploading it
-      this.log.info(`Snapshot taken: ${name}`, meta);
+        // create the root resource if a dom snapshot was provided
+        if (domSnapshot) {
+          root = createRootResource(url, domSnapshot);
+        }
 
-      // upload within the async snapshot queue
-      this.#snapshots.push(() => this.client.sendSnapshot({
-        name,
-        widths,
-        minHeight,
-        enableJavaScript,
-        clientInfo,
-        environmentInfo,
-        resources: Array.from(resources.values())
-      }).catch(error => {
-        this.log.error(`Encountered an error uploading snapshot: ${name}`, meta);
-        this.log.error(error);
-      }));
-    }).catch(error => {
-      this.log.error(`Encountered an error taking snapshot: ${name}`, meta);
-      this.log.error(error);
+        // copy widths to prevent mutation later
+        let widths = conf.widths.slice();
+
+        // open a new browser page
+        page = await this.browser.page({
+          networkIdleTimeout: this.config.discovery.networkIdleTimeout,
+          enableJavaScript: domSnapshot ? conf.enableJavaScript : true,
+          requestHeaders: discovery.requestHeaders,
+          authorization: discovery.authorization,
+          userAgent: discovery.userAgent,
+          meta,
+
+          // initial width
+          width: widths.shift(),
+
+          // enable network inteception
+          intercept: {
+            disableCache: discovery.disableCache,
+            allowedHostnames: discovery.allowedHostnames,
+            getResource: url => url === root?.url ? root : (
+              resources.get(url) || this.#cache.get(url)
+            ),
+            addResource: resource => {
+              if (resource.root) return;
+              resources.set(resource.url, resource);
+              this.#cache.set(resource.url, resource);
+            }
+          }
+        });
+
+        // navigate to the url, trigger resize events, then wait for network idle
+        await page.goto(url);
+        for (let width of widths) await page.resize({ width });
+
+        // create and add a percy-css resource
+        let percyCSS = conf.percyCSS && createPercyCSSResource(conf.percyCSS);
+        if (percyCSS) resources.set(percyCSS.url, percyCSS);
+        root &&= injectPercyCSS(root, percyCSS);
+
+        if (root) {
+          // ensure asset discovery has finished before uploading
+          await page.network.idle();
+
+          this.log.info(`Snapshot taken: ${name}`, meta);
+          this._scheduleUpload(name, conf, [root, ...resources.values()]);
+        } else {
+          // capture additional snapshots sequentially
+          let snapshot = { name, waitForTimeout, waitForSelector, execute };
+
+          for (let { name, ...opts } of [snapshot, ...additionalSnapshots]) {
+            this.log.debug(`Taking snapshot: ${name}`, meta);
+
+            // will wait for timeouts, selectors, and additional network activity
+            let { url, dom } = await page.snapshot({ ...opts, ...conf, execute });
+            let root = injectPercyCSS(createRootResource(url, dom), percyCSS);
+            resources.delete(root.url); // remove any discovered root resource
+
+            this.log.info(`Snapshot taken: ${name}`, meta);
+            this._scheduleUpload(name, conf, [root, ...resources.values()]);
+          }
+        }
+      } catch (error) {
+        this.log.error(`Encountered an error taking snapshot: ${name}`, meta);
+        this.log.error(error, meta);
+      } finally {
+        await page?.close();
+      }
     });
   }
 
-  capture({
-    url,
-    name,
-    waitForTimeout,
-    waitForSelector,
-    execute,
-    snapshots = [],
-    ...options
-  }) {
-    assert(this.isRunning(), 'Not running');
-
-    assert(url, `Missing URL for${name ? ` ${name}` : ' snapshots'}`);
-    snapshots = name ? [{ name, execute }].concat(snapshots) : snapshots;
-    assert(snapshots.length && snapshots.every(s => s.name), `Missing name for ${url}`);
-
-    // the entire capture process happens within the async capture queue
-    return this.#captures.push(async () => {
-      let meta = { snapshot: { name, waitForTimeout, waitForSelector } };
-      let results = [];
-      let page;
-
-      // discovery options have moved, a warning will be logged during the snapshot phase
-      let { requestHeaders, authorization } = options;
-      options.discovery ||= { requestHeaders, authorization };
-
-      this.log.debug('---------');
-      this.log.debug('Handling page capture:', meta);
-      this.log.debug(`-> url: ${url}`, meta);
-      this.log.debug(`-> name: ${name}`, meta);
-      this.log.debug(`-> waitForTimeout: ${waitForTimeout}`, meta);
-      this.log.debug(`-> waitForSelector: ${waitForSelector}`, meta);
-      this.log.debug(`-> execute: ${execute}`, meta);
-
+  // Queues a snapshot upload with the provided configuration options and resources
+  _scheduleUpload(name, conf, resources) {
+    this.#uploads.push(`upload/${name}`, async () => {
       try {
-        // borrow a page from the discoverer
-        page = await this.discoverer.page(options.discovery);
+        // attach a log resource for debugging
+        resources = resources.concat(
+          createLogResource(logger.query(l => (
+            l.meta.snapshot?.name === name
+          )))
+        );
 
-        // navigate to the page and wait until ready
-        await page.goto(url, { waitForTimeout, waitForSelector });
-
-        // multiple snapshots can be captured on a single page
-        for (let { name, execute } of snapshots) {
-          if (execute) {
-            this.log.debug('Executing JavaScript', { ...meta, execute });
-            // accept function bodies as strings
-            if (typeof execute === 'string') execute = `async execute({ waitFor }) {\n${execute}\n}`;
-            // execute the provided function
-            await page.eval(execute);
-            // may cause additional network activity
-            await page.network.idle();
-          }
-
-          // inject @percy/dom for serialization by evaluating the file contents which adds a global
-          // PercyDOM object that we can later check against
-          /* istanbul ignore next: no instrumenting injected code */
-          if (await page.eval(() => !window.PercyDOM)) {
-            this.log.debug('Injecting @percy/dom', meta);
-            let script = await fs.readFile(require.resolve('@percy/dom'), 'utf-8');
-            /* eslint-disable-next-line no-new-func */
-            await page.eval(new Function(script));
-          }
-
-          // serialize and capture a DOM snapshot
-          this.log.debug('Serializing DOM', meta);
-          /* istanbul ignore next: no instrumenting injected code */
-          let { url, domSnapshot } = await page.eval(({ enableJavaScript }) => ({
-            /* eslint-disable-next-line no-undef */
-            domSnapshot: PercyDOM.serialize({ enableJavaScript }),
-            url: document.URL
-          }), options);
-
-          // snapshots are awaited on concurrently after sequentially capturing their DOM
-          results.push(this.snapshot({ ...options, url, name, domSnapshot }));
-        }
+        await this.client.sendSnapshot(this.build.id, {
+          ...conf, name, resources
+        });
       } catch (error) {
-        // handle errors
-        this.log.error(`Encountered an error for page: ${url}`, meta);
-        this.log.error(error, meta);
-      } finally {
-        // close the page
-        await page?.close();
-        // await on any resulting snapshots
-        await Promise.all(results);
+        let meta = { snapshot: { name }, build: this.build };
+        let failed = error.response?.status === 422 && (
+          error.response.body.errors.find(e => (
+            e.source?.pointer === '/data/attributes/build'
+          )));
+
+        this.log.error(`Encountered an error uploading snapshot: ${name}`, meta);
+        this.log.error(failed?.detail ?? error, meta);
+
+        // build failed at some point, stop accepting snapshots
+        if (failed) {
+          this.build.failed = true;
+          this.close();
+        }
       }
     });
   }

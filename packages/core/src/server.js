@@ -104,7 +104,7 @@ export default function createPercyServer(percy) {
       success: true,
       config: percy.config,
       loglevel: percy.loglevel(),
-      build: percy.client.build
+      build: percy.build
     }],
 
     // responds when idle
@@ -132,8 +132,8 @@ export default function createPercyServer(percy) {
         .then(() => [200, 'application/json', { success: true }])
     ),
 
-    // stops the instance async (connections will be closed)
-    '/percy/stop': () => percy.stop() && (
+    // stops the instance async at the end of the event loop
+    '/percy/stop': () => setImmediate(() => percy.stop()) && (
       [200, 'application/json', { success: true }]
     ),
 

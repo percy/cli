@@ -3,7 +3,17 @@ import path from 'path';
 import https from 'https';
 import logger from '@percy/logger';
 import { ProxyHttpsAgent } from '@percy/client/dist/request';
-import readableBytes from './utils/bytes';
+
+// Formats a raw byte integer as a string
+function formatBytes(int) {
+  let units = ['kB', 'MB', 'GB'];
+  let base = 1024;
+  let u = -1;
+
+  if (Math.abs(int) < base) return `${int}B`;
+  while (Math.abs(int) >= base && u++ < 2) int /= base;
+  return `${int.toFixed(1)}${units[u]}`;
+}
 
 // Returns an item from the map keyed by the current platform
 function selectByPlatform(map) {
@@ -89,7 +99,7 @@ async function install({
         // log progress
         if (log.shouldLog('info')) {
           let size = parseInt(response.headers['content-length'], 10);
-          let msg = `${readableBytes(size)} (${revision}) [:bar] :percent :etas`;
+          let msg = `${formatBytes(size)} (${revision}) [:bar] :percent :etas`;
           let progress = new (require('progress'))(logger.format(msg), {
             stream: logger.stdout,
             incomplete: ' ',

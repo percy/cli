@@ -36,10 +36,12 @@ export class Finalize extends Command {
     }
 
     this.log.info('Finalizing parallel build...');
-    await client.createBuild();
 
-    let build = client.build;
-    await client.finalizeBuild({ all: true });
-    this.log.info(`Finalized build #${build.number}: ${build.url}`);
+    // rely on the parallel nonce to cause the API to return the current running build for the nonce
+    let { data: build } = await client.createBuild();
+    let { 'build-number': number, 'web-url': url } = build.attributes;
+
+    await client.finalizeBuild(build.id, { all: true });
+    this.log.info(`Finalized build #${number}: ${url}`);
   }
 }

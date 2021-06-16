@@ -1,14 +1,39 @@
 import PercyEnvironment from '@percy/env';
 import { git } from '@percy/env/dist/utils';
+import logger from '@percy/logger';
 import pkg from '../package.json';
 
 import { sha256hash, base64encode, pool } from './utils';
 import request, { ProxyHttpsAgent } from './request';
 
+// Validate build ID arguments
+function validateBuildId(id) {
+  if (!id) throw new Error('Missing build ID');
+  if (!(typeof id === 'string' || typeof id === 'number')) {
+    throw new Error('Invalid build ID');
+  }
+}
+
+// Validate project path arguments
+function validateProjectPath(path) {
+  if (!path) throw new Error('Missing project path');
+  if (!/^[^/]+?\/.+/.test(path)) {
+    throw new Error(`Invalid project path. Expected "org/project" but recieved "${path}"`);
+  }
+}
+
 // PercyClient is used to communicate with the Percy API to create and finalize
 // builds and snapshot. Uses @percy/env to collect environment information used
 // during build creation.
 export default class PercyClient {
+  log = logger('client');
+  env = new PercyEnvironment(process.env);
+
+  httpsAgent = new ProxyHttpsAgent({
+    keepAlive: true,
+    maxSockets: 5
+  });
+
   constructor({
     // read or write token, defaults to PERCY_TOKEN environment variable
     token,
@@ -18,16 +43,9 @@ export default class PercyClient {
     // versioned percy api url
     apiUrl = 'https://percy.io/api/v1'
   } = {}) {
-    Object.assign(this, {
-      token,
-      apiUrl,
-      clientInfo: new Set([].concat(clientInfo)),
-      environmentInfo: new Set([].concat(environmentInfo)),
-      httpsAgent: new ProxyHttpsAgent({ keepAlive: true, maxSockets: 5 }),
-      env: new PercyEnvironment(process.env),
-      // build info is stored for reference
-      build: { id: null, number: null, url: null }
-    });
+    Object.assign(this, { token, apiUrl });
+    this.clientInfo = new Set([].concat(clientInfo));
+    this.environmentInfo = new Set([].concat(environmentInfo));
   }
 
   // Adds additional unique client info.
@@ -93,26 +111,13 @@ export default class PercyClient {
     });
   }
 
-  // Sets build reference data or nullifies it when no data is provided.
-  setBuildData(data) {
-    return Object.assign(this, {
-      build: {
-        id: data?.id,
-        number: data?.attributes?.['build-number'],
-        url: data?.attributes?.['web-url']
-      }
-    });
-  }
-
   // Creates a build with optional build resources. Only one build can be
   // created at a time per instance so snapshots and build finalization can be
   // done more seemlessly without manually tracking build ids
   async createBuild({ resources = [] } = {}) {
-    if (this.build.id) {
-      throw new Error('This client instance has not finalized the previous build');
-    }
+    this.log.debug('Creating a new build...');
 
-    let body = await this.post('builds', {
+    return this.post('builds', {
       data: {
         type: 'builds',
         attributes: {
@@ -146,39 +151,36 @@ export default class PercyClient {
         }
       }
     });
-
-    this.setBuildData(body?.data);
-    return body;
   }
 
   // Finalizes the active build. When `all` is true, `all-shards=true` is
   // added as a query param so the API finalizes all other build shards.
-  async finalizeBuild({ all = false } = {}) {
-    if (!this.build.id) {
-      throw new Error('This client instance has no active build');
-    }
-
+  async finalizeBuild(buildId, { all = false } = {}) {
+    validateBuildId(buildId);
     let qs = all ? 'all-shards=true' : '';
-    let body = await this.post(`builds/${this.build.id}/finalize?${qs}`);
-
-    this.setBuildData();
-    return body;
+    this.log.debug(`Finalizing build ${buildId}...`);
+    return this.post(`builds/${buildId}/finalize?${qs}`);
   }
 
   // Retrieves build data by id. Requires a read access token.
   async getBuild(buildId) {
+    validateBuildId(buildId);
+    this.log.debug(`Get build ${buildId}`);
     return this.get(`builds/${buildId}`);
   }
 
   // Retrieves project builds optionally filtered. Requires a read access token.
-  async getBuilds(projectSlug, filters = {}) {
+  async getBuilds(project, filters = {}) {
+    validateProjectPath(project);
+
     let qs = Object.keys(filters).map(k => (
       Array.isArray(filters[k])
         ? filters[k].map(v => `filter[${k}][]=${v}`).join('&')
         : `filter[${k}]=${filters[k]}`
     )).join('&');
 
-    return this.get(`projects/${projectSlug}/builds?${qs}`);
+    this.log.debug(`Fetching builds for ${project}`);
+    return this.get(`projects/${project}/builds?${qs}`);
   }
 
   // Resolves when the build has finished and is no longer pending or
@@ -187,31 +189,32 @@ export default class PercyClient {
     build,
     project,
     commit,
-    progress,
     timeout = 10 * 60 * 1000,
     interval = 1000
-  }) {
+  }, onProgress) {
     if (commit && !project) {
-      throw new Error('Missing project for commit');
+      throw new Error('Missing project path for commit');
     } else if (!commit && !build) {
       throw new Error('Missing build ID or commit SHA');
+    } else if (project) {
+      validateProjectPath(project);
     }
 
-    // get build data by id or project-commit combo
-    let getBuildData = async () => {
-      let sha = commit && (git(`rev-parse ${commit}`) || commit);
-      let body = build ? await this.getBuild(build)
-        : await this.getBuilds(project, { sha });
-      let data = build ? body?.data : body?.data[0];
-      return [data, data?.attributes.state];
-    };
+    let sha = commit && (git(`rev-parse ${commit}`) || commit);
+
+    let fetchData = async () => build
+      ? (await this.getBuild(build)).data
+      : (await this.getBuilds(project, { sha })).data[0];
+
+    this.log.debug(`Waiting for build ${build || `${project} (${commit})`}...`);
 
     // recursively poll every second until the build finishes
     return new Promise((resolve, reject) => (async function poll(last, t) {
       try {
-        let [data, state] = await getBuildData();
-        let updated = JSON.stringify(data) !== JSON.stringify(last);
+        let data = await fetchData();
+        let state = data?.attributes.state;
         let pending = !state || state === 'pending' || state === 'processing';
+        let updated = JSON.stringify(data) !== JSON.stringify(last);
 
         // new data recieved
         if (updated) {
@@ -222,9 +225,9 @@ export default class PercyClient {
           throw new Error('Timeout exceeded without an update');
         }
 
-        // call progress after the first update
-        if ((last || pending) && updated && progress) {
-          progress(data);
+        // call progress every update after the first update
+        if ((last || pending) && updated && onProgress) {
+          onProgress(data);
         }
 
         // not finished, poll again
@@ -233,7 +236,7 @@ export default class PercyClient {
 
         // build finished
         } else {
-          resolve(data);
+          resolve({ data });
         }
       } catch (err) {
         reject(err);
@@ -244,16 +247,16 @@ export default class PercyClient {
   // Uploads a single resource to the active build. If `filepath` is provided,
   // `content` is read from the filesystem. The sha is optional and will be
   // created from `content` if one is not provided.
-  async uploadResource({ sha, filepath, content }) {
-    if (!this.build.id) {
-      throw new Error('This client instance has no active build');
-    }
+  async uploadResource(buildId, { url, sha, filepath, content } = {}) {
+    validateBuildId(buildId);
+
+    this.log.debug(`Uploading resource: ${url}...`);
 
     content = filepath
       ? require('fs').readFileSync(filepath)
       : content;
 
-    return this.post(`builds/${this.build.id}/resources`, {
+    return this.post(`builds/${buildId}/resources`, {
       data: {
         type: 'resources',
         id: sha || sha256hash(content),
@@ -265,20 +268,20 @@ export default class PercyClient {
   }
 
   // Uploads resources to the active build concurrently, two at a time.
-  async uploadResources(resources) {
-    if (!this.build.id) {
-      throw new Error('This client instance has no active build');
-    }
+  async uploadResources(buildId, resources) {
+    validateBuildId(buildId);
+
+    this.log.debug(`Uploading resources for ${buildId}...`);
 
     return pool(function*() {
       for (let resource of resources) {
-        yield this.uploadResource(resource);
+        yield this.uploadResource(buildId, resource);
       }
     }, this, 2);
   }
 
   // Creates a snapshot for the active build using the provided attributes.
-  async createSnapshot({
+  async createSnapshot(buildId, {
     name,
     widths,
     minHeight,
@@ -287,14 +290,13 @@ export default class PercyClient {
     environmentInfo,
     resources = []
   } = {}) {
-    if (!this.build.id) {
-      throw new Error('This client instance has no active build');
-    }
-
+    validateBuildId(buildId);
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
 
-    return this.post(`builds/${this.build.id}/snapshots`, {
+    this.log.debug(`Creating snapshot: ${name}...`);
+
+    return this.post(`builds/${buildId}/snapshots`, {
       data: {
         type: 'snapshots',
         attributes: {
@@ -322,21 +324,23 @@ export default class PercyClient {
 
   // Finalizes a snapshot.
   async finalizeSnapshot(snapshotId) {
+    if (!snapshotId) throw new Error('Missing snapshot ID');
+    this.log.debug(`Finalizing snapshot ${snapshotId}...`);
     return this.post(`snapshots/${snapshotId}/finalize`);
   }
 
   // Convenience method for creating a snapshot for the active build, uploading
   // missing resources for the snapshot, and finalizing the snapshot.
-  async sendSnapshot(options) {
-    let { data } = await this.createSnapshot(options);
-    let missing = data.relationships?.['missing-resources']?.data;
+  async sendSnapshot(buildId, options) {
+    let snapshot = await this.createSnapshot(buildId, options);
+    let missing = snapshot.data.relationships?.['missing-resources']?.data;
 
     if (missing?.length) {
-      let resources = options.resources
-        .reduce((acc, r) => Object.assign(acc, { [r.sha]: r }), {});
-      await this.uploadResources(missing.map(({ id }) => resources[id]));
+      let resources = options.resources.reduce((acc, r) => Object.assign(acc, { [r.sha]: r }), {});
+      await this.uploadResources(buildId, missing.map(({ id }) => resources[id]));
     }
 
-    await this.finalizeSnapshot(data.id);
+    await this.finalizeSnapshot(snapshot.data.id);
+    return snapshot;
   }
 }

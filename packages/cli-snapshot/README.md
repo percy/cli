@@ -49,41 +49,29 @@ EXAMPLES
 
 ### Static Directory
 
-When snapshotting a static directory, the directory will be served locally and each matching page
-will be navigated to and snapshotted.
+When providing a static directory, it will be served locally and pages matching the `files` argument
+(and excluding the `ignore` argument) will be navigated to and snapshotted.
 
 ```sh-session
 $ percy snapshot ./public
 [percy] Percy has started!
-[percy] Created build #1: https://percy.io/org/project/123
 [percy] Snapshot taken: /index.html
 [percy] Snapshot taken: /about.html
 [percy] Snapshot taken: /contact.html
-[percy] Stopping percy...
 [percy] Finalized build #1: https://percy.io/org/project/123
-[percy] Done!
 ```
 
 ### Page Listing
 
-When snapshotting a file containing a list of pages to snapshot, the page URLs must all be
-accessible by a browser. The file must be YAML, JSON, or a JS file exporting a list of pages. Each
-page must contain a snapshot `name` and `url`. The options `waitForTimeout` and `waitForSelector`
-can also be provided option to wait for a timeout or selector respectively before snapshotting.
-
-#### YAML
+When providing a file containing a list of pages to snapshot, the file must be YAML, JSON, or a JS
+file exporting a list of pages. Each page must contain at least a `url` that can be navigated to
+using a browser.
 
 `pages.yml`:
 
 ```yaml
-- name: Snapshot one
-  url: http://localhost:8080
-
-- name: Snapshot two
-  url: http://localhost:8080/two
-  # wait for a timeout and/or selector before snapshotting
-  waitForTimeout: 1000
-  waitForSelector: .some-element
+- url: http://localhost:8080
+- url: http://localhost:8080/two
 ```
 
 Snapshotting `pages.yml`:
@@ -91,22 +79,24 @@ Snapshotting `pages.yml`:
 ```sh-session
 $ percy snapshot pages.yml
 [percy] Percy has started!
-[percy] Created build #1: https://percy.io/org/project/123
-[percy] Snapshot taken: Snapshot one
-[percy] Snapshot taken: Snapshot two
-[percy] Stopping percy...
+[percy] Snapshot taken: /
+[percy] Snapshot taken: /two
 [percy] Finalized build #1: https://percy.io/org/project/123
-[percy] Done!
 ```
 
-#### JSON
+### Page Options
+
+A `name` can be provided which will override the default snapshot name generated from the url
+path. The options `waitForTimeout` and `waitForSelector` can also be provided to wait for a timeout
+or selector respectively before taking the page snapshot.
 
 `pages.json`:
 
 ```json
 [{
   "name": "Snapshot one",
-  "url": "http://localhost:8080"
+  "url": "http://localhost:8080",
+  "waitForTimeout": 1000
 }, {
   "name": "Snapshot two",
   "url": "http://localhost:8080/two",
@@ -119,45 +109,49 @@ Snapshotting `pages.json`:
 ```sh-session
 $ percy snapshot pages.json
 [percy] Percy has started!
-[percy] Created build #1: https://percy.io/org/project/123
 [percy] Snapshot taken: Snapshot one
 [percy] Snapshot taken: Snapshot two
-[percy] Stopping percy...
 [percy] Finalized build #1: https://percy.io/org/project/123
-[percy] Done!
 ```
 
-#### JavaScript
+For more advanced use cases, an `execute` function and `additionalSnapshots` may be specified for
+each page to execute JavaScript within the page execution context before subsequent snapshots are taken.
 
-For JavaScript exports, an `execute` function and additional `snapshots` may be specified for each
-page to execute JavaScript within the execution context before snapshots are taken.
+> Note: All options are also accepted by other file formats. For `execute` however, a string
+> containing a function body can be provided when the file format prevents normal functions.
 
 `pages.js`:
 
 ```js
 module.exports = [{
-  name: 'Snapshot one',
-  url: 'http://localhost:8080',
-  async execute(page) {
-    await page.click('.button')
-  }
-}, {
-  name: 'Snapshot two',
-  url: 'http://localhost:8080/two',
-  waitForSelector: '.some-element',
-  snapshots: [{
-    name: 'Snapshot two - after click',
+  name: 'My form',
+  url: 'http://localhost:8080/form',
+  waitForSelector: '.form-loaded',
+  execute() {
+    document.querySelector('.name').value = 'Name Namerson';
+    document.querySelector('.email').value = 'email@domain.com';
+  },
+  additionalSnapshots: [{
+    suffix: ' - submitting',
     execute() {
-      document.querySelector('.button').click();
+      document.querySelector('.submit').click();
     }
   }, {
-    name: 'Snapshot two - after double click',
-    execute() {
-      document.querySelector('.button').click();
-      document.querySelector('.button').click();
-    }
+    suffix: ' - after submit',
+    waitForSelector: '.form-submitted'
   }]
 }]
+```
+
+Snapshotting `pages.js`:
+
+```sh-session
+$ percy snapshot pages.js
+[percy] Percy has started!
+[percy] Snapshot taken: My form
+[percy] Snapshot taken: My form - submitting
+[percy] Snapshot taken: My form - after submit
+[percy] Finalized build #1: https://percy.io/org/project/123
 ```
 
 JavaScript files may also export sync or async functions that return a list of pages to snapshot.
@@ -167,19 +161,4 @@ module.exports = async () => {
   let urls = await getSnapshotUrls()
   return urls.map(url => ({ name: url, url }))
 }
-```
-
-Snapshotting `pages.js`:
-
-```sh-session
-$ percy snapshot pages.js
-[percy] Percy has started!
-[percy] Created build #1: https://percy.io/org/project/123
-[percy] Snapshot taken: Snapshot one
-[percy] Snapshot taken: Snapshot two
-[percy] Snapshot taken: Snapshot two - after click
-[percy] Snapshot taken: Snapshot two - after double click
-[percy] Stopping percy...
-[percy] Finalized build #1: https://percy.io/org/project/123
-[percy] Done!
 ```

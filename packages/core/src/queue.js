@@ -1,64 +1,112 @@
-import waitFor from './utils/wait-for';
+import { waitFor } from './utils';
 
-// Concurrent task-based queue for handling snapshots and asset discovery.
 export default class Queue {
-  #queue = []
-  #pending = 0
+  running = true;
+  closed = false;
 
-  // Defaults to inifinite concurrency
-  constructor(concurrency = Infinity) {
+  #queued = new Map();
+  #pending = new Map();
+
+  constructor(concurrency = 5) {
     this.concurrency = concurrency;
   }
 
-  // Pushing a new task to the queue will attempt to run it unless the
-  // concurrency limit has been reached. The returned promise will resolve or
-  // reject when the task has succeeded or thrown an error.
-  push(task) {
-    return new Promise((resolve, reject) => {
-      this.#queue.push({ task, resolve, reject });
+  push(id, callback, priority) {
+    if (this.closed) throw new Error('Closed');
+
+    let task = { id, callback, priority };
+
+    task.promise = new Promise((resolve, reject) => {
+      Object.assign(task, { resolve, reject });
+      this.#queued.delete(id);
+      this.#queued.set(id, task);
       this._dequeue();
     });
+
+    return task.promise;
   }
 
-  // Returns the amount of queued and pending tasks.
-  get length() {
-    return this.#queue.length + this.#pending;
-  }
+  clear(id) {
+    if (id != null) {
+      this.#queued.delete(id);
+    } else {
+      this.#queued.clear();
+    }
 
-  // Resolves when there are no more queued or pending tasks.
-  idle() {
-    return waitFor(() => this.length === 0, {
-      timeout: 2 * 60 * 1000 // 2 minutes
-    });
-  }
-
-  // Clears the active queue. Tasks that were queued will not be executed and
-  // tasks that are pending (have already executed) will be allowed to finish.
-  clear() {
-    this.#queue = [];
     return this.length;
   }
 
-  // Begins processing the queue by running the oldest task first. Pending tasks
-  // are tracked and no tasks will run unless there are less pending than the
-  // concurrency limit. More tasks are dequeued when the current task
-  // finishes. Resolves when the current task finishes although this method
-  // should never be awaited on so multiple tasks can run concurrently.
-  async _dequeue() {
-    if (this.#pending >= this.concurrency) return;
-    let item = this.#queue.shift();
-    if (!item) return;
-    this.#pending++;
+  get length() {
+    return this.#queued.size +
+      this.#pending.size;
+  }
 
-    try {
-      let value = await item.task();
-      this.#pending--;
-      item.resolve(value);
-    } catch (error) {
-      this.#pending--;
-      item.reject(error);
-    } finally {
-      this._dequeue();
+  run() {
+    if (!this.running && !this.closed) {
+      this.running = true;
+
+      while (this.running && this.#queued.size && (
+        this.#pending.size < this.concurrency
+      )) this._dequeue();
     }
+
+    return this;
+  }
+
+  pause() {
+    this.running = false;
+    return this;
+  }
+
+  close() {
+    this.closed = true;
+    return this;
+  }
+
+  async idle() {
+    await waitFor(() => !this.#pending.size, { idle: 10 });
+  }
+
+  async empty() {
+    await waitFor(() => !this.length, { idle: 10 });
+  }
+
+  async flush() {
+    this.push('@@/flush', () => this.pause());
+    await this.run().idle();
+  }
+
+  next() {
+    let next;
+
+    for (let [id, task] of this.#queued) {
+      if (!next || (task.priority != null && next.priority == null) ||
+          task.priority < next.priority) next = task;
+      if (id === '@@/flush') break;
+    }
+
+    return next;
+  }
+
+  _dequeue() {
+    if (!this.running) return;
+    if (this.#pending.size >= this.concurrency) return;
+    let task = this.next();
+    if (!task) return;
+
+    this.#queued.delete(task.id);
+    this.#pending.set(task.id, task);
+
+    return Promise.resolve(
+      task.callback()
+    ).then(res => {
+      this.#pending.delete(task.id);
+      return task.resolve(res);
+    }).catch(err => {
+      this.#pending.delete(task.id);
+      return task.reject(err);
+    }).then(() => {
+      this._dequeue();
+    });
   }
 }

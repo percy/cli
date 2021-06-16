@@ -19,7 +19,7 @@ export default class PercyCommand extends Command {
     logger.loglevel('info', flags);
 
     // ensure cleanup is always performed
-    let cleanup = () => this.finally();
+    let cleanup = () => this.finally(new Error('SIGTERM'));
     process.on('SIGHUP', cleanup);
     process.on('SIGINT', cleanup);
     process.on('SIGTERM', cleanup);

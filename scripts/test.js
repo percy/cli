@@ -107,7 +107,11 @@ async function main({
 
     jasmine.clearReporters();
     jasmine.addReporter(new SpecReporter({
+      spec: {
+        displayPending: true
+      },
       summary: {
+        displayPending: false,
         displayStacktrace: 'pretty'
       }
     }));

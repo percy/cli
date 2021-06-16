@@ -28,12 +28,11 @@ export class Start extends Command {
 
     let percy = await Percy.start({
       port: this.flags.port,
-      config: false,
       ...this.percyrc()
     });
 
     // only stop when terminated
-    let stop = () => percy.stop();
+    let stop = () => percy.stop(true);
     process.on('SIGHUP', stop);
     process.on('SIGINT', stop);
     process.on('SIGTERM', stop);

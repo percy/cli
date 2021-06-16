@@ -1,7 +1,11 @@
+import { promises as fs } from 'fs';
 import EventEmitter from 'events';
 import logger from '@percy/logger';
 import Network from './network';
-import waitFor from '../utils/wait-for';
+import { waitFor } from './utils';
+
+// Used by some methods to impose a strict maximum timeout, such as .goto and .snapshot
+const PAGE_TIMEOUT = 30000;
 
 export default class Page extends EventEmitter {
   #browser = null;
@@ -34,16 +38,17 @@ export default class Page extends EventEmitter {
 
   // initial page options asynchronously
   async init({
-    cacheDisabled = false,
+    cacheDisabled = true,
     enableJavaScript = true,
+    requestHeaders = {},
     networkIdleTimeout,
-    requestHeaders,
     authorization,
     userAgent,
-    height = 1024,
-    width = 1280,
+    intercept,
+    height,
+    width,
     meta
-  }) {
+  } = {}) {
     this.log.debug('Initialize page', meta);
     this.network.timeout = networkIdleTimeout;
     this.network.authorization = authorization;
@@ -67,13 +72,12 @@ export default class Page extends EventEmitter {
       this.send('Network.setUserAgentOverride', { userAgent }),
       this.send('Security.setIgnoreCertificateErrors', { ignore: true }),
       this.send('Emulation.setScriptExecutionDisabled', { value: !enableJavaScript }),
-      this.send('Emulation.setDeviceMetricsOverride', {
-        deviceScaleFactor: 1,
-        mobile: false,
-        height,
-        width
-      })
+      this.resize({ width, height })
     ]);
+
+    if (intercept) {
+      await this.network.intercept(intercept);
+    }
 
     return this;
   }
@@ -87,15 +91,26 @@ export default class Page extends EventEmitter {
     });
   }
 
+  async resize({
+    deviceScaleFactor = 1,
+    mobile = false,
+    height = 1024,
+    width = 1280
+  }) {
+    this.log.debug(`Resize page to ${width}x${height}`);
+
+    await this.send('Emulation.setDeviceMetricsOverride', {
+      deviceScaleFactor,
+      mobile,
+      height,
+      width
+    });
+  }
+
   // Go to a URL and wait for navigation to occur
-  async goto(url, {
-    timeout = 30000,
-    waitUntil = 'load',
-    waitForTimeout,
-    waitForSelector
-  } = {}) {
+  async goto(url, { waitUntil = 'load' } = {}) {
     let handleNavigate = event => {
-      /* istanbul ignore next: sanity check */
+      /* istanbul ignore else: sanity check */
       if (this.#frameId === event.frame.id) handleNavigate.done = true;
     };
 
@@ -113,7 +128,7 @@ export default class Page extends EventEmitter {
       await Promise.all([navigate, waitFor(() => {
         if (this.closedReason) throw new Error(this.closedReason);
         return handleNavigate.done && this.#lifecycle.has(waitUntil);
-      }, { timeout })]);
+      }, PAGE_TIMEOUT)]);
     } catch (error) {
       this.off('Page.frameNavigated', handleNavigate);
 
@@ -123,28 +138,6 @@ export default class Page extends EventEmitter {
     }
 
     this.log.debug('Page navigated', this.meta);
-    // wait for the network to idle
-    await this.network.idle();
-
-    // wait for any specified timeout
-    if (waitForTimeout) {
-      this.log.debug('Wait for page timeout', this.meta);
-
-      await new Promise(resolve => {
-        setTimeout(resolve, waitForTimeout);
-      });
-    }
-
-    // wait for any specified selector
-    if (waitForSelector) {
-      this.log.debug('Wait for page selector', this.meta);
-
-      /* istanbul ignore next: no instrumenting injected code */
-      await this.eval(function waitForSelector({ waitFor }, selector, timeout) {
-        return waitFor(() => !!document.querySelector(selector), timeout)
-          .catch(() => Promise.reject(new Error(`Failed to find "${selector}"`)));
-      }, waitForSelector, timeout);
-    }
   }
 
   // Evaluate JS functions within the page's execution context
@@ -186,6 +179,62 @@ export default class Page extends EventEmitter {
     } else {
       return result.value;
     }
+  }
+
+  async snapshot({
+    name,
+    waitForTimeout,
+    waitForSelector,
+    execute,
+    ...options
+  }) {
+    // wait for any specified timeout
+    if (waitForTimeout) {
+      this.log.debug(`Wait for ${waitForTimeout}ms timeout`, this.meta);
+      await new Promise(resolve => setTimeout(resolve, waitForTimeout));
+    }
+
+    // wait for any specified selector
+    if (waitForSelector) {
+      this.log.debug(`Wait for selector: ${waitForSelector}`, this.meta);
+
+      /* istanbul ignore next: no instrumenting injected code */
+      await this.eval(function waitForSelector({ waitFor }, selector, timeout) {
+        return waitFor(() => !!document.querySelector(selector), timeout)
+          .catch(() => Promise.reject(new Error(`Failed to find "${selector}"`)));
+      }, waitForSelector, PAGE_TIMEOUT);
+    }
+
+    // execute any javascript
+    if (execute) {
+      this.log.debug('Execute JavaScript', { ...this.meta, execute });
+      // accept function bodies as strings
+      if (typeof execute === 'string') execute = `async execute({ waitFor }) {\n${execute}\n}`;
+      // execute the provided function
+      await this.eval(execute);
+    }
+
+    // wait for any final network activity before capturing the dom snapshot
+    await this.network.idle();
+
+    // inject @percy/dom for serialization by evaluating the file contents which adds a global
+    // PercyDOM object that we can later check against
+    /* istanbul ignore next: no instrumenting injected code */
+    if (await this.eval(() => !window.PercyDOM)) {
+      this.log.debug('Inject @percy/dom', this.meta);
+      let script = await fs.readFile(require.resolve('@percy/dom'), 'utf-8');
+      await this.eval(new Function(script)); /* eslint-disable-line no-new-func */
+    }
+
+    // serialize and capture a DOM snapshot
+    this.log.debug('Serialize DOM', this.meta);
+
+    /* istanbul ignore next: no instrumenting injected code */
+    return await this.eval((_, options) => ({
+      /* eslint-disable-next-line no-undef */
+      dom: PercyDOM.serialize(options),
+      url: document.URL
+    }), options);
   }
 
   async send(method, params) {

@@ -19,7 +19,9 @@ const helpers = {
   testReply: (path, reply) => helpers.call('server.reply', path, reply),
   testFailure: (path, error) => helpers.call('server.test.failure', path, error),
   testError: path => helpers.call('server.test.error', path),
-  testSerialize: fn => helpers.call('server.test.serialize', fn && fn.toString()),
+  testSerialize: fn => !fn
+    ? helpers.call('server.test.serialize') // get
+    : helpers.call('server.test.serialize', fn), // set
   mockSite: () => helpers.call('site.mock'),
   closeSite: () => helpers.call('site.close')
 };
