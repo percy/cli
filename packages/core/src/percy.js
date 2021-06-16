@@ -212,6 +212,13 @@ export default class Percy {
     this.readyState = 3;
   }
 
+  // Deprecated capture method
+  capture(options) {
+    this.log.deprecated('The #capture() method will be ' + (
+      'removed in 1.0.0. Use #snapshot() instead.'));
+    return this.snapshot(options);
+  }
+
   // Takes one or more snapshots of a page while discovering resources to upload with the
   // snapshot. If an existing dom snapshot is provided, it will be served as the root resource
   // during asset discovery. Once asset discovery has completed, the queued snapshot will resolve

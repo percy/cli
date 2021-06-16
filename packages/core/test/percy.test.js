@@ -387,4 +387,17 @@ describe('Percy', () => {
       expect(mockAPI.requests['/builds/123/snapshots']).toHaveSize(1);
     });
   });
+
+  describe('#capture()', () => {
+    it('is deprecated', async () => {
+      spyOn(percy, 'snapshot').and.resolveTo('fin');
+      await expectAsync(percy.capture()).toBeResolvedTo('fin');
+      expect(percy.snapshot).toHaveBeenCalledTimes(1);
+
+      expect(logger.stderr).toEqual([
+        '[percy] Warning: The #capture() method will be ' +
+          'removed in 1.0.0. Use #snapshot() instead.'
+      ]);
+    });
+  });
 });
