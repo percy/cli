@@ -170,6 +170,20 @@ describe('Proxied PercyClient', () => {
     expect(proxy.connects).toEqual([]);
   });
 
+  it('is not proxied when not using a secure https api url', async () => {
+    await server.close();
+    server = await createTestServer(http, 8080).start();
+
+    client = new PercyClient({
+      token: 'PERCY_TOKEN',
+      apiUrl: 'http://localhost:8080'
+    });
+
+    await client.get('foo');
+    await expectAsync(client.get('foo')).toBeResolvedTo('test');
+    expect(proxy.connects).toEqual([]);
+  });
+
   it('is sent with basic proxy auth username', async () => {
     process.env.HTTP_PROXY = 'http://user@localhost:1337';
     await expectAsync(client.get('foo')).toBeResolvedTo('test proxied');

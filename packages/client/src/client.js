@@ -6,6 +6,9 @@ import pkg from '../package.json';
 import { sha256hash, base64encode, pool } from './utils';
 import request, { ProxyHttpsAgent } from './request';
 
+// Default client API URL can be set with an env var for API development
+const { PERCY_CLIENT_API_URL = 'https://percy.io/api/v1' } = process.env;
+
 // Validate build ID arguments
 function validateBuildId(id) {
   if (!id) throw new Error('Missing build ID');
@@ -29,23 +32,23 @@ export default class PercyClient {
   log = logger('client');
   env = new PercyEnvironment(process.env);
 
-  httpsAgent = new ProxyHttpsAgent({
-    keepAlive: true,
-    maxSockets: 5
-  });
-
   constructor({
     // read or write token, defaults to PERCY_TOKEN environment variable
     token,
     // initial user agent info
     clientInfo = '',
     environmentInfo = '',
-    // versioned percy api url
-    apiUrl = 'https://percy.io/api/v1'
+    // versioned api url
+    apiUrl = PERCY_CLIENT_API_URL
   } = {}) {
     Object.assign(this, { token, apiUrl });
     this.clientInfo = new Set([].concat(clientInfo));
     this.environmentInfo = new Set([].concat(environmentInfo));
+
+    // only use a proxy agent for production https requests
+    if (apiUrl.startsWith('https:')) {
+      this.httpsAgent = new ProxyHttpsAgent({ keepAlive: true, maxSockets: 5 });
+    }
   }
 
   // Adds additional unique client info.
