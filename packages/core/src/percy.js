@@ -58,7 +58,8 @@ export default class Percy {
       ? PercyConfig.getDefaults(options)
       : PercyConfig.load({ path: config, overrides: options });
 
-    this.#snapshots.concurrency = this.config.discovery.concurrency;
+    let { concurrency } = this.config.discovery;
+    if (concurrency) this.#snapshots.concurrency = concurrency;
     if (this.deferUploads) this.#uploads.pause();
 
     this.client = new PercyClient({
