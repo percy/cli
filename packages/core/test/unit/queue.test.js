@@ -18,7 +18,7 @@ describe('Unit / Tasks Queue', () => {
   });
 
   it('has a default concurrency', () => {
-    expect(new Queue()).toHaveProperty('concurrency', 5);
+    expect(new Queue()).toHaveProperty('concurrency', 10);
   });
 
   it('can set a specific concurrency', () => {
@@ -44,9 +44,9 @@ describe('Unit / Tasks Queue', () => {
       await expectAsync(q.push(1, task(100, () => n++))).toBeResolvedTo(1);
       expect(n).toBe(2);
 
-      await expectAsync(q.push(2, task(0, () => {
+      await expectAsync(q.push(2, () => {
         throw new Error('some error');
-      }))).toBeRejectedWithError('some error');
+      })).toBeRejectedWithError('some error');
     });
 
     it('can run tasks according to priority', async () => {

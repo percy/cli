@@ -7,7 +7,7 @@ export default class Queue {
   #queued = new Map();
   #pending = new Map();
 
-  constructor(concurrency = 5) {
+  constructor(concurrency = 10) {
     this.concurrency = concurrency;
   }
 
@@ -42,7 +42,7 @@ export default class Queue {
   }
 
   run() {
-    this.running = !this.closed;
+    this.running = true;
 
     while (this.running && this.#queued.size && (
       this.#pending.size < this.concurrency
@@ -51,12 +51,13 @@ export default class Queue {
     return this;
   }
 
-  pause() {
+  stop() {
     this.running = false;
     return this;
   }
 
-  close() {
+  close(abort) {
+    if (abort) this.stop().clear();
     this.closed = true;
     return this;
   }
@@ -70,7 +71,7 @@ export default class Queue {
   }
 
   async flush() {
-    this.push('@@/flush', () => this.pause());
+    this.push('@@/flush', () => this.stop());
     await this.run().idle();
   }
 
@@ -95,16 +96,18 @@ export default class Queue {
     this.#queued.delete(task.id);
     this.#pending.set(task.id, task);
 
-    return Promise.resolve(
-      task.callback()
-    ).then(res => {
+    let done = (callback, arg) => {
       this.#pending.delete(task.id);
-      return task.resolve(res);
-    }).catch(err => {
-      this.#pending.delete(task.id);
-      return task.reject(err);
-    }).then(() => {
+      callback(arg);
       this._dequeue();
-    });
+    };
+
+    try {
+      return Promise.resolve(task.callback())
+        .then(done.bind(null, task.resolve))
+        .catch(done.bind(null, task.reject));
+    } catch (err) {
+      done(task.reject, err);
+    }
   }
 }

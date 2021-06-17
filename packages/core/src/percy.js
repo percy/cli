@@ -60,7 +60,7 @@ export default class Percy {
 
     let { concurrency } = this.config.discovery;
     if (concurrency) this.#snapshots.concurrency = concurrency;
-    if (this.deferUploads) this.#uploads.pause();
+    if (this.deferUploads) this.#uploads.stop();
 
     this.client = new PercyClient({
       token,
@@ -96,10 +96,10 @@ export default class Percy {
     await this.#uploads.flush();
   }
 
-  // Immediately closes and clears all queues, preventing any more tasks from running
+  // Immediately stops all queues, preventing any more tasks from running
   close() {
-    this.#snapshots.close().clear();
-    this.#uploads.close().clear();
+    this.#snapshots.close(true);
+    this.#uploads.close(true);
   }
 
   // Starts a local API server, a browser process, and queues creating a new Percy build which will run
@@ -116,7 +116,7 @@ export default class Percy {
       // create a percy build as the first immediately queued task
       let buildTask = this.#uploads.push('build/create', () => {
         // pause other queued tasks until after the build is created
-        this.#uploads.pause();
+        this.#uploads.stop();
 
         return this.client.createBuild()
           .then(({ data: { id, attributes } }) => {
@@ -168,11 +168,8 @@ export default class Percy {
     // not started or already stopped
     if (!this.readyState || this.readyState > 2) return;
 
-    // clear queued tasks
-    if (force) {
-      this.#snapshots.clear();
-      this.#uploads.clear();
-    }
+    // close queues asap
+    if (force) this.close();
 
     // already stopping
     if (this.readyState === 2) return;
