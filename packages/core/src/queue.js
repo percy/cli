@@ -42,13 +42,11 @@ export default class Queue {
   }
 
   run() {
-    if (!this.running && !this.closed) {
-      this.running = true;
+    this.running = !this.closed;
 
-      while (this.running && this.#queued.size && (
-        this.#pending.size < this.concurrency
-      )) this._dequeue();
-    }
+    while (this.running && this.#queued.size && (
+      this.#pending.size < this.concurrency
+    )) this._dequeue();
 
     return this;
   }
