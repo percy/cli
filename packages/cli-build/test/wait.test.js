@@ -20,7 +20,7 @@ describe('percy build:wait', () => {
   beforeEach(() => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     mockAPI.start();
-    logger.mock();
+    logger.mock({ isTTY: true });
   });
 
   afterEach(() => {

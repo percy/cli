@@ -1,4 +1,3 @@
-import readline from 'readline';
 import Command, { flags } from '@percy/cli-command';
 import PercyClient from '@percy/client';
 import logger from '@percy/logger';
@@ -53,72 +52,49 @@ export class Wait extends Command {
   log = logger('cli:build:wait');
 
   async run() {
-    if (this.isPercyEnabled()) {
-      let client = new PercyClient();
-      let result = await client.waitForBuild(this.flags, this.progress);
-      this.finish(result.data);
-    } else {
-      this.log.info('Percy is disabled');
+    if (!this.isPercyEnabled()) {
+      return this.log.info('Percy is disabled');
     }
+
+    await new PercyClient()
+      .waitForBuild(this.flags, data => {
+        this.status(data);
+      });
   }
 
-  // Log build progress
-  progress({
-    attributes: {
-      state,
-      'total-snapshots': count,
-      'total-comparisons': total,
-      'total-comparisons-finished': finished
-    }
-  }) {
-    // update the same line each time
-    readline.cursorTo(logger.stdout, 0);
-
-    // still recieving snapshots
-    if (state === 'pending') {
-      logger.stdout.write(logger.format('Recieving snapshots...', 'cli:build:wait'));
-
-    // need to clear the line before finishing
-    } else if (finished === total || state === 'finished') {
-      readline.clearLine(logger.stdout);
-    }
-
-    // processing snapshots
-    if (state === 'processing') {
-      logger.stdout.write(logger.format(
-        `Processing ${count} snapshots - ` + (
-          finished === total ? 'finishing up...'
-            : `${finished} of ${total} comparisons finished...`),
-        'cli:build:wait'
-      ));
-    }
-  }
-
-  // Log build status
-  finish({
+  // Log build status and maybe exit when failed
+  status({
     attributes: {
       state,
       'web-url': url,
       'build-number': number,
-      'total-comparisons-diff': diffs,
       'failure-reason': failReason,
-      'failure-details': failDetails
+      'failure-details': failDetails,
+      'total-snapshots': count,
+      'total-comparisons': total,
+      'total-comparisons-diff': diffs,
+      'total-comparisons-finished': finished
     }
   }) {
-    if (state === 'finished') {
-      this.log.info(`Build #${number} finished! ${url}`);
-      this.log.info(`Found ${diffs} changes`);
-
-      if (this.flags['fail-on-changes'] && diffs > 0) {
+    switch (state) {
+      case 'pending':
+        return this.log.progress('Recieving snapshots...');
+      case 'processing':
+        return this.log.progress(`Processing ${count} snapshots - ` + (
+          finished === total ? 'finishing up...' : (
+            `${finished} of ${total} comparisons finished...`)
+        ));
+      case 'finished':
+        this.log.info(`Build #${number} finished! ${url}`);
+        this.log.info(`Found ${diffs} changes`);
+        return this.flags['fail-on-changes'] && diffs > 0 && this.exit(1);
+      case 'failed':
+        this.log.error(`Build #${number} failed! ${url}`);
+        this.log.error(this.failure(failReason, failDetails));
         return this.exit(1);
-      }
-    } else if (state === 'failed') {
-      this.log.error(`Build #${number} failed! ${url}`);
-      this.log.error(this.failure(failReason, failDetails));
-      return this.exit(1);
-    } else {
-      this.log.error(`Build #${number} is ${state}. ${url}`);
-      return this.exit(1);
+      default:
+        this.log.error(`Build #${number} is ${state}. ${url}`);
+        return this.exit(1);
     }
   }
 
