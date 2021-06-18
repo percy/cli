@@ -22,7 +22,7 @@ describe('GitHub', () => {
 
     env = new PercyEnvironment({
       PERCY_PARALLEL_TOTAL: '-1',
-      PERCY_PARALLEL_NONCE: 'job-id',
+      GITHUB_RUN_ID: 'job-id',
       GITHUB_ACTIONS: 'true',
       GITHUB_EVENT_PATH: ghEventFile
     });
