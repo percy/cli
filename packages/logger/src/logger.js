@@ -78,6 +78,7 @@ export default class PercyLogger {
       .reduce((group, level) => Object.assign(group, {
         [level]: this.log.bind(this, name, level)
       }), {
+        progress: this.progress.bind(this, name),
         deprecated: this.deprecated.bind(this, name),
         shouldLog: this.shouldLog.bind(this, name)
       });
@@ -117,6 +118,22 @@ export default class PercyLogger {
     }
 
     return `[${label}] ${message}${suffix}`;
+  }
+
+  // Replaces the current line with a log message
+  progress(debug, message, persist) {
+    if (!this.shouldLog(debug, 'info')) return;
+    let { stdout } = this.constructor;
+
+    if (stdout.isTTY || !this._progress) {
+      message &&= this.format(message, debug);
+      if (stdout.isTTY) stdout.cursorTo(0);
+      else message &&= message + '\n';
+      if (message) stdout.write(message);
+      if (stdout.isTTY) stdout.clearLine(1);
+    }
+
+    this._progress = !!message && { message, persist };
   }
 
   // Returns true or false if the level and debug group can write messages to stdio
@@ -180,8 +197,18 @@ export default class PercyLogger {
 
   // Writes a message to stdio based on the loglevel
   write(level, message) {
-    let stdio = level === 'info' ? 'stdout' : 'stderr';
-    this.constructor[stdio].write(message + '\n');
+    let { stdout, stderr } = this.constructor;
+    let progress = stdout.isTTY && this._progress;
+
+    if (progress) {
+      stdout.cursorTo(0);
+      stdout.clearLine();
+    }
+
+    (level === 'info' ? stdout : stderr).write(message + '\n');
+
+    if (!this._progress?.persist) delete this._progress;
+    else if (progress) stdout.write(progress.message);
   }
 
   // Opens a socket logging connection

@@ -20,6 +20,7 @@ describe('logger', () => {
     expect(log).toHaveProperty('warn', jasmine.any(Function));
     expect(log).toHaveProperty('error', jasmine.any(Function));
     expect(log).toHaveProperty('debug', jasmine.any(Function));
+    expect(log).toHaveProperty('progress', jasmine.any(Function));
     expect(log).toHaveProperty('deprecated', jasmine.any(Function));
   });
 
@@ -316,7 +317,123 @@ describe('logger', () => {
     });
   });
 
-  if (process.env.__PERCY_BROWSERIFIED__) {
+  if (!process.env.__PERCY_BROWSERIFIED__) {
+    describe('progress', () => {
+      let stdout;
+
+      let resetSpies = () => {
+        stdout.cursorTo.calls.reset();
+        stdout.clearLine.calls.reset();
+        stdout.write.calls.reset();
+      };
+
+      beforeEach(() => {
+        stdout = logger.Logger.stdout;
+        stdout.isTTY = true;
+        spyOn(stdout, 'cursorTo');
+        spyOn(stdout, 'clearLine');
+        spyOn(stdout, 'write').and.callThrough();
+      });
+
+      it('does not log when loglevel prevents "info" logs', () => {
+        logger.loglevel('error');
+        log.progress('foo');
+
+        expect(stdout.cursorTo).not.toHaveBeenCalled();
+        expect(stdout.write).not.toHaveBeenCalled();
+        expect(stdout.clearLine).not.toHaveBeenCalled();
+      });
+
+      it('replaces the current log line', () => {
+        log.progress('foo');
+
+        expect(stdout.cursorTo).toHaveBeenCalledWith(0);
+        expect(stdout.cursorTo).toHaveBeenCalledBefore(stdout.write);
+        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] foo`);
+        expect(stdout.write).toHaveBeenCalledBefore(stdout.clearLine);
+        expect(stdout.clearLine).toHaveBeenCalledWith(1);
+      });
+
+      it('replaces progress with the next log', () => {
+        log.progress('foo');
+        resetSpies();
+
+        log.info('bar');
+
+        expect(stdout.cursorTo).toHaveBeenCalledWith(0);
+        expect(stdout.cursorTo).toHaveBeenCalledBefore(stdout.clearLine);
+        expect(stdout.clearLine).toHaveBeenCalledWith();
+        expect(stdout.clearLine).toHaveBeenCalledBefore(stdout.write);
+        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] bar\n`);
+      });
+
+      it('clears last progress when empty', () => {
+        log.progress('foo');
+        resetSpies();
+
+        log.progress();
+
+        expect(stdout.cursorTo).toHaveBeenCalledWith(0);
+        expect(stdout.cursorTo).toHaveBeenCalledBefore(stdout.clearLine);
+        expect(stdout.clearLine).toHaveBeenCalledWith(1);
+        expect(stdout.write).not.toHaveBeenCalled();
+      });
+
+      it('can persist progress after the next log', () => {
+        log.progress('foo', true);
+        resetSpies();
+
+        log.info('bar');
+
+        expect(stdout.cursorTo).toHaveBeenCalledWith(0);
+        expect(stdout.clearLine).toHaveBeenCalledWith();
+        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] bar\n`);
+        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] foo`);
+      });
+
+      describe('without a TTY', () => {
+        beforeEach(() => {
+          stdout.isTTY = false;
+        });
+
+        it('logs only the first consecutive progress call', () => {
+          log.progress('foo');
+          log.progress('bar');
+          log.progress('baz');
+
+          expect(stdout.cursorTo).not.toHaveBeenCalled();
+          expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] foo\n`);
+          expect(stdout.clearLine).not.toHaveBeenCalled();
+        });
+
+        it('does not replace progress with the next log', () => {
+          log.progress('foo');
+          resetSpies();
+
+          log.info('bar');
+
+          expect(stdout.cursorTo).not.toHaveBeenCalled();
+          expect(stdout.clearLine).not.toHaveBeenCalled();
+          expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] bar\n`);
+        });
+
+        it('ignores consecutive persistant logs after the first', () => {
+          log.progress('foo', true);
+          log.info('bar');
+          log.progress('baz', true);
+          log.info('qux');
+
+          expect(stdout.cursorTo).not.toHaveBeenCalled();
+          expect(stdout.write).toHaveBeenCalledTimes(3);
+          expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] foo\n`);
+          expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] bar\n`);
+          expect(stdout.write).not.toHaveBeenCalledWith(`[${colors.magenta('percy')}] baz\n`);
+          expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] qux\n`);
+          expect(stdout.clearLine).not.toHaveBeenCalled();
+        });
+      });
+    });
+  } else {
     describe('browser support', () => {
       it('logs messages with CSS colors', () => {
         log.info('Colorful!');
@@ -339,6 +456,14 @@ describe('logger', () => {
 
         expect(console.warn.calls).toEqual([
           ['[%cpercy%c] %cWarning!%c', 'color:magenta', 'color:inherit', 'color:yellow', 'color:inherit']
+        ]);
+      });
+
+      it('logs an error when attempting to use the #progress() method', () => {
+        log.progress('==>');
+
+        expect(console.error.calls).toEqual([
+          ['The log.progress() method is not supported in browsers']
         ]);
       });
     });

@@ -22,6 +22,10 @@ function TestIO(data, options) {
     let { Writable } = require('stream');
 
     return Object.assign(new Writable(), {
+      isTTY: options?.isTTY,
+      cursorTo() {},
+      clearLine() {},
+
       _write(chunk, encoding, callback) {
         data.push(sanitizeLog(chunk.toString(), options));
         callback();
