@@ -25,7 +25,10 @@ export default class Network {
     this.page.on('Network.eventSourceMessageReceived', this._handleEventSourceMessageReceived);
     this.page.on('Network.loadingFinished', this._handleLoadingFinished);
     this.page.on('Network.loadingFailed', this._handleLoadingFailed);
-    this.page.send('Network.enable');
+
+    /* istanbul ignore next: race condition */
+    this.page.send('Network.enable')
+      .catch(e => this.log.debug(e, this.page.meta));
   }
 
   // Enable request interception

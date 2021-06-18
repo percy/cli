@@ -28,7 +28,9 @@ export function createRequestHandler({ disableCache, getResource }, m) {
       log.debug(`Encountered an error handling request: ${url}`, meta);
       log.debug(error);
 
-      await request.abort(error);
+      /* istanbul ignore next: race condition */
+      await request.abort(error)
+        .catch(e => log.debug(e, meta));
     }
   };
 }

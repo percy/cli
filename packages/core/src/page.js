@@ -88,6 +88,9 @@ export default class Page extends EventEmitter {
 
     await this.#browser.send('Target.closeTarget', {
       targetId: this.#targetId
+    }).catch(error => {
+      /* istanbul ignore next: race condition */
+      this.log.debug(error, this.meta);
     });
   }
 
