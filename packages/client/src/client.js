@@ -229,8 +229,8 @@ export default class PercyClient {
         }
 
         // call progress every update after the first update
-        if ((last || pending) && updated && onProgress) {
-          onProgress(data);
+        if ((last || pending) && updated) {
+          onProgress?.(data);
         }
 
         // not finished, poll again
@@ -239,6 +239,8 @@ export default class PercyClient {
 
         // build finished
         } else {
+          // ensure progress is called at least once
+          if (!last) onProgress?.(data);
           resolve({ data });
         }
       } catch (err) {
