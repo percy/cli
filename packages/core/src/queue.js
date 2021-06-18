@@ -66,8 +66,11 @@ export default class Queue {
     await waitFor(() => !this.#pending.size, { idle: 10 });
   }
 
-  async empty() {
-    await waitFor(() => !this.length, { idle: 10 });
+  async empty(onCheck) {
+    await waitFor(() => {
+      onCheck?.(this.length);
+      return !this.length;
+    }, { idle: 10 });
   }
 
   async flush() {
