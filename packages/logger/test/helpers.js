@@ -22,7 +22,7 @@ function TestIO(data, options) {
     let { Writable } = require('stream');
 
     return Object.assign(new Writable(), {
-      isTTY: options?.isTTY,
+      isTTY: options && options.isTTY,
       cursorTo() {},
       clearLine() {},
 
