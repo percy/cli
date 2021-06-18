@@ -240,6 +240,8 @@ export default class PercyEnvironment {
           return this.vars.BUILD_ID;
         case 'bitbucket':
           return this.vars.BITBUCKET_BUILD_NUMBER;
+        case 'github':
+          return this.vars.GITHUB_RUN_ID;
       }
     })();
 

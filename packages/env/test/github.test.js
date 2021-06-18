@@ -21,6 +21,8 @@ describe('GitHub', () => {
     }));
 
     env = new PercyEnvironment({
+      PERCY_PARALLEL_TOTAL: '-1',
+      GITHUB_RUN_ID: 'job-id',
       GITHUB_ACTIONS: 'true',
       GITHUB_EVENT_PATH: ghEventFile
     });
@@ -38,8 +40,8 @@ describe('GitHub', () => {
     expect(env).toHaveProperty('target.commit', null);
     expect(env).toHaveProperty('target.branch', null);
     expect(env).toHaveProperty('pullRequest', 10);
-    expect(env).toHaveProperty('parallel.nonce', null);
-    expect(env).toHaveProperty('parallel.total', null);
+    expect(env).toHaveProperty('parallel.nonce', 'job-id');
+    expect(env).toHaveProperty('parallel.total', -1);
   });
 
   it('has env info for custom actions', () => {
