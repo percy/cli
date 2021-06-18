@@ -94,11 +94,11 @@ queues are cleared and closed to prevent queued snapshots from running.
 
 ``` js
 await percy.stop()
-// [percy] Waiting for snapshots to finish processing...
+// [percy] Processing 3 snapshots...
 // [percy] Snapshot taken: Snapshot one
 // [percy] Snapshot taken: Snapshot two
 // [percy] Snapshot taken: Snapshot three
-// [percy] Uploading snapshots...
+// [percy] Uploading 3 snapshots...
 // [percy] Finalized build #1: https://percy.io/org/project/123
 
 await percy.stop(true)

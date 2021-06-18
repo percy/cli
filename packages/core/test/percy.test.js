@@ -322,7 +322,7 @@ describe('Percy', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
-        '[percy] Waiting for snapshots to finish processing...',
+        '[percy] Processing 1 snapshot...',
         '[percy] Snapshot taken: test snapshot',
         '[percy] Finalized build #1: https://percy.io/test/test/123'
       ]));

@@ -13,4 +13,8 @@ export default class BrowserLogger extends PercyLogger {
 
     console[out](message, ...colors);
   }
+
+  progress() {
+    console.error('The log.progress() method is not supported in browsers');
+  }
 }

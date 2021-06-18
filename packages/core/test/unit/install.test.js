@@ -41,7 +41,7 @@ describe('Unit / Install', () => {
 
     // all options are required
     options = {
-      name: 'Test Download',
+      name: 'Archive',
       revision: 'v0',
       url: 'https://fake-download.org/archive.zip',
       extract: jasmine.createSpy('extract').and.resolveTo(),
@@ -82,9 +82,9 @@ describe('Unit / Install', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Test Download not found, downloading...',
-      '[percy] 16B (v0) [====================] 100% 0.0s', '',
-      '[percy] Successfully downloaded Test Download'
+      '[percy] Downloading Archive v0...',
+      '[percy] Downloading Archive v0 [====================] 16B/16B 100% 00:00',
+      '[percy] Successfully downloaded Archive v0'
     ]);
   });
 
@@ -127,7 +127,7 @@ describe('Unit / Install', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toContain(
-      '[percy] 19.1MB (v0) [====================] 100% 0.0s'
+      '[percy] Downloading Archive v0 [====================] 19.1MB/19.1MB 100% 00:00'
     );
   });
 
@@ -202,11 +202,10 @@ describe('Unit / Install', () => {
         expect(dlcallback).toHaveBeenCalledOnceWith(expected.url);
 
         expect(logger.stderr).toEqual([]);
-        expect(logger.stdout).toEqual([
-          '[percy] Chromium not found, downloading...',
-          jasmine.stringMatching(`(${expected.revision})`), '',
-          '[percy] Successfully downloaded Chromium'
-        ]);
+        expect(logger.stdout).toEqual(jasmine.arrayContaining([
+          `[percy] Downloading Chromium ${expected.revision}...`,
+          `[percy] Successfully downloaded Chromium ${expected.revision}`
+        ]));
       });
     }
   });

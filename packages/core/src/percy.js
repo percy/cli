@@ -181,14 +181,18 @@ export default class Percy {
 
     // close the snapshot queue and wait for it to empty
     if (this.#snapshots.close().length) {
-      this.log.info('Waiting for snapshots to finish processing...', meta);
-      await this.#snapshots.empty();
+      await this.#snapshots.empty(len => {
+        this.log.progress(`Processing ${len}` + (
+          ` snapshot${len !== 1 ? 's' : ''}...`), !!len);
+      });
     }
 
     // run, close, and wait for the upload queue to empty
     if (this.#uploads.run().close().length) {
-      this.log.info('Uploading snapshots...', meta);
-      await this.#uploads.empty();
+      await this.#uploads.empty(len => {
+        this.log.progress(`Uploading ${len}` + (
+          ` snapshot${len !== 1 ? 's' : ''}...`), !!len);
+      });
     }
 
     // close the any running server and browser

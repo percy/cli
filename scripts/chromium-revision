@@ -17,7 +17,6 @@ EXAMPLE
 `), process.exit());
 
 // Required after usage for speedy help output
-const readline = require('readline');
 const { request } = require('@percy/client/dist/utils');
 const logger = require('@percy/logger');
 const log = logger('script');
@@ -42,25 +41,14 @@ const G_STORAGE_PREFIXES = {
 // Runs a stateful async function repeatedly until it returns a truthy value while updating a log
 // message with ellipses for each iteration of the task function
 async function task({ message, state: init, function: fn }) {
-  try {
-    return await (async function run(state) {
-      let i = state.i = (state.i || 0) + 1;
+  return await (async function run(state) {
+    // log the message with an additional period for each iteration
+    let i = state.i = (state.i || 0) + 1;
+    log.progress(message(state, '.'.repeat(i)));
 
-      // clear the current line
-      readline.clearLine(logger.stdout);
-      readline.cursorTo(logger.stdout, 0);
-      // log the message with an additional period for each iteration
-      logger.stdout.write(
-        logger.format(message(state, '.'.repeat(i)), 'script')
-      );
-
-      // if the function does not return, run again
-      return await fn(state) || run(state);
-    })((init?.() || {}));
-  } finally {
-    // this ensures errors will log on their own line
-    logger.stdout.write('\n');
-  }
+    // if the function does not return, run again
+    return await fn(state) || run(state);
+  })((init?.() || {}));
 }
 
 // The actual script that prints a revision corresponding to the provided version for each platform

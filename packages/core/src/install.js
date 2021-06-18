@@ -15,6 +15,35 @@ function formatBytes(int) {
   return `${int.toFixed(1)}${units[u]}`;
 }
 
+// Formats milleseconds as "MM:SS"
+function formatTime(ms) {
+  let minutes = (ms / 1000 / 60).toFixed().padStart(2, '0');
+  let seconds = (ms / 1000).toFixed().padStart(2, '0');
+  return `${minutes}:${seconds}`;
+}
+
+// Formats progress as ":prefix [:bar] :ratio :percent :eta"
+function formatProgress(prefix, total, start, progress) {
+  let width = 20;
+
+  let ratio = Math.min(Math.max(progress / total, 0), 1);
+  let percent = Math.floor(ratio * 100).toFixed(0);
+
+  let barLen = Math.round(width * ratio);
+  let barContent = Array(Math.max(0, barLen + 1)).join('=') + (
+    Array(Math.max(0, width - barLen + 1)).join(' '));
+
+  let elapsed = new Date() - start;
+  /* istanbul ignore next: eta in testing is always 0 */
+  let eta = (ratio >= 1) ? 0 : elapsed * (total / progress - 1);
+
+  return (
+    `${prefix} [${barContent}] ` +
+    `${formatBytes(progress)}/${formatBytes(total)} ` +
+    `${percent}% ${formatTime(eta)}`
+  );
+}
+
 // Returns an item from the map keyed by the current platform
 function selectByPlatform(map) {
   let { platform, arch } = process;
@@ -79,7 +108,8 @@ async function install({
 
   if (!fs.existsSync(exec)) {
     let log = logger('core:install');
-    log.info(`${name} not found, downloading...`);
+    let premsg = `Downloading ${name} ${revision}`;
+    log.progress(`${premsg}...`);
 
     try {
       // ensure the out directory exists
@@ -97,18 +127,14 @@ async function install({
         }
 
         // log progress
-        if (log.shouldLog('info')) {
-          let size = parseInt(response.headers['content-length'], 10);
-          let msg = `${formatBytes(size)} (${revision}) [:bar] :percent :etas`;
-          let progress = new (require('progress'))(logger.format(msg), {
-            stream: logger.stdout,
-            incomplete: ' ',
-            total: size,
-            width: 20
-          });
+        if (log.shouldLog('info') && logger.stdout.isTTY) {
+          let total = parseInt(response.headers['content-length'], 10);
+          let start, progress;
 
           response.on('data', chunk => {
-            progress.tick(chunk.length);
+            start ??= new Date();
+            progress = (progress ?? 0) + chunk.length;
+            log.progress(formatProgress(premsg, total, start, progress));
           });
         }
 
@@ -124,7 +150,7 @@ async function install({
       await extract(archive, outdir);
 
       // log success
-      log.info(`Successfully downloaded ${name}`);
+      log.info(`Successfully downloaded ${name} ${revision}`);
     } finally {
       // always cleanup the archive
       if (fs.existsSync(archive)) {
