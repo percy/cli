@@ -5,6 +5,7 @@ const { assign, entries } = Object;
 const ajv = new Ajv({
   verbose: true,
   allErrors: true,
+  strict: false,
   schemas: {
     config: getDefaultSchema()
   }
@@ -57,10 +58,13 @@ export default function validate(config) {
 
   if (!result) {
     for (let error of ajv.errors) {
-      let { instancePath, keyword, params, message, data } = error;
+      let { instancePath, keyword, params, message, parentSchema, data } = error;
       let path = instancePath ? instancePath.substr(1).split('/') : [];
 
-      if (keyword === 'required') {
+      if (parentSchema.errors?.[keyword]) {
+        let custom = parentSchema.errors[keyword];
+        message = typeof custom === 'function' ? custom(error) : custom;
+      } else if (keyword === 'required') {
         message = 'missing required property';
         path.push(params.missingProperty);
       } else if (keyword === 'additionalProperties') {
