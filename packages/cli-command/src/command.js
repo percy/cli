@@ -48,7 +48,7 @@ export default class PercyCommand extends Command {
   // respective `percyrc` parameter. The flag input is then merged with options
   // loaded from a config file and default config options. The PERCY_TOKEN
   // environment variable is also included as a convenience.
-  percyrc() {
+  percyrc(initialOverrides = {}) {
     let flags = Object.entries(this.constructor.flags);
     let overrides = flags.reduce((conf, [name, flag]) => (
       flag.percyrc?.split('.').reduce((target, key, i, paths) => {
@@ -56,7 +56,7 @@ export default class PercyCommand extends Command {
         target[key] = last ? this.flags[name] : (target[key] ?? {});
         return last ? conf : target[key];
       }, conf) ?? conf
-    ), {});
+    ), initialOverrides);
 
     // will also validate config and log warnings
     let config = PercyConfig.load({

@@ -153,10 +153,10 @@ export function getSnapshotConfig({
     additionalSnapshots ??= deprecated.snapshots;
   }
 
-  // default name to the URL /path?search#hash
+  // default name to the URL /pathname?search#hash
   if (!name) {
     let uri = new URL(url);
-    name = `${uri.path}${uri.search}${uri.hash}`;
+    name = `${uri.pathname}${uri.search}${uri.hash}`;
   }
 
   // additional snapshots must be named but allow inheritance with a prefix/suffix

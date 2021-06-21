@@ -123,8 +123,29 @@ describe('PercyConfig', () => {
     });
 
     it('returns a failing result with errors', () => {
+      PercyConfig.addSchema({
+        foo: {
+          type: 'string',
+          pattern: '^[a-zA-z]*$',
+          errors: {
+            pattern: 'must not contain numbers'
+          }
+        },
+        bar: {
+          type: 'string',
+          const: 'baz',
+          errors: {
+            const({ data }) {
+              return `must not be ${data}`;
+            }
+          }
+        }
+      });
+
       expect(PercyConfig.validate({
-        test: { value: 1, foo: 'bar' }
+        test: { value: 1, foo: 'bar' },
+        foo: 'He11o',
+        bar: 'qux'
       })).toEqual({
         result: false,
         errors: [{
@@ -133,6 +154,12 @@ describe('PercyConfig', () => {
         }, {
           path: ['test', 'value'],
           message: 'must be a string, received a number'
+        }, {
+          path: ['foo'],
+          message: 'must not contain numbers'
+        }, {
+          path: ['bar'],
+          message: 'must not be qux'
         }]
       });
     });

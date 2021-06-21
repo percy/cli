@@ -5,7 +5,11 @@ export const schema = {
     properties: {
       baseUrl: {
         type: 'string',
-        default: '/'
+        pattern: '^/',
+        default: '/',
+        errors: {
+          pattern: 'must start with a forward slash (/)'
+        }
       },
       files: {
         anyOf: [
