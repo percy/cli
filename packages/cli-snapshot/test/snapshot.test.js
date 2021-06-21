@@ -41,6 +41,9 @@ describe('percy snapshot', () => {
       url: 'http://localhost:8000'
     }], { depth: null }) + ')');
     fs.writeFileSync('nope', 'not here');
+    fs.writeFileSync('urls.yml', [
+      '- /', '- /one', '- /two',
+    ].join('\n'));
   });
 
   afterAll(() => {
@@ -49,6 +52,7 @@ describe('percy snapshot', () => {
     fs.unlinkSync('pages-fn.js');
     fs.unlinkSync('pages.json');
     fs.unlinkSync('pages.yml');
+    fs.unlinkSync('urls.yml');
     fs.unlinkSync(path.join('public', 'test-1.html'));
     fs.unlinkSync(path.join('public', 'test-2.html'));
     fs.unlinkSync(path.join('public', 'test-3.htm'));
@@ -82,7 +86,8 @@ describe('percy snapshot', () => {
   });
 
   it('errors when the provided path doesn\'t exist', async () => {
-    await expectAsync(Snapshot.run(['./404'])).toBeRejectedWithError('EEXIT: 1');
+    await expectAsync(Snapshot.run(['./404']))
+      .toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -90,17 +95,9 @@ describe('percy snapshot', () => {
     ]);
   });
 
-  it('errors when the base-url is invalid', async () => {
-    await expectAsync(Snapshot.run(['./public', '--base-url=wrong'])).toBeRejectedWithError('EEXIT: 1');
-
-    expect(logger.stdout).toEqual([]);
-    expect(logger.stderr).toEqual([
-      '[percy] Error: The base-url flag must begin with a forward slash (/)'
-    ]);
-  });
-
   it('errors when there are no snapshots to take', async () => {
-    await expectAsync(Snapshot.run(['./public', '--files=no-match'])).toBeRejectedWithError('EEXIT: 1');
+    await expectAsync(Snapshot.run(['./public', '--files=no-match']))
+      .toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -109,15 +106,27 @@ describe('percy snapshot', () => {
   });
 
   describe('snapshotting static directories', () => {
+    it('errors when the base-url is invalid', async () => {
+      await expectAsync(Snapshot.run(['./public', '--base-url=wrong']))
+        .toBeRejectedWithError('EEXIT: 1');
+
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
+        '[percy] Error: The base-url must begin with a forward slash (/) ' +
+          'when snapshotting static directories'
+      ]);
+    });
+
     it('starts a static server and snapshots matching files', async () => {
       await Snapshot.run(['./public']);
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy has started!',
-        '[percy] Snapshot taken: /test-3.htm',
-        '[percy] Snapshot taken: /test-2.html',
+        '[percy] Processing 3 snapshots...',
         '[percy] Snapshot taken: /test-1.html',
+        '[percy] Snapshot taken: /test-2.html',
+        '[percy] Snapshot taken: /test-3.htm',
         '[percy] Finalized build #1: https://percy.io/test/test/123'
       ]));
     });
@@ -128,21 +137,23 @@ describe('percy snapshot', () => {
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy has started!',
-        '[percy] Snapshot taken: /base/test-3.htm',
-        '[percy] Snapshot taken: /base/test-2.html',
+        '[percy] Processing 3 snapshots...',
         '[percy] Snapshot taken: /base/test-1.html',
+        '[percy] Snapshot taken: /base/test-2.html',
+        '[percy] Snapshot taken: /base/test-3.htm',
         '[percy] Finalized build #1: https://percy.io/test/test/123'
       ]));
     });
 
     it('does not take snapshots and prints a list with --dry-run', async () => {
       await Snapshot.run(['./public', '--dry-run']);
+
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
-        '[percy] Found 3 snapshots:\n' +
-          '/test-1.html\n' +
-          '/test-2.html\n' +
-          '/test-3.htm'
+        '[percy] Found 3 snapshots',
+        '[percy] Snapshot found: /test-1.html',
+        '[percy] Snapshot found: /test-2.html',
+        '[percy] Snapshot found: /test-3.htm'
       ]);
     });
   });
@@ -160,12 +171,44 @@ describe('percy snapshot', () => {
       await server.close();
     });
 
+    it('errors when the base-url is invalid', async () => {
+      await expectAsync(Snapshot.run(['./pages.yml', '--base-url=/wrong']))
+        .toBeRejectedWithError('EEXIT: 1');
+
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
+        '[percy] Error: The base-url must include a protocol and hostname ' +
+          'when snapshotting a list of pages'
+      ]);
+    });
+
+    it('errors with unknown file extensions', async () => {
+      await expectAsync(Snapshot.run(['./nope']))
+        .toBeRejectedWithError('EEXIT: 1');
+
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
+        '[percy] Error: Unsupported filetype: ./nope'
+      ]);
+    });
+
+    it('errors when a page url is invalid', async () => {
+      await expectAsync(Snapshot.run(['./urls.yml']))
+        .toBeRejectedWithError('EEXIT: 1');
+
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
+        '[percy] Error: Invalid URL: /'
+      ]);
+    });
+
     it('snapshots pages from .yaml files', async () => {
       await Snapshot.run(['./pages.yml']);
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
         '[percy] Percy has started!',
+        '[percy] Processing 1 snapshot...',
         '[percy] Snapshot taken: YAML Snapshot',
         '[percy] Finalized build #1: https://percy.io/test/test/123'
       ]);
@@ -177,6 +220,7 @@ describe('percy snapshot', () => {
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
         '[percy] Percy has started!',
+        '[percy] Processing 1 snapshot...',
         '[percy] Snapshot taken: JSON Snapshot',
         '[percy] Finalized build #1: https://percy.io/test/test/123'
       ]);
@@ -188,6 +232,7 @@ describe('percy snapshot', () => {
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
         '[percy] Percy has started!',
+        '[percy] Processing 1 snapshot...',
         '[percy] Snapshot taken: JS Snapshot',
         '[percy] Snapshot taken: JS Snapshot 2',
         '[percy] Snapshot taken: Other JS Snapshot',
@@ -201,26 +246,32 @@ describe('percy snapshot', () => {
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
         '[percy] Percy has started!',
+        '[percy] Processing 1 snapshot...',
         '[percy] Snapshot taken: JS Function Snapshot',
         '[percy] Finalized build #1: https://percy.io/test/test/123'
       ]);
     });
 
-    it('errors with unknown file extensions', async () => {
-      await expectAsync(Snapshot.run(['./nope'])).toBeRejectedWithError('EEXIT: 1');
+    it('snapshots pages from a list of URLs', async () => {
+      await Snapshot.run(['./urls.yml', '--base-url=http://localhost:8000']);
 
-      expect(logger.stdout).toEqual([]);
-      expect(logger.stderr).toEqual([
-        '[percy] Error: Unsupported filetype: ./nope'
-      ]);
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Percy has started!',
+        '[percy] Processing 3 snapshots...',
+        '[percy] Snapshot taken: /',
+        '[percy] Snapshot taken: /one',
+        '[percy] Snapshot taken: /two',
+        '[percy] Finalized build #1: https://percy.io/test/test/123'
+      ]));
     });
 
     it('does not take snapshots and prints a list with --dry-run', async () => {
       await Snapshot.run(['./pages.yml', '--dry-run']);
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
-        '[percy] Found 1 snapshot:\n' +
-          'YAML Snapshot'
+        '[percy] Found 1 snapshot',
+        '[percy] Snapshot found: YAML Snapshot'
       ]);
 
       logger.reset();
@@ -228,10 +279,10 @@ describe('percy snapshot', () => {
       await Snapshot.run(['./pages.js', '--dry-run']);
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
-        '[percy] Found 3 snapshots:\n' +
-          'JS Snapshot\n' +
-          'JS Snapshot 2\n' +
-          'Other JS Snapshot'
+        '[percy] Found 1 snapshot',
+        '[percy] Snapshot found: JS Snapshot',
+        '[percy] Snapshot found: JS Snapshot 2',
+        '[percy] Snapshot found: Other JS Snapshot',
       ]);
     });
   });

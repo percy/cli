@@ -8,6 +8,13 @@ import YAML from 'yaml';
 import { schema } from '../config';
 import pkg from '../../package.json';
 
+// Throw a better error message for invalid urls
+function validURL(input, base) {
+  try { return new URL(input, base || undefined); } catch (error) {
+    throw new Error(`Invalid URL: ${error.input}`);
+  }
+}
+
 export class Snapshot extends Command {
   static description = 'Snapshot a list of pages from a file or directory';
 
@@ -23,27 +30,26 @@ export class Snapshot extends Command {
     ...flags.config,
 
     'base-url': flags.string({
-      char: 'b',
-      description: 'the url path to serve the static directory from',
-      default: schema.static.properties.baseUrl.default,
-      percyrc: 'static.baseUrl'
-    }),
-    files: flags.string({
-      char: 'f',
-      multiple: true,
-      description: 'one or more globs matching static file paths to snapshot',
-      default: schema.static.properties.files.default,
-      percyrc: 'static.files'
-    }),
-    ignore: flags.string({
-      char: 'i',
-      multiple: true,
-      description: 'one or more globs matching static file paths to ignore',
-      percyrc: 'static.ignore'
+      description: 'the base url pages are hosted at when snapshotting',
+      char: 'b'
     }),
     'dry-run': flags.boolean({
-      char: 'd',
-      description: 'prints a list of pages to snapshot without snapshotting'
+      description: 'prints a list of pages to snapshot without snapshotting',
+      char: 'd'
+    }),
+
+    // static only flags
+    files: flags.string({
+      description: 'one or more globs matching static file paths to snapshot',
+      default: schema.static.properties.files.default,
+      percyrc: 'static.files',
+      multiple: true
+    }),
+    ignore: flags.string({
+      description: 'one or more globs matching static file paths to ignore',
+      default: schema.static.properties.ignore.default,
+      percyrc: 'static.ignore',
+      multiple: true
     })
   };
 
@@ -56,52 +62,72 @@ export class Snapshot extends Command {
 
   async run() {
     if (!this.isPercyEnabled()) {
-      this.log.info('Percy is disabled. Skipping snapshots');
-      return;
+      return this.log.info('Percy is disabled. Skipping snapshots');
     }
 
-    let config = this.percyrc();
     let { pathname } = this.args;
 
     if (!fs.existsSync(pathname)) {
-      return this.error(`Not found: ${pathname}`);
-    } else if (config.static.baseUrl[0] !== '/') {
-      return this.error('The base-url flag must begin with a forward slash (/)');
+      this.error(`Not found: ${pathname}`);
     }
 
-    let pages = fs.lstatSync(pathname).isDirectory()
-      ? await this.loadStaticPages(pathname, config.static)
-      : await this.loadPagesFile(pathname);
+    let { 'base-url': baseUrl, 'dry-run': dry } = this.flags;
+    let isStatic = fs.lstatSync(pathname).isDirectory()
 
-    if (!pages.length) {
-      return this.error('No snapshots found');
+    if (baseUrl) {
+      if (isStatic && !baseUrl.startsWith('/')) {
+        this.error('The base-url must begin with a forward slash (/) ' + (
+          'when snapshotting static directories'));
+      } else if (!isStatic && !baseUrl.startsWith('http')) {
+        this.error('The base-url must include a protocol and hostname ' + (
+          'when snapshotting a list of pages'));
+      }
     }
 
-    if (this.flags['dry-run']) {
-      let list = pages.reduce((acc, { name, additionalSnapshots = [] }) => {
-        return acc.concat(name, additionalSnapshots.map(add => {
-          let { prefix = '', suffix = '' } = add;
-          return add.name || `${prefix}${name}${suffix}`;
-        }));
-      }, []);
-
-      return this.log.info(`Found ${list.length} ` + (
-        `snapshot${list.length === 1 ? '' : 's'}:\n` +
-        list.join('\n')
-      ));
-    }
-
-    this.percy = await Percy.start({
+    this.percy = new Percy({
+      ...this.percyrc({ static: isStatic ? { baseUrl } : null }),
       clientInfo: `${pkg.name}/${pkg.version}`,
-      server: false,
-      ...config
+      server: false
     });
 
-    for (let page of pages) {
-      this.percy.snapshot(page);
-    }
+    let pages = isStatic
+      ? await this.loadStaticPages(pathname)
+      : await this.loadPagesFile(pathname);
 
-    await this.percy.idle();
+    pages = pages.map(page => {
+      // allow a list of urls
+      if (typeof page === 'string') page = { url: page };
+
+      // validate and prepend the baseUrl
+      let uri = validURL(page.url, !isStatic && baseUrl);
+      page.url = uri.href;
+
+      // default page name to url /pathname?search#hash
+      page.name ||= `${uri.pathname}${uri.search}${uri.hash}`;
+
+      return page;
+    });
+
+    let l = pages.length;
+    if (!l) this.error('No snapshots found');
+
+    if (!dry) await this.percy.start();
+    else this.log.info(`Found ${l} snapshot${l === 1 ? '' : 's'}`);
+
+    for (let page of pages) {
+      if (dry) {
+        this.log.info(`Snapshot found: ${page.name}`);
+        this.log.debug(`-> url: ${page.url}`);
+
+        for (let s of (page.additionalSnapshots || [])) {
+          let name = s.name || `${s.prefix || ''}${page.name}${s.suffix || ''}`;
+          this.log.info(`Snapshot found: ${name}`);
+          this.log.debug(`-> url: ${page.url}`);
+        }
+      } else {
+        this.percy.snapshot(page);
+      }
+    }
   }
 
   // Called on error, interupt, or after running
@@ -131,19 +157,21 @@ export class Snapshot extends Command {
   }
 
   // Starts a static server and returns a list of pages to snapshot.
-  async loadStaticPages(pathname, { baseUrl, files, ignore }) {
-    ignore = [].concat(ignore).filter(Boolean);
-    let paths = await globby(files, { cwd: pathname, ignore });
-    let addr = '';
+  async loadStaticPages(pathname) {
+    let { baseUrl, files, ignore } = this.percy.config.static;
 
-    if (!this.flags['dry-run']) {
-      addr = await this.serve(pathname, baseUrl);
-    }
+    let paths = await globby(files, {
+      ignore: [].concat(ignore).filter(Boolean),
+      cwd: pathname
+    });
 
-    return paths.sort().map(path => ({
-      url: `${addr}${baseUrl}${path}`,
-      name: `${baseUrl}${path}`
-    }));
+    let addr = !this.flags['dry-run']
+      ? await this.serve(pathname, baseUrl)
+      : 'http://localhost';
+
+    return paths.sort().map(path => (
+      `${addr}${baseUrl}${path}`
+    ));
   }
 
   // Loads pages to snapshot from a js, json, or yaml file.
