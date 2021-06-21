@@ -42,7 +42,7 @@ describe('percy snapshot', () => {
     }], { depth: null }) + ')');
     fs.writeFileSync('nope', 'not here');
     fs.writeFileSync('urls.yml', [
-      '- /', '- /one', '- /two',
+      '- /', '- /one', '- /two'
     ].join('\n'));
   });
 
@@ -282,7 +282,7 @@ describe('percy snapshot', () => {
         '[percy] Found 1 snapshot',
         '[percy] Snapshot found: JS Snapshot',
         '[percy] Snapshot found: JS Snapshot 2',
-        '[percy] Snapshot found: Other JS Snapshot',
+        '[percy] Snapshot found: Other JS Snapshot'
       ]);
     });
   });

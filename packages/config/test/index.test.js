@@ -115,7 +115,7 @@ describe('PercyConfig', () => {
     it('returns a passing result with no errors', () => {
       expect(PercyConfig.validate({
         version: 2,
-        test: { value: 'testing' },
+        test: { value: 'testing' }
       })).toEqual({
         result: true,
         errors: []
@@ -145,7 +145,7 @@ describe('PercyConfig', () => {
       expect(PercyConfig.validate({
         test: { value: 1, foo: 'bar' },
         foo: 'He11o',
-        bar: 'qux',
+        bar: 'qux'
       })).toEqual({
         result: false,
         errors: [{

@@ -72,7 +72,7 @@ export class Snapshot extends Command {
     }
 
     let { 'base-url': baseUrl, 'dry-run': dry } = this.flags;
-    let isStatic = fs.lstatSync(pathname).isDirectory()
+    let isStatic = fs.lstatSync(pathname).isDirectory();
 
     if (baseUrl) {
       if (isStatic && !baseUrl.startsWith('/')) {
