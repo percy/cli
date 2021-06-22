@@ -19,7 +19,6 @@ import {
 // finalized until all snapshots have been handled.
 export default class Percy {
   log = logger('core');
-  browser = new Browser();
   readyState = null;
 
   #cache = new Map();
@@ -66,6 +65,10 @@ export default class Percy {
       token,
       clientInfo,
       environmentInfo
+    });
+
+    this.browser = new Browser({
+      ...this.config.discovery.launchOptions,
     });
 
     if (server) {
