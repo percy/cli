@@ -59,6 +59,10 @@ export default class Browser extends EventEmitter {
     this.executable = executable;
     this.headless = headless;
     this.args = args;
+
+    // transform cookies object to an array of cookie params
+    this.cookies = Array.isArray(cookies) ? cookies
+      : Object.entries(cookies).map(([name, value]) => ({ name, value }));
   }
 
   async launch() {

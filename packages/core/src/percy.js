@@ -69,6 +69,7 @@ export default class Percy {
 
     this.browser = new Browser({
       ...this.config.discovery.launchOptions,
+      cookies: this.config.discovery.cookies
     });
 
     if (server) {

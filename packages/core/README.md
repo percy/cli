@@ -52,6 +52,7 @@ The following options can also be defined within a Percy config file
   - `authorization` — Basic auth `username` and `password` for protected snapshot assets
   - `disableCache` — Disable asset caching (**default** `false`)
   - `userAgent` — Custom user-agent string used when requesting assets
+  - `cookies` — Browser cookies to use when requesting assets
   - `networkIdleTimeout` — Milliseconds to wait for the network to idle (**default** `100`)
   - `concurrency` — Asset discovery concerrency (**default** `5`)
   - `launchOptions` — Asset discovery browser launch options

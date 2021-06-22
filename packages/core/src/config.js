@@ -54,6 +54,22 @@ export const schema = {
           password: { type: 'string' }
         }
       },
+      cookies: {
+        anyOf: [{
+          type: 'object',
+          additionalProperties: { type: 'string' }
+        }, {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['name', 'value'],
+            properties: {
+              name: { type: 'string' },
+              value: { type: 'string' }
+            }
+          }
+        }]
+      },
       userAgent: {
         type: 'string'
       },
