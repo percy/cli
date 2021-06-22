@@ -322,14 +322,13 @@ export default class Percy {
         for (let width of widths) await page.resize({ width });
 
         // create and add a percy-css resource
-        let percyCSS = conf.percyCSS && createPercyCSSResource(conf.percyCSS);
+        let percyCSS = createPercyCSSResource(url, conf.percyCSS);
         if (percyCSS) resources.set(percyCSS.url, percyCSS);
-        root &&= injectPercyCSS(root, percyCSS);
 
         if (root) {
           // ensure asset discovery has finished before uploading
           await page.network.idle();
-
+          root = injectPercyCSS(root, percyCSS);
           this.log.info(`Snapshot taken: ${name}`, meta);
           this._scheduleUpload(name, conf, [root, ...resources.values()]);
         } else {
