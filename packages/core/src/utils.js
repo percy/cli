@@ -30,15 +30,22 @@ export function createLogResource(logs) {
 }
 
 // Creates a Percy CSS resource object.
-export function createPercyCSSResource(css) {
-  return createResource(`/percy-specific.${Date.now()}.css`, css, 'text/css');
+export function createPercyCSSResource(url, css) {
+  if (css) {
+    let { href, pathname } = new URL(`/percy-specific.${Date.now()}.css`, url);
+    return createResource(href, css, 'text/css', { pathname });
+  }
 }
 
 // returns a new root resource with the injected Percy CSS
 export function injectPercyCSS(root, percyCSS) {
-  return percyCSS ? createRootResource(root.url, root.content.replace(/(<\/body>)(?!.*\1)/is, (
-    `<link data-percy-specific-css rel="stylesheet" href="${percyCSS.url}"/>`
-  ) + '$&')) : root;
+  if (percyCSS) {
+    return createRootResource(root.url, root.content.replace(/(<\/body>)(?!.*\1)/is, (
+      `<link data-percy-specific-css rel="stylesheet" href="${percyCSS.pathname}"/>`
+    ) + '$&'));
+  } else {
+    return root;
+  }
 }
 
 // Polls for the predicate to be truthy within a timeout or the returned promise rejects. If
