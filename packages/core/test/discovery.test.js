@@ -301,9 +301,9 @@ describe('Discovery', () => {
       environmentInfo: 'test env info',
       widths: [400, 1200],
       discovery: {
-        requestHeaders: {
-          'X-Foo': 'Bar'
-        }
+        allowedHostnames: ['example.com'],
+        requestHeaders: { 'X-Foo': 'Bar' },
+        disableCache: true
       }
     });
 
@@ -318,8 +318,9 @@ describe('Discovery', () => {
       '[percy:core] -> url: http://localhost:8000',
       '[percy:core] -> widths: 400px, 1200px',
       '[percy:core] -> minHeight: 1024px',
-      '[percy:core] -> discovery.allowedHostnames: localhost',
+      '[percy:core] -> discovery.allowedHostnames: example.com',
       '[percy:core] -> discovery.requestHeaders: {"X-Foo":"Bar"}',
+      '[percy:core] -> discovery.disableCache: true',
       '[percy:core] -> clientInfo: test client info',
       '[percy:core] -> environmentInfo: test env info',
       '[percy:core:page] Initialize page',

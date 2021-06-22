@@ -267,14 +267,14 @@ export default class Percy {
         maybeDebug(conf.widths, v => `-> widths: ${v.join('px, ')}px`);
         maybeDebug(conf.minHeight, v => `-> minHeight: ${v}px`);
         maybeDebug(conf.enableJavaScript, v => `-> enableJavaScript: ${v}`);
-        maybeDebug(discovery.allowedHostnames, v => `-> discovery.allowedHostnames: ${v}`);
-        maybeDebug(discovery.requestHeaders, v => `-> discovery.requestHeaders: ${JSON.stringify(v)}`);
-        maybeDebug(discovery.authorization, v => `-> discovery.authorization: ${JSON.stringify(v)}`);
-        maybeDebug(discovery.disableCache, v => `-> discovery.disableCache: ${v}`);
-        maybeDebug(discovery.userAgent, v => `-> discovery.userAgent: ${v}`);
-        maybeDebug(waitForTimeout, v => `-> waitForTimeout: ${v}`);
-        maybeDebug(waitForSelector, v => `-> waitForSelector: ${v}`);
-        maybeDebug(execute, v => `-> execute: ${v}`);
+        maybeDebug(options.discovery?.allowedHostnames, v => `-> discovery.allowedHostnames: ${v}`);
+        maybeDebug(options.discovery?.requestHeaders, v => `-> discovery.requestHeaders: ${JSON.stringify(v)}`);
+        maybeDebug(options.discovery?.authorization, v => `-> discovery.authorization: ${JSON.stringify(v)}`);
+        maybeDebug(options.discovery?.disableCache, v => `-> discovery.disableCache: ${v}`);
+        maybeDebug(options.discovery?.userAgent, v => `-> discovery.userAgent: ${v}`);
+        maybeDebug(options.waitForTimeout, v => `-> waitForTimeout: ${v}`);
+        maybeDebug(options.waitForSelector, v => `-> waitForSelector: ${v}`);
+        maybeDebug(options.execute, v => `-> execute: ${v}`);
         maybeDebug(conf.clientInfo, v => `-> clientInfo: ${v}`);
         maybeDebug(conf.environmentInfo, v => `-> environmentInfo: ${v}`);
 
