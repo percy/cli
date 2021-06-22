@@ -2,7 +2,7 @@ import { promises as fs } from 'fs';
 import EventEmitter from 'events';
 import logger from '@percy/logger';
 import Network from './network';
-import { waitFor } from './utils';
+import { hostname, waitFor } from './utils';
 
 // Used by some methods to impose a strict maximum timeout, such as .goto and .snapshot
 const PAGE_TIMEOUT = 30000;
@@ -116,6 +116,19 @@ export default class Page extends EventEmitter {
       /* istanbul ignore else: sanity check */
       if (this.#frameId === event.frame.id) handleNavigate.done = true;
     };
+
+    // set cookies before navigation so we can default the domain to this hostname
+    if (this.#browser.cookies.length) {
+      let defaultDomain = hostname(url);
+
+      await this.send('Network.setCookies', {
+        // spread is used to make a shallow copy of the cookie
+        cookies: this.#browser.cookies.map(({ ...cookie }) => {
+          if (!cookie.url) cookie.domain ||= defaultDomain;
+          return cookie;
+        })
+      });
+    }
 
     try {
       this.once('Page.frameNavigated', handleNavigate);

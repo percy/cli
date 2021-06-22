@@ -46,30 +46,44 @@ export default class Browser extends EventEmitter {
     '--remote-debugging-port=0'
   ];
 
-  async launch({
+  constructor({
     executable = process.env.PERCY_BROWSER_EXECUTABLE,
-    args: uargs = [],
     headless = true,
+    cookies = [],
+    args = [],
     timeout
-  } = {}) {
+  }) {
+    super();
+
+    this.launchTimeout = timeout;
+    this.executable = executable;
+    this.headless = headless;
+    this.args = args;
+
+    // transform cookies object to an array of cookie params
+    this.cookies = Array.isArray(cookies) ? cookies
+      : Object.entries(cookies).map(([name, value]) => ({ name, value }));
+  }
+
+  async launch() {
     if (this.isConnected()) return;
 
     // check if any provided executable exists
-    if (executable && !existsSync(executable)) {
-      this.log.error(`Browser executable not found: ${executable}`);
-      executable = null;
+    if (this.executable && !existsSync(this.executable)) {
+      this.log.error(`Browser executable not found: ${this.executable}`);
+      this.executable = null;
     }
 
     // download and install the browser if not already present
-    this.executable = executable || await install.chromium();
+    this.executable ||= await install.chromium();
     // create a temporary profile directory
     this.profile = await fs.mkdtemp(path.join(os.tmpdir(), 'percy-browser-'));
 
     // collect args to pass to the browser process
     let args = [...this.defaultArgs, `--user-data-dir=${this.profile}`];
     /* istanbul ignore next: only false for debugging */
-    if (headless) args.push('--headless', '--hide-scrollbars', '--mute-audio');
-    for (let a of uargs) if (!args.includes(a)) args.push(a);
+    if (this.headless) args.push('--headless', '--hide-scrollbars', '--mute-audio');
+    for (let a of this.args) if (!args.includes(a)) args.push(a);
 
     // spawn the browser process detached in its own group and session
     this.process = spawn(this.executable, args, {
@@ -77,9 +91,8 @@ export default class Browser extends EventEmitter {
     });
 
     // connect a websocket to the devtools address
-    this.ws = new WebSocket(await this.address(timeout), {
-      perMessageDeflate: false
-    });
+    let addr = await this.address(this.launchTimeout);
+    this.ws = new WebSocket(addr, { perMessageDeflate: false });
 
     // wait until the websocket has connected before continuing
     await new Promise(resolve => this.ws.once('open', resolve));

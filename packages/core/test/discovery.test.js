@@ -301,9 +301,9 @@ describe('Discovery', () => {
       environmentInfo: 'test env info',
       widths: [400, 1200],
       discovery: {
-        requestHeaders: {
-          'X-Foo': 'Bar'
-        }
+        allowedHostnames: ['example.com'],
+        requestHeaders: { 'X-Foo': 'Bar' },
+        disableCache: true
       }
     });
 
@@ -318,8 +318,9 @@ describe('Discovery', () => {
       '[percy:core] -> url: http://localhost:8000',
       '[percy:core] -> widths: 400px, 1200px',
       '[percy:core] -> minHeight: 1024px',
-      '[percy:core] -> discovery.allowedHostnames: localhost',
+      '[percy:core] -> discovery.allowedHostnames: example.com',
       '[percy:core] -> discovery.requestHeaders: {"X-Foo":"Bar"}',
+      '[percy:core] -> discovery.disableCache: true',
       '[percy:core] -> clientInfo: test client info',
       '[percy:core] -> environmentInfo: test env info',
       '[percy:core:page] Initialize page',
@@ -428,6 +429,74 @@ describe('Discovery', () => {
       resource('/img-bg-1.gif'),
       resource('/img-bg-2.gif')
     ]));
+  });
+
+  describe('cookies', () => {
+    let cookie;
+
+    async function startWithCookies(cookies) {
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { cookies, concurrency: 1 }
+      });
+    }
+
+    beforeEach(async () => {
+      cookie = null;
+
+      server.reply('/img.gif', req => {
+        cookie = req.headers.cookie;
+        return [200, 'image/gif', pixel];
+      });
+    });
+
+    it('gets sent for all requests', async () => {
+      // test cookie object
+      await startWithCookies({
+        sugar: '123456',
+        raisin: '456789'
+      });
+
+      await percy.snapshot({
+        name: 'mmm cookies',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: mmm cookies'
+      ]));
+
+      expect(cookie).toEqual('sugar=123456; raisin=456789');
+    });
+
+    it('can be sent for certain requests', async () => {
+      // test cookie array
+      await startWithCookies([{
+        name: 'chocolate',
+        value: '654321'
+      }, {
+        name: 'shortbread',
+        value: '987654',
+        // not the snapshot url
+        url: 'http://example.com/'
+      }]);
+
+      await percy.snapshot({
+        name: 'mmm cookies',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: mmm cookies'
+      ]));
+
+      expect(cookie).toEqual('chocolate=654321');
+    });
   });
 
   describe('protected resources', () => {
