@@ -52,7 +52,7 @@ export function createRequestFinishedHandler({
       let resource = getResource(url);
 
       // process and cache the response and resource
-      if (!resource || disableCache) {
+      if (!resource?.root && (!resource || disableCache)) {
         let response = request.response;
         let capture = response && hostnameMatches(allowedHostnames, url);
         let body = capture && await response.buffer();
