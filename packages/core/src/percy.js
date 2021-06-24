@@ -339,7 +339,7 @@ export default class Percy {
             this.log.debug(`Taking snapshot: ${name}`, meta);
 
             // will wait for timeouts, selectors, and additional network activity
-            let { url, dom } = await page.snapshot({ ...opts, ...conf, execute });
+            let { url, dom } = await page.snapshot({ ...conf, ...opts });
             let root = injectPercyCSS(createRootResource(url, dom), percyCSS);
             resources.delete(root.url); // remove any discovered root resource
 
