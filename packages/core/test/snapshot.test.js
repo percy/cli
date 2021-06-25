@@ -338,6 +338,31 @@ describe('Snapshot', () => {
       ]));
     });
 
+    it('takes additional snapshots after running each `execute`', async () => {
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        execute: () => document.querySelector('p').classList.add('eval-1'),
+        additionalSnapshots: [
+          { suffix: ' 2', execute: () => document.querySelector('p').classList.add('eval-2') },
+          { suffix: ' 3', execute: () => document.querySelector('p').classList.add('eval-3') },
+          { suffix: ' 4' }
+        ]
+      });
+
+      await percy.idle();
+
+      let dom = i => Buffer.from((
+        mockAPI.requests['/builds/123/resources'][i * 2]
+          .body.data.attributes['base64-content']
+      ), 'base64').toString();
+
+      expect(dom(0)).toMatch('<p class="eval-1">Test</p>');
+      expect(dom(1)).toMatch('<p class="eval-1 eval-2">Test</p>');
+      expect(dom(2)).toMatch('<p class="eval-1 eval-2 eval-3">Test</p>');
+      expect(dom(3)).toMatch('<p class="eval-1 eval-2 eval-3">Test</p>');
+    });
+
     it('can successfully snapshot a page after executing page navigation', async () => {
       testDOM += '<a href="/foo">Foo</a>';
 
