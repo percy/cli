@@ -1,3 +1,9 @@
+/* istanbul ignore if: hard to test without actually using an unsupported version */
+if (parseInt(process.version.split('.')[0].substring(1), 10) < 12) {
+  console.error(`Node ${process.version} is not supported. Percy only supports the current LTS of Node. Please upgrade to Node v12+`);
+  process.exit(1);
+}
+
 const { promises: fs } = require('fs');
 const path = require('path');
 
