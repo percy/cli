@@ -42,16 +42,13 @@ describe('PercyConfig', () => {
       expect(PercyConfig.validate({
         test: { foo: false },
         baz: ['qux']
-      })).toEqual({
-        result: false,
-        errors: [{
-          path: ['test', 'foo'],
-          message: 'unknown property'
-        }, {
-          path: ['baz'],
-          message: 'must be a number, received an array'
-        }]
-      });
+      })).toEqual([{
+        path: 'test.foo',
+        message: 'unknown property'
+      }, {
+        path: 'baz',
+        message: 'must be a number, received an array'
+      }]);
     });
 
     it('replaces existing properties in the schema', () => {
@@ -77,19 +74,49 @@ describe('PercyConfig', () => {
           value: 'foo',
           cov: 99
         }
-      })).toEqual({
-        result: false,
-        errors: [{
-          path: ['test', 'foo'],
-          message: 'missing required property'
-        }, {
-          path: ['test', 'value'],
-          message: 'unknown property'
-        }, {
-          path: ['test', 'cov'],
-          message: 'must be >= 100'
-        }]
+      })).toEqual([{
+        path: 'test.foo',
+        message: 'missing required property'
+      }, {
+        path: 'test.value',
+        message: 'unknown property'
+      }, {
+        path: 'test.cov',
+        message: 'must be >= 100'
+      }]);
+    });
+
+    it('can add schemas without altering the config schema', () => {
+      PercyConfig.addSchema({
+        $id: 'foo',
+        type: 'object',
+        properties: {
+          foo: {
+            type: 'string',
+            const: 'bar',
+            default: 'bar'
+          },
+          bar: {
+            type: 'string'
+          }
+        }
       });
+
+      expect(PercyConfig.getDefaults()).toEqual({
+        version: 2,
+        test: { value: 'foo' }
+      });
+
+      expect(PercyConfig.validate({
+        foo: 'baz',
+        bar: null
+      }, 'foo')).toEqual([{
+        path: 'foo',
+        message: 'must be equal to constant'
+      }, {
+        path: 'bar',
+        message: 'must be a string, received null'
+      }]);
     });
   });
 
@@ -112,17 +139,14 @@ describe('PercyConfig', () => {
   });
 
   describe('.validate()', () => {
-    it('returns a passing result with no errors', () => {
+    it('returns undefined when passing', () => {
       expect(PercyConfig.validate({
         version: 2,
         test: { value: 'testing' }
-      })).toEqual({
-        result: true,
-        errors: []
-      });
+      })).toBeUndefined();
     });
 
-    it('returns a failing result with errors', () => {
+    it('returns an array of errors when failing', () => {
       PercyConfig.addSchema({
         foo: {
           type: 'string',
@@ -132,12 +156,22 @@ describe('PercyConfig', () => {
           }
         },
         bar: {
-          type: 'string',
-          const: 'baz',
+          type: 'object',
+          oneOf: [{
+            anyOf: [{
+              not: { required: ['one'] }
+            }]
+          }, {
+            required: ['two']
+          }],
+          properties: {
+            one: { type: 'number', const: 1 },
+            two: { type: 'number', const: 2 }
+          },
           errors: {
-            const({ data }) {
-              return `must not be ${data}`;
-            }
+            oneOf: ({ params }) => (
+              `must pass a single schema, passed ${params.passingSchemas ?? 0}`
+            )
           }
         }
       });
@@ -145,23 +179,20 @@ describe('PercyConfig', () => {
       expect(PercyConfig.validate({
         test: { value: 1, foo: 'bar' },
         foo: 'He11o',
-        bar: 'qux'
-      })).toEqual({
-        result: false,
-        errors: [{
-          path: ['test', 'foo'],
-          message: 'unknown property'
-        }, {
-          path: ['test', 'value'],
-          message: 'must be a string, received a number'
-        }, {
-          path: ['foo'],
-          message: 'must not contain numbers'
-        }, {
-          path: ['bar'],
-          message: 'must not be qux'
-        }]
-      });
+        bar: { one: 1 }
+      })).toEqual([{
+        path: 'test.foo',
+        message: 'unknown property'
+      }, {
+        path: 'test.value',
+        message: 'must be a string, received a number'
+      }, {
+        path: 'foo',
+        message: 'must not contain numbers'
+      }, {
+        path: 'bar',
+        message: 'must pass a single schema, passed 0'
+      }]);
     });
   });
 
@@ -173,10 +204,10 @@ describe('PercyConfig', () => {
 
       PercyConfig.addMigration((config, util) => {
         if (config.test?.set) util.set('test.value', config.test.set);
-        if (config.test?.map) util.map('value.test', 'test.value');
-        if (config.test?.map2) util.map('value.test', 'test.value', v => v * 2);
+        if (config.test?.map) util.map('value.test', ['test', 'value']);
+        if (config.test?.map2) util.map(['value', 'test'], 'test.value', v => v * 2);
         if (config.test?.del) util.del('value');
-        util.del('test.set', 'test.map', 'test.map2', 'test.del');
+        util.del('test.set', 'test.map', ['test', 'map2'], ['test', 'del']);
       });
     });
 
@@ -565,9 +596,9 @@ describe('PercyConfig', () => {
     it('removes empty values', () => {
       expect(PercyConfig.normalize({
         foo: 'bar',
-        arr: [{}, {}],
+        arr: [{}, {}, null],
         obj: { val: undefined },
-        nested: { arr: [undefined] }
+        nested: { arr: [undefined], bar: null }
       })).toEqual({
         foo: 'bar'
       });

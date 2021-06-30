@@ -1,19 +1,21 @@
-import Ajv from 'ajv';
+import AJV from 'ajv';
+import { set, del } from './utils';
+
+const { isArray } = Array;
 const { assign, entries } = Object;
 
-// Ajv manages and validates schemas.
-const ajv = new Ajv({
+// AJV manages and validates schemas.
+const ajv = new AJV({
+  strict: false,
   verbose: true,
   allErrors: true,
-  strict: false,
-  schemas: {
-    config: getDefaultSchema()
-  }
+  schemas: [getDefaultSchema()]
 });
 
 // Returns a new default schema.
 function getDefaultSchema() {
   return {
+    $id: '/config',
     type: 'object',
     additionalProperties: false,
     properties: {
@@ -27,62 +29,90 @@ export function getSchema(name) {
   return ajv.getSchema(name).schema;
 }
 
-// Adds schemas to the config schema's properties. The config schema is removed,
-// modified, and replaced after the new schemas are added to clear any compiled
-// caches. Existing schemas are removed and replaced as well.
+// Adds schemas to the config schema's properties. The config schema is removed, modified, and
+// replaced after the new schemas are added to clear any compiled caches. Existing schemas are
+// removed and replaced as well. If a schema id is provided as the second argument, the schema
+// will be set independently and not added to config schema's properties.
 export function addSchema(schemas) {
-  let config = getSchema('config');
-  ajv.removeSchema('config');
+  if (isArray(schemas) || schemas.$id) {
+    return ajv.addSchema(schemas);
+  }
 
-  for (let [$id, schema] of entries(schemas)) {
+  let config = getSchema('/config');
+  ajv.removeSchema('/config');
+
+  for (let [key, schema] of entries(schemas)) {
+    let $id = `/config/${key}`;
     if (ajv.getSchema($id)) ajv.removeSchema($id);
-    assign(config.properties, { [$id]: { $ref: $id } });
+    assign(config.properties, { [key]: { $ref: $id } });
     ajv.addSchema(schema, $id);
   }
 
-  ajv.addSchema(config, 'config');
+  ajv.addSchema(config, '/config');
 }
 
 // Resets the schema by removing all schemas and inserting a new default schema.
 export function resetSchema() {
   ajv.removeSchema();
-  ajv.addSchema(getDefaultSchema(), 'config');
-}
-
-// Validates config data according to the config schema and logs warnings to the
-// console. Optionallly scrubs invalid values from the provided config. Returns
-// true when the validation success, false otherwise.
-export default function validate(config) {
-  let result = ajv.validate('config', config);
-  let errors = [];
-
-  if (!result) {
-    for (let error of ajv.errors) {
-      let { instancePath, keyword, params, message, parentSchema, data } = error;
-      let path = instancePath ? instancePath.substr(1).split('/') : [];
-
-      if (parentSchema.errors?.[keyword]) {
-        let custom = parentSchema.errors[keyword];
-        message = typeof custom === 'function' ? custom(error) : custom;
-      } else if (keyword === 'required') {
-        message = 'missing required property';
-        path.push(params.missingProperty);
-      } else if (keyword === 'additionalProperties') {
-        message = 'unknown property';
-        path.push(params.additionalProperty);
-      } else if (keyword === 'type') {
-        let dataType = Array.isArray(data) ? 'array' : typeof data;
-        message = `must be ${a(params.type)}, received ${a(dataType)}`;
-      }
-
-      errors.push({ message, path });
-    }
-  }
-
-  return { result, errors };
+  ajv.addSchema(getDefaultSchema(), '/config');
 }
 
 // Adds "a" or "an" to a word for readability.
 function a(word) {
+  if (word === 'undefined' || word === 'null') return word;
   return `${('aeiou').includes(word[0]) ? 'an' : 'a'} ${word}`;
+}
+
+// Default errors anywhere within these keywords can be confusing
+const HIDE_NESTED_KEYWORDS = ['oneOf', 'anyOf', 'allOf', 'not'];
+
+function shouldHideError({ parentSchema, keyword, schemaPath }) {
+  return !(parentSchema.error || parentSchema.errors?.[keyword]) &&
+    HIDE_NESTED_KEYWORDS.some(k => schemaPath.includes(`/${k}`));
+}
+
+// Validates data according to the associated schema and returns a list of errors, if any.
+export default function validate(data, key = '/config') {
+  if (!ajv.validate(key, data)) {
+    let errors = new Map();
+
+    for (let error of ajv.errors) {
+      if (shouldHideError(error)) continue;
+      let { instancePath, parentSchema, keyword, message, params } = error;
+      let path = instancePath ? instancePath.substr(1).split('/') : [];
+
+      // generate a custom error message
+      if (parentSchema.error || parentSchema.errors?.[keyword]) {
+        let custom = parentSchema.error || parentSchema.errors[keyword];
+        message = typeof custom === 'function' ? custom(error) : custom;
+      } else if (keyword === 'type') {
+        let dataType = error.data === null ? 'null' : (
+          isArray(error.data) ? 'array' : typeof error.data);
+        message = `must be ${a(params.type)}, received ${a(dataType)}`;
+      } else if (keyword === 'required') {
+        message = 'missing required property';
+      } else if (keyword === 'additionalProperties') {
+        message = 'unknown property';
+      }
+
+      // fix paths
+      if (params.missingProperty) {
+        path.push(params.missingProperty);
+      } else if (params.additionalProperty) {
+        path.push(params.additionalProperty);
+      }
+
+      // scrub invalid data
+      del(data, path);
+
+      // joined for error messages
+      path = path.join('.');
+
+      // map one error per path
+      errors.set(path, { path, message });
+    }
+
+    // return an array of errors
+    return Array.from(errors.values());
+  }
 }

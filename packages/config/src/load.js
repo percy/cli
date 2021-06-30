@@ -85,17 +85,11 @@ export default function load({
 
   // merge found config with overrides and validate
   config = normalize(config, { overrides });
-  let validation = config && validate(config);
+  let errors = config && validate(config);
 
-  if (validation && !validation.result) {
+  if (errors) {
     log.warn('Invalid config:');
-
-    for (let { message, path } of validation.errors) {
-      log.warn(`- ${path.join('.')}: ${message}`);
-      let [k, t] = [path.pop(), path.reduce((d, p) => d[p], config)];
-      if (t && k in t) delete t[k];
-    }
-
+    for (let e of errors) log.warn(`- ${e.path}: ${e.message}`);
     if (bail) return;
   }
 
