@@ -122,6 +122,34 @@ describe('Discovery', () => {
     ]));
   });
 
+  it('waits for async requests', async () => {
+    server.reply('/img.gif', () => new Promise(resolve => {
+      setTimeout(resolve, 500, [200, 'image/gif', pixel]);
+    }));
+
+    let testAsyncDOM = testDOM.replace('<img', '<img loading="lazy"');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testAsyncDOM
+    });
+
+    await percy.idle();
+
+    let paths = server.requests.map(r => r[0]);
+    expect(paths).toContain('/img.gif');
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        id: sha256hash(pixel),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      })
+    ]));
+  });
+
   it('does not capture prefetch requests', async () => {
     let prefetchDOM = testDOM.replace('stylesheet', 'prefetch');
     percy.loglevel('debug');
@@ -716,7 +744,7 @@ describe('Discovery', () => {
     });
   });
 
-  describe('with external assets', () => {
+  describe('with remote resources', () => {
     let testExternalDOM = testDOM.replace('img.gif', 'http://test.localtest.me:8001/img.gif');
     let server2;
 
@@ -730,7 +758,7 @@ describe('Discovery', () => {
       await server2.close();
     });
 
-    it('does not capture external assets', async () => {
+    it('does not capture remote resources', async () => {
       await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
@@ -764,7 +792,27 @@ describe('Discovery', () => {
       ]);
     });
 
-    it('captures assets from allowed hostnames', async () => {
+    it('does not wait for remote resource requests to idle', async () => {
+      let testExternalAsyncDOM = testExternalDOM.replace('<img', '<img loading="lazy"');
+
+      server2.reply('/img.gif', () => new Promise(resolve => {
+        // should not resolve within the test timeout
+        setTimeout(resolve, 10000, [200, 'image/gif', pixel]);
+      }));
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalAsyncDOM
+      });
+
+      await percy.idle();
+
+      let paths2 = server2.requests.map(r => r[0]);
+      expect(paths2).toContain('/img.gif');
+    });
+
+    it('captures remote resources from allowed hostnames', async () => {
       // stop current instance to create a new one
       await percy.stop();
 
@@ -784,34 +832,6 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      expect(captured[0][3]).toEqual(
-        jasmine.objectContaining({
-          attributes: jasmine.objectContaining({
-            'resource-url': 'http://test.localtest.me:8001/img.gif'
-          })
-        })
-      );
-    });
-
-    it('captures assets from wildcard hostnames', async () => {
-      // stop current instance to create a new one
-      await percy.stop();
-
-      percy = await Percy.start({
-        token: 'PERCY_TOKEN',
-        discovery: {
-          allowedHostnames: ['*']
-        }
-      });
-
-      await percy.snapshot({
-        name: 'test snapshot',
-        url: 'http://localhost:8000',
-        domSnapshot: testExternalDOM,
-        widths: [1000]
-      });
-
-      await percy.idle();
       expect(captured[0][3]).toEqual(
         jasmine.objectContaining({
           attributes: jasmine.objectContaining({

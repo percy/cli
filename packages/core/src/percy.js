@@ -10,6 +10,7 @@ import {
   createRootResource,
   createLogResource,
   createPercyCSSResource,
+  hostnameMatches,
   injectPercyCSS
 } from './utils';
 
@@ -317,7 +318,7 @@ export default class Percy {
           }
         });
 
-        // navigate to the url, trigger resize events, then wait for network idle
+        // navigate to the url and trigger resize events
         await page.goto(url);
         for (let width of widths) await page.resize({ width });
 
@@ -327,7 +328,10 @@ export default class Percy {
 
         if (root) {
           // ensure asset discovery has finished before uploading
-          await page.network.idle();
+          await page.network.idle(({ url }) => (
+            hostnameMatches(discovery.allowedHostnames, url)
+          ));
+
           root = injectPercyCSS(root, percyCSS);
           this.log.info(`Snapshot taken: ${name}`, meta);
           this._scheduleUpload(name, conf, [root, ...resources.values()]);
