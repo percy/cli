@@ -29,6 +29,8 @@ describe('serializeFrames', () => {
       <iframe id="frame-with-urls" src="javascript:void(
         (this.document.body.background = '_/bg.png'),
         (this.document.body.innerHTML = \`
+          <style>@font-face { src: url('_/font.woff2') }</style>
+          <h1 style='background-image:url(_/head.png)'>Testing</h1>
           <link rel='stylesheet' href='_/style.css'>
           <img src='_/img.gif' srcset='/_/img.png 2x,
             //example.com/img.png 400w'>
@@ -95,6 +97,8 @@ describe('serializeFrames', () => {
 
     expect($('#frame-with-urls')[0].getAttribute('srcdoc')).toBe([
       `<!DOCTYPE html><html><head></head><body background="${url('_/bg.png')}">`,
+      `<style>@font-face { src: url('${url('_/font.woff2')}') }</style>`,
+      `<h1 style="background-image:url(${url('_/head.png')})">Testing</h1>`,
       `<link rel="stylesheet" href="${url('_/style.css')}">`,
       `<img src="${url('_/img.gif')}" srcset="${url('/_/img.png')} 2x,`,
       '  http://example.com/img.png 400w">',
