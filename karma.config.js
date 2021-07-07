@@ -22,6 +22,11 @@ module.exports = config => config.set({
     { pattern: 'test/**/*.test.js', watched: false }
   ],
 
+  proxies: {
+    // useful when the contents of a fake asset do not matter
+    '/_/': 'localhost/'
+  },
+
   // create dedicated bundles for src, test helpers, and each test suite
   preprocessors: {
     'src/index.js': ['rollup'],
