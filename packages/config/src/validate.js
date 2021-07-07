@@ -102,8 +102,14 @@ export default function validate(data, key = '/config') {
         path.push(params.additionalProperty);
       }
 
-      // scrub invalid data
-      del(data, path);
+      // fix invalid data
+      if (keyword === 'minimum') {
+        set(data, path, Math.max(error.data, error.schema));
+      } else if (keyword === 'maximum') {
+        set(data, path, Math.min(error.data, error.schema));
+      } else {
+        del(data, path);
+      }
 
       // joined for error messages
       path = path.join('.');

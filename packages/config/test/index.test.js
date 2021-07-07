@@ -194,6 +194,25 @@ describe('PercyConfig', () => {
         message: 'must pass a single schema, passed 0'
       }]);
     });
+
+    it('clamps minimum and maximum schemas', () => {
+      PercyConfig.addSchema({
+        min: { type: 'number', minimum: 10 },
+        max: { type: 'number', maximum: 20 }
+      });
+
+      let conf = { min: 5, max: 50 };
+
+      expect(PercyConfig.validate(conf)).toEqual([{
+        path: 'min',
+        message: 'must be >= 10'
+      }, {
+        path: 'max',
+        message: 'must be <= 20'
+      }]);
+
+      expect(conf).toEqual({ min: 10, max: 20 });
+    });
   });
 
   describe('.migrate()', () => {
