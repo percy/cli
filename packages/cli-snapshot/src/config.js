@@ -1,3 +1,5 @@
+import { snapshotSchema } from '@percy/core/dist/config';
+
 // Config schema for static directories
 export const schema = {
   static: {
@@ -25,6 +27,19 @@ export const schema = {
           { type: 'array', items: { type: 'string' } }
         ],
         default: ''
+      },
+      overrides: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            files: { $ref: '#/properties/files' },
+            ignore: { $ref: '#/properties/ignore' },
+            // schemas have no concept of inheritance, but we can leverage JS for brevity
+            ...snapshotSchema.properties
+          }
+        }
       }
     }
   }

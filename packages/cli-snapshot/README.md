@@ -47,20 +47,6 @@ EXAMPLES
 
 ## Usage
 
-### Static Directory
-
-When providing a static directory, it will be served locally and pages matching the `files` argument
-(and excluding the `ignore` argument) will be navigated to and snapshotted.
-
-```sh-session
-$ percy snapshot ./public
-[percy] Percy has started!
-[percy] Snapshot taken: /index.html
-[percy] Snapshot taken: /about.html
-[percy] Snapshot taken: /contact.html
-[percy] Finalized build #1: https://percy.io/org/project/123
-```
-
 ### Page Listing
 
 When providing a file containing a list of pages to snapshot, the file must be YAML, JSON, or a JS
@@ -70,8 +56,8 @@ using a browser.
 `pages.yml`:
 
 ```yaml
-- url: http://localhost:8080
-- url: http://localhost:8080/two
+- http://localhost:8080
+- http://localhost:8080/two
 ```
 
 Snapshotting `pages.yml`:
@@ -84,7 +70,7 @@ $ percy snapshot pages.yml
 [percy] Finalized build #1: https://percy.io/org/project/123
 ```
 
-### Page Options
+#### Page Options
 
 A `name` can be provided which will override the default snapshot name generated from the url
 path. The options `waitForTimeout` and `waitForSelector` can also be provided to wait for a timeout
@@ -161,4 +147,35 @@ module.exports = async () => {
   let urls = await getSnapshotUrls()
   return urls.map(url => ({ name: url, url }))
 }
+```
+
+### Static Directory
+
+When providing a static directory, it will be served locally and pages matching the `files` argument
+(and excluding the `ignore` argument) will be navigated to and snapshotted.
+
+```sh-session
+$ percy snapshot ./public
+[percy] Percy has started!
+[percy] Snapshot taken: /index.html
+[percy] Snapshot taken: /about.html
+[percy] Snapshot taken: /contact.html
+[percy] Finalized build #1: https://percy.io/org/project/123
+```
+
+#### Static Overrides
+
+Just like [page listing options](#page-options) above, static snapshots may also contain
+per-snapshot configuration options. However, since pages are matched against the `static.files`
+option, so are per-snapshot configuration options via an array of `static.overrides`. If multiple
+overrides match a snapshot, they will be merged with previously matched overrides.
+
+``` yaml
+static:
+  files: **/*.{html,htm}
+  overrides:
+  - files: /foo-bar.html
+    waitForSelector: .is-ready
+    execute: |
+      document.querySelector('.button').click()
 ```

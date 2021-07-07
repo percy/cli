@@ -5,6 +5,7 @@ import Command, { flags } from '@percy/cli-command';
 import Percy from '@percy/core';
 import logger from '@percy/logger';
 import globby from 'globby';
+import picomatch from 'picomatch';
 import YAML from 'yaml';
 import { schema } from '../config';
 import pkg from '../../package.json';
@@ -159,19 +160,35 @@ export class Snapshot extends Command {
 
   // Starts a static server and returns a list of pages to snapshot.
   async loadStaticPages(pathname) {
-    let { baseUrl, files, ignore } = this.percy.config.static;
+    let config = this.percy.config.static;
 
-    let paths = await globby(files, {
-      ignore: [].concat(ignore).filter(Boolean),
+    // gather paths
+    let paths = await globby(config.files, {
+      ignore: [].concat(config.ignore || []),
       cwd: pathname
     });
 
-    let addr = !this.flags['dry-run']
-      ? await this.serve(pathname, baseUrl)
-      : 'http://localhost';
+    // reduce overrides into a single map function
+    let applyOverrides = (config.overrides || [])
+      .reduce((map, { files, ignore, ...opts }) => {
+        let test = picomatch(files || '*', {
+          ignore: [].concat(ignore || [])
+        });
 
+        return (path, page) => test(path)
+          ? { ...map(path, page), ...opts }
+          : map(path, page);
+      }, path => ({
+        url: new URL(`${config.baseUrl}${path}`, addr).href
+      }));
+
+    // start the static server
+    let addr = this.flags['dry-run'] ? 'http://localhost'
+      : await this.serve(pathname, config.baseUrl);
+
+    // sort and map pages with overrides
     return paths.sort().map(path => (
-      `${addr}${baseUrl}${path}`
+      applyOverrides(path)
     ));
   }
 
