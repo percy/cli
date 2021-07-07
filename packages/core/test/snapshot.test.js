@@ -42,30 +42,82 @@ describe('Snapshot', () => {
       .toThrowError('Missing required URL for snapshot');
   });
 
-  it('errors when missing additional snapshot names', async () => {
-    expect(() => percy.snapshot({ url: 'http://localhost:8000', additionalSnapshots: [{}] }))
-      .toThrowError('Missing additional snapshot name, prefix, or suffix');
+  it('warns when missing additional snapshot names', async () => {
+    percy.close(); // close queues so snapshots fail
+
+    expect(() => percy.snapshot({
+      url: 'http://foo',
+      additionalSnapshots: [{
+        waitForTimeout: 1000
+      }, {
+        name: 'nombre',
+        suffix: ' - 1',
+        waitForTimeout: 1000
+      }]
+    })).toThrow();
+
+    expect(logger.stderr).toEqual([
+      '[percy] Invalid snapshot options:',
+      '[percy] - additionalSnapshots[0]: missing required name, prefix, or suffix',
+      '[percy] - additionalSnapshots[1]: prefix & suffix are ignored when a name is provided'
+    ]);
   });
 
-  it('errors when providing conflicting options', () => {
-    expect(() => percy.snapshot({ url: 'a', domSnapshot: 'b', waitForTimeout: 'c' }))
-      .toThrowError('Conflicting options: domSnapshot, waitForTimeout');
-    expect(() => percy.snapshot({ url: 'a', domSnapshot: 'b', waitForSelector: 'c' }))
-      .toThrowError('Conflicting options: domSnapshot, waitForSelector');
-    expect(() => percy.snapshot({ url: 'a', domSnapshot: 'b', execute: 'c' }))
-      .toThrowError('Conflicting options: domSnapshot, execute');
-    expect(() => percy.snapshot({ url: 'a', domSnapshot: 'b', additionalSnapshots: [] }))
-      .toThrowError('Conflicting options: domSnapshot, additionalSnapshots');
+  it('warns when providing conflicting options', () => {
+    percy.close(); // close queues so snapshots fail
+
+    expect(() => percy.snapshot({
+      url: 'http://a',
+      domSnapshot: 'b',
+      waitForTimeout: 3,
+      waitForSelector: 'd',
+      execute: 'e',
+      additionalSnapshots: [
+        { prefix: 'f' }
+      ]
+    })).toThrow();
+
+    expect(logger.stderr).toEqual([
+      '[percy] Invalid snapshot options:',
+      '[percy] - additionalSnapshots: not accepted with DOM snapshots',
+      '[percy] - waitForTimeout: not accepted with DOM snapshots',
+      '[percy] - waitForSelector: not accepted with DOM snapshots',
+      '[percy] - execute: not accepted with DOM snapshots'
+    ]);
+  });
+
+  it('warns if options are invalid', () => {
+    percy.close(); // close queues so snapshots fail
+
+    expect(() => percy.snapshot({
+      name: 'invalid snapshot',
+      url: 'http://localhost:8000',
+      widths: ['not-a-width'],
+      minHeight: 4000,
+      discovery: {
+        allowedHostnames: [
+          'http://what-am-i-doing.com',
+          'still-not-a-hostname.io/with-a-path',
+          'finally.a-real.hostname.org'
+        ]
+      }
+    })).toThrow();
+
+    expect(logger.stderr).toEqual([
+      '[percy] Invalid snapshot options:',
+      '[percy] - widths[0]: must be an integer, received a string',
+      '[percy] - minHeight: must be <= 2000',
+      '[percy] - discovery.allowedHostnames[0]: must not include a protocol',
+      '[percy] - discovery.allowedHostnames[1]: must not include a pathname'
+    ]);
   });
 
   it('warns on deprecated options', () => {
-    // close snapshot queues to prevent snapshots from actually being taken
-    percy.close();
+    percy.close(); // close queues so snapshots fail
 
-    // closed queues cause future snapshot invokations to error
-    expect(() => percy.snapshot({ url: 'a', requestHeaders: {} })).toThrow();
-    expect(() => percy.snapshot({ url: 'b', authorization: {} })).toThrow();
-    expect(() => percy.snapshot({ url: 'b', snapshots: [] })).toThrow();
+    expect(() => percy.snapshot({ url: 'http://a', requestHeaders: {} })).toThrow();
+    expect(() => percy.snapshot({ url: 'http://b', authorization: {} })).toThrow();
+    expect(() => percy.snapshot({ url: 'http://c', snapshots: [] })).toThrow();
 
     expect(logger.stderr).toEqual([
       '[percy] Warning: The snapshot option `requestHeaders` ' +
@@ -86,23 +138,6 @@ describe('Snapshot', () => {
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Encountered an error taking snapshot: test snapshot',
       '[percy] Error: Navigation failed: net::ERR_ABORTED'
-    ]));
-  });
-
-  it('errors if parameters are invalid', async () => {
-    testDOM += '<style href="/404-cov.css"/>';
-
-    await percy.snapshot({
-      name: 'invalid snapshot',
-      url: 'http://localhost:8000',
-      widths: ['not-a-width']
-    });
-
-    expect(logger.stderr).toEqual(jasmine.arrayContaining([
-      '[percy] Encountered an error taking snapshot: invalid snapshot',
-      '[percy] Error: Protocol error (Emulation.setDeviceMetricsOverride): ' +
-        'Invalid parameters: Failed to deserialize params.width ' +
-        '- BINDINGS: int32 value expected at position 50'
     ]));
   });
 

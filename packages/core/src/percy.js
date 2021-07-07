@@ -337,9 +337,11 @@ export default class Percy {
           this._scheduleUpload(name, conf, [root, ...resources.values()]);
         } else {
           // capture additional snapshots sequentially
-          let snapshot = { name, waitForTimeout, waitForSelector, execute };
+          let rootSnapshot = { name, waitForTimeout, waitForSelector, execute };
+          let allSnapshots = [rootSnapshot, ...(additionalSnapshots || [])];
 
-          for (let { name, ...opts } of [snapshot, ...additionalSnapshots]) {
+          for (let { name, prefix = '', suffix = '', ...opts } of allSnapshots) {
+            name ||= `${prefix}${rootSnapshot.name}${suffix}`;
             this.log.debug(`Taking snapshot: ${name}`, meta);
 
             // will wait for timeouts, selectors, and additional network activity
