@@ -236,6 +236,31 @@ describe('PercyConfig', () => {
         message: 'must be an instanceof RegExp'
       }]);
     });
+
+    it('can validate disallowed properties', () => {
+      PercyConfig.addSchema({
+        test: {
+          type: 'object',
+          additionalProperties: false,
+          disallowed: ['foo', 'bar'],
+          properties: {
+            foo: { type: 'number' },
+            bar: { type: 'number' },
+            baz: { type: 'number' }
+          }
+        }
+      });
+
+      expect(PercyConfig.validate({
+        test: { foo: 1, bar: 2, baz: 3 }
+      })).toEqual([{
+        path: 'test.foo',
+        message: 'disallowed property'
+      }, {
+        path: 'test.bar',
+        message: 'disallowed property'
+      }]);
+    });
   });
 
   describe('.migrate()', () => {

@@ -25,6 +25,27 @@ const ajv = new AJV({
     code: cxt => cxt.fail(
       AJV._`!(${cxt.data} instanceof ${AJV._([cxt.schema])})`
     )
+  }, {
+    // disallowed validation based on required
+    keyword: 'disallowed',
+    metaSchema: {
+      type: 'array',
+      items: { type: 'string' }
+    },
+    error: {
+      message: 'disallowed property',
+      params: cxt => AJV._`{ disallowedProperty: ${cxt.params.disallowedProperty} }`
+    },
+    code: cxt => {
+      let { data, gen, schema } = cxt;
+
+      for (let prop of schema) {
+        gen.if(AJV._`${data}.${AJV._([prop])} !== undefined`, () => {
+          cxt.setParams({ disallowedProperty: AJV._`${prop}` }, true);
+          cxt.error();
+        });
+      }
+    }
   }]
 });
 
@@ -116,6 +137,8 @@ export default function validate(data, key = '/config') {
         path.push(params.missingProperty);
       } else if (params.additionalProperty) {
         path.push(params.additionalProperty);
+      } else if (params.disallowedProperty) {
+        path.push(params.disallowedProperty);
       }
 
       // fix invalid data
