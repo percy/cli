@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import PercyConfig from '@percy/config';
 import Command, { flags } from '@percy/cli-command';
 import Percy from '@percy/core';
 import logger from '@percy/logger';
@@ -177,16 +178,29 @@ export class Snapshot extends Command {
   // Loads pages to snapshot from a js, json, or yaml file.
   async loadPagesFile(pathname) {
     let ext = path.extname(pathname);
+    let pages = [];
 
     if (ext === '.js') {
-      let pages = require(path.resolve(pathname));
-      return typeof pages === 'function' ? await pages() : pages;
+      pages = require(path.resolve(pathname));
+      if (typeof pages === 'function') pages = await pages();
     } else if (ext === '.json') {
-      return JSON.parse(fs.readFileSync(pathname, { encoding: 'utf-8' }));
+      pages = JSON.parse(fs.readFileSync(pathname, { encoding: 'utf-8' }));
     } else if (ext.match(/\.ya?ml$/)) {
-      return YAML.parse(fs.readFileSync(pathname, { encoding: 'utf-8' }));
+      pages = YAML.parse(fs.readFileSync(pathname, { encoding: 'utf-8' }));
     } else {
-      return this.error(`Unsupported filetype: ${pathname}`);
+      this.error(`Unsupported filetype: ${pathname}`);
     }
+
+    // validate page listings
+    let errors = PercyConfig.validate(pages, '/snapshot/list');
+
+    if (errors) {
+      this.log.warn('Invalid snapshot options:');
+      for (let e of errors) this.log.warn(`- ${e.path}: ${e.message}`);
+    }
+
+    return Array.isArray(pages) ? pages
+    // support a nested snapshots array for yaml references
+      : (pages.snapshots ?? []);
   }
 }

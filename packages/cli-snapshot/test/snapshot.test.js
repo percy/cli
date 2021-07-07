@@ -283,5 +283,25 @@ describe('percy snapshot', () => {
         '[percy] Snapshot found: Other JS Snapshot'
       ]);
     });
+
+    it('logs validation warnings', async () => {
+      fs.writeFileSync('invalid.yml', [
+        'snapshots:',
+        '  - foo: bar',
+        '    name: Test snap'
+      ].join('\n'));
+
+      await expectAsync(
+        Snapshot.run(['./invalid.yml', '--dry-run'])
+      ).toBeRejected();
+
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
+        '[percy] Invalid snapshot options:',
+        '[percy] - snapshots[0].url: missing required property',
+        '[percy] - snapshots[0].foo: unknown property',
+        '[percy] Error: No snapshots found'
+      ]);
+    });
   });
 });
