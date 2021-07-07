@@ -213,6 +213,29 @@ describe('PercyConfig', () => {
 
       expect(conf).toEqual({ min: 10, max: 20 });
     });
+
+    it('can validate functions and regular expressions', () => {
+      PercyConfig.addSchema({
+        func: { instanceof: 'Function' },
+        regex: { instanceof: 'RegExp' }
+      });
+
+      expect(PercyConfig.validate({
+        func: () => {},
+        regex: /foobar/g
+      })).toBeUndefined();
+
+      expect(PercyConfig.validate({
+        func: '() => {}',
+        regex: '/foobar/g'
+      })).toEqual([{
+        path: 'func',
+        message: 'must be an instanceof Function'
+      }, {
+        path: 'regex',
+        message: 'must be an instanceof RegExp'
+      }]);
+    });
   });
 
   describe('.migrate()', () => {

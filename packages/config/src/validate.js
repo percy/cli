@@ -9,7 +9,23 @@ const ajv = new AJV({
   strict: false,
   verbose: true,
   allErrors: true,
-  schemas: [getDefaultSchema()]
+  schemas: [
+    getDefaultSchema()
+  ],
+  keywords: [{
+    // custom instanceof schema validation
+    keyword: 'instanceof',
+    metaSchema: {
+      enum: ['Function', 'RegExp']
+    },
+    error: {
+      message: cxt => AJV.str`must be an instanceof ${cxt.schemaCode}`,
+      params: cxt => AJV._`{ instanceof: ${cxt.schemaCode} }`
+    },
+    code: cxt => cxt.fail(
+      AJV._`!(${cxt.data} instanceof ${AJV._([cxt.schema])})`
+    )
+  }]
 });
 
 // Returns a new default schema.
