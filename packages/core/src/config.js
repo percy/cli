@@ -1,5 +1,5 @@
 import { strict as assert } from 'assert';
-import { merge } from '@percy/config/dist/normalize';
+import { merge } from '@percy/config/dist/utils';
 import { hostname } from './utils';
 
 // Common options used in Percy commands
@@ -190,14 +190,14 @@ export function getSnapshotConfig({
   enableJavaScript ??= config.snapshot.enableJavaScript;
 
   // merge common discovery options
-  discovery = merge({
+  discovery = merge([{
     // always allow the root hostname
     allowedHostnames: [hostname(url), ...config.discovery.allowedHostnames],
     requestHeaders: config.discovery.requestHeaders,
     authorization: config.discovery.authorization,
     disableCache: config.discovery.disableCache,
     userAgent: config.discovery.userAgent
-  }, discovery);
+  }, discovery]);
 
   return {
     url,
