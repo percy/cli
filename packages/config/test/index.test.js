@@ -214,6 +214,27 @@ describe('PercyConfig', () => {
       expect(conf).toEqual({ min: 10, max: 20 });
     });
 
+    it('scrubs properties with missing required nested properties', () => {
+      PercyConfig.addSchema({
+        foo: {
+          type: 'object',
+          required: ['bar'],
+          properties: {
+            bar: { const: 'baz' }
+          }
+        }
+      });
+
+      let conf = { foo: { qux: 'xyzzy' } };
+
+      expect(PercyConfig.validate(conf)).toEqual([{
+        path: 'foo.bar',
+        message: 'missing required property'
+      }]);
+
+      expect(conf).toEqual({});
+    });
+
     it('can validate functions and regular expressions', () => {
       PercyConfig.addSchema({
         func: { instanceof: 'Function' },
@@ -592,12 +613,11 @@ describe('PercyConfig', () => {
     it('logs validation warnings and scrubs failing properties', () => {
       mockConfig('.invalid.yml', 'version: 2\nfoo: bar');
       PercyConfig.addSchema({
-        req: {
+        obj: {
           type: 'object',
-          required: ['foo', 'bar'],
+          additionalProperties: false,
           properties: {
-            foo: { type: 'string' },
-            bar: { type: 'string' }
+            foo: { type: 'string' }
           }
         }
       });
@@ -608,12 +628,12 @@ describe('PercyConfig', () => {
         overrides: {
           test: { value: 1 },
           arr: { 1: 'one' },
-          req: { foo: 'bar' }
+          obj: { foo: 'bar', bar: 'baz' }
         }
       })).toEqual({
         version: 2,
         test: { value: 'foo' },
-        req: { foo: 'bar' }
+        obj: { foo: 'bar' }
       });
 
       expect(logger.stdout).toEqual([]);
@@ -623,11 +643,11 @@ describe('PercyConfig', () => {
         '[percy:config] - foo: unknown property',
         '[percy:config] - test.value: must be a string, received a number',
         '[percy:config] - arr: must be an array, received an object',
-        '[percy:config] - req.bar: missing required property',
+        '[percy:config] - obj.bar: unknown property',
         '[percy:config] Using config:\n' + [
           '{',
           '  version: 2,',
-          '  req: {',
+          '  obj: {',
           '    foo: \'bar\'',
           '  }',
           '}'
