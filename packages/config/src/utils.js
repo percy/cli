@@ -7,26 +7,44 @@ function create(array) {
   return array ? [] : {};
 }
 
+// Returns true if the provided key looks like an array key
+const ARRAY_PATH_KEY_REG = /^(\[\d+]|0|[1-9]\d*)$/;
+
+function isArrayKey(key) {
+  return isInteger(key) || ARRAY_PATH_KEY_REG.test(key);
+}
+
+// Split a property path string by dot or array notation
+function parsePropertyPath(path) {
+  return isArray(path) ? path : path.split('.').reduce((full, part) => {
+    return full.concat(part.split('[').reduce((f, p) => {
+      if (p.endsWith(']')) p = p.slice(0, -1);
+      return f.concat(isArrayKey(p) ? parseInt(p, 10) : p);
+    }, []));
+  }, []);
+}
+
+// Join an array of path parts into a single path string
+export function joinPropertyPath(path) {
+  return path.map(part => (
+    isArrayKey(part) ? `[${part}]` : `.${part}`
+  )).join('').substr(1);
+}
+
 // Gets a value in the object at the path
 export function get(object, path, find) {
-  /* istanbul ignore next: a string path is never actually used here */
-  return (isArray(path) ? path : path.split('.'))
+  return parsePropertyPath(path)
     .reduce((target, key) => target?.[key], object);
 }
 
 // Sets a value to the object at the path creating any necessary nested
 // objects or arrays along the way
-const ARRAY_PATH_KEY_REG = /^\[\d+]$/;
-
 export function set(object, path, value) {
-  return (isArray(path) ? path : path.split('.'))
+  return parsePropertyPath(path)
     .reduce((target, key, index, path) => {
       if (index < path.length - 1) {
-        let childKey = path[index + 1];
-        return (target[key] ??= create(
-          isInteger(childKey) ||
-            ARRAY_PATH_KEY_REG.test(childKey)
-        ));
+        target[key] ??= create(isArrayKey(path[index + 1]));
+        return target[key];
       } else {
         target[key] = value;
         return object;
@@ -37,7 +55,7 @@ export function set(object, path, value) {
 // Deletes properties from an object at the paths
 export function del(object, ...paths) {
   return paths.reduce((object, path) => {
-    return (isArray(path) ? path : path.split('.'))
+    return parsePropertyPath(path)
       .reduce((target, key, index, path) => {
         if (index < path.length - 1) {
           return target?.[key];
@@ -52,7 +70,7 @@ export function del(object, ...paths) {
 // Maps a value from one path to another, deleting the first path
 export function map(object, from, to, transform = v => v) {
   return set(object, to, transform(
-    ((isArray(from) ? from : from.split('.')))
+    parsePropertyPath(from)
       .reduce((target, key, index, path) => {
         let value = target?.[key];
 

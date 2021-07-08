@@ -240,10 +240,10 @@ describe('PercyConfig', () => {
       let conf = { foo: [{}, { baz: 'qux' }, { qux: 'quux' }] };
 
       expect(PercyConfig.validate(conf)).toEqual([{
-        path: 'foo.0',
+        path: 'foo[0]',
         message: 'missing metasyntactic variable'
       }, {
-        path: 'foo.2.qux',
+        path: 'foo[2].qux',
         message: 'must be equal to constant'
       }]);
 
@@ -379,6 +379,22 @@ describe('PercyConfig', () => {
         value: 'testing'
       })).toEqual({
         version: 2
+      });
+    });
+
+    it('can handle array and array-like paths', () => {
+      PercyConfig.addMigration((config, util) => {
+        if (config.arr) util.map('arr', 'arr[1].foo[bar][baz]');
+      });
+
+      expect(PercyConfig.migrate({
+        version: 1,
+        arr: 'qux'
+      })).toEqual({
+        version: 2,
+        arr: [undefined, {
+          foo: { bar: { baz: 'qux' } }
+        }]
       });
     });
   });
@@ -663,7 +679,7 @@ describe('PercyConfig', () => {
         path: '.invalid.yml',
         overrides: {
           test: { value: 1 },
-          arr: { 1: 'one' },
+          arr: { one: 1 },
           obj: { foo: 'bar', bar: 'baz' }
         }
       })).toEqual({
@@ -700,7 +716,7 @@ describe('PercyConfig', () => {
         bail: true,
         overrides: {
           test: { value: 1 },
-          arr: { 1: 'one' }
+          arr: { one: 1 }
         }
       })).toBeUndefined();
 

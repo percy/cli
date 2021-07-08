@@ -1,5 +1,10 @@
 import AJV from 'ajv';
-import { set, del, filterEmpty } from './utils';
+import {
+  set,
+  del,
+  filterEmpty,
+  joinPropertyPath
+} from './utils';
 
 const { isArray } = Array;
 const { assign, entries } = Object;
@@ -153,7 +158,7 @@ export default function validate(data, key = '/config') {
       }
 
       // joined for error messages
-      path = path.join('.');
+      path = joinPropertyPath(path);
 
       // map one error per path
       errors.set(path, { path, message });
