@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { inspect } from 'util';
+import rimraf from 'rimraf';
 import mockAPI from '@percy/client/test/helpers';
 import logger from '@percy/logger/test/helpers';
 import { createTestServer } from '@percy/core/test/helpers';
@@ -16,51 +17,11 @@ describe('percy snapshot', () => {
     process.chdir(path.join(__dirname, 'tmp'));
 
     fs.mkdirSync('public');
-    fs.writeFileSync(path.join('public', 'test-1.html'), '<p>Test 1</p>');
-    fs.writeFileSync(path.join('public', 'test-2.html'), '<p>Test 2</p>');
-    fs.writeFileSync(path.join('public', 'test-3.htm'), '<p>Test 3</p>');
-    fs.writeFileSync(path.join('public', 'test-4.xml'), '<p>Test 4</p>');
-    fs.writeFileSync('pages.yml', [
-      '- name: YAML Snapshot',
-      '  url: http://localhost:8000'
-    ].join('\n'));
-    fs.writeFileSync('pages.json', JSON.stringify([{
-      name: 'JSON Snapshot',
-      url: 'http://localhost:8000'
-    }]));
-    fs.writeFileSync('pages.js', 'module.exports = ' + inspect([{
-      name: 'JS Snapshot',
-      url: 'http://localhost:8000',
-      additionalSnapshots: [
-        { suffix: ' 2' },
-        { prefix: 'Other ' }
-      ]
-    }], { depth: null }));
-    fs.writeFileSync('pages-fn.js', 'module.exports = () => (' + inspect([{
-      name: 'JS Function Snapshot',
-      url: 'http://localhost:8000'
-    }], { depth: null }) + ')');
-    fs.writeFileSync('nope', 'not here');
-    fs.writeFileSync('urls.yml', [
-      '- /', '- /one', '- /two'
-    ].join('\n'));
   });
 
   afterAll(() => {
-    fs.unlinkSync('nope');
-    fs.unlinkSync('pages.js');
-    fs.unlinkSync('pages-fn.js');
-    fs.unlinkSync('pages.json');
-    fs.unlinkSync('pages.yml');
-    fs.unlinkSync('urls.yml');
-    fs.unlinkSync(path.join('public', 'test-1.html'));
-    fs.unlinkSync(path.join('public', 'test-2.html'));
-    fs.unlinkSync(path.join('public', 'test-3.htm'));
-    fs.unlinkSync(path.join('public', 'test-4.xml'));
-    fs.rmdirSync('public');
-
     process.chdir(cwd);
-    fs.rmdirSync(path.join(__dirname, 'tmp'));
+    rimraf.sync(path.join(__dirname, 'tmp'));
   });
 
   beforeEach(() => {
@@ -106,6 +67,13 @@ describe('percy snapshot', () => {
   });
 
   describe('snapshotting static directories', () => {
+    beforeAll(() => {
+      fs.writeFileSync(path.join('public', 'test-1.html'), '<p>Test 1</p>');
+      fs.writeFileSync(path.join('public', 'test-2.html'), '<p>Test 2</p>');
+      fs.writeFileSync(path.join('public', 'test-3.htm'), '<p>Test 3</p>');
+      fs.writeFileSync(path.join('public', 'test-4.xml'), '<p>Test 4</p>');
+    });
+
     it('errors when the base-url is invalid', async () => {
       await expectAsync(Snapshot.run(['./public', '--base-url=wrong']))
         .toBeRejectedWithError('EEXIT: 1');
@@ -161,13 +129,36 @@ describe('percy snapshot', () => {
   describe('snapshotting a list of pages', () => {
     let server;
 
-    beforeEach(async () => {
+    beforeAll(async () => {
       server = await createTestServer({
         default: () => [200, 'text/html', '<p>Test</p>']
       });
+
+      fs.writeFileSync('pages.yml', [
+        '- name: YAML Snapshot',
+        '  url: http://localhost:8000'
+      ].join('\n'));
+
+      fs.writeFileSync('pages.js', 'module.exports = ' + inspect([{
+        name: 'JS Snapshot',
+        url: 'http://localhost:8000',
+        additionalSnapshots: [
+          { suffix: ' 2' },
+          { prefix: 'Other ' }
+        ]
+      }], { depth: null }));
+
+      fs.writeFileSync('pages-fn.js', 'module.exports = () => (' + inspect([{
+        name: 'JS Function Snapshot',
+        url: 'http://localhost:8000'
+      }], { depth: null }) + ')');
+
+      fs.writeFileSync('urls.yml', [
+        '- /', '- /one', '- /two'
+      ].join('\n'));
     });
 
-    afterEach(async () => {
+    afterAll(async () => {
       await server.close();
     });
 
@@ -183,6 +174,8 @@ describe('percy snapshot', () => {
     });
 
     it('errors with unknown file extensions', async () => {
+      fs.writeFileSync('nope', 'not here');
+
       await expectAsync(Snapshot.run(['./nope']))
         .toBeRejectedWithError('EEXIT: 1');
 
@@ -215,6 +208,11 @@ describe('percy snapshot', () => {
     });
 
     it('snapshots pages from .json files', async () => {
+      fs.writeFileSync('pages.json', JSON.stringify([{
+        name: 'JSON Snapshot',
+        url: 'http://localhost:8000'
+      }]));
+
       await Snapshot.run(['./pages.json']);
 
       expect(logger.stderr).toEqual([]);
