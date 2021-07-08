@@ -117,3 +117,28 @@ export function merge(sources, map) {
     return target;
   }, undefined);
 }
+
+// Recursively mutate and filter empty values from arrays and objects
+export function filterEmpty(subject) {
+  if (typeof subject === 'object') {
+    if (isArray(subject)) {
+      for (let i = 0; i < subject.length; i++) {
+        if (!filterEmpty(subject[i])) {
+          subject.splice(i--, 1);
+        }
+      }
+
+      return subject.length > 0;
+    } else {
+      for (let k in subject) {
+        if (!filterEmpty(subject[k])) {
+          delete subject[k];
+        }
+      }
+
+      return entries(subject).length > 0;
+    }
+  } else {
+    return subject != null;
+  }
+}

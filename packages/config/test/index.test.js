@@ -214,6 +214,42 @@ describe('PercyConfig', () => {
       expect(conf).toEqual({ min: 10, max: 20 });
     });
 
+    it('scrubs invalid properties', () => {
+      PercyConfig.addSchema({
+        foo: {
+          type: 'array',
+          items: {
+            type: 'object',
+            oneOf: [
+              { required: ['bar'] },
+              { required: ['baz'] },
+              { required: ['qux'] }
+            ],
+            properties: {
+              bar: { const: 'baz' },
+              baz: { const: 'qux' },
+              qux: { const: 'xyzzy' }
+            },
+            errors: {
+              oneOf: 'missing metasyntactic variable'
+            }
+          }
+        }
+      });
+
+      let conf = { foo: [{}, { baz: 'qux' }, { qux: 'quux' }] };
+
+      expect(PercyConfig.validate(conf)).toEqual([{
+        path: 'foo.0',
+        message: 'missing metasyntactic variable'
+      }, {
+        path: 'foo.2.qux',
+        message: 'must be equal to constant'
+      }]);
+
+      expect(conf).toEqual({ foo: [{ baz: 'qux' }] });
+    });
+
     it('scrubs properties with missing required nested properties', () => {
       PercyConfig.addSchema({
         foo: {

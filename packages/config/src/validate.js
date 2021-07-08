@@ -1,5 +1,5 @@
 import AJV from 'ajv';
-import { set, del } from './utils';
+import { set, del, filterEmpty } from './utils';
 
 const { isArray } = Array;
 const { assign, entries } = Object;
@@ -158,6 +158,9 @@ export default function validate(data, key = '/config') {
       // map one error per path
       errors.set(path, { path, message });
     }
+
+    // filter empty values as a result of scrubbing
+    filterEmpty(data);
 
     // return an array of errors
     return Array.from(errors.values());
