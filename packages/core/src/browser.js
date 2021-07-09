@@ -275,8 +275,7 @@ export default class Browser extends EventEmitter {
       let callback = this.#callbacks.get(data.id);
       this.#callbacks.delete(data.id);
 
-      /* istanbul ignore next:
-       *   currently does not happen during asset discovery but it's here just in case */
+      /* istanbul ignore next: races with page._handleMessage() */
       if (data.error) {
         callback.reject(Object.assign(callback.error, {
           message: `Protocol error (${callback.method}): ${data.error.message}` +

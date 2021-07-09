@@ -278,10 +278,10 @@ export default class Page extends EventEmitter {
       let callback = this.#callbacks.get(data.id);
       this.#callbacks.delete(data.id);
 
+      /* istanbul ignore next: races with browser._handleMessage() */
       if (data.error) {
         callback.reject(Object.assign(callback.error, {
           message: `Protocol error (${callback.method}): ${data.error.message}` +
-            /* istanbul ignore next: doesn't always exist so don't print undefined */
             ('data' in data.error ? `: ${data.error.data}` : '')
         }));
       } else {
