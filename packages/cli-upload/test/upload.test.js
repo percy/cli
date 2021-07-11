@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import rimraf from 'rimraf';
 import mockAPI from '@percy/client/test/helpers';
 import logger from '@percy/logger/test/helpers';
 import { Upload } from '../src/commands/upload';
@@ -24,15 +25,8 @@ describe('percy upload', () => {
   });
 
   afterAll(() => {
-    fs.unlinkSync('nope');
-    fs.unlinkSync(path.join('images', 'test-1.png'));
-    fs.unlinkSync(path.join('images', 'test-2.jpg'));
-    fs.unlinkSync(path.join('images', 'test-3.jpeg'));
-    fs.unlinkSync(path.join('images', 'test-4.gif'));
-    fs.rmdirSync('images');
-
     process.chdir(cwd);
-    fs.rmdirSync(path.join(__dirname, 'tmp'));
+    rimraf.sync(path.join(__dirname, 'tmp'));
   });
 
   beforeEach(() => {
@@ -44,6 +38,10 @@ describe('percy upload', () => {
   afterEach(() => {
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
+
+    if (fs.existsSync('.percy.yml')) {
+      fs.unlinkSync('.percy.yml');
+    }
   });
 
   it('skips uploading when percy is disabled', async () => {
@@ -85,14 +83,14 @@ describe('percy upload', () => {
     await Upload.run(['./images']);
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
-      '[percy] Created build #1: https://percy.io/test/test/123',
+      '[percy] Uploading 3 snapshots...',
       '[percy] Snapshot uploaded: test-1.png',
       '[percy] Snapshot uploaded: test-2.jpg',
       '[percy] Snapshot uploaded: test-3.jpeg',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
-    ]);
+    ]));
 
     expect(mockAPI.requests['/builds/123/snapshots'][0].body).toEqual({
       data: {
@@ -132,26 +130,65 @@ describe('percy upload', () => {
     await Upload.run(['./images', '--files=*']);
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
-      '[percy] Created build #1: https://percy.io/test/test/123',
+      '[percy] Skipping unsupported file type: test-4.gif',
+      '[percy] Uploading 3 snapshots...',
       '[percy] Snapshot uploaded: test-1.png',
       '[percy] Snapshot uploaded: test-2.jpg',
       '[percy] Snapshot uploaded: test-3.jpeg',
-      '[percy] Skipping unsupported image type: test-4.gif',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
-    ]);
+    ]));
   });
 
   it('does not upload snapshots and prints matching files with --dry-run', async () => {
     await Upload.run(['./images', '--dry-run']);
 
     expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Found 3 snapshots',
+      '[percy] Snapshot found: test-1.png',
+      '[percy] Snapshot found: test-2.jpg',
+      '[percy] Snapshot found: test-3.jpeg'
+    ]));
+
+    logger.reset();
+    await Upload.run(['./images', '--dry-run', '--files=test-1.png']);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Found 1 snapshot',
+      '[percy] Snapshot found: test-1.png'
+    ]));
+  });
+
+  it('stops uploads on process termination', async () => {
+    mockAPI.start(100);
+
+    // specify a low concurrency to interupt the queue later
+    fs.writeFileSync('.percy.yml', [
+      'version: 2',
+      'upload:',
+      '  concurrency: 1',
+    ].join('\n'));
+
+    let upload = Upload.run(['./images']);
+
+    // wait for the first upload before terminating
+    await new Promise(r => function check() {
+      if (mockAPI.requests['/builds/123/snapshots']) r();
+      else setTimeout(check, 10);
+    }());
+
+    process.emit('SIGTERM');
+    await upload;
+
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Matching files:\n' +
-        'test-1.png\n' +
-        'test-2.jpg\n' +
-        'test-3.jpeg'
+      '[percy] Percy has started!',
+      '[percy] Uploading 3 snapshots...',
+      '[percy] Snapshot uploaded: test-1.png',
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
   });
 });
