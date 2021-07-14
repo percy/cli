@@ -206,11 +206,20 @@ describe('Proxied PercyClient', () => {
     );
   });
 
+  it('can be proxied through a proxy with a default port', async () => {
+    proxy.close();
+
+    proxy = await createProxyServer(http, 80).start();
+    process.env.HTTP_PROXY = 'http://localhost';
+
+    await expectAsync(client.get('foo')).toBeResolvedTo('test proxied');
+  });
+
   it('can be proxied through an https proxy', async () => {
     proxy.close();
 
-    proxy = await createProxyServer(https, 1337).start();
-    process.env.HTTPS_PROXY = 'https://localhost:1337';
+    proxy = await createProxyServer(https, 443).start();
+    process.env.HTTPS_PROXY = 'https://localhost';
 
     await expectAsync(client.get('foo')).toBeResolvedTo('test proxied');
   });
