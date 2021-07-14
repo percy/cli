@@ -208,6 +208,15 @@ describe('Proxied PercyClient', () => {
     );
   });
 
+  it('can be proxied through an https proxy', async () => {
+    proxy.close();
+
+    proxy = await createProxyServer(https, 1337).start();
+    process.env.HTTPS_PROXY = 'https://localhost:1337';
+
+    await expectAsync(client.get('foo')).toBeResolvedTo('test proxied');
+  });
+
   it('can be proxied through a proxy with a default port', async () => {
     proxy.close();
 
@@ -225,7 +234,7 @@ describe('Proxied PercyClient', () => {
     expect(spy).toHaveBeenCalledWith(jasmine.objectContaining({ port: 80 }));
   });
 
-  it('can be proxied through an https proxy', async () => {
+  it('can be proxied through an https proxy with a default port', async () => {
     proxy.close();
 
     // this is done for systems with restricted ports
