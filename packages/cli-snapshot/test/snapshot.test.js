@@ -74,6 +74,12 @@ describe('percy snapshot', () => {
       fs.writeFileSync(path.join('public', 'test-4.xml'), '<p>Test 4</p>');
     });
 
+    afterEach(() => {
+      if (fs.existsSync('.percy.yml')) {
+        fs.unlinkSync('.percy.yml');
+      }
+    });
+
     it('errors when the base-url is invalid', async () => {
       await expectAsync(Snapshot.run(['./public', '--base-url=wrong']))
         .toBeRejectedWithError('EEXIT: 1');
@@ -122,6 +128,31 @@ describe('percy snapshot', () => {
         '[percy] Snapshot found: /test-1.html',
         '[percy] Snapshot found: /test-2.html',
         '[percy] Snapshot found: /test-3.htm'
+      ]);
+    });
+
+    it('accepts snapshot config overrides', async () => {
+      fs.writeFileSync('.percy.yml', [
+        'version: 2',
+        'static:',
+        '  overrides:',
+        '  - additionalSnapshots:',
+        '    - suffix: " (2)"',
+        '  - files: "*-1.html"',
+        '    name: First'
+      ].join('\n'));
+
+      await Snapshot.run(['./public', '--dry-run']);
+
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
+        '[percy] Found 3 snapshots',
+        '[percy] Snapshot found: First',
+        '[percy] Snapshot found: First (2)',
+        '[percy] Snapshot found: /test-2.html',
+        '[percy] Snapshot found: /test-2.html (2)',
+        '[percy] Snapshot found: /test-3.htm',
+        '[percy] Snapshot found: /test-3.htm (2)'
       ]);
     });
   });
