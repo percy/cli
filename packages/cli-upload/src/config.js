@@ -16,6 +16,10 @@ export const schema = {
           { type: 'array', items: { type: 'string' } }
         ],
         default: ''
+      },
+      concurrency: {
+        type: 'number',
+        minimum: 1
       }
     }
   }

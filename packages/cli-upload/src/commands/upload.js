@@ -5,11 +5,12 @@ import logger from '@percy/logger';
 import globby from 'globby';
 import imageSize from 'image-size';
 import PercyClient from '@percy/client';
+import Queue from '@percy/core/dist/queue';
 import createImageResources from '../resources';
 import { schema } from '../config';
 import pkg from '../../package.json';
 
-const ALLOWED_IMAGE_TYPES = /\.(png|jpg|jpeg)$/i;
+const ALLOWED_FILE_TYPES = /\.(png|jpg|jpeg)$/i;
 
 export class Upload extends Command {
   static description = 'Upload a directory of images to Percy';
@@ -51,11 +52,11 @@ export class Upload extends Command {
 
   async run() {
     if (!this.isPercyEnabled()) {
-      this.log.info('Percy is disabled. Skipping upload');
-      return;
+      return this.log.info('Percy is disabled. Skipping upload');
     }
 
     let { dirname } = this.args;
+    let { 'dry-run': dry } = this.flags;
 
     if (!fs.existsSync(dirname)) {
       return this.error(`Not found: ${dirname}`);
@@ -63,46 +64,47 @@ export class Upload extends Command {
       return this.error(`Not a directory: ${dirname}`);
     }
 
-    let { upload: { files, ignore } } = this.percyrc();
-    ignore = [].concat(ignore).filter(Boolean);
+    let { upload: { files, ignore, concurrency } } = this.percyrc();
+    this.queue = new Queue(concurrency);
+    ignore = [].concat(ignore || []);
 
     let paths = await globby(files, { cwd: dirname, ignore });
+    let l = paths.length;
     paths.sort();
 
-    if (!paths.length) {
-      return this.error(`No matching files found in '${dirname}'`);
-    } else if (this.flags['dry-run']) {
-      return this.log.info(`Matching files:\n${paths.join('\n')}`);
-    }
+    if (!l) this.error(`No matching files found in '${dirname}'`);
 
-    // we already have assets so we don't need asset discovery from @percy/core,
-    // we can use @percy/client directly to send snapshots
     this.client = new PercyClient({
       clientInfo: `${pkg.name}/${pkg.version}`
     });
 
-    let { data: build } = await this.client.createBuild();
-    build.number = build.attributes['build-number'];
-    build.url = build.attributes['web-url'];
-    this.build = build;
-
-    this.log.info('Percy has started!');
-    this.log.info(`Created build #${build.number}: ${build.url}`);
+    if (dry) {
+      this.log.info(`Found ${l} snapshot${l !== 1 ? 's' : ''}`);
+    } else {
+      let { data: build } = await this.client.createBuild();
+      let { 'build-number': number, 'web-url': url } = build.attributes;
+      this.build = { id: build.id, number, url };
+      this.log.info('Percy has started!');
+    }
 
     for (let name of paths) {
-      this.log.debug(`Uploading snapshot: ${name}`);
-
-      // only snapshot supported images
-      if (!name.match(ALLOWED_IMAGE_TYPES)) {
-        this.log.info(`Skipping unsupported image type: ${name}`);
+      if (!name.match(ALLOWED_FILE_TYPES)) {
+        this.log.info(`Skipping unsupported file type: ${name}`);
         continue;
       }
 
-      let filepath = path.resolve(dirname, name);
-      let buffer = fs.readFileSync(filepath);
-      let { width, height } = imageSize(filepath);
+      if (dry) this.log.info(`Snapshot found: ${name}`);
+      else this.snapshot(name, path.resolve(dirname, name));
+    }
+  }
 
-      await this.client.sendSnapshot(build.id, {
+  // Push a snapshot upload to the queue
+  snapshot(name, filepath) {
+    this.queue.push(`upload/${name}`, async () => {
+      let { width, height } = imageSize(filepath);
+      let buffer = fs.readFileSync(filepath);
+
+      await this.client.sendSnapshot(this.build.id, {
         // width and height is clamped to API min and max
         widths: [Math.max(10, Math.min(width, 2000))],
         minHeight: Math.max(10, Math.min(height, 2000)),
@@ -111,14 +113,22 @@ export class Upload extends Command {
       });
 
       this.log.info(`Snapshot uploaded: ${name}`);
-    }
+    });
   }
 
   // Finalize the build when finished
-  async finally() {
-    if (this.build?.id) {
-      await this.client.finalizeBuild(this.build.id);
-      this.log.info(`Finalized build #${this.build.number}: ${this.build.url}`);
-    }
+  async finally(error) {
+    if (!this.build?.id) return;
+    if (error) this.queue.close(true);
+    if (this.closing) return;
+    this.closing = true;
+
+    await this.queue.empty(len => {
+      this.log.progress(`Uploading ${len}` + (
+        ` snapshot${len !== 1 ? 's' : ''}...`), !!len);
+    });
+
+    await this.client.finalizeBuild(this.build.id);
+    this.log.info(`Finalized build #${this.build.number}: ${this.build.url}`);
   }
 }
