@@ -36,8 +36,10 @@ function createTestServer(http, port, handler) {
     requests,
 
     async start() {
-      await new Promise(r => server.listen(port, r));
-      return this;
+      return new Promise((resolve, reject) => {
+        server.listen(port, () => resolve(this))
+          .on('error', reject);
+      });
     },
 
     async close() {
@@ -213,6 +215,40 @@ describe('Proxied PercyClient', () => {
     process.env.HTTPS_PROXY = 'https://localhost:1337';
 
     await expectAsync(client.get('foo')).toBeResolvedTo('test proxied');
+  });
+
+  it('can be proxied through a proxy with a default port', async () => {
+    proxy.close();
+
+    // this is done for systems with restricted ports
+    let failed = false;
+    let spy = spyOn(require('net'), 'connect').and.callThrough();
+    proxy = await createProxyServer(http, 80).start()
+      .catch(() => { failed = true; });
+
+    process.env.HTTP_PROXY = 'http://localhost';
+    let req = client.get('foo');
+
+    if (failed) await expectAsync(req).toBeRejected();
+    else await expectAsync(req).toBeResolvedTo('test proxied');
+    expect(spy).toHaveBeenCalledWith(jasmine.objectContaining({ port: 80 }));
+  });
+
+  it('can be proxied through an https proxy with a default port', async () => {
+    proxy.close();
+
+    // this is done for systems with restricted ports
+    let failed = false;
+    let spy = spyOn(require('tls'), 'connect').and.callThrough();
+    proxy = await createProxyServer(https, 443).start()
+      .catch(() => { failed = true; });
+
+    process.env.HTTPS_PROXY = 'https://localhost';
+    let req = client.get('foo');
+
+    if (failed) await expectAsync(req).toBeRejected();
+    else await expectAsync(req).toBeResolvedTo('test proxied');
+    expect(spy).toHaveBeenCalledWith(jasmine.objectContaining({ port: 443 }));
   });
 
   it('throws an error for unsupported proxy protocols', async () => {

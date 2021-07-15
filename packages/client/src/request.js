@@ -13,6 +13,11 @@ const RETRY_ERROR_CODES = [
   'EHOSTUNREACH', 'EAI_AGAIN'
 ];
 
+// Returns the port number of a URL object. Defaults to port 443 for https
+// protocols or port 80 otherwise.
+const port = ({ port, protocol }) => port ||
+  (protocol === 'https:' && 443) || 80;
+
 // Proxified https agent
 export class ProxyHttpsAgent extends https.Agent {
   // enforce request options
@@ -57,7 +62,7 @@ export class ProxyHttpsAgent extends https.Agent {
     let socket = (isProxyHttps ? tls : net).connect({
       ...options,
       host: proxy.hostname,
-      port: proxy.port
+      port: port(proxy)
     });
 
     let handleError = err => {
@@ -91,8 +96,7 @@ export class ProxyHttpsAgent extends https.Agent {
     };
 
     // write proxy connect message to the socket
-    /* istanbul ignore next: port is always present for localhost tests */
-    let host = `${uri.hostname}:${uri.port || 443}`;
+    let host = `${uri.hostname}:${port(uri)}`;
     let connectMessage = [`CONNECT ${host} HTTP/1.1`, `Host: ${host}`];
 
     if (proxy.username) {
