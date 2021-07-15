@@ -161,8 +161,8 @@ percy.snapshot({
 
 #### Options
 
-- `name` — Snapshot name (**required**)
 - `url` — Snapshot URL (**required**)
+- `name` — Snapshot name
 - `domSnapshot` — Snapshot DOM string
 - `clientInfo` — Additional client info
 - `environmentInfo` — Additional environment info
