@@ -169,16 +169,16 @@ describe('percy upload', () => {
     fs.writeFileSync('.percy.yml', [
       'version: 2',
       'upload:',
-      '  concurrency: 1',
+      '  concurrency: 1'
     ].join('\n'));
 
     let upload = Upload.run(['./images']);
 
     // wait for the first upload before terminating
-    await new Promise(r => function check() {
+    await new Promise(r => (function check() {
       if (mockAPI.requests['/builds/123/snapshots']) r();
       else setTimeout(check, 10);
-    }());
+    }()));
 
     process.emit('SIGTERM');
     await upload;
