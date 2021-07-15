@@ -1,3 +1,4 @@
+// Config schema for static directories
 export const schema = {
   static: {
     type: 'object',
@@ -27,6 +28,28 @@ export const schema = {
       }
     }
   }
+};
+
+// Page listing schema
+export const snapshotListSchema = {
+  $id: '/snapshot/list',
+  oneOf: [{
+    type: 'array',
+    items: {
+      oneOf: [
+        { $ref: '/snapshot' },
+        { type: 'string' }
+      ]
+    }
+  }, {
+    type: 'object',
+    required: ['snapshots'],
+    properties: {
+      snapshots: {
+        $ref: '#/oneOf/0'
+      }
+    }
+  }]
 };
 
 export function migration(config, { map, del }) {
