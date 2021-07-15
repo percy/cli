@@ -36,7 +36,7 @@
     "test": {
       "external": [
         "@percy/logger",
-        "test/server"
+        "test/server(.js)?"
       ],
       "output": {
         "globals": {
