@@ -38,7 +38,7 @@ export const snapshotListSchema = {
     items: {
       oneOf: [
         { $ref: '/snapshot' },
-        { $ref: '/snapshot#/properties/url' }
+        { type: 'string' }
       ]
     }
   }, {
