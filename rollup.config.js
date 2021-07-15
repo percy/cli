@@ -10,22 +10,21 @@ const config = path => path.split('.').reduce((v, k) => v && v[k], pkg.rollup);
 
 // constants and functions used for external bundles
 const BUILTINS_REG = /^(?:stream|http)(\/.+)?$/;
-const ENTRY_REG = localFileRegExp('src/index.js');
-const TEST_HELPERS_REG = localFileRegExp('test/helpers.js');
+const ENTRY_REG = localFileRegExp('src(/index.js)?');
+const TEST_HELPERS_REG = localFileRegExp('test/helpers(.js)?');
 const BUNDLE_NAME = config('output.name');
 const TEST_BUNDLE_NAME = `${BUNDLE_NAME}.TestHelpers`;
 
 function localFileRegExp(path) {
-  let escaped = (`${cwd}/${path}`).replace(/[/\\]/g, '[/\\\\]');
+  let escaped = (`${cwd}/(${path})$`).replace(/[/\\]/g, '[/\\\\]');
   return new RegExp(escaped);
 }
 
 function definedExternal(cfg, id, ret) {
-  if (cfg && cfg.external) {
-    let g = cfg.output && cfg.output.globals;
-    let ext = cfg.external.find(e => e === id || localFileRegExp(e).test(id));
-    return ret ? ((g && ext && g[ext]) || 'null') : !!ext;
-  }
+  if (!cfg || !cfg.external) return;
+  let g = cfg.output && cfg.output.globals;
+  let ext = cfg.external.find(e => e === id || localFileRegExp(e).test(id));
+  return ret ? ((g && ext && g[ext]) || 'null') : !!ext;
 }
 
 function isLocalLib(id) {
@@ -147,10 +146,10 @@ const test = {
 // test config used to bundle test helpers
 const testHelpers = {
   ...test,
-  external: id => (
+  external: (id, parent) => (
     isLocalLib(id) ||
     BUILTINS_REG.test(id) ||
-    TEST_HELPERS_REG.test(id) ||
+    (parent && TEST_HELPERS_REG.test(id)) ||
     !!definedExternal(pkg.rollup.test, id)
   ),
   output: {
