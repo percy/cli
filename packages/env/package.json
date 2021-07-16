@@ -20,8 +20,5 @@
   },
   "devDependencies": {
     "mock-require": "^3.0.3"
-  },
-  "dependencies": {
-    "dotenv": "^10.0.0"
   }
 }

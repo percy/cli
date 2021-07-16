@@ -1,2 +1,2 @@
 export { default } from './environment';
-require('./dotenv').config();
+require('./dotenv').load();
