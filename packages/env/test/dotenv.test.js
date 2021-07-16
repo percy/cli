@@ -6,7 +6,6 @@ describe('dotenv files', () => {
   beforeAll(() => {
     env = process.env;
     mock('fs', { readFileSync: path => dotenvs[path] ?? '' });
-    mock.reRequire('dotenv');
     mock.reRequire('../src/dotenv');
   });
 
