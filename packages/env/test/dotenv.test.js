@@ -6,7 +6,6 @@ describe('dotenv files', () => {
   beforeAll(() => {
     env = process.env;
     mock('fs', { readFileSync: path => dotenvs[path] ?? '' });
-    mock.reRequire('dotenv');
     mock.reRequire('../src/dotenv');
   });
 
@@ -28,6 +27,13 @@ describe('dotenv files', () => {
     expect(process.env).toHaveProperty('TEST_1', '1');
     expect(process.env).toHaveProperty('TEST_2', 'two');
     expect(process.env).toHaveProperty('TEST_3', '3');
+  });
+
+  it('does not override existing environment variables', () => {
+    process.env.TEST_1 = 'uno';
+    mock.reRequire('../src');
+
+    expect(process.env).toHaveProperty('TEST_1', 'uno');
   });
 
   it('loads environment specific .env and .env.local files', () => {
@@ -55,5 +61,45 @@ describe('dotenv files', () => {
     process.env.PERCY_DISABLE_DOTENV = 'true';
     mock.reRequire('../src');
     expect(process.env).toEqual({ PERCY_DISABLE_DOTENV: 'true' });
+  });
+
+  it('expands newlines within double quotes', () => {
+    dotenvs['.env'] = 'TEST_NEWLINES="foo\nbar\r\nbaz\\nqux\\r\\nxyzzy"';
+    mock.reRequire('../src');
+
+    expect(process.env).toHaveProperty('TEST_NEWLINES', 'foo\nbar\r\nbaz\nqux\r\nxyzzy');
+  });
+
+  it('interpolates variable substitutions', () => {
+    // eslint-disable-next-line no-template-curly-in-string
+    dotenvs['.env'] += '\nTEST_4=$TEST_1${TEST_2}\nTEST_5=$TEST_4${TEST_3}four';
+    mock.reRequire('../src');
+
+    expect(process.env).toHaveProperty('TEST_4', '1two');
+    expect(process.env).toHaveProperty('TEST_5', '1two3four');
+  });
+
+  it('interpolates undefined variables with empty strings', () => {
+    // eslint-disable-next-line no-template-curly-in-string
+    dotenvs['.env'] += '\nTEST_TWO=2 > ${TEST_ONE}\nTEST_THREE=';
+    mock.reRequire('../src');
+
+    expect(process.env).not.toHaveProperty('TEST_ONE');
+    expect(process.env).toHaveProperty('TEST_TWO', '2 > ');
+    expect(process.env).toHaveProperty('TEST_THREE', '');
+  });
+
+  it('does not interpolate single quoted strings', () => {
+    dotenvs['.env'] += "\nTEST_STRING='$TEST_1'";
+    mock.reRequire('../src');
+
+    expect(process.env).toHaveProperty('TEST_STRING', '$TEST_1');
+  });
+
+  it('does not interpolate escaped dollar signs', () => {
+    dotenvs['.env'] += '\nTEST_ESC=\\$TEST_1';
+    mock.reRequire('../src');
+
+    expect(process.env).toHaveProperty('TEST_ESC', '$TEST_1');
   });
 });
