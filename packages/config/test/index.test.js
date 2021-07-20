@@ -118,6 +118,39 @@ describe('PercyConfig', () => {
         message: 'must be a string, received null'
       }]);
     });
+
+    it('can add schemas to replace existing schemas', () => {
+      PercyConfig.addSchema({
+        $id: 'foo',
+        type: 'string'
+      });
+
+      PercyConfig.addSchema({
+        $id: 'foo',
+        type: 'number'
+      });
+
+      expect(PercyConfig.validate('foo', 'foo')).toEqual([{
+        path: '',
+        message: 'must be a number, received a string'
+      }]);
+    });
+
+    it('can add multiple schemas at a time', () => {
+      PercyConfig.addSchema([{
+        foo: { type: 'string' }
+      }, {
+        bar: { $ref: '/config/foo' }
+      }]);
+
+      expect(PercyConfig.validate({
+        foo: 'bar',
+        bar: 100
+      })).toEqual([{
+        path: 'bar',
+        message: 'must be a string, received a number'
+      }]);
+    });
   });
 
   describe('.getDefaults()', () => {
