@@ -17,6 +17,10 @@ export const schema = {
         ],
         default: ''
       },
+      stripExtensions: {
+        type: 'boolean',
+        default: false
+      },
       concurrency: {
         type: 'number',
         minimum: 1

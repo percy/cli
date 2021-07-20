@@ -26,8 +26,8 @@ function createImageResource(url, content, mimetype) {
 // filename, contents, and dimensions. The root resource is a generated DOM
 // designed to display an image at it's native size without margins or padding.
 export default function createImageResources(filename, content, width, height) {
-  let { name, ext } = path.parse(filename);
-  let rootUrl = `/${encodeURIComponent(name)}`;
+  let { dir, name, ext } = path.parse(filename);
+  let rootUrl = `/${encodeURIComponent(path.join(dir, name))}`;
   let imageUrl = `/${encodeURIComponent(filename)}`;
   let mimetype = ext === '.png' ? 'image/png' : 'image/jpeg';
 

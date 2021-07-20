@@ -10,7 +10,7 @@ import createImageResources from '../resources';
 import { schema } from '../config';
 import pkg from '../../package.json';
 
-const ALLOWED_FILE_TYPES = /\.(png|jpg|jpeg)$/i;
+const ALLOWED_FILE_TYPES = /^\.(png|jpg|jpeg)$/i;
 
 export class Upload extends Command {
   static description = 'Upload a directory of images to Percy';
@@ -38,6 +38,11 @@ export class Upload extends Command {
       description: 'one or more globs matching image file paths to ignore',
       percyrc: 'upload.ignore'
     }),
+    'strip-extensions': flags.boolean({
+      char: 'e',
+      description: 'strips file extensions from snapshot names',
+      percyrc: 'upload.stripExtensions'
+    }),
     'dry-run': flags.boolean({
       char: 'd',
       description: 'prints a list of matching images to upload without uploading'
@@ -64,15 +69,17 @@ export class Upload extends Command {
       return this.error(`Not a directory: ${dirname}`);
     }
 
-    let { upload: { files, ignore, concurrency } } = this.percyrc();
-    this.queue = new Queue(concurrency);
-    ignore = [].concat(ignore || []);
+    let { upload: conf } = this.percyrc();
+    this.queue = new Queue(conf.concurrency);
 
-    let paths = await globby(files, { cwd: dirname, ignore });
+    let paths = await globby(conf.files, {
+      ignore: [].concat(conf.ignore || []),
+      cwd: dirname
+    });
+
     let l = paths.length;
-    paths.sort();
-
     if (!l) this.error(`No matching files found in '${dirname}'`);
+    paths.sort();
 
     this.client = new PercyClient({
       clientInfo: `${pkg.name}/${pkg.version}`
@@ -87,20 +94,27 @@ export class Upload extends Command {
       this.log.info('Percy has started!');
     }
 
-    for (let name of paths) {
-      if (!name.match(ALLOWED_FILE_TYPES)) {
-        this.log.info(`Skipping unsupported file type: ${name}`);
+    for (let filename of paths) {
+      let file = path.parse(filename);
+
+      if (!ALLOWED_FILE_TYPES.test(file.ext)) {
+        this.log.info(`Skipping unsupported file type: ${filename}`);
         continue;
       }
 
+      let name = conf.stripExtensions ? (
+        path.join(file.dir, file.name)
+      ) : filename;
+
       if (dry) this.log.info(`Snapshot found: ${name}`);
-      else this.snapshot(name, path.resolve(dirname, name));
+      else this.snapshot(name, filename, dirname);
     }
   }
 
   // Push a snapshot upload to the queue
-  snapshot(name, filepath) {
+  snapshot(name, filename, dirname) {
     this.queue.push(`upload/${name}`, async () => {
+      let filepath = path.resolve(dirname, filename);
       let { width, height } = imageSize(filepath);
       let buffer = fs.readFileSync(filepath);
 
@@ -108,7 +122,7 @@ export class Upload extends Command {
         // width and height is clamped to API min and max
         widths: [Math.max(10, Math.min(width, 2000))],
         minHeight: Math.max(10, Math.min(height, 2000)),
-        resources: createImageResources(name, buffer, width, height),
+        resources: createImageResources(filename, buffer, width, height),
         name
       });
 

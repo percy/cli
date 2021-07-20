@@ -38,6 +38,7 @@ describe('percy upload', () => {
   afterEach(() => {
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
+    process.removeAllListeners();
 
     if (fs.existsSync('.percy.yml')) {
       fs.unlinkSync('.percy.yml');
@@ -124,6 +125,20 @@ describe('percy upload', () => {
         }
       }
     });
+  });
+
+  it('strips file extensions with `--strip-extensions`', async () => {
+    await Upload.run(['./images', '--strip-extensions']);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Percy has started!',
+      '[percy] Uploading 3 snapshots...',
+      '[percy] Snapshot uploaded: test-1',
+      '[percy] Snapshot uploaded: test-2',
+      '[percy] Snapshot uploaded: test-3',
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
+    ]));
   });
 
   it('skips unsupported image types', async () => {
