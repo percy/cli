@@ -1,9 +1,10 @@
 import logger from '@percy/logger/test/helpers';
 import PercyConfig from '@percy/config';
+import { configSchema } from '@percy/core/dist/config';
 import PercyCommand, { flags } from '../src';
 
 // add config schema to test discovery flags
-PercyConfig.addSchema(require('@percy/core/dist/config').schema);
+PercyConfig.addSchema(configSchema);
 
 describe('PercyCommand', () => {
   let results;

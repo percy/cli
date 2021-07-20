@@ -1,7 +1,7 @@
 import { snapshotSchema } from '@percy/core/dist/config';
 
 // Config schema for static directories
-export const schema = {
+export const configSchema = {
   static: {
     type: 'object',
     additionalProperties: false,
@@ -66,6 +66,11 @@ export const snapshotListSchema = {
     }
   }]
 };
+
+export const schemas = [
+  configSchema,
+  snapshotListSchema
+];
 
 export function migration(config, { map, del }) {
   /* eslint-disable curly */

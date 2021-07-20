@@ -3,7 +3,7 @@ import PercyConfig from '@percy/config';
 import { merge } from '@percy/config/dist/utils';
 
 // Common config options used in Percy commands
-export const schema = {
+export const configSchema = {
   snapshot: {
     type: 'object',
     additionalProperties: false,
@@ -208,6 +208,13 @@ export const snapshotDOMSchema = {
     ...snapshotSchema.properties
   }
 };
+
+// Convinient reference for schema registration
+export const schemas = [
+  configSchema,
+  snapshotSchema,
+  snapshotDOMSchema
+];
 
 // Migration function
 export function migration(config, { map, del, log }) {
