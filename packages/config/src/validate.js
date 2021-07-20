@@ -73,10 +73,16 @@ export function getSchema(name) {
 
 // Adds schemas to the config schema's properties. The config schema is removed, modified, and
 // replaced after the new schemas are added to clear any compiled caches. Existing schemas are
-// removed and replaced as well. If a schema id is provided as the second argument, the schema
-// will be set independently and not added to config schema's properties.
+// removed and replaced as well. If a schema has an existing $id, the schema will not be added
+// as config schema properties.
 export function addSchema(schemas) {
-  if (isArray(schemas) || schemas.$id) {
+  if (isArray(schemas)) {
+    return schemas.map(addSchema);
+  }
+
+  if (schemas.$id) {
+    let { $id } = schemas;
+    if (ajv.getSchema($id)) ajv.removeSchema($id);
     return ajv.addSchema(schemas);
   }
 
@@ -90,7 +96,7 @@ export function addSchema(schemas) {
     ajv.addSchema(schema, $id);
   }
 
-  ajv.addSchema(config, '/config');
+  return ajv.addSchema(config, '/config');
 }
 
 // Resets the schema by removing all schemas and inserting a new default schema.

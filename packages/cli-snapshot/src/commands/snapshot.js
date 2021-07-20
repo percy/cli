@@ -7,7 +7,7 @@ import logger from '@percy/logger';
 import globby from 'globby';
 import picomatch from 'picomatch';
 import YAML from 'yaml';
-import { schema } from '../config';
+import { configSchema } from '../config';
 import pkg from '../../package.json';
 
 // Throw a better error message for invalid urls
@@ -43,13 +43,13 @@ export class Snapshot extends Command {
     // static only flags
     files: flags.string({
       description: 'one or more globs matching static file paths to snapshot',
-      default: schema.static.properties.files.default,
+      default: configSchema.static.properties.files.default,
       percyrc: 'static.files',
       multiple: true
     }),
     ignore: flags.string({
       description: 'one or more globs matching static file paths to ignore',
-      default: schema.static.properties.ignore.default,
+      default: configSchema.static.properties.ignore.default,
       percyrc: 'static.ignore',
       multiple: true
     })

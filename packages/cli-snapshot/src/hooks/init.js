@@ -1,12 +1,9 @@
 import PercyConfig from '@percy/config';
-import {
-  schema,
-  snapshotListSchema,
-  migration
-} from '../config';
+import * as CoreConfig from '@percy/core/dist/config';
+import * as SnapshotConfig from '../config';
 
 export default function() {
-  PercyConfig.addSchema(schema);
-  PercyConfig.addSchema(snapshotListSchema);
-  PercyConfig.addMigration(migration);
+  PercyConfig.addSchema(CoreConfig.schemas);
+  PercyConfig.addSchema(SnapshotConfig.schemas);
+  PercyConfig.addMigration(SnapshotConfig.migration);
 }
