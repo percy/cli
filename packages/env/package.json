@@ -20,5 +20,10 @@
   },
   "devDependencies": {
     "mock-require": "^3.0.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/percy/cli",
+    "directory": "packages/env"
   }
 }

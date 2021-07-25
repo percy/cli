@@ -51,5 +51,9 @@
     "nyc": "^15.1.0",
     "rollup": "^2.53.2",
     "tsd": "^0.17.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/percy/cli"
   }
 }
