@@ -73,26 +73,13 @@ export class Snapshot extends Command {
       this.error(`Not found: ${pathname}`);
     }
 
-    let { 'base-url': baseUrl, 'dry-run': dry } = this.flags;
-    let isStatic = fs.lstatSync(pathname).isDirectory();
-
-    if (baseUrl) {
-      if (isStatic && !baseUrl.startsWith('/')) {
-        this.error('The base-url must begin with a forward slash (/) ' + (
-          'when snapshotting static directories'));
-      } else if (!isStatic && !baseUrl.startsWith('http')) {
-        this.error('The base-url must include a protocol and hostname ' + (
-          'when snapshotting a list of pages'));
-      }
-    }
-
     this.percy = new Percy({
-      ...this.percyrc({ static: isStatic ? { baseUrl } : null }),
+      ...this.percyrc(),
       clientInfo: `${pkg.name}/${pkg.version}`,
       server: false
     });
 
-    let pages = isStatic
+    let pages = fs.lstatSync(pathname).isDirectory()
       ? await this.loadStaticPages(pathname)
       : await this.loadPagesFile(pathname);
 
@@ -113,6 +100,7 @@ export class Snapshot extends Command {
     let l = pages.length;
     if (!l) this.error('No snapshots found');
 
+    let dry = this.flags['dry-run'];
     if (!dry) await this.percy.start();
     else this.log.info(`Found ${l} snapshot${l === 1 ? '' : 's'}`);
 
@@ -161,6 +149,12 @@ export class Snapshot extends Command {
   // Starts a static server and returns a list of pages to snapshot.
   async loadStaticPages(pathname) {
     let config = this.percy.config.static;
+    let baseUrl = this.flags['base-url'] || config.baseUrl;
+
+    if (baseUrl && !baseUrl.startsWith('/')) {
+      this.error('The base-url must begin with a forward slash (/) ' + (
+        'when snapshotting static directories'));
+    }
 
     // gather paths
     let paths = await globby(config.files, {
@@ -195,7 +189,13 @@ export class Snapshot extends Command {
   // Loads pages to snapshot from a js, json, or yaml file.
   async loadPagesFile(pathname) {
     let ext = path.extname(pathname);
+    let baseUrl = this.flags['base-url'];
     let pages = [];
+
+    if (baseUrl && !baseUrl.startsWith('http')) {
+      this.error('The base-url must include a protocol and hostname ' + (
+        'when snapshotting a list of pages'));
+    }
 
     if (ext === '.js') {
       pages = require(path.resolve(pathname));
