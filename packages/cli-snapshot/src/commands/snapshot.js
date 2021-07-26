@@ -10,13 +10,6 @@ import YAML from 'yaml';
 import { configSchema } from '../config';
 import pkg from '../../package.json';
 
-// Throw a better error message for invalid urls
-function validURL(input, base) {
-  try { return new URL(input, base || undefined); } catch (error) {
-    throw new Error(`Invalid URL: ${error.input}`);
-  }
-}
-
 export class Snapshot extends Command {
   static description = 'Snapshot a list of pages from a file or directory';
 
@@ -83,20 +76,6 @@ export class Snapshot extends Command {
       ? await this.loadStaticPages(pathname)
       : await this.loadPagesFile(pathname);
 
-    pages = pages.map(page => {
-      // allow a list of urls
-      if (typeof page === 'string') page = { url: page };
-
-      // validate and prepend the baseUrl
-      let uri = validURL(page.url, !isStatic && baseUrl);
-      page.url = uri.href;
-
-      // default page name to url /pathname?search#hash
-      page.name ||= `${uri.pathname}${uri.search}${uri.hash}`;
-
-      return page;
-    });
-
     let l = pages.length;
     if (!l) this.error('No snapshots found');
 
@@ -144,6 +123,23 @@ export class Snapshot extends Command {
         resolve(`http://localhost:${port}`);
       });
     });
+  }
+
+  // Mutates a page item to have default or normalized options
+  withDefaults(page) {
+    let url = (() => {
+      // Throw a better error message for invalid urls
+      try { return new URL(page.url, this.address); } catch (e) {
+        throw new Error(`Invalid URL: ${e.input}`);
+      }
+    })();
+
+    // default name to the page url
+    page.name ||= `${url.pathname}${url.search}${url.hash}`;
+    // normalize the page url
+    page.url = url.href;
+
+    return page;
   }
 
   // Starts a static server and returns a list of pages to snapshot.
@@ -216,8 +212,12 @@ export class Snapshot extends Command {
       for (let e of errors) this.log.warn(`- ${e.path}: ${e.message}`);
     }
 
-    return Array.isArray(pages) ? pages
-    // support a nested snapshots array for yaml references
-      : (pages.snapshots ?? []);
+    // set the default page base address
+    if (baseUrl) this.address = baseUrl;
+
+    // support snapshots option for yaml references and lists of urls
+    return (Array.isArray(pages) ? pages : pages.snapshots || []).map(page => (
+      this.withDefaults(typeof page === 'string' ? { url: page } : page)
+    ));
   }
 }
