@@ -84,12 +84,12 @@ function installChromium({
   });
 }
 
-// default chromium revisions corresponds to v87.0.4280.x
+// default chromium revisions corresponds to v92.0.4515.x
 installChromium.revisions = {
-  linux: '812847',
-  win64: '812845',
-  win32: '812822',
-  darwin: '812851'
+  linux: '885264',
+  win64: '885282',
+  win32: '885263',
+  darwin: '885263'
 };
 
 // Installs an executable from a url to a local directory, returning the full path to the extracted

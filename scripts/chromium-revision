@@ -17,7 +17,8 @@ EXAMPLE
 `), process.exit());
 
 // Required after usage for speedy help output
-const { request } = require('@percy/client/dist/utils');
+const readline = require('readline');
+const request = require('@percy/client/dist/request').default;
 const logger = require('@percy/logger');
 const log = logger('script');
 
