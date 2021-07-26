@@ -9,7 +9,6 @@ export const configSchema = {
       baseUrl: {
         type: 'string',
         pattern: '^/',
-        default: '/',
         errors: {
           pattern: 'must start with a forward slash (/)'
         }
@@ -27,6 +26,14 @@ export const configSchema = {
           { type: 'array', items: { type: 'string' } }
         ],
         default: ''
+      },
+      cleanUrls: {
+        type: 'boolean',
+        default: false
+      },
+      rewrites: {
+        type: 'object',
+        additionalProperties: { type: 'string' }
       },
       overrides: {
         type: 'array',

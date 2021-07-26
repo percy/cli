@@ -6,6 +6,7 @@ import Percy from '@percy/core';
 import logger from '@percy/logger';
 import globby from 'globby';
 import picomatch from 'picomatch';
+import * as pathToRegexp from 'path-to-regexp';
 import YAML from 'yaml';
 import { configSchema } from '../config';
 import pkg from '../../package.json';
@@ -45,6 +46,10 @@ export class Snapshot extends Command {
       default: configSchema.static.properties.ignore.default,
       percyrc: 'static.ignore',
       multiple: true
+    }),
+    'clean-urls': flags.boolean({
+      description: 'rewrite index and filepath URLs to be clean',
+      percyrc: 'static.cleanUrls'
     })
   };
 
@@ -111,16 +116,24 @@ export class Snapshot extends Command {
   }
 
   // Serves a static directory at a base-url and resolves when listening.
-  async serve(staticDir, baseUrl) {
-    let http = require('http');
-    let serve = require('serve-handler');
+  async serve(dir, rewrites) {
+    let localhost = 'http://localhost';
+    if (this.flags['dry-run']) return localhost;
 
     return new Promise(resolve => {
+      let http = require('http');
+      let serve = require('serve-handler');
+      let { cleanUrls } = this.percy.config.static;
+
       this.server = http.createServer((req, res) => {
-        serve(req, res, { public: staticDir });
+        serve(req, res, {
+          public: dir,
+          cleanUrls,
+          rewrites
+        });
       }).listen(() => {
         let { port } = this.server.address();
-        resolve(`http://localhost:${port}`);
+        resolve(`${localhost}:${port}`);
       });
     });
   }
@@ -158,28 +171,41 @@ export class Snapshot extends Command {
       cwd: pathname
     });
 
-    // reduce overrides into a single map function
-    let applyOverrides = (config.overrides || [])
-      .reduce((map, { files, ignore, ...opts }) => {
-        let test = picomatch(files || '*', {
-          ignore: [].concat(ignore || [])
-        });
+    // reduce rewrite options with any base-url
+    let rewrites = Object.entries(config.rewrites || {})
+      .reduce((rewrites, [source, destination]) => (
+        rewrites.concat({ source, destination })
+      ), baseUrl ? [{
+        source: path.posix.join(baseUrl, '/:path*'),
+        destination: '/:path*'
+      }] : []);
 
-        return (path, page) => test(path)
-          ? { ...map(path, page), ...opts }
-          : map(path, page);
-      }, path => ({
-        url: new URL(`${config.baseUrl}${path}`, addr).href
-      }));
+    // map, concat, and reduce rewrites with overrides into a single function
+    let applyOverrides = [].concat({
+      rewrite: url => path.posix.normalize(path.posix.join('/', url))
+    }, rewrites.map(({ source, destination }) => ({
+      test: pathToRegexp.match(destination),
+      rewrite: pathToRegexp.compile(source)
+    })), {
+      test: url => config.cleanUrls && url,
+      rewrite: url => url.replace(/(\/index)?\.html$/, '')
+    }, (config.overrides || []).map(({ files, ignore, ...opts }) => ({
+      test: picomatch(files || '**', { ignore: [].concat(ignore || []) }),
+      override: page => Object.assign(page, opts)
+    })), {
+      override: page => this.withDefaults(page)
+    }).reduceRight((apply, { test, rewrite, override }) => (p, page = { url: p }) => {
+      let res = !test || test(rewrite ? page.url : p);
+      if (res && rewrite) page.url = rewrite(test ? (res.params ?? res) : page.url);
+      else if (res && override) override(page);
+      return apply?.(p, page) ?? page;
+    }, null);
 
     // start the static server
-    let addr = this.flags['dry-run'] ? 'http://localhost'
-      : await this.serve(pathname, config.baseUrl);
+    this.address = await this.serve(pathname, rewrites);
 
     // sort and map pages with overrides
-    return paths.sort().map(path => (
-      applyOverrides(path)
-    ));
+    return paths.sort().map(p => applyOverrides(p));
   }
 
   // Loads pages to snapshot from a js, json, or yaml file.

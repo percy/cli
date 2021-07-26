@@ -98,10 +98,11 @@ describe('percy snapshot', () => {
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy has started!',
-        '[percy] Processing 3 snapshots...',
+        '[percy] Processing 4 snapshots...',
         '[percy] Snapshot taken: /test-1.html',
         '[percy] Snapshot taken: /test-2.html',
         '[percy] Snapshot taken: /test-3.html',
+        '[percy] Snapshot taken: /test-index/index.html',
         '[percy] Finalized build #1: https://percy.io/test/test/123'
       ]));
     });
@@ -112,10 +113,11 @@ describe('percy snapshot', () => {
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy has started!',
-        '[percy] Processing 3 snapshots...',
+        '[percy] Processing 4 snapshots...',
         '[percy] Snapshot taken: /base/test-1.html',
         '[percy] Snapshot taken: /base/test-2.html',
         '[percy] Snapshot taken: /base/test-3.html',
+        '[percy] Snapshot taken: /base/test-index/index.html',
         '[percy] Finalized build #1: https://percy.io/test/test/123'
       ]));
     });
@@ -125,10 +127,11 @@ describe('percy snapshot', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
-        '[percy] Found 3 snapshots',
+        '[percy] Found 4 snapshots',
         '[percy] Snapshot found: /test-1.html',
         '[percy] Snapshot found: /test-2.html',
         '[percy] Snapshot found: /test-3.html',
+        '[percy] Snapshot found: /test-index/index.html'
       ]);
     });
 
@@ -147,13 +150,49 @@ describe('percy snapshot', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
-        '[percy] Found 3 snapshots',
+        '[percy] Found 4 snapshots',
         '[percy] Snapshot found: First',
         '[percy] Snapshot found: First (2)',
         '[percy] Snapshot found: /test-2.html',
         '[percy] Snapshot found: /test-2.html (2)',
         '[percy] Snapshot found: /test-3.html',
         '[percy] Snapshot found: /test-3.html (2)',
+        '[percy] Snapshot found: /test-index/index.html',
+        '[percy] Snapshot found: /test-index/index.html (2)'
+      ]);
+    });
+
+    it('rewrites file and index URLs with --clean-urls', async () => {
+      await Snapshot.run(['./public', '--dry-run', '--clean-urls']);
+
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
+        '[percy] Found 4 snapshots',
+        '[percy] Snapshot found: /test-1',
+        '[percy] Snapshot found: /test-2',
+        '[percy] Snapshot found: /test-3',
+        '[percy] Snapshot found: /test-index'
+      ]);
+    });
+
+    it('rewrites URLs based on the provided rewrites config option', async () => {
+      fs.writeFileSync('.percy.yml', [
+        'version: 2',
+        'static:',
+        '  cleanUrls: true',
+        '  rewrites:',
+        '    /:path/:n: /:path-:n.html'
+      ].join('\n'));
+
+      await Snapshot.run(['./public', '--dry-run']);
+
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
+        '[percy] Found 4 snapshots',
+        '[percy] Snapshot found: /test/1',
+        '[percy] Snapshot found: /test/2',
+        '[percy] Snapshot found: /test/3',
+        '[percy] Snapshot found: /test-index'
       ]);
     });
   });
