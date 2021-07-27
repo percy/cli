@@ -86,12 +86,9 @@ export default class Page extends EventEmitter {
   async close() {
     if (!this.#browser) return;
 
-    await this.#browser.send('Target.closeTarget', {
-      targetId: this.#targetId
-    }).catch(error => {
-      /* istanbul ignore next: race condition */
-      this.log.debug(error, this.meta);
-    });
+    /* istanbul ignore next: errors race here when the browser closes */
+    await this.#browser.send('Target.closeTarget', { targetId: this.#targetId })
+      .catch(error => this.log.debug(error, this.meta));
   }
 
   async resize({
@@ -334,7 +331,6 @@ export default class Page extends EventEmitter {
 
   _handleTargetCrashed = () => {
     this.closedReason = 'Page crashed!';
-    /* istanbul ignore next: racey with browser close */
-    this.close().catch(error => this.log.debug(error));
+    this.close();
   }
 }
