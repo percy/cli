@@ -24,6 +24,6 @@ jobs:
           # close 14 days _after_ initial warning
           days-before-issue-close: 14
           days-before-pr-close: 14
-          exempt-pr-labels: '❄️on ice'
-          exempt-issue-labels: '🐛bug,❄️on ice,✨enhancement'
+          exempt-pr-labels: '❄️ on ice'
+          exempt-issue-labels: '🐛 bug,❄️ on ice,✨ enhancement'
           exempt-all-assignees: true

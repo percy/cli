@@ -13,10 +13,10 @@ categories:
       - fix
       - bugfix
       - 🐛 bug
-  - title: '🏗  Maintenance'
+  - title: '🏗 Maintenance'
     labels:
       - 🧹 maintenance
-      - ⬆️ ⬇️ dependencies
+      - ⬆️⬇️ dependencies
 change-title-escapes: '\<*_&#@'
 version-resolver:
   major:
