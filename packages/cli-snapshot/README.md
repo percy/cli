@@ -18,24 +18,19 @@ ARGUMENTS
   PATHNAME  path to a directory or file containing a list of pages
 
 OPTIONS
-  -b, --base-url=base-url                          [default: /] the url path to serve the static directory from
+  -b, --base-url=base-url                          the base url pages are hosted at when snapshotting
   -c, --config=config                              configuration file path
   -d, --dry-run                                    prints a list of pages to snapshot without snapshotting
+  -h, --allowed-hostname=allowed-hostname          allowed hostnames
+  -q, --quiet                                      log errors only
+  -t, --network-idle-timeout=network-idle-timeout  asset discovery idle timeout
+  -v, --verbose                                    log everything
+  --disable-cache                                  disable asset discovery caches
 
-  -f, --files=files                                [default: **/*.{html,htm}] one or more globs matching static file
+  --files=files                                    [default: **/*.{html,htm}] one or more globs matching static file
                                                    paths to snapshot
 
-  -h, --allowed-hostname=allowed-hostname          allowed hostnames
-
-  -i, --ignore=ignore                              one or more globs matching static file paths to ignore
-
-  -q, --quiet                                      log errors only
-
-  -t, --network-idle-timeout=network-idle-timeout  asset discovery idle timeout
-
-  -v, --verbose                                    log everything
-
-  --disable-cache                                  disable asset discovery caches
+  --ignore=ignore                                  one or more globs matching static file paths to ignore
 
   --silent                                         log nothing
 
@@ -163,19 +158,60 @@ $ percy snapshot ./public
 [percy] Finalized build #1: https://percy.io/org/project/123
 ```
 
-#### Static Overrides
+#### Static Options
 
-Just like [page listing options](#page-options) above, static snapshots may also contain
-per-snapshot configuration options. However, since pages are matched against the `static.files`
-option, so are per-snapshot configuration options via an array of `static.overrides`. If multiple
-overrides match a snapshot, they will be merged with previously matched overrides.
+For snapshotting static directories, the following Percy config file options are also accepted:
 
 ``` yaml
+# .percy.yml
+version: 2
 static:
   files: **/*.{html,htm}
-  overrides:
-  - files: /foo-bar.html
-    waitForSelector: .is-ready
-    execute: |
-      document.querySelector('.button').click()
+  ignore: []
+  base-url: /
+  clean-urls: false
+  rewrites: {}
+  overrides: []
 ```
+
+- **files** - A glob or an arry of globs matching static file paths to snapshot.
+- **ignore** - A glob or an arry of globs matching static file paths to ignore.
+- **base-url** - The base URL path the static site should be served under.
+- **clean-urls** - When true, rewrite index and filepath URLs to be clean.
+
+<span/>
+
+- **rewrites** - An object containing source-destination pairs for rewriting URLs.
+
+  Paths for resources can sometimes be expected to be in a certain format that may not be covered by
+  the `clean-urls` option. For such paths, rewrites can map a short, clean, or pretty path to a
+  specific resource. Paths are matched using [path-to-regexp](https://github.com/pillarjs/path-to-regexp).
+
+  ``` yaml
+  # .percy.yml
+  version: 2
+  static:
+    base-url: /blog
+    rewrites:
+      /:year/:month/:title: /posts/:year-:month--:title.html
+      /:year/:month: /posts/index-:year-:month.html
+      /:year: /posts/index-:year.html
+  ```
+
+- **overrides** - An array of per-snapshot option overrides.
+
+  Just like [page listing options](#page-options), static snapshots may also contain
+  per-snapshot configuration options. However, since pages are matched against the `files`
+  option, so are per-snapshot configuration options via an array of `overrides`. If multiple
+  overrides match a snapshot, they will be merged with previously matched overrides.
+
+  ``` yaml
+  # .percy.yml
+  version: 2
+  static:
+    overrides:
+    - files: /foo-bar.html
+      waitForSelector: .is-ready
+      execute: |
+        document.querySelector('.button').click()
+  ```
