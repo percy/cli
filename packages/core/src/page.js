@@ -85,8 +85,9 @@ export default class Page extends EventEmitter {
   // Close the target page if not already closed
   async close() {
     if (!this.#browser) return;
+
+    /* istanbul ignore next: errors race here when the browser closes */
     await this.#browser.send('Target.closeTarget', { targetId: this.#targetId })
-      /* istanbul ignore next: errors race here when the browser closes */
       .catch(error => this.log.debug(error, this.meta));
   }
 
