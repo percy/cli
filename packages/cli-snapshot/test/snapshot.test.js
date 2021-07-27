@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { inspect } from 'util';
 import rimraf from 'rimraf';
+import PercyConfig from '@percy/config';
 import mockAPI from '@percy/client/test/helpers';
 import logger from '@percy/logger/test/helpers';
 import { createTestServer } from '@percy/core/test/helpers';
@@ -12,19 +13,13 @@ const cwd = process.cwd();
 describe('percy snapshot', () => {
   beforeAll(() => {
     require('../src/hooks/init').default();
-
-    fs.mkdirSync(path.join(__dirname, 'tmp'));
-    process.chdir(path.join(__dirname, 'tmp'));
-
-    fs.mkdirSync('public');
-  });
-
-  afterAll(() => {
-    process.chdir(cwd);
-    rimraf.sync(path.join(__dirname, 'tmp'));
   });
 
   beforeEach(() => {
+    fs.mkdirSync(path.join(__dirname, 'tmp'));
+    process.chdir(path.join(__dirname, 'tmp'));
+    fs.mkdirSync('public');
+
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     mockAPI.start(50);
     logger.mock();
@@ -34,6 +29,9 @@ describe('percy snapshot', () => {
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
     process.removeAllListeners();
+
+    process.chdir(cwd);
+    rimraf.sync(path.join(__dirname, 'tmp'));
   });
 
   it('skips snapshotting when Percy is disabled', async () => {
@@ -67,17 +65,20 @@ describe('percy snapshot', () => {
   });
 
   describe('snapshotting static directories', () => {
-    beforeAll(() => {
+    beforeEach(() => {
       fs.writeFileSync(path.join('public', 'test-1.html'), '<p>Test 1</p>');
       fs.writeFileSync(path.join('public', 'test-2.html'), '<p>Test 2</p>');
-      fs.writeFileSync(path.join('public', 'test-3.htm'), '<p>Test 3</p>');
+      fs.writeFileSync(path.join('public', 'test-3.html'), '<p>Test 3</p>');
       fs.writeFileSync(path.join('public', 'test-4.xml'), '<p>Test 4</p>');
+      fs.writeFileSync(path.join('public', 'test-5.xml'), '<p>Test 5</p>');
+
+      fs.mkdirSync(path.join('public', 'test-index'));
+      fs.writeFileSync(path.join('public', 'test-index', 'index.html'), '<p>Test Index</p>');
     });
 
     afterEach(() => {
-      if (fs.existsSync('.percy.yml')) {
-        fs.unlinkSync('.percy.yml');
-      }
+      try { fs.unlinkSync('.percy.yml'); } catch {}
+      PercyConfig.cache.clear();
     });
 
     it('errors when the base-url is invalid', async () => {
@@ -97,24 +98,26 @@ describe('percy snapshot', () => {
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy has started!',
-        '[percy] Processing 3 snapshots...',
+        '[percy] Processing 4 snapshots...',
         '[percy] Snapshot taken: /test-1.html',
         '[percy] Snapshot taken: /test-2.html',
-        '[percy] Snapshot taken: /test-3.htm',
+        '[percy] Snapshot taken: /test-3.html',
+        '[percy] Snapshot taken: /test-index/index.html',
         '[percy] Finalized build #1: https://percy.io/test/test/123'
       ]));
     });
 
     it('snapshots matching files hosted with a base-url', async () => {
-      await Snapshot.run(['./public', '--base-url=/base/']);
+      await Snapshot.run(['./public', '--base-url=/base']);
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy has started!',
-        '[percy] Processing 3 snapshots...',
+        '[percy] Processing 4 snapshots...',
         '[percy] Snapshot taken: /base/test-1.html',
         '[percy] Snapshot taken: /base/test-2.html',
-        '[percy] Snapshot taken: /base/test-3.htm',
+        '[percy] Snapshot taken: /base/test-3.html',
+        '[percy] Snapshot taken: /base/test-index/index.html',
         '[percy] Finalized build #1: https://percy.io/test/test/123'
       ]));
     });
@@ -124,10 +127,11 @@ describe('percy snapshot', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
-        '[percy] Found 3 snapshots',
+        '[percy] Found 4 snapshots',
         '[percy] Snapshot found: /test-1.html',
         '[percy] Snapshot found: /test-2.html',
-        '[percy] Snapshot found: /test-3.htm'
+        '[percy] Snapshot found: /test-3.html',
+        '[percy] Snapshot found: /test-index/index.html'
       ]);
     });
 
@@ -146,13 +150,49 @@ describe('percy snapshot', () => {
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
-        '[percy] Found 3 snapshots',
+        '[percy] Found 4 snapshots',
         '[percy] Snapshot found: First',
         '[percy] Snapshot found: First (2)',
         '[percy] Snapshot found: /test-2.html',
         '[percy] Snapshot found: /test-2.html (2)',
-        '[percy] Snapshot found: /test-3.htm',
-        '[percy] Snapshot found: /test-3.htm (2)'
+        '[percy] Snapshot found: /test-3.html',
+        '[percy] Snapshot found: /test-3.html (2)',
+        '[percy] Snapshot found: /test-index/index.html',
+        '[percy] Snapshot found: /test-index/index.html (2)'
+      ]);
+    });
+
+    it('rewrites file and index URLs with --clean-urls', async () => {
+      await Snapshot.run(['./public', '--dry-run', '--clean-urls']);
+
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
+        '[percy] Found 4 snapshots',
+        '[percy] Snapshot found: /test-1',
+        '[percy] Snapshot found: /test-2',
+        '[percy] Snapshot found: /test-3',
+        '[percy] Snapshot found: /test-index'
+      ]);
+    });
+
+    it('rewrites URLs based on the provided rewrites config option', async () => {
+      fs.writeFileSync('.percy.yml', [
+        'version: 2',
+        'static:',
+        '  cleanUrls: true',
+        '  rewrites:',
+        '    /:path/:n: /:path-:n.html'
+      ].join('\n'));
+
+      await Snapshot.run(['./public', '--dry-run']);
+
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
+        '[percy] Found 4 snapshots',
+        '[percy] Snapshot found: /test/1',
+        '[percy] Snapshot found: /test/2',
+        '[percy] Snapshot found: /test/3',
+        '[percy] Snapshot found: /test-index'
       ]);
     });
   });
@@ -160,7 +200,7 @@ describe('percy snapshot', () => {
   describe('snapshotting a list of pages', () => {
     let server;
 
-    beforeAll(async () => {
+    beforeEach(async () => {
       server = await createTestServer({
         default: () => [200, 'text/html', '<p>Test</p>']
       });
@@ -189,7 +229,7 @@ describe('percy snapshot', () => {
       ].join('\n'));
     });
 
-    afterAll(async () => {
+    afterEach(async () => {
       await server.close();
     });
 

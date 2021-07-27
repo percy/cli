@@ -6,16 +6,10 @@ import Percy from '@percy/core';
 import logger from '@percy/logger';
 import globby from 'globby';
 import picomatch from 'picomatch';
+import * as pathToRegexp from 'path-to-regexp';
 import YAML from 'yaml';
 import { configSchema } from '../config';
 import pkg from '../../package.json';
-
-// Throw a better error message for invalid urls
-function validURL(input, base) {
-  try { return new URL(input, base || undefined); } catch (error) {
-    throw new Error(`Invalid URL: ${error.input}`);
-  }
-}
 
 export class Snapshot extends Command {
   static description = 'Snapshot a list of pages from a file or directory';
@@ -52,6 +46,10 @@ export class Snapshot extends Command {
       default: configSchema.static.properties.ignore.default,
       percyrc: 'static.ignore',
       multiple: true
+    }),
+    'clean-urls': flags.boolean({
+      description: 'rewrite index and filepath URLs to be clean',
+      percyrc: 'static.cleanUrls'
     })
   };
 
@@ -73,46 +71,20 @@ export class Snapshot extends Command {
       this.error(`Not found: ${pathname}`);
     }
 
-    let { 'base-url': baseUrl, 'dry-run': dry } = this.flags;
-    let isStatic = fs.lstatSync(pathname).isDirectory();
-
-    if (baseUrl) {
-      if (isStatic && !baseUrl.startsWith('/')) {
-        this.error('The base-url must begin with a forward slash (/) ' + (
-          'when snapshotting static directories'));
-      } else if (!isStatic && !baseUrl.startsWith('http')) {
-        this.error('The base-url must include a protocol and hostname ' + (
-          'when snapshotting a list of pages'));
-      }
-    }
-
     this.percy = new Percy({
-      ...this.percyrc({ static: isStatic ? { baseUrl } : null }),
+      ...this.percyrc(),
       clientInfo: `${pkg.name}/${pkg.version}`,
       server: false
     });
 
-    let pages = isStatic
+    let pages = fs.lstatSync(pathname).isDirectory()
       ? await this.loadStaticPages(pathname)
       : await this.loadPagesFile(pathname);
-
-    pages = pages.map(page => {
-      // allow a list of urls
-      if (typeof page === 'string') page = { url: page };
-
-      // validate and prepend the baseUrl
-      let uri = validURL(page.url, !isStatic && baseUrl);
-      page.url = uri.href;
-
-      // default page name to url /pathname?search#hash
-      page.name ||= `${uri.pathname}${uri.search}${uri.hash}`;
-
-      return page;
-    });
 
     let l = pages.length;
     if (!l) this.error('No snapshots found');
 
+    let dry = this.flags['dry-run'];
     if (!dry) await this.percy.start();
     else this.log.info(`Found ${l} snapshot${l === 1 ? '' : 's'}`);
 
@@ -144,23 +116,54 @@ export class Snapshot extends Command {
   }
 
   // Serves a static directory at a base-url and resolves when listening.
-  async serve(staticDir, baseUrl) {
-    let http = require('http');
-    let serve = require('serve-handler');
+  async serve(dir, rewrites) {
+    let localhost = 'http://localhost';
+    if (this.flags['dry-run']) return localhost;
 
     return new Promise(resolve => {
+      let http = require('http');
+      let serve = require('serve-handler');
+      let { cleanUrls } = this.percy.config.static;
+
       this.server = http.createServer((req, res) => {
-        serve(req, res, { public: staticDir });
+        serve(req, res, {
+          public: dir,
+          cleanUrls,
+          rewrites
+        });
       }).listen(() => {
         let { port } = this.server.address();
-        resolve(`http://localhost:${port}`);
+        resolve(`${localhost}:${port}`);
       });
     });
+  }
+
+  // Mutates a page item to have default or normalized options
+  withDefaults(page) {
+    let url = (() => {
+      // Throw a better error message for invalid urls
+      try { return new URL(page.url, this.address); } catch (e) {
+        throw new Error(`Invalid URL: ${e.input}`);
+      }
+    })();
+
+    // default name to the page url
+    page.name ||= `${url.pathname}${url.search}${url.hash}`;
+    // normalize the page url
+    page.url = url.href;
+
+    return page;
   }
 
   // Starts a static server and returns a list of pages to snapshot.
   async loadStaticPages(pathname) {
     let config = this.percy.config.static;
+    let baseUrl = this.flags['base-url'] || config.baseUrl;
+
+    if (baseUrl && !baseUrl.startsWith('/')) {
+      this.error('The base-url must begin with a forward slash (/) ' + (
+        'when snapshotting static directories'));
+    }
 
     // gather paths
     let paths = await globby(config.files, {
@@ -168,34 +171,53 @@ export class Snapshot extends Command {
       cwd: pathname
     });
 
-    // reduce overrides into a single map function
-    let applyOverrides = (config.overrides || [])
-      .reduce((map, { files, ignore, ...opts }) => {
-        let test = picomatch(files || '*', {
-          ignore: [].concat(ignore || [])
-        });
+    // reduce rewrite options with any base-url
+    let rewrites = Object.entries(config.rewrites || {})
+      .reduce((rewrites, [source, destination]) => (
+        rewrites.concat({ source, destination })
+      ), baseUrl ? [{
+        source: path.posix.join(baseUrl, '/:path*'),
+        destination: '/:path*'
+      }] : []);
 
-        return (path, page) => test(path)
-          ? { ...map(path, page), ...opts }
-          : map(path, page);
-      }, path => ({
-        url: new URL(`${config.baseUrl}${path}`, addr).href
-      }));
+    // map, concat, and reduce rewrites with overrides into a single function
+    let applyOverrides = [].concat({
+      rewrite: url => path.posix.normalize(path.posix.join('/', url))
+    }, rewrites.map(({ source, destination }) => ({
+      test: pathToRegexp.match(destination),
+      rewrite: pathToRegexp.compile(source)
+    })), {
+      test: url => config.cleanUrls && url,
+      rewrite: url => url.replace(/(\/index)?\.html$/, '')
+    }, (config.overrides || []).map(({ files, ignore, ...opts }) => ({
+      test: picomatch(files || '**', { ignore: [].concat(ignore || []) }),
+      override: page => Object.assign(page, opts)
+    })), {
+      override: page => this.withDefaults(page)
+    }).reduceRight((apply, { test, rewrite, override }) => (p, page = { url: p }) => {
+      let res = !test || test(rewrite ? page.url : p);
+      if (res && rewrite) page.url = rewrite(test ? (res.params ?? res) : page.url);
+      else if (res && override) override(page);
+      return apply?.(p, page) ?? page;
+    }, null);
 
     // start the static server
-    let addr = this.flags['dry-run'] ? 'http://localhost'
-      : await this.serve(pathname, config.baseUrl);
+    this.address = await this.serve(pathname, rewrites);
 
     // sort and map pages with overrides
-    return paths.sort().map(path => (
-      applyOverrides(path)
-    ));
+    return paths.sort().map(p => applyOverrides(p));
   }
 
   // Loads pages to snapshot from a js, json, or yaml file.
   async loadPagesFile(pathname) {
     let ext = path.extname(pathname);
+    let baseUrl = this.flags['base-url'];
     let pages = [];
+
+    if (baseUrl && !baseUrl.startsWith('http')) {
+      this.error('The base-url must include a protocol and hostname ' + (
+        'when snapshotting a list of pages'));
+    }
 
     if (ext === '.js') {
       pages = require(path.resolve(pathname));
@@ -216,8 +238,12 @@ export class Snapshot extends Command {
       for (let e of errors) this.log.warn(`- ${e.path}: ${e.message}`);
     }
 
-    return Array.isArray(pages) ? pages
-    // support a nested snapshots array for yaml references
-      : (pages.snapshots ?? []);
+    // set the default page base address
+    if (baseUrl) this.address = baseUrl;
+
+    // support snapshots option for yaml references and lists of urls
+    return (Array.isArray(pages) ? pages : pages.snapshots || []).map(page => (
+      this.withDefaults(typeof page === 'string' ? { url: page } : page)
+    ));
   }
 }
