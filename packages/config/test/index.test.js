@@ -812,10 +812,26 @@ describe('PercyConfig', () => {
       expect(PercyConfig.normalize({
         'request-headers': {
           'X-Custom-Header': 'custom header'
+        },
+        requestHeaders: {
+          'X-Custom-Header-2': 'custom header 2'
+        },
+        cookies: {
+          cookie_flavor: 'chocolate'
+        },
+        rewrites: {
+          '/:foo-:bar': '/:foo/:bar/baz'
         }
       })).toEqual({
         requestHeaders: {
-          'X-Custom-Header': 'custom header'
+          'X-Custom-Header': 'custom header',
+          'X-Custom-Header-2': 'custom header 2'
+        },
+        cookies: {
+          cookie_flavor: 'chocolate'
+        },
+        rewrites: {
+          '/:foo-:bar': '/:foo/:bar/baz'
         }
       });
     });

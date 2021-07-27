@@ -10,7 +10,8 @@ const CAMELCASE_MAP = new Map([
 const SKIP_CASING_OPTIONS = [
   'request-headers',
   'requestHeaders',
-  'cookies'
+  'cookies',
+  'rewrites'
 ];
 
 // Converts kebab-cased and snake_cased strings to camelCase.
