@@ -93,9 +93,9 @@ export default function load({
     if (bail) return;
   }
 
-  // normalize again to remove empty values for logging
-  config = normalize(config);
-  if (config) log[infoDebug](`Using config:\n${inspect(config)}`);
+  if (config) {
+    log[infoDebug](`Using config:\n${inspect(config)}`);
+  }
 
   // merge with defaults
   return getDefaults(config);
