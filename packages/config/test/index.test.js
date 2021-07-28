@@ -808,31 +808,83 @@ describe('PercyConfig', () => {
       });
     });
 
-    it('ignores normalizing specific nested objects', () => {
+    it('ignores normalizing properties as determined by their schema', () => {
+      // this schema is purposefully complex to generate better coverage
+      PercyConfig.addSchema({
+        $id: '/test',
+        type: 'object',
+        properties: {
+          fooOne: {
+            type: 'object',
+            normalize: false
+          },
+          barTwo: {
+            type: 'array',
+            normalize: false,
+            items: {
+              type: 'object'
+            }
+          },
+          bazThree: {
+            type: 'array',
+            items: {
+              oneOf: [{
+                type: 'string'
+              }, {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  quxFour: { type: 'number' }
+                }
+              }, {
+                type: 'array',
+                items: [
+                  { type: 'boolean' },
+                  { $ref: '#/properties/barTwo/items' }
+                ]
+              }, {
+                type: 'object',
+                normalize: false
+              }]
+            }
+          }
+        }
+      });
+
       expect(PercyConfig.normalize({
-        'request-headers': {
-          'X-Custom-Header': 'custom header'
+        'foo-one': {
+          'Foo-Bar-Baz': 123
         },
-        requestHeaders: {
-          'X-Custom-Header-2': 'custom header 2'
+        foo_one: {
+          'Baz-Bar-Foo': 321
         },
-        cookies: {
-          cookie_flavor: 'chocolate'
-        },
-        rewrites: {
-          '/:foo-:bar': '/:foo/:bar/baz'
-        }
+        bar_two: [
+          { foo_bar: '1_2' },
+          { bar_baz: '2_3' }
+        ],
+        baz_three: [
+          { 'qux-four': 4 },
+          { 'baz-foo=bar': '3-1=2' },
+          [true, { 'qux-four': 8 }],
+          'xyzzy'
+        ]
+      }, {
+        schema: '/test'
       })).toEqual({
-        requestHeaders: {
-          'X-Custom-Header': 'custom header',
-          'X-Custom-Header-2': 'custom header 2'
+        fooOne: {
+          'Foo-Bar-Baz': 123,
+          'Baz-Bar-Foo': 321
         },
-        cookies: {
-          cookie_flavor: 'chocolate'
-        },
-        rewrites: {
-          '/:foo-:bar': '/:foo/:bar/baz'
-        }
+        barTwo: [
+          { foo_bar: '1_2' },
+          { bar_baz: '2_3' }
+        ],
+        bazThree: [
+          { quxFour: 4 },
+          { 'baz-foo=bar': '3-1=2' },
+          [true, { quxFour: 8 }],
+          'xyzzy'
+        ]
       });
     });
   });
