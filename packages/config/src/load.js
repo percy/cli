@@ -83,8 +83,8 @@ export default function load({
     }
   }
 
-  // merge found config with overrides and validate
-  config = normalize(config, { overrides });
+  // normalize and merge with overrides then validate
+  config = normalize(config, { overrides, schema: '/config' });
   let errors = config && validate(config);
 
   if (errors) {
@@ -93,9 +93,9 @@ export default function load({
     if (bail) return;
   }
 
-  // normalize again to remove empty values for logging
-  config = normalize(config);
-  if (config) log[infoDebug](`Using config:\n${inspect(config)}`);
+  if (path !== false && config) {
+    log[infoDebug](`Using config:\n${inspect(config)}`);
+  }
 
   // merge with defaults
   return getDefaults(config);

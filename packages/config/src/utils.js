@@ -10,12 +10,12 @@ function create(array) {
 // Returns true if the provided key looks like an array key
 const ARRAY_PATH_KEY_REG = /^(\[\d+]|0|[1-9]\d*)$/;
 
-function isArrayKey(key) {
+export function isArrayKey(key) {
   return isInteger(key) || ARRAY_PATH_KEY_REG.test(key);
 }
 
 // Split a property path string by dot or array notation
-function parsePropertyPath(path) {
+export function parsePropertyPath(path) {
   return isArray(path) ? path : path.split('.').reduce((full, part) => {
     return full.concat(part.split('[').reduce((f, p) => {
       if (p.endsWith(']')) p = p.slice(0, -1);
@@ -110,8 +110,13 @@ export function merge(sources, map) {
       let prev = ctx?.[key];
 
       // maybe map the property path and/or value
-      let [p, next] = map?.(path, prev, value) || [];
-      if (p) path = [...p];
+      let [mapped, next] = map?.(path, prev, value) || [];
+
+      // update the context and path if changed
+      if (mapped?.some((m, i) => m !== path[i])) {
+        ctx = get(target, mapped.slice(0, -1));
+        path = [...mapped];
+      }
 
       // adjust path to concat array values when necessary
       if (next !== null && (isArray(ctx) || isInteger(key))) {

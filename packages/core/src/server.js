@@ -1,7 +1,6 @@
 import fs from 'fs';
 import http from 'http';
 import { Server as WSS } from 'ws';
-import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
 import pkg from '../package.json';
 
@@ -127,10 +126,8 @@ export default function createPercyServer(percy) {
       }),
 
     // forward snapshot requests
-    '/percy/snapshot': ({ body }) => (
-      percy.snapshot(PercyConfig.normalize(body))
-        .then(() => [200, 'application/json', { success: true }])
-    ),
+    '/percy/snapshot': ({ body }) => percy.snapshot(body)
+      .then(() => [200, 'application/json', { success: true }]),
 
     // stops the instance async at the end of the event loop
     '/percy/stop': () => setImmediate(() => percy.stop()) && (

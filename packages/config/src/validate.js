@@ -1,9 +1,10 @@
 import AJV from 'ajv';
 import {
-  set,
-  del,
+  get, set, del,
   filterEmpty,
-  joinPropertyPath
+  parsePropertyPath,
+  joinPropertyPath,
+  isArrayKey
 } from './utils';
 
 const { isArray } = Array;
@@ -66,9 +67,45 @@ function getDefaultSchema() {
   };
 }
 
-// Gets the schema object from the AJV schema.
-export function getSchema(name) {
-  return ajv.getSchema(name).schema;
+// Gets the schema object from the AJV schema. If a path is provided, an array of schemas is
+// returned, with each index representing the schema of each part of the path (index zero is root).
+export function getSchema(name, path, root) {
+  // get the root schema if necessary, resolve it, and return it when there is no path
+  let schema = typeof name === 'string' ? ajv.getSchema(name)?.schema : name;
+
+  if (schema?.$ref) {
+    let [name, ref = ''] = schema.$ref.split('#');
+    schema = get(getSchema(name || root), ref.split('/').slice(1));
+  }
+
+  if (!path) return schema;
+
+  // destructure the path and set the default root schema for future refs
+  let [key, ...rest] = path = parsePropertyPath(path);
+  root ||= schema;
+
+  // if the desired schema is one of many, we need to find one that best matches
+  let many = isArray(schema) ? schema : schema?.[
+    ['anyOf', 'oneOf', 'allOf'].find(p => schema[p])];
+
+  if (many) {
+    let isLooseMatch = s => s?.type === 'object' && s.additionalProperties !== false;
+    // the best possible match will match most of the path or loosely match
+    return many.map(p => getSchema(p, path, root)).sort((a, b) => (
+      (b.length - a.length) || (isLooseMatch(a[0]) ? -1 : 1)))[0];
+  } else if (isArrayKey(key) && schema?.type === 'array') {
+    // find the remaining paths in the items schema
+    return [schema].concat(getSchema(schema.items, rest, root));
+  } else if (path.length && schema?.type === 'object') {
+    // find the remaining paths nested in the property schema
+    return [schema].concat(getSchema(schema.properties?.[key], rest, root));
+  } else if (!path.length && schema) {
+    // end of path matching
+    return [schema];
+  } else {
+    // no match
+    return [];
+  }
 }
 
 // Adds schemas to the config schema's properties. The config schema is removed, modified, and

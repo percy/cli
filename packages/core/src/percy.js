@@ -54,9 +54,10 @@ export default class Percy {
     if (loglevel) this.loglevel(loglevel);
     this.deferUploads = deferUploads;
 
-    this.config = config === false
-      ? PercyConfig.getDefaults(options)
-      : PercyConfig.load({ path: config, overrides: options });
+    this.config = PercyConfig.load({
+      overrides: options,
+      path: config
+    });
 
     let { concurrency } = this.config.discovery;
     if (concurrency) this.#snapshots.concurrency = concurrency;

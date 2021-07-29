@@ -61,6 +61,7 @@ export const configSchema = {
       },
       requestHeaders: {
         type: 'object',
+        normalize: false,
         additionalProperties: { type: 'string' }
       },
       authorization: {
@@ -74,9 +75,11 @@ export const configSchema = {
       cookies: {
         anyOf: [{
           type: 'object',
+          normalize: false,
           additionalProperties: { type: 'string' }
         }, {
           type: 'array',
+          normalize: false,
           items: {
             type: 'object',
             required: ['name', 'value'],
@@ -121,7 +124,6 @@ export const snapshotSchema = {
     minHeight: { $ref: '/config/snapshot#/properties/minHeight' },
     percyCSS: { $ref: '/config/snapshot#/properties/percyCSS' },
     enableJavaScript: { $ref: '/config/snapshot#/properties/enableJavaScript' },
-
     discovery: {
       type: 'object',
       additionalProperties: false,
@@ -133,24 +135,20 @@ export const snapshotSchema = {
         userAgent: { $ref: '/config/discovery#/properties/userAgent' }
       }
     },
-
     waitForSelector: {
       type: 'string'
     },
-
     waitForTimeout: {
       type: 'integer',
       minimum: 1,
       maximum: 30000
     },
-
     execute: {
       oneOf: [
         { type: 'string' },
         { instanceof: 'Function' }
       ]
     },
-
     additionalSnapshots: {
       type: 'array',
       items: {
@@ -241,6 +239,8 @@ export function migration(config, { map, del, log }) {
 
 // Validate and merge per-snapshot configuration options with global configuration options.
 export function getSnapshotConfig(options, { snapshot, discovery }, log) {
+  options = PercyConfig.normalize(options, { schema: '/snapshot/dom' });
+
   // throw an error when missing required options
   assert(options.url, 'Missing required URL for snapshot');
   assert((options.widths ?? snapshot.widths)?.length, 'Missing required widths for snapshot');

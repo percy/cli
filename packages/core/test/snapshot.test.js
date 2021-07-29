@@ -115,9 +115,9 @@ describe('Snapshot', () => {
   it('warns on deprecated options', () => {
     percy.close(); // close queues so snapshots fail
 
-    expect(() => percy.snapshot({ url: 'http://a', requestHeaders: {} })).toThrow();
-    expect(() => percy.snapshot({ url: 'http://b', authorization: {} })).toThrow();
-    expect(() => percy.snapshot({ url: 'http://c', snapshots: [] })).toThrow();
+    expect(() => percy.snapshot({ url: 'http://a', requestHeaders: { foo: 'bar' } })).toThrow();
+    expect(() => percy.snapshot({ url: 'http://b', authorization: { username: 'foo' } })).toThrow();
+    expect(() => percy.snapshot({ url: 'http://c', snapshots: [{ name: 'foobar' }] })).toThrow();
 
     expect(logger.stderr).toEqual([
       '[percy] Warning: The snapshot option `requestHeaders` ' +
