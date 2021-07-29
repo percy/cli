@@ -838,7 +838,10 @@ describe('Discovery', () => {
       await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
-        domSnapshot: testExternalAsyncDOM
+        domSnapshot: testExternalAsyncDOM,
+        // img loading is eager when not enabled which causes the page load event
+        // to wait for the eager img request to finish
+        enableJavaScript: true
       });
 
       await percy.idle();
