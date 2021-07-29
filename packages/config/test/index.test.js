@@ -796,13 +796,13 @@ describe('PercyConfig', () => {
       expect(PercyConfig.normalize({
         'foo-bar': 'baz',
         foo: { bar_baz: 'qux' },
-        fooBar_baz: 'qux',
+        fooBar_baz: ['qux'],
         percyCSS: '',
         enableJavaScript: false
       }, { kebab: true })).toEqual({
         'foo-bar': 'baz',
         foo: { 'bar-baz': 'qux' },
-        'foo-bar-baz': 'qux',
+        'foo-bar-baz': ['qux'],
         'percy-css': '',
         'enable-javascript': false
       });

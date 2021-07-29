@@ -11,6 +11,8 @@ const CAMELCASE_MAP = new Map([
 const KEBAB_SNAKE_REG = /[-_]([^-_]+)/g;
 
 function camelcase(str) {
+  if (typeof str !== 'string') return str;
+
   return str.replace(KEBAB_SNAKE_REG, (match, word) => (
     CAMELCASE_MAP.get(word) || (word[0].toUpperCase() + word.slice(1))
   ));
@@ -20,6 +22,8 @@ function camelcase(str) {
 const CAMEL_SNAKE_REG = /([a-z])([A-Z]+)|_([^_]+)/g;
 
 function kebabcase(str) {
+  if (typeof str !== 'string') return str;
+
   return Array.from(CAMELCASE_MAP)
     .reduce((str, [word, camel]) => (
       str.replace(camel, `-${word}`)
