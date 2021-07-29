@@ -353,6 +353,41 @@ describe('Discovery', () => {
     ]);
   });
 
+  it('does not capture javascript files when not enabled', async () => {
+    server.reply('/javascript.js', () => [200, 'text/javascript', 'window.location = "/"']);
+
+    let jsDOM = dedent`
+      <html><head></head><body>
+      <script src="/javascript.js"></script>
+      </body></html>
+    `;
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: jsDOM
+    });
+
+    await percy.idle();
+
+    let paths = server.requests.map(r => r[0]);
+    expect(paths.sort()).not.toContain('/javascript.js');
+
+    expect(captured[0]).toEqual([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/',
+          'is-root': true
+        })
+      })
+    ]);
+  });
+
   it('logs detailed debug logs', async () => {
     percy.loglevel('debug');
 

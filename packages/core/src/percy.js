@@ -295,7 +295,7 @@ export default class Percy {
         // open a new browser page
         page = await this.browser.page({
           networkIdleTimeout: this.config.discovery.networkIdleTimeout,
-          enableJavaScript: domSnapshot ? conf.enableJavaScript : true,
+          enableJavaScript: conf.enableJavaScript ?? !domSnapshot,
           requestHeaders: discovery.requestHeaders,
           authorization: discovery.authorization,
           userAgent: discovery.userAgent,
