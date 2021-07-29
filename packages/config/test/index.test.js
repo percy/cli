@@ -355,17 +355,18 @@ describe('PercyConfig', () => {
 
   describe('.migrate()', () => {
     beforeEach(() => {
-      PercyConfig.addMigration((config, util) => {
-        if (config.foo) util.map('foo', 'foo.bar');
-      });
-
-      PercyConfig.addMigration((config, util) => {
-        if (config.test?.set) util.set('test.value', config.test.set);
-        if (config.test?.map) util.map('value.test', ['test', 'value']);
-        if (config.test?.map2) util.map(['value', 'test'], 'test.value', v => v * 2);
-        if (config.test?.del) util.del('value');
-        util.del('test.set', 'test.map', ['test', 'map2'], ['test', 'del']);
-      });
+      PercyConfig.addMigration([
+        (config, util) => {
+          if (config.foo) util.map('foo', 'foo.bar');
+        },
+        (config, util) => {
+          if (config.test?.set) util.set('test.value', config.test.set);
+          if (config.test?.map) util.map('value.test', ['test', 'value']);
+          if (config.test?.map2) util.map(['value', 'test'], 'test.value', v => v * 2);
+          if (config.test?.del) util.del('value');
+          util.del('test.set', 'test.map', ['test', 'map2'], ['test', 'del']);
+        }
+      ]);
     });
 
     it('runs registered migration functions', () => {
@@ -429,6 +430,28 @@ describe('PercyConfig', () => {
           foo: { bar: { baz: 'qux' } }
         }]
       });
+    });
+
+    it('can register migrations for specific schemas', () => {
+      PercyConfig.addSchema([
+        { $id: '/a', type: 'object' },
+        { $id: '/b', type: 'object' }
+      ]);
+
+      PercyConfig.addMigration([
+        (c, { set }) => set('foo', 1),
+        (c, { set }) => set('bar', 2)
+      ], '/a');
+
+      PercyConfig.addMigration([
+        ['/a', (c, { set }) => set('baz', 3)],
+        ['/b', (c, { set }) => set('xyzzy', -1)]
+      ]);
+
+      expect(PercyConfig.migrate({}, '/a'))
+        .toEqual({ version: 2, foo: 1, bar: 2, baz: 3 });
+      expect(PercyConfig.migrate({}, '/b'))
+        .toEqual({ version: 2, xyzzy: -1 });
     });
   });
 
