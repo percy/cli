@@ -25,6 +25,7 @@ OPTIONS
   -q, --quiet                                      log errors only
   -t, --network-idle-timeout=network-idle-timeout  asset discovery idle timeout
   -v, --verbose                                    log everything
+  --clean-urls                                     rewrite static index and filepath URLs to be clean
   --disable-cache                                  disable asset discovery caches
 
   --files=files                                    [default: **/*.{html,htm}] one or more globs matching static file
