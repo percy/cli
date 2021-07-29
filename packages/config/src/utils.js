@@ -10,12 +10,12 @@ function create(array) {
 // Returns true if the provided key looks like an array key
 const ARRAY_PATH_KEY_REG = /^(\[\d+]|0|[1-9]\d*)$/;
 
-function isArrayKey(key) {
+export function isArrayKey(key) {
   return isInteger(key) || ARRAY_PATH_KEY_REG.test(key);
 }
 
 // Split a property path string by dot or array notation
-function parsePropertyPath(path) {
+export function parsePropertyPath(path) {
   return isArray(path) ? path : path.split('.').reduce((full, part) => {
     return full.concat(part.split('[').reduce((f, p) => {
       if (p.endsWith(']')) p = p.slice(0, -1);
