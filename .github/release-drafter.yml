@@ -6,16 +6,15 @@ categories:
       - 💥 breaking
   - title: '✨ Enhancements'
     labels:
-      - feature
       - ✨ enhancement
   - title: '🐛 Bug Fixes'
     labels:
-      - fix
-      - bugfix
       - 🐛 bug
   - title: '🏗 Maintenance'
     labels:
       - 🧹 maintenance
+  - title: '⬆️⬇️ Dependency Updates'
+    labels:
       - ⬆️⬇️ dependencies
 change-title-escapes: '\<*_&#@'
 version-resolver:
@@ -24,7 +23,6 @@ version-resolver:
       - 💥 breaking
   minor:
     labels:
-      - feature
       - ✨ enhancement
   default: patch
 template: '$CHANGES'
