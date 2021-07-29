@@ -207,15 +207,8 @@ export const snapshotDOMSchema = {
   }
 };
 
-// Convinient reference for schema registration
-export const schemas = [
-  configSchema,
-  snapshotSchema,
-  snapshotDOMSchema
-];
-
-// Migration function
-export function migration(config, { map, del, log }) {
+// Config migrate function
+export function configMigration(config, { map, del, log }) {
   /* eslint-disable curly */
   if (config.version < 2) {
     // discovery options have moved
@@ -237,32 +230,45 @@ export function migration(config, { map, del, log }) {
   }
 }
 
+// Snapshot option migrate function
+export function snapshotMigration(config, { map, log }) {
+  // discovery options have moved
+  for (let k of ['authorization', 'requestHeaders']) {
+    if (config[k]) {
+      log.deprecated(`The snapshot option \`${k}\` ` + (
+        `will be removed in 1.0.0. Use \`discovery.${k}\` instead.`));
+      map(k, `discovery.${k}`);
+    }
+  }
+
+  // snapshots was renamed
+  if (config.snapshots) {
+    log.warn('Warning: The `snapshots` option will be ' + (
+      'removed in 1.0.0. Use `additionalSnapshots` instead.'));
+    map('snapshots', 'additionalSnapshots');
+  }
+}
+
+// Convinient references for schema registrations
+export const schemas = [
+  configSchema,
+  snapshotSchema,
+  snapshotDOMSchema
+];
+
+export const migrations = [
+  ['/config', configMigration],
+  ['/snapshot', snapshotMigration]
+];
+
 // Validate and merge per-snapshot configuration options with global configuration options.
 export function getSnapshotConfig(options, { snapshot, discovery }, log) {
-  options = PercyConfig.normalize(options, { schema: '/snapshot/dom' });
+  // prune client and env info from being validated
+  let { clientInfo, environmentInfo, ...config } = PercyConfig.migrate(options, '/snapshot');
 
   // throw an error when missing required options
-  assert(options.url, 'Missing required URL for snapshot');
-  assert((options.widths ?? snapshot.widths)?.length, 'Missing required widths for snapshot');
-
-  // prune options from being validated
-  let config = merge([options, {
-    clientInfo: null,
-    environmentInfo: null
-  }], (path, prev, next) => {
-    // move deprecated options before validating
-    switch (path.join('.')) {
-      case 'authorization':
-      case 'requestHeaders': // discovery options have moved
-        log.warn(`Warning: The snapshot option \`${path}\` ` + (
-          `will be removed in 1.0.0. Use \`discovery.${path}\` instead.`));
-        return [path.unshift('discovery')];
-      case 'snapshots': // snapshots was renamed
-        log.warn('Warning: The `snapshots` option will be ' + (
-          'removed in 1.0.0. Use `additionalSnapshots` instead.'));
-        return ['additionalSnapshots'];
-    }
-  });
+  assert(config.url, 'Missing required URL for snapshot');
+  assert((config.widths ?? snapshot.widths)?.length, 'Missing required widths for snapshot');
 
   // validate and scrub according to dom snaphot presence
   let errors = PercyConfig.validate(config, (
@@ -281,8 +287,8 @@ export function getSnapshotConfig(options, { snapshot, discovery }, log) {
     // default to the URL /pathname?search#hash
     name: `${url.pathname}${url.search}${url.hash}`,
     // add back client and environment information
-    clientInfo: options.clientInfo,
-    environmentInfo: options.environmentInfo,
+    clientInfo,
+    environmentInfo,
     // only specific discovery options are used per-snapshot
     discovery: {
       allowedHostnames: [url.hostname, ...discovery.allowedHostnames],
