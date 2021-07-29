@@ -175,8 +175,8 @@ static:
   overrides: []
 ```
 
-- **files** - A glob or an arry of globs matching static file paths to snapshot.
-- **ignore** - A glob or an arry of globs matching static file paths to ignore.
+- **files** - A glob or an array of globs matching static file paths to snapshot.
+- **ignore** - A glob or an array of globs matching static file paths to ignore.
 - **base-url** - The base URL path the static site should be served under.
 - **clean-urls** - When true, rewrite index and filepath URLs to be clean.
 
