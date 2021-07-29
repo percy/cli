@@ -235,7 +235,7 @@ export function snapshotMigration(config, { map, log }) {
   // discovery options have moved
   for (let k of ['authorization', 'requestHeaders']) {
     if (config[k]) {
-      log.deprecated(`The snapshot option \`${k}\` ` + (
+      log.warn(`Warning: The snapshot option \`${k}\` ` + (
         `will be removed in 1.0.0. Use \`discovery.${k}\` instead.`));
       map(k, `discovery.${k}`);
     }
