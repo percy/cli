@@ -93,7 +93,7 @@ export default function load({
     if (bail) return;
   }
 
-  if (config) {
+  if (path !== false && config) {
     log[infoDebug](`Using config:\n${inspect(config)}`);
   }
 

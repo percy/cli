@@ -28,20 +28,6 @@ describe('Percy', () => {
     });
   });
 
-  it('does not scrub invalid config options when the config option is false', () => {
-    percy = new Percy({
-      config: false,
-      snapshot: { foo: 'bar' }
-    });
-
-    expect(percy.config.snapshot).toEqual({
-      widths: [375, 1280],
-      minHeight: 1024,
-      percyCSS: '',
-      foo: 'bar'
-    });
-  });
-
   it('allows access to create browser pages for other SDKs', async () => {
     let img = '<img src="http://localhost:9000/404.png">';
 
