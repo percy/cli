@@ -83,8 +83,8 @@ export default function load({
     }
   }
 
-  // merge found config with overrides and validate
-  config = normalize(config, { overrides });
+  // normalize and merge with overrides then validate
+  config = normalize(config, { overrides, schema: '/config' });
   let errors = config && validate(config);
 
   if (errors) {
