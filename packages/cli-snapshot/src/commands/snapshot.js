@@ -48,7 +48,7 @@ export class Snapshot extends Command {
       multiple: true
     }),
     'clean-urls': flags.boolean({
-      description: 'rewrite index and filepath URLs to be clean',
+      description: 'rewrite static index and filepath URLs to be clean',
       percyrc: 'static.cleanUrls'
     })
   };

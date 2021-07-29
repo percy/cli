@@ -25,6 +25,7 @@ OPTIONS
   -q, --quiet                                      log errors only
   -t, --network-idle-timeout=network-idle-timeout  asset discovery idle timeout
   -v, --verbose                                    log everything
+  --clean-urls                                     rewrite static index and filepath URLs to be clean
   --disable-cache                                  disable asset discovery caches
 
   --files=files                                    [default: **/*.{html,htm}] one or more globs matching static file
@@ -174,8 +175,8 @@ static:
   overrides: []
 ```
 
-- **files** - A glob or an arry of globs matching static file paths to snapshot.
-- **ignore** - A glob or an arry of globs matching static file paths to ignore.
+- **files** - A glob or an array of globs matching static file paths to snapshot.
+- **ignore** - A glob or an array of globs matching static file paths to ignore.
 - **base-url** - The base URL path the static site should be served under.
 - **clean-urls** - When true, rewrite index and filepath URLs to be clean.
 
