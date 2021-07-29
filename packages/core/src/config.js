@@ -239,6 +239,8 @@ export function migration(config, { map, del, log }) {
 
 // Validate and merge per-snapshot configuration options with global configuration options.
 export function getSnapshotConfig(options, { snapshot, discovery }, log) {
+  options = PercyConfig.normalize(options, { schema: '/snapshot/dom' });
+
   // throw an error when missing required options
   assert(options.url, 'Missing required URL for snapshot');
   assert((options.widths ?? snapshot.widths)?.length, 'Missing required widths for snapshot');
