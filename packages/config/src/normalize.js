@@ -1,3 +1,4 @@
+import { getSchema } from './validate';
 import { merge } from './utils';
 
 // Edge case camelizations
@@ -5,14 +6,6 @@ const CAMELCASE_MAP = new Map([
   ['css', 'CSS'],
   ['javascript', 'JavaScript']
 ]);
-
-// Do not change casing of nested options
-const SKIP_CASING_OPTIONS = [
-  'request-headers',
-  'requestHeaders',
-  'cookies',
-  'rewrites'
-];
 
 // Converts kebab-cased and snake_cased strings to camelCase.
 const KEBAB_SNAKE_REG = /[-_]([^-_]+)/g;
@@ -42,13 +35,14 @@ function kebabcase(str) {
 export default function normalize(object, options) {
   let keycase = options?.kebab ? kebabcase : camelcase;
 
-  return merge([object, options?.overrides], (path, prev, next) => {
-    let skip = false;
+  return merge([object, options?.overrides], path => {
+    let schemas = getSchema(options?.schema, path.map(camelcase));
+    let skip = schemas.shift()?.normalize === false;
 
-    path = path.map(k => {
-      if (!skip && typeof k === 'string') k = keycase(k);
-      skip = SKIP_CASING_OPTIONS.includes(k);
-      return k;
+    path = path.map((k, i) => {
+      if (skip) return k;
+      skip ||= schemas[i]?.normalize === false;
+      return keycase(k);
     });
 
     return [path];
