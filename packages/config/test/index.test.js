@@ -449,9 +449,11 @@ describe('PercyConfig', () => {
       ]);
 
       expect(PercyConfig.migrate({}, '/a'))
-        .toEqual({ version: 2, foo: 1, bar: 2, baz: 3 });
+        .toEqual({ foo: 1, bar: 2, baz: 3 });
       expect(PercyConfig.migrate({}, '/b'))
-        .toEqual({ version: 2, xyzzy: -1 });
+        .toEqual({ xyzzy: -1 });
+      expect(PercyConfig.migrate({}, '/c'))
+        .toEqual({});
     });
   });
 

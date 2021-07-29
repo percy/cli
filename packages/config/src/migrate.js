@@ -1,5 +1,5 @@
 import logger from '@percy/logger';
-import { set, del, map, merge } from './utils';
+import { set, del, map } from './utils';
 import normalize from './normalize';
 
 // Global set of registered migrations
@@ -14,13 +14,20 @@ export function addMigration(migration, schema = '/config') {
   }
 
   if (!migrations.has(schema)) migrations.set(schema, []);
-  migrations.get(schema).push(migration);
+  migrations.get(schema).unshift(migration);
   return migration;
 }
 
 // Clear all migration functions
 export function clearMigrations() {
   migrations.clear();
+  addMigration(defaultMigration);
+}
+
+// The default config migration
+addMigration(defaultMigration);
+function defaultMigration(config, { set }) {
+  if (config.version !== 2) set('version', 2);
 }
 
 // Calls each registered migration function with a normalize provided config
@@ -39,9 +46,10 @@ export default function migrate(config, schema = '/config') {
     for (let migration of migrations.get(schema)) {
       migration(config, util);
     }
+
+    // normalize again to adjust for migrations
+    config = normalize(config, { schema });
   }
 
-  return merge([config, {
-    version: 2
-  }]);
+  return config;
 }
