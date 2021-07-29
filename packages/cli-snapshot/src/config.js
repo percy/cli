@@ -33,6 +33,7 @@ export const configSchema = {
       },
       rewrites: {
         type: 'object',
+        normalize: false,
         additionalProperties: { type: 'string' }
       },
       overrides: {
