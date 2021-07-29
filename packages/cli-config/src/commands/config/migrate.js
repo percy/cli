@@ -67,7 +67,10 @@ export class Migrate extends Command {
 
     // prefer kebab-case for yaml
     if (/^ya?ml$/.test(format)) {
-      migrated = PercyConfig.normalize(migrated, { kebab: true });
+      migrated = PercyConfig.normalize(migrated, {
+        schema: '/config',
+        kebab: true
+      });
     }
 
     // stringify to the desired format
