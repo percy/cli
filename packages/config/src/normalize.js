@@ -33,9 +33,9 @@ function kebabcase(str) {
     ));
 }
 
-// Recursively reduces config objects and arrays to remove undefined and empty values and rename
-// kebab-case properties to camelCase. Optionally allows deep merging of a second overrides
-// argument, and converting keys to kebab-case with a third options.kebab argument.
+// Removes undefined empty values and renames kebab-case properties to camelCase. Optionally
+// allows deep merging with options.overrides, converting keys to kebab-case with options.kebab,
+// and normalizing against a schema with options.schema.
 export default function normalize(object, options) {
   let keycase = options?.kebab ? kebabcase : camelcase;
 

@@ -1,7 +1,7 @@
 import logger from '@percy/logger/test/helpers';
-import { migration } from '../../src/config';
+import { configMigration } from '../../src/config';
 
-describe('Unit / Config', () => {
+describe('Unit / Config Migration', () => {
   let mocked = {
     map: (...a) => mocked.migrate.map.push(a),
     del: (...a) => mocked.migrate.del.push(a),
@@ -14,7 +14,7 @@ describe('Unit / Config', () => {
   });
 
   it('migrates v1 config', () => {
-    migration({
+    configMigration({
       version: 1,
       snapshot: {
         widths: [1000]
@@ -49,7 +49,7 @@ describe('Unit / Config', () => {
   });
 
   it('logs for currently deprecated options', () => {
-    migration({
+    configMigration({
       version: 2,
       snapshot: {
         authorization: {},
@@ -71,7 +71,7 @@ describe('Unit / Config', () => {
   });
 
   it('does not migrate when not needed', () => {
-    migration({
+    configMigration({
       version: 2,
       discovery: {
         allowedHostnames: ['allowed']
