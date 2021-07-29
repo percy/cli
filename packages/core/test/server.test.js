@@ -93,7 +93,7 @@ describe('Server', () => {
     expect(percy.stop).toHaveBeenCalled();
   });
 
-  it('has a /snapshot endpoint that calls #snapshot() with normalized options', async () => {
+  it('has a /snapshot endpoint that calls #snapshot() with provided options', async () => {
     spyOn(percy, 'snapshot').and.resolveTo();
     await percy.start();
 
@@ -104,7 +104,7 @@ describe('Server', () => {
 
     expect(response.headers.get('x-percy-core-version')).toMatch(pkg.version);
     await expectAsync(response.json()).toBeResolvedTo({ success: true });
-    expect(percy.snapshot).toHaveBeenCalledOnceWith({ testMe: true, meToo: true });
+    expect(percy.snapshot).toHaveBeenCalledOnceWith({ 'test-me': true, me_too: true });
   });
 
   it('returns a 500 error when an endpoint throws', async () => {
