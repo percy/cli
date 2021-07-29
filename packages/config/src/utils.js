@@ -110,8 +110,13 @@ export function merge(sources, map) {
       let prev = ctx?.[key];
 
       // maybe map the property path and/or value
-      let [p, next] = map?.(path, prev, value) || [];
-      if (p) path = [...p];
+      let [mapped, next] = map?.(path, prev, value) || [];
+
+      // update the context and path if changed
+      if (mapped?.some((m, i) => m !== path[i])) {
+        ctx = get(target, mapped.slice(0, -1));
+        path = [...mapped];
+      }
 
       // adjust path to concat array values when necessary
       if (next !== null && (isArray(ctx) || isInteger(key))) {
