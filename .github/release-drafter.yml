@@ -13,6 +13,7 @@ categories:
   - title: '🏗 Maintenance'
     labels:
       - 🧹 maintenance
+      - 📝 documentation
   - title: '⬆️⬇️ Dependency Updates'
     labels:
       - ⬆️⬇️ dependencies
