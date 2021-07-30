@@ -32,7 +32,7 @@
     "cross-spawn": "^7.0.3",
     "extract-zip": "^2.0.1",
     "rimraf": "^3.0.2",
-    "ws": "^7.5.3"
+    "ws": "^8.0.0"
   },
   "repository": {
     "type": "git",
