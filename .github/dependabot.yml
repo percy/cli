@@ -6,9 +6,13 @@ updates:
     interval: weekly
   commit-message:
     prefix: ⬆️
+  labels:
+    - ⬆️⬇️ dependencies
 - package-ecosystem: github-actions
   directory: /
   schedule:
     interval: weekly
   commit-message:
-    prefix: ⬆️
+    prefix: ⬆️👷
+  labels:
+    - ⬆️⬇️ dependencies
