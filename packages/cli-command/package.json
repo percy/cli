@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-command",
-  "version": "1.0.0-beta.61",
+  "version": "1.0.0-beta.62",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "types/index.d.ts",
@@ -25,8 +25,8 @@
     "@oclif/command": "^1.8.0",
     "@oclif/config": "^1.17.0",
     "@oclif/plugin-help": "^3.2.0",
-    "@percy/config": "1.0.0-beta.61",
-    "@percy/logger": "1.0.0-beta.61"
+    "@percy/config": "1.0.0-beta.62",
+    "@percy/logger": "1.0.0-beta.62"
   },
   "repository": {
     "type": "git",
