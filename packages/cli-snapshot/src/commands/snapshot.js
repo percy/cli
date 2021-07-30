@@ -5,10 +5,9 @@ import Command, { flags } from '@percy/cli-command';
 import Percy from '@percy/core';
 import logger from '@percy/logger';
 import globby from 'globby';
-import picomatch from 'picomatch';
-import * as pathToRegexp from 'path-to-regexp';
 import YAML from 'yaml';
 import { configSchema } from '../config';
+import { serve, withDefaults, mapPages } from '../utils';
 import pkg from '../../package.json';
 
 export class Snapshot extends Command {
@@ -107,105 +106,26 @@ export class Snapshot extends Command {
   // Called on error, interupt, or after running
   async finally(error) {
     await this.percy?.stop(!!error);
-
-    if (this.server) {
-      await new Promise(resolve => {
-        this.server.close(resolve);
-      });
-    }
-  }
-
-  // Serves a static directory at a base-url and resolves when listening.
-  async serve(dir, rewrites) {
-    let localhost = 'http://localhost';
-    if (this.flags['dry-run']) return localhost;
-
-    return new Promise(resolve => {
-      let http = require('http');
-      let serve = require('serve-handler');
-      let { cleanUrls } = this.percy.config.static;
-
-      this.server = http.createServer((req, res) => {
-        serve(req, res, {
-          public: dir,
-          cleanUrls,
-          rewrites
-        });
-      }).listen(() => {
-        let { port } = this.server.address();
-        resolve(`${localhost}:${port}`);
-      });
-    });
-  }
-
-  // Mutates a page item to have default or normalized options
-  withDefaults(page) {
-    let url = (() => {
-      // Throw a better error message for invalid urls
-      try { return new URL(page.url, this.address); } catch (e) {
-        throw new Error(`Invalid URL: ${e.input}`);
-      }
-    })();
-
-    // default name to the page url
-    page.name ||= `${url.pathname}${url.search}${url.hash}`;
-    // normalize the page url
-    page.url = url.href;
-
-    return page;
+    await this.server?.close();
   }
 
   // Starts a static server and returns a list of pages to snapshot.
   async loadStaticPages(pathname) {
     let config = this.percy.config.static;
     let baseUrl = this.flags['base-url'] || config.baseUrl;
+    let dry = this.flags['dry-run'];
 
     if (baseUrl && !baseUrl.startsWith('/')) {
       this.error('The base-url must begin with a forward slash (/) ' + (
         'when snapshotting static directories'));
     }
 
-    // gather paths
-    let paths = await globby(config.files, {
-      ignore: [].concat(config.ignore || []),
-      cwd: pathname
-    });
+    this.server = await serve(pathname, { ...config, baseUrl, dry });
 
-    // reduce rewrite options with any base-url
-    let rewrites = Object.entries(config.rewrites || {})
-      .reduce((rewrites, [source, destination]) => (
-        rewrites.concat({ source, destination })
-      ), baseUrl ? [{
-        source: path.posix.join(baseUrl, '/:path*'),
-        destination: '/:path*'
-      }] : []);
-
-    // map, concat, and reduce rewrites with overrides into a single function
-    let applyOverrides = [].concat({
-      rewrite: url => path.posix.normalize(path.posix.join('/', url))
-    }, rewrites.map(({ source, destination }) => ({
-      test: pathToRegexp.match(destination),
-      rewrite: pathToRegexp.compile(source)
-    })), {
-      test: url => config.cleanUrls && url,
-      rewrite: url => url.replace(/(\/index)?\.html$/, '')
-    }, (config.overrides || []).map(({ files, ignore, ...opts }) => ({
-      test: picomatch(files || '**', { ignore: [].concat(ignore || []) }),
-      override: page => Object.assign(page, opts)
-    })), {
-      override: page => this.withDefaults(page)
-    }).reduceRight((apply, { test, rewrite, override }) => (p, page = { url: p }) => {
-      let res = !test || test(rewrite ? page.url : p);
-      if (res && rewrite) page.url = rewrite(test ? (res.params ?? res) : page.url);
-      else if (res && override) override(page);
-      return apply?.(p, page) ?? page;
-    }, null);
-
-    // start the static server
-    this.address = await this.serve(pathname, rewrites);
-
-    // sort and map pages with overrides
-    return paths.sort().map(p => applyOverrides(p));
+    let { host, rewrites } = this.server;
+    let ignore = [].concat(config.ignore || []);
+    let paths = await globby(config.files, { cwd: pathname, ignore });
+    return mapPages(paths, { ...config, host, rewrites });
   }
 
   // Loads pages to snapshot from a js, json, or yaml file.
@@ -238,12 +158,8 @@ export class Snapshot extends Command {
       for (let e of errors) this.log.warn(`- ${e.path}: ${e.message}`);
     }
 
-    // set the default page base address
-    if (baseUrl) this.address = baseUrl;
-
     // support snapshots option for yaml references and lists of urls
-    return (Array.isArray(pages) ? pages : pages.snapshots || []).map(page => (
-      this.withDefaults(typeof page === 'string' ? { url: page } : page)
-    ));
+    return (Array.isArray(pages) ? pages : pages.snapshots || [])
+      .map(page => withDefaults(page, { host: baseUrl }));
   }
 }
