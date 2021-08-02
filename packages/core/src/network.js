@@ -62,6 +62,17 @@ export default class Network {
     });
   }
 
+  // Called when a request should be removed from various trackers
+  _forgetRequest({ requestId, interceptId }, keepPending) {
+    this.#requests.delete(requestId);
+    this.#authentications.delete(interceptId);
+
+    if (!keepPending) {
+      this.#pending.delete(requestId);
+      this.#intercepts.delete(requestId);
+    }
+  }
+
   // Called when a request requires authentication. Responds to the auth request with any
   // provided authorization credentials.
   _handleAuthRequired = async event => {
@@ -85,14 +96,19 @@ export default class Network {
   // Called when a request is made. The request is paused until it is fulfilled, continued, or
   // aborted. If the request is already pending, handle it; otherwise set it to be intercepted.
   _handleRequestPaused = event => {
-    let { networkId, requestId } = event;
+    let { networkId: requestId } = event;
+    let pending = this.#pending.get(requestId);
 
-    if (this.#pending.has(networkId)) {
-      let pending = this.#pending.get(networkId);
-      this._handleRequest(pending, requestId);
-      this.#pending.delete(networkId);
+    // guard against redirects with the same requestId
+    if (pending?.request.url === event.request.url &&
+        pending.request.method === event.request.method) {
+      this._handleRequest(pending, event.requestId);
+    }
+
+    if (pending) {
+      this.#pending.delete(requestId);
     } else {
-      this.#intercepts.set(networkId, requestId);
+      this.#intercepts.set(requestId, event);
     }
   }
 
@@ -102,16 +118,18 @@ export default class Network {
     let { requestId, request } = event;
 
     // do not handle data urls
-    if (!request.url.startsWith('data:')) {
-      if (this.#intercepts.has(requestId)) {
-        let interceptId = this.#intercepts.get(requestId);
-        this._handleRequest(event, interceptId);
+    if (request.url.startsWith('data:')) return;
+
+    if (this._intercept) {
+      let intercept = this.#intercepts.get(requestId);
+      this.#pending.set(requestId, event);
+
+      if (intercept) {
+        this._handleRequest(event, intercept.requestId);
         this.#intercepts.delete(requestId);
-      } else if (this._intercept) {
-        this.#pending.set(requestId, event);
-      } else {
-        this._handleRequest(event);
       }
+    } else {
+      this._handleRequest(event);
     }
   }
 
@@ -127,10 +145,11 @@ export default class Network {
       let req = this.#requests.get(requestId);
       req.response = event.redirectResponse;
       redirectChain = [...req.redirectChain, req];
-      // clean up auth redirects
-      this.#authentications.delete(interceptId);
+      // clean up interim requests
+      this._forgetRequest(req, true);
     }
 
+    request.requestId = requestId;
     request.interceptId = interceptId;
     request.redirectChain = redirectChain;
     this.#requests.set(requestId, request);
@@ -167,7 +186,7 @@ export default class Network {
   _handleResponseReceived = event => {
     let { requestId, response } = event;
     let request = this.#requests.get(requestId);
-    /* istanbul ignore next: race condition paranioa */
+    /* istanbul ignore if: race condition paranioa */
     if (!request) return;
 
     request.response = response;
@@ -180,13 +199,9 @@ export default class Network {
   // Called when a request streams events. These types of requests break asset discovery because
   // they never finish loading, so we untrack them to signal idle after the first event.
   _handleEventSourceMessageReceived = event => {
-    let { requestId } = event;
-    let request = this.#requests.get(requestId);
-    /* istanbul ignore next: race condition paranioa */
-    if (!request) return;
-
-    this.#requests.delete(requestId);
-    this.#authentications.delete(request.interceptId);
+    let request = this.#requests.get(event.requestId);
+    /* istanbul ignore else: race condition paranioa */
+    if (request) this._forgetRequest(request);
   }
 
   // Called when a request has finished loading which triggers the this.onrequestfinished
@@ -201,15 +216,14 @@ export default class Network {
       await this.onrequestfinished(request);
     }
 
-    this.#requests.delete(requestId);
-    this.#authentications.delete(request.interceptId);
+    this._forgetRequest(request);
   }
 
   // Called when a request has failed loading and triggers the this.onrequestfailed callback.
   _handleLoadingFailed = async event => {
     let { requestId, errorText } = event;
     let request = this.#requests.get(requestId);
-    /* istanbul ignore next: race condition paranioa */
+    /* istanbul ignore if: race condition paranioa */
     if (!request) return;
 
     if (this._intercept) {
@@ -217,7 +231,6 @@ export default class Network {
       await this.onrequestfailed(request);
     }
 
-    this.#requests.delete(requestId);
-    this.#authentications.delete(request.interceptId);
+    this._forgetRequest(request);
   }
 }
