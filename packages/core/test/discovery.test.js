@@ -122,6 +122,33 @@ describe('Discovery', () => {
     ]));
   });
 
+  it('captures stylesheet initiated fonts', async () => {
+    server.reply('/font.woff', () => [200, 'font/woff', 'font-content-here']);
+    server.reply('/style.css', () => [200, 'text/css', [
+      '@font-face { font-family: "test"; src: url("/font.woff") format("woff"); }',
+      'body { font-family: "test", "sans-serif"; }'
+    ].join('')]);
+
+    await percy.snapshot({
+      name: 'font snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    });
+
+    await percy.idle();
+    let paths = server.requests.map(r => r[0]);
+    expect(paths).toContain('/font.woff');
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        id: sha256hash('font-content-here'),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/font.woff'
+        })
+      })
+    ]));
+  });
+
   it('waits for async requests', async () => {
     server.reply('/img.gif', () => new Promise(resolve => {
       setTimeout(resolve, 500, [200, 'image/gif', pixel]);
