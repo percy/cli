@@ -1,4 +1,4 @@
-## @percy/config
+# @percy/config
 
 Handles loading and adding options to Percy configuration files. Uses
 [cosmiconfig](https://github.com/davidtheclark/cosmiconfig) to load configuration files and [JSON

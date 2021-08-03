@@ -1,4 +1,4 @@
-## @percy/cli-config
+# @percy/cli-config
 
 Uses [`@percy/config`](/packages/config) to add CLI commands for creating, validating, and updating
 Percy configuration files.
