@@ -1,6 +1,7 @@
 import Command, { flags } from '@percy/cli-command';
 import PercyClient from '@percy/client';
 import logger from '@percy/logger';
+import pkg from '../../../package.json';
 
 export class Finalize extends Command {
   static description = 'Finalize parallel Percy builds where PERCY_PARALLEL_TOTAL=-1';
@@ -26,7 +27,10 @@ export class Finalize extends Command {
       process.env.PERCY_PARALLEL_TOTAL = '-1';
     }
 
-    let client = new PercyClient();
+    let client = new PercyClient({
+      clientInfo: `${pkg.name}/${pkg.version}`,
+      environmentInfo: ''
+    });
 
     // ensure that this command is not used for other parallel totals
     if (client.env.parallel.total !== -1) {

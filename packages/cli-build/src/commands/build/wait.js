@@ -1,6 +1,7 @@
 import Command, { flags } from '@percy/cli-command';
 import PercyClient from '@percy/client';
 import logger from '@percy/logger';
+import pkg from '../../../package.json';
 
 export class Wait extends Command {
   static description = 'Wait for a build to be finished. Requires a full access PERCY_TOKEN';
@@ -56,10 +57,12 @@ export class Wait extends Command {
       return this.log.info('Percy is disabled');
     }
 
-    await new PercyClient()
-      .waitForBuild(this.flags, data => {
-        this.status(data);
-      });
+    await new PercyClient({
+      clientInfo: `${pkg.name}/${pkg.version}`,
+      environmentInfo: ''
+    }).waitForBuild(this.flags, data => {
+      this.status(data);
+    });
   }
 
   // Log build status and maybe exit when failed
