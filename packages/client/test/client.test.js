@@ -3,12 +3,15 @@ import { mockgit } from '@percy/env/test/helpers';
 import PercyClient from '../src';
 import { sha256hash, base64encode } from '../src/utils';
 import mockAPI from './helpers';
+import logger from '@percy/logger/test/helpers';
 
 describe('PercyClient', () => {
   let client;
 
   beforeEach(() => {
     mockAPI.start();
+    logger.mock();
+
     client = new PercyClient({
       token: 'PERCY_TOKEN'
     });
@@ -23,6 +26,8 @@ describe('PercyClient', () => {
       expect(client.userAgent()).toMatch(
         /^Percy\/v1 @percy\/client\/\S+ \(node\/v[\d.]+.*\)$/
       );
+      expect(logger.stderr)
+        .toEqual(['[percy] Warning: Missing `clientInfo` and/or `environmentInfo` properties']);
     });
 
     it('contains any additional client and environment information', () => {
@@ -35,6 +40,7 @@ describe('PercyClient', () => {
       expect(client.userAgent()).toMatch(
         /^Percy\/v1 @percy\/client\/\S+ client-info \(env-info; node\/v[\d.]+.*\)$/
       );
+      expect(logger.stderr).toEqual([]);
     });
 
     it('does not duplicate or include empty client and environment information', () => {
