@@ -556,6 +556,66 @@ describe('Discovery', () => {
     ]));
   });
 
+  describe('idle timeout', () => {
+    beforeEach(() => {
+      let start;
+
+      // a real timeout is only triggered after 30 seconds, so we sabatoge a property to throw a fake
+      // timeout error to make this test run much faster than it would otherwise
+      spyOn(require('../src/page').default.prototype, 'init')
+        .and.callFake(function(...a) {
+          Object.defineProperty(this, 'closedReason', {
+            configurable: true,
+            set: v => v,
+
+            get() {
+              let err = new Error('Timeout');
+              if (!err.stack.includes('/network.js')) return;
+              if (Date.now() - (start ||= Date.now()) > 200) throw err;
+            }
+          });
+
+          return this.init.and.originalFn.apply(this, a);
+        });
+
+      // some async request that takes a while
+      server.reply('/img.gif', () => new Promise(r => (
+        setTimeout(r, 3000, [200, 'image/gif', pixel]))));
+
+      server.reply('/', () => [200, 'text/html', (
+        testDOM.replace('<img', ('<img loading="lazy"')))]);
+    });
+
+    it('throws an error when requests fail to idle in time', async () => {
+      await percy.snapshot({
+        name: 'test idle',
+        url: 'http://localhost:8000'
+      });
+
+      expect(logger.stderr).toContain(
+        '[percy] Error: Timed out waiting for network requests to idle.'
+      );
+    });
+
+    it('shows debug info when requests fail to idle in time', async () => {
+      percy.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test idle',
+        url: 'http://localhost:8000'
+      });
+
+      expect(logger.stderr).toContain(jasmine.stringMatching([
+        '^\\[percy:core] Error: Timed out waiting for network requests to idle.',
+        '',
+        '  Active requests:',
+        '  -> http://localhost:8000/img.gif',
+        '',
+        '(?<stack>(.|\n)*)$'
+      ].join('\n')));
+    });
+  });
+
   describe('cookies', () => {
     let cookie;
 

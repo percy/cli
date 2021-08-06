@@ -6,6 +6,8 @@ import {
   createRequestFailedHandler
 } from './discovery';
 
+const NETWORK_TIMEOUT = 30000;
+
 // The Interceptor class creates common handlers for dealing with intercepting asset requests
 // for a given page using various devtools protocol events and commands.
 export default class Network {
@@ -47,19 +49,36 @@ export default class Network {
 
   // Resolves after the timeout when there are no more in-flight requests.
   async idle(filter = r => r, timeout = this.timeout || 100) {
+    let getRequests = () => Array.from(this.#requests.values())
+      .reduce((a, r) => filter(r) ? a.concat(r.url) : a, []);
+
     this.log.debug(`Wait for ${timeout}ms idle`, this.page.meta);
 
-    await waitFor(() => {
-      if (this.page.closedReason) {
-        throw new Error(`Network error: ${this.page.closedReason}`);
-      }
+    try {
+      await waitFor(() => {
+        if (this.page.closedReason) {
+          throw new Error(`Network error: ${this.page.closedReason}`);
+        }
 
-      return Array.from(this.#requests.values())
-        .filter(filter).length === 0;
-    }, {
-      timeout: 30 * 1000, // 30 second error timeout
-      idle: timeout
-    });
+        return getRequests().length === 0;
+      }, {
+        timeout: NETWORK_TIMEOUT,
+        idle: timeout
+      });
+    } catch (error) {
+      // throw a better timeout error
+      if (error.message.startsWith('Timeout')) {
+        let msg = 'Timed out waiting for network requests to idle.';
+
+        if (this.log.shouldLog('debug')) {
+          msg += `\n\n  ${['Active requests:', ...getRequests()].join('\n  -> ')}\n`;
+        }
+
+        throw new Error(msg);
+      } else {
+        throw error;
+      }
+    }
   }
 
   // Called when a request should be removed from various trackers
