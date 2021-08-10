@@ -45,8 +45,6 @@ export default class Page extends EventEmitter {
     authorization,
     userAgent,
     intercept,
-    height,
-    width,
     meta
   } = {}) {
     this.log.debug('Initialize page', meta);
@@ -71,8 +69,7 @@ export default class Page extends EventEmitter {
       this.send('Network.setExtraHTTPHeaders', { headers: requestHeaders }),
       this.send('Network.setUserAgentOverride', { userAgent }),
       this.send('Security.setIgnoreCertificateErrors', { ignore: true }),
-      this.send('Emulation.setScriptExecutionDisabled', { value: !enableJavaScript }),
-      this.resize({ width, height })
+      this.send('Emulation.setScriptExecutionDisabled', { value: !enableJavaScript })
     ]);
 
     if (intercept) {

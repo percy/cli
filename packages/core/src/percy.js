@@ -301,9 +301,6 @@ export default class Percy {
           userAgent: discovery.userAgent,
           meta,
 
-          // initial width
-          width: widths.shift(),
-
           // enable network inteception
           intercept: {
             disableCache: discovery.disableCache,
@@ -319,9 +316,19 @@ export default class Percy {
           }
         });
 
-        // navigate to the url and trigger resize events
+        // set the initial page size
+        await page.resize({
+          width: widths.shift(),
+          height: conf.minHeight
+        });
+
+        // navigate to the url
         await page.goto(url);
-        for (let width of widths) await page.resize({ width });
+
+        // trigger resize events for other widths
+        for (let width of widths) {
+          await page.resize({ width, height: conf.minHeight });
+        }
 
         // create and add a percy-css resource
         let percyCSS = createPercyCSSResource(url, conf.percyCSS);
