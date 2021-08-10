@@ -867,7 +867,7 @@ describe('Discovery', () => {
   });
 
   describe('with remote resources', () => {
-    let testExternalDOM = testDOM.replace('img.gif', 'http://test.localtest.me:8001/img.gif');
+    let testExternalDOM = testDOM.replace('img.gif', 'http://ex.localhost:8001/img.gif');
     let server2;
 
     beforeEach(async () => {
@@ -944,7 +944,7 @@ describe('Discovery', () => {
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
         discovery: {
-          allowedHostnames: ['*.localtest.me']
+          allowedHostnames: ['ex.localhost']
         }
       });
 
@@ -957,10 +957,10 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      expect(captured[0][3]).toEqual(
+      expect(captured[0]).toContain(
         jasmine.objectContaining({
           attributes: jasmine.objectContaining({
-            'resource-url': 'http://test.localtest.me:8001/img.gif'
+            'resource-url': 'http://ex.localhost:8001/img.gif'
           })
         })
       );
