@@ -183,7 +183,7 @@ describe('Unit / Install', () => {
       },
       darwinArm: {
         revision: install.chromium.revisions.darwinArm,
-        url: jasmine.stringMatching(`Mac/${install.chromium.revisions.darwinArm}/chrome-mac.zip`),
+        url: jasmine.stringMatching(`Mac_Arm/${install.chromium.revisions.darwinArm}/chrome-mac.zip`),
         return: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
         process: { platform: 'darwin', arch: 'arm64' }
       },
