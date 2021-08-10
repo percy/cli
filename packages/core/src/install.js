@@ -47,7 +47,9 @@ function formatProgress(prefix, total, start, progress) {
 // Returns an item from the map keyed by the current platform
 function selectByPlatform(map) {
   let { platform, arch } = process;
-  return map[platform === 'win32' && arch === 'x64' ? 'win64' : platform];
+  if (platform === 'win32' && arch === 'x64') platform = 'win64';
+  if (platform === 'darwin' && arch === 'arm64') platform = 'darwinArm';
+  return map[platform];
 }
 
 // Installs a revision of Chromium to a local directory
@@ -63,6 +65,7 @@ function installChromium({
     selectByPlatform({
       linux: `Linux_x64/${revision}/chrome-linux.zip`,
       darwin: `Mac/${revision}/chrome-mac.zip`,
+      darwinArm: `Mac_Arm/${revision}/chrome-mac.zip`,
       win64: `Win_x64/${revision}/chrome-win.zip`,
       win32: `Win/${revision}/chrome-win.zip`
     });
@@ -71,7 +74,8 @@ function installChromium({
     linux: path.join('chrome-linux', 'chrome'),
     win64: path.join('chrome-win', 'chrome.exe'),
     win32: path.join('chrome-win', 'chrome.exe'),
-    darwin: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')
+    darwin: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
+    darwinArm: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')
   });
 
   return install({
@@ -89,7 +93,8 @@ installChromium.revisions = {
   linux: '885264',
   win64: '885282',
   win32: '885263',
-  darwin: '885263'
+  darwin: '885263',
+  darwinArm: '885282'
 };
 
 // Installs an executable from a url to a local directory, returning the full path to the extracted

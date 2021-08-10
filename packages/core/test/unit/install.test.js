@@ -172,27 +172,37 @@ describe('Unit / Install', () => {
       linux: {
         revision: install.chromium.revisions.linux,
         url: jasmine.stringMatching(`Linux_x64/${install.chromium.revisions.linux}/chrome-linux.zip`),
-        return: path.join('chrome-linux', 'chrome')
+        return: path.join('chrome-linux', 'chrome'),
+        process: { platform: 'linux', arch: 'x64' }
       },
       darwin: {
         revision: install.chromium.revisions.darwin,
         url: jasmine.stringMatching(`Mac/${install.chromium.revisions.darwin}/chrome-mac.zip`),
-        return: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')
+        return: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
+        process: { platform: 'darwin', arch: 'x64' }
+      },
+      darwinArm: {
+        revision: install.chromium.revisions.darwinArm,
+        url: jasmine.stringMatching(`Mac_Arm/${install.chromium.revisions.darwinArm}/chrome-mac.zip`),
+        return: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
+        process: { platform: 'darwin', arch: 'arm64' }
       },
       win64: {
         revision: install.chromium.revisions.win64,
         url: jasmine.stringMatching(`Win_x64/${install.chromium.revisions.win64}/chrome-win.zip`),
-        return: path.join('chrome-win', 'chrome.exe')
+        return: path.join('chrome-win', 'chrome.exe'),
+        process: { platform: 'win32', arch: 'x64' }
       },
       win32: {
         revision: install.chromium.revisions.win32,
         url: jasmine.stringMatching(`Win/${install.chromium.revisions.win32}/chrome-win.zip`),
-        return: path.join('chrome-win', 'chrome.exe')
+        return: path.join('chrome-win', 'chrome.exe'),
+        process: { platform: 'win32', arch: 'x32' }
       }
     })) {
       it(`downloads the correct files for ${platform}`, async () => {
-        spyOnProperty(process, 'platform').and.returnValue(platform === 'win64' ? 'win32' : platform);
-        spyOnProperty(process, 'arch').and.returnValue(platform === 'win32' ? 'x32' : 'x64');
+        spyOnProperty(process, 'platform').and.returnValue(expected.process.platform);
+        spyOnProperty(process, 'arch').and.returnValue(expected.process.arch);
 
         await expectAsync(install.chromium()).toBeResolvedTo(
           jasmine.stringMatching(expected.return.replace(/[.\\]/g, '\\$&'))
