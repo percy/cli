@@ -965,6 +965,24 @@ describe('Discovery', () => {
         })
       );
     });
+
+    it('does not hang waiting for embedded isolated pages', async () => {
+      server.reply('/', () => [200, {
+        'Content-Type': 'text/html',
+        'Origin-Agent-Cluster': '?1' // force page isolation
+      }, testDOM]);
+
+      server2.reply('/', () => [200, 'text/html', [
+        '<iframe src="http://embed.localhost:8000"></iframe>'
+      ].join('\n')]);
+
+      await percy.snapshot({
+        name: 'test cors',
+        url: 'http://test.localhost:8001'
+      });
+
+      await expectAsync(percy.idle()).toBeResolved();
+    });
   });
 
   describe('with launch options', () => {

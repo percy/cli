@@ -15,6 +15,7 @@ export default class Network {
   #requests = new Map();
   #intercepts = new Map();
   #authentications = new Set();
+  #frames = new Map();
 
   log = logger('core:network');
 
@@ -27,6 +28,7 @@ export default class Network {
     this.page.on('Network.eventSourceMessageReceived', this._handleEventSourceMessageReceived);
     this.page.on('Network.loadingFinished', this._handleLoadingFinished);
     this.page.on('Network.loadingFailed', this._handleLoadingFailed);
+    this.page.on('Page.frameDetached', this._handleFrameDetached);
 
     /* istanbul ignore next: race condition */
     this.page.send('Network.enable')
@@ -82,9 +84,10 @@ export default class Network {
   }
 
   // Called when a request should be removed from various trackers
-  _forgetRequest({ requestId, interceptId }, keepPending) {
+  _forgetRequest({ requestId, interceptId, frameId }, keepPending) {
     this.#requests.delete(requestId);
     this.#authentications.delete(interceptId);
+    this.#frames.delete(frameId);
 
     if (!keepPending) {
       this.#pending.delete(requestId);
@@ -156,7 +159,7 @@ export default class Network {
   // responses and calls this.onrequest with request info and callbacks to continue, respond,
   // or abort a request. One of the callbacks is required to be called and only one.
   _handleRequest = async (event, interceptId) => {
-    let { requestId, request } = event;
+    let { frameId, requestId, request } = event;
     let redirectChain = [];
 
     // if handling a redirected request, associate the response and add to its redirect chain
@@ -168,6 +171,7 @@ export default class Network {
       this._forgetRequest(req, true);
     }
 
+    request.frameId = frameId;
     request.requestId = requestId;
     request.interceptId = interceptId;
     request.redirectChain = redirectChain;
@@ -213,6 +217,10 @@ export default class Network {
       let { body, base64Encoded } = await this.page.send('Network.getResponseBody', { requestId });
       return Buffer.from(body, base64Encoded ? 'base64' : 'utf8');
     };
+
+    if (request.frameId !== this.page.frameId) {
+      this.#frames.set(request.frameId, request);
+    }
   }
 
   // Called when a request streams events. These types of requests break asset discovery because
@@ -226,8 +234,7 @@ export default class Network {
   // Called when a request has finished loading which triggers the this.onrequestfinished
   // callback. The request should have an associated response and be finished with any redirects.
   _handleLoadingFinished = async event => {
-    let { requestId } = event;
-    let request = this.#requests.get(requestId);
+    let request = this.#requests.get(event.requestId);
     /* istanbul ignore next: race condition paranioa */
     if (!request) return;
 
@@ -240,14 +247,27 @@ export default class Network {
 
   // Called when a request has failed loading and triggers the this.onrequestfailed callback.
   _handleLoadingFailed = async event => {
-    let { requestId, errorText } = event;
-    let request = this.#requests.get(requestId);
+    let request = this.#requests.get(event.requestId);
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
 
     if (this._intercept) {
-      request.error = errorText;
+      request.error = event.errorText;
       await this.onrequestfailed(request);
+    }
+
+    this._forgetRequest(request);
+  }
+
+  // Called after a frame detaches from the main frame. It's likely that the frame created its own
+  // process before the request finish event had a chance to be triggered.
+  _handleFrameDetached = async event => {
+    let request = this.#frames.get(event.frameId);
+    /* istanbul ignore next: race condition paranioa */
+    if (!request) return;
+
+    if (this._intercept) {
+      await this.onrequestfinished(request);
     }
 
     this._forgetRequest(request);
