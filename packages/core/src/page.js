@@ -20,7 +20,7 @@ export default class Page extends EventEmitter {
   closedReason = null;
   log = logger('core:page');
 
-  constructor(browser, { params }) {
+  constructor(browser, { params, sessionId: parentId }) {
     super();
 
     this.#browser = browser;
@@ -34,19 +34,27 @@ export default class Page extends EventEmitter {
     this.on('Runtime.executionContextDestroyed', this._handleExecutionContextDestroyed);
     this.on('Runtime.executionContextsCleared', this._handleExecutionContextsCleared);
     this.on('Inspector.targetCrashed', this._handleTargetCrashed);
+
+    // if there is a parent session, automatically init this session
+    this.parent = browser.pages.get(parentId);
+    if (this.parent) this.init(this.parent.options);
   }
 
   // initial page options asynchronously
-  async init({
-    cacheDisabled = true,
-    enableJavaScript = true,
-    requestHeaders = {},
-    networkIdleTimeout,
-    authorization,
-    userAgent,
-    intercept,
-    meta
-  } = {}) {
+  async init(options = {}) {
+    this.options = options;
+
+    let {
+      cacheDisabled = true,
+      enableJavaScript = true,
+      requestHeaders = {},
+      networkIdleTimeout,
+      authorization,
+      userAgent,
+      intercept,
+      meta
+    } = options;
+
     this.log.debug('Initialize page', meta);
     this.network.timeout = networkIdleTimeout;
     this.network.authorization = authorization;
@@ -62,8 +70,16 @@ export default class Page extends EventEmitter {
     // by default, emulate a non-headless browser
     userAgent ||= version.userAgent.replace('Headless', '');
 
+    // auto-attach related targets
+    let autoAttachTarget = {
+      waitForDebuggerOnStart: false,
+      autoAttach: true,
+      flatten: true
+    };
+
     await Promise.all([
       this.send('Runtime.enable'),
+      this.send('Target.setAutoAttach', autoAttachTarget),
       this.send('Page.setLifecycleEventsEnabled', { enabled: true }),
       this.send('Network.setCacheDisabled', { cacheDisabled }),
       this.send('Network.setExtraHTTPHeaders', { headers: requestHeaders }),
