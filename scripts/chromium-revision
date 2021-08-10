@@ -34,6 +34,7 @@ const GH_HEADERS = {
 const G_STORAGE_API_URL = 'https://www.googleapis.com/storage/v1/b/chromium-browser-snapshots/o';
 const G_STORAGE_PREFIXES = {
   darwin: 'Mac',
+  darwinArm: 'Mac_Arm',
   linux: 'Linux_x64',
   win64: 'Win_x64',
   win32: 'Win'
@@ -95,7 +96,7 @@ async function printVersionRevisions(version) {
   // 50 revisions (not all platforms release at the same time)
   let revisions = await task({
     state: () => ({
-      platforms: ['linux', 'win64', 'win32', 'darwin'],
+      platforms: ['linux', 'win64', 'win32', 'darwin', 'darwinArm'],
       range: [revision - 50, revision],
       value: {}
     }),
@@ -105,8 +106,9 @@ async function printVersionRevisions(version) {
     async function(state) {
       let platform = state.platforms[state.i - 1];
       if (!platform) return state.value;
+      let rev = state.range[1];
 
-      for (let rev = state.range[1]; rev >= state.range[0]; rev--) {
+      for (; rev >= state.range[0]; rev--) {
         // query google's storage api for the platform revision
         let { items } = await request((
           `${G_STORAGE_API_URL}?fields=items(name,metadata)&` +

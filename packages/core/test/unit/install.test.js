@@ -179,6 +179,11 @@ describe('Unit / Install', () => {
         url: jasmine.stringMatching(`Mac/${install.chromium.revisions.darwin}/chrome-mac.zip`),
         return: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')
       },
+      darwinArm: {
+        revision: install.chromium.revisions.darwinArm,
+        url: jasmine.stringMatching(`Mac/${install.chromium.revisions.darwinArm}/chrome-mac.zip`),
+        return: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')
+      },
       win64: {
         revision: install.chromium.revisions.win64,
         url: jasmine.stringMatching(`Win_x64/${install.chromium.revisions.win64}/chrome-win.zip`),
