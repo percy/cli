@@ -19,6 +19,7 @@ export default class Browser extends EventEmitter {
 
   defaultArgs = [
     '--enable-features=NetworkService,NetworkServiceInProcess',
+    '--disable-features=Translate',
     '--disable-background-networking',
     '--disable-background-timer-throttling',
     '--disable-backgrounding-occluded-windows',
@@ -28,7 +29,6 @@ export default class Browser extends EventEmitter {
     '--disable-default-apps',
     '--disable-dev-shm-usage',
     '--disable-extensions',
-    '--disable-features=TranslateUI',
     '--disable-hang-monitor',
     '--disable-ipc-flooding-protection',
     '--disable-popup-blocking',
