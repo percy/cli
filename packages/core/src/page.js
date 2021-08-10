@@ -107,8 +107,8 @@ export default class Page extends EventEmitter {
   async resize({
     deviceScaleFactor = 1,
     mobile = false,
-    height = 1024,
-    width = 1280
+    height,
+    width
   }) {
     this.log.debug(`Resize page to ${width}x${height}`);
 

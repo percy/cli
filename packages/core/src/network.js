@@ -235,7 +235,7 @@ export default class Network {
   // callback. The request should have an associated response and be finished with any redirects.
   _handleLoadingFinished = async event => {
     let request = this.#requests.get(event.requestId);
-    /* istanbul ignore next: race condition paranioa */
+    /* istanbul ignore if: race condition paranioa */
     if (!request) return;
 
     if (this._intercept) {
@@ -263,9 +263,10 @@ export default class Network {
   // process before the request finish event had a chance to be triggered.
   _handleFrameDetached = async event => {
     let request = this.#frames.get(event.frameId);
-    /* istanbul ignore next: race condition paranioa */
+    /* istanbul ignore if: race condition paranioa */
     if (!request) return;
 
+    /* istanbul ignore else: could be false when a page is used without asset discovery */
     if (this._intercept) {
       await this.onrequestfinished(request);
     }
