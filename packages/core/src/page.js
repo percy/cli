@@ -8,11 +8,11 @@ import { hostname, waitFor } from './utils';
 const PAGE_TIMEOUT = 30000;
 
 export default class Page extends EventEmitter {
-  #browser = null;
-  #sessionId = null;
-  #targetId = null;
-  #frameId = null;
-  #contextId = null;
+  browser = null;
+  sessionId = null;
+  targetId = null;
+  frameId = null;
+  contextId = null;
 
   #callbacks = new Map();
   #lifecycle = new Set();
@@ -23,9 +23,9 @@ export default class Page extends EventEmitter {
   constructor(browser, { params, sessionId: parentId }) {
     super();
 
-    this.#browser = browser;
-    this.#sessionId = params.sessionId;
-    this.#targetId = params.targetInfo.targetId;
+    this.browser = browser;
+    this.sessionId = params.sessionId;
+    this.targetId = params.targetInfo.targetId;
 
     this.network = new Network(this);
 
@@ -66,7 +66,7 @@ export default class Page extends EventEmitter {
       this.send('Browser.getVersion')
     ]);
 
-    this.#frameId = frameTree.frame.id;
+    this.frameId = frameTree.frame.id;
     // by default, emulate a non-headless browser
     userAgent ||= version.userAgent.replace('Headless', '');
 
@@ -97,10 +97,10 @@ export default class Page extends EventEmitter {
 
   // Close the target page if not already closed
   async close() {
-    if (!this.#browser) return;
+    if (!this.browser) return;
 
     /* istanbul ignore next: errors race here when the browser closes */
-    await this.#browser.send('Target.closeTarget', { targetId: this.#targetId })
+    await this.browser.send('Target.closeTarget', { targetId: this.targetId })
       .catch(error => this.log.debug(error, this.meta));
   }
 
@@ -124,16 +124,16 @@ export default class Page extends EventEmitter {
   async goto(url, { waitUntil = 'load' } = {}) {
     let handleNavigate = event => {
       /* istanbul ignore else: sanity check */
-      if (this.#frameId === event.frame.id) handleNavigate.done = true;
+      if (this.frameId === event.frame.id) handleNavigate.done = true;
     };
 
     // set cookies before navigation so we can default the domain to this hostname
-    if (this.#browser.cookies.length) {
+    if (this.browser.cookies.length) {
       let defaultDomain = hostname(url);
 
       await this.send('Network.setCookies', {
         // spread is used to make a shallow copy of the cookie
-        cookies: this.#browser.cookies.map(({ ...cookie }) => {
+        cookies: this.browser.cookies.map(({ ...cookie }) => {
           if (!cookie.url) cookie.domain ||= defaultDomain;
           return cookie;
         })
@@ -194,7 +194,7 @@ export default class Page extends EventEmitter {
     let { result, exceptionDetails } = await this.send('Runtime.callFunctionOn', {
       functionDeclaration: fnbody,
       arguments: args.map(value => ({ value })),
-      executionContextId: this.#contextId,
+      executionContextId: this.contextId,
       returnByValue: true,
       awaitPromise: true,
       userGesture: true
@@ -274,7 +274,7 @@ export default class Page extends EventEmitter {
     }
 
     // send a raw message to the browser so we can provide a sessionId
-    let id = await this.#browser.send({ sessionId: this.#sessionId, method, params });
+    let id = await this.browser.send({ sessionId: this.sessionId, method, params });
 
     // return a promise that will resolve or reject when a response is received
     return new Promise((resolve, reject) => {
@@ -315,31 +315,31 @@ export default class Page extends EventEmitter {
     }
 
     this.#callbacks.clear();
-    this.#browser = null;
+    this.browser = null;
   }
 
   _handleLifecycleEvent = event => {
-    if (this.#frameId === event.frameId) {
+    if (this.frameId === event.frameId) {
       if (event.name === 'init') this.#lifecycle.clear();
       this.#lifecycle.add(event.name);
     }
   }
 
   _handleExecutionContextCreated = event => {
-    if (this.#frameId === event.context.auxData.frameId) {
-      this.#contextId = event.context.id;
+    if (this.frameId === event.context.auxData.frameId) {
+      this.contextId = event.context.id;
     }
   }
 
   _handleExecutionContextDestroyed = event => {
     /* istanbul ignore next: context cleared is usually called first */
-    if (this.#contextId === event.executionContextId) {
-      this.#contextId = null;
+    if (this.contextId === event.executionContextId) {
+      this.contextId = null;
     }
   }
 
   _handleExecutionContextsCleared = () => {
-    this.#contextId = null;
+    this.contextId = null;
   }
 
   _handleTargetCrashed = () => {
