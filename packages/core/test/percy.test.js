@@ -207,6 +207,26 @@ describe('Percy', () => {
       expect(mockAPI.requests['/builds']).toBeDefined();
     });
 
+    it('does not create a build when uploads are skipped', async () => {
+      percy = new Percy({ token: 'PERCY_TOKEN', skipUploads: true });
+      await expectAsync(percy.start()).toBeResolved();
+      expect(mockAPI.requests['/builds']).toBeUndefined();
+
+      // attempt to dispatch differed uploads
+      await percy.dispatch();
+
+      expect(mockAPI.requests['/builds']).toBeUndefined();
+
+      // stopping should also skip uploads
+      await percy.stop();
+
+      expect(mockAPI.requests['/builds']).toBeUndefined();
+
+      expect(logger.stderr).toEqual([
+        '[percy] Build not created'
+      ]);
+    });
+
     it('stops accepting snapshots when a queued build fails to be created', async () => {
       server = await createTestServer({
         default: () => [200, 'text/html', '<p>Snapshot</p>']

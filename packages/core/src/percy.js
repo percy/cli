@@ -36,8 +36,10 @@ export default class Percy {
   constructor({
     // initial log level
     loglevel,
-    // upload snapshots eagerly by default
-    deferUploads = false,
+    // do not eagerly upload snapshots
+    deferUploads,
+    // run without uploading anything
+    skipUploads,
     // configuration filepath
     config,
     // provided to @percy/client
@@ -52,7 +54,8 @@ export default class Percy {
     ...options
   } = {}) {
     if (loglevel) this.loglevel(loglevel);
-    this.deferUploads = deferUploads;
+    this.deferUploads = skipUploads || deferUploads;
+    this.skipUploads = skipUploads;
 
     this.config = PercyConfig.load({
       overrides: options,
@@ -99,7 +102,7 @@ export default class Percy {
   // Waits for snapshot idle and flushes the upload queue
   async dispatch() {
     await this.#snapshots.idle();
-    await this.#uploads.flush();
+    if (!this.skipUploads) await this.#uploads.flush();
   }
 
   // Immediately stops all queues, preventing any more tasks from running
@@ -111,9 +114,6 @@ export default class Percy {
   // Starts a local API server, a browser process, and queues creating a new Percy build which will run
   // at a later time when uploads are deferred, or run immediately when not deferred.
   async start() {
-    // throws when the token is missing
-    this.client.getToken();
-
     // already starting or started
     if (this.readyState != null) return;
     this.readyState = 0;
@@ -194,7 +194,7 @@ export default class Percy {
     }
 
     // run, close, and wait for the upload queue to empty
-    if (this.#uploads.run().close().length) {
+    if (!this.skipUploads && this.#uploads.run().close().length) {
       await this.#uploads.empty(len => {
         this.log.progress(`Uploading ${len}` + (
           ` snapshot${len !== 1 ? 's' : ''}...`), !!len);
