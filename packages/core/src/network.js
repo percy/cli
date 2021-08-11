@@ -120,15 +120,12 @@ export default class Network {
   _handleRequestPaused = event => {
     let { networkId: requestId } = event;
     let pending = this.#pending.get(requestId);
+    this.#pending.delete(requestId);
 
     // guard against redirects with the same requestId
     if (pending?.request.url === event.request.url &&
         pending.request.method === event.request.method) {
       this._handleRequest(pending, event.requestId);
-    }
-
-    if (pending) {
-      this.#pending.delete(requestId);
     } else {
       this.#intercepts.set(requestId, event);
     }
@@ -165,7 +162,6 @@ export default class Network {
     // if handling a redirected request, associate the response and add to its redirect chain
     if (event.redirectResponse && this.#requests.has(requestId)) {
       let req = this.#requests.get(requestId);
-      req.response = event.redirectResponse;
       redirectChain = [...req.redirectChain, req];
       // clean up interim requests
       this._forgetRequest(req, true);

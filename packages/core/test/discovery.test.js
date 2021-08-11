@@ -41,7 +41,8 @@ describe('Discovery', () => {
     server = await createTestServer({
       '/': () => [200, 'text/html', testDOM],
       '/style.css': () => [200, 'text/css', testCSS],
-      '/img.gif': () => [200, 'image/gif', pixel]
+      '/img.gif': () => [200, 'image/gif', pixel],
+      '/font.woff': () => [200, 'font/woff', '<font>']
     });
 
     percy = await Percy.start({
@@ -98,32 +99,7 @@ describe('Discovery', () => {
     ]);
   });
 
-  it('follows redirects', async () => {
-    server.reply('/stylesheet.css', () => [301, { Location: '/style.css' }]);
-
-    await percy.snapshot({
-      name: 'test snapshot',
-      url: 'http://localhost:8000',
-      domSnapshot: testDOM.replace('style.css', 'stylesheet.css')
-    });
-
-    await percy.idle();
-    let paths = server.requests.map(r => r[0]);
-    expect(paths).toContain('/stylesheet.css');
-    expect(paths).toContain('/style.css');
-
-    expect(captured[0]).toEqual(jasmine.arrayContaining([
-      jasmine.objectContaining({
-        id: sha256hash(testCSS),
-        attributes: jasmine.objectContaining({
-          'resource-url': 'http://localhost:8000/stylesheet.css'
-        })
-      })
-    ]));
-  });
-
   it('captures stylesheet initiated fonts', async () => {
-    server.reply('/font.woff', () => [200, 'font/woff', 'font-content-here']);
     server.reply('/style.css', () => [200, 'text/css', [
       '@font-face { font-family: "test"; src: url("/font.woff") format("woff"); }',
       'body { font-family: "test", "sans-serif"; }'
@@ -141,9 +117,51 @@ describe('Discovery', () => {
 
     expect(captured[0]).toEqual(jasmine.arrayContaining([
       jasmine.objectContaining({
-        id: sha256hash('font-content-here'),
+        id: sha256hash('<font>'),
         attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/font.woff'
+        })
+      })
+    ]));
+  });
+
+  it('captures redirected resources', async () => {
+    let stylesheet = [
+      '@font-face { font-family: "test"; src: url("/font-file.woff") format("woff"); }',
+      'body { font-family: "test", "sans-serif"; }'
+    ].join('');
+
+    server.reply('/style.css', () => [200, 'text/css', stylesheet]);
+    server.reply('/stylesheet.css', () => [301, { Location: '/style.css' }]);
+    server.reply('/font-file.woff', () => [301, { Location: '/font.woff' }]);
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'stylesheet.css')
+    });
+
+    await percy.idle();
+
+    expect(server.requests.map(r => r[0]))
+      .toEqual(jasmine.arrayContaining([
+        '/stylesheet.css',
+        '/style.css',
+        '/font-file.woff',
+        '/font.woff'
+      ]));
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        id: sha256hash(stylesheet),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/stylesheet.css'
+        })
+      }),
+      jasmine.objectContaining({
+        id: sha256hash('<font>'),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/font-file.woff'
         })
       })
     ]));
@@ -398,7 +416,7 @@ describe('Discovery', () => {
     await percy.idle();
 
     let paths = server.requests.map(r => r[0]);
-    expect(paths.sort()).not.toContain('/javascript.js');
+    expect(paths).not.toContain('/javascript.js');
 
     expect(captured[0]).toEqual([
       jasmine.objectContaining({
