@@ -118,33 +118,32 @@ export default class Percy {
     if (this.readyState != null) return;
     this.readyState = 0;
 
-    try {
-      // create a percy build as the first immediately queued task
-      let buildTask = this.#uploads.push('build/create', () => {
-        // pause other queued tasks until after the build is created
-        this.#uploads.stop();
+    // create a percy build as the first immediately queued task
+    let buildTask = this.#uploads.push('build/create', () => {
+      // pause other queued tasks until after the build is created
+      this.#uploads.stop();
 
-        return this.client.createBuild()
-          .then(({ data: { id, attributes } }) => {
-            this.build = { id };
-            this.build.number = attributes['build-number'];
-            this.build.url = attributes['web-url'];
-            this.#uploads.run();
-          });
-      }, 0);
-
-      if (!this.deferUploads) {
-        // when not deferred, wait until the build is created
-        await buildTask;
-      } else {
-        // handle deferred build errors
-        buildTask.catch(err => {
-          this.log.error('Failed to create build');
-          this.log.error(err);
-          this.close();
+      return this.client.createBuild()
+        .then(({ data: { id, attributes } }) => {
+          this.build = { id };
+          this.build.number = attributes['build-number'];
+          this.build.url = attributes['web-url'];
+          this.#uploads.run();
         });
-      }
+    }, 0);
 
+    // handle deferred build errors
+    if (this.deferUploads) {
+      buildTask.catch(err => {
+        this.log.error('Failed to create build');
+        this.log.error(err);
+        this.close();
+      });
+    }
+
+    try {
+      // when not deferred, wait until the build is created first
+      if (!this.deferUploads) await buildTask;
       // launch the discovery browser
       await this.browser.launch(this.config.discovery.launchOptions);
       // if there is a server, start listening
