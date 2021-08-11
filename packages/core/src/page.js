@@ -8,47 +8,50 @@ import { hostname, waitFor } from './utils';
 const PAGE_TIMEOUT = 30000;
 
 export default class Page extends EventEmitter {
-  #browser = null;
-  #sessionId = null;
-  #targetId = null;
-  #frameId = null;
-  #contextId = null;
-
   #callbacks = new Map();
-  #lifecycle = new Set();
 
+  browser = null;
+  sessionId = null;
+  targetId = null;
+  frameId = null;
+  contextId = null;
   closedReason = null;
   log = logger('core:page');
 
-  constructor(browser, { params }) {
+  constructor(browser, { params, sessionId: parentId }) {
     super();
 
-    this.#browser = browser;
-    this.#sessionId = params.sessionId;
-    this.#targetId = params.targetInfo.targetId;
+    this.browser = browser;
+    this.sessionId = params.sessionId;
+    this.targetId = params.targetInfo.targetId;
 
     this.network = new Network(this);
 
-    this.on('Page.lifecycleEvent', this._handleLifecycleEvent);
     this.on('Runtime.executionContextCreated', this._handleExecutionContextCreated);
     this.on('Runtime.executionContextDestroyed', this._handleExecutionContextDestroyed);
     this.on('Runtime.executionContextsCleared', this._handleExecutionContextsCleared);
     this.on('Inspector.targetCrashed', this._handleTargetCrashed);
+
+    // if there is a parent session, automatically init this session
+    this.parent = browser.pages.get(parentId);
+    if (this.parent) this.init(this.parent.options);
   }
 
   // initial page options asynchronously
-  async init({
-    cacheDisabled = true,
-    enableJavaScript = true,
-    requestHeaders = {},
-    networkIdleTimeout,
-    authorization,
-    userAgent,
-    intercept,
-    height,
-    width,
-    meta
-  } = {}) {
+  async init(options = {}) {
+    this.options = options;
+
+    let {
+      cacheDisabled = true,
+      enableJavaScript = true,
+      requestHeaders = {},
+      networkIdleTimeout,
+      authorization,
+      userAgent,
+      intercept,
+      meta
+    } = options;
+
     this.log.debug('Initialize page', meta);
     this.network.timeout = networkIdleTimeout;
     this.network.authorization = authorization;
@@ -60,19 +63,26 @@ export default class Page extends EventEmitter {
       this.send('Browser.getVersion')
     ]);
 
-    this.#frameId = frameTree.frame.id;
+    this.frameId = frameTree.frame.id;
     // by default, emulate a non-headless browser
     userAgent ||= version.userAgent.replace('Headless', '');
 
+    // auto-attach related targets
+    let autoAttachTarget = {
+      waitForDebuggerOnStart: false,
+      autoAttach: true,
+      flatten: true
+    };
+
     await Promise.all([
       this.send('Runtime.enable'),
+      this.send('Target.setAutoAttach', autoAttachTarget),
       this.send('Page.setLifecycleEventsEnabled', { enabled: true }),
       this.send('Network.setCacheDisabled', { cacheDisabled }),
       this.send('Network.setExtraHTTPHeaders', { headers: requestHeaders }),
       this.send('Network.setUserAgentOverride', { userAgent }),
       this.send('Security.setIgnoreCertificateErrors', { ignore: true }),
-      this.send('Emulation.setScriptExecutionDisabled', { value: !enableJavaScript }),
-      this.resize({ width, height })
+      this.send('Emulation.setScriptExecutionDisabled', { value: !enableJavaScript })
     ]);
 
     if (intercept) {
@@ -84,18 +94,18 @@ export default class Page extends EventEmitter {
 
   // Close the target page if not already closed
   async close() {
-    if (!this.#browser) return;
+    if (!this.browser) return;
 
     /* istanbul ignore next: errors race here when the browser closes */
-    await this.#browser.send('Target.closeTarget', { targetId: this.#targetId })
+    await this.browser.send('Target.closeTarget', { targetId: this.targetId })
       .catch(error => this.log.debug(error, this.meta));
   }
 
   async resize({
     deviceScaleFactor = 1,
     mobile = false,
-    height = 1024,
-    width = 1280
+    height,
+    width
   }) {
     this.log.debug(`Resize page to ${width}x${height}`);
 
@@ -109,41 +119,47 @@ export default class Page extends EventEmitter {
 
   // Go to a URL and wait for navigation to occur
   async goto(url, { waitUntil = 'load' } = {}) {
-    let handleNavigate = event => {
-      /* istanbul ignore else: sanity check */
-      if (this.#frameId === event.frame.id) handleNavigate.done = true;
+    this.log.debug(`Navigate to: ${url}`, this.meta);
+
+    let navigate = async () => {
+      // set cookies before navigation so we can default the domain to this hostname
+      if (this.browser.cookies.length) {
+        let defaultDomain = hostname(url);
+
+        await this.send('Network.setCookies', {
+          // spread is used to make a shallow copy of the cookie
+          cookies: this.browser.cookies.map(({ ...cookie }) => {
+            if (!cookie.url) cookie.domain ||= defaultDomain;
+            return cookie;
+          })
+        });
+      }
+
+      // handle navigation errors
+      let res = await this.send('Page.navigate', { url });
+      if (res.errorText) throw new Error(res.errorText);
     };
 
-    // set cookies before navigation so we can default the domain to this hostname
-    if (this.#browser.cookies.length) {
-      let defaultDomain = hostname(url);
-
-      await this.send('Network.setCookies', {
-        // spread is used to make a shallow copy of the cookie
-        cookies: this.#browser.cookies.map(({ ...cookie }) => {
-          if (!cookie.url) cookie.domain ||= defaultDomain;
-          return cookie;
-        })
-      });
-    }
+    let handlers = [
+      // wait until navigation and the correct lifecycle
+      ['Page.frameNavigated', e => this.frameId === e.frame.id],
+      ['Page.lifecycleEvent', e => this.frameId === e.frameId && e.name === waitUntil]
+    ].map(([name, cond]) => {
+      let handler = e => cond(e) && (handler.finished = true) && handler.off();
+      handler.off = () => this.off(name, handler);
+      this.on(name, handler);
+      return handler;
+    });
 
     try {
-      this.once('Page.frameNavigated', handleNavigate);
-      this.log.debug(`Navigate to: ${url}`, this.meta);
-
-      // trigger navigation and handle error responses
-      let navigate = this.send('Page.navigate', { url })
-        .then(({ errorText }) => {
-          if (errorText) throw new Error(errorText);
-        });
-
-      // wait until navigation was handled and the correct lifecycle happened
-      await Promise.all([navigate, waitFor(() => {
+      // trigger navigation and poll for handlers to have finished
+      await Promise.all([navigate(), waitFor(() => {
         if (this.closedReason) throw new Error(this.closedReason);
-        return handleNavigate.done && this.#lifecycle.has(waitUntil);
+        return handlers.every(handler => handler.finished);
       }, PAGE_TIMEOUT)]);
     } catch (error) {
-      this.off('Page.frameNavigated', handleNavigate);
+      // remove handlers and modify the error message
+      for (let handler of handlers) handler.off();
 
       throw Object.assign(error, {
         message: `Navigation failed: ${error.message}`
@@ -181,7 +197,7 @@ export default class Page extends EventEmitter {
     let { result, exceptionDetails } = await this.send('Runtime.callFunctionOn', {
       functionDeclaration: fnbody,
       arguments: args.map(value => ({ value })),
-      executionContextId: this.#contextId,
+      executionContextId: this.contextId,
       returnByValue: true,
       awaitPromise: true,
       userGesture: true
@@ -261,7 +277,7 @@ export default class Page extends EventEmitter {
     }
 
     // send a raw message to the browser so we can provide a sessionId
-    let id = await this.#browser.send({ sessionId: this.#sessionId, method, params });
+    let id = await this.browser.send({ sessionId: this.sessionId, method, params });
 
     // return a promise that will resolve or reject when a response is received
     return new Promise((resolve, reject) => {
@@ -302,31 +318,24 @@ export default class Page extends EventEmitter {
     }
 
     this.#callbacks.clear();
-    this.#browser = null;
-  }
-
-  _handleLifecycleEvent = event => {
-    if (this.#frameId === event.frameId) {
-      if (event.name === 'init') this.#lifecycle.clear();
-      this.#lifecycle.add(event.name);
-    }
+    this.browser = null;
   }
 
   _handleExecutionContextCreated = event => {
-    if (this.#frameId === event.context.auxData.frameId) {
-      this.#contextId = event.context.id;
+    if (this.frameId === event.context.auxData.frameId) {
+      this.contextId = event.context.id;
     }
   }
 
   _handleExecutionContextDestroyed = event => {
     /* istanbul ignore next: context cleared is usually called first */
-    if (this.#contextId === event.executionContextId) {
-      this.#contextId = null;
+    if (this.contextId === event.executionContextId) {
+      this.contextId = null;
     }
   }
 
   _handleExecutionContextsCleared = () => {
-    this.#contextId = null;
+    this.contextId = null;
   }
 
   _handleTargetCrashed = () => {

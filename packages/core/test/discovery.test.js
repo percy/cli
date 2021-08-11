@@ -41,7 +41,8 @@ describe('Discovery', () => {
     server = await createTestServer({
       '/': () => [200, 'text/html', testDOM],
       '/style.css': () => [200, 'text/css', testCSS],
-      '/img.gif': () => [200, 'image/gif', pixel]
+      '/img.gif': () => [200, 'image/gif', pixel],
+      '/font.woff': () => [200, 'font/woff', '<font>']
     });
 
     percy = await Percy.start({
@@ -98,32 +99,7 @@ describe('Discovery', () => {
     ]);
   });
 
-  it('follows redirects', async () => {
-    server.reply('/stylesheet.css', () => [301, { Location: '/style.css' }]);
-
-    await percy.snapshot({
-      name: 'test snapshot',
-      url: 'http://localhost:8000',
-      domSnapshot: testDOM.replace('style.css', 'stylesheet.css')
-    });
-
-    await percy.idle();
-    let paths = server.requests.map(r => r[0]);
-    expect(paths).toContain('/stylesheet.css');
-    expect(paths).toContain('/style.css');
-
-    expect(captured[0]).toEqual(jasmine.arrayContaining([
-      jasmine.objectContaining({
-        id: sha256hash(testCSS),
-        attributes: jasmine.objectContaining({
-          'resource-url': 'http://localhost:8000/stylesheet.css'
-        })
-      })
-    ]));
-  });
-
   it('captures stylesheet initiated fonts', async () => {
-    server.reply('/font.woff', () => [200, 'font/woff', 'font-content-here']);
     server.reply('/style.css', () => [200, 'text/css', [
       '@font-face { font-family: "test"; src: url("/font.woff") format("woff"); }',
       'body { font-family: "test", "sans-serif"; }'
@@ -141,9 +117,51 @@ describe('Discovery', () => {
 
     expect(captured[0]).toEqual(jasmine.arrayContaining([
       jasmine.objectContaining({
-        id: sha256hash('font-content-here'),
+        id: sha256hash('<font>'),
         attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/font.woff'
+        })
+      })
+    ]));
+  });
+
+  it('captures redirected resources', async () => {
+    let stylesheet = [
+      '@font-face { font-family: "test"; src: url("/font-file.woff") format("woff"); }',
+      'body { font-family: "test", "sans-serif"; }'
+    ].join('');
+
+    server.reply('/style.css', () => [200, 'text/css', stylesheet]);
+    server.reply('/stylesheet.css', () => [301, { Location: '/style.css' }]);
+    server.reply('/font-file.woff', () => [301, { Location: '/font.woff' }]);
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'stylesheet.css')
+    });
+
+    await percy.idle();
+
+    expect(server.requests.map(r => r[0]))
+      .toEqual(jasmine.arrayContaining([
+        '/stylesheet.css',
+        '/style.css',
+        '/font-file.woff',
+        '/font.woff'
+      ]));
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        id: sha256hash(stylesheet),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/stylesheet.css'
+        })
+      }),
+      jasmine.objectContaining({
+        id: sha256hash('<font>'),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/font-file.woff'
         })
       })
     ]));
@@ -398,7 +416,7 @@ describe('Discovery', () => {
     await percy.idle();
 
     let paths = server.requests.map(r => r[0]);
-    expect(paths.sort()).not.toContain('/javascript.js');
+    expect(paths).not.toContain('/javascript.js');
 
     expect(captured[0]).toEqual([
       jasmine.objectContaining({
@@ -554,6 +572,66 @@ describe('Discovery', () => {
       resource('/img-bg-1.gif'),
       resource('/img-bg-2.gif')
     ]));
+  });
+
+  describe('idle timeout', () => {
+    beforeEach(() => {
+      let start;
+
+      // a real timeout is only triggered after 30 seconds, so we sabatoge a property to throw a fake
+      // timeout error to make this test run much faster than it would otherwise
+      spyOn(require('../src/page').default.prototype, 'init')
+        .and.callFake(function(...a) {
+          Object.defineProperty(this, 'closedReason', {
+            configurable: true,
+            set: v => v,
+
+            get() {
+              let err = new Error('Timeout');
+              if (!err.stack.includes('/network.js')) return;
+              if (Date.now() - (start ||= Date.now()) > 200) throw err;
+            }
+          });
+
+          return this.init.and.originalFn.apply(this, a);
+        });
+
+      // some async request that takes a while
+      server.reply('/img.gif', () => new Promise(r => (
+        setTimeout(r, 3000, [200, 'image/gif', pixel]))));
+
+      server.reply('/', () => [200, 'text/html', (
+        testDOM.replace('<img', ('<img loading="lazy"')))]);
+    });
+
+    it('throws an error when requests fail to idle in time', async () => {
+      await percy.snapshot({
+        name: 'test idle',
+        url: 'http://localhost:8000'
+      });
+
+      expect(logger.stderr).toContain(
+        '[percy] Error: Timed out waiting for network requests to idle.'
+      );
+    });
+
+    it('shows debug info when requests fail to idle in time', async () => {
+      percy.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test idle',
+        url: 'http://localhost:8000'
+      });
+
+      expect(logger.stderr).toContain(jasmine.stringMatching([
+        '^\\[percy:core] Error: Timed out waiting for network requests to idle.',
+        '',
+        '  Active requests:',
+        '  -> http://localhost:8000/img.gif',
+        '',
+        '(?<stack>(.|\n)*)$'
+      ].join('\n')));
+    });
   });
 
   describe('cookies', () => {
@@ -807,7 +885,7 @@ describe('Discovery', () => {
   });
 
   describe('with remote resources', () => {
-    let testExternalDOM = testDOM.replace('img.gif', 'http://test.localtest.me:8001/img.gif');
+    let testExternalDOM = testDOM.replace('img.gif', 'http://ex.localhost:8001/img.gif');
     let server2;
 
     beforeEach(async () => {
@@ -884,7 +962,7 @@ describe('Discovery', () => {
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
         discovery: {
-          allowedHostnames: ['*.localtest.me']
+          allowedHostnames: ['ex.localhost']
         }
       });
 
@@ -897,13 +975,31 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      expect(captured[0][3]).toEqual(
+      expect(captured[0]).toContain(
         jasmine.objectContaining({
           attributes: jasmine.objectContaining({
-            'resource-url': 'http://test.localtest.me:8001/img.gif'
+            'resource-url': 'http://ex.localhost:8001/img.gif'
           })
         })
       );
+    });
+
+    it('does not hang waiting for embedded isolated pages', async () => {
+      server.reply('/', () => [200, {
+        'Content-Type': 'text/html',
+        'Origin-Agent-Cluster': '?1' // force page isolation
+      }, testDOM]);
+
+      server2.reply('/', () => [200, 'text/html', [
+        '<iframe src="http://embed.localhost:8000"></iframe>'
+      ].join('\n')]);
+
+      await percy.snapshot({
+        name: 'test cors',
+        url: 'http://test.localhost:8001'
+      });
+
+      await expectAsync(percy.idle()).toBeResolved();
     });
   });
 
