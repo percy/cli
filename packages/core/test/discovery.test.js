@@ -1021,7 +1021,6 @@ describe('Discovery', () => {
         name: 'test cors',
         url: 'http://test.localhost:8001',
         discovery: {
-          networkIdleTimeout: 50,
           allowedHostnames: ['embed.localhost']
         }
       });
