@@ -16,6 +16,7 @@ export default class Page extends EventEmitter {
   frameId = null;
   contextId = null;
   closedReason = null;
+  frames = new Set();
   log = logger('core:page');
 
   constructor(browser, { params, sessionId: parentId }) {
@@ -34,7 +35,11 @@ export default class Page extends EventEmitter {
 
     // if there is a parent session, automatically init this session
     this.parent = browser.pages.get(parentId);
-    if (this.parent) this.init(this.parent.options);
+
+    if (this.parent) {
+      this.parent.frames.add(this);
+      this.init(this.parent.options);
+    }
   }
 
   // initial page options asynchronously
@@ -95,6 +100,8 @@ export default class Page extends EventEmitter {
   // Close the target page if not already closed
   async close() {
     if (!this.browser) return;
+
+    this.log.debug('Page closing', this.meta);
 
     /* istanbul ignore next: errors race here when the browser closes */
     await this.browser.send('Target.closeTarget', { targetId: this.targetId })
@@ -307,7 +314,6 @@ export default class Page extends EventEmitter {
   }
 
   _handleClose() {
-    this.log.debug('Page closing', this.meta);
     this.closedReason ||= 'Page closed.';
 
     // reject any pending callbacks
@@ -318,6 +324,7 @@ export default class Page extends EventEmitter {
     }
 
     this.#callbacks.clear();
+    this.parent?.frames.delete(this);
     this.browser = null;
   }
 
