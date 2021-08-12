@@ -1001,6 +1001,40 @@ describe('Discovery', () => {
 
       await expectAsync(percy.idle()).toBeResolved();
     });
+
+    it('waits to capture resources from isolated pages', async () => {
+      server.reply('/', () => [200, {
+        'Content-Type': 'text/html',
+        'Origin-Agent-Cluster': '?1' // force page isolation
+      }, testDOM]);
+
+      server.reply('/img.gif', () => new Promise(resolve => {
+        // wait a tad longer than network idle would
+        setTimeout(resolve, 200, [200, 'image/gif', pixel]);
+      }));
+
+      server2.reply('/', () => [200, 'text/html', [
+        '<iframe src="http://embed.localhost:8000"></iframe>'
+      ].join('\n')]);
+
+      await percy.snapshot({
+        name: 'test cors',
+        url: 'http://test.localhost:8001',
+        discovery: {
+          allowedHostnames: ['embed.localhost']
+        }
+      });
+
+      await percy.idle();
+
+      expect(captured[0]).toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://embed.localhost:8000/img.gif'
+          })
+        })
+      );
+    });
   });
 
   describe('with launch options', () => {

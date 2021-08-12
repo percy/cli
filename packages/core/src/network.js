@@ -29,10 +29,7 @@ export default class Network {
     this.page.on('Network.loadingFinished', this._handleLoadingFinished);
     this.page.on('Network.loadingFailed', this._handleLoadingFailed);
     this.page.on('Page.frameDetached', this._handleFrameDetached);
-
-    /* istanbul ignore next: race condition */
-    this.page.send('Network.enable')
-      .catch(e => this.log.debug(e, this.page.meta));
+    this.page._handleCloseRace(this.page.send('Network.enable'));
   }
 
   // Enable request interception
@@ -50,37 +47,49 @@ export default class Network {
   }
 
   // Resolves after the timeout when there are no more in-flight requests.
-  async idle(filter = r => r, timeout = this.timeout || 100) {
-    let getRequests = () => Array.from(this.#requests.values())
-      .reduce((a, r) => filter(r) ? a.concat(r.url) : a, []);
+  async idle(filter, timeout = this.timeout || 100) {
+    let requests = [];
 
     this.log.debug(`Wait for ${timeout}ms idle`, this.page.meta);
 
-    try {
-      await waitFor(() => {
-        if (this.page.closedReason) {
-          throw new Error(`Network error: ${this.page.closedReason}`);
-        }
+    await waitFor(() => {
+      if (this.page.closedReason) {
+        throw new Error(`Network error: ${this.page.closedReason}`);
+      }
 
-        return getRequests().length === 0;
-      }, {
-        timeout: NETWORK_TIMEOUT,
-        idle: timeout
-      });
-    } catch (error) {
+      requests = this.getRequests(filter);
+      return requests.length === 0;
+    }, {
+      timeout: NETWORK_TIMEOUT,
+      idle: timeout
+    }).catch(error => {
       // throw a better timeout error
       if (error.message.startsWith('Timeout')) {
         let msg = 'Timed out waiting for network requests to idle.';
 
         if (this.log.shouldLog('debug')) {
-          msg += `\n\n  ${['Active requests:', ...getRequests()].join('\n  -> ')}\n`;
+          msg += `\n\n  ${[
+            'Active requests:',
+            ...requests.map(r => r.url)
+          ].join('\n  -> ')}\n`;
         }
 
         throw new Error(msg);
       } else {
         throw error;
       }
+    });
+  }
+
+  // Used to recursively collect requests from this frame and subframes
+  getRequests(filter = () => true) {
+    let requests = Array.from(this.#requests.values()).filter(filter);
+
+    for (let frame of this.page.frames) {
+      requests.push(...frame.network.getRequests(filter));
     }
+
+    return requests;
   }
 
   // Called when a request should be removed from various trackers
