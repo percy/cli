@@ -38,6 +38,7 @@ const percy = await Percy.start(percyOptions)
 - `clientInfo` — Client info sent to Percy via a user-agent string
 - `environmentInfo` — Environment info also sent with the user-agent string
 - `deferUploads` — Defer creating a build and uploading snapshots until later
+- `skipUploads` — Skip creating a build and uploading snapshots altogether
 
 The following options can also be defined within a Percy config file
 
