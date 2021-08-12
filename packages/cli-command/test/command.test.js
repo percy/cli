@@ -66,6 +66,8 @@ describe('PercyCommand', () => {
     expect(logger.loglevel()).toBe('warn');
     await TestPercyCommand.run(['--silent']);
     expect(logger.loglevel()).toBe('silent');
+    await TestPercyCommand.run(['--debug']);
+    expect(logger.loglevel()).toBe('debug');
   });
 
   it('logs errors to the logger and exits', async () => {
@@ -127,12 +129,14 @@ describe('PercyCommand', () => {
         '--allowed-hostname', '*.percy.io',
         '--network-idle-timeout', '150',
         '--disable-cache',
+        '--debug',
         'foo', 'bar'
       ])).toBeResolved();
 
       expect(results[0].percyrc()).toEqual({
         version: 2,
         config: false,
+        skipUploads: true,
         snapshot: {
           widths: [375, 1280],
           minHeight: 1024,

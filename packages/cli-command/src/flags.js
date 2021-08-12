@@ -18,22 +18,25 @@ const logging = {
   })
 };
 
-// Common asset discovery flags mapped to config options.
+// Common asset discovery flags.
 const discovery = {
   'allowed-hostname': flags.string({
     char: 'h',
-    description: 'allowed hostnames',
+    description: 'allowed hostnames to capture in asset discovery',
     multiple: true,
     percyrc: 'discovery.allowedHostnames'
   }),
   'network-idle-timeout': flags.integer({
     char: 't',
-    description: 'asset discovery idle timeout',
+    description: 'asset discovery network idle timeout',
     percyrc: 'discovery.networkIdleTimeout'
   }),
   'disable-cache': flags.boolean({
     description: 'disable asset discovery caches',
     percyrc: 'discovery.disableCache'
+  }),
+  debug: flags.boolean({
+    description: 'debug asset discovery and do not upload snapshots'
   })
 };
 

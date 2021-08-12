@@ -171,6 +171,8 @@ describe('logger', () => {
     });
 
     it('can be controlled by a secondary flags argument', () => {
+      logger.loglevel('info', { debug: true });
+      expect(logger.loglevel()).toEqual('debug');
       logger.loglevel('info', { verbose: true });
       expect(logger.loglevel()).toEqual('debug');
       logger.loglevel('info', { quiet: true });
@@ -267,7 +269,7 @@ describe('logger', () => {
       expect(helpers.stderr).toEqual([
         jasmine.stringMatching('Warn log \\(\\dms\\)'),
         jasmine.stringMatching('Error log \\(\\dms\\)'),
-        jasmine.stringMatching('Debug log \\((9[0-9]|1[01][0-9])ms\\)'),
+        jasmine.stringMatching('Debug log \\(\\d{2,3}ms\\)'),
         jasmine.stringMatching('Final log \\(\\dms\\)')
       ]);
     });
