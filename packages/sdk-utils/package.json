@@ -1,6 +1,6 @@
 {
   "name": "@percy/sdk-utils",
-  "version": "1.0.0-beta.64",
+  "version": "1.0.0-beta.65",
   "license": "MIT",
   "main": "dist/index.js",
   "browser": "dist/bundle.js",
@@ -46,7 +46,7 @@
     }
   },
   "dependencies": {
-    "@percy/logger": "1.0.0-beta.64"
+    "@percy/logger": "1.0.0-beta.65"
   },
   "repository": {
     "type": "git",
