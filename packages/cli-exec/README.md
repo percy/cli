@@ -20,10 +20,11 @@ USAGE
 OPTIONS
   -P, --port=port                                  [default: 5338] server port
   -c, --config=config                              configuration file path
-  -h, --allowed-hostname=allowed-hostname          allowed hostnames
+  -h, --allowed-hostname=allowed-hostname          allowed hostnames to capture in asset discovery
   -q, --quiet                                      log errors only
-  -t, --network-idle-timeout=network-idle-timeout  asset discovery idle timeout
+  -t, --network-idle-timeout=network-idle-timeout  asset discovery network idle timeout
   -v, --verbose                                    log everything
+  --debug                                          debug asset discovery and do not upload snapshots
   --disable-cache                                  disable asset discovery caches
   --parallel                                       marks the build as one of many parallel builds
   --partial                                        marks the build as a partial build
@@ -60,10 +61,11 @@ USAGE
 OPTIONS
   -P, --port=port                                  [default: 5338] server port
   -c, --config=config                              configuration file path
-  -h, --allowed-hostname=allowed-hostname          allowed hostnames
+  -h, --allowed-hostname=allowed-hostname          allowed hostnames to capture in asset discovery
   -q, --quiet                                      log errors only
-  -t, --network-idle-timeout=network-idle-timeout  asset discovery idle timeout
+  -t, --network-idle-timeout=network-idle-timeout  asset discovery network idle timeout
   -v, --verbose                                    log everything
+  --debug                                          debug asset discovery and do not upload snapshots
   --disable-cache                                  disable asset discovery caches
   --silent                                         log nothing
 

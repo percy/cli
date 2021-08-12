@@ -21,11 +21,12 @@ OPTIONS
   -b, --base-url=base-url                          the base url pages are hosted at when snapshotting
   -c, --config=config                              configuration file path
   -d, --dry-run                                    prints a list of pages to snapshot without snapshotting
-  -h, --allowed-hostname=allowed-hostname          allowed hostnames
+  -h, --allowed-hostname=allowed-hostname          allowed hostnames to capture in asset discovery
   -q, --quiet                                      log errors only
-  -t, --network-idle-timeout=network-idle-timeout  asset discovery idle timeout
+  -t, --network-idle-timeout=network-idle-timeout  asset discovery network idle timeout
   -v, --verbose                                    log everything
   --clean-urls                                     rewrite static index and filepath URLs to be clean
+  --debug                                          debug asset discovery and do not upload snapshots
   --disable-cache                                  disable asset discovery caches
 
   --files=files                                    [default: **/*.{html,htm}] one or more globs matching static file
