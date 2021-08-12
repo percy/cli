@@ -38,7 +38,7 @@ export default class Page extends EventEmitter {
 
     if (this.parent) {
       this.parent.frames.add(this);
-      this.init(this.parent.options);
+      this._handleCloseRace(this.init(this.parent.options));
     }
   }
 
@@ -326,6 +326,15 @@ export default class Page extends EventEmitter {
     this.#callbacks.clear();
     this.parent?.frames.delete(this);
     this.browser = null;
+  }
+
+  _handleCloseRace(promise) {
+    /* istanbul ignore next: race conditions, amirite? */
+    return promise.catch(error => {
+      if (!error.message.endsWith(this.closedReason)) {
+        this.log.debug(error, this.meta);
+      }
+    });
   }
 
   _handleExecutionContextCreated = event => {

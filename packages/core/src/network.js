@@ -29,10 +29,7 @@ export default class Network {
     this.page.on('Network.loadingFinished', this._handleLoadingFinished);
     this.page.on('Network.loadingFailed', this._handleLoadingFailed);
     this.page.on('Page.frameDetached', this._handleFrameDetached);
-
-    /* istanbul ignore next: race condition */
-    this.page.send('Network.enable')
-      .catch(e => this.log.debug(e, this.page.meta));
+    this.page._handleCloseRace(this.page.send('Network.enable'));
   }
 
   // Enable request interception
