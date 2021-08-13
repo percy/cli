@@ -1,5 +1,20 @@
 import { snapshotSchema } from '@percy/core/dist/config';
 
+// Common schemas referenced by other schemas
+export const cliSchema = {
+  $id: '/snapshot/cli',
+  $refs: {
+    predicate: {
+      oneOf: [
+        { type: 'string' },
+        { instanceof: 'RegExp' },
+        { instanceof: 'Function' },
+        { type: 'array', items: { $ref: '#/$refs/predicate' } }
+      ]
+    }
+  }
+};
+
 // Config schema for static directories
 export const configSchema = {
   static: {
@@ -13,19 +28,11 @@ export const configSchema = {
           pattern: 'must start with a forward slash (/)'
         }
       },
-      files: {
-        anyOf: [
-          { type: 'string' },
-          { type: 'array', items: { type: 'string' } }
-        ],
-        default: '**/*.{html,htm}'
+      include: {
+        $ref: '/snapshot/cli#/$refs/predicate'
       },
-      ignore: {
-        anyOf: [
-          { type: 'string' },
-          { type: 'array', items: { type: 'string' } }
-        ],
-        default: ''
+      exclude: {
+        $ref: '/snapshot/cli#/$refs/predicate'
       },
       cleanUrls: {
         type: 'boolean',
@@ -42,8 +49,8 @@ export const configSchema = {
           type: 'object',
           additionalProperties: false,
           properties: {
-            files: { $ref: '#/properties/files' },
-            ignore: { $ref: '#/properties/ignore' },
+            include: { $ref: '/snapshot/cli#/$refs/predicate' },
+            exclude: { $ref: '/snapshot/cli#/$refs/predicate' },
             // schemas have no concept of inheritance, but we can leverage JS for brevity
             ...snapshotSchema.properties
           }
@@ -68,25 +75,44 @@ export const snapshotListSchema = {
     type: 'object',
     required: ['snapshots'],
     properties: {
-      snapshots: {
-        $ref: '#/oneOf/0'
-      }
+      baseUrl: {
+        type: 'string',
+        pattern: '^https?://',
+        errors: {
+          pattern: 'must include with a protocol and hostname'
+        }
+      },
+      include: { $ref: '/snapshot/cli#/$refs/predicate' },
+      exclude: { $ref: '/snapshot/cli#/$refs/predicate' },
+      snapshots: { $ref: '#/oneOf/0' }
     }
   }]
 };
 
 export const schemas = [
+  cliSchema,
   configSchema,
   snapshotListSchema
 ];
 
-export function migration(config, { map, del }) {
+export function migration(config, util) {
   /* eslint-disable curly */
   if (config.version < 2) {
     // static-snapshots and options were renamed
-    map('staticSnapshots.baseUrl', 'static.baseUrl');
-    map('staticSnapshots.snapshotFiles', 'static.files');
-    map('staticSnapshots.ignoreFiles', 'static.ignore');
-    del('staticSnapshots');
+    util.map('staticSnapshots.baseUrl', 'static.baseUrl');
+    util.map('staticSnapshots.snapshotFiles', 'static.include');
+    util.map('staticSnapshots.ignoreFiles', 'static.exclude');
+    util.del('staticSnapshots');
+  } else {
+    let notice = { type: 'config', until: '1.0.0' };
+    // static files and ignore options were renamed
+    util.deprecate('static.files', { map: 'static.include', ...notice });
+    util.deprecate('static.ignore', { map: 'static.exclude', ...notice });
+
+    for (let i in (config.static.overrides || [])) {
+      let k = `static.overrides[${i}]`;
+      util.deprecate(`${k}.files`, { map: `${k}.include`, ...notice });
+      util.deprecate(`${k}.ignore`, { map: `${k}.exclude`, ...notice });
+    }
   }
 }

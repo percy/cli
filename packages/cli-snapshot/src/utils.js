@@ -2,6 +2,9 @@ import path from 'path';
 import * as pathToRegexp from 'path-to-regexp';
 import picomatch from 'picomatch';
 
+// used to deserialize regular expression strings
+const RE_REGEXP = /^\/(.+)\/(\w+)?$/;
+
 // Throw a better error message for invalid urls
 function validURL(url, base) {
   try { return new URL(url, base); } catch (e) {
@@ -9,22 +12,25 @@ function validURL(url, base) {
   }
 }
 
-// Mutates a page item to have default or normalized options
-export function withDefaults(page, { host }) {
-  // allow URL strings as pages
-  if (typeof page === 'string') page = { url: page };
+// Mutates an options object to have normalized and default values
+export function withDefaults(options, { host }) {
+  // allow URLs as the only option
+  if (typeof options === 'string') options = { url: options };
 
-  // validate URL
-  let url = validURL(page.url, host);
+  // validate URLs
+  let url = validURL(options.url, host);
 
-  // default name to the page url
-  page.name ||= `${url.pathname}${url.search}${url.hash}`;
-  // normalize the page url
-  page.url = url.href;
+  // default name to the url path
+  options.name ||= `${url.pathname}${url.search}${url.hash}`;
+  // normalize the snapshot url
+  options.url = url.href;
 
-  return page;
+  return options;
 }
 
+// Serves a static directory with the provided options and returns an object containing adjusted
+// rewrites (combined with any baseUrl), the server host, a close method, and the server
+// instance. The `dry` option will prevent the server from actually starting.
 export async function serve(dir, {
   dry,
   baseUrl,
@@ -63,37 +69,84 @@ export async function serve(dir, {
   return { host, rewrites, server, close };
 }
 
-export function mapPages(paths, {
+// Returns true or false if a snapshot matches the provided include and exclude predicates. A
+// predicate can be an array of predicates, a regular expression, a glob pattern, or a function.
+export function snapshotMatches(snapshot, include, exclude) {
+  if (!include && !exclude) return true;
+
+  let test = (predicate, fallback) => {
+    if (predicate && typeof predicate === 'string') {
+      // snapshot matches a glob
+      let result = picomatch(predicate, { basename: true })(snapshot.name);
+
+      // snapshot might match a string pattern
+      if (!result) {
+        try {
+          let [, parsed = predicate, flags] = RE_REGEXP.exec(predicate) || [];
+          result = new RegExp(parsed, flags).test(snapshot.name);
+        } catch (e) {}
+      }
+
+      return result;
+    } else if (predicate instanceof RegExp) {
+      // snapshot matches a regular expression
+      return predicate.test(snapshot.name);
+    } else if (typeof predicate === 'function') {
+      // advanced matching
+      return predicate(snapshot);
+    } else if (Array.isArray(predicate) && predicate.length) {
+      // array of predicates
+      return predicate.some(p => test(p));
+    } else {
+      // default fallback
+      return fallback;
+    }
+  };
+
+  // not excluded or explicitly included
+  return !test(exclude, false) && test(include, true);
+}
+
+// Maps an array of snapshots or paths to options ready to pass along to the core snapshot
+// method. Paths are normalized before overrides are conditionally applied via their own include and
+// exclude options. Snapshot URLs are then rewritten accordingly before default options are applied,
+// including prepending the appropriate host. The returned set of snapshot options are sorted and
+// filtered by the top-level include and exclude options.
+export function mapStaticSnapshots(snapshots, {
   host,
+  include,
+  exclude,
   cleanUrls,
   rewrites = [],
   overrides = []
 }) {
-  // map, concat, and reduce rewrites with overrides into a single function
-  let applyOverrides = [].concat({
+  // reduce rewrites into a single function
+  let applyRewrites = [{
     rewrite: url => path.posix.normalize(path.posix.join('/', url))
-  }, rewrites.map(({ source, destination }) => ({
+  }, ...rewrites.map(({ source, destination }) => ({
     test: pathToRegexp.match(destination),
     rewrite: pathToRegexp.compile(source)
   })), {
     test: url => cleanUrls && url,
     rewrite: url => url.replace(/(\/index)?\.html$/, '')
-  }, overrides.map(({ files, ignore, ...opts }) => ({
-    test: picomatch(files || '**', { ignore: [].concat(ignore || []) }),
-    override: page => Object.assign(page, opts)
-  })), {
-    override: page => withDefaults(page, { host })
-  }).reduceRight((apply, { test, rewrite, override }) => {
-    return (p, page = { url: p }) => {
-      let res = !test || test(rewrite ? page.url : p);
-      if (res && rewrite) page.url = rewrite(test ? (res.params ?? res) : page.url);
-      else if (res && override) override(page);
-      return apply?.(p, page) ?? page;
-    };
-  }, null);
+  }].reduceRight((apply, { test, rewrite }) => snap => {
+    let res = !test || test(snap.url ?? snap);
+    if (res) snap = rewrite(test ? (res.params ?? res) : (snap.url ?? snap));
+    return apply(snap);
+  }, s => s);
 
-  // sort and map pages with overrides
-  return paths.sort().map(p => {
-    return applyOverrides(p);
-  });
+  // reduce overrides into a single function
+  let applyOverrides = overrides
+    .reduceRight((apply, { include, exclude, ...opts }) => snap => {
+      if (snapshotMatches(snap, include, exclude)) Object.assign(snap, opts);
+      return apply(snap);
+    }, s => s);
+
+  // sort and reduce snapshots with overrides
+  return [...snapshots].sort().reduce((snapshots, snap) => {
+    snap = withDefaults(applyRewrites(snap), { host });
+
+    return snapshotMatches(snap, include, exclude)
+      ? snapshots.concat(applyOverrides(snap)) : snapshots;
+  }, []);
 }
