@@ -1,6 +1,9 @@
 import logger from '@percy/logger';
-import { set, del, map } from './utils';
 import normalize from './normalize';
+import {
+  get, set, del, map,
+  joinPropertyPath
+} from './utils';
 
 // Global set of registered migrations
 const migrations = new Map();
@@ -30,17 +33,38 @@ function defaultMigration(config, { set }) {
   if (config.version !== 2) set('version', 2);
 }
 
+// Migrate util for deprecated options
+function deprecate(config, log, path, options) {
+  if (get(config, path) == null) return;
+  let { type, in: ver, map: to, alt, warn } = options;
+  let name = joinPropertyPath(path);
+
+  let message = 'The ' + [
+    type ? `${type} option \`${name}\`` : `\`${name}\` option`,
+    `will be removed in ${ver || 'a future release'}.`,
+    to ? `Use \`${to}\` instead.` : (alt || '')
+  ].join(' ').trim();
+
+  if (warn) log.warn(`Warning: ${message}`);
+  else log.deprecated(message);
+
+  return to ? map(config, path, to) : config;
+}
+
 // Calls each registered migration function with a normalize provided config
 // and util functions for working with the config object
 export default function migrate(config, schema = '/config') {
   config = normalize(config, { schema }) ?? {};
 
   if (migrations.has(schema)) {
+    let log = logger('config');
+
     let util = {
+      deprecate: deprecate.bind(null, config, log),
       set: set.bind(null, config),
       map: map.bind(null, config),
       del: del.bind(null, config),
-      log: logger('config')
+      log
     };
 
     for (let migration of migrations.get(schema)) {
