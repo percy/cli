@@ -12,11 +12,27 @@ export default class PercyCommand extends Command {
   //  commands to seemlessly cleanup on interupt or termination
   init() {
     let { args, flags } = this.parse();
+    logger.loglevel('info', flags);
     this.flags = flags;
     this.args = args;
 
-    // sets the log level from verbose, quiet, and silent flags
-    logger.loglevel('info', flags);
+    // log and map deprecated flags
+    for (let f in this.constructor.flags) {
+      let { deprecated } = this.constructor.flags[f];
+
+      if (deprecated && flags[f] != null) {
+        if (deprecated === true) deprecated = {};
+        let { until: ver, map, alt } = deprecated;
+
+        let message = `The --${f} flag ` + [
+          `will be removed in ${ver || 'a future release'}.`,
+          map ? `Use --${map} instead.` : (alt || '')
+        ].join(' ').trim();
+
+        this.log.deprecated(message);
+        if (map) flags[map] = flags[f];
+      }
+    }
 
     // ensure cleanup is always performed
     let cleanup = () => this.finally(new Error('SIGTERM'));
