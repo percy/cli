@@ -801,6 +801,24 @@ describe('PercyConfig', () => {
       });
     });
 
+    it('does not remove all empty "objects"', () => {
+      let config = {
+        regex: /foobar/,
+        date: new Date(),
+        foo: new (class {})(),
+        object: {},
+        array: []
+      };
+
+      expect(PercyConfig.normalize(config))
+        .toEqual({
+          // referential equality
+          regex: config.regex,
+          date: config.date,
+          foo: config.foo
+        });
+    });
+
     it('converts keys to camelCase', () => {
       expect(PercyConfig.normalize({
         'foo-bar': 'baz',
