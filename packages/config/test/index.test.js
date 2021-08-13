@@ -432,7 +432,7 @@ describe('PercyConfig', () => {
 
       // test various other options
       expect(test({ type: 'test' }, 4)).toEqual({ ...v, value: 4 });
-      expect(test({ in: '1.0.0' }, 5)).toEqual({ ...v, value: 5 });
+      expect(test({ until: '1.0.0' }, 5)).toEqual({ ...v, value: 5 });
       expect(test({ map: 'test' }, 6)).toEqual({ ...v, test: 6 });
       expect(test({ alt: 'See docs.' }, 7)).toEqual({ ...v, value: 7 });
 
@@ -445,7 +445,7 @@ describe('PercyConfig', () => {
       expect(test({ type: 'annoying', warn: true }, 10)).toEqual({ ...v, value: 10 });
 
       // combination of options
-      expect(test({ type: 'test', in: '1.0.0', map: 'test.value' }, 11))
+      expect(test({ type: 'test', until: '1.0.0', map: 'test.value' }, 11))
         .toEqual({ ...v, test: { value: 11 } });
 
       expect(logger.stderr).toEqual([

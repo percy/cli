@@ -36,7 +36,7 @@ function defaultMigration(config, { set }) {
 // Migrate util for deprecated options
 function deprecate(config, log, path, options) {
   if (get(config, path) == null) return;
-  let { type, in: ver, map: to, alt, warn } = options;
+  let { type, until: ver, map: to, alt, warn } = options;
   let name = joinPropertyPath(path);
 
   let message = 'The ' + [
