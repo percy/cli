@@ -360,11 +360,12 @@ describe('PercyConfig', () => {
           if (config.foo) util.map('foo', 'foo.bar');
         },
         (config, util) => {
+          if (config.test?.del) util.del('value');
           if (config.test?.set) util.set('test.value', config.test.set);
           if (config.test?.map) util.map('value.test', ['test', 'value']);
           if (config.test?.map2) util.map(['value', 'test'], 'test.value', v => v * 2);
-          if (config.test?.del) util.del('value');
-          util.del('test.set', 'test.map', ['test', 'map2'], ['test', 'del']);
+          if (config.test?.dep) util.deprecate('value', config.test.dep);
+          util.del('test.set', 'test.map', ['test', 'map2'], ['test', 'del'], 'test.dep');
         }
       ]);
     });
@@ -414,6 +415,50 @@ describe('PercyConfig', () => {
       })).toEqual({
         version: 2
       });
+    });
+
+    it('can log deprecations and map values', () => {
+      let v = { version: 2 };
+
+      // reduce boilerplate (`foo` is used to prevent scrubbing)
+      let test = (dep, value) => PercyConfig.migrate({
+        test: { dep: { foo: 'bar', ...dep } }, value
+      });
+
+      // deprecations should log once
+      expect(test({}, 1)).toEqual({ ...v, value: 1 });
+      expect(test({}, 2)).toEqual({ ...v, value: 2 });
+      expect(test({}, 3)).toEqual({ ...v, value: 3 });
+
+      // test various other options
+      expect(test({ type: 'test' }, 4)).toEqual({ ...v, value: 4 });
+      expect(test({ in: '1.0.0' }, 5)).toEqual({ ...v, value: 5 });
+      expect(test({ map: 'test' }, 6)).toEqual({ ...v, test: 6 });
+      expect(test({ alt: 'See docs.' }, 7)).toEqual({ ...v, value: 7 });
+
+      // no value, no log
+      expect(test({ type: 'null' }, null)).toEqual({ ...v });
+
+      // warns should log for each call
+      expect(test({ type: 'annoying', warn: true }, 8)).toEqual({ ...v, value: 8 });
+      expect(test({ type: 'annoying', warn: true }, 9)).toEqual({ ...v, value: 9 });
+      expect(test({ type: 'annoying', warn: true }, 10)).toEqual({ ...v, value: 10 });
+
+      // combination of options
+      expect(test({ type: 'test', in: '1.0.0', map: 'test.value' }, 11))
+        .toEqual({ ...v, test: { value: 11 } });
+
+      expect(logger.stderr).toEqual([
+        '[percy] Warning: The `value` option will be removed in a future release.',
+        '[percy] Warning: The test option `value` will be removed in a future release.',
+        '[percy] Warning: The `value` option will be removed in 1.0.0.',
+        '[percy] Warning: The `value` option will be removed in a future release. Use `test` instead.',
+        '[percy] Warning: The `value` option will be removed in a future release. See docs.',
+        '[percy] Warning: The annoying option `value` will be removed in a future release.',
+        '[percy] Warning: The annoying option `value` will be removed in a future release.',
+        '[percy] Warning: The annoying option `value` will be removed in a future release.',
+        '[percy] Warning: The test option `value` will be removed in 1.0.0. Use `test.value` instead.'
+      ]);
     });
 
     it('can handle array and array-like paths', () => {

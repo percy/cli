@@ -31,6 +31,7 @@ export function parsePropertyPath(path) {
 
 // Join an array of path parts into a single path string
 export function joinPropertyPath(path) {
+  if (typeof path === 'string') return path;
   let joined = path.map(k => isArrayKey(k) ? `[${k}]` : `.${k}`).join('');
   if (joined.startsWith('.')) return joined.substr(1);
   return joined;
