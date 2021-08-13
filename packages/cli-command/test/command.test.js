@@ -123,8 +123,6 @@ describe('PercyCommand', () => {
 
   describe('#percyrc()', () => {
     it('returns Percy config and parsed flags', async () => {
-      process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-
       await expectAsync(TestPercyCommand.run([
         '--allowed-hostname', '*.percy.io',
         '--network-idle-timeout', '150',
@@ -147,6 +145,57 @@ describe('PercyCommand', () => {
           networkIdleTimeout: 150,
           disableCache: true
         }
+      });
+    });
+
+    it('logs warnings for deprecated flags', async () => {
+      let captured = {};
+
+      class TestPercyCommandDeprecated extends TestPercyCommand {
+        test = () => (captured = this.flags)
+
+        static flags = {
+          generic: flags.boolean({
+            deprecated: true
+          }),
+          version: flags.boolean({
+            deprecated: { until: '1.0.0' }
+          }),
+          mapped: flags.boolean({
+            deprecated: { map: 'foo' }
+          }),
+          instruct: flags.boolean({
+            deprecated: { alt: 'See docs.' }
+          }),
+          deprecated: flags.boolean({
+            deprecated: {
+              until: '1.0.0',
+              map: 'bar'
+            }
+          })
+        }
+      }
+
+      await expectAsync(TestPercyCommandDeprecated.run([
+        '--generic', '--version', '--mapped', '--instruct', '--deprecated'
+      ])).toBeResolved();
+
+      expect(logger.stderr).toEqual([
+        '[percy] Warning: The --generic flag will be removed in a future release.',
+        '[percy] Warning: The --version flag will be removed in 1.0.0.',
+        '[percy] Warning: The --mapped flag will be removed in a future release. Use --foo instead.',
+        '[percy] Warning: The --instruct flag will be removed in a future release. See docs.',
+        '[percy] Warning: The --deprecated flag will be removed in 1.0.0. Use --bar instead.'
+      ]);
+
+      expect(captured).toEqual({
+        generic: true,
+        version: true,
+        mapped: true,
+        instruct: true,
+        deprecated: true,
+        foo: true,
+        bar: true
       });
     });
   });
