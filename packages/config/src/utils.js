@@ -7,6 +7,11 @@ function create(array) {
   return array ? [] : {};
 }
 
+// Returns true or false if a subject has iterable keys or not
+function hasKeys(subj) {
+  return isArray(subj) || Object.getPrototypeOf(subj) === Object.prototype;
+}
+
 // Returns true if the provided key looks like an array key
 const ARRAY_PATH_KEY_REG = /^(\[\d+]|0|[1-9]\d*)$/;
 
@@ -26,9 +31,9 @@ export function parsePropertyPath(path) {
 
 // Join an array of path parts into a single path string
 export function joinPropertyPath(path) {
-  return path.map(part => (
-    isArrayKey(part) ? `[${part}]` : `.${part}`
-  )).join('').substr(1);
+  let joined = path.map(k => isArrayKey(k) ? `[${k}]` : `.${k}`).join('');
+  if (joined.startsWith('.')) return joined.substr(1);
+  return joined;
 }
 
 // Gets a value in the object at the path
@@ -129,7 +134,7 @@ export function merge(sources, map) {
       }
 
       // set the next or default value if there is one
-      if (next != null || (next !== null && value != null && typeof value !== 'object')) {
+      if (next != null || (next !== null && value != null && !hasKeys(value))) {
         set(target ??= create(isSourceArray), path, next ?? value);
       }
 
