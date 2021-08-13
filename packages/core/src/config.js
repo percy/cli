@@ -208,45 +208,32 @@ export const snapshotDOMSchema = {
 };
 
 // Config migrate function
-export function configMigration(config, { map, del, log }) {
+export function configMigration(config, util) {
   /* eslint-disable curly */
   if (config.version < 2) {
     // discovery options have moved
-    map('agent.assetDiscovery.allowedHostnames', 'discovery.allowedHostnames');
-    map('agent.assetDiscovery.networkIdleTimeout', 'discovery.networkIdleTimeout');
-    map('agent.assetDiscovery.cacheResponses', 'discovery.disableCache', v => !v);
-    map('agent.assetDiscovery.requestHeaders', 'discovery.requestHeaders');
-    map('agent.assetDiscovery.pagePoolSizeMax', 'discovery.concurrency');
-    del('agent');
+    util.map('agent.assetDiscovery.allowedHostnames', 'discovery.allowedHostnames');
+    util.map('agent.assetDiscovery.networkIdleTimeout', 'discovery.networkIdleTimeout');
+    util.map('agent.assetDiscovery.cacheResponses', 'discovery.disableCache', v => !v);
+    util.map('agent.assetDiscovery.requestHeaders', 'discovery.requestHeaders');
+    util.map('agent.assetDiscovery.pagePoolSizeMax', 'discovery.concurrency');
+    util.del('agent');
   } else {
+    let notice = { type: 'config', in: '1.0.0' };
     // snapshot discovery options have moved
-    for (let k of ['authorization', 'requestHeaders']) {
-      if (config.snapshot?.[k]) {
-        log.deprecated(`The config option \`snapshot.${k}\` ` + (
-          `will be removed in 1.0.0. Use \`discovery.${k}\` instead.`));
-        map(`snapshot.${k}`, `discovery.${k}`);
-      }
-    }
+    util.deprecate('snapshot.authorization', { map: 'discovery.authorization', ...notice });
+    util.deprecate('snapshot.requestHeaders', { map: 'discovery.requestHeaders', ...notice });
   }
 }
 
 // Snapshot option migrate function
-export function snapshotMigration(config, { map, log }) {
+export function snapshotMigration(config, util) {
+  let notice = { type: 'snapshot', in: '1.0.0', warn: true };
   // discovery options have moved
-  for (let k of ['authorization', 'requestHeaders']) {
-    if (config[k]) {
-      log.warn(`Warning: The snapshot option \`${k}\` ` + (
-        `will be removed in 1.0.0. Use \`discovery.${k}\` instead.`));
-      map(k, `discovery.${k}`);
-    }
-  }
-
-  // snapshots was renamed
-  if (config.snapshots) {
-    log.warn('Warning: The `snapshots` option will be ' + (
-      'removed in 1.0.0. Use `additionalSnapshots` instead.'));
-    map('snapshots', 'additionalSnapshots');
-  }
+  util.deprecate('authorization', { map: 'discovery.authorization', ...notice });
+  util.deprecate('requestHeaders', { map: 'discovery.requestHeaders', ...notice });
+  // snapshots option was renamed
+  util.deprecate('snapshots', { map: 'additionalSnapshots', ...notice });
 }
 
 // Convinient references for schema registrations

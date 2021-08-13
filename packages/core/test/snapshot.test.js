@@ -124,7 +124,7 @@ describe('Snapshot', () => {
         'will be removed in 1.0.0. Use `discovery.requestHeaders` instead.',
       '[percy] Warning: The snapshot option `authorization` ' +
         'will be removed in 1.0.0. Use `discovery.authorization` instead.',
-      '[percy] Warning: The `snapshots` option ' +
+      '[percy] Warning: The snapshot option `snapshots` ' +
         'will be removed in 1.0.0. Use `additionalSnapshots` instead.'
     ]);
   });
