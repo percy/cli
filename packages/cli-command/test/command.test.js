@@ -148,12 +148,16 @@ describe('PercyCommand', () => {
       });
     });
 
+    it('does not replace initial overrides with empty flags', async () => {
+      await expectAsync(TestPercyCommand.run([])).toBeResolved();
+
+      expect(results[0].percyrc({
+        discovery: { disableCache: true }
+      })).toHaveProperty('discovery.disableCache', true);
+    });
+
     it('logs warnings for deprecated flags', async () => {
-      let captured = {};
-
       class TestPercyCommandDeprecated extends TestPercyCommand {
-        test = () => (captured = this.flags)
-
         static flags = {
           generic: flags.boolean({
             deprecated: true
@@ -188,7 +192,7 @@ describe('PercyCommand', () => {
         '[percy] Warning: The --deprecated flag will be removed in 1.0.0. Use --bar instead.'
       ]);
 
-      expect(captured).toEqual({
+      expect(results[0].flags).toEqual({
         generic: true,
         version: true,
         mapped: true,
