@@ -58,8 +58,8 @@ describe('Unit / Config Migration', () => {
     }, mocked);
 
     expect(mocked.migrate.deprecate).toEqual([
-      ['snapshot.authorization', { map: 'discovery.authorization', type: 'config', in: '1.0.0' }],
-      ['snapshot.requestHeaders', { map: 'discovery.requestHeaders', type: 'config', in: '1.0.0' }]
+      ['snapshot.authorization', { map: 'discovery.authorization', type: 'config', until: '1.0.0' }],
+      ['snapshot.requestHeaders', { map: 'discovery.requestHeaders', type: 'config', until: '1.0.0' }]
     ]);
   });
 

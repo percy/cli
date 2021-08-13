@@ -219,7 +219,7 @@ export function configMigration(config, util) {
     util.map('agent.assetDiscovery.pagePoolSizeMax', 'discovery.concurrency');
     util.del('agent');
   } else {
-    let notice = { type: 'config', in: '1.0.0' };
+    let notice = { type: 'config', until: '1.0.0' };
     // snapshot discovery options have moved
     util.deprecate('snapshot.authorization', { map: 'discovery.authorization', ...notice });
     util.deprecate('snapshot.requestHeaders', { map: 'discovery.requestHeaders', ...notice });
@@ -228,7 +228,7 @@ export function configMigration(config, util) {
 
 // Snapshot option migrate function
 export function snapshotMigration(config, util) {
-  let notice = { type: 'snapshot', in: '1.0.0', warn: true };
+  let notice = { type: 'snapshot', until: '1.0.0', warn: true };
   // discovery options have moved
   util.deprecate('authorization', { map: 'discovery.authorization', ...notice });
   util.deprecate('requestHeaders', { map: 'discovery.requestHeaders', ...notice });
