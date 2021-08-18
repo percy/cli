@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import request, {
-  href,
+  port, href,
   ProxyHttpAgent,
   proxyAgentFor
 } from '../../src/request';
@@ -11,17 +11,16 @@ const ssl = {
   key: fs.readFileSync(path.resolve(__dirname, '../certs/test.key'))
 };
 
-function createTestServer(options = {}, handler) {
-  let { type = 'http', port = 8080 } = options;
+function createTestServer({ type = 'http', ...options } = {}, handler) {
   let { createServer } = require(type);
   let connections = new Set();
   let received = [];
 
-  let address = new URL(href({
+  let url = new URL(href({
     protocol: `${type}:`,
     hostname: 'localhost',
-    port
-  })).href;
+    port: options.port
+  }));
 
   let server = createServer(ssl, (req, res) => {
     req.on('data', chunk => {
@@ -42,17 +41,17 @@ function createTestServer(options = {}, handler) {
   });
 
   return {
-    port,
     server,
-    address,
     received,
+    port: port(url),
+    address: url.href,
 
     reply: (url, handler) => {
       (options.routes ||= {})[url] = handler;
     },
 
     request: (path, options) => {
-      return request(new URL(path, address).href, {
+      return request(new URL(path, url).href, {
         rejectUnauthorized: false,
         ...options
       });
@@ -60,7 +59,8 @@ function createTestServer(options = {}, handler) {
 
     async start() {
       return new Promise((resolve, reject) => {
-        server.listen(port, () => resolve(this))
+        server.listen(this.port)
+          .on('listening', () => resolve(this))
           .on('error', reject);
       });
     },
@@ -97,7 +97,7 @@ function createProxyServer({ type, port, ...options }) {
   };
 
   let proxy = createTestServer({ type, port }, handleResponse);
-  let mitmOpts = { type: options.mitm ?? type, port: port + 1 };
+  let mitmOpts = { type: options.mitm ?? type, port: proxy.port + 1 };
   let mitm = createTestServer(mitmOpts, handleResponse);
   let connects = [];
 
@@ -154,7 +154,7 @@ describe('Unit / Request', () => {
 
   beforeEach(async () => {
     proxyAgentFor.cache?.clear();
-    server = await createTestServer().start();
+    server = await createTestServer({ port: 8080 }).start();
   });
 
   afterEach(async () => {
@@ -271,7 +271,8 @@ describe('Unit / Request', () => {
         await server?.close();
 
         server = await createTestServer({
-          type: serverType
+          type: serverType,
+          port: 8080
         }).start();
       });
 
@@ -389,34 +390,35 @@ describe('Unit / Request', () => {
           if (serverType !== proxyType) {
             it('handles default proxy ports appropriately', async () => {
               await Promise.all([server.close(), proxy.close()]);
-              let sPort = serverType === 'https' ? 443 : 80;
-              let pPort = proxyType === 'https' ? 443 : 80;
-              server = createTestServer({ type: serverType, port: sPort });
-              proxy = createProxyServer({ type: proxyType, mitm: serverType, port: pPort });
+              server = createTestServer({ type: serverType });
+              proxy = createProxyServer({ type: proxyType, mitm: serverType });
               process.env[env] = proxy.address;
 
               // this check is done for systems with restricted ports
-              let started = await Promise.resolve()
-                .then(() => !!server.start())
-                .then(() => !!proxy.start())
-                .catch(e => false);
+              let started = await Promise.all([
+                server.start(), proxy.start()
+              ]).then(() => true, () => false);
 
-              // different request agents use different methods
+              // different request agents need different spies
               let spy = serverType === 'https'
-                ? spyOn(require('tls'), 'connect').and.callThrough()
-                : spyOn(require('http').Agent.prototype, 'addRequest').and.callThrough();
+                ? spyOn(require('net').Socket.prototype, 'write')
+                : spyOn(require('http').Agent.prototype, 'addRequest');
+              spy.and.callThrough();
 
-              // everything after the first expection is needed if the servers could not start on
-              // their respective default ports due to system restrictions
-              let serverRequest = server.request('/test');
-              if (started) await expectAsync(serverRequest).toBeResolvedTo('test proxied');
-              else await expectAsync(serverRequest).toBeRejected();
-              let expectedOptions = objectContaining({ port: sPort });
+              // only expected to resolve when the servers are running
+              let expected = expectAsync(server.request());
+              if (started) await expected.toBeResolvedTo('test proxied');
+              else await expected.toBeRejected();
 
+              // different request agents have different spies
               if (serverType === 'https') {
-                expect(spy).toHaveBeenCalledWith(expectedOptions);
+                expect(spy).toHaveBeenCalledWith([
+                  'CONNECT localhost:443 HTTP/1.1',
+                  'Host: localhost:443'
+                ].join('\r\n') + '\r\n\r\n');
               } else {
-                expect(spy).toHaveBeenCalledWith(jasmine.anything(), expectedOptions);
+                let [req] = spy.calls.argsFor(0);
+                expect(req.getHeader('host')).toBe('localhost');
               }
             });
           }
