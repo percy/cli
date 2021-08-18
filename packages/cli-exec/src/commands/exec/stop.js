@@ -15,6 +15,8 @@ export class Stop extends Command {
 
   async run() {
     let { port } = this.flags;
+    let stop = `http://localhost:${port}/percy/stop`;
+    let ping = `http://localhost:${port}/percy/healthcheck`;
 
     if (!this.isPercyEnabled()) {
       this.log.info('Percy is disabled');
@@ -22,7 +24,7 @@ export class Stop extends Command {
     }
 
     try {
-      await request(`http://localhost:${port}/percy/stop`, { method: 'POST' });
+      await request(stop, { method: 'POST', noProxy: true });
     } catch (err) {
       this.log.error('Percy is not running');
       this.log.debug(err);
@@ -31,8 +33,8 @@ export class Stop extends Command {
 
     // retry heathcheck until it fails
     await new Promise(function check(resolve) {
-      return request(`http://localhost:${port}/percy/healthcheck`, { method: 'GET' })
-        .then(() => setTimeout(check, 100, resolve)).catch(resolve);
+      return request(ping, { noProxy: true }).then(() => (
+        setTimeout(check, 100, resolve))).catch(resolve);
     });
 
     this.log.info('Percy has stopped');

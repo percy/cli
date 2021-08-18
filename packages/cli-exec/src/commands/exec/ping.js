@@ -16,7 +16,8 @@ export class Ping extends Command {
   async run() {
     try {
       let { port } = this.flags;
-      await request(`http://localhost:${port}/percy/healthcheck`, { method: 'GET' });
+      let ping = `http://localhost:${port}/percy/healthcheck`;
+      await request(ping, { retryNotFound: true, noProxy: true });
       this.log.info('Percy is running');
     } catch (err) {
       this.log.error('Percy is not running');
