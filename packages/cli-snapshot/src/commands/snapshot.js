@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import PercyConfig from '@percy/config';
 import Command, { flags } from '@percy/cli-command';
+import request from '@percy/client/dist/request';
 import Percy from '@percy/core';
 import logger from '@percy/logger';
 import globby from 'globby';
@@ -18,8 +19,8 @@ export class Snapshot extends Command {
   static description = 'Take snapshots from a list or static directory';
 
   static args = [{
-    name: 'pathname',
-    description: 'path to a directory or file containing a list of snapshots',
+    name: 'dir|file|sitemap',
+    description: 'static directory, snapshots file, or sitemap url',
     required: true
   }];
 
@@ -76,18 +77,21 @@ export class Snapshot extends Command {
       return this.log.info('Percy is disabled. Skipping snapshots');
     }
 
-    // validate path existence
-    let { pathname } = this.args;
-    if (!fs.existsSync(pathname)) this.error(`Not found: ${pathname}`);
-    let isStatic = fs.lstatSync(pathname).isDirectory();
+    let { 'dir|file|sitemap': arg } = this.args;
+    let isSitemap = /^https?:\/\//.test(arg);
+
+    // validate directory or file existence
+    if (!isSitemap && !fs.existsSync(arg)) this.error(`Not found: ${arg}`);
+    let isStatic = !isSitemap && fs.lstatSync(arg).isDirectory();
 
     // initialize percy
     this.percy = new Percy({
       ...this.percyrc({
-        static: isStatic ? {
-          include: this.flags.include,
-          exclude: this.flags.exclude
-        } : undefined
+        [isSitemap ? 'sitemap' : 'static']: (
+          (isSitemap || isStatic) ? {
+            include: this.flags.include,
+            exclude: this.flags.exclude
+          } : undefined)
       }),
 
       clientInfo: `${pkg.name}/${pkg.version}`,
@@ -95,9 +99,10 @@ export class Snapshot extends Command {
     });
 
     // gather snapshots
-    let snapshots = isStatic
-      ? await this.loadStaticSnapshots(pathname)
-      : await this.loadSnapshotsFile(pathname);
+    let snapshots = (
+      (isSitemap && await this.loadSitemapSnapshots(arg)) ||
+      (isStatic && await this.loadStaticSnapshots(arg)) ||
+      await this.loadSnapshotsFile(arg));
 
     let l = snapshots.length;
     if (!l) this.error('No snapshots found');
@@ -127,6 +132,29 @@ export class Snapshot extends Command {
   async finally(error) {
     await this.percy?.stop(!!error);
     await this.server?.close();
+  }
+
+  // Fetches and maps sitemap URLs to snapshots.
+  async loadSitemapSnapshots(sitemap) {
+    let config = this.percy.config.sitemap;
+
+    // fetch sitemap URLs
+    let urls = await request(sitemap, (body, res) => {
+      // validate sitemap content-type
+      let [contentType] = res.headers['content-type'].split(';');
+
+      if (!/^(application|text)\/xml$/.test(contentType)) {
+        this.error('The sitemap must be an XML document, ' + (
+          `but the content-type was "${contentType}"`));
+      }
+
+      // parse and filter out duplicate URLs that differ by a trailing slash
+      let urls = body.match(/(?<=<loc>)(.*)(?=<\/loc>)/ig);
+      return urls.filter((u, i, a) => i === a.indexOf(u.replace(/\/$/, '')));
+    });
+
+    // map with inherited static options
+    return mapStaticSnapshots(urls, config);
   }
 
   // Serves a static directory and returns a list of snapshots.
