@@ -15,11 +15,11 @@ import {
 } from '../utils';
 
 export class Snapshot extends Command {
-  static description = 'Snapshot a list of pages from a file or directory';
+  static description = 'Take snapshots from a list or static directory';
 
   static args = [{
     name: 'pathname',
-    description: 'path to a directory or file containing a list of pages',
+    description: 'path to a directory or file containing a list of snapshots',
     required: true
   }];
 
@@ -33,11 +33,11 @@ export class Snapshot extends Command {
       char: 'b'
     }),
     include: flags.string({
-      description: 'one or more globs matching snapshots paths to include',
+      description: 'one or more globs/patterns matching snapshots to include',
       multiple: true
     }),
     exclude: flags.string({
-      description: 'one or more globs matching snapshot paths to exclude',
+      description: 'one or more globs/patterns matching snapshots to exclude',
       multiple: true
     }),
     'dry-run': flags.boolean({
@@ -65,7 +65,7 @@ export class Snapshot extends Command {
 
   static examples = [
     '$ percy snapshot ./public',
-    '$ percy snapshot pages.yml'
+    '$ percy snapshot snapshots.yml'
   ];
 
   log = logger('cli:snapshot')
@@ -181,7 +181,7 @@ export class Snapshot extends Command {
     // validate base-url before config options
     if (baseUrl && !baseUrl.startsWith('http')) {
       this.error('The base-url must include a protocol and hostname ' + (
-        'when snapshotting a list of pages'));
+        'when providing a list of snapshots'));
     }
 
     // validate snapshot config options
