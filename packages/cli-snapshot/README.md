@@ -8,7 +8,7 @@ Snapshot a list or static directory of web pages.
 
 ## `percy snapshot PATHNAME`
 
-Snapshot a list of pages from a file or directory
+Take snapshots from a list or static directory
 
 ```
 USAGE
@@ -20,7 +20,7 @@ ARGUMENTS
 OPTIONS
   -b, --base-url=base-url                          the base url pages are hosted at when snapshotting
   -c, --config=config                              configuration file path
-  -d, --dry-run                                    prints a list of pages to snapshot without snapshotting
+  -d, --dry-run                                    prints a list of snapshots without processing them
   -h, --allowed-hostname=allowed-hostname          allowed hostnames to capture in asset discovery
   -q, --quiet                                      log errors only
   -t, --network-idle-timeout=network-idle-timeout  asset discovery network idle timeout
@@ -28,52 +28,49 @@ OPTIONS
   --clean-urls                                     rewrite static index and filepath URLs to be clean
   --debug                                          debug asset discovery and do not upload snapshots
   --disable-cache                                  disable asset discovery caches
-
-  --files=files                                    [default: **/*.{html,htm}] one or more globs matching static file
-                                                   paths to snapshot
-
-  --ignore=ignore                                  one or more globs matching static file paths to ignore
-
+  --exclude=exclude                                one or more globs/patterns matching snapshot to exclude
+  --include=include                                one or more globs/patterns matching snapshots to include
   --silent                                         log nothing
 
 EXAMPLES
   $ percy snapshot ./public
-  $ percy snapshot pages.yml
+  $ percy snapshot snapshots.yml
 ```
+
 <!-- commandsstop -->
 
 ## Usage
 
-### Page Listing
+### Snapshot Lists
 
-When providing a file containing a list of pages to snapshot, the file must be YAML, JSON, or a JS
-file exporting a list of pages. Each page must contain at least a `url` that can be navigated to
+When providing a file containing a list of snapshots, the file must be YAML, JSON, or a JS file
+exporting a list of pages. Each snapshot must contain at least a `url` that can be navigated to
 using a browser.
 
-`pages.yml`:
+`snapshots.yml`:
 
 ```yaml
 - http://localhost:8080
 - http://localhost:8080/two
 ```
 
-Snapshotting `pages.yml`:
+Snapshotting `snapshots.yml`:
 
 ```sh-session
-$ percy snapshot pages.yml
+$ percy snapshot snapshots.yml
 [percy] Percy has started!
 [percy] Snapshot taken: /
 [percy] Snapshot taken: /two
 [percy] Finalized build #1: https://percy.io/org/project/123
 ```
 
-#### Page Options
+#### Snapshot Options
 
 A `name` can be provided which will override the default snapshot name generated from the url
 path. The options `waitForTimeout` and `waitForSelector` can also be provided to wait for a timeout
-or selector respectively before taking the page snapshot.
+or selector respectively before taking the snapshot.
 
-`pages.json`:
+`snapshots.json`:
 
 ```json
 [{
@@ -87,10 +84,10 @@ or selector respectively before taking the page snapshot.
 }]
 ```
 
-Snapshotting `pages.json`:
+Snapshotting `snapshots.json`:
 
 ```sh-session
-$ percy snapshot pages.json
+$ percy snapshot snapshots.json
 [percy] Percy has started!
 [percy] Snapshot taken: Snapshot one
 [percy] Snapshot taken: Snapshot two
@@ -98,12 +95,13 @@ $ percy snapshot pages.json
 ```
 
 For more advanced use cases, an `execute` function and `additionalSnapshots` may be specified for
-each page to execute JavaScript within the page execution context before subsequent snapshots are taken.
+each snapshot to execute JavaScript within the page execution context before subsequent snapshots
+are taken.
 
 > Note: All options are also accepted by other file formats. For `execute` however, a string
 > containing a function body can be provided when the file format prevents normal functions.
 
-`pages.js`:
+`snapshots.js`:
 
 ```js
 module.exports = [{
@@ -126,10 +124,10 @@ module.exports = [{
 }]
 ```
 
-Snapshotting `pages.js`:
+Snapshotting `snapshots.js`:
 
 ```sh-session
-$ percy snapshot pages.js
+$ percy snapshot snapshots.js
 [percy] Percy has started!
 [percy] Snapshot taken: My form
 [percy] Snapshot taken: My form - submitting
@@ -145,6 +143,35 @@ module.exports = async () => {
   return urls.map(url => ({ name: url, url }))
 }
 ```
+
+#### Advanced List Options
+
+Instead of an array of snapshots, list files can also contain an object that defines additional
+top-level options along with a `snapshots` option containing the array of snapshots. This allows
+dynamically filtering lists with `include`/`exclude` options, and enables utilizing features such as
+YAML anchors and references.
+
+<details>
+  <summary>Example <code>snapshots.yml</code></summary><br>
+
+``` yaml
+base-url: https://example.com
+exclude:
+  - /page/(\d+)
+
+references:
+  dismiss-cookie-banner: &dismiss-cookie-banner |
+    document.querySelector('.cookie-banner .dismiss').click();
+
+snapshots:
+  - url: /foo
+    execute: *dismiss-cookie-banner
+  - url: /foo
+    name: "/foo - with cookie banner"
+  - url: /bar
+    execute: *dismiss-cookie-banner
+```
+</details>
 
 ### Static Directory
 
@@ -168,20 +195,41 @@ For snapshotting static directories, the following Percy config file options are
 # .percy.yml
 version: 2
 static:
-  files: **/*.{html,htm}
-  ignore: []
   base-url: /
   clean-urls: false
+  include: **/*.html
+  exclude: []
   rewrites: {}
   overrides: []
 ```
 
-- **files** - A glob or an array of globs matching static file paths to snapshot.
-- **ignore** - A glob or an array of globs matching static file paths to ignore.
 - **base-url** - The base URL path the static site should be served under.
 - **clean-urls** - When true, rewrite index and filepath URLs to be clean.
 
 <span/>
+
+- **include/exclude** - A predicate or an array of predicates matching snapshots to include/exclude.
+
+  A predicate can be a string glob or pattern, a regular expression, or a function that accepts a
+  snapshot object and returns `true` or `false` if the snapshot is considered matching or not.
+
+  ``` javascript
+  // .percy.js
+  module.exports = {
+    version: 2,
+    static: {
+      include: [
+        'blog/**/*.html',          // glob
+        'pages/page-(?!10).html$', // pattern
+        /about-(.+)\.html/i        // regexp
+      ],
+      exclude: [
+        // function that returns true when matching
+        ({ name }) => DISALLOWED.includes(name)
+      ]
+    }
+  };
+  ```
 
 - **rewrites** - An object containing source-destination pairs for rewriting URLs.
 
