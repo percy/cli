@@ -10,7 +10,7 @@ const URI_SELECTOR = URI_ATTRS.map(a => `[${a}]`).join(',') + (
 const SRCSET_REGEX = /(\s*)([^,]\S*[^,])((?:\s+[^,]+)*\s*(?:,|$))/g;
 
 // A loose CSS url() regex split into capture groups
-const CSS_URL_REGEX = /(url\((["']?))((?:\\.|(?!\2).|[^)])+)(\2\))/g;
+const CSS_URL_REGEX = /(url\(['"]?)([^'")]*)(['"]?\))/g;
 
 // Transforms URL attributes within a document to be fully qualified URLs. This is necessary when
 // embedded documents are serialized and their contents become root-relative.
