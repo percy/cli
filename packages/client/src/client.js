@@ -4,7 +4,7 @@ import logger from '@percy/logger';
 import pkg from '../package.json';
 
 import { sha256hash, base64encode, pool } from './utils';
-import request, { ProxyHttpsAgent } from './request';
+import request from './request';
 
 // Default client API URL can be set with an env var for API development
 const { PERCY_CLIENT_API_URL = 'https://percy.io/api/v1' } = process.env;
@@ -44,11 +44,6 @@ export default class PercyClient {
     Object.assign(this, { token, apiUrl });
     this.clientInfo = new Set([].concat(clientInfo));
     this.environmentInfo = new Set([].concat(environmentInfo));
-
-    // only use a proxy agent for production https requests
-    if (apiUrl.startsWith('https:')) {
-      this.httpsAgent = new ProxyHttpsAgent({ keepAlive: true, maxSockets: 5 });
-    }
   }
 
   // Adds additional unique client info.
@@ -97,7 +92,6 @@ export default class PercyClient {
   get(path) {
     return request(`${this.apiUrl}/${path}`, {
       method: 'GET',
-      agent: this.httpsAgent,
       headers: this.headers()
     });
   }
@@ -106,7 +100,6 @@ export default class PercyClient {
   post(path, body = {}) {
     return request(`${this.apiUrl}/${path}`, {
       method: 'POST',
-      agent: this.httpsAgent,
       body: JSON.stringify(body),
       headers: this.headers({
         'Content-Type': 'application/vnd.api+json'
