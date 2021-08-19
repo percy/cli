@@ -527,46 +527,6 @@ describe('PercyClient', () => {
       await expectAsync(client.finalizeSnapshot(123)).toBeResolved();
       expect(mockAPI.requests['/snapshots/123/finalize']).toBeDefined();
     });
-
-    it('retries server errors', async () => {
-      mockAPI
-        .reply('/snapshots/123/finalize', () => [502])
-        .reply('/snapshots/123/finalize', () => [503])
-        .reply('/snapshots/123/finalize', () => [520])
-        .reply('/snapshots/123/finalize', () => [200, { success: true }]);
-
-      await expectAsync(client.finalizeSnapshot(123)).toBeResolvedTo({ success: true });
-      expect(mockAPI.requests['/snapshots/123/finalize']).toHaveSize(4);
-    });
-
-    it('retries certain request errors', async () => {
-      mockAPI.cleanAll().nock.persist(false)
-        .post('/snapshots/123/finalize').replyWithError({ code: 'ECONNREFUSED' })
-        .post('/snapshots/123/finalize').replyWithError({ code: 'EHOSTUNREACH' })
-        .post('/snapshots/123/finalize').replyWithError({ code: 'ECONNRESET' })
-        .post('/snapshots/123/finalize').replyWithError({ code: 'EAI_AGAIN' })
-        .post('/snapshots/123/finalize').reply(200, { success: true });
-
-      await expectAsync(client.finalizeSnapshot(123)).toBeResolvedTo({ success: true });
-      expect(mockAPI.nock.isDone()).toBe(true);
-    });
-
-    it('does not retry bad requests or unknown errors', async () => {
-      mockAPI.reply('/snapshots/123/finalize', () => [400, { errors: [{ detail: 'Wrong' }] }]);
-      await expectAsync(client.finalizeSnapshot(123)).toBeRejectedWithError('Wrong');
-      expect(mockAPI.requests['/snapshots/123/finalize']).toHaveSize(1);
-
-      mockAPI.cleanAll().nock.persist(false)
-        .post('/snapshots/123/finalize').replyWithError(new Error('Unknown'));
-      await expectAsync(client.finalizeSnapshot(123)).toBeRejectedWithError('Unknown');
-      expect(mockAPI.nock.isDone()).toBe(true);
-    });
-
-    it('fails retrying after 5 attempts', async () => {
-      mockAPI.reply('/snapshots/123/finalize', () => [502, { success: false }]);
-      await expectAsync(client.finalizeSnapshot(123)).toBeRejectedWithError('502 {"success":false}');
-      expect(mockAPI.requests['/snapshots/123/finalize']).toHaveSize(5);
-    });
   });
 
   describe('#sendSnapshot()', () => {
