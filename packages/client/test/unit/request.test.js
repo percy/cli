@@ -334,9 +334,9 @@ describe('Unit / Request', () => {
             await expectAsync(server.request('/test'))
               .toBeResolvedTo('test proxied');
 
+            delete process.env[env];
             process.env[env.toLowerCase()] = proxy.address
               .replace('://', '://user:pass@');
-            delete process.env[env];
             proxyAgentFor.cache.clear();
 
             await expectAsync(server.request('/test', {
@@ -370,8 +370,8 @@ describe('Unit / Request', () => {
               .toBeResolvedTo('test');
 
             // coverage for multiple, empty, non-matching, and wildcard
-            process.env.no_proxy = ', .example.com, localhost:3333, *';
             delete process.env.NO_PROXY;
+            process.env.no_proxy = ', .example.com, localhost:3333, *';
             proxyAgentFor.cache.clear();
 
             await expectAsync(server.request('/test'))
