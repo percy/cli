@@ -203,8 +203,8 @@ export default function request(url, options = {}, callback) {
 
       let shouldRetry = error.response
       // maybe retry 404s and always retry 500s
-        ? ((retryNotFound && error.response.statusCode === 404) ||
-           (error.response.statusCode >= 500 && error.response.statusCode < 600))
+        ? ((retryNotFound && error.response.status === 404) ||
+           (error.response.status >= 500 && error.response.status < 600))
       // retry specific error codes
         : (!!error.code && RETRY_ERROR_CODES.includes(error.code));
 
@@ -229,7 +229,7 @@ export default function request(url, options = {}, callback) {
         }
       } catch (error) {
         handleError(Object.assign(error, {
-          response: { ...res, body }
+          response: { status: res.statusCode, body }
         }));
       }
     };
