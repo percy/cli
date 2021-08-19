@@ -483,7 +483,7 @@ describe('Unit / Request', () => {
 
       describe('with other proxy protocols', () => {
         it('throws an error', async () => {
-          process.env.HTTP_PROXY = 'socks5://localhost:1337';
+          process.env[env] = 'socks5://localhost:1337';
 
           await expectAsync(server.request('/test'))
             .toBeRejectedWithError('Unsupported proxy protocol: socks5:');
