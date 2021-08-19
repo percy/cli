@@ -288,9 +288,6 @@ export default class Percy {
           root = createRootResource(url, domSnapshot);
         }
 
-        // copy widths to prevent mutation later
-        let widths = conf.widths.slice();
-
         // open a new browser page
         page = await this.browser.page({
           networkIdleTimeout: this.config.discovery.networkIdleTimeout,
@@ -315,6 +312,13 @@ export default class Percy {
           }
         });
 
+        // copy widths to prevent mutation
+        let widths = conf.widths.slice();
+        // resolves when the network is idle for discoverable assets
+        let discoveryIdle = () => page.network.idle(({ url }) => (
+          hostnameMatches(discovery.allowedHostnames, url)
+        ));
+
         // set the initial page size
         await page.resize({
           width: widths.shift(),
@@ -326,6 +330,7 @@ export default class Percy {
 
         // trigger resize events for other widths
         for (let width of widths) {
+          await discoveryIdle(); // ensure discovery idles before resizing
           await page.resize({ width, height: conf.minHeight });
         }
 
@@ -334,11 +339,8 @@ export default class Percy {
         if (percyCSS) resources.set(percyCSS.url, percyCSS);
 
         if (root) {
-          // ensure asset discovery has finished before uploading
-          await page.network.idle(({ url }) => (
-            hostnameMatches(discovery.allowedHostnames, url)
-          ));
-
+          // ensure discovery finishes before uploading
+          await discoveryIdle();
           root = injectPercyCSS(root, percyCSS);
           this.log.info(`Snapshot taken: ${name}`, meta);
           this._scheduleUpload(name, conf, [root, ...resources.values()]);

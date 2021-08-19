@@ -530,8 +530,8 @@ describe('Discovery', () => {
       <head><link href="style.css" rel="stylesheet"/></head>
       <body>
         <p>Hello Percy!<p>
-        <img srcset="/img-400w.gif 400w, /img-800w.gif 800w"
-             sizes="(max-width: 600px) 400px, 800px"
+        <img srcset="/img-400w.gif 400w, /img-600w.gif 600w, /img-800w.gif 800w"
+             sizes="(max-width: 600px) 400px, (max-width: 800px) 600px, 800px"
              src="/img-800w.gif">
       </body>
       </html>
@@ -547,6 +547,8 @@ describe('Discovery', () => {
     server.reply('/', () => [200, 'text/html', responsiveDOM]);
     server.reply('/style.css', () => [200, 'text/css', responsiveCSS]);
     server.reply('/img-400w.gif', () => [200, 'image/gif', pixel]);
+    server.reply('/img-600w.gif', () => new Promise(r => (
+      setTimeout(r, 200, [200, 'image/gif', pixel]))));
     server.reply('/img-800w.gif', () => [200, 'image/gif', pixel]);
     server.reply('/img-bg-1.gif', () => [200, 'image/gif', pixel]);
     server.reply('/img-bg-2.gif', () => [200, 'image/gif', pixel]);
@@ -555,7 +557,7 @@ describe('Discovery', () => {
       name: 'test responsive',
       url: 'http://localhost:8000',
       domSnapshot: responsiveDOM,
-      widths: [400, 1200]
+      widths: [400, 800, 1200]
     });
 
     await percy.idle();
@@ -568,6 +570,7 @@ describe('Discovery', () => {
 
     expect(captured[0]).toEqual(jasmine.arrayContaining([
       resource('/img-400w.gif'),
+      resource('/img-600w.gif'),
       resource('/img-800w.gif'),
       resource('/img-bg-1.gif'),
       resource('/img-bg-2.gif')
