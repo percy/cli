@@ -267,6 +267,8 @@ describe('Unit / Request', () => {
 
   for (let serverType of ['http', 'https']) {
     describe(`proxying ${serverType} requests`, () => {
+      let env = `${serverType}_proxy`.toUpperCase();
+
       beforeEach(async () => {
         await server?.close();
 
@@ -278,24 +280,24 @@ describe('Unit / Request', () => {
 
       for (let proxyType of ['http', 'https']) {
         describe(`with an ${proxyType} proxy`, () => {
-          let proxy, env;
+          let proxy;
 
           beforeEach(async () => {
+            delete process.env[env];
+            delete process.env[env.toLowerCase()];
+            delete process.env.NO_PROXY;
+            delete process.env.no_proxy;
+
             proxy = await createProxyServer({
               type: proxyType,
               mitm: serverType,
               port: 1337
             }).start();
 
-            env = `${serverType}_proxy`.toUpperCase();
             process.env[env] = proxy.address;
           });
 
           afterEach(async () => {
-            delete process.env[env];
-            delete process.env[env.toLowerCase()];
-            delete process.env.NO_PROXY;
-            delete process.env.no_proxy;
             await proxy?.close();
           });
 
