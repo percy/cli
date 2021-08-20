@@ -16,7 +16,7 @@ import {
 } from '../utils';
 
 export class Snapshot extends Command {
-  static description = 'Take snapshots from a list or static directory';
+  static description = 'Take snapshots from a static directory, snapshots file, or sitemap url';
 
   static args = [{
     name: 'dir|file|sitemap',
