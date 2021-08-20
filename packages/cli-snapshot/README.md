@@ -4,18 +4,18 @@ Snapshot a list or static directory of web pages.
 
 ## Commands
 <!-- commands -->
-* [`percy snapshot PATHNAME`](#percy-snapshot-pathname)
+* [`percy snapshot DIR|FILE|SITEMAP`](#percy-snapshot-dirfilesitemap)
 
-## `percy snapshot PATHNAME`
+## `percy snapshot DIR|FILE|SITEMAP`
 
-Take snapshots from a list or static directory
+Take snapshots from a static directory, snapshots file, or sitemap url
 
 ```
 USAGE
-  $ percy snapshot PATHNAME
+  $ percy snapshot DIR|FILE|SITEMAP
 
 ARGUMENTS
-  PATHNAME  path to a directory or file containing a list of pages
+  DIR|FILE|SITEMAP  static directory, snapshots file, or sitemap url
 
 OPTIONS
   -b, --base-url=base-url                          the base url pages are hosted at when snapshotting
@@ -28,7 +28,7 @@ OPTIONS
   --clean-urls                                     rewrite static index and filepath URLs to be clean
   --debug                                          debug asset discovery and do not upload snapshots
   --disable-cache                                  disable asset discovery caches
-  --exclude=exclude                                one or more globs/patterns matching snapshot to exclude
+  --exclude=exclude                                one or more globs/patterns matching snapshots to exclude
   --include=include                                one or more globs/patterns matching snapshots to include
   --silent                                         log nothing
 
@@ -265,3 +265,43 @@ static:
       execute: |
         document.querySelector('.button').click()
   ```
+
+### Sitemap URL
+
+When providing a sitemap URL, the document must be an XML document. For sitemap URLs the `--include` and
+`--exclude` flags can be used to filter snapshots. With a Percy config file, the `overrides` option
+is also accepted.
+
+> Tip: Sitemaps can contain **a lot** of URLs, so its best to always start with the `--dry-run` flag
+> while fine tuning the `include` and `exclude` options.
+
+``` sh-session
+$ percy snapshot https://percy.io/sitemap.xml --dry-run
+[percy] Found 10 snapshots
+[percy] Snapshot found: /
+[percy] Snapshot found: /changelog
+[percy] Snapshot found: /customers
+[percy] Snapshot found: /enterprise
+[percy] Snapshot found: /features
+[percy] Snapshot found: /how-it-works
+[percy] Snapshot found: /integrations
+[percy] Snapshot found: /pricing
+[percy] Snapshot found: /security
+[percy] Snapshot found: /visual-testing
+```
+
+#### Sitemap Options
+
+For snapshotting sitemaps, the following Percy config file options are accepted:
+
+``` yaml
+# .percy.yml
+version: 2
+static:
+  include: **/*.html
+  exclude: []
+  overrides: []
+```
+
+See [the corresponding static options](#static-options) for details on `includes`, `excludes`, and
+`overrides` options.
