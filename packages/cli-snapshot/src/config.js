@@ -109,7 +109,7 @@ export function migration(config, util) {
     util.deprecate('static.files', { map: 'static.include', ...notice });
     util.deprecate('static.ignore', { map: 'static.exclude', ...notice });
 
-    for (let i in (config.static.overrides || [])) {
+    for (let i in (config.static?.overrides || [])) {
       let k = `static.overrides[${i}]`;
       util.deprecate(`${k}.files`, { map: `${k}.include`, ...notice });
       util.deprecate(`${k}.ignore`, { map: `${k}.exclude`, ...notice });
