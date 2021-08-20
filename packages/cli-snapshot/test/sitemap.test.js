@@ -19,10 +19,10 @@ describe('percy snapshot <sitemap>', () => {
         '    <loc>http://localhost:8000/</loc>',
         '  </url>',
         '  <url>',
-        '    <loc>http://localhost:8000/test-1</loc>',
+        '    <loc>http://localhost:8000/test-1/</loc>',
         '  </url>',
         '  <url>',
-        '    <loc>http://localhost:8000/test-2</loc>',
+        '    <loc>http://localhost:8000/test-2/</loc>',
         '  </url>',
         '</urlset>'
       ].join('\n')]
@@ -46,8 +46,8 @@ describe('percy snapshot <sitemap>', () => {
     expect(logger.stdout).toEqual([
       '[percy] Found 3 snapshots',
       '[percy] Snapshot found: /',
-      '[percy] Snapshot found: /test-1',
-      '[percy] Snapshot found: /test-2'
+      '[percy] Snapshot found: /test-1/',
+      '[percy] Snapshot found: /test-2/'
     ]);
   });
 
