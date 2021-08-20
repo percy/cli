@@ -119,9 +119,10 @@ export function mapStaticSnapshots(snapshots, {
   cleanUrls,
   rewrites = [],
   overrides = []
-}) {
+} = {}) {
   // reduce rewrites into a single function
   let applyRewrites = [{
+    test: url => !/^(https?:\/)?\//.test(url) && url,
     rewrite: url => path.posix.normalize(path.posix.join('/', url))
   }, ...rewrites.map(({ source, destination }) => ({
     test: pathToRegexp.match(destination),
@@ -130,8 +131,8 @@ export function mapStaticSnapshots(snapshots, {
     test: url => cleanUrls && url,
     rewrite: url => url.replace(/(\/index)?\.html$/, '')
   }].reduceRight((apply, { test, rewrite }) => snap => {
-    let res = !test || test(snap.url ?? snap);
-    if (res) snap = rewrite(test ? (res.params ?? res) : (snap.url ?? snap));
+    let res = test(snap.url ?? snap);
+    if (res) snap = rewrite(res.params ?? res);
     return apply(snap);
   }, s => s);
 

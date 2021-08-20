@@ -57,6 +57,22 @@ export const configSchema = {
         }
       }
     }
+  },
+
+  sitemap: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      include: {
+        $ref: '/snapshot/cli#/$refs/predicate'
+      },
+      exclude: {
+        $ref: '/snapshot/cli#/$refs/predicate'
+      },
+      overrides: {
+        $ref: '/config/static#/properties/overrides'
+      }
+    }
   }
 };
 
