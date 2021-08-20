@@ -328,10 +328,15 @@ export default class Percy {
         // navigate to the url
         await page.goto(url);
 
+        // evaluate any necessary javascript
+        await page.evaluate(execute?.afterNavigation);
+
         // trigger resize events for other widths
         for (let width of widths) {
+          await page.evaluate(execute?.beforeResize);
           await discoveryIdle(); // ensure discovery idles before resizing
           await page.resize({ width, height: conf.minHeight });
+          await page.evaluate(execute?.afterResize);
         }
 
         // create and add a percy-css resource

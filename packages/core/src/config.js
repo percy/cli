@@ -117,6 +117,14 @@ export const snapshotSchema = {
   type: 'object',
   required: ['url'],
   additionalProperties: false,
+  $refs: {
+    exec: {
+      oneOf: [
+        { oneOf: [{ type: 'string' }, { instanceof: 'Function' }] },
+        { type: 'array', items: { $ref: '#/$refs/exec/oneOf/0' } }
+      ]
+    }
+  },
   properties: {
     url: { type: 'string' },
     name: { type: 'string' },
@@ -144,10 +152,18 @@ export const snapshotSchema = {
       maximum: 30000
     },
     execute: {
-      oneOf: [
-        { type: 'string' },
-        { instanceof: 'Function' }
-      ]
+      oneOf: [{
+        $ref: '/snapshot#/$refs/exec'
+      }, {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          afterNavigation: { $ref: '/snapshot#/$refs/exec' },
+          beforeResize: { $ref: '/snapshot#/$refs/exec' },
+          afterResize: { $ref: '/snapshot#/$refs/exec' },
+          beforeSnapshot: { $ref: '/snapshot#/$refs/exec' }
+        }
+      }]
     },
     additionalSnapshots: {
       type: 'array',
@@ -168,7 +184,7 @@ export const snapshotSchema = {
           name: { $ref: '/snapshot#/properties/name' },
           waitForTimeout: { $ref: '/snapshot#/properties/waitForTimeout' },
           waitForSelector: { $ref: '/snapshot#/properties/waitForSelector' },
-          execute: { $ref: '/snapshot#/properties/execute' }
+          execute: { $ref: '/snapshot#/$refs/exec' }
         },
         errors: {
           oneOf: ({ params }) => (
@@ -290,6 +306,9 @@ export function getSnapshotConfig(options, { snapshot, discovery }, log) {
         return [path, next.sort((a, b) => a - b)];
       case 'percyCSS': // concatenate percy css
         return [path, [prev, next].filter(Boolean).join('\n')];
+      case 'execute': // shorthand for execute.beforeSnapshot
+        return (Array.isArray(next) || typeof next !== 'object')
+          ? [path.concat('beforeSnapshot'), next] : [path];
     }
   });
 }

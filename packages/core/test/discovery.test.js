@@ -592,7 +592,7 @@ describe('Discovery', () => {
             get() {
               let err = new Error('Timeout');
               if (!err.stack.includes('/network.js')) return;
-              if (Date.now() - (start ||= Date.now()) > 200) throw err;
+              if (Date.now() - (start ||= Date.now()) > 500) throw err;
             }
           });
 
