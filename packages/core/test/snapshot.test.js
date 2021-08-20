@@ -499,6 +499,67 @@ describe('Snapshot', () => {
           '    at withPercyHelpers (<anonymous>:3:11)'
       ]));
     });
+
+    it('can execute multiple scripts', async () => {
+      let dot = () => (document.querySelector('p').innerHTML += '.');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        execute: [dot, dot, dot]
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
+        '[percy] Snapshot taken: test snapshot'
+      ]);
+
+      expect(Buffer.from((
+        mockAPI.requests['/builds/123/resources'][0]
+          .body.data.attributes['base64-content']
+      ), 'base64').toString()).toMatch('<p>Test...</p>');
+    });
+
+    it('can execute scripts at various states', async () => {
+      let domtest = (pre, fn) => `
+        let p = document.createElement('p');
+        p.innerHTML = ['${pre}', (${fn})()].join(' - ');
+        document.body.appendChild(p);
+      `;
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        widths: [400, 800, 1200],
+        execute: {
+          afterNavigation: domtest('afterNavigation', () => window.location.href),
+          beforeResize: domtest('beforeResize', () => window.innerWidth),
+          afterResize: domtest('afterResize', () => window.innerWidth),
+          beforeSnapshot: domtest('beforeSnapshot', () => 'done!')
+        }
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
+        '[percy] Snapshot taken: test snapshot'
+      ]);
+
+      expect(Buffer.from((
+        mockAPI.requests['/builds/123/resources'][0]
+          .body.data.attributes['base64-content']
+      ), 'base64').toString()).toMatch([
+        '<p>afterNavigation - http://localhost:8000/</p>',
+        '<p>beforeResize - 400</p>',
+        '<p>afterResize - 800</p>',
+        '<p>beforeResize - 800</p>',
+        '<p>afterResize - 1200</p>',
+        '<p>beforeSnapshot - done!</p>'
+      ].join(''));
+    });
   });
 
   describe('with percy-css', () => {

@@ -217,6 +217,24 @@ export default class Page extends EventEmitter {
     }
   }
 
+  // Evaluate one or more scripts in succession
+  async evaluate(scripts) {
+    scripts &&= [].concat(scripts);
+    if (!scripts?.length) return;
+
+    this.log.debug('Evaluate JavaScript', { ...this.meta, scripts });
+
+    for (let script of scripts) {
+      if (typeof script === 'string') {
+        script = `async eval({ waitFor }) {\n${script}\n}`;
+      }
+
+      await this.eval(script);
+    }
+  }
+
+  // Take a snapshot after waiting for any timeout, waiting for any selector, executing any scripts,
+  // and waiting for the network idle
   async snapshot({
     name,
     waitForTimeout,
@@ -242,13 +260,7 @@ export default class Page extends EventEmitter {
     }
 
     // execute any javascript
-    if (execute) {
-      this.log.debug('Execute JavaScript', { ...this.meta, execute });
-      // accept function bodies as strings
-      if (typeof execute === 'string') execute = `async execute({ waitFor }) {\n${execute}\n}`;
-      // execute the provided function
-      await this.eval(execute);
-    }
+    await this.evaluate(execute?.beforeSnapshot ?? execute);
 
     // wait for any final network activity before capturing the dom snapshot
     await this.network.idle();
