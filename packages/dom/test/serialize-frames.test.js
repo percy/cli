@@ -3,7 +3,7 @@ import { assert, withExample, parseDOM } from './helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeFrames', () => {
-  let $, baseURI;
+  let $;
 
   const getFrame = id => when(() => {
     let $frame = document.getElementById(id);
@@ -14,7 +14,6 @@ describe('serializeFrames', () => {
   }, 5000);
 
   beforeEach(async function() {
-    baseURI = document.body.baseURI;
     withExample(`
       <iframe id="frame-external" src="https://example.com"></iframe>
       <iframe id="frame-external-fail" src="https://google.com"></iframe>
@@ -26,16 +25,6 @@ describe('serializeFrames', () => {
       <iframe id="frame-empty" srcdoc="<input/>"></iframe>
       <iframe id="frame-empty-self" src="javascript:void(
         Object.defineProperty(this.document, 'documentElement', { value: null })
-      )"></iframe>
-      <iframe id="frame-with-urls" src="javascript:void(
-        (this.document.body.background = '_/bg.png'),
-        (this.document.body.innerHTML = \`
-          <style>@font-face { src: url('_/font.woff2') }</style>
-          <h1 style='background-image:url(_/head.png)'>Testing</h1>
-          <link rel='stylesheet' href='_/style.css'>
-          <img src='_/img.gif' srcset='/_/img.png 2x,
-            //example.com/img.png 400w'>
-          <video poster='_/poster.png'>\`)
       )"></iframe>
     `);
 
@@ -72,14 +61,18 @@ describe('serializeFrames', () => {
   it('serializes iframes created with JS', () => {
     expect($('#frame-js')[0].getAttribute('src')).toBeNull();
     expect($('#frame-js')[0].getAttribute('srcdoc')).toBe([
-      `<!DOCTYPE html><html><head><base href="${baseURI}"></head><body>`,
+      '<!DOCTYPE html><html><head>',
+      `<base href="${$('#frame-js')[0].baseURI}">`,
+      '</head><body>',
       '<p>made with js src</p>',
       '</body></html>'
     ].join(''));
 
     expect($('#frame-js-no-src')[0].getAttribute('src')).toBeNull();
     expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toBe([
-      `<!DOCTYPE html><html><head><base href="${baseURI}"></head><body>`,
+      '<!DOCTYPE html><html><head>',
+      `<base href="${$('#frame-js-no-src')[0].baseURI}">`,
+      '</head><body>',
       '<p>generated iframe</p>',
       '</body></html>'
     ].join(''));
