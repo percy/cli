@@ -26,16 +26,6 @@ describe('serializeFrames', () => {
       <iframe id="frame-empty-self" src="javascript:void(
         Object.defineProperty(this.document, 'documentElement', { value: null })
       )"></iframe>
-      <iframe id="frame-with-urls" src="javascript:void(
-        (this.document.body.background = '_/bg.png'),
-        (this.document.body.innerHTML = \`
-          <style>@font-face { src: url('_/font.woff2') }</style>
-          <h1 style='background-image:url(_/head.png)'>Testing</h1>
-          <link rel='stylesheet' href='_/style.css'>
-          <img src='_/img.gif' srcset='/_/img.png 2x,
-            //example.com/img.png 400w'>
-          <video poster='_/poster.png'>\`)
-      )"></iframe>
     `);
 
     let $frameInput = await getFrame('frame-input');
@@ -71,14 +61,18 @@ describe('serializeFrames', () => {
   it('serializes iframes created with JS', () => {
     expect($('#frame-js')[0].getAttribute('src')).toBeNull();
     expect($('#frame-js')[0].getAttribute('srcdoc')).toBe([
-      '<!DOCTYPE html><html><head></head><body>',
+      '<!DOCTYPE html><html><head>',
+      `<base href="${$('#frame-js')[0].baseURI}">`,
+      '</head><body>',
       '<p>made with js src</p>',
       '</body></html>'
     ].join(''));
 
     expect($('#frame-js-no-src')[0].getAttribute('src')).toBeNull();
     expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toBe([
-      '<!DOCTYPE html><html><head></head><body>',
+      '<!DOCTYPE html><html><head>',
+      `<base href="${$('#frame-js-no-src')[0].baseURI}">`,
+      '</head><body>',
       '<p>generated iframe</p>',
       '</body></html>'
     ].join(''));
@@ -90,21 +84,6 @@ describe('serializeFrames', () => {
       '<input data-percy-element-id=".+?" value="iframe with an input">',
       '</body></html>$'
     ].join('')));
-  });
-
-  it('serializes iframes internal URLs', () => {
-    let url = uri => new URL(uri, document.URL).href;
-
-    expect($('#frame-with-urls')[0].getAttribute('srcdoc')).toBe([
-      `<!DOCTYPE html><html><head></head><body background="${url('_/bg.png')}">`,
-      `<style>@font-face { src: url('${url('_/font.woff2')}') }</style>`,
-      `<h1 style="background-image:url(${url('_/head.png')})">Testing</h1>`,
-      `<link rel="stylesheet" href="${url('_/style.css')}">`,
-      `<img src="${url('_/img.gif')}" srcset="${url('/_/img.png')} 2x,`,
-      '  http://example.com/img.png 400w">',
-      `<video poster="${url('_/poster.png')}"></video>`
-      // account for indentation in the fixture
-    ].join(' '.repeat(12)) + '</body></html>');
   });
 
   it('does not serialize iframes with CORS', () => {
