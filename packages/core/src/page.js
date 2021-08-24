@@ -260,7 +260,8 @@ export default class Page extends EventEmitter {
     }
 
     // execute any javascript
-    await this.evaluate(execute?.beforeSnapshot ?? execute);
+    await this.evaluate(typeof execute === 'function'
+      ? execute : execute?.beforeSnapshot);
 
     // wait for any final network activity before capturing the dom snapshot
     await this.network.idle();
