@@ -1,6 +1,6 @@
 {
   "name": "@percy/core",
-  "version": "1.0.0-beta.66",
+  "version": "1.0.0-beta.67",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "types/index.d.ts",
@@ -25,10 +25,10 @@
     "access": "public"
   },
   "dependencies": {
-    "@percy/client": "1.0.0-beta.66",
-    "@percy/config": "1.0.0-beta.66",
-    "@percy/dom": "1.0.0-beta.66",
-    "@percy/logger": "1.0.0-beta.66",
+    "@percy/client": "1.0.0-beta.67",
+    "@percy/config": "1.0.0-beta.67",
+    "@percy/dom": "1.0.0-beta.67",
+    "@percy/logger": "1.0.0-beta.67",
     "cross-spawn": "^7.0.3",
     "extract-zip": "^2.0.1",
     "rimraf": "^3.0.2",
