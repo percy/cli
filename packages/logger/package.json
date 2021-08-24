@@ -1,6 +1,6 @@
 {
   "name": "@percy/logger",
-  "version": "1.0.0-beta.65",
+  "version": "1.0.0-beta.66",
   "license": "MIT",
   "main": "dist/index.js",
   "browser": "dist/bundle.js",
