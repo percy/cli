@@ -40,10 +40,15 @@ export default class Network {
     this.onrequestfinished = createRequestFinishedHandler(options, this.page.meta);
     this.onrequestfailed = createRequestFailedHandler(options, this.page.meta);
 
-    await this.page.send('Fetch.enable', {
-      handleAuthRequests: true,
-      patterns: [{ urlPattern: '*' }]
-    });
+    await Promise.all([
+      this.page.send('Fetch.enable', {
+        handleAuthRequests: true,
+        patterns: [{ urlPattern: '*' }]
+      }),
+      this.page.send('Network.setBypassServiceWorker', {
+        bypass: true
+      })
+    ]);
   }
 
   // Resolves after the timeout when there are no more in-flight requests.

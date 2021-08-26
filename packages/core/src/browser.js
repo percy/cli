@@ -256,7 +256,8 @@ export default class Browser extends EventEmitter {
   _handleMessage(data) {
     data = JSON.parse(data);
 
-    if (data.method === 'Target.attachedToTarget') {
+    if (data.method === 'Target.attachedToTarget' &&
+        ['page', 'iframe'].includes(data.params.targetInfo.type)) {
       // create a new page reference when attached to a target
       this.pages.set(data.params.sessionId, new Page(this, data));
     } else if (data.method === 'Target.detachedFromTarget') {

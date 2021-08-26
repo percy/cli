@@ -300,6 +300,34 @@ describe('Discovery', () => {
     ]));
   });
 
+  it('does not capture requests from service workers', async () => {
+    server.reply('/worker.js', () => [200, 'text/javascript', (
+      'self.addEventListener("message", ({ data }) => fetch(data))'
+    )]);
+
+    server.reply('/', () => [200, 'text/html', `<html><head></head><body><script>
+      new Worker("./worker.js").postMessage("/img.gif")
+    </script></body></html>`]);
+
+    await percy.snapshot({
+      name: 'worker snapshot',
+      url: 'http://localhost:8000',
+      waitForTimeout: 500
+    });
+
+    await percy.idle();
+    let paths = server.requests.map(r => r[0]);
+    expect(paths).toContain('/img.gif');
+
+    expect(captured).not.toContain(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      })
+    ]));
+  });
+
   it('does not capture resources with a disallowed status', async () => {
     server.reply('/style.css', () => [202, 'text/css', testCSS]);
     percy.loglevel('debug');
