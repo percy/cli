@@ -18,7 +18,6 @@ export default class Browser extends EventEmitter {
   #lastid = 0;
 
   defaultArgs = [
-    '--enable-features=NetworkService,NetworkServiceInProcess',
     '--disable-features=Translate',
     '--disable-background-networking',
     '--disable-background-timer-throttling',
