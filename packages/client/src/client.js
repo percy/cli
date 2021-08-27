@@ -32,19 +32,27 @@ export default class PercyClient {
   log = logger('client');
   env = new PercyEnvironment(process.env);
   envWarning = false;
+  clientInfo = new Set();
+  environmentInfo = new Set();
 
   constructor({
     // read or write token, defaults to PERCY_TOKEN environment variable
     token,
     // initial user agent info
-    clientInfo = [],
-    environmentInfo = [],
+    clientInfo,
+    environmentInfo,
     // versioned api url
     apiUrl = PERCY_CLIENT_API_URL
   } = {}) {
     Object.assign(this, { token, apiUrl });
-    this.clientInfo = new Set([].concat(clientInfo));
-    this.environmentInfo = new Set([].concat(environmentInfo));
+    // set our env info
+    this.addClientInfo(`Percy/${/\w+$/.exec(this.apiUrl)}`);
+    this.addClientInfo(`${pkg.name}/${pkg.version}`);
+    this.addEnvironmentInfo(`node/${process.version}`);
+    this.addEnvironmentInfo(this.env.info);
+    // set info passed from the SDK
+    this.addClientInfo([].concat(clientInfo).filter(Boolean));
+    this.addEnvironmentInfo([].concat(environmentInfo).filter(Boolean));
   }
 
   // Adds additional unique client info.
@@ -63,17 +71,14 @@ export default class PercyClient {
 
   // Stringifies client and environment info.
   userAgent() {
-    if (!this.envWarning && (this.clientInfo.size === 0 || this.environmentInfo.size === 0)) {
+    if (!this.envWarning && (!(this.clientInfo.size > 2) || !(this.environmentInfo.size > 1))) {
       this.envWarning = true;
       this.log.warn('Warning: Missing `clientInfo` and/or `environmentInfo` properties');
     }
 
-    let client = [`Percy/${/\w+$/.exec(this.apiUrl)}`]
-      .concat(`${pkg.name}/${pkg.version}`, ...this.clientInfo)
-      .filter(Boolean).join(' ');
-    let environment = [...this.environmentInfo]
-      .concat(`node/${process.version}`, this.env.info)
-      .filter(Boolean).join('; ');
+    let client = [...this.clientInfo].join(' ');
+    let environment = [...this.environmentInfo].join('; ');
+
     return `${client} (${environment})`;
   }
 

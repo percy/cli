@@ -38,7 +38,7 @@ describe('PercyClient', () => {
       });
 
       expect(client.userAgent()).toMatch(
-        /^Percy\/v1 @percy\/client\/\S+ client-info \(env-info; node\/v[\d.]+.*\)$/
+        /^Percy\/v1 @percy\/client\/\S+ client-info \(node\/v[\d.]+.*; env-info\)$/
       );
       expect(logger.stderr).toEqual([]);
     });
@@ -58,7 +58,7 @@ describe('PercyClient', () => {
       client.addEnvironmentInfo(['env-info', 'env-info']);
 
       expect(client.userAgent()).toMatch(
-        /^Percy\/v1 @percy\/client\/\S+ client-info \(env-info; node\/v[\d.]+.*\)$/
+        /^Percy\/v1 @percy\/client\/\S+ client-info \(node\/v[\d.]+.*; env-info\)$/
       );
     });
   });
@@ -460,7 +460,7 @@ describe('PercyClient', () => {
       expect(mockAPI.requests['/builds/123/snapshots'][0].headers).toEqual(
         jasmine.objectContaining({
           'user-agent': jasmine.stringMatching(
-            /^Percy\/v1 @percy\/client\/\S+ sdk\/info \(sdk\/env; node\/v[\d.]+.*\)$/
+            /^Percy\/v1 @percy\/client\/\S+ sdk\/info \(node\/v[\d.]+.*; sdk\/env\)$/
           )
         })
       );
