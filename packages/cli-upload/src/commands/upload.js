@@ -83,7 +83,7 @@ export class Upload extends Command {
 
     this.client = new PercyClient({
       clientInfo: `${pkg.name}/${pkg.version}`,
-      environmentInfo: ''
+      environmentInfo: `node/${process.version}`
     });
 
     if (dry) {

@@ -123,7 +123,11 @@ export class Snapshot extends Command {
           this.log.debug(`-> url: ${snap.url}`);
         }
       } else {
-        this.percy.snapshot(snap);
+        this.percy.snapshot({
+          ...snap,
+          clientInfo: `${pkg.name}/${pkg.version}`,
+          environmentInfo: `node/${process.version}`
+        });
       }
     }
   }

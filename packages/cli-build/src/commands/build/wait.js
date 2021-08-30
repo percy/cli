@@ -59,7 +59,7 @@ export class Wait extends Command {
 
     await new PercyClient({
       clientInfo: `${pkg.name}/${pkg.version}`,
-      environmentInfo: ''
+      environmentInfo: `node/${process.version}`
     }).waitForBuild(this.flags, data => {
       this.status(data);
     });

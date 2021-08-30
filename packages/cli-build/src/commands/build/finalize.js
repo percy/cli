@@ -29,7 +29,7 @@ export class Finalize extends Command {
 
     let client = new PercyClient({
       clientInfo: `${pkg.name}/${pkg.version}`,
-      environmentInfo: ''
+      environmentInfo: `node/${process.version}`
     });
 
     // ensure that this command is not used for other parallel totals

@@ -11,7 +11,6 @@ describe('PercyClient', () => {
   beforeEach(() => {
     mockAPI.start();
     logger.mock();
-
     client = new PercyClient({
       token: 'PERCY_TOKEN'
     });
