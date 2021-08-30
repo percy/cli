@@ -31,7 +31,6 @@ function validateProjectPath(path) {
 export default class PercyClient {
   log = logger('client');
   env = new PercyEnvironment(process.env);
-  envWarning = false;
   clientInfo = new Set();
   environmentInfo = new Set();
 
@@ -71,11 +70,6 @@ export default class PercyClient {
 
   // Stringifies client and environment info.
   userAgent() {
-    if (!this.envWarning && (!(this.clientInfo.size > 2) || !(this.environmentInfo.size > 1))) {
-      this.envWarning = true;
-      this.log.warn('Warning: Missing `clientInfo` and/or `environmentInfo` properties');
-    }
-
     let client = [...this.clientInfo].join(' ');
     let environment = [...this.environmentInfo].join('; ');
 

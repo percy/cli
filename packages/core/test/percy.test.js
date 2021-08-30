@@ -241,7 +241,9 @@ describe('Percy', () => {
 
       await expectAsync(percy.snapshot({
         name: 'Snapshot 1',
-        url: 'http://localhost:8000'
+        url: 'http://localhost:8000',
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
       })).toBeResolved();
 
       expect(mockAPI.requests['/builds']).toBeUndefined();
@@ -256,7 +258,9 @@ describe('Percy', () => {
       // throws synchronously
       expect(() => percy.snapshot({
         name: 'Snapshot 2',
-        url: 'http://localhost:8000'
+        url: 'http://localhost:8000',
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
       })).toThrowError('Closed');
 
       expect(logger.stdout).toEqual([
@@ -321,7 +325,9 @@ describe('Percy', () => {
       percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
-        domSnapshot: '<html></html>'
+        domSnapshot: '<html></html>',
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
       });
 
       await expectAsync(percy.stop()).toBeResolved();
@@ -356,7 +362,9 @@ describe('Percy', () => {
       await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
-        domSnapshot: '<html></html>'
+        domSnapshot: '<html></html>',
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
       });
 
       await expectAsync(percy.stop()).toBeResolved();

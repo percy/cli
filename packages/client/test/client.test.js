@@ -26,8 +26,6 @@ describe('PercyClient', () => {
       expect(client.userAgent()).toMatch(
         /^Percy\/v1 @percy\/client\/\S+ \(node\/v[\d.]+.*\)$/
       );
-      expect(logger.stderr)
-        .toEqual(['[percy] Warning: Missing `clientInfo` and/or `environmentInfo` properties']);
     });
 
     it('contains any additional client and environment information', () => {
