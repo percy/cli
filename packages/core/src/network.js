@@ -6,61 +6,81 @@ import {
   createRequestFailedHandler
 } from './discovery';
 
-const NETWORK_TIMEOUT = 30000;
-
 // The Interceptor class creates common handlers for dealing with intercepting asset requests
 // for a given page using various devtools protocol events and commands.
 export default class Network {
+  static TIMEOUT = 30000;
+
+  log = logger('core:network');
+
   #pending = new Map();
   #requests = new Map();
   #intercepts = new Map();
   #authentications = new Set();
-  #frames = new Map();
 
-  log = logger('core:network');
-
-  constructor(page) {
+  constructor(page, options) {
     this.page = page;
-    this.page.on('Fetch.authRequired', this._handleAuthRequired);
-    this.page.on('Fetch.requestPaused', this._handleRequestPaused);
-    this.page.on('Network.requestWillBeSent', this._handleRequestWillBeSent);
-    this.page.on('Network.responseReceived', this._handleResponseReceived);
-    this.page.on('Network.eventSourceMessageReceived', this._handleEventSourceMessageReceived);
-    this.page.on('Network.loadingFinished', this._handleLoadingFinished);
-    this.page.on('Network.loadingFailed', this._handleLoadingFailed);
-    this.page.on('Page.frameDetached', this._handleFrameDetached);
-    this.page._handleCloseRace(this.page.send('Network.enable'));
+    this.timeout = options.networkIdleTimeout ?? 100;
+    this.authorization = options.authorization;
+    this.requestHeaders = options.requestHeaders ?? {};
+    this.userAgent = options.userAgent ??
+      // by default, emulate a non-headless browser
+      page.session.browser.version.userAgent.replace('Headless', '');
+    this.interceptEnabled = !!options.intercept;
+    this.meta = page.meta;
+
+    if (this.interceptEnabled) {
+      this.onRequest = createRequestHandler(options.intercept, this.meta);
+      this.onRequestFinished = createRequestFinishedHandler(options.intercept, this.meta);
+      this.onRequestFailed = createRequestFailedHandler(options.intercept, this.meta);
+    }
   }
 
-  // Enable request interception
-  async intercept(options) {
-    this._intercept = true;
+  watch(session) {
+    let bind = f => e => f(session, e);
 
-    this.onrequest = createRequestHandler(options, this.page.meta);
-    this.onrequestfinished = createRequestFinishedHandler(options, this.page.meta);
-    this.onrequestfailed = createRequestFailedHandler(options, this.page.meta);
+    session.on('Network.requestWillBeSent', bind(this._handleRequestWillBeSent));
+    session.on('Network.responseReceived', bind(this._handleResponseReceived));
+    session.on('Network.eventSourceMessageReceived', this._handleEventSourceMessageReceived);
+    session.on('Network.loadingFinished', this._handleLoadingFinished);
+    session.on('Network.loadingFailed', this._handleLoadingFailed);
 
-    await this.page.send('Fetch.enable', {
-      handleAuthRequests: true,
-      patterns: [{ urlPattern: '*' }]
-    });
+    let commands = [
+      session.send('Network.enable'),
+      session.send('Network.setBypassServiceWorker', { bypass: true }),
+      session.send('Network.setCacheDisabled', { cacheDisabled: true }),
+      session.send('Network.setUserAgentOverride', { userAgent: this.userAgent }),
+      session.send('Network.setExtraHTTPHeaders', { headers: this.requestHeaders })
+    ];
+
+    if (this.interceptEnabled && session.isDocument) {
+      session.on('Fetch.requestPaused', bind(this._handleRequestPaused));
+      session.on('Fetch.authRequired', bind(this._handleAuthRequired));
+
+      commands.push(session.send('Fetch.enable', {
+        handleAuthRequests: true,
+        patterns: [{ urlPattern: '*' }]
+      }));
+    }
+
+    return Promise.all(commands);
   }
 
   // Resolves after the timeout when there are no more in-flight requests.
-  async idle(filter, timeout = this.timeout || 100) {
+  async idle(filter = () => true, timeout = this.timeout) {
     let requests = [];
 
-    this.log.debug(`Wait for ${timeout}ms idle`, this.page.meta);
+    this.log.debug(`Wait for ${timeout}ms idle`, this.meta);
 
     await waitFor(() => {
-      if (this.page.closedReason) {
-        throw new Error(`Network error: ${this.page.closedReason}`);
+      if (this.page.session.closedReason) {
+        throw new Error(`Network error: ${this.page.session.closedReason}`);
       }
 
-      requests = this.getRequests(filter);
+      requests = Array.from(this.#requests.values()).filter(filter);
       return requests.length === 0;
     }, {
-      timeout: NETWORK_TIMEOUT,
+      timeout: Network.TIMEOUT,
       idle: timeout
     }).catch(error => {
       // throw a better timeout error
@@ -68,8 +88,7 @@ export default class Network {
         let msg = 'Timed out waiting for network requests to idle.';
 
         if (this.log.shouldLog('debug')) {
-          msg += `\n\n  ${[
-            'Active requests:',
+          msg += `\n\n  ${['Active requests:',
             ...requests.map(r => r.url)
           ].join('\n  -> ')}\n`;
         }
@@ -81,22 +100,10 @@ export default class Network {
     });
   }
 
-  // Used to recursively collect requests from this frame and subframes
-  getRequests(filter = () => true) {
-    let requests = Array.from(this.#requests.values()).filter(filter);
-
-    for (let frame of this.page.frames) {
-      requests.push(...frame.network.getRequests(filter));
-    }
-
-    return requests;
-  }
-
   // Called when a request should be removed from various trackers
-  _forgetRequest({ requestId, interceptId, frameId }, keepPending) {
+  _forgetRequest({ requestId, interceptId }, keepPending) {
     this.#requests.delete(requestId);
     this.#authentications.delete(interceptId);
-    this.#frames.delete(frameId);
 
     if (!keepPending) {
       this.#pending.delete(requestId);
@@ -106,7 +113,7 @@ export default class Network {
 
   // Called when a request requires authentication. Responds to the auth request with any
   // provided authorization credentials.
-  _handleAuthRequired = async event => {
+  _handleAuthRequired = async (session, event) => {
     let { username, password } = this.authorization ?? {};
     let { requestId } = event;
     let response = 'Default';
@@ -118,7 +125,7 @@ export default class Network {
       this.#authentications.add(requestId);
     }
 
-    await this.page.send('Fetch.continueWithAuth', {
+    await session.send('Fetch.continueWithAuth', {
       requestId: event.requestId,
       authChallengeResponse: { response, username, password }
     });
@@ -126,7 +133,7 @@ export default class Network {
 
   // Called when a request is made. The request is paused until it is fulfilled, continued, or
   // aborted. If the request is already pending, handle it; otherwise set it to be intercepted.
-  _handleRequestPaused = event => {
+  _handleRequestPaused = async (session, event) => {
     let { networkId: requestId } = event;
     let pending = this.#pending.get(requestId);
     this.#pending.delete(requestId);
@@ -134,7 +141,7 @@ export default class Network {
     // guard against redirects with the same requestId
     if (pending?.request.url === event.request.url &&
         pending.request.method === event.request.method) {
-      this._handleRequest(pending, event.requestId);
+      await this._handleRequest(session, pending, event.requestId);
     } else {
       this.#intercepts.set(requestId, event);
     }
@@ -142,30 +149,30 @@ export default class Network {
 
   // Called when a request will be sent. If the request has already been intercepted, handle it;
   // otherwise set it to be pending until it is paused.
-  _handleRequestWillBeSent = event => {
+  _handleRequestWillBeSent = async (session, event) => {
     let { requestId, request } = event;
 
     // do not handle data urls
     if (request.url.startsWith('data:')) return;
 
-    if (this._intercept) {
+    if (this.interceptEnabled) {
       let intercept = this.#intercepts.get(requestId);
       this.#pending.set(requestId, event);
 
       if (intercept) {
-        this._handleRequest(event, intercept.requestId);
+        await this._handleRequest(session, event, intercept.requestId);
         this.#intercepts.delete(requestId);
       }
     } else {
-      this._handleRequest(event);
+      await this._handleRequest(session, event);
     }
   }
 
   // Called when a pending request is paused. Handles associating redirected requests with
   // responses and calls this.onrequest with request info and callbacks to continue, respond,
   // or abort a request. One of the callbacks is required to be called and only one.
-  _handleRequest = async (event, interceptId) => {
-    let { frameId, requestId, request } = event;
+  _handleRequest = async (session, event, interceptId) => {
+    let { requestId, request } = event;
     let redirectChain = [];
 
     // if handling a redirected request, associate the response and add to its redirect chain
@@ -176,42 +183,42 @@ export default class Network {
       this._forgetRequest(req, true);
     }
 
-    request.frameId = frameId;
     request.requestId = requestId;
     request.interceptId = interceptId;
     request.redirectChain = redirectChain;
     this.#requests.set(requestId, request);
 
-    if (this._intercept) {
-      await this.onrequest({
-        ...request,
-        // call to continue the request as-is
-        continue: () => this.page.send('Fetch.continueRequest', {
-          requestId: interceptId
-        }),
-        // call to respond with a specific status, content, and headers
-        respond: ({ status, content, headers }) => this.page.send('Fetch.fulfillRequest', {
-          requestId: interceptId,
-          responseCode: status || 200,
-          body: Buffer.from(content).toString('base64'),
-          responseHeaders: Object.entries(headers || {}).map(([name, value]) => {
-            return { name: name.toLowerCase(), value: String(value) };
-          })
-        }),
-        // call to fail or abort the request
-        abort: error => this.page.send('Fetch.failRequest', {
-          requestId: interceptId,
-          // istanbul note: this check used to be necessary and might be again in the future if we
-          // ever need to abort a request due to reasons other than failures
-          errorReason: error ? 'Failed' : /* istanbul ignore next */ 'Aborted'
+    await this.onRequest?.({
+      ...request,
+
+      // call to continue the request as-is
+      continue: () => session.send('Fetch.continueRequest', {
+        requestId: interceptId
+      }),
+
+      // call to respond with a specific status, content, and headers
+      respond: ({ status, content, headers }) => session.send('Fetch.fulfillRequest', {
+        requestId: interceptId,
+        responseCode: status || 200,
+        body: Buffer.from(content).toString('base64'),
+        responseHeaders: Object.entries(headers || {}).map(([name, value]) => {
+          return { name: name.toLowerCase(), value: String(value) };
         })
-      });
-    }
+      }),
+
+      // call to fail or abort the request
+      abort: error => session.send('Fetch.failRequest', {
+        requestId: interceptId,
+        // istanbul note: this check used to be necessary and might be again in the future if we
+        // ever need to abort a request due to reasons other than failures
+        errorReason: error ? 'Failed' : /* istanbul ignore next */ 'Aborted'
+      })
+    });
   }
 
   // Called when a response has been received for a specific request. Associates the response with
   // the request data and adds a buffer method to fetch the response body when needed.
-  _handleResponseReceived = event => {
+  _handleResponseReceived = (session, event) => {
     let { requestId, response } = event;
     let request = this.#requests.get(requestId);
     /* istanbul ignore if: race condition paranioa */
@@ -219,13 +226,9 @@ export default class Network {
 
     request.response = response;
     request.response.buffer = async () => {
-      let { body, base64Encoded } = await this.page.send('Network.getResponseBody', { requestId });
-      return Buffer.from(body, base64Encoded ? 'base64' : 'utf8');
+      let result = await session.send('Network.getResponseBody', { requestId });
+      return Buffer.from(result.body, result.base64Encoded ? 'base64' : 'utf8');
     };
-
-    if (request.frameId !== this.page.frameId) {
-      this.#frames.set(request.frameId, request);
-    }
   }
 
   // Called when a request streams events. These types of requests break asset discovery because
@@ -243,10 +246,7 @@ export default class Network {
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
 
-    if (this._intercept) {
-      await this.onrequestfinished(request);
-    }
-
+    await this.onRequestFinished?.(request);
     this._forgetRequest(request);
   }
 
@@ -256,26 +256,8 @@ export default class Network {
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
 
-    if (this._intercept) {
-      request.error = event.errorText;
-      await this.onrequestfailed(request);
-    }
-
-    this._forgetRequest(request);
-  }
-
-  // Called after a frame detaches from the main frame. It's likely that the frame created its own
-  // process before the request finish event had a chance to be triggered.
-  _handleFrameDetached = async event => {
-    let request = this.#frames.get(event.frameId);
-    /* istanbul ignore if: race condition paranioa */
-    if (!request) return;
-
-    /* istanbul ignore else: could be false when a page is used without asset discovery */
-    if (this._intercept) {
-      await this.onrequestfinished(request);
-    }
-
+    request.error = event.errorText;
+    await this.onRequestFailed?.(request);
     this._forgetRequest(request);
   }
 }

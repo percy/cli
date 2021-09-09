@@ -7,11 +7,12 @@ import WebSocket from 'ws';
 import rimraf from 'rimraf';
 import logger from '@percy/logger';
 import install from './install';
+import Session from './session';
 import Page from './page';
 
 export default class Browser extends EventEmitter {
   log = logger('core:browser');
-  pages = new Map();
+  sessions = new Map();
   closed = false;
 
   #callbacks = new Map();
@@ -124,14 +125,14 @@ export default class Browser extends EventEmitter {
       }));
     }
 
-    // trigger rejecting pending page callbacks
-    for (let page of this.pages.values()) {
-      page._handleClose();
+    // trigger rejecting pending session callbacks
+    for (let session of this.sessions.values()) {
+      session._handleClose();
     }
 
-    // clear callback and page references
+    // clear own callbacks and sessions
     this.#callbacks.clear();
-    this.pages.clear();
+    this.sessions.clear();
 
     // resolves when the browser has closed
     let closed = new Promise(resolve => {
@@ -181,11 +182,12 @@ export default class Browser extends EventEmitter {
     }));
   }
 
-  async page(options) {
-    // create and attach to a new page target returning the resulting page instance
-    let { targetId } = await this.send('Target.createTarget', { url: 'about:blank' });
+  async page(options = {}) {
+    let { targetId } = await this.send('Target.createTarget', { url: '' });
     let { sessionId } = await this.send('Target.attachToTarget', { targetId, flatten: true });
-    return this.pages.get(sessionId).init(options);
+    let page = new Page(this.sessions.get(sessionId), options);
+    await page._handleAttachedToTarget();
+    return page;
   }
 
   async send(method, params) {
@@ -257,19 +259,20 @@ export default class Browser extends EventEmitter {
     data = JSON.parse(data);
 
     if (data.method === 'Target.attachedToTarget') {
-      // create a new page reference when attached to a target
-      this.pages.set(data.params.sessionId, new Page(this, data));
+      // create a new session reference when attached to a target
+      let session = new Session(this, data);
+      this.sessions.set(session.sessionId, session);
     } else if (data.method === 'Target.detachedFromTarget') {
-      // remove the old page reference when detached from a target
-      let page = this.pages.get(data.params.sessionId);
-      this.pages.delete(data.params.sessionId);
-      page?._handleClose();
+      // remove the old session reference when detached from a target
+      let session = this.sessions.get(data.params.sessionId);
+      this.sessions.delete(session.sessionId);
+      session?._handleClose();
     }
 
     if (data.sessionId) {
-      // message was for a specific page that sent it
-      let page = this.pages.get(data.sessionId);
-      page?._handleMessage(data);
+      // message was for a specific session that sent it
+      let session = this.sessions.get(data.sessionId);
+      session?._handleMessage(data);
     } else if (data.id && this.#callbacks.has(data.id)) {
       // resolve or reject a pending promise created with #send()
       let callback = this.#callbacks.get(data.id);
