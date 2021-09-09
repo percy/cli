@@ -85,6 +85,7 @@ export default class Session extends EventEmitter {
     this.close();
   }
 
+  /* istanbul ignore next: encountered during closing races */
   _handleClosedError = error => {
     if (!error.message.endsWith(this.closedReason)) {
       this.log.debug(error, this.meta);
