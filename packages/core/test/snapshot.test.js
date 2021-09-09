@@ -235,7 +235,7 @@ describe('Snapshot', () => {
 
     expect(logger.stderr).toEqual([
       '[percy] Encountered an error taking snapshot: test snapshot',
-      jasmine.stringMatching('Page closed')
+      jasmine.stringMatching('Session closed')
     ]);
   });
 
@@ -243,8 +243,8 @@ describe('Snapshot', () => {
     let accessed;
 
     server.reply('/img.png', () => new Promise(resolve => {
-      setTimeout(() => (accessed = true), 100);
       setTimeout(resolve, 500, [500, 'text/plain', 'Server Error']);
+      accessed = true;
     }));
 
     let snap = percy.snapshot({
@@ -262,7 +262,7 @@ describe('Snapshot', () => {
 
     expect(logger.stderr).toEqual([
       '[percy] Encountered an error taking snapshot: test snapshot',
-      jasmine.stringMatching('Network error: Page closed')
+      jasmine.stringMatching('Network error: Session closed.')
     ]);
   });
 
@@ -273,15 +273,14 @@ describe('Snapshot', () => {
       execute: () => new Promise(r => setTimeout(r, 1000))
     });
 
-    // wait for page creation
-    await new Promise(r => setTimeout(r, 500));
-    let [[, page]] = percy.browser.pages;
-    await page.send('Page.crash').catch(() => {});
+    await waitFor(() => !!percy.browser.sessions.size);
+    let [session] = percy.browser.sessions.values();
+    await session.send('Page.crash').catch(() => {});
     await snap;
 
     expect(logger.stderr).toEqual([
       '[percy] Encountered an error taking snapshot: crash snapshot',
-      jasmine.stringMatching('Page crashed!')
+      jasmine.stringMatching('Session crashed!')
     ]);
   });
 

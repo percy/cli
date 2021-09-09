@@ -255,7 +255,7 @@ describe('Discovery', () => {
     ]));
   });
 
-  it('does not capture event-stream reqeusts', async () => {
+  it('does not capture event-stream requests', async () => {
     let eventStreamDOM = dedent`<!DOCTYPE html><html><head></head><body><script>
       new EventSource('/event-stream').onmessage = event => {
         let p = document.createElement('p');
@@ -466,7 +466,8 @@ describe('Discovery', () => {
       '[percy:core] -> discovery.disableCache: true',
       '[percy:core] -> clientInfo: test client info',
       '[percy:core] -> environmentInfo: test env info',
-      '[percy:core:page] Initialize page',
+      '[percy:core:page] Page created',
+      '[percy:core:page] Resize page to 400x1024',
       '[percy:core:page] Navigate to: http://localhost:8000',
       '[percy:core:discovery] Handling request: http://localhost:8000/',
       '[percy:core:discovery] -> Serving root resource',
@@ -480,7 +481,9 @@ describe('Discovery', () => {
       '[percy:core:discovery] -> mimetype: image/gif',
       '[percy:core:page] Page navigated',
       '[percy:core:network] Wait for 100ms idle',
-      '[percy:core:page] Page closing'
+      '[percy:core:page] Resize page to 1200x1024',
+      '[percy:core:network] Wait for 100ms idle',
+      '[percy:core:page] Page closed'
     ]));
   });
 
@@ -577,27 +580,46 @@ describe('Discovery', () => {
     ]));
   });
 
+  it('captures requests from workers', async () => {
+    server.reply('/img.gif', () => [200, 'image/gif', pixel]);
+    server.reply('/worker.js', () => [200, 'text/javascript', dedent`
+      self.addEventListener("message", async ({ data }) => {
+        let response = await fetch(data);
+        self.postMessage("fetched");
+      })`]);
+
+    server.reply('/', () => [200, 'text/html', dedent`
+      <!DOCTYPE html><html><head></head><body><script>
+        let worker = new Worker("./worker.js");
+        setTimeout(() => worker.postMessage("http://localhost:8000/img.gif"), 1000);
+        worker.addEventListener("message", ({ data }) => document.body.classList.add(data));
+      </script></body></html>`]);
+
+    await percy.snapshot({
+      name: 'worker snapshot',
+      url: 'http://localhost:8000',
+      waitForSelector: '.fetched'
+    });
+
+    await percy.idle();
+    let paths = server.requests.map(r => r[0]);
+    expect(paths).toContain('/img.gif');
+
+    expect(captured).toContain(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      })
+    ]));
+  });
+
   describe('idle timeout', () => {
+    let Network = require('../src/network').default;
+    let ogTimeout = Network.TIMEOUT;
+
     beforeEach(() => {
-      let start;
-
-      // a real timeout is only triggered after 30 seconds, so we sabatoge a property to throw a fake
-      // timeout error to make this test run much faster than it would otherwise
-      spyOn(require('../src/page').default.prototype, 'init')
-        .and.callFake(function(...a) {
-          Object.defineProperty(this, 'closedReason', {
-            configurable: true,
-            set: v => v,
-
-            get() {
-              let err = new Error('Timeout');
-              if (!err.stack.includes('/network.js')) return;
-              if (Date.now() - (start ||= Date.now()) > 500) throw err;
-            }
-          });
-
-          return this.init.and.originalFn.apply(this, a);
-        });
+      Network.TIMEOUT = 500;
 
       // some async request that takes a while
       server.reply('/img.gif', () => new Promise(r => (
@@ -605,6 +627,10 @@ describe('Discovery', () => {
 
       server.reply('/', () => [200, 'text/html', (
         testDOM.replace('<img', ('<img loading="lazy"')))]);
+    });
+
+    afterEach(() => {
+      Network.TIMEOUT = ogTimeout;
     });
 
     it('throws an error when requests fail to idle in time', async () => {
@@ -829,13 +855,13 @@ describe('Discovery', () => {
   });
 
   describe('with resource errors', () => {
-    const Page = require('../src/page').default;
+    const Session = require('../src/session').default;
 
     // sabotage this method to trigger unexpected error handling
-    function spyOnPageEvent(event, fn) {
-      let spy = spyOn(Page.prototype, 'send')
+    function triggerSessionEventError(event, error) {
+      let spy = spyOn(Session.prototype, 'send')
         .and.callFake(function(...args) {
-          if (args[0] === event) return fn();
+          if (args[0] === event) return Promise.reject(error);
           return spy.and.originalFn.apply(this, args);
         });
     }
@@ -846,7 +872,7 @@ describe('Discovery', () => {
 
     it('logs unhandled request errors gracefully', async () => {
       let err = new Error('some unhandled request error');
-      spyOnPageEvent('Fetch.continueRequest', () => Promise.reject(err));
+      triggerSessionEventError('Fetch.continueRequest', err);
 
       await percy.snapshot({
         name: 'test snapshot',
@@ -867,7 +893,7 @@ describe('Discovery', () => {
 
     it('logs unhandled response errors gracefully', async () => {
       let err = new Error('some unhandled request error');
-      spyOnPageEvent('Network.getResponseBody', () => Promise.reject(err));
+      triggerSessionEventError('Network.getResponseBody', err);
 
       await percy.snapshot({
         name: 'test snapshot',
@@ -1006,6 +1032,9 @@ describe('Discovery', () => {
     });
 
     it('waits to capture resources from isolated pages', async () => {
+      require('../src/page').default.TIMEOUT = 5000;
+      require('../src/network').default.TIMEOUT = 6000;
+
       server.reply('/', () => [200, {
         'Content-Type': 'text/html',
         'Origin-Agent-Cluster': '?1' // force page isolation
