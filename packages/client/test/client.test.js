@@ -83,41 +83,6 @@ describe('PercyClient', () => {
       expect(logger.stderr).toEqual(['[percy] Warning: Missing `clientInfo` and/or `environmentInfo` properties']);
     });
 
-    it('it only logs the missing UA warning once', async () => {
-      client = new PercyClient({
-        token: 'PERCY_TOKEN',
-        environmentInfo: 'env-info'
-      });
-
-      await expectAsync(client.createSnapshot(123, {
-        name: 'snapfoo',
-        widths: [1000],
-        minHeight: 1000,
-        enableJavaScript: true,
-        resources: [{
-          url: '/foobar',
-          content: 'foo',
-          mimetype: 'text/html',
-          root: true
-        }]
-      })).toBeResolved();
-
-      await expectAsync(client.createSnapshot(123, {
-        name: 'snapfoo',
-        widths: [1000],
-        minHeight: 1000,
-        enableJavaScript: true,
-        resources: [{
-          url: '/foobar',
-          content: 'foo',
-          mimetype: 'text/html',
-          root: true
-        }]
-      })).toBeResolved();
-
-      expect(logger.stderr).toEqual(['[percy] Warning: Missing `clientInfo` and/or `environmentInfo` properties']);
-    });
-
     it('does not duplicate or include empty client and environment information', () => {
       client.addClientInfo(null);
       client.addClientInfo(undefined);

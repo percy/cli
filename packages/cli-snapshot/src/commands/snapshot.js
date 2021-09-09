@@ -124,7 +124,7 @@ export class Snapshot extends Command {
           this.log.debug(`-> url: ${snap.url}`);
         }
       } else {
-        this.percy.snapshot({ ...snap });
+        this.percy.snapshot(snap);
       }
     }
   }

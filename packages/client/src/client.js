@@ -33,7 +33,6 @@ export default class PercyClient {
   env = new PercyEnvironment(process.env);
   clientInfo = new Set();
   environmentInfo = new Set();
-  envWarning = false;
 
   constructor({
     // read or write token, defaults to PERCY_TOKEN environment variable
@@ -296,8 +295,7 @@ export default class PercyClient {
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
 
-    if (!this.envWarning && (this.clientInfo.size === 0 || this.environmentInfo.size === 0)) {
-      this.envWarning = true;
+    if (!this.clientInfo.size || !this.environmentInfo.size) {
       this.log.warn('Warning: Missing `clientInfo` and/or `environmentInfo` properties');
     }
 

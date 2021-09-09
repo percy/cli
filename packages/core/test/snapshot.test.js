@@ -21,7 +21,9 @@ describe('Snapshot', () => {
       token: 'PERCY_TOKEN',
       snapshot: { widths: [1000] },
       discovery: { concurrency: 1 },
-      server: false
+      server: false,
+      clientInfo: 'client-info',
+      environmentInfo: 'env-info'
     });
 
     logger.reset();
@@ -53,9 +55,7 @@ describe('Snapshot', () => {
         name: 'nombre',
         suffix: ' - 1',
         waitForTimeout: 1000
-      }],
-      clientInfo: 'client-info',
-      environmentInfo: 'env-info'
+      }]
     })).toThrow();
 
     expect(logger.stderr).toEqual([
@@ -76,9 +76,7 @@ describe('Snapshot', () => {
       execute: 'e',
       additionalSnapshots: [
         { prefix: 'f' }
-      ],
-      clientInfo: 'client-info',
-      environmentInfo: 'env-info'
+      ]
     })).toThrow();
 
     expect(logger.stderr).toEqual([
@@ -104,9 +102,7 @@ describe('Snapshot', () => {
           'still-not-a-hostname.io/with-a-path',
           'finally.a-real.hostname.org'
         ]
-      },
-      clientInfo: 'client-info',
-      environmentInfo: 'env-info'
+      }
     })).toThrow();
 
     expect(logger.stderr).toEqual([
@@ -119,12 +115,11 @@ describe('Snapshot', () => {
   });
 
   it('warns on deprecated options', () => {
-    let envInfo = { clientInfo: 'client-info', environmentInfo: 'env-info' };
     percy.close(); // close queues so snapshots fail
 
-    expect(() => percy.snapshot({ url: 'http://a', requestHeaders: { foo: 'bar' }, ...envInfo })).toThrow();
-    expect(() => percy.snapshot({ url: 'http://b', authorization: { username: 'foo' }, ...envInfo })).toThrow();
-    expect(() => percy.snapshot({ url: 'http://c', snapshots: [{ name: 'foobar' }], ...envInfo })).toThrow();
+    expect(() => percy.snapshot({ url: 'http://a', requestHeaders: { foo: 'bar' } })).toThrow();
+    expect(() => percy.snapshot({ url: 'http://b', authorization: { username: 'foo' } })).toThrow();
+    expect(() => percy.snapshot({ url: 'http://c', snapshots: [{ name: 'foobar' }] })).toThrow();
 
     expect(logger.stderr).toEqual([
       '[percy] Warning: The snapshot option `requestHeaders` ' +
@@ -152,9 +147,7 @@ describe('Snapshot', () => {
     await percy.snapshot({
       name: 'test snapshot',
       url: 'http://localhost:8000',
-      domSnapshot: testDOM,
-      clientInfo: 'client-info',
-      environmentInfo: 'env-info'
+      domSnapshot: testDOM
     });
 
     expect(logger.stderr).toEqual([]);
@@ -171,9 +164,7 @@ describe('Snapshot', () => {
     await percy.snapshot({
       name: 'test snapshot',
       url: 'http://localhost:8000',
-      domSnapshot: testDOM,
-      clientInfo: 'client-info',
-      environmentInfo: 'env-info'
+      domSnapshot: testDOM
     });
 
     expect(logger.stdout).toEqual([]);
@@ -191,9 +182,7 @@ describe('Snapshot', () => {
     await percy.snapshot({
       name: 'test snapshot',
       url: 'http://localhost:8000',
-      domSnapshot: testDOM,
-      clientInfo: 'client-info',
-      environmentInfo: 'env-info'
+      domSnapshot: testDOM
     });
 
     await percy.idle();
@@ -213,9 +202,7 @@ describe('Snapshot', () => {
 
     let snap = percy.snapshot({
       name: 'test snapshot',
-      url: 'http://localhost:8000',
-      clientInfo: 'client-info',
-      environmentInfo: 'env-info'
+      url: 'http://localhost:8000'
     });
 
     // wait until a page is requested
@@ -240,9 +227,7 @@ describe('Snapshot', () => {
 
     let snap = percy.snapshot({
       name: 'test snapshot',
-      url: 'http://localhost:8000',
-      clientInfo: 'client-info',
-      environmentInfo: 'env-info'
+      url: 'http://localhost:8000'
     });
 
     // wait until an asset has at least been requested
@@ -269,9 +254,7 @@ describe('Snapshot', () => {
       url: 'http://localhost:8000',
       execute: () => {
         document.body.innerHTML += '<img src="/img.png"/>';
-      },
-      clientInfo: 'client-info',
-      environmentInfo: 'env-info'
+      }
     });
 
     // wait until the asset is requested before exiting
@@ -289,9 +272,7 @@ describe('Snapshot', () => {
     let snap = percy.snapshot({
       name: 'crash snapshot',
       url: 'http://localhost:8000',
-      execute: () => new Promise(r => setTimeout(r, 1000)),
-      clientInfo: 'client-info',
-      environmentInfo: 'env-info'
+      execute: () => new Promise(r => setTimeout(r, 1000))
     });
 
     // wait for page creation
@@ -382,9 +363,7 @@ describe('Snapshot', () => {
           { suffix: ' two' },
           { prefix: 'third ' },
           { name: 'test snapshot 4' }
-        ],
-        clientInfo: 'client-info',
-        environmentInfo: 'env-info'
+        ]
       });
 
       expect(logger.stderr).toEqual([]);
@@ -405,9 +384,7 @@ describe('Snapshot', () => {
           { suffix: ' 2', execute: () => document.querySelector('p').classList.add('eval-2') },
           { suffix: ' 3', execute: () => document.querySelector('p').classList.add('eval-3') },
           { suffix: ' 4' }
-        ],
-        clientInfo: 'client-info',
-        environmentInfo: 'env-info'
+        ]
       });
 
       await percy.idle();
@@ -429,9 +406,7 @@ describe('Snapshot', () => {
       await percy.snapshot({
         name: 'foo snapshot',
         url: 'http://localhost:8000',
-        execute: () => document.querySelector('a').click(),
-        clientInfo: 'client-info',
-        environmentInfo: 'env-info'
+        execute: () => document.querySelector('a').click()
       });
 
       expect(logger.stderr).toEqual([]);
@@ -455,9 +430,7 @@ describe('Snapshot', () => {
           let $p = document.querySelector('p');
           setTimeout(() => ($p.id = 'timed'), 100);
           await waitFor(() => $p.id === 'timed', 200);
-        `,
-        clientInfo: 'client-info',
-        environmentInfo: 'env-info'
+        `
       });
 
       expect(logger.stderr).toEqual([]);
@@ -483,9 +456,7 @@ describe('Snapshot', () => {
 
           let $f = document.querySelector('iframe');
           if ($f) $f.src = '/foo';
-        },
-        clientInfo: 'client-info',
-        environmentInfo: 'env-info'
+        }
       });
 
       expect(logger.stderr).toEqual([]);
@@ -537,9 +508,7 @@ describe('Snapshot', () => {
       await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
-        execute: [dot, dot, dot],
-        clientInfo: 'client-info',
-        environmentInfo: 'env-info'
+        execute: [dot, dot, dot]
       });
 
       await percy.idle();
@@ -569,9 +538,7 @@ describe('Snapshot', () => {
         execute: {
           afterNavigation: domtest('afterNavigation', () => window.location.href),
           beforeSnapshot: domtest('beforeSnapshot', () => 'done!')
-        },
-        clientInfo: 'client-info',
-        environmentInfo: 'env-info'
+        }
       });
 
       await percy.snapshot({
@@ -581,9 +548,7 @@ describe('Snapshot', () => {
         execute: {
           beforeResize: domtest('beforeResize', () => window.innerWidth),
           afterResize: domtest('afterResize', () => window.innerWidth)
-        },
-        clientInfo: 'client-info',
-        environmentInfo: 'env-info'
+        }
       });
 
       await percy.idle();
