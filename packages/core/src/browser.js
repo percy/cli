@@ -18,32 +18,50 @@ export default class Browser extends EventEmitter {
   #callbacks = new Map();
   #lastid = 0;
 
-  defaultArgs = [
-    '--enable-features=NetworkService,NetworkServiceInProcess',
+  args = [
+    // disable the translate popup
     '--disable-features=Translate',
+    // disable several subsystems which run network requests in the background
     '--disable-background-networking',
+    // disable task throttling of timer tasks from background pages
     '--disable-background-timer-throttling',
+    // disable backgrounding renderers for occluded windows (reduce nondeterminism)
     '--disable-backgrounding-occluded-windows',
+    // disable crash reporting
     '--disable-breakpad',
+    // disable client side phishing detection
     '--disable-client-side-phishing-detection',
+    // disable default component extensions with background pages for performance
     '--disable-component-extensions-with-background-pages',
+    // disable installation of default apps on first run
     '--disable-default-apps',
+    // work-around for environments where a small /dev/shm partition causes crashes
     '--disable-dev-shm-usage',
+    // disable extensions
     '--disable-extensions',
+    // disable hang monitor dialogs in renderer processes
     '--disable-hang-monitor',
+    // disable inter-process communication flooding protection for javascript
     '--disable-ipc-flooding-protection',
-    '--disable-popup-blocking',
+    // disable web notifications and the push API
+    '--disable-notifications',
+    // disable the prompt when a POST request causes page navigation
     '--disable-prompt-on-repost',
-    '--disable-renderer-backgrounding',
+    // disable syncing browser data with google accounts
     '--disable-sync',
-    '--disable-web-security',
-    '--force-color-profile=srgb',
-    '--metrics-recording-only',
+    // disable site-isolation to make network requests easier to intercept
+    '--disable-site-isolation-trials',
+    // disable the first run tasks, whether or not it's actually the first run
     '--no-first-run',
+    // disable the sandbox for all process types that are normally sandboxed
     '--no-sandbox',
+    // enable indication that browser is controlled by automation
     '--enable-automation',
+    // specify a consistent encryption backend across platforms
     '--password-store=basic',
+    // use a mock keychain on Mac to prevent blocking permissions dialogs
     '--use-mock-keychain',
+    // enable remote debugging on the first available port
     '--remote-debugging-port=0'
   ];
 
@@ -59,7 +77,10 @@ export default class Browser extends EventEmitter {
     this.launchTimeout = timeout;
     this.executable = executable;
     this.headless = headless;
-    this.args = args;
+
+    /* istanbul ignore next: only false for debugging */
+    if (this.headless) this.args.push('--headless', '--hide-scrollbars', '--mute-audio');
+    for (let a of args) if (!this.args.includes(a)) this.args.push(a);
 
     // transform cookies object to an array of cookie params
     this.cookies = Array.isArray(cookies) ? cookies
@@ -81,10 +102,7 @@ export default class Browser extends EventEmitter {
     this.profile = await fs.mkdtemp(path.join(os.tmpdir(), 'percy-browser-'));
 
     // collect args to pass to the browser process
-    let args = [...this.defaultArgs, `--user-data-dir=${this.profile}`];
-    /* istanbul ignore next: only false for debugging */
-    if (this.headless) args.push('--headless', '--hide-scrollbars', '--mute-audio');
-    for (let a of this.args) if (!args.includes(a)) args.push(a);
+    let args = [...this.args, `--user-data-dir=${this.profile}`];
 
     // spawn the browser process detached in its own group and session
     this.process = spawn(this.executable, args, {
@@ -95,19 +113,12 @@ export default class Browser extends EventEmitter {
     let addr = await this.address(this.launchTimeout);
     this.ws = new WebSocket(addr, { perMessageDeflate: false });
 
-    // wait until the websocket has connected before continuing
+    // wait until the websocket has connected
     await new Promise(resolve => this.ws.once('open', resolve));
     this.ws.on('message', data => this._handleMessage(data));
 
-    // close any initial pages that automatically opened
-    await this.send('Target.getTargets').then(({ targetInfos }) => {
-      /* istanbul ignore next: this doesn't happen in every environment */
-      return Promise.all(targetInfos.reduce((promises, target) => {
-        return target.type !== 'page' ? promises : promises.concat(
-          this.send('Target.closeTarget', { targetId: target.targetId })
-        );
-      }, []));
-    });
+    // get version information
+    this.version = await this.send('Browser.getVersion');
   }
 
   isConnected() {
@@ -115,8 +126,31 @@ export default class Browser extends EventEmitter {
   }
 
   async close() {
-    if (this.closed) return;
-    this.closed = true;
+    if (this._closed) return this._closed;
+
+    // resolves when the browser has closed
+    this._closed = new Promise(resolve => {
+      /* istanbul ignore next: race condition paranoia */
+      if (!this.process || this.process.exitCode) resolve();
+      else this.process.on('exit', resolve);
+    }).then(() => {
+      // needed due to a bug in Node 12 - https://github.com/nodejs/node/issues/27097
+      this.process?.stdin.end();
+      this.process?.stdout.end();
+      this.process?.stderr.end();
+
+      /* istanbul ignore next:
+       *   this might fail on some systems but ultimately it is just a temp file */
+      if (this.profile) {
+        // attempt to clean up the profile directory
+        return new Promise((resolve, reject) => {
+          rimraf(this.profile, e => e ? reject(e) : resolve());
+        }).catch(error => {
+          this.log.debug('Could not clean up temporary browser profile directory.');
+          this.log.debug(error);
+        });
+      }
+    });
 
     // reject any pending callbacks
     for (let callback of this.#callbacks.values()) {
@@ -134,52 +168,17 @@ export default class Browser extends EventEmitter {
     this.#callbacks.clear();
     this.sessions.clear();
 
-    // resolves when the browser has closed
-    let closed = new Promise(resolve => {
-      /* istanbul ignore next: race condition paranoia */
-      if (!this.process || this.process.exitCode) resolve();
-      else this.process.on('exit', resolve);
-    });
-
-    // force close if needed and able to
-    let kill = () => {
-      /* istanbul ignore next:
-       *   difficult to test failure here without mocking private properties */
-      if (this.process?.pid && !this.process.killed) {
-        try { this.process.kill('SIGKILL'); } catch (error) {
-          throw new Error(`Unable to close the browser: ${error.stack}`);
-        }
-      }
-    };
-
-    /* istanbul ignore else:
+    /* istanbul ignore next:
      *   difficult to test failure here without mocking private properties */
-    if (this.profile) kill();
-    else this.send('Browser.close').catch(() => kill());
-
-    // after closing, attempt to clean up the profile directory
-    await closed.then(() => new Promise(resolve => {
-      // needed due to a bug in Node 12 - https://github.com/nodejs/node/issues/27097
-      this.process?.stdin.end();
-      this.process?.stdout.end();
-      this.process?.stderr.end();
-
-      /* istanbul ignore else: sanity */
-      if (this.profile) {
-        rimraf(this.profile, error => {
-          /* istanbul ignore next:
-           *   this might happen on some systems but ultimately it is a temp file */
-          if (error) {
-            this.log.debug('Could not clean up temporary browser profile directory.');
-            this.log.debug(error);
-          }
-
-          resolve();
-        });
-      } else {
-        resolve();
+    if (this.process?.pid && !this.process.killed) {
+      // always force close the browser process
+      try { this.process.kill('SIGKILL'); } catch (error) {
+        throw new Error(`Unable to close the browser: ${error.stack}`);
       }
-    }));
+    }
+
+    // wait for close
+    return this._closed;
   }
 
   async page(options = {}) {
@@ -203,8 +202,10 @@ export default class Browser extends EventEmitter {
       this.ws.send(JSON.stringify({ ...method, id }));
       return id;
     } else {
-      // send the message and return a promise that resolves or rejects for a matching response
+      // send the message payload
       this.ws.send(JSON.stringify({ id, method, params }));
+
+      // will resolve or reject when a matching response is received
       return new Promise((resolve, reject) => {
         this.#callbacks.set(id, { error: new Error(), resolve, reject, method });
       });
