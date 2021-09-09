@@ -33,6 +33,7 @@ export default class PercyClient {
   env = new PercyEnvironment(process.env);
   clientInfo = new Set();
   environmentInfo = new Set();
+  envWarning = false;
 
   constructor({
     // read or write token, defaults to PERCY_TOKEN environment variable
@@ -44,14 +45,8 @@ export default class PercyClient {
     apiUrl = PERCY_CLIENT_API_URL
   } = {}) {
     Object.assign(this, { token, apiUrl });
-    // set our env info
-    this.addClientInfo(`Percy/${/\w+$/.exec(this.apiUrl)}`);
-    this.addClientInfo(`${pkg.name}/${pkg.version}`);
-    this.addEnvironmentInfo(`node/${process.version}`);
-    this.addEnvironmentInfo(this.env.info);
-    // set info passed from the SDK
-    this.addClientInfo([].concat(clientInfo).filter(Boolean));
-    this.addEnvironmentInfo([].concat(environmentInfo).filter(Boolean));
+    this.addClientInfo(clientInfo);
+    this.addEnvironmentInfo(environmentInfo);
   }
 
   // Adds additional unique client info.
@@ -70,10 +65,14 @@ export default class PercyClient {
 
   // Stringifies client and environment info.
   userAgent() {
-    let client = [...this.clientInfo].join(' ');
-    let environment = [...this.environmentInfo].join('; ');
+    let client = new Set([`Percy/${/\w+$/.exec(this.apiUrl)}`]
+      .concat(`${pkg.name}/${pkg.version}`, ...this.clientInfo)
+      .filter(Boolean));
+    let environment = new Set([...this.environmentInfo]
+      .concat(`node/${process.version}`, this.env.info)
+      .filter(Boolean));
 
-    return `${client} (${environment})`;
+    return `${[...client].join(' ')} (${[...environment].join('; ')})`;
   }
 
   // Checks for a Percy token and returns it.
@@ -296,6 +295,11 @@ export default class PercyClient {
     validateBuildId(buildId);
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
+
+    if (!this.envWarning && (this.clientInfo.size === 0 || this.environmentInfo.size === 0)) {
+      this.envWarning = true;
+      this.log.warn('Warning: Missing `clientInfo` and/or `environmentInfo` properties');
+    }
 
     this.log.debug(`Creating snapshot: ${name}...`);
 

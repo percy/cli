@@ -35,9 +35,87 @@ describe('PercyClient', () => {
       });
 
       expect(client.userAgent()).toMatch(
-        /^Percy\/v1 @percy\/client\/\S+ client-info \(node\/v[\d.]+.*; env-info\)$/
+        /^Percy\/v1 @percy\/client\/\S+ client-info \(env-info; node\/v[\d.]+.*\)$/
       );
       expect(logger.stderr).toEqual([]);
+    });
+
+    it('it logs a debug warning when no info is passed', async () => {
+      client = new PercyClient({
+        token: 'PERCY_TOKEN'
+      });
+
+      await expectAsync(client.createSnapshot(123, {
+        name: 'snapfoo',
+        widths: [1000],
+        minHeight: 1000,
+        enableJavaScript: true,
+        resources: [{
+          url: '/foobar',
+          content: 'foo',
+          mimetype: 'text/html',
+          root: true
+        }]
+      })).toBeResolved();
+
+      expect(logger.stderr).toEqual(['[percy] Warning: Missing `clientInfo` and/or `environmentInfo` properties']);
+    });
+
+    it('it logs a debug warning when partial info is passed', async () => {
+      client = new PercyClient({
+        token: 'PERCY_TOKEN',
+        clientInfo: 'client-info'
+      });
+
+      await expectAsync(client.createSnapshot(123, {
+        name: 'snapfoo',
+        widths: [1000],
+        minHeight: 1000,
+        enableJavaScript: true,
+        resources: [{
+          url: '/foobar',
+          content: 'foo',
+          mimetype: 'text/html',
+          root: true
+        }]
+      })).toBeResolved();
+
+      expect(logger.stderr).toEqual(['[percy] Warning: Missing `clientInfo` and/or `environmentInfo` properties']);
+    });
+
+    it('it only logs the missing UA warning once', async () => {
+      client = new PercyClient({
+        token: 'PERCY_TOKEN',
+        environmentInfo: 'env-info'
+      });
+
+      await expectAsync(client.createSnapshot(123, {
+        name: 'snapfoo',
+        widths: [1000],
+        minHeight: 1000,
+        enableJavaScript: true,
+        resources: [{
+          url: '/foobar',
+          content: 'foo',
+          mimetype: 'text/html',
+          root: true
+        }]
+      })).toBeResolved();
+
+      await expectAsync(client.createSnapshot(123, {
+        name: 'snapfoo',
+        widths: [1000],
+        minHeight: 1000,
+        enableJavaScript: true,
+        resources: [{
+          url: '/foobar',
+          content: 'foo',
+          mimetype: 'text/html',
+          root: true
+        }]
+      })).toBeResolved();
+
+      expect(logger.stderr).toEqual(['[percy] Warning: Missing `clientInfo` and/or `environmentInfo` properties']);
     });
 
     it('does not duplicate or include empty client and environment information', () => {
@@ -55,7 +133,7 @@ describe('PercyClient', () => {
       client.addEnvironmentInfo(['env-info', 'env-info']);
 
       expect(client.userAgent()).toMatch(
-        /^Percy\/v1 @percy\/client\/\S+ client-info \(node\/v[\d.]+.*; env-info\)$/
+        /^Percy\/v1 @percy\/client\/\S+ client-info \(env-info; node\/v[\d.]+.*\)$/
       );
     });
   });
@@ -457,7 +535,7 @@ describe('PercyClient', () => {
       expect(mockAPI.requests['/builds/123/snapshots'][0].headers).toEqual(
         jasmine.objectContaining({
           'user-agent': jasmine.stringMatching(
-            /^Percy\/v1 @percy\/client\/\S+ sdk\/info \(node\/v[\d.]+.*; sdk\/env\)$/
+            /^Percy\/v1 @percy\/client\/\S+ sdk\/info \(sdk\/env; node\/v[\d.]+.*\)$/
           )
         })
       );

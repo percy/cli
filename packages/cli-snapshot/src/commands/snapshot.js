@@ -95,6 +95,7 @@ export class Snapshot extends Command {
       }),
 
       clientInfo: `${pkg.name}/${pkg.version}`,
+      environmentInfo: `node/${process.version}`,
       server: false
     });
 
@@ -123,11 +124,7 @@ export class Snapshot extends Command {
           this.log.debug(`-> url: ${snap.url}`);
         }
       } else {
-        this.percy.snapshot({
-          ...snap,
-          clientInfo: `${pkg.name}/${pkg.version}`,
-          environmentInfo: `node/${process.version}`
-        });
+        this.percy.snapshot({ ...snap });
       }
     }
   }

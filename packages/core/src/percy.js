@@ -21,7 +21,6 @@ import {
 export default class Percy {
   log = logger('core');
   readyState = null;
-  envWarning = false;
 
   #cache = new Map();
   #uploads = new Queue();
@@ -234,11 +233,6 @@ export default class Percy {
   snapshot(options) {
     if (this.readyState !== 1) {
       throw new Error('Not running');
-    }
-
-    if (!this.envWarning && (!options.clientInfo || !options.environmentInfo)) {
-      this.envWarning = true;
-      this.log.warn('Warning: Missing `clientInfo` and/or `environmentInfo` properties');
     }
 
     let {
