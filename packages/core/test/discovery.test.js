@@ -581,24 +581,37 @@ describe('Discovery', () => {
   });
 
   it('captures requests from workers', async () => {
-    server.reply('/img.gif', () => [200, 'image/gif', pixel]);
+    // Fetch and Network events are inherently racey because they come from different processes. The
+    // bug we are testing here happens specifically when the Network event comes after the Fetch
+    // event. Using a stub, we can cause Network events to happen a few milliseconds later than they
+    // might, ensuring that they come after Fetch events.
+    spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+      let { method } = JSON.parse(data);
+
+      if (method === 'Network.requestWillBeSent') {
+        setTimeout(this._handleMessage.and.originalFn.bind(this), 10, data);
+      } else {
+        this._handleMessage.and.originalFn.call(this, data);
+      }
+    });
+
     server.reply('/worker.js', () => [200, 'text/javascript', dedent`
       self.addEventListener("message", async ({ data }) => {
-        let response = await fetch(data);
-        self.postMessage("fetched");
+        let response = await fetch(new Request(data));
+        self.postMessage("done");
       })`]);
 
     server.reply('/', () => [200, 'text/html', dedent`
       <!DOCTYPE html><html><head></head><body><script>
-        let worker = new Worker("./worker.js");
-        setTimeout(() => worker.postMessage("http://localhost:8000/img.gif"), 1000);
+        let worker = new Worker("/worker.js");
         worker.addEventListener("message", ({ data }) => document.body.classList.add(data));
+        setTimeout(() => worker.postMessage("http://localhost:8000/img.gif"), 100);
       </script></body></html>`]);
 
     await percy.snapshot({
       name: 'worker snapshot',
       url: 'http://localhost:8000',
-      waitForSelector: '.fetched'
+      waitForSelector: '.done'
     });
 
     await percy.idle();
@@ -1032,9 +1045,6 @@ describe('Discovery', () => {
     });
 
     it('waits to capture resources from isolated pages', async () => {
-      require('../src/page').default.TIMEOUT = 5000;
-      require('../src/network').default.TIMEOUT = 6000;
-
       server.reply('/', () => [200, {
         'Content-Type': 'text/html',
         'Origin-Agent-Cluster': '?1' // force page isolation

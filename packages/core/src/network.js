@@ -37,10 +37,8 @@ export default class Network {
   }
 
   watch(session) {
-    let bind = f => e => f(session, e);
-
-    session.on('Network.requestWillBeSent', bind(this._handleRequestWillBeSent));
-    session.on('Network.responseReceived', bind(this._handleResponseReceived));
+    session.on('Network.requestWillBeSent', this._handleRequestWillBeSent);
+    session.on('Network.responseReceived', this._handleResponseReceived.bind(this, session));
     session.on('Network.eventSourceMessageReceived', this._handleEventSourceMessageReceived);
     session.on('Network.loadingFinished', this._handleLoadingFinished);
     session.on('Network.loadingFailed', this._handleLoadingFailed);
@@ -54,8 +52,8 @@ export default class Network {
     ];
 
     if (this.interceptEnabled && session.isDocument) {
-      session.on('Fetch.requestPaused', bind(this._handleRequestPaused));
-      session.on('Fetch.authRequired', bind(this._handleAuthRequired));
+      session.on('Fetch.requestPaused', this._handleRequestPaused.bind(this, session));
+      session.on('Fetch.authRequired', this._handleAuthRequired.bind(this, session));
 
       commands.push(session.send('Fetch.enable', {
         handleAuthRequests: true,
@@ -143,13 +141,14 @@ export default class Network {
         pending.request.method === event.request.method) {
       await this._handleRequest(session, pending, event.requestId);
     } else {
-      this.#intercepts.set(requestId, event);
+      // track the session that intercepted the request
+      this.#intercepts.set(requestId, { ...event, session });
     }
   }
 
   // Called when a request will be sent. If the request has already been intercepted, handle it;
   // otherwise set it to be pending until it is paused.
-  _handleRequestWillBeSent = async (session, event) => {
+  _handleRequestWillBeSent = async event => {
     let { requestId, request } = event;
 
     // do not handle data urls
@@ -160,11 +159,11 @@ export default class Network {
       this.#pending.set(requestId, event);
 
       if (intercept) {
-        await this._handleRequest(session, event, intercept.requestId);
+        // handle the request with the session that intercepted it
+        let { session, requestId: interceptId } = intercept;
+        await this._handleRequest(session, event, interceptId);
         this.#intercepts.delete(requestId);
       }
-    } else {
-      await this._handleRequest(session, event);
     }
   }
 
