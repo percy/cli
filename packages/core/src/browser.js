@@ -129,11 +129,18 @@ export default class Browser extends EventEmitter {
     if (this._closed) return this._closed;
 
     // resolves when the browser has closed
-    this._closed = new Promise(resolve => {
-      /* istanbul ignore next: race condition paranoia */
-      if (!this.process || this.process.exitCode) resolve();
-      else this.process.on('exit', resolve);
-    }).then(() => {
+    this._closed = Promise.all([
+      new Promise(resolve => {
+        /* istanbul ignore next: race condition paranoia */
+        if (!this.process || this.process.exitCode) resolve();
+        else this.process.on('exit', resolve);
+      }),
+      new Promise(resolve => {
+        /* istanbul ignore next: race condition paranoia */
+        if (!this.isConnected()) resolve();
+        else this.ws.on('close', resolve);
+      })
+    ]).then(() => {
       // needed due to a bug in Node 12 - https://github.com/nodejs/node/issues/27097
       this.process?.stdin.end();
       this.process?.stdout.end();
@@ -177,7 +184,10 @@ export default class Browser extends EventEmitter {
       }
     }
 
-    // wait for close
+    // close the socket connection
+    this.ws?.close();
+
+    // wait for the browser to close
     return this._closed;
   }
 
