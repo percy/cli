@@ -95,6 +95,7 @@ export class Snapshot extends Command {
       }),
 
       clientInfo: `${pkg.name}/${pkg.version}`,
+      environmentInfo: `node/${process.version}`,
       server: false
     });
 

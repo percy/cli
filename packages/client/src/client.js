@@ -31,19 +31,21 @@ function validateProjectPath(path) {
 export default class PercyClient {
   log = logger('client');
   env = new PercyEnvironment(process.env);
+  clientInfo = new Set();
+  environmentInfo = new Set();
 
   constructor({
     // read or write token, defaults to PERCY_TOKEN environment variable
     token,
     // initial user agent info
-    clientInfo = '',
-    environmentInfo = '',
+    clientInfo,
+    environmentInfo,
     // versioned api url
     apiUrl = PERCY_CLIENT_API_URL
   } = {}) {
     Object.assign(this, { token, apiUrl });
-    this.clientInfo = new Set([].concat(clientInfo));
-    this.environmentInfo = new Set([].concat(environmentInfo));
+    this.addClientInfo(clientInfo);
+    this.addEnvironmentInfo(environmentInfo);
   }
 
   // Adds additional unique client info.
@@ -62,13 +64,14 @@ export default class PercyClient {
 
   // Stringifies client and environment info.
   userAgent() {
-    let client = [`Percy/${/\w+$/.exec(this.apiUrl)}`]
+    let client = new Set([`Percy/${/\w+$/.exec(this.apiUrl)}`]
       .concat(`${pkg.name}/${pkg.version}`, ...this.clientInfo)
-      .filter(Boolean).join(' ');
-    let environment = [...this.environmentInfo]
+      .filter(Boolean));
+    let environment = new Set([...this.environmentInfo]
       .concat(`node/${process.version}`, this.env.info)
-      .filter(Boolean).join('; ');
-    return `${client} (${environment})`;
+      .filter(Boolean));
+
+    return `${[...client].join(' ')} (${[...environment].join('; ')})`;
   }
 
   // Checks for a Percy token and returns it.
@@ -291,6 +294,10 @@ export default class PercyClient {
     validateBuildId(buildId);
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
+
+    if (!this.clientInfo.size || !this.environmentInfo.size) {
+      this.log.warn('Warning: Missing `clientInfo` and/or `environmentInfo` properties');
+    }
 
     this.log.debug(`Creating snapshot: ${name}...`);
 

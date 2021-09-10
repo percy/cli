@@ -9,13 +9,37 @@ describe('Percy', () => {
     percy = new Percy({
       token: 'PERCY_TOKEN',
       snapshot: { widths: [1000] },
-      discovery: { concurrency: 1 }
+      discovery: { concurrency: 1 },
+      clientInfo: 'client-info',
+      environmentInfo: 'env-info'
     });
   });
 
   afterEach(async () => {
     await percy.stop();
     await server?.close();
+  });
+
+  it('logs when a snapshot is missing env info', async () => {
+    percy = new Percy({
+      token: 'PERCY_TOKEN',
+      snapshot: { widths: [1000] },
+      discovery: { concurrency: 1 }
+    });
+
+    await percy.start();
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: '<html></html>'
+    });
+
+    await expectAsync(percy.stop()).toBeResolved();
+    expect(logger.stderr).toEqual(['[percy] Warning: Missing `clientInfo` and/or `environmentInfo` properties']);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Percy has started!',
+      '[percy] Snapshot taken: test snapshot'
+    ]));
   });
 
   it('scrubs invalid config options and loads defaults', () => {

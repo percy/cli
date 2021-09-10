@@ -3,12 +3,14 @@ import { mockgit } from '@percy/env/test/helpers';
 import PercyClient from '../src';
 import { sha256hash, base64encode } from '../src/utils';
 import mockAPI from './helpers';
+import logger from '@percy/logger/test/helpers';
 
 describe('PercyClient', () => {
   let client;
 
   beforeEach(() => {
     mockAPI.start();
+    logger.mock();
     client = new PercyClient({
       token: 'PERCY_TOKEN'
     });
@@ -35,6 +37,50 @@ describe('PercyClient', () => {
       expect(client.userAgent()).toMatch(
         /^Percy\/v1 @percy\/client\/\S+ client-info \(env-info; node\/v[\d.]+.*\)$/
       );
+      expect(logger.stderr).toEqual([]);
+    });
+
+    it('it logs a debug warning when no info is passed', async () => {
+      client = new PercyClient({
+        token: 'PERCY_TOKEN'
+      });
+
+      await expectAsync(client.createSnapshot(123, {
+        name: 'snapfoo',
+        widths: [1000],
+        minHeight: 1000,
+        enableJavaScript: true,
+        resources: [{
+          url: '/foobar',
+          content: 'foo',
+          mimetype: 'text/html',
+          root: true
+        }]
+      })).toBeResolved();
+
+      expect(logger.stderr).toEqual(['[percy] Warning: Missing `clientInfo` and/or `environmentInfo` properties']);
+    });
+
+    it('it logs a debug warning when partial info is passed', async () => {
+      client = new PercyClient({
+        token: 'PERCY_TOKEN',
+        clientInfo: 'client-info'
+      });
+
+      await expectAsync(client.createSnapshot(123, {
+        name: 'snapfoo',
+        widths: [1000],
+        minHeight: 1000,
+        enableJavaScript: true,
+        resources: [{
+          url: '/foobar',
+          content: 'foo',
+          mimetype: 'text/html',
+          root: true
+        }]
+      })).toBeResolved();
+
+      expect(logger.stderr).toEqual(['[percy] Warning: Missing `clientInfo` and/or `environmentInfo` properties']);
     });
 
     it('does not duplicate or include empty client and environment information', () => {

@@ -21,7 +21,9 @@ describe('Snapshot', () => {
       token: 'PERCY_TOKEN',
       snapshot: { widths: [1000] },
       discovery: { concurrency: 1 },
-      server: false
+      server: false,
+      clientInfo: 'client-info',
+      environmentInfo: 'env-info'
     });
 
     logger.reset();
