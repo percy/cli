@@ -4,12 +4,12 @@ import { normalizeURL, hostnameMatches, createResource } from './utils';
 const MAX_RESOURCE_SIZE = 15 * (1024 ** 2); // 15MB
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 
-export function createRequestHandler({ disableCache, getResource }, m) {
+export function createRequestHandler(network, { disableCache, getResource }) {
   let log = logger('core:discovery');
 
   return async request => {
     let url = request.url;
-    let meta = { ...m, url };
+    let meta = { ...network.meta, url };
 
     try {
       log.debug(`Handling request: ${url}`, meta);
@@ -35,18 +35,18 @@ export function createRequestHandler({ disableCache, getResource }, m) {
   };
 }
 
-export function createRequestFinishedHandler({
+export function createRequestFinishedHandler(network, {
   allowedHostnames,
   disableCache,
   getResource,
   addResource
-}, m) {
+}) {
   let log = logger('core:discovery');
 
   return async request => {
     let origin = request.redirectChain[0] || request;
     let url = normalizeURL(origin.url);
-    let meta = { ...m, url };
+    let meta = { ...network.meta, url };
 
     try {
       let resource = getResource(url);
@@ -94,14 +94,14 @@ export function createRequestFinishedHandler({
   };
 }
 
-export function createRequestFailedHandler(options, meta) {
+export function createRequestFailedHandler(network) {
   let log = logger('core:discovery');
 
   return ({ url, error }) => {
     // do not log generic failures since the real error was most likely
     // already logged from elsewhere
     if (error !== 'net::ERR_FAILED') {
-      log.debug(`Request failed for ${url}: ${error}`, { ...meta, url });
+      log.debug(`Request failed for ${url}: ${error}`, { ...network.meta, url });
     }
   };
 }

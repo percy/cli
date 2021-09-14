@@ -27,12 +27,12 @@ export default class Network {
       // by default, emulate a non-headless browser
       page.session.browser.version.userAgent.replace('Headless', '');
     this.interceptEnabled = !!options.intercept;
-    this.meta = page.meta;
+    this.meta = options.meta;
 
     if (this.interceptEnabled) {
-      this.onRequest = createRequestHandler(options.intercept, this.meta);
-      this.onRequestFinished = createRequestFinishedHandler(options.intercept, this.meta);
-      this.onRequestFailed = createRequestFailedHandler(options.intercept, this.meta);
+      this.onRequest = createRequestHandler(this, options.intercept);
+      this.onRequestFinished = createRequestFinishedHandler(this, options.intercept);
+      this.onRequestFailed = createRequestFailedHandler(this, options.intercept);
     }
   }
 
