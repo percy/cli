@@ -132,14 +132,14 @@ export default class Network {
   // Called when a request is made. The request is paused until it is fulfilled, continued, or
   // aborted. If the request is already pending, handle it; otherwise set it to be intercepted.
   _handleRequestPaused = async (session, event) => {
-    let { networkId: requestId } = event;
+    let { networkId: requestId, requestId: interceptId, resourceType } = event;
     let pending = this.#pending.get(requestId);
     this.#pending.delete(requestId);
 
     // guard against redirects with the same requestId
     if (pending?.request.url === event.request.url &&
         pending.request.method === event.request.method) {
-      await this._handleRequest(session, pending, event.requestId);
+      await this._handleRequest(session, { ...pending, resourceType, interceptId });
     } else {
       // track the session that intercepted the request
       this.#intercepts.set(requestId, { ...event, session });
@@ -160,8 +160,8 @@ export default class Network {
 
       if (intercept) {
         // handle the request with the session that intercepted it
-        let { session, requestId: interceptId } = intercept;
-        await this._handleRequest(session, event, interceptId);
+        let { session, requestId: interceptId, resourceType } = intercept;
+        await this._handleRequest(session, { ...event, resourceType, interceptId });
         this.#intercepts.delete(requestId);
       }
     }
@@ -170,8 +170,8 @@ export default class Network {
   // Called when a pending request is paused. Handles associating redirected requests with
   // responses and calls this.onrequest with request info and callbacks to continue, respond,
   // or abort a request. One of the callbacks is required to be called and only one.
-  _handleRequest = async (session, event, interceptId) => {
-    let { requestId, request } = event;
+  _handleRequest = async (session, event) => {
+    let { request, requestId, interceptId, resourceType } = event;
     let redirectChain = [];
 
     // if handling a redirected request, associate the response and add to its redirect chain
@@ -182,6 +182,7 @@ export default class Network {
       this._forgetRequest(req, true);
     }
 
+    request.type = resourceType;
     request.requestId = requestId;
     request.interceptId = interceptId;
     request.redirectChain = redirectChain;

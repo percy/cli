@@ -3,6 +3,7 @@ import { normalizeURL, hostnameMatches, createResource } from './utils';
 
 const MAX_RESOURCE_SIZE = 15 * (1024 ** 2); // 15MB
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
+const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 
 export function createRequestHandler(network, { disableCache, getResource }) {
   let log = logger('core:discovery');
@@ -36,6 +37,7 @@ export function createRequestHandler(network, { disableCache, getResource }) {
 }
 
 export function createRequestFinishedHandler(network, {
+  enableJavaScript,
   allowedHostnames,
   disableCache,
   getResource,
@@ -70,6 +72,8 @@ export function createRequestFinishedHandler(network, {
           return log.debug('-> Skipping resource larger than 15MB', meta);
         } else if (!ALLOWED_STATUSES.includes(response.status)) {
           return log.debug(`-> Skipping disallowed status [${response.status}]`, meta);
+        } else if (!enableJavaScript && !ALLOWED_RESOURCES.includes(request.type)) {
+          return log.debug(`-> Skipping disallowed resource type [${request.type}]`, meta);
         }
 
         resource = createResource(url, body, response.mimeType, {
