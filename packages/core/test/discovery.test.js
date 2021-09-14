@@ -398,39 +398,37 @@ describe('Discovery', () => {
     ]);
   });
 
-  it('does not capture javascript files when not enabled', async () => {
-    server.reply('/javascript.js', () => [200, 'text/javascript', 'window.location = "/"']);
-
-    let jsDOM = dedent`
+  it('does not capture script or XHR requests when javascript is not enabled', async () => {
+    server.reply('/test.json', () => [200, 'application/json', {}]);
+    server.reply('/script.js', () => [200, 'text/javascript', 'fetch("/test.json")']);
+    server.reply('/', () => [200, 'text/html', dedent`
       <html><head></head><body>
-      <script src="/javascript.js"></script>
+      <script src="/script.js"></script>
       </body></html>
-    `;
+    `]);
 
     await percy.snapshot({
       name: 'test snapshot',
-      url: 'http://localhost:8000',
-      domSnapshot: jsDOM
+      url: 'http://localhost:8000'
     });
 
     await percy.idle();
 
-    let paths = server.requests.map(r => r[0]);
-    expect(paths).not.toContain('/javascript.js');
+    expect(server.requests.map(r => r[0]))
+      .toEqual(['/', '/script.js', '/test.json']);
 
-    expect(captured[0]).toEqual([
+    expect(captured[0]).not.toEqual(jasmine.arrayContaining([
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
+          'resource-url': 'http://localhost:8000/test.json'
         })
       }),
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
-          'resource-url': 'http://localhost:8000/',
-          'is-root': true
+          'resource-url': 'http://localhost:8000/script.js'
         })
       })
-    ]);
+    ]));
   });
 
   it('logs detailed debug logs', async () => {
@@ -611,7 +609,8 @@ describe('Discovery', () => {
     await percy.snapshot({
       name: 'worker snapshot',
       url: 'http://localhost:8000',
-      waitForSelector: '.done'
+      waitForSelector: '.done',
+      enableJavaScript: true
     });
 
     await percy.idle();

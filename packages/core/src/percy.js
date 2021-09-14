@@ -300,6 +300,7 @@ export default class Percy {
           // enable network inteception
           intercept: {
             disableCache: discovery.disableCache,
+            enableJavaScript: conf.enableJavaScript,
             allowedHostnames: discovery.allowedHostnames,
             getResource: url => url === root?.url ? root : (
               resources.get(url) || this.#cache.get(url)
