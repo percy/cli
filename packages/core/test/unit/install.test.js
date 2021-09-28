@@ -17,6 +17,8 @@ describe('Unit / Install', () => {
   let dlnock, dlcallback, options;
 
   beforeEach(() => {
+    logger.mock();
+
     // emulate tty properties for testing
     Object.assign(logger.constructor.stdout, {
       isTTY: true,
@@ -78,12 +80,17 @@ describe('Unit / Install', () => {
   });
 
   it('logs progress during the archive download', async () => {
+    let now = Date.now();
+    // eta is calculated by the elapsed time and remaining progress
+    spyOn(Date, 'now').and.callFake(() => (now += 65002));
+    dlcallback.and.callFake(s => [200, s, { 'content-length': s.length * 5 }]);
+
     await install(options);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Downloading Archive v0...',
-      '[percy] Downloading Archive v0 [====================] 16B/16B 100% 00:00',
+      '[percy] Downloading Archive v0 [====                ] 16B/80B 20% 04:20',
       '[percy] Successfully downloaded Archive v0'
     ]);
   });

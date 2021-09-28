@@ -17,8 +17,8 @@ function formatBytes(int) {
 
 // Formats milleseconds as "MM:SS"
 function formatTime(ms) {
-  let minutes = (ms / 1000 / 60).toFixed().padStart(2, '0');
-  let seconds = (ms / 1000).toFixed().padStart(2, '0');
+  let minutes = (ms / 1000 / 60).toString().split('.')[0].padStart(2, '0');
+  let seconds = (ms / 1000 % 60).toFixed().padStart(2, '0');
   return `${minutes}:${seconds}`;
 }
 
@@ -33,8 +33,7 @@ function formatProgress(prefix, total, start, progress) {
   let barContent = Array(Math.max(0, barLen + 1)).join('=') + (
     Array(Math.max(0, width - barLen + 1)).join(' '));
 
-  let elapsed = new Date() - start;
-  /* istanbul ignore next: eta in testing is always 0 */
+  let elapsed = Date.now() - start;
   let eta = (ratio >= 1) ? 0 : elapsed * (total / progress - 1);
 
   return (
@@ -137,7 +136,7 @@ async function install({
           let start, progress;
 
           response.on('data', chunk => {
-            start ??= new Date();
+            start ??= Date.now();
             progress = (progress ?? 0) + chunk.length;
             log.progress(formatProgress(premsg, total, start, progress));
           });
