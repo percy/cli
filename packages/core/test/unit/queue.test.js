@@ -70,13 +70,13 @@ describe('Unit / Tasks Queue', () => {
     });
   });
 
-  describe('#length', () => {
+  describe('#size', () => {
     it('returns the number of all incomplete tasks', async () => {
       let tasks = Array(10).fill().map((_, i) => q.push(i, task(100)));
 
-      expect(q.length).toBe(10);
+      expect(q.size).toBe(10);
       await tasks[1]; // wait for the first set of tasks to complete
-      expect(q.length).toBe(8);
+      expect(q.size).toBe(8);
     });
   });
 
@@ -104,7 +104,7 @@ describe('Unit / Tasks Queue', () => {
       // 2 unless we wait for them to settle
       await tasks[1];
 
-      expect(q.length).toBe(0);
+      expect(q.size).toBe(0);
       expect(tasks[2]).not.toHaveProperty('running');
     });
   });

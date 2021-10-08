@@ -138,9 +138,8 @@ export class Upload extends Command {
     if (this.closing) return;
     this.closing = true;
 
-    await this.queue.empty(len => {
-      this.log.progress(`Uploading ${len}` + (
-        ` snapshot${len !== 1 ? 's' : ''}...`), !!len);
+    await this.queue.empty(s => {
+      this.log.progress(`Uploading ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s);
     });
 
     await this.client.finalizeBuild(this.build.id);

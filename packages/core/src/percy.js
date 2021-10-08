@@ -185,18 +185,16 @@ export default class Percy {
     if (force) this.log.info('Stopping percy...', meta);
 
     // close the snapshot queue and wait for it to empty
-    if (this.#snapshots.close().length) {
-      await this.#snapshots.empty(len => {
-        this.log.progress(`Processing ${len}` + (
-          ` snapshot${len !== 1 ? 's' : ''}...`), !!len);
+    if (this.#snapshots.close().size) {
+      await this.#snapshots.empty(s => {
+        this.log.progress(`Processing ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s)
       });
     }
 
     // run, close, and wait for the upload queue to empty
-    if (!this.skipUploads && this.#uploads.run().close().length) {
-      await this.#uploads.empty(len => {
-        this.log.progress(`Uploading ${len}` + (
-          ` snapshot${len !== 1 ? 's' : ''}...`), !!len);
+    if (!this.skipUploads && this.#uploads.run().close().size) {
+      await this.#uploads.empty(s => {
+        this.log.progress(`Uploading ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s);
       });
     }
 
