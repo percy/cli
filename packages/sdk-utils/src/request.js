@@ -22,6 +22,13 @@ export default async function request(path, options = {}) {
   return response;
 }
 
+request.post = function post(url, json) {
+  return request(url, {
+    method: 'POST',
+    body: JSON.stringify(json)
+  });
+};
+
 // environment specific implementation
 if (process.env.__PERCY_BROWSERIFIED__) {
   // use window.fetch in browsers
