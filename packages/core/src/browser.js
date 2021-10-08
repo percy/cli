@@ -276,7 +276,7 @@ export default class Browser extends EventEmitter {
     } else if (data.method === 'Target.detachedFromTarget') {
       // remove the old session reference when detached from a target
       let session = this.sessions.get(data.params.sessionId);
-      this.sessions.delete(session.sessionId);
+      this.sessions.delete(data.params.sessionId);
       session?._handleClose();
     }
 
