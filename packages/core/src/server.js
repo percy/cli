@@ -55,6 +55,8 @@ export function createServer(routes) {
   // create a simple server to route request responses
   context.routes = routes;
   context.server = http.createServer((request, response) => {
+    request.params = new URLSearchParams(request.url.split('?')[1]);
+
     request.on('data', chunk => {
       request.body = (request.body || '') + chunk;
     });
@@ -126,8 +128,11 @@ export default function createPercyServer(percy) {
       }),
 
     // forward snapshot requests
-    '/percy/snapshot': ({ body }) => percy.snapshot(body)
-      .then(() => [200, 'application/json', { success: true }]),
+    '/percy/snapshot': async ({ body, params }) => {
+      let snapshot = percy.snapshot(body);
+      if (!params.has('async')) await snapshot;
+      return [200, 'application/json', { success: true }];
+    },
 
     // stops the instance async at the end of the event loop
     '/percy/stop': () => setImmediate(() => percy.stop()) && (
