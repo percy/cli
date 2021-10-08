@@ -186,21 +186,28 @@ describe('percy snapshot <file>', () => {
 
   it('does not take snapshots and prints a list with --dry-run', async () => {
     await Snapshot.run(['./pages.yml', '--dry-run']);
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual([
+      '[percy] Build not created'
+    ]);
     expect(logger.stdout).toEqual([
-      '[percy] Found 1 snapshot',
-      '[percy] Snapshot found: YAML Snapshot'
+      '[percy] Percy has started!',
+      '[percy] Snapshot found: YAML Snapshot',
+      '[percy] Found 1 snapshot'
     ]);
 
     logger.reset();
 
     await Snapshot.run(['./pages.js', '--dry-run']);
-    expect(logger.stderr).toEqual([]);
+
+    expect(logger.stderr).toEqual([
+      '[percy] Build not created'
+    ]);
     expect(logger.stdout).toEqual([
-      '[percy] Found 1 snapshot',
+      '[percy] Percy has started!',
       '[percy] Snapshot found: JS Snapshot',
-      '[percy] Snapshot found: JS Snapshot 2',
-      '[percy] Snapshot found: Other JS Snapshot'
+      '[percy] Additional snapshot: JS Snapshot 2',
+      '[percy] Additional snapshot: Other JS Snapshot',
+      '[percy] Found 3 snapshots'
     ]);
   });
 

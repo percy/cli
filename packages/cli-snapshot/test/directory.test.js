@@ -83,13 +83,16 @@ describe('percy snapshot <directory>', () => {
   it('does not take snapshots and prints a list with --dry-run', async () => {
     await Snapshot.run(['./tmp', '--dry-run']);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual([
+      '[percy] Build not created'
+    ]);
     expect(logger.stdout).toEqual([
-      '[percy] Found 4 snapshots',
+      '[percy] Percy has started!',
       '[percy] Snapshot found: /test-1.html',
       '[percy] Snapshot found: /test-2.html',
       '[percy] Snapshot found: /test-3.html',
-      '[percy] Snapshot found: /test-index/index.html'
+      '[percy] Snapshot found: /test-index/index.html',
+      '[percy] Found 4 snapshots'
     ]);
   });
 
@@ -106,30 +109,36 @@ describe('percy snapshot <directory>', () => {
 
     await Snapshot.run(['./tmp', '--dry-run']);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual([
+      '[percy] Build not created'
+    ]);
     expect(logger.stdout).toEqual([
-      '[percy] Found 4 snapshots',
+      '[percy] Percy has started!',
       '[percy] Snapshot found: First',
-      '[percy] Snapshot found: First (2)',
+      '[percy] Additional snapshot: First (2)',
       '[percy] Snapshot found: /test-2.html',
-      '[percy] Snapshot found: /test-2.html (2)',
+      '[percy] Additional snapshot: /test-2.html (2)',
       '[percy] Snapshot found: /test-3.html',
-      '[percy] Snapshot found: /test-3.html (2)',
+      '[percy] Additional snapshot: /test-3.html (2)',
       '[percy] Snapshot found: /test-index/index.html',
-      '[percy] Snapshot found: /test-index/index.html (2)'
+      '[percy] Additional snapshot: /test-index/index.html (2)',
+      '[percy] Found 8 snapshots'
     ]);
   });
 
   it('rewrites file and index URLs with --clean-urls', async () => {
     await Snapshot.run(['./tmp', '--dry-run', '--clean-urls']);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual([
+      '[percy] Build not created'
+    ]);
     expect(logger.stdout).toEqual([
-      '[percy] Found 4 snapshots',
+      '[percy] Percy has started!',
       '[percy] Snapshot found: /test-1',
       '[percy] Snapshot found: /test-2',
       '[percy] Snapshot found: /test-3',
-      '[percy] Snapshot found: /test-index'
+      '[percy] Snapshot found: /test-index',
+      '[percy] Found 4 snapshots'
     ]);
   });
 
@@ -144,13 +153,16 @@ describe('percy snapshot <directory>', () => {
 
     await Snapshot.run(['./tmp', '--dry-run']);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual([
+      '[percy] Build not created'
+    ]);
     expect(logger.stdout).toEqual([
-      '[percy] Found 4 snapshots',
+      '[percy] Percy has started!',
       '[percy] Snapshot found: /test/1',
       '[percy] Snapshot found: /test/2',
       '[percy] Snapshot found: /test/3',
-      '[percy] Snapshot found: /test-index'
+      '[percy] Snapshot found: /test-index',
+      '[percy] Found 4 snapshots'
     ]);
   });
 
@@ -168,11 +180,14 @@ describe('percy snapshot <directory>', () => {
 
     await Snapshot.run(['./tmp', '--dry-run']);
 
-    expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual(jasmine.arrayContaining([
-      '[percy] Found 2 snapshots',
+    expect(logger.stderr).toEqual([
+      '[percy] Build not created'
+    ]);
+    expect(logger.stdout).toEqual([
+      '[percy] Percy has started!',
       '[percy] Snapshot found: /test-1',
-      '[percy] Snapshot found: /test-3'
-    ]));
+      '[percy] Snapshot found: /test-3',
+      '[percy] Found 2 snapshots'
+    ]);
   });
 });
