@@ -81,6 +81,7 @@ export default class PercyCommand extends Command {
     // set config: false to prevent core from reloading config
     return Object.assign(config, {
       skipUploads: this.flags.debug,
+      dryRun: this.flags['dry-run'],
       config: false
     });
   }

@@ -35,6 +35,10 @@ const discovery = {
     description: 'disable asset discovery caches',
     percyrc: 'discovery.disableCache'
   }),
+  'dry-run': flags.boolean({
+    char: 'd',
+    description: 'print logs only and do not upload snapshots'
+  }),
   debug: flags.boolean({
     description: 'debug asset discovery and do not upload snapshots'
   })
