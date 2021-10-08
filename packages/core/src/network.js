@@ -88,7 +88,7 @@ export default class Network {
         if (this.log.shouldLog('debug')) {
           msg += `\n\n  ${['Active requests:',
             ...requests.map(r => r.url)
-          ].join('\n  -> ')}\n`;
+          ].join('\n  - ')}\n`;
         }
 
         throw new Error(msg);

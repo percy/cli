@@ -230,7 +230,7 @@ describe('Discovery', () => {
     ]);
 
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] -> Skipping empty response'
+      '[percy:core:discovery] - Skipping empty response'
     );
   });
 
@@ -324,7 +324,7 @@ describe('Discovery', () => {
     ]));
 
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] -> Skipping disallowed status [202]'
+      '[percy:core:discovery] - Skipping disallowed status [202]'
     );
   });
 
@@ -359,7 +359,7 @@ describe('Discovery', () => {
     ]);
 
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] -> Skipping resource larger than 15MB'
+      '[percy:core:discovery] - Skipping resource larger than 15MB'
     );
   });
 
@@ -450,15 +450,15 @@ describe('Discovery', () => {
       '[percy:core:page] Resize page to 400x1024',
       '[percy:core:page] Navigate to: http://localhost:8000',
       '[percy:core:discovery] Handling request: http://localhost:8000/',
-      '[percy:core:discovery] -> Serving root resource',
+      '[percy:core:discovery] - Serving root resource',
       '[percy:core:discovery] Handling request: http://localhost:8000/style.css',
       '[percy:core:discovery] Handling request: http://localhost:8000/img.gif',
       '[percy:core:discovery] Processing resource: http://localhost:8000/style.css',
-      `[percy:core:discovery] -> sha: ${sha256hash(testCSS)}`,
-      '[percy:core:discovery] -> mimetype: text/css',
+      `[percy:core:discovery] - sha: ${sha256hash(testCSS)}`,
+      '[percy:core:discovery] - mimetype: text/css',
       '[percy:core:discovery] Processing resource: http://localhost:8000/img.gif',
-      `[percy:core:discovery] -> sha: ${sha256hash(pixel)}`,
-      '[percy:core:discovery] -> mimetype: image/gif',
+      `[percy:core:discovery] - sha: ${sha256hash(pixel)}`,
+      '[percy:core:discovery] - mimetype: image/gif',
       '[percy:core:page] Page navigated',
       '[percy:core:network] Wait for 100ms idle',
       '[percy:core:page] Resize page to 1200x1024',
@@ -650,7 +650,7 @@ describe('Discovery', () => {
         '^\\[percy:core] Error: Timed out waiting for network requests to idle.',
         '',
         '  Active requests:',
-        '  -> http://localhost:8000/img.gif',
+        '  - http://localhost:8000/img.gif',
         '',
         '(?<stack>(.|\n)*)$'
       ].join('\n')));
