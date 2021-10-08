@@ -276,6 +276,22 @@ describe('Snapshot', () => {
     ]);
   });
 
+  it('accepts multiple snapshots', async () => {
+    await percy.snapshot([{
+      url: 'http://localhost:8000/one',
+      domSnapshot: testDOM
+    }, {
+      url: 'http://localhost:8000/two',
+      domSnapshot: testDOM
+    }]);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Snapshot taken: /one',
+      '[percy] Snapshot taken: /two'
+    ]);
+  });
+
   it('handles the browser closing early', async () => {
     spyOn(percy.browser, 'page').and.callThrough();
 
