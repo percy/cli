@@ -41,7 +41,7 @@ export function createRequestFinishedHandler(network, {
   allowedHostnames,
   disableCache,
   getResource,
-  addResource
+  saveResource
 }) {
   let log = logger('core:discovery');
 
@@ -90,7 +90,7 @@ export function createRequestFinishedHandler(network, {
         log.debug(`-> mimetype: ${resource.mimetype}`, meta);
       }
 
-      addResource(resource);
+      saveResource(resource);
     } catch (error) {
       log.debug(`Encountered an error processing resource: ${url}`, meta);
       log.debug(error);

@@ -4,15 +4,12 @@ import logger from '@percy/logger';
 import Queue from './queue';
 import Browser from './browser';
 import createPercyServer from './server';
-import { getSnapshotConfig } from './config';
 
 import {
-  createRootResource,
-  createLogResource,
-  createPercyCSSResource,
-  hostnameMatches,
-  injectPercyCSS
-} from './utils';
+  getSnapshotConfig,
+  debugSnapshotConfig,
+  discoverSnapshotResources
+} from './snapshot';
 
 // A Percy instance will create a new build when started, handle snapshot
 // creation, asset discovery, and resource uploads, and will finalize the build
@@ -22,7 +19,6 @@ export default class Percy {
   log = logger('core');
   readyState = null;
 
-  #cache = new Map();
   #uploads = new Queue();
   #snapshots = new Queue();
 
@@ -233,171 +229,41 @@ export default class Percy {
       throw new Error('Not running');
     }
 
-    let {
-      url,
-      name,
-      discovery,
-      domSnapshot,
-      execute,
-      waitForTimeout,
-      waitForSelector,
-      additionalSnapshots,
-      ...conf
-    } = getSnapshotConfig(options, this.config, this.log);
-
-    let meta = {
-      snapshot: { name },
-      build: this.build
-    };
-
-    let maybeDebug = (val, msg) => {
-      if (val != null) this.log.debug(msg(val), meta);
-    };
+    // get derived snapshot config options
+    let snapshot = getSnapshotConfig(this, options);
 
     // clear any existing pending upload for the same snapshot (for retries)
-    this.#uploads.clear(`upload/${name}`);
+    this.#uploads.clear(`upload/${snapshot.name}`);
 
     // resolves after asset discovery has finished and the upload has been queued
-    return this.#snapshots.push(`snapshot/${name}`, async () => {
-      let resources = new Map();
-      let root, page;
+    return this.#snapshots.push(`snapshot/${snapshot.name}`, async () => {
+      debugSnapshotConfig(snapshot);
 
       try {
-        this.log.debug('---------');
-        this.log.debug('Handling snapshot:', meta);
-        this.log.debug(`-> name: ${name}`, meta);
-        this.log.debug(`-> url: ${url}`, meta);
-        maybeDebug(conf.widths, v => `-> widths: ${v.join('px, ')}px`);
-        maybeDebug(conf.minHeight, v => `-> minHeight: ${v}px`);
-        maybeDebug(conf.enableJavaScript, v => `-> enableJavaScript: ${v}`);
-        maybeDebug(options.discovery?.allowedHostnames, v => `-> discovery.allowedHostnames: ${v}`);
-        maybeDebug(options.discovery?.requestHeaders, v => `-> discovery.requestHeaders: ${JSON.stringify(v)}`);
-        maybeDebug(options.discovery?.authorization, v => `-> discovery.authorization: ${JSON.stringify(v)}`);
-        maybeDebug(options.discovery?.disableCache, v => `-> discovery.disableCache: ${v}`);
-        maybeDebug(options.discovery?.userAgent, v => `-> discovery.userAgent: ${v}`);
-        maybeDebug(options.waitForTimeout, v => `-> waitForTimeout: ${v}`);
-        maybeDebug(options.waitForSelector, v => `-> waitForSelector: ${v}`);
-        maybeDebug(options.execute, v => `-> execute: ${v}`);
-        maybeDebug(conf.clientInfo, v => `-> clientInfo: ${v}`);
-        maybeDebug(conf.environmentInfo, v => `-> environmentInfo: ${v}`);
-
-        // create the root resource if a dom snapshot was provided
-        if (domSnapshot) {
-          root = createRootResource(url, domSnapshot);
-        }
-
-        // open a new browser page
-        page = await this.browser.page({
-          networkIdleTimeout: this.config.discovery.networkIdleTimeout,
-          enableJavaScript: conf.enableJavaScript ?? !domSnapshot,
-          requestHeaders: discovery.requestHeaders,
-          authorization: discovery.authorization,
-          userAgent: discovery.userAgent,
-          meta,
-
-          // enable network inteception
-          intercept: {
-            disableCache: discovery.disableCache,
-            enableJavaScript: conf.enableJavaScript,
-            allowedHostnames: discovery.allowedHostnames,
-            getResource: url => url === root?.url ? root : (
-              resources.get(url) || this.#cache.get(url)
-            ),
-            addResource: resource => {
-              if (resource.root) return;
-              resources.set(resource.url, resource);
-              this.#cache.set(resource.url, resource);
-            }
-          }
+        await discoverSnapshotResources(this, snapshot, (snapshot, resources) => {
+          this.log.info(`Snapshot taken: ${snapshot.name}`, snapshot.meta);
+          this._scheduleUpload(snapshot, resources);
         });
-
-        // copy widths to prevent mutation
-        let widths = conf.widths.slice();
-        // resolves when the network is idle for discoverable assets
-        let discoveryIdle = () => page.network.idle(({ url }) => (
-          hostnameMatches(discovery.allowedHostnames, url)
-        ));
-
-        // set the initial page size
-        await page.resize({
-          width: widths.shift(),
-          height: conf.minHeight
-        });
-
-        // navigate to the url
-        await page.goto(url);
-
-        // evaluate any necessary javascript
-        await page.evaluate(execute?.afterNavigation);
-
-        // trigger resize events for other widths
-        for (let width of widths) {
-          await page.evaluate(execute?.beforeResize);
-          await discoveryIdle(); // ensure discovery idles before resizing
-          await page.resize({ width, height: conf.minHeight });
-          await page.evaluate(execute?.afterResize);
-        }
-
-        // create and add a percy-css resource
-        let percyCSS = createPercyCSSResource(url, conf.percyCSS);
-        if (percyCSS) resources.set(percyCSS.url, percyCSS);
-
-        if (root) {
-          // ensure discovery finishes before uploading
-          await discoveryIdle();
-          root = injectPercyCSS(root, percyCSS);
-          this.log.info(`Snapshot taken: ${name}`, meta);
-          this._scheduleUpload(name, conf, [root, ...resources.values()]);
-        } else {
-          // capture additional snapshots sequentially
-          let rootSnapshot = { name, waitForTimeout, waitForSelector, execute };
-          let allSnapshots = [rootSnapshot, ...(additionalSnapshots || [])];
-
-          for (let { name, prefix = '', suffix = '', ...opts } of allSnapshots) {
-            name ||= `${prefix}${rootSnapshot.name}${suffix}`;
-            this.log.debug(`Taking snapshot: ${name}`, meta);
-
-            // will wait for timeouts, selectors, and additional network activity
-            let { url, dom } = await page.snapshot({ ...conf, ...opts });
-            let root = injectPercyCSS(createRootResource(url, dom), percyCSS);
-            resources.delete(root.url); // remove any discovered root resource
-
-            this.log.info(`Snapshot taken: ${name}`, meta);
-            this._scheduleUpload(name, conf, [root, ...resources.values()]);
-          }
-        }
       } catch (error) {
-        this.log.error(`Encountered an error taking snapshot: ${name}`, meta);
-        this.log.error(error, meta);
-      } finally {
-        await page?.close();
+        this.log.error(`Encountered an error taking snapshot: ${snapshot.name}`, snapshot.meta);
+        this.log.error(error, snapshot.meta);
       }
     });
   }
 
   // Queues a snapshot upload with the provided configuration options and resources
-  _scheduleUpload(name, conf, resources) {
-    this.#uploads.push(`upload/${name}`, async () => {
+  _scheduleUpload(snapshot, resources) {
+    this.#uploads.push(`upload/${snapshot.name}`, async () => {
       try {
-        // attach a log resource for debugging
-        resources = resources.concat(
-          createLogResource(logger.query(l => (
-            l.meta.snapshot?.name === name
-          )))
-        );
-
-        await this.client.sendSnapshot(this.build.id, {
-          ...conf, name, resources
-        });
+        await this.client.sendSnapshot(this.build.id, { ...snapshot, resources });
       } catch (error) {
-        let meta = { snapshot: { name }, build: this.build };
         let failed = error.response?.status === 422 && (
           error.response.body.errors.find(e => (
             e.source?.pointer === '/data/attributes/build'
           )));
 
-        this.log.error(`Encountered an error uploading snapshot: ${name}`, meta);
-        this.log.error(failed?.detail ?? error, meta);
+        this.log.error(`Encountered an error uploading snapshot: ${snapshot.name}`, snapshot.meta);
+        this.log.error(failed?.detail ?? error, snapshot.meta);
 
         // build failed at some point, stop accepting snapshots
         if (failed) {

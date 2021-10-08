@@ -44,6 +44,12 @@ describe('Snapshot', () => {
       .toThrowError('Missing required URL for snapshot');
   });
 
+  it('errors when missing snapshot widths', () => {
+    percy.config.snapshot.widths = [];
+    expect(() => percy.snapshot({ url: 'http://localhost:8000' }))
+      .toThrowError('Missing required widths for snapshot');
+  });
+
   it('warns when missing additional snapshot names', async () => {
     percy.close(); // close queues so snapshots fail
 
@@ -197,6 +203,54 @@ describe('Snapshot', () => {
     ]);
   });
 
+  it('logs detailed debug logs', async () => {
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      clientInfo: 'test client info',
+      environmentInfo: 'test env info',
+      widths: [400, 1200],
+      discovery: {
+        allowedHostnames: ['example.com'],
+        requestHeaders: { 'X-Foo': 'Bar' },
+        disableCache: true
+      },
+      additionalSnapshots: [
+        { prefix: 'foo ', waitForTimeout: 100 },
+        { prefix: 'foo ', suffix: ' bar', waitForTimeout: 200 },
+        { name: 'foobar', waitForSelector: 'p', execute() {} }
+      ]
+    });
+
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy:core] Snapshot taken: test snapshot',
+      '[percy:core] Snapshot taken: foo test snapshot',
+      '[percy:core] Snapshot taken: foo test snapshot bar',
+      '[percy:core] Snapshot taken: foobar'
+    ]));
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy:core:snapshot] ---------',
+      '[percy:core:snapshot] Handling snapshot: test snapshot',
+      '[percy:core:snapshot] - url: http://localhost:8000',
+      '[percy:core:snapshot] - widths: 400px, 1200px',
+      '[percy:core:snapshot] - minHeight: 1024px',
+      '[percy:core:snapshot] - discovery.allowedHostnames: localhost, example.com',
+      '[percy:core:snapshot] - discovery.requestHeaders: {"X-Foo":"Bar"}',
+      '[percy:core:snapshot] - discovery.disableCache: true',
+      '[percy:core:snapshot] - clientInfo: test client info',
+      '[percy:core:snapshot] - environmentInfo: test env info',
+      '[percy:core:snapshot] Additional snapshot: foo test snapshot',
+      '[percy:core:snapshot] - waitForTimeout: 100',
+      '[percy:core:snapshot] Additional snapshot: foo test snapshot bar',
+      '[percy:core:snapshot] - waitForTimeout: 200',
+      '[percy:core:snapshot] Additional snapshot: foobar',
+      '[percy:core:snapshot] - waitForSelector: p',
+      '[percy:core:snapshot] - execute: execute() {}'
+    ]));
+  });
   it('handles the browser closing early', async () => {
     spyOn(percy.browser, 'page').and.callThrough();
 

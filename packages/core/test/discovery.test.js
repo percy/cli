@@ -438,14 +438,7 @@ describe('Discovery', () => {
       name: 'test snapshot',
       url: 'http://localhost:8000',
       domSnapshot: testDOM,
-      clientInfo: 'test client info',
-      environmentInfo: 'test env info',
-      widths: [400, 1200],
-      discovery: {
-        allowedHostnames: ['example.com'],
-        requestHeaders: { 'X-Foo': 'Bar' },
-        disableCache: true
-      }
+      widths: [400, 1200]
     });
 
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -453,17 +446,6 @@ describe('Discovery', () => {
     ]));
 
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
-      '[percy:core] ---------',
-      '[percy:core] Handling snapshot:',
-      '[percy:core] -> name: test snapshot',
-      '[percy:core] -> url: http://localhost:8000',
-      '[percy:core] -> widths: 400px, 1200px',
-      '[percy:core] -> minHeight: 1024px',
-      '[percy:core] -> discovery.allowedHostnames: example.com',
-      '[percy:core] -> discovery.requestHeaders: {"X-Foo":"Bar"}',
-      '[percy:core] -> discovery.disableCache: true',
-      '[percy:core] -> clientInfo: test client info',
-      '[percy:core] -> environmentInfo: test env info',
       '[percy:core:page] Page created',
       '[percy:core:page] Resize page to 400x1024',
       '[percy:core:page] Navigate to: http://localhost:8000',
