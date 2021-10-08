@@ -21,12 +21,12 @@ describe('Snapshot', () => {
       token: 'PERCY_TOKEN',
       snapshot: { widths: [1000] },
       discovery: { concurrency: 1 },
-      server: false,
       clientInfo: 'client-info',
-      environmentInfo: 'env-info'
+      environmentInfo: 'env-info',
+      server: false
     });
 
-    logger.reset();
+    logger.reset(true);
   });
 
   afterEach(async () => {
@@ -251,6 +251,31 @@ describe('Snapshot', () => {
       '[percy:core:snapshot] - execute: execute() {}'
     ]));
   });
+
+  it('logs alternate dry-run logs', async () => {
+    await percy.stop(true);
+    percy = await Percy.start({ dryRun: true });
+    logger.reset();
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      additionalSnapshots: [
+        { prefix: 'foo ', waitForTimeout: 100 },
+        { prefix: 'foo ', suffix: ' bar', waitForTimeout: 200 },
+        { name: 'foobar', waitForSelector: '.ready', execute() {} }
+      ]
+    });
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Snapshot found: test snapshot',
+      '[percy] Additional snapshot: foo test snapshot',
+      '[percy] Additional snapshot: foo test snapshot bar',
+      '[percy] Additional snapshot: foobar'
+    ]);
+  });
+
   it('handles the browser closing early', async () => {
     spyOn(percy.browser, 'page').and.callThrough();
 

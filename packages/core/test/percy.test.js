@@ -251,6 +251,22 @@ describe('Percy', () => {
       ]);
     });
 
+    it('does not launch the browser and skips uploads when dry-running', async () => {
+      percy = new Percy({ token: 'PERCY_TOKEN', dryRun: true });
+      await expectAsync(percy.start()).toBeResolved();
+      expect(percy.browser.isConnected()).toBe(false);
+      expect(mockAPI.requests['/builds']).toBeUndefined();
+
+      await percy.dispatch();
+      await percy.stop();
+
+      expect(mockAPI.requests['/builds']).toBeUndefined();
+
+      expect(logger.stderr).toEqual([
+        '[percy] Build not created'
+      ]);
+    });
+
     it('stops accepting snapshots when a queued build fails to be created', async () => {
       server = await createTestServer({
         default: () => [200, 'text/html', '<p>Snapshot</p>']
@@ -295,6 +311,13 @@ describe('Percy', () => {
   });
 
   describe('#stop()', () => {
+    // stop the previously started instance and clear requests
+    async function reset(options) {
+      await percy.stop().then(() => logger.reset());
+      Object.keys(mockAPI.requests).map(k => delete mockAPI.requests[k]);
+      percy = await Percy.start({ token: 'PERCY_TOKEN', ...options });
+    }
+
     beforeEach(async () => {
       await percy.start();
     });
@@ -322,10 +345,7 @@ describe('Percy', () => {
     });
 
     it('clears pending tasks and logs when force stopping', async () => {
-      await percy.stop(); // stop the previously started instance and clear requests
-      Object.keys(mockAPI.requests).map(k => delete mockAPI.requests[k]);
-
-      percy = await Percy.start({ token: 'PERCY_TOKEN', deferUploads: true });
+      await reset({ deferUploads: true });
       await expectAsync(percy.stop(true)).toBeResolved();
 
       // no build should be created or finalized
@@ -358,6 +378,26 @@ describe('Percy', () => {
       ]));
     });
 
+    it('logs the total number of snapshots when dry-running', async () => {
+      await reset({ dryRun: true });
+
+      percy.snapshot({ url: 'http://localhost:8000/one' });
+      percy.snapshot({ url: 'http://localhost:8000/two' });
+      percy.snapshot({ url: 'http://localhost:8000/three' });
+
+      await expectAsync(percy.stop()).toBeResolved();
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot found: /one',
+        '[percy] Snapshot found: /two',
+        '[percy] Snapshot found: /three',
+        '[percy] Found 3 snapshots'
+      ]));
+      expect(logger.stderr).toEqual([
+        '[percy] Build not created'
+      ]);
+    });
+
     it('cleans up the server and browser before finalizing', async () => {
       mockAPI.reply('/builds/123/finalize', () => [401, {
         errors: [{ detail: 'finalize error' }]
@@ -366,6 +406,23 @@ describe('Percy', () => {
       await expectAsync(percy.stop()).toBeRejectedWithError('finalize error');
       expect(percy.server.listening).toBe(false);
       expect(percy.browser.isConnected()).toBe(false);
+    });
+
+    it('does not error if the browser was never launched', async () => {
+      await reset({ dryRun: true });
+
+      percy.snapshot({ url: 'http://localhost:8000' });
+
+      expect(percy.browser.isConnected()).toBe(false);
+      await expectAsync(percy.stop()).toBeResolved();
+      expect(percy.browser.isConnected()).toBe(false);
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Found 1 snapshot'
+      ]));
+      expect(logger.stderr).toEqual([
+        '[percy] Build not created'
+      ]);
     });
 
     it('logs when the build has failed upstream', async () => {

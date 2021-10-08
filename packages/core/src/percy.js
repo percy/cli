@@ -21,6 +21,7 @@ export default class Percy {
 
   #uploads = new Queue();
   #snapshots = new Queue();
+  #total = 0;
 
   // Static shortcut to create and start an instance in one call
   static async start(options) {
@@ -36,6 +37,8 @@ export default class Percy {
     deferUploads,
     // run without uploading anything
     skipUploads,
+    // implies `skipUploads` and also skips asset discovery
+    dryRun,
     // configuration filepath
     config,
     // provided to @percy/client
@@ -50,8 +53,10 @@ export default class Percy {
     ...options
   } = {}) {
     if (loglevel) this.loglevel(loglevel);
-    this.deferUploads = skipUploads || deferUploads;
-    this.skipUploads = skipUploads;
+
+    this.dryRun = !!dryRun;
+    this.skipUploads = this.dryRun || !!skipUploads;
+    this.deferUploads = this.skipUploads || !!deferUploads;
 
     this.config = PercyConfig.load({
       overrides: options,
@@ -141,7 +146,7 @@ export default class Percy {
       // when not deferred, wait until the build is created first
       if (!this.deferUploads) await buildTask;
       // launch the discovery browser
-      await this.browser.launch(this.config.discovery.launchOptions);
+      if (!this.dryRun) await this.browser.launch();
       // if there is a server, start listening
       await this.server?.listen(this.port);
 
@@ -182,9 +187,9 @@ export default class Percy {
 
     // close the snapshot queue and wait for it to empty
     if (this.#snapshots.close().size) {
-      await this.#snapshots.empty(s => {
+      await this.#snapshots.empty(s => !this.dryRun && (
         this.log.progress(`Processing ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s)
-      });
+      ));
     }
 
     // run, close, and wait for the upload queue to empty
@@ -192,6 +197,11 @@ export default class Percy {
       await this.#uploads.empty(s => {
         this.log.progress(`Uploading ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s);
       });
+    }
+
+    // if dry-running, print the total number of snapshots at the end
+    if (this.dryRun && this.#total) {
+      this.log.info(`Found ${this.#total} snapshot${this.#total !== 1 ? 's' : ''}`);
     }
 
     // close the any running server and browser
@@ -237,7 +247,9 @@ export default class Percy {
 
     // resolves after asset discovery has finished and the upload has been queued
     return this.#snapshots.push(`snapshot/${snapshot.name}`, async () => {
-      debugSnapshotConfig(snapshot);
+      this.#total += (snapshot.additionalSnapshots?.length ?? 0) + 1;
+      debugSnapshotConfig(snapshot, this.dryRun);
+      if (this.dryRun) return;
 
       try {
         await discoverSnapshotResources(this, snapshot, (snapshot, resources) => {
