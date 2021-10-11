@@ -127,6 +127,7 @@ describe('PercyCommand', () => {
         '--allowed-hostname', '*.percy.io',
         '--network-idle-timeout', '150',
         '--disable-cache',
+        '--dry-run',
         '--debug',
         'foo', 'bar'
       ])).toBeResolved();
@@ -135,6 +136,7 @@ describe('PercyCommand', () => {
         version: 2,
         config: false,
         skipUploads: true,
+        dryRun: true,
         snapshot: {
           widths: [375, 1280],
           minHeight: 1024,

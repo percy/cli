@@ -33,12 +33,11 @@ export default class Queue {
       this.#queued.clear();
     }
 
-    return this.length;
+    return this.size;
   }
 
-  get length() {
-    return this.#queued.size +
-      this.#pending.size;
+  get size() {
+    return this.#queued.size + this.#pending.size;
   }
 
   run() {
@@ -68,8 +67,8 @@ export default class Queue {
 
   async empty(onCheck) {
     await waitFor(() => {
-      onCheck?.(this.length);
-      return !this.length;
+      onCheck?.(this.size);
+      return !this.size;
     }, { idle: 10 });
   }
 

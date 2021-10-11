@@ -1,7 +1,3 @@
-import { strict as assert } from 'assert';
-import PercyConfig from '@percy/config';
-import { merge } from '@percy/config/dist/utils';
-
 // Common config options used in Percy commands
 export const configSchema = {
   snapshot: {
@@ -263,52 +259,3 @@ export const migrations = [
   ['/config', configMigration],
   ['/snapshot', snapshotMigration]
 ];
-
-// Validate and merge per-snapshot configuration options with global configuration options.
-export function getSnapshotConfig(options, { snapshot, discovery }, log) {
-  // prune client and env info from being validated
-  let { clientInfo, environmentInfo, ...config } = PercyConfig.migrate(options, '/snapshot');
-
-  // throw an error when missing required options
-  assert(config.url, 'Missing required URL for snapshot');
-  assert((config.widths ?? snapshot.widths)?.length, 'Missing required widths for snapshot');
-
-  // validate and scrub according to dom snaphot presence
-  let errors = PercyConfig.validate(config, (
-    config.domSnapshot ? '/snapshot/dom' : '/snapshot'));
-
-  if (errors) {
-    log.warn('Invalid snapshot options:');
-    for (let e of errors) log.warn(`- ${e.path}: ${e.message}`);
-  }
-
-  // parse the URL to construct defaults
-  let url = new URL(options.url);
-
-  // inherit options from the config
-  return merge([snapshot, {
-    // default to the URL /pathname?search#hash
-    name: `${url.pathname}${url.search}${url.hash}`,
-    // add back client and environment information
-    clientInfo,
-    environmentInfo,
-    // only specific discovery options are used per-snapshot
-    discovery: {
-      allowedHostnames: [url.hostname, ...discovery.allowedHostnames],
-      requestHeaders: discovery.requestHeaders,
-      authorization: discovery.authorization,
-      disableCache: discovery.disableCache,
-      userAgent: discovery.userAgent
-    }
-  }, config], (path, prev, next) => {
-    switch (path.join('.')) {
-      case 'widths': // override and sort widths
-        return [path, next.sort((a, b) => a - b)];
-      case 'percyCSS': // concatenate percy css
-        return [path, [prev, next].filter(Boolean).join('\n')];
-      case 'execute': // shorthand for execute.beforeSnapshot
-        return (Array.isArray(next) || typeof next !== 'object')
-          ? [path.concat('beforeSnapshot'), next] : [path];
-    }
-  });
-}

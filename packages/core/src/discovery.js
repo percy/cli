@@ -17,10 +17,10 @@ export function createRequestHandler(network, { disableCache, getResource }) {
       let resource = getResource(url);
 
       if (resource?.root) {
-        log.debug('-> Serving root resource', meta);
+        log.debug('- Serving root resource', meta);
         await request.respond(resource);
       } else if (resource && !disableCache) {
-        log.debug('-> Resource cache hit', meta);
+        log.debug('- Resource cache hit', meta);
         await request.respond(resource);
       } else {
         await request.continue();
@@ -41,7 +41,7 @@ export function createRequestFinishedHandler(network, {
   allowedHostnames,
   disableCache,
   getResource,
-  addResource
+  saveResource
 }) {
   let log = logger('core:discovery');
 
@@ -63,17 +63,17 @@ export function createRequestFinishedHandler(network, {
 
         /* istanbul ignore next: sanity check */
         if (!response) {
-          return log.debug('-> Skipping no response', meta);
+          return log.debug('- Skipping no response', meta);
         } else if (!capture) {
-          return log.debug('-> Skipping remote resource', meta);
+          return log.debug('- Skipping remote resource', meta);
         } else if (!body.length) {
-          return log.debug('-> Skipping empty response', meta);
+          return log.debug('- Skipping empty response', meta);
         } else if (body.length > MAX_RESOURCE_SIZE) {
-          return log.debug('-> Skipping resource larger than 15MB', meta);
+          return log.debug('- Skipping resource larger than 15MB', meta);
         } else if (!ALLOWED_STATUSES.includes(response.status)) {
-          return log.debug(`-> Skipping disallowed status [${response.status}]`, meta);
+          return log.debug(`- Skipping disallowed status [${response.status}]`, meta);
         } else if (!enableJavaScript && !ALLOWED_RESOURCES.includes(request.type)) {
-          return log.debug(`-> Skipping disallowed resource type [${request.type}]`, meta);
+          return log.debug(`- Skipping disallowed resource type [${request.type}]`, meta);
         }
 
         resource = createResource(url, body, response.mimeType, {
@@ -86,11 +86,11 @@ export function createRequestFinishedHandler(network, {
             ), {})
         });
 
-        log.debug(`-> sha: ${resource.sha}`, meta);
-        log.debug(`-> mimetype: ${resource.mimetype}`, meta);
+        log.debug(`- sha: ${resource.sha}`, meta);
+        log.debug(`- mimetype: ${resource.mimetype}`, meta);
       }
 
-      addResource(resource);
+      saveResource(resource);
     } catch (error) {
       log.debug(`Encountered an error processing resource: ${url}`, meta);
       log.debug(error);

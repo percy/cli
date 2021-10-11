@@ -230,7 +230,7 @@ describe('Discovery', () => {
     ]);
 
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] -> Skipping empty response'
+      '[percy:core:discovery] - Skipping empty response'
     );
   });
 
@@ -324,7 +324,7 @@ describe('Discovery', () => {
     ]));
 
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] -> Skipping disallowed status [202]'
+      '[percy:core:discovery] - Skipping disallowed status [202]'
     );
   });
 
@@ -359,7 +359,7 @@ describe('Discovery', () => {
     ]);
 
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] -> Skipping resource larger than 15MB'
+      '[percy:core:discovery] - Skipping resource larger than 15MB'
     );
   });
 
@@ -438,14 +438,7 @@ describe('Discovery', () => {
       name: 'test snapshot',
       url: 'http://localhost:8000',
       domSnapshot: testDOM,
-      clientInfo: 'test client info',
-      environmentInfo: 'test env info',
-      widths: [400, 1200],
-      discovery: {
-        allowedHostnames: ['example.com'],
-        requestHeaders: { 'X-Foo': 'Bar' },
-        disableCache: true
-      }
+      widths: [400, 1200]
     });
 
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -453,30 +446,19 @@ describe('Discovery', () => {
     ]));
 
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
-      '[percy:core] ---------',
-      '[percy:core] Handling snapshot:',
-      '[percy:core] -> name: test snapshot',
-      '[percy:core] -> url: http://localhost:8000',
-      '[percy:core] -> widths: 400px, 1200px',
-      '[percy:core] -> minHeight: 1024px',
-      '[percy:core] -> discovery.allowedHostnames: example.com',
-      '[percy:core] -> discovery.requestHeaders: {"X-Foo":"Bar"}',
-      '[percy:core] -> discovery.disableCache: true',
-      '[percy:core] -> clientInfo: test client info',
-      '[percy:core] -> environmentInfo: test env info',
       '[percy:core:page] Page created',
       '[percy:core:page] Resize page to 400x1024',
       '[percy:core:page] Navigate to: http://localhost:8000',
       '[percy:core:discovery] Handling request: http://localhost:8000/',
-      '[percy:core:discovery] -> Serving root resource',
+      '[percy:core:discovery] - Serving root resource',
       '[percy:core:discovery] Handling request: http://localhost:8000/style.css',
       '[percy:core:discovery] Handling request: http://localhost:8000/img.gif',
       '[percy:core:discovery] Processing resource: http://localhost:8000/style.css',
-      `[percy:core:discovery] -> sha: ${sha256hash(testCSS)}`,
-      '[percy:core:discovery] -> mimetype: text/css',
+      `[percy:core:discovery] - sha: ${sha256hash(testCSS)}`,
+      '[percy:core:discovery] - mimetype: text/css',
       '[percy:core:discovery] Processing resource: http://localhost:8000/img.gif',
-      `[percy:core:discovery] -> sha: ${sha256hash(pixel)}`,
-      '[percy:core:discovery] -> mimetype: image/gif',
+      `[percy:core:discovery] - sha: ${sha256hash(pixel)}`,
+      '[percy:core:discovery] - mimetype: image/gif',
       '[percy:core:page] Page navigated',
       '[percy:core:network] Wait for 100ms idle',
       '[percy:core:page] Resize page to 1200x1024',
@@ -668,7 +650,7 @@ describe('Discovery', () => {
         '^\\[percy:core] Error: Timed out waiting for network requests to idle.',
         '',
         '  Active requests:',
-        '  -> http://localhost:8000/img.gif',
+        '  - http://localhost:8000/img.gif',
         '',
         '(?<stack>(.|\n)*)$'
       ].join('\n')));

@@ -85,8 +85,9 @@ const helpers = {
     }
   },
 
-  reset() {
-    delete Logger.instance;
+  reset(soft) {
+    if (soft) Logger.instance.loglevel('info');
+    else delete Logger.instance;
 
     helpers.stdout.length = 0;
     helpers.stderr.length = 0;

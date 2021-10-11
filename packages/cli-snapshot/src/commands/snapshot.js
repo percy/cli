@@ -41,10 +41,6 @@ export class Snapshot extends Command {
       description: 'one or more globs/patterns matching snapshots to exclude',
       multiple: true
     }),
-    'dry-run': flags.boolean({
-      description: 'prints a list of snapshots without processing them',
-      char: 'd'
-    }),
 
     // static only flags
     'clean-urls': flags.boolean({
@@ -105,27 +101,15 @@ export class Snapshot extends Command {
       (isStatic && await this.loadStaticSnapshots(arg)) ||
       await this.loadSnapshotsFile(arg));
 
-    let l = snapshots.length;
-    if (!l) this.error('No snapshots found');
+    if (!snapshots.length) {
+      this.error('No snapshots found');
+    }
 
     // start processing snapshots
-    let dry = this.flags['dry-run'];
-    if (!dry) await this.percy.start();
-    else this.log.info(`Found ${l} snapshot${l === 1 ? '' : 's'}`);
+    await this.percy.start();
 
-    for (let snap of snapshots) {
-      if (dry) {
-        this.log.info(`Snapshot found: ${snap.name}`);
-        this.log.debug(`-> url: ${snap.url}`);
-
-        for (let s of (snap.additionalSnapshots || [])) {
-          let name = s.name || `${s.prefix || ''}${snap.name}${s.suffix || ''}`;
-          this.log.info(`Snapshot found: ${name}`);
-          this.log.debug(`-> url: ${snap.url}`);
-        }
-      } else {
-        this.percy.snapshot(snap);
-      }
+    for (let snapshot of snapshots) {
+      this.percy.snapshot(snapshot);
     }
   }
 

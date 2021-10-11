@@ -162,6 +162,8 @@ export default class Page {
     execute,
     ...options
   }) {
+    this.log.debug(`Taking snapshot: ${name}`, this.meta);
+
     // wait for any specified timeout
     if (waitForTimeout) {
       this.log.debug(`Wait for ${waitForTimeout}ms timeout`, this.meta);

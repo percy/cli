@@ -42,12 +42,15 @@ describe('percy snapshot <sitemap>', () => {
   it('snapshots URLs listed by a sitemap', async () => {
     await Snapshot.run(['http://localhost:8000/sitemap.xml', '--dry-run']);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual([
+      '[percy] Build not created'
+    ]);
     expect(logger.stdout).toEqual([
-      '[percy] Found 3 snapshots',
+      '[percy] Percy has started!',
       '[percy] Snapshot found: /',
       '[percy] Snapshot found: /test-1/',
-      '[percy] Snapshot found: /test-2/'
+      '[percy] Snapshot found: /test-2/',
+      '[percy] Found 3 snapshots'
     ]);
   });
 

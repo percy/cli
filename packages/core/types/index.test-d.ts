@@ -1,5 +1,5 @@
 import { expectType, expectError } from 'tsd';
-import Percy, { PercyOptions } from '@percy/core';
+import Percy, { PercyOptions, PercyConfigOptions } from '@percy/core';
 
 // PercyOptions
 const percyOptions: PercyOptions = {
@@ -44,6 +44,19 @@ expectType<Promise<Percy>>(Percy.start(percyOptions));
 // #loglevel()
 expectType<'error' | 'warn' | 'info' | 'debug' | 'silent'>(percy.loglevel());
 expectType<void>(percy.loglevel('error'));
+
+// #config
+expectType<PercyConfigOptions>(percy.config);
+// #setConfig()
+expectType<PercyConfigOptions>(percy.setConfig({
+  clientInfo: 'client/info',
+  environmentInfo: 'env/info',
+  snapshot: { widths: [1000] }
+}));
+
+expectError(percy.setConfig({
+  snapshot: { foo: 'bar' }
+}));
 
 // #start()
 expectType<Promise<void>>(percy.start());
