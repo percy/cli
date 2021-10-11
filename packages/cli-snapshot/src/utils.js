@@ -28,28 +28,31 @@ export function withDefaults(options, { host }) {
   return options;
 }
 
+function mapRewrites(map, arr) {
+  return Object.entries(map).reduce((r, [source, destination]) => {
+    return (r || []).concat({ source, destination });
+  }, arr);
+}
+
 // Serves a static directory with the provided options and returns an object containing adjusted
 // rewrites (combined with any baseUrl), the server host, a close method, and the server
-// instance. The `dry` option will prevent the server from actually starting.
+// instance. The `dryRun` option will prevent the server from actually starting.
 export async function serve(dir, {
-  dry,
+  dryRun,
   baseUrl,
   cleanUrls,
   rewrites = {}
 }) {
   let host = 'http://localhost';
 
-  // reduce rewrite options with any base-url
-  rewrites = Object.entries(rewrites)
-    .reduce((rewrites, [source, destination]) => (
-      (rewrites || []).concat({ source, destination })
-    ), baseUrl ? [{
-      source: path.posix.join(baseUrl, '/:path*'),
-      destination: '/:path*'
-    }] : undefined);
+  // map rewrite options with any base-url
+  rewrites = mapRewrites(rewrites, baseUrl && [{
+    source: path.posix.join(baseUrl, '/:path*'),
+    destination: '/:path*'
+  }]);
 
   // start the server
-  let server = !dry && await new Promise(resolve => {
+  let server = !dryRun && await new Promise(resolve => {
     let server = require('http').createServer((req, res) => {
       require('serve-handler')(req, res, { public: dir, cleanUrls, rewrites });
     }).listen(() => resolve(server));
@@ -118,8 +121,13 @@ export function mapStaticSnapshots(snapshots, {
   exclude,
   cleanUrls,
   rewrites = [],
-  overrides = []
+  overrides = [],
+  server
 } = {}) {
+  // prioritize server properties
+  host = server?.host ?? host;
+  rewrites = server?.rewrites ?? mapRewrites(rewrites, []);
+
   // reduce rewrites into a single function
   let applyRewrites = [{
     test: url => !/^(https?:\/)?\//.test(url) && url,

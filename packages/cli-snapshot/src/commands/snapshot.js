@@ -148,7 +148,7 @@ export class Snapshot extends Command {
   async loadStaticSnapshots(dir) {
     let config = this.percy.config.static;
     let baseUrl = this.flags['base-url'] || config.baseUrl;
-    let dry = this.flags['dry-run'];
+    let dryRun = this.flags['dry-run'];
 
     // validate any provided base-url
     if (baseUrl && !baseUrl.startsWith('/')) {
@@ -157,16 +157,21 @@ export class Snapshot extends Command {
     }
 
     // start the server
-    this.server = await serve(dir, { ...config, baseUrl, dry });
-    let { host, rewrites } = this.server;
+    this.server = await serve(dir, {
+      ...config, baseUrl, dryRun
+    });
 
-    // gather paths and map snapshots
+    // gather paths
     let isStr = s => typeof s === 'string';
     let strOr = (a, b) => a.length && a.every(isStr) ? a : b;
     let files = strOr([].concat(config.include || []), '**/*.html');
     let ignore = strOr([].concat(config.exclude || []), []);
     let paths = await globby(files, { cwd: dir, ignore });
-    return mapStaticSnapshots(paths, { ...config, host, rewrites });
+
+    // map snapshots from paths and config
+    return mapStaticSnapshots(paths, {
+      ...config, server: this.server
+    });
   }
 
   // Loads snapshots from a js, json, or yaml file.

@@ -1,12 +1,20 @@
+import fs from 'fs';
+import path from 'path';
+import rimraf from 'rimraf';
 import mockAPI from '@percy/client/test/helpers';
 import logger from '@percy/logger/test/helpers';
 import { createTestServer } from '@percy/core/test/helpers';
 import { Snapshot } from '../src/commands/snapshot';
 
 describe('percy snapshot <sitemap>', () => {
+  let tmp = path.join(__dirname, 'tmp');
+  let cwd = process.cwd();
   let server;
 
   beforeEach(async () => {
+    process.chdir(__dirname);
+    fs.mkdirSync(tmp);
+
     server = await createTestServer({
       default: () => [200, 'text/html', '<p>Test</p>'],
       '/sitemap.xml': () => [200, 'text/xml', [
@@ -34,6 +42,10 @@ describe('percy snapshot <sitemap>', () => {
   });
 
   afterEach(async () => {
+    try { fs.unlinkSync('.percy.yml'); } catch {}
+    process.chdir(cwd);
+    rimraf.sync(tmp);
+
     delete process.env.PERCY_TOKEN;
     process.removeAllListeners();
     await server.close();
@@ -62,6 +74,34 @@ describe('percy snapshot <sitemap>', () => {
     expect(logger.stderr).toEqual([
       '[percy] Error: The sitemap must be an XML document, ' +
         'but the content-type was "text/html"'
+    ]);
+  });
+
+  it('accepts snapshot config overrides', async () => {
+    fs.writeFileSync('.percy.yml', [
+      'version: 2',
+      'sitemap:',
+      '  overrides:',
+      '  - additionalSnapshots:',
+      '    - suffix: " (2)"',
+      '  - include: "^/$"',
+      '    name: Home'
+    ].join('\n'));
+
+    await Snapshot.run(['http://localhost:8000/sitemap.xml', '--dry-run']);
+
+    expect(logger.stderr).toEqual([
+      '[percy] Build not created'
+    ]);
+    expect(logger.stdout).toEqual([
+      '[percy] Percy has started!',
+      '[percy] Snapshot found: Home',
+      '[percy] Additional snapshot: Home (2)',
+      '[percy] Snapshot found: /test-1/',
+      '[percy] Additional snapshot: /test-1/ (2)',
+      '[percy] Snapshot found: /test-2/',
+      '[percy] Additional snapshot: /test-2/ (2)',
+      '[percy] Found 6 snapshots'
     ]);
   });
 });
