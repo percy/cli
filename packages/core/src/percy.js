@@ -1,5 +1,6 @@
 import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
+import { merge } from '@percy/config/dist/utils';
 import logger from '@percy/logger';
 import Queue from './queue';
 import Browser from './browser';
@@ -92,6 +93,32 @@ export default class Percy {
   // Snapshot server API address
   address() {
     return `http://localhost:${this.port}`;
+  }
+
+  // Set client & environment info, and override loaded config options
+  setConfig({ clientInfo, environmentInfo, ...config }) {
+    this.client.addClientInfo(clientInfo);
+    this.client.addEnvironmentInfo(environmentInfo);
+
+    // normalize config and do nothing if empty
+    config = PercyConfig.normalize(config, { schema: '/config' });
+    if (!config) return this.config;
+
+    // validate provided config options
+    let errors = PercyConfig.validate(config);
+
+    if (errors) {
+      this.log.warn('Invalid config:');
+      for (let e of errors) this.log.warn(`- ${e.path}: ${e.message}`);
+    }
+
+    // merge and override existing config options
+    this.config = merge([this.config, config], (path, prev, next) => {
+      // replace arrays instead of merging
+      return Array.isArray(next) && [path, next];
+    });
+
+    return this.config;
   }
 
   // Resolves once snapshot and upload queues are idle

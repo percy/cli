@@ -49,6 +49,40 @@ describe('Server', () => {
     });
   });
 
+  it('has a /config endpoint that returns loaded config options', async () => {
+    await percy.start();
+
+    let response = await fetch('http://localhost:1337/percy/config');
+    await expectAsync(response.json()).toBeResolvedTo({
+      success: true,
+      config: PercyConfig.getDefaults()
+    });
+  });
+
+  it('can set config options via the /config endpoint', async () => {
+    await percy.start();
+
+    let response = await fetch('http://localhost:1337/percy/config', {
+      method: 'POST',
+      body: JSON.stringify({
+        snapshot: { widths: [1000] }
+      })
+    });
+
+    await expectAsync(response.json()).toBeResolvedTo({
+      success: true,
+      config: PercyConfig.getDefaults({
+        snapshot: { widths: [1000] }
+      })
+    });
+
+    expect(percy.config).toEqual(
+      PercyConfig.getDefaults({
+        snapshot: { widths: [1000] }
+      })
+    );
+  });
+
   it('has an /idle endpoint that calls #idle()', async () => {
     spyOn(percy, 'idle').and.resolveTo();
     await percy.start();

@@ -136,6 +136,43 @@ describe('Percy', () => {
     });
   });
 
+  describe('#setConfig(config)', () => {
+    it('adds client and environment information', () => {
+      expect(percy.setConfig({
+        clientInfo: 'client/info',
+        environmentInfo: 'env/info'
+      })).toEqual(percy.config);
+
+      expect(percy.client.clientInfo).toContain('client/info');
+      expect(percy.client.environmentInfo).toContain('env/info');
+    });
+
+    it('merges existing and provided config options', () => {
+      expect(percy.setConfig({
+        snapshot: { widths: [1000] }
+      })).toEqual({
+        ...percy.config,
+        snapshot: {
+          ...percy.config.snapshot,
+          widths: [1000]
+        }
+      });
+    });
+
+    it('warns and ignores invalid config options', () => {
+      expect(percy.setConfig({
+        snapshot: { widths: 1000 },
+        foo: 'bar'
+      })).toEqual(percy.config);
+
+      expect(logger.stderr).toEqual([
+        '[percy] Invalid config:',
+        '[percy] - foo: unknown property',
+        '[percy] - snapshot.widths: must be an array, received a number'
+      ]);
+    });
+  });
+
   describe('#start()', () => {
     it('creates a new build', async () => {
       await expectAsync(percy.start()).toBeResolved();

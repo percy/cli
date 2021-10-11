@@ -108,6 +108,12 @@ export default function createPercyServer(percy) {
       build: percy.build
     }],
 
+    // remotely get and set percy config options
+    '/percy/config': ({ body }) => [200, 'application/json', {
+      config: body ? percy.setConfig(body) : percy.config,
+      success: true
+    }],
+
     // responds when idle
     '/percy/idle': () => percy.idle()
       .then(() => [200, 'application/json', { success: true }]),
