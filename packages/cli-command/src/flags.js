@@ -37,7 +37,7 @@ const discovery = {
   }),
   'dry-run': flags.boolean({
     char: 'd',
-    description: 'print logs only and do not upload snapshots'
+    description: 'print logs only, do not run asset discovery or upload snapshots'
   }),
   debug: flags.boolean({
     description: 'debug asset discovery and do not upload snapshots'
