@@ -239,6 +239,11 @@ export default class Percy {
       throw new Error('Not running');
     }
 
+    // handle multiple snapshots
+    if (Array.isArray(options)) {
+      return Promise.all(options.map(o => this.snapshot(o)));
+    }
+
     // get derived snapshot config options
     let snapshot = getSnapshotConfig(this, options);
 

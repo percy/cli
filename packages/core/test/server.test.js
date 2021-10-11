@@ -107,6 +107,21 @@ describe('Server', () => {
     expect(percy.snapshot).toHaveBeenCalledOnceWith({ 'test-me': true, me_too: true });
   });
 
+  it('can handle snapshots async with a parameter', async () => {
+    let test = new Promise(r => setTimeout(r, 500));
+    spyOn(percy, 'snapshot').and.returnValue(test);
+    await percy.start();
+
+    let response = await fetch('http://localhost:1337/percy/snapshot?async', {
+      method: 'post',
+      body: '{}'
+    });
+
+    await expectAsync(response.json()).toBeResolvedTo({ success: true });
+    await expectAsync(test).toBePending();
+    await test; // no hanging promises
+  });
+
   it('returns a 500 error when an endpoint throws', async () => {
     spyOn(percy, 'snapshot').and.rejectWith(new Error('test error'));
     await percy.start();

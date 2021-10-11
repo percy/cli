@@ -136,7 +136,7 @@ describe('SDK Utils', () => {
     });
   });
 
-  describe('postSnapshot(options)', () => {
+  describe('postSnapshot(options[, params])', () => {
     let { postSnapshot } = utils;
     let options;
 
@@ -166,6 +166,14 @@ describe('SDK Utils', () => {
       await helpers.testFailure('/percy/snapshot', 'Closed');
       await expectAsync(postSnapshot({})).toBeResolved();
       expect(utils.percy.enabled).toEqual(false);
+    });
+
+    it('accepts URL parameters as the second argument', async () => {
+      let params = { test: 'foobar' };
+      let expected = `/percy/snapshot?${new URLSearchParams(params)}`;
+
+      await expectAsync(postSnapshot(options, params)).toBeResolved();
+      await expectAsync(helpers.getRequests()).toBeResolvedTo([[expected, options]]);
     });
   });
 });

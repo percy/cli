@@ -107,10 +107,7 @@ export class Snapshot extends Command {
 
     // start processing snapshots
     await this.percy.start();
-
-    for (let snapshot of snapshots) {
-      this.percy.snapshot(snapshot);
-    }
+    this.percy.snapshot(snapshots);
   }
 
   // Called on error, interupt, or after running
