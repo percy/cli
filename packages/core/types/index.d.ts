@@ -44,18 +44,24 @@ export interface SnapshotOptions extends CommonSnapshotOptions {
   discovery?: DiscoveryOptions;
 }
 
-export type PercyOptions<C = Pojo> = C & {
-  token?: string,
+type ClientEnvInfo = {
   clientInfo?: string,
-  environmentInfo?: string,
+  environmentInfo?: string
+}
+
+export type PercyConfigOptions<C = Pojo> = C & {
+  snapshot?: CommonSnapshotOptions,
+  discovery?: AllDiscoveryOptions
+}
+
+export type PercyOptions<C = Pojo> = {
+  token?: string,
   server?: boolean,
   port?: number,
   concurrency?: number,
   loglevel?: LogLevel,
-  config?: undefined | string | false,
-  snapshot?: CommonSnapshotOptions,
-  discovery?: AllDiscoveryOptions
-};
+  config?: undefined | string | false
+} & ClientEnvInfo & PercyConfigOptions<C>;
 
 type SnapshotExec = () => void | Promise<void>;
 
@@ -70,6 +76,8 @@ declare class Percy {
   constructor(options?: PercyOptions);
   loglevel(): LogLevel;
   loglevel(level: LogLevel): void;
+  config: PercyConfigOptions;
+  setConfig(config: ClientEnvInfo & PercyConfigOptions): PercyConfigOptions;
   start(): Promise<void>;
   stop(force?: boolean): Promise<void>;
   idle(): Promise<void>;
