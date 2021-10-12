@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli",
-  "version": "1.0.0-beta.68",
+  "version": "1.0.0-beta.69",
   "license": "MIT",
   "main": "index.js",
   "bin": {
@@ -35,11 +35,11 @@
   },
   "dependencies": {
     "@oclif/plugin-help": "^3.2.0",
-    "@percy/cli-build": "1.0.0-beta.68",
-    "@percy/cli-config": "1.0.0-beta.68",
-    "@percy/cli-exec": "1.0.0-beta.68",
-    "@percy/cli-snapshot": "1.0.0-beta.68",
-    "@percy/cli-upload": "1.0.0-beta.68"
+    "@percy/cli-build": "1.0.0-beta.69",
+    "@percy/cli-config": "1.0.0-beta.69",
+    "@percy/cli-exec": "1.0.0-beta.69",
+    "@percy/cli-snapshot": "1.0.0-beta.69",
+    "@percy/cli-upload": "1.0.0-beta.69"
   },
   "repository": {
     "type": "git",
