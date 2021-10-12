@@ -20,7 +20,7 @@ ARGUMENTS
 OPTIONS
   -b, --base-url=base-url                          the base url pages are hosted at when snapshotting
   -c, --config=config                              configuration file path
-  -d, --dry-run                                    prints a list of snapshots without processing them
+  -d, --dry-run                                    print logs only, do not run asset discovery or upload snapshots
   -h, --allowed-hostname=allowed-hostname          allowed hostnames to capture in asset discovery
   -q, --quiet                                      log errors only
   -t, --network-idle-timeout=network-idle-timeout  asset discovery network idle timeout

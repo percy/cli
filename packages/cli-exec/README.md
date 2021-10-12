@@ -20,6 +20,7 @@ USAGE
 OPTIONS
   -P, --port=port                                  [default: 5338] server port
   -c, --config=config                              configuration file path
+  -d, --dry-run                                    print logs only, do not run asset discovery or upload snapshots
   -h, --allowed-hostname=allowed-hostname          allowed hostnames to capture in asset discovery
   -q, --quiet                                      log errors only
   -t, --network-idle-timeout=network-idle-timeout  asset discovery network idle timeout
@@ -61,6 +62,7 @@ USAGE
 OPTIONS
   -P, --port=port                                  [default: 5338] server port
   -c, --config=config                              configuration file path
+  -d, --dry-run                                    print logs only, do not run asset discovery or upload snapshots
   -h, --allowed-hostname=allowed-hostname          allowed hostnames to capture in asset discovery
   -q, --quiet                                      log errors only
   -t, --network-idle-timeout=network-idle-timeout  asset discovery network idle timeout
