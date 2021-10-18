@@ -205,8 +205,8 @@ describe('percy snapshot <file>', () => {
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
       '[percy] Snapshot found: JS Snapshot',
-      '[percy] Additional snapshot: JS Snapshot 2',
-      '[percy] Additional snapshot: Other JS Snapshot',
+      '[percy] Snapshot found: JS Snapshot 2',
+      '[percy] Snapshot found: Other JS Snapshot',
       '[percy] Found 3 snapshots'
     ]);
   });

@@ -270,9 +270,9 @@ describe('Snapshot', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Snapshot found: test snapshot',
-      '[percy] Additional snapshot: foo test snapshot',
-      '[percy] Additional snapshot: foo test snapshot bar',
-      '[percy] Additional snapshot: foobar'
+      '[percy] Snapshot found: foo test snapshot',
+      '[percy] Snapshot found: foo test snapshot bar',
+      '[percy] Snapshot found: foobar'
     ]);
   });
 

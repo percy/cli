@@ -115,13 +115,13 @@ describe('percy snapshot <directory>', () => {
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
       '[percy] Snapshot found: First',
-      '[percy] Additional snapshot: First (2)',
+      '[percy] Snapshot found: First (2)',
       '[percy] Snapshot found: /test-2.html',
-      '[percy] Additional snapshot: /test-2.html (2)',
+      '[percy] Snapshot found: /test-2.html (2)',
       '[percy] Snapshot found: /test-3.html',
-      '[percy] Additional snapshot: /test-3.html (2)',
+      '[percy] Snapshot found: /test-3.html (2)',
       '[percy] Snapshot found: /test-index/index.html',
-      '[percy] Additional snapshot: /test-index/index.html (2)',
+      '[percy] Snapshot found: /test-index/index.html (2)',
       '[percy] Found 8 snapshots'
     ]);
   });
