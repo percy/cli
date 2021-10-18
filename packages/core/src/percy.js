@@ -279,17 +279,22 @@ export default class Percy {
     }
 
     // resolves after asset discovery has finished and uploads have been queued
-    return this.#snapshots.push(`snapshot/${snapshot.name}`, async () => {
+    return this.#snapshots.push(`snapshot/${snapshot.name}`, async function*() {
       try {
-        await discoverSnapshotResources(this, snapshot, (snap, resources) => {
+        yield* discoverSnapshotResources(this, snapshot, (snap, resources) => {
           if (!this.dryRun) this.log.info(`Snapshot taken: ${snap.name}`, snap.meta);
           this._scheduleUpload(snap, resources);
         });
       } catch (error) {
-        this.log.error(`Encountered an error taking snapshot: ${snapshot.name}`, snapshot.meta);
-        this.log.error(error, snapshot.meta);
+        if (error.message === 'Canceled') {
+          this.log.error('Recieved a duplicate snapshot name, ' + (
+            `the previous snapshot was canceled: ${snapshot.name}`));
+        } else {
+          this.log.error(`Encountered an error taking snapshot: ${snapshot.name}`, snapshot.meta);
+          this.log.error(error, snapshot.meta);
+        }
       }
-    });
+    }.bind(this));
   }
 
   // Queues a snapshot upload with the provided configuration options and resources

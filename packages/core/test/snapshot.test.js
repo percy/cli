@@ -292,6 +292,24 @@ describe('Snapshot', () => {
     ]);
   });
 
+  it('handles duplicate snapshots', async () => {
+    await percy.snapshot([{
+      url: 'http://localhost:8000/foobar',
+      domSnapshot: '<p>Test 1</p>'
+    }, {
+      url: 'http://localhost:8000/foobar',
+      domSnapshot: '<p>Test 2</p>'
+    }]);
+
+    expect(logger.stderr).toEqual([
+      '[percy] Recieved a duplicate snapshot name, ' +
+        'the previous snapshot was canceled: /foobar'
+    ]);
+    expect(logger.stdout).toEqual([
+      '[percy] Snapshot taken: /foobar'
+    ]);
+  });
+
   it('handles the browser closing early', async () => {
     spyOn(percy.browser, 'page').and.callThrough();
 
