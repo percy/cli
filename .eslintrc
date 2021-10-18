@@ -9,10 +9,12 @@ rules:
   promise/param-names: off
   semi: [error, always]
   multiline-ternary: off
+  yield-star-spacing: [error, after]
   generator-star-spacing:
     - error
     - before: false
       after: false
+      named: after
   space-before-function-paren:
     - error
     - anonymous: never

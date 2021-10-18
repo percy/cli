@@ -275,7 +275,7 @@ export default class Percy {
 
     // clear any existing snapshot uploads of the same name (for retries)
     for (let { name } of [snapshot, ...(snapshot.additionalSnapshots || [])]) {
-      this.#uploads.clear(`upload/${name}`);
+      this.#uploads.cancel(`upload/${name}`);
     }
 
     // resolves after asset discovery has finished and uploads have been queued

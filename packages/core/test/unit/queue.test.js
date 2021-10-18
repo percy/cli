@@ -1,9 +1,13 @@
 import Queue from '../../src/queue';
 
+function sleep(ms = 0, v) {
+  return new Promise(r => setTimeout(r, ms, v));
+}
+
 function task(timeout = 0, cb) {
   return async function t() {
     t.running = true;
-    await new Promise(r => setTimeout(r, timeout));
+    await sleep(timeout);
     let v = cb && (await cb());
     t.running = false;
     return v;
@@ -92,6 +96,25 @@ describe('Unit / Tasks Queue', () => {
 
       await expectAsync(q.idle()).toBeResolved();
       tasks.forEach(t => expect(t).toHaveProperty('running', false));
+    });
+  });
+
+  describe('#cancel()', () => {
+    it('can cancel a pending task', async () => {
+      let task = async function*() {
+        task.step = yield 'foo';
+        task.step = yield sleep(100, 'bar');
+        task.step = yield sleep(500, 'baz');
+        task.step = yield 'qux';
+      };
+
+      let p = q.push('t', task);
+      await sleep(200);
+      q.cancel('t');
+
+      expect(task.step).toBe('bar');
+      await expectAsync(q.idle()).toBeResolved();
+      await expectAsync(p).toBeRejectedWithError('Canceled');
     });
   });
 
