@@ -96,11 +96,11 @@ describe('percy snapshot <sitemap>', () => {
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
       '[percy] Snapshot found: Home',
-      '[percy] Additional snapshot: Home (2)',
+      '[percy] Snapshot found: Home (2)',
       '[percy] Snapshot found: /test-1/',
-      '[percy] Additional snapshot: /test-1/ (2)',
+      '[percy] Snapshot found: /test-1/ (2)',
       '[percy] Snapshot found: /test-2/',
-      '[percy] Additional snapshot: /test-2/ (2)',
+      '[percy] Snapshot found: /test-2/ (2)',
       '[percy] Found 6 snapshots'
     ]);
   });

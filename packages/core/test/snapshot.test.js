@@ -270,9 +270,9 @@ describe('Snapshot', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Snapshot found: test snapshot',
-      '[percy] Additional snapshot: foo test snapshot',
-      '[percy] Additional snapshot: foo test snapshot bar',
-      '[percy] Additional snapshot: foobar'
+      '[percy] Snapshot found: foo test snapshot',
+      '[percy] Snapshot found: foo test snapshot bar',
+      '[percy] Snapshot found: foobar'
     ]);
   });
 
@@ -289,6 +289,24 @@ describe('Snapshot', () => {
     expect(logger.stdout).toEqual([
       '[percy] Snapshot taken: /one',
       '[percy] Snapshot taken: /two'
+    ]);
+  });
+
+  it('handles duplicate snapshots', async () => {
+    await percy.snapshot([{
+      url: 'http://localhost:8000/foobar',
+      domSnapshot: '<p>Test 1</p>'
+    }, {
+      url: 'http://localhost:8000/foobar',
+      domSnapshot: '<p>Test 2</p>'
+    }]);
+
+    expect(logger.stderr).toEqual([
+      '[percy] Received a duplicate snapshot name, ' +
+        'the previous snapshot was canceled: /foobar'
+    ]);
+    expect(logger.stdout).toEqual([
+      '[percy] Snapshot taken: /foobar'
     ]);
   });
 

@@ -240,7 +240,7 @@ describe('PercyClient', () => {
 
     it('throws when using an invalid project path', async () => {
       await expectAsync(client.getBuilds('test'))
-        .toBeRejectedWithError('Invalid project path. Expected "org/project" but recieved "test"');
+        .toBeRejectedWithError('Invalid project path. Expected "org/project" but received "test"');
     });
 
     it('gets project builds data', async () => {
@@ -292,7 +292,7 @@ describe('PercyClient', () => {
 
     it('throws when using an invalid project path', () => {
       expect(() => client.waitForBuild({ commit: '...', project: 'test' }))
-        .toThrowError('Invalid project path. Expected "org/project" but recieved "test"');
+        .toThrowError('Invalid project path. Expected "org/project" but received "test"');
     });
 
     it('invokes the callback when data changes while waiting', async () => {

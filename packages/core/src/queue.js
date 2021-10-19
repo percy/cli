@@ -1,5 +1,18 @@
 import { waitFor } from './utils';
 
+function isGenerator(obj) {
+  return typeof obj.next === 'function' && (
+    typeof obj[Symbol.iterator] === 'function' ||
+    typeof obj[Symbol.asyncIterator] === 'function'
+  );
+}
+
+async function runGeneratorTask(task, arg) {
+  if (task.canceled) await task.generator.throw(new Error('Canceled'));
+  let { done, value } = await task.generator.next(arg);
+  return done ? value : runGeneratorTask(task, value);
+}
+
 export default class Queue {
   running = true;
   closed = false;
@@ -13,12 +26,12 @@ export default class Queue {
 
   push(id, callback, priority) {
     if (this.closed) throw new Error('Closed');
+    this.cancel(id);
 
     let task = { id, callback, priority };
 
     task.promise = new Promise((resolve, reject) => {
       Object.assign(task, { resolve, reject });
-      this.#queued.delete(id);
       this.#queued.set(id, task);
       this._dequeue();
     });
@@ -26,13 +39,15 @@ export default class Queue {
     return task.promise;
   }
 
-  clear(id) {
-    if (id != null) {
-      this.#queued.delete(id);
-    } else {
-      this.#queued.clear();
-    }
+  cancel(id) {
+    let pending = this.#pending.get(id);
+    if (pending) pending.canceled = true;
+    this.#pending.delete(id);
+    this.#queued.delete(id);
+  }
 
+  clear() {
+    this.#queued.clear();
     return this.size;
   }
 
@@ -62,7 +77,9 @@ export default class Queue {
   }
 
   async idle() {
-    await waitFor(() => !this.#pending.size, { idle: 10 });
+    await waitFor(() => {
+      return !this.#pending.size;
+    }, { idle: 10 });
   }
 
   async empty(onCheck) {
@@ -99,13 +116,20 @@ export default class Queue {
     this.#pending.set(task.id, task);
 
     let done = (callback, arg) => {
-      this.#pending.delete(task.id);
+      if (!task.canceled) this.#pending.delete(task.id);
       callback(arg);
       this._dequeue();
     };
 
     try {
-      return Promise.resolve(task.callback())
+      let result = task.callback();
+
+      if (isGenerator(result)) {
+        task.generator = result;
+        result = runGeneratorTask(task);
+      }
+
+      return Promise.resolve(result)
         .then(done.bind(null, task.resolve))
         .catch(done.bind(null, task.reject));
     } catch (err) {

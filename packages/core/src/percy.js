@@ -8,7 +8,6 @@ import createPercyServer from './server';
 
 import {
   getSnapshotConfig,
-  debugSnapshotConfig,
   discoverSnapshotResources
 } from './snapshot';
 
@@ -22,7 +21,6 @@ export default class Percy {
 
   #uploads = new Queue();
   #snapshots = new Queue();
-  #total = 0;
 
   // Static shortcut to create and start an instance in one call
   static async start(options) {
@@ -226,9 +224,10 @@ export default class Percy {
       });
     }
 
-    // if dry-running, print the total number of snapshots at the end
-    if (this.dryRun && this.#total) {
-      this.log.info(`Found ${this.#total} snapshot${this.#total !== 1 ? 's' : ''}`);
+    // if dry-running, print the total number of snapshots that would be uploaded
+    if (this.dryRun && this.#uploads.size) {
+      let total = this.#uploads.size - 1; // subtract the build task
+      this.log.info(`Found ${total} snapshot${total !== 1 ? 's' : ''}`);
     }
 
     // close the any running server and browser
@@ -274,25 +273,32 @@ export default class Percy {
     // get derived snapshot config options
     let snapshot = getSnapshotConfig(this, options);
 
-    // clear any existing pending upload for the same snapshot (for retries)
-    this.#uploads.clear(`upload/${snapshot.name}`);
+    // clear any existing snapshot uploads of the same name (for retries)
+    for (let { name } of [snapshot, ...(snapshot.additionalSnapshots || [])]) {
+      this.#uploads.cancel(`upload/${name}`);
+    }
 
-    // resolves after asset discovery has finished and the upload has been queued
-    return this.#snapshots.push(`snapshot/${snapshot.name}`, async () => {
-      this.#total += (snapshot.additionalSnapshots?.length ?? 0) + 1;
-      debugSnapshotConfig(snapshot, this.dryRun);
-      if (this.dryRun) return;
-
+    // resolves after asset discovery has finished and uploads have been queued
+    return this.#snapshots.push(`snapshot/${snapshot.name}`, async function*() {
       try {
-        await discoverSnapshotResources(this, snapshot, (snapshot, resources) => {
-          this.log.info(`Snapshot taken: ${snapshot.name}`, snapshot.meta);
-          this._scheduleUpload(snapshot, resources);
+        yield* discoverSnapshotResources(this, snapshot, (snap, resources) => {
+          if (!this.dryRun) this.log.info(`Snapshot taken: ${snap.name}`, snap.meta);
+          this._scheduleUpload(snap, resources);
         });
       } catch (error) {
-        this.log.error(`Encountered an error taking snapshot: ${snapshot.name}`, snapshot.meta);
-        this.log.error(error, snapshot.meta);
+        if (error.message === 'Canceled') {
+          this.log.error('Received a duplicate snapshot name, ' + (
+            `the previous snapshot was canceled: ${snapshot.name}`));
+        } else {
+          this.log.error(`Encountered an error taking snapshot: ${snapshot.name}`, snapshot.meta);
+          this.log.error(error, snapshot.meta);
+        }
       }
-    });
+
+      // fixes an issue in Node 12 where implicit returns do not correctly resolve the async
+      // generator objects — https://crbug.com/v8/10238
+      return; // eslint-disable-line no-useless-return
+    }.bind(this));
   }
 
   // Queues a snapshot upload with the provided configuration options and resources

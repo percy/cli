@@ -62,13 +62,20 @@ export function getSnapshotConfig(percy, options) {
         return (Array.isArray(next) || typeof next !== 'object')
           ? [path.concat('beforeSnapshot'), next] : [path];
     }
+
+    // ensure additional snapshots have complete names
+    if (path[0] === 'additionalSnapshots' && path.length === 2) {
+      let { prefix = '', suffix = '', ...n } = next;
+      next = { name: `${prefix}${name}${suffix}`, ...n };
+      return [path, next];
+    }
   });
 }
 
 // Returns a complete and valid snapshot config object and logs verbose debug logs detailing various
 // snapshot options. When `showInfo` is true, specific messages will be logged as info logs rather
 // than debug logs.
-export function debugSnapshotConfig(snapshot, showInfo) {
+function debugSnapshotConfig(snapshot, showInfo) {
   let log = logger('core:snapshot');
 
   // log snapshot info
@@ -106,11 +113,10 @@ export function debugSnapshotConfig(snapshot, showInfo) {
   debugProp(snapshot, 'environmentInfo');
   debugProp(snapshot, 'domSnapshot', Boolean);
 
-  for (let { name, ...added } of (snapshot.additionalSnapshots || [])) {
-    name ||= `${added.prefix || ''}${snapshot.name}${added.suffix || ''}`;
-    log[showInfo ? 'info' : 'debug'](`Additional snapshot: ${name}`, snapshot.meta);
+  for (let added of (snapshot.additionalSnapshots || [])) {
+    if (showInfo) log.info(`Snapshot found: ${added.name}`, snapshot.meta);
+    else log.debug(`Additional snapshot: ${added.name}`, snapshot.meta);
 
-    debugProp(added, 'url');
     debugProp(added, 'waitForTimeout');
     debugProp(added, 'waitForSelector');
     debugProp(added, 'execute');
@@ -160,7 +166,13 @@ const RESOURCE_CACHE_KEY = Symbol('resource-cache');
 // function will be called with the snapshot name (for additional snapshots) and an array of
 // discovered resources. When additional snapshots are provided, the callback will be called once
 // for each snapshot.
-export async function discoverSnapshotResources(percy, snapshot, callback) {
+export async function* discoverSnapshotResources(percy, snapshot, callback) {
+  debugSnapshotConfig(snapshot, percy.dryRun);
+
+  // when dry-running, invoke the callback for each snapshot and immediately return
+  let allSnapshots = [snapshot, ...(snapshot.additionalSnapshots || [])];
+  if (percy.dryRun) return allSnapshots.map(s => callback(s));
+
   // keep a global resource cache across snapshots
   let cache = percy[RESOURCE_CACHE_KEY] ||= new Map();
   // copy widths to prevent mutation later
@@ -173,7 +185,7 @@ export async function discoverSnapshotResources(percy, snapshot, callback) {
   ));
 
   // open a new browser page
-  let page = await percy.browser.page({
+  let page = yield percy.browser.page({
     enableJavaScript: snapshot.enableJavaScript ?? !snapshot.domSnapshot,
     networkIdleTimeout: snapshot.discovery.networkIdleTimeout,
     requestHeaders: snapshot.discovery.requestHeaders,
@@ -193,38 +205,34 @@ export async function discoverSnapshotResources(percy, snapshot, callback) {
 
   try {
     // set the initial page size
-    await page.resize({
+    yield page.resize({
       width: widths.shift(),
       height: snapshot.minHeight
     });
 
     // navigate to the url
-    await page.goto(snapshot.url);
-    await page.evaluate(snapshot.execute?.afterNavigation);
+    yield page.goto(snapshot.url);
+    yield page.evaluate(snapshot.execute?.afterNavigation);
 
     // trigger resize events for other widths
     for (let width of widths) {
-      await page.evaluate(snapshot.execute?.beforeResize);
-      await waitForDiscoveryNetworkIdle(page, snapshot.discovery);
-      await page.resize({ width, height: snapshot.minHeight });
-      await page.evaluate(snapshot.execute?.afterResize);
+      yield page.evaluate(snapshot.execute?.beforeResize);
+      yield waitForDiscoveryNetworkIdle(page, snapshot.discovery);
+      yield page.resize({ width, height: snapshot.minHeight });
+      yield page.evaluate(snapshot.execute?.afterResize);
     }
 
     if (snapshot.domSnapshot) {
       // ensure discovery has finished and handle resources
-      await waitForDiscoveryNetworkIdle(page, snapshot.discovery);
+      yield waitForDiscoveryNetworkIdle(page, snapshot.discovery);
       handleSnapshotResources(snapshot, resources, callback);
     } else {
       // capture snapshots sequentially
-      let allSnapshots = [snapshot, ...(snapshot.additionalSnapshots || [])];
-
-      for (let { name, prefix = '', suffix = '', ...snap } of allSnapshots) {
-        // default name and merge snapshot options
-        name ||= `${prefix}${snapshot.name}${suffix}`;
-        let options = { ...snapshot, ...snap, name };
-
+      for (let snap of allSnapshots) {
+        // shallow merge snapshot options
+        let options = { ...snapshot, ...snap };
         // will wait for timeouts, selectors, and additional network activity
-        let { url, dom } = await page.snapshot(options);
+        let { url, dom } = yield page.snapshot(options);
 
         // handle resources and remove previously captured dom snapshots
         resources.set(url, createRootResource(url, dom));

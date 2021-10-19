@@ -21,7 +21,7 @@ function validateBuildId(id) {
 function validateProjectPath(path) {
   if (!path) throw new Error('Missing project path');
   if (!/^[^/]+?\/.+/.test(path)) {
-    throw new Error(`Invalid project path. Expected "org/project" but recieved "${path}"`);
+    throw new Error(`Invalid project path. Expected "org/project" but received "${path}"`);
   }
 }
 
@@ -215,7 +215,7 @@ export default class PercyClient {
         let pending = !state || state === 'pending' || state === 'processing';
         let updated = JSON.stringify(data) !== JSON.stringify(last);
 
-        // new data recieved
+        // new data received
         if (updated) {
           t = Date.now();
 
