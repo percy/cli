@@ -20,8 +20,8 @@ export function getSnapshotConfig(percy, options) {
   let log = logger('core:snapshot');
 
   // migrate deprecated snapshot config options
-  let { clientInfo, environmentInfo, ...opts } = options;
-  let snapshot = PercyConfig.migrate(opts, '/snapshot');
+  let { clientInfo, environmentInfo, ...snapshot } = (
+    PercyConfig.migrate(options, '/snapshot'));
 
   // throw an error when missing required widths
   if (!(snapshot.widths ?? percy.config.snapshot.widths)?.length) {
