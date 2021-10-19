@@ -294,6 +294,10 @@ export default class Percy {
           this.log.error(error, snapshot.meta);
         }
       }
+
+      // fixes an issue in Node 12 where implicit returns do not correctly resolve the async
+      // generator objects — https://crbug.com/v8/10238
+      return;
     }.bind(this));
   }
 
