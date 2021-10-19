@@ -116,7 +116,7 @@ export default class Queue {
     this.#pending.set(task.id, task);
 
     let done = (callback, arg) => {
-      this.#pending.delete(task.id);
+      if (!task.canceled) this.#pending.delete(task.id);
       callback(arg);
       this._dequeue();
     };

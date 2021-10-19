@@ -104,6 +104,8 @@ export default class Browser extends EventEmitter {
     // collect args to pass to the browser process
     let args = [...this.args, `--user-data-dir=${this.profile}`];
 
+    this.log.debug('Launching browser');
+
     // spawn the browser process detached in its own group and session
     this.process = spawn(this.executable, args, {
       detached: process.platform !== 'win32'
@@ -119,6 +121,8 @@ export default class Browser extends EventEmitter {
 
     // get version information
     this.version = await this.send('Browser.getVersion');
+
+    this.log.debug(`Browser connected: ${this.version.product}`);
   }
 
   isConnected() {
@@ -127,6 +131,7 @@ export default class Browser extends EventEmitter {
 
   async close() {
     if (this._closed) return this._closed;
+    this.log.debug('Closing browser');
 
     // resolves when the browser has closed
     this._closed = Promise.all([
@@ -157,6 +162,8 @@ export default class Browser extends EventEmitter {
           this.log.debug(error);
         });
       }
+
+      this.log.debug('Browser closed');
     });
 
     // reject any pending callbacks
