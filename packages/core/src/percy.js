@@ -297,7 +297,7 @@ export default class Percy {
 
       // fixes an issue in Node 12 where implicit returns do not correctly resolve the async
       // generator objects — https://crbug.com/v8/10238
-      return;
+      return; // eslint-disable-line no-useless-return
     }.bind(this));
   }
 
