@@ -209,13 +209,13 @@ describe('Snapshot', () => {
     await percy.snapshot({
       name: 'test snapshot',
       url: 'http://localhost:8000',
-      clientInfo: 'test client info',
-      environmentInfo: 'test env info',
+      client_info: 'test client info',
+      environment_info: 'test env info',
       widths: [400, 1200],
       discovery: {
-        allowedHostnames: ['example.com'],
-        requestHeaders: { 'X-Foo': 'Bar' },
-        disableCache: true
+        'allowed-hostnames': ['example.com'],
+        'request-headers': { 'X-Foo': 'Bar' },
+        'disable-cache': true
       },
       additionalSnapshots: [
         { prefix: 'foo ', waitForTimeout: 100 },
