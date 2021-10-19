@@ -287,7 +287,7 @@ export default class Percy {
         });
       } catch (error) {
         if (error.message === 'Canceled') {
-          this.log.error('Recieved a duplicate snapshot name, ' + (
+          this.log.error('Received a duplicate snapshot name, ' + (
             `the previous snapshot was canceled: ${snapshot.name}`));
         } else {
           this.log.error(`Encountered an error taking snapshot: ${snapshot.name}`, snapshot.meta);
