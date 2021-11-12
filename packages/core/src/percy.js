@@ -293,7 +293,7 @@ export default class Percy {
       try {
         yield* discoverSnapshotResources(this, snapshot, (snap, resources) => {
           if (!this.dryRun) this.log.info(`Snapshot taken: ${snap.name}`, snap.meta);
-          this._scheduleUpload(snap, resources);
+          this._scheduleUpload(snap.name, { ...snap, resources });
         });
       } catch (error) {
         if (error.message === 'Canceled') {
@@ -311,19 +311,21 @@ export default class Percy {
     }.bind(this));
   }
 
-  // Queues a snapshot upload with the provided configuration options and resources
-  _scheduleUpload(snapshot, resources) {
-    this.#uploads.push(`upload/${snapshot.name}`, async () => {
+  // Queues a snapshot upload with the provided options
+  _scheduleUpload(name, options) {
+    return this.#uploads.push(`upload/${name}`, async () => {
       try {
-        await this.client.sendSnapshot(this.build.id, { ...snapshot, resources });
+        /* istanbul ignore if: useful for other internal packages */
+        if (typeof options === 'function') options = await options();
+        await this.client.sendSnapshot(this.build.id, options);
       } catch (error) {
         let failed = error.response?.status === 422 && (
           error.response.body.errors.find(e => (
             e.source?.pointer === '/data/attributes/build'
           )));
 
-        this.log.error(`Encountered an error uploading snapshot: ${snapshot.name}`, snapshot.meta);
-        this.log.error(failed?.detail ?? error, snapshot.meta);
+        this.log.error(`Encountered an error uploading snapshot: ${name}`, options.meta);
+        this.log.error(failed?.detail ?? error, options.meta);
 
         // build failed at some point, stop accepting snapshots
         if (failed) {
