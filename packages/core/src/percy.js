@@ -11,6 +11,10 @@ import {
   discoverSnapshotResources
 } from './snapshot';
 
+import {
+  generatePromise
+} from './utils';
+
 // A Percy instance will create a new build when started, handle snapshot
 // creation, asset discovery, and resource uploads, and will finalize the build
 // when stopped. Snapshots are processed concurrently and the build is not
@@ -130,16 +134,10 @@ export default class Percy {
   }
 
   // Resolves once snapshot and upload queues are idle
-  async idle() {
-    await this.#snapshots.idle();
-    await this.#uploads.idle();
-  }
-
-  // Waits for snapshot idle and flushes the upload queue
-  async dispatch() {
-    await this.#snapshots.idle();
-    if (!this.skipUploads) await this.#uploads.flush();
-  }
+  idle = () => generatePromise(async function*() {
+    yield* this.#snapshots.idle();
+    yield* this.#uploads.idle();
+  }.bind(this))
 
   // Immediately stops all queues, preventing any more tasks from running
   close() {
@@ -149,7 +147,7 @@ export default class Percy {
 
   // Starts a local API server, a browser process, and queues creating a new Percy build which will run
   // at a later time when uploads are deferred, or run immediately when not deferred.
-  async start() {
+  start = options => generatePromise(async function*() {
     // already starting or started
     if (this.readyState != null) return;
     this.readyState = 0;
@@ -180,19 +178,31 @@ export default class Percy {
     try {
       // when not deferred, wait until the build is created first
       if (!this.deferUploads) await buildTask;
-      // launch the discovery browser
-      if (!this.dryRun) await this.browser.launch();
-      // if there is a server, start listening
-      await this.server?.listen(this.port);
 
-      // mark this process as running
+      // maybe launch the discovery browser
+      if (!this.dryRun && options?.browser !== false) {
+        yield this.browser.launch();
+      }
+
+      // start the server after everything else is ready
+      yield this.server?.listen(this.port);
+
+      // mark instance as started
       this.log.info('Percy has started!');
       this.readyState = 1;
     } catch (error) {
       // on error, close any running server and browser
       await this.server?.close();
       await this.browser.close();
+
+      // mark instance as closed
       this.readyState = 3;
+
+      // when uploads are deferred, cancel build creation
+      if (error.canceled && this.deferUploads) {
+        this.#uploads.cancel('build/create');
+        this.readyState = null;
+      }
 
       // throw an easier-to-understand error when the port is taken
       if (error.code === 'EADDRINUSE') {
@@ -201,11 +211,45 @@ export default class Percy {
         throw error;
       }
     }
-  }
+  }.bind(this))
+
+  // Wait for currently queued snapshots then run and wait for resulting uploads
+  flush = close => generatePromise(async function*() {
+    // close the snapshot queue and wait for it to empty
+    if (this.#snapshots.size) {
+      if (close) this.#snapshots.close();
+
+      yield* this.#snapshots.flush(s => {
+        // do not log a count when not closing or while dry-running
+        if (!close || this.dryRun) return;
+        this.log.progress(`Processing ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s);
+      });
+    }
+
+    // run, close, and wait for the upload queue to empty
+    if (!this.skipUploads && this.#uploads.size) {
+      if (close) this.#uploads.close();
+
+      yield* this.#uploads.flush(s => {
+        // do not log a count when not closing or while creating a build
+        if (!close || this.#uploads.has('build/create')) return;
+        this.log.progress(`Uploading ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s);
+      });
+    }
+  }.bind(this)).canceled(() => {
+    // reopen closed queues when canceled
+    this.#snapshots.open();
+    this.#uploads.open();
+  })
 
   // Stops the local API server and browser once snapshots have completed and finalizes the Percy
   // build. Does nothing if not running. When `force` is true, any queued tasks are cleared.
-  async stop(force) {
+  stop = force => generatePromise(async function*() {
+    // not started, but the browser was launched
+    if (!this.readyState && this.browser.isConnected()) {
+      await this.browser.close();
+    }
+
     // not started or already stopped
     if (!this.readyState || this.readyState > 2) return;
 
@@ -217,32 +261,23 @@ export default class Percy {
     this.readyState = 2;
 
     // log when force stopping
-    let meta = { build: this.build };
-    if (force) this.log.info('Stopping percy...', meta);
+    if (force) this.log.info('Stopping percy...');
 
-    // close the snapshot queue and wait for it to empty
-    if (this.#snapshots.close().size) {
-      await this.#snapshots.empty(s => !this.dryRun && (
-        this.log.progress(`Processing ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s)
-      ));
-    }
+    // process uploads and close queues
+    yield* this.flush(true);
 
-    // run, close, and wait for the upload queue to empty
-    if (!this.skipUploads && this.#uploads.run().close().size) {
-      await this.#uploads.empty(s => {
-        this.log.progress(`Uploading ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s);
-      });
-    }
-
-    // if dry-running, print the total number of snapshots that would be uploaded
+    // if dry-running, log the total number of snapshots
     if (this.dryRun && this.#uploads.size) {
       let total = this.#uploads.size - 1; // subtract the build task
       this.log.info(`Found ${total} snapshot${total !== 1 ? 's' : ''}`);
     }
 
-    // close the any running server and browser
+    // close any running server and browser
     await this.server?.close();
     await this.browser.close();
+
+    // finalize and log build info
+    let meta = { build: this.build };
 
     if (this.build?.failed) {
       // do not finalize failed builds
@@ -256,8 +291,12 @@ export default class Percy {
       this.log.warn('Build not created', meta);
     }
 
+    // mark instance as stopped
     this.readyState = 3;
-  }
+  }.bind(this)).canceled(() => {
+    // reset ready state when canceled
+    this.readyState = 1;
+  })
 
   // Deprecated capture method
   capture(options) {
@@ -296,7 +335,7 @@ export default class Percy {
           this._scheduleUpload(snap.name, { ...snap, resources });
         });
       } catch (error) {
-        if (error.message === 'Canceled') {
+        if (error.canceled) {
           this.log.error('Received a duplicate snapshot name, ' + (
             `the previous snapshot was canceled: ${snapshot.name}`));
         } else {
