@@ -182,8 +182,9 @@ export default class Page {
     }
 
     // execute any javascript
-    await this.evaluate(typeof execute === 'function'
-      ? execute : execute?.beforeSnapshot);
+    await this.evaluate(
+      typeof execute === 'object' && !Array.isArray(execute)
+        ? execute.beforeSnapshot : execute);
 
     // wait for any final network activity before capturing the dom snapshot
     await this.network.idle();
