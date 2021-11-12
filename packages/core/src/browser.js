@@ -13,6 +13,7 @@ import Page from './page';
 export default class Browser extends EventEmitter {
   log = logger('core:browser');
   sessions = new Map();
+  readyState = null;
   closed = false;
 
   #callbacks = new Map();
@@ -25,6 +26,8 @@ export default class Browser extends EventEmitter {
     '--disable-background-networking',
     // disable task throttling of timer tasks from background pages
     '--disable-background-timer-throttling',
+    // disable backgrounding renderer processes
+    '--disable-renderer-backgrounding',
     // disable backgrounding renderers for occluded windows (reduce nondeterminism)
     '--disable-backgrounding-occluded-windows',
     // disable crash reporting
@@ -88,7 +91,9 @@ export default class Browser extends EventEmitter {
   }
 
   async launch() {
-    if (this.isConnected()) return;
+    // already launching or launched
+    if (this.readyState != null) return;
+    this.readyState = 0;
 
     // check if any provided executable exists
     if (this.executable && !existsSync(this.executable)) {
@@ -101,12 +106,10 @@ export default class Browser extends EventEmitter {
     // create a temporary profile directory
     this.profile = await fs.mkdtemp(path.join(os.tmpdir(), 'percy-browser-'));
 
-    // collect args to pass to the browser process
-    let args = [...this.args, `--user-data-dir=${this.profile}`];
-
+    // spawn the browser process detached in its own group and session
+    let args = this.args.concat(`--user-data-dir=${this.profile}`);
     this.log.debug('Launching browser');
 
-    // spawn the browser process detached in its own group and session
     this.process = spawn(this.executable, args, {
       detached: process.platform !== 'win32'
     });
@@ -122,7 +125,8 @@ export default class Browser extends EventEmitter {
     // get version information
     this.version = await this.send('Browser.getVersion');
 
-    this.log.debug(`Browser connected: ${this.version.product}`);
+    this.log.debug(`Browser connected [${this.process.pid}]: ${this.version.product}`);
+    this.readyState = 1;
   }
 
   isConnected() {
@@ -130,7 +134,10 @@ export default class Browser extends EventEmitter {
   }
 
   async close() {
+    // not running, already closed, or closing
     if (this._closed) return this._closed;
+    this.readyState = 2;
+
     this.log.debug('Closing browser');
 
     // resolves when the browser has closed
@@ -162,8 +169,9 @@ export default class Browser extends EventEmitter {
           this.log.debug(error);
         });
       }
-
+    }).then(() => {
       this.log.debug('Browser closed');
+      this.readyState = 3;
     });
 
     // reject any pending callbacks
@@ -242,20 +250,16 @@ export default class Browser extends EventEmitter {
         if (match) cleanup(() => resolve(match[1]));
       };
 
-      /* istanbul ignore next: for sanity */
-      let handleExit = () => handleError();
-      let handleClose = () => handleError();
-      let handleError = error => {
-        cleanup(() => reject(new Error(
-          `Failed to launch browser. ${error?.message ?? ''}\n${stderr}'\n\n`
-        )));
-      };
+      let handleExitClose = () => handleError();
+      let handleError = error => cleanup(() => reject(new Error(
+        `Failed to launch browser. ${error?.message ?? ''}\n${stderr}'\n\n`
+      )));
 
       let cleanup = callback => {
         clearTimeout(timeoutId);
         this.process.stderr.off('data', handleData);
-        this.process.stderr.off('close', handleClose);
-        this.process.off('exit', handleExit);
+        this.process.stderr.off('close', handleExitClose);
+        this.process.off('exit', handleExitClose);
         this.process.off('error', handleError);
         callback();
       };
@@ -265,8 +269,8 @@ export default class Browser extends EventEmitter {
       ), timeout);
 
       this.process.stderr.on('data', handleData);
-      this.process.stderr.on('close', handleClose);
-      this.process.on('exit', handleExit);
+      this.process.stderr.on('close', handleExitClose);
+      this.process.on('exit', handleExitClose);
       this.process.on('error', handleError);
     });
 
