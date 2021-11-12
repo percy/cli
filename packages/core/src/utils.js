@@ -35,34 +35,78 @@ export function createLogResource(logs) {
   return createResource(`/percy.${Date.now()}.log`, JSON.stringify(logs), 'text/plain');
 }
 
-// Polls for the predicate to be truthy within a timeout or the returned promise rejects. If
-// the second argument is an options object and `idle` is provided, the predicate will be
-// checked again after the idle period. This helper is injected as an argument when using
-// the `page#eval()` method, such as for the snapshot `execute` option.
-/* istanbul ignore next: no instrumenting injected code */
-export function waitFor(predicate, timeoutOrOptions) {
-  let { poll = 10, timeout, idle } =
-    Number.isInteger(timeoutOrOptions)
-      ? { timeout: timeoutOrOptions }
-      : (timeoutOrOptions || {});
+// Creates a thennable, cancelable, generator instance
+export function generatePromise(gen) {
+  // ensure a generator is provided
+  if (typeof gen === 'function') gen = gen();
+  if (typeof gen?.then === 'function') return gen;
+  if (typeof gen?.next !== 'function' || !(
+    typeof gen[Symbol.iterator] === 'function' ||
+    typeof gen[Symbol.asyncIterator] === 'function'
+  )) return Promise.resolve(gen);
 
-  return new Promise((resolve, reject) => {
-    return (function check(start, done) {
-      try {
-        if (timeout && Date.now() - start >= timeout) {
-          throw new Error(`Timeout of ${timeout}ms exceeded.`);
-        } else if (predicate()) {
-          if (idle && !done) {
-            setTimeout(check, idle, start, true);
-          } else {
-            resolve();
-          }
-        } else {
-          setTimeout(check, poll, start);
-        }
-      } catch (error) {
-        reject(error);
+  // used to trigger cancelation
+  class Canceled extends Error {
+    name = 'Canceled';
+    canceled = true;
+  }
+
+  // recursively runs the generator, maybe throwing an error when canceled
+  let handleNext = async (g, last) => {
+    let canceled = g.cancel.triggered;
+
+    let { done, value } = canceled
+      ? await g.throw(canceled)
+      : await g.next(last);
+
+    if (canceled) delete g.cancel.triggered;
+    return done ? value : handleNext(g, value);
+  };
+
+  // handle cancelation errors by calling any cancel handlers
+  let cancelable = (async function*() {
+    try { return yield* gen; } catch (error) {
+      if (error.canceled) {
+        let cancelers = cancelable.cancelers || [];
+        for (let c of cancelers) await c(error);
       }
-    })(Date.now());
+
+      throw error;
+    }
+  })();
+
+  // augment the cancelable generator with promise-like and cancel methods
+  return Object.assign(cancelable, {
+    run: () => (cancelable.promise ||= handleNext(cancelable)),
+    then: (resolve, reject) => cancelable.run().then(resolve, reject),
+    catch: reject => cancelable.run().catch(reject),
+    cancel: message => {
+      cancelable.cancel.triggered = new Canceled(message);
+      return cancelable;
+    },
+    canceled: handler => {
+      (cancelable.cancelers ||= []).push(handler);
+      return cancelable;
+    }
   });
+}
+
+// Resolves when the predicate function returns true within the timeout. If an idle option is
+// provided, the predicate will be checked again before resolving, after the idle period. The poll
+// option determines how often the predicate check will be run.
+export function waitFor(predicate, options) {
+  let { poll = 10, timeout, idle } = Number.isInteger(options)
+    ? { timeout: options } : (options || {});
+
+  return generatePromise(async function* check(start, done) {
+    if (timeout && Date.now() - start >= timeout) {
+      throw new Error(`Timeout of ${timeout}ms exceeded.`);
+    } else if (!predicate()) {
+      yield new Promise(r => setTimeout(r, poll));
+      yield* check(start);
+    } else if (idle && !done) {
+      yield new Promise(r => setTimeout(r, idle));
+      yield* check(start, true);
+    }
+  }(Date.now()));
 }
