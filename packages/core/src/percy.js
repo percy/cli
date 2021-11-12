@@ -56,15 +56,18 @@ export default class Percy {
     this.dryRun = !!dryRun;
     this.skipUploads = this.dryRun || !!skipUploads;
     this.deferUploads = this.skipUploads || !!deferUploads;
+    if (this.deferUploads) this.#uploads.stop();
 
     this.config = PercyConfig.load({
       overrides: options,
       path: config
     });
 
-    let { concurrency } = this.config.discovery;
-    if (concurrency) this.#snapshots.concurrency = concurrency;
-    if (this.deferUploads) this.#uploads.stop();
+    if (this.config.discovery.concurrency) {
+      let { concurrency } = this.config.discovery;
+      this.#uploads.concurrency = concurrency;
+      this.#snapshots.concurrency = concurrency;
+    }
 
     this.client = new PercyClient({
       token,
@@ -115,6 +118,13 @@ export default class Percy {
       // replace arrays instead of merging
       return Array.isArray(next) && [path, next];
     });
+
+    // adjust concurrency if necessary
+    if (this.config.discovery.concurrency) {
+      let { concurrency } = this.config.discovery;
+      this.#uploads.concurrency = concurrency;
+      this.#snapshots.concurrency = concurrency;
+    }
 
     return this.config;
   }
