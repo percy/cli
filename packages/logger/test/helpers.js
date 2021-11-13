@@ -109,10 +109,10 @@ const helpers = {
 
     logger.loglevel('debug');
 
-    write(logger.format('--- DUMPING LOGS ---', 'testing', 'warn'));
+    write(logger.format('testing', 'warn', '--- DUMPING LOGS ---'));
 
     logs.reduce((lastlog, { debug, level, message, timestamp }) => {
-      write(logger.format(message, debug, level, timestamp - lastlog));
+      write(logger.format(debug, level, message, timestamp - lastlog));
       return timestamp;
     }, logs[0].timestamp);
   }

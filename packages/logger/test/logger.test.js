@@ -25,6 +25,7 @@ describe('logger', () => {
   });
 
   it('has a default log level', () => {
+    expect(log.loglevel()).toEqual('info');
     expect(logger.loglevel()).toEqual('info');
   });
 
@@ -132,29 +133,36 @@ describe('logger', () => {
   });
 
   it('exposes a message formatting method', () => {
-    expect(logger.format('information')).toEqual(
-      `[${colors.magenta('percy')}] information`
-    );
+    expect(log.format('grouped')).toEqual(
+      `[${colors.magenta('percy')}] grouped`);
+    expect(log.format('warn', 'level')).toEqual(
+      `[${colors.magenta('percy')}] ${colors.yellow('level')}`);
+    expect(log.format('error', 'level')).toEqual(
+      `[${colors.magenta('percy')}] ${colors.red('level')}`);
 
-    logger.loglevel('debug');
+    expect(logger.format('ungrouped')).toEqual(
+      `[${colors.magenta('percy')}] ungrouped`);
+    expect(logger.format('other', 'long')).toEqual(
+      `[${colors.magenta('percy')}] long`);
+    expect(logger.format('other', 'warn', 'long level')).toEqual(
+      `[${colors.magenta('percy')}] ${colors.yellow('long level')}`);
+    expect(logger.format('other', 'error', 'elapsed', 100)).toEqual(
+      `[${colors.magenta('percy')}] ${colors.red('elapsed')}`);
 
-    expect(logger.format('wat')).toEqual(
-      `[${colors.magenta('percy')}] wat`
-    );
+    log.loglevel('debug');
 
-    expect(logger.format('debugging', 'test')).toEqual(
-      `[${colors.magenta('percy:test')}] debugging`
-    );
+    expect(log.format('grouped')).toEqual(
+      `[${colors.magenta('percy:test')}] grouped`);
+    expect(log.format('error', 'level')).toEqual(
+      `[${colors.magenta('percy:test')}] ${colors.red('level')}`);
 
-    expect(logger.format('failure', 'test', 'error')).toEqual(
-      `[${colors.magenta('percy:test')}] ${colors.red('failure')}`
-    );
-
-    logger.loglevel('error');
-
-    expect(logger.format('warning', 'test', 'warn')).toEqual(
-      `[${colors.magenta('percy')}] ${colors.yellow('warning')}`
-    );
+    expect(logger.format('ungrouped')).toEqual(
+      `[${colors.magenta('percy')}] ungrouped`);
+    expect(logger.format('other', 'long')).toEqual(
+      `[${colors.magenta('percy:other')}] long`);
+    expect(logger.format('other', 'warn', 'elapsed', 100)).toEqual(
+      `[${colors.magenta('percy:other')}] ` +
+        `${colors.yellow('elapsed')} ${colors.grey('(100ms)')}`);
   });
 
   it('exposes own stdout and stderr streams', () => {
@@ -164,9 +172,8 @@ describe('logger', () => {
 
   describe('levels', () => {
     it('can be initially set by defining PERCY_LOGLEVEL', () => {
-      process.env.PERCY_LOGLEVEL = 'error';
       helpers.reset();
-
+      process.env.PERCY_LOGLEVEL = 'error';
       expect(logger.loglevel()).toEqual('error');
     });
 
@@ -184,7 +191,7 @@ describe('logger', () => {
     });
 
     it('logs only warnings and errors when loglevel is "warn"', () => {
-      logger.loglevel('warn');
+      log.loglevel('warn');
 
       log.info('Info log');
       log.warn('Warn log');
@@ -199,7 +206,7 @@ describe('logger', () => {
     });
 
     it('logs only errors when loglevel is "error"', () => {
-      logger.loglevel('error');
+      log.loglevel('error');
 
       log.info('Info log');
       log.warn('Warn log');
@@ -213,7 +220,7 @@ describe('logger', () => {
     });
 
     it('logs everything when loglevel is "debug"', () => {
-      logger.loglevel('debug');
+      log.loglevel('debug');
 
       log.info('Info log');
       log.warn('Warn log');
@@ -232,7 +239,7 @@ describe('logger', () => {
 
     it('logs error stack traces when loglevel is "debug"', () => {
       let error = new Error('test');
-      logger.loglevel('debug');
+      log.loglevel('debug');
       log.error(error);
 
       expect(helpers.stderr).toEqual([
@@ -242,7 +249,7 @@ describe('logger', () => {
 
     it('stringifies error-like objects when loglevel is "debug"', () => {
       let errorlike = { toString: () => 'ERROR' };
-      logger.loglevel('debug');
+      log.loglevel('debug');
       log.debug(errorlike);
 
       expect(helpers.stderr).toEqual([
