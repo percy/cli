@@ -28,7 +28,7 @@ function validateProjectPath(path) {
 // PercyClient is used to communicate with the Percy API to create and finalize
 // builds and snapshot. Uses @percy/env to collect environment information used
 // during build creation.
-export default class PercyClient {
+export class PercyClient {
   log = logger('client');
   env = new PercyEnvironment(process.env);
   clientInfo = new Set();
@@ -349,3 +349,5 @@ export default class PercyClient {
     return snapshot;
   }
 }
+
+export default PercyClient;

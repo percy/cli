@@ -9,7 +9,7 @@ export function inspect(config) {
 
 // Converts a config to a yaml, json, or js string. When no config is provided,
 // falls back to schema defaults.
-export default function stringify(format, config = getDefaults()) {
+export function stringify(format, config = getDefaults()) {
   switch (format) {
     case 'yml':
     case 'yaml':
@@ -22,3 +22,5 @@ export default function stringify(format, config = getDefaults()) {
       throw new Error(`Unsupported format: ${format}`);
   }
 }
+
+export default stringify;

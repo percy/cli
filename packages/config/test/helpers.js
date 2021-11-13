@@ -3,7 +3,7 @@ import mock from 'mock-require';
 
 export const configs = new Map();
 
-export default function mockConfig(f, c) {
+export function mockConfig(f, c) {
   configs.set(f, () => typeof c === 'function' ? c() : c);
 }
 
@@ -45,3 +45,5 @@ afterAll(() => {
 afterEach(() => {
   configs.clear();
 });
+
+export default mockConfig;

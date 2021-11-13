@@ -1,7 +1,7 @@
 import percy from './percy-info';
 
 // Helper to send a request to the local CLI API
-export default async function request(path, options = {}) {
+export async function request(path, options = {}) {
   let response = await request.fetch(`${percy.address}${path}`, options);
 
   // maybe parse response body as json
@@ -67,3 +67,5 @@ if (process.env.__PERCY_BROWSERIFIED__) {
     });
   };
 }
+
+export default request;

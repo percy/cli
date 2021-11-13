@@ -1,5 +1,5 @@
 // Translates JavaScript properties of inputs into DOM attributes.
-export default function serializeInputElements(dom, clone) {
+export function serializeInputElements(dom, clone) {
   for (let elem of dom.querySelectorAll('input, textarea, select')) {
     let inputId = elem.getAttribute('data-percy-element-id');
     let cloneEl = clone.querySelector(`[data-percy-element-id="${inputId}"]`);
@@ -29,3 +29,5 @@ export default function serializeInputElements(dom, clone) {
     }
   }
 }
+
+export default serializeInputElements;

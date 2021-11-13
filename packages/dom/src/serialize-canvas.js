@@ -1,5 +1,5 @@
 // Serialize in-memory canvas elements into images.
-export default function serializeCanvas(dom, clone) {
+export function serializeCanvas(dom, clone) {
   for (let canvas of dom.querySelectorAll('canvas')) {
     // Note: the `.toDataURL` API requires WebGL canvas elements to use
     // `preserveDrawingBuffer: true`. This is because `.toDataURL` uses the
@@ -31,3 +31,5 @@ export default function serializeCanvas(dom, clone) {
     cloneEl.remove();
   }
 }
+
+export default serializeCanvas;

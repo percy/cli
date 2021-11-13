@@ -1,7 +1,7 @@
 import EventEmitter from 'events';
 import logger from '@percy/logger';
 
-export default class Session extends EventEmitter {
+export class Session extends EventEmitter {
   #callbacks = new Map();
 
   log = logger('core:session');
@@ -92,3 +92,5 @@ export default class Session extends EventEmitter {
     }
   }
 }
+
+export default Session;

@@ -24,9 +24,11 @@ function getDefaultsFromSchema(schema) {
   }
 }
 
-export default function getDefaults(overrides = {}) {
+export function getDefaults(overrides = {}) {
   return merge([getDefaultsFromSchema(), overrides], (path, prev, next) => {
     // override default array instead of merging
     return isArray(next) && [path, next];
   });
 }
+
+export default getDefaults;

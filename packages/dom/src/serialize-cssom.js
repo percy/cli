@@ -6,7 +6,7 @@ function isCSSOM(styleSheet) {
 }
 
 // Outputs in-memory CSSOM into their respective DOM nodes.
-export default function serializeCSSOM(dom, clone) {
+export function serializeCSSOM(dom, clone) {
   for (let styleSheet of dom.styleSheets) {
     if (isCSSOM(styleSheet)) {
       let style = clone.createElement('style');
@@ -20,3 +20,5 @@ export default function serializeCSSOM(dom, clone) {
     }
   }
 }
+
+export default serializeCSSOM;

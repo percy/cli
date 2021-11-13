@@ -3,7 +3,7 @@ import {
   waitFor
 } from './utils';
 
-export default class Queue {
+export class Queue {
   running = true;
   closed = false;
 
@@ -148,3 +148,5 @@ export default class Queue {
     }
   }
 }
+
+export default Queue;

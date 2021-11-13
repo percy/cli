@@ -21,7 +21,7 @@ function doctype(dom) {
 }
 
 // Serializes a document and returns the resulting DOM string.
-export default function serializeDOM(options) {
+export function serializeDOM(options) {
   let {
     dom = document,
     // allow snake_case or camelCase
@@ -52,3 +52,5 @@ export default function serializeDOM(options) {
 
   return doctype(dom) + doc.outerHTML;
 }
+
+export default serializeDOM;

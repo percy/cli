@@ -7,4 +7,4 @@ beforeEach(() => {
 });
 
 export { logger };
-export { default as mockConfig, getMockConfig } from '@percy/config/test/helpers';
+export { mockConfig, getMockConfig } from '@percy/config/test/helpers';

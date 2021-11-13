@@ -6,7 +6,7 @@ import logger from '@percy/logger';
 // The PercyCommand class that all Percy CLI commands should extend
 // from. Provides common #init() and #catch() methods and provides other methods
 // for loading configuration and checking if Percy is enabled.
-export default class PercyCommand extends Command {
+export class PercyCommand extends Command {
   log = logger('cli:command');
 
   //  Initialize flags, args, the loglevel, and attach process handlers to allow
@@ -86,3 +86,5 @@ export default class PercyCommand extends Command {
     });
   }
 }
+
+export default PercyCommand;

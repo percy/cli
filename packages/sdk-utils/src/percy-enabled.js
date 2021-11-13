@@ -19,7 +19,7 @@ async function connectRemoteLogger() {
 }
 
 // Check if Percy is enabled using the healthcheck endpoint
-export default async function isPercyEnabled() {
+export async function isPercyEnabled() {
   if (percy.enabled == null) {
     let log = logger('utils');
     let error;
@@ -50,3 +50,5 @@ export default async function isPercyEnabled() {
 
   return percy.enabled;
 }
+
+export default isPercyEnabled;

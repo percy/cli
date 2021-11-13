@@ -7,7 +7,7 @@ import {
   waitFor
 } from './utils';
 
-export default class Page {
+export class Page {
   static TIMEOUT = 30000;
 
   log = logger('core:page');
@@ -265,3 +265,5 @@ export default class Page {
     this.contextId = null;
   }
 }
+
+export default Page;

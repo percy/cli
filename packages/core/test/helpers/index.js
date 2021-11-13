@@ -17,5 +17,5 @@ afterEach(done => {
 });
 
 export { logger, mockAPI };
-export { default as createTestServer } from './server';
-export { default as dedent } from './dedent';
+export { createTestServer } from './server';
+export { dedent } from './dedent';
