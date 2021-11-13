@@ -13,13 +13,7 @@ Object.assign(logger, {
   query: (...args) => new Logger().query(...args),
   connect: (...args) => new Logger().connect(...args),
   remote: (...args) => new Logger().remote(...args),
-  loglevel(level, flags = {}) {
-    if (flags.debug) level = 'debug';
-    else if (flags.verbose) level = 'debug';
-    else if (flags.quiet) level = 'warn';
-    else if (flags.silent) level = 'silent';
-    return new Logger().loglevel(level);
-  }
+  loglevel: (...args) => new Logger().loglevel(...args)
 });
 
 Object.defineProperties(logger, {
