@@ -1812,16 +1812,16 @@
     tslib "^1.9.3"
 
 "@oclif/plugin-help@^3", "@oclif/plugin-help@^3.2.0":
-  version "3.2.3"
-  resolved "https://registry.yarnpkg.com/@oclif/plugin-help/-/plugin-help-3.2.3.tgz#cd24010e7eb326782843d3aa6d6b5a4affebb2c3"
-  integrity sha512-l2Pd0lbOMq4u/7xsl9hqISFqyR9gWEz/8+05xmrXFr67jXyS6EUCQB+mFBa0wepltrmJu0sAFg9AvA2mLaMMqQ==
+  version "3.2.4"
+  resolved "https://registry.yarnpkg.com/@oclif/plugin-help/-/plugin-help-3.2.4.tgz#100e0e09d806e20595096609f2220d009ee096e2"
+  integrity sha512-kMSfFbv11S7CKFlbWTKDdAe/gC7P2zCFZEDq6BAHjJdA0htHT8FvBhnyoppR0O2jOTjX80wHjU+ItPpjanfuag==
   dependencies:
     "@oclif/command" "^1.5.20"
     "@oclif/config" "^1.15.1"
     "@oclif/errors" "^1.2.2"
     chalk "^4.1.0"
     indent-string "^4.0.0"
-    lodash.template "^4.4.0"
+    lodash "^4.17.21"
     string-width "^4.2.0"
     strip-ansi "^6.0.0"
     widest-line "^3.1.0"
@@ -5373,7 +5373,7 @@ lodash.sortby@^4.7.0:
   resolved "https://registry.yarnpkg.com/lodash.sortby/-/lodash.sortby-4.7.0.tgz#edd14c824e2cc9c1e0b0a1b42bb5210516a42438"
   integrity sha1-7dFMgk4sycHgsKG0K7UhBRakJDg=
 
-lodash.template@^4.4.0, lodash.template@^4.5.0:
+lodash.template@^4.5.0:
   version "4.5.0"
   resolved "https://registry.yarnpkg.com/lodash.template/-/lodash.template-4.5.0.tgz#f976195cf3f347d0d5f52483569fe8031ccce8ab"
   integrity sha512-84vYFxIkmidUiFxidA/KjjH9pAycqW+h980j7Fuz5qxRtO9pgB7MDFTdys1N7A5mcucRiDyEq4fusljItR1T/A==
