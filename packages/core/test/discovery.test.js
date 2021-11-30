@@ -99,6 +99,38 @@ describe('Discovery', () => {
     ]);
   });
 
+  it('waits for discovery network idle timeout', async () => {
+    percy.setConfig({ discovery: { networkIdleTimeout: 400 } });
+
+    server.reply('/', () => [200, 'text/html', dedent`
+      <html><body><script>
+        let img = document.createElement('img');
+        img.src = '/img.gif';
+        document.body.appendChild(img);
+      </script></body></html>
+    `]);
+
+    await percy.snapshot({
+      widths: [500],
+      name: 'test snapshot',
+      url: 'http://localhost:8000'
+    });
+
+    await percy.idle();
+
+    let paths = server.requests.map(r => r[0]);
+    expect(paths).toContain('/img.gif');
+
+    expect(captured[0]).toContain(
+      jasmine.objectContaining({
+        id: sha256hash(pixel),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      })
+    );
+  });
+
   it('captures stylesheet initiated fonts', async () => {
     server.reply('/style.css', () => [200, 'text/css', [
       '@font-face { font-family: "test"; src: url("/font.woff") format("woff"); }',
