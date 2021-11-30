@@ -47,6 +47,7 @@ export function getSnapshotConfig(percy, options) {
     // only specific discovery options are used per-snapshot
     discovery: {
       allowedHostnames: [uri.hostname, ...config.discovery.allowedHostnames],
+      networkIdleTimeout: config.discovery.networkIdleTimeout,
       requestHeaders: config.discovery.requestHeaders,
       authorization: config.discovery.authorization,
       disableCache: config.discovery.disableCache,
