@@ -257,11 +257,11 @@ describe('Unit / Request', () => {
       expect(spy).toHaveBeenCalledTimes(1);
     });
 
-    it('fails retrying after 5 attempts', async () => {
+    it('fails after 5 additional retries', async () => {
       server.reply('/fail', () => [502]);
       await expectAsync(server.request('/fail'))
         .toBeRejectedWithError('502 Bad Gateway');
-      expect(server.received.length).toBe(5);
+      expect(server.received.length).toBe(6);
     });
   });
 
