@@ -1,61 +1,101 @@
-import { flags } from '@oclif/command';
+import logger from '@percy/logger';
 
-// Common logging flags exclusive of each other.
-const logging = {
-  verbose: flags.boolean({
-    char: 'v',
-    description: 'log everything',
-    exclusive: ['quiet', 'silent']
-  }),
-  quiet: flags.boolean({
-    char: 'q',
-    description: 'log errors only',
-    exclusive: ['verbose', 'silent']
-  }),
-  silent: flags.boolean({
-    description: 'log nothing',
-    exclusive: ['verbose', 'quiet']
-  })
+// Global CLI flags
+export const verbose = {
+  name: 'verbose',
+  description: 'Log everything',
+  exclusive: ['quiet', 'silent'],
+  parse: () => !!logger.loglevel('debug'),
+  group: 'Global',
+  short: 'v'
 };
 
-// Common asset discovery flags.
-const discovery = {
-  'allowed-hostname': flags.string({
-    char: 'h',
-    description: 'allowed hostnames to capture in asset discovery',
-    multiple: true,
-    percyrc: 'discovery.allowedHostnames'
-  }),
-  'network-idle-timeout': flags.integer({
-    char: 't',
-    description: 'asset discovery network idle timeout',
-    percyrc: 'discovery.networkIdleTimeout'
-  }),
-  'disable-cache': flags.boolean({
-    description: 'disable asset discovery caches',
-    percyrc: 'discovery.disableCache'
-  }),
-  'dry-run': flags.boolean({
-    char: 'd',
-    description: 'print logs only, do not run asset discovery or upload snapshots'
-  }),
-  debug: flags.boolean({
-    description: 'debug asset discovery and do not upload snapshots'
-  })
+export const quiet = {
+  name: 'quiet',
+  description: 'Log errors only',
+  exclusive: ['verbose', 'silent'],
+  parse: () => !!logger.loglevel('warn'),
+  group: 'Global',
+  short: 'q'
 };
 
-// Common flag for loading config files.
-const config = {
-  config: flags.string({
-    char: 'c',
-    description: 'configuration file path'
-  })
+export const silent = {
+  name: 'silent',
+  description: 'Log nothing',
+  exclusive: ['verbose', 'quiet'],
+  parse: () => !!logger.loglevel('silent'),
+  group: 'Global',
+  short: 's'
 };
 
-// Export a single object imported as `flags`
-export default {
-  ...flags,
-  logging,
-  discovery,
-  config
+// Common percy and asset discovery flags
+export const config = {
+  name: 'config',
+  description: 'Config file path',
+  percyrc: 'config',
+  type: 'file',
+  group: 'Percy',
+  short: 'c'
 };
+
+export const dryRun = {
+  name: 'dry-run',
+  description: 'Print snapshot names only',
+  percyrc: 'dryRun',
+  group: 'Percy',
+  short: 'd'
+};
+
+export const allowedHostnames = {
+  name: 'allowed-hostname',
+  description: 'Allowed hostnames to capture in asset discovery',
+  percyrc: 'discovery.allowedHostnames',
+  type: 'hostname',
+  multiple: true,
+  group: 'Percy',
+  short: 'h'
+};
+
+export const networkIdleTimeout = {
+  name: 'network-idle-timeout',
+  description: 'Asset discovery network idle timeout',
+  percyrc: 'discovery.networkIdleTimeout',
+  type: 'ms',
+  parse: Number,
+  group: 'Percy',
+  short: 't'
+};
+
+export const disableCache = {
+  name: 'disable-cache',
+  description: 'Disable asset discovery caches',
+  percyrc: 'discovery.disableCache',
+  group: 'Percy'
+};
+
+export const debug = {
+  name: 'debug',
+  description: 'Debug asset discovery and do not upload snapshots',
+  parse: () => !!logger.loglevel('debug'),
+  percyrc: 'skipUploads',
+  group: 'Percy'
+};
+
+// Group constants
+export const GLOBAL = [
+  verbose,
+  quiet,
+  silent
+];
+
+export const PERCY = [
+  config,
+  dryRun
+];
+
+export const DISCOVERY = [
+  allowedHostnames,
+  networkIdleTimeout,
+  disableCache,
+  debug
+];

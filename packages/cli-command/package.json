@@ -2,11 +2,20 @@
   "name": "@percy/cli-command",
   "version": "1.0.0-beta.71",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/percy/cli",
+    "directory": "packages/cli-command"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "dist/index.js",
-  "types": "types/index.d.ts",
+  "bin": {
+    "percy-cli-readme": "bin/readme"
+  },
   "files": [
-    "dist",
-    "types/index.d.ts"
+    "dist"
   ],
   "engines": {
     "node": ">=12"
@@ -15,23 +24,11 @@
     "build": "node ../../scripts/build",
     "lint": "eslint --ignore-path ../../.gitignore .",
     "test": "node ../../scripts/test",
-    "test:coverage": "yarn test --coverage",
-    "test:types": "tsd"
-  },
-  "publishConfig": {
-    "access": "public"
+    "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@oclif/command": "^1.8.0",
-    "@oclif/config": "^1.17.0",
-    "@oclif/plugin-help": "^3.2.0",
     "@percy/core": "1.0.0-beta.71",
     "@percy/config": "1.0.0-beta.71",
     "@percy/logger": "1.0.0-beta.71"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/percy/cli",
-    "directory": "packages/cli-command"
   }
 }
