@@ -41,8 +41,8 @@ export default class PercyLogger {
 
   // Change log level at any time or return the current log level
   loglevel(level) {
-    if (!level) return this.level;
-    this.level = level;
+    if (level) this.level = level;
+    return this.level;
   }
 
   // Change namespaces by generating an array of namespace regular expressions from a

@@ -8,10 +8,11 @@ export const ANSI_REG = new RegExp((
 
 // color names by ansi escape code
 export const ANSI_COLORS = {
-  '31m': 'red',
-  '33m': 'yellow',
+  '91m': 'red',
+  '32m': 'green',
+  '93m': 'yellow',
   '34m': 'blue',
-  '35m': 'magenta',
+  '95m': 'magenta',
   '90m': 'grey'
 };
 
