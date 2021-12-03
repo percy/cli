@@ -128,7 +128,7 @@ async function start(args, log) {
 
   wss.on('connection', ws => {
     ws.on('message', data => {
-      if (data === 'CLOSE') return close();
+      if (data.toString() === 'CLOSE') return close();
       let { id, event, args = [] } = JSON.parse(data);
 
       Promise.resolve().then(async () => {
