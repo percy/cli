@@ -1,4 +1,4 @@
-import request from '@percy/client/dist/request';
+import { request } from '@percy/core/dist/utils';
 import { logger } from './helpers';
 import { Start } from '../src/commands/exec/start';
 import { Stop } from '../src/commands/exec/stop';

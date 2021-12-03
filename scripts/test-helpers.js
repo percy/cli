@@ -1,4 +1,5 @@
 /* eslint-env jasmine */
+/* eslint-disable import/no-extraneous-dependencies */
 
 beforeAll(() => {
   // default timeout to 10s

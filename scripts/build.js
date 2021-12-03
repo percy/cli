@@ -1,6 +1,7 @@
+/* eslint-disable import/no-extraneous-dependencies */
 const cwd = process.cwd();
 const path = require('path');
-const colors = require('colors');
+const colors = require('colors/safe');
 
 process.env.NODE_ENV = 'production';
 

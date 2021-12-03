@@ -1,10 +1,7 @@
-import logger from '@percy/logger/test/helpers';
-import mockAPI from '@percy/client/test/helpers';
+import { logger, mockAPI } from '@percy/core/test/helpers';
 
 beforeEach(() => {
   process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-  mockAPI.start();
-  logger.mock();
 });
 
 afterEach(() => {

@@ -1,3 +1,4 @@
+/* eslint-disable import/no-extraneous-dependencies */
 import PercyConfig from '@percy/config';
 import * as CoreConfig from '@percy/core/dist/config';
 
