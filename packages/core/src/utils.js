@@ -1,4 +1,5 @@
 import { sha256hash, hostnameMatches } from '@percy/client/dist/utils';
+export { request } from '@percy/client/dist/request';
 export { hostnameMatches };
 
 // Returns the hostname portion of a URL.
