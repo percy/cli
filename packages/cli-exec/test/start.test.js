@@ -1,15 +1,26 @@
 import { request } from '@percy/core/dist/utils';
 import { logger } from './helpers';
-import { Start } from '../src/commands/exec/start';
-import { Stop } from '../src/commands/exec/stop';
+import start from '../src/start';
+import ping from '../src/ping';
 
 describe('percy exec:start', () => {
+  let started;
+
+  function stop() {
+    if (started) process.emit('SIGINT');
+    let promise = started;
+    started = null;
+    return promise;
+  }
+
   beforeEach(async () => {
-    await Start.run(['--quiet']);
+    started = start(['--quiet']);
+    started.then(() => (started = null));
+    await ping();
   });
 
   afterEach(async () => {
-    await Stop.run(['--silent']).catch(() => {});
+    await stop();
   });
 
   it('starts a long-running percy process', async () => {
@@ -34,7 +45,9 @@ describe('percy exec:start', () => {
   });
 
   it('logs an error when percy is already running', async () => {
-    await expectAsync(Start.run([])).toBeRejectedWithError('EEXIT: 1');
+    logger.reset();
+
+    await expectAsync(start()).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -43,14 +56,15 @@ describe('percy exec:start', () => {
   });
 
   it('logs when percy has been disabled', async () => {
-    await Stop.run(['--quiet']);
+    await stop();
+    logger.reset();
 
     process.env.PERCY_ENABLE = '0';
-    await Start.run([]);
+    await start();
 
-    expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
-      '[percy] Percy has been disabled. Not starting'
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
+      '[percy] Percy is disabled'
     ]);
   });
 });

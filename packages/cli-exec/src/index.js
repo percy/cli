@@ -1,9 +1,4 @@
-const { Exec } = require('./commands/exec');
-const { Ping } = require('./commands/exec/ping');
-const { Start } = require('./commands/exec/start');
-const { Stop } = require('./commands/exec/stop');
-
-module.exports = Exec;
-module.exports.Ping = Ping;
-module.exports.Start = Start;
-module.exports.Stop = Stop;
+export { default, exec } from './exec';
+export { start } from './start';
+export { stop } from './stop';
+export { ping } from './ping';
