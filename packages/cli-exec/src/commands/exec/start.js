@@ -32,7 +32,10 @@ export class Start extends Command {
     });
 
     // only stop when terminated
-    let stop = () => percy.stop(true);
+    let stop = async () => {
+      await percy.stop(true);
+    };
+
     process.on('SIGHUP', stop);
     process.on('SIGINT', stop);
     process.on('SIGTERM', stop);

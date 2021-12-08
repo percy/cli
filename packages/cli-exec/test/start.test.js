@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+import request from '@percy/client/dist/request';
 import { logger } from './helpers';
 import { Start } from '../src/commands/exec/start';
 import { Stop } from '../src/commands/exec/stop';
@@ -13,21 +13,20 @@ describe('percy exec:start', () => {
   });
 
   it('starts a long-running percy process', async () => {
-    let response = await fetch('http://localhost:5338/percy/healthcheck');
-    await expectAsync(response.json()).toBeResolvedTo(
-      jasmine.objectContaining({ success: true }));
+    let response = await request('http://localhost:5338/percy/healthcheck');
+    expect(response).toHaveProperty('success', true);
   });
 
   it('stops the process when terminated', async () => {
     await expectAsync(
-      fetch('http://localhost:5338/percy/healthcheck')
+      request('http://localhost:5338/percy/healthcheck')
     ).toBeResolved();
 
     process.emit('SIGTERM');
 
     // check a few times rather than wait on a timeout to be deterministic
     await expectAsync(function check(i = 0) {
-      return fetch('http://localhost:5338/percy/healthcheck', { timeout: 10 })
+      return request('http://localhost:5338/percy/healthcheck', { timeout: 10 })
         .then(r => i >= 10 ? r : new Promise((res, rej) => {
           setTimeout(() => check(i++).then(res, rej), 100);
         }));

@@ -141,9 +141,10 @@ export default function createPercyServer(percy) {
     },
 
     // stops the instance async at the end of the event loop
-    '/percy/stop': () => setImmediate(() => percy.stop()) && (
-      [200, 'application/json', { success: true }]
-    ),
+    '/percy/stop': () => {
+      setImmediate(async () => await percy.stop());
+      return [200, 'application/json', { success: true }];
+    },
 
     // other routes 404
     default: () => [404, 'application/json', {
