@@ -4,30 +4,36 @@ Percy CLI command to uploade a directory of static images to Percy for diffing.
 
 ## Commands
 <!-- commands -->
-* [`percy upload DIRNAME`](#percy-upload-dirname)
+* [`percy upload`](#percy-upload)
 
-## `percy upload DIRNAME`
+### `percy upload`
 
 Upload a directory of images to Percy
 
 ```
-USAGE
-  $ percy upload DIRNAME
+Usage:
+  $ percy upload [options] <dirname>
 
-ARGUMENTS
-  DIRNAME  directory of images to upload
+Arguments:
+  dirname                 Directory of images to upload
 
-OPTIONS
-  -c, --config=config     configuration file path
-  -d, --dry-run           prints a list of matching images to upload without uploading
-  -e, --strip-extensions  strips file extensions from snapshot names
-  -f, --files=files       [default: **/*.{png,jpg,jpeg}] one or more globs matching image file paths to upload
-  -i, --ignore=ignore     one or more globs matching image file paths to ignore
-  -q, --quiet             log errors only
-  -v, --verbose           log everything
-  --silent                log nothing
+Options:
+  -f, --files [pattern]   One or more globs matching image file paths to upload (default:
+                          "**/*.{png,jpg,jpeg}")
+  -i, --ignore <pattern>  One or more globs matching image file paths to ignore
+  -e, --strip-extensions  Strips file extensions from snapshot names
 
-EXAMPLE
+Percy options:
+  -c, --config <file>     Config file path
+  -d, --dry-run           Print snapshot names only
+
+Global options:
+  -v, --verbose           Log everything
+  -q, --quiet             Log errors only
+  -s, --silent            Log nothing
+  -h, --help              Display command help
+
+Examples:
   $ percy upload ./images
 ```
 <!-- commandsstop -->
