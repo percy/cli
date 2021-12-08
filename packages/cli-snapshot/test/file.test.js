@@ -3,7 +3,7 @@ import path from 'path';
 import { inspect } from 'util';
 import rimraf from 'rimraf';
 import { logger, mockAPI, createTestServer } from '@percy/core/test/helpers';
-import { Snapshot } from '../src/commands/snapshot';
+import snapshot from '../src/snapshot';
 
 describe('percy snapshot <file>', () => {
   let tmp = path.join(__dirname, 'tmp');
@@ -37,6 +37,11 @@ describe('percy snapshot <file>', () => {
       url: 'http://localhost:8000'
     }], { depth: null }) + ')');
 
+    fs.writeFileSync('pages-default.js', 'export default ' + inspect([{
+      name: 'JS Default Snapshot',
+      url: 'http://localhost:8000'
+    }], { depth: null }));
+
     fs.writeFileSync('urls.yml', [
       '- /', '- /one', '- /two'
     ].join('\n'));
@@ -47,17 +52,17 @@ describe('percy snapshot <file>', () => {
   });
 
   afterEach(async () => {
-    delete process.env.PERCY_TOKEN;
-    process.removeAllListeners();
-
     process.chdir(cwd);
     rimraf.sync(path.join(__dirname, 'tmp'));
+
+    delete process.env.PERCY_TOKEN;
     await server.close();
   });
 
   it('errors when the base-url is invalid', async () => {
-    await expectAsync(Snapshot.run(['./pages.yml', '--base-url=/wrong']))
-      .toBeRejectedWithError('EEXIT: 1');
+    await expectAsync(
+      snapshot(['./pages.yml', '--base-url=/wrong'])
+    ).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -68,9 +73,7 @@ describe('percy snapshot <file>', () => {
 
   it('errors with unknown file extensions', async () => {
     fs.writeFileSync('nope', 'not here');
-
-    await expectAsync(Snapshot.run(['./nope']))
-      .toBeRejectedWithError('EEXIT: 1');
+    await expectAsync(snapshot(['./nope'])).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -79,8 +82,7 @@ describe('percy snapshot <file>', () => {
   });
 
   it('errors when a page url is invalid', async () => {
-    await expectAsync(Snapshot.run(['./urls.yml']))
-      .toBeRejectedWithError('EEXIT: 1');
+    await expectAsync(snapshot(['./urls.yml'])).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -89,7 +91,7 @@ describe('percy snapshot <file>', () => {
   });
 
   it('snapshots pages from .yaml files', async () => {
-    await Snapshot.run(['./pages.yml']);
+    await snapshot(['./pages.yml']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
@@ -106,7 +108,7 @@ describe('percy snapshot <file>', () => {
       url: 'http://localhost:8000'
     }]));
 
-    await Snapshot.run(['./pages.json']);
+    await snapshot(['./pages.json']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
@@ -118,7 +120,7 @@ describe('percy snapshot <file>', () => {
   });
 
   it('snapshots pages from .js files', async () => {
-    await Snapshot.run(['./pages.js']);
+    await snapshot(['./pages.js']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
@@ -132,7 +134,7 @@ describe('percy snapshot <file>', () => {
   });
 
   it('snapshots pages from .js files that export a function', async () => {
-    await Snapshot.run(['./pages-fn.js']);
+    await snapshot(['./pages-fn.js']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
@@ -143,8 +145,20 @@ describe('percy snapshot <file>', () => {
     ]);
   });
 
+  it('snapshots pages from .js files that have a default export', async () => {
+    await snapshot(['./pages-default.js']);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Percy has started!',
+      '[percy] Processing 1 snapshot...',
+      '[percy] Snapshot taken: JS Default Snapshot',
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
+    ]);
+  });
+
   it('snapshots pages from a list of URLs', async () => {
-    await Snapshot.run(['./urls.yml', '--base-url=http://localhost:8000']);
+    await snapshot(['./urls.yml', '--base-url=http://localhost:8000']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -167,7 +181,7 @@ describe('percy snapshot <file>', () => {
     ].join('\n'));
     /* eslint-enable no-template-curly-in-string */
 
-    await Snapshot.run(['./lengthy.js', '--include=*2', '--exclude=[13579]']);
+    await snapshot(['./lengthy.js', '--include=*2', '--exclude=[13579]']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -183,7 +197,7 @@ describe('percy snapshot <file>', () => {
   });
 
   it('does not take snapshots and prints a list with --dry-run', async () => {
-    await Snapshot.run(['./pages.yml', '--dry-run']);
+    await snapshot(['./pages.yml', '--dry-run']);
     expect(logger.stderr).toEqual([
       '[percy] Build not created'
     ]);
@@ -195,7 +209,7 @@ describe('percy snapshot <file>', () => {
 
     logger.reset();
 
-    await Snapshot.run(['./pages.js', '--dry-run']);
+    await snapshot(['./pages.js', '--dry-run']);
 
     expect(logger.stderr).toEqual([
       '[percy] Build not created'
@@ -217,7 +231,7 @@ describe('percy snapshot <file>', () => {
     ].join('\n'));
 
     await expectAsync(
-      Snapshot.run(['./invalid.yml', '--dry-run'])
+      snapshot(['./invalid.yml', '--dry-run'])
     ).toBeRejected();
 
     expect(logger.stdout).toEqual([]);

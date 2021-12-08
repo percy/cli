@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import rimraf from 'rimraf';
 import { logger, mockAPI, createTestServer } from '@percy/core/test/helpers';
-import { Snapshot } from '../src/commands/snapshot';
+import snapshot from '../src/snapshot';
 
 describe('percy snapshot <sitemap>', () => {
   let tmp = path.join(__dirname, 'tmp');
@@ -45,12 +45,11 @@ describe('percy snapshot <sitemap>', () => {
     rimraf.sync(tmp);
 
     delete process.env.PERCY_TOKEN;
-    process.removeAllListeners();
     await server.close();
   });
 
   it('snapshots URLs listed by a sitemap', async () => {
-    await Snapshot.run(['http://localhost:8000/sitemap.xml', '--dry-run']);
+    await snapshot(['http://localhost:8000/sitemap.xml', '--dry-run']);
 
     expect(logger.stderr).toEqual([
       '[percy] Build not created'
@@ -65,8 +64,9 @@ describe('percy snapshot <sitemap>', () => {
   });
 
   it('throws an error when the sitemap is not an xml file', async () => {
-    await expectAsync(Snapshot.run(['http://localhost:8000/not-a-sitemap']))
-      .toBeRejectedWithError('EEXIT: 1');
+    await expectAsync(
+      snapshot(['http://localhost:8000/not-a-sitemap'])
+    ).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -86,7 +86,7 @@ describe('percy snapshot <sitemap>', () => {
       '    name: Home'
     ].join('\n'));
 
-    await Snapshot.run(['http://localhost:8000/sitemap.xml', '--dry-run']);
+    await snapshot(['http://localhost:8000/sitemap.xml', '--dry-run']);
 
     expect(logger.stderr).toEqual([
       '[percy] Build not created'

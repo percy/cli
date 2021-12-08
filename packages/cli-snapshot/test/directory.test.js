@@ -3,7 +3,7 @@ import path from 'path';
 import rimraf from 'rimraf';
 import PercyConfig from '@percy/config';
 import { logger, mockAPI } from '@percy/core/test/helpers';
-import { Snapshot } from '../src/commands/snapshot';
+import snapshot from '../src/snapshot';
 
 describe('percy snapshot <directory>', () => {
   let tmp = path.join(__dirname, 'tmp');
@@ -35,23 +35,22 @@ describe('percy snapshot <directory>', () => {
 
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
-    process.removeAllListeners();
     PercyConfig.cache.clear();
   });
 
   it('errors when the base-url is invalid', async () => {
-    await expectAsync(Snapshot.run(['./tmp', '--base-url=wrong']))
-      .toBeRejectedWithError('EEXIT: 1');
+    await expectAsync(
+      snapshot(['./tmp', '--base-url=wrong'])
+    ).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: The base-url must begin with a forward slash (/) ' +
-        'when snapshotting static directories'
+      '[percy] Error: Invalid URL: wrong'
     ]);
   });
 
   it('starts a static server and snapshots matching files', async () => {
-    await Snapshot.run(['./tmp', '--include=test-*.html']);
+    await snapshot(['./tmp', '--include=test-*.html']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -65,7 +64,7 @@ describe('percy snapshot <directory>', () => {
   });
 
   it('snapshots matching files hosted with a base-url', async () => {
-    await Snapshot.run(['./tmp', '--base-url=/base']);
+    await snapshot(['./tmp', '--base-url=/base']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -80,7 +79,7 @@ describe('percy snapshot <directory>', () => {
   });
 
   it('does not take snapshots and prints a list with --dry-run', async () => {
-    await Snapshot.run(['./tmp', '--dry-run']);
+    await snapshot(['./tmp', '--dry-run']);
 
     expect(logger.stderr).toEqual([
       '[percy] Build not created'
@@ -106,7 +105,7 @@ describe('percy snapshot <directory>', () => {
       '    name: First'
     ].join('\n'));
 
-    await Snapshot.run(['./tmp', '--dry-run']);
+    await snapshot(['./tmp', '--dry-run']);
 
     expect(logger.stderr).toEqual([
       '[percy] Build not created'
@@ -126,7 +125,7 @@ describe('percy snapshot <directory>', () => {
   });
 
   it('rewrites file and index URLs with --clean-urls', async () => {
-    await Snapshot.run(['./tmp', '--dry-run', '--clean-urls']);
+    await snapshot(['./tmp', '--dry-run', '--clean-urls']);
 
     expect(logger.stderr).toEqual([
       '[percy] Build not created'
@@ -150,7 +149,7 @@ describe('percy snapshot <directory>', () => {
       '    /:path/:n: /:path-:n.html'
     ].join('\n'));
 
-    await Snapshot.run(['./tmp', '--dry-run']);
+    await snapshot(['./tmp', '--dry-run']);
 
     expect(logger.stderr).toEqual([
       '[percy] Build not created'
@@ -177,7 +176,7 @@ describe('percy snapshot <directory>', () => {
       '}'
     ].join('\n'));
 
-    await Snapshot.run(['./tmp', '--dry-run']);
+    await snapshot(['./tmp', '--dry-run']);
 
     expect(logger.stderr).toEqual([
       '[percy] Build not created'

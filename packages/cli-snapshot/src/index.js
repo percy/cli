@@ -1,1 +1,1 @@
-module.exports = require('./commands/snapshot').Snapshot;
+export { snapshot } from './snapshot';

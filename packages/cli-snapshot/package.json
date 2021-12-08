@@ -2,10 +2,17 @@
   "name": "@percy/cli-snapshot",
   "version": "1.0.0-beta.71",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/percy/cli",
+    "directory": "packages/cli-snapshot"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "dist/index.js",
   "files": [
-    "dist",
-    "oclif.manifest.json"
+    "dist"
   ],
   "engines": {
     "node": ">=12"
@@ -13,35 +20,23 @@
   "scripts": {
     "build": "node ../../scripts/build",
     "lint": "eslint --ignore-path ../../.gitignore .",
-    "postbuild": "oclif-dev manifest",
-    "readme": "oclif-dev readme",
+    "readme": "percy-cli-readme",
     "test": "node ../../scripts/test",
     "test:coverage": "yarn test --coverage"
   },
-  "publishConfig": {
-    "access": "public"
-  },
-  "oclif": {
-    "bin": "percy",
-    "commands": "./dist/commands",
-    "hooks": {
-      "init": "./dist/hooks/init"
-    }
+  "@percy/cli": {
+    "commands": [
+      "./dist/snapshot.js"
+    ]
   },
   "dependencies": {
     "@percy/cli-command": "1.0.0-beta.71",
     "@percy/config": "1.0.0-beta.71",
     "@percy/core": "1.0.0-beta.71",
-    "@percy/logger": "1.0.0-beta.71",
     "globby": "^11.0.4",
     "path-to-regexp": "^6.2.0",
     "picomatch": "^2.3.0",
     "serve-handler": "^6.1.3",
     "yaml": "^1.10.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/percy/cli",
-    "directory": "packages/cli-snapshot"
   }
 }
