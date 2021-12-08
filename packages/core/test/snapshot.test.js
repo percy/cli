@@ -494,7 +494,7 @@ describe('Snapshot', () => {
         execute: () => document.querySelector('p').classList.add('eval-1'),
         additionalSnapshots: [
           { suffix: ' 2', execute: () => document.querySelector('p').classList.add('eval-2') },
-          { suffix: ' 3', execute: () => document.querySelector('p').classList.add('eval-3') },
+          { suffix: ' 3', execute: "document.querySelector('p').classList.add('eval-3')" },
           { suffix: ' 4' }
         ]
       });

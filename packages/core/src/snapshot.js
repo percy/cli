@@ -228,16 +228,16 @@ export async function* discoverSnapshotResources(percy, snapshot, callback) {
       yield waitForDiscoveryNetworkIdle(page, snapshot.discovery);
       handleSnapshotResources(snapshot, resources, callback);
     } else {
+      let { enableJavaScript } = snapshot;
+
       // capture snapshots sequentially
       for (let snap of allSnapshots) {
-        // shallow merge snapshot options
-        let options = { ...snapshot, ...snap };
         // will wait for timeouts, selectors, and additional network activity
-        let { url, dom } = yield page.snapshot(options);
-
-        // handle resources and remove previously captured dom snapshots
+        let { url, dom } = yield page.snapshot({ enableJavaScript, ...snap });
         resources.set(url, createRootResource(url, dom));
-        handleSnapshotResources(options, resources, callback);
+        // shallow merge with root snapshot options
+        handleSnapshotResources({ ...snapshot, ...snap }, resources, callback);
+        // remove the previously captured dom snapshot
         resources.delete(url);
       }
     }
