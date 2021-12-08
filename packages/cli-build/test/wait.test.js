@@ -1,6 +1,6 @@
 import logger from '@percy/logger/test/helpers';
 import mockAPI from '@percy/client/test/helpers';
-import { Wait } from '../src/commands/build/wait';
+import wait from '../src/wait';
 
 describe('percy build:wait', () => {
   let build = attrs => ({
@@ -26,21 +26,21 @@ describe('percy build:wait', () => {
   afterEach(() => {
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
-    process.removeAllListeners();
   });
 
   it('does nothing and logs when percy is not enabled', async () => {
     process.env.PERCY_ENABLE = '0';
-    await Wait.run([]);
+    await wait();
 
-    expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
       '[percy] Percy is disabled'
     ]);
   });
 
-  it('logs an error and exits when required args are missing', async () => {
-    await expectAsync(Wait.run([])).toBeRejectedWithError('EEXIT: 1');
+  it('logs an error when required args are missing', async () => {
+    await expectAsync(wait()).toBeRejected();
+
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
       '[percy] Error: Missing build ID or commit SHA'
@@ -57,7 +57,7 @@ describe('percy build:wait', () => {
         state: 'finished'
       })]);
 
-    await Wait.run(['--build=123', '--interval=50']);
+    await wait(['--build=123', '--interval=50']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -80,7 +80,7 @@ describe('percy build:wait', () => {
         state: 'finished'
       })]);
 
-    await Wait.run(['--build=123', '--interval=50']);
+    await wait(['--build=123', '--interval=50']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -96,7 +96,7 @@ describe('percy build:wait', () => {
       state: 'finished'
     })]);
 
-    await Wait.run(['--build=123']);
+    await wait(['--build=123']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -105,13 +105,13 @@ describe('percy build:wait', () => {
     ]));
   });
 
-  it('exits and logs found diffs when finished', async () => {
+  it('errors and logs found diffs when finished', async () => {
     mockAPI.reply('/builds/123', () => [200, build({
       'total-comparisons-diff': 16,
       state: 'finished'
     })]);
 
-    await expectAsync(Wait.run(['--build=123', '-f'])).toBeRejectedWithError('EEXIT: 1');
+    await expectAsync(wait(['--build=123', '-f'])).toBeRejected();
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -120,13 +120,13 @@ describe('percy build:wait', () => {
     ]));
   });
 
-  it('does not exit when diffs are not found', async () => {
+  it('does not error when diffs are not found', async () => {
     mockAPI.reply('/builds/123', () => [200, build({
       'total-comparisons-diff': 0,
       state: 'finished'
     })]);
 
-    await Wait.run(['--build=123', '-f']);
+    await wait(['--build=123', '-f']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -135,9 +135,9 @@ describe('percy build:wait', () => {
     ]));
   });
 
-  it('exits and logs the build state when unrecognized', async () => {
+  it('errors and logs the build state when unrecognized', async () => {
     mockAPI.reply('/builds/123', () => [200, build({ state: 'expired' })]);
-    await expectAsync(Wait.run(['--build=123'])).toBeRejectedWithError('EEXIT: 1');
+    await expectAsync(wait(['--build=123'])).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
@@ -145,14 +145,32 @@ describe('percy build:wait', () => {
     ]));
   });
 
+  it('stops waiting on process termination', async () => {
+    mockAPI.reply('/builds/123', () => [200, build()]);
+
+    let waiting = wait(['--build=123']);
+
+    // wait a moment before terminating
+    await new Promise(r => setTimeout(r, 100));
+    await expectAsync(waiting).toBePending();
+
+    process.emit('SIGTERM');
+    await waiting;
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Processing 18 snapshots - 0 of 72 comparisons finished...'
+    ]);
+  });
+
   describe('failure messages', () => {
-    it('logs an error and exits when there are no snapshots', async () => {
+    it('logs an error when there are no snapshots', async () => {
       mockAPI.reply('/builds/123', () => [200, build({
         state: 'failed',
         'failure-reason': 'render_timeout'
       })]);
 
-      await expectAsync(Wait.run(['--build=123'])).toBeRejectedWithError('EEXIT: 1');
+      await expectAsync(wait(['--build=123'])).toBeRejected();
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
@@ -162,13 +180,13 @@ describe('percy build:wait', () => {
       ]));
     });
 
-    it('logs an error and exits when there are no snapshots', async () => {
+    it('logs an error when there are no snapshots', async () => {
       mockAPI.reply('/builds/123', () => [200, build({
         state: 'failed',
         'failure-reason': 'no_snapshots'
       })]);
 
-      await expectAsync(Wait.run(['--build=123'])).toBeRejectedWithError('EEXIT: 1');
+      await expectAsync(wait(['--build=123'])).toBeRejected();
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
@@ -177,13 +195,13 @@ describe('percy build:wait', () => {
       ]));
     });
 
-    it('logs an error and exits when the build was not finalized', async () => {
+    it('logs an error when the build was not finalized', async () => {
       mockAPI.reply('/builds/123', () => [200, build({
         state: 'failed',
         'failure-reason': 'missing_finalize'
       })]);
 
-      await expectAsync(Wait.run(['--build=123'])).toBeRejectedWithError('EEXIT: 1');
+      await expectAsync(wait(['--build=123'])).toBeRejected();
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
@@ -198,7 +216,7 @@ describe('percy build:wait', () => {
         'failure-reason': 'missing_resources'
       })]);
 
-      await expectAsync(Wait.run(['--build=123'])).toBeRejectedWithError('EEXIT: 1');
+      await expectAsync(wait(['--build=123'])).toBeRejected();
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
@@ -218,12 +236,12 @@ describe('percy build:wait', () => {
         }
       })]);
 
-      await expectAsync(Wait.run(['--build=123'])).toBeRejectedWithError('EEXIT: 1');
+      await expectAsync(wait(['--build=123'])).toBeRejected();
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Build #10 failed! https://percy.io/test/test/123',
-        '[percy] Only 3 of 4 parallelized build processes finished.'
+        '[percy] Only 3 of 4 parallel builds were received.'
       ]));
     });
 
@@ -233,7 +251,7 @@ describe('percy build:wait', () => {
         'failure-reason': 'unrecognized_reason'
       })]);
 
-      await expectAsync(Wait.run(['--build=123'])).toBeRejectedWithError('EEXIT: 1');
+      await expectAsync(wait(['--build=123'])).toBeRejected();
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([

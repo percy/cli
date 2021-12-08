@@ -1,4 +1,3 @@
-const { Finalize } = require('./commands/build/finalize');
-const { Wait } = require('./commands/build/wait');
-
-module.exports = { Finalize, Wait };
+export { default, build } from './build';
+export { finalize } from './finalize';
+export { wait } from './wait';
