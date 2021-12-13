@@ -616,11 +616,44 @@ describe('PercyConfig', () => {
     it('logs when a config file cannot be found', () => {
       logger.loglevel('debug');
 
-      expect(PercyConfig.load({ path: '.404.yml' }))
-        .toEqual({
-          version: 2,
-          test: { value: 'foo' }
-        });
+      expect(PercyConfig.load({
+        path: '.404.yml'
+      })).toEqual({
+        version: 2,
+        test: { value: 'foo' }
+      });
+
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
+        '[percy:config] Config file not found'
+      ]);
+    });
+
+    it('logs when a config directory does not exist', () => {
+      spyOn(PercyConfig.explorer, 'search').and.throwError(
+        Object.assign(new Error(), { code: 'ENOENT' }));
+
+      expect(PercyConfig.load({
+        path: 'no-configs-here/',
+        print: true
+      })).toEqual({
+        version: 2,
+        test: { value: 'foo' }
+      });
+
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
+        '[percy] Config file not found'
+      ]);
+    });
+
+    it('optionally bails when a config file cannot be found', () => {
+      logger.loglevel('debug');
+
+      expect(PercyConfig.load({
+        path: '.404.yml',
+        bail: true
+      })).toBeUndefined();
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
@@ -631,15 +664,32 @@ describe('PercyConfig', () => {
     it('logs when failing to load or parse the config file', () => {
       mockConfig('.error.yml', () => { throw new Error('test'); });
 
-      expect(PercyConfig.load({ path: '.error.yml', print: true }))
-        .toEqual({
-          version: 2,
-          test: { value: 'foo' }
-        });
+      expect(PercyConfig.load({
+        path: '.error.yml',
+        print: true
+      })).toEqual({
+        version: 2,
+        test: { value: 'foo' }
+      });
 
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
         jasmine.stringMatching('\\[percy] Error: test')
+      ]);
+    });
+
+    it('optionally bails when failing to load or parse the config file', () => {
+      mockConfig('.error.yml', () => { throw new Error('test'); });
+      logger.loglevel('debug');
+
+      expect(PercyConfig.load({
+        path: '.error.yml',
+        bail: true
+      })).toBeUndefined();
+
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
+        jasmine.stringMatching('\\[percy:config] Error: test')
       ]);
     });
 

@@ -27,9 +27,14 @@ export const explorer = cosmiconfigSync('percy', {
 
 // Searches within a provided directory, or loads the provided config path
 export function search(path) {
-  let result = !path || statSync(path).isDirectory()
-    ? explorer.search(path) : explorer.load(path);
-  return result?.config ? result : {};
+  try {
+    let result = (path && !statSync(path).isDirectory())
+      ? explorer.load(path) : explorer.search(path);
+    return result || {};
+  } catch (error) {
+    if (error.code === 'ENOENT') return {};
+    else throw error;
+  }
 }
 
 // Finds and loads a config file using cosmiconfig, merges it with optional
@@ -58,7 +63,7 @@ export default function load({
     try {
       let result = search(path);
 
-      if (result.config) {
+      if (result?.config) {
         log[infoDebug](`Found config file: ${relative('', result.filepath)}`);
         let version = parseInt(result.config.version, 10);
 
@@ -77,9 +82,11 @@ export default function load({
         }
       } else {
         log[infoDebug]('Config file not found');
+        if (bail) return;
       }
     } catch (error) {
       log[errorDebug](error);
+      if (bail) return;
     }
   }
 
