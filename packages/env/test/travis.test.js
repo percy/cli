@@ -1,10 +1,10 @@
-import PercyEnvironment from '../src';
+import PercyEnv from '../src';
 
 describe('Travis', () => {
   let env;
 
   beforeEach(() => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       TRAVIS_BUILD_ID: '1234',
       TRAVIS_PULL_REQUEST: 'false',
       TRAVIS_PULL_REQUEST_BRANCH: '',
@@ -27,7 +27,7 @@ describe('Travis', () => {
   });
 
   it('has the correct properties for PR builds', () => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       ...env.vars,
       TRAVIS_PULL_REQUEST: '256',
       TRAVIS_PULL_REQUEST_BRANCH: 'travis-pr-branch'

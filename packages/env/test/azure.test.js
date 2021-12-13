@@ -1,10 +1,10 @@
-import PercyEnvironment from '../src';
+import PercyEnv from '../src';
 
 describe('Azure', () => {
   let env;
 
   beforeEach(() => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       PERCY_PARALLEL_TOTAL: '-1',
       BUILD_BUILDID: 'azure-build-id',
       BUILD_SOURCEVERSION: 'azure-commit-sha',
@@ -25,7 +25,7 @@ describe('Azure', () => {
   });
 
   it('has the correct properties for PR builds', () => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       ...env.vars,
       SYSTEM_PULLREQUEST_PULLREQUESTID: '502',
       SYSTEM_PULLREQUEST_PULLREQUESTNUMBER: '512',

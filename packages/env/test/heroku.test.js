@@ -1,10 +1,10 @@
-import PercyEnvironment from '../src';
+import PercyEnv from '../src';
 
 describe('Heroku', () => {
   let env;
 
   beforeEach(() => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       PERCY_PARALLEL_TOTAL: '-1',
       HEROKU_TEST_RUN_COMMIT_VERSION: 'heroku-commit-sha',
       HEROKU_TEST_RUN_BRANCH: 'heroku-branch',

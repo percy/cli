@@ -1,10 +1,10 @@
-import PercyEnvironment from '../src';
+import PercyEnv from '../src';
 
 describe('CodeShip', () => {
   let env;
 
   beforeEach(function() {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       PERCY_PARALLEL_TOTAL: '-1',
       CI_BRANCH: 'codeship-branch',
       CI_BUILD_NUMBER: 'codeship-build-number',
@@ -27,7 +27,7 @@ describe('CodeShip', () => {
   });
 
   it('has nonce fallback for CodeShip Pro', () => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       ...env.vars,
       CI_BUILD_NUMBER: ''
     });

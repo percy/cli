@@ -1,10 +1,10 @@
-import PercyEnvironment from '../src';
+import PercyEnv from '../src';
 
 describe('Buildkite', () => {
   let env;
 
   beforeEach(() => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       PERCY_PARALLEL_TOTAL: '-1',
       BUILDKITE_COMMIT: 'buildkite-commit-sha',
       BUILDKITE_BRANCH: 'buildkite-branch',
@@ -26,12 +26,12 @@ describe('Buildkite', () => {
   });
 
   it('has the correct properties for PR builds', () => {
-    env = new PercyEnvironment({ ...env.vars, BUILDKITE_PULL_REQUEST: '123' });
+    env = new PercyEnv({ ...env.vars, BUILDKITE_PULL_REQUEST: '123' });
     expect(env).toHaveProperty('pullRequest', '123');
   });
 
   it('returns null sha when commit is HEAD', () => {
-    env = new PercyEnvironment({ ...env.vars, BUILDKITE_COMMIT: 'HEAD' });
+    env = new PercyEnv({ ...env.vars, BUILDKITE_COMMIT: 'HEAD' });
     expect(env).toHaveProperty('commit', null);
   });
 });

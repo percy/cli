@@ -1,10 +1,10 @@
-import PercyEnvironment from '../src';
+import PercyEnv from '../src';
 
 describe('Drone', () => {
   let env;
 
   beforeEach(() => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       DRONE: 'true',
       DRONE_COMMIT: 'drone-commit-sha',
       DRONE_BRANCH: 'drone-branch',

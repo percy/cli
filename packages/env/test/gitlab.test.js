@@ -1,10 +1,10 @@
-import PercyEnvironment from '../src';
+import PercyEnv from '../src';
 
 describe('GitLab', () => {
   let env;
 
   beforeEach(() => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       GITLAB_CI: 'true',
       CI_COMMIT_SHA: 'gitlab-commit-sha',
       CI_COMMIT_REF_NAME: 'gitlab-branch',
@@ -27,7 +27,7 @@ describe('GitLab', () => {
   });
 
   it('has the correct properties for PR builds', () => {
-    env = new PercyEnvironment({ ...env.vars, CI_MERGE_REQUEST_IID: '2217' });
+    env = new PercyEnv({ ...env.vars, CI_MERGE_REQUEST_IID: '2217' });
     expect(env).toHaveProperty('pullRequest', '2217');
     expect(env).toHaveProperty('branch', 'gitlab-branch');
     expect(env).toHaveProperty('commit', 'gitlab-commit-sha');

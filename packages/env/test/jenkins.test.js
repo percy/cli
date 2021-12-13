@@ -1,11 +1,11 @@
 import { mockgit } from './helpers';
-import PercyEnvironment from '../src';
+import PercyEnv from '../src';
 
 describe('Jenkins', () => {
   let env;
 
   beforeEach(() => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       JENKINS_URL: 'http://jenkins.local/',
       GIT_COMMIT: 'jenkins-commit-sha',
       GIT_BRANCH: 'jenkins-branch',
@@ -26,7 +26,7 @@ describe('Jenkins', () => {
   });
 
   it('has the correct properties for PR builds', () => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       ...env.vars,
       CHANGE_ID: '111',
       CHANGE_BRANCH: 'jenkins-branch'
@@ -37,7 +37,7 @@ describe('Jenkins', () => {
   });
 
   it('has the correct properties for merge PR builds', () => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       ...env.vars,
       CHANGE_ID: '111',
       CHANGE_BRANCH: 'jenkins-branch'
@@ -60,7 +60,7 @@ describe('Jenkins', () => {
 
   describe('with the PRB plugin', () => {
     beforeEach(() => {
-      env = new PercyEnvironment({
+      env = new PercyEnv({
         JENKINS_URL: 'http://jenkins.local/',
         BUILD_NUMBER: '111',
         ghprbPullId: '256',

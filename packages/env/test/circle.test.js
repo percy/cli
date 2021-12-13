@@ -1,10 +1,10 @@
-import PercyEnvironment from '../src';
+import PercyEnv from '../src';
 
 describe('CircleCI', () => {
   let env;
 
   beforeEach(() => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       PERCY_PARALLEL_TOTAL: '-1',
       CIRCLE_BRANCH: 'circle-branch',
       CIRCLE_SHA1: 'circle-commit-sha',
@@ -26,7 +26,7 @@ describe('CircleCI', () => {
   });
 
   it('has the correct parallel nonce in 2.x', () => {
-    env = new PercyEnvironment({ ...env.vars, CIRCLE_WORKFLOW_ID: 'workflow-id' });
+    env = new PercyEnv({ ...env.vars, CIRCLE_WORKFLOW_ID: 'workflow-id' });
     expect(env).toHaveProperty('parallel.nonce', 'workflow-id');
   });
 });

@@ -1,4 +1,4 @@
-import PercyEnvironment from '@percy/env';
+import PercyEnv from '@percy/env';
 import { git } from '@percy/env/dist/utils';
 import logger from '@percy/logger';
 import pkg from '../package.json';
@@ -30,7 +30,7 @@ function validateProjectPath(path) {
 // during build creation.
 export class PercyClient {
   log = logger('client');
-  env = new PercyEnvironment(process.env);
+  env = new PercyEnv(process.env);
   clientInfo = new Set();
   environmentInfo = new Set();
 
