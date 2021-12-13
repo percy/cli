@@ -1,7 +1,11 @@
 import { promises as fs } from 'fs';
 import logger from '@percy/logger';
 import Network from './network';
-import { hostname, waitFor } from './utils';
+import {
+  hostname,
+  generatePromise,
+  waitFor
+} from './utils';
 
 export default class Page {
   static TIMEOUT = 30000;
@@ -113,11 +117,17 @@ export default class Page {
     }
 
     // wrap the function body with percy helpers
-    fnbody = 'function withPercyHelpers() {' + (
-      `return (${fnbody})({` + (
-        `waitFor: ${waitFor}`
-      ) + '}, ...arguments)'
-    ) + '}';
+    fnbody = 'function withPercyHelpers() {\n' + [
+      `return (${fnbody})({ generatePromise, waitFor }, ...arguments);`,
+      `${generatePromise}`,
+      `${waitFor}`
+    ].join('\n\n') + '}';
+
+    /* istanbul ignore else: ironic. */
+    if (fnbody.includes('cov_')) {
+      // remove coverage statements during testing
+      fnbody = fnbody.replace(/cov_.*?(;\n?|,)\s*/g, '');
+    }
 
     // send the call function command
     let { result, exceptionDetails } =
@@ -146,7 +156,7 @@ export default class Page {
 
     for (let script of scripts) {
       if (typeof script === 'string') {
-        script = `async eval({ waitFor }) {\n${script}\n}`;
+        script = `async eval() {\n${script}\n}`;
       }
 
       await this.eval(script);

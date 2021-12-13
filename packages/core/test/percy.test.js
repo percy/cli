@@ -5,7 +5,11 @@ import { mockAPI, logger, createTestServer } from './helpers';
 describe('Percy', () => {
   let percy, server;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    server = await createTestServer({
+      default: () => [200, 'text/html', '<p>Snapshot</p>']
+    });
+
     percy = new Percy({
       token: 'PERCY_TOKEN',
       snapshot: { widths: [1000] },
@@ -17,7 +21,7 @@ describe('Percy', () => {
 
   afterEach(async () => {
     await percy.stop();
-    await server?.close();
+    await server.close();
   });
 
   it('logs when a snapshot is missing env info', async () => {
@@ -53,12 +57,9 @@ describe('Percy', () => {
   });
 
   it('allows access to create browser pages for other SDKs', async () => {
+    // add a request that fails for coverage when requests aren't intercepted
     let img = '<img src="http://localhost:9000/404.png">';
-
-    server = await createTestServer({
-      // add a request that fails for coverage when requests aren't intercepted
-      '/': () => [200, 'text/html', `<p>Hello Percy!</p>${img}`]
-    });
+    server.reply('/', () => [200, 'text/html', `<p>Hello Percy!</p>${img}`]);
 
     // start the browser and get a page without using percy methods
     await percy.browser.launch();
@@ -86,10 +87,7 @@ describe('Percy', () => {
       constructor(...args) {
         super(...args);
         this.test = { new: args };
-      }
-
-      start() {
-        this.test.started = true;
+        this.start = () => (this.test.started = true);
       }
     }
 
@@ -262,10 +260,46 @@ describe('Percy', () => {
       await expectAsync(percy.start()).toBeResolved();
       expect(mockAPI.requests['/builds']).toBeUndefined();
 
-      // dispatch differed uploads
-      await percy.dispatch();
+      // process deferred uploads
+      percy.snapshot({ url: 'http://localhost:8000' });
+      await percy.flush();
 
       expect(mockAPI.requests['/builds']).toBeDefined();
+    });
+
+    it('cancels deferred build creation when interupted', async () => {
+      percy = new Percy({ token: 'PERCY_TOKEN', deferUploads: true });
+
+      // fake these methods to make this test more reliable
+      let sleep = ms => new Promise(r => setTimeout(r, ms));
+      spyOn(percy.browser, 'launch').and.callFake(() => sleep(10));
+      spyOn(percy.server, 'listen').and.callFake(() => sleep(500));
+
+      // #start returns a promise-like generator
+      let starting = percy.start();
+      let started = starting.then();
+
+      // wait until server.listen is called but before it finishes
+      await sleep(200);
+      // cancel the underlying generator
+      starting.cancel();
+
+      await expectAsync(started).toBeRejected();
+      expect(percy.readyState).toEqual(null);
+
+      // processing deferred uploads should not result in a new build
+      await percy.flush();
+      expect(mockAPI.requests['/builds']).toBeUndefined();
+
+      // start without canceling to verify it still works
+      await percy.start();
+
+      // take a snapshot for
+      percy.snapshot({ url: 'http://localhost:8000' });
+      await percy.flush();
+
+      expect(mockAPI.requests['/builds']).toBeDefined();
+      expect(percy.readyState).toEqual(1);
     });
 
     it('does not create a build when uploads are skipped', async () => {
@@ -273,8 +307,8 @@ describe('Percy', () => {
       await expectAsync(percy.start()).toBeResolved();
       expect(mockAPI.requests['/builds']).toBeUndefined();
 
-      // attempt to dispatch differed uploads
-      await percy.dispatch();
+      // process deferred uploads
+      await percy.flush();
 
       expect(mockAPI.requests['/builds']).toBeUndefined();
 
@@ -294,7 +328,6 @@ describe('Percy', () => {
       expect(percy.browser.isConnected()).toBe(false);
       expect(mockAPI.requests['/builds']).toBeUndefined();
 
-      await percy.dispatch();
       await percy.stop();
 
       expect(mockAPI.requests['/builds']).toBeUndefined();
@@ -305,10 +338,6 @@ describe('Percy', () => {
     });
 
     it('stops accepting snapshots when a queued build fails to be created', async () => {
-      server = await createTestServer({
-        default: () => [200, 'text/html', '<p>Snapshot</p>']
-      });
-
       mockAPI.reply('/builds', () => [401, {
         errors: [{ detail: 'build error' }]
       }]);
@@ -324,8 +353,8 @@ describe('Percy', () => {
       expect(mockAPI.requests['/builds']).toBeUndefined();
       expect(mockAPI.requests['/builds/123/snapshots']).toBeUndefined();
 
-      // dispatch differed uploads
-      await percy.dispatch();
+      // process deferred uploads
+      await percy.flush();
 
       expect(mockAPI.requests['/builds']).toBeDefined();
       expect(mockAPI.requests['/builds/123/snapshots']).toBeUndefined();
@@ -443,6 +472,47 @@ describe('Percy', () => {
       await expectAsync(percy.stop()).toBeRejectedWithError('finalize error');
       expect(percy.server.listening).toBe(false);
       expect(percy.browser.isConnected()).toBe(false);
+    });
+
+    it('does not clean up if canceled while waiting on pending tasks', async () => {
+      let snapshots = [
+        percy.snapshot({ url: 'http://localhost:8000/one' }),
+        percy.snapshot({ url: 'http://localhost:8000/two' }),
+        percy.snapshot({ url: 'http://localhost:8000/three' })
+      ];
+
+      // #stop returns a promise-like generator
+      let stopping = percy.stop();
+      let stopped = stopping.then();
+
+      // wait until the first snapshot is done before canceling
+      await snapshots[0];
+      stopping.cancel();
+
+      await expectAsync(stopped).toBeRejected();
+      expect(percy.readyState).toEqual(1);
+      expect(percy.server.listening).toBe(true);
+      expect(percy.browser.isConnected()).toBe(true);
+      expect(mockAPI.requests['/builds/123/finalize']).toBeUndefined();
+
+      expect(logger.stdout).toEqual([
+        '[percy] Percy has started!',
+        '[percy] Processing 3 snapshots...',
+        '[percy] Snapshot taken: /one'
+      ]);
+
+      // stop without canceling to verify it still works
+      await percy.stop();
+
+      expect(percy.readyState).toEqual(3);
+      expect(percy.server.listening).toBe(false);
+      expect(percy.browser.isConnected()).toBe(false);
+      expect(mockAPI.requests['/builds/123/finalize']).toBeDefined();
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: /two',
+        '[percy] Snapshot taken: /three'
+      ]));
     });
 
     it('does not error if the browser was never launched', async () => {

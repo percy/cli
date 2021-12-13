@@ -609,8 +609,8 @@ describe('Snapshot', () => {
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Encountered an error taking snapshot: test snapshot',
         '[percy] Error: test error\n' +
-          '    at execute (<anonymous>:2:17)\n' +
-          '    at withPercyHelpers (<anonymous>:3:11)'
+          '    at execute (<anonymous>:3:17)\n' +
+          '    at withPercyHelpers (<anonymous>:4:11)'
       ]));
     });
 

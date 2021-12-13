@@ -1,17 +1,7 @@
-import { waitFor } from './utils';
-
-function isGenerator(obj) {
-  return typeof obj.next === 'function' && (
-    typeof obj[Symbol.iterator] === 'function' ||
-    typeof obj[Symbol.asyncIterator] === 'function'
-  );
-}
-
-async function runGeneratorTask(task, arg) {
-  if (task.canceled) await task.generator.throw(new Error('Canceled'));
-  let { done, value } = await task.generator.next(arg);
-  return done ? value : runGeneratorTask(task, value);
-}
+import {
+  generatePromise,
+  waitFor
+} from './utils';
 
 export default class Queue {
   running = true;
@@ -25,11 +15,13 @@ export default class Queue {
   }
 
   push(id, callback, priority) {
-    if (this.closed) throw new Error('Closed');
+    if (this.closed && !id.startsWith('@@/')) {
+      throw new Error('Closed');
+    }
+
     this.cancel(id);
 
     let task = { id, callback, priority };
-
     task.promise = new Promise((resolve, reject) => {
       Object.assign(task, { resolve, reject });
       this.#queued.set(id, task);
@@ -40,10 +32,14 @@ export default class Queue {
   }
 
   cancel(id) {
-    let pending = this.#pending.get(id);
-    if (pending) pending.canceled = true;
+    this.#pending.get(id)?.cancel?.();
     this.#pending.delete(id);
     this.#queued.delete(id);
+  }
+
+  has(id) {
+    return this.#queued.has(id) ||
+      this.#pending.has(id);
   }
 
   clear() {
@@ -70,28 +66,46 @@ export default class Queue {
     return this;
   }
 
+  open() {
+    this.closed = false;
+    return this;
+  }
+
   close(abort) {
     if (abort) this.stop().clear();
     this.closed = true;
     return this;
   }
 
-  async idle() {
-    await waitFor(() => {
+  idle(callback) {
+    return waitFor(() => {
+      callback?.(this.#pending.size);
       return !this.#pending.size;
     }, { idle: 10 });
   }
 
-  async empty(onCheck) {
-    await waitFor(() => {
-      onCheck?.(this.size);
+  empty(callback) {
+    return waitFor(() => {
+      callback?.(this.size);
       return !this.size;
     }, { idle: 10 });
   }
 
-  async flush() {
-    this.push('@@/flush', () => this.stop());
-    await this.run().idle();
+  flush(callback) {
+    let stopped = !this.running;
+
+    this.run().push('@@/flush', () => {
+      if (stopped) this.stop();
+    });
+
+    return this.idle(pend => {
+      let left = [...this.#queued.keys()].indexOf('@@/flush');
+      if (!~left && !this.#pending.has('@@/flush')) left = 0;
+      callback?.(pend + left);
+    }).canceled(() => {
+      if (stopped) this.stop();
+      this.cancel('@@/flush');
+    });
   }
 
   next() {
@@ -115,25 +129,22 @@ export default class Queue {
     this.#queued.delete(task.id);
     this.#pending.set(task.id, task);
 
-    let done = (callback, arg) => {
-      if (!task.canceled) this.#pending.delete(task.id);
+    let done = callback => arg => {
+      if (!task.cancel?.triggered) {
+        this.#pending.delete(task.id);
+      }
+
       callback(arg);
       this._dequeue();
     };
 
     try {
-      let result = task.callback();
+      let gen = generatePromise(task.callback);
+      task.cancel = gen.cancel;
 
-      if (isGenerator(result)) {
-        task.generator = result;
-        result = runGeneratorTask(task);
-      }
-
-      return Promise.resolve(result)
-        .then(done.bind(null, task.resolve))
-        .catch(done.bind(null, task.reject));
+      return gen.then(done(task.resolve), done(task.reject));
     } catch (err) {
-      done(task.reject, err);
+      done(task.reject)(err);
     }
   }
 }
