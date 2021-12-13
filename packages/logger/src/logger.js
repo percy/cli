@@ -41,8 +41,8 @@ export default class PercyLogger {
 
   // Change log level at any time or return the current log level
   loglevel(level) {
-    if (!level) return this.level;
-    this.level = level;
+    if (level) this.level = level;
+    return this.level;
   }
 
   // Change namespaces by generating an array of namespace regular expressions from a
@@ -78,9 +78,13 @@ export default class PercyLogger {
       .reduce((group, level) => Object.assign(group, {
         [level]: this.log.bind(this, name, level)
       }), {
-        progress: this.progress.bind(this, name),
         deprecated: this.deprecated.bind(this, name),
-        shouldLog: this.shouldLog.bind(this, name)
+        shouldLog: this.shouldLog.bind(this, name),
+        progress: this.progress.bind(this, name),
+        format: this.format.bind(this, name),
+        loglevel: this.loglevel.bind(this),
+        stdout: this.constructor.stdout,
+        stderr: this.constructor.stderr
       });
   }
 
@@ -90,9 +94,17 @@ export default class PercyLogger {
   }
 
   // Formats messages before they are logged to stdio
-  format(message, debug, level, elapsed) {
+  format(debug, level, message, elapsed) {
     let label = 'percy';
     let suffix = '';
+
+    if (arguments.length === 1) {
+      // format(message)
+      [debug, message] = [null, debug];
+    } else if (arguments.length === 2) {
+      // format(debug, message)
+      [level, message] = [null, level];
+    }
 
     if (this.level === 'debug') {
       // include debug info in the label
@@ -126,7 +138,7 @@ export default class PercyLogger {
     let { stdout } = this.constructor;
 
     if (stdout.isTTY || !this._progress) {
-      message &&= this.format(message, debug);
+      message &&= this.format(debug, message);
       if (stdout.isTTY) stdout.cursorTo(0);
       else message &&= message + '\n';
       if (message) stdout.write(message);
@@ -190,7 +202,7 @@ export default class PercyLogger {
     if (this.shouldLog(debug, level)) {
       let elapsed = timestamp - (this.lastlog || timestamp);
       if (isError && this.level !== 'debug') message = error.toString();
-      this.write(level, this.format(message, debug, error ? 'error' : level, elapsed));
+      this.write(level, this.format(debug, error ? 'error' : level, message, elapsed));
       this.lastlog = timestamp;
     }
   }
