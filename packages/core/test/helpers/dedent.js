@@ -1,4 +1,4 @@
-export default function dedent(raw, ...values) {
+export function dedent(raw, ...values) {
   let result = raw.reduce((acc, str, i) => {
     acc += str.replace(/\\\n[ \t]*/g, '').replace(/\\`/g, '`');
     if (i < values.length) acc += values[i];
@@ -23,3 +23,5 @@ export default function dedent(raw, ...values) {
 
   return result.trim().replace(/\\n/g, '\n');
 }
+
+export default dedent;

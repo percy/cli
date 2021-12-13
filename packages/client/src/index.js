@@ -1,1 +1,1 @@
-export { default } from './client';
+export { default, PercyClient } from './client';

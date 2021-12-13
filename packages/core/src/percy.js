@@ -19,7 +19,7 @@ import {
 // creation, asset discovery, and resource uploads, and will finalize the build
 // when stopped. Snapshots are processed concurrently and the build is not
 // finalized until all snapshots have been handled.
-export default class Percy {
+export class Percy {
   log = logger('core');
   readyState = null;
 
@@ -375,3 +375,5 @@ export default class Percy {
     });
   }
 }
+
+export default Percy;

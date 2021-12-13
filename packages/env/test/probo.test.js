@@ -1,10 +1,10 @@
-import PercyEnvironment from '../src';
+import PercyEnv from '../src';
 
 describe('Probo', () => {
   let env;
 
   beforeEach(() => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       PROBO_ENVIRONMENT: 'TRUE',
       BUILD_ID: 'probo-build-id',
       COMMIT_REF: 'probo-commit-sha',

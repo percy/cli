@@ -1,10 +1,10 @@
-import PercyEnvironment from '../src';
+import PercyEnv from '../src';
 
 describe('Netlify', () => {
   let env;
 
   beforeEach(() => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       NETLIFY: 'true',
       COMMIT_REF: 'netlify-sha',
       HEAD: 'netlify-branch',

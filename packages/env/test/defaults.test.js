@@ -1,11 +1,11 @@
 import { mockgit } from './helpers';
-import PercyEnvironment from '../src';
+import PercyEnv from '../src';
 
 describe('Defaults', () => {
   let env;
 
   beforeEach(() => {
-    env = new PercyEnvironment({});
+    env = new PercyEnv({});
   });
 
   it('has default properties', () => {
@@ -22,13 +22,13 @@ describe('Defaults', () => {
   });
 
   it('has default CI info', () => {
-    env = new PercyEnvironment({ CI: 'true' });
+    env = new PercyEnv({ CI: 'true' });
     expect(env).toHaveProperty('ci', 'CI/unknown');
     expect(env).toHaveProperty('info', 'CI/unknown');
   });
 
   it('uses process.env as default vars', () => {
-    expect(new PercyEnvironment()).toHaveProperty('vars', process.env);
+    expect(new PercyEnv()).toHaveProperty('vars', process.env);
   });
 
   it('reads and parses live git commit data', () => {
@@ -71,7 +71,7 @@ describe('Defaults', () => {
   it('uses the raw commit sha when the env sha is invalid', () => {
     mockgit.commit.and.returnValue('COMMIT_SHA:fully-valid-git-sha\n');
 
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       BITBUCKET_BUILD_NUMBER: 'bitbucket-build-number',
       BITBUCKET_COMMIT: 'bitbucket-commit-sha'
     });
@@ -93,7 +93,7 @@ describe('Defaults', () => {
       'COMMIT_MESSAGE:mock commit'
     ].join('\n'));
 
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       PERCY_TOKEN: 'percy-token',
       PERCY_COMMIT: 'percy-40-character-commit-sha-aaaaaaaaaa',
       PERCY_BRANCH: 'percy-branch',
@@ -131,7 +131,7 @@ describe('Defaults', () => {
   });
 
   it('does not collect parallel nonce with invalid or no parallel total', () => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       PERCY_PARALLEL_NONCE: 'percy-nonce',
       PERCY_PARALLEL_TOTAL: 'invalid'
     });
@@ -139,7 +139,7 @@ describe('Defaults', () => {
     expect(env).toHaveProperty('parallel.nonce', null);
     expect(env).toHaveProperty('parallel.total', null);
 
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       PERCY_PARALLEL_NONCE: 'percy-nonce'
     });
 
@@ -151,7 +151,7 @@ describe('Defaults', () => {
     mockgit.commit.and.returnValue('missing or invalid');
     mockgit.branch.and.returnValue('mock branch');
 
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       PERCY_COMMIT: 'not-long-enough-sha',
       GIT_AUTHOR_NAME: 'git author',
       GIT_AUTHOR_EMAIL: 'git author@email.com',

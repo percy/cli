@@ -15,4 +15,4 @@ afterEach(() => {
 });
 
 export { logger, mockAPI };
-export { default as createTestServer } from '@percy/core/test/helpers/server';
+export { createTestServer } from '@percy/core/test/helpers/server';

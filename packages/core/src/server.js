@@ -96,7 +96,7 @@ export function createServer(routes) {
   return context;
 }
 
-export default function createPercyServer(percy) {
+export function createPercyServer(percy) {
   let log = logger('core:server');
 
   let context = createServer({
@@ -173,3 +173,5 @@ export default function createPercyServer(percy) {
 
   return context;
 }
+
+export default createPercyServer;

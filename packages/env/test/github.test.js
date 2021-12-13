@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import PercyEnvironment from '../src';
+import PercyEnv from '../src';
 import { github } from '../src/utils';
 
 describe('GitHub', () => {
@@ -20,7 +20,7 @@ describe('GitHub', () => {
       }
     }));
 
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       PERCY_PARALLEL_TOTAL: '-1',
       GITHUB_RUN_ID: 'job-id',
       GITHUB_ACTIONS: 'true',
@@ -51,7 +51,7 @@ describe('GitHub', () => {
 
   describe('without an event payload', () => {
     beforeEach(() => {
-      env = new PercyEnvironment({
+      env = new PercyEnv({
         GITHUB_ACTIONS: 'true',
         GITHUB_SHA: 'gh-env-sha',
         GITHUB_REF: 'refs/head/gh-env-branch'

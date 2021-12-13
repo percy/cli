@@ -157,7 +157,7 @@ function shouldHideError({ parentSchema, keyword, schemaPath }) {
 }
 
 // Validates data according to the associated schema and returns a list of errors, if any.
-export default function validate(data, key = '/config') {
+export function validate(data, key = '/config') {
   if (!ajv.validate(key, data)) {
     let errors = new Map();
 
@@ -214,3 +214,5 @@ export default function validate(data, key = '/config') {
     return Array.from(errors.values());
   }
 }
+
+export default validate;

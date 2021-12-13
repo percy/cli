@@ -1,10 +1,10 @@
-import PercyEnvironment from '../src';
+import PercyEnv from '../src';
 
 describe('Appveyor', () => {
   let env;
 
   beforeEach(() => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       PERCY_PARALLEL_TOTAL: '-1',
       APPVEYOR_BUILD_ID: 'appveyor-build-id',
       APPVEYOR_REPO_COMMIT: 'appveyor-commit-sha',
@@ -25,7 +25,7 @@ describe('Appveyor', () => {
   });
 
   it('has the correct properties for PR builds', () => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       ...env.vars,
       APPVEYOR_PULL_REQUEST_NUMBER: '512',
       APPVEYOR_PULL_REQUEST_HEAD_COMMIT: 'appveyor-pr-commit-sha',

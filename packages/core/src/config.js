@@ -219,6 +219,13 @@ export const snapshotDOMSchema = {
   }
 };
 
+// Grouped schemas for easier registration
+export const schemas = [
+  configSchema,
+  snapshotSchema,
+  snapshotDOMSchema
+];
+
 // Config migrate function
 export function configMigration(config, util) {
   /* eslint-disable curly */
@@ -248,13 +255,7 @@ export function snapshotMigration(config, util) {
   util.deprecate('snapshots', { map: 'additionalSnapshots', ...notice });
 }
 
-// Convinient references for schema registrations
-export const schemas = [
-  configSchema,
-  snapshotSchema,
-  snapshotDOMSchema
-];
-
+// Grouped migrations for easier registration
 export const migrations = [
   ['/config', configMigration],
   ['/snapshot', snapshotMigration]

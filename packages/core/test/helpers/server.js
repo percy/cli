@@ -1,7 +1,7 @@
 // aliased to src for coverage during tests without needing to compile this file
 const { createServer } = require('@percy/core/dist/server');
 
-module.exports = function createTestServer(routes, port = 8000) {
+function createTestServer(routes, port = 8000) {
   let context = createServer(routes);
 
   // handle route errors
@@ -16,3 +16,7 @@ module.exports = function createTestServer(routes, port = 8000) {
   // automatically listen
   return context.listen(port);
 };
+
+// support commonjs environments
+module.exports = createTestServer;
+module.exports.createTestServer = createTestServer;

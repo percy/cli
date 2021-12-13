@@ -53,7 +53,7 @@ function deprecate(config, log, path, options) {
 
 // Calls each registered migration function with a normalize provided config
 // and util functions for working with the config object
-export default function migrate(config, schema = '/config') {
+export function migrate(config, schema = '/config') {
   config = normalize(config, { schema }) ?? {};
 
   if (migrations.has(schema)) {
@@ -77,3 +77,5 @@ export default function migrate(config, schema = '/config') {
 
   return config;
 }
+
+export default migrate;

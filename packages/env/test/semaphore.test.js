@@ -1,10 +1,10 @@
-import PercyEnvironment from '../src';
+import PercyEnv from '../src';
 
 describe('Semaphore', () => {
   let env;
 
   beforeEach(() => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       SEMAPHORE: 'true',
       BRANCH_NAME: 'semaphore-branch',
       REVISION: 'semaphore-commit-sha',
@@ -29,7 +29,7 @@ describe('Semaphore', () => {
 
   describe('Semaphore 2.0', () => {
     beforeEach(() => {
-      env = new PercyEnvironment({
+      env = new PercyEnv({
         SEMAPHORE: 'true',
         SEMAPHORE_GIT_SHA: 'semaphore-2-sha',
         SEMAPHORE_GIT_BRANCH: 'semaphore-2-branch',
@@ -51,7 +51,7 @@ describe('Semaphore', () => {
     });
 
     it('has the correct properties for PR builds', () => {
-      env = new PercyEnvironment({
+      env = new PercyEnv({
         SEMAPHORE: 'true',
         SEMAPHORE_GIT_SHA: 'semaphore-2-sha',
         SEMAPHORE_GIT_PR_SHA: 'semaphore-2-pr-sha',

@@ -45,7 +45,7 @@ export function search(path) {
 // unless `bail` is true. Supports kebab-case and camelCase config options and
 // always returns camelCase options. Will automatically convert older config
 // versions to the latest version while printing a warning.
-export default function load({
+export function load({
   path,
   overrides = {},
   reload = false,
@@ -107,3 +107,5 @@ export default function load({
   // merge with defaults
   return getDefaults(config);
 }
+
+export default load;

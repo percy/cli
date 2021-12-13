@@ -187,7 +187,7 @@ export function proxyAgentFor(url, options) {
 // default, and 404 errors may also be optionally retried. If a callback is provided, it is called
 // with the parsed response body and response details. If the callback returns a value, that value
 // will be returned in the final resolved promise instead of the response body.
-export default function request(url, options = {}, callback) {
+export function request(url, options = {}, callback) {
   // accept `request(url, callback)`
   if (typeof options === 'function') [options, callback] = [{}, options];
   let { body, retries, retryNotFound, interval, noProxy, ...requestOptions } = options;
@@ -255,3 +255,5 @@ export default function request(url, options = {}, callback) {
     req.end(body);
   }, { retries, interval });
 }
+
+export default request;

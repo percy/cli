@@ -1,1 +1,6 @@
-export { default, default as serialize } from './serialize-dom';
+export {
+  default,
+  serializeDOM,
+  // namespace alias
+  serializeDOM as serialize
+} from './serialize-dom';

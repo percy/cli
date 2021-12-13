@@ -1,9 +1,10 @@
-// Register core config options
-const { default: PercyConfig } = require('@percy/config');
+const PercyConfig = require('@percy/config');
 const CoreConfig = require('./config');
+const { Percy } = require('./percy');
 
 PercyConfig.addSchema(CoreConfig.schemas);
 PercyConfig.addMigration(CoreConfig.migrations);
 
-// Export the Percy class with commonjs compatibility
-module.exports = require('./percy').default;
+// export the Percy class with commonjs compatibility
+module.exports = Percy;
+module.exports.Percy = Percy;

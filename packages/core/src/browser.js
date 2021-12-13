@@ -10,7 +10,7 @@ import install from './install';
 import Session from './session';
 import Page from './page';
 
-export default class Browser extends EventEmitter {
+export class Browser extends EventEmitter {
   log = logger('core:browser');
   sessions = new Map();
   readyState = null;
@@ -315,3 +315,5 @@ export default class Browser extends EventEmitter {
     }
   }
 }
+
+export default Browser;

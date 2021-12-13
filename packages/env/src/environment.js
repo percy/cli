@@ -4,7 +4,7 @@ import {
   github
 } from './utils';
 
-export default class PercyEnvironment {
+export class PercyEnv {
   constructor(vars = process.env) {
     this.vars = vars;
   }
@@ -281,8 +281,8 @@ export default class PercyEnvironment {
 }
 
 // cache getters on initial call so subsequent calls are not re-computed
-Object.defineProperties(PercyEnvironment.prototype, (
-  Object.entries(Object.getOwnPropertyDescriptors(PercyEnvironment.prototype))
+Object.defineProperties(PercyEnv.prototype, (
+  Object.entries(Object.getOwnPropertyDescriptors(PercyEnv.prototype))
     .reduce((proto, [key, { get, ...descr }]) => !get ? proto : (
       Object.assign(proto, {
         [key]: Object.assign(descr, {
@@ -295,3 +295,5 @@ Object.defineProperties(PercyEnvironment.prototype, (
       })
     ), {})
 ));
+
+export default PercyEnv;

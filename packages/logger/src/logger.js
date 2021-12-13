@@ -5,7 +5,7 @@ const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 
 // A PercyLogger instance retains logs in-memory for quick lookups while also writing log
 // messages to stdout and stderr depending on the log level and debug string.
-export default class PercyLogger {
+export class PercyLogger {
   // default log level
   level = 'info';
 
@@ -298,3 +298,5 @@ export default class PercyLogger {
     };
   }
 }
+
+export default PercyLogger;

@@ -1,10 +1,10 @@
-import PercyEnvironment from '../src';
+import PercyEnv from '../src';
 
 describe('Bitbucket', () => {
   let env;
 
   beforeEach(() => {
-    env = new PercyEnvironment({
+    env = new PercyEnv({
       PERCY_PARALLEL_TOTAL: '-1',
       BITBUCKET_BUILD_NUMBER: 'bitbucket-build-number',
       BITBUCKET_COMMIT: 'bitbucket-commit-sha',

@@ -8,7 +8,7 @@ import {
 
 // The Interceptor class creates common handlers for dealing with intercepting asset requests
 // for a given page using various devtools protocol events and commands.
-export default class Network {
+export class Network {
   static TIMEOUT = 30000;
 
   log = logger('core:network');
@@ -261,3 +261,5 @@ export default class Network {
     this._forgetRequest(request);
   }
 }
+
+export default Network;
