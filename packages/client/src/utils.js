@@ -61,15 +61,11 @@ export function pool(generator, context, concurrency) {
 // passed to `retry`.
 export function retry(fn, { retries = 5, interval = 50 }) {
   return new Promise((resolve, reject) => {
-    // run the function, decrement retries
-    let run = () => {
-      fn(resolve, reject, retry);
-      retries--;
-    };
+    let run = () => fn(resolve, reject, retry);
 
     // wait an interval to try again or reject with the error
     let retry = err => {
-      if (retries) {
+      if (retries-- > 0) {
         setTimeout(run, interval);
       } else {
         reject(err);
