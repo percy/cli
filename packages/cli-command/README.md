@@ -7,7 +7,6 @@ Percy CLI command parser and runner.
   - [Args](#args)
   - [Flags](#flags)
   - [Percy](#percy)
-- [Legacy Commands](#legacy-commands)
 
 ## Usage
 
@@ -120,7 +119,7 @@ Positional args correspond to their definition index, so the arg definition at i
 the first provided command-line argument that is not a flag or subcommand. By default, positional
 args are optional, but can be configured to be required or have default values.
 
-- `name` — The arg name shown in help output and camelcase.
+- `name` — The arg name shown in help output.
 - `required` — Indicate that this flag is required, which causes an error when not provided.
 - `default` — The arg's default value when not provided.
 - `parse` — A function used to parse the provided argument.
@@ -190,22 +189,5 @@ to be automatically registered before the following options are registered.
 
 Additionally, flags and positional arguments that define a `percyrc` option will have their
 associated values mapped to a corresponding `percy` property that is used when initializing a
-`@percy/core` instance. Unrecognized options are validated against config schemas and are made
-available on the command callback argument's `percy.config` property.
-
-## Legacy Commands
-
-Previous versions of this package exported a common `@oclif/command` class and accompanying
-flags. Since this package is still in beta, these previous versions need to remain forward
-compatible until the full release.
-
-Until then, a `legacyCommand` function and `legacyFlags` object are exported to aid in backwards
-compatibility. The `legacyFlags` object is exported as `flags` and contains properties and functions
-expected by older versions of our own internal command plugins. The `legacyCommand` function should
-be used by a legacy command loader to convert legacy command classes into the new expected
-functional sytax.
-
-If an older version of a command plugin accidentally extends from the new `command` function, it
-provides a static `run()` method which automatically wraps the constructor in the `legacyCommand`
-compatibility function. This should aid in preventing intermediary failing tests when our other
-packages inevitable recieve this upgrade.
+`@percy/core` instance. Provided options are validated against config schemas and are made available
+on the command callback argument's `percy.config` property.
