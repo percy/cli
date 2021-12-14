@@ -73,7 +73,7 @@ interpreted and parsed is defined by the command's `definition`.
   and after those arguments are interpreted by the internal parser.
 
 The `callback` argument can be a function, an async function, or an async generator function. Given
-an async generator function, the command becomes cancelable via process interuption and is able to
+an async generator function, the command becomes cancelable via process interruption and is able to
 clean up after itself using traditional try-catch error handling.
 
 The `callback` function is invoked with a single argument containing various contextual properties
@@ -140,7 +140,7 @@ in which this argument will be removed and is reflected in the deprecation messa
   <summary>Remapping deprecated arguments</summary><br>
 
 When providing a tuple, the version is the first option of the tuple, while the second option can be
-an alternate flag to use, or a recomendation message to display when the deprecation warning is
+an alternate flag to use, or a recommendation message to display when the deprecation warning is
 logged. Given an alternate flag, the value will be automatically mapped to the corresponding flag's
 attribute name on the `callback` argument's `flags` property.
 
@@ -165,9 +165,9 @@ The `percy` definition option accepts an object consisting of `@percy/core` opti
 this option will add shared percy flags to accepted command-line arguments and provide the command
 callback with a percy instance initialized with the provided options.
 
-When the `percy` definition option is `true`, shared percy flags will not be accpeted, but a default
+When the `percy` definition option is `true`, shared percy flags will not be accepted, but a default
 percy instance will still be provided to the command callback when run. Regardless of the `percy`
-option, if the environment variable `PERCY_ENABLE` is `0`, the callback _will not_ recieve a percy
+option, if the environment variable `PERCY_ENABLE` is `0`, the callback _will not_ receive a percy
 instance (and can act accordingly).
 
 - `percy` — Enables creation of a `@percy/core` instance initialized with provided options.
