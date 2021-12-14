@@ -123,6 +123,7 @@ async function start(args, log) {
     close.called = true;
 
     if (ctx) ctx.call('close');
+    for (let ws of wss.clients) ws.terminate();
     wss.close(() => log('info', 'Closed SDK testing server'));
   };
 
