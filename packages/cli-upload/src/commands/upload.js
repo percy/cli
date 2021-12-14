@@ -5,7 +5,10 @@ import logger from '@percy/logger';
 import globby from 'globby';
 import imageSize from 'image-size';
 import PercyClient from '@percy/client';
+
+// eslint-disable-next-line import/no-extraneous-dependencies
 import Queue from '@percy/core/dist/queue';
+
 import createImageResources from '../resources';
 import { schema } from '../config';
 import pkg from '../../package.json';

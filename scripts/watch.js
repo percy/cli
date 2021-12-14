@@ -1,6 +1,7 @@
+/* eslint-disable import/no-extraneous-dependencies */
 const path = require('path');
 const { readFileSync } = require('fs');
-const colors = require('colors');
+const colors = require('colors/safe');
 const gaze = require('gaze');
 
 // executes the callback when files within the current working directory have been modified

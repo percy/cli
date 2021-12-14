@@ -4,16 +4,17 @@ import request from './request';
 
 // Create a socket to connect to a remote logger
 async function connectRemoteLogger() {
-  await logger.remote(() => {
+  await logger.remote(async () => {
     let url = percy.address.replace('http', 'ws');
 
     if (process.env.__PERCY_BROWSERIFIED__) {
       return new window.WebSocket(url);
     } else {
-      let socket = new (require('ws'))(url);
+      /* eslint-disable-next-line import/no-extraneous-dependencies */
+      let { default: WebSocket } = await import('ws');
+      let ws = new WebSocket(url);
       // allow node to exit with an active connection
-      socket.once('open', () => socket._socket.unref());
-      return socket;
+      return ws.once('open', () => ws._socket.unref());
     }
   });
 }

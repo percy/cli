@@ -2,9 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { inspect } from 'util';
 import rimraf from 'rimraf';
-import mockAPI from '@percy/client/test/helpers';
-import logger from '@percy/logger/test/helpers';
-import { createTestServer } from '@percy/core/test/helpers';
+import { logger, mockAPI, createTestServer } from '@percy/core/test/helpers';
 import { Snapshot } from '../src/commands/snapshot';
 
 describe('percy snapshot <file>', () => {
