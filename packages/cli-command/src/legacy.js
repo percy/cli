@@ -62,10 +62,13 @@ export function legacyCommand(name, constructor) {
       instance = Object.create(constructor.prototype);
     }
 
+    // alias legacy global flags attribute names when necessary
+    if (ctx.flags.dryRun) ctx.flags['dry-run'] = ctx.flags.dryRun;
+
     // legacy percyrc value
     let percyrc = overrides => merge([ctx.percy.config, overrides, {
-      dryRun: ctx.flags.dryRun || ctx.flags['dry-run'],
       skipUploads: ctx.flags.debug,
+      dryRun: ctx.flags['dry-run'],
       config: false
     }], (path, prev, next) => (
       // do not merge arrays

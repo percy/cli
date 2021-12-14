@@ -158,6 +158,12 @@ describe('Legacy support', () => {
     expect(test.result).toHaveProperty('message', 'SIGTERM');
   });
 
+  it('aliases the --dry-run flag legacy attribute name', async () => {
+    await test(['--dry-run']);
+    expect(test.this.flags).toHaveProperty('dryRun', true);
+    expect(test.this.flags).toHaveProperty('dry-run', true);
+  });
+
   it('accepts other class-like commands', async () => {
     let test;
 
