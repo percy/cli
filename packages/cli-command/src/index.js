@@ -1,2 +1,2 @@
-export { default, PercyCommand } from './command';
-export { default as flags } from './flags';
+export { default, command } from './command';
+export { legacyCommand, legacyFlags as flags } from './legacy';

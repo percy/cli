@@ -1,90 +1,203 @@
-import Command from '@oclif/command';
-import PercyConfig from '@percy/config';
-import { set } from '@percy/config/dist/utils';
 import logger from '@percy/logger';
+import PercyConfig from '@percy/config';
+import { set, del } from '@percy/config/dist/utils';
+import * as CoreConfig from '@percy/core/dist/config';
+import * as builtInFlags from './flags';
+import formatHelp from './help';
+import parse from './parse';
 
-// The PercyCommand class that all Percy CLI commands should extend
-// from. Provides common #init() and #catch() methods and provides other methods
-// for loading configuration and checking if Percy is enabled.
-export class PercyCommand extends Command {
-  log = logger('cli:command');
+// Copies a command definition and adds built-in flags and config options.
+function withBuiltIns(definition) {
+  let def = { ...definition };
+  def.flags = [...(def.flags ?? [])];
 
-  //  Initialize flags, args, the loglevel, and attach process handlers to allow
-  //  commands to seemlessly cleanup on interupt or termination
-  init() {
-    let { args, flags } = this.parse();
-    logger.loglevel('info', flags);
-    this.flags = flags;
-    this.args = args;
+  // ensure built-ins aren't already overridden
+  let addDedupedFlag = flag => {
+    if (!def.flags.find(f => f.name === flag.name)) {
+      let short = def.flags.find(f => f.short === flag.short);
+      def.flags.push(short ? del({ ...flag }, 'short') : flag);
+    }
+  };
 
-    // log and map deprecated flags
-    for (let f in this.constructor.flags) {
-      let { deprecated } = this.constructor.flags[f];
+  // add percy specific built-in flags
+  if (def.percy && def.percy !== true) {
+    builtInFlags.PERCY.forEach(addDedupedFlag);
 
-      if (deprecated && flags[f] != null) {
-        if (deprecated === true) deprecated = {};
-        let { until: ver, map, alt } = deprecated;
+    // maybe include percy discovery flags
+    if (def.percy.discoveryFlags !== false) {
+      builtInFlags.DISCOVERY.forEach(addDedupedFlag);
+    }
+  }
 
-        let message = `The --${f} flag ` + [
-          `will be removed in ${ver || 'a future release'}.`,
-          map ? `Use --${map} instead.` : (alt || '')
-        ].join(' ').trim();
+  // always add global built-in flags
+  builtInFlags.GLOBAL.forEach(addDedupedFlag);
 
-        this.log.deprecated(message);
-        if (map) flags[map] = flags[f];
+  // copy any existing config before adding to it
+  def.config = { ...def.config };
+  def.config.schemas = [...(def.config.schemas ?? [])];
+  def.config.migrations = [...(def.config.migrations ?? [])];
+
+  // add percy specific built-in config options
+  if (def.percy) {
+    def.config.schemas.unshift(...CoreConfig.schemas);
+    def.config.migrations.unshift(...CoreConfig.migrations);
+  }
+
+  return def;
+}
+
+// Calls the provided callback and handles callback cancelation when process signals are
+// triggered. If the provided callback returns a generator, it will automatically run and throw
+// an error when canceled to be able to gracefully handle it's own cancelation.
+async function handleProcessSignals(callback) {
+  let signals = ['SIGUSR1', 'SIGUSR2', 'SIGTERM', 'SIGINT', 'SIGHUP'];
+  let signalError;
+
+  // keep track of signal handlers for cleanup
+  let signalHandlers = signals.map(signal => {
+    let handler = () => {
+      signalError = Object.assign(new Error(signal), {
+        canceled: true,
+        exitCode: 0,
+        signal
+      });
+    };
+
+    process.on(signal, handler);
+    return [signal, handler];
+  });
+
+  try {
+    // maybe async function
+    let gen = await callback();
+
+    // run any returned generator
+    if (typeof gen?.next === 'function' &&
+        (typeof gen[Symbol.iterator] === 'function' ||
+         typeof gen[Symbol.asyncIterator] === 'function')) {
+      let result = await gen.next();
+
+      while (!result.done) {
+        result = signalError
+          ? await gen.throw(signalError)
+          : await gen.next(result.value);
       }
     }
-
-    // ensure cleanup is always performed
-    let cleanup = () => this.finally(new Error('SIGTERM'));
-    process.on('SIGHUP', cleanup);
-    process.on('SIGINT', cleanup);
-    process.on('SIGTERM', cleanup);
-  }
-
-  // Log errors using the Percy logger
-  async catch(err) {
-    try {
-      // real errors will bubble
-      await super.catch(err);
-    } catch (err) {
-      // oclif exit method actually throws an error, let it continue
-      if (err.oclif && err.code === 'EEXIT') throw err;
-      // log all other errors and exit
-      this.log.error(err);
-      this.exit(1);
+  } finally {
+    // always cleanup
+    for (let [signal, handler] of signalHandlers) {
+      process.off(signal, handler);
     }
-  }
-
-  // Returns true or false if Percy has not been disabled
-  isPercyEnabled() {
-    return process.env.PERCY_ENABLE !== '0';
-  }
-
-  // Parses command flags and maps them to config options according to their
-  // respective `percyrc` parameter. The flag input is then merged with options
-  // loaded from a config file and default config options. The PERCY_TOKEN
-  // environment variable is also included as a convenience.
-  percyrc(initialOverrides = {}) {
-    let overrides = Object.entries(this.constructor.flags)
-      .reduce((conf, [name, flag]) => {
-        if (!flag.percyrc || this.flags[name] == null) return conf;
-        return set(conf, flag.percyrc, this.flags[name]);
-      }, initialOverrides);
-
-    // will also validate config and log warnings
-    let config = PercyConfig.load({
-      path: this.flags.config,
-      overrides
-    });
-
-    // set config: false to prevent core from reloading config
-    return Object.assign(config, {
-      skipUploads: this.flags.debug,
-      dryRun: this.flags['dry-run'],
-      config: false
-    });
   }
 }
 
-export default PercyCommand;
+// Helper to throw an error with an exit code and optional reason message
+function exit(exitCode, reason = '') {
+  let err = reason instanceof Error ? reason : new Error(reason);
+  throw Object.assign(err, { exitCode });
+}
+
+// Runs the parsed command callback with a contextual argument consisting of specific parsed input
+// and other common command helpers and properties.
+async function runCommandWithContext(parsed) {
+  let { command, flags, args, argv, log } = parsed;
+  // include flags, args, argv, logger, exit helper, and env info
+  let context = { flags, args, argv, log, exit };
+  let env = context.env = process.env;
+  let def = command.definition;
+
+  // automatically include a preconfigured percy instance
+  if (def.percy) {
+    let { Percy } = await import('@percy/core');
+
+    // set defaults and prune preconfiguraton options
+    let conf = del({ server: false, ...def.percy }, 'discoveryFlags');
+
+    Object.defineProperty(context, 'percy', {
+      configurable: true,
+
+      get() {
+        // percy is disabled, do not return an instance
+        if (env.PERCY_ENABLE === '0') return;
+
+        // redefine the context property once configured
+        Object.defineProperty(context, 'percy', {
+          // map and merge percy arguments with config options
+          value: new Percy([...parsed.operators.entries()]
+            .reduce((conf, [opt, value]) => opt.percyrc ? (
+              set(conf, opt.percyrc, value)) : conf, conf))
+        });
+
+        return context.percy;
+      }
+    });
+  }
+
+  // wrap and bind the parsed command callback
+  await handleProcessSignals(
+    command.callback.bind(null, context)
+  );
+}
+
+// Returns a command runner function that when run will parse provided command-line options and run
+// the parsed command callback. The returned runner will automatically output version and help
+// information when requested, and handle any thrown errors exiting when appropriate.
+export function command(name, definition, callback) {
+  definition = withBuiltIns(definition);
+
+  // auto register config schemas and migrations
+  PercyConfig.addSchema(definition.config.schemas);
+  PercyConfig.addMigration(definition.config.migrations);
+
+  async function runner(argv = []) {
+    // reset loglevel for testing
+    logger.loglevel('info');
+    let log = logger('cli');
+
+    try {
+      // parse input
+      let parsed = await parse(runner, argv);
+
+      if (parsed.version) {
+        // version requested
+        log.stdout.write(parsed.command.definition.version + '\n');
+      } else if (parsed.help || !parsed.command.callback) {
+        // command help requested
+        log.stdout.write(await formatHelp(parsed.command) + '\n');
+      } else {
+        // run command callback
+        await runCommandWithContext(parsed);
+      }
+    } catch (err) {
+      // auto log unhandled error messages
+      if (err.message && !err.signal) {
+        if (err.exitCode === 0) log.warn(err.message);
+        else log.error(err);
+      }
+
+      // exit when appropriate
+      if (err.exitCode !== 0) {
+        err.exitCode ??= 1;
+        err.message ||= `EEXIT: ${err.exitCode}`;
+
+        if (definition.exitOnError) {
+          process.exit(err.exitCode);
+        }
+
+        // re-throw when not exiting
+        throw err;
+      }
+    }
+  }
+
+  // define command meta information
+  Object.defineProperties(runner, {
+    name: { enumerable: true, value: name },
+    definition: { enumerable: true, value: definition },
+    callback: { enumerable: true, value: callback }
+  });
+
+  return runner;
+}
+
+export default command;

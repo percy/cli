@@ -177,19 +177,6 @@ describe('logger', () => {
       expect(logger.loglevel()).toEqual('error');
     });
 
-    it('can be controlled by a secondary flags argument', () => {
-      logger.loglevel('info', { debug: true });
-      expect(logger.loglevel()).toEqual('debug');
-      logger.loglevel('info', { verbose: true });
-      expect(logger.loglevel()).toEqual('debug');
-      logger.loglevel('info', { quiet: true });
-      expect(logger.loglevel()).toEqual('warn');
-      logger.loglevel('info', { silent: true });
-      expect(logger.loglevel()).toEqual('silent');
-      logger.loglevel('info', { foobar: true });
-      expect(logger.loglevel()).toEqual('info');
-    });
-
     it('logs only warnings and errors when loglevel is "warn"', () => {
       log.loglevel('warn');
 
