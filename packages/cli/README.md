@@ -37,6 +37,7 @@ integrations, Percy API communication, DOM serialization, asset discovery, etc.
 - [`@percy/config`](./packages/config#readme) - loads Percy configuration files
 - [`@percy/logger`](./packages/logger#readme) - common logger used throughout the CLI
 - [`@percy/sdk-utils`](./packages/sdk-utils#readme) - shared helpers for JavaScript SDKs
+- [`@percy/cli-command`](./packages/cli-command#readme) - Percy CLI command framework
 
 ## Issues
 
@@ -56,7 +57,7 @@ use the following scripts for various development tasks:
 - `yarn build:watch` - build and watch all packages in parallel
 - `yarn clean` - clean up build and coverage output
 - `yarn lint` - lint all packages
-- `yarn readme` - generate oclif readme usage
+- `yarn readme` - generate cli commands readme usage
 - `yarn test` - run all tests, one package after another
 - `yarn test:coverage` - run all tests with coverage, one package after another
 

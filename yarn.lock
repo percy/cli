@@ -1820,7 +1820,7 @@
     chalk "^4.1.0"
     tslib "^2.0.0"
 
-"@oclif/plugin-help@^3.2.0", "@oclif/plugin-help@^3.2.12", "@oclif/plugin-help@^3.2.8":
+"@oclif/plugin-help@^3.2.12", "@oclif/plugin-help@^3.2.8":
   version "3.2.13"
   resolved "https://registry.yarnpkg.com/@oclif/plugin-help/-/plugin-help-3.2.13.tgz#d38b7bca5cadabf9ecf85972974e801ca7ef2156"
   integrity sha512-Y7QwbjneA7VfB+rR82XeJKu3a4KQvA8EWzSYOsRf+4ERMntBnpLDqjik337nwJuJgb9O+Qf/vGgcWYvUvHAHXw==
@@ -4052,6 +4052,11 @@ fs-minipass@^2.0.0, fs-minipass@^2.1.0:
   dependencies:
     minipass "^3.0.0"
 
+fs-monkey@1.0.3:
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/fs-monkey/-/fs-monkey-1.0.3.tgz#ae3ac92d53bb328efe0e9a1d9541f6ad8d48e2d3"
+  integrity sha512-cybjIfiiE+pTWicSCLFHSrXZ6EilF30oh91FDP9S2B051prEa7QWfrVTQm10/dDpswBDXZugPa1Ogu8Yh+HV0Q==
+
 fs-readdir-recursive@^1.1.0:
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/fs-readdir-recursive/-/fs-readdir-recursive-1.1.0.tgz#e32fc030a2ccee44a6b5371308da54be0b397d27"
@@ -5499,6 +5504,13 @@ media-typer@0.3.0:
   version "0.3.0"
   resolved "https://registry.yarnpkg.com/media-typer/-/media-typer-0.3.0.tgz#8710d7af0aa626f8fffa1ce00168545263255748"
   integrity sha1-hxDXrwqmJvj/+hzgAWhUUmMlV0g=
+
+memfs@^3.4.0:
+  version "3.4.0"
+  resolved "https://registry.yarnpkg.com/memfs/-/memfs-3.4.0.tgz#8bc12062b973be6b295d4340595736a656f0a257"
+  integrity sha512-o/RfP0J1d03YwsAxyHxAYs2kyJp55AFkMazlFAZFR2I2IXkxiUTXRabJ6RmNNCQ83LAD2jy52Khj0m3OffpNdA==
+  dependencies:
+    fs-monkey "1.0.3"
 
 meow@^3.3.0:
   version "3.7.0"
