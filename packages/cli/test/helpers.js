@@ -5,10 +5,19 @@ import mockRequire from 'mock-require';
 export { mockRequire };
 
 // Helper function to mock fs with memfs and proxy methods to memfs.vol
-export const mockfs = new Proxy(
-  () => mockRequire('fs', memfs.fs),
-  { get: (_, k) => (...a) => memfs.vol[k](...a) }
-);
+export const mockfs = new Proxy(() => {
+  mockfs.mkdirSync(process.cwd(), { recursive: true });
+  return mockRequire('fs', memfs.fs);
+}, {
+  get: (_, prop) => prop === 'spyOn'
+    ? spyOn.bind(null, memfs.fs)
+    : memfs.vol[prop].bind(memfs.vol)
+});
+
+// Mocks the update cache file with the provided data and timestamp
+export function mockUpdateCache(data, createdAt = Date.now()) {
+  mockfs.writeFileSync('.releases', JSON.stringify({ data, createdAt }));
+}
 
 // Mocks the filesystem and require cache to simulate installed commands
 export function mockModuleCommands(atPath, cmdMocks) {

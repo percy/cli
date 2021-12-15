@@ -6,6 +6,8 @@ if (parseInt(process.version.split('.')[0].substring(1), 10) < 12) {
   process.exit(1);
 }
 
-import('@percy/cli').then(async ({ percy }) => {
-  await percy(process.argv.slice(2));
-});
+import('@percy/cli').then(
+  async ({ checkForUpdate, percy }) => {
+    await checkForUpdate();
+    await percy(process.argv.slice(2));
+  });

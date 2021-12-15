@@ -66,7 +66,7 @@ describe('CLI commands', () => {
 
     it('handles errors and logs debug info', async () => {
       mockfs.mkdirSync('node_modules', { recursive: true });
-      spyOn(require('fs'), 'readdirSync').and.throwError(new Error('EACCES'));
+      mockfs.spyOn('readdirSync').and.throwError(new Error('EACCES'));
       await expectAsync(importCommands()).toBeResolvedTo([]);
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
