@@ -1,7 +1,7 @@
 import { snapshotSchema } from '@percy/core/dist/config';
 
 // Common schemas referenced by other schemas
-export const cliSchema = {
+export const commonSchema = {
   $id: '/snapshot/cli',
   $refs: {
     predicate: {
@@ -76,9 +76,9 @@ export const configSchema = {
   }
 };
 
-// Page listing schema
-export const snapshotListSchema = {
-  $id: '/snapshot/list',
+// Snapshots file schema
+export const snapshotsFileSchema = {
+  $id: '/snapshot/file',
   oneOf: [{
     type: 'array',
     items: {
@@ -105,13 +105,7 @@ export const snapshotListSchema = {
   }]
 };
 
-export const schemas = [
-  cliSchema,
-  configSchema,
-  snapshotListSchema
-];
-
-export function migration(config, util) {
+export function configMigration(config, util) {
   /* eslint-disable curly */
   if (config.version < 2) {
     // static-snapshots and options were renamed

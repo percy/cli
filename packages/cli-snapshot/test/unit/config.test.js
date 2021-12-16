@@ -1,4 +1,4 @@
-import { migration } from '../../src/config';
+import { configMigration } from '../../src/config';
 
 describe('Unit / Config Migration', () => {
   let mocked = {
@@ -12,7 +12,7 @@ describe('Unit / Config Migration', () => {
   });
 
   it('migrates v1 config', () => {
-    migration({
+    configMigration({
       version: 1,
       staticSnapshots: {
         baseUrl: 'base-url',
@@ -33,7 +33,7 @@ describe('Unit / Config Migration', () => {
   });
 
   it('migrates deprecated config', () => {
-    migration({
+    configMigration({
       version: 2,
       static: {
         baseUrl: 'base-url',
@@ -49,7 +49,7 @@ describe('Unit / Config Migration', () => {
   });
 
   it('does not migrate when not needed', () => {
-    migration({
+    configMigration({
       version: 2,
       static: {
         baseUrl: 'base-url',

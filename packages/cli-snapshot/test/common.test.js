@@ -1,9 +1,7 @@
 import fs from 'fs';
 import rimraf from 'rimraf';
 import logger from '@percy/logger/test/helpers';
-import { Snapshot } from '../src/commands/snapshot';
-
-require('../src/hooks/init').default();
+import snapshot from '../src/snapshot';
 
 describe('percy snapshot', () => {
   beforeEach(() => {
@@ -13,23 +11,21 @@ describe('percy snapshot', () => {
 
   afterEach(() => {
     delete process.env.PERCY_ENABLE;
-    process.removeAllListeners();
     rimraf.sync('tmp');
   });
 
   it('skips snapshotting when Percy is disabled', async () => {
     process.env.PERCY_ENABLE = '0';
-    await Snapshot.run(['./public']);
+    await snapshot(['./tmp']);
 
-    expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
-      '[percy] Percy is disabled. Skipping snapshots'
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([
+      '[percy] Percy is disabled'
     ]);
   });
 
   it('errors when the provided path doesn\'t exist', async () => {
-    await expectAsync(Snapshot.run(['./404']))
-      .toBeRejectedWithError('EEXIT: 1');
+    await expectAsync(snapshot(['./404'])).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -38,8 +34,7 @@ describe('percy snapshot', () => {
   });
 
   it('errors when there are no snapshots to take', async () => {
-    await expectAsync(Snapshot.run(['./tmp']))
-      .toBeRejectedWithError('EEXIT: 1');
+    await expectAsync(snapshot(['./tmp'])).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([

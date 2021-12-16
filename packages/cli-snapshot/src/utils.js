@@ -1,12 +1,10 @@
-import path from 'path';
-import * as pathToRegexp from 'path-to-regexp';
 import picomatch from 'picomatch';
 
 // used to deserialize regular expression strings
 const RE_REGEXP = /^\/(.+)\/(\w+)?$/;
 
 // Throw a better error message for invalid urls
-function validURL(url, base) {
+export function validURL(url, base) {
   try { return new URL(url, base); } catch (e) {
     throw new Error(`Invalid URL: ${e.input}`);
   }
@@ -28,50 +26,6 @@ export function withDefaults(options, { host }) {
   return options;
 }
 
-function mapRewrites(map, arr) {
-  return Object.entries(map).reduce((r, [source, destination]) => {
-    return (r || []).concat({ source, destination });
-  }, arr);
-}
-
-// Serves a static directory with the provided options and returns an object containing adjusted
-// rewrites (combined with any baseUrl), the server host, a close method, and the server
-// instance. The `dryRun` option will prevent the server from actually starting.
-export async function serve(dir, {
-  dryRun,
-  baseUrl,
-  cleanUrls,
-  rewrites = {}
-}) {
-  let host = 'http://localhost';
-
-  // map rewrite options with any base-url
-  rewrites = mapRewrites(rewrites, baseUrl && [{
-    source: path.posix.join(baseUrl, '/:path*'),
-    destination: '/:path*'
-  }]);
-
-  // start the server
-  let server = !dryRun && await new Promise(resolve => {
-    let server = require('http').createServer((req, res) => {
-      require('serve-handler')(req, res, { public: dir, cleanUrls, rewrites });
-    }).listen(() => resolve(server));
-  });
-
-  // easy clean up
-  let close = () => {
-    if (server) {
-      return new Promise(resolve => {
-        server.close(resolve);
-      });
-    }
-  };
-
-  // add the port to the host and return
-  if (server) host += `:${server.address().port}`;
-  return { host, rewrites, server, close };
-}
-
 // Returns true or false if a snapshot matches the provided include and exclude predicates. A
 // predicate can be an array of predicates, a regular expression, a glob pattern, or a function.
 export function snapshotMatches(snapshot, include, exclude) {
@@ -87,7 +41,7 @@ export function snapshotMatches(snapshot, include, exclude) {
         try {
           let [, parsed = predicate, flags] = RE_REGEXP.exec(predicate) || [];
           result = new RegExp(parsed, flags).test(snapshot.name);
-        } catch (e) {}
+        } catch {}
       }
 
       return result;
@@ -108,54 +62,4 @@ export function snapshotMatches(snapshot, include, exclude) {
 
   // not excluded or explicitly included
   return !test(exclude, false) && test(include, true);
-}
-
-// Maps an array of snapshots or paths to options ready to pass along to the core snapshot
-// method. Paths are normalized before overrides are conditionally applied via their own include and
-// exclude options. Snapshot URLs are then rewritten accordingly before default options are applied,
-// including prepending the appropriate host. The returned set of snapshot options are sorted and
-// filtered by the top-level include and exclude options.
-export function mapStaticSnapshots(snapshots, {
-  host,
-  include,
-  exclude,
-  cleanUrls,
-  rewrites = [],
-  overrides = [],
-  server
-} = {}) {
-  // prioritize server properties
-  host = server?.host ?? host;
-  rewrites = server?.rewrites ?? mapRewrites(rewrites, []);
-
-  // reduce rewrites into a single function
-  let applyRewrites = [{
-    test: url => !/^(https?:\/)?\//.test(url) && url,
-    rewrite: url => path.posix.normalize(path.posix.join('/', url))
-  }, ...rewrites.map(({ source, destination }) => ({
-    test: pathToRegexp.match(destination),
-    rewrite: pathToRegexp.compile(source)
-  })), {
-    test: url => cleanUrls && url,
-    rewrite: url => url.replace(/(\/index)?\.html$/, '')
-  }].reduceRight((apply, { test, rewrite }) => snap => {
-    let res = test(snap.url ?? snap);
-    if (res) snap = rewrite(res.params ?? res);
-    return apply(snap);
-  }, s => s);
-
-  // reduce overrides into a single function
-  let applyOverrides = overrides
-    .reduceRight((apply, { include, exclude, ...opts }) => snap => {
-      if (snapshotMatches(snap, include, exclude)) Object.assign(snap, opts);
-      return apply(snap);
-    }, s => s);
-
-  // sort and reduce snapshots with overrides
-  return [...snapshots].sort().reduce((snapshots, snap) => {
-    snap = withDefaults(applyRewrites(snap), { host });
-
-    return snapshotMatches(snap, include, exclude)
-      ? snapshots.concat(applyOverrides(snap)) : snapshots;
-  }, []);
 }

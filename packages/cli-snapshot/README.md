@@ -4,39 +4,46 @@ Snapshot a list or static directory of web pages.
 
 ## Commands
 <!-- commands -->
-* [`percy snapshot DIR|FILE|SITEMAP`](#percy-snapshot-dirfilesitemap)
+* [`percy snapshot`](#percy-snapshot)
 
-## `percy snapshot DIR|FILE|SITEMAP`
+### `percy snapshot`
 
-Take snapshots from a static directory, snapshots file, or sitemap url
+Snapshot a static directory, snapshots file, or sitemap URL
 
 ```
-USAGE
-  $ percy snapshot DIR|FILE|SITEMAP
+Usage:
+  $ percy snapshot [options] <dir|file|sitemap>
 
-ARGUMENTS
-  DIR|FILE|SITEMAP  static directory, snapshots file, or sitemap url
+Arguments:
+  dir|file|sitemap                   Static directory, snapshots file, or sitemap url
 
-OPTIONS
-  -b, --base-url=base-url                          the base url pages are hosted at when snapshotting
-  -c, --config=config                              configuration file path
-  -d, --dry-run                                    print logs only, do not run asset discovery or upload snapshots
-  -h, --allowed-hostname=allowed-hostname          allowed hostnames to capture in asset discovery
-  -q, --quiet                                      log errors only
-  -t, --network-idle-timeout=network-idle-timeout  asset discovery network idle timeout
-  -v, --verbose                                    log everything
-  --clean-urls                                     rewrite static index and filepath URLs to be clean
-  --debug                                          debug asset discovery and do not upload snapshots
-  --disable-cache                                  disable asset discovery caches
-  --exclude=exclude                                one or more globs/patterns matching snapshots to exclude
-  --include=include                                one or more globs/patterns matching snapshots to include
-  --silent                                         log nothing
+Options:
+  -b, --base-url <string>            The base url pages are hosted at when snapshotting
+  --include <pattern>                One or more globs/patterns matching snapshots to include
+  --exclude <pattern>                One or more globs/patterns matching snapshots to exclude
 
-EXAMPLES
+Static options:
+  --clean-urls                       Rewrite static index and filepath URLs to be clean
+
+Percy options:
+  -c, --config <file>                Config file path
+  -d, --dry-run                      Print snapshot names only
+  -h, --allowed-hostname <hostname>  Allowed hostnames to capture in asset discovery
+  -t, --network-idle-timeout <ms>    Asset discovery network idle timeout
+  --disable-cache                    Disable asset discovery caches
+  --debug                            Debug asset discovery and do not upload snapshots
+
+Global options:
+  -v, --verbose                      Log everything
+  -q, --quiet                        Log errors only
+  -s, --silent                       Log nothing
+  --help                             Display command help
+
+Examples:
   $ percy snapshot ./public
   $ percy snapshot snapshots.yml
+  $ percy snapshot https://percy.io/sitemap.xml
 ```
-
 <!-- commandsstop -->
 
 ## Usage
