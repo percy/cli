@@ -2,10 +2,17 @@
   "name": "@percy/cli-config",
   "version": "1.0.0-beta.71",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/percy/cli",
+    "directory": "packages/cli-config"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "dist/index.js",
   "files": [
-    "dist",
-    "oclif.manifest.json"
+    "dist"
   ],
   "engines": {
     "node": ">=12"
@@ -13,32 +20,17 @@
   "scripts": {
     "build": "node ../../scripts/build",
     "lint": "eslint --ignore-path ../../.gitignore .",
-    "postbuild": "oclif-dev manifest",
-    "readme": "oclif-dev readme",
+    "readme": "percy-cli-readme",
     "test": "node ../../scripts/test",
     "test:coverage": "yarn test --coverage"
   },
-  "publishConfig": {
-    "access": "public"
-  },
-  "oclif": {
-    "bin": "percy",
-    "commands": "./dist/commands",
-    "topics": {
-      "config": {
-        "description": "manage Percy config files"
-      }
-    }
+  "@percy/cli": {
+    "commands": [
+      "./dist/config.js"
+    ]
   },
   "dependencies": {
-    "@oclif/command": "^1.8.0",
-    "@oclif/config": "^1.17.0",
-    "@percy/config": "1.0.0-beta.71",
-    "@percy/logger": "1.0.0-beta.71"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/percy/cli",
-    "directory": "packages/cli-config"
+    "@percy/cli-command": "1.0.0-beta.71",
+    "@percy/config": "1.0.0-beta.71"
   }
 }

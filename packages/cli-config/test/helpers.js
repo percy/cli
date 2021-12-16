@@ -1,5 +1,4 @@
 // required before fs is mocked by the config helper
-import '@oclif/command';
 import logger from '@percy/logger/test/helpers';
 
 beforeEach(() => {
