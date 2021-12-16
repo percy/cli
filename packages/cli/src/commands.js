@@ -21,10 +21,10 @@ function findModulePackages(dir) {
   try {
     // not given node_modules or a directory that contains node_modules, look up
     if (path.basename(dir) !== 'node_modules') {
-      let modules = path.join(dir, 'node_modules');
-      dir = fs.existsSync(modules) ? modules : path.dirname(dir);
-      if (dir === '/' || dir === os.homedir()) return [];
-      return findModulePackages(dir);
+      let modulesPath = path.join(dir, 'node_modules');
+      let next = fs.existsSync(modulesPath) ? modulesPath : path.dirname(dir);
+      if (next === dir || next === os.homedir()) return [];
+      return findModulePackages(next);
     }
 
     // given node modules, look for percy packages
