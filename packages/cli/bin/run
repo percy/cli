@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
-require('@percy/cli').run()
-  .then(require('@oclif/command/flush'))
-  .catch(require('@oclif/errors/handle'))
+if (parseInt(process.version.split('.')[0].substring(1), 10) < 12) {
+  console.error(`Node ${process.version} is not supported. Percy only ` + (
+    'supports the current LTS version of Node. Please upgrade to Node 12+'));
+  process.exit(1);
+}
+
+import('@percy/cli').then(async ({ percy }) => {
+  await percy(process.argv.slice(2));
+});
