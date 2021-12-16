@@ -5,6 +5,7 @@ coverage
 dist
 oclif.manifest.json
 .DS_Store
+.releases
 .local-chromium
 packages/logger/test/client.js
 packages/sdk-utils/test/client.js
