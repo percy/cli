@@ -3,18 +3,17 @@ import path from 'path';
 import rimraf from 'rimraf';
 import mockAPI from '@percy/client/test/helpers';
 import logger from '@percy/logger/test/helpers';
-import { Upload } from '../src/commands/upload';
+import upload from '../src/upload';
 
 // http://png-pixel.com/
 const pixel = Buffer.from('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', 'base64');
+const tmp = path.join(__dirname, 'tmp');
 const cwd = process.cwd();
 
 describe('percy upload', () => {
   beforeAll(() => {
-    require('../src/hooks/init').default();
-
-    fs.mkdirSync(path.join(__dirname, 'tmp'));
-    process.chdir(path.join(__dirname, 'tmp'));
+    fs.mkdirSync(tmp);
+    process.chdir(tmp);
 
     fs.mkdirSync('images');
     fs.writeFileSync(path.join('images', 'test-1.png'), pixel);
@@ -26,7 +25,7 @@ describe('percy upload', () => {
 
   afterAll(() => {
     process.chdir(cwd);
-    rimraf.sync(path.join(__dirname, 'tmp'));
+    rimraf.sync(tmp);
   });
 
   beforeEach(() => {
@@ -38,7 +37,6 @@ describe('percy upload', () => {
   afterEach(() => {
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
-    process.removeAllListeners();
 
     if (fs.existsSync('.percy.yml')) {
       fs.unlinkSync('.percy.yml');
@@ -47,14 +45,14 @@ describe('percy upload', () => {
 
   it('skips uploading when percy is disabled', async () => {
     process.env.PERCY_ENABLE = '0';
-    await Upload.run(['./images']);
+    await upload(['./images']);
 
-    expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual(['[percy] Percy is disabled. Skipping upload']);
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual(['[percy] Percy is disabled']);
   });
 
   it('errors when the directory is not found', async () => {
-    await expectAsync(Upload.run(['./404'])).toBeRejectedWithError('EEXIT: 1');
+    await expectAsync(upload(['./404'])).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -63,7 +61,7 @@ describe('percy upload', () => {
   });
 
   it('errors when the path is not a directory', async () => {
-    await expectAsync(Upload.run(['./nope'])).toBeRejectedWithError('EEXIT: 1');
+    await expectAsync(upload(['./nope'])).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -72,7 +70,9 @@ describe('percy upload', () => {
   });
 
   it('errors when there are no matching files', async () => {
-    await expectAsync(Upload.run(['./images', '--files=no-match.png'])).toBeRejectedWithError('EEXIT: 1');
+    await expectAsync(
+      upload(['./images', '--files=no-match.png'])
+    ).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -81,7 +81,7 @@ describe('percy upload', () => {
   });
 
   it('creates a new build and uploads snapshots', async () => {
-    await Upload.run(['./images']);
+    await upload(['./images']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -128,7 +128,7 @@ describe('percy upload', () => {
   });
 
   it('strips file extensions with `--strip-extensions`', async () => {
-    await Upload.run(['./images', '--strip-extensions']);
+    await upload(['./images', '--strip-extensions']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -142,7 +142,7 @@ describe('percy upload', () => {
   });
 
   it('skips unsupported image types', async () => {
-    await Upload.run(['./images', '--files=*']);
+    await upload(['./images', '--files=*']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -157,9 +157,11 @@ describe('percy upload', () => {
   });
 
   it('does not upload snapshots and prints matching files with --dry-run', async () => {
-    await Upload.run(['./images', '--dry-run']);
+    await upload(['./images', '--dry-run']);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual([
+      '[percy] Build not created'
+    ]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Found 3 snapshots',
       '[percy] Snapshot found: test-1.png',
@@ -168,9 +170,11 @@ describe('percy upload', () => {
     ]));
 
     logger.reset();
-    await Upload.run(['./images', '--dry-run', '--files=test-1.png']);
+    await upload(['./images', '--dry-run', '--files=test-1.png']);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual([
+      '[percy] Build not created'
+    ]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Found 1 snapshot',
       '[percy] Snapshot found: test-1.png'
@@ -187,21 +191,22 @@ describe('percy upload', () => {
       '  concurrency: 1'
     ].join('\n'));
 
-    let upload = Upload.run(['./images']);
+    let up = upload(['./images']);
 
     // wait for the first upload before terminating
-    await new Promise(r => (function check() {
-      if (mockAPI.requests['/builds/123/snapshots']) r();
-      else setTimeout(check, 10);
+    await new Promise(resolve => (function check() {
+      let done = !!mockAPI.requests['/builds/123/snapshots'];
+      setTimeout(done ? resolve : check, 10);
     }()));
 
     process.emit('SIGTERM');
-    await upload;
+    await up;
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
       '[percy] Uploading 3 snapshots...',
+      '[percy] Stopping percy...',
       '[percy] Snapshot uploaded: test-1.png',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);

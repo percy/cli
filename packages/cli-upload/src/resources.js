@@ -25,7 +25,7 @@ function createImageResource(url, content, mimetype) {
 // Returns root resource and image resource objects based on an image's
 // filename, contents, and dimensions. The root resource is a generated DOM
 // designed to display an image at it's native size without margins or padding.
-export function createImageResources(filename, content, width, height) {
+export function createImageResources(filename, content, size) {
   let { dir, name, ext } = path.parse(filename);
   let rootUrl = `/${encodeURIComponent(path.join(dir, name))}`;
   let imageUrl = `/${encodeURIComponent(filename)}`;
@@ -45,7 +45,7 @@ export function createImageResources(filename, content, width, height) {
           </style>
         </head>
         <body>
-          <img src="${imageUrl}" width="${width}px" height="${height}px"/>
+          <img src="${imageUrl}" width="${size.width}px" height="${size.height}px"/>
         </body>
       </html>
     `),
