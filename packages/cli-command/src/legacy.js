@@ -89,7 +89,7 @@ export function legacyCommand(name, constructor) {
 
     // legacy signal handling
     let signals = ['SIGHUP', 'SIGINT', 'SIGTERM'];
-    let cleanup = () => instance.finally(new Error('SIGTERM'));
+    let cleanup = () => instance.finally?.(new Error('SIGTERM'));
     for (let e of signals) process.on(e, cleanup);
 
     // run and handle legacy command
