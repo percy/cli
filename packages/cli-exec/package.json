@@ -1,12 +1,18 @@
 {
   "name": "@percy/cli-exec",
-  "description": "capture and upload snapshots",
   "version": "1.0.0-beta.71",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/percy/cli",
+    "directory": "packages/cli-exec"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "dist/index.js",
   "files": [
-    "dist",
-    "oclif.manifest.json"
+    "dist"
   ],
   "engines": {
     "node": ">=12"
@@ -14,36 +20,19 @@
   "scripts": {
     "build": "node ../../scripts/build",
     "lint": "eslint --ignore-path ../../.gitignore .",
-    "postbuild": "oclif-dev manifest",
-    "readme": "oclif-dev readme",
+    "readme": "percy-cli-readme",
     "test": "node ../../scripts/test",
     "test:coverage": "yarn test --coverage"
   },
-  "publishConfig": {
-    "access": "public"
-  },
-  "oclif": {
-    "bin": "percy",
-    "commands": "./dist/commands",
-    "hooks": {
-      "init": "./dist/hooks/init"
-    },
-    "topics": {
-      "exec": {
-        "description": "capture and upload snapshots"
-      }
-    }
+  "@percy/cli": {
+    "commands": [
+      "./dist/exec.js"
+    ]
   },
   "dependencies": {
     "@percy/cli-command": "1.0.0-beta.71",
     "@percy/core": "1.0.0-beta.71",
-    "@percy/logger": "1.0.0-beta.71",
     "cross-spawn": "^7.0.3",
     "which": "^2.0.2"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/percy/cli",
-    "directory": "packages/cli-exec"
   }
 }

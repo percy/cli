@@ -5,89 +5,110 @@ Percy CLI commands for running a local snapshot server using [`@percy/core`](./p
 ## Commands
 <!-- commands -->
 * [`percy exec`](#percy-exec)
-* [`percy exec:ping`](#percy-execping)
 * [`percy exec:start`](#percy-execstart)
 * [`percy exec:stop`](#percy-execstop)
+* [`percy exec:ping`](#percy-execping)
 
-## `percy exec`
+### `percy exec`
 
 Start and stop Percy around a supplied command
 
 ```
-USAGE
-  $ percy exec
+Usage:
+  $ percy exec [options] -- <command>
 
-OPTIONS
-  -P, --port=port                                  [default: 5338] server port
-  -c, --config=config                              configuration file path
-  -d, --dry-run                                    print logs only, do not run asset discovery or upload snapshots
-  -h, --allowed-hostname=allowed-hostname          allowed hostnames to capture in asset discovery
-  -q, --quiet                                      log errors only
-  -t, --network-idle-timeout=network-idle-timeout  asset discovery network idle timeout
-  -v, --verbose                                    log everything
-  --debug                                          debug asset discovery and do not upload snapshots
-  --disable-cache                                  disable asset discovery caches
-  --parallel                                       marks the build as one of many parallel builds
-  --partial                                        marks the build as a partial build
-  --silent                                         log nothing
+Subcommands:
+  exec:start [options]               Starts a local Percy snapshot server
+  exec:stop [options]                Stops a local running Percy snapshot server
+  exec:ping [options]                Pings a local running Percy snapshot server
+  help [command]                     Display command help
 
-EXAMPLES
+Options:
+  -P, --port [number]                Local CLI server port (default: 5338)
+  --parallel                         Marks the build as one of many parallel builds
+  --partial                          Marks the build as a partial build
+
+Percy options:
+  -c, --config <file>                Config file path
+  -d, --dry-run                      Print snapshot names only
+  -h, --allowed-hostname <hostname>  Allowed hostnames to capture in asset discovery
+  -t, --network-idle-timeout <ms>    Asset discovery network idle timeout
+  --disable-cache                    Disable asset discovery caches
+  --debug                            Debug asset discovery and do not upload snapshots
+
+Global options:
+  -v, --verbose                      Log everything
+  -q, --quiet                        Log errors only
+  -s, --silent                       Log nothing
+  --help                             Display command help
+
+Examples:
   $ percy exec -- echo "percy is running around this echo command"
   $ percy exec -- yarn test
 ```
 
-## `percy exec:ping`
-
-Pings a local running Percy snapshot server
-
-```
-USAGE
-  $ percy exec:ping
-
-OPTIONS
-  -P, --port=port  [default: 5338] server port
-  -q, --quiet      log errors only
-  -v, --verbose    log everything
-  --silent         log nothing
-```
-
-## `percy exec:start`
+### `percy exec:start`
 
 Starts a local Percy snapshot server
 
 ```
-USAGE
-  $ percy exec:start
+Usage:
+  $ percy exec:start [options]
 
-OPTIONS
-  -P, --port=port                                  [default: 5338] server port
-  -c, --config=config                              configuration file path
-  -d, --dry-run                                    print logs only, do not run asset discovery or upload snapshots
-  -h, --allowed-hostname=allowed-hostname          allowed hostnames to capture in asset discovery
-  -q, --quiet                                      log errors only
-  -t, --network-idle-timeout=network-idle-timeout  asset discovery network idle timeout
-  -v, --verbose                                    log everything
-  --debug                                          debug asset discovery and do not upload snapshots
-  --disable-cache                                  disable asset discovery caches
-  --silent                                         log nothing
+Options:
+  -P, --port [number]                Local CLI server port (default: 5338)
 
-EXAMPLES
-  $ percy exec:start
+Percy options:
+  -c, --config <file>                Config file path
+  -d, --dry-run                      Print snapshot names only
+  -h, --allowed-hostname <hostname>  Allowed hostnames to capture in asset discovery
+  -t, --network-idle-timeout <ms>    Asset discovery network idle timeout
+  --disable-cache                    Disable asset discovery caches
+  --debug                            Debug asset discovery and do not upload snapshots
+
+Global options:
+  -v, --verbose                      Log everything
+  -q, --quiet                        Log errors only
+  -s, --silent                       Log nothing
+  --help                             Display command help
+
+Examples:
   $ percy exec:start &> percy.log
 ```
 
-## `percy exec:stop`
+### `percy exec:stop`
 
 Stops a local running Percy snapshot server
 
 ```
-USAGE
-  $ percy exec:stop
+Usage:
+  $ percy exec:stop [options]
 
-OPTIONS
-  -P, --port=port  [default: 5338] server port
-  -q, --quiet      log errors only
-  -v, --verbose    log everything
-  --silent         log nothing
+Options:
+  -P, --port [number]  Local CLI server port (default: 5338)
+
+Global options:
+  -v, --verbose        Log everything
+  -q, --quiet          Log errors only
+  -s, --silent         Log nothing
+  -h, --help           Display command help
+```
+
+### `percy exec:ping`
+
+Pings a local running Percy snapshot server
+
+```
+Usage:
+  $ percy exec:ping [options]
+
+Options:
+  -P, --port [number]  Local CLI server port (default: 5338)
+
+Global options:
+  -v, --verbose        Log everything
+  -q, --quiet          Log errors only
+  -s, --silent         Log nothing
+  -h, --help           Display command help
 ```
 <!-- commandsstop -->

@@ -8,7 +8,7 @@ afterEach(() => {
   delete process.env.PERCY_TOKEN;
   delete process.env.PERCY_ENABLE;
   delete process.env.PERCY_PARALLEL_TOTAL;
-  process.removeAllListeners();
+  delete process.env.PERCY_PARTIAL_BUILD;
 });
 
 export { logger, mockAPI };

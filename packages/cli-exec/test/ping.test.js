@@ -1,5 +1,5 @@
 import { logger, createTestServer } from './helpers';
-import { Ping } from '../src/commands/exec/ping';
+import ping from '../src/ping';
 
 describe('percy exec:ping', () => {
   let percyServer;
@@ -8,12 +8,20 @@ describe('percy exec:ping', () => {
     await percyServer?.close();
   });
 
+  it('logs when percy is disabled', async () => {
+    process.env.PERCY_ENABLE = '0';
+    await ping();
+
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual(['[percy] Percy is disabled']);
+  });
+
   it('calls the /percy/healthcheck endpoint and logs', async () => {
     percyServer = await createTestServer({
       '/percy/healthcheck': () => [200, 'application/json', { success: true }]
     }, 5338);
 
-    await Ping.run([]);
+    await ping();
 
     expect(percyServer.requests).toEqual([['/percy/healthcheck']]);
 
@@ -22,7 +30,7 @@ describe('percy exec:ping', () => {
   });
 
   it('logs an error when the endpoint errors', async () => {
-    await expectAsync(Ping.run([])).toBeRejectedWithError('EEXIT: 1');
+    await expectAsync(ping()).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual(['[percy] Percy is not running']);

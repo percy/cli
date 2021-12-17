@@ -1,5 +1,5 @@
 import { logger, createTestServer } from './helpers';
-import { Stop } from '../src/commands/exec/stop';
+import stop from '../src/stop';
 
 describe('percy exec:stop', () => {
   let percyServer;
@@ -13,7 +13,7 @@ describe('percy exec:stop', () => {
       '/percy/stop': () => [200, 'application/json', { success: true }]
     }, 5338);
 
-    await Stop.run([]);
+    await stop();
 
     expect(percyServer.requests).toEqual([
       ['/percy/stop'],
@@ -34,20 +34,20 @@ describe('percy exec:stop', () => {
         : [200, 'application/json', { success: true }]
     }, 5338);
 
-    await Stop.run([]);
+    await stop();
     expect(check).toEqual(2);
   });
 
   it('logs when percy is disabled', async () => {
     process.env.PERCY_ENABLE = '0';
-    await Stop.run([]);
+    await stop();
 
-    expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual(['[percy] Percy is disabled']);
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual(['[percy] Percy is disabled']);
   });
 
   it('logs an error when the endpoint errors', async () => {
-    await expectAsync(Stop.run([])).toBeRejectedWithError('EEXIT: 1');
+    await expectAsync(stop()).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual(['[percy] Percy is not running']);
