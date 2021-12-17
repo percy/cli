@@ -128,24 +128,15 @@ describe('percy exec', () => {
   });
 
   it('handles terminating the child process when interrupted', async () => {
-    // connect a remote logger to assert against logs
-    let test = exec(['--', 'node', '--eval', [
-      'let logger = require("@percy/logger");',
-      'let ws = new (require("ws"))("ws://localhost:5338");',
-      'logger.loglevel("debug");',
-      'logger.remote(() => ws).then(() => ws._socket.unref())',
-      '  .then(() => logger("test").info("Test started"))',
-      '  .then(() => new Promise(r => setTimeout(r, 2000)))',
-      '  .then(() => logger("test").error("Test not terminated"))',
-      '  .then(() => setTimeout(() => ws.close(), 100));',
-      'process.on("SIGTERM", () => process.exit());'
-    ].join('\n')]);
+    // exits non-zero on completion
+    let test = exec(['--', 'node', '--eval', (
+      'setTimeout(() => process.exit(1), 5000)'
+    )]);
 
     // wait until the process starts
     await new Promise(r => setTimeout(r, 500));
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
-      jasmine.stringContaining('[percy] Running "node --eval '),
-      '[percy] Test started'
+      jasmine.stringContaining('[percy] Running "node --eval ')
     ]));
 
     // signal events are handled while running
@@ -153,7 +144,6 @@ describe('percy exec', () => {
     // user termination is not considered an error
     await expectAsync(test).toBeResolved();
 
-    // an error was never logged
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toContain(
       '[percy] Stopping percy...'
