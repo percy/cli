@@ -104,10 +104,10 @@ export function waitFor(predicate, options) {
       throw new Error(`Timeout of ${timeout}ms exceeded.`);
     } else if (!predicate()) {
       yield new Promise(r => setTimeout(r, poll));
-      yield* check(start);
+      return yield* check(start);
     } else if (idle && !done) {
       yield new Promise(r => setTimeout(r, idle));
-      yield* check(start, true);
+      return yield* check(start, true);
     }
   }(Date.now()));
 }
