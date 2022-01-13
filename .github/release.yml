@@ -1,6 +1,4 @@
-name-template: 'v$RESOLVED_VERSION'
-tag-template: 'v$RESOLVED_VERSION'
-categories:
+changelog:
   - title: '💥 Breaking Changes'
     labels:
       - 💥 breaking
@@ -17,13 +15,3 @@ categories:
   - title: '⬆️⬇️ Dependency Updates'
     labels:
       - ⬆️⬇️ dependencies
-change-title-escapes: '\<*_&#@'
-version-resolver:
-  major:
-    labels:
-      - 💥 breaking
-  minor:
-    labels:
-      - ✨ enhancement
-  default: patch
-template: '$CHANGES'
