@@ -6,7 +6,7 @@ if (parseInt(process.version.split('.')[0].substring(1), 10) < 12) {
   process.exit(1);
 }
 
-import('@percy/cli').then(
+import('../dist/index.js').then(
   async ({ checkForUpdate, percy }) => {
     await checkForUpdate();
     await percy(process.argv.slice(2));
