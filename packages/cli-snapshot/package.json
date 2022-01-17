@@ -33,7 +33,7 @@
     "@percy/cli-command": "1.0.0-beta.73",
     "@percy/config": "1.0.0-beta.73",
     "@percy/core": "1.0.0-beta.73",
-    "globby": "^11.0.4",
+    "globby": "^12.2.0",
     "path-to-regexp": "^6.2.0",
     "picomatch": "^2.3.0",
     "serve-handler": "^6.1.3",
