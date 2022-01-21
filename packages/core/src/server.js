@@ -1,5 +1,10 @@
 import fs from 'fs';
+import path from 'path';
 import http from 'http';
+import glob from 'fast-glob';
+import mime from 'mime-types';
+import disposition from 'content-disposition';
+import * as pathToRegexp from 'path-to-regexp';
 import { Server as WSS } from 'ws';
 import logger from '@percy/logger';
 import pkg from '../package.json';
@@ -20,20 +25,31 @@ async function getReply({ version, routes }, request, response) {
     reply = await Promise.resolve()
       .then(() => routes.middleware?.(request, response))
       .then(() => route?.(request, response))
-      .catch(routes.catch);
+      .catch(e => routes.catch?.(e, request, response));
   }
 
   // response was handled
   if (response.headersSent) return [];
 
-  // default 404 when reply is not an array
-  let [status, headers, body] = Array.isArray(reply) ? reply : [404, {}];
-  // support content-type header shortcut
-  if (typeof headers === 'string') headers = { 'Content-Type': headers };
-  // auto stringify json
-  if (headers['Content-Type']?.includes('json')) body = JSON.stringify(body);
-  // add additional headers
-  headers['Content-Length'] = body?.length ?? 0;
+  // default 404 when reply is not a tuple
+  if (!Array.isArray(reply)) reply = [404, {}];
+
+  // support alternate reply tuples
+  let [status, headers, body] = (typeof reply[1] === 'string') ? (
+    (reply.length === 2 && fs.existsSync(reply[1]))
+      // [status, filepath]
+      ? await getStreamResponse(reply, request)
+      // [status, headers[Content-Type], body]
+      : [reply[0], { 'Content-Type': reply[1] }, reply[2]];
+      // [status, headers, body]
+  ) : reply;
+
+  if (reply.length > 2) {
+    // auto stringify json and get content length
+    if (headers['Content-Type']?.includes('json')) body = JSON.stringify(body);
+    headers['Content-Length'] ??= body.length;
+  }
+
   // cors headers
   headers['Access-Control-Expose-Headers'] = 'X-Percy-Core-Version';
   headers['Access-Control-Allow-Origin'] = '*';
@@ -43,7 +59,35 @@ async function getReply({ version, routes }, request, response) {
   return [status, headers, body];
 }
 
-export function createServer(routes) {
+const RANGE_REGEXP = /^bytes=(\d*?)-(\d*?)(\b|$)/;
+async function getStreamResponse([status, filepath], request) {
+  let { size } = await fs.promises.lstat(filepath);
+  let basename = path.basename(filepath);
+  let headers = {};
+  let range;
+
+  // support simple byte range requests
+  if (size && request.headers.range) {
+    let [, start, end] = request.headers.range.match(RANGE_REGEXP) ?? [];
+    end = Math.min(end ? parseInt(end, 10) : size, size - 1);
+    start = Math.max(start ? parseInt(start, 10) : size - end, 0);
+    range = start >= 0 && start < end && { start, end };
+    headers['Content-Range'] = `bytes ${range ? `${start}-${end}` : '*'}/${size}`;
+    status = range ? 206 : 416;
+  }
+
+  // necessary file headers
+  headers['Accept-Ranges'] = 'bytes';
+  headers['Content-Type'] = mime.contentType(basename);
+  headers['Content-Length'] = range ? (range.end - range.start + 1) : size;
+  headers['Content-Disposition'] = disposition(basename, { type: 'inline' });
+
+  // create read stream between any requested range
+  let body = fs.createReadStream(filepath, range);
+  return [status, headers, body];
+}
+
+export function createServer(routes, defport) {
   let context = {
     version: pkg.version,
 
@@ -64,7 +108,12 @@ export function createServer(routes) {
     request.on('end', async () => {
       try { request.body = JSON.parse(request.body); } catch (e) {}
       let [status, headers, body] = await getReply(context, request, response);
-      if (!response.headersSent) response.writeHead(status, headers).end(body);
+
+      if (!response.headersSent) {
+        response.writeHead(status, headers);
+        if (typeof body?.pipe === 'function') body.pipe(response);
+        else response.end(body);
+      }
     });
   });
 
@@ -81,10 +130,15 @@ export function createServer(routes) {
   });
 
   // starts the server
-  context.listen = port => new Promise((resolve, reject) => {
-    context.server.on('listening', () => resolve(context));
+  context.listen = (port = defport) => new Promise((resolve, reject) => {
+    context.server.on('listening', resolve);
     context.server.on('error', reject);
     context.server.listen(port);
+  }).then(() => {
+    let addr = context.server.address();
+    context.address += `:${addr.port}`;
+    context.port = addr.port;
+    return context;
   });
 
   // add routes programatically
@@ -93,6 +147,7 @@ export function createServer(routes) {
     return context;
   };
 
+  context.address = 'http://localhost';
   return context;
 }
 
