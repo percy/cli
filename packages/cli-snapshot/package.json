@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-snapshot",
-  "version": "1.0.0-beta.73",
+  "version": "1.0.0-beta.74",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -30,9 +30,9 @@
     ]
   },
   "dependencies": {
-    "@percy/cli-command": "1.0.0-beta.73",
-    "@percy/config": "1.0.0-beta.73",
-    "@percy/core": "1.0.0-beta.73",
+    "@percy/cli-command": "1.0.0-beta.74",
+    "@percy/config": "1.0.0-beta.74",
+    "@percy/core": "1.0.0-beta.74",
     "globby": "^11.0.4",
     "path-to-regexp": "^6.2.0",
     "picomatch": "^2.3.0",
