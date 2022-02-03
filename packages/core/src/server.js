@@ -1,232 +1,352 @@
 import fs from 'fs';
 import path from 'path';
 import http from 'http';
-import glob from 'fast-glob';
+import WebSocket from 'ws';
 import mime from 'mime-types';
 import disposition from 'content-disposition';
-import * as pathToRegexp from 'path-to-regexp';
-import { Server as WSS } from 'ws';
-import logger from '@percy/logger';
-import pkg from '../package.json';
+import {
+  pathToRegexp,
+  match as pathToMatch,
+  compile as makeToPath
+} from 'path-to-regexp';
 
-async function getReply({ version, routes }, request, response) {
-  let [url] = request.url.split('?');
-  let route = routes[url] || routes.default;
-  let reply;
+// custom incoming message adds a `url` and `body` properties containing the parsed URL and message
+// buffer respectively; both available after the 'end' event is emitted
+export class IncomingMessage extends http.IncomingMessage {
+  constructor(socket) {
+    let buffer = [];
 
-  // cors preflight
-  if (request.method === 'OPTIONS') {
-    reply = [204, {}];
-    reply[1]['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS';
-    reply[1]['Access-Control-Request-Headers'] = 'Vary';
-    let allowed = request.headers['access-control-request-headers'];
-    if (allowed?.length) reply[1]['Access-Control-Allow-Headers'] = allowed;
-  } else {
-    reply = await Promise.resolve()
-      .then(() => routes.middleware?.(request, response))
-      .then(() => route?.(request, response))
-      .catch(e => routes.catch?.(e, request, response));
-  }
+    super(socket).on('data', d => buffer.push(d)).on('end', () => {
+      this.url = new URL(this.url, `http://${this.headers.host}`);
+      if (buffer.length) this.body = Buffer.concat(buffer);
 
-  // response was handled
-  if (response.headersSent) return [];
-
-  // default 404 when reply is not a tuple
-  if (!Array.isArray(reply)) reply = [404, {}];
-
-  // support alternate reply tuples
-  let [status, headers, body] = (typeof reply[1] === 'string') ? (
-    (reply.length === 2 && fs.existsSync(reply[1]))
-      // [status, filepath]
-      ? await getStreamResponse(reply, request)
-      // [status, headers[Content-Type], body]
-      : [reply[0], { 'Content-Type': reply[1] }, reply[2]];
-      // [status, headers, body]
-  ) : reply;
-
-  if (reply.length > 2) {
-    // auto stringify json and get content length
-    if (headers['Content-Type']?.includes('json')) body = JSON.stringify(body);
-    headers['Content-Length'] ??= body.length;
-  }
-
-  // cors headers
-  headers['Access-Control-Expose-Headers'] = 'X-Percy-Core-Version';
-  headers['Access-Control-Allow-Origin'] = '*';
-  // version header
-  headers['X-Percy-Core-Version'] = version;
-
-  return [status, headers, body];
-}
-
-const RANGE_REGEXP = /^bytes=(\d*?)-(\d*?)(\b|$)/;
-async function getStreamResponse([status, filepath], request) {
-  let { size } = await fs.promises.lstat(filepath);
-  let basename = path.basename(filepath);
-  let headers = {};
-  let range;
-
-  // support simple byte range requests
-  if (size && request.headers.range) {
-    let [, start, end] = request.headers.range.match(RANGE_REGEXP) ?? [];
-    end = Math.min(end ? parseInt(end, 10) : size, size - 1);
-    start = Math.max(start ? parseInt(start, 10) : size - end, 0);
-    range = start >= 0 && start < end && { start, end };
-    headers['Content-Range'] = `bytes ${range ? `${start}-${end}` : '*'}/${size}`;
-    status = range ? 206 : 416;
-  }
-
-  // necessary file headers
-  headers['Accept-Ranges'] = 'bytes';
-  headers['Content-Type'] = mime.contentType(basename);
-  headers['Content-Length'] = range ? (range.end - range.start + 1) : size;
-  headers['Content-Disposition'] = disposition(basename, { type: 'inline' });
-
-  // create read stream between any requested range
-  let body = fs.createReadStream(filepath, range);
-  return [status, headers, body];
-}
-
-export function createServer(routes, defport) {
-  let context = {
-    version: pkg.version,
-
-    get listening() {
-      return context.server.listening;
-    }
-  };
-
-  // create a simple server to route request responses
-  context.routes = routes;
-  context.server = http.createServer((request, response) => {
-    request.params = new URLSearchParams(request.url.split('?')[1]);
-
-    request.on('data', chunk => {
-      request.body = (request.body || '') + chunk;
-    });
-
-    request.on('end', async () => {
-      try { request.body = JSON.parse(request.body); } catch (e) {}
-      let [status, headers, body] = await getReply(context, request, response);
-
-      if (!response.headersSent) {
-        response.writeHead(status, headers);
-        if (typeof body?.pipe === 'function') body.pipe(response);
-        else response.end(body);
+      if (this.body && this.headers['content-type']?.includes('json')) {
+        try { this.body = JSON.parse(this.body); } catch {}
       }
     });
-  });
-
-  // track connections
-  context.sockets = new Set();
-  context.server.on('connection', s => {
-    context.sockets.add(s.on('close', () => context.sockets.delete(s)));
-  });
-
-  // immediately kill connections on close
-  context.close = () => new Promise(resolve => {
-    context.sockets.forEach(s => s.destroy());
-    context.server.close(resolve);
-  });
-
-  // starts the server
-  context.listen = (port = defport) => new Promise((resolve, reject) => {
-    context.server.on('listening', resolve);
-    context.server.on('error', reject);
-    context.server.listen(port);
-  }).then(() => {
-    let addr = context.server.address();
-    context.address += `:${addr.port}`;
-    context.port = addr.port;
-    return context;
-  });
-
-  // add routes programatically
-  context.reply = (url, handler) => {
-    routes[url] = handler;
-    return context;
-  };
-
-  context.address = 'http://localhost';
-  return context;
+  }
 }
 
-export function createPercyServer(percy) {
-  let log = logger('core:server');
+// custom server response adds additional convenience methods
+export class ServerResponse extends http.ServerResponse {
+  // responds with a status, headers, and body; the second argument can be an content-type string,
+  // or a headers object, with content-length being automatically set when a `body` is provided
+  send(status, headers, body) {
+    if (typeof headers === 'string') {
+      this.setHeader('Content-Type', headers);
+      headers = null;
+    }
 
-  let context = createServer({
-    // healthcheck returns meta info on success
-    '/percy/healthcheck': () => [200, 'application/json', {
-      success: true,
-      config: percy.config,
-      loglevel: percy.loglevel(),
-      build: percy.build
-    }],
+    if (body != null && !this.hasHeader('Content-Length')) {
+      this.setHeader('Content-Length', Buffer.byteLength(body));
+    }
 
-    // remotely get and set percy config options
-    '/percy/config': ({ body }) => [200, 'application/json', {
-      config: body ? percy.setConfig(body) : percy.config,
-      success: true
-    }],
+    return this.writeHead(status, headers).end(body);
+  }
 
-    // responds when idle
-    '/percy/idle': () => percy.idle()
-      .then(() => [200, 'application/json', { success: true }]),
+  // responds with a status and content with a plain/text content-type
+  text(status, content) {
+    if (arguments.length < 2) [status, content] = [200, status];
+    return this.send(status, 'text/plain', content.toString());
+  }
 
-    // serves @percy/dom as a convenience
-    '/percy/dom.js': () => fs.promises
-      .readFile(require.resolve('@percy/dom'), 'utf-8')
-      .then(content => [200, 'applicaton/javascript', content]),
+  // responds with a status and stringified `data` with a json content-type
+  json(status, data) {
+    if (arguments.length < 2) [status, data] = [200, status];
+    return this.send(status, 'application/json', JSON.stringify(data));
+  }
 
-    // serves the new DOM library, wrapped for compatability to `@percy/agent`
-    '/percy-agent.js': () => fs.promises
-      .readFile(require.resolve('@percy/dom'), 'utf-8')
-      .then(content => {
-        let wrapper = '(window.PercyAgent = class PercyAgent { snapshot(n, o) { return PercyDOM.serialize(o); } });';
-        log.deprecated('It looks like you’re using @percy/cli with an older SDK. Please upgrade to the latest version' + (
-          ' to fix this warning. See these docs for more info: https://docs.percy.io/docs/migrating-to-percy-cli'));
-        return [200, 'applicaton/javascript', content.concat(wrapper)];
-      }),
+  // responds with a status and streams a file with appropriate headers
+  file(status, filepath) {
+    if (arguments.length < 2) [status, filepath] = [200, status];
 
-    // forward snapshot requests
-    '/percy/snapshot': async ({ body, params }) => {
-      let snapshot = percy.snapshot(body);
-      if (!params.has('async')) await snapshot;
-      return [200, 'application/json', { success: true }];
-    },
+    filepath = path.resolve(filepath);
+    let { size } = fs.lstatSync(filepath);
+    let range = parseByteRange(this.req.headers.range, size);
 
-    // stops the instance async at the end of the event loop
-    '/percy/stop': () => {
-      setImmediate(async () => await percy.stop());
-      return [200, 'application/json', { success: true }];
-    },
+    // support simple range requests
+    if (this.req.headers.range) {
+      let byteRange = range ? `${range.start}-${range.end}` : '*';
+      this.setHeader('Content-Range', `bytes ${byteRange}/${size}`);
+      if (!range) return this.send(416);
+    }
 
-    // other routes 404
-    default: () => [404, 'application/json', {
-      error: 'Not found',
-      success: false
-    }],
-
-    // generic error handler
-    catch: ({ message }) => [500, 'application/json', {
-      error: message,
-      success: false
-    }]
-  });
-
-  // start a websocket server
-  context.wss = new WSS({ noServer: true });
-
-  // manually handle upgrades to avoid wss handling all events
-  context.server.on('upgrade', (req, sock, head) => {
-    context.wss.handleUpgrade(req, sock, head, socket => {
-      // allow remote logging connections
-      let disconnect = logger.connect(socket);
-      socket.once('close', () => disconnect());
+    this.writeHead(range ? 206 : status, {
+      'Accept-Ranges': 'bytes',
+      'Content-Type': mime.contentType(path.extname(filepath)),
+      'Content-Length': range ? (range.end - range.start + 1) : size,
+      'Content-Disposition': disposition(filepath, { type: 'inline' })
     });
-  });
 
-  return context;
+    fs.createReadStream(filepath, range).pipe(this);
+    return this;
+  }
 }
 
-export default createPercyServer;
+// custom server error with a status and default reason
+export class ServerError extends Error {
+  static throw(status, reason) {
+    throw new this(status, reason);
+  }
+
+  constructor(status = 500, reason) {
+    super(reason || http.STATUS_CODES[status]);
+    this.status = status;
+  }
+}
+
+// custom server class handles routing requests and provides alternate methods and properties
+export class Server extends http.Server {
+  #sockets = new Set();
+  #defaultPort;
+
+  constructor({ port } = {}) {
+    super({ IncomingMessage, ServerResponse });
+    this.#defaultPort = port;
+
+    // handle requests on end
+    this.on('request', (req, res) => {
+      req.on('end', () => this.#handleRequest(req, res));
+    });
+
+    // handle websocket upgrades
+    this.on('upgrade', (req, sock, head) => {
+      this.#handleUpgrade(req, sock, head);
+    });
+
+    // track open connections to terminate when the server closes
+    this.on('connection', socket => {
+      let handleClose = () => this.#sockets.delete(socket);
+      this.#sockets.add(socket.on('close', handleClose));
+    });
+  }
+
+  // return the listening port or any default port
+  get port() {
+    return super.address()?.port ?? this.#defaultPort;
+  }
+
+  // return a string representation of the server address
+  address() {
+    let port = this.port;
+    let host = 'http://localhost';
+    return port ? `${host}:${port}` : host;
+  }
+
+  // return a promise that resolves when the server is listening
+  listen(port = this.#defaultPort) {
+    return new Promise((resolve, reject) => {
+      let handle = err => off() && err ? reject(err) : resolve(this);
+      let off = () => this.off('error', handle).off('listening', handle);
+      super.listen(port, handle).once('error', handle);
+    });
+  }
+
+  // return a promise that resolves when the server closes
+  close() {
+    return new Promise(resolve => {
+      this.#sockets.forEach(socket => socket.destroy());
+      super.close(resolve);
+    });
+  }
+
+  // handle websocket upgrades
+  #up = [];
+
+  websocket(pathname, handle) {
+    if (!handle) [pathname, handle] = [null, pathname];
+
+    this.#up.push({
+      match: pathname && pathToMatch(pathname),
+      handle: (req, sock, head) => new Promise(resolve => {
+        let wss = new WebSocket.Server({ noServer: true, clientTracking: false });
+        wss.handleUpgrade(req, sock, head, resolve);
+      }).then(ws => handle(ws, req))
+    });
+
+    if (pathname) {
+      this.#up.sort((a, b) => (a.match ? -1 : 1) - (b.match ? -1 : 1));
+    }
+
+    return this;
+  }
+
+  #handleUpgrade(req, sock, head) {
+    let up = this.#up.find(u => !u.match || u.match(req.url));
+    if (up) return up.handle(req, sock, head);
+
+    sock.write(
+      `HTTP/1.1 400 ${http.STATUS_CODES[400]}\r\n` +
+      'Connection: close\r\n\r\n');
+    sock.destroy();
+  }
+
+  // initial routes include cors and 404 handling
+  #routes = [{
+    priority: -1,
+    handle: (req, res, next) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+
+      if (req.method === 'OPTIONS') {
+        let allowHeaders = req.headers['access-control-request-headers'] || '*';
+        let allowMethods = [...new Set(this.#routes.flatMap(route => (
+          (!route.match || route.match(req.url.pathname)) && route.methods
+        ) || []))].join(', ');
+
+        res.setHeader('Access-Control-Allow-Headers', allowHeaders);
+        res.setHeader('Access-Control-Allow-Methods', allowMethods);
+        res.writeHead(204).end();
+      } else {
+        res.setHeader('Access-Control-Expose-Headers', '*');
+        return next();
+      }
+    }
+  }, {
+    priority: 3,
+    handle: (req) => ServerError.throw(404)
+  }];
+
+  // adds a route in the correct priority order
+  #route(route) {
+    let i = this.#routes.findIndex(r => r.priority >= route.priority);
+    this.#routes.splice(i, 0, route);
+    return this;
+  }
+
+  // set request routing and handling for pathnames and methods
+  route(method, pathname, handle) {
+    if (arguments.length === 1) [handle, method] = [method];
+    if (arguments.length === 2) [handle, pathname] = [pathname];
+    if (arguments.length === 2 && !Array.isArray(method) &&
+        method[0] === '/') [pathname, method] = [method];
+
+    return this.#route({
+      priority: !pathname ? 0 : !method ? 1 : 2,
+      methods: method && [].concat(method).map(m => m.toUpperCase()),
+      match: pathname && pathToMatch(pathname),
+      handle
+    });
+  }
+
+  // install a route that serves requested files from the provided directory
+  serve(pathname, directory, options) {
+    if (typeof directory !== 'string') [options, directory] = [directory];
+    if (!directory) [pathname, directory] = ['/', pathname];
+
+    let root = path.resolve(directory);
+    let mountPattern = pathToRegexp(pathname, null, { end: false });
+    let rewritePath = createRewriter(options?.rewrites, (pathname, rewrite) => {
+      try {
+        let filepath = decodeURIComponent(pathname.replace(mountPattern, ''));
+        if (!isPathInside(root, filepath)) ServerError.throw();
+        return rewrite(filepath);
+      } catch {
+        throw new ServerError(400);
+      }
+    });
+
+    return this.#route({
+      priority: 2,
+      methods: ['GET'],
+      match: pathname => mountPattern.test(pathname),
+      handle: async (req, res, next) => {
+        try {
+          let pathname = rewritePath(req.url.pathname);
+          let file = await getFile(root, pathname, options?.cleanUrls);
+          if (!file?.stats.isFile()) return await next();
+          return res.file(file.path);
+        } catch (err) {
+          let statusPage = path.join(root, `${err.status}.html`);
+          if (!fs.existsSync(statusPage)) throw err;
+          return res.file(err.status, statusPage);
+        }
+      }
+    });
+  }
+
+  // route and respond to requests; handling errors if necessary
+  async #handleRequest(req, res) {
+    try {
+      // invoke routes like middleware
+      await (async function cont(routes, i = 0) {
+        let next = () => cont(routes, i + 1);
+        let { methods, match, handle } = routes[i];
+        let result = !methods || methods.includes(req.method);
+        result &&= !match || match(req.url.pathname);
+        if (result) req.params = result.params;
+        return result ? handle(req, res, next) : next();
+      })(this.#routes);
+    } catch (error) {
+      let { status = 500, message } = error;
+
+      // fallback error handling
+      if (req.headers.accept?.includes('json') ||
+          req.headers['content-type']?.includes('json')) {
+        res.json(status, { error: message });
+      } else {
+        res.text(status, message);
+      }
+    }
+  }
+}
+
+// create a url rewriter from provided rewrite rules
+function createRewriter(rewrites = [], cb) {
+  let normalize = p => path.posix.normalize(path.posix.join('/', p));
+  if (!Array.isArray(rewrites)) rewrites = Object.entries(rewrites);
+
+  let rewrite = [{
+    // resolve and normalize the path before rewriting
+    apply: p => path.posix.resolve(normalize(p))
+  }].concat(rewrites.map(([src, dest]) => {
+    // compile rewrite rules into functions
+    let match = pathToMatch(normalize(src));
+    let toPath = makeToPath(normalize(dest));
+    return { match, apply: r => toPath(r.params) };
+  })).reduceRight((next, rule) => pathname => {
+    // compose all rewrites into a single function
+    let result = rule.match?.(pathname) ?? pathname;
+    if (result) pathname = rule.apply(result);
+    return next(pathname);
+  }, p => p);
+
+  // allow additional pathname processing around the rewriter
+  return p => cb(p, rewrite);
+}
+
+// returns true if the pathname is inside the root pathname
+function isPathInside(root, pathname) {
+  let abs = path.resolve(path.join(root, pathname));
+
+  return !abs.lastIndexOf(root, 0) && (
+    abs[root.length] === path.sep || !abs[root.length]
+  );
+}
+
+// get the absolute path and stats of a possible file
+async function getFile(root, pathname, cleanUrls) {
+  for (let filename of [pathname].concat(
+    cleanUrls ? path.join(pathname, 'index.html') : [],
+    cleanUrls && pathname.length > 2 ? pathname.replace(/\/?$/, '.html') : []
+  )) {
+    let filepath = path.resolve(path.join(root, filename));
+    let stats = await fs.promises.lstat(filepath).catch(() => {});
+    if (stats?.isFile()) return { path: filepath, stats };
+  }
+}
+
+// returns the start and end of a byte range or undefined if unable to parse
+const RANGE_REGEXP = /^bytes=(\d*)?-(\d*)?(?:\b|$)/;
+
+function parseByteRange(range, size) {
+  let [, start, end = size] = range?.match(RANGE_REGEXP) ?? [0, 0, 0];
+  start = Math.max(parseInt(start, 10), 0);
+  end = Math.min(parseInt(end, 10), size - 1);
+  if (isNaN(start)) [start, end] = [size - end, size - 1];
+  if (start >= 0 && start < end) return { start, end };
+}
+
+// include ServerError and createRewriter as static properties
+Server.Error = ServerError;
+Server.createRewriter = createRewriter;
+export default Server;

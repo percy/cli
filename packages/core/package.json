@@ -34,8 +34,11 @@
     "@percy/config": "1.0.0-beta.75",
     "@percy/dom": "1.0.0-beta.75",
     "@percy/logger": "1.0.0-beta.75",
+    "content-disposition": "^0.5.4",
     "cross-spawn": "^7.0.3",
     "extract-zip": "^2.0.1",
+    "mime-types": "^2.1.34",
+    "path-to-regexp": "^6.2.0",
     "rimraf": "^3.0.2",
     "ws": "^8.0.0"
   }
