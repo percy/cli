@@ -26,14 +26,10 @@ describe('Discovery', () => {
     captured = [];
 
     mockAPI.reply('/builds/123/snapshots', ({ body }) => {
-      captured.push(
-        // order is not important, stabilize it for testing
-        body.data.relationships.resources.data
-          .sort((a, b) => (
-            a.attributes['resource-url'] < b.attributes['resource-url'] ? -1
-              : (a.attributes['resource-url'] > b.attributes['resource-url'] ? 1 : 0)
-          ))
-      );
+      // resource order is not important, stabilize it for testing
+      captured.push(body.data.relationships.resources.data.sort((a, b) => (
+        a.attributes['resource-url'].localeCompare(b.attributes['resource-url'])
+      )));
 
       return [201, { data: { id: '4567' } }];
     });
@@ -297,7 +293,7 @@ describe('Discovery', () => {
     </script></body></html>`;
 
     server.reply('/events', () => [200, 'text/html', eventStreamDOM]);
-    server.reply('/event-stream', (req, res) => {
+    server.route('/event-stream', (req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       // network idle should wait for the first event, so delay it to make sure
       setTimeout(() => res.write('data: This came from a server-sent event\n\n'), 1000);

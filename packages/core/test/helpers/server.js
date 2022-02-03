@@ -1,20 +1,23 @@
 // aliased to src for coverage during tests without needing to compile this file
-const { createServer } = require('@percy/core/dist/server');
+const { default: Server } = require('@percy/core/dist/server');
 
-function createTestServer(routes, port = 8000) {
-  let context = createServer(routes);
+function createTestServer({ default: defaultReply, ...replies }, port = 8000) {
+  let server = new Server();
 
-  // handle route errors
-  context.routes.catch = ({ message }) => [500, 'text/plain', message];
+  // alternate route registration
+  server.reply = (p, cb) => (replies[p] = cb);
 
-  // track requests
-  context.requests = [];
-  context.routes.middleware = ({ url, body }) => {
-    context.requests.push(body ? [url, body] : [url]);
-  };
+  // track requests and route replies
+  server.requests = [];
+  server.route(async (req, res, next) => {
+    let { url: { pathname } } = req;
+    let reply = replies[pathname] ?? defaultReply;
+    server.requests.push(req.body ? [pathname, req.body] : [pathname]);
+    return reply ? res.send(...await reply(req)) : next();
+  });
 
   // automatically listen
-  return context.listen(port);
+  return server.listen(port);
 };
 
 // support commonjs environments

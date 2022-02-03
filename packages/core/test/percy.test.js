@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 import Percy from '../src';
 import { mockAPI, logger, createTestServer } from './helpers';
 
@@ -189,11 +188,12 @@ describe('Percy', () => {
     });
 
     it('starts a server after launching a browser', async () => {
+      let { request } = await import('./helpers/request');
       spyOn(percy.browser, 'launch').and.callThrough();
       spyOn(percy.server, 'listen').and.callThrough();
 
       await expectAsync(percy.start()).toBeResolved();
-      await expectAsync(fetch('http://localhost:5338')).toBeResolved();
+      await expectAsync(request('http://localhost:5338', false)).toBeResolved();
 
       expect(percy.browser.launch)
         .toHaveBeenCalledBefore(percy.server.listen);
@@ -399,7 +399,8 @@ describe('Percy', () => {
     });
 
     it('stops the server', async () => {
-      await expectAsync(fetch('http://localhost:5338')).toBeResolved();
+      let { request } = await import('./helpers/request');
+      await expectAsync(request('http://localhost:5338', false)).toBeResolved();
       await expectAsync(percy.stop()).toBeResolved();
       expect(percy.server.listening).toBe(false);
     });
