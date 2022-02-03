@@ -190,11 +190,27 @@ export function proxyAgentFor(url, options) {
 export function request(url, options = {}, callback) {
   // accept `request(url, callback)`
   if (typeof options === 'function') [options, callback] = [{}, options];
-  let { body, retries, retryNotFound, interval, noProxy, ...requestOptions } = options;
-  // allow bypassing proxied requests entirely
-  if (!noProxy) requestOptions.agent ||= proxyAgentFor(url);
-  // parse the requested URL into request options
+
+  // gather request options
+  let { body, headers, retries, retryNotFound, interval, noProxy, ...requestOptions } = options;
   let { protocol, hostname, port, pathname, search, hash } = new URL(url);
+
+  // automatically stringify body content
+  if (body && typeof body !== 'string') {
+    headers = { 'Content-Type': 'application/json', ...headers };
+    body = JSON.stringify(body);
+  }
+
+  // combine request options
+  Object.assign(requestOptions, {
+    agent: requestOptions.agent ||
+      (!noProxy && proxyAgentFor(url)) || null,
+    path: pathname + search + hash,
+    protocol,
+    hostname,
+    headers,
+    port
+  });
 
   return retry((resolve, reject, retry) => {
     let handleError = error => {
@@ -203,8 +219,8 @@ export function request(url, options = {}, callback) {
 
       let shouldRetry = error.response
       // maybe retry 404s and always retry 500s
-        ? ((retryNotFound && error.response.status === 404) ||
-           (error.response.status >= 500 && error.response.status < 600))
+        ? ((retryNotFound && error.response.statusCode === 404) ||
+           (error.response.statusCode >= 500 && error.response.statusCode < 600))
       // retry specific error codes
         : (!!error.code && RETRY_ERROR_CODES.includes(error.code));
 
@@ -229,7 +245,11 @@ export function request(url, options = {}, callback) {
         }
       } catch (error) {
         handleError(Object.assign(error, {
-          response: { status: res.statusCode, body }
+          response: {
+            statusCode: res.statusCode,
+            headers: res.headers,
+            body
+          }
         }));
       }
     };
@@ -242,14 +262,7 @@ export function request(url, options = {}, callback) {
       res.on('error', handleError);
     };
 
-    let req = (protocol === 'https:' ? https : http).request({
-      ...requestOptions,
-      path: pathname + search + hash,
-      protocol,
-      hostname,
-      port
-    });
-
+    let req = (protocol === 'https:' ? https : http).request(requestOptions);
     req.on('response', handleResponse);
     req.on('error', handleError);
     req.end(body);
