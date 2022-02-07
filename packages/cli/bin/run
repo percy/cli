@@ -6,8 +6,9 @@ if (parseInt(process.version.split('.')[0].substring(1), 10) < 12) {
   process.exit(1);
 }
 
-import('../dist/index.js').then(
-  async ({ checkForUpdate, percy }) => {
-    await checkForUpdate();
-    await percy(process.argv.slice(2));
-  });
+let { checkForUpdate, percy } = require('../dist/index.js');
+
+(async function() {
+  await checkForUpdate();
+  await percy(process.argv.slice(2));
+})();
