@@ -1,6 +1,6 @@
 {
   "name": "@percy/core",
-  "version": "1.0.0-beta.74",
+  "version": "1.0.0-beta.75",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -30,10 +30,10 @@
     "test:types": "tsd"
   },
   "dependencies": {
-    "@percy/client": "1.0.0-beta.74",
-    "@percy/config": "1.0.0-beta.74",
-    "@percy/dom": "1.0.0-beta.74",
-    "@percy/logger": "1.0.0-beta.74",
+    "@percy/client": "1.0.0-beta.75",
+    "@percy/config": "1.0.0-beta.75",
+    "@percy/dom": "1.0.0-beta.75",
+    "@percy/logger": "1.0.0-beta.75",
     "cross-spawn": "^7.0.3",
     "extract-zip": "^2.0.1",
     "rimraf": "^3.0.2",
