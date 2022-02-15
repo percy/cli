@@ -266,6 +266,9 @@ export class Server extends http.Server {
 
   // route and respond to requests; handling errors if necessary
   async #handleRequest(req, res) {
+    // support node < 15.7.0
+    res.req ??= req;
+
     try {
       // invoke routes like middleware
       await (async function cont(routes, i = 0) {
