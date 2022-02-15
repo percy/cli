@@ -39,6 +39,7 @@ jobs:
     name: Test ${{ matrix.package }}
     needs: [build]
     strategy:
+      fail-fast: false
       matrix:
         package:
           - '@percy/env'
