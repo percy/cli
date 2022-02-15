@@ -358,7 +358,7 @@ export class Percy {
         if (typeof options === 'function') options = await options();
         await this.client.sendSnapshot(this.build.id, options);
       } catch (error) {
-        let failed = error.response?.status === 422 && (
+        let failed = error.response?.statusCode === 422 && (
           error.response.body.errors.find(e => (
             e.source?.pointer === '/data/attributes/build'
           )));
