@@ -94,7 +94,7 @@ describe('SDK Utils', () => {
     });
 
     it('disables snapshots when the API version is unsupported', async () => {
-      await helpers.call('server.version', '');
+      await helpers.call('server.version', '0.1.0');
       await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
 
       expect(helpers.logger.stdout).toEqual([

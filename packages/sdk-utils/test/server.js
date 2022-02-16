@@ -6,10 +6,12 @@ function context() {
     async call(path, ...args) {
       let [key, ...paths] = path.split('.').reverse();
       let subject = paths.reduceRight((c, k) => c && c[k], ctx);
-      if (!(subject && key in subject)) return;
+      if (!subject) return;
 
-      let { value, get, set } = Object
-        .getOwnPropertyDescriptor(subject, key);
+      let { value, get, set } = (
+        Object.getOwnPropertyDescriptor(subject, key) ||
+        Object.getOwnPropertyDescriptor(Object.getPrototypeOf(subject), key)
+      ) || {};
 
       if (typeof value === 'function') {
         value = await value.apply(subject, args);
@@ -40,7 +42,8 @@ function context() {
     };
 
     if (ctx.server.close) ctx.server.close();
-    ctx.server = Object.assign(await createTestServer({
+
+    ctx.server = await createTestServer({
       '/percy/dom.js': () => [200, 'application/javascript', (
         `window.PercyDOM = { serialize: ${serializeDOM} }`)],
       '/percy/healthcheck': () => [200, 'application/json', (
@@ -48,16 +51,23 @@ function context() {
       '/percy/config': ({ body }) => [200, 'application/json', (
         { success: true, config: body })],
       '/percy/snapshot': () => [200, 'application/json', { success: true }]
-    }, 5338), {
+    }, 5338);
+
+    ctx.server.route((req, res, next) => {
+      if (req.body) try { req.body = JSON.parse(req.body); } catch {}
+      res.setHeader('Access-Control-Expose-Headers', '*, X-Percy-Core-Version');
+      res.setHeader('X-Percy-Core-Version', ctx.server.version || '1.0.0');
+      return next();
+    });
+
+    ctx.server.websocket(ws => {
+      if (!allowSocketConnections) return ws.terminate();
+      ws.onmessage = ({ data }) => ctx.server.messages.push(data);
+    });
+
+    Object.assign(ctx.server, {
       mock: mockServer,
       messages: [],
-
-      reply: (url, route) => {
-        ctx.server.routes[url] = (
-          typeof route === 'function'
-            ? route : () => route
-        );
-      },
 
       test: {
         get serialize() { return serializeDOM; },
@@ -66,17 +76,6 @@ function context() {
           [500, 'application/json', { success: false, error }])),
         error: path => ctx.server.reply(path, r => r.connection.destroy()),
         remote: () => (allowSocketConnections = true)
-      }
-    });
-
-    ctx.wss = new (require('ws').Server)({ noServer: true });
-    ctx.server.server.on('upgrade', (req, sock, head) => {
-      if (allowSocketConnections) {
-        ctx.wss.handleUpgrade(req, sock, head, socket => {
-          socket.onmessage = ({ data }) => ctx.server.messages.push(data);
-        });
-      } else {
-        sock.destroy();
       }
     });
   };

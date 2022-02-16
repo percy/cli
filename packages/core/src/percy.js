@@ -4,7 +4,7 @@ import { merge } from '@percy/config/dist/utils';
 import logger from '@percy/logger';
 import Queue from './queue';
 import Browser from './browser';
-import createPercyServer from './server';
+import { createPercyServer } from './api';
 
 import {
   getSnapshotConfig,
@@ -85,8 +85,7 @@ export class Percy {
     });
 
     if (server) {
-      this.server = createPercyServer(this);
-      this.port = port;
+      this.server = createPercyServer(this, port);
     }
   }
 
@@ -97,7 +96,7 @@ export class Percy {
 
   // Snapshot server API address
   address() {
-    return `http://localhost:${this.port}`;
+    return this.server?.address();
   }
 
   // Set client & environment info, and override loaded config options
@@ -185,7 +184,7 @@ export class Percy {
       }
 
       // start the server after everything else is ready
-      yield this.server?.listen(this.port);
+      yield this.server?.listen();
 
       // mark instance as started
       this.log.info('Percy has started!');
