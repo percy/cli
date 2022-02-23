@@ -20,11 +20,19 @@ describe('percy exec:start', () => {
   });
 
   afterEach(async () => {
-    await stop();
+    // it's important that percy is still running or we terminate the test process
+    if (started) process.emit('SIGTERM');
+    await started;
   });
 
   it('starts a long-running percy process', async () => {
     let response = await request('http://localhost:5338/percy/healthcheck');
+    expect(response).toHaveProperty('success', true);
+  });
+
+  it('can start on an alternate port', async () => {
+    start(['--quiet', '--port=1234']);
+    let response = await request('http://localhost:1234/percy/healthcheck');
     expect(response).toHaveProperty('success', true);
   });
 

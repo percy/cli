@@ -149,4 +149,19 @@ describe('percy exec', () => {
       '[percy] Stopping percy...'
     );
   });
+
+  it('provides the child process with a percy server address env var', async () => {
+    await exec(['--port=1234', '--', 'node', '--eval', [
+      'require("@percy/client/dist/request")',
+      '.request(new URL("/percy/healthcheck", process.env.PERCY_SERVER_ADDRESS))',
+      '.catch(e => (console.error(e), process.exit(1)))'
+    ].join('')]);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Percy has started!',
+      jasmine.stringMatching('\\[percy] Running "node --eval '),
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
+    ]);
+  });
 });
