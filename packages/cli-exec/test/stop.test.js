@@ -38,6 +38,22 @@ describe('percy exec:stop', () => {
     expect(check).toEqual(2);
   });
 
+  it('can stop a server on another port', async () => {
+    percyServer = await createTestServer({
+      '/percy/stop': () => [200, 'application/json', { success: true }]
+    }, 1234);
+
+    await stop(['--port=1234']);
+
+    expect(percyServer.requests).toEqual([
+      ['/percy/stop'],
+      ['/percy/healthcheck']
+    ]);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(['[percy] Percy has stopped']);
+  });
+
   it('logs when percy is disabled', async () => {
     process.env.PERCY_ENABLE = '0';
     await stop();

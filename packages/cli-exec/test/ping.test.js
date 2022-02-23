@@ -23,10 +23,21 @@ describe('percy exec:ping', () => {
 
     await ping();
 
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(['[percy] Percy is running']);
     expect(percyServer.requests).toEqual([['/percy/healthcheck']]);
+  });
+
+  it('can ping /percy/healthcheck at an alternate port', async () => {
+    percyServer = await createTestServer({
+      '/percy/healthcheck': () => [200, 'application/json', { success: true }]
+    }, 1234);
+
+    await ping(['--port=1234']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(['[percy] Percy is running']);
+    expect(percyServer.requests).toEqual([['/percy/healthcheck']]);
   });
 
   it('logs an error when the endpoint errors', async () => {
