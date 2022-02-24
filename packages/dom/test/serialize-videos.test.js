@@ -4,30 +4,34 @@ import serializeDOM from '@percy/dom';
 describe('serializeVideos', () => {
   let $;
 
-  it('serializes video elements', (done) => {
+  it('serializes video elements', async () => {
     withExample(`
-       <video src="base/test/assets/example.mp4" id="video" controls />
+       <video src="base/test/assets/example.webm" id="video" controls />
     `);
 
-    document.querySelector('#video').addEventListener('canplay', () => {
-      $ = parseDOM(serializeDOM());
-
-      expect($('#video')[0].getAttribute('poster').length > 25).toBe(true);
-      done();
+    let $video = window.video;
+    await new Promise(r => {
+      if ($video.readyState > 2) r();
+      else $video.addEventListener('canplay', r);
     });
+
+    $ = parseDOM(serializeDOM());
+    expect($('#video')[0].getAttribute('poster').length > 25).toBe(true);
   });
 
-  it('does not serialize videos with an existing poster', (done) => {
+  it('does not serialize videos with an existing poster', async () => {
     withExample(`
-       <video src="base/test/assets/example.mp4" id="video" poster="//:0" />
+       <video src="base/test/assets/example.webm" id="video" poster="//:0" />
     `);
 
-    document.querySelector('#video').addEventListener('canplay', () => {
-      $ = parseDOM(serializeDOM());
-
-      expect($('#video')[0].getAttribute('poster')).toBe('//:0');
-      done();
+    let $video = window.video;
+    await new Promise(r => {
+      if ($video.readyState > 2) r();
+      else $video.addEventListener('canplay', r);
     });
+
+    $ = parseDOM(serializeDOM());
+    expect($('#video')[0].getAttribute('poster')).toBe('//:0');
   });
 
   it('does not apply blank poster images', () => {

@@ -2,7 +2,7 @@
 export function serializeVideos(dom, clone) {
   for (let video of dom.querySelectorAll('video')) {
     // If the video already has a poster image, no work for us to do
-    if (video.getAttribute('poster')) { continue; }
+    if (video.getAttribute('poster')) continue;
 
     let videoId = video.getAttribute('data-percy-element-id');
     let cloneEl = clone.querySelector(`[data-percy-element-id="${videoId}"]`);
