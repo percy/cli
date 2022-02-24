@@ -1,6 +1,11 @@
 import { withExample, parseDOM } from './helpers';
 import serializeDOM from '@percy/dom';
 
+let canPlay = $video => new Promise(resolve => {
+  if ($video.readyState > 2) resolve();
+  else $video.addEventListener('canplay', resolve);
+});
+
 describe('serializeVideos', () => {
   let $;
 
@@ -9,12 +14,7 @@ describe('serializeVideos', () => {
        <video src="base/test/assets/example.webm" id="video" controls />
     `);
 
-    let $video = window.video;
-    await new Promise(r => {
-      if ($video.readyState > 2) r();
-      else $video.addEventListener('canplay', r);
-    });
-
+    await canPlay(window.video);
     $ = parseDOM(serializeDOM());
     expect($('#video')[0].getAttribute('poster').length > 25).toBe(true);
   });
@@ -24,12 +24,7 @@ describe('serializeVideos', () => {
        <video src="base/test/assets/example.webm" id="video" poster="//:0" />
     `);
 
-    let $video = window.video;
-    await new Promise(r => {
-      if ($video.readyState > 2) r();
-      else $video.addEventListener('canplay', r);
-    });
-
+    await canPlay(window.video);
     $ = parseDOM(serializeDOM());
     expect($('#video')[0].getAttribute('poster')).toBe('//:0');
   });

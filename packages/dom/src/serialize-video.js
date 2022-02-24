@@ -7,10 +7,11 @@ export function serializeVideos(dom, clone) {
     let videoId = video.getAttribute('data-percy-element-id');
     let cloneEl = clone.querySelector(`[data-percy-element-id="${videoId}"]`);
     let canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    let width = canvas.width = video.videoWidth;
+    let height = canvas.height = video.videoHeight;
 
-    canvas.getContext('2d').drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+    canvas.getContext('2d').drawImage(video, 0, 0, width, height);
+
     let dataUrl = canvas.toDataURL();
     // If the canvas produces a blank image, skip
     if (!dataUrl || dataUrl === 'data:,') continue;
