@@ -3,6 +3,7 @@ import serializeInputs from './serialize-inputs';
 import serializeFrames from './serialize-frames';
 import serializeCSSOM from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
+import serializeVideos from './serialize-video';
 
 // Returns a copy or new doctype for a document.
 function doctype(dom) {
@@ -34,6 +35,7 @@ export function serializeDOM(options) {
   let clone = dom.cloneNode(true);
   serializeInputs(dom, clone);
   serializeFrames(dom, clone, { enableJavaScript });
+  serializeVideos(dom, clone);
 
   if (!enableJavaScript) {
     serializeCSSOM(dom, clone);
