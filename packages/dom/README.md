@@ -11,6 +11,7 @@ Serializes a document's DOM into a DOM string suitable for re-rendering.
   - [Frame elements](#frame-elements)
   - [CSSOM rules](#cssom-rules)
   - [Canvas elements](#canvas-elements)
+  - [Video elements](#video-elements)
   - [Other elements](#other-elements)
 
 ## Usage
@@ -63,6 +64,12 @@ Canvas elements' drawing buffers are serialized as data URIs and the canvas elem
 with image elements. The image elements reference the serialized data URI and have the same HTML
 attributes as their respective canvas elements. The image elements also have a max-width of 100% to
 accomidate responsive layouts in situations where canvases may be expected to resize with JS.
+
+### Video elements
+
+Videos without a `poster` attribute will have the current frame of the video
+serialized into an image and set as the `poster` attribute automatically. This is
+to ensure videos have a stable image to display when screenshots are captured.
 
 ### Other elements
 

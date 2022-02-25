@@ -19,7 +19,8 @@ module.exports = config => config.set({
     // local package files
     { pattern: 'src/index.js', watched: false },
     { pattern: 'test/helpers.js', watched: false },
-    { pattern: 'test/**/*.test.js', watched: false }
+    { pattern: 'test/**/*.test.js', watched: false },
+    { pattern: 'test/assets/**', watched: false, included: false }
   ],
 
   proxies: {
