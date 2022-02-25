@@ -1,6 +1,6 @@
 {
   "name": "@percy/client",
-  "version": "1.0.0-beta.75",
+  "version": "1.0.0-beta.76",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -25,8 +25,8 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@percy/env": "1.0.0-beta.75",
-    "@percy/logger": "1.0.0-beta.75"
+    "@percy/env": "1.0.0-beta.76",
+    "@percy/logger": "1.0.0-beta.76"
   },
   "devDependencies": {
     "mock-require": "^3.0.3"
