@@ -4,13 +4,18 @@ import { merge } from '@percy/config/dist/utils';
 import logger from '@percy/logger';
 import Queue from './queue';
 import Browser from './browser';
-import { createPercyServer } from './api';
 
 import {
+  createPercyServer,
+  createStaticServer
+} from './api';
+import {
   getSnapshotConfig,
+  getSitemapSnapshots,
+  mapSnapshotOptions,
+  validateSnapshotOptions,
   discoverSnapshotResources
 } from './snapshot';
-
 import {
   generatePromise
 } from './utils';
@@ -215,6 +220,9 @@ export class Percy {
 
   // Wait for currently queued snapshots then run and wait for resulting uploads
   flush = close => generatePromise(async function*() {
+    // wait until the next tick for synchronous snapshots
+    yield new Promise(r => process.nextTick(r));
+
     // close the snapshot queue and wait for it to empty
     if (this.#snapshots.size) {
       if (close) this.#snapshots.close();
@@ -306,9 +314,34 @@ export class Percy {
   }
 
   // Takes one or more snapshots of a page while discovering resources to upload with the
-  // snapshot. If an existing dom snapshot is provided, it will be served as the root resource
-  // during asset discovery. Once asset discovery has completed, the queued snapshot will resolve
-  // and an upload task will be queued separately.
+  // snapshot. Once asset discovery has completed, the queued snapshot will resolve and an upload
+  // task will be queued separately. Accepts several different syntaxes for taking snapshots using
+  // various methods.
+  //
+  // snapshot(url|{url}|[...url|{url}])
+  // - requires fully qualified resolvable urls
+  // - snapshot options may be provided with the object syntax
+  //
+  // snapshot({snapshots:[...url|{url}]})
+  // - optional `baseUrl` prepended to snapshot urls
+  // - optional `options` apply to all or specific snapshots
+  //
+  // snapshot(sitemap|{sitemap})
+  // - required to be a fully qualified resolvable url ending in `.xml`
+  // - optional `include`/`exclude` to filter snapshots
+  // - optional `options` apply to all or specific snapshots
+  //
+  // snapshot({serve})
+  // - server address is prepended to snapshot urls
+  // - optional `baseUrl` used when serving pages
+  // - optional `rewrites`/`cleanUrls` to control snapshot urls
+  // - optional `include`/`exclude` to filter snapshots
+  // - optional `snapshots`, with fallback to built-in sitemap.xml
+  // - optional `options` apply to all or specific snapshots
+  //
+  // All available syntaxes will eventually push snapshots to the snapshot queue without the need to
+  // await on this method directly. This method resolves after the snapshot upload is queued, but
+  // does not await on the upload to complete.
   snapshot(options) {
     if (this.readyState !== 1) {
       throw new Error('Not running');
@@ -318,6 +351,37 @@ export class Percy {
       return Promise.all(options.map(o => this.snapshot(o)));
     }
 
+    if (typeof options === 'string') {
+      options = options.endsWith('.xml') ? { sitemap: options } : { url: options };
+    }
+
+    options = validateSnapshotOptions(options);
+    this.client.addClientInfo(options.clientInfo);
+    this.client.addEnvironmentInfo(options.environmentInfo);
+
+    return Promise.resolve().then(async () => {
+      let server = 'serve' in options ? (
+        await createStaticServer(options).listen()
+      ) : null;
+
+      if (server) {
+        options.baseUrl = new URL(options.baseUrl || '', server.address()).href;
+        if (!options.snapshots) options.sitemap = new URL('sitemap.xml', options.baseUrl).href;
+      }
+
+      let snapshots = options.snapshots ||
+        ('sitemap' in options && await getSitemapSnapshots(options)) ||
+        ('url' in options && [options]);
+
+      await Promise.all(mapSnapshotOptions(snapshots, options, (
+        snapshot => this._takeSnapshot(snapshot)
+      )));
+
+      await server?.close();
+    });
+  }
+
+  _takeSnapshot(options) {
     // get derived snapshot config options
     let snapshot = getSnapshotConfig(this, options);
 

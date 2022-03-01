@@ -261,7 +261,7 @@ describe('Percy', () => {
       expect(mockAPI.requests['/builds']).toBeUndefined();
 
       // process deferred uploads
-      percy.snapshot({ url: 'http://localhost:8000' });
+      percy.snapshot('http://localhost:8000');
       await percy.flush();
 
       expect(mockAPI.requests['/builds']).toBeDefined();
@@ -295,7 +295,7 @@ describe('Percy', () => {
       await percy.start();
 
       // take a snapshot for
-      percy.snapshot({ url: 'http://localhost:8000' });
+      percy.snapshot('http://localhost:8000');
       await percy.flush();
 
       expect(mockAPI.requests['/builds']).toBeDefined();
@@ -489,9 +489,9 @@ describe('Percy', () => {
     it('logs the total number of snapshots when dry-running', async () => {
       await reset({ dryRun: true });
 
-      percy.snapshot({ url: 'http://localhost:8000/one' });
-      percy.snapshot({ url: 'http://localhost:8000/two' });
-      percy.snapshot({ url: 'http://localhost:8000/three' });
+      percy.snapshot('http://localhost:8000/one');
+      percy.snapshot('http://localhost:8000/two');
+      percy.snapshot('http://localhost:8000/three');
 
       await expectAsync(percy.stop()).toBeResolved();
 
@@ -518,9 +518,9 @@ describe('Percy', () => {
 
     it('does not clean up if canceled while waiting on pending tasks', async () => {
       let snapshots = [
-        percy.snapshot({ url: 'http://localhost:8000/one' }),
-        percy.snapshot({ url: 'http://localhost:8000/two' }),
-        percy.snapshot({ url: 'http://localhost:8000/three' })
+        percy.snapshot('http://localhost:8000/one'),
+        percy.snapshot('http://localhost:8000/two'),
+        percy.snapshot('http://localhost:8000/three')
       ];
 
       // #stop returns a promise-like generator
@@ -560,7 +560,7 @@ describe('Percy', () => {
     it('does not error if the browser was never launched', async () => {
       await reset({ dryRun: true });
 
-      percy.snapshot({ url: 'http://localhost:8000' });
+      percy.snapshot('http://localhost:8000');
 
       expect(percy.browser.isConnected()).toBe(false);
       await expectAsync(percy.stop()).toBeResolved();

@@ -4,6 +4,7 @@ plugins:
   - babel
 rules:
   prefer-const: off
+  no-extra-parens: off
   no-unused-expressions: off
   babel/no-unused-expressions: warn
   import/no-extraneous-dependencies: error
