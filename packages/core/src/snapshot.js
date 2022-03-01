@@ -3,60 +3,58 @@ import PercyConfig from '@percy/config';
 import { merge } from '@percy/config/dist/utils';
 
 import {
+  configSchema
+} from './config';
+import {
   hostnameMatches,
   createRootResource,
   createPercyCSSResource,
   createLogResource
 } from './utils';
 
-// Validates and returns snapshot options merged with percy config options.
+// Return snapshot options merged with defaults and global options.
 export function getSnapshotConfig(percy, options) {
   if (!options.url) throw new Error('Missing required URL for snapshot');
 
-  let { config } = percy;
   let uri = new URL(options.url);
   let name = options.name || `${uri.pathname}${uri.search}${uri.hash}`;
   let meta = { snapshot: { name }, build: percy.build };
-  let log = logger('core:snapshot');
 
   // migrate deprecated snapshot config options
   let { clientInfo, environmentInfo, ...snapshot } = (
     PercyConfig.migrate(options, '/snapshot'));
-
-  // throw an error when missing required widths
-  if (!(snapshot.widths ?? percy.config.snapshot.widths)?.length) {
-    throw new Error('Missing required widths for snapshot');
-  }
 
   // validate and scrub according to dom snaphot presence
   let errors = PercyConfig.validate(snapshot, (
     snapshot.domSnapshot ? '/snapshot/dom' : '/snapshot'));
 
   if (errors) {
+    let log = logger('core:snapshot');
     log.warn('Invalid snapshot options:', meta);
     for (let e of errors) log.warn(`- ${e.path}: ${e.message}`, meta);
   }
 
-  // inherit options from the percy config
-  return merge([config.snapshot, {
+  return merge([{
     name,
     meta,
     clientInfo,
     environmentInfo,
-
+    widths: configSchema.snapshot.properties.widths.default,
+    discovery: { allowedHostnames: [uri.hostname] }
+  }, percy.config.snapshot, {
     // only specific discovery options are used per-snapshot
     discovery: {
-      allowedHostnames: [uri.hostname, ...config.discovery.allowedHostnames],
-      networkIdleTimeout: config.discovery.networkIdleTimeout,
-      requestHeaders: config.discovery.requestHeaders,
-      authorization: config.discovery.authorization,
-      disableCache: config.discovery.disableCache,
-      userAgent: config.discovery.userAgent
+      allowedHostnames: percy.config.discovery.allowedHostnames,
+      networkIdleTimeout: percy.config.discovery.networkIdleTimeout,
+      requestHeaders: percy.config.discovery.requestHeaders,
+      authorization: percy.config.discovery.authorization,
+      disableCache: percy.config.discovery.disableCache,
+      userAgent: percy.config.discovery.userAgent
     }
   }, snapshot], (path, prev, next) => {
     switch (path.map(k => k.toString()).join('.')) {
-      case 'widths': // override and sort widths
-        return [path, next.sort((a, b) => a - b)];
+      case 'widths': // dedup, sort, and override widths when not empty
+        return [path, next?.length ? Array.from(new Set(next)).sort((a, b) => a - b) : prev];
       case 'percyCSS': // concatenate percy css
         return [path, [prev, next].filter(Boolean).join('\n')];
       case 'execute': // shorthand for execute.beforeSnapshot

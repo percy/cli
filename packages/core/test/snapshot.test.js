@@ -44,12 +44,6 @@ describe('Snapshot', () => {
       .toThrowError('Missing required URL for snapshot');
   });
 
-  it('errors when missing snapshot widths', () => {
-    percy.config.snapshot.widths = [];
-    expect(() => percy.snapshot({ url: 'http://localhost:8000' }))
-      .toThrowError('Missing required widths for snapshot');
-  });
-
   it('warns when missing additional snapshot names', async () => {
     percy.close(); // close queues so snapshots fail
 
@@ -146,6 +140,25 @@ describe('Snapshot', () => {
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Encountered an error taking snapshot: test snapshot',
       '[percy] Error: Navigation failed: net::ERR_ABORTED'
+    ]));
+  });
+
+  it('handles missing snapshot widths', async () => {
+    let url = 'http://localhost:8000';
+    percy.loglevel('debug');
+
+    percy.config.snapshot.widths = [600];
+    await percy.snapshot({ url, widths: [] });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy:core:snapshot] - widths: 600px'
+    ]));
+
+    percy.config.snapshot.widths = [];
+    await percy.snapshot({ url, widths: [] });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy:core:snapshot] - widths: 375px, 1280px'
     ]));
   });
 
