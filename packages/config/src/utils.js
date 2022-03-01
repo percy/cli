@@ -24,17 +24,17 @@ export function parsePropertyPath(path) {
   return isArray(path) ? path : path.split('.').reduce((full, part) => {
     return full.concat(part.split('[').reduce((f, p) => {
       if (p.endsWith(']')) p = p.slice(0, -1);
-      return f.concat(isArrayKey(p) ? parseInt(p, 10) : p);
+      return f.concat(isArrayKey(p) ? parseInt(p, 10) : (p || []));
     }, []));
   }, []);
 }
 
 // Join an array of path parts into a single path string
 export function joinPropertyPath(path) {
-  if (typeof path === 'string') return path;
-  let joined = path.map(k => isArrayKey(k) ? `[${k}]` : `.${k}`).join('');
-  if (joined.startsWith('.')) return joined.substr(1);
-  return joined;
+  path = !Array.isArray(path) ? path : path.filter(Boolean)
+    .map(k => isArrayKey(k) ? `[${k}]` : `.${k}`).join('');
+  while (path?.startsWith('.')) path = path.substr(1);
+  return path;
 }
 
 // Gets a value in the object at the path

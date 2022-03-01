@@ -39,8 +39,8 @@ function withBuiltIns(definition) {
 
   // add percy specific built-in config options
   if (def.percy) {
-    def.config.schemas.unshift(...CoreConfig.schemas);
-    def.config.migrations.unshift(...CoreConfig.migrations);
+    def.config.schemas.unshift(CoreConfig.schemas);
+    def.config.migrations.unshift(CoreConfig.migrations);
   }
 
   return def;

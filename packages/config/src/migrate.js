@@ -11,9 +11,9 @@ const migrations = new Map();
 // Register a migration function for the main config schema by default
 export function addMigration(migration, schema = '/config') {
   if (Array.isArray(migration)) {
-    // accept schema as the first item in a tuple
-    if (typeof migration[0] === 'string') [schema, ...migration] = migration;
     return migration.map(m => addMigration(m, schema));
+  } else if (typeof migration !== 'function') {
+    return Object.entries(migration).map(([s, m]) => addMigration(m, s));
   }
 
   if (!migrations.has(schema)) migrations.set(schema, []);
@@ -36,8 +36,9 @@ function defaultMigration(config, { set }) {
 // Migrate util for deprecated options
 function deprecate(config, log, path, options) {
   if (get(config, path) == null) return;
-  let { type, until: ver, map: to, alt, warn } = options;
+  let { type, until: ver, map: mapto, alt, warn } = options;
   let name = joinPropertyPath(path);
+  let to = joinPropertyPath(mapto);
 
   let message = 'The ' + [
     type ? `${type} option \`${name}\`` : `\`${name}\` option`,

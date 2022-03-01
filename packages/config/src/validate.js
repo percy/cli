@@ -1,6 +1,6 @@
-import AJV from 'ajv';
+import AJV from 'ajv/dist/2019';
 import {
-  get, set, del,
+  set, del,
   filterEmpty,
   parsePropertyPath,
   joinPropertyPath,
@@ -72,34 +72,37 @@ function getDefaultSchema() {
 export function getSchema(name, path, root) {
   // get the root schema if necessary, resolve it, and return it when there is no path
   let schema = typeof name === 'string' ? ajv.getSchema(name)?.schema : name;
+  if (!schema || !path) return schema ?? [];
+  root ??= schema;
 
-  if (schema?.$ref) {
-    let [name, ref = ''] = schema.$ref.split('#');
-    schema = get(getSchema(name || root), ref.split('/').slice(1));
-  }
-
-  if (!path) return schema;
-
-  // destructure the path and set the default root schema for future refs
+  // parse and work with one key at a time
   let [key, ...rest] = path = parsePropertyPath(path);
-  root ||= schema;
 
-  // if the desired schema is one of many, we need to find one that best matches
-  let many = isArray(schema) ? schema : schema?.[
-    ['anyOf', 'oneOf', 'allOf'].find(p => schema[p])];
-
-  if (many) {
-    let isLooseMatch = s => s?.type === 'object' && s.additionalProperties !== false;
+  // if the desired schema is one of many, we need to find the best match
+  let many = (isArray(schema) ? schema : schema?.[
+    ['anyOf', 'oneOf', 'allOf'].find(p => schema[p])
+  ])?.map(p => getSchema(p, path, root)).sort((a, b) => (
     // the best possible match will match most of the path or loosely match
-    return many.map(p => getSchema(p, path, root)).sort((a, b) => (
-      (b.length - a.length) || (isLooseMatch(a[0]) ? -1 : 1)))[0];
-  } else if (isArrayKey(key) && schema?.type === 'array') {
+    (b.length - a.length) || ((a[0]?.type === 'object' && (
+      a[0].additionalProperties !== false || a[0].unevaluatedProperties !== false
+    )) ? -1 : 1)
+  ))[0];
+
+  if (many?.length) {
+    return many;
+  } else if (schema?.type === 'array' && isArrayKey(key)) {
     // find the remaining paths in the items schema
     return [schema].concat(getSchema(schema.items, rest, root));
-  } else if (path.length && schema?.type === 'object') {
+  } else if (schema?.type === 'object' && path.length && schema.properties?.[key]) {
     // find the remaining paths nested in the property schema
-    return [schema].concat(getSchema(schema.properties?.[key], rest, root));
-  } else if (!path.length && schema) {
+    return [schema].concat(getSchema(schema.properties[key], rest, root));
+  } else if (schema?.$ref && (path.length || Object.keys(schema).length === 1)) {
+    // follow references
+    let $ref = schema.$ref.startsWith('#') ? `${root.$id}${schema.$ref}` : schema.$ref;
+    return getSchema($ref, path, root);
+  } else if (schema && (!path.length || (
+    schema.type === 'object' && schema.additionalProperties !== false
+  ))) {
     // end of path matching
     return [schema];
   } else {
@@ -151,9 +154,13 @@ function a(word) {
 // Default errors anywhere within these keywords can be confusing
 const HIDE_NESTED_KEYWORDS = ['oneOf', 'anyOf', 'allOf', 'not'];
 
-function shouldHideError({ parentSchema, keyword, schemaPath }) {
-  return !(parentSchema.error || parentSchema.errors?.[keyword]) &&
-    HIDE_NESTED_KEYWORDS.some(k => schemaPath.includes(`/${k}`));
+function shouldHideError(key, path, error) {
+  let { parentSchema, keyword, schemaPath } = error;
+
+  return !(parentSchema.error || parentSchema.errors?.[keyword]) && (
+    HIDE_NESTED_KEYWORDS.some(k => schemaPath.includes(`/${k}`)) ||
+      getSchema(key, path)[path.length] !== parentSchema
+  );
 }
 
 // Validates data according to the associated schema and returns a list of errors, if any.
@@ -162,9 +169,9 @@ export function validate(data, key = '/config') {
     let errors = new Map();
 
     for (let error of ajv.errors) {
-      if (shouldHideError(error)) continue;
       let { instancePath, parentSchema, keyword, message, params } = error;
       let path = instancePath ? instancePath.substr(1).split('/') : [];
+      if (shouldHideError(key, path, error)) continue;
 
       // generate a custom error message
       if (parentSchema.error || parentSchema.errors?.[keyword]) {
@@ -176,7 +183,10 @@ export function validate(data, key = '/config') {
         message = `must be ${a(params.type)}, received ${a(dataType)}`;
       } else if (keyword === 'required') {
         message = 'missing required property';
-      } else if (keyword === 'additionalProperties') {
+      } else if (
+        keyword === 'additionalProperties' ||
+          keyword === 'unevaluatedProperties'
+      ) {
         message = 'unknown property';
       }
 
@@ -185,6 +195,8 @@ export function validate(data, key = '/config') {
         path.push(params.missingProperty);
       } else if (params.additionalProperty) {
         path.push(params.additionalProperty);
+      } else if (params.unevaluatedProperty) {
+        path.push(params.unevaluatedProperty);
       } else if (params.disallowedProperty) {
         path.push(params.disallowedProperty);
       }
