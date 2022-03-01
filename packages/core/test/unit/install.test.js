@@ -1,22 +1,19 @@
-import fs from 'fs';
 import path from 'path';
-import { Writable } from 'stream';
+import * as memfs from 'memfs';
+import quibble from 'quibble';
 import nock from 'nock';
-import mockRequire from 'mock-require';
 import logger from '@percy/logger/test/helpers';
 import install from '../../src/install';
 
-// mock writable stream
-class MockWritable extends Writable {
-  _write(chunk, encoding, callback) {
-    callback();
-  }
-}
+const CHROMIUM_REVISIONS = install.chromium.revisions;
 
 describe('Unit / Install', () => {
-  let dlnock, dlcallback, options;
+  let install, dlnock, dlcallback, options;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    quibble('fs', memfs.fs);
+    memfs.vol.fromJSON({ './': null });
+    ({ default: install } = await import('../../src/install'));
     logger.mock();
 
     // emulate tty properties for testing
@@ -27,11 +24,11 @@ describe('Unit / Install', () => {
       clearLine() {}
     });
 
-    // stub fs methods
-    spyOn(fs.promises, 'mkdir');
-    spyOn(fs.promises, 'unlink');
-    spyOn(fs, 'existsSync').and.callFake(p => p.endsWith('archive.zip'));
-    spyOn(fs, 'createWriteStream').and.returnValue(new MockWritable());
+    // spy on fs methods
+    spyOn(memfs.fs.promises, 'mkdir').and.callThrough();
+    spyOn(memfs.fs.promises, 'unlink').and.callThrough();
+    spyOn(memfs.fs, 'createWriteStream').and.callThrough();
+    spyOn(memfs.fs, 'existsSync').and.callThrough();
 
     // mock a fake download api
     nock.disableNetConnect();
@@ -53,23 +50,25 @@ describe('Unit / Install', () => {
   });
 
   afterEach(() => {
+    memfs.vol.reset();
+    quibble.reset();
     nock.cleanAll();
   });
 
   it('does nothing if the executable already exists in the output directory', async () => {
-    fs.existsSync.and.returnValue(true);
+    memfs.fs.existsSync.and.returnValue(true);
     await install(options);
 
-    expect(fs.promises.mkdir).not.toHaveBeenCalled();
-    expect(fs.promises.unlink).not.toHaveBeenCalled();
-    expect(fs.createWriteStream).not.toHaveBeenCalled();
+    expect(memfs.fs.promises.mkdir).not.toHaveBeenCalled();
+    expect(memfs.fs.promises.unlink).not.toHaveBeenCalled();
+    expect(memfs.fs.createWriteStream).not.toHaveBeenCalled();
     expect(dlnock.isDone()).toBe(false);
   });
 
   it('creates the output directory when it does not exist', async () => {
     await install(options);
 
-    expect(fs.promises.mkdir)
+    expect(memfs.fs.promises.mkdir)
       .toHaveBeenCalledOnceWith(path.join('.downloads', 'v0'), { recursive: true });
   });
 
@@ -113,14 +112,18 @@ describe('Unit / Install', () => {
     );
   });
 
+  it('cleans up the archive after downloading and extracting', async () => {
+    memfs.vol.fromJSON({ '.downloads/v0/archive.zip': '' });
+    await install(options);
+
+    expect(memfs.vol.existsSync('.downloads/v0/archive.zip')).toBe(false);
+  });
+
   it('handles failed downloads', async () => {
     dlcallback.and.returnValue([404]);
 
     await expectAsync(install(options))
       .toBeRejectedWithError('Download failed: 404 - https://fake-download.org/archive.zip');
-
-    expect(fs.promises.unlink)
-      .toHaveBeenCalledOnceWith(path.join('.downloads', 'v0', 'archive.zip'));
   });
 
   it('logs the file size in a readable format', async () => {
@@ -148,7 +151,7 @@ describe('Unit / Install', () => {
 
     beforeEach(() => {
       extractZip = jasmine.createSpy('extract-zip').and.resolveTo();
-      mockRequire('extract-zip', extractZip);
+      quibble('extract-zip', extractZip);
 
       dlnock = nock('https://storage.googleapis.com/chromium-browser-snapshots')
         .persist().get(/.*/).reply(uri => dlcallback(uri));
@@ -177,32 +180,32 @@ describe('Unit / Install', () => {
 
     for (let [platform, expected] of Object.entries({
       linux: {
-        revision: install.chromium.revisions.linux,
-        url: jasmine.stringMatching(`Linux_x64/${install.chromium.revisions.linux}/chrome-linux.zip`),
+        revision: CHROMIUM_REVISIONS.linux,
+        url: jasmine.stringMatching(`Linux_x64/${CHROMIUM_REVISIONS.linux}/chrome-linux.zip`),
         return: path.join('chrome-linux', 'chrome'),
         process: { platform: 'linux', arch: 'x64' }
       },
       darwin: {
-        revision: install.chromium.revisions.darwin,
-        url: jasmine.stringMatching(`Mac/${install.chromium.revisions.darwin}/chrome-mac.zip`),
+        revision: CHROMIUM_REVISIONS.darwin,
+        url: jasmine.stringMatching(`Mac/${CHROMIUM_REVISIONS.darwin}/chrome-mac.zip`),
         return: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
         process: { platform: 'darwin', arch: 'x64' }
       },
       darwinArm: {
-        revision: install.chromium.revisions.darwinArm,
-        url: jasmine.stringMatching(`Mac_Arm/${install.chromium.revisions.darwinArm}/chrome-mac.zip`),
+        revision: CHROMIUM_REVISIONS.darwinArm,
+        url: jasmine.stringMatching(`Mac_Arm/${CHROMIUM_REVISIONS.darwinArm}/chrome-mac.zip`),
         return: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
         process: { platform: 'darwin', arch: 'arm64' }
       },
       win64: {
-        revision: install.chromium.revisions.win64,
-        url: jasmine.stringMatching(`Win_x64/${install.chromium.revisions.win64}/chrome-win.zip`),
+        revision: CHROMIUM_REVISIONS.win64,
+        url: jasmine.stringMatching(`Win_x64/${CHROMIUM_REVISIONS.win64}/chrome-win.zip`),
         return: path.join('chrome-win', 'chrome.exe'),
         process: { platform: 'win32', arch: 'x64' }
       },
       win32: {
-        revision: install.chromium.revisions.win32,
-        url: jasmine.stringMatching(`Win/${install.chromium.revisions.win32}/chrome-win.zip`),
+        revision: CHROMIUM_REVISIONS.win32,
+        url: jasmine.stringMatching(`Win/${CHROMIUM_REVISIONS.win32}/chrome-win.zip`),
         return: path.join('chrome-win', 'chrome.exe'),
         process: { platform: 'win32', arch: 'x32' }
       }
