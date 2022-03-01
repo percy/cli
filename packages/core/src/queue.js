@@ -15,9 +15,8 @@ export class Queue {
   }
 
   push(id, callback, priority) {
-    if (this.closed && !id.startsWith('@@/')) {
-      throw new Error('Closed');
-    }
+    /* istanbul ignore next: race condition paranoia */
+    if (this.closed && !id.startsWith('@@/')) return;
 
     this.cancel(id);
 

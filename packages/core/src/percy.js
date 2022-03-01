@@ -168,7 +168,8 @@ export class Percy {
     // handle deferred build errors
     if (this.deferUploads) {
       buildTask.catch(err => {
-        this.log.error('Failed to create build');
+        this.build = { error: 'Failed to create build' };
+        this.log.error(this.build.error);
         this.log.error(err);
         this.close();
       });
@@ -281,7 +282,7 @@ export class Percy {
     if (this.build?.failed) {
       // do not finalize failed builds
       this.log.warn(`Build #${this.build.number} failed: ${this.build.url}`, meta);
-    } else if (this.build) {
+    } else if (this.build?.id) {
       // finalize the build
       await this.client.finalizeBuild(this.build.id);
       this.log.info(`Finalized build #${this.build.number}: ${this.build.url}`, meta);
@@ -311,10 +312,9 @@ export class Percy {
   snapshot(options) {
     if (this.readyState !== 1) {
       throw new Error('Not running');
-    }
-
-    // handle multiple snapshots
-    if (Array.isArray(options)) {
+    } else if (this.build?.error) {
+      throw new Error(this.build.error);
+    } else if (Array.isArray(options)) {
       return Promise.all(options.map(o => this.snapshot(o)));
     }
 
@@ -351,6 +351,10 @@ export class Percy {
 
   // Queues a snapshot upload with the provided options
   _scheduleUpload(name, options) {
+    if (this.build?.error) {
+      throw new Error(this.build.error);
+    }
+
     return this.#uploads.push(`upload/${name}`, async () => {
       try {
         /* istanbul ignore if: useful for other internal packages */
@@ -367,6 +371,7 @@ export class Percy {
 
         // build failed at some point, stop accepting snapshots
         if (failed) {
+          this.build.error = failed.detail;
           this.build.failed = true;
           this.close();
         }

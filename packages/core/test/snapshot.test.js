@@ -51,18 +51,16 @@ describe('Snapshot', () => {
   });
 
   it('warns when missing additional snapshot names', async () => {
-    percy.close(); // close queues so snapshots fail
-
-    expect(() => percy.snapshot({
-      url: 'http://foo',
+    await percy.snapshot({
+      url: 'http://localhost:8000',
       additionalSnapshots: [{
-        waitForTimeout: 1000
+        waitForTimeout: 10
       }, {
         name: 'nombre',
         suffix: ' - 1',
-        waitForTimeout: 1000
+        waitForTimeout: 10
       }]
-    })).toThrow();
+    });
 
     expect(logger.stderr).toEqual([
       '[percy] Invalid snapshot options:',
@@ -71,10 +69,8 @@ describe('Snapshot', () => {
     ]);
   });
 
-  it('warns when providing conflicting options', () => {
-    percy.close(); // close queues so snapshots fail
-
-    expect(() => percy.snapshot({
+  it('warns when providing conflicting options', async () => {
+    await percy.snapshot({
       url: 'http://a',
       domSnapshot: 'b',
       waitForTimeout: 3,
@@ -83,7 +79,7 @@ describe('Snapshot', () => {
       additionalSnapshots: [
         { prefix: 'f' }
       ]
-    })).toThrow();
+    });
 
     expect(logger.stderr).toEqual([
       '[percy] Invalid snapshot options:',
@@ -94,10 +90,8 @@ describe('Snapshot', () => {
     ]);
   });
 
-  it('warns if options are invalid', () => {
-    percy.close(); // close queues so snapshots fail
-
-    expect(() => percy.snapshot({
+  it('warns if options are invalid', async () => {
+    await percy.snapshot({
       name: 'invalid snapshot',
       url: 'http://localhost:8000',
       widths: ['not-a-width'],
@@ -109,7 +103,7 @@ describe('Snapshot', () => {
           'finally.a-real.hostname.org'
         ]
       }
-    })).toThrow();
+    });
 
     expect(logger.stderr).toEqual([
       '[percy] Invalid snapshot options:',
@@ -120,12 +114,12 @@ describe('Snapshot', () => {
     ]);
   });
 
-  it('warns on deprecated options', () => {
-    percy.close(); // close queues so snapshots fail
-
-    expect(() => percy.snapshot({ url: 'http://a', requestHeaders: { foo: 'bar' } })).toThrow();
-    expect(() => percy.snapshot({ url: 'http://b', authorization: { username: 'foo' } })).toThrow();
-    expect(() => percy.snapshot({ url: 'http://c', snapshots: [{ name: 'foobar' }] })).toThrow();
+  it('warns on deprecated options', async () => {
+    await percy.snapshot([
+      { url: 'http://localhost:8000/a', requestHeaders: { foo: 'bar' } },
+      { url: 'http://localhost:8000/b', authorization: { username: 'foo' } },
+      { url: 'http://localhost:8000/c', snapshots: [{ name: 'foobar' }] }
+    ]);
 
     expect(logger.stderr).toEqual([
       '[percy] Warning: The snapshot option `requestHeaders` ' +

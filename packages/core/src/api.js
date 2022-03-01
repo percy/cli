@@ -18,6 +18,7 @@ export function createPercyServer(percy, port) {
 
       // return json errors
       return next().catch(e => res.json(e.status ?? 500, {
+        build: percy.build,
         error: e.message,
         success: false
       }));
