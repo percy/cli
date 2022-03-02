@@ -70,10 +70,10 @@ export class Browser extends EventEmitter {
 
   constructor({
     executable = process.env.PERCY_BROWSER_EXECUTABLE,
+    timeout = 30000,
     headless = true,
     cookies = [],
-    args = [],
-    timeout
+    args = []
   }) {
     super();
 
@@ -115,8 +115,7 @@ export class Browser extends EventEmitter {
     });
 
     // connect a websocket to the devtools address
-    let addr = await this.address(this.launchTimeout);
-    this.ws = new WebSocket(addr, { perMessageDeflate: false });
+    this.ws = new WebSocket(await this.address(), { perMessageDeflate: false });
 
     // wait until the websocket has connected
     await new Promise(resolve => this.ws.once('open', resolve));
@@ -240,7 +239,7 @@ export class Browser extends EventEmitter {
   // Returns the devtools websocket address. If not already known, will watch the browser's
   // stderr and resolves when it emits the devtools protocol address or rejects if the process
   // exits for any reason or if the address does not appear after the timeout.
-  async address(timeout = 30000) {
+  async address(timeout = this.launchTimeout) {
     this._address ||= await new Promise((resolve, reject) => {
       let stderr = '';
 
