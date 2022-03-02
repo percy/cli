@@ -1,6 +1,7 @@
 import logger from '@percy/logger';
 import PercyConfig from '@percy/config';
 import { merge } from '@percy/config/dist/utils';
+import micromatch from 'micromatch';
 
 import {
   configSchema
@@ -12,35 +13,164 @@ import {
   createLogResource
 } from './utils';
 
-// Return snapshot options merged with defaults and global options.
-export function getSnapshotConfig(percy, options) {
-  if (!options.url) throw new Error('Missing required URL for snapshot');
+// Throw a better error message for missing or invalid urls
+export function validURL(url, base) {
+  if (!url) {
+    throw new Error('Missing required URL for snapshot');
+  }
 
-  let uri = new URL(options.url);
-  let name = options.name || `${uri.pathname}${uri.search}${uri.hash}`;
-  let meta = { snapshot: { name }, build: percy.build };
+  try {
+    return new URL(url, base);
+  } catch (e) {
+    throw new Error(`Invalid snapshot URL: ${e.input}`);
+  }
+}
 
-  // migrate deprecated snapshot config options
-  let { clientInfo, environmentInfo, ...snapshot } = (
-    PercyConfig.migrate(options, '/snapshot'));
+// used to deserialize regular expression strings
+const RE_REGEXP = /^\/(.+)\/(\w+)?$/;
 
-  // validate and scrub according to dom snaphot presence
-  let errors = PercyConfig.validate(snapshot, (
-    snapshot.domSnapshot ? '/snapshot/dom' : '/snapshot'));
+// Returns true or false if a snapshot matches the provided include and exclude predicates. A
+// predicate can be an array of predicates, a regular expression, a glob pattern, or a function.
+export function snapshotMatches(snapshot, include, exclude) {
+  // support an options object as the second argument
+  if (include?.include || include?.exclude) ({ include, exclude } = include);
+
+  // recursive predicate test function
+  let test = (predicate, fallback) => {
+    if (predicate && typeof predicate === 'string') {
+      // snapshot name matches exactly or matches a glob
+      let result = snapshot.name === predicate ||
+        micromatch.isMatch(snapshot.name, predicate);
+
+      // snapshot might match a string-based regexp pattern
+      if (!result) {
+        try {
+          let [, parsed = predicate, flags] = RE_REGEXP.exec(predicate) || [];
+          result = new RegExp(parsed, flags).test(snapshot.name);
+        } catch {}
+      }
+
+      return result;
+    } else if (predicate instanceof RegExp) {
+      // snapshot matches a regular expression
+      return predicate.test(snapshot.name);
+    } else if (typeof predicate === 'function') {
+      // advanced matching
+      return predicate(snapshot);
+    } else if (Array.isArray(predicate) && predicate.length) {
+      // array of predicates
+      return predicate.some(p => test(p));
+    } else {
+      // default fallback
+      return fallback;
+    }
+  };
+
+  // nothing to match, return true
+  if (!include && !exclude) return true;
+  // not excluded or explicitly included
+  return !test(exclude, false) && test(include, true);
+}
+
+// Accepts an array of snapshots to filter and map with matching options.
+export function mapSnapshotOptions(snapshots, config, map) {
+  // reduce options into a single function
+  let applyOptions = [].concat(config?.options || [])
+    .reduceRight((next, { include, exclude, ...opts }) => snap => next(
+      // assign additional options to included snaphots
+      snapshotMatches(snap, include, exclude) ? Object.assign(snap, opts) : snap
+    ), map);
+
+  // reduce snapshots with overrides
+  return [...snapshots].reduce((acc, snapshot) => {
+    // transform snapshot URL shorthand into an object
+    if (typeof snapshot === 'string') snapshot = { url: snapshot };
+
+    // normalize the snapshot url and use it for the default name
+    let url = validURL(snapshot.url, config?.baseUrl);
+    snapshot.name ||= `${url.pathname}${url.search}${url.hash}`;
+    snapshot.url = url.href;
+
+    // use the snapshot when matching include/exclude
+    if (snapshotMatches(snapshot, config)) {
+      acc.push(applyOptions(snapshot));
+    }
+
+    return acc;
+  }, []);
+}
+
+// Validates and migrates snapshot options against the correct schema based on provided
+// properties. Eagerly throws an error when missing a URL for any snapshot, and warns about all
+// other invalid options which are also scrubbed from the returned migrated options.
+export function validateSnapshotOptions(options) {
+  let schema;
+
+  if ('domSnapshot' in options) {
+    schema = '/snapshot/dom';
+  } else if ('url' in options) {
+    schema = '/snapshot';
+  } else if ('sitemap' in options) {
+    schema = '/snapshot/sitemap';
+  } else if ('serve' in options) {
+    schema = '/snapshot/server';
+  } else if ('snapshots' in options) {
+    schema = '/snapshot/list';
+  } else {
+    schema = '/snapshot';
+  }
+
+  let { clientInfo, environmentInfo, ...migrated } = PercyConfig.migrate(options, schema);
+  let errors = PercyConfig.validate(migrated, schema);
+
+  let isSnapshot = schema === '/snapshot/dom' || schema === '/snapshot';
+  let baseUrl = schema === '/snapshot/server' ? 'http://localhost' : options.baseUrl;
+
+  for (let snap of (isSnapshot ? [migrated] : migrated.snapshots ?? [])) {
+    validURL(typeof snap === 'string' ? snap : snap.url, baseUrl);
+  }
 
   if (errors) {
     let log = logger('core:snapshot');
-    log.warn('Invalid snapshot options:', meta);
-    for (let e of errors) log.warn(`- ${e.path}: ${e.message}`, meta);
+    log.warn('Invalid snapshot options:');
+    for (let e of errors) log.warn(`- ${e.path}: ${e.message}`);
   }
 
+  if ('serve' in options && 'snapshots' in options) migrated.snapshots ??= [];
+  return { clientInfo, environmentInfo, ...migrated };
+}
+
+// Fetches a sitemap and parses it into a list of URLs for taking snapshots. Duplicate URLs,
+// including a trailing slash, are removed from the resulting list.
+export async function getSitemapSnapshots(options) {
+  let { request } = await import('@percy/client/dist/request');
+
+  return request(options.sitemap, (body, res) => {
+    // validate sitemap content-type
+    let [contentType] = res.headers['content-type'].split(';');
+
+    if (!/^(application|text)\/xml$/.test(contentType)) {
+      throw new Error('The sitemap must be an XML document, ' + (
+        `but the content-type was "${contentType}"`));
+    }
+
+    // parse XML content into a list of URLs
+    let urls = body.match(/(?<=<loc>)(.*)(?=<\/loc>)/ig);
+
+    // filter out duplicate URLs that differ by a trailing slash
+    return urls.filter((url, i) => {
+      let match = urls.indexOf(url.replace(/\/$/, ''));
+      return match === -1 || match === i;
+    });
+  });
+}
+
+// Return snapshot options merged with defaults and global options.
+export function getSnapshotConfig(percy, options) {
   return merge([{
-    name,
-    meta,
-    clientInfo,
-    environmentInfo,
     widths: configSchema.snapshot.properties.widths.default,
-    discovery: { allowedHostnames: [uri.hostname] }
+    discovery: { allowedHostnames: [validURL(options.url).hostname] },
+    meta: { snapshot: { name: options.name }, build: percy.build }
   }, percy.config.snapshot, {
     // only specific discovery options are used per-snapshot
     discovery: {
@@ -51,7 +181,7 @@ export function getSnapshotConfig(percy, options) {
       disableCache: percy.config.discovery.disableCache,
       userAgent: percy.config.discovery.userAgent
     }
-  }, snapshot], (path, prev, next) => {
+  }, options], (path, prev, next) => {
     switch (path.map(k => k.toString()).join('.')) {
       case 'widths': // dedup, sort, and override widths when not empty
         return [path, next?.length ? Array.from(new Set(next)).sort((a, b) => a - b) : prev];
@@ -65,7 +195,7 @@ export function getSnapshotConfig(percy, options) {
     // ensure additional snapshots have complete names
     if (path[0] === 'additionalSnapshots' && path.length === 2) {
       let { prefix = '', suffix = '', ...n } = next;
-      next = { name: `${prefix}${name}${suffix}`, ...n };
+      next = { name: `${prefix}${options.name}${suffix}`, ...n };
       return [path, next];
     }
   });

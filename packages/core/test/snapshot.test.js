@@ -70,17 +70,17 @@ describe('Snapshot', () => {
       waitForTimeout: 3,
       waitForSelector: 'd',
       execute: 'e',
-      additionalSnapshots: [
-        { prefix: 'f' }
-      ]
+      additionalSnapshots: [{ prefix: 'f' }],
+      foobar: 'baz'
     });
 
     expect(logger.stderr).toEqual([
       '[percy] Invalid snapshot options:',
-      '[percy] - additionalSnapshots: not accepted with DOM snapshots',
       '[percy] - waitForTimeout: not accepted with DOM snapshots',
       '[percy] - waitForSelector: not accepted with DOM snapshots',
-      '[percy] - execute: not accepted with DOM snapshots'
+      '[percy] - execute: not accepted with DOM snapshots',
+      '[percy] - additionalSnapshots: not accepted with DOM snapshots',
+      '[percy] - foobar: unknown property'
     ]);
   });
 
@@ -241,7 +241,7 @@ describe('Snapshot', () => {
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy:core:snapshot] ---------',
       '[percy:core:snapshot] Handling snapshot: test snapshot',
-      '[percy:core:snapshot] - url: http://localhost:8000',
+      '[percy:core:snapshot] - url: http://localhost:8000/',
       '[percy:core:snapshot] - widths: 400px, 1200px',
       '[percy:core:snapshot] - minHeight: 1024px',
       '[percy:core:snapshot] - discovery.allowedHostnames: localhost, example.com',
@@ -283,7 +283,7 @@ describe('Snapshot', () => {
     ]);
   });
 
-  it('accepts multiple snapshots', async () => {
+  it('accepts multiple dom snapshots', async () => {
     await percy.snapshot([{
       url: 'http://localhost:8000/one',
       domSnapshot: testDOM

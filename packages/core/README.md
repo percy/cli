@@ -2,7 +2,7 @@
 
 The core component of Percy's CLI and SDKs that handles creating builds, discovering snapshot
 assets, uploading snapshots, and finalizing builds. Uses `@percy/client` for API communication, a
-Puppeteer browser for asset discovery, and starts a local API server for posting snapshots from
+Chromium browser for asset discovery, and starts a local API server for posting snapshots from
 other processes.
 
 - [Usage](#usage)
@@ -127,10 +127,13 @@ await percy.idle()
 
 ### `#snapshot(options)`
 
-Performs asset discovery for a snapshot and queues uploading the snapshot to the associated Percy
-build. When an existing DOM snapshot is provided, it is served as the root resource during asset
-discovery. When no existing DOM snapshot is provided, a new one will be captured using any provided
-snapshot capture options.
+Takes one or more snapshots of a page while discovering resources to upload with the snapshot. Once
+asset discovery has completed, the queued snapshot will resolve and an upload task will be queued
+separately. Accepts several different syntaxes for taking snapshots in various ways.
+
+All available syntaxes will push snapshots into the snapshot queue without the need to await on the
+method directly. This method resolves after the snapshot upload is queued, but does not await on the
+upload to complete.
 
 ``` js
 // snapshots can be handled concurrently, no need to await
@@ -140,37 +143,61 @@ percy.snapshot({
   domSnapshot: domSnapshot,
   clientInfo: 'my-sdk',
   environmentInfo: 'my-lib'
-  ...snapshotOptions
 })
 
+// without a domSnapshot, capture options will be used to take one
 percy.snapshot({
   name: 'Snapshot 2',
-  url: 'http://localhost:3000/',
-  ...snapshotOptions,
-  
-  // without a domSnapshot, capture options will be used to take one
+  url: 'http://localhost:3000',
   waitForTimeout: 1000,
   waitForSelector: '.done-loading',
   execute: async () => {},
   additionalSnapshots: [{
     name: 'Snapshot 2.1',
-    execute: () => {},
-    ...snapshotOptions
+    execute: () => {}
   }]
+})
+
+// alternate shorthand syntax 
+percy.snapshot({
+  baseUrl: 'http://localhost:3000',
+  snapshots: ['/', '/about', '/contact'],
+  options: {
+    widths: [600, 1200]
+  }
+})
+
+// gather snapshots from an external sitemap
+percy.snapshot({
+  sitemap: 'https://example.com/sitemap.xml',
+  exclude: ['/blog/*']
+})
+
+// start a server and take static snapshots
+percy.snapshot({
+  serve: './public',
+  cleanUrls: true,
 })
 ```
 
 #### Options
 
+When capturing a single snapshot, the snapshot URL may be provided as the only argument rather than
+a snapshot options object. When providing an options object, a few alternate syntaxes are available
+depending on the provided properties ([see alternate syntaxes below](#alternate-syntaxes)).
+
+**Common options** accepted for each snapshot:
+
 - `url` — Snapshot URL (**required**)
 - `name` — Snapshot name
 - `domSnapshot` — Snapshot DOM string
-- `clientInfo` — Additional client info
-- `environmentInfo` — Additional environment info
 - `discovery` - Limited snapshot specific discovery options
   - `allowedHostnames`, `requestHeaders`, `authorization`, `disableCache`, `userAgent`
 
-**Capture options** can only be provided when `domSnapshot` is missing.
+Common snapshot options are also accepted and will override instance snapshot options. [See instance
+options](#options) for common snapshot and discovery options.
+
+**Capture options** can only be provided when `domSnapshot` is missing:
 
 - `waitForTimeout` — Milliseconds to wait before taking a snapshot
 - `waitForSelector` — CSS selector to wait for before taking a snapshot
@@ -180,9 +207,49 @@ percy.snapshot({
   - `prefix` — Snapshot name prefix (**required** if no `name` or `suffix`)
   - `suffix` — Snapshot name suffix (**required** if no `name` or `prefix`)
   - `waitForTimeout`, `waitForSelector`, `execute` — See above
+  
+#### Alternate syntaxes
 
-Common snapshot options are also accepted and will override instance snapshot options. [See instance
-options](#options) for common snapshot and discovery options.
+All snapshot syntaxes can be provided as items within an array. For example, a single method call
+can upload multiple DOM snapshots, capture multiple external snapshots, crawl a sitemap for
+snapshots, and host a local static server for snapshots.
+
+**Shared options** accepted by all syntaxes:
+
+- `clientInfo` — Client info to include with the build
+- `environmentInfo` — Environment info to include with the build
+
+The following alternate syntaxes may **not** be combined with snapshot options, but rather offer
+alternate methods for taking multiple snapshots.
+
+**List options** can only be provided when a top-level `snapshots` is present:
+
+- `snapshots` — An array of snapshot URLs or snapshot options (**required**)
+- `baseUrl` — The full base URL (including protocol) used when snapshot URLs only include a pathname
+- `include`/`exclude` — Include and exclude matching snapshot names
+- `options` — Additional options to apply to snapshots
+  - `include`/`exclude` — Include and exclude snapshots to apply these options to
+  -  [Common snapshot and capture options](#options) (**excluding** `url`, `domSnapshot`)
+  
+**Sitemap options** can only be provided when a top-level `sitemap` is present:
+
+- `sitemap` — The URL where an XML sitemap can be located (**required**)
+- `include`/`exclude` — Include and exclude matching snapshot names
+- `options` — Additional options to apply to snapshots
+  - `include`/`exclude` — Include and exclude snapshots to apply these options to
+  -  [Common snapshot and capture options](#options) (**excluding** `url`, `domSnapshot`)
+  
+**Server options** can only be provided when a top-level `serve` is present:
+
+- `serve` — The static directory to serve relative to the current working directory (**required**)
+- `baseUrl` — The base URL to serve the directory at, starting with a forward slash (/)
+- `cleanUrls` — Set to `true` to strip `.html` and `index.html` from served URLs
+- `rewrites` — A source-destination map for rewriting source URLs into destination pathnames
+- `snapshots` — An array of specific snapshots to take while serving the static directory
+- `include`/`exclude` — Include and exclude matching snapshot names
+- `options` — Additional options to apply to snapshots
+  - `include`/`exclude` — Include and exclude snapshots to apply these options to
+  -  [Common snapshot and capture options](#options) (**excluding** `url`, `domSnapshot`)
 
 ## Advanced
 

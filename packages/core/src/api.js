@@ -3,6 +3,7 @@ import logger from '@percy/logger';
 import Server from './server';
 import pkg from '../package.json';
 
+// Create a Percy CLI API server instance
 export function createPercyServer(percy, port) {
   return new Server({ port })
   // facilitate logger websocket connections
@@ -66,4 +67,36 @@ export function createPercyServer(percy, port) {
       setImmediate(() => percy.stop());
       return res.json(200, { success: true });
     });
+}
+
+// Create a static server instance with an automatic sitemap
+export function createStaticServer(options) {
+  let { serve, port, baseUrl = '/', ...opts } = options;
+  let server = new Server({ port }).serve(baseUrl, serve, opts);
+
+  // used when generating an automatic sitemap
+  let toURL = Server.createRewriter((
+    // reverse rewrites' src, dest, & order
+    Object.entries(options?.rewrites ?? {})
+      .reduce((acc, rw) => [rw.reverse(), ...acc], [])
+  ), (filename, rewrite) => new URL((
+    // cleanUrls will trim trailing .html/index.html from paths
+    !options?.cleanUrls ? rewrite(filename) : (
+      rewrite(filename).replace(/(\/index)?\.html$/, ''))
+  ), server.address()));
+
+  // include automatic sitemap route
+  server.route('get', '/sitemap.xml', async (req, res) => {
+    let { default: glob } = await import('fast-glob');
+    let files = await glob('**/*.html', { cwd: serve });
+
+    return res.send(200, 'application/xml', [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      ...files.map(name => `  <url><loc>${toURL(name)}</loc></url>`),
+      '</urlset>'
+    ].join('\n'));
+  });
+
+  return server;
 }

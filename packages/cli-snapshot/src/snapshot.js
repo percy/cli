@@ -64,7 +64,6 @@ export const snapshot = command('snapshot', {
 
   config: {
     schemas: [
-      SnapshotConfig.commonSchema,
       SnapshotConfig.configSchema,
       SnapshotConfig.snapshotsFileSchema
     ],

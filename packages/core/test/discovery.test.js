@@ -476,7 +476,7 @@ describe('Discovery', () => {
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy:core:page] Page created',
       '[percy:core:page] Resize page to 400x1024',
-      '[percy:core:page] Navigate to: http://localhost:8000',
+      '[percy:core:page] Navigate to: http://localhost:8000/',
       '[percy:core:discovery] Handling request: http://localhost:8000/',
       '[percy:core:discovery] - Serving root resource',
       '[percy:core:discovery] Handling request: http://localhost:8000/style.css',
