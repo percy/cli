@@ -17,7 +17,7 @@ const helpers = {
   teardown: () => helpers.call('server.close'),
   getRequests: () => helpers.call('server.requests'),
   testReply: (path, reply) => helpers.call('server.reply', path, reply),
-  testFailure: (path, error) => helpers.call('server.test.failure', path, error),
+  testFailure: (...args) => helpers.call('server.test.failure', ...args),
   testError: path => helpers.call('server.test.error', path),
   testSerialize: fn => !fn
     ? helpers.call('server.test.serialize') // get

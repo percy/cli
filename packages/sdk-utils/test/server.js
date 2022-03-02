@@ -72,8 +72,8 @@ function context() {
       test: {
         get serialize() { return serializeDOM; },
         set serialize(fn) { return (serializeDOM = fn); },
-        failure: (path, error) => ctx.server.reply(path, () => (
-          [500, 'application/json', { success: false, error }])),
+        failure: (path, error, o) => ctx.server.reply(path, () => (
+          [500, 'application/json', { success: false, error, ...o }])),
         error: path => ctx.server.reply(path, r => r.connection.destroy()),
         remote: () => (allowSocketConnections = true)
       }

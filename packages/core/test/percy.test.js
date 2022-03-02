@@ -363,7 +363,7 @@ describe('Percy', () => {
       expect(() => percy.snapshot({
         name: 'Snapshot 2',
         url: 'http://localhost:8000'
-      })).toThrowError('Closed');
+      })).toThrowError('Failed to create build');
 
       expect(logger.stdout).toEqual([
         '[percy] Percy has started!',
@@ -373,6 +373,47 @@ describe('Percy', () => {
         '[percy] Failed to create build',
         '[percy] Error: build error'
       ]);
+    });
+
+    it('stops accepting snapshots when an in-progress build fails', async () => {
+      mockAPI.reply('/builds/123/snapshots', () => [422, {
+        errors: [{
+          detail: 'Build has failed',
+          source: { pointer: '/data/attributes/build' }
+        }]
+      }]);
+
+      // create a new instance with default concurrency
+      percy = new Percy({ token: 'PERCY_TOKEN', snapshot: { widths: [1000] } });
+      await percy.start();
+
+      await Promise.all([
+        // upload will eventually fail
+        percy.snapshot({
+          url: 'http://localhost:8000/snapshot-1'
+        }),
+        // should not upload
+        percy.snapshot({
+          url: 'http://localhost:8000/snapshot-2',
+          // delay this snapshot so the first upload can fail
+          waitForTimeout: 100
+        })
+      ]);
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy] Encountered an error uploading snapshot: /snapshot-1',
+        '[percy] Error: Build has failed'
+      ]));
+
+      expect(mockAPI.requests['/builds/123/snapshots'].length).toEqual(1);
+
+      // stops accepting snapshots
+      expect(() => percy.snapshot({
+        name: 'Snapshot 2',
+        url: 'http://localhost:8000'
+      })).toThrowError('Build has failed');
     });
   });
 

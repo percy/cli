@@ -155,7 +155,11 @@ describe('API Server', () => {
 
     let [data, res] = await request('/percy/snapshot', 'POST', true);
     expect(res.statusCode).toBe(500);
-    expect(data).toEqual({ success: false, error: 'test error' });
+    expect(data).toEqual({
+      build: percy.build,
+      error: 'test error',
+      success: false
+    });
   });
 
   it('returns a 404 for any other endpoint', async () => {
@@ -163,7 +167,11 @@ describe('API Server', () => {
 
     let [data, res] = await request('/foobar', true);
     expect(res.statusCode).toBe(404);
-    expect(data).toEqual({ success: false, error: 'Not Found' });
+    expect(data).toEqual({
+      build: percy.build,
+      error: 'Not Found',
+      success: false
+    });
   });
 
   it('facilitates logger websocket connections', async () => {
