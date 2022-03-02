@@ -364,7 +364,7 @@ describe('PercyConfig', () => {
           if (config.test?.set) util.set('test.value', config.test.set);
           if (config.test?.map) util.map('value.test', ['test', 'value']);
           if (config.test?.map2) util.map(['value', 'test'], 'test.value', v => v * 2);
-          if (config.test?.dep) util.deprecate('value', config.test.dep);
+          if (config.test?.dep) util.deprecate(...config.test.dep);
           util.del('test.set', 'test.map', ['test', 'map2'], ['test', 'del'], 'test.dep');
         }
       ]);
@@ -422,7 +422,8 @@ describe('PercyConfig', () => {
 
       // reduce boilerplate (`foo` is used to prevent scrubbing)
       let test = (dep, value) => PercyConfig.migrate({
-        test: { dep: { foo: 'bar', ...dep } }, value
+        test: { dep: ['value', { foo: 'bar', ...dep }] },
+        value
       });
 
       // deprecations should log once
@@ -448,6 +449,15 @@ describe('PercyConfig', () => {
       expect(test({ type: 'test', until: '1.0.0', map: 'test.value' }, 11))
         .toEqual({ ...v, test: { value: 11 } });
 
+      // complex deprecation
+      expect(PercyConfig.migrate({
+        test: { dep: ['.value[0]', { map: '.a[0].b', until: '1.0.0' }] },
+        value: ['c']
+      })).toEqual({
+        version: 2,
+        a: [{ b: 'c' }]
+      });
+
       expect(logger.stderr).toEqual([
         '[percy] Warning: The `value` option will be removed in a future release.',
         '[percy] Warning: The test option `value` will be removed in a future release.',
@@ -457,7 +467,8 @@ describe('PercyConfig', () => {
         '[percy] Warning: The annoying option `value` will be removed in a future release.',
         '[percy] Warning: The annoying option `value` will be removed in a future release.',
         '[percy] Warning: The annoying option `value` will be removed in a future release.',
-        '[percy] Warning: The test option `value` will be removed in 1.0.0. Use `test.value` instead.'
+        '[percy] Warning: The test option `value` will be removed in 1.0.0. Use `test.value` instead.',
+        '[percy] Warning: The `value[0]` option will be removed in 1.0.0. Use `a[0].b` instead.'
       ]);
     });
 
@@ -488,10 +499,10 @@ describe('PercyConfig', () => {
         (c, { set }) => set('bar', 2)
       ], '/a');
 
-      PercyConfig.addMigration([
-        ['/a', (c, { set }) => set('baz', 3)],
-        ['/b', (c, { set }) => set('xyzzy', -1)]
-      ]);
+      PercyConfig.addMigration({
+        '/a': (c, { set }) => set('baz', 3),
+        '/b': (c, { set }) => set('xyzzy', -1)
+      });
 
       expect(PercyConfig.migrate({}, '/a'))
         .toEqual({ foo: 1, bar: 2, baz: 3 });
@@ -820,7 +831,7 @@ describe('PercyConfig', () => {
       PercyConfig.addSchema({
         obj: {
           type: 'object',
-          additionalProperties: false,
+          unevaluatedProperties: false,
           properties: {
             foo: { type: 'string' }
           }

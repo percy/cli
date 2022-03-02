@@ -256,7 +256,7 @@ export function snapshotMigration(config, util) {
 }
 
 // Grouped migrations for easier registration
-export const migrations = [
-  ['/config', configMigration],
-  ['/snapshot', snapshotMigration]
-];
+export const migrations = {
+  '/config': configMigration,
+  '/snapshot': snapshotMigration
+};
