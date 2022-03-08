@@ -238,11 +238,14 @@ export class Percy {
     if (!this.skipUploads && this.#uploads.size) {
       if (close) this.#uploads.close();
 
-      yield* this.#uploads.flush(s => {
-        // do not log a count when not closing or while creating a build
-        if (!close || this.#uploads.has('build/create')) return;
-        this.log.progress(`Uploading ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s);
-      });
+      // prevent creating an empty build when deferred
+      if (!this.deferUploads || !this.#uploads.has('build/create') || this.#uploads.size > 1) {
+        yield* this.#uploads.flush(s => {
+          // do not log a count when not closing or while creating a build
+          if (!close || this.#uploads.has('build/create')) return;
+          this.log.progress(`Uploading ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s);
+        });
+      }
     }
   }.bind(this)).canceled(() => {
     // reopen closed queues when canceled

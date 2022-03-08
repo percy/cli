@@ -290,16 +290,23 @@ describe('Percy', () => {
       // processing deferred uploads should not result in a new build
       await percy.flush();
       expect(mockAPI.requests['/builds']).toBeUndefined();
+    });
 
-      // start without canceling to verify it still works
-      await percy.start();
+    it('does not create an empty build when uploads are deferred', async () => {
+      percy = new Percy({ token: 'PERCY_TOKEN', deferUploads: true });
+      await expectAsync(percy.start()).toBeResolved();
+      expect(mockAPI.requests['/builds']).toBeUndefined();
 
-      // take a snapshot for
+      // flush queues without uploads
+      await percy.flush();
+
+      expect(mockAPI.requests['/builds']).toBeUndefined();
+
+      // flush a snapshot to create a build
       percy.snapshot('http://localhost:8000');
       await percy.flush();
 
       expect(mockAPI.requests['/builds']).toBeDefined();
-      expect(percy.readyState).toEqual(1);
     });
 
     it('does not create a build when uploads are skipped', async () => {
