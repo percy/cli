@@ -40,7 +40,9 @@ export function snapshotMatches(snapshot, include, exclude) {
     if (predicate && typeof predicate === 'string') {
       // snapshot name matches exactly or matches a glob
       let result = snapshot.name === predicate ||
-        micromatch.isMatch(snapshot.name, predicate);
+        micromatch.isMatch(snapshot.name, predicate, {
+          basename: !predicate.startsWith('/')
+        });
 
       // snapshot might match a string-based regexp pattern
       if (!result) {
