@@ -372,14 +372,13 @@ export class Percy {
         if (!options.snapshots) options.sitemap = new URL('sitemap.xml', options.baseUrl).href;
       }
 
-      let snapshots = options.snapshots ||
+      let snapshots = mapSnapshotOptions((options.snapshots ||
         ('sitemap' in options && await getSitemapSnapshots(options)) ||
-        ('url' in options && [options]);
+        ('url' in options && [options])
+      ), options);
 
-      await Promise.all(mapSnapshotOptions(snapshots, options, (
-        snapshot => this._takeSnapshot(snapshot)
-      )));
-
+      if (!snapshots.length) throw new Error('No snapshots found');
+      await Promise.all(snapshots.map(s => this._takeSnapshot(s)));
       await server?.close();
     });
   }

@@ -75,16 +75,18 @@ export function snapshotMatches(snapshot, include, exclude) {
 }
 
 // Accepts an array of snapshots to filter and map with matching options.
-export function mapSnapshotOptions(snapshots, config, map) {
+export function mapSnapshotOptions(snapshots, config) {
+  if (!snapshots?.length) return [];
+
   // reduce options into a single function
   let applyOptions = [].concat(config?.options || [])
     .reduceRight((next, { include, exclude, ...opts }) => snap => next(
       // assign additional options to included snaphots
       snapshotMatches(snap, include, exclude) ? Object.assign(snap, opts) : snap
-    ), map);
+    ), s => s);
 
   // reduce snapshots with overrides
-  return [...snapshots].reduce((acc, snapshot) => {
+  return snapshots.reduce((acc, snapshot) => {
     // transform snapshot URL shorthand into an object
     if (typeof snapshot === 'string') snapshot = { url: snapshot };
 
@@ -157,7 +159,7 @@ export async function getSitemapSnapshots(options) {
     }
 
     // parse XML content into a list of URLs
-    let urls = body.match(/(?<=<loc>)(.*)(?=<\/loc>)/ig);
+    let urls = body.match(/(?<=<loc>)(.*)(?=<\/loc>)/ig) ?? [];
 
     // filter out duplicate URLs that differ by a trailing slash
     return urls.filter((url, i) => {
