@@ -68,8 +68,12 @@ describe('percy snapshot <sitemap>', () => {
       snapshot(['http://localhost:8000/not-a-sitemap'])
     ).toBeRejected();
 
-    expect(logger.stdout).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Percy has started!',
+      '[percy] Stopping percy...'
+    ]);
     expect(logger.stderr).toEqual([
+      '[percy] Build not created',
       '[percy] Error: The sitemap must be an XML document, ' +
         'but the content-type was "text/html"'
     ]);
@@ -79,7 +83,7 @@ describe('percy snapshot <sitemap>', () => {
     fs.writeFileSync('.percy.yml', [
       'version: 2',
       'sitemap:',
-      '  overrides:',
+      '  options:',
       '  - additionalSnapshots:',
       '    - suffix: " (2)"',
       '  - include: "^/$"',

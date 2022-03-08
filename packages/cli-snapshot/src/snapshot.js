@@ -1,4 +1,5 @@
-import { existsSync, lstatSync } from 'fs';
+import fs from 'fs';
+import path from 'path';
 import command from '@percy/cli-command';
 import * as SnapshotConfig from './config';
 import pkg from '../package.json';
@@ -12,8 +13,8 @@ export const snapshot = command('snapshot', {
     required: true,
     attribute: val => {
       if (/^https?:\/\//.test(val)) return 'sitemap';
-      if (!existsSync(val)) throw new Error(`Not found: ${val}`);
-      return lstatSync(val).isDirectory() ? 'dir' : 'file';
+      if (!fs.existsSync(val)) throw new Error(`Not found: ${val}`);
+      return fs.lstatSync(val).isDirectory() ? 'serve' : 'file';
     }
   }],
 
@@ -58,70 +59,91 @@ export const snapshot = command('snapshot', {
   ],
 
   percy: {
+    deferUploads: true,
     clientInfo: `${pkg.name}/${pkg.version}`,
     environmentInfo: `node/${process.version}`
   },
 
   config: {
-    schemas: [
-      SnapshotConfig.configSchema,
-      SnapshotConfig.snapshotsFileSchema
-    ],
-    migrations: [
-      SnapshotConfig.configMigration
-    ]
+    schemas: [SnapshotConfig.configSchema],
+    migrations: [SnapshotConfig.configMigration]
   }
 }, async function*({ percy, args, flags, log, exit }) {
+  let { include, exclude, baseUrl, cleanUrls } = flags;
+  let { file, serve, sitemap } = args;
+
+  // parse and validate the --base-url flag after args are parsed
+  if (file || serve) baseUrl &&= parseBaseUrl(baseUrl, !!serve);
+  // only continue if percy is not disabled
   if (!percy) exit(0, 'Percy is disabled');
 
-  // set and validate static or sitemap config flags
-  if (args.dir || args.sitemap) {
-    percy.setConfig({
-      [args.dir ? 'static' : 'sitemap']: {
-        include: flags.include,
-        exclude: flags.exclude
-      }
-    });
-  }
-
-  // gather snapshots
-  let snapshots, server;
-
   try {
-    if (args.sitemap) {
-      let { loadSitemapSnapshots } = await import('./sitemap');
-      let config = { ...percy.config.sitemap, ...flags };
+    let options;
 
-      snapshots = yield loadSitemapSnapshots(args.sitemap, config);
-    } else if (args.dir) {
-      let { serve, loadStaticSnapshots } = await import('./static');
-      let config = { ...percy.config.static, ...flags };
-
-      server = yield serve(args.dir, config);
-      snapshots = yield loadStaticSnapshots(args.dir, { ...config, server });
-    } else {
-      let { loadSnapshotsFile } = await import('./file');
-
-      snapshots = yield loadSnapshotsFile(args.file, flags, (invalid, i) => {
-        if (i === 0) log.warn('Invalid snapshot options:');
-        log.warn(`- ${invalid.path}: ${invalid.message}`);
-      });
+    /* istanbul ignore else: arg is required and always one of these */
+    if (file) {
+      // load snapshots file
+      let snapshots = yield loadSnapshotFile(file);
+      // accept a config object instead of an array of snapshots
+      let config = Array.isArray(snapshots) ? { snapshots } : snapshots;
+      options = merge(config, { baseUrl, include, exclude });
+    } else if (serve) {
+      // serve and snapshot a static directory
+      let config = { serve, cleanUrls, baseUrl, include, exclude };
+      options = merge(percy.config.static, config);
+    } else if (sitemap) {
+      // fetch urls to snapshot from a sitemap
+      let config = { sitemap, include, exclude };
+      options = merge(percy.config.sitemap, config);
     }
 
-    if (!snapshots.length) {
-      exit(1, 'No snapshots found');
-    }
-
-    // start processing snapshots
     yield* percy.start();
-    percy.snapshot(snapshots);
+    yield percy.snapshot(options);
     yield* percy.stop();
   } catch (error) {
     await percy.stop(true);
     throw error;
-  } finally {
-    await server?.close();
   }
 });
+
+// Validates the provided `--base-url` flag and returns a `baseUrl` string if valid. The flag is
+// validated and parsed differently for static directories and snapshot files.
+function parseBaseUrl(baseUrl, pathOnly) {
+  try {
+    let needsHost = pathOnly && baseUrl.startsWith('/');
+    let url = new URL(baseUrl, needsHost ? 'http://localhost' : undefined);
+    return pathOnly ? url.pathname : url.href;
+  } catch (e) {
+    throw new Error("The '--base-url' flag must " + (pathOnly
+      ? 'start with a forward slash (/) when providing a static directory'
+      : 'include a protocol and hostname when providing a list of snapshots'
+    ));
+  }
+}
+
+// Small shallow merge util that does not merge null or undefined values.
+function merge(...objs) {
+  return objs.reduce((target, obj) => {
+    for (let k in obj) target[k] = obj[k] ?? target[k];
+    return target;
+  }, {});
+}
+
+// Loads snapshot options from a js, json, or yaml file.
+async function loadSnapshotFile(file) {
+  let ext = path.extname(file);
+
+  if (ext === '.js') {
+    let { default: module } = await import(path.resolve(file));
+    return typeof module === 'function' ? await module() : module;
+  } else if (ext === '.json') {
+    return JSON.parse(fs.readFileSync(file, { encoding: 'utf-8' }));
+  } else if (ext.match(/\.ya?ml$/)) {
+    let { parse } = await import('yaml');
+    return parse(fs.readFileSync(file, { encoding: 'utf-8' }));
+  } else {
+    throw new Error(`Unsupported filetype: ${file}`);
+  }
+}
 
 export default snapshot;

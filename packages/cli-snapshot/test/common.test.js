@@ -36,8 +36,12 @@ describe('percy snapshot', () => {
   it('errors when there are no snapshots to take', async () => {
     await expectAsync(snapshot(['./tmp'])).toBeRejected();
 
-    expect(logger.stdout).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Percy has started!',
+      '[percy] Stopping percy...'
+    ]);
     expect(logger.stderr).toEqual([
+      '[percy] Build not created',
       '[percy] Error: No snapshots found'
     ]);
   });
