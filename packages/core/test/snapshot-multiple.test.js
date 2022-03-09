@@ -195,6 +195,14 @@ describe('Snapshot multiple', () => {
         'The sitemap must be an XML document, but the content-type was "text/html"'
       );
     });
+
+    it('throws when a sitemap is empty', async () => {
+      sitemap = [];
+
+      await expectAsync(percy.snapshot({
+        sitemap: 'http://localhost:8000/sitemap.xml'
+      })).toBeRejectedWithError('No snapshots found');
+    });
   });
 
   describe('server syntax', () => {

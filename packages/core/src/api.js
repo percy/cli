@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import logger from '@percy/logger';
 import Server from './server';
 import pkg from '../package.json';
@@ -79,11 +80,11 @@ export function createStaticServer(options) {
     // reverse rewrites' src, dest, & order
     Object.entries(options?.rewrites ?? {})
       .reduce((acc, rw) => [rw.reverse(), ...acc], [])
-  ), (filename, rewrite) => new URL((
+  ), (filename, rewrite) => new URL(path.posix.join(baseUrl, (
     // cleanUrls will trim trailing .html/index.html from paths
-    !options?.cleanUrls ? rewrite(filename) : (
+    !options.cleanUrls ? rewrite(filename) : (
       rewrite(filename).replace(/(\/index)?\.html$/, ''))
-  ), server.address()));
+  )), server.address()));
 
   // include automatic sitemap route
   server.route('get', '/sitemap.xml', async (req, res) => {

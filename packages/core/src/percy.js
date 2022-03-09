@@ -238,11 +238,14 @@ export class Percy {
     if (!this.skipUploads && this.#uploads.size) {
       if (close) this.#uploads.close();
 
-      yield* this.#uploads.flush(s => {
-        // do not log a count when not closing or while creating a build
-        if (!close || this.#uploads.has('build/create')) return;
-        this.log.progress(`Uploading ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s);
-      });
+      // prevent creating an empty build when deferred
+      if (!this.deferUploads || !this.#uploads.has('build/create') || this.#uploads.size > 1) {
+        yield* this.#uploads.flush(s => {
+          // do not log a count when not closing or while creating a build
+          if (!close || this.#uploads.has('build/create')) return;
+          this.log.progress(`Uploading ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s);
+        });
+      }
     }
   }.bind(this)).canceled(() => {
     // reopen closed queues when canceled
@@ -369,14 +372,13 @@ export class Percy {
         if (!options.snapshots) options.sitemap = new URL('sitemap.xml', options.baseUrl).href;
       }
 
-      let snapshots = options.snapshots ||
+      let snapshots = mapSnapshotOptions((options.snapshots ||
         ('sitemap' in options && await getSitemapSnapshots(options)) ||
-        ('url' in options && [options]);
+        ('url' in options && [options])
+      ), options);
 
-      await Promise.all(mapSnapshotOptions(snapshots, options, (
-        snapshot => this._takeSnapshot(snapshot)
-      )));
-
+      if (!snapshots.length) throw new Error('No snapshots found');
+      await Promise.all(snapshots.map(s => this._takeSnapshot(s)));
       await server?.close();
     });
   }
