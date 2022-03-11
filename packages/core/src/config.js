@@ -46,6 +46,20 @@ export const configSchema = {
           }]
         }
       },
+      disallowedHostnames: {
+        type: 'array',
+        default: [],
+        items: {
+          type: 'string',
+          allOf: [{
+            not: { pattern: '[^/]/' },
+            error: 'must not include a pathname'
+          }, {
+            not: { pattern: '^([a-zA-Z]+:)?//' },
+            error: 'must not include a protocol'
+          }]
+        }
+      },
       networkIdleTimeout: {
         type: 'integer',
         default: 100,

@@ -1035,6 +1035,97 @@ describe('Discovery', () => {
       );
     });
 
+    it('does not capture resources from disallowed hostnames', async () => {
+      // stop current instance to create a new one
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          disallowedHostnames: ['ex.localhost']
+        }
+      });
+
+      logger.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy:core:snapshot] - discovery.disallowedHostnames: ex.localhost'
+      ]));
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy:core:discovery] Handling request: http://ex.localhost:8001/img.gif',
+        '[percy:core:discovery] - Skipping disallowed hostname'
+      ]));
+
+      expect(captured[0]).toEqual([
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
+          })
+        }),
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/'
+          })
+        }),
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/style.css'
+          })
+        })
+      ]);
+    });
+
+    it('ignores root resource URL when passed to disallowedHostnames', async () => {
+      // stop current instance to create a new one
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          disallowedHostnames: ['localhost']
+        }
+      });
+
+      logger.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      expect(captured[0]).toEqual([
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
+          })
+        }),
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/'
+          })
+        }),
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/style.css'
+          })
+        })
+      ]);
+    });
+
     it('does not hang waiting for embedded isolated pages', async () => {
       server.reply('/', () => [200, {
         'Content-Type': 'text/html',

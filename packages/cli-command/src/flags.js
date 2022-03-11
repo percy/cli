@@ -56,6 +56,15 @@ export const allowedHostnames = {
   short: 'h'
 };
 
+export const disallowedHostnames = {
+  name: 'disallowed-hostname',
+  description: 'Disalllowed hostnames to abort in asset discovery',
+  percyrc: 'discovery.disallowedHostnames',
+  type: 'hostname',
+  multiple: true,
+  group: 'Percy'
+};
+
 export const networkIdleTimeout = {
   name: 'network-idle-timeout',
   description: 'Asset discovery network idle timeout',
@@ -95,6 +104,7 @@ export const PERCY = [
 
 export const DISCOVERY = [
   allowedHostnames,
+  disallowedHostnames,
   networkIdleTimeout,
   disableCache,
   debug
