@@ -10,15 +10,21 @@
   "publishConfig": {
     "access": "public"
   },
-  "main": "dist/index.js",
-  "browser": "dist/bundle.js",
-  "files": [
-    "dist",
-    "test/helpers.js",
-    "test/client.js"
-  ],
   "engines": {
     "node": ">=12"
+  },
+  "files": [
+    "./dist",
+    "./test/helpers.js",
+    "./test/client.js"
+  ],
+  "main": "./dist/index.js",
+  "browser": "dist/bundle.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./utils": "./dist/utils.js",
+    "./test/helpers": "./test/helpers.js",
+    "./test/client": "./test/client.js"
   },
   "scripts": {
     "build": "node ../../scripts/build",
