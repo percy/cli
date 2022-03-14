@@ -58,7 +58,7 @@ export const allowedHostnames = {
 
 export const disallowedHostnames = {
   name: 'disallowed-hostname',
-  description: 'Disalllowed hostnames to abort in asset discovery',
+  description: 'Disallowed hostnames to abort in asset discovery',
   percyrc: 'discovery.disallowedHostnames',
   type: 'hostname',
   multiple: true,

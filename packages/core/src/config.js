@@ -138,6 +138,7 @@ export const snapshotSchema = {
           additionalProperties: false,
           properties: {
             allowedHostnames: { $ref: '/config/discovery#/properties/allowedHostnames' },
+            disallowedHostnames: { $ref: '/config/discovery#/properties/disallowedHostnames' },
             requestHeaders: { $ref: '/config/discovery#/properties/requestHeaders' },
             authorization: { $ref: '/config/discovery#/properties/authorization' },
             disableCache: { $ref: '/config/discovery#/properties/disableCache' },
