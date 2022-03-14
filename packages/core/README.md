@@ -49,6 +49,7 @@ The following options can also be defined within a Percy config file
   - `enableJavaScript` — Enable JavaScript for screenshots (**default** `false`)
 - `discovery` — Asset discovery options
   - `allowedHostnames` — Array of allowed hostnames to capture assets from
+  - `disallowedHostnames` — Array of hostnames where requests will be aborted
   - `requestHeaders` — Request headers used when discovering snapshot assets
   - `authorization` — Basic auth `username` and `password` for protected snapshot assets
   - `disableCache` — Disable asset caching (**default** `false`)
@@ -192,7 +193,7 @@ depending on the provided properties ([see alternate syntaxes below](#alternate-
 - `name` — Snapshot name
 - `domSnapshot` — Snapshot DOM string
 - `discovery` - Limited snapshot specific discovery options
-  - `allowedHostnames`, `requestHeaders`, `authorization`, `disableCache`, `userAgent`
+  - `allowedHostnames`, `disallowedHostnames`, `requestHeaders`, `authorization`, `disableCache`, `userAgent`
 
 Common snapshot options are also accepted and will override instance snapshot options. [See instance
 options](#options) for common snapshot and discovery options.

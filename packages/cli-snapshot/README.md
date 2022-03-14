@@ -29,6 +29,7 @@ Percy options:
   -c, --config <file>                Config file path
   -d, --dry-run                      Print snapshot names only
   -h, --allowed-hostname <hostname>  Allowed hostnames to capture in asset discovery
+  --disallowed-hostname <hostname>   Disallowed hostnames to abort in asset discovery
   -t, --network-idle-timeout <ms>    Asset discovery network idle timeout
   --disable-cache                    Disable asset discovery caches
   --debug                            Debug asset discovery and do not upload snapshots

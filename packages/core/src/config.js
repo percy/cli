@@ -46,6 +46,20 @@ export const configSchema = {
           }]
         }
       },
+      disallowedHostnames: {
+        type: 'array',
+        default: [],
+        items: {
+          type: 'string',
+          allOf: [{
+            not: { pattern: '[^/]/' },
+            error: 'must not include a pathname'
+          }, {
+            not: { pattern: '^([a-zA-Z]+:)?//' },
+            error: 'must not include a protocol'
+          }]
+        }
+      },
       networkIdleTimeout: {
         type: 'integer',
         default: 100,
@@ -124,6 +138,7 @@ export const snapshotSchema = {
           additionalProperties: false,
           properties: {
             allowedHostnames: { $ref: '/config/discovery#/properties/allowedHostnames' },
+            disallowedHostnames: { $ref: '/config/discovery#/properties/disallowedHostnames' },
             requestHeaders: { $ref: '/config/discovery#/properties/requestHeaders' },
             authorization: { $ref: '/config/discovery#/properties/authorization' },
             disableCache: { $ref: '/config/discovery#/properties/disableCache' },

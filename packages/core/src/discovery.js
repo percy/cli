@@ -5,7 +5,7 @@ const MAX_RESOURCE_SIZE = 15 * (1024 ** 2); // 15MB
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 
-export function createRequestHandler(network, { disableCache, getResource }) {
+export function createRequestHandler(network, { disableCache, disallowedHostnames, getResource }) {
   let log = logger('core:discovery');
 
   return async request => {
@@ -19,6 +19,9 @@ export function createRequestHandler(network, { disableCache, getResource }) {
       if (resource?.root) {
         log.debug('- Serving root resource', meta);
         await request.respond(resource);
+      } else if (hostnameMatches(disallowedHostnames, url)) {
+        log.debug('- Skipping disallowed hostname', meta);
+        await request.abort(true);
       } else if (resource && !disableCache) {
         log.debug('- Resource cache hit', meta);
         await request.respond(resource);

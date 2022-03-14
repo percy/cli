@@ -179,6 +179,7 @@ export function getSnapshotConfig(percy, options) {
     // only specific discovery options are used per-snapshot
     discovery: {
       allowedHostnames: percy.config.discovery.allowedHostnames,
+      disallowedHostnames: percy.config.discovery.disallowedHostnames,
       networkIdleTimeout: percy.config.discovery.networkIdleTimeout,
       requestHeaders: percy.config.discovery.requestHeaders,
       authorization: percy.config.discovery.authorization,
@@ -194,6 +195,8 @@ export function getSnapshotConfig(percy, options) {
       case 'execute': // shorthand for execute.beforeSnapshot
         return (Array.isArray(next) || typeof next !== 'object')
           ? [path.concat('beforeSnapshot'), next] : [path];
+      case 'discovery.disallowedHostnames': // prevent disallowing the root hostname
+        return [path, (prev ?? []).concat(next).filter(h => !hostnameMatches(h, options.url))];
     }
 
     // ensure additional snapshots have complete names
@@ -238,6 +241,7 @@ function debugSnapshotConfig(snapshot, showInfo) {
   debugProp(snapshot, 'execute.afterResize');
   debugProp(snapshot, 'execute.beforeSnapshot');
   debugProp(snapshot, 'discovery.allowedHostnames');
+  debugProp(snapshot, 'discovery.disallowedHostnames');
   debugProp(snapshot, 'discovery.requestHeaders', JSON.stringify);
   debugProp(snapshot, 'discovery.authorization', JSON.stringify);
   debugProp(snapshot, 'discovery.disableCache');
@@ -331,6 +335,7 @@ export async function* discoverSnapshotResources(percy, snapshot, callback) {
       enableJavaScript: snapshot.enableJavaScript,
       disableCache: snapshot.discovery.disableCache,
       allowedHostnames: snapshot.discovery.allowedHostnames,
+      disallowedHostnames: snapshot.discovery.disallowedHostnames,
       getResource: u => resources.get(u) || cache.get(u),
       saveResource: r => resources.set(r.url, r) && cache.set(r.url, r)
     }
