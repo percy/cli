@@ -14,9 +14,6 @@ const base = {
           node: '12'
         }
       }]
-    ],
-    plugins: [
-      '@babel/proposal-class-properties'
     ]
   }]
 };
