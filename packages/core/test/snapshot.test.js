@@ -1,5 +1,5 @@
-import { sha256hash, base64encode } from '@percy/client/dist/utils';
-import { mockAPI, logger, createTestServer, dedent } from './helpers';
+import { sha256hash, base64encode } from '@percy/client/utils';
+import { logger, api, setupTest, createTestServer, dedent } from './helpers';
 import { waitFor } from '../src/utils';
 import Percy from '../src';
 
@@ -7,9 +7,8 @@ describe('Snapshot', () => {
   let percy, server, testDOM;
 
   beforeEach(async () => {
-    logger.mock();
-
     testDOM = '<p>Test</p>';
+    setupTest();
 
     server = await createTestServer({
       default: () => [200, 'text/html', testDOM],
@@ -188,7 +187,7 @@ describe('Snapshot', () => {
   });
 
   it('logs any encountered errors when uploading', async () => {
-    mockAPI.reply('/builds/123/snapshots', () => [401, {
+    api.reply('/builds/123/snapshots', () => [401, {
       errors: [{ detail: 'unexpected upload error' }]
     }]);
 
@@ -416,7 +415,7 @@ describe('Snapshot', () => {
       await percy.idle();
 
       expect(Buffer.from((
-        mockAPI.requests['/builds/123/resources'][0]
+        api.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
       ), 'base64').toString()).toMatch('<p>Test</p>');
     });
@@ -435,7 +434,7 @@ describe('Snapshot', () => {
       await percy.idle();
 
       expect(Buffer.from((
-        mockAPI.requests['/builds/123/resources'][0]
+        api.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
       ), 'base64').toString()).toMatch('<p id="test">Test</p>');
     });
@@ -454,7 +453,7 @@ describe('Snapshot', () => {
       await percy.idle();
 
       expect(Buffer.from((
-        mockAPI.requests['/builds/123/resources'][0]
+        api.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
       ), 'base64').toString()).toMatch('<p id="test">Test</p>');
     });
@@ -469,7 +468,7 @@ describe('Snapshot', () => {
       await percy.idle();
 
       expect(Buffer.from((
-        mockAPI.requests['/builds/123/resources'][0]
+        api.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
       ), 'base64').toString()).toMatch('<p id="eval">Test</p>');
     });
@@ -509,7 +508,7 @@ describe('Snapshot', () => {
       await percy.idle();
 
       let dom = i => Buffer.from((
-        mockAPI.requests['/builds/123/resources'][i * 2]
+        api.requests['/builds/123/resources'][i * 2]
           .body.data.attributes['base64-content']
       ), 'base64').toString();
 
@@ -536,7 +535,7 @@ describe('Snapshot', () => {
       await percy.idle();
 
       expect(Buffer.from((
-        mockAPI.requests['/builds/123/resources'][0]
+        api.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
       ), 'base64').toString()).toMatch('<p>Foo</p>');
     });
@@ -560,7 +559,7 @@ describe('Snapshot', () => {
       await percy.idle();
 
       expect(Buffer.from((
-        mockAPI.requests['/builds/123/resources'][0]
+        api.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
       ), 'base64').toString()).toMatch('<p id="timed">Test</p>');
     });
@@ -586,7 +585,7 @@ describe('Snapshot', () => {
       await percy.idle();
 
       expect(Buffer.from((
-        mockAPI.requests['/builds/123/resources'][0]
+        api.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
       ), 'base64').toString()).toMatch(/<iframe.*srcdoc=".*<p>Foo<\/p>/);
     });
@@ -638,7 +637,7 @@ describe('Snapshot', () => {
       ]);
 
       expect(Buffer.from((
-        mockAPI.requests['/builds/123/resources'][0]
+        api.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
       ), 'base64').toString()).toMatch('<p>Test...</p>');
     });
@@ -679,7 +678,7 @@ describe('Snapshot', () => {
       ]);
 
       expect(Buffer.from((
-        mockAPI.requests['/builds/123/resources'][0]
+        api.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
       ), 'base64').toString()).toMatch([
         '<p>afterNavigation - http://localhost:8000/</p>',
@@ -687,7 +686,7 @@ describe('Snapshot', () => {
       ].join(''));
 
       expect(Buffer.from((
-        mockAPI.requests['/builds/123/resources'][2]
+        api.requests['/builds/123/resources'][2]
           .body.data.attributes['base64-content']
       ), 'base64').toString()).toMatch([
         '<p>beforeResize - 400</p>',
@@ -700,7 +699,7 @@ describe('Snapshot', () => {
 
   describe('with percy-css', () => {
     let getResourceData = () => (
-      mockAPI.requests['/builds/123/snapshots'][0]
+      api.requests['/builds/123/snapshots'][0]
         .body.data.relationships.resources.data);
 
     beforeEach(() => {
@@ -766,7 +765,7 @@ describe('Snapshot', () => {
 
       await percy.idle();
 
-      let root = mockAPI.requests['/builds/123/resources'][0].body.data;
+      let root = api.requests['/builds/123/resources'][0].body.data;
       let cssURL = new URL(getResourceData()[1].attributes['resource-url']);
       let injectedDOM = testDOM.replace('</body>', (
        `<link data-percy-specific-css rel="stylesheet" href="${cssURL.pathname}"/>`

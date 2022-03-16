@@ -1,12 +1,12 @@
 import logger from '@percy/logger';
 import PercyConfig from '@percy/config';
-import { merge } from '@percy/config/dist/utils';
 import micromatch from 'micromatch';
 
 import {
   configSchema
 } from './config';
 import {
+  request,
   hostnameMatches,
   createRootResource,
   createPercyCSSResource,
@@ -147,8 +147,6 @@ export function validateSnapshotOptions(options) {
 // Fetches a sitemap and parses it into a list of URLs for taking snapshots. Duplicate URLs,
 // including a trailing slash, are removed from the resulting list.
 export async function getSitemapSnapshots(options) {
-  let { request } = await import('@percy/client/dist/request');
-
   return request(options.sitemap, (body, res) => {
     // validate sitemap content-type
     let [contentType] = res.headers['content-type'].split(';');
@@ -171,7 +169,7 @@ export async function getSitemapSnapshots(options) {
 
 // Return snapshot options merged with defaults and global options.
 export function getSnapshotConfig(percy, options) {
-  return merge([{
+  return PercyConfig.merge([{
     widths: configSchema.snapshot.properties.widths.default,
     discovery: { allowedHostnames: [validURL(options.url).hostname] },
     meta: { snapshot: { name: options.name }, build: percy.build }

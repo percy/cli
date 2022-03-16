@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs';
+import fs from 'fs';
 import logger from '@percy/logger';
 import Network from './network';
 import {
@@ -204,7 +204,7 @@ export class Page {
     /* istanbul ignore next: no instrumenting injected code */
     if (await this.eval(() => !window.PercyDOM)) {
       this.log.debug('Inject @percy/dom', this.meta);
-      let script = await fs.readFile(require.resolve('@percy/dom'), 'utf-8');
+      let script = await fs.promises.readFile(require.resolve('@percy/dom'), 'utf-8');
       await this.eval(new Function(script)); /* eslint-disable-line no-new-func */
     }
 

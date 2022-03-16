@@ -1,6 +1,6 @@
+import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { promises as fs, existsSync } from 'fs';
 import spawn from 'cross-spawn';
 import EventEmitter from 'events';
 import WebSocket from 'ws';
@@ -96,7 +96,7 @@ export class Browser extends EventEmitter {
     this.readyState = 0;
 
     // check if any provided executable exists
-    if (this.executable && !existsSync(this.executable)) {
+    if (this.executable && !fs.existsSync(this.executable)) {
       this.log.error(`Browser executable not found: ${this.executable}`);
       this.executable = null;
     }
@@ -104,7 +104,7 @@ export class Browser extends EventEmitter {
     // download and install the browser if not already present
     this.executable ||= await install.chromium();
     // create a temporary profile directory
-    this.profile = await fs.mkdtemp(path.join(os.tmpdir(), 'percy-browser-'));
+    this.profile = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'percy-browser-'));
 
     // spawn the browser process detached in its own group and session
     let args = this.args.concat(`--user-data-dir=${this.profile}`);

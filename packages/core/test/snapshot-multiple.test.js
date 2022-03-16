@@ -1,13 +1,12 @@
-import quibble from 'quibble';
-import * as memfs from 'memfs';
-import { logger, createTestServer } from './helpers';
+import { fs, logger, setupTest, createTestServer } from './helpers';
 import Percy from '../src';
 
 describe('Snapshot multiple', () => {
   let percy, server, sitemap;
 
   beforeEach(async () => {
-    logger.mock();
+    sitemap = ['/'];
+    setupTest();
 
     percy = await Percy.start({
       token: 'PERCY_TOKEN',
@@ -17,8 +16,6 @@ describe('Snapshot multiple', () => {
       environmentInfo: 'env-info',
       server: false
     });
-
-    sitemap = ['/'];
 
     server = await createTestServer({
       default: () => [200, 'text/html', '<p>Test</p>'],
@@ -206,20 +203,13 @@ describe('Snapshot multiple', () => {
   });
 
   describe('server syntax', () => {
-    beforeEach(() => {
-      quibble('fs', memfs.fs);
-
-      memfs.vol.fromJSON({
+    beforeEach(async () => {
+      fs.$vol.fromJSON({
         './public/index.html': 'index',
         './public/about.html': 'about',
         './public/blog/foo.html': 'foo',
         './public/blog/bar.html': 'bar'
       });
-    });
-
-    afterEach(() => {
-      quibble.reset(true);
-      memfs.vol.reset();
     });
 
     it('serves and snapshots a static directory', async () => {

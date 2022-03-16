@@ -1,6 +1,5 @@
 import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
-import { merge } from '@percy/config/dist/utils';
 import logger from '@percy/logger';
 import Queue from './queue';
 import Browser from './browser';
@@ -122,7 +121,7 @@ export class Percy {
     }
 
     // merge and override existing config options
-    this.config = merge([this.config, config], (path, prev, next) => {
+    this.config = PercyConfig.merge([this.config, config], (path, prev, next) => {
       // replace arrays instead of merging
       return Array.isArray(next) && [path, next];
     });

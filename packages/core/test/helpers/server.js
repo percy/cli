@@ -1,5 +1,5 @@
 // aliased to src for coverage during tests without needing to compile this file
-const { default: Server } = require('@percy/core/dist/server');
+const { default: Server } = require('../../dist/server');
 
 function createTestServer({ default: defaultReply, ...replies }, port = 8000) {
   let server = new Server();
