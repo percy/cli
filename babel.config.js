@@ -24,7 +24,7 @@ const development = {
       cwd: __dirname,
       alias: {
         '^@percy/((?!dom)[^/]+)$': './packages/\\1/src',
-        '^@percy/(.+)/dist/(.+)$': './packages/\\1/src/\\2'
+        '^@percy/([^/]+)/((?!test).+)$': './packages/\\1/src/\\2'
       }
     }]
   ]
