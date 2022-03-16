@@ -10,13 +10,14 @@
   "publishConfig": {
     "access": "public"
   },
-  "main": "dist/index.js",
-  "files": [
-    "dist"
-  ],
   "engines": {
     "node": ">=12"
   },
+  "files": [
+    "dist"
+  ],
+  "main": "dist/index.js",
+  "exports": "dist/index.js",
   "scripts": {
     "build": "node ../../scripts/build",
     "lint": "eslint --ignore-path ../../.gitignore .",
@@ -31,8 +32,6 @@
   },
   "dependencies": {
     "@percy/cli-command": "1.0.0-beta.76",
-    "@percy/config": "1.0.0-beta.76",
-    "@percy/core": "1.0.0-beta.76",
     "yaml": "^1.10.0"
   }
 }

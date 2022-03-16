@@ -1,17 +1,12 @@
-import fs from 'fs';
-import path from 'path';
-import rimraf from 'rimraf';
-import { logger, mockAPI, createTestServer } from '@percy/core/test/helpers';
+import { fs, logger, setupTest, createTestServer } from '@percy/cli-command/test/helpers';
 import snapshot from '../src/snapshot';
 
 describe('percy snapshot <sitemap>', () => {
-  let tmp = path.join(__dirname, 'tmp');
-  let cwd = process.cwd();
   let server;
 
   beforeEach(async () => {
-    process.chdir(__dirname);
-    fs.mkdirSync(tmp);
+    process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+    setupTest();
 
     server = await createTestServer({
       default: () => [200, 'text/html', '<p>Test</p>'],
@@ -33,17 +28,9 @@ describe('percy snapshot <sitemap>', () => {
         '</urlset>'
       ].join('\n')]
     });
-
-    process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    mockAPI.start(50);
-    logger.mock();
   });
 
   afterEach(async () => {
-    try { fs.unlinkSync('.percy.yml'); } catch {}
-    process.chdir(cwd);
-    rimraf.sync(tmp);
-
     delete process.env.PERCY_TOKEN;
     await server.close();
   });
