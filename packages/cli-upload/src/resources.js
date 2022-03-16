@@ -1,5 +1,5 @@
 import path from 'path';
-import { sha256hash } from '@percy/client/dist/utils';
+import { sha256hash } from '@percy/client/utils';
 
 // Returns a root resource object with a sha and mimetype.
 function createRootResource(url, content) {

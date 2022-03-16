@@ -1,1 +1,1 @@
-module.exports = require('./commands/upload').Upload;
+export { default, upload } from './upload';
