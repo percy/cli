@@ -66,8 +66,8 @@ describe('percy snapshot <file>', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: The base-url must include a protocol and hostname ' +
-        'when providing a list of snapshots'
+      '[percy] Error: The \'--base-url\' flag must include ' +
+        'a protocol and hostname when providing a list of snapshots'
     ]);
   });
 
@@ -84,9 +84,13 @@ describe('percy snapshot <file>', () => {
   it('errors when a page url is invalid', async () => {
     await expectAsync(snapshot(['./urls.yml'])).toBeRejected();
 
-    expect(logger.stdout).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Percy has started!',
+      '[percy] Stopping percy...'
+    ]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: Invalid URL: /'
+      '[percy] Build not created',
+      '[percy] Error: Invalid snapshot URL: /'
     ]);
   });
 
@@ -96,8 +100,8 @@ describe('percy snapshot <file>', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
-      '[percy] Processing 1 snapshot...',
       '[percy] Snapshot taken: YAML Snapshot',
+      '[percy] Uploading 1 snapshot...',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
   });
@@ -113,8 +117,8 @@ describe('percy snapshot <file>', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
-      '[percy] Processing 1 snapshot...',
       '[percy] Snapshot taken: JSON Snapshot',
+      '[percy] Uploading 1 snapshot...',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
   });
@@ -125,10 +129,10 @@ describe('percy snapshot <file>', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
-      '[percy] Processing 1 snapshot...',
       '[percy] Snapshot taken: JS Snapshot',
       '[percy] Snapshot taken: JS Snapshot 2',
       '[percy] Snapshot taken: Other JS Snapshot',
+      '[percy] Uploading 3 snapshots...',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
   });
@@ -139,8 +143,8 @@ describe('percy snapshot <file>', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
-      '[percy] Processing 1 snapshot...',
       '[percy] Snapshot taken: JS Function Snapshot',
+      '[percy] Uploading 1 snapshot...',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
   });
@@ -151,8 +155,8 @@ describe('percy snapshot <file>', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
-      '[percy] Processing 1 snapshot...',
       '[percy] Snapshot taken: JS Default Snapshot',
+      '[percy] Uploading 1 snapshot...',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
   });
@@ -163,10 +167,10 @@ describe('percy snapshot <file>', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
-      '[percy] Processing 3 snapshots...',
       '[percy] Snapshot taken: /',
       '[percy] Snapshot taken: /one',
       '[percy] Snapshot taken: /two',
+      '[percy] Uploading 3 snapshots...',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]));
   });
@@ -186,12 +190,12 @@ describe('percy snapshot <file>', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
-      '[percy] Processing 5 snapshots...',
       '[percy] Snapshot taken: Snapshot #2',
       '[percy] Snapshot taken: Snapshot #22',
       '[percy] Snapshot taken: Snapshot #42',
       '[percy] Snapshot taken: Snapshot #62',
       '[percy] Snapshot taken: Snapshot #82',
+      '[percy] Uploading 5 snapshots...',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]));
   });
@@ -234,11 +238,15 @@ describe('percy snapshot <file>', () => {
       snapshot(['./invalid.yml', '--dry-run'])
     ).toBeRejected();
 
-    expect(logger.stdout).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Percy has started!',
+      '[percy] Stopping percy...'
+    ]);
     expect(logger.stderr).toEqual([
       '[percy] Invalid snapshot options:',
       '[percy] - snapshots[0].url: missing required property',
       '[percy] - snapshots[0].foo: unknown property',
+      '[percy] Build not created',
       '[percy] Error: No snapshots found'
     ]);
   });

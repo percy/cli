@@ -44,7 +44,9 @@ describe('Unit / Config Migration', () => {
 
     expect(mocked.migrate.deprecate).toEqual([
       ['static.files', { map: 'static.include', type: 'config', until: '1.0.0' }],
-      ['static.ignore', { map: 'static.exclude', type: 'config', until: '1.0.0' }]
+      ['static.ignore', { map: 'static.exclude', type: 'config', until: '1.0.0' }],
+      ['static.overrides', { map: 'static.options', type: 'config', until: '1.0.0' }],
+      ['sitemap.overrides', { map: 'sitemap.options', type: 'config', until: '1.0.0' }]
     ]);
   });
 

@@ -45,7 +45,8 @@ describe('percy snapshot <directory>', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: Invalid URL: wrong'
+      '[percy] Error: The \'--base-url\' flag must start with a ' +
+        'forward slash (/) when providing a static directory'
     ]);
   });
 
@@ -55,10 +56,10 @@ describe('percy snapshot <directory>', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
-      '[percy] Processing 3 snapshots...',
       '[percy] Snapshot taken: /test-1.html',
       '[percy] Snapshot taken: /test-2.html',
       '[percy] Snapshot taken: /test-3.html',
+      '[percy] Uploading 3 snapshots...',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]));
   });
@@ -69,11 +70,11 @@ describe('percy snapshot <directory>', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
-      '[percy] Processing 4 snapshots...',
       '[percy] Snapshot taken: /base/test-1.html',
       '[percy] Snapshot taken: /base/test-2.html',
       '[percy] Snapshot taken: /base/test-3.html',
       '[percy] Snapshot taken: /base/test-index/index.html',
+      '[percy] Uploading 4 snapshots...',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]));
   });
@@ -98,7 +99,7 @@ describe('percy snapshot <directory>', () => {
     fs.writeFileSync('.percy.yml', [
       'version: 2',
       'static:',
-      '  overrides:',
+      '  options:',
       '  - additionalSnapshots:',
       '    - suffix: " (2)"',
       '  - include: "*-1.html"',

@@ -8,7 +8,7 @@ export const configSchema = {
       baseUrl: { $ref: '/snapshot/server#/properties/baseUrl' },
       cleanUrls: { $ref: '/snapshot/server#/properties/cleanUrls' },
       rewrites: { $ref: '/snapshot/server#/properties/rewrites' },
-      overrides: { $ref: '/snapshot#/$defs/options' }
+      options: { $ref: '/snapshot#/$defs/options' }
     }
   },
   sitemap: {
@@ -16,18 +16,9 @@ export const configSchema = {
     $ref: '/snapshot#/$defs/filter',
     unevaluatedProperties: false,
     properties: {
-      overrides: { $ref: '/snapshot#/$defs/options' }
+      options: { $ref: '/snapshot#/$defs/options' }
     }
   }
-};
-
-// Snapshots file schema
-export const snapshotsFileSchema = {
-  $id: '/snapshot/file',
-  oneOf: [
-    { $ref: '/snapshot#/$defs/snapshots' },
-    { $ref: '/snapshot/list' }
-  ]
 };
 
 export function configMigration(config, util) {
@@ -43,9 +34,12 @@ export function configMigration(config, util) {
     // static files and ignore options were renamed
     util.deprecate('static.files', { map: 'static.include', ...notice });
     util.deprecate('static.ignore', { map: 'static.exclude', ...notice });
+    // static and sitemap option overrides were renamed
+    util.deprecate('static.overrides', { map: 'static.options', ...notice });
+    util.deprecate('sitemap.overrides', { map: 'sitemap.options', ...notice });
 
-    for (let i in (config.static?.overrides || [])) {
-      let k = `static.overrides[${i}]`;
+    for (let i in (config.static?.options || [])) {
+      let k = `static.options[${i}]`;
       util.deprecate(`${k}.files`, { map: `${k}.include`, ...notice });
       util.deprecate(`${k}.ignore`, { map: `${k}.exclude`, ...notice });
     }
