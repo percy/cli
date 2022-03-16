@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import command from '@percy/cli-command';
+import command, {
+  PercyConfig
+} from '@percy/cli-command';
 
 export const migrate = command('migrate', {
   description: 'Migrate a Percy config file to the latest version',
@@ -26,8 +28,6 @@ export const migrate = command('migrate', {
     '$0 .percy.yml .percy.js'
   ]
 }, async ({ args, flags, log, exit }) => {
-  let PercyConfig = await import('@percy/config');
-
   let { config, filepath: input } = PercyConfig.search(args.filepath);
   let output = args.output ? path.resolve(args.output) : input;
 
@@ -64,8 +64,8 @@ export const migrate = command('migrate', {
       content = PercyConfig.stringify(format, { ...pkg, percy: migrated });
     } else if (input === output) {
       // rename input if it is the output
-      let old = input.replace(path.extname(input), '.old$&');
-      fs.renameSync(input, old);
+      let { dir, name, ext } = path.parse(input);
+      fs.renameSync(input, path.join(dir, `${name}.old${ext}`));
     }
 
     // write to output

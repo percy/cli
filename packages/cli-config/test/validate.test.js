@@ -1,10 +1,12 @@
 import path from 'path';
-import { logger, mockConfig } from './helpers';
-import PercyConfig from '@percy/config';
+import { PercyConfig } from '@percy/cli-command';
+import { fs, logger, setupTest } from '@percy/cli-command/test/helpers';
 import validate from '../src/validate';
 
 describe('percy config:validate', () => {
   beforeEach(() => {
+    setupTest({ resetConfig: true });
+
     PercyConfig.addSchema({
       test: {
         type: 'object',
@@ -19,13 +21,8 @@ describe('percy config:validate', () => {
     });
   });
 
-  afterEach(() => {
-    PercyConfig.cache.clear();
-    PercyConfig.resetSchema();
-  });
-
   it('logs debug info for a valid config file', async () => {
-    mockConfig('.percy.yml', 'version: 2\ntest:\n  value: percy');
+    fs.writeFileSync('.percy.yml', 'version: 2\ntest:\n  value: percy');
     await validate();
 
     expect(logger.stderr).toEqual([]);
@@ -44,7 +41,7 @@ describe('percy config:validate', () => {
 
   it('logs debug info for a provided valid config file', async () => {
     let filename = path.join('.config', 'percy.yml');
-    mockConfig(filename, 'version: 2\ntest:\n  value: config');
+    fs.$vol.fromJSON({ [filename]: 'version: 2\ntest:\n  value: config' });
     await validate([filename]);
 
     expect(logger.stderr).toEqual([]);
@@ -62,7 +59,7 @@ describe('percy config:validate', () => {
   });
 
   it('errors with invalid or unkown config options', async () => {
-    mockConfig('.invalid.yml', 'version: 2\ntest:\n  value: false\nbar: baz');
+    fs.writeFileSync('.invalid.yml', 'version: 2\ntest:\n  value: false\nbar: baz');
     await expectAsync(validate(['.invalid.yml'])).toBeRejected();
 
     expect(logger.stdout).toEqual([

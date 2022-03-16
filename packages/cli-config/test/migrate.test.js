@@ -1,18 +1,16 @@
 import path from 'path';
-import { logger, mockConfig, getMockConfig } from './helpers';
-import PercyConfig from '@percy/config';
+import { PercyConfig } from '@percy/cli-command';
+import { fs, logger, setupTest } from '@percy/cli-command/test/helpers';
 import migrate from '../src/migrate';
 
 describe('percy config:migrate', () => {
-  beforeEach(async () => {
-    mockConfig('.percy.yml', 'version: 1\n');
+  beforeEach(() => {
+    let filesystem = { '.percy.yml': 'version: 1\n' };
+    setupTest({ filesystem, resetConfig: true });
+
     PercyConfig.addMigration((config, util) => {
       if (config.migrate) util.map('migrate', 'migrated', v => v.replace('old', 'new'));
     });
-  });
-
-  afterEach(() => {
-    PercyConfig.clearMigrations();
   });
 
   it('by default, renames the config before writing', async () => {
@@ -25,14 +23,14 @@ describe('percy config:migrate', () => {
       '[percy] Config file migrated!'
     ]);
 
-    expect(getMockConfig('.percy.old.yml')).toContain('version: 1');
-    expect(getMockConfig('.percy.yml')).toContain('version: 2');
+    expect(fs.readFileSync('.percy.old.yml', 'utf-8')).toContain('version: 1');
+    expect(fs.readFileSync('.percy.yml', 'utf-8')).toContain('version: 2');
   });
 
   it('prints config with the --dry-run flag', async () => {
     await migrate(['--dry-run']);
 
-    expect(getMockConfig('.percy.yml')).toContain('version: 1');
+    expect(fs.readFileSync('.percy.yml', 'utf-8')).toContain('version: 1');
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Found config file: .percy.yml',
@@ -43,10 +41,10 @@ describe('percy config:migrate', () => {
   });
 
   it('works with rc configs', async () => {
-    mockConfig('.percyrc', 'version: 1\n');
+    fs.writeFileSync('.percyrc', 'version: 1\n');
     await migrate(['.percyrc']);
 
-    expect(getMockConfig('.percyrc')).toEqual('version: 2\n');
+    expect(fs.readFileSync('.percyrc', 'utf-8')).toEqual('version: 2\n');
   });
 
   it('works with package.json configs', async () => {
@@ -61,12 +59,10 @@ describe('percy config:migrate', () => {
       devDependencies: {}
     };
 
-    // this is mocked and reflected in `getMockConfig`
-    require('fs').writeFileSync('package.json', json(pkg));
-
+    fs.writeFileSync('package.json', json(pkg));
     await migrate(['package.json']);
 
-    expect(getMockConfig('package.json')).toEqual(
+    expect(fs.readFileSync('package.json', 'utf-8')).toEqual(
       json({ ...pkg, percy: { version: 2 } })
     );
   });
@@ -74,7 +70,7 @@ describe('percy config:migrate', () => {
   it('can convert between config types', async () => {
     await migrate(['.percy.yml', '.percy.js']);
 
-    expect(getMockConfig('.percy.js'))
+    expect(fs.readFileSync('.percy.js', 'utf-8'))
       .toEqual('module.exports = {\n  version: 2\n}\n');
   });
 
@@ -90,10 +86,10 @@ describe('percy config:migrate', () => {
   });
 
   it('errors when a config cannot be parsed', async () => {
-    let filename = path.join('.config', 'percy.yml');
-    mockConfig(filename, () => { throw new Error('test'); });
+    fs.writeFileSync('.error.yml', '');
+    fs.readFileSync.and.throwError(new Error('test'));
 
-    await expectAsync(migrate([filename])).toBeRejected();
+    await expectAsync(migrate(['.error.yml'])).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -102,7 +98,7 @@ describe('percy config:migrate', () => {
   });
 
   it('warns when a config is already the latest version', async () => {
-    mockConfig('.percy.yml', 'version: 2\n');
+    fs.writeFileSync('.percy.yml', 'version: 2\n');
     await migrate();
 
     expect(logger.stdout).toEqual([
@@ -112,18 +108,18 @@ describe('percy config:migrate', () => {
       '[percy] Config is already the latest version'
     ]);
 
-    expect(getMockConfig('.percy.old.yml')).toBeUndefined();
+    expect(fs.existsSync('.percy.old.yml')).toBe(false);
   });
 
   it('runs registered migrations on the config', async () => {
-    mockConfig('.percy.yml', [
+    fs.writeFileSync('.percy.yml', [
       'version: 1',
       'migrate: old-value'
     ].join('\n'));
 
     await migrate();
 
-    expect(getMockConfig('.percy.yml')).toEqual([
+    expect(fs.readFileSync('.percy.yml', 'utf-8')).toEqual([
       'version: 2',
       'migrated: new-value'
     ].join('\n') + '\n');
