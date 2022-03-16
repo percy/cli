@@ -8,7 +8,7 @@ export const ping = command('ping', {
 }, async ({ flags, percy, log, exit }) => {
   if (!percy) exit(0, 'Percy is disabled');
 
-  let { request } = await import('@percy/core/dist/utils');
+  let { request } = await import('@percy/cli-command/utils');
   let ping = `http://localhost:${flags.port}/percy/healthcheck`;
 
   try {

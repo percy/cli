@@ -1,5 +1,5 @@
-import { request } from '@percy/core/dist/utils';
-import { logger } from './helpers';
+import { request } from '@percy/cli-command/utils';
+import { logger, setupTest } from '@percy/cli-command/test/helpers';
 import start from '../src/start';
 import ping from '../src/ping';
 
@@ -14,12 +14,20 @@ describe('percy exec:start', () => {
   }
 
   beforeEach(async () => {
+    process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+    setupTest();
+
     started = start(['--quiet']);
     started.then(() => (started = null));
     await ping();
   });
 
   afterEach(async () => {
+    delete process.env.PERCY_TOKEN;
+    delete process.env.PERCY_ENABLE;
+    delete process.env.PERCY_PARALLEL_TOTAL;
+    delete process.env.PERCY_PARTIAL_BUILD;
+
     // it's important that percy is still running or we terminate the test process
     if (started) process.emit('SIGTERM');
     await started;
