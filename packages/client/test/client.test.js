@@ -1,23 +1,20 @@
-import mock from 'mock-require';
-import { mockgit } from '@percy/env/test/helpers';
-import PercyClient from '../src';
-import { sha256hash, base64encode } from '../src/utils';
-import mockAPI from './helpers';
+import fs from 'fs';
 import logger from '@percy/logger/test/helpers';
+import { mockgit } from '@percy/env/test/helpers';
+import api from './helpers';
+
+import { sha256hash, base64encode } from '../src/utils';
+import PercyClient from '../src';
 
 describe('PercyClient', () => {
   let client;
 
   beforeEach(() => {
-    mockAPI.start();
+    api.mock();
     logger.mock();
     client = new PercyClient({
       token: 'PERCY_TOKEN'
     });
-  });
-
-  afterEach(() => {
-    mock.stopAll();
   });
 
   describe('#userAgent()', () => {
@@ -106,8 +103,8 @@ describe('PercyClient', () => {
   describe('#get()', () => {
     it('sends a GET request to the API', async () => {
       await expectAsync(client.get('foobar')).toBeResolved();
-      expect(mockAPI.requests['/foobar'][0].method).toBe('GET');
-      expect(mockAPI.requests['/foobar'][0].headers).toEqual(
+      expect(api.requests['/foobar'][0].method).toBe('GET');
+      expect(api.requests['/foobar'][0].headers).toEqual(
         jasmine.objectContaining({
           authorization: 'Token token=PERCY_TOKEN'
         })
@@ -123,9 +120,9 @@ describe('PercyClient', () => {
   describe('#post()', () => {
     it('sends a POST request to the API', async () => {
       await expectAsync(client.post('foobar', { test: '123' })).toBeResolved();
-      expect(mockAPI.requests['/foobar'][0].body).toEqual({ test: '123' });
-      expect(mockAPI.requests['/foobar'][0].method).toBe('POST');
-      expect(mockAPI.requests['/foobar'][0].headers).toEqual(
+      expect(api.requests['/foobar'][0].body).toEqual({ test: '123' });
+      expect(api.requests['/foobar'][0].method).toBe('POST');
+      expect(api.requests['/foobar'][0].headers).toEqual(
         jasmine.objectContaining({
           authorization: 'Token token=PERCY_TOKEN',
           'content-type': 'application/vnd.api+json'
@@ -151,7 +148,7 @@ describe('PercyClient', () => {
         }
       });
 
-      expect(mockAPI.requests['/builds'][0].body.data)
+      expect(api.requests['/builds'][0].body.data)
         .toEqual(jasmine.objectContaining({
           attributes: {
             branch: client.env.git.branch,
@@ -193,7 +190,7 @@ describe('PercyClient', () => {
         }
       });
 
-      expect(mockAPI.requests['/builds'][0].body.data)
+      expect(api.requests['/builds'][0].body.data)
         .toEqual(jasmine.objectContaining({
           relationships: {
             resources: {
@@ -227,7 +224,7 @@ describe('PercyClient', () => {
     });
 
     it('gets build data', async () => {
-      mockAPI.reply('/builds/100', () => [200, { data: '<<build-data>>' }]);
+      api.reply('/builds/100', () => [200, { data: '<<build-data>>' }]);
       await expectAsync(client.getBuild(100)).toBeResolvedTo({ data: '<<build-data>>' });
     });
   });
@@ -244,12 +241,12 @@ describe('PercyClient', () => {
     });
 
     it('gets project builds data', async () => {
-      mockAPI.reply('/projects/foo/bar/builds', () => [200, { data: ['<<build-data>>'] }]);
+      api.reply('/projects/foo/bar/builds', () => [200, { data: ['<<build-data>>'] }]);
       await expectAsync(client.getBuilds('foo/bar')).toBeResolvedTo({ data: ['<<build-data>>'] });
     });
 
     it('gets project builds data filtered by a sha', async () => {
-      mockAPI.reply('/projects/foo/bar/builds?filter[sha]=test-sha', () => (
+      api.reply('/projects/foo/bar/builds?filter[sha]=test-sha', () => (
         [200, { data: ['<<build-data>>'] }]
       ));
 
@@ -258,7 +255,7 @@ describe('PercyClient', () => {
     });
 
     it('gets project builds data filtered by state, branch, and shas', async () => {
-      mockAPI.reply('/projects/foo/bar/builds?' + [
+      api.reply('/projects/foo/bar/builds?' + [
         'filter[branch]=master',
         'filter[state]=finished',
         'filter[shas][]=test-sha-1',
@@ -298,7 +295,7 @@ describe('PercyClient', () => {
     it('invokes the callback when data changes while waiting', async () => {
       let progress = 0;
 
-      mockAPI
+      api
         .reply('/builds/123', () => [200, {
           data: { attributes: { state: 'processing' } }
         }])
@@ -318,7 +315,7 @@ describe('PercyClient', () => {
     });
 
     it('throws when no update happens within the timeout', async () => {
-      mockAPI.reply('/builds/123', () => [200, {
+      api.reply('/builds/123', () => [200, {
         data: { attributes: { state: 'processing' } }
       }]);
 
@@ -327,7 +324,7 @@ describe('PercyClient', () => {
     });
 
     it('resolves when the build completes', async () => {
-      mockAPI
+      api
         .reply('/builds/123', () => [200, {
           data: { attributes: { state: 'processing' } }
         }])
@@ -340,15 +337,13 @@ describe('PercyClient', () => {
     });
 
     it('resolves when the build matching a commit revision completes', async () => {
-      mockgit.commit
-        .withArgs([jasmine.anything(), 'HEAD'])
-        .and.returnValue('parsed-sha');
+      mockgit().and.returnValue('COMMIT_SHA:commit-sha');
 
-      mockAPI
-        .reply('/projects/foo/bar/builds?filter[sha]=parsed-sha', () => [200, {
+      api
+        .reply('/projects/foo/bar/builds?filter[sha]=commit-sha', () => [200, {
           data: [{ attributes: { state: 'processing' } }]
         }])
-        .reply('/projects/foo/bar/builds?filter[sha]=parsed-sha', () => [200, {
+        .reply('/projects/foo/bar/builds?filter[sha]=commit-sha', () => [200, {
           data: [{ attributes: { state: 'finished' } }]
         }]);
 
@@ -357,9 +352,9 @@ describe('PercyClient', () => {
     });
 
     it('defaults to the provided commit when revision parsing fails', async () => {
-      mockgit.commit.and.throwError(new Error('test'));
+      mockgit().and.throwError(new Error('test'));
 
-      mockAPI.reply('/projects/foo/bar/builds?filter[sha]=abcdef', () => [200, {
+      api.reply('/projects/foo/bar/builds?filter[sha]=abcdef', () => [200, {
         data: [{ attributes: { state: 'finished' } }]
       }]);
 
@@ -378,12 +373,12 @@ describe('PercyClient', () => {
 
     it('finalizes the build', async () => {
       await expectAsync(client.finalizeBuild(123)).toBeResolved();
-      expect(mockAPI.requests['/builds/123/finalize']).toBeDefined();
+      expect(api.requests['/builds/123/finalize']).toBeDefined();
     });
 
     it('can finalize all shards of a build', async () => {
       await expectAsync(client.finalizeBuild(123, { all: true })).toBeResolved();
-      expect(mockAPI.requests['/builds/123/finalize?all-shards=true']).toBeDefined();
+      expect(api.requests['/builds/123/finalize?all-shards=true']).toBeDefined();
     });
   });
 
@@ -398,7 +393,7 @@ describe('PercyClient', () => {
     it('uploads a resource for a build', async () => {
       await expectAsync(client.uploadResource(123, { content: 'foo' })).toBeResolved();
 
-      expect(mockAPI.requests['/builds/123/resources'][0].body).toEqual({
+      expect(api.requests['/builds/123/resources'][0].body).toEqual({
         data: {
           type: 'resources',
           id: sha256hash('foo'),
@@ -410,14 +405,14 @@ describe('PercyClient', () => {
     });
 
     it('can upload a resource from a local path', async () => {
-      mock('fs', { readFileSync: path => `contents of ${path}` });
+      spyOn(fs, 'readFileSync').and.callFake(p => `contents of ${p}`);
 
       await expectAsync(client.uploadResource(123, {
         sha: 'foo-sha',
         filepath: 'foo/bar'
       })).toBeResolved();
 
-      expect(mockAPI.requests['/builds/123/resources'][0].body).toEqual({
+      expect(api.requests['/builds/123/resources'][0].body).toEqual({
         data: {
           type: 'resources',
           id: 'foo-sha',
@@ -445,14 +440,14 @@ describe('PercyClient', () => {
       let content = 'foo';
 
       // to test this, the API is set to delay responses by 15ms...
-      mockAPI.reply('/builds/123/resources', async () => {
+      api.reply('/builds/123/resources', async () => {
         await new Promise(r => setTimeout(r, 12));
         return [201, { success: content }];
       });
 
       // ...after 20ms (enough time for a single request) the contents change...
       setTimeout(() => (content = 'bar'), 20);
-      mock('fs', { readFileSync: () => content });
+      spyOn(fs, 'readFileSync').and.returnValue(content);
 
       // ... which should result in every 2 uploads being identical
       await expectAsync(client.uploadResources(123, [
@@ -497,7 +492,7 @@ describe('PercyClient', () => {
         }]
       })).toBeResolved();
 
-      expect(mockAPI.requests['/builds/123/snapshots'][0].headers).toEqual(
+      expect(api.requests['/builds/123/snapshots'][0].headers).toEqual(
         jasmine.objectContaining({
           'user-agent': jasmine.stringMatching(
             /^Percy\/v1 @percy\/client\/\S+ sdk\/info \(sdk\/env; node\/v[\d.]+.*\)$/
@@ -505,7 +500,7 @@ describe('PercyClient', () => {
         })
       );
 
-      expect(mockAPI.requests['/builds/123/snapshots'][0].body).toEqual({
+      expect(api.requests['/builds/123/snapshots'][0].body).toEqual({
         data: {
           type: 'snapshots',
           attributes: {
@@ -536,7 +531,7 @@ describe('PercyClient', () => {
         client.createSnapshot(123, { resources: [{ sha: 'sha' }] })
       ).toBeResolved();
 
-      expect(mockAPI.requests['/builds/123/snapshots'][0].body).toEqual({
+      expect(api.requests['/builds/123/snapshots'][0].body).toEqual({
         data: {
           type: 'snapshots',
           attributes: {
@@ -571,7 +566,7 @@ describe('PercyClient', () => {
 
     it('finalizes a snapshot', async () => {
       await expectAsync(client.finalizeSnapshot(123)).toBeResolved();
-      expect(mockAPI.requests['/snapshots/123/finalize']).toBeDefined();
+      expect(api.requests['/snapshots/123/finalize']).toBeDefined();
     });
   });
 
@@ -597,7 +592,7 @@ describe('PercyClient', () => {
         })
       ).toBeResolved();
 
-      expect(mockAPI.requests['/builds/123/snapshots'][0].body).toEqual({
+      expect(api.requests['/builds/123/snapshots'][0].body).toEqual({
         data: {
           type: 'snapshots',
           attributes: {
@@ -636,7 +631,7 @@ describe('PercyClient', () => {
         })
       ).toBeResolved();
 
-      expect(mockAPI.requests['/builds/123/resources'][0].body).toEqual({
+      expect(api.requests['/builds/123/resources'][0].body).toEqual({
         data: {
           type: 'resources',
           id: sha256hash(testDOM),
@@ -649,7 +644,7 @@ describe('PercyClient', () => {
 
     it('finalizes a snapshot', async () => {
       await expectAsync(client.sendSnapshot(123, { name: 'test snapshot name' })).toBeResolved();
-      expect(mockAPI.requests['/snapshots/4567/finalize']).toBeDefined();
+      expect(api.requests['/snapshots/4567/finalize']).toBeDefined();
     });
   });
 });

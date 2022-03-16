@@ -25,12 +25,12 @@ const DEFAULT_REPLIES = {
   }]
 };
 
-const mockAPI = {
+const api = {
   nock: null,
   requests: null,
   replies: null,
 
-  start(delay = 0) {
+  mock(options) {
     nock.cleanAll();
     nock.disableNetConnect();
     nock.enableNetConnect('storage.googleapis.com|localhost|127.0.0.1');
@@ -62,6 +62,7 @@ const mockAPI = {
       );
     }
 
+    let { delay = 0 } = options || {};
     n.get(/.*/).delay(delay).reply(intercept);
     n.post(/.*/).delay(delay).reply(intercept);
   },
@@ -70,12 +71,7 @@ const mockAPI = {
     this.replies[path] = this.replies[path] || [];
     this.replies[path].push(handler);
     return this;
-  },
-
-  cleanAll() {
-    nock.cleanAll();
-    return this;
   }
 };
 
-module.exports = mockAPI;
+module.exports = api;

@@ -1,10 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import request, {
-  port, href,
-  ProxyHttpAgent,
-  proxyAgentFor
-} from '../../src/request';
+import { request, ProxyHttpAgent } from '../../src/utils';
+import { port, href, proxyAgentFor } from '../../src/proxy';
 
 const ssl = {
   cert: fs.readFileSync(path.resolve(__dirname, '../certs/test.crt')),
