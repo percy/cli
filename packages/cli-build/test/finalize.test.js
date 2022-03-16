@@ -1,11 +1,9 @@
-import mockAPI from '@percy/client/test/helpers';
-import logger from '@percy/logger/test/helpers';
+import { logger, setupTest } from '@percy/cli-command/test/helpers';
 import finalize from '../src/finalize';
 
 describe('percy build:finalize', () => {
   beforeEach(() => {
-    mockAPI.start();
-    logger.mock();
+    setupTest();
   });
 
   afterEach(() => {
