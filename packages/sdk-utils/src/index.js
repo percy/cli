@@ -5,16 +5,10 @@ import isPercyEnabled from './percy-enabled';
 import fetchPercyDOM from './percy-dom';
 import postSnapshot from './post-snapshot';
 
-export {
-  logger,
-  percy,
-  request,
-  isPercyEnabled,
-  fetchPercyDOM,
-  postSnapshot
-};
+// export the namespace by default
+export * as default from '.';
 
-export default {
+export {
   logger,
   percy,
   request,
