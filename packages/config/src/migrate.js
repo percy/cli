@@ -1,8 +1,8 @@
 import logger from '@percy/logger';
-import normalize from './normalize';
 import {
   get, set, del, map,
-  joinPropertyPath
+  joinPropertyPath,
+  normalize
 } from './utils';
 
 // Global set of registered migrations

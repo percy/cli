@@ -10,14 +10,19 @@
   "publishConfig": {
     "access": "public"
   },
-  "main": "dist/index.js",
-  "types": "types/index.d.ts",
-  "files": [
-    "dist",
-    "types/index.d.ts"
-  ],
   "engines": {
     "node": ">=12"
+  },
+  "files": [
+    "./dist",
+    "./types/index.d.ts"
+  ],
+  "main": "./dist/index.js",
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./utils": "./dist/utils/index.js",
+    "./test/helpers": "./test/helpers.js"
   },
   "scripts": {
     "build": "node ../../scripts/build",

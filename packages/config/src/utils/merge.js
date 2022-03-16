@@ -103,6 +103,31 @@ function walk(object, fn, path = []) {
   }
 }
 
+// Recursively mutate and filter empty values from arrays and objects
+export function filterEmpty(subject) {
+  if (typeof subject === 'object') {
+    if (isArray(subject)) {
+      for (let i = 0; i < subject.length; i++) {
+        if (!filterEmpty(subject[i])) {
+          subject.splice(i--, 1);
+        }
+      }
+
+      return subject.length > 0;
+    } else {
+      for (let k in subject) {
+        if (!filterEmpty(subject[k])) {
+          delete subject[k];
+        }
+      }
+
+      return entries(subject).length > 0;
+    }
+  } else {
+    return subject != null;
+  }
+}
+
 // Merges source values and returns a new merged value. The map function will be called with a
 // property's path, previous value, and next value; it should return an array containing any
 // replacement path and value; when a replacement value not defined, values will be merged.
@@ -147,27 +172,4 @@ export function merge(sources, map) {
   }, undefined);
 }
 
-// Recursively mutate and filter empty values from arrays and objects
-export function filterEmpty(subject) {
-  if (typeof subject === 'object') {
-    if (isArray(subject)) {
-      for (let i = 0; i < subject.length; i++) {
-        if (!filterEmpty(subject[i])) {
-          subject.splice(i--, 1);
-        }
-      }
-
-      return subject.length > 0;
-    } else {
-      for (let k in subject) {
-        if (!filterEmpty(subject[k])) {
-          delete subject[k];
-        }
-      }
-
-      return entries(subject).length > 0;
-    }
-  } else {
-    return subject != null;
-  }
-}
+export default merge;

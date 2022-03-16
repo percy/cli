@@ -1,12 +1,11 @@
+import fs from 'fs';
 import { relative } from 'path';
-import { statSync } from 'fs';
 import { cosmiconfigSync } from 'cosmiconfig';
 import logger from '@percy/logger';
-import getDefaults from './defaults';
 import migrate from './migrate';
-import normalize from './normalize';
-import { inspect } from './stringify';
 import validate from './validate';
+import getDefaults from './defaults';
+import { inspect, normalize } from './utils';
 
 // Loaded configuration file cache
 export const cache = new Map();
@@ -28,7 +27,7 @@ export const explorer = cosmiconfigSync('percy', {
 // Searches within a provided directory, or loads the provided config path
 export function search(path) {
   try {
-    let result = (path && !statSync(path).isDirectory())
+    let result = (path && !fs.statSync(path).isDirectory())
       ? explorer.load(path) : explorer.search(path);
     return result || {};
   } catch (error) {
