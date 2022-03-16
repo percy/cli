@@ -1,5 +1,5 @@
+import { merge } from '@percy/config/utils';
 import { command } from './command';
-import { merge } from '@percy/config/dist/utils';
 
 // Legacy flags for older commands that inadvertently import a newer @percy/cli-command
 export const legacyFlags = {

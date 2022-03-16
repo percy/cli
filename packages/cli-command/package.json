@@ -10,15 +10,20 @@
   "publishConfig": {
     "access": "public"
   },
-  "main": "dist/index.js",
-  "bin": {
-    "percy-cli-readme": "bin/readme"
-  },
   "files": [
-    "dist"
+    "./dist"
   ],
   "engines": {
     "node": ">=12"
+  },
+  "bin": {
+    "percy-cli-readme": "./bin/readme"
+  },
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./utils": "./dist/utils.js",
+    "./test/helpers": "./test/helpers.js"
   },
   "scripts": {
     "build": "node ../../scripts/build",

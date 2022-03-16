@@ -1,7 +1,7 @@
 import logger from '@percy/logger';
 import PercyConfig from '@percy/config';
-import { set, del } from '@percy/config/dist/utils';
-import * as CoreConfig from '@percy/core/dist/config';
+import { set, del } from '@percy/config/utils';
+import * as CoreConfig from '@percy/core/config';
 import * as builtInFlags from './flags';
 import formatHelp from './help';
 import parse from './parse';
