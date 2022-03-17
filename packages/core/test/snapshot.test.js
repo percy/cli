@@ -317,17 +317,17 @@ describe('Snapshot', () => {
   });
 
   it('handles the browser closing early', async () => {
-    spyOn(percy.browser, 'page').and.callThrough();
+    // close the browser after a page target is created
+    spyOn(percy.browser, 'send').and.callFake((...args) => {
+      let send = percy.browser.send.and.originalFn.apply(percy.browser, args);
+      if (args[0] === 'Target.createTarget') percy.browser.close();
+      return send;
+    });
 
-    let snap = percy.snapshot({
+    await percy.snapshot({
       name: 'test snapshot',
       url: 'http://localhost:8000'
     });
-
-    // wait until a page is requested
-    await waitFor(() => percy.browser.page.calls.any());
-    percy.browser.close();
-    await snap;
 
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Encountered an error taking snapshot: test snapshot',
