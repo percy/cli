@@ -126,6 +126,27 @@ describe('SDK Utils', () => {
     });
   });
 
+  describe('waitForPercyIdle()', () => {
+    let { waitForPercyIdle } = utils;
+
+    it('gets idle state from the CLI API idle endpoint', async () => {
+      await expectAsync(waitForPercyIdle()).toBeResolvedTo(true);
+      await expectAsync(helpers.getRequests()).toBeResolvedTo([['/percy/idle']]);
+    });
+
+    it('polls the CLI API idle endpoint on timeout', async () => {
+      spyOn(utils.request, 'fetch').and.callFake((...args) => {
+        return utils.request.fetch.calls.count() > 2
+          ? utils.request.fetch.and.originalFn(...args)
+          // eslint-disable-next-line prefer-promise-reject-errors
+          : Promise.reject({ code: 'ETIMEDOUT' });
+      });
+
+      await expectAsync(waitForPercyIdle()).toBeResolvedTo(true);
+      expect(utils.request.fetch).toHaveBeenCalledTimes(3);
+    });
+  });
+
   describe('fetchPercyDOM()', () => {
     let { fetchPercyDOM } = utils;
 
