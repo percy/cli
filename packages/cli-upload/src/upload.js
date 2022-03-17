@@ -81,7 +81,7 @@ export const upload = command('upload', {
   percy.setConfig({ discovery: { concurrency: config.concurrency } });
 
   // do not launch a browser when starting
-  yield* percy.start({ browser: false });
+  yield* percy.yield.start({ browser: false });
 
   for (let filename of pathnames) {
     let file = path.parse(filename);
@@ -111,7 +111,7 @@ export const upload = command('upload', {
   }
 
   try {
-    yield* percy.stop();
+    yield* percy.yield.stop();
   } catch (error) {
     await percy.stop(true);
     throw error;

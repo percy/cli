@@ -75,7 +75,7 @@ export function snapshotMatches(snapshot, include, exclude) {
 }
 
 // Accepts an array of snapshots to filter and map with matching options.
-export function mapSnapshotOptions(snapshots, config) {
+export function mapSnapshotOptions(percy, snapshots, config) {
   if (!snapshots?.length) return [];
 
   // reduce options into a single function
@@ -83,7 +83,7 @@ export function mapSnapshotOptions(snapshots, config) {
     .reduceRight((next, { include, exclude, ...opts }) => snap => next(
       // assign additional options to included snaphots
       snapshotMatches(snap, include, exclude) ? Object.assign(snap, opts) : snap
-    ), s => s);
+    ), s => getSnapshotConfig(percy, s));
 
   // reduce snapshots with overrides
   return snapshots.reduce((acc, snapshot) => {
@@ -104,12 +104,24 @@ export function mapSnapshotOptions(snapshots, config) {
   }, []);
 }
 
+// Returns an array of derived snapshot options
+export async function gatherSnapshots(percy, options) {
+  let snapshots = 'url' in options ? [options] : options.snapshots;
+  if ('sitemap' in options) snapshots = await getSitemapSnapshots(options);
+
+  // map snapshots with snapshot options
+  snapshots = mapSnapshotOptions(percy, snapshots, options);
+  if (!snapshots.length) throw new Error('No snapshots found');
+  return snapshots;
+}
+
 // Validates and migrates snapshot options against the correct schema based on provided
 // properties. Eagerly throws an error when missing a URL for any snapshot, and warns about all
 // other invalid options which are also scrubbed from the returned migrated options.
 export function validateSnapshotOptions(options) {
   let schema;
 
+  // decide which schema to validate against
   if ('domSnapshot' in options) {
     schema = '/snapshot/dom';
   } else if ('url' in options) {
@@ -124,22 +136,29 @@ export function validateSnapshotOptions(options) {
     schema = '/snapshot';
   }
 
-  let { clientInfo, environmentInfo, ...migrated } = PercyConfig.migrate(options, schema);
-  let errors = PercyConfig.validate(migrated, schema);
+  let {
+    // migrate and remove certain properties from validating
+    clientInfo, environmentInfo, snapshots, ...migrated
+  } = PercyConfig.migrate(options, schema);
 
+  // gather info for validating individual snapshot URLs
   let isSnapshot = schema === '/snapshot/dom' || schema === '/snapshot';
   let baseUrl = schema === '/snapshot/server' ? 'http://localhost' : options.baseUrl;
+  let snaps = isSnapshot ? [migrated] : Array.isArray(snapshots) ? snapshots : [];
+  for (let snap of snaps) validURL(typeof snap === 'string' ? snap : snap.url, baseUrl);
 
-  for (let snap of (isSnapshot ? [migrated] : migrated.snapshots ?? [])) {
-    validURL(typeof snap === 'string' ? snap : snap.url, baseUrl);
-  }
+  // add back snapshots before validating and scrubbing
+  if (snapshots) migrated.snapshots = snapshots;
+  let errors = PercyConfig.validate(migrated, schema);
 
   if (errors) {
+    // warn on validation errors
     let log = logger('core:snapshot');
     log.warn('Invalid snapshot options:');
     for (let e of errors) log.warn(`- ${e.path}: ${e.message}`);
   }
 
+  // add back an empty array if all server snapshots were scrubbed
   if ('serve' in options && 'snapshots' in options) migrated.snapshots ??= [];
   return { clientInfo, environmentInfo, ...migrated };
 }

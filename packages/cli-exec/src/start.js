@@ -16,7 +16,7 @@ export const start = command('start', {
   if (!percy) exit(0, 'Percy is disabled');
 
   // start percy
-  yield* percy.start();
+  yield* percy.yield.start();
 
   try {
     // run until stopped or terminated

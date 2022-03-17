@@ -1,4 +1,5 @@
 import { fs, logger, setupTest, createTestServer } from './helpers';
+import { generatePromise } from '../src/utils';
 import Percy from '../src';
 
 describe('Snapshot multiple', () => {
@@ -288,6 +289,28 @@ describe('Snapshot multiple', () => {
         '[percy:core:snapshot] Handling snapshot: /blog/bar',
         '[percy:core:snapshot] - enableJavaScript: true'
       ]));
+    });
+
+    it('closes the server when canceled', async () => {
+      let cancelable;
+
+      // cancel after the second upload is scheduled
+      spyOn(percy, '_scheduleUpload').and.callFake((...args) => {
+        if (percy._scheduleUpload.calls.count() > 1) cancelable.cancel();
+        return percy._scheduleUpload.and.originalFn.apply(percy, args);
+      });
+
+      // #yield.snapshot returns a generator
+      cancelable = generatePromise(percy.yield.snapshot({ serve: './public' }));
+
+      // kick off the generator which will be canceled when the first upload is scheduled
+      await expectAsync(cancelable.then()).toBeRejected();
+
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
+        '[percy] Snapshot taken: /about.html',
+        '[percy] Snapshot taken: /index.html'
+      ]);
     });
   });
 });

@@ -56,7 +56,7 @@ export const exec = command('exec', {
     log.warn('Percy is disabled');
   } else {
     try {
-      yield* percy.start();
+      yield* percy.yield.start();
     } catch (error) {
       if (error.canceled) throw error;
       log.warn('Skipping visual tests');
