@@ -107,6 +107,20 @@ describe('Snapshot multiple', () => {
       ]));
     });
 
+    it('can supply a function that returns an array of snapshots', async () => {
+      let getSnaps = () => [...snapshots, '/pricing'];
+      await percy.snapshot({ baseUrl, snapshots: getSnaps });
+
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: home',
+        '[percy] Snapshot taken: /about',
+        '[percy] Snapshot taken: /blog',
+        '[percy] Snapshot taken: /blog (page 2)',
+        '[percy] Snapshot taken: /pricing'
+      ]));
+    });
+
     it('throws with invalid or missing URLs', () => {
       expect(() => percy.snapshot([
         'http://localhost:8000/valid',
