@@ -97,9 +97,9 @@ export const snapshot = command('snapshot', {
       options = merge(percy.config.sitemap, config);
     }
 
-    yield* percy.start();
-    yield percy.snapshot(options);
-    yield* percy.stop();
+    yield* percy.yield.start();
+    yield* percy.yield.snapshot(options);
+    yield* percy.yield.stop();
   } catch (error) {
     await percy.stop(true);
     throw error;
