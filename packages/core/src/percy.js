@@ -9,9 +9,7 @@ import {
   createStaticServer
 } from './api';
 import {
-  getSnapshotConfig,
-  getSitemapSnapshots,
-  mapSnapshotOptions,
+  gatherSnapshots,
   validateSnapshotOptions,
   discoverSnapshotResources
 } from './snapshot';
@@ -91,6 +89,13 @@ export class Percy {
     if (server) {
       this.server = createPercyServer(this, port);
     }
+
+    // generator methods are wrapped to autorun and return promises
+    for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot']) {
+      // the original generator can be referenced with percy.yield.<method>
+      let method = (this.yield ||= {})[m] = this[m].bind(this);
+      this[m] = (...args) => generatePromise(method(...args)).then();
+    }
   }
 
   // Shortcut for controlling the global logger's log level.
@@ -137,10 +142,10 @@ export class Percy {
   }
 
   // Resolves once snapshot and upload queues are idle
-  idle = () => generatePromise(async function*() {
+  async *idle() {
     yield* this.#snapshots.idle();
     yield* this.#uploads.idle();
-  }.bind(this))
+  }
 
   // Immediately stops all queues, preventing any more tasks from running
   close() {
@@ -150,7 +155,7 @@ export class Percy {
 
   // Starts a local API server, a browser process, and queues creating a new Percy build which will run
   // at a later time when uploads are deferred, or run immediately when not deferred.
-  start = options => generatePromise(async function*() {
+  async *start(options) {
     // already starting or started
     if (this.readyState != null) return;
     this.readyState = 0;
@@ -215,46 +220,53 @@ export class Percy {
         throw error;
       }
     }
-  }.bind(this))
+  }
 
   // Wait for currently queued snapshots then run and wait for resulting uploads
-  flush = close => generatePromise(async function*() {
-    // wait until the next tick for synchronous snapshots
-    yield new Promise(r => process.nextTick(r));
+  async *flush(close) {
+    try {
+      // wait until the next event loop for synchronous snapshots
+      yield new Promise(r => setImmediate(r));
 
-    // close the snapshot queue and wait for it to empty
-    if (this.#snapshots.size) {
-      if (close) this.#snapshots.close();
+      // close the snapshot queue and wait for it to empty
+      if (this.#snapshots.size) {
+        if (close) this.#snapshots.close();
 
-      yield* this.#snapshots.flush(s => {
-        // do not log a count when not closing or while dry-running
-        if (!close || this.dryRun) return;
-        this.log.progress(`Processing ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s);
-      });
-    }
-
-    // run, close, and wait for the upload queue to empty
-    if (!this.skipUploads && this.#uploads.size) {
-      if (close) this.#uploads.close();
-
-      // prevent creating an empty build when deferred
-      if (!this.deferUploads || !this.#uploads.has('build/create') || this.#uploads.size > 1) {
-        yield* this.#uploads.flush(s => {
-          // do not log a count when not closing or while creating a build
-          if (!close || this.#uploads.has('build/create')) return;
-          this.log.progress(`Uploading ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s);
+        yield* this.#snapshots.flush(s => {
+          // do not log a count when not closing or while dry-running
+          if (!close || this.dryRun) return;
+          this.log.progress(`Processing ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s);
         });
       }
+
+      // run, close, and wait for the upload queue to empty
+      if (!this.skipUploads && this.#uploads.size) {
+        if (close) this.#uploads.close();
+
+        // prevent creating an empty build when deferred
+        if (!this.deferUploads || !this.#uploads.has('build/create') || this.#uploads.size > 1) {
+          yield* this.#uploads.flush(s => {
+            // do not log a count when not closing or while creating a build
+            if (!close || this.#uploads.has('build/create')) return;
+            this.log.progress(`Uploading ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s);
+          });
+        }
+      }
+    } catch (error) {
+      // reopen closed queues when canceled
+      /* istanbul ignore else: all errors bubble */
+      if (close && error.canceled) {
+        this.#snapshots.open();
+        this.#uploads.open();
+      }
+
+      throw error;
     }
-  }.bind(this)).canceled(() => {
-    // reopen closed queues when canceled
-    this.#snapshots.open();
-    this.#uploads.open();
-  })
+  }
 
   // Stops the local API server and browser once snapshots have completed and finalizes the Percy
   // build. Does nothing if not running. When `force` is true, any queued tasks are cleared.
-  stop = force => generatePromise(async function*() {
+  async *stop(force) {
     // not started, but the browser was launched
     if (!this.readyState && this.browser.isConnected()) {
       await this.browser.close();
@@ -273,8 +285,15 @@ export class Percy {
     // log when force stopping
     if (force) this.log.info('Stopping percy...');
 
-    // process uploads and close queues
-    yield* this.flush(true);
+    try {
+      // process uploads and close queues
+      yield* this.yield.flush(true);
+    } catch (error) {
+      // reset ready state when canceled
+      /* istanbul ignore else: all errors bubble */
+      if (error.canceled) this.readyState = 1;
+      throw error;
+    }
 
     // if dry-running, log the total number of snapshots
     if (this.dryRun && this.#uploads.size) {
@@ -303,10 +322,7 @@ export class Percy {
 
     // mark instance as stopped
     this.readyState = 3;
-  }.bind(this)).canceled(() => {
-    // reset ready state when canceled
-    this.readyState = 1;
-  })
+  }
 
   // Deprecated capture method
   capture(options) {
@@ -357,41 +373,56 @@ export class Percy {
       options = options.endsWith('.xml') ? { sitemap: options } : { url: options };
     }
 
+    // validate options and add client & environment info
     options = validateSnapshotOptions(options);
     this.client.addClientInfo(options.clientInfo);
     this.client.addEnvironmentInfo(options.environmentInfo);
 
-    return Promise.resolve().then(async () => {
+    // return an async generator to allow cancelation
+    return (async function*() {
       let server = 'serve' in options ? (
         await createStaticServer(options).listen()
       ) : null;
 
-      if (server) {
-        options.baseUrl = new URL(options.baseUrl || '', server.address()).href;
-        if (!options.snapshots) options.sitemap = new URL('sitemap.xml', options.baseUrl).href;
+      try {
+        if (server) {
+          // automatically set specific static server options
+          options.baseUrl = new URL(options.baseUrl || '', server.address()).href;
+          if (!options.snapshots) options.sitemap = new URL('sitemap.xml', options.baseUrl).href;
+        }
+
+        // gather snapshots from options
+        let snapshots = yield gatherSnapshots(this, options);
+
+        try {
+          // yield each task individually to allow canceling
+          let tasks = snapshots.map(s => this._takeSnapshot(s));
+          for (let task of tasks) yield task;
+        } catch (error) {
+          // cancel queued snapshots that may not have started
+          snapshots.map(s => this._cancelSnapshot(s));
+          throw error;
+        }
+      } finally {
+        await server?.close();
       }
-
-      let snapshots = mapSnapshotOptions((options.snapshots ||
-        ('sitemap' in options && await getSitemapSnapshots(options)) ||
-        ('url' in options && [options])
-      ), options);
-
-      if (!snapshots.length) throw new Error('No snapshots found');
-      await Promise.all(snapshots.map(s => this._takeSnapshot(s)));
-      await server?.close();
-    });
+    }.call(this));
   }
 
-  _takeSnapshot(options) {
-    // get derived snapshot config options
-    let snapshot = getSnapshotConfig(this, options);
+  // Cancel any pending snapshot or snapshot uploads
+  _cancelSnapshot(snapshot) {
+    this.#snapshots.cancel(`snapshot/${snapshot.name}`);
 
-    // clear any existing snapshot uploads of the same name (for retries)
     for (let { name } of [snapshot, ...(snapshot.additionalSnapshots || [])]) {
       this.#uploads.cancel(`upload/${name}`);
     }
+  }
 
-    // resolves after asset discovery has finished and uploads have been queued
+  // Resolves after asset discovery has finished and uploads have been queued
+  _takeSnapshot(snapshot) {
+    // cancel any existing snapshot with the same name
+    this._cancelSnapshot(snapshot);
+
     return this.#snapshots.push(`snapshot/${snapshot.name}`, async function*() {
       try {
         yield* discoverSnapshotResources(this, snapshot, (snap, resources) => {

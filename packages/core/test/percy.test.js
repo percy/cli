@@ -1,4 +1,5 @@
 import { logger, api, setupTest, createTestServer } from './helpers';
+import { generatePromise } from '../src/utils';
 import Percy from '../src';
 
 describe('Percy', () => {
@@ -279,8 +280,8 @@ describe('Percy', () => {
       spyOn(percy.browser, 'launch').and.callFake(() => sleep(10));
       spyOn(percy.server, 'listen').and.callFake(() => sleep(500));
 
-      // #start returns a promise-like generator
-      let starting = percy.start();
+      // #yield.start returns a generator
+      let starting = generatePromise(percy.yield.start());
       let started = starting.then();
 
       // wait until server.listen is called but before it finishes
@@ -534,8 +535,8 @@ describe('Percy', () => {
         percy.snapshot('http://localhost:8000/three')
       ];
 
-      // #stop returns a promise-like generator
-      let stopping = percy.stop();
+      // #yield.stop returns a generator
+      let stopping = generatePromise(percy.yield.stop());
       let stopped = stopping.then();
 
       // wait until the first snapshot is done before canceling
