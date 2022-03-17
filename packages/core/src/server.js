@@ -234,6 +234,8 @@ export class Server extends http.Server {
     if (!directory) [pathname, directory] = ['/', pathname];
 
     let root = path.resolve(directory);
+    if (!fs.existsSync(root)) throw new Error(`Not found: ${directory}`);
+
     let mountPattern = pathToRegexp(pathname, null, { end: false });
     let rewritePath = createRewriter(options?.rewrites, (pathname, rewrite) => {
       try {

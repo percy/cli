@@ -212,6 +212,11 @@ describe('Snapshot multiple', () => {
       });
     });
 
+    it('throws when the directory cannot be found', async () => {
+      await expectAsync(percy.snapshot({ serve: './output' }))
+        .toBeRejectedWithError('Not found: ./output');
+    });
+
     it('serves and snapshots a static directory', async () => {
       await percy.snapshot({ serve: './public' });
 
