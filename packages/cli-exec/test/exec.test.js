@@ -1,10 +1,21 @@
-import mock from 'mock-require';
-import { logger, mockAPI } from './helpers';
+import { logger, api, setupTest } from '@percy/cli-command/test/helpers';
 import exec from '../src/exec';
 
 describe('percy exec', () => {
+  beforeEach(async () => {
+    process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+    setupTest();
+
+    delete require.cache[require.resolve('which')];
+    let { default: which } = await import('which');
+    spyOn(which, 'sync').and.returnValue(true);
+  });
+
   afterEach(() => {
-    mock.stopAll();
+    delete process.env.PERCY_TOKEN;
+    delete process.env.PERCY_ENABLE;
+    delete process.env.PERCY_PARALLEL_TOTAL;
+    delete process.env.PERCY_PARTIAL_BUILD;
   });
 
   it('logs an error when no command is provided', async () => {
@@ -20,6 +31,9 @@ describe('percy exec', () => {
   });
 
   it('logs an error when the command cannot be found', async () => {
+    let { default: which } = await import('which');
+    which.sync.and.returnValue(false);
+
     await expectAsync(exec(['--', 'foobar'])).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
@@ -91,7 +105,7 @@ describe('percy exec', () => {
 
   it('does not run the command if canceled beforehand', async () => {
     // delay build creation to give time to cancel
-    mockAPI.reply('/builds', () => new Promise(resolve => {
+    api.reply('/builds', () => new Promise(resolve => {
       setTimeout(resolve, 1000, [201, { data: { attributes: {} } }]);
     }));
 
@@ -110,10 +124,6 @@ describe('percy exec', () => {
   });
 
   it('throws when the command receives an error event and stops percy', async () => {
-    // skip our own ENOENT check to trigger a child process error event
-    mock('which', { sync: () => true });
-    let { exec } = mock.reRequire('../src/exec');
-
     await expectAsync(exec(['--', 'foobar'])).toBeRejected();
 
     expect(logger.stderr).toEqual([
@@ -152,7 +162,7 @@ describe('percy exec', () => {
 
   it('provides the child process with a percy server address env var', async () => {
     await exec(['--port=1234', '--', 'node', '--eval', [
-      'require("@percy/client/dist/request")',
+      'require("@percy/cli-command/utils")',
       '.request(new URL("/percy/healthcheck", process.env.PERCY_SERVER_ADDRESS))',
       '.catch(e => (console.error(e), process.exit(1)))'
     ].join('')]);

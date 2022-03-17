@@ -1,27 +1,23 @@
-import quibble from 'quibble';
-import * as memfs from 'memfs';
+import { fs, mockfs } from '../helpers';
+import Server from '../../src/server';
 
 describe('Unit / Server', () => {
-  let Server, server;
+  let server;
 
   async function request(path, ...args) {
     let { request } = await import('../helpers/request');
     return request(new URL(path, server.address()), ...args);
   }
 
-  beforeEach(async () => {
-    quibble('fs', memfs.fs);
-    memfs.vol.mkdirSync(process.cwd(), { recursive: true });
-    ({ Server } = await import('../../src/server'));
+  beforeEach(() => {
     server = new Server({ port: 8000 });
+    mockfs();
   });
 
   afterEach(async () => {
     await server.close();
     // wait 2 ticks before reseting memfs too quickly
     await new Promise(r => setImmediate(setImmediate, r));
-    memfs.vol.reset();
-    quibble.reset();
   });
 
   describe('#port', () => {
@@ -262,7 +258,7 @@ describe('Unit / Server', () => {
     beforeEach(async () => {
       await server.listen();
 
-      memfs.vol.fromJSON({
+      fs.$vol.fromJSON({
         './public/index.html': '<p>test</p>',
         './public/foo.html': '<p>foo</p>',
         './public/foo/bar.html': '<p>foo/bar</p>'
@@ -327,8 +323,8 @@ describe('Unit / Server', () => {
     it('serves static error pages if present', async () => {
       server.serve('./public');
 
-      memfs.vol.writeFileSync('./public/400.html', '<p>Wat?</p>');
-      memfs.vol.writeFileSync('./public/404.html', '<p>Not here</p>');
+      fs.writeFileSync('./public/400.html', '<p>Wat?</p>');
+      fs.writeFileSync('./public/404.html', '<p>Not here</p>');
 
       let e1 = await request('/%E0%A4%A').catch(e => e.response);
       let e2 = await request('/foobar').catch(e => e.response);
@@ -376,7 +372,7 @@ describe('Unit / Server', () => {
 
     it('protects against path traversal', async () => {
       server.serve('./public');
-      memfs.vol.writeFileSync('./secret', '*wags finger* ☝️');
+      fs.writeFileSync('./secret', '*wags finger* ☝️');
       // by encoding `../` we can sneak past `new URL().pathname` sanitization
       await expectAsync(request('/%2E%2E%2Fsecret')).toBeRejectedWithError('400 Bad Request');
     });

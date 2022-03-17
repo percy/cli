@@ -18,6 +18,7 @@ rules:
     - before: false
       after: false
       named: after
+      method: before
   space-before-function-paren:
     - error
     - anonymous: never

@@ -1,1 +1,1 @@
-export { snapshot } from './snapshot';
+export { default, snapshot } from './snapshot';

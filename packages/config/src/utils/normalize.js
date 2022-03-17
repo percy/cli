@@ -1,5 +1,5 @@
-import { getSchema } from './validate';
-import { merge } from './utils';
+import merge from './merge';
+import { getSchema } from '../validate';
 
 // Edge case camelizations
 const CAMELCASE_MAP = new Map([
@@ -37,6 +37,7 @@ export function kebabcase(str) {
 // allows deep merging with options.overrides, converting keys to kebab-case with options.kebab,
 // and normalizing against a schema with options.schema.
 export function normalize(object, options) {
+  if (typeof options === 'string') options = { schema: options };
   let keycase = options?.kebab ? kebabcase : camelcase;
 
   return merge([object, options?.overrides], path => {

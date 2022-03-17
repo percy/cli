@@ -1,27 +1,13 @@
 import path from 'path';
-import logger from '@percy/logger/test/helpers';
-
-import {
-  mockfs,
-  mockRequire,
-  mockModuleCommands,
-  mockPnpCommands,
-  mockLegacyCommands
-} from './helpers';
+import { logger, mockfs, fs } from '@percy/cli-command/test/helpers';
+import { mockModuleCommands, mockPnpCommands, mockLegacyCommands } from './helpers';
+import { importCommands } from '../src/commands';
 
 describe('CLI commands', () => {
-  let importCommands;
-
   beforeEach(() => {
-    mockfs();
     logger.mock();
     logger.loglevel('debug');
-    ({ importCommands } = mockRequire.reRequire('../src/commands'));
-  });
-
-  afterEach(() => {
-    mockfs.reset();
-    mockRequire.stopAll();
+    mockfs({ $modules: true });
   });
 
   describe('from node_modules', () => {
@@ -65,8 +51,8 @@ describe('CLI commands', () => {
     });
 
     it('handles errors and logs debug info', async () => {
-      mockfs.mkdirSync('node_modules', { recursive: true });
-      mockfs.spyOn('readdirSync').and.throwError(new Error('EACCES'));
+      fs.$vol.fromJSON({ './node_modules': null });
+      fs.readdirSync.and.throwError(new Error('EACCES'));
       await expectAsync(importCommands()).toBeResolvedTo([]);
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([
@@ -76,10 +62,15 @@ describe('CLI commands', () => {
   });
 
   describe('from yarn pnp', () => {
-    beforeEach(() => {
-      let findPnpApi = jasmine.createSpy('findPnpApi');
-      mockRequire('module', { findPnpApi: findPnpApi.and.returnValue() });
-      ({ importCommands } = mockRequire.reRequire('../src/commands'));
+    let Module, plugPnpApi;
+
+    beforeEach(async () => {
+      ({ default: Module } = await import('module'));
+      Module.findPnpApi ||= (plugPnpApi = jasmine.createSpy('findPnpApi'));
+    });
+
+    afterEach(() => {
+      if (plugPnpApi) delete Module.findPnpApi;
     });
 
     it('imports from the yarn pnp api', async () => {
@@ -125,13 +116,14 @@ describe('CLI commands', () => {
     });
 
     it('runs oclif init hooks', async () => {
-      let init = jasmine.createSpy('init');
+      let init = 'jasmine.createSpy("init")';
 
       mockLegacyCommands(process.cwd(), {
-        '@percy/cli-legacy': { name: 'test', init }
+        'percy-cli-legacy': { name: 'test', init }
       });
 
       await expectAsync(importCommands()).toBeResolvedTo([]);
+      init = await import('percy-cli-legacy/init.js');
       expect(init).toHaveBeenCalled();
     });
   });

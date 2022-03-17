@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import https from 'https';
 import logger from '@percy/logger';
-import { ProxyHttpsAgent } from '@percy/client/dist/request';
+import { ProxyHttpsAgent } from '@percy/client/utils';
 
 // Formats a raw byte integer as a string
 function formatBytes(int) {

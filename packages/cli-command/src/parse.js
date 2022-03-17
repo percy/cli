@@ -1,5 +1,5 @@
 import logger from '@percy/logger';
-import { camelcase } from '@percy/config/dist/normalize';
+import { camelcase } from '@percy/config/utils';
 import { flagUsage } from './help';
 
 // Make it possible to identify parse errors.

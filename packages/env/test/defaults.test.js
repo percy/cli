@@ -32,9 +32,7 @@ describe('Defaults', () => {
   });
 
   it('reads and parses live git commit data', () => {
-    mockgit.branch.and.returnValue('mock-branch');
-
-    mockgit.commit.and.returnValue([
+    let git = mockgit('mock-branch').and.returnValue([
       'COMMIT_SHA:mock sha',
       'AUTHOR_NAME:mock author',
       'AUTHOR_EMAIL:mock author@email.com',
@@ -53,23 +51,20 @@ describe('Defaults', () => {
     expect(env.git).toHaveProperty('committerEmail', 'mock committer@email.com');
     expect(env.git).toHaveProperty('message', 'mock commit');
 
-    expect(mockgit.branch)
-      .toHaveBeenCalledOnceWith(['rev-parse', '--abbrev-ref', 'HEAD']);
-    expect(mockgit.commit)
-      .toHaveBeenCalledOnceWith(['show', 'HEAD', '--quiet', jasmine.stringMatching(/--format=.*/)]);
+    expect(git).toHaveBeenCalledWith('rev-parse', '--abbrev-ref', 'HEAD');
+    expect(git).toHaveBeenCalledWith('show', 'HEAD', '--quiet', jasmine.stringMatching(/--format=.*/));
   });
 
   it('uses raw branch data when git commit data is missing', () => {
-    mockgit.branch.and.returnValue('mock-branch');
+    let git = mockgit('mock-branch');
 
     expect(env.git).toHaveProperty('branch', 'mock-branch');
 
-    expect(mockgit.branch)
-      .toHaveBeenCalledOnceWith(['rev-parse', '--abbrev-ref', 'HEAD']);
+    expect(git).toHaveBeenCalledWith('rev-parse', '--abbrev-ref', 'HEAD');
   });
 
   it('uses the raw commit sha when the env sha is invalid', () => {
-    mockgit.commit.and.returnValue('COMMIT_SHA:fully-valid-git-sha\n');
+    mockgit().and.returnValue('COMMIT_SHA:fully-valid-git-sha\n');
 
     env = new PercyEnv({
       BITBUCKET_BUILD_NUMBER: 'bitbucket-build-number',
@@ -83,7 +78,7 @@ describe('Defaults', () => {
   });
 
   it('can be overridden with PERCY env vars', () => {
-    mockgit.commit.and.returnValue([
+    mockgit().and.returnValue([
       'COMMIT_SHA:mock sha',
       'AUTHOR_NAME:mock author',
       'AUTHOR_EMAIL:mock author@email.com',
@@ -148,8 +143,7 @@ describe('Defaults', () => {
   });
 
   it('falls back to GIT env vars with missing or invalid git commit data', () => {
-    mockgit.commit.and.returnValue('missing or invalid');
-    mockgit.branch.and.returnValue('mock branch');
+    mockgit('mock branch').and.returnValue('invalid');
 
     env = new PercyEnv({
       PERCY_COMMIT: 'not-long-enough-sha',
@@ -173,7 +167,7 @@ describe('Defaults', () => {
   });
 
   it('catches git errors, if there are any', () => {
-    mockgit.commit.and.throwError(new Error('test'));
+    mockgit().and.throwError(new Error('test'));
 
     expect(env).toHaveProperty('git.sha', null);
   });

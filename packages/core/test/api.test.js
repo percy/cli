@@ -1,7 +1,7 @@
 import PercyConfig from '@percy/config';
-import Percy from '../src';
+import { logger, setupTest } from './helpers';
 import pkg from '../package.json';
-import { logger } from './helpers';
+import Percy from '../src';
 
 describe('API Server', () => {
   let percy;
@@ -12,6 +12,8 @@ describe('API Server', () => {
   }
 
   beforeEach(() => {
+    setupTest();
+
     percy = new Percy({
       token: 'PERCY_TOKEN',
       port: 1337

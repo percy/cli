@@ -1,35 +1,19 @@
-import mock from 'mock-require';
+import cp from 'child_process';
 
-export const mockgit = {};
+export function mockgit(branch = '') {
+  let spy = jasmine.createSpy('git');
 
-beforeEach(() => {
-  mockgit.branch = jasmine.createSpy('branch').and.returnValue('');
-  mockgit.commit = jasmine.createSpy('commit').and.returnValue('');
-});
-
-function gitmock(args) {
-  if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') {
-    return mockgit.branch(args);
-  } else if (args[0] === 'show' || args[0] === 'rev-parse') {
-    let raw = mockgit.commit(args);
-    return args[0] !== 'show' && raw.startsWith('COMMIT_SHA')
-      ? raw.match(/COMMIT_SHA:(.*)/)?.[1] : raw;
-  } else {
-    return '';
-  }
-}
-
-mock('child_process', {
-  execSync(...args) {
-    if (args[0].match(/^git\b/)) {
-      return gitmock(args[0].split(' ').slice(1));
+  spyOn(cp, 'execSync').and.callFake(function(cmd, options) {
+    if (cmd.match(/^git\b/)) {
+      let result = spy(...cmd.split(' ').slice(1)) ?? '';
+      if (!cmd.match(/\b(show|rev-parse)\b/)) return '';
+      if (!cmd.includes('rev-parse')) return result;
+      if (cmd.includes('--abbrev-ref')) return branch;
+      return result.match(/^COMMIT_SHA:(.*)$/m)?.[1];
     } else {
-      return '';
+      return cp.execSync.and.originalFn.call(this, cmd, options);
     }
-  }
-});
+  });
 
-mock.reRequire('child_process');
-mock.reRequire('../src/utils');
-mock.reRequire('../src/environment');
-mock.reRequire('../src');
+  return spy;
+}

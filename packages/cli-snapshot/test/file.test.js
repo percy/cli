@@ -1,60 +1,46 @@
-import fs from 'fs';
-import path from 'path';
 import { inspect } from 'util';
-import rimraf from 'rimraf';
-import { logger, mockAPI, createTestServer } from '@percy/core/test/helpers';
+import { fs, logger, setupTest, createTestServer } from '@percy/cli-command/test/helpers';
 import snapshot from '../src/snapshot';
 
 describe('percy snapshot <file>', () => {
-  let tmp = path.join(__dirname, 'tmp');
-  let cwd = process.cwd();
   let server;
 
   beforeEach(async () => {
-    fs.mkdirSync(tmp);
-    process.chdir(tmp);
+    process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
 
     server = await createTestServer({
       default: () => [200, 'text/html', '<p>Test</p>']
     });
 
-    fs.writeFileSync('pages.yml', [
-      '- name: YAML Snapshot',
-      '  url: http://localhost:8000'
-    ].join('\n'));
+    setupTest({
+      filesystem: {
+        'pages.yml': [
+          '- name: YAML Snapshot',
+          '  url: http://localhost:8000'
+        ].join('\n'),
 
-    fs.writeFileSync('pages.js', 'module.exports = ' + inspect([{
-      name: 'JS Snapshot',
-      url: 'http://localhost:8000',
-      additionalSnapshots: [
-        { suffix: ' 2' },
-        { prefix: 'Other ' }
-      ]
-    }], { depth: null }));
+        'pages.js': 'module.exports = ' + inspect([{
+          name: 'JS Snapshot',
+          url: 'http://localhost:8000',
+          additionalSnapshots: [
+            { suffix: ' 2' },
+            { prefix: 'Other ' }
+          ]
+        }], { depth: null }),
 
-    fs.writeFileSync('pages-fn.js', 'module.exports = () => (' + inspect([{
-      name: 'JS Function Snapshot',
-      url: 'http://localhost:8000'
-    }], { depth: null }) + ')');
+        'pages-fn.js': 'module.exports = () => (' + inspect([{
+          name: 'JS Function Snapshot',
+          url: 'http://localhost:8000'
+        }], { depth: null }) + ')',
 
-    fs.writeFileSync('pages-default.js', 'export default ' + inspect([{
-      name: 'JS Default Snapshot',
-      url: 'http://localhost:8000'
-    }], { depth: null }));
-
-    fs.writeFileSync('urls.yml', [
-      '- /', '- /one', '- /two'
-    ].join('\n'));
-
-    process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    mockAPI.start(50);
-    logger.mock();
+        'urls.yml': [
+          '- /', '- /one', '- /two'
+        ].join('\n')
+      }
+    });
   });
 
   afterEach(async () => {
-    process.chdir(cwd);
-    rimraf.sync(path.join(__dirname, 'tmp'));
-
     delete process.env.PERCY_TOKEN;
     await server.close();
   });
@@ -149,18 +135,6 @@ describe('percy snapshot <file>', () => {
     ]);
   });
 
-  it('snapshots pages from .js files that have a default export', async () => {
-    await snapshot(['./pages-default.js']);
-
-    expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
-      '[percy] Percy has started!',
-      '[percy] Snapshot taken: JS Default Snapshot',
-      '[percy] Uploading 1 snapshot...',
-      '[percy] Finalized build #1: https://percy.io/test/test/123'
-    ]);
-  });
-
   it('snapshots pages from a list of URLs', async () => {
     await snapshot(['./urls.yml', '--base-url=http://localhost:8000']);
 
@@ -230,8 +204,7 @@ describe('percy snapshot <file>', () => {
   it('logs validation warnings', async () => {
     fs.writeFileSync('invalid.yml', [
       'snapshots:',
-      '  - foo: bar',
-      '    name: Test snap'
+      '  foo: bar'
     ].join('\n'));
 
     await expectAsync(
@@ -244,8 +217,7 @@ describe('percy snapshot <file>', () => {
     ]);
     expect(logger.stderr).toEqual([
       '[percy] Invalid snapshot options:',
-      '[percy] - snapshots[0].url: missing required property',
-      '[percy] - snapshots[0].foo: unknown property',
+      '[percy] - snapshots: must be an array, received an object',
       '[percy] Build not created',
       '[percy] Error: No snapshots found'
     ]);

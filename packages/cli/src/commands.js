@@ -1,9 +1,8 @@
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
-import { findPnpApi } from 'module';
-import logger from '@percy/logger';
-import { command, legacyCommand } from '@percy/cli-command';
+import Module from 'module';
+import { command, legacyCommand, logger } from '@percy/cli-command';
 
 // Helper to simplify reducing async functions
 async function reduceAsync(iter, reducer, accum = []) {
@@ -53,7 +52,7 @@ const PERCY_PKG_REG = /^(@percy\/|percy-cli-)/;
 
 // Returns the paths of potential percy packages found within yarn's pnp system
 function findPnpPackages(dir) {
-  let pnpapi = findPnpApi?.(`${dir}/`);
+  let pnpapi = Module.findPnpApi?.(`${dir}/`);
   let pkgLoc = pnpapi?.findPackageLocator(`${dir}/`);
   let pkgInfo = pkgLoc && pnpapi?.getPackageInformation(pkgLoc);
   let pkgDeps = pkgInfo?.packageDependencies.entries() ?? [];
@@ -69,8 +68,8 @@ function findPnpPackages(dir) {
 // Helper to import and wrap legacy percy commands for reverse compatibility
 function importLegacyCommands(commandsPath) {
   return reduceFiles(commandsPath, async (cmds, file) => {
+    let filepath = path.join(commandsPath, file.name);
     let { name } = path.parse(file.name);
-    let filepath = path.join(commandsPath, name);
 
     if (file.isDirectory()) {
       // recursively import nested commands and find the index command
@@ -110,7 +109,7 @@ export async function importCommands() {
 
   // reduce found packages to functions which import cli commands
   let cmdImports = await reduceAsync(cmdPkgs, async (pkgs, pkgPath) => {
-    let pkg = require(path.join(pkgPath, 'package.json'));
+    let pkg = JSON.parse(fs.readFileSync(path.join(pkgPath, 'package.json')));
     // do not include self
     if (pkg.name === '@percy/cli') return pkgs;
 

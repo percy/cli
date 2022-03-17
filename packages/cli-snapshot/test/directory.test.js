@@ -1,46 +1,30 @@
-import fs from 'fs';
-import path from 'path';
-import rimraf from 'rimraf';
-import PercyConfig from '@percy/config';
-import { logger, mockAPI } from '@percy/core/test/helpers';
+import { logger, setupTest, fs } from '@percy/cli-command/test/helpers';
 import snapshot from '../src/snapshot';
 
 describe('percy snapshot <directory>', () => {
-  let tmp = path.join(__dirname, 'tmp');
-  let cwd = process.cwd();
-
   beforeEach(() => {
-    process.chdir(__dirname);
-    fs.mkdirSync(tmp);
-
-    fs.writeFileSync(path.join(tmp, 'test-1.html'), '<p>Test 1</p>');
-    fs.writeFileSync(path.join(tmp, 'test-2.html'), '<p>Test 2</p>');
-    fs.writeFileSync(path.join(tmp, 'test-3.html'), '<p>Test 3</p>');
-    fs.writeFileSync(path.join(tmp, 'test-4.xml'), '<p>Test 4</p>');
-    fs.writeFileSync(path.join(tmp, 'test-5.xml'), '<p>Test 5</p>');
-
-    fs.mkdirSync(path.join(tmp, 'test-index'));
-    fs.writeFileSync(path.join(tmp, 'test-index', 'index.html'), '<p>Test Index</p>');
-
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    mockAPI.start(50);
-    logger.mock();
+
+    setupTest({
+      filesystem: {
+        'test-1.html': '<p>Test 1</p>',
+        'test-2.html': '<p>Test 2</p>',
+        'test-3.html': '<p>Test 3</p>',
+        'test-4.xml': '<p>Test 4</p>',
+        'test-5.xml': '<p>Test 5</p>',
+        'test-index/index.html': '<p>Test Index</p>'
+      }
+    });
   });
 
   afterEach(() => {
-    try { fs.unlinkSync('.percy.yml'); } catch {}
-    try { fs.unlinkSync('.percy.js'); } catch {}
-    process.chdir(cwd);
-    rimraf.sync(tmp);
-
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
-    PercyConfig.cache.clear();
   });
 
   it('errors when the base-url is invalid', async () => {
     await expectAsync(
-      snapshot(['./tmp', '--base-url=wrong'])
+      snapshot(['./', '--base-url=wrong'])
     ).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
@@ -51,7 +35,7 @@ describe('percy snapshot <directory>', () => {
   });
 
   it('starts a static server and snapshots matching files', async () => {
-    await snapshot(['./tmp', '--include=test-*.html']);
+    await snapshot(['./', '--include=test-*.html']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -65,7 +49,7 @@ describe('percy snapshot <directory>', () => {
   });
 
   it('snapshots matching files hosted with a base-url', async () => {
-    await snapshot(['./tmp', '--base-url=/base']);
+    await snapshot(['./', '--base-url=/base']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -80,7 +64,7 @@ describe('percy snapshot <directory>', () => {
   });
 
   it('does not take snapshots and prints a list with --dry-run', async () => {
-    await snapshot(['./tmp', '--dry-run']);
+    await snapshot(['./', '--dry-run']);
 
     expect(logger.stderr).toEqual([
       '[percy] Build not created'
@@ -106,7 +90,7 @@ describe('percy snapshot <directory>', () => {
       '    name: First'
     ].join('\n'));
 
-    await snapshot(['./tmp', '--dry-run']);
+    await snapshot(['./', '--dry-run']);
 
     expect(logger.stderr).toEqual([
       '[percy] Build not created'
@@ -126,7 +110,7 @@ describe('percy snapshot <directory>', () => {
   });
 
   it('rewrites file and index URLs with --clean-urls', async () => {
-    await snapshot(['./tmp', '--dry-run', '--clean-urls']);
+    await snapshot(['./', '--dry-run', '--clean-urls']);
 
     expect(logger.stderr).toEqual([
       '[percy] Build not created'
@@ -150,7 +134,7 @@ describe('percy snapshot <directory>', () => {
       '    /:path/:n: /:path-:n.html'
     ].join('\n'));
 
-    await snapshot(['./tmp', '--dry-run']);
+    await snapshot(['./', '--dry-run']);
 
     expect(logger.stderr).toEqual([
       '[percy] Build not created'
@@ -177,7 +161,7 @@ describe('percy snapshot <directory>', () => {
       '}'
     ].join('\n'));
 
-    await snapshot(['./tmp', '--dry-run']);
+    await snapshot(['./', '--dry-run']);
 
     expect(logger.stderr).toEqual([
       '[percy] Build not created'

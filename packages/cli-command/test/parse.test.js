@@ -1,4 +1,4 @@
-import logger from '@percy/logger/test/helpers';
+import { logger } from './helpers';
 import command from '../src';
 
 describe('Option parsing', () => {

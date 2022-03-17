@@ -1,44 +1,42 @@
 import nock from 'nock';
-import logger from '@percy/logger/test/helpers';
-
-import {
-  mockfs,
-  mockRequire,
-  mockUpdateCache
-} from './helpers';
+import { logger, mockfs, fs } from '@percy/cli-command/test/helpers';
+import { mockUpdateCache } from './helpers';
+import { checkForUpdate } from '../src/update';
 
 describe('CLI update check', () => {
-  let checkForUpdate, request;
+  let request;
 
   beforeEach(async () => {
-    mockfs();
     logger.mock();
 
     request = nock('https://api.github.com/repos/percy/cli', {
       reqheaders: { 'User-Agent': ua => !!ua }
     });
 
-    mockRequire('../package.json', { name: '@percy/cli', version: '1.0.0' });
-    ({ checkForUpdate } = mockRequire.reRequire('../src/update'));
+    mockfs({
+      './package.json': JSON.stringify({
+        name: '@percy/cli',
+        version: '1.0.0'
+      })
+    });
   });
 
   afterEach(() => {
-    mockfs.reset();
     nock.cleanAll();
   });
 
   it('fetches and caches the latest release information', async () => {
     request.get('/releases').reply(200, [{ tag_name: 'v1.0.0' }]);
 
-    expect(mockfs.existsSync('.releases')).toBe(false);
+    expect(fs.existsSync('.releases')).toBe(false);
 
     await checkForUpdate();
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([]);
     expect(request.isDone()).toBe(true);
 
-    expect(mockfs.existsSync('.releases')).toBe(true);
-    expect(JSON.parse(mockfs.readFileSync('.releases')))
+    expect(fs.existsSync('.releases')).toBe(true);
+    expect(JSON.parse(fs.readFileSync('.releases')))
       .toHaveProperty('data', [{ tag: 'v1.0.0' }]);
   });
 
@@ -63,7 +61,7 @@ describe('CLI update check', () => {
     expect(logger.stderr).toEqual([]);
     expect(request.isDone()).toBe(true);
 
-    expect(JSON.parse(mockfs.readFileSync('.releases')))
+    expect(JSON.parse(fs.readFileSync('.releases')))
       .toHaveProperty('data', [{ tag: 'v1.0.0' }]);
   });
 
@@ -89,8 +87,8 @@ describe('CLI update check', () => {
   });
 
   it('handles errors reading from cache and logs debug info', async () => {
-    mockUpdateCache([{ tag: 'v1.0.0' }]);
-    mockfs.spyOn('readFileSync').and.throwError(new Error('EACCES'));
+    let cachefile = mockUpdateCache([{ tag: 'v1.0.0' }]);
+    fs.readFileSync.withArgs(cachefile).and.throwError(new Error('EACCES'));
     request.get('/releases').reply(200, [{ tag_name: 'v1.0.0' }]).persist();
 
     await checkForUpdate();
@@ -110,7 +108,7 @@ describe('CLI update check', () => {
   });
 
   it('handles errors writing to cache and logs debug info', async () => {
-    mockfs.spyOn('writeFileSync').and.throwError(new Error('EACCES'));
+    fs.writeFileSync.and.throwError(new Error('EACCES'));
     request.get('/releases').reply(200, [{ tag_name: 'v1.0.0' }]).persist();
 
     await checkForUpdate();
@@ -127,7 +125,7 @@ describe('CLI update check', () => {
     ]);
 
     expect(request.isDone()).toEqual(true);
-    expect(mockfs.existsSync('.releases')).toBe(false);
+    expect(fs.existsSync('.releases')).toBe(false);
   });
 
   it('handles request errors and logs debug info', async () => {

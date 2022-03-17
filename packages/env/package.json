@@ -10,20 +10,22 @@
   "publishConfig": {
     "access": "public"
   },
-  "main": "dist/index.js",
-  "files": [
-    "dist"
-  ],
   "engines": {
     "node": ">=12"
+  },
+  "files": [
+    "./dist"
+  ],
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./utils": "./dist/utils.js",
+    "./test/helpers": "./test/helpers.js"
   },
   "scripts": {
     "build": "node ../../scripts/build",
     "lint": "eslint --ignore-path ../../.gitignore .",
     "test": "node ../../scripts/test",
     "test:coverage": "yarn test --coverage"
-  },
-  "devDependencies": {
-    "mock-require": "^3.0.3"
   }
 }

@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import command from '@percy/cli-command';
+import command, {
+  PercyConfig
+} from '@percy/cli-command';
 
 const DEFAULT_FILES = {
   rc: '.percyrc',
@@ -58,8 +60,6 @@ export const create = command('create', {
     '$0 ./config/percy.yml'
   ]
 }, async ({ flags, args, log, exit }) => {
-  let PercyConfig = await import('@percy/config');
-
   // discern the filetype
   let filetype = args.filepath
     ? path.extname(args.filepath).replace(/^./, '')
@@ -80,6 +80,7 @@ export const create = command('create', {
 
   // write stringified default config options to the filepath
   let format = ['rc', 'yaml', 'yml'].includes(filetype) ? 'yaml' : filetype;
+  fs.mkdirSync(path.dirname(filepath), { recursive: true });
   fs.writeFileSync(filepath, PercyConfig.stringify(format));
   log.info(`Created Percy config: ${filepath}`);
 });

@@ -1,46 +1,29 @@
-import fs from 'fs';
-import path from 'path';
-import rimraf from 'rimraf';
-import mockAPI from '@percy/client/test/helpers';
-import logger from '@percy/logger/test/helpers';
+import { fs, logger, api, setupTest } from '@percy/cli-command/test/helpers';
 import upload from '../src/upload';
 
 // http://png-pixel.com/
-const pixel = Buffer.from('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', 'base64');
-const tmp = path.join(__dirname, 'tmp');
-const cwd = process.cwd();
+const pixel = Buffer.from((
+  'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=='
+), 'base64').toString();
 
 describe('percy upload', () => {
-  beforeAll(() => {
-    fs.mkdirSync(tmp);
-    process.chdir(tmp);
-
-    fs.mkdirSync('images');
-    fs.writeFileSync(path.join('images', 'test-1.png'), pixel);
-    fs.writeFileSync(path.join('images', 'test-2.jpg'), pixel);
-    fs.writeFileSync(path.join('images', 'test-3.jpeg'), pixel);
-    fs.writeFileSync(path.join('images', 'test-4.gif'), pixel);
-    fs.writeFileSync('nope', 'not here');
-  });
-
-  afterAll(() => {
-    process.chdir(cwd);
-    rimraf.sync(tmp);
-  });
-
   beforeEach(() => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    mockAPI.start();
-    logger.mock();
+
+    setupTest({
+      filesystem: {
+        'images/test-1.png': pixel,
+        'images/test-2.jpg': pixel,
+        'images/test-3.jpeg': pixel,
+        'images/test-4.gif': pixel,
+        './nope': 'not here'
+      }
+    });
   });
 
   afterEach(() => {
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
-
-    if (fs.existsSync('.percy.yml')) {
-      fs.unlinkSync('.percy.yml');
-    }
   });
 
   it('skips uploading when percy is disabled', async () => {
@@ -93,7 +76,7 @@ describe('percy upload', () => {
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]));
 
-    expect(mockAPI.requests['/builds/123/snapshots'][0].body).toEqual({
+    expect(api.requests['/builds/123/snapshots'][0].body).toEqual({
       data: {
         type: 'snapshots',
         attributes: {
@@ -182,7 +165,7 @@ describe('percy upload', () => {
   });
 
   it('stops uploads on process termination', async () => {
-    mockAPI.start(100);
+    api.mock({ delay: 100 });
 
     // specify a low concurrency to interupt the queue later
     fs.writeFileSync('.percy.yml', [
@@ -195,7 +178,7 @@ describe('percy upload', () => {
 
     // wait for the first upload before terminating
     await new Promise(resolve => (function check() {
-      let done = !!mockAPI.requests['/builds/123/snapshots'];
+      let done = !!api.requests['/builds/123/snapshots'];
       setTimeout(done ? resolve : check, 10);
     }()));
 

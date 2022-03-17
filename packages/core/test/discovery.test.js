@@ -1,5 +1,5 @@
-import { sha256hash } from '@percy/client/dist/utils';
-import { mockAPI, createTestServer, dedent, logger } from './helpers';
+import { sha256hash } from '@percy/client/utils';
+import { logger, api, setupTest, createTestServer, dedent } from './helpers';
 import Percy from '../src';
 
 describe('Discovery', () => {
@@ -24,8 +24,9 @@ describe('Discovery', () => {
 
   beforeEach(async () => {
     captured = [];
+    setupTest();
 
-    mockAPI.reply('/builds/123/snapshots', ({ body }) => {
+    api.reply('/builds/123/snapshots', ({ body }) => {
       // resource order is not important, stabilize it for testing
       captured.push(body.data.relationships.resources.data.sort((a, b) => (
         a.attributes['resource-url'].localeCompare(b.attributes['resource-url'])

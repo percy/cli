@@ -1,5 +1,5 @@
-import { execSync } from 'child_process';
-import { existsSync, readFileSync } from 'fs';
+import fs from 'fs';
+import cp from 'child_process';
 
 const GIT_COMMIT_FORMAT = [
   'COMMIT_SHA:%H',
@@ -14,7 +14,7 @@ const GIT_COMMIT_FORMAT = [
 
 export function git(args) {
   try {
-    return execSync(`git ${args}`, {
+    return cp.execSync(`git ${args}`, {
       stdio: ['ignore', 'pipe', 'ignore'],
       encoding: 'utf-8'
     });
@@ -29,7 +29,7 @@ export function getCommitData(sha, branch, vars = {}) {
 
   // prioritize PERCY_GIT_* vars and fallback to GIT_* vars
   let get = key => vars[`PERCY_GIT_${key}`] ||
-    raw.match(new RegExp(`${key}:(.*)`, 'm'))?.[1] ||
+    raw.match(new RegExp(`^${key}:(.*)$`, 'm'))?.[1] ||
     vars[`GIT_${key}`] || null;
 
   return {
@@ -56,8 +56,8 @@ export function getJenkinsSha() {
 
 // github actions are triggered by webhook events which are saved to the filesystem
 export function github({ GITHUB_EVENT_PATH }) {
-  if (!github.payload && GITHUB_EVENT_PATH && existsSync(GITHUB_EVENT_PATH)) {
-    try { github.payload = JSON.parse(readFileSync(GITHUB_EVENT_PATH, 'utf8')); } catch (e) {}
+  if (!github.payload && GITHUB_EVENT_PATH && fs.existsSync(GITHUB_EVENT_PATH)) {
+    try { github.payload = JSON.parse(fs.readFileSync(GITHUB_EVENT_PATH, 'utf8')); } catch (e) {}
   }
 
   return (github.payload ||= {});

@@ -14,11 +14,12 @@ class MockSocket {
 }
 
 describe('remote logging', () => {
-  let log, socket;
+  let log, inst, socket;
 
   beforeEach(async () => {
-    helpers.mock();
+    await helpers.mock();
     log = logger('remote');
+    inst = logger.Logger.instance;
     socket = new MockSocket();
   });
 
@@ -206,20 +207,19 @@ describe('remote logging', () => {
   });
 
   it('does not connect to more than one socket', async () => {
-    let { instance } = helpers.constructor;
     let socket2 = new MockSocket();
 
     socket.readyState = 1;
     socket2.readyState = 1;
 
-    expect(instance.socket).toBeUndefined();
+    expect(inst.socket).toBeUndefined();
 
     await logger.remote(() => socket);
-    expect(instance.socket).toBe(socket);
+    expect(inst.socket).toBe(socket);
 
     await logger.remote(() => socket2);
-    expect(instance.socket).not.toBe(socket2);
-    expect(instance.socket).toBe(socket);
+    expect(inst.socket).not.toBe(socket2);
+    expect(inst.socket).toBe(socket);
   });
 
   it('can accept incoming connections and sends env info', () => {
@@ -240,7 +240,7 @@ describe('remote logging', () => {
     send({ foo: 'bar' });
 
     expect(helpers.stdout).toEqual(['[percy] Test 2']);
-    expect(helpers.messages).toEqual(new Set([{
+    expect(inst.messages).toEqual(new Set([{
       debug: 'test1',
       level: 'warn',
       message: 'Test 1'

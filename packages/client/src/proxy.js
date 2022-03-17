@@ -3,14 +3,47 @@ import tls from 'tls';
 import http from 'http';
 import https from 'https';
 import logger from '@percy/logger';
-import { retry, hostnameMatches } from './utils';
 
 const CRLF = '\r\n';
 const STATUS_REG = /^HTTP\/1.[01] (\d*)/;
-const RETRY_ERROR_CODES = [
-  'ECONNREFUSED', 'ECONNRESET', 'EPIPE',
-  'EHOSTUNREACH', 'EAI_AGAIN'
-];
+
+// Returns true if the URL hostname matches any patterns
+export function hostnameMatches(patterns, url) {
+  let subject = new URL(url);
+
+  /* istanbul ignore next: only strings are provided internally by the client proxy; core (which
+   * borrows this util) sometimes provides an array of patterns or undefined */
+  patterns = typeof patterns === 'string'
+    ? patterns.split(/[\s,]+/)
+    : [].concat(patterns);
+
+  for (let pattern of patterns) {
+    if (pattern === '*') return true;
+    if (!pattern) continue;
+
+    // parse pattern
+    let { groups: rule } = pattern.match(
+      /^(?<hostname>.+?)(?::(?<port>\d+))?$/
+    );
+
+    // missing a hostname or ports do not match
+    if (!rule.hostname || (rule.port && rule.port !== subject.port)) {
+      continue;
+    }
+
+    // wildcards are treated the same as leading dots
+    rule.hostname = rule.hostname.replace(/^\*/, '');
+
+    // hostnames are equal or end with a wildcard rule
+    if (rule.hostname === subject.hostname ||
+        (rule.hostname.startsWith('.') &&
+         subject.hostname.endsWith(rule.hostname))) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 // Returns the port number of a URL object. Defaults to port 443 for https
 // protocols or port 80 otherwise.
@@ -19,12 +52,14 @@ export function port(options) {
   return options.protocol === 'https:' ? 443 : 80;
 }
 
+// Returns a string representation of a URL-like object
 export function href(options) {
   let { protocol, hostname, path, pathname, search, hash } = options;
   return `${protocol}//${hostname}:${port(options)}` +
     (path || `${pathname || ''}${search || ''}${hash || ''}`);
 };
 
+// Returns the proxy URL for a set of request options
 export function getProxy(options) {
   let proxyUrl = (options.protocol === 'https:' &&
     (process.env.https_proxy || process.env.HTTPS_PROXY)) ||
@@ -180,93 +215,3 @@ export function proxyAgentFor(url, options) {
 
   return cache.get(cachekey);
 }
-
-// Proxified request function that resolves with the response body when the request is successful
-// and rejects when a non-successful response is received. The rejected error contains response data
-// and any received error details. Server 500 errors are retried up to 5 times at 50ms intervals by
-// default, and 404 errors may also be optionally retried. If a callback is provided, it is called
-// with the parsed response body and response details. If the callback returns a value, that value
-// will be returned in the final resolved promise instead of the response body.
-export function request(url, options = {}, callback) {
-  // accept `request(url, callback)`
-  if (typeof options === 'function') [options, callback] = [{}, options];
-
-  // gather request options
-  let { body, headers, retries, retryNotFound, interval, noProxy, ...requestOptions } = options;
-  let { protocol, hostname, port, pathname, search, hash } = new URL(url);
-
-  // automatically stringify body content
-  if (body && typeof body !== 'string') {
-    headers = { 'Content-Type': 'application/json', ...headers };
-    body = JSON.stringify(body);
-  }
-
-  // combine request options
-  Object.assign(requestOptions, {
-    agent: requestOptions.agent ||
-      (!noProxy && proxyAgentFor(url)) || null,
-    path: pathname + search + hash,
-    protocol,
-    hostname,
-    headers,
-    port
-  });
-
-  return retry((resolve, reject, retry) => {
-    let handleError = error => {
-      if (handleError.handled) return;
-      handleError.handled = true;
-
-      let shouldRetry = error.response
-      // maybe retry 404s and always retry 500s
-        ? ((retryNotFound && error.response.statusCode === 404) ||
-           (error.response.statusCode >= 500 && error.response.statusCode < 600))
-      // retry specific error codes
-        : (!!error.code && RETRY_ERROR_CODES.includes(error.code));
-
-      return shouldRetry ? retry(error) : reject(error);
-    };
-
-    let handleFinished = async (body, res) => {
-      let raw = body;
-
-      // attempt to parse the body as json
-      try { body = JSON.parse(body); } catch (e) {}
-
-      try {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          // resolve successful statuses after the callback
-          resolve(await callback?.(body, res) ?? body);
-        } else {
-          // use the first error detail or the status message
-          throw new Error(body?.errors?.find(e => e.detail)?.detail || (
-            `${res.statusCode} ${res.statusMessage || raw}`
-          ));
-        }
-      } catch (error) {
-        handleError(Object.assign(error, {
-          response: {
-            statusCode: res.statusCode,
-            headers: res.headers,
-            body
-          }
-        }));
-      }
-    };
-
-    let handleResponse = res => {
-      let body = '';
-      res.setEncoding('utf8');
-      res.on('data', chunk => (body += chunk));
-      res.on('end', () => handleFinished(body, res));
-      res.on('error', handleError);
-    };
-
-    let req = (protocol === 'https:' ? https : http).request(requestOptions);
-    req.on('response', handleResponse);
-    req.on('error', handleError);
-    req.end(body);
-  }, { retries, interval });
-}
-
-export default request;

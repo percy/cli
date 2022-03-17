@@ -63,10 +63,11 @@ export const upload = command('upload', {
   if (!percy) exit(0, 'Percy is disabled');
   let config = percy.config.upload;
 
-  let { default: globby } = await import('globby');
-  let pathnames = yield globby(config.files, {
+  let { default: glob } = await import('fast-glob');
+  let pathnames = yield glob(config.files, {
     ignore: [].concat(config.ignore || []),
-    cwd: args.dirname
+    cwd: args.dirname,
+    fs
   });
 
   if (!pathnames.length) {
@@ -80,7 +81,7 @@ export const upload = command('upload', {
   percy.setConfig({ discovery: { concurrency: config.concurrency } });
 
   // do not launch a browser when starting
-  yield percy.start({ browser: false });
+  yield* percy.start({ browser: false });
 
   for (let filename of pathnames) {
     let file = path.parse(filename);

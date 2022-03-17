@@ -1,5 +1,4 @@
-import logger from '@percy/logger/test/helpers';
-import mockAPI from '@percy/client/test/helpers';
+import { logger, api, setupTest } from '@percy/cli-command/test/helpers';
 import wait from '../src/wait';
 
 describe('percy build:wait', () => {
@@ -19,8 +18,7 @@ describe('percy build:wait', () => {
 
   beforeEach(() => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    mockAPI.start();
-    logger.mock({ isTTY: true });
+    setupTest({ loggerTTY: true });
   });
 
   afterEach(() => {
@@ -48,7 +46,7 @@ describe('percy build:wait', () => {
   });
 
   it('logs while recieving snapshots', async () => {
-    mockAPI
+    api
       .reply('/builds/123', () => [200, build({
         state: 'pending'
       })])
@@ -66,7 +64,7 @@ describe('percy build:wait', () => {
   });
 
   it('logs while processing snapshots', async () => {
-    mockAPI
+    api
       .reply('/builds/123', () => [200, build({
         'total-comparisons-finished': 16
       })])
@@ -91,7 +89,7 @@ describe('percy build:wait', () => {
   });
 
   it('logs found diffs when finished', async () => {
-    mockAPI.reply('/builds/123', () => [200, build({
+    api.reply('/builds/123', () => [200, build({
       'total-comparisons-diff': 16,
       state: 'finished'
     })]);
@@ -106,7 +104,7 @@ describe('percy build:wait', () => {
   });
 
   it('errors and logs found diffs when finished', async () => {
-    mockAPI.reply('/builds/123', () => [200, build({
+    api.reply('/builds/123', () => [200, build({
       'total-comparisons-diff': 16,
       state: 'finished'
     })]);
@@ -121,7 +119,7 @@ describe('percy build:wait', () => {
   });
 
   it('does not error when diffs are not found', async () => {
-    mockAPI.reply('/builds/123', () => [200, build({
+    api.reply('/builds/123', () => [200, build({
       'total-comparisons-diff': 0,
       state: 'finished'
     })]);
@@ -136,7 +134,7 @@ describe('percy build:wait', () => {
   });
 
   it('errors and logs the build state when unrecognized', async () => {
-    mockAPI.reply('/builds/123', () => [200, build({ state: 'expired' })]);
+    api.reply('/builds/123', () => [200, build({ state: 'expired' })]);
     await expectAsync(wait(['--build=123'])).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
@@ -146,7 +144,7 @@ describe('percy build:wait', () => {
   });
 
   it('stops waiting on process termination', async () => {
-    mockAPI.reply('/builds/123', () => [200, build()]);
+    api.reply('/builds/123', () => [200, build()]);
 
     let waiting = wait(['--build=123']);
 
@@ -165,7 +163,7 @@ describe('percy build:wait', () => {
 
   describe('failure messages', () => {
     it('logs an error when there are no snapshots', async () => {
-      mockAPI.reply('/builds/123', () => [200, build({
+      api.reply('/builds/123', () => [200, build({
         state: 'failed',
         'failure-reason': 'render_timeout'
       })]);
@@ -181,7 +179,7 @@ describe('percy build:wait', () => {
     });
 
     it('logs an error when there are no snapshots', async () => {
-      mockAPI.reply('/builds/123', () => [200, build({
+      api.reply('/builds/123', () => [200, build({
         state: 'failed',
         'failure-reason': 'no_snapshots'
       })]);
@@ -196,7 +194,7 @@ describe('percy build:wait', () => {
     });
 
     it('logs an error when the build was not finalized', async () => {
-      mockAPI.reply('/builds/123', () => [200, build({
+      api.reply('/builds/123', () => [200, build({
         state: 'failed',
         'failure-reason': 'missing_finalize'
       })]);
@@ -211,7 +209,7 @@ describe('percy build:wait', () => {
     });
 
     it('logs an error and exits when build is missing resources', async () => {
-      mockAPI.reply('/builds/123', () => [200, build({
+      api.reply('/builds/123', () => [200, build({
         state: 'failed',
         'failure-reason': 'missing_resources'
       })]);
@@ -226,7 +224,7 @@ describe('percy build:wait', () => {
     });
 
     it('logs an error and exits when parallel builds are missing', async () => {
-      mockAPI.reply('/builds/123', () => [200, build({
+      api.reply('/builds/123', () => [200, build({
         state: 'failed',
         'failure-reason': 'missing_resources',
         'failure-details': {
@@ -246,7 +244,7 @@ describe('percy build:wait', () => {
     });
 
     it('logs the failure reason and exits when the reason is unrecognized', async () => {
-      mockAPI.reply('/builds/123', () => [200, build({
+      api.reply('/builds/123', () => [200, build({
         state: 'failed',
         'failure-reason': 'unrecognized_reason'
       })]);

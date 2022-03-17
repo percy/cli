@@ -1,9 +1,13 @@
 /* eslint-env jasmine */
 /* eslint-disable import/no-extraneous-dependencies */
+const env = jasmine.getEnv();
 
 beforeAll(() => {
   // default timeout to 10s
   jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
+
+  // allow re-spying
+  env.allowRespy(true);
 
   // add or patch missing or broken matchers
   jasmine.addMatchers({
@@ -53,7 +57,7 @@ const { DUMP_FAILED_TEST_LOGS } = (
 
 if (DUMP_FAILED_TEST_LOGS) {
   // add a spec reporter to dump failed logs
-  jasmine.getEnv().addReporter({
+  env.addReporter({
     specDone: ({ status }) => {
       let logger = typeof window !== 'undefined'
         ? (window.PercyLogger && window.PercyLogger.TestHelpers) ||

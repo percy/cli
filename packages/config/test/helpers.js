@@ -1,49 +1,107 @@
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
-import mock from 'mock-require';
+import Module from 'module';
+import { Volume, createFsFromVolume } from 'memfs';
 
-export const configs = new Map();
+import { clearMigrations } from '../src/migrate';
+import { resetSchema } from '../src/validate';
+import { cache } from '../src/load';
 
-export function mockConfig(f, c) {
-  configs.set(f, () => typeof c === 'function' ? c() : c);
+// Reset various global @percy/config internals for testing
+export function resetPercyConfig(all) {
+  if (all) clearMigrations();
+  if (all) resetSchema();
+  cache.clear();
 }
 
-export function getMockConfig(f) {
-  return configs.get(f)?.();
+// When mocking fs, these classes should not be spied on
+const FS_CLASSES = [
+  'Stats', 'Dirent',
+  'StatWatcher', 'FSWatcher',
+  'ReadStream', 'WriteStream'
+];
+
+// Mock and spy on fs methods using an in-memory filesystem
+export function mockfs({
+  // set `true` to allow mocking files within `node_modules` (may cause dynamic import issues)
+  $modules = false,
+  // list of filepaths or function matchers to allow direct access to the real filesystem
+  $bypass = [],
+  // initial flat map of files and/or directories to create
+  ...initial
+} = {}) {
+  let vol = new Volume();
+
+  // when .js files are created, also mock the module for importing
+  spyOn(vol, 'writeFileSync').and.callFake((...args) => {
+    if (args[0].endsWith('.js')) mockFileModule(...args);
+    return vol.writeFileSync.and.originalFn.apply(vol, args);
+  });
+
+  // initial volume contents include the cwd and tmpdir
+  vol.fromJSON({
+    [process.cwd()]: null,
+    [os.tmpdir()]: null,
+    ...initial
+  });
+
+  let bypass = [
+    // bypass babel config for runtime registration
+    path.resolve(__dirname, '../../../babel.config.js'),
+    // bypass descriptors that don't exist in the current volume
+    p => typeof p === 'number' && !vol.fds[p],
+    // bypass node_modules by default to avoid dynamic import issues
+    p => !$modules && p.includes?.('node_modules'),
+    // bypass package src/dist/test files to avoid internal dynamic import issues
+    p => p.match?.(/(\/|\\)(packages)\1([^\1]+?)\1(src|dist|test)(\1|$)/),
+    // additional bypass matches
+    ...$bypass
+  ];
+
+  // spies on fs methods and calls in-memory methods unless bypassed
+  let installFakes = (og, fake) => {
+    for (let k in og) {
+      if (k in fake && typeof og[k] === 'function' && !FS_CLASSES.includes(k)) {
+        spyOn(og, k).and.callFake((...args) => bypass.some(p => (
+          typeof p === 'function' ? p(...args) : (p === args[0])
+        )) ? og[k].and.originalFn(...args) : fake[k](...args));
+      }
+    }
+  };
+
+  // mock and install fs methods using the in-memory filesystem
+  let mock = createFsFromVolume(vol);
+  installFakes(fs.promises, mock.promises);
+  installFakes(fs, mock);
+
+  // allow tests access to the in-memory filesystem
+  fs.$vol = vol;
+  return fs;
 }
 
-function rel(filepath) {
-  return path.relative('', filepath);
-}
-
-// required before mocking fs so functionality is unaffected
-require('@percy/logger');
-
-mock('fs', Object.assign({}, require('fs'), {
-  readFileSync: f => getMockConfig(rel(f)) || null,
-  existsSync: f => configs.has(rel(f)),
-  statSync: f => ({
-    // rudimentary check for tests - not a config and is not a dotfile
-    isDirectory: () => !configs.has(rel(f)) &&
-      !path.extname(f) && !path.basename(f).includes('.')
-  }),
-  // support tests for writing configs
-  writeFileSync: (f, c) => mockConfig(rel(f), c),
-  renameSync: (f, t) => {
-    f = rel(f);
-    let conf = configs.get(f);
-    if (configs.delete(f)) configs.set(rel(t), conf);
+// Mock module loading to avoid node using internal C++ fs bindings
+function mockFileModule(filepath, content = '') {
+  if (!jasmine.isSpy(Module._load)) {
+    spyOn(Module, '_load').and.callThrough();
+    spyOn(Module, '_resolveFilename').and.callThrough();
   }
-}));
 
-// re-required so future imports are not cached
-mock.reRequire('fs');
+  let mod = new Module();
+  let fp = mod.filename = path.resolve(filepath);
+  let any = jasmine.anything();
 
-afterAll(() => {
-  mock.stopAll();
-});
+  let matchFilepath = {
+    asymmetricMatch: f => path.resolve(f) === fp ||
+      fp.endsWith(path.join('node_modules', f))
+  };
 
-afterEach(() => {
-  configs.clear();
-});
+  Module._resolveFilename.withArgs(matchFilepath, any).and.returnValue(fp);
+  Module._load.withArgs(matchFilepath, any, any).and.callFake(() => {
+    mod.loaded ||= (mod._compile(content, fp), true);
+    return mod.exports;
+  });
+}
 
-export default mockConfig;
+// export fs for convenience
+export { fs };

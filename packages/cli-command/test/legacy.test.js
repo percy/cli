@@ -1,5 +1,4 @@
-import logger from '@percy/logger/test/helpers';
-import dedent from '@percy/core/test/helpers/dedent';
+import { logger, dedent } from './helpers';
 import { command, legacyCommand, flags } from '../src';
 
 describe('Legacy support', () => {

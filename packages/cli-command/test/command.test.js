@@ -1,5 +1,4 @@
-import logger from '@percy/logger/test/helpers';
-import dedent from '@percy/core/test/helpers/dedent';
+import { logger, dedent } from './helpers';
 import command from '../src';
 
 describe('Command', () => {

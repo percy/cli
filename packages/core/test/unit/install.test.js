@@ -1,34 +1,17 @@
 import path from 'path';
-import * as memfs from 'memfs';
-import quibble from 'quibble';
 import nock from 'nock';
 import logger from '@percy/logger/test/helpers';
+import { mockfs, fs } from '@percy/config/test/helpers';
 import install from '../../src/install';
 
 const CHROMIUM_REVISIONS = install.chromium.revisions;
 
 describe('Unit / Install', () => {
-  let install, dlnock, dlcallback, options;
+  let dlnock, dlcallback, options;
 
   beforeEach(async () => {
-    quibble('fs', memfs.fs);
-    memfs.vol.fromJSON({ './': null });
-    ({ default: install } = await import('../../src/install'));
-    logger.mock();
-
-    // emulate tty properties for testing
-    Object.assign(logger.constructor.stdout, {
-      isTTY: true,
-      columns: 80,
-      cursorTo() {},
-      clearLine() {}
-    });
-
-    // spy on fs methods
-    spyOn(memfs.fs.promises, 'mkdir').and.callThrough();
-    spyOn(memfs.fs.promises, 'unlink').and.callThrough();
-    spyOn(memfs.fs, 'createWriteStream').and.callThrough();
-    spyOn(memfs.fs, 'existsSync').and.callThrough();
+    logger.mock({ isTTY: true });
+    mockfs();
 
     // mock a fake download api
     nock.disableNetConnect();
@@ -50,25 +33,23 @@ describe('Unit / Install', () => {
   });
 
   afterEach(() => {
-    memfs.vol.reset();
-    quibble.reset();
     nock.cleanAll();
   });
 
   it('does nothing if the executable already exists in the output directory', async () => {
-    memfs.fs.existsSync.and.returnValue(true);
+    fs.existsSync.and.returnValue(true);
     await install(options);
 
-    expect(memfs.fs.promises.mkdir).not.toHaveBeenCalled();
-    expect(memfs.fs.promises.unlink).not.toHaveBeenCalled();
-    expect(memfs.fs.createWriteStream).not.toHaveBeenCalled();
+    expect(fs.promises.mkdir).not.toHaveBeenCalled();
+    expect(fs.promises.unlink).not.toHaveBeenCalled();
+    expect(fs.createWriteStream).not.toHaveBeenCalled();
     expect(dlnock.isDone()).toBe(false);
   });
 
   it('creates the output directory when it does not exist', async () => {
     await install(options);
 
-    expect(memfs.fs.promises.mkdir)
+    expect(fs.promises.mkdir)
       .toHaveBeenCalledOnceWith(path.join('.downloads', 'v0'), { recursive: true });
   });
 
@@ -113,10 +94,12 @@ describe('Unit / Install', () => {
   });
 
   it('cleans up the archive after downloading and extracting', async () => {
-    memfs.vol.fromJSON({ '.downloads/v0/archive.zip': '' });
+    fs.$vol.fromJSON({ '.downloads/v0/archive.zip': '' });
+    expect(fs.existsSync('.downloads/v0/archive.zip')).toBe(true);
+
     await install(options);
 
-    expect(memfs.vol.existsSync('.downloads/v0/archive.zip')).toBe(false);
+    expect(fs.existsSync('.downloads/v0/archive.zip')).toBe(false);
   });
 
   it('handles failed downloads', async () => {
@@ -150,8 +133,9 @@ describe('Unit / Install', () => {
     let extractZip;
 
     beforeEach(() => {
-      extractZip = jasmine.createSpy('extract-zip').and.resolveTo();
-      quibble('extract-zip', extractZip);
+      require('extract-zip'); // ensure dep is cached before spying on it
+      extractZip = spyOn(require.cache[require.resolve('extract-zip')], 'exports');
+      extractZip.and.resolveTo();
 
       dlnock = nock('https://storage.googleapis.com/chromium-browser-snapshots')
         .persist().get(/.*/).reply(uri => dlcallback(uri));

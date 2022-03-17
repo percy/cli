@@ -1,9 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import logger from '@percy/logger';
-import { colors } from '@percy/logger/dist/util';
-import pkg from '../package.json';
+import { colors } from '@percy/logger/utils';
 
+const PKG_FILE = path.join(__dirname, '..', 'package.json');
 // filepath where the cache will be read and written to
 const CACHE_FILE = path.join(__dirname, '..', '.releases');
 // max age the cache should be used for (3 days)
@@ -44,8 +44,8 @@ function writeToCache(data) {
 }
 
 // Fetch and return release information for @percy/cli.
-async function fetchReleases() {
-  let { request } = await import('@percy/client/dist/request');
+async function fetchReleases(pkg) {
+  let { request } = await import('@percy/client/utils');
 
   // fetch releases from the github api without retries
   let api = 'https://api.github.com/repos/percy/cli/releases';
@@ -65,12 +65,13 @@ async function fetchReleases() {
 // is cached to speed up subsequent CLI usage.
 export async function checkForUpdate() {
   let { data: releases, error: cacheError } = readFromCache();
+  let pkg = JSON.parse(fs.readFileSync(PKG_FILE));
   let log = logger('cli:update');
 
   try {
     // request new release information if needed
     if (!releases) {
-      releases = await fetchReleases();
+      releases = await fetchReleases(pkg);
       if (!cacheError) writeToCache(releases, log);
     }
 

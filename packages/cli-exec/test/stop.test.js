@@ -1,10 +1,19 @@
-import { logger, createTestServer } from './helpers';
+import { logger, setupTest, createTestServer } from '@percy/cli-command/test/helpers';
 import stop from '../src/stop';
 
 describe('percy exec:stop', () => {
   let percyServer;
 
+  beforeEach(() => {
+    process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+    setupTest();
+  });
+
   afterEach(async () => {
+    delete process.env.PERCY_TOKEN;
+    delete process.env.PERCY_ENABLE;
+    delete process.env.PERCY_PARALLEL_TOTAL;
+    delete process.env.PERCY_PARTIAL_BUILD;
     await percyServer?.close();
   });
 

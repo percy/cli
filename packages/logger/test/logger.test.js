@@ -1,13 +1,15 @@
 import helpers from './helpers';
-import { colors } from '../src/util';
+import { colors } from '../src/utils';
 import logger from '../src';
 
 describe('logger', () => {
-  let log;
+  let log, inst;
 
-  beforeEach(() => {
-    helpers.mock({ ansi: true });
+  beforeEach(async () => {
+    await helpers.mock({ ansi: true });
+
     log = logger('test');
+    inst = logger.Logger.instance;
   });
 
   afterEach(() => {
@@ -44,7 +46,7 @@ describe('logger', () => {
       meta
     });
 
-    expect(helpers.messages).toEqual(new Set([
+    expect(inst.messages).toEqual(new Set([
       entry('info', 'Info log', { foo: 'bar' }),
       entry('warn', 'Warn log', { bar: 'baz' }),
       entry('error', 'Error log', { to: 'be' }),
@@ -85,7 +87,7 @@ describe('logger', () => {
     let error = new Error('test');
     log.error(error);
 
-    expect(helpers.messages).toContain({
+    expect(inst.messages).toContain({
       debug: 'test',
       level: 'error',
       message: error.stack,
@@ -245,7 +247,7 @@ describe('logger', () => {
     });
 
     it('logs elapsed time when loglevel is "debug"', async () => {
-      helpers.mock({ elapsed: true });
+      await helpers.mock({ elapsed: true });
       logger.loglevel('debug');
       log = logger('test');
 
@@ -274,9 +276,9 @@ describe('logger', () => {
       helpers.reset();
     });
 
-    it('enables debug logging when PERCY_DEBUG is defined', () => {
+    it('enables debug logging when PERCY_DEBUG is defined', async () => {
       process.env.PERCY_DEBUG = '*';
-      helpers.mock({ ansi: true });
+      await helpers.mock({ ansi: true });
 
       logger('test').debug('Debug log');
 
@@ -286,9 +288,9 @@ describe('logger', () => {
       ]);
     });
 
-    it('filters specific logs for debugging', () => {
+    it('filters specific logs for debugging', async () => {
       process.env.PERCY_DEBUG = 'test:*,-test:2,';
-      helpers.mock({ ansi: true });
+      await helpers.mock({ ansi: true });
 
       logger('test').debug('Debug test');
       logger('test:1').debug('Debug test 1');
@@ -302,9 +304,9 @@ describe('logger', () => {
       ]);
     });
 
-    it('does not do anything when PERCY_DEBUG is blank', () => {
+    it('does not do anything when PERCY_DEBUG is blank', async () => {
       process.env.PERCY_DEBUG = ' ';
-      helpers.mock({ ansi: true });
+      await helpers.mock({ ansi: true });
 
       logger('test').debug('Debug log');
 

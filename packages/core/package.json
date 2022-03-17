@@ -10,16 +10,23 @@
   "publishConfig": {
     "access": "public"
   },
-  "main": "dist/index.js",
-  "types": "types/index.d.ts",
-  "files": [
-    "dist",
-    "post-install.js",
-    "types/index.d.ts",
-    "test/helpers/server.js"
-  ],
   "engines": {
     "node": ">=12"
+  },
+  "files": [
+    "./dist",
+    "./post-install.js",
+    "./types/index.d.ts",
+    "./test/helpers/server.js"
+  ],
+  "main": "./dist/index.js",
+  "types": "types/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./utils": "./dist/utils.js",
+    "./config": "./dist/config.js",
+    "./post-install": "./post-install.js",
+    "./test/helpers": "./test/helpers/index.js"
   },
   "scripts": {
     "build": "node ../../scripts/build",

@@ -1,10 +1,14 @@
 import PercyEnv from '@percy/env';
-import { git } from '@percy/env/dist/utils';
+import { git } from '@percy/env/utils';
 import logger from '@percy/logger';
 import pkg from '../package.json';
 
-import { sha256hash, base64encode, pool } from './utils';
-import request from './request';
+import {
+  request,
+  sha256hash,
+  base64encode,
+  pool
+} from './utils';
 
 // Default client API URL can be set with an env var for API development
 const { PERCY_CLIENT_API_URL = 'https://percy.io/api/v1' } = process.env;

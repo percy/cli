@@ -77,40 +77,96 @@ export function retry(fn, { retries = 5, interval = 50 }) {
   });
 }
 
-// Returns true if the URL hostname matches any patterns
-export function hostnameMatches(patterns, url) {
-  let subject = new URL(url);
+// Used by the request util when retrying specific errors
+const RETRY_ERROR_CODES = [
+  'ECONNREFUSED', 'ECONNRESET', 'EPIPE',
+  'EHOSTUNREACH', 'EAI_AGAIN'
+];
 
-  /* istanbul ignore next: only strings are provided internally by the client proxy; core (which
-   * borrows this util) sometimes provides an array of patterns or undefined */
-  patterns = typeof patterns === 'string'
-    ? patterns.split(/[\s,]+/)
-    : [].concat(patterns);
+// Proxified request function that resolves with the response body when the request is successful
+// and rejects when a non-successful response is received. The rejected error contains response data
+// and any received error details. Server 500 errors are retried up to 5 times at 50ms intervals by
+// default, and 404 errors may also be optionally retried. If a callback is provided, it is called
+// with the parsed response body and response details. If the callback returns a value, that value
+// will be returned in the final resolved promise instead of the response body.
+export async function request(url, options = {}, callback) {
+  // accept `request(url, callback)`
+  if (typeof options === 'function') [options, callback] = [{}, options];
 
-  for (let pattern of patterns) {
-    if (pattern === '*') return true;
-    if (!pattern) continue;
+  // gather request options
+  let { body, headers, retries, retryNotFound, interval, noProxy, ...requestOptions } = options;
+  let { protocol, hostname, port, pathname, search, hash } = new URL(url);
+  let { request } = await import(protocol === 'https:' ? 'https' : 'http');
+  let { proxyAgentFor } = await import('./proxy');
 
-    // parse pattern
-    let { groups: rule } = pattern.match(
-      /^(?<hostname>.+?)(?::(?<port>\d+))?$/
-    );
-
-    // missing a hostname or ports do not match
-    if (!rule.hostname || (rule.port && rule.port !== subject.port)) {
-      continue;
-    }
-
-    // wildcards are treated the same as leading dots
-    rule.hostname = rule.hostname.replace(/^\*/, '');
-
-    // hostnames are equal or end with a wildcard rule
-    if (rule.hostname === subject.hostname ||
-        (rule.hostname.startsWith('.') &&
-         subject.hostname.endsWith(rule.hostname))) {
-      return true;
-    }
+  // automatically stringify body content
+  if (body && typeof body !== 'string') {
+    headers = { 'Content-Type': 'application/json', ...headers };
+    body = JSON.stringify(body);
   }
 
-  return false;
+  // combine request options
+  Object.assign(requestOptions, {
+    agent: requestOptions.agent || (!noProxy && proxyAgentFor(url)) || null,
+    path: pathname + search + hash,
+    protocol,
+    hostname,
+    headers,
+    port
+  });
+
+  return retry((resolve, reject, retry) => {
+    let handleError = error => {
+      if (handleError.handled) return;
+      handleError.handled = true;
+
+      // maybe retry 404s, always retry 500s, or retry specific errors
+      let shouldRetry = error.response
+        ? ((retryNotFound && error.response.statusCode === 404) ||
+           (error.response.statusCode >= 500 && error.response.statusCode < 600))
+        : (!!error.code && RETRY_ERROR_CODES.includes(error.code));
+
+      return shouldRetry ? retry(error) : reject(error);
+    };
+
+    let handleFinished = async (body, res) => {
+      let { statusCode, headers } = res;
+      let raw = body;
+
+      // attempt to parse the body as json
+      try { body = JSON.parse(body); } catch (e) {}
+
+      try {
+        if (statusCode >= 200 && statusCode < 300) {
+          resolve(await callback?.(body, res) ?? body);
+        } else {
+          let err = body?.errors?.find(e => e.detail)?.detail;
+          throw new Error(err || `${statusCode} ${res.statusMessage || raw}`);
+        }
+      } catch (error) {
+        let response = { statusCode, headers, body };
+        handleError(Object.assign(error, { response }));
+      }
+    };
+
+    let handleResponse = res => {
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => (body += chunk));
+      res.on('end', () => handleFinished(body, res));
+      res.on('error', handleError);
+    };
+
+    let req = request(requestOptions);
+    req.on('response', handleResponse);
+    req.on('error', handleError);
+    req.end(body);
+  }, { retries, interval });
 }
+
+export {
+  hostnameMatches,
+  ProxyHttpAgent,
+  ProxyHttpsAgent,
+  proxyAgentFor
+} from './proxy';

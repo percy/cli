@@ -10,17 +10,18 @@
   "publishConfig": {
     "access": "public"
   },
-  "main": "dist/index.js",
-  "bin": {
-    "percy": "bin/run"
-  },
   "files": [
-    "bin",
-    "dist"
+    "./bin",
+    "./dist"
   ],
   "engines": {
     "node": ">=12"
   },
+  "bin": {
+    "percy": "./bin/run"
+  },
+  "main": "./dist/index.js",
+  "exports": "./dist/index.js",
   "scripts": {
     "build": "node ../../scripts/build",
     "lint": "eslint --ignore-path ../../.gitignore .",

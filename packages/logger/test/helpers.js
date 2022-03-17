@@ -1,6 +1,5 @@
 const logger = require('@percy/logger');
-const { ANSI_REG } = require('@percy/logger/dist/util');
-const { Logger } = logger;
+const { ANSI_REG } = require('@percy/logger/utils');
 
 const ELAPSED_REG = /\s\S*?\(\d+ms\)\S*/;
 const NEWLINE_REG = /\r\n/g;
@@ -17,35 +16,15 @@ function sanitizeLog(str, { ansi, elapsed } = {}) {
   return str.replace(LASTLINE_REG, '');
 }
 
-function TestIO(data, options) {
-  if (!process.env.__PERCY_BROWSERIFIED__) {
-    let { Writable } = require('stream');
-
-    return Object.assign(new Writable(), {
-      isTTY: options && options.isTTY,
-      cursorTo() {},
-      clearLine() {},
-
-      _write(chunk, encoding, callback) {
-        data.push(sanitizeLog(chunk.toString(), options));
-        callback();
-      }
-    });
-  }
-}
-
 function spy(object, method, func) {
-  if (object[method].reset) {
-    object[method].reset();
-    return object[method];
-  }
+  if (object[method].restore) object[method].restore();
 
   let spy = Object.assign(function spy(...args) {
     spy.calls.push(args);
     if (func) return func.apply(this, args);
   }, {
     restore: () => (object[method] = spy.originalValue),
-    reset: () => (spy.calls.length = 0),
+    reset: () => (spy.calls.length = 0) || spy,
     originalValue: object[method],
     calls: []
   });
@@ -54,39 +33,50 @@ function spy(object, method, func) {
   return spy;
 }
 
+const {
+  Logger,
+  loglevel
+} = logger;
+
 const helpers = {
-  constructor: Logger,
-  loglevel: logger.loglevel,
   stdout: [],
   stderr: [],
+  loglevel,
 
-  get messages() {
-    return Logger.instance &&
-      Logger.instance.messages;
-  },
-
-  mock(options) {
+  async mock(options = {}) {
     helpers.reset();
-    helpers.options = options;
 
-    if (!process.env.__PERCY_BROWSERIFIED__) {
-      Logger.stdout = TestIO(helpers.stdout, options);
-      Logger.stderr = TestIO(helpers.stderr, options);
-    } else {
+    if (process.env.__PERCY_BROWSERIFIED__) {
       spy(Logger.prototype, 'write', function(lvl, msg) {
         let stdio = lvl === 'info' ? 'stdout' : 'stderr';
-        helpers[stdio].push(sanitizeLog(msg, helpers.options));
+        helpers[stdio].push(sanitizeLog(msg, options));
         return this.write.originalValue.call(this, lvl, msg);
       });
 
       spy(console, 'log');
       spy(console, 'warn');
       spy(console, 'error');
+    } else {
+      let { Writable } = require('stream');
+
+      for (let stdio of ['stdout', 'stderr']) {
+        Logger[stdio] = Object.assign(new Writable(), {
+          columns: options.isTTY ? 100 : null,
+          isTTY: options.isTTY,
+          cursorTo() {},
+          clearLine() {},
+
+          _write(chunk, encoding, callback) {
+            helpers[stdio].push(sanitizeLog(chunk.toString(), options));
+            callback();
+          }
+        });
+      }
     }
   },
 
   reset(soft) {
-    if (soft) Logger.instance.loglevel('info');
+    if (soft) loglevel('info');
     else delete Logger.instance;
 
     helpers.stdout.length = 0;
@@ -100,21 +90,20 @@ const helpers = {
   },
 
   dump() {
-    if (!helpers.messages || !helpers.messages.size) return;
-    if (console.log.and) console.log.and.callThrough();
+    let msgs = Array.from((Logger.instance && Logger.instance.messages) || []);
+    if (!msgs.length) return;
 
-    let write = m => process.env.__PERCY_BROWSERIFIED__
-      ? console.log(m) : process.stderr.write(`${m}\n`);
-    let logs = Array.from(helpers.messages);
+    let log = m => process.env.__PERCY_BROWSERIFIED__ ? (
+      console.log.and ? console.log.and.originalFn(m) : console.log(m)
+    ) : process.stderr.write(`${m}\n`);
 
     logger.loglevel('debug');
+    log(logger.format('testing', 'warn', '--- DUMPING LOGS ---'));
 
-    write(logger.format('testing', 'warn', '--- DUMPING LOGS ---'));
-
-    logs.reduce((lastlog, { debug, level, message, timestamp }) => {
-      write(logger.format(debug, level, message, timestamp - lastlog));
+    msgs.reduce((last, { debug, level, message, timestamp }) => {
+      log(logger.format(debug, level, message, timestamp - last));
       return timestamp;
-    }, logs[0].timestamp);
+    }, msgs[0].timestamp);
   }
 };
 

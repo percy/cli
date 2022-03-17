@@ -1,6 +1,6 @@
 import util from 'util';
 import YAML from 'yaml';
-import getDefaults from './defaults';
+import getDefaults from '../defaults';
 
 // Provides native util.inspect with common options for printing configs.
 export function inspect(config) {

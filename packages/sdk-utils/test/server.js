@@ -1,6 +1,6 @@
 // create a testing context for mocking the local percy server and a local testing site
 function context() {
-  let createTestServer = require('@percy/core/test/helpers/server');
+  let { createTestServer } = require('@percy/core/test/helpers');
 
   let ctx = {
     async call(path, ...args) {
@@ -185,7 +185,7 @@ if (require.main === module) {
   let logger;
   if (existsSync(path.join(__dirname, '../src'))) {
     require('../../../scripts/babel-register');
-    logger = require('@percy/logger/src');
+    logger = require('../../logger/src');
   } else {
     logger = require('@percy/logger');
   }

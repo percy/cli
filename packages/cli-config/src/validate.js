@@ -1,4 +1,4 @@
-import command from '@percy/cli-command';
+import command, { PercyConfig } from '@percy/cli-command';
 
 export const validate = command('validate', {
   description: 'Validate a Percy config file',
@@ -13,8 +13,6 @@ export const validate = command('validate', {
     '$0 ./config/percy.yml'
   ]
 }, async ({ args, log, exit }) => {
-  let PercyConfig = await import('@percy/config');
-
   // verify a config file can be located
   let { config, filepath } = PercyConfig.search(args.filepath);
   if (!config) exit(1, 'Config file not found');
