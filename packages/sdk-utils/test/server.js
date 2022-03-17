@@ -50,7 +50,8 @@ function context() {
         { success: true, config: { snapshot: { widths: [1280] } } })],
       '/percy/config': ({ body }) => [200, 'application/json', (
         { success: true, config: body })],
-      '/percy/snapshot': () => [200, 'application/json', { success: true }]
+      '/percy/snapshot': () => [200, 'application/json', { success: true }],
+      '/percy/idle': () => [200, 'application/json', { success: true }]
     }, 5338);
 
     ctx.server.route((req, res, next) => {
