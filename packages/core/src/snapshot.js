@@ -106,8 +106,17 @@ export function mapSnapshotOptions(percy, snapshots, config) {
 
 // Returns an array of derived snapshot options
 export async function gatherSnapshots(percy, options) {
-  let snapshots = 'url' in options ? [options] : options.snapshots;
+  let { baseUrl, snapshots } = options;
+
+  if ('url' in options) snapshots = [options];
   if ('sitemap' in options) snapshots = await getSitemapSnapshots(options);
+
+  // validate evaluated snapshots
+  if (typeof snapshots === 'function') {
+    ({ snapshots } = validateSnapshotOptions({
+      baseUrl, snapshots: await snapshots(baseUrl)
+    }));
+  }
 
   // map snapshots with snapshot options
   snapshots = mapSnapshotOptions(percy, snapshots, options);
@@ -147,8 +156,8 @@ export function validateSnapshotOptions(options) {
   let snaps = isSnapshot ? [migrated] : Array.isArray(snapshots) ? snapshots : [];
   for (let snap of snaps) validURL(typeof snap === 'string' ? snap : snap.url, baseUrl);
 
-  // add back snapshots before validating and scrubbing
-  if (snapshots) migrated.snapshots = snapshots;
+  // add back snapshots before validating and scrubbing; function snapshots are validated later
+  if (snapshots) migrated.snapshots = typeof snapshots === 'function' ? [] : snapshots;
   let errors = PercyConfig.validate(migrated, schema);
 
   if (errors) {
@@ -158,8 +167,11 @@ export function validateSnapshotOptions(options) {
     for (let e of errors) log.warn(`- ${e.path}: ${e.message}`);
   }
 
+  // add back the snapshots function if there was one
+  if (typeof snapshots === 'function') migrated.snapshots = snapshots;
   // add back an empty array if all server snapshots were scrubbed
   if ('serve' in options && 'snapshots' in options) migrated.snapshots ??= [];
+
   return { clientInfo, environmentInfo, ...migrated };
 }
 
