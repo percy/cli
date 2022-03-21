@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 
-const SCRIPT_NAME = require('path').basename(__filename);
+const url = await import('url');
+const path = await import('path');
+const readline = await import('readline');
+
+const SCRIPT_NAME = path.basename(url.fileURLToPath(import.meta.url));
 
 // Usage/help output
 if (!process.argv[2]) (console.log(`\
@@ -17,9 +21,8 @@ EXAMPLE
 `), process.exit());
 
 // Required after usage for speedy help output
-const readline = require('readline');
-const request = require('@percy/client/dist/request').default;
-const logger = require('@percy/logger');
+const { request } = await import('@percy/client/utils');
+const logger = await import('@percy/logger');
 const log = logger('script');
 
 // Chromium GitHub constants
@@ -154,8 +157,7 @@ async function printVersionRevisions(version) {
 }
 
 // call the script with the first provided arg
-printVersionRevisions(process.argv[2])
-  .catch(error => {
-    // request errors have a response body
-    log.error(error.response?.body?.message || error);
-  });
+printVersionRevisions(process.argv[2]).catch(error => {
+  // request errors have a response body
+  log.error(error.response?.body?.message || error);
+});

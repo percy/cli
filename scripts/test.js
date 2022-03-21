@@ -1,12 +1,18 @@
 /* eslint-disable import/no-extraneous-dependencies */
+import fs from 'fs';
+import url from 'url';
+import path from 'path';
+import cp from 'child_process';
+import parse from 'yargs-parser';
+import colors from 'colors/safe.js';
+
 const cwd = process.cwd();
-const path = require('path');
-const colors = require('colors/safe');
+const filename = url.fileURLToPath(import.meta.url);
 
 process.env.NODE_ENV = 'test';
 
 // borrow yargs-parser to process command arguments
-const argv = require('yargs-parser')(process.argv.slice(2), {
+const argv = parse(process.argv.slice(2), {
   configuration: { 'strip-aliased': true },
   alias: { node: 'n', browsers: 'b', coverage: 'c', reporter: 'r', watch: 'w' },
   boolean: ['node', 'browsers', 'coverage', 'watch'],
@@ -27,7 +33,7 @@ function child(type, cmd, args, options) {
   args = args.filter(Boolean);
 
   return new Promise((resolve, reject) => {
-    require('child_process')[type](cmd, args, options)
+    cp[type](cmd, args, options)
       .on('exit', exitCode => exitCode
         ? reject(Object.assign(new Error(`EEXIT ${exitCode}`), { exitCode }))
         : resolve())
@@ -64,7 +70,7 @@ async function main({
   karma: karmaArgs
 } = argv) {
   // determine arg defaults based on package.json values
-  let pkg = require(path.join(cwd, 'package.json'));
+  let pkg = JSON.parse(fs.readFileSync(path.join(cwd, 'package.json')));
   let testNode = node != null ? node : (!browsers && pkg.main !== pkg.browser);
   let testBrowsers = browsers != null ? browsers : (!node && pkg.browser);
 
@@ -73,36 +79,37 @@ async function main({
     //   nyc --silent --no-clean node <root>/test.js ... &&
     //   nyc report --reporter <reporter>
     let flags = flagify({ node, browsers });
-    let nycbin = require.resolve('nyc/bin/nyc');
-    let rimraf = require('rimraf');
+    let nycbin = path.resolve(filename, '../../node_modules/.bin/nyc');
+    let { default: rimraf } = await import('rimraf');
 
     await new Promise(r => rimraf(path.join(cwd, '{.nyc_output,coverage}'), r));
-    await child('spawn', nycbin, ['--silent', '--no-clean', 'node', __filename, ...flags]);
+    await child('spawn', nycbin, ['--silent', '--no-clean', 'node', filename, ...flags]);
     await child('spawn', nycbin, ['report', '--check-coverage', ...flagify({ reporter })]);
   } else if (!process.send) {
     // test runners assume they have control over the entire process, so give them each forks
     let flags = flagify({ coverage, karma: karmaArgs });
+    let loader = url.pathToFileURL(path.resolve(filename, '../loader.js')).href;
+    let opts = { execArgv: ['--loader', loader, ...process.execArgv] };
 
     if (testNode) {
-      await child('fork', __filename, ['--node', ...flags]);
+      await child('fork', filename, ['--node', ...flags], opts);
       process.stdout.write('\n');
     }
 
     if (testBrowsers) {
-      await child('fork', __filename, ['--browsers', ...flags]);
+      await child('fork', filename, ['--browsers', ...flags], opts);
       process.stdout.write('\n');
     }
   } else if (testNode) {
     // $ jasmine <cwd>/test/**/*.test.js --config <config>
-    let Jasmine = require('jasmine');
-    let { SpecReporter } = require('jasmine-spec-reporter');
+    let { default: Jasmine } = await import('jasmine');
+    let { SpecReporter } = await import('jasmine-spec-reporter');
     let jasmine = new Jasmine();
 
     jasmine.loadConfig({
       spec_dir: 'test',
       spec_files: ['**/*.test.js'],
-      requires: [require.resolve('./babel-register')],
-      helpers: [require.resolve('./test-helpers')],
+      helpers: [path.resolve(filename, '../test-helpers.js')],
       random: false
     });
 
@@ -121,11 +128,14 @@ async function main({
     await jasmine.execute();
   } else if (testBrowsers) {
     // $ karma start --config <root>/karma.config.js
-    let { Server: KarmaServer, config: { parseConfig } } = require('karma');
+    let { default: Karma } = await import('karma');
+    let { Server: KarmaServer, config: { parseConfig } } = Karma;
 
-    let configFile = require.resolve('../karma.config');
-    let config = parseConfig(configFile, karmaArgs, { throwErrors: true });
-    let karma = new KarmaServer(config);
+    let configFile = path.resolve(filename, '../../karma.config.cjs');
+    let karma = new KarmaServer(await parseConfig(configFile, karmaArgs, {
+      promiseConfig: true,
+      throwErrors: true
+    }));
 
     // attach any karma hooks
     if (pkg.karma) {
@@ -135,7 +145,9 @@ async function main({
     }
 
     // collect coverage for nyc here rather than use a karma plugin
-    let cov = require('istanbul-lib-coverage').createCoverageMap();
+    let { default: istcov } = await import('istanbul-lib-coverage');
+    let cov = istcov.createCoverageMap();
+
     karma.on('browser_complete', (b, r) => r && cov.merge(r.coverage));
     karma.on('run_complete', () => (global.__coverage__ = cov.toJSON()));
 
@@ -152,5 +164,5 @@ function handleError(err) {
 
 // run everything and maybe watch for changes
 main().catch(handleError).then(() => argv.watch && (
-  require('./watch')(() => main().catch(handleError))
+  import('./watch').then(w => w.watch(() => main().catch(handleError)))
 ));

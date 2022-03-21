@@ -48,7 +48,7 @@ export function mockfs({
 
   let bypass = [
     // bypass babel config for runtime registration
-    path.resolve(__dirname, '../../../babel.config.js'),
+    path.posix.resolve(__dirname, '../../../babel.config.cjs'),
     // bypass descriptors that don't exist in the current volume
     p => typeof p === 'number' && !vol.fds[p],
     // bypass node_modules by default to avoid dynamic import issues
