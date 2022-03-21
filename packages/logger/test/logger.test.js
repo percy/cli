@@ -1,6 +1,6 @@
-import helpers from './helpers';
-import { colors } from '../src/utils';
-import logger from '../src';
+import helpers from './helpers.js';
+import { colors } from '@percy/logger/utils';
+import logger from '@percy/logger';
 
 describe('logger', () => {
   let log, inst;

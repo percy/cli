@@ -1,5 +1,5 @@
-const logger = require('@percy/logger');
-const { ANSI_REG } = require('@percy/logger/utils');
+import logger from '@percy/logger';
+import { ANSI_REG } from '@percy/logger/utils';
 
 const ELAPSED_REG = /\s\S*?\(\d+ms\)\S*/;
 const NEWLINE_REG = /\r\n/g;
@@ -57,7 +57,7 @@ const helpers = {
       spy(console, 'warn');
       spy(console, 'error');
     } else {
-      let { Writable } = require('stream');
+      let { Writable } = await import('stream');
 
       for (let stdio of ['stdout', 'stderr']) {
         Logger[stdio] = Object.assign(new Writable(), {
@@ -107,4 +107,5 @@ const helpers = {
   }
 };
 
-module.exports = helpers;
+export { helpers as logger };
+export default helpers;

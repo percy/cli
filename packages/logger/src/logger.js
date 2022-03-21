@@ -1,4 +1,4 @@
-import { colors } from './utils';
+import { colors } from './utils.js';
 
 const URL_REGEXP = /\bhttps?:\/\/[^\s/$.?#].[^\s]*\b/i;
 const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };

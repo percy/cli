@@ -1,5 +1,5 @@
-import { ANSI_COLORS, ANSI_REG } from './utils';
-import PercyLogger from './logger';
+import { ANSI_COLORS, ANSI_REG } from './utils.js';
+import PercyLogger from './logger.js';
 
 export class PercyBrowserLogger extends PercyLogger {
   write(level, message) {
