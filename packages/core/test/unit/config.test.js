@@ -8,9 +8,9 @@ describe('Unit / Config Migration', () => {
     del: (...a) => mocked.migrate.del.push(a)
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mocked.migrate = { deprecate: [], map: [], del: [] };
-    logger.mock();
+    await logger.mock();
   });
 
   it('migrates v1 config', () => {

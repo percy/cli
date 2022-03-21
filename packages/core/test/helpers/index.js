@@ -16,15 +16,15 @@ export function mockfs(initial) {
   });
 }
 
-export function setupTest({
+export async function setupTest({
   resetConfig,
   filesystem,
   loggerTTY,
   apiDelay
 } = {}) {
-  resetPercyConfig(resetConfig);
-  logger.mock({ isTTY: loggerTTY });
+  await logger.mock({ isTTY: loggerTTY });
   api.mock({ delay: apiDelay });
+  resetPercyConfig(resetConfig);
   mockfs(filesystem);
 }
 

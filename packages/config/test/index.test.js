@@ -3,9 +3,9 @@ import { resetPercyConfig, mockfs, fs } from './helpers';
 import PercyConfig from '../src';
 
 describe('PercyConfig', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await logger.mock();
     resetPercyConfig(true);
-    logger.mock();
     mockfs();
 
     PercyConfig.addSchema({

@@ -9,9 +9,10 @@ import PercyClient from '../src';
 describe('PercyClient', () => {
   let client;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await logger.mock();
     api.mock();
-    logger.mock();
+
     client = new PercyClient({
       token: 'PERCY_TOKEN'
     });

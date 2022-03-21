@@ -59,9 +59,9 @@ describe('Legacy support', () => {
     }
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     test = legacyCommand('test', LegacyClass);
-    logger.mock();
+    await logger.mock();
   });
 
   it('shows expected usage help', async () => {

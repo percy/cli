@@ -4,8 +4,8 @@ import command from '../src';
 describe('Built-in flags:', () => {
   let test;
 
-  beforeEach(() => {
-    logger.mock();
+  beforeEach(async () => {
+    await logger.mock();
 
     test = command('foo', {}, ({ log }) => {
       log.info('information');

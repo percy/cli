@@ -4,8 +4,8 @@ import { mockModuleCommands, mockPnpCommands, mockLegacyCommands } from './helpe
 import { importCommands } from '../src/commands';
 
 describe('CLI commands', () => {
-  beforeEach(() => {
-    logger.mock();
+  beforeEach(async () => {
+    await logger.mock();
     logger.loglevel('debug');
     mockfs({ $modules: true });
   });

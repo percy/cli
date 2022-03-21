@@ -10,7 +10,7 @@ describe('Unit / Install', () => {
   let dlnock, dlcallback, options;
 
   beforeEach(async () => {
-    logger.mock({ isTTY: true });
+    await logger.mock({ isTTY: true });
     mockfs();
 
     // mock a fake download api

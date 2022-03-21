@@ -7,7 +7,7 @@ describe('CLI update check', () => {
   let request;
 
   beforeEach(async () => {
-    logger.mock();
+    await logger.mock();
 
     request = nock('https://api.github.com/repos/percy/cli', {
       reqheaders: { 'User-Agent': ua => !!ua }

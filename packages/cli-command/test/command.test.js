@@ -2,8 +2,8 @@ import { logger, dedent } from './helpers';
 import command from '../src';
 
 describe('Command', () => {
-  beforeEach(() => {
-    logger.mock();
+  beforeEach(async () => {
+    await logger.mock();
   });
 
   it('is a function that runs an action', async () => {

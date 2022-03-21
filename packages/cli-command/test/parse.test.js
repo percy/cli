@@ -12,8 +12,8 @@ describe('Option parsing', () => {
     return test;
   };
 
-  beforeEach(() => {
-    logger.mock();
+  beforeEach(async () => {
+    await logger.mock();
   });
 
   it('parses any provided command-line options', async () => {

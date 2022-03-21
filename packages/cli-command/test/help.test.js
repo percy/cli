@@ -2,8 +2,8 @@ import { logger, dedent } from './helpers';
 import command from '../src';
 
 describe('Help output', () => {
-  beforeEach(() => {
-    logger.mock();
+  beforeEach(async () => {
+    await logger.mock();
   });
 
   it('is displayed by default when there is no action', async () => {

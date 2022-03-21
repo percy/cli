@@ -11,7 +11,7 @@ const helpers = {
     delete utils.percy.domScript;
     delete process.env.PERCY_SERVER_ADDRESS;
     await helpers.call('server.mock');
-    logger.mock();
+    await logger.mock();
   },
 
   teardown: () => helpers.call('server.close'),
