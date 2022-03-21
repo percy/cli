@@ -1,4 +1,4 @@
-import PercyEnv from '../src';
+import PercyEnv from '@percy/env';
 
 describe('Buildkite', () => {
   let env;

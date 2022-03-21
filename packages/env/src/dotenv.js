@@ -74,3 +74,5 @@ export function load() {
     }
   }
 }
+
+export * as default from './dotenv.js';

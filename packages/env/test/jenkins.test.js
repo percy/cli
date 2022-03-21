@@ -1,5 +1,5 @@
-import { mockgit } from './helpers';
-import PercyEnv from '../src';
+import { mockgit } from './helpers.js';
+import PercyEnv from '@percy/env';
 
 describe('Jenkins', () => {
   let env;

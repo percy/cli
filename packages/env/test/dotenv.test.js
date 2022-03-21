@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { load } from '../src/dotenv';
+import { load } from '../src/dotenv.js';
 
 describe('dotenv files', () => {
   let env, dotenvs;

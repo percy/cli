@@ -1,4 +1,4 @@
-import PercyEnv from '../src';
+import PercyEnv from '@percy/env';
 
 describe('CodeShip', () => {
   let env;

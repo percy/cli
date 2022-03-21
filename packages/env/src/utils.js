@@ -57,7 +57,7 @@ export function getJenkinsSha() {
 // github actions are triggered by webhook events which are saved to the filesystem
 export function github({ GITHUB_EVENT_PATH }) {
   if (!github.payload && GITHUB_EVENT_PATH && fs.existsSync(GITHUB_EVENT_PATH)) {
-    try { github.payload = JSON.parse(fs.readFileSync(GITHUB_EVENT_PATH, 'utf8')); } catch (e) {}
+    try { github.payload = JSON.parse(fs.readFileSync(GITHUB_EVENT_PATH)); } catch {}
   }
 
   return (github.payload ||= {});
