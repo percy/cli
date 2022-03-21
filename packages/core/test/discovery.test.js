@@ -24,7 +24,7 @@ describe('Discovery', () => {
 
   beforeEach(async () => {
     captured = [];
-    setupTest();
+    await setupTest();
 
     api.reply('/builds/123/snapshots', ({ body }) => {
       // resource order is not important, stabilize it for testing

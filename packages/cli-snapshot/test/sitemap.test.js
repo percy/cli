@@ -6,7 +6,7 @@ describe('percy snapshot <sitemap>', () => {
 
   beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    setupTest();
+    await setupTest();
 
     server = await createTestServer({
       default: () => [200, 'text/html', '<p>Test</p>'],

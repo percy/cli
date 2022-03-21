@@ -8,7 +8,7 @@ describe('Snapshot', () => {
 
   beforeEach(async () => {
     testDOM = '<p>Test</p>';
-    setupTest();
+    await setupTest();
 
     server = await createTestServer({
       default: () => [200, 'text/html', testDOM],

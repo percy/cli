@@ -4,7 +4,7 @@ import exec from '../src/exec';
 describe('percy exec', () => {
   beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    setupTest();
+    await setupTest();
 
     delete require.cache[require.resolve('which')];
     let { default: which } = await import('which');

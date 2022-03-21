@@ -2,10 +2,10 @@ import { logger, setupTest, fs } from '@percy/cli-command/test/helpers';
 import snapshot from '../src/snapshot';
 
 describe('percy snapshot <directory>', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
 
-    setupTest({
+    await setupTest({
       filesystem: {
         'test-1.html': '<p>Test 1</p>',
         'test-2.html': '<p>Test 2</p>',

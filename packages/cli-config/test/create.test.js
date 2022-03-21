@@ -4,8 +4,8 @@ import { fs, logger, setupTest } from '@percy/cli-command/test/helpers';
 import create from '../src/create';
 
 describe('percy config:create', () => {
-  beforeEach(() => {
-    setupTest();
+  beforeEach(async () => {
+    await setupTest();
   });
 
   it('creates a .percy.yml config file by default', async () => {

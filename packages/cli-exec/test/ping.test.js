@@ -4,9 +4,9 @@ import ping from '../src/ping';
 describe('percy exec:ping', () => {
   let percyServer;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    setupTest();
+    await setupTest();
   });
 
   afterEach(async () => {

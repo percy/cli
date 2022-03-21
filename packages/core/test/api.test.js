@@ -11,8 +11,8 @@ describe('API Server', () => {
     return request(new URL(path, percy.address()), ...args);
   }
 
-  beforeEach(() => {
-    setupTest();
+  beforeEach(async () => {
+    await setupTest();
 
     percy = new Percy({
       token: 'PERCY_TOKEN',

@@ -4,8 +4,8 @@ import { fs, logger, setupTest } from '@percy/cli-command/test/helpers';
 import validate from '../src/validate';
 
 describe('percy config:validate', () => {
-  beforeEach(() => {
-    setupTest({ resetConfig: true });
+  beforeEach(async () => {
+    await setupTest({ resetConfig: true });
 
     PercyConfig.addSchema({
       test: {

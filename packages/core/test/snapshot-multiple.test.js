@@ -7,7 +7,7 @@ describe('Snapshot multiple', () => {
 
   beforeEach(async () => {
     sitemap = ['/'];
-    setupTest();
+    await setupTest();
 
     percy = await Percy.start({
       token: 'PERCY_TOKEN',

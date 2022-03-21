@@ -7,10 +7,10 @@ const pixel = Buffer.from((
 ), 'base64').toString();
 
 describe('percy upload', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
 
-    setupTest({
+    await setupTest({
       filesystem: {
         'images/test-1.png': pixel,
         'images/test-2.jpg': pixel,

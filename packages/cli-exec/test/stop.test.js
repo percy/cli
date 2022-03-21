@@ -4,9 +4,9 @@ import stop from '../src/stop';
 describe('percy exec:stop', () => {
   let percyServer;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    setupTest();
+    await setupTest();
   });
 
   afterEach(async () => {

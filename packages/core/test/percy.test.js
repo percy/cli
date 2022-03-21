@@ -6,7 +6,7 @@ describe('Percy', () => {
   let percy, server;
 
   beforeEach(async () => {
-    setupTest();
+    await setupTest();
 
     server = await createTestServer({
       default: () => [200, 'text/html', '<p>Snapshot</p>']

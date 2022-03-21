@@ -16,9 +16,9 @@ describe('percy build:wait', () => {
     }
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    setupTest({ loggerTTY: true });
+    await setupTest({ loggerTTY: true });
   });
 
   afterEach(() => {

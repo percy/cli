@@ -15,7 +15,7 @@ describe('percy exec:start', () => {
 
   beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    setupTest();
+    await setupTest();
 
     started = start(['--quiet']);
     started.then(() => (started = null));

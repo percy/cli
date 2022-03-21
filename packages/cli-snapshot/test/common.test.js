@@ -2,8 +2,8 @@ import { logger, setupTest } from '@percy/cli-command/test/helpers';
 import snapshot from '../src/snapshot';
 
 describe('percy snapshot', () => {
-  beforeEach(() => {
-    setupTest();
+  beforeEach(async () => {
+    await setupTest();
   });
 
   afterEach(() => {

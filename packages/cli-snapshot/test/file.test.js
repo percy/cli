@@ -12,7 +12,7 @@ describe('percy snapshot <file>', () => {
       default: () => [200, 'text/html', '<p>Test</p>']
     });
 
-    setupTest({
+    await setupTest({
       filesystem: {
         'pages.yml': [
           '- name: YAML Snapshot',
