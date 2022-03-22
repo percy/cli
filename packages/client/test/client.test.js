@@ -1,17 +1,16 @@
 import fs from 'fs';
 import logger from '@percy/logger/test/helpers';
 import { mockgit } from '@percy/env/test/helpers';
-import api from './helpers';
-
-import { sha256hash, base64encode } from '../src/utils';
-import PercyClient from '../src';
+import { sha256hash, base64encode } from '@percy/client/utils';
+import PercyClient from '@percy/client';
+import api from './helpers.js';
 
 describe('PercyClient', () => {
   let client;
 
   beforeEach(async () => {
     await logger.mock();
-    api.mock();
+    await api.mock();
 
     client = new PercyClient({
       token: 'PERCY_TOKEN'
@@ -107,7 +106,7 @@ describe('PercyClient', () => {
       expect(api.requests['/foobar'][0].method).toBe('GET');
       expect(api.requests['/foobar'][0].headers).toEqual(
         jasmine.objectContaining({
-          authorization: 'Token token=PERCY_TOKEN'
+          Authorization: 'Token token=PERCY_TOKEN'
         })
       );
     });
@@ -125,8 +124,8 @@ describe('PercyClient', () => {
       expect(api.requests['/foobar'][0].method).toBe('POST');
       expect(api.requests['/foobar'][0].headers).toEqual(
         jasmine.objectContaining({
-          authorization: 'Token token=PERCY_TOKEN',
-          'content-type': 'application/vnd.api+json'
+          Authorization: 'Token token=PERCY_TOKEN',
+          'Content-Type': 'application/vnd.api+json'
         })
       );
     });
@@ -495,7 +494,7 @@ describe('PercyClient', () => {
 
       expect(api.requests['/builds/123/snapshots'][0].headers).toEqual(
         jasmine.objectContaining({
-          'user-agent': jasmine.stringMatching(
+          'User-Agent': jasmine.stringMatching(
             /^Percy\/v1 @percy\/client\/\S+ sdk\/info \(sdk\/env; node\/v[\d.]+.*\)$/
           )
         })

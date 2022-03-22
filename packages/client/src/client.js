@@ -1,17 +1,19 @@
+import fs from 'fs';
 import PercyEnv from '@percy/env';
 import { git } from '@percy/env/utils';
 import logger from '@percy/logger';
-import pkg from '../package.json';
 
 import {
+  pool,
   request,
   sha256hash,
   base64encode,
-  pool
-} from './utils';
+  getPackageJSON
+} from './utils.js';
 
 // Default client API URL can be set with an env var for API development
 const { PERCY_CLIENT_API_URL = 'https://percy.io/api/v1' } = process.env;
+const pkg = getPackageJSON(import.meta.url);
 
 // Validate build ID arguments
 function validateBuildId(id) {
@@ -254,10 +256,7 @@ export class PercyClient {
     validateBuildId(buildId);
 
     this.log.debug(`Uploading resource: ${url}...`);
-
-    content = filepath
-      ? require('fs').readFileSync(filepath)
-      : content;
+    if (filepath) content = fs.readFileSync(filepath);
 
     return this.post(`builds/${buildId}/resources`, {
       data: {
