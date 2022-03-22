@@ -23,7 +23,7 @@ export async function setupTest({
   apiDelay
 } = {}) {
   await logger.mock({ isTTY: loggerTTY });
-  api.mock({ delay: apiDelay });
+  await api.mock({ delay: apiDelay });
   resetPercyConfig(resetConfig);
   mockfs(filesystem);
 }
