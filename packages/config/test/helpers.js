@@ -1,12 +1,13 @@
 import fs from 'fs';
 import os from 'os';
+import url from 'url';
 import path from 'path';
 import Module from 'module';
 import { Volume, createFsFromVolume } from 'memfs';
 
-import { clearMigrations } from '../src/migrate';
-import { resetSchema } from '../src/validate';
-import { cache } from '../src/load';
+import { clearMigrations } from '../src/migrate.js';
+import { resetSchema } from '../src/validate.js';
+import { cache } from '../src/load.js';
 
 // Reset various global @percy/config internals for testing
 export function resetPercyConfig(all) {
@@ -22,6 +23,12 @@ const FS_CLASSES = [
   'ReadStream', 'WriteStream'
 ];
 
+// Used to bypass mocking internal package files
+const INTERNAL_FILE_REG = new RegExp(
+  '(/|\\\\)(packages)\\1((?:(?!\\1).)+?)\\1' +
+    '(src|dist|test|package\\.json)(\\1|$)'
+);
+
 // Mock and spy on fs methods using an in-memory filesystem
 export function mockfs({
   // set `true` to allow mocking files within `node_modules` (may cause dynamic import issues)
@@ -32,6 +39,9 @@ export function mockfs({
   ...initial
 } = {}) {
   let vol = new Volume();
+
+  // automatically cleanup mock imports
+  global.__MOCK_IMPORTS__?.clear();
 
   // when .js files are created, also mock the module for importing
   spyOn(vol, 'writeFileSync').and.callFake((...args) => {
@@ -48,13 +58,13 @@ export function mockfs({
 
   let bypass = [
     // bypass babel config for runtime registration
-    path.posix.resolve(__dirname, '../../../babel.config.cjs'),
+    path.resolve(url.fileURLToPath(import.meta.url), '../../../../babel.config.cjs'),
     // bypass descriptors that don't exist in the current volume
     p => typeof p === 'number' && !vol.fds[p],
     // bypass node_modules by default to avoid dynamic import issues
     p => !$modules && p.includes?.('node_modules'),
-    // bypass package src/dist/test files to avoid internal dynamic import issues
-    p => p.match?.(/(\/|\\)(packages)\1([^\1]+?)\1(src|dist|test)(\1|$)/),
+    // bypass internal package files to avoid dynamic import issues
+    p => p.match?.(INTERNAL_FILE_REG) && !vol.existsSync(p),
     // additional bypass matches
     ...$bypass
   ];
@@ -77,7 +87,7 @@ export function mockfs({
 
   // allow tests access to the in-memory filesystem
   fs.$vol = vol;
-  return fs;
+  return vol;
 }
 
 // Mock module loading to avoid node using internal C++ fs bindings
@@ -89,7 +99,7 @@ function mockFileModule(filepath, content = '') {
 
   let mod = new Module();
   let fp = mod.filename = path.resolve(filepath);
-  let any = jasmine.anything();
+  let any = { asymmetricMatch: () => true };
 
   let matchFilepath = {
     asymmetricMatch: f => path.resolve(f) === fp ||
@@ -98,7 +108,7 @@ function mockFileModule(filepath, content = '') {
 
   Module._resolveFilename.withArgs(matchFilepath, any).and.returnValue(fp);
   Module._load.withArgs(matchFilepath, any, any).and.callFake(() => {
-    mod.loaded ||= (mod._compile(content, fp), true);
+    mod.loaded = mod.loaded || (mod._compile(content, fp), true);
     return mod.exports;
   });
 }

@@ -1,5 +1,5 @@
-import merge from './merge';
-import { getSchema } from '../validate';
+import merge from './merge.js';
+import { getSchema } from '../validate.js';
 
 // Edge case camelizations
 const CAMELCASE_MAP = new Map([

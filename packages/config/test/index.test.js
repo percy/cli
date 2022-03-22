@@ -1,6 +1,6 @@
 import logger from '@percy/logger/test/helpers';
-import { resetPercyConfig, mockfs, fs } from './helpers';
-import PercyConfig from '../src';
+import { resetPercyConfig, mockfs, fs } from './helpers.js';
+import PercyConfig from '@percy/config';
 
 describe('PercyConfig', () => {
   beforeEach(async () => {
@@ -638,7 +638,7 @@ describe('PercyConfig', () => {
     });
 
     it('logs when no config file can be found', async () => {
-      let { explorer } = await import('../src/load');
+      let { explorer } = await import('../src/load.js');
       spyOn(explorer, 'search').and.returnValue(null);
 
       expect(PercyConfig.load({ print: true })).toEqual({
