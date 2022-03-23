@@ -1,7 +1,7 @@
 import path from 'path';
 import { PercyConfig } from '@percy/cli-command';
 import { fs, logger, setupTest } from '@percy/cli-command/test/helpers';
-import create from '../src/create';
+import create from '../src/create.js';
 
 describe('percy config:create', () => {
   beforeEach(async () => {
