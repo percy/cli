@@ -1,5 +1,5 @@
 import { logger, api, setupTest } from '@percy/cli-command/test/helpers';
-import wait from '../src/wait';
+import wait from '../src/wait.js';
 
 describe('percy build:wait', () => {
   let build = attrs => ({

@@ -11,12 +11,13 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=12"
+    "node": ">=14"
   },
   "files": [
     "./dist"
   ],
   "main": "./dist/index.js",
+  "type": "module",
   "exports": "./dist/index.js",
   "scripts": {
     "build": "node ../../scripts/build",
