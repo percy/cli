@@ -1,4 +1,5 @@
 import fs from 'fs';
+import url from 'url';
 import path from 'path';
 import https from 'https';
 import logger from '@percy/logger';
@@ -26,7 +27,7 @@ function formatTime(ms) {
 function formatProgress(prefix, total, start, progress) {
   let width = 20;
 
-  let ratio = Math.min(Math.max(progress / total, 0), 1);
+  let ratio = progress === total ? 1 : Math.min(Math.max(progress / total, 0), 1);
   let percent = Math.floor(ratio * 100).toFixed(0);
 
   let barLen = Math.round(width * ratio);
@@ -44,61 +45,16 @@ function formatProgress(prefix, total, start, progress) {
 }
 
 // Returns an item from the map keyed by the current platform
-function selectByPlatform(map) {
+export function selectByPlatform(map) {
   let { platform, arch } = process;
   if (platform === 'win32' && arch === 'x64') platform = 'win64';
   if (platform === 'darwin' && arch === 'arm64') platform = 'darwinArm';
   return map[platform];
 }
 
-// Installs a revision of Chromium to a local directory
-function installChromium({
-  // default directory is within @percy/core package root
-  directory = path.resolve(__dirname, '../.local-chromium'),
-  // default chromium revision by platform (see installChromium.revisions)
-  revision = selectByPlatform(installChromium.revisions)
-} = {}) {
-  let extract = (i, o) => require('extract-zip')(i, { dir: o });
-
-  let url = 'https://storage.googleapis.com/chromium-browser-snapshots/' +
-    selectByPlatform({
-      linux: `Linux_x64/${revision}/chrome-linux.zip`,
-      darwin: `Mac/${revision}/chrome-mac.zip`,
-      darwinArm: `Mac_Arm/${revision}/chrome-mac.zip`,
-      win64: `Win_x64/${revision}/chrome-win.zip`,
-      win32: `Win/${revision}/chrome-win.zip`
-    });
-
-  let executable = selectByPlatform({
-    linux: path.join('chrome-linux', 'chrome'),
-    win64: path.join('chrome-win', 'chrome.exe'),
-    win32: path.join('chrome-win', 'chrome.exe'),
-    darwin: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
-    darwinArm: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')
-  });
-
-  return install({
-    name: 'Chromium',
-    revision,
-    url,
-    extract,
-    directory,
-    executable
-  });
-}
-
-// default chromium revisions corresponds to v92.0.4515.x
-installChromium.revisions = {
-  linux: '885264',
-  win64: '885282',
-  win32: '885263',
-  darwin: '885263',
-  darwinArm: '885282'
-};
-
-// Installs an executable from a url to a local directory, returning the full path to the extracted
-// binary. Skips installation if the executable already exists at the binary path.
-async function install({
+// Downloads and extracts an executable from a url into a local directory, returning the full path
+// to the extracted binary. Skips installation if the executable already exists at the binary path.
+export async function download({
   name,
   revision,
   url,
@@ -167,7 +123,50 @@ async function install({
   return exec;
 }
 
-// commonjs friendly
-module.exports = install;
-module.exports.chromium = installChromium;
-module.exports.selectByPlatform = selectByPlatform;
+// Installs a revision of Chromium to a local directory
+export function chromium({
+  // default directory is within @percy/core package root
+  directory = path.resolve(url.fileURLToPath(import.meta.url), '../../.local-chromium'),
+  // default chromium revision by platform (see chromium.revisions)
+  revision = selectByPlatform(chromium.revisions)
+} = {}) {
+  let extract = (i, o) => import('extract-zip').then(ex => ex.default(i, { dir: o }));
+
+  let url = 'https://storage.googleapis.com/chromium-browser-snapshots/' +
+    selectByPlatform({
+      linux: `Linux_x64/${revision}/chrome-linux.zip`,
+      darwin: `Mac/${revision}/chrome-mac.zip`,
+      darwinArm: `Mac_Arm/${revision}/chrome-mac.zip`,
+      win64: `Win_x64/${revision}/chrome-win.zip`,
+      win32: `Win/${revision}/chrome-win.zip`
+    });
+
+  let executable = selectByPlatform({
+    linux: path.join('chrome-linux', 'chrome'),
+    win64: path.join('chrome-win', 'chrome.exe'),
+    win32: path.join('chrome-win', 'chrome.exe'),
+    darwin: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
+    darwinArm: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')
+  });
+
+  return download({
+    name: 'Chromium',
+    revision,
+    url,
+    extract,
+    directory,
+    executable
+  });
+}
+
+// default chromium revisions corresponds to v92.0.4515.x
+chromium.revisions = {
+  linux: '885264',
+  win64: '885282',
+  win32: '885263',
+  darwin: '885263',
+  darwinArm: '885282'
+};
+
+// export the namespace by default
+export * as default from './install.js';

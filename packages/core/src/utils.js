@@ -1,5 +1,10 @@
-import { request, sha256hash, hostnameMatches } from '@percy/client/utils';
-export { request, hostnameMatches };
+import { sha256hash } from '@percy/client/utils';
+
+export {
+  request,
+  getPackageJSON,
+  hostnameMatches
+} from '@percy/client/utils';
 
 // Returns the hostname portion of a URL.
 export function hostname(url) {

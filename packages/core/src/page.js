@@ -1,11 +1,14 @@
 import fs from 'fs';
 import logger from '@percy/logger';
-import Network from './network';
+import Network from './network.js';
+
 import {
   hostname,
   generatePromise,
   waitFor
-} from './utils';
+} from './utils.js';
+
+import { PERCY_DOM } from './api.js';
 
 export class Page {
   static TIMEOUT = 30000;
@@ -204,7 +207,7 @@ export class Page {
     /* istanbul ignore next: no instrumenting injected code */
     if (await this.eval(() => !window.PercyDOM)) {
       this.log.debug('Inject @percy/dom', this.meta);
-      let script = await fs.promises.readFile(require.resolve('@percy/dom'), 'utf-8');
+      let script = await fs.promises.readFile(PERCY_DOM, 'utf-8');
       await this.eval(new Function(script)); /* eslint-disable-line no-new-func */
     }
 

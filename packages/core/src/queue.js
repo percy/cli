@@ -1,7 +1,7 @@
 import {
   generatePromise,
   waitFor
-} from './utils';
+} from './utils.js';
 
 export class Queue {
   running = true;

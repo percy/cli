@@ -1,11 +1,17 @@
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
 import logger from '@percy/logger';
-import Server from './server';
-import pkg from '../package.json';
+import { getPackageJSON } from './utils.js';
+import Server from './server.js';
+
+// need require.resolve until import.meta.resolve can be transpiled
+export const PERCY_DOM = createRequire(import.meta.url).resolve('@percy/dom');
 
 // Create a Percy CLI API server instance
 export function createPercyServer(percy, port) {
+  let pkg = getPackageJSON(import.meta.url);
+
   return new Server({ port })
   // facilitate logger websocket connections
     .websocket(ws => logger.connect(ws))
@@ -43,7 +49,7 @@ export function createPercyServer(percy, port) {
     }))
   // convenient @percy/dom bundle
     .route('get', '/percy/dom.js', (req, res) => {
-      return res.file(200, require.resolve('@percy/dom'));
+      return res.file(200, PERCY_DOM);
     })
   // legacy agent wrapper for @percy/dom
     .route('get', '/percy-agent.js', async (req, res) => {
@@ -53,7 +59,7 @@ export function createPercyServer(percy, port) {
         'See these docs for more info: https:docs.percy.io/docs/migrating-to-percy-cli'
       ].join(' '));
 
-      let content = await fs.promises.readFile(require.resolve('@percy/dom'), 'utf-8');
+      let content = await fs.promises.readFile(PERCY_DOM, 'utf-8');
       let wrapper = '(window.PercyAgent = class { snapshot(n, o) { return PercyDOM.serialize(o); } });';
       return res.send(200, 'applicaton/javascript', content.concat(wrapper));
     })

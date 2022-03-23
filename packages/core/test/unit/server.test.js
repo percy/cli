@@ -1,11 +1,11 @@
-import { fs, mockfs } from '../helpers';
-import Server from '../../src/server';
+import { fs, mockfs } from '../helpers/index.js';
+import Server from '../../src/server.js';
 
 describe('Unit / Server', () => {
   let server;
 
   async function request(path, ...args) {
-    let { request } = await import('../helpers/request');
+    let { request } = await import('../helpers/request.js');
     return request(new URL(path, server.address()), ...args);
   }
 

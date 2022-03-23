@@ -1,25 +1,20 @@
 import path from 'path';
-import nock from 'nock';
 import logger from '@percy/logger/test/helpers';
 import { mockfs, fs } from '@percy/config/test/helpers';
-import install from '../../src/install';
+import { mockRequests } from '@percy/client/test/helpers';
+import install from '../../src/install.js';
 
 const CHROMIUM_REVISIONS = install.chromium.revisions;
 
 describe('Unit / Install', () => {
-  let dlnock, dlcallback, options;
+  let dl, options;
 
   beforeEach(async () => {
     await logger.mock({ isTTY: true });
     mockfs();
 
     // mock a fake download api
-    nock.disableNetConnect();
-    nock.enableNetConnect('localhost|127.0.0.1');
-    dlcallback = jasmine.createSpy('dlcallback')
-      .and.callFake(s => [200, s, { 'content-length': s.length }]);
-    dlnock = nock('https://fake-download.org').get('/archive.zip')
-      .reply(() => dlcallback('archive contents'));
+    dl = await mockRequests('https://fake-download.org/archive.zip');
 
     // all options are required
     options = {
@@ -32,40 +27,36 @@ describe('Unit / Install', () => {
     };
   });
 
-  afterEach(() => {
-    nock.cleanAll();
-  });
-
   it('does nothing if the executable already exists in the output directory', async () => {
     fs.existsSync.and.returnValue(true);
-    await install(options);
+    await install.download(options);
 
     expect(fs.promises.mkdir).not.toHaveBeenCalled();
     expect(fs.promises.unlink).not.toHaveBeenCalled();
     expect(fs.createWriteStream).not.toHaveBeenCalled();
-    expect(dlnock.isDone()).toBe(false);
+    expect(dl).not.toHaveBeenCalled();
   });
 
   it('creates the output directory when it does not exist', async () => {
-    await install(options);
+    await install.download(options);
 
-    expect(fs.promises.mkdir)
-      .toHaveBeenCalledOnceWith(path.join('.downloads', 'v0'), { recursive: true });
+    expect(fs.promises.mkdir).toHaveBeenCalledOnceWith(
+      path.join('.downloads', 'v0'), { recursive: true });
   });
 
   it('fetches the archive from the provided url', async () => {
-    await install(options);
+    await install.download(options);
 
-    expect(dlnock.isDone()).toBe(true);
+    expect(dl).toHaveBeenCalled();
   });
 
   it('logs progress during the archive download', async () => {
     let now = Date.now();
     // eta is calculated by the elapsed time and remaining progress
-    spyOn(Date, 'now').and.callFake(() => (now += 65002));
-    dlcallback.and.callFake(s => [200, s, { 'content-length': s.length * 5 }]);
+    spyOn(Date, 'now').and.callFake(() => (now += 65000));
+    dl.and.returnValue([200, 'partial contents', { 'content-length': 80 }]);
 
-    await install(options);
+    await install.download(options);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
@@ -78,14 +69,14 @@ describe('Unit / Install', () => {
   it('does not log progress when info logs are disabled', async () => {
     logger.loglevel('error');
 
-    await install(options);
+    await install.download(options);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([]);
   });
 
   it('extracts the downloaded archive to the output directory', async () => {
-    await install(options);
+    await install.download(options);
 
     expect(options.extract).toHaveBeenCalledOnceWith(
       path.join('.downloads', 'v0', 'archive.zip'),
@@ -97,26 +88,22 @@ describe('Unit / Install', () => {
     fs.$vol.fromJSON({ '.downloads/v0/archive.zip': '' });
     expect(fs.existsSync('.downloads/v0/archive.zip')).toBe(true);
 
-    await install(options);
+    await install.download(options);
 
     expect(fs.existsSync('.downloads/v0/archive.zip')).toBe(false);
   });
 
   it('handles failed downloads', async () => {
-    dlcallback.and.returnValue([404]);
+    dl.and.returnValue([404]);
 
-    await expectAsync(install(options))
+    await expectAsync(install.download(options))
       .toBeRejectedWithError('Download failed: 404 - https://fake-download.org/archive.zip');
   });
 
   it('logs the file size in a readable format', async () => {
-    let archive = '1'.repeat(20_000_000);
+    dl.and.returnValue([200, '1'.repeat(20_000_000)]);
 
-    dlcallback.and.returnValue([200, archive, {
-      'content-length': archive.length
-    }]);
-
-    await install(options);
+    await install.download(options);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toContain(
@@ -125,20 +112,19 @@ describe('Unit / Install', () => {
   });
 
   it('returns the full path of the executable', async () => {
-    await expectAsync(install(options))
-      .toBeResolvedTo(path.join('.downloads', 'v0', 'extracted', 'bin.exe'));
+    await expectAsync(install.download(options)).toBeResolvedTo(
+      path.join('.downloads', 'v0', 'extracted', 'bin.exe'));
   });
 
   describe('Chromium', () => {
     let extractZip;
 
-    beforeEach(() => {
-      require('extract-zip'); // ensure dep is cached before spying on it
-      extractZip = spyOn(require.cache[require.resolve('extract-zip')], 'exports');
-      extractZip.and.resolveTo();
+    beforeEach(async () => {
+      dl = await mockRequests('https://storage.googleapis.com');
 
-      dlnock = nock('https://storage.googleapis.com/chromium-browser-snapshots')
-        .persist().get(/.*/).reply(uri => dlcallback(uri));
+      // stub extract-zip using esm loader mocks
+      extractZip = jasmine.createSpy('exports').and.resolveTo();
+      global.__MOCK_IMPORTS__.set('extract-zip', { default: extractZip });
 
       // make getters for jasmine property spy
       let { platform, arch } = process;
@@ -151,7 +137,7 @@ describe('Unit / Install', () => {
     it('downloads from the google storage api', async () => {
       await install.chromium();
 
-      expect(dlnock.isDone()).toBe(true);
+      expect(dl).toHaveBeenCalled();
     });
 
     it('extracts to a .local-chromium directory', async () => {
@@ -202,8 +188,8 @@ describe('Unit / Install', () => {
           jasmine.stringMatching(expected.return.replace(/[.\\]/g, '\\$&'))
         );
 
-        expect(dlnock.isDone()).toBe(true);
-        expect(dlcallback).toHaveBeenCalledOnceWith(expected.url);
+        expect(dl).toHaveBeenCalledOnceWith(
+          jasmine.objectContaining({ url: expected.url }));
 
         expect(logger.stderr).toEqual([]);
         expect(logger.stdout).toEqual(jasmine.arrayContaining([

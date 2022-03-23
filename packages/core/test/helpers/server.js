@@ -1,7 +1,7 @@
 // aliased to src for coverage during tests without needing to compile this file
-const { default: Server } = require('../../dist/server');
+import Server from '../../dist/server.js';
 
-function createTestServer({ default: defaultReply, ...replies }, port = 8000) {
+export function createTestServer({ default: defaultReply, ...replies }, port = 8000) {
   let server = new Server();
 
   // alternate route handling
@@ -12,7 +12,7 @@ function createTestServer({ default: defaultReply, ...replies }, port = 8000) {
   };
 
   // map replies to alternate route handlers
-  server.reply = (p, reply) => (replies[p] = handleReply(reply));
+  server.reply = (p, reply) => (replies[p] = handleReply(reply), null);
   for (let [p, reply] of Object.entries(replies)) server.reply(p, reply);
   if (defaultReply) defaultReply = handleReply(defaultReply);
 
@@ -30,6 +30,4 @@ function createTestServer({ default: defaultReply, ...replies }, port = 8000) {
   return server.listen(port);
 };
 
-// support commonjs environments
-module.exports = createTestServer;
-module.exports.createTestServer = createTestServer;
+export default createTestServer;

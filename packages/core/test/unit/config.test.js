@@ -1,5 +1,5 @@
 import logger from '@percy/logger/test/helpers';
-import { configMigration } from '../../src/config';
+import { configMigration } from '../../src/config.js';
 
 describe('Unit / Config Migration', () => {
   let mocked = {

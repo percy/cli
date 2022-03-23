@@ -1,10 +1,10 @@
 import logger from '@percy/logger';
-import { waitFor } from './utils';
+import { waitFor } from './utils.js';
 import {
   createRequestHandler,
   createRequestFinishedHandler,
   createRequestFailedHandler
-} from './discovery';
+} from './discovery.js';
 
 // The Interceptor class creates common handlers for dealing with intercepting asset requests
 // for a given page using various devtools protocol events and commands.
@@ -227,7 +227,7 @@ export class Network {
     request.response = response;
     request.response.buffer = async () => {
       let result = await session.send('Network.getResponseBody', { requestId });
-      return Buffer.from(result.body, result.base64Encoded ? 'base64' : 'utf8');
+      return Buffer.from(result.body, result.base64Encoded ? 'base64' : 'utf-8');
     };
   }
 

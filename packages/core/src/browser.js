@@ -6,9 +6,9 @@ import EventEmitter from 'events';
 import WebSocket from 'ws';
 import rimraf from 'rimraf';
 import logger from '@percy/logger';
-import install from './install';
-import Session from './session';
-import Page from './page';
+import install from './install.js';
+import Session from './session.js';
+import Page from './page.js';
 
 export class Browser extends EventEmitter {
   log = logger('core:browser');
@@ -152,11 +152,6 @@ export class Browser extends EventEmitter {
         else this.ws.on('close', resolve);
       })
     ]).then(() => {
-      // needed due to a bug in Node 12 - https://github.com/nodejs/node/issues/27097
-      this.process?.stdin.end();
-      this.process?.stdout.end();
-      this.process?.stderr.end();
-
       /* istanbul ignore next:
        *   this might fail on some systems but ultimately it is just a temp file */
       if (this.profile) {

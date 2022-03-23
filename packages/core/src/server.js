@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import http from 'http';
-import WebSocket from 'ws';
+import { WebSocketServer } from 'ws';
 import mime from 'mime-types';
 import disposition from 'content-disposition';
 import {
@@ -159,7 +159,7 @@ export class Server extends http.Server {
     this.#up.push({
       match: pathname && pathToMatch(pathname),
       handle: (req, sock, head) => new Promise(resolve => {
-        let wss = new WebSocket.Server({ noServer: true, clientTracking: false });
+        let wss = new WebSocketServer({ noServer: true, clientTracking: false });
         wss.handleUpgrade(req, sock, head, resolve);
       }).then(ws => handle(ws, req))
     });
