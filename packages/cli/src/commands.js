@@ -1,5 +1,6 @@
 import os from 'os';
 import fs from 'fs';
+import url from 'url';
 import path from 'path';
 import Module from 'module';
 import { command, legacyCommand, logger } from '@percy/cli-command';
@@ -84,7 +85,7 @@ function importLegacyCommands(commandsPath) {
       return cmds.concat(index);
     } else {
       // find and wrap the command exported by the module
-      let exports = Object.values(await import(filepath));
+      let exports = Object.values(await import(url.pathToFileURL(filepath).href));
       let cmd = exports.find(e => typeof e?.prototype?.run === 'function');
       return cmd ? cmds.concat(legacyCommand(name, cmd)) : cmds;
     }
@@ -93,12 +94,14 @@ function importLegacyCommands(commandsPath) {
 
 // Imports and returns compatibile CLI commands from various sources
 export async function importCommands() {
+  let root = path.resolve(url.fileURLToPath(import.meta.url), '../..');
+
   // start with a set to get built-in deduplication
   let cmdPkgs = await reduceAsync(new Set([
     // find included dependencies
-    path.join(__dirname, '..'),
+    root,
     // find potential sibling packages
-    path.join(__dirname, '..', '..'),
+    path.join(root, '..'),
     // find any current project dependencies
     process.cwd()
   ]), async (roots, dir) => {
@@ -118,7 +121,7 @@ export async function importCommands() {
       pkgs.set(pkg.name, async () => {
         if (pkg.oclif.hooks?.init) {
           let initPath = path.join(pkgPath, pkg.oclif.hooks.init);
-          let init = await import(initPath);
+          let init = await import(url.pathToFileURL(initPath).href);
           await init.default();
         }
 
@@ -135,7 +138,8 @@ export async function importCommands() {
     if (pkg['@percy/cli']?.commands) {
       pkgs.set(pkg.name, () => Promise.all(
         pkg['@percy/cli'].commands.map(async cmdPath => {
-          let module = await import(path.join(pkgPath, cmdPath));
+          let modulePath = path.join(pkgPath, cmdPath);
+          let module = await import(url.pathToFileURL(modulePath).href);
           module.default.packageInformation ||= pkg;
           return module.default;
         })

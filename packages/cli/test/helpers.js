@@ -1,5 +1,7 @@
+import fs from 'fs';
+import url from 'url';
 import path from 'path';
-import { mockfs, fs } from '@percy/cli-command/test/helpers';
+import { mockfs } from '@percy/cli-command/test/helpers';
 
 // Mocks the update cache file with the provided data and timestamp
 export function mockUpdateCache(data, createdAt = Date.now()) {
@@ -10,42 +12,39 @@ export function mockUpdateCache(data, createdAt = Date.now()) {
 // Mocks the filesystem and require cache to simulate installed commands
 export function mockModuleCommands(atPath, cmdMocks) {
   let modulesPath = `${atPath}/node_modules`;
-  let mockModules = { $modules: true };
+  let vol = mockfs({ $modules: true, [modulesPath]: null });
+  let write = (rel, str) => vol.fromJSON({ [`${modulesPath}/${rel}`]: str });
+
+  // for coverage
+  write('.DS_Store', 'Not a directory');
+  write('@percy/.DS_Store', 'Not a directory');
 
   for (let [pkgName, cmdMock] of Object.entries(cmdMocks)) {
-    let pkgPath = `${modulesPath}/${pkgName}`;
     let mockPkg = { name: pkgName };
 
     if (cmdMock) {
       mockPkg['@percy/cli'] = { commands: ['command.js'] };
 
-      mockModules[`${pkgPath}/command.js`] = [
-        `exports.name = "${cmdMock.name}"`,
-        (cmdMock.callback ? 'exports.callback = () => {}' : '')
-      ].join('');
+      write(`${pkgName}/command.js`, `export default {
+        name: "${cmdMock.name}",
+        ${(cmdMock.callback ? 'callback() {}' : '')}
+      }`);
 
       if (cmdMock.multiple) {
         mockPkg['@percy/cli'].commands.push('other.js');
-
-        mockModules[`${pkgPath}/other.js`] = [
-          `exports.name = "${cmdMock.name}-other"`
-        ].join('');
+        write(`${pkgName}/other.js`, `export default {
+          name: "${cmdMock.name}-other"
+        }`);
       }
     }
 
-    mockModules[`${pkgPath}/package.json`] = JSON.stringify(mockPkg);
+    write(`${pkgName}/package.json`, JSON.stringify(mockPkg));
   }
-
-  // for coverage
-  mockModules[`${modulesPath}/@percy/.DS_Store`] = 'Not a directory';
-  mockModules[`${modulesPath}/.DS_Store`] = 'Not a directory';
-
-  return mockfs(mockModules);
 }
 
 // Mocks Yarn's PnP APIs to work as expected for installed commands
 export async function mockPnpCommands(atPath, cmdMocks) {
-  let Module = await import('module');
+  let { default: Module } = await import('module');
   let findPnpApi = spyOn(Module, 'findPnpApi').and.callThrough();
   let projectLoc = { name: 'project', ref: '<project-pnpref>' };
   let projectInfo = { packageLocation: `${atPath}/`, packageDependencies: new Map() };
@@ -58,8 +57,9 @@ export async function mockPnpCommands(atPath, cmdMocks) {
   findPackageLocator.withArgs(projectInfo.packageLocation).and.returnValue(projectLoc);
   getPackageInformation.withArgs(projectLoc).and.returnValue(projectInfo);
 
+  let vol = mockfs({ $modules: true });
   let pnpPath = path.join('/.yarn/berry/cache');
-  let mockModules = { $modules: true };
+  let write = (fp, str) => vol.fromJSON({ [`${pnpPath}/${fp}`]: str });
 
   for (let [pkgName, cmdMock] of Object.entries(cmdMocks)) {
     let pkgLoc = { name: pkgName, ref: `<${pkgName}-pnpref>` };
@@ -72,52 +72,46 @@ export async function mockPnpCommands(atPath, cmdMocks) {
 
     if (cmdMock) {
       mockPkg['@percy/cli'] = { commands: ['command.js'] };
-      mockModules[`${pnpPath}/${pkgName}/command.js`] = `exports.name = "${cmdMock.name}"`;
+      write(`${pkgName}/command.js`, `export default { name: "${cmdMock.name}" }`);
     }
 
-    mockModules[`${pnpPath}/${pkgName}/package.json`] = JSON.stringify(mockPkg);
+    write(`${pkgName}/package.json`, JSON.stringify(mockPkg));
   }
-
-  return mockfs(mockModules);
 }
 
 // Mocks the filesystem and require cache to simulate installed legacy commands
 export function mockLegacyCommands(atPath, cmdMocks) {
   let modulesPath = `${atPath}/node_modules`;
-  let mockModules = { $modules: true };
+  let vol = mockfs({ $modules: true, [modulesPath]: null });
+  let write = (fp, str) => vol.fromJSON({ [`${modulesPath}/${fp}`]: str });
 
   for (let [pkgName, cmdMock] of Object.entries(cmdMocks)) {
-    let pkgPath = `${modulesPath}/${pkgName}`;
     let mockPkg = { name: pkgName };
 
     if (cmdMock) {
-      let entryPath = `${pkgPath}/commands/${cmdMock.name}`;
+      let entryPath = `${pkgName}/commands/${cmdMock.name}`;
       mockPkg.oclif = { bin: 'percy' };
 
       if (cmdMock.topic || cmdMock.index) {
-        mockModules[`${entryPath}/notcmd.js`] = 'module.exports = {}';
-        mockModules[`${entryPath}/subcmd.js`] = 'exports.Command = ' +
-          'class LegacySubCmd { run() {} }';
+        write(`${entryPath}/notcmd.js`, 'module.exports = {}');
+        write(`${entryPath}/subcmd.js`, 'export class LegacySubCmd { run() {} }');
 
         if (cmdMock.index) {
-          mockModules[`${entryPath}/index.js`] = 'exports.Command = ' +
-            'class LegacyIndex { run() {} }';
+          write(`${entryPath}/index.js`, 'export class LegacyIndex { run() {} }');
         }
       } else {
-        mockModules[`${entryPath}.js`] = 'exports.Command = ' +
-          'class LegacyCommand { run() {} }';
+        write(`${entryPath}.js`, 'export class LegacyCommand { run() {} }');
       }
 
       if (cmdMock.init) {
-        mockModules[`${pkgPath}/init.js`] = `module.exports = ${cmdMock.init}`;
+        let initURL = url.pathToFileURL(`${modulesPath}/${pkgName}/init.js`).href;
+        global.__MOCK_IMPORTS__.set(initURL, { default: cmdMock.init });
         mockPkg.oclif.hooks = { init: 'init.js' };
       } else {
         mockPkg.oclif.commands = 'commands';
       }
     }
 
-    mockModules[`${pkgPath}/package.json`] = JSON.stringify(mockPkg);
+    write(`${pkgName}/package.json`, JSON.stringify(mockPkg));
   }
-
-  return mockfs(mockModules);
 }

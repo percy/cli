@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 
-if (parseInt(process.version.split('.')[0].substring(1), 10) < 12) {
+if (parseInt(process.version.split('.')[0].substring(1), 10) < 14) {
   console.error(`Node ${process.version} is not supported. Percy only ` + (
-    'supports the current LTS version of Node. Please upgrade to Node 12+'));
+    'supports current LTS versions of Node. Please upgrade to Node 14+'));
   process.exit(1);
 }
 
-let { checkForUpdate, percy } = require('../dist/index.js');
+// avoid hoisting import statements so the above check can run first
+const { percy, checkForUpdate } = await import('../dist/index.js');
 
-(async function() {
-  await checkForUpdate();
-  await percy(process.argv.slice(2));
-})();
+await checkForUpdate();
+await percy(process.argv.slice(2));

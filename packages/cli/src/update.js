@@ -1,11 +1,12 @@
 import fs from 'fs';
+import url from 'url';
 import path from 'path';
 import logger from '@percy/logger';
 import { colors } from '@percy/logger/utils';
+import { getPackageJSON } from '@percy/cli-command/utils';
 
-const PKG_FILE = path.join(__dirname, '..', 'package.json');
 // filepath where the cache will be read and written to
-const CACHE_FILE = path.join(__dirname, '..', '.releases');
+const CACHE_FILE = path.resolve(url.fileURLToPath(import.meta.url), '../../.releases');
 // max age the cache should be used for (3 days)
 const CACHE_MAX_AGE = 3 * 24 * 60 * 60 * 1000;
 
@@ -65,7 +66,7 @@ async function fetchReleases(pkg) {
 // is cached to speed up subsequent CLI usage.
 export async function checkForUpdate() {
   let { data: releases, error: cacheError } = readFromCache();
-  let pkg = JSON.parse(fs.readFileSync(PKG_FILE));
+  let pkg = getPackageJSON(import.meta.url);
   let log = logger('cli:update');
 
   try {
