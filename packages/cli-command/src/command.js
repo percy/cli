@@ -2,9 +2,9 @@ import logger from '@percy/logger';
 import PercyConfig from '@percy/config';
 import { set, del } from '@percy/config/utils';
 import * as CoreConfig from '@percy/core/config';
-import * as builtInFlags from './flags';
-import formatHelp from './help';
-import parse from './parse';
+import * as builtInFlags from './flags.js';
+import formatHelp from './help.js';
+import parse from './parse.js';
 
 // Copies a command definition and adds built-in flags and config options.
 function withBuiltIns(definition) {

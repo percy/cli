@@ -1,5 +1,5 @@
-import { logger, dedent } from './helpers';
-import { command, legacyCommand, flags } from '../src';
+import { logger, dedent } from './helpers.js';
+import { command, legacyCommand, flags } from '@percy/cli-command';
 
 describe('Legacy support', () => {
   let test;

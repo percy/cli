@@ -1,6 +1,6 @@
 import logger from '@percy/logger';
 import { camelcase } from '@percy/config/utils';
-import { flagUsage } from './help';
+import { flagUsage } from './help.js';
 
 // Make it possible to identify parse errors.
 export class ParseError extends Error {

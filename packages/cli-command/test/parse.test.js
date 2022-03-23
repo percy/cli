@@ -1,5 +1,5 @@
-import { logger } from './helpers';
-import command from '../src';
+import { logger } from './helpers.js';
+import command from '@percy/cli-command';
 
 describe('Option parsing', () => {
   let cmd = (name, def) => {

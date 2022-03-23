@@ -1,5 +1,5 @@
-import { logger, dedent } from './helpers';
-import command from '../src';
+import { logger, dedent } from './helpers.js';
+import command from '@percy/cli-command';
 
 describe('Command', () => {
   beforeEach(async () => {
