@@ -1,8 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import command from '@percy/cli-command';
-import * as UploadConfig from './config';
-import pkg from '../package.json';
+import * as UploadConfig from './config.js';
 
 const ALLOWED_FILE_TYPES = /\.(png|jpg|jpeg)$/i;
 
@@ -49,8 +48,6 @@ export const upload = command('upload', {
   ],
 
   percy: {
-    clientInfo: `${pkg.name}/${pkg.version}`,
-    environmentInfo: `node/${process.version}`,
     discoveryFlags: false,
     deferUploads: true
   },
@@ -75,7 +72,7 @@ export const upload = command('upload', {
   }
 
   let { default: imageSize } = await import('image-size');
-  let { createImageResources } = await import('./resources');
+  let { createImageResources } = await import('./resources.js');
 
   // the internal upload queue shares a concurrency with the snapshot queue
   percy.setConfig({ discovery: { concurrency: config.concurrency } });

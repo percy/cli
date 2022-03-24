@@ -1,5 +1,5 @@
 import { fs, logger, api, setupTest } from '@percy/cli-command/test/helpers';
-import upload from '../src/upload';
+import upload from '@percy/cli-upload';
 
 // http://png-pixel.com/
 const pixel = Buffer.from((
@@ -8,6 +8,7 @@ const pixel = Buffer.from((
 
 describe('percy upload', () => {
   beforeEach(async () => {
+    upload.packageInformation = { name: '@percy/cli-upload' };
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
 
     await setupTest({
@@ -24,6 +25,7 @@ describe('percy upload', () => {
   afterEach(() => {
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
+    delete upload.packageInformation;
   });
 
   it('skips uploading when percy is disabled', async () => {
