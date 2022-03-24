@@ -1,5 +1,5 @@
 import { logger, setupTest, createTestServer } from '@percy/cli-command/test/helpers';
-import ping from '../src/ping';
+import { ping } from '@percy/cli-exec';
 
 describe('percy exec:ping', () => {
   let percyServer;

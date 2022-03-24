@@ -1,4 +1,4 @@
-export { default, exec } from './exec';
-export { start } from './start';
-export { stop } from './stop';
-export { ping } from './ping';
+export { default, exec } from './exec.js';
+export { start } from './start.js';
+export { stop } from './stop.js';
+export { ping } from './ping.js';

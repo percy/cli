@@ -1,5 +1,5 @@
 import { logger, setupTest, createTestServer } from '@percy/cli-command/test/helpers';
-import stop from '../src/stop';
+import { stop } from '@percy/cli-exec';
 
 describe('percy exec:stop', () => {
   let percyServer;

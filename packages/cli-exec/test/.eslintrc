@@ -2,3 +2,5 @@ env:
   jasmine: true
 rules:
   import/no-extraneous-dependencies: off
+  no-return-assign: off
+  no-sequences: off
