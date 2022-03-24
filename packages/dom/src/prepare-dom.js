@@ -5,7 +5,7 @@ function uid() {
 
 // Marks elements that are to be serialized later with a data attribute.
 export function prepareDOM(dom) {
-  for (let elem of dom.querySelectorAll('input, textarea, select, iframe, canvas, video')) {
+  for (let elem of dom.querySelectorAll('input, textarea, select, iframe, canvas, video, style')) {
     if (!elem.getAttribute('data-percy-element-id')) {
       elem.setAttribute('data-percy-element-id', uid());
     }

@@ -20,8 +20,8 @@ describe('serializeCSSOM', () => {
     let $css = parseDOM(serializeDOM())('style');
 
     expect($css).toHaveSize(3);
-    expect($css[0].innerHTML).toBe('.box { height: 500px; width: 500px; background-color: green; }');
-    expect($css[0].getAttribute('data-percy-cssom-serialized')).toBeDefined();
+    expect($css[1].innerHTML).toBe('.box { height: 500px; width: 500px; background-color: green; }');
+    expect($css[1].getAttribute('data-percy-cssom-serialized')).toBeDefined();
     // style #2 (index 1) is the original injected style tag for `withCSSOM`
     expect($css[2].innerHTML).toBe('div { display: inline-block; }');
     expect($css[2].getAttribute('data-percy-cssom-serialized')).toBeNull();
