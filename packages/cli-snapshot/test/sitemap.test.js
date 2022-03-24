@@ -1,10 +1,11 @@
 import { fs, logger, setupTest, createTestServer } from '@percy/cli-command/test/helpers';
-import snapshot from '../src/snapshot';
+import snapshot from '@percy/cli-snapshot';
 
 describe('percy snapshot <sitemap>', () => {
   let server;
 
   beforeEach(async () => {
+    snapshot.packageInformation = { name: '@percy/cli-snapshot' };
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     await setupTest();
 
@@ -32,6 +33,7 @@ describe('percy snapshot <sitemap>', () => {
 
   afterEach(async () => {
     delete process.env.PERCY_TOKEN;
+    delete snapshot.packageInformation;
     await server.close();
   });
 

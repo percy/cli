@@ -1,1 +1,1 @@
-export { default, snapshot } from './snapshot';
+export { default, snapshot } from './snapshot.js';

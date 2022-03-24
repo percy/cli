@@ -1,13 +1,15 @@
 import { logger, setupTest } from '@percy/cli-command/test/helpers';
-import snapshot from '../src/snapshot';
+import snapshot from '@percy/cli-snapshot';
 
 describe('percy snapshot', () => {
   beforeEach(async () => {
+    snapshot.packageInformation = { name: '@percy/cli-snapshot' };
     await setupTest();
   });
 
   afterEach(() => {
     delete process.env.PERCY_ENABLE;
+    delete snapshot.packageInformation;
   });
 
   it('skips snapshotting when Percy is disabled', async () => {

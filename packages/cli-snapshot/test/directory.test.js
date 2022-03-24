@@ -1,8 +1,9 @@
 import { logger, setupTest, fs } from '@percy/cli-command/test/helpers';
-import snapshot from '../src/snapshot';
+import snapshot from '@percy/cli-snapshot';
 
 describe('percy snapshot <directory>', () => {
   beforeEach(async () => {
+    snapshot.packageInformation = { name: '@percy/cli-snapshot' };
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
 
     await setupTest({
@@ -20,6 +21,7 @@ describe('percy snapshot <directory>', () => {
   afterEach(() => {
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
+    delete snapshot.packageInformation;
   });
 
   it('errors when the base-url is invalid', async () => {
