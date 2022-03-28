@@ -104,6 +104,7 @@ async function runCommandWithContext(parsed) {
   // include flags, args, argv, logger, exit helper, and env info
   let context = { flags, args, argv, log, exit };
   let env = context.env = process.env;
+  let pkg = command.packageInformation;
   let def = command.definition;
 
   // automatically include a preconfigured percy instance
@@ -112,6 +113,8 @@ async function runCommandWithContext(parsed) {
 
     // set defaults and prune preconfiguraton options
     let conf = del({ server: false, ...def.percy }, 'discoveryFlags');
+    if (pkg) conf.clientInfo ||= `${pkg.name}/${pkg.version}`;
+    conf.environmentInfo ||= `node/${process.version}`;
 
     Object.defineProperty(context, 'percy', {
       configurable: true,
