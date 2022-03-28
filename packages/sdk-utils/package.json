@@ -11,7 +11,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=12"
+    "node": ">=14"
   },
   "files": [
     "./dist",
@@ -21,6 +21,7 @@
   ],
   "main": "./dist/index.js",
   "browser": "./dist/bundle.js",
+  "type": "module",
   "exports": {
     ".": "./dist/index.js",
     "./test/server": "./test/server.js",
@@ -34,7 +35,7 @@
     "test:coverage": "yarn test --coverage"
   },
   "karma": {
-    "run_start": "node test/server start &",
+    "run_start": "node test/server start",
     "run_complete": "node test/server stop"
   },
   "rollup": {

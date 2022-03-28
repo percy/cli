@@ -21,7 +21,7 @@ This object contains information about the local Percy environment and is update
 [`isPercyEnabled`](#ispercyenabled) is called for the first time.
 
 ``` js
-const { percy } = require('@percy/sdk-utils')
+import { percy } from '@percy/sdk-utils'
 
 // reflects/updates process.env.PERCY_SERVER_ADDRESS
 percy.address === 'http://localhost:5338'
@@ -47,7 +47,7 @@ log a message unless the CLI loglevel is `quiet` or `silent`. Upon a successful 
 remote logging connection is also established.
 
 ``` js
-const { isPercyEnabled } = require('@percy/sdk-utils')
+import { isPercyEnabled } from '@percy/sdk-utils'
 
 // CLI API not running
 await isPercyEnabled() === false
@@ -64,7 +64,7 @@ resulting string can be evaulated within a browser context to add the `PercyDOM.
 to the global scope. Subsequent calls return the first cached result.
 
 ``` js
-const { fetchPercyDOM } = require('@percy/sdk-utils')
+import { fetchPercyDOM } from '@percy/sdk-utils'
 
 let script = await fetchPercyDOM()
 
@@ -84,7 +84,7 @@ browser.executeScript(script)
 Posts snapshot options to the local Percy API server.
 
 ``` js
-const { postSnapshot } = require('@percy/sdk-utils')
+import { postSnapshot } from '@percy/sdk-utils'
 
 await postSnapshot({
   // required
@@ -106,7 +106,7 @@ await postSnapshot({
 Sends a request to the local Percy API server. Used internally by the other SDK utils.
 
 ``` js
-const { request } = require('@percy/sdk-utils')
+import { request } from '@percy/sdk-utils'
 
 await request('/percy/idle')
 await request('/percy/stop')
@@ -122,7 +122,7 @@ The returned object must contain the following normalized properties from the re
 `status`, `statusText`, `headers`, `body`
 
 ``` js
-const { request } = require('@percy/sdk-utils')
+import { request } from '@percy/sdk-utils'
 
 // Cypress SDK example
 request.fetch = async function fetch(url, options) {

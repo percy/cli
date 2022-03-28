@@ -1,4 +1,4 @@
-import percy from './percy-info';
+import percy from './percy-info.js';
 
 // Helper to send a request to the local CLI API
 export async function request(path, options = {}) {
@@ -46,9 +46,9 @@ if (process.env.__PERCY_BROWSERIFIED__) {
   };
 } else {
   // use http.request in node
-  const http = require('http');
-
   request.fetch = async function fetch(url, options) {
+    let { default: http } = await import('http');
+
     return new Promise((resolve, reject) => {
       http.request(url, options)
         .on('response', response => {

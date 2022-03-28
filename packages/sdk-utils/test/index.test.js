@@ -1,5 +1,5 @@
-import helpers from './helpers';
-import utils from '../src';
+import helpers from './helpers.js';
+import utils from '@percy/sdk-utils';
 
 describe('SDK Utils', () => {
   beforeEach(async () => {
