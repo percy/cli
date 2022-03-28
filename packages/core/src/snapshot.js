@@ -400,11 +400,13 @@ export async function* discoverSnapshotResources(percy, snapshot, callback) {
       for (let snap of allSnapshots) {
         // will wait for timeouts, selectors, and additional network activity
         let { url, dom } = yield page.snapshot({ enableJavaScript, ...snap });
-        resources.set(url, createRootResource(url, dom));
+        let root = createRootResource(url, dom);
+        // use the normalized root url to prevent duplicates
+        resources.set(root.url, root);
         // shallow merge with root snapshot options
         handleSnapshotResources({ ...snapshot, ...snap }, resources, callback);
         // remove the previously captured dom snapshot
-        resources.delete(url);
+        resources.delete(root.url);
       }
     }
 
