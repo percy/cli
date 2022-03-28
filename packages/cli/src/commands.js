@@ -136,6 +136,7 @@ export async function importCommands() {
       pkgs.set(pkg.name, () => Promise.all(
         pkg['@percy/cli'].commands.map(async cmdPath => {
           let module = await import(path.join(pkgPath, cmdPath));
+          module.default.packageInformation ||= pkg;
           return module.default;
         })
       ));

@@ -75,7 +75,7 @@ async function maybeParseCommand(input, parsed) {
 // Parses input to identify a flag option. Consumes input and adds to parsed output as needed,
 // returning true if any defined flag was found. If a found flag is missing a required argument, the
 // next input option will be consumed as that argument. Boolean flags support negation if their
-// default value is true, integer flags are automaticaly parsed, and flags that can be provided
+// default value is true, integer flags are automatically parsed, and flags that can be provided
 // multiple times will be concatenated together. Implicit help and version flags are also supported.
 async function maybeParseFlag(input, parsed) {
   if (!isFlag(input[0])) return;
@@ -323,8 +323,15 @@ async function normalizeCommand(command, properties) {
     definition.commands = await definition.commands();
   }
 
-  // return shallow copy with additional properties
-  return { ...command, ...properties, definition };
+  // create a shallow copy with additional properties
+  let normalized = { ...command, ...properties, definition };
+
+  // inherit parent package information by default
+  normalized.packageInformation ||= (
+    properties?.parent || command.parent
+  )?.packageInformation;
+
+  return normalized;
 }
 
 // Parses and validates command-line arguments according to a command definition.

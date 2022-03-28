@@ -50,6 +50,13 @@ describe('CLI commands', () => {
       expect(logger.stderr).toEqual([]);
     });
 
+    it('automatically includes package information', async () => {
+      mockModuleCommands(path.resolve('.'), mockCmds);
+      let cmds = await importCommands();
+
+      expect(cmds[0].packageInformation.name).toEqual('@percy/cli-config');
+    });
+
     it('handles errors and logs debug info', async () => {
       fs.$vol.fromJSON({ './node_modules': null });
       fs.readdirSync.and.throwError(new Error('EACCES'));

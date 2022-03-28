@@ -112,21 +112,27 @@ describe('Command', () => {
   it('initializes the percy instance with provided percy options', async () => {
     let test = command('foo', {
       flags: [{
-        name: 'client',
-        type: 'info',
-        percyrc: 'clientInfo'
+        name: 'dry',
+        percyrc: 'dryRun'
       }],
       percy: {
-        environmentInfo: 'env/456'
+        environmentInfo: 'env/4.5.6'
       }
     }, ({ percy }) => {
-      test.client = percy.client;
+      test.percy = percy;
     });
 
-    await test(['--client', 'client/123']);
+    // automatic client info from package.json
+    test.packageInformation = {
+      name: 'percy-cli-sdk',
+      version: '1.2.3'
+    };
 
-    expect(test.client.clientInfo).toEqual(new Set(['client/123']));
-    expect(test.client.environmentInfo).toEqual(new Set(['env/456']));
+    await test(['--dry']);
+
+    expect(test.percy.dryRun).toBe(true);
+    expect(test.percy.client.clientInfo).toEqual(new Set(['percy-cli-sdk/1.2.3']));
+    expect(test.percy.client.environmentInfo).toEqual(new Set(['env/4.5.6']));
   });
 
   it('handles logging unhandled action errors', async () => {
