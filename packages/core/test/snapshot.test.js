@@ -155,6 +155,19 @@ describe('Snapshot', () => {
     ]));
   });
 
+  it('does not duplicate resources when sites redirect', async () => {
+    await percy.snapshot({
+      url: 'http://localhost:8000/',
+      execute() { window.history.pushState(null, null, '#/'); }
+    });
+
+    let resourceURLs = api.requests['/builds/123/snapshots'][0]
+      .body.data.relationships.resources.data.map(resource => resource.attributes['resource-url']);
+    let uniqueURLs = [...new Set(resourceURLs)];
+
+    expect(resourceURLs.length).toEqual(uniqueURLs.length);
+  });
+
   it('logs after taking the snapshot', async () => {
     await percy.snapshot({
       name: 'test snapshot',
