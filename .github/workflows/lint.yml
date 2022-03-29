@@ -27,6 +27,4 @@ jobs:
             ${{ runner.os }}/node-14/
             ${{ hashFiles('.github/.cache-key') }}/
       - run: yarn
-        env:
-          PERCY_POSTINSTALL_BROWSER: true
       - run: yarn lint
