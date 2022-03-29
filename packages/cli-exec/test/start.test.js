@@ -38,8 +38,8 @@ describe('percy exec:start', () => {
   });
 
   it('can start on an alternate port', async () => {
-    start(['--quiet', '--port=1234']);
-    let response = await request('http://localhost:1234/percy/healthcheck');
+    start(['--quiet', '--port=4567']);
+    let response = await request('http://localhost:4567/percy/healthcheck');
     expect(response).toHaveProperty('success', true);
   });
 

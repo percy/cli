@@ -167,7 +167,7 @@ describe('percy exec', () => {
   it('provides the child process with a percy server address env var', async () => {
     let args = ['--no-warnings', '--input-type=module', '--loader=../../scripts/loader.js'];
 
-    await exec(['--port=1234', '--', 'node', ...args, '--eval', [
+    await exec(['--port=4567', '--', 'node', ...args, '--eval', [
       'import { request } from "../cli-command/src/utils.js";',
       'let url = new URL("/percy/healthcheck", process.env.PERCY_SERVER_ADDRESS);',
       'await request(url).catch(e => (console.error(e), process.exit(2)));'

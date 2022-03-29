@@ -50,9 +50,9 @@ describe('percy exec:stop', () => {
   it('can stop a server on another port', async () => {
     percyServer = await createTestServer({
       '/percy/stop': () => [200, 'application/json', { success: true }]
-    }, 1234);
+    }, 4567);
 
-    await stop(['--port=1234']);
+    await stop(['--port=4567']);
 
     expect(percyServer.requests).toEqual([
       ['/percy/stop'],
