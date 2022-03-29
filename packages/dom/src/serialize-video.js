@@ -9,10 +9,11 @@ export function serializeVideos(dom, clone) {
     let canvas = document.createElement('canvas');
     let width = canvas.width = video.videoWidth;
     let height = canvas.height = video.videoHeight;
+    let dataUrl;
 
     canvas.getContext('2d').drawImage(video, 0, 0, width, height);
+    try { dataUrl = canvas.toDataURL(); } catch {}
 
-    let dataUrl = canvas.toDataURL();
     // If the canvas produces a blank image, skip
     if (!dataUrl || dataUrl === 'data:,') continue;
 

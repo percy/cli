@@ -37,4 +37,15 @@ describe('serializeVideos', () => {
     $ = parseDOM(serializeDOM());
     expect($('#video')[0].getAttribute('poster')).toBe(null);
   });
+
+  it('does not hang serialization when there is an error thrown', () => {
+    withExample(`
+       <video src="//:0" id="video" />
+    `);
+
+    spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('An error'));
+
+    $ = parseDOM(serializeDOM());
+    expect($('#video')[0].getAttribute('poster')).toBe(null);
+  });
 });
