@@ -80,7 +80,7 @@ describe('serializeFrames', () => {
 
   it('serializes iframes that have been interacted with', () => {
     expect($('#frame-input')[0].getAttribute('srcdoc')).toMatch(new RegExp([
-      '^<!DOCTYPE html><html><head></head><body>',
+      '^<!DOCTYPE html><html><head>.*?</head><body>',
       '<input data-percy-element-id=".+?" value="iframe with an input">',
       '</body></html>$'
     ].join('')));

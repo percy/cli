@@ -321,10 +321,10 @@ describe('Snapshot multiple', () => {
       await expectAsync(cancelable.then()).toBeRejected();
 
       expect(logger.stderr).toEqual([]);
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: /about.html',
         '[percy] Snapshot taken: /index.html'
-      ]);
+      ]));
     });
   });
 });
