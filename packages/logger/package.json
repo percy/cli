@@ -29,8 +29,8 @@
   },
   "imports": {
     "#logger": {
-      "node": "./src/logger.js",
-      "default": "./src/browser.js"
+      "node": "./dist/logger.js",
+      "default": "./dist/browser.js"
     }
   },
   "scripts": {

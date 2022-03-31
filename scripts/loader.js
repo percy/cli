@@ -50,8 +50,16 @@ export async function resolve(specifier, context, defaultResolve) {
     }
   }
 
-  // always rewrite dist to src in development
-  specifier = specifier.replace(LOADER_ALIAS.find, LOADER_ALIAS.replace);
+  // rewrite dist to src in development
+  if (specifier.startsWith('#')) {
+    let pkgRoot = url.fileURLToPath(context.parentURL.replace(/(packages\/[^/]+\/).+$/, '$1'));
+    let pkgJSON = JSON.parse(fs.readFileSync(path.resolve(pkgRoot, 'package.json')));
+    let alias = pkgJSON.imports[specifier]?.node?.replace('./dist', './src');
+    if (alias) specifier = path.resolve(pkgRoot, alias);
+  } else {
+    specifier = specifier.replace(LOADER_ALIAS.find, LOADER_ALIAS.replace);
+  }
+
   // transform absolute filepaths into absolute file urls
   if (specifier.startsWith(ROOT)) specifier = url.pathToFileURL(specifier).href;
 
