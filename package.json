@@ -13,7 +13,7 @@
     "build:watch": "lerna run build --stream -- --watch",
     "bump-version": "lerna version --exact --no-git-tag-version --no-push",
     "chromium-revision": "./scripts/chromium-revision",
-    "clean": "git clean -Xdf --exclude !node_modules",
+    "clean": "git clean -Xdf -e !node_modules -e !**/node_modules/**",
     "lint": "eslint --ignore-path .gitignore .",
     "readme": "lerna run --parallel readme",
     "postinstall": "lerna run --stream postinstall",
