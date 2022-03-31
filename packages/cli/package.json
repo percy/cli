@@ -18,7 +18,7 @@
     "node": ">=14"
   },
   "bin": {
-    "percy": "./bin/run"
+    "percy": "./bin/run.cjs"
   },
   "main": "./dist/index.js",
   "exports": "./dist/index.js",
