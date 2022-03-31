@@ -1,6 +1,6 @@
 import logger from '@percy/logger';
-import percy from './percy-info';
-import request from './request';
+import percy from './percy-info.js';
+import request from './request.js';
 
 // Create a socket to connect to a remote logger
 async function connectRemoteLogger() {

@@ -1,8 +1,8 @@
-import load, { search } from './load';
-import validate, { addSchema } from './validate';
-import migrate, { addMigration } from './migrate';
-import { merge, normalize, stringify } from './utils';
-import getDefaults from './defaults';
+import load, { search } from './load.js';
+import validate, { addSchema } from './validate.js';
+import migrate, { addMigration } from './migrate.js';
+import { merge, normalize, stringify } from './utils/index.js';
+import getDefaults from './defaults.js';
 
 // public config API
 export {
@@ -19,4 +19,4 @@ export {
 };
 
 // export the namespace by default
-export * as default from '.';
+export * as default from './index.js';

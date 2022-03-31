@@ -11,7 +11,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=12"
+    "node": ">=14"
   },
   "files": [
     "./dist",
@@ -19,6 +19,7 @@
   ],
   "main": "./dist/index.js",
   "types": "./types/index.d.ts",
+  "type": "module",
   "exports": {
     ".": "./dist/index.js",
     "./utils": "./dist/utils/index.js",

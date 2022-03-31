@@ -1,14 +1,14 @@
 import { sha256hash, base64encode } from '@percy/client/utils';
-import { logger, api, setupTest, createTestServer, dedent } from './helpers';
-import { waitFor } from '../src/utils';
-import Percy from '../src';
+import { logger, api, setupTest, createTestServer, dedent } from './helpers/index.js';
+import { waitFor } from '@percy/core/utils';
+import Percy from '@percy/core';
 
 describe('Snapshot', () => {
   let percy, server, testDOM;
 
   beforeEach(async () => {
     testDOM = '<p>Test</p>';
-    setupTest();
+    await setupTest();
 
     server = await createTestServer({
       default: () => [200, 'text/html', testDOM],

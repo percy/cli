@@ -1,12 +1,14 @@
 import path from 'path';
 import { PercyConfig } from '@percy/cli-command';
 import { fs, logger, setupTest } from '@percy/cli-command/test/helpers';
-import migrate from '../src/migrate';
+import migrate from '../src/migrate.js';
 
 describe('percy config:migrate', () => {
-  beforeEach(() => {
-    let filesystem = { '.percy.yml': 'version: 1\n' };
-    setupTest({ filesystem, resetConfig: true });
+  beforeEach(async () => {
+    await setupTest({
+      resetConfig: true,
+      filesystem: { '.percy.yml': 'version: 1\n' }
+    });
 
     PercyConfig.addMigration((config, util) => {
       if (config.migrate) util.map('migrate', 'migrated', v => v.replace('old', 'new'));

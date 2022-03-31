@@ -1,11 +1,11 @@
-import AJV from 'ajv/dist/2019';
+import AJV from 'ajv/dist/2019.js';
 import {
   set, del,
   filterEmpty,
   parsePropertyPath,
   joinPropertyPath,
   isArrayKey
-} from './utils';
+} from './utils/index.js';
 
 const { isArray } = Array;
 const { assign, entries } = Object;

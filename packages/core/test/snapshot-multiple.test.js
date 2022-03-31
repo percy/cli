@@ -1,13 +1,13 @@
-import { fs, logger, setupTest, createTestServer } from './helpers';
-import { generatePromise } from '../src/utils';
-import Percy from '../src';
+import { fs, logger, setupTest, createTestServer } from './helpers/index.js';
+import { generatePromise } from '@percy/core/utils';
+import Percy from '@percy/core';
 
 describe('Snapshot multiple', () => {
   let percy, server, sitemap;
 
   beforeEach(async () => {
     sitemap = ['/'];
-    setupTest();
+    await setupTest();
 
     percy = await Percy.start({
       token: 'PERCY_TOKEN',
@@ -321,10 +321,10 @@ describe('Snapshot multiple', () => {
       await expectAsync(cancelable.then()).toBeRejected();
 
       expect(logger.stderr).toEqual([]);
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: /about.html',
         '[percy] Snapshot taken: /index.html'
-      ]);
+      ]));
     });
   });
 });

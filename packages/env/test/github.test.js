@@ -1,16 +1,20 @@
 import fs from 'fs';
+import url from 'url';
 import path from 'path';
-import PercyEnv from '../src';
-import { github } from '../src/utils';
+import PercyEnv from '@percy/env';
+import { github } from '@percy/env/utils';
+
+const GITHUB_EVENT_PATH = path.join(path.dirname(
+  url.fileURLToPath(import.meta.url)
+), 'gh-event-file');
 
 describe('GitHub', () => {
-  let ghEventFile = path.join(__dirname, 'gh-event-file');
   let env;
 
   beforeEach(() => {
     delete github.payload;
 
-    fs.writeFileSync(ghEventFile, JSON.stringify({
+    fs.writeFileSync(GITHUB_EVENT_PATH, JSON.stringify({
       pull_request: {
         number: 10,
         head: {
@@ -24,12 +28,12 @@ describe('GitHub', () => {
       PERCY_PARALLEL_TOTAL: '-1',
       GITHUB_RUN_ID: 'job-id',
       GITHUB_ACTIONS: 'true',
-      GITHUB_EVENT_PATH: ghEventFile
+      GITHUB_EVENT_PATH
     });
   });
 
   afterEach(() => {
-    fs.unlinkSync(ghEventFile);
+    fs.unlinkSync(GITHUB_EVENT_PATH);
   });
 
   it('has the correct properties', () => {

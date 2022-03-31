@@ -1,9 +1,9 @@
-import { logger, dedent } from './helpers';
-import command from '../src';
+import { logger, dedent } from './helpers.js';
+import command from '@percy/cli-command';
 
 describe('Command', () => {
-  beforeEach(() => {
-    logger.mock();
+  beforeEach(async () => {
+    await logger.mock();
   });
 
   it('is a function that runs an action', async () => {

@@ -58,15 +58,12 @@ const { DUMP_FAILED_TEST_LOGS } = (
 if (DUMP_FAILED_TEST_LOGS) {
   // add a spec reporter to dump failed logs
   env.addReporter({
-    specDone: ({ status }) => {
+    specDone: async ({ status }) => {
       let logger = typeof window !== 'undefined'
         ? (window.PercyLogger && window.PercyLogger.TestHelpers) ||
           (window.PercySDKUtils && window.PercySDKUtils.TestHelpers.logger)
-        : require('@percy/logger/test/helpers');
-
-      if (logger && status === 'failed') {
-        logger.dump();
-      }
+        : (await import('@percy/logger/test/helpers')).logger;
+      if (logger && status === 'failed') logger.dump();
     }
   });
 }

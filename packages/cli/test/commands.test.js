@@ -1,11 +1,11 @@
 import path from 'path';
 import { logger, mockfs, fs } from '@percy/cli-command/test/helpers';
-import { mockModuleCommands, mockPnpCommands, mockLegacyCommands } from './helpers';
-import { importCommands } from '../src/commands';
+import { mockModuleCommands, mockPnpCommands, mockLegacyCommands } from './helpers.js';
+import { importCommands } from '../src/commands.js';
 
 describe('CLI commands', () => {
-  beforeEach(() => {
-    logger.mock();
+  beforeEach(async () => {
+    await logger.mock();
     logger.loglevel('debug');
     mockfs({ $modules: true });
   });
@@ -30,14 +30,14 @@ describe('CLI commands', () => {
     ];
 
     it('imports from dependencies', async () => {
-      mockModuleCommands(path.join(__dirname, '..'), mockCmds);
+      mockModuleCommands(path.resolve('.'), mockCmds);
       await expectAsync(importCommands()).toBeResolvedTo(expectedCmds);
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([]);
     });
 
     it('imports from a parent directory', async () => {
-      mockModuleCommands(path.join(__dirname, '..', '..', '..'), mockCmds);
+      mockModuleCommands(path.resolve('../..'), mockCmds);
       await expectAsync(importCommands()).toBeResolvedTo(expectedCmds);
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([]);
@@ -123,14 +123,13 @@ describe('CLI commands', () => {
     });
 
     it('runs oclif init hooks', async () => {
-      let init = 'jasmine.createSpy("init")';
+      let init = jasmine.createSpy('init');
 
       mockLegacyCommands(process.cwd(), {
         'percy-cli-legacy': { name: 'test', init }
       });
 
       await expectAsync(importCommands()).toBeResolvedTo([]);
-      init = await import('percy-cli-legacy/init.js');
       expect(init).toHaveBeenCalled();
     });
   });

@@ -1,4 +1,4 @@
-import request from './request';
+import request from './request.js';
 
 const RETRY_ERROR_CODES = ['ECONNRESET', 'ETIMEDOUT'];
 

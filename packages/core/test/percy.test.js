@@ -1,12 +1,12 @@
-import { logger, api, setupTest, createTestServer } from './helpers';
-import { generatePromise } from '../src/utils';
-import Percy from '../src';
+import { logger, api, setupTest, createTestServer } from './helpers/index.js';
+import { generatePromise } from '../src/utils.js';
+import Percy from '@percy/core';
 
 describe('Percy', () => {
   let percy, server;
 
   beforeEach(async () => {
-    setupTest();
+    await setupTest();
 
     server = await createTestServer({
       default: () => [200, 'text/html', '<p>Snapshot</p>']
@@ -193,7 +193,7 @@ describe('Percy', () => {
     });
 
     it('starts a server after launching a browser', async () => {
-      let { request } = await import('./helpers/request');
+      let { request } = await import('./helpers/request.js');
       spyOn(percy.browser, 'launch').and.callThrough();
       spyOn(percy.server, 'listen').and.callThrough();
 
@@ -452,7 +452,7 @@ describe('Percy', () => {
     });
 
     it('stops the server', async () => {
-      let { request } = await import('./helpers/request');
+      let { request } = await import('./helpers/request.js');
       await expectAsync(request('http://localhost:5338', false)).toBeResolved();
       await expectAsync(percy.stop()).toBeResolved();
       expect(percy.server.listening).toBe(false);

@@ -1,5 +1,5 @@
-import { merge } from './utils';
-import { getSchema } from './validate';
+import { merge } from './utils/index.js';
+import { getSchema } from './validate.js';
 
 const { isArray } = Array;
 const { assign, entries } = Object;

@@ -1,7 +1,7 @@
-const logger = require('@percy/logger/test/helpers');
-const utils = require('@percy/sdk-utils');
+import logger from '@percy/logger/test/helpers';
+import utils from '@percy/sdk-utils';
 
-const helpers = {
+export const helpers = {
   logger,
 
   async setup() {
@@ -11,7 +11,7 @@ const helpers = {
     delete utils.percy.domScript;
     delete process.env.PERCY_SERVER_ADDRESS;
     await helpers.call('server.mock');
-    logger.mock();
+    await logger.mock();
   },
 
   teardown: () => helpers.call('server.close'),
@@ -70,8 +70,11 @@ if (process.env.__PERCY_BROWSERIFIED__) {
     ));
   };
 } else {
-  helpers.context = require('./server').context();
-  helpers.call = helpers.context.call;
+  helpers.call = async function call() {
+    let { context } = await import('./server.js');
+    helpers.context = (helpers.context || await context());
+    return helpers.context.call(...arguments);
+  };
 }
 
-module.exports = helpers;
+export default helpers;

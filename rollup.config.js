@@ -1,11 +1,13 @@
-const path = require('path');
-const alias = require('@rollup/plugin-alias');
-const babel = require('@rollup/plugin-babel').default;
-const resolve = require('@rollup/plugin-node-resolve').default;
-const commonjs = require('@rollup/plugin-commonjs');
+import fs from 'fs';
+import path from 'path';
+import alias from '@rollup/plugin-alias';
+import { babel } from '@rollup/plugin-babel';
+import resolve from '@rollup/plugin-node-resolve';
+import commonjs from '@rollup/plugin-commonjs';
+import { LOADER_ALIAS } from './scripts/loader.js';
 
 const cwd = process.cwd();
-const pkg = require(`${cwd}/package.json`);
+const pkg = JSON.parse(fs.readFileSync(path.join(cwd, 'package.json')));
 const config = path => path.split('.').reduce((v, k) => v && v[k], pkg.rollup);
 
 // constants and functions used for external bundles
@@ -41,11 +43,8 @@ const IGNORE_WARNINGS = [
 const plugins = {
   alias: alias({
     entries: [{
-      find: /^@percy\/([^/]+)$/,
-      replacement: path.join(__dirname, '/packages/$1/src/index.js')
-    }, {
-      find: /^@percy\/([^/]+)\/dist\/(.+)$/,
-      replacement: path.join(__dirname, '/packages/$1/src/$2')
+      find: LOADER_ALIAS.find,
+      replacement: LOADER_ALIAS.replace
     }]
   }),
   babel: babel({
@@ -54,7 +53,7 @@ const plugins = {
     presets: [
       ['@babel/env', {
         targets: {
-          node: '12',
+          node: '14',
           browsers: [
             'last 2 versions and supports async-functions'
           ]
@@ -87,6 +86,17 @@ const plugins = {
           ].join('\n');
         }
       }
+    }
+  },
+  transformTestHelpers: {
+    name: 'transform-test-helpers',
+    transform(code, id) {
+      if (this.getModuleInfo(id).isEntry && config('test.output.exports') !== 'named') {
+        code = code.replace(/^export {.*};?$/gms, '');
+        code = code.replace(/^export ((?!default))/gm, '$1');
+      }
+
+      return { code, map: null };
     }
   }
 };
@@ -130,7 +140,7 @@ const base = {
 };
 
 // test config used for test bundles
-const test = {
+export const test = {
   ...base,
   output: {
     ...base.output,
@@ -145,7 +155,7 @@ const test = {
 };
 
 // test config used to bundle test helpers
-const testHelpers = {
+export const testHelpers = {
   ...test,
   external: (id, parent) => (
     isLocalLib(id) ||
@@ -169,12 +179,13 @@ const testHelpers = {
     plugins.resolve,
     plugins.commonjs,
     plugins.babel,
-    plugins.customWrapper
+    plugins.customWrapper,
+    plugins.transformTestHelpers
   ]
 };
 
 // test config used to bundle test files
-const testFiles = {
+export const testFiles = {
   ...testHelpers,
   output: {
     ...testHelpers.output,
@@ -199,7 +210,4 @@ if (pkg.files.includes('test/client.js')) {
   });
 }
 
-module.exports.default = bundles;
-module.exports.test = test;
-module.exports.testHelpers = testHelpers;
-module.exports.testFiles = testFiles;
+export default bundles;

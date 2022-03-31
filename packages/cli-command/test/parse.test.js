@@ -1,5 +1,5 @@
-import { logger } from './helpers';
-import command from '../src';
+import { logger } from './helpers.js';
+import command from '@percy/cli-command';
 
 describe('Option parsing', () => {
   let cmd = (name, def) => {
@@ -12,8 +12,8 @@ describe('Option parsing', () => {
     return test;
   };
 
-  beforeEach(() => {
-    logger.mock();
+  beforeEach(async () => {
+    await logger.mock();
   });
 
   it('parses any provided command-line options', async () => {

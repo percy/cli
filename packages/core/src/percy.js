@@ -1,21 +1,21 @@
 import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
-import Queue from './queue';
-import Browser from './browser';
+import Queue from './queue.js';
+import Browser from './browser.js';
 
 import {
   createPercyServer,
   createStaticServer
-} from './api';
+} from './api.js';
 import {
   gatherSnapshots,
   validateSnapshotOptions,
   discoverSnapshotResources
-} from './snapshot';
+} from './snapshot.js';
 import {
   generatePromise
-} from './utils';
+} from './utils.js';
 
 // A Percy instance will create a new build when started, handle snapshot
 // creation, asset discovery, and resource uploads, and will finalize the build
@@ -438,10 +438,6 @@ export class Percy {
           this.log.error(error, snapshot.meta);
         }
       }
-
-      // fixes an issue in Node 12 where implicit returns do not correctly resolve the async
-      // generator objects — https://crbug.com/v8/10238
-      return; // eslint-disable-line no-useless-return
     }.bind(this));
   }
 

@@ -1,5 +1,5 @@
 import logger from '@percy/logger/test/helpers';
-import { configMigration } from '../../src/config';
+import { configMigration } from '../../src/config.js';
 
 describe('Unit / Config Migration', () => {
   let mocked = {
@@ -8,9 +8,9 @@ describe('Unit / Config Migration', () => {
     del: (...a) => mocked.migrate.del.push(a)
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mocked.migrate = { deprecate: [], map: [], del: [] };
-    logger.mock();
+    await logger.mock();
   });
 
   it('migrates v1 config', () => {

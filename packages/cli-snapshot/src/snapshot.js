@@ -1,8 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import command from '@percy/cli-command';
-import * as SnapshotConfig from './config';
-import pkg from '../package.json';
+import * as SnapshotConfig from './config.js';
 
 export const snapshot = command('snapshot', {
   description: 'Snapshot a static directory, snapshots file, or sitemap URL',
@@ -59,9 +58,7 @@ export const snapshot = command('snapshot', {
   ],
 
   percy: {
-    deferUploads: true,
-    clientInfo: `${pkg.name}/${pkg.version}`,
-    environmentInfo: `node/${process.version}`
+    deferUploads: true
   },
 
   config: {
@@ -137,10 +134,10 @@ async function loadSnapshotFile(file) {
     let { default: module } = await import(path.resolve(file));
     return typeof module === 'function' ? await module() : module;
   } else if (ext === '.json') {
-    return JSON.parse(fs.readFileSync(file, { encoding: 'utf-8' }));
+    return JSON.parse(fs.readFileSync(file, 'utf-8'));
   } else if (ext.match(/\.ya?ml$/)) {
-    let { parse } = await import('yaml');
-    return parse(fs.readFileSync(file, { encoding: 'utf-8' }));
+    let { default: YAML } = await import('yaml');
+    return YAML.parse(fs.readFileSync(file, 'utf-8'));
   } else {
     throw new Error(`Unsupported filetype: ${file}`);
   }

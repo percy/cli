@@ -1,4 +1,4 @@
-import { migration } from '../../src/config';
+import { migration } from '../../src/config.js';
 
 describe('unit / config', () => {
   let mocked = {

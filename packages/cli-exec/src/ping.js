@@ -1,5 +1,5 @@
 import command from '@percy/cli-command';
-import * as common from './common';
+import * as common from './common.js';
 
 export const ping = command('ping', {
   description: 'Pings a local running Percy snapshot server',

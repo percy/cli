@@ -1,18 +1,18 @@
+import path from 'path';
 import PercyConfig from '@percy/config';
-import { logger, setupTest } from './helpers';
-import pkg from '../package.json';
-import Percy from '../src';
+import { logger, setupTest, fs } from './helpers/index.js';
+import Percy from '@percy/core';
 
 describe('API Server', () => {
   let percy;
 
   async function request(path, ...args) {
-    let { request } = await import('./helpers/request');
+    let { request } = await import('./helpers/request.js');
     return request(new URL(path, percy.address()), ...args);
   }
 
-  beforeEach(() => {
-    setupTest();
+  beforeEach(async () => {
+    await setupTest();
 
     percy = new Percy({
       token: 'PERCY_TOKEN',
@@ -39,6 +39,8 @@ describe('API Server', () => {
   });
 
   it('has a /healthcheck endpoint', async () => {
+    let { getPackageJSON } = await import('@percy/client/utils');
+    let pkg = getPackageJSON(import.meta.url);
     await percy.start();
 
     let [data, res] = await request('/percy/healthcheck', true);
@@ -93,7 +95,7 @@ describe('API Server', () => {
     await percy.start();
 
     await expectAsync(request('/percy/dom.js')).toBeResolvedTo(
-      require('fs').readFileSync(require.resolve('@percy/dom'), { encoding: 'utf-8' })
+      fs.readFileSync(path.resolve('../dom/dist/bundle.js'), 'utf-8')
     );
   });
 
@@ -101,8 +103,9 @@ describe('API Server', () => {
     await percy.start();
 
     await expectAsync(request('/percy-agent.js')).toBeResolvedTo(
-      require('fs').readFileSync(require.resolve('@percy/dom'), { encoding: 'utf-8' })
-        .concat('(window.PercyAgent = class { snapshot(n, o) { return PercyDOM.serialize(o); } });')
+      fs.readFileSync(path.resolve('../dom/dist/bundle.js'), 'utf-8').concat(
+        '(window.PercyAgent = class { snapshot(n, o) { return PercyDOM.serialize(o); } });'
+      )
     );
 
     expect(logger.stderr).toEqual(['[percy] Warning: ' + [
@@ -177,6 +180,7 @@ describe('API Server', () => {
   });
 
   it('facilitates logger websocket connections', async () => {
+    let { exec } = await import('child_process');
     await percy.start();
 
     logger.reset();
@@ -184,14 +188,17 @@ describe('API Server', () => {
 
     // log from a separate async process
     let [stdout, stderr] = await new Promise((resolve, reject) => {
-      require('child_process').exec('node -e "' + [
-        "let logger = require('@percy/logger');",
-        "let ws = new (require('ws'))('ws://localhost:1337');",
+      let args = ['--no-warnings', '--input-type=module', '--loader=../../scripts/loader.js'];
+
+      exec(`node ${args.join(' ')} --eval "${[
+        "import WebSocket from 'ws';",
+        "import logger from '@percy/logger';",
+        "let ws = new WebSocket('ws://localhost:1337');",
         "logger.loglevel('debug');",
-        'logger.remote(() => ws)',
-        "  .then(() => logger('remote-sdk').info('whoa'))",
-        '  .then(() => setTimeout(() => ws.close(), 100));'
-      ].join('') + '"', (err, stdout, stderr) => {
+        'await logger.remote(() => ws);',
+        "logger('remote-sdk').info('whoa');",
+        'setTimeout(() => ws.close(), 100);'
+      ].join('')}"`, (err, stdout, stderr) => {
         if (!err) resolve([stdout, stderr]);
         else reject(err);
       });

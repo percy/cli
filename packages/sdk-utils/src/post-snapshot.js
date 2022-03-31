@@ -1,5 +1,5 @@
-import percy from './percy-info';
-import request from './request';
+import percy from './percy-info.js';
+import request from './request.js';
 
 // Post snapshot data to the snapshot endpoint. If the snapshot endpoint responds with a closed
 // error message, signal that Percy has been disabled.

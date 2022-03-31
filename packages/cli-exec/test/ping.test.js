@@ -1,12 +1,12 @@
 import { logger, setupTest, createTestServer } from '@percy/cli-command/test/helpers';
-import ping from '../src/ping';
+import { ping } from '@percy/cli-exec';
 
 describe('percy exec:ping', () => {
   let percyServer;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    setupTest();
+    await setupTest();
   });
 
   afterEach(async () => {
@@ -40,9 +40,9 @@ describe('percy exec:ping', () => {
   it('can ping /percy/healthcheck at an alternate port', async () => {
     percyServer = await createTestServer({
       '/percy/healthcheck': () => [200, 'application/json', { success: true }]
-    }, 1234);
+    }, 4567);
 
-    await ping(['--port=1234']);
+    await ping(['--port=4567']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(['[percy] Percy is running']);

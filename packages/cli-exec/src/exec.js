@@ -1,9 +1,9 @@
 import command from '@percy/cli-command';
-import * as common from './common';
+import * as common from './common.js';
 
-import start from './start';
-import stop from './stop';
-import ping from './ping';
+import start from './start.js';
+import stop from './stop.js';
+import ping from './ping.js';
 
 export const exec = command('exec', {
   description: 'Start and stop Percy around a supplied command',
@@ -45,7 +45,7 @@ export const exec = command('exec', {
   }
 
   // verify the provided command exists
-  let which = await import('which');
+  let { default: which } = await import('which');
 
   if (!which.sync(command, { nothrow: true })) {
     exit(127, `Command not found "${command}"`);

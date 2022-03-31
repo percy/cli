@@ -1,5 +1,5 @@
 import command from '@percy/cli-command';
-import * as common from './common';
+import * as common from './common.js';
 
 export const stop = command('stop', {
   description: 'Stops a local running Percy snapshot server',

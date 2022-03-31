@@ -1,39 +1,26 @@
-import nock from 'nock';
-import { logger, mockfs, fs } from '@percy/cli-command/test/helpers';
-import { mockUpdateCache } from './helpers';
-import { checkForUpdate } from '../src/update';
+import { logger, mockRequests, mockfs, fs } from '@percy/cli-command/test/helpers';
+import { mockUpdateCache } from './helpers.js';
+import { checkForUpdate } from '../src/update.js';
 
 describe('CLI update check', () => {
-  let request;
+  let ghAPI;
 
   beforeEach(async () => {
-    logger.mock();
-
-    request = nock('https://api.github.com/repos/percy/cli', {
-      reqheaders: { 'User-Agent': ua => !!ua }
-    });
-
-    mockfs({
-      './package.json': JSON.stringify({
-        name: '@percy/cli',
-        version: '1.0.0'
-      })
-    });
-  });
-
-  afterEach(() => {
-    nock.cleanAll();
+    let pkg = { name: '@percy/cli', version: '1.0.0' };
+    mockfs({ './package.json': JSON.stringify(pkg) });
+    ghAPI = await mockRequests('https://api.github.com');
+    await logger.mock();
   });
 
   it('fetches and caches the latest release information', async () => {
-    request.get('/releases').reply(200, [{ tag_name: 'v1.0.0' }]);
+    ghAPI.and.returnValue([200, [{ tag_name: 'v1.0.0' }]]);
 
     expect(fs.existsSync('.releases')).toBe(false);
 
     await checkForUpdate();
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([]);
-    expect(request.isDone()).toBe(true);
+    expect(ghAPI).toHaveBeenCalled();
 
     expect(fs.existsSync('.releases')).toBe(true);
     expect(JSON.parse(fs.readFileSync('.releases')))
@@ -41,17 +28,17 @@ describe('CLI update check', () => {
   });
 
   it('does not fetch the latest release information if cached', async () => {
-    request.get('/releases').reply(200, [{ tag_name: 'v1.0.0' }]);
+    ghAPI.and.returnValue([200, [{ tag_name: 'v1.0.0' }]]);
     mockUpdateCache([{ tag: 'v1.0.0' }]);
 
     await checkForUpdate();
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([]);
-    expect(request.isDone()).toBe(false);
+    expect(ghAPI).not.toHaveBeenCalled();
   });
 
   it('fetchs the latest release information if the cache is outdated', async () => {
-    request.get('/releases').reply(200, [{ tag_name: 'v1.0.0' }]);
+    ghAPI.and.returnValue([200, [{ tag_name: 'v1.0.0' }]]);
 
     let cacheCreatedAt = Date.now() - (30 * 24 * 60 * 60 * 1000);
     mockUpdateCache([{ tag: 'v0.2.0' }, { tag: 'v0.1.0' }], cacheCreatedAt);
@@ -59,7 +46,7 @@ describe('CLI update check', () => {
     await checkForUpdate();
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([]);
-    expect(request.isDone()).toBe(true);
+    expect(ghAPI).toHaveBeenCalled();
 
     expect(JSON.parse(fs.readFileSync('.releases')))
       .toHaveProperty('data', [{ tag: 'v1.0.0' }]);
@@ -89,7 +76,7 @@ describe('CLI update check', () => {
   it('handles errors reading from cache and logs debug info', async () => {
     let cachefile = mockUpdateCache([{ tag: 'v1.0.0' }]);
     fs.readFileSync.withArgs(cachefile).and.throwError(new Error('EACCES'));
-    request.get('/releases').reply(200, [{ tag_name: 'v1.0.0' }]).persist();
+    ghAPI.and.returnValue([200, [{ tag_name: 'v1.0.0' }]]);
 
     await checkForUpdate();
     expect(logger.stdout).toEqual([]);
@@ -104,12 +91,12 @@ describe('CLI update check', () => {
       jasmine.stringContaining('[percy:cli:update:cache] Error: EACCES')
     ]);
 
-    expect(request.isDone()).toEqual(true);
+    expect(ghAPI).toHaveBeenCalled();
   });
 
   it('handles errors writing to cache and logs debug info', async () => {
     fs.writeFileSync.and.throwError(new Error('EACCES'));
-    request.get('/releases').reply(200, [{ tag_name: 'v1.0.0' }]).persist();
+    ghAPI.and.returnValue([200, [{ tag_name: 'v1.0.0' }]]);
 
     await checkForUpdate();
     expect(logger.stdout).toEqual([]);
@@ -124,12 +111,12 @@ describe('CLI update check', () => {
       jasmine.stringContaining('[percy:cli:update:cache] Error: EACCES')
     ]);
 
-    expect(request.isDone()).toEqual(true);
+    expect(ghAPI).toHaveBeenCalled();
     expect(fs.existsSync('.releases')).toBe(false);
   });
 
   it('handles request errors and logs debug info', async () => {
-    request.get('/releases').reply(503).persist();
+    ghAPI.and.returnValue([503]);
 
     await checkForUpdate();
     expect(logger.stdout).toEqual([]);

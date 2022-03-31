@@ -1,6 +1,6 @@
 import { sha256hash } from '@percy/client/utils';
-import { logger, api, setupTest, createTestServer, dedent } from './helpers';
-import Percy from '../src';
+import { logger, api, setupTest, createTestServer, dedent } from './helpers/index.js';
+import Percy from '@percy/core';
 
 describe('Discovery', () => {
   let percy, server, captured;
@@ -24,7 +24,7 @@ describe('Discovery', () => {
 
   beforeEach(async () => {
     captured = [];
-    setupTest();
+    await setupTest();
 
     api.reply('/builds/123/snapshots', ({ body }) => {
       // resource order is not important, stabilize it for testing
@@ -638,10 +638,11 @@ describe('Discovery', () => {
   });
 
   describe('idle timeout', () => {
-    let Network = require('../src/network').default;
-    let ogTimeout = Network.TIMEOUT;
+    let Network, timeout;
 
-    beforeEach(() => {
+    beforeEach(async () => {
+      ({ Network } = await import('../src/network.js'));
+      timeout = Network.TIMEOUT;
       Network.TIMEOUT = 500;
 
       // some async request that takes a while
@@ -653,7 +654,7 @@ describe('Discovery', () => {
     });
 
     afterEach(() => {
-      Network.TIMEOUT = ogTimeout;
+      Network.TIMEOUT = timeout;
     });
 
     it('throws an error when requests fail to idle in time', async () => {
@@ -878,15 +879,14 @@ describe('Discovery', () => {
   });
 
   describe('with resource errors', () => {
-    const Session = require('../src/session').default;
-
     // sabotage this method to trigger unexpected error handling
-    function triggerSessionEventError(event, error) {
-      let spy = spyOn(Session.prototype, 'send')
-        .and.callFake(function(...args) {
-          if (args[0] === event) return Promise.reject(error);
-          return spy.and.originalFn.apply(this, args);
-        });
+    async function triggerSessionEventError(event, error) {
+      let { Session } = await import('../src/session.js');
+
+      let spy = spyOn(Session.prototype, 'send').and.callFake(function(...args) {
+        if (args[0] === event) return Promise.reject(error);
+        return spy.and.originalFn.apply(this, args);
+      });
     }
 
     beforeEach(() => {
@@ -895,7 +895,7 @@ describe('Discovery', () => {
 
     it('logs unhandled request errors gracefully', async () => {
       let err = new Error('some unhandled request error');
-      triggerSessionEventError('Fetch.continueRequest', err);
+      await triggerSessionEventError('Fetch.continueRequest', err);
 
       await percy.snapshot({
         name: 'test snapshot',
@@ -916,7 +916,7 @@ describe('Discovery', () => {
 
     it('logs unhandled response errors gracefully', async () => {
       let err = new Error('some unhandled request error');
-      triggerSessionEventError('Network.getResponseBody', err);
+      await triggerSessionEventError('Network.getResponseBody', err);
 
       await percy.snapshot({
         name: 'test snapshot',

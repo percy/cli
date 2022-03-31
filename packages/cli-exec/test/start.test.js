@@ -1,7 +1,6 @@
 import { request } from '@percy/cli-command/utils';
 import { logger, setupTest } from '@percy/cli-command/test/helpers';
-import start from '../src/start';
-import ping from '../src/ping';
+import { start, ping } from '@percy/cli-exec';
 
 describe('percy exec:start', () => {
   let started;
@@ -15,7 +14,7 @@ describe('percy exec:start', () => {
 
   beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    setupTest();
+    await setupTest();
 
     started = start(['--quiet']);
     started.then(() => (started = null));
@@ -39,8 +38,8 @@ describe('percy exec:start', () => {
   });
 
   it('can start on an alternate port', async () => {
-    start(['--quiet', '--port=1234']);
-    let response = await request('http://localhost:1234/percy/healthcheck');
+    start(['--quiet', '--port=4567']);
+    let response = await request('http://localhost:4567/percy/healthcheck');
     expect(response).toHaveProperty('success', true);
   });
 

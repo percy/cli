@@ -2,7 +2,7 @@ import {
   getCommitData,
   getJenkinsSha,
   github
-} from './utils';
+} from './utils.js';
 
 export class PercyEnv {
   constructor(vars = process.env) {

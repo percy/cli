@@ -1,5 +1,5 @@
 import { logger, api, setupTest } from '@percy/cli-command/test/helpers';
-import wait from '../src/wait';
+import wait from '../src/wait.js';
 
 describe('percy build:wait', () => {
   let build = attrs => ({
@@ -16,9 +16,9 @@ describe('percy build:wait', () => {
     }
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    setupTest({ loggerTTY: true });
+    await setupTest({ loggerTTY: true });
   });
 
   afterEach(() => {

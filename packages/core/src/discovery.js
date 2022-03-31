@@ -1,5 +1,5 @@
 import logger from '@percy/logger';
-import { normalizeURL, hostnameMatches, createResource } from './utils';
+import { normalizeURL, hostnameMatches, createResource } from './utils.js';
 
 const MAX_RESOURCE_SIZE = 15 * (1024 ** 2); // 15MB
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];

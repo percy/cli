@@ -1,3 +1,7 @@
+import os from 'os';
+import fs from 'fs';
+import url from 'url';
+import path from 'path';
 import crypto from 'crypto';
 
 // Returns a sha256 hash of a string.
@@ -13,6 +17,19 @@ export function base64encode(content) {
   return Buffer
     .from(content)
     .toString('base64');
+}
+
+// Returns the package.json content at the package path.
+export function getPackageJSON(rel) {
+  /* istanbul ignore else: sanity check */
+  if (rel.startsWith('file:')) rel = url.fileURLToPath(rel);
+
+  let pkg = path.join(rel, 'package.json');
+  if (fs.existsSync(pkg)) return JSON.parse(fs.readFileSync(pkg));
+
+  let dir = path.dirname(rel);
+  /* istanbul ignore else: sanity check */
+  if (dir !== rel && dir !== os.homedir()) return getPackageJSON(dir);
 }
 
 // Creates a concurrent pool of promises created by the given generator.
@@ -96,8 +113,10 @@ export async function request(url, options = {}, callback) {
   // gather request options
   let { body, headers, retries, retryNotFound, interval, noProxy, ...requestOptions } = options;
   let { protocol, hostname, port, pathname, search, hash } = new URL(url);
-  let { request } = await import(protocol === 'https:' ? 'https' : 'http');
-  let { proxyAgentFor } = await import('./proxy');
+
+  // reference the default export so tests can mock it
+  let { default: http } = await import(protocol === 'https:' ? 'https' : 'http');
+  let { proxyAgentFor } = await import('./proxy.js');
 
   // automatically stringify body content
   if (body && typeof body !== 'string') {
@@ -151,13 +170,13 @@ export async function request(url, options = {}, callback) {
 
     let handleResponse = res => {
       let body = '';
-      res.setEncoding('utf8');
+      res.setEncoding('utf-8');
       res.on('data', chunk => (body += chunk));
       res.on('end', () => handleFinished(body, res));
       res.on('error', handleError);
     };
 
-    let req = request(requestOptions);
+    let req = http.request(requestOptions);
     req.on('response', handleResponse);
     req.on('error', handleError);
     req.end(body);
@@ -169,4 +188,4 @@ export {
   ProxyHttpAgent,
   ProxyHttpsAgent,
   proxyAgentFor
-} from './proxy';
+} from './proxy.js';

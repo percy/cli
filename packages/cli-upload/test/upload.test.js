@@ -1,5 +1,5 @@
 import { fs, logger, api, setupTest } from '@percy/cli-command/test/helpers';
-import upload from '../src/upload';
+import upload from '@percy/cli-upload';
 
 // http://png-pixel.com/
 const pixel = Buffer.from((
@@ -7,10 +7,11 @@ const pixel = Buffer.from((
 ), 'base64').toString();
 
 describe('percy upload', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    upload.packageInformation = { name: '@percy/cli-upload' };
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
 
-    setupTest({
+    await setupTest({
       filesystem: {
         'images/test-1.png': pixel,
         'images/test-2.jpg': pixel,
@@ -24,6 +25,7 @@ describe('percy upload', () => {
   afterEach(() => {
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
+    delete upload.packageInformation;
   });
 
   it('skips uploading when percy is disabled', async () => {
@@ -165,7 +167,7 @@ describe('percy upload', () => {
   });
 
   it('stops uploads on process termination', async () => {
-    api.mock({ delay: 100 });
+    await api.mock({ delay: 100 });
 
     // specify a low concurrency to interupt the queue later
     fs.writeFileSync('.percy.yml', [

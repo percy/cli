@@ -1,11 +1,11 @@
-import { logger, dedent } from './helpers';
-import command from '../src';
+import { logger, dedent } from './helpers.js';
+import command from '@percy/cli-command';
 
 describe('Built-in flags:', () => {
   let test;
 
-  beforeEach(() => {
-    logger.mock();
+  beforeEach(async () => {
+    await logger.mock();
 
     test = command('foo', {}, ({ log }) => {
       log.info('information');

@@ -1,14 +1,13 @@
 import { logger, api, setupTest } from '@percy/cli-command/test/helpers';
-import exec from '../src/exec';
+import exec from '@percy/cli-exec';
 
 describe('percy exec', () => {
   beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    setupTest();
+    await setupTest();
 
-    delete require.cache[require.resolve('which')];
     let { default: which } = await import('which');
-    spyOn(which, 'sync').and.returnValue(true);
+    spyOn(which, 'sync').and.callFake(c => c);
   });
 
   afterEach(() => {
@@ -32,7 +31,7 @@ describe('percy exec', () => {
 
   it('logs an error when the command cannot be found', async () => {
     let { default: which } = await import('which');
-    which.sync.and.returnValue(false);
+    which.sync.and.returnValue(null);
 
     await expectAsync(exec(['--', 'foobar'])).toBeRejected();
 
@@ -124,10 +123,15 @@ describe('percy exec', () => {
   });
 
   it('throws when the command receives an error event and stops percy', async () => {
+    let { default: EventEmitter } = await import('events');
+    let [e, err] = [new EventEmitter(), new Error('spawn error')];
+    let crossSpawn = () => (setImmediate(() => e.emit('error', err)), e);
+    global.__MOCK_IMPORTS__.set('cross-spawn', { default: crossSpawn });
+
     await expectAsync(exec(['--', 'foobar'])).toBeRejected();
 
     expect(logger.stderr).toEqual([
-      '[percy] Error: spawn foobar ENOENT'
+      '[percy] Error: spawn error'
     ]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
@@ -161,16 +165,18 @@ describe('percy exec', () => {
   });
 
   it('provides the child process with a percy server address env var', async () => {
-    await exec(['--port=1234', '--', 'node', '--eval', [
-      'require("@percy/cli-command/utils")',
-      '.request(new URL("/percy/healthcheck", process.env.PERCY_SERVER_ADDRESS))',
-      '.catch(e => (console.error(e), process.exit(1)))'
+    let args = ['--no-warnings', '--input-type=module', '--loader=../../scripts/loader.js'];
+
+    await exec(['--port=4567', '--', 'node', ...args, '--eval', [
+      'import { request } from "../cli-command/src/utils.js";',
+      'let url = new URL("/percy/healthcheck", process.env.PERCY_SERVER_ADDRESS);',
+      'await request(url).catch(e => (console.error(e), process.exit(2)));'
     ].join('')]);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
-      jasmine.stringMatching('\\[percy] Running "node --eval '),
+      jasmine.stringMatching('\\[percy] Running "node '),
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
   });

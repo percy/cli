@@ -1,9 +1,9 @@
-import { logger, dedent } from './helpers';
-import command from '../src';
+import { logger, dedent } from './helpers.js';
+import command from '@percy/cli-command';
 
 describe('Help output', () => {
-  beforeEach(() => {
-    logger.mock();
+  beforeEach(async () => {
+    await logger.mock();
   });
 
   it('is displayed by default when there is no action', async () => {

@@ -1,15 +1,17 @@
 import fs from 'fs';
-import path from 'path';
-import { request, ProxyHttpAgent } from '../../src/utils';
-import { port, href, proxyAgentFor } from '../../src/proxy';
+import net from 'net';
+import http from 'http';
+import https from 'https';
+import { request, ProxyHttpAgent } from '@percy/client/utils';
+import { port, href, proxyAgentFor } from '../../src/proxy.js';
 
 const ssl = {
-  cert: fs.readFileSync(path.resolve(__dirname, '../certs/test.crt')),
-  key: fs.readFileSync(path.resolve(__dirname, '../certs/test.key'))
+  cert: fs.readFileSync('./test/certs/test.crt'),
+  key: fs.readFileSync('./test/certs/test.key')
 };
 
 function createTestServer({ type = 'http', ...options } = {}, handler) {
-  let { createServer } = require(type);
+  let { createServer } = type === 'http' ? http : https;
   let connections = new Set();
   let received = [];
 
@@ -80,11 +82,11 @@ function createProxyServer({ type, port, ...options }) {
       return res.writeHead(403).end();
     }
 
-    require(proto).request(url.href, {
+    (proto === 'http' ? http : https).request(url.href, {
       method, headers, rejectUnauthorized: false
     }).on('response', remote => {
       let body = '';
-      remote.setEncoding('utf8');
+      remote.setEncoding('utf-8');
       remote.on('data', chunk => (body += chunk));
       remote.on('end', () => {
         let { statusCode, headers } = remote;
@@ -108,7 +110,7 @@ function createProxyServer({ type, port, ...options }) {
       return client.end();
     }
 
-    let socket = require('net').connect({
+    let socket = net.connect({
       rejectUnauthorized: false,
       host: 'localhost',
       port: mitm.port
@@ -198,8 +200,6 @@ describe('Unit / Request', () => {
   });
 
   describe('retries', () => {
-    let { OutgoingMessage } = require('http');
-
     it('automatically retries server 500 errors', async () => {
       let responses = [[502], [503], [520], [200]];
       server.reply('/test', () => responses.splice(0, 1)[0]);
@@ -213,9 +213,9 @@ describe('Unit / Request', () => {
 
     it('automatically retries specific request errors', async () => {
       let errors = ['ECONNREFUSED', 'EHOSTUNREACH', 'ECONNRESET', 'EAI_AGAIN'];
-      let spy = spyOn(OutgoingMessage.prototype, 'end').and.callFake(function() {
+      let spy = spyOn(http.OutgoingMessage.prototype, 'end').and.callFake(function() {
         if (errors.length) this.emit('error', { code: errors.splice(0, 1)[0] });
-        else OutgoingMessage.prototype.end.and.originalFn.apply(this, arguments);
+        else http.OutgoingMessage.prototype.end.and.originalFn.apply(this, arguments);
       });
 
       await expectAsync(server.request('/test'))
@@ -245,7 +245,7 @@ describe('Unit / Request', () => {
     });
 
     it('does not retry unknown errors', async () => {
-      let spy = spyOn(OutgoingMessage.prototype, 'end').and
+      let spy = spyOn(http.OutgoingMessage.prototype, 'end').and
         .callFake(function() { this.emit('error', new Error('Unknown')); });
 
       await expectAsync(server.request('/idk'))
@@ -400,8 +400,8 @@ describe('Unit / Request', () => {
 
               // different request agents need different spies
               let spy = serverType === 'https'
-                ? spyOn(require('net').Socket.prototype, 'write')
-                : spyOn(require('http').Agent.prototype, 'addRequest');
+                ? spyOn(net.Socket.prototype, 'write')
+                : spyOn(http.Agent.prototype, 'addRequest');
               spy.and.callThrough();
 
               // only expected to resolve when the servers are running
@@ -447,7 +447,7 @@ describe('Unit / Request', () => {
               let error = new Error('Unexpected');
 
               // sabotage the underlying socket.write method to emit an error
-              spyOn(require('net').Socket.prototype, 'write')
+              spyOn(net.Socket.prototype, 'write')
                 .and.callFake(function() {
                   this.emit('error', error);
                 });

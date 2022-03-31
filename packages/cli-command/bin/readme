@@ -1,23 +1,21 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
-const path = require('path');
-const { formatHelp } = require('@percy/cli-command/dist/help');
+const fs = await import('fs');
+const path = await import('path');
+const { formatHelp } = await import('../dist/help');
 
-const CWD = process.cwd();
-const README = path.join(CWD, 'README.md');
-
-const HELP_USAGE = /^(.*)?(usage:.*)$/gis;
-const CMDS_TMPL = /(<!-- commands -->)(.*)(<!-- commandsstop -->)/is;
-
-async function generateReadmeCommands(pkg) {
-  if (!pkg['@percy/cli']?.commands) return '';
-
+async function updateReadmeCommands(cwd = process.cwd()) {
+  let readmePath = path.join(cwd, 'README.md');
+  let pkgPath = path.join(cwd, 'package.json');
   let sections = [];
   let toc = [];
 
+  let pkg = JSON.parse(fs.readFileSync(pkgPath));
+  if (!pkg['@percy/cli']?.commands) return '';
+
   for (let cmdPath of pkg['@percy/cli'].commands) {
-    let { default: command } = require(path.join(CWD, cmdPath));
+    let cmdURL = url.pathToFileURL(path.join(CWD, cmdPath));
+    let { default: command } = await import(cmdURL.href);
     command = { ...command, parent: { name: 'percy' } };
 
     for (let cmd of [command, ...(command.definition.commands || [])]) {
@@ -30,22 +28,15 @@ async function generateReadmeCommands(pkg) {
       toc.push(`* [${title}](#${slug})`);
 
       let help = await formatHelp(cmd);
-      help = help.replace(HELP_USAGE, '$1```\n$2```');
+      help = help.replace(/^(.*)?(usage:.*)$/gis, '$1```\n$2```');
       sections.push(`### ${title}\n\n${help}\n`);
     }
   }
 
-  return [
-    toc.join('\n'),
-    sections.join('\n')
-  ].join('\n\n');
+  fs.writeFileSync(readmePath, fs.readFileSync(readmePath, 'utf-8').replace(
+    /(<!-- commands -->)(.*)(<!-- commandsstop -->)/is,
+    `$1\n${[toc.join('\n'), sections.join('\n')].join('\n\n')}$3`
+  ));
 }
 
-async function updatePackageReadme() {
-  let pkg = require(path.join(CWD, 'package.json'));
-  let content = fs.readFileSync(README, 'utf8')
-    .replace(CMDS_TMPL, `$1\n${await generateReadmeCommands(pkg)}$3`)
-  fs.writeFileSync(README, content);
-}
-
-updatePackageReadme();
+updateReadmeCommands();

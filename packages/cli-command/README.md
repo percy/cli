@@ -14,7 +14,7 @@ The `command` function accepts a name, definition, and callback and returns a ru
 accepts an array of command-line arguments.
 
 ``` js
-const { command } = require('@percy/cli-command');
+import command from '@percy/cli-command';
 
 // example command runner
 const example = command('example', {

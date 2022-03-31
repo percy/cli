@@ -1,23 +1,20 @@
-// Automatically download and install Chromium if the PERCY_POSTINSTALL_BROWSER environment variable
-// is present and truthy, or if this module is required directly from within another module. Useful
-// when running in CI environments with heavy caching of node_modules.
-if (process.env.PERCY_POSTINSTALL_BROWSER || require.main !== module) {
-  const fs = require('fs');
-  const path = require('path');
+import fs from 'fs';
 
-  // the src directory indicates postinstall during development
-  const isDev = fs.existsSync(path.join(__dirname, 'src'));
+try {
+  if (process.env.PERCY_POSTINSTALL_BROWSER) {
+    // Automatically download and install Chromium if PERCY_POSTINSTALL_BROWSER is set
+    await import('./dist/install.js').then(install => install.chromium());
+  } else if (!process.send && fs.existsSync('./src')) {
+    // In development, fork this script with the development loader and always install
+    await import('child_process').then(cp => cp.fork('./post-install.js', {
+      execArgv: ['--no-warnings', '--loader=../../scripts/loader.js'],
+      env: { PERCY_POSTINSTALL_BROWSER: true }
+    }));
+  }
+} catch (error) {
+  const { logger } = await import('@percy/logger');
+  const log = logger('core:post-install');
 
-  // register babel transforms for development install
-  if (isDev) require('../../scripts/babel-register');
-
-  // require dev or production modules
-  const install = require(isDev ? './src/install' : './dist/install');
-  const log = require(isDev ? '../logger/src' : '@percy/logger')('core:post-install');
-
-  // install chromium
-  install.chromium().catch(error => {
-    log.error('Encountered an error while installing Chromium');
-    log.error(error);
-  });
+  log.error('Encountered an error while installing Chromium');
+  log.error(error);
 }

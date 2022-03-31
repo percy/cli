@@ -3,7 +3,7 @@ import {
   get, set, del, map,
   joinPropertyPath,
   normalize
-} from './utils';
+} from './utils/index.js';
 
 // Global set of registered migrations
 const migrations = new Map();

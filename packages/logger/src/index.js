@@ -1,10 +1,6 @@
-const { default: Logger } = (
-  process.env.__PERCY_BROWSERIFIED__
-    ? require('./browser')
-    : require('./logger')
-);
+import Logger from '#logger';
 
-function logger(name) {
+export function logger(name) {
   return new Logger().group(name);
 }
 
@@ -22,4 +18,4 @@ Object.defineProperties(logger, {
   stderr: { get: () => Logger.stderr }
 });
 
-module.exports = logger;
+export default logger;

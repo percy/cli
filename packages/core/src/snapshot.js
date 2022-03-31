@@ -4,14 +4,14 @@ import micromatch from 'micromatch';
 
 import {
   configSchema
-} from './config';
+} from './config.js';
 import {
   request,
   hostnameMatches,
   createRootResource,
   createPercyCSSResource,
   createLogResource
-} from './utils';
+} from './utils.js';
 
 // Throw a better error message for missing or invalid urls
 export function validURL(url, base) {

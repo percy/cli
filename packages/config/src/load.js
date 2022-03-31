@@ -2,10 +2,10 @@ import fs from 'fs';
 import { relative } from 'path';
 import { cosmiconfigSync } from 'cosmiconfig';
 import logger from '@percy/logger';
-import migrate from './migrate';
-import validate from './validate';
-import getDefaults from './defaults';
-import { inspect, normalize } from './utils';
+import migrate from './migrate.js';
+import validate from './validate.js';
+import getDefaults from './defaults.js';
+import { inspect, normalize } from './utils/index.js';
 
 // Loaded configuration file cache
 export const cache = new Map();
