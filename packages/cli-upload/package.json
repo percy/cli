@@ -14,7 +14,7 @@
     "node": ">=14"
   },
   "files": [
-    "./dist"
+    "dist"
   ],
   "main": "./dist/index.js",
   "type": "module",
