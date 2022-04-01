@@ -14,10 +14,10 @@
     "node": ">=14"
   },
   "files": [
-    "./dist",
-    "./post-install.js",
-    "./types/index.d.ts",
-    "./test/helpers/server.js"
+    "dist",
+    "post-install.js",
+    "types/index.d.ts",
+    "test/helpers/server.js"
   ],
   "main": "./dist/index.js",
   "types": "types/index.d.ts",

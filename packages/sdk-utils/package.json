@@ -14,10 +14,10 @@
     "node": ">=14"
   },
   "files": [
-    "./dist",
-    "./test/server.js",
-    "./test/client.js",
-    "./test/helpers.js"
+    "dist",
+    "test/server.js",
+    "test/client.js",
+    "test/helpers.js"
   ],
   "main": "./dist/index.js",
   "browser": "./dist/bundle.js",

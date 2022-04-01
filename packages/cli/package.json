@@ -11,8 +11,8 @@
     "access": "public"
   },
   "files": [
-    "./bin",
-    "./dist"
+    "bin",
+    "dist"
   ],
   "engines": {
     "node": ">=14"
