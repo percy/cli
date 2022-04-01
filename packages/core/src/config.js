@@ -148,7 +148,7 @@ export const snapshotSchema = {
       }
     },
     exec: {
-      error: 'must be a function, function body, or array',
+      error: 'must be a function, function body, or array of functions',
       oneOf: [
         { oneOf: [{ type: 'string' }, { instanceof: 'Function' }] },
         { type: 'array', items: { $ref: '/snapshot#/$defs/exec/oneOf/0' } }

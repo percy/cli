@@ -108,7 +108,7 @@ describe('Snapshot', () => {
       '[percy] - minHeight: must be <= 2000',
       '[percy] - discovery.allowedHostnames[0]: must not include a protocol',
       '[percy] - discovery.allowedHostnames[1]: must not include a pathname',
-      '[percy] - additionalSnapshots[0].execute: must be a function, function body, or array'
+      '[percy] - additionalSnapshots[0].execute: must be a function, function body, or array of functions'
     ]);
   });
 
