@@ -95,7 +95,11 @@ describe('Snapshot', () => {
           'still-not-a-hostname.io/with-a-path',
           'finally.a-real.hostname.org'
         ]
-      }
+      },
+      additionalSnapshots: [{
+        suffix: '-test',
+        execute: { beforeSnapshot: () => {} }
+      }]
     });
 
     expect(logger.stderr).toEqual([
@@ -103,7 +107,8 @@ describe('Snapshot', () => {
       '[percy] - widths[0]: must be an integer, received a string',
       '[percy] - minHeight: must be <= 2000',
       '[percy] - discovery.allowedHostnames[0]: must not include a protocol',
-      '[percy] - discovery.allowedHostnames[1]: must not include a pathname'
+      '[percy] - discovery.allowedHostnames[1]: must not include a pathname',
+      '[percy] - additionalSnapshots[0].execute: must be a function, function body, or array'
     ]);
   });
 

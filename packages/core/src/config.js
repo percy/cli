@@ -148,6 +148,7 @@ export const snapshotSchema = {
       }
     },
     exec: {
+      error: 'must be a function, function body, or array',
       oneOf: [
         { oneOf: [{ type: 'string' }, { instanceof: 'Function' }] },
         { type: 'array', items: { $ref: '/snapshot#/$defs/exec/oneOf/0' } }
@@ -157,7 +158,17 @@ export const snapshotSchema = {
       type: 'object',
       properties: {
         waitForSelector: { type: 'string' },
-        waitForTimeout: { type: 'integer', minimum: 1, maximum: 30000 },
+        waitForTimeout: { type: 'integer', minimum: 1, maximum: 30000 }
+      }
+    },
+    capture: {
+      type: 'object',
+      allOf: [
+        { $ref: '/snapshot#/$defs/common' },
+        { $ref: '/snapshot#/$defs/precapture' }
+      ],
+      properties: {
+        name: { type: 'string' },
         execute: {
           oneOf: [{ $ref: '/snapshot#/$defs/exec' }, {
             type: 'object',
@@ -169,17 +180,7 @@ export const snapshotSchema = {
               beforeSnapshot: { $ref: '/snapshot#/$defs/exec' }
             }
           }]
-        }
-      }
-    },
-    capture: {
-      type: 'object',
-      allOf: [
-        { $ref: '/snapshot#/$defs/common' },
-        { $ref: '/snapshot#/$defs/precapture' }
-      ],
-      properties: {
-        name: { type: 'string' },
+        },
         additionalSnapshots: {
           type: 'array',
           items: {
@@ -197,7 +198,8 @@ export const snapshotSchema = {
             properties: {
               name: { type: 'string' },
               prefix: { type: 'string' },
-              suffix: { type: 'string' }
+              suffix: { type: 'string' },
+              execute: { $ref: '/snapshot#/$defs/exec' }
             },
             errors: {
               oneOf: ({ params }) => params.passingSchemas
@@ -209,6 +211,7 @@ export const snapshotSchema = {
       }
     },
     predicate: {
+      error: 'must be a pattern or an array of patterns',
       oneOf: [{
         oneOf: [
           { type: 'string' },
