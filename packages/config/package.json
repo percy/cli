@@ -15,7 +15,8 @@
   },
   "files": [
     "dist",
-    "types/index.d.ts"
+    "types/index.d.ts",
+    "tests/helpers.js"
   ],
   "main": "./dist/index.js",
   "types": "./types/index.d.ts",
