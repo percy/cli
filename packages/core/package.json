@@ -17,10 +17,10 @@
     "dist",
     "post-install.js",
     "types/index.d.ts",
-    "test/helpers/server.js"
+    "test/helpers"
   ],
   "main": "./dist/index.js",
-  "types": "types/index.d.ts",
+  "types": "./types/index.d.ts",
   "type": "module",
   "exports": {
     ".": "./dist/index.js",
