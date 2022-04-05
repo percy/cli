@@ -3,14 +3,13 @@ import os from 'os';
 import url from 'url';
 import path from 'path';
 import Module from 'module';
-import { Volume, createFsFromVolume } from 'memfs';
-
-import { clearMigrations } from '../src/migrate.js';
-import { resetSchema } from '../src/validate.js';
-import { cache } from '../src/load.js';
 
 // Reset various global @percy/config internals for testing
-export function resetPercyConfig(all) {
+export async function resetPercyConfig(all) {
+  // aliased to src during tests
+  let { clearMigrations } = await import('../dist/migrate.js');
+  let { resetSchema } = await import('../dist/validate.js');
+  let { cache } = await import('../dist/load.js');
   if (all) clearMigrations();
   if (all) resetSchema();
   cache.clear();
@@ -30,7 +29,7 @@ const INTERNAL_FILE_REG = new RegExp(
 );
 
 // Mock and spy on fs methods using an in-memory filesystem
-export function mockfs({
+export async function mockfs({
   // set `true` to allow mocking files within `node_modules` (may cause dynamic import issues)
   $modules = false,
   // list of filepaths or function matchers to allow direct access to the real filesystem
@@ -38,7 +37,8 @@ export function mockfs({
   // initial flat map of files and/or directories to create
   ...initial
 } = {}) {
-  let vol = new Volume();
+  let memfs = await import('memfs');
+  let vol = new memfs.Volume();
 
   // automatically cleanup mock imports
   global.__MOCK_IMPORTS__?.clear();
@@ -81,7 +81,7 @@ export function mockfs({
   };
 
   // mock and install fs methods using the in-memory filesystem
-  let mock = createFsFromVolume(vol);
+  let mock = memfs.createFsFromVolume(vol);
   installFakes(fs.promises, mock.promises);
   installFakes(fs, mock);
 

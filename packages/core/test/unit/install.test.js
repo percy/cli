@@ -11,7 +11,7 @@ describe('Unit / Install', () => {
 
   beforeEach(async () => {
     await logger.mock({ isTTY: true });
-    mockfs();
+    await mockfs();
 
     // mock a fake download api
     dl = await mockRequests('https://fake-download.org/archive.zip');

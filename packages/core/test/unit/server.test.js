@@ -9,9 +9,9 @@ describe('Unit / Server', () => {
     return request(new URL(path, server.address()), ...args);
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     server = new Server({ port: 8000 });
-    mockfs();
+    await mockfs();
   });
 
   afterEach(async () => {

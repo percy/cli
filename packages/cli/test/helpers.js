@@ -10,9 +10,9 @@ export function mockUpdateCache(data, createdAt = Date.now()) {
 }
 
 // Mocks the filesystem and require cache to simulate installed commands
-export function mockModuleCommands(atPath, cmdMocks) {
+export async function mockModuleCommands(atPath, cmdMocks) {
   let modulesPath = `${atPath}/node_modules`;
-  let vol = mockfs({ $modules: true, [modulesPath]: null });
+  let vol = await mockfs({ $modules: true, [modulesPath]: null });
   let write = (rel, str) => vol.fromJSON({ [`${modulesPath}/${rel}`]: str });
 
   // for coverage
@@ -57,7 +57,7 @@ export async function mockPnpCommands(atPath, cmdMocks) {
   findPackageLocator.withArgs(projectInfo.packageLocation).and.returnValue(projectLoc);
   getPackageInformation.withArgs(projectLoc).and.returnValue(projectInfo);
 
-  let vol = mockfs({ $modules: true });
+  let vol = await mockfs({ $modules: true });
   let pnpPath = path.join('/.yarn/berry/cache');
   let write = (fp, str) => vol.fromJSON({ [`${pnpPath}/${fp}`]: str });
 
@@ -80,9 +80,9 @@ export async function mockPnpCommands(atPath, cmdMocks) {
 }
 
 // Mocks the filesystem and require cache to simulate installed legacy commands
-export function mockLegacyCommands(atPath, cmdMocks) {
+export async function mockLegacyCommands(atPath, cmdMocks) {
   let modulesPath = `${atPath}/node_modules`;
-  let vol = mockfs({ $modules: true, [modulesPath]: null });
+  let vol = await mockfs({ $modules: true, [modulesPath]: null });
   let write = (fp, str) => vol.fromJSON({ [`${modulesPath}/${fp}`]: str });
 
   for (let [pkgName, cmdMock] of Object.entries(cmdMocks)) {
