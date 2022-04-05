@@ -86,6 +86,7 @@ export function mockfs({
   installFakes(fs, mock);
 
   // allow tests access to the in-memory filesystem
+  fs.$bypass = bypass;
   fs.$vol = vol;
   return vol;
 }
