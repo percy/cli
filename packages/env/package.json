@@ -14,7 +14,8 @@
     "node": ">=14"
   },
   "files": [
-    "dist"
+    "dist",
+    "test/helpers.js"
   ],
   "main": "./dist/index.js",
   "type": "module",

@@ -11,7 +11,8 @@
     "access": "public"
   },
   "files": [
-    "dist"
+    "dist",
+    "test/helpers.js"
   ],
   "engines": {
     "node": ">=14"
