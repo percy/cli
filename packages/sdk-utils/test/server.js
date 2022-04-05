@@ -4,7 +4,7 @@ import path from 'path';
 
 // create a testing context for mocking the local percy server and a local testing site
 export async function context() {
-  let { createTestServer } = await import('@percy/core/test/helpers');
+  let { createTestServer } = await import('@percy/core/test/helpers/server');
 
   let ctx = {
     async call(path, ...args) {

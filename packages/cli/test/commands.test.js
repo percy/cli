@@ -5,9 +5,8 @@ import { importCommands } from '../src/commands.js';
 
 describe('CLI commands', () => {
   beforeEach(async () => {
-    await logger.mock();
-    logger.loglevel('debug');
-    mockfs({ $modules: true });
+    await logger.mock({ level: 'debug' });
+    await mockfs({ $modules: true });
   });
 
   describe('from node_modules', () => {
@@ -30,28 +29,28 @@ describe('CLI commands', () => {
     ];
 
     it('imports from dependencies', async () => {
-      mockModuleCommands(path.resolve('.'), mockCmds);
+      await mockModuleCommands(path.resolve('.'), mockCmds);
       await expectAsync(importCommands()).toBeResolvedTo(expectedCmds);
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([]);
     });
 
     it('imports from a parent directory', async () => {
-      mockModuleCommands(path.resolve('../..'), mockCmds);
+      await mockModuleCommands(path.resolve('../..'), mockCmds);
       await expectAsync(importCommands()).toBeResolvedTo(expectedCmds);
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([]);
     });
 
     it('imports from the current project', async () => {
-      mockModuleCommands(process.cwd(), mockCmds);
+      await mockModuleCommands(process.cwd(), mockCmds);
       await expectAsync(importCommands()).toBeResolvedTo(expectedCmds);
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([]);
     });
 
     it('automatically includes package information', async () => {
-      mockModuleCommands(path.resolve('.'), mockCmds);
+      await mockModuleCommands(path.resolve('.'), mockCmds);
       let cmds = await importCommands();
 
       expect(cmds[0].packageInformation.name).toEqual('@percy/cli-config');
@@ -96,7 +95,7 @@ describe('CLI commands', () => {
 
   describe('legacy support', () => {
     it('transforms oclif-like classes', async () => {
-      mockLegacyCommands(process.cwd(), {
+      await mockLegacyCommands(process.cwd(), {
         '@percy/cli-legacy': { name: 'a' },
         '@percy/cli-legacy-topic': { name: 'b', index: true },
         '@percy/cli-legacy-index': { name: 'c', topic: true }
@@ -125,7 +124,7 @@ describe('CLI commands', () => {
     it('runs oclif init hooks', async () => {
       let init = jasmine.createSpy('init');
 
-      mockLegacyCommands(process.cwd(), {
+      await mockLegacyCommands(process.cwd(), {
         'percy-cli-legacy': { name: 'test', init }
       });
 

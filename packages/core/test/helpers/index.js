@@ -22,10 +22,10 @@ export async function setupTest({
   loggerTTY,
   apiDelay
 } = {}) {
-  await logger.mock({ isTTY: loggerTTY });
   await api.mock({ delay: apiDelay });
-  resetPercyConfig(resetConfig);
-  mockfs(filesystem);
+  await logger.mock({ isTTY: loggerTTY });
+  await resetPercyConfig(resetConfig);
+  await mockfs(filesystem);
 }
 
 export * from '@percy/client/test/helpers';

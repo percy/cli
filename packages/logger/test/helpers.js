@@ -46,6 +46,10 @@ const helpers = {
   async mock(options = {}) {
     helpers.reset();
 
+    if (options.level) {
+      loglevel(options.level);
+    }
+
     if (process.env.__PERCY_BROWSERIFIED__) {
       spy(Logger.prototype, 'write', function(lvl, msg) {
         let stdio = lvl === 'info' ? 'stdout' : 'stderr';

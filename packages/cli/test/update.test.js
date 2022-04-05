@@ -7,7 +7,7 @@ describe('CLI update check', () => {
 
   beforeEach(async () => {
     let pkg = { name: '@percy/cli', version: '1.0.0' };
-    mockfs({ './package.json': JSON.stringify(pkg) });
+    await mockfs({ './package.json': JSON.stringify(pkg) });
     ghAPI = await mockRequests('https://api.github.com');
     await logger.mock();
   });
