@@ -9,3 +9,4 @@ oclif.manifest.json
 .local-chromium
 packages/logger/test/client.js
 packages/sdk-utils/test/client.js
+packs
