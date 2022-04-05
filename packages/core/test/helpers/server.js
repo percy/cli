@@ -1,4 +1,4 @@
-// aliased to src for coverage during tests without needing to compile this file
+// aliased to src during tests
 import Server from '../../dist/server.js';
 
 export function createTestServer({ default: defaultReply, ...replies }, port = 8000) {

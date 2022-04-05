@@ -27,7 +27,8 @@
     "./utils": "./dist/utils.js",
     "./config": "./dist/config.js",
     "./install": "./dist/install.js",
-    "./test/helpers": "./test/helpers/index.js"
+    "./test/helpers": "./test/helpers/index.js",
+    "./test/helpers/server": "./test/helpers/server.js"
   },
   "scripts": {
     "build": "node ../../scripts/build",
