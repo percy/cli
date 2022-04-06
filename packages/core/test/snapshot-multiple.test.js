@@ -136,6 +136,15 @@ describe('Snapshot multiple', () => {
         'Missing required URL for snapshot'
       );
     });
+
+    it('rejects when missing snapshots', async () => {
+      await expectAsync(
+        percy.snapshot({ baseUrl, snapshots: () => [] })
+      ).toBeRejectedWithError('No snapshots found');
+
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([]);
+    });
   });
 
   describe('sitemap syntax', () => {
