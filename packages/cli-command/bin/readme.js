@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
 const fs = await import('fs');
+const url = await import('url');
 const path = await import('path');
-const { formatHelp } = await import('../dist/help');
+const { formatHelp } = await import('../dist/help.js');
 
 async function updateReadmeCommands(cwd = process.cwd()) {
   let readmePath = path.join(cwd, 'README.md');
@@ -14,7 +15,7 @@ async function updateReadmeCommands(cwd = process.cwd()) {
   if (!pkg['@percy/cli']?.commands) return '';
 
   for (let cmdPath of pkg['@percy/cli'].commands) {
-    let cmdURL = url.pathToFileURL(path.join(CWD, cmdPath));
+    let cmdURL = url.pathToFileURL(path.join(cwd, cmdPath));
     let { default: command } = await import(cmdURL.href);
     command = { ...command, parent: { name: 'percy' } };
 
