@@ -158,8 +158,7 @@ function shouldHideError(key, path, error) {
   let { parentSchema, keyword, schemaPath } = error;
 
   return !(parentSchema.error || parentSchema.errors?.[keyword]) && (
-    HIDE_NESTED_KEYWORDS.some(k => schemaPath.includes(`/${k}`)) ||
-      getSchema(key, path)[path.length] !== parentSchema
+    HIDE_NESTED_KEYWORDS.some(k => schemaPath.includes(`/${k}`))
   );
 }
 

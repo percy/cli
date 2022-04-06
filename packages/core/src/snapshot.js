@@ -158,6 +158,7 @@ export function validateSnapshotOptions(options) {
 
   // add back snapshots before validating and scrubbing; function snapshots are validated later
   if (snapshots) migrated.snapshots = typeof snapshots === 'function' ? [] : snapshots;
+  else if (!isSnapshot && options.snapshots) migrated.snapshots = [];
   let errors = PercyConfig.validate(migrated, schema);
 
   if (errors) {
