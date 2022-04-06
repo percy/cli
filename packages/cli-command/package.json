@@ -18,7 +18,7 @@
     "node": ">=14"
   },
   "bin": {
-    "percy-cli-readme": "./bin/readme"
+    "percy-cli-readme": "./bin/readme.js"
   },
   "main": "./dist/index.js",
   "type": "module",
