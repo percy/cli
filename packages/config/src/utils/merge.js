@@ -90,15 +90,17 @@ export function map(object, from, to, transform = v => v) {
 }
 
 // Steps through an object's properties calling the function with the path and value of each
-function walk(object, fn, path = []) {
+function walk(object, fn, path = [], visited = new Set()) {
   if (path.length && fn([...path], object) === false) return;
+  if (visited.has(object)) return;
+  visited.add(object);
 
   if (object != null && typeof object === 'object') {
     let isArrayObject = isArray(object);
 
     for (let [key, value] of entries(object)) {
       if (isArrayObject) key = parseInt(key, 10);
-      walk(value, fn, [...path, key]);
+      walk(value, fn, [...path, key], new Set(visited));
     }
   }
 }
