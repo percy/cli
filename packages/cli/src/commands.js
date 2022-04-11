@@ -105,6 +105,7 @@ export async function importCommands() {
     // find any current project dependencies
     process.cwd()
   ]), async (roots, dir) => {
+    if (fs.existsSync(path.join(dir, 'package.json'))) roots.push(dir);
     roots.push(...await findModulePackages(dir));
     roots.push(...await findPnpPackages(dir));
     return roots;

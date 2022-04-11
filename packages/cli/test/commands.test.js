@@ -9,6 +9,20 @@ describe('CLI commands', () => {
     await mockfs({ $modules: true });
   });
 
+  describe('from a project', () => {
+    it('imports the project command', async () => {
+      fs.writeFileSync('command.js', 'module.exports.name = "foobar"');
+      fs.writeFileSync('package.json', '{ "@percy/cli": { "commands": ["./command.js"] } }');
+
+      await expectAsync(importCommands()).toBeResolvedTo([
+        jasmine.objectContaining({ name: 'foobar' })
+      ]);
+
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([]);
+    });
+  });
+
   describe('from node_modules', () => {
     const mockCmds = {
       '@percy/cli-exec': { name: 'exec' },
