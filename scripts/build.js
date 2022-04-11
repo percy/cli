@@ -59,5 +59,5 @@ function handleError(err) {
 
 // run everything and maybe watch for changes
 main().catch(handleError).then(() => argv.watch && (
-  import('./watch').then(w => w.watch(() => main().catch(handleError)))
+  import('./watch.js').then(w => w.watch(() => main().catch(handleError)))
 ));
