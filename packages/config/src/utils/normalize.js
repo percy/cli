@@ -40,9 +40,14 @@ export function normalize(object, options) {
   if (typeof options === 'string') options = { schema: options };
   let keycase = options?.kebab ? kebabcase : camelcase;
 
-  return merge([object, options?.overrides], path => {
+  return merge([object, options?.overrides], (path, value) => {
     let schemas = getSchema(options?.schema, path.map(camelcase));
-    let skip = schemas.shift()?.normalize === false;
+    let skip = schemas.shift()?.normalize === false || options?.skip?.(path, value);
+
+    // skip normalizing paths of class instances
+    if (!skip && typeof value === 'object' && value?.constructor) {
+      skip = Object.getPrototypeOf(value) !== Object.prototype;
+    }
 
     path = path.map((k, i) => {
       if (skip) return k;

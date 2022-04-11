@@ -969,7 +969,17 @@ describe('PercyConfig', () => {
       });
     });
 
-    it('ignores normalizing properties as determined by their schema', () => {
+    it('skips normalizing properties of class instances', () => {
+      expect(PercyConfig.normalize({
+        inst: new (class { 'don_t-doThis' = 'plz' })(),
+        'why_mix-case': 'no'
+      })).toEqual({
+        inst: jasmine.objectContaining({ 'don_t-doThis': 'plz' }),
+        whyMixCase: 'no'
+      });
+    });
+
+    it('skips normalizing properties as determined by their schema', () => {
       // this schema is purposefully complex to generate better coverage
       PercyConfig.addSchema({
         $id: '/test',
@@ -1044,6 +1054,18 @@ describe('PercyConfig', () => {
           [true, { quxFour: 8 }],
           'xyzzy'
         ]
+      });
+    });
+
+    it('skips normalizing properties when skip returns true', () => {
+      expect(PercyConfig.normalize({
+        'fix-this_property': 1,
+        'skip-this_property': 2
+      }, {
+        skip: path => path[0].startsWith('skip')
+      })).toEqual({
+        fixThisProperty: 1,
+        'skip-this_property': 2
       });
     });
   });
