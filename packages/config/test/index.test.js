@@ -919,6 +919,14 @@ describe('PercyConfig', () => {
       });
     });
 
+    it('removes circular references', () => {
+      let foo = { bar: 'baz' };
+      foo.foo = foo;
+
+      expect(PercyConfig.normalize(foo))
+        .toEqual({ bar: 'baz' });
+    });
+
     it('does not remove all empty "objects"', () => {
       let config = {
         regex: /foobar/,
