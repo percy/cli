@@ -37,7 +37,7 @@
     "@percy/logger": "1.0.6",
     "ajv": "^8.6.2",
     "cosmiconfig": "^7.0.0",
-    "yaml": "^1.10.0"
+    "yaml": "^2.0.0"
   },
   "devDependencies": {
     "json-schema-typed": "^7.0.3"
