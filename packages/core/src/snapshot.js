@@ -128,25 +128,18 @@ export async function gatherSnapshots(percy, options) {
 // properties. Eagerly throws an error when missing a URL for any snapshot, and warns about all
 // other invalid options which are also scrubbed from the returned migrated options.
 export function validateSnapshotOptions(options) {
-  let schema;
-
   // decide which schema to validate against
-  if ('domSnapshot' in options) {
-    schema = '/snapshot/dom';
-  } else if ('url' in options) {
-    schema = '/snapshot';
-  } else if ('sitemap' in options) {
-    schema = '/snapshot/sitemap';
-  } else if ('serve' in options) {
-    schema = '/snapshot/server';
-  } else if ('snapshots' in options) {
-    schema = '/snapshot/list';
-  } else {
-    schema = '/snapshot';
-  }
+  let schema = (
+    (['domSnapshot', 'dom-snapshot', 'dom_snapshot']
+      .some(k => k in options) && '/snapshot/dom') ||
+    ('url' in options && '/snapshot') ||
+    ('sitemap' in options && '/snapshot/sitemap') ||
+    ('serve' in options && '/snapshot/server') ||
+    ('snapshots' in options && '/snapshot/list') ||
+    ('/snapshot'));
 
   let {
-    // migrate and remove certain properties from validating
+    // normalize, migrate, and remove certain properties from validating
     clientInfo, environmentInfo, snapshots, ...migrated
   } = PercyConfig.migrate(options, schema);
 
