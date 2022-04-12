@@ -306,13 +306,17 @@ describe('Snapshot', () => {
       domSnapshot: testDOM
     }, {
       url: 'http://localhost:8000/two',
-      domSnapshot: testDOM
+      dom_snapshot: testDOM
+    }, {
+      url: 'http://localhost:8000/three',
+      'dom-snapshot': testDOM
     }]);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Snapshot taken: /one',
-      '[percy] Snapshot taken: /two'
+      '[percy] Snapshot taken: /two',
+      '[percy] Snapshot taken: /three'
     ]);
   });
 
