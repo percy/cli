@@ -1,6 +1,6 @@
 {
   "name": "@percy/sdk-utils",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -58,6 +58,6 @@
     }
   },
   "dependencies": {
-    "@percy/logger": "1.0.7"
+    "@percy/logger": "1.0.8"
   }
 }
