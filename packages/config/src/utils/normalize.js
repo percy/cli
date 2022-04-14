@@ -42,20 +42,21 @@ export function normalize(object, options) {
 
   return merge([object, options?.overrides], (path, value) => {
     let schemas = getSchema(options?.schema, path.map(camelcase));
-    let skip = schemas.shift()?.normalize === false || options?.skip?.(path, value);
+    let skip = schemas.shift()?.normalize === false;
+    let mapped = [];
 
     // skip normalizing paths of class instances
     if (!skip && typeof value === 'object' && value?.constructor) {
       skip = Object.getPrototypeOf(value) !== Object.prototype;
     }
 
-    path = path.map((k, i) => {
-      if (skip) return k;
+    for (let [i, k] of path.entries()) {
+      skip ||= options?.skip?.(mapped.concat(k));
+      mapped.push(skip ? k : keycase(k));
       skip ||= schemas[i]?.normalize === false;
-      return keycase(k);
-    });
+    }
 
-    return [path];
+    return [mapped];
   });
 }
 
