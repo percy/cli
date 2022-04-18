@@ -45,7 +45,7 @@
     "karma": "^6.0.2",
     "karma-chrome-launcher": "^3.1.0",
     "karma-firefox-launcher": "^2.1.1",
-    "karma-jasmine": "^4.0.1",
+    "karma-jasmine": "^5.0.0",
     "karma-mocha-reporter": "^2.2.5",
     "karma-rollup-preprocessor": "^7.0.5",
     "lerna": "^4.0.0",
