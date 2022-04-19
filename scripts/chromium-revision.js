@@ -22,7 +22,7 @@ EXAMPLE
 
 // Required after usage for speedy help output
 const { request } = await import('@percy/client/utils');
-const logger = await import('@percy/logger');
+const { default: logger } = await import('@percy/logger');
 const log = logger('script');
 
 // Chromium GitHub constants
@@ -91,8 +91,8 @@ async function printVersionRevisions(version) {
   });
 
   // parse the authored commit's message for the revision number; relies on the message format
-  // ending in "refs/head/master@{000000}" where zeros are the revision number
-  let revision = parseInt(authored.message.match(/refs\/heads\/master@\{#(\d+)}$/)[1], 10);
+  // ending in "refs/head/main@{000000}" where zeros are the revision number
+  let revision = parseInt(authored.message.match(/refs\/heads\/main@\{#(\d+)}$/)[1], 10);
   log.info(`Commit position: ${revision}`);
 
   // for each platform, find the first suitable revision matching the desired version spanning back
