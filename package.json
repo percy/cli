@@ -13,7 +13,7 @@
     "build:watch": "lerna run build --parallel -- --watch",
     "build:pack": "mkdir -p ./packs && lerna exec npm pack && mv ./packages/*/*.tgz ./packs",
     "bump-version": "lerna version --exact --no-git-tag-version --no-push",
-    "chromium-revision": "./scripts/chromium-revision",
+    "chromium-revision": "./scripts/chromium-revision.js",
     "clean": "git clean -Xdf -e !node_modules -e !**/node_modules/**",
     "lint": "eslint --ignore-path .gitignore .",
     "readme": "lerna run --parallel readme",

@@ -2,12 +2,13 @@
 
 const url = await import('url');
 const path = await import('path');
-const readline = await import('readline');
 
 const SCRIPT_NAME = path.basename(url.fileURLToPath(import.meta.url));
 
 // Usage/help output
-if (!process.argv[2]) (console.log(`\
+if (!process.argv[2]) {
+  // eslint-disable-next-line babel/no-unused-expressions
+  (console.log(`\
 Print a Chromium version's revision for each major platform
 
 USAGE
@@ -19,17 +20,20 @@ ARGUMENTS
 EXAMPLE
  $ ${SCRIPT_NAME} 87.0.4280.88
 `), process.exit());
+}
 
 // Required after usage for speedy help output
 const { request } = await import('@percy/client/utils');
-const logger = await import('@percy/logger');
+// eslint-disable-next-line import/no-extraneous-dependencies
+const { default: logger } = await import('@percy/logger');
 const log = logger('script');
 
 // Chromium GitHub constants
 const GH_API_URL = 'https://api.github.com/repos/chromium/chromium';
 const GH_TAGS_URL = 'https://github.com/chromium/chromium/branch_commits';
 const GH_HEADERS = {
-  'Accept': 'application/vnd.github.v3+json',
+  Accept: 'application/vnd.github.v3+json',
+  // eslint-disable-next-line no-template-curly-in-string
   'User-Agent': '@percy/cli; ${SCRIPT_NAME}'
 };
 
@@ -91,8 +95,8 @@ async function printVersionRevisions(version) {
   });
 
   // parse the authored commit's message for the revision number; relies on the message format
-  // ending in "refs/head/master@{000000}" where zeros are the revision number
-  let revision = parseInt(authored.message.match(/refs\/heads\/master@\{#(\d+)}$/)[1], 10);
+  // ending in "refs/head/main@{000000}" where zeros are the revision number
+  let revision = parseInt(authored.message.match(/refs\/heads\/main@\{#(\d+)}$/)[1], 10);
   log.info(`Commit position: ${revision}`);
 
   // for each platform, find the first suitable revision matching the desired version spanning back
@@ -122,7 +126,7 @@ async function printVersionRevisions(version) {
         if (!items) continue;
 
         // check if the revision's commit is included in the desired release version
-        let sha = items[0]['metadata']['cr-git-commit'];
+        let sha = items[0].metadata['cr-git-commit'];
         let tags = (await request(`${GH_TAGS_URL}/${sha}`, {}))
           .match(/\/releases\/tag\/[\d.]+/g)
           .map(t => t.replace('/releases/tag/', ''));
