@@ -45,20 +45,24 @@ const deepClone = host => {
   return fragment;
 };
 
+
 /**
- * Sets up the document clone to mirror the result of Node.cloneNode() 
- * using the deep clone function able of cloning shadow dom
+ * Deep clone a document while also preserving shadow roots and converting adoptedStylesheets to <style> tags.
  */
 const cloneNodeAndShadow = doc => {
-  let clonedDocumentElementFragment = deepClone(doc.documentElement);
-  clonedDocumentElementFragment.head = document.createDocumentFragment();
-  clonedDocumentElementFragment.documentElement = clonedDocumentElementFragment.firstChild;
-  return clonedDocumentElementFragment;
+  let clonedDocument = doc.cloneNode(true);
+  clonedDocument.documentElement.replaceWith(deepClone(doc.documentElement));
+  return clonedDocument;
 };
 
-const customOuterHTML = docElement => {
-  return `<html class="hydrated">${docElement.getInnerHTML()}</html>`;
+/**
+ * Use `getInnerHTML()` to serialize shadow dom as <template> tags. `innerHTML` and `outerHTML` don't do this. Buzzword: "declarative shadow dom"
+ */
+const getOuterHTML = docElement => {
+  let innerHTML = docElement.getInnerHTML();
+  docElement.textContent = '';
+  return docElement.outerHTML.replace('</html>', `${innerHTML}</html>`);
 };
 
 
-export { cloneNodeAndShadow, customOuterHTML }
+export { cloneNodeAndShadow, getOuterHTML }

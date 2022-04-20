@@ -5,7 +5,7 @@ import serializeCSSOM from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
 
-import { cloneNodeAndShadow, customOuterHTML } from './wc-clone';
+import { cloneNodeAndShadow, getOuterHTML } from './wc-clone';
 
 // Returns a copy or new doctype for a document.
 function doctype(dom) {
@@ -54,7 +54,7 @@ export function serializeDOM(options) {
     }
   }
 
-  return doctype(dom) + customOuterHTML(doc);
+  return doctype(dom) + getOuterHTML(doc);
 }
 
 export default serializeDOM;
