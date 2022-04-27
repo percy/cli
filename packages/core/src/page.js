@@ -17,6 +17,7 @@ export class Page {
 
   constructor(session, options) {
     this.session = session;
+    this.browser = session.browser;
     this.enableJavaScript = options.enableJavaScript ?? true;
     this.network = new Network(this, options);
     this.meta = options.meta;
@@ -84,10 +85,7 @@ export class Page {
     try {
       // trigger navigation and poll for handlers to have finished
       await Promise.all([navigate(), waitFor(() => {
-        if (this.session.closedReason) {
-          throw new Error(this.session.closedReason);
-        }
-
+        if (this.session.closedReason) throw new Error(this.session.closedReason);
         return handlers.every(handler => handler.finished);
       }, Page.TIMEOUT)]);
     } catch (error) {
@@ -104,7 +102,9 @@ export class Page {
 
   // Evaluate JS functions within the page's execution context
   async eval(fn, ...args) {
-    let fnbody = fn.toString();
+    let fnbody = typeof fn === 'string'
+      ? `async eval() {\n${fn}\n}`
+      : fn.toString();
 
     // we might have a function shorthand if this fails
     /* eslint-disable-next-line no-new, no-new-func */
@@ -156,14 +156,7 @@ export class Page {
     if (!scripts?.length) return;
 
     this.log.debug('Evaluate JavaScript', { ...this.meta, scripts });
-
-    for (let script of scripts) {
-      if (typeof script === 'string') {
-        script = `async eval() {\n${script}\n}`;
-      }
-
-      await this.eval(script);
-    }
+    for (let script of scripts) await this.eval(script);
   }
 
   // Take a snapshot after waiting for any timeout, waiting for any selector, executing any scripts,

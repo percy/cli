@@ -75,20 +75,9 @@ export class Percy {
       this.#snapshots.concurrency = concurrency;
     }
 
-    this.client = new PercyClient({
-      token,
-      clientInfo,
-      environmentInfo
-    });
-
-    this.browser = new Browser({
-      ...this.config.discovery.launchOptions,
-      cookies: this.config.discovery.cookies
-    });
-
-    if (server) {
-      this.server = createPercyServer(this, port);
-    }
+    this.client = new PercyClient({ token, clientInfo, environmentInfo });
+    if (server) this.server = createPercyServer(this, port);
+    this.browser = new Browser(this);
 
     // generator methods are wrapped to autorun and return promises
     for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot']) {
