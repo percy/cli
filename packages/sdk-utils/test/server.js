@@ -186,9 +186,8 @@ async function exec(args) {
 }
 
 // allow invoking start/stop/exec as CLI commands
-const [program, ...args] = process.argv.slice(1);
-
-if (program === __filename || `${program}.js` === __filename) {
+if (require.main === module) {
+  const [program, ...args] = process.argv.slice(1);
   const run = { start, stop, exec }[args[0]];
 
   if (!run) {

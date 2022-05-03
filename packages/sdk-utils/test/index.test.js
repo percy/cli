@@ -2,6 +2,8 @@ import helpers from './helpers.js';
 import utils from '@percy/sdk-utils';
 
 describe('SDK Utils', () => {
+  let browser = process.env.__PERCY_BROWSERIFIED__;
+
   beforeEach(async () => {
     await helpers.setup();
   });
@@ -105,16 +107,7 @@ describe('SDK Utils', () => {
     it('enables remote logging on success', async () => {
       await helpers.call('server.test.remote');
       await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
-      utils.logger('testing:utils').info('Test remote logging');
-
-      // wait briefly for remote to receive the message
-      await new Promise(r => setTimeout(r, 500));
-
-      expect(helpers.logger.stdout).toEqual([]);
-      expect(helpers.logger.stderr).toEqual([]);
-      expectAsync(helpers.call('server.messages')).toBeResolvedTo([JSON.stringify({
-        log: ['testing:utils', 'info', 'Test remote logging', { remote: true }]
-      })]);
+      expect(utils.logger.remote.socket).toBeDefined();
     });
 
     it('returns false if a snapshot is sent when the API is closed', async () => {
@@ -197,6 +190,128 @@ describe('SDK Utils', () => {
 
       await expectAsync(postSnapshot(options, params)).toBeResolved();
       await expectAsync(helpers.getRequests()).toBeResolvedTo([[expected, options]]);
+    });
+  });
+
+  describe('logger()', () => {
+    let { logger } = utils;
+
+    it('creates a minimal percy logger', async () => {
+      let err = new Error('Test error');
+      let log = logger('test');
+
+      log.info('Test info');
+      log.warn('Test warn');
+      log.error('Test error');
+      log.error({ toString: () => 'Test error object' });
+      log.error(err);
+
+      expect(helpers.logger.stdout).toEqual([
+        '[percy] Test info'
+      ]);
+      expect(helpers.logger.stderr).toEqual([
+        '[percy] Test warn',
+        '[percy] Test error',
+        '[percy] Test error object',
+        '[percy] Error: Test error'
+      ]);
+    });
+
+    it('logs the namespace when loglevel is debug', async () => {
+      let err = new Error('Test error');
+      let log = logger('test');
+      logger.loglevel('debug');
+
+      log.info('Test debug info');
+      log.debug('Test debug log');
+      log.error(err);
+
+      expect(helpers.logger.stdout).toEqual([
+        '[percy:test] Test debug info',
+        // browser debug logs use console.log
+        ...(browser ? ['[percy:test] Test debug log'] : []),
+      ]);
+      expect(helpers.logger.stderr).toEqual([
+        // node debug logs write to stderr
+        ...(!browser ? ['[percy:test] Test debug log'] : []),
+        `[percy:test] ${err.stack}`
+      ]);
+    });
+
+    it('can connect to a remote percy logger instance', async () => {
+      let log = logger('test');
+      await helpers.call('server.test.remote');
+
+      // no remote connection
+      expect(logger.remote.socket).toBeFalsy();
+
+      // expect logs do not log remotely
+      log.info('Test foo');
+      expect(helpers.logger.stderr).toEqual([]);
+      expect(helpers.logger.stdout).toEqual(['[percy] Test foo']);
+      await expectAsync(helpers.call('server.messages')).toBeResolvedTo([]);
+
+      // initiate and expect remote connection
+      await logger.remote();
+      expect(logger.remote.socket).toBeDefined();
+
+      // does not initiate new connections once connected
+      let socket = logger.remote.socket;
+      await logger.remote();
+      expect(logger.remote.socket).toBe(socket);
+
+      // expect logs do not log locally
+      log.info('Test bar');
+      expect(helpers.logger.stderr).toEqual([]);
+      expect(helpers.logger.stdout).toEqual(['[percy] Test foo']);
+
+      // wait for remote message to be recieved
+      await new Promise(r => setTimeout(r, 100));
+
+      // expect remote messages have been received
+      await expectAsync(
+        helpers.call('server.messages')
+          .then(msgs => msgs.map(JSON.parse))
+      ).toBeResolvedTo([{
+        messages: [{
+          debug: 'test',
+          level: 'info',
+          message: 'Test foo',
+          timestamp: jasmine.any(Number),
+          meta: { remote: true }
+        }]
+      }, {
+        log: ['test', 'info', 'Test bar', { remote: true }]
+      }]);
+    });
+
+    it('silently handles remote connection errors', async () => {
+      let log = logger('test');
+      await helpers.call('server.test.remote');
+      utils.percy.address = 'http://no.localhost:9999';
+
+      await logger.remote();
+      expect(logger.remote.socket).toBeFalsy();
+
+      log.info('Test remote');
+      expect(helpers.logger.stderr).toEqual([]);
+      expect(helpers.logger.stdout).toEqual(['[percy] Test remote']);
+      await expectAsync(helpers.call('server.messages')).toBeResolvedTo([]);
+
+      // with debug logs
+      helpers.logger.reset();
+      logger.loglevel('debug');
+      await logger.remote();
+
+      // node debug logs write to stderr; browser debug logs use console.log
+      expect(helpers.logger[browser ? 'stdout' : 'stderr']).toEqual([
+        '[percy:utils] Unable to connect to remote logger',
+        jasmine.stringMatching(`Error: ${
+          // node throws a real error while browsers have hard-codedb
+          // debug logs in the console for failed websocket connections
+          browser ? 'Socket connection failed' : 'connect ECONNREFUSED'
+        }`)
+      ]);
     });
   });
 });

@@ -46,17 +46,8 @@
     },
     "test": {
       "external": [
-        "@percy/logger",
         "test/server(.js)?"
-      ],
-      "output": {
-        "globals": {
-          "@percy/logger": "PercySDKUtils.logger"
-        }
-      }
+      ]
     }
-  },
-  "dependencies": {
-    "@percy/logger": "1.1.0"
   }
 }
