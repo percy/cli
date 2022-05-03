@@ -1,7 +1,8 @@
-import logger from '@percy/logger/test/helpers';
-import utils from '@percy/sdk-utils';
+const logger = require('@percy/logger/test/helpers');
+const utils = require('@percy/sdk-utils');
 
-export const helpers = {
+
+const helpers = {
   logger,
 
   async setup() {
@@ -77,4 +78,4 @@ if (process.env.__PERCY_BROWSERIFIED__) {
   };
 }
 
-export default helpers;
+module.exports = helpers;

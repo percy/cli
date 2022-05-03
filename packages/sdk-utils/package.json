@@ -21,7 +21,6 @@
   ],
   "main": "./dist/index.js",
   "browser": "./dist/bundle.js",
-  "type": "module",
   "exports": {
     ".": "./dist/index.js",
     "./test/server": "./test/server.js",
