@@ -69,6 +69,11 @@ const plugins = {
   }),
   customWrapper: {
     name: 'custom-wrapper',
+    transform(code, id) {
+      // replace dynamic imports with empty objects in bundles
+      code = code.replace(/import\([^)]+?\)/g, '({})');
+      return { code, map: null };
+    },
     generateBundle(options, bundle) {
       let indent = s => s.replace(/^.+/gm, '  $&');
 
