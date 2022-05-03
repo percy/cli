@@ -104,9 +104,9 @@ export async function transformSource(source, context, defaultTransformSource) {
 
   return callback((await babel.transformAsync(source, {
     filename: url.fileURLToPath(context.url),
-    sourceType: 'module',
-    rootMode: 'upward',
+    sourceType: context.format,
     babelrcRoots: ['.'],
+    rootMode: 'upward',
     only: [BABEL_REG]
   }))?.code);
 }

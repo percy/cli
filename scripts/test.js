@@ -109,6 +109,7 @@ async function main({
     jasmine.loadConfig({
       spec_dir: 'test',
       spec_files: ['**/*.test.js'],
+      requires: [path.resolve(filename, '../babel-register.cjs')],
       helpers: [path.resolve(filename, '../test-helpers.js')],
       random: false
     });
