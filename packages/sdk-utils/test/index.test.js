@@ -195,11 +195,15 @@ describe('SDK Utils', () => {
 
   describe('logger()', () => {
     let { logger } = utils;
+    let err, log;
+
+    beforeEach(() => {
+      err = new Error('Test error');
+      err.stack = 'Error stack';
+      log = logger('test');
+    });
 
     it('creates a minimal percy logger', async () => {
-      let err = new Error('Test error');
-      let log = logger('test');
-
       log.info('Test info');
       log.warn('Test warn');
       log.error('Test error');
@@ -218,10 +222,7 @@ describe('SDK Utils', () => {
     });
 
     it('logs the namespace when loglevel is debug', async () => {
-      let err = new Error('Test error');
-      let log = logger('test');
       logger.loglevel('debug');
-
       log.info('Test debug info');
       log.debug('Test debug log');
       log.error(err);
@@ -234,19 +235,18 @@ describe('SDK Utils', () => {
       expect(helpers.logger.stderr).toEqual([
         // node debug logs write to stderr
         ...(!browser ? ['[percy:test] Test debug log'] : []),
-        `[percy:test] ${err.stack}`
+        '[percy:test] Error stack'
       ]);
     });
 
     it('can connect to a remote percy logger instance', async () => {
-      let log = logger('test');
       await helpers.call('server.test.remote');
 
       // no remote connection
       expect(logger.remote.socket).toBeFalsy();
 
-      // expect logs do not log remotely
       log.info('Test foo');
+      // expect logs do not log remotely
       expect(helpers.logger.stderr).toEqual([]);
       expect(helpers.logger.stdout).toEqual(['[percy] Test foo']);
       await expectAsync(helpers.call('server.messages')).toBeResolvedTo([]);
@@ -260,8 +260,9 @@ describe('SDK Utils', () => {
       await logger.remote();
       expect(logger.remote.socket).toBe(socket);
 
-      // expect logs do not log locally
       log.info('Test bar');
+      log.error(err);
+      // expect logs do not log locally
       expect(helpers.logger.stderr).toEqual([]);
       expect(helpers.logger.stdout).toEqual(['[percy] Test foo']);
 
@@ -282,6 +283,11 @@ describe('SDK Utils', () => {
         }]
       }, {
         log: ['test', 'info', 'Test bar', { remote: true }]
+      }, {
+        log: ['test', 'error', {
+          // error objects should be serialized
+          message: 'Test error', stack: 'Error stack'
+        }, { remote: true }]
       }]);
     });
 
@@ -306,11 +312,10 @@ describe('SDK Utils', () => {
       // node debug logs write to stderr; browser debug logs use console.log
       expect(helpers.logger[browser ? 'stdout' : 'stderr']).toEqual([
         '[percy:utils] Unable to connect to remote logger',
-        jasmine.stringMatching(`Error: ${
-          // node throws a real error while browsers have hard-codedb
-          // debug logs in the console for failed websocket connections
-          browser ? 'Socket connection failed' : 'connect ECONNREFUSED'
-        }`)
+        jasmine.stringMatching(
+          // node throws a real error while browsers show console logs
+          browser ? /Socket connection (failed|timed out)/ : /ECONNREFUSED|ENOTFOUND/
+        )
       ]);
     });
   });

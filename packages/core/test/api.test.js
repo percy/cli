@@ -188,20 +188,20 @@ describe('API Server', () => {
 
     // log from a separate async process
     let [stdout, stderr] = await new Promise((resolve, reject) => {
-      exec(`node --eval "(async () => {\n${[
+      exec(`node --eval "(async () => {${[
         "const WebSocket = require('ws');",
         // assert that loggers can connect at the root endpoint
         "const ws1 = new WebSocket('ws://localhost:1337');",
         "const ws2 = new WebSocket('ws://localhost:1337/logger');",
         // assert that websockets recieve a message with the loglevel when connected
         'let m = await Promise.all([ws1, ws2].map(w => new Promise(r => w.onmessage = r)));',
-        "if (!m.every(e => JSON.parse(e.data).loglevel === 'debug')) throw new Error('No loglevel')",
+        "if (!m.every(e => JSON.parse(e.data).loglevel === 'debug')) throw new Error('No loglevel');",
         // assert that remote loggers can provide message history and print remote logs
         "ws1.send(JSON.stringify({ messages: [{ debug: 'remote', message: 'test history' }] }));",
         "ws2.send(JSON.stringify({ log: ['remote', 'info', 'test info'] }));",
         // close the websockets after sending the above messages
         'setTimeout(() => [ws1, ws2].map(w => w.close()), 100);'
-      ].join('\n')}\n})()"`, (err, stdout, stderr) => {
+      ].join('')}})()"`, (err, stdout, stderr) => {
         if (!err) resolve([stdout, stderr]);
         else reject(err);
       });
