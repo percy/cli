@@ -15,11 +15,9 @@
   },
   "files": [
     "dist",
-    "test/helpers.js",
-    "test/client.js"
+    "test/helpers.js"
   ],
   "main": "./dist/index.js",
-  "browser": "./dist/bundle.js",
   "type": "module",
   "exports": {
     ".": "./dist/index.js",
@@ -27,21 +25,10 @@
     "./test/helpers": "./test/helpers.js",
     "./test/client": "./test/client.js"
   },
-  "imports": {
-    "#logger": {
-      "node": "./dist/logger.js",
-      "default": "./dist/browser.js"
-    }
-  },
   "scripts": {
     "build": "node ../../scripts/build",
     "lint": "eslint --ignore-path ../../.gitignore .",
     "test": "node ../../scripts/test",
     "test:coverage": "yarn test --coverage"
-  },
-  "rollup": {
-    "output": {
-      "name": "PercyLogger"
-    }
   }
 }
