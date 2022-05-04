@@ -64,7 +64,7 @@ async function context() {
       return next();
     });
 
-    ctx.server.websocket(ws => {
+    ctx.server.websocket('/(logger)?', ws => {
       if (!allowSocketConnections) return ws.terminate();
       ws.onmessage = ({ data }) => ctx.server.messages.push(data);
     });

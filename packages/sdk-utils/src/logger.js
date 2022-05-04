@@ -77,8 +77,10 @@ const remote = logger.remote = async timeout => {
   try {
     // already connected
     if (remote.socket?.readyState === 1) return;
+    // connect to namespaced logging address
+    let address = new URL('/logger', percy.address).href;
     // create and cache a websocket connection
-    let ws = remote.socket = await createWebSocket(percy.address, timeout);
+    let ws = remote.socket = await createWebSocket(address, timeout);
     // accept loglevel updates
     /* istanbul ignore next: difficult to test currently */
     ws.onmessage = e => loglevel(JSON.parse(e.data).loglevel);
