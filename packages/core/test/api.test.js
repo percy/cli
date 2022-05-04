@@ -194,7 +194,7 @@ describe('API Server', () => {
         "const ws1 = new WebSocket('ws://localhost:1337');",
         "const ws2 = new WebSocket('ws://localhost:1337/logger');",
         // assert that websockets recieve a message with the loglevel when connected
-        "let m = await Promise.all([ws1, ws2].map(w => new Promise(r => w.onmessage = r)));",
+        'let m = await Promise.all([ws1, ws2].map(w => new Promise(r => w.onmessage = r)));',
         "if (!m.every(e => JSON.parse(e.data).loglevel === 'debug')) throw new Error('No loglevel')",
         // assert that remote loggers can provide message history and print remote logs
         "ws1.send(JSON.stringify({ messages: [{ debug: 'remote', message: 'test history' }] }));",

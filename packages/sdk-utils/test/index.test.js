@@ -229,7 +229,7 @@ describe('SDK Utils', () => {
       expect(helpers.logger.stdout).toEqual([
         '[percy:test] Test debug info',
         // browser debug logs use console.log
-        ...(browser ? ['[percy:test] Test debug log'] : []),
+        ...(browser ? ['[percy:test] Test debug log'] : [])
       ]);
       expect(helpers.logger.stderr).toEqual([
         // node debug logs write to stderr
