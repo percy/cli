@@ -286,7 +286,9 @@ describe('SDK Utils', () => {
       }, {
         log: ['test', 'error', {
           // error objects should be serialized
-          message: 'Test error', stack: 'Error stack'
+          name: 'Error',
+          message: 'Test error',
+          stack: 'Error stack'
         }, { remote: true }]
       }]);
     });

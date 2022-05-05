@@ -236,11 +236,14 @@ describe('logger', () => {
     });
 
     it('stringifies error-like objects when loglevel is "debug"', () => {
-      let errorlike = { toString: () => 'ERROR' };
+      let errorlike = { name: 'Foo', message: 'bar' };
+      let errorstr = { toString: () => 'ERROR' };
       log.loglevel('debug');
       log.debug(errorlike);
+      log.debug(errorstr);
 
       expect(helpers.stderr).toEqual([
+        `[${colors.magenta('percy:test')}] ${colors.red('Foo: bar')}`,
         `[${colors.magenta('percy:test')}] ${colors.red('ERROR')}`
       ]);
     });

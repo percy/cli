@@ -167,24 +167,21 @@ export class PercyLogger {
   // Generic log method accepts a debug group, log level, log message, and optional meta
   // information to store with the message and other info
   log(debug, level, message, meta = {}) {
-    // message might be an error object
-    let error = typeof message !== 'string' && (
-      level === 'error' || level === 'debug'
-    ) && message;
+    // message might be an error-like object
+    let err = typeof message !== 'string' && (level === 'debug' || level === 'error');
+    err &&= message.message ? Error.prototype.toString.call(message) : message.toString();
 
-    // ensure the message is a string
-    message = (error && error.stack) || message.toString();
-
-    // timestamp each log
+    // save log entries
     let timestamp = Date.now();
+    message = err ? (message.stack || err) : message.toString();
     let entry = { debug, level, message, meta, timestamp };
     this.messages.add(entry);
 
     // maybe write the message to stdio
     if (this.shouldLog(debug, level)) {
+      if (err && this.level !== 'debug') message = err;
       let elapsed = timestamp - (this.lastlog || timestamp);
-      if (error && this.level !== 'debug') message = error.toString();
-      this.write(level, this.format(debug, error ? 'error' : level, message, elapsed));
+      this.write(level, this.format(debug, err ? 'error' : level, message, elapsed));
       this.lastlog = timestamp;
     }
   }

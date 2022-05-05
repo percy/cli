@@ -21,8 +21,8 @@ const log = logger.log = (ns, lvl, msg, meta) => {
   meta = { remote: true, ...meta };
 
   if (remote.socket) {
-    // prefer remote logging when available
-    if (err) msg = { message: msg.message, stack: msg.stack };
+    // prefer remote logging when available and serialize any errors
+    if (err) msg = { name: msg.name, message: msg.message, stack: msg.stack };
     return remote.socket.send(JSON.stringify({ log: [ns, lvl, msg, meta] }));
   } else {
     // keep log history when not remote
