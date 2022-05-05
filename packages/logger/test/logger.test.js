@@ -361,7 +361,7 @@ describe('logger', () => {
 
       expect(stdout.cursorTo).toHaveBeenCalledWith(0);
       expect(stdout.cursorTo).toHaveBeenCalledBefore(stdout.clearLine);
-      expect(stdout.clearLine).toHaveBeenCalledWith();
+      expect(stdout.clearLine).toHaveBeenCalledWith(0);
       expect(stdout.clearLine).toHaveBeenCalledBefore(stdout.write);
       expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] bar\n`);
     });
@@ -385,7 +385,7 @@ describe('logger', () => {
       log.info('bar');
 
       expect(stdout.cursorTo).toHaveBeenCalledWith(0);
-      expect(stdout.clearLine).toHaveBeenCalledWith();
+      expect(stdout.clearLine).toHaveBeenCalledWith(0);
       expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] bar\n`);
       expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] foo`);
     });
