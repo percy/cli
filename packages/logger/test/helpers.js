@@ -66,8 +66,8 @@ const helpers = {
         logger.constructor[stdio] = Object.assign(new Writable(), {
           isTTY: options.isTTY,
           columns: options.isTTY ? 100 : null,
-          cursorTo() { return this; },
-          clearLine() { return this; },
+          cursorTo() { return true; },
+          clearLine() { return true; },
           _write(chunk, encoding, callback) {
             helpers[stdio].push(sanitizeLog(chunk.toString(), options));
             callback();

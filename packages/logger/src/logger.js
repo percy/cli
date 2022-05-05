@@ -190,7 +190,12 @@ export class PercyLogger {
   write(level, message) {
     let { stdout, stderr } = this.constructor;
     let progress = stdout.isTTY && this._progress;
-    if (progress) stdout.cursorTo(0).clearLine();
+
+    if (progress) {
+      stdout.cursorTo(0);
+      stdout.clearLine(0);
+    }
+
     (level === 'info' ? stdout : stderr).write(message + '\n');
     if (!this._progress?.persist) delete this._progress;
     else if (progress) stdout.write(progress.message);
