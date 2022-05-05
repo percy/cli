@@ -1,9 +1,35 @@
-import logger from '@percy/logger/test/helpers';
-import utils from '@percy/sdk-utils';
+const utils = require('@percy/sdk-utils');
 
-export const helpers = {
-  logger,
+function stub(object, method, func) {
+  if (object[method].restore) object[method].restore();
 
+  let stub = object[method] = Object.assign(function stub(...args) {
+    stub.calls.push(args);
+    if (func) return func.apply(this, args);
+  }, {
+    restore: () => (object[method] = stub.originalValue),
+    reset: () => (stub.calls.length = 0) || stub,
+    originalValue: object[method],
+    calls: []
+  });
+
+  return stub;
+}
+
+// matches ansi escape sequences
+const ANSI_REG = new RegExp((
+  '[\\u001B\\u009B][[\\]()#;?]*((?:(?:[a-zA-Z\\d]*(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)' +
+  '|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))'
+), 'g');
+
+// strips a log message of excessive newlines and asni escape sequences
+function sanitizeLog(str) {
+  return str.replace(/\r\n/g, '\n')
+    .replace(ANSI_REG, '')
+    .replace(/\n$/, '');
+}
+
+const helpers = {
   async setup() {
     utils.percy.version = '';
     delete utils.percy.config;
@@ -11,10 +37,19 @@ export const helpers = {
     delete utils.percy.domScript;
     delete process.env.PERCY_SERVER_ADDRESS;
     await helpers.call('server.mock');
-    await logger.mock();
+    await helpers.logger.mock();
   },
 
-  teardown: () => helpers.call('server.close'),
+  async teardown() {
+    if (process.env.__PERCY_BROWSERIFIED__) {
+      for (let m of ['warn', 'error', 'log']) console[m].restore?.();
+    } else {
+      for (let io of ['stdout', 'stderr']) process[io].write.restore?.();
+    }
+
+    return helpers.call('server.close');
+  },
+
   getRequests: () => helpers.call('server.requests'),
   testReply: (path, reply) => helpers.call('server.reply', path, reply),
   testFailure: (...args) => helpers.call('server.test.failure', ...args),
@@ -23,7 +58,49 @@ export const helpers = {
     ? helpers.call('server.test.serialize') // get
     : helpers.call('server.test.serialize', fn), // set
   mockSite: () => helpers.call('site.mock'),
-  closeSite: () => helpers.call('site.close')
+  closeSite: () => helpers.call('site.close'),
+
+  logger: {
+    stdout: [],
+    stderr: [],
+    loglevel: utils.logger.loglevel,
+
+    async mock() {
+      helpers.logger.reset();
+
+      let capture = err => msg => {
+        helpers.logger[err ? 'stderr' : 'stdout']
+          .push(sanitizeLog(msg));
+      };
+
+      if (process.env.__PERCY_BROWSERIFIED__) {
+        // use console[warn|error|log] in browsers
+        for (let m of ['warn', 'error', 'log']) {
+          stub(console, m, capture(m !== 'log'));
+        }
+      } else {
+        // use process[stdout|stderr].write in node
+        for (let io of ['stdout', 'stderr']) {
+          stub(process[io], 'write', capture(io === 'stderr'));
+        }
+      }
+    },
+
+    reset() {
+      utils.logger.remote.socket?.close();
+      delete utils.logger.loglevel.lvl;
+      delete utils.logger.log.history;
+
+      helpers.logger.stdout.length = 0;
+      helpers.logger.stderr.length = 0;
+
+      if (process.env.__PERCY_BROWSERIFIED__) {
+        for (let m of ['warn', 'error', 'log']) console[m].reset?.();
+      } else {
+        for (let io of ['stdout', 'stderr']) process[io].write.reset?.();
+      }
+    }
+  }
 };
 
 if (process.env.__PERCY_BROWSERIFIED__) {
@@ -77,4 +154,4 @@ if (process.env.__PERCY_BROWSERIFIED__) {
   };
 }
 
-export default helpers;
+module.exports = helpers;

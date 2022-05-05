@@ -33,25 +33,24 @@ function spy(object, method, func) {
   return spy;
 }
 
-const {
-  Logger,
-  loglevel
-} = logger;
-
 const helpers = {
   stdout: [],
   stderr: [],
-  loglevel,
+  loglevel: logger.loglevel,
+
+  get instance() {
+    return logger.instance;
+  },
 
   async mock(options = {}) {
     helpers.reset();
 
     if (options.level) {
-      loglevel(options.level);
+      logger.loglevel(options.level);
     }
 
     if (process.env.__PERCY_BROWSERIFIED__) {
-      spy(Logger.prototype, 'write', function(lvl, msg) {
+      spy(logger.constructor.prototype, 'write', function(lvl, msg) {
         let stdio = lvl === 'info' ? 'stdout' : 'stderr';
         helpers[stdio].push(sanitizeLog(msg, options));
         return this.write.originalValue.call(this, lvl, msg);
@@ -64,12 +63,11 @@ const helpers = {
       let { Writable } = await import('stream');
 
       for (let stdio of ['stdout', 'stderr']) {
-        Logger[stdio] = Object.assign(new Writable(), {
-          columns: options.isTTY ? 100 : null,
+        logger.constructor[stdio] = Object.assign(new Writable(), {
           isTTY: options.isTTY,
-          cursorTo() {},
-          clearLine() {},
-
+          columns: options.isTTY ? 100 : null,
+          cursorTo() { return this; },
+          clearLine() { return this; },
           _write(chunk, encoding, callback) {
             helpers[stdio].push(sanitizeLog(chunk.toString(), options));
             callback();
@@ -80,8 +78,8 @@ const helpers = {
   },
 
   reset(soft) {
-    if (soft) loglevel('info');
-    else delete Logger.instance;
+    if (soft) logger.loglevel('info');
+    else delete logger.constructor.instance;
 
     helpers.stdout.length = 0;
     helpers.stderr.length = 0;
@@ -94,7 +92,7 @@ const helpers = {
   },
 
   dump() {
-    let msgs = Array.from((Logger.instance && Logger.instance.messages) || []);
+    let msgs = Array.from(logger.instance.messages);
     if (!msgs.length) return;
 
     let log = m => process.env.__PERCY_BROWSERIFIED__ ? (

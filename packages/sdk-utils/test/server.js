@@ -1,9 +1,8 @@
-import fs from 'fs';
-import url from 'url';
-import path from 'path';
+const fs = require('fs');
+const path = require('path');
 
 // create a testing context for mocking the local percy server and a local testing site
-export async function context() {
+async function context() {
   let { createTestServer } = await import('@percy/core/test/helpers/server');
 
   let ctx = {
@@ -65,7 +64,7 @@ export async function context() {
       return next();
     });
 
-    ctx.server.websocket(ws => {
+    ctx.server.websocket('/(logger)?', ws => {
       if (!allowSocketConnections) return ws.terminate();
       ws.onmessage = ({ data }) => ctx.server.messages.push(data);
     });
@@ -109,7 +108,7 @@ export async function context() {
 }
 
 // start a testing server to control a context remotely
-export async function start(args) {
+async function start(args) {
   let { logger } = await import('@percy/logger');
   let { WebSocketServer } = await import('ws');
   let log = logger('utils:test/server');
@@ -158,7 +157,7 @@ export async function start(args) {
 }
 
 // stop any existing testing server
-export async function stop() {
+async function stop() {
   let { default: WS } = await import('ws');
 
   await new Promise(resolve => {
@@ -169,7 +168,7 @@ export async function stop() {
 }
 
 // start & stop a testing server around a command
-export async function exec(args) {
+async function exec(args) {
   let argsep = args.indexOf('--');
   if (argsep < 0) throw new Error('Must supply a command after `--`');
 
@@ -187,22 +186,20 @@ export async function exec(args) {
 }
 
 // allow invoking start/stop/exec as CLI commands
-const filename = url.fileURLToPath(import.meta.url);
-const [program, ...args] = process.argv.slice(1);
-
-if (program === filename || `${program}.js` === filename) {
+if (require.main === module) {
+  const args = process.argv.slice(2);
   const run = { start, stop, exec }[args[0]];
 
   if (!run) {
     process.stderr.write('usage: node test/server <start|stop|exec>\n');
-  } else if (!process.send && fs.existsSync(path.join(filename, '../../src'))) {
-    await import('child_process').then(cp => cp.fork(filename, args, {
+  } else if (!process.send && fs.existsSync(path.join(__filename, '../../src'))) {
+    import('child_process').then(cp => cp.fork(__filename, args, {
       execArgv: ['--no-warnings', '--loader=../../scripts/loader.js']
     }));
   } else {
-    await run(args.slice(1)).catch(console.error);
+    run(args.slice(1)).catch(console.error);
   }
 }
 
 // export the namespace by default
-export * as default from './server.js';
+module.exports = { context, start, stop, exec };

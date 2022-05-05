@@ -188,29 +188,36 @@ describe('API Server', () => {
 
     // log from a separate async process
     let [stdout, stderr] = await new Promise((resolve, reject) => {
-      let args = ['--no-warnings', '--input-type=module', '--loader=../../scripts/loader.js'];
-
-      exec(`node ${args.join(' ')} --eval "${[
-        "import WebSocket from 'ws';",
-        "import logger from '@percy/logger';",
-        "let ws = new WebSocket('ws://localhost:1337');",
-        "logger.loglevel('debug');",
-        'await logger.remote(() => ws);',
-        "logger('remote-sdk').info('whoa');",
-        'setTimeout(() => ws.close(), 100);'
-      ].join('')}"`, (err, stdout, stderr) => {
+      exec(`node --eval "(async () => {${[
+        "const WebSocket = require('ws');",
+        // assert that loggers can connect at the root endpoint
+        "const ws1 = new WebSocket('ws://localhost:1337');",
+        "const ws2 = new WebSocket('ws://localhost:1337/logger');",
+        // assert that websockets recieve a message with the loglevel when connected
+        'let m = await Promise.all([ws1, ws2].map(w => new Promise(r => w.onmessage = r)));',
+        "if (!m.every(e => JSON.parse(e.data).loglevel === 'debug')) throw new Error('No loglevel');",
+        // assert that remote loggers can provide message history and print remote logs
+        "ws1.send(JSON.stringify({ messages: [{ debug: 'remote', message: 'test history' }] }));",
+        "ws2.send(JSON.stringify({ log: ['remote', 'info', 'test info'] }));",
+        // close the websockets after sending the above messages
+        'setTimeout(() => [ws1, ws2].map(w => w.close()), 100);'
+      ].join('')}})()"`, (err, stdout, stderr) => {
         if (!err) resolve([stdout, stderr]);
         else reject(err);
       });
     });
 
-    // child logs are present on connection failure
+    // logs are present on connection failure
     expect(stdout.toString()).toEqual('');
     expect(stderr.toString()).toEqual('');
 
+    expect(logger.instance.messages).toContain(
+      jasmine.objectContaining({ debug: 'remote', message: 'test history' })
+    );
+
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy:remote-sdk] whoa'
+      '[percy:remote] test info'
     ]);
   });
 

@@ -21,7 +21,6 @@
   ],
   "main": "./dist/index.js",
   "browser": "./dist/bundle.js",
-  "type": "module",
   "exports": {
     ".": "./dist/index.js",
     "./test/server": "./test/server.js",
@@ -47,17 +46,8 @@
     },
     "test": {
       "external": [
-        "@percy/logger",
         "test/server(.js)?"
-      ],
-      "output": {
-        "globals": {
-          "@percy/logger": "PercySDKUtils.logger"
-        }
-      }
+      ]
     }
-  },
-  "dependencies": {
-    "@percy/logger": "1.1.0"
   }
 }

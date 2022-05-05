@@ -14,7 +14,17 @@ export function createPercyServer(percy, port) {
 
   return new Server({ port })
   // facilitate logger websocket connections
-    .websocket(ws => logger.connect(ws))
+    .websocket('/(logger)?', ws => {
+      ws.addEventListener('message', ({ data }) => {
+        let { log, messages = [] } = JSON.parse(data);
+        for (let m of messages) logger.instance.messages.add(m);
+        if (log) logger.instance.log(...log);
+      });
+
+      ws.send(JSON.stringify({
+        loglevel: logger.loglevel()
+      }));
+    })
   // general middleware
     .route((req, res, next) => {
       // treat all request bodies as json
