@@ -1,6 +1,6 @@
 {
   "name": "@percy/config",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -34,7 +34,7 @@
     "test:types": "tsd"
   },
   "dependencies": {
-    "@percy/logger": "1.1.1",
+    "@percy/logger": "1.1.2",
     "ajv": "^8.6.2",
     "cosmiconfig": "^7.0.0",
     "yaml": "^2.0.0"
