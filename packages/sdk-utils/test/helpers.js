@@ -41,6 +41,8 @@ const helpers = {
   },
 
   async teardown() {
+    utils.logger.log.restore?.();
+
     if (process.env.__PERCY_BROWSERIFIED__) {
       for (let m of ['warn', 'error', 'log']) console[m].restore?.();
     } else {
@@ -68,21 +70,23 @@ const helpers = {
     async mock() {
       helpers.logger.reset();
 
-      let capture = err => msg => {
-        helpers.logger[err ? 'stderr' : 'stdout']
-          .push(sanitizeLog(msg));
-      };
+      let shouldCaptureLogs = false;
+
+      stub(utils.logger, 'log', (...args) => {
+        shouldCaptureLogs = true;
+        utils.logger.log.originalValue(...args);
+        shouldCaptureLogs = false;
+      });
+
+      let stubLogs = (ctx, method, err) => stub(ctx, method, msg => {
+        if (!shouldCaptureLogs) return ctx[method].originalValue.call(ctx, msg);
+        else helpers.logger[err ? 'stderr' : 'stdout'].push(sanitizeLog(msg));
+      });
 
       if (process.env.__PERCY_BROWSERIFIED__) {
-        // use console[warn|error|log] in browsers
-        for (let m of ['warn', 'error', 'log']) {
-          stub(console, m, capture(m !== 'log'));
-        }
+        for (let m of ['warn', 'error', 'log']) stubLogs(console, m, m !== 'log');
       } else {
-        // use process[stdout|stderr].write in node
-        for (let io of ['stdout', 'stderr']) {
-          stub(process[io], 'write', capture(io === 'stderr'));
-        }
+        for (let io of ['stdout', 'stderr']) stubLogs(process[io], 'write', io === 'stderr');
       }
     },
 
@@ -93,6 +97,7 @@ const helpers = {
 
       helpers.logger.stdout.length = 0;
       helpers.logger.stderr.length = 0;
+      utils.logger.log.reset?.();
 
       if (process.env.__PERCY_BROWSERIFIED__) {
         for (let m of ['warn', 'error', 'log']) console[m].reset?.();
