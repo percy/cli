@@ -6,7 +6,7 @@ const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 // Create a small logger util using the specified namespace
 export function logger(namespace) {
   return Object.keys(LOG_LEVELS).reduce((ns, lvl) => (
-    Object.assign(ns, { [lvl]: log.bind(null, namespace, lvl) })
+    Object.assign(ns, { [lvl]: (...a) => logger.log(namespace, lvl, ...a) })
   ), {});
 }
 
@@ -90,8 +90,8 @@ const remote = logger.remote = async timeout => {
     if (log.history) ws.send(JSON.stringify({ messages: log.history }));
   } catch (err) {
     // there was an error connecting, will fallback to minimal logging
-    log('utils', 'debug', 'Unable to connect to remote logger');
-    log('utils', 'debug', err);
+    logger.log('utils', 'debug', 'Unable to connect to remote logger');
+    logger.log('utils', 'debug', err);
   }
 };
 
