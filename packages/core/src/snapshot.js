@@ -373,7 +373,12 @@ export async function* discoverSnapshotResources(percy, snapshot, callback) {
 
     // navigate to the url
     yield page.goto(snapshot.url);
-    yield page.evaluate(snapshot.execute?.afterNavigation);
+
+    if (snapshot.execute) {
+      // when any execute options are provided, inject snapshot options
+      yield page.eval((_, s) => (window.__PERCY__.snapshot = s), snapshot);
+      yield page.evaluate(snapshot.execute.afterNavigation);
+    }
 
     // trigger resize events for other widths
     for (let width of widths) {

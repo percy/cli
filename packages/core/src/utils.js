@@ -118,3 +118,82 @@ export function waitFor() {
 export function waitForTimeout() {
   return new Promise(resolve => setTimeout(resolve, ...arguments));
 }
+
+// Browser-specific util to wait for a query selector to exist within an optional timeout.
+/* istanbul ignore next: tested, but coverage is stripped */
+async function waitForSelector(selector, timeout) {
+  try {
+    return await waitFor(() => document.querySelector(selector), timeout);
+  } catch {
+    throw new Error(`Unable to find: ${selector}`);
+  }
+}
+
+// Browser-specific util to wait for an xpath selector to exist within an optional timeout.
+/* istanbul ignore next: tested, but coverage is stripped */
+async function waitForXPath(selector, timeout) {
+  try {
+    let xpath = () => document.evaluate(selector, document, null, 9, null);
+    return await waitFor(() => xpath().singleNodeValue, timeout);
+  } catch {
+    throw new Error(`Unable to find: ${selector}`);
+  }
+}
+
+// Browser-specific util to scroll to the bottom of a page, optionally calling the provided function
+// after each window segment has been scrolled.
+/* istanbul ignore next: tested, but coverage is stripped */
+async function scrollToBottom(options, onScroll) {
+  if (typeof options === 'function') [onScroll, options] = [options];
+  let size = () => Math.ceil(document.body.scrollHeight / window.innerHeight);
+
+  for (let s, i = 1; i < (s = size()); i++) {
+    window.scrollTo({ ...options, top: window.innerHeight * i });
+    await onScroll?.(i, s);
+  }
+}
+
+// Serializes the provided function with percy helpers for use in evaluating browser scripts
+export function serializeFunction(fn) {
+  let fnbody = typeof fn === 'string'
+    ? `async eval() {\n${fn}\n}`
+    : fn.toString();
+
+  // we might have a function shorthand if this fails
+  /* eslint-disable-next-line no-new, no-new-func */
+  try { new Function(`(${fnbody})`); } catch (error) {
+    fnbody = fnbody.startsWith('async ')
+      ? fnbody.replace(/^async/, 'async function')
+      : `function ${fnbody}`;
+
+    /* eslint-disable-next-line no-new, no-new-func */
+    try { new Function(`(${fnbody})`); } catch (error) {
+      throw new Error('The provided function is not serializable');
+    }
+  }
+
+  // wrap the function body with percy helpers
+  fnbody = 'function withPercyHelpers() {\n' + [
+    'const { config, snapshot } = window.__PERCY__ ?? {};',
+    `return (${fnbody})({`,
+    '  config, snapshot, generatePromise, yieldFor,',
+    '  waitFor, waitForTimeout, waitForSelector, waitForXPath,',
+    '  scrollToBottom',
+    '}, ...arguments);',
+    `${generatePromise}`,
+    `${yieldFor}`,
+    `${waitFor}`,
+    `${waitForTimeout}`,
+    `${waitForSelector}`,
+    `${waitForXPath}`,
+    `${scrollToBottom}`
+  ].join('\n') + '\n}';
+
+  /* istanbul ignore else: ironic. */
+  if (fnbody.includes('cov_')) {
+    // remove coverage statements during testing
+    fnbody = fnbody.replace(/cov_.*?(;\n?|,)\s*/g, '');
+  }
+
+  return fnbody;
+}

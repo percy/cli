@@ -637,8 +637,8 @@ describe('Snapshot', () => {
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Encountered an error taking snapshot: test snapshot',
         '[percy] Error: test error\n' +
-          '    at execute (<anonymous>:3:17)\n' +
-          '    at withPercyHelpers (<anonymous>:4:11)'
+          '    at execute (<anonymous>:4:17)\n' +
+          '    at withPercyHelpers (<anonymous>:5:11)'
       ]));
     });
 
@@ -715,6 +715,136 @@ describe('Snapshot', () => {
         '<p>afterResize - 800</p>',
         '<p>beforeResize - 800</p>',
         '<p>afterResize - 1200</p>'
+      ].join(''));
+    });
+
+    it('can execute scripts with built-in helpers', async () => {
+      let helpers = [
+        // separately tested via coverage or unit tests
+        'config', 'snapshot', 'generatePromise', 'yieldFor', 'waitFor',
+        'waitForTimeout', 'waitForSelector', 'waitForXPath', 'scrollToBottom'
+      ];
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        execute: helpers.reduce((exec, helper) => exec + (
+          `if (!${helper}) throw new Error('Missing ${helper}');\n`
+        ), '\n')
+      });
+
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
+        '[percy] Snapshot taken: test snapshot'
+      ]);
+    });
+
+    it('can execute scripts that wait for specific states', async () => {
+      testDOM = '<body><script>document.body.classList.add("ready")</script></body>';
+
+      await percy.snapshot([{
+        name: 'wait for timeout',
+        url: 'http://localhost:8000',
+        async execute({ waitForTimeout }) {
+          await waitForTimeout(100);
+          document.body.innerText = 'wait for timeout';
+        }
+      }, {
+        name: 'wait for selector',
+        url: 'http://localhost:8000',
+        async execute({ waitForSelector }) {
+          await waitForSelector('body.ready', 1000);
+          document.body.innerText = 'wait for selector';
+        }
+      }, {
+        name: 'fail for selector',
+        url: 'http://localhost:8000',
+        async execute({ waitForSelector }) {
+          await waitForSelector('body.not-ready', 100);
+          document.body.innerText = 'fail for selector';
+        }
+      }, {
+        name: 'wait for xpath',
+        url: 'http://localhost:8000',
+        async execute({ waitForXPath }) {
+          await waitForXPath('//body[contains(@class, "ready")]', 1000);
+          document.body.innerText = 'wait for xpath';
+        }
+      }, {
+        name: 'fail for xpath',
+        url: 'http://localhost:8000',
+        async execute({ waitForXPath }) {
+          await waitForXPath('//body[contains(@class, "not-ready")]', 100);
+          document.body.innerText = 'fail for xpath';
+        }
+      }, {
+        name: 'wait for callback',
+        url: 'http://localhost:8000',
+        async execute({ waitForSelector }) {
+          await waitFor(() => document.body.classList.contains('ready'), 1000);
+          document.body.innerText = 'wait for callback';
+        }
+      }, {
+        name: 'fail for callback',
+        url: 'http://localhost:8000',
+        async execute({ waitForSelector }) {
+          await waitFor(() => Promise.reject(new Error('failed')), 100);
+          document.body.innerText = 'fail for callback';
+        }
+      }]);
+
+      expect(logger.stderr).toEqual([
+        '[percy] Encountered an error taking snapshot: fail for selector',
+        jasmine.stringMatching('Error: Unable to find: body.not-ready'),
+        '[percy] Encountered an error taking snapshot: fail for xpath',
+        jasmine.stringMatching('Error: Unable to find: ' + (
+          '\\/\\/body\\[contains\\(@class, "not-ready"\\)\\]')),
+        '[percy] Encountered an error taking snapshot: fail for callback',
+        jasmine.stringMatching('Error: failed')
+      ]);
+      expect(logger.stdout).toEqual([
+        '[percy] Snapshot taken: wait for timeout',
+        '[percy] Snapshot taken: wait for selector',
+        '[percy] Snapshot taken: wait for xpath',
+        '[percy] Snapshot taken: wait for callback'
+      ]);
+
+      await percy.idle();
+
+      let html = api.requests['/builds/123/resources'].map(r => (
+        Buffer.from(r.body.data.attributes['base64-content'], 'base64')
+      ).toString()).filter(s => s.startsWith('<'));
+
+      expect(html[0]).toMatch('wait for timeout');
+      expect(html[1]).toMatch('wait for selector');
+      expect(html[2]).toMatch('wait for xpath');
+      expect(html[3]).toMatch('wait for callback');
+    });
+
+    it('can execute scripts that scroll to the bottom of the page', async () => {
+      testDOM = '<body style="height:500vh"><style>*{margin:0;padding:0;}</style></body>';
+
+      await percy.snapshot({
+        name: 'scroll to bottom',
+        url: 'http://localhost:8000',
+        minHeight: 1000,
+        async execute({ scrollToBottom }) {
+          await scrollToBottom((i, pages) => {
+            document.body.innerHTML += `<p>${i}/${pages} (${window.scrollY})</p>`;
+          });
+        }
+      });
+
+      await percy.idle();
+
+      expect(Buffer.from((
+        api.requests['/builds/123/resources'][0]
+          .body.data.attributes['base64-content']
+      ), 'base64').toString()).toMatch([
+        '<p>1/5 \\(1000\\)</p>',
+        '<p>2/5 \\(2000\\)</p>',
+        '<p>3/5 \\(3000\\)</p>',
+        '<p>4/5 \\(4000\\)</p>'
       ].join(''));
     });
   });

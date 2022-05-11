@@ -5,7 +5,8 @@ import { PERCY_DOM } from './api.js';
 import {
   hostname,
   waitFor,
-  waitForTimeout as sleep
+  waitForTimeout as sleep,
+  serializeFunction
 } from './utils.js';
 
 export class Page {
@@ -100,40 +101,9 @@ export class Page {
 
   // Evaluate JS functions within the page's execution context
   async eval(fn, ...args) {
-    let fnbody = typeof fn === 'string'
-      ? `async eval() {\n${fn}\n}`
-      : fn.toString();
-
-    // we might have a function shorthand if this fails
-    /* eslint-disable-next-line no-new, no-new-func */
-    try { new Function(`(${fnbody})`); } catch (error) {
-      fnbody = fnbody.startsWith('async ')
-        ? fnbody.replace(/^async/, 'async function')
-        : `function ${fnbody}`;
-
-      /* eslint-disable-next-line no-new, no-new-func */
-      try { new Function(`(${fnbody})`); } catch (error) {
-        throw new Error('The provided function is not serializable');
-      }
-    }
-
-    // wrap the function body with percy helpers
-    fnbody = 'function withPercyHelpers() {\n' + [
-      `return (${fnbody})({ generatePromise, waitFor }, ...arguments);`,
-      `${generatePromise}`,
-      `${waitFor}`
-    ].join('\n\n') + '}';
-
-    /* istanbul ignore else: ironic. */
-    if (fnbody.includes('cov_')) {
-      // remove coverage statements during testing
-      fnbody = fnbody.replace(/cov_.*?(;\n?|,)\s*/g, '');
-    }
-
-    // send the call function command
     let { result, exceptionDetails } =
       await this.session.send('Runtime.callFunctionOn', {
-        functionDeclaration: fnbody,
+        functionDeclaration: serializeFunction(fn),
         arguments: args.map(value => ({ value })),
         executionContextId: this.contextId,
         returnByValue: true,
@@ -150,9 +120,7 @@ export class Page {
 
   // Evaluate one or more scripts in succession
   async evaluate(scripts) {
-    scripts &&= [].concat(scripts);
-    if (!scripts?.length) return;
-
+    if (!(scripts &&= [].concat(scripts))?.length) return;
     this.log.debug('Evaluate JavaScript', { ...this.meta, scripts });
     for (let script of scripts) await this.eval(script);
   }
@@ -164,6 +132,7 @@ export class Page {
     waitForTimeout,
     waitForSelector,
     execute,
+    meta,
     ...options
   }) {
     this.log.debug(`Taking snapshot: ${name}`, this.meta);
@@ -181,8 +150,10 @@ export class Page {
     }
 
     // execute any javascript
-    let execBefore = typeof execute === 'object' && !Array.isArray(execute);
-    await this.evaluate(execBefore ? execute.beforeSnapshot : execute);
+    if (execute) {
+      let execBefore = typeof execute === 'object' && !Array.isArray(execute);
+      await this.evaluate(execBefore ? execute.beforeSnapshot : execute);
+    }
 
     // wait for any final network activity before capturing the dom snapshot
     await this.network.idle();
@@ -239,6 +210,11 @@ export class Page {
   _handleExecutionContextCreated = event => {
     if (this.session.targetId === event.context.auxData.frameId) {
       this.contextId = event.context.id;
+
+      // inject global percy config as soon as possible
+      this.eval(`window.__PERCY__ = ${
+        JSON.stringify({ config: this.browser.percy.config })
+      };`).catch(this.session._handleClosedError);
     }
   }
 
