@@ -1,6 +1,7 @@
 import logger from '@percy/logger';
 import PercyConfig from '@percy/config';
 import { set, del } from '@percy/config/utils';
+import { generatePromise, AbortController, AbortError } from '@percy/core/utils';
 import * as CoreConfig from '@percy/core/config';
 import * as builtInFlags from './flags.js';
 import formatHelp from './help.js';
@@ -44,51 +45,6 @@ function withBuiltIns(definition) {
   }
 
   return def;
-}
-
-// Calls the provided callback and handles callback cancelation when process signals are
-// triggered. If the provided callback returns a generator, it will automatically run and throw
-// an error when canceled to be able to gracefully handle it's own cancelation.
-async function handleProcessSignals(callback) {
-  let signals = ['SIGUSR1', 'SIGUSR2', 'SIGTERM', 'SIGINT', 'SIGHUP'];
-  let signalError;
-
-  // keep track of signal handlers for cleanup
-  let signalHandlers = signals.map(signal => {
-    let handler = () => {
-      signalError = Object.assign(new Error(signal), {
-        canceled: true,
-        exitCode: 0,
-        signal
-      });
-    };
-
-    process.on(signal, handler);
-    return [signal, handler];
-  });
-
-  try {
-    // maybe async function
-    let gen = await callback();
-
-    // run any returned generator
-    if (typeof gen?.next === 'function' &&
-        (typeof gen[Symbol.iterator] === 'function' ||
-         typeof gen[Symbol.asyncIterator] === 'function')) {
-      let result = await gen.next();
-
-      while (!result.done) {
-        result = signalError
-          ? await gen.throw(signalError)
-          : await gen.next(result.value);
-      }
-    }
-  } finally {
-    // always cleanup
-    for (let [signal, handler] of signalHandlers) {
-      process.off(signal, handler);
-    }
-  }
 }
 
 // Helper to throw an error with an exit code and optional reason message
@@ -136,10 +92,20 @@ async function runCommandWithContext(parsed) {
     });
   }
 
-  // wrap and bind the parsed command callback
-  await handleProcessSignals(
-    command.callback.bind(null, context)
-  );
+  // process signals will abort
+  let ctrl = new AbortController();
+  let signals = ['SIGUSR1', 'SIGUSR2', 'SIGTERM', 'SIGINT', 'SIGHUP'].map(signal => {
+    let handler = () => ctrl.abort(new AbortError(signal, { signal, exitCode: 0 }));
+    handler.off = () => process.off(signal, handler);
+    process.on(signal, handler);
+    return handler;
+  });
+
+  // run the command callback with context and cleanup handlers after
+  await generatePromise(command.callback(context), ctrl.signal, error => {
+    for (let handler of signals) handler.off();
+    if (error) throw error;
+  });
 }
 
 // Returns a command runner function that when run will parse provided command-line options and run
