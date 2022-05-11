@@ -111,7 +111,7 @@ export async function request(url, options = {}, callback) {
   if (typeof options === 'function') [options, callback] = [{}, options];
 
   // gather request options
-  let { body, headers, retries, retryNotFound, interval, noProxy, ...requestOptions } = options;
+  let { body, headers, retries, retryNotFound, interval, noProxy, buffer, ...requestOptions } = options;
   let { protocol, hostname, port, pathname, search, hash } = new URL(url);
 
   // reference the default export so tests can mock it
@@ -150,10 +150,13 @@ export async function request(url, options = {}, callback) {
 
     let handleFinished = async (body, res) => {
       let { statusCode, headers } = res;
-      let raw = body;
+      let raw = body.toString('utf-8');
+
+      // only return a buffer when requested
+      if (buffer !== true) body = raw;
 
       // attempt to parse the body as json
-      try { body = JSON.parse(body); } catch (e) {}
+      try { body = JSON.parse(raw); } catch {}
 
       try {
         if (statusCode >= 200 && statusCode < 300) {
@@ -169,10 +172,9 @@ export async function request(url, options = {}, callback) {
     };
 
     let handleResponse = res => {
-      let body = '';
-      res.setEncoding('utf-8');
-      res.on('data', chunk => (body += chunk));
-      res.on('end', () => handleFinished(body, res));
+      let chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => handleFinished(Buffer.concat(chunks), res));
       res.on('error', handleError);
     };
 
