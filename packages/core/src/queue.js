@@ -1,6 +1,7 @@
 import {
+  yieldFor,
   generatePromise,
-  waitFor
+  AbortController
 } from './utils.js';
 
 export class Queue {
@@ -14,13 +15,13 @@ export class Queue {
     this.concurrency = concurrency;
   }
 
-  push(id, callback, priority) {
+  push(id, generator, priority) {
     /* istanbul ignore next: race condition paranoia */
     if (this.closed && !id.startsWith('@@/')) return;
 
     this.cancel(id);
 
-    let task = { id, callback, priority };
+    let task = { id, generator, priority };
     task.promise = new Promise((resolve, reject) => {
       Object.assign(task, { resolve, reject });
       this.#queued.set(id, task);
@@ -31,7 +32,7 @@ export class Queue {
   }
 
   cancel(id) {
-    this.#pending.get(id)?.cancel?.();
+    this.#pending.get(id)?.ctrl?.abort();
     this.#pending.delete(id);
     this.#queued.delete(id);
   }
@@ -77,34 +78,37 @@ export class Queue {
   }
 
   idle(callback) {
-    return waitFor(() => {
+    return yieldFor(() => {
       callback?.(this.#pending.size);
       return !this.#pending.size;
     }, { idle: 10 });
   }
 
   empty(callback) {
-    return waitFor(() => {
+    return yieldFor(() => {
       callback?.(this.size);
       return !this.size;
     }, { idle: 10 });
   }
 
-  flush(callback) {
+  async *flush(callback) {
     let stopped = !this.running;
 
     this.run().push('@@/flush', () => {
       if (stopped) this.stop();
     });
 
-    return this.idle(pend => {
-      let left = [...this.#queued.keys()].indexOf('@@/flush');
-      if (!~left && !this.#pending.has('@@/flush')) left = 0;
-      callback?.(pend + left);
-    }).canceled(() => {
+    try {
+      yield* this.idle(pend => {
+        let left = [...this.#queued.keys()].indexOf('@@/flush');
+        if (!~left && !this.#pending.has('@@/flush')) left = 0;
+        callback?.(pend + left);
+      });
+    } catch (error) {
       if (stopped) this.stop();
       this.cancel('@@/flush');
-    });
+      throw error;
+    }
   }
 
   next() {
@@ -128,23 +132,12 @@ export class Queue {
     this.#queued.delete(task.id);
     this.#pending.set(task.id, task);
 
-    let done = callback => arg => {
-      if (!task.cancel?.triggered) {
-        this.#pending.delete(task.id);
-      }
-
-      callback(arg);
-      this._dequeue();
-    };
-
-    try {
-      let gen = generatePromise(task.callback);
-      task.cancel = gen.cancel;
-
-      return gen.then(done(task.resolve), done(task.reject));
-    } catch (err) {
-      done(task.reject)(err);
-    }
+    let ctrl = task.ctrl = new AbortController();
+    return generatePromise(task.generator, ctrl.signal, (err, val) => {
+      if (!ctrl.signal.aborted) this.#pending.delete(task.id);
+      task[err ? 'reject' : 'resolve'](err ?? val);
+      return this._dequeue();
+    });
   }
 }
 

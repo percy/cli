@@ -1,14 +1,12 @@
 import fs from 'fs';
 import logger from '@percy/logger';
 import Network from './network.js';
-
+import { PERCY_DOM } from './api.js';
 import {
   hostname,
-  generatePromise,
-  waitFor
+  waitFor,
+  waitForTimeout as sleep
 } from './utils.js';
-
-import { PERCY_DOM } from './api.js';
 
 export class Page {
   static TIMEOUT = 30000;
@@ -173,24 +171,18 @@ export class Page {
     // wait for any specified timeout
     if (waitForTimeout) {
       this.log.debug(`Wait for ${waitForTimeout}ms timeout`, this.meta);
-      await new Promise(resolve => setTimeout(resolve, waitForTimeout));
+      await sleep(waitForTimeout);
     }
 
     // wait for any specified selector
     if (waitForSelector) {
       this.log.debug(`Wait for selector: ${waitForSelector}`, this.meta);
-
-      /* istanbul ignore next: no instrumenting injected code */
-      await this.eval(function waitForSelector({ waitFor }, selector, timeout) {
-        return waitFor(() => !!document.querySelector(selector), timeout)
-          .catch(() => Promise.reject(new Error(`Failed to find "${selector}"`)));
-      }, waitForSelector, Page.TIMEOUT);
+      await this.eval(`await waitForSelector(${JSON.stringify(waitForSelector)}, ${Page.TIMEOUT})`);
     }
 
     // execute any javascript
-    await this.evaluate(
-      typeof execute === 'object' && !Array.isArray(execute)
-        ? execute.beforeSnapshot : execute);
+    let execBefore = typeof execute === 'object' && !Array.isArray(execute);
+    await this.evaluate(execBefore ? execute.beforeSnapshot : execute);
 
     // wait for any final network activity before capturing the dom snapshot
     await this.network.idle();

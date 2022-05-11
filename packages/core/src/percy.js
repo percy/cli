@@ -83,7 +83,7 @@ export class Percy {
     for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot']) {
       // the original generator can be referenced with percy.yield.<method>
       let method = (this.yield ||= {})[m] = this[m].bind(this);
-      this[m] = (...args) => generatePromise(method(...args)).then();
+      this[m] = (...args) => generatePromise(method(...args));
     }
   }
 
@@ -196,8 +196,8 @@ export class Percy {
       // mark instance as closed
       this.readyState = 3;
 
-      // when uploads are deferred, cancel build creation
-      if (error.canceled && this.deferUploads) {
+      // when uploads are deferred, cancel build creation on abort
+      if (this.deferUploads && error.name === 'AbortError') {
         this.#uploads.cancel('build/create');
         this.readyState = null;
       }
@@ -242,9 +242,9 @@ export class Percy {
         }
       }
     } catch (error) {
-      // reopen closed queues when canceled
+      // reopen closed queues when aborted
       /* istanbul ignore else: all errors bubble */
-      if (close && error.canceled) {
+      if (close && error.name === 'AbortError') {
         this.#snapshots.open();
         this.#uploads.open();
       }
@@ -278,9 +278,9 @@ export class Percy {
       // process uploads and close queues
       yield* this.yield.flush(true);
     } catch (error) {
-      // reset ready state when canceled
+      // reset ready state when aborted
       /* istanbul ignore else: all errors bubble */
-      if (error.canceled) this.readyState = 1;
+      if (error.name === 'AbortError') this.readyState = 1;
       throw error;
     }
 
@@ -419,9 +419,9 @@ export class Percy {
           this._scheduleUpload(snap.name, { ...snap, resources });
         });
       } catch (error) {
-        if (error.canceled) {
+        if (error.name === 'AbortError') {
           this.log.error('Received a duplicate snapshot name, ' + (
-            `the previous snapshot was canceled: ${snapshot.name}`));
+            `the previous snapshot was aborted: ${snapshot.name}`), snapshot.meta);
         } else {
           this.log.error(`Encountered an error taking snapshot: ${snapshot.name}`, snapshot.meta);
           this.log.error(error, snapshot.meta);

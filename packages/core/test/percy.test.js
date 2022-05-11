@@ -1,5 +1,5 @@
 import { logger, api, setupTest, createTestServer } from './helpers/index.js';
-import { generatePromise } from '../src/utils.js';
+import { generatePromise, AbortController } from '../src/utils.js';
 import Percy from '@percy/core';
 
 describe('Percy', () => {
@@ -233,7 +233,6 @@ describe('Percy', () => {
 
     it('does not error when the browser has already launched', async () => {
       await expectAsync(percy.browser.launch()).toBeResolved();
-      await percy.browser.page().then(p => p.close());
       expect(percy.browser.isConnected()).toBe(true);
       expect(percy.readyState).toBeNull();
 
@@ -275,21 +274,13 @@ describe('Percy', () => {
     it('cancels deferred build creation when interupted', async () => {
       percy = new Percy({ token: 'PERCY_TOKEN', deferUploads: true });
 
-      // fake these methods to make this test more reliable
-      let sleep = ms => new Promise(r => setTimeout(r, ms));
-      spyOn(percy.browser, 'launch').and.callFake(() => sleep(10));
-      spyOn(percy.server, 'listen').and.callFake(() => sleep(500));
+      // abort when the browser is launched
+      let ctrl = new AbortController();
+      spyOn(percy.browser, 'launch').and.callFake(() => ctrl.abort());
 
-      // #yield.start returns a generator
-      let starting = generatePromise(percy.yield.start());
-      let started = starting.then();
-
-      // wait until server.listen is called but before it finishes
-      await sleep(200);
-      // cancel the underlying generator
-      starting.cancel();
-
-      await expectAsync(started).toBeRejected();
+      // #yield.start returns a generator that can be aborted
+      await expectAsync(generatePromise(percy.yield.start(), ctrl.signal))
+        .toBeRejectedWithError('This operation was aborted');
       expect(percy.readyState).toEqual(null);
 
       // processing deferred uploads should not result in a new build
@@ -535,13 +526,13 @@ describe('Percy', () => {
         percy.snapshot('http://localhost:8000/three')
       ];
 
-      // #yield.stop returns a generator
-      let stopping = generatePromise(percy.yield.stop());
-      let stopped = stopping.then();
+      let ctrl = new AbortController();
+      // #yield.stop returns a generator that can be aborted
+      let stopped = generatePromise(percy.yield.stop(), ctrl.signal);
 
       // wait until the first snapshot is done before canceling
       await snapshots[0];
-      stopping.cancel();
+      ctrl.abort();
 
       await expectAsync(stopped).toBeRejected();
       expect(percy.readyState).toEqual(1);

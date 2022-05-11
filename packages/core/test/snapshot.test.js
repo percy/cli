@@ -331,7 +331,7 @@ describe('Snapshot', () => {
 
     expect(logger.stderr).toEqual([
       '[percy] Received a duplicate snapshot name, ' +
-        'the previous snapshot was canceled: /foobar'
+        'the previous snapshot was aborted: /foobar'
     ]);
     expect(logger.stdout).toEqual([
       '[percy] Snapshot taken: /foobar'

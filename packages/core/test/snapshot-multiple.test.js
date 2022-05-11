@@ -1,5 +1,5 @@
 import { fs, logger, setupTest, createTestServer } from './helpers/index.js';
-import { generatePromise } from '@percy/core/utils';
+import { generatePromise, AbortController } from '@percy/core/utils';
 import Percy from '@percy/core';
 
 describe('Snapshot multiple', () => {
@@ -314,20 +314,19 @@ describe('Snapshot multiple', () => {
       ]));
     });
 
-    it('closes the server when canceled', async () => {
-      let cancelable;
+    it('closes the server when aborted', async () => {
+      let ctrl = new AbortController();
 
       // cancel after the second upload is scheduled
       spyOn(percy, '_scheduleUpload').and.callFake((...args) => {
-        if (percy._scheduleUpload.calls.count() > 1) cancelable.cancel();
+        if (percy._scheduleUpload.calls.count() > 1) ctrl.abort();
         return percy._scheduleUpload.and.originalFn.apply(percy, args);
       });
 
-      // #yield.snapshot returns a generator
-      cancelable = generatePromise(percy.yield.snapshot({ serve: './public' }));
-
-      // kick off the generator which will be canceled when the first upload is scheduled
-      await expectAsync(cancelable.then()).toBeRejected();
+      await expectAsync(
+        // #yield.snapshot returns a generator that can be aborted
+        generatePromise(percy.yield.snapshot({ serve: './public' }), ctrl.signal)
+      ).toBeRejectedWithError('This operation was aborted');
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual(jasmine.arrayContaining([

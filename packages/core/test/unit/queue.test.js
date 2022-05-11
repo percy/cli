@@ -1,13 +1,10 @@
+import { generatePromise, AbortController, waitForTimeout } from '../../src/utils.js';
 import Queue from '../../src/queue.js';
-
-function sleep(ms = 0, v) {
-  return new Promise(r => setTimeout(r, ms, v));
-}
 
 function task(timeout = 0, cb) {
   return async function t() {
     t.running = true;
-    await sleep(timeout);
+    await waitForTimeout(timeout);
     let v = cb && (await cb());
     t.running = false;
     return v;
@@ -67,9 +64,7 @@ describe('Unit / Tasks Queue', () => {
       ]);
 
       expect(done).toEqual([0, 1, 6, 4, 5]);
-
-      await q.idle();
-
+      await generatePromise(q.idle());
       expect(done).toEqual([0, 1, 6, 4, 5, 2, 3]);
     });
   });
@@ -85,30 +80,30 @@ describe('Unit / Tasks Queue', () => {
   });
 
   describe('#idle()', () => {
-    it('resolves when running tasks settle', async () => {
+    it('finishes when running tasks settle', async () => {
       let tasks = Array(5).fill().map(() => task(100));
       tasks.forEach((t, i) => q.push(i, t));
 
       q.push('err', task(50, () => {
         // a rejected task should not interrupt #idle()
-        throw new Error('technically settled');
+        throw new Error('test error');
       })).catch(() => {}); // we're catching the promise, not the task
 
       q.push('stop', () => q.stop());
       let more = Array(3).fill().map(() => task(50));
       more.forEach((t, i) => q.push(`more/${i}`, t));
 
-      await expectAsync(q.idle()).toBeResolved();
+      await expectAsync(generatePromise(q.idle())).toBeResolved();
       tasks.forEach(t => expect(t).toHaveProperty('running', false));
       more.forEach(t => expect(t).not.toHaveProperty('running'));
 
-      await expectAsync(q.run().idle()).toBeResolved();
+      await expectAsync(generatePromise(q.run().idle())).toBeResolved();
       more.forEach(t => expect(t).toHaveProperty('running', false));
     });
   });
 
   describe('#empty()', () => {
-    it('resolves when all tasks are settled', async () => {
+    it('finishes when all tasks are settled', async () => {
       let tasks = Array(5).fill().map(() => task(50));
       tasks.forEach((t, i) => q.push(i, t));
 
@@ -116,10 +111,10 @@ describe('Unit / Tasks Queue', () => {
       let more = Array(3).fill().map(() => task(50));
       more.forEach((t, i) => q.push(`more/${i}`, t));
 
-      let empty = q.empty();
+      let empty = generatePromise(q.empty());
 
       await expectAsync(empty).toBePending();
-      await expectAsync(q.idle()).toBeResolved();
+      await generatePromise(q.idle());
       await expectAsync(empty).toBePending();
 
       tasks.forEach(t => expect(t).toHaveProperty('running', false));
@@ -130,7 +125,7 @@ describe('Unit / Tasks Queue', () => {
 
       expect(q.running).toBe(true);
       await expectAsync(empty).toBePending();
-      await expectAsync(q.idle()).toBeResolved();
+      await generatePromise(q.idle());
       await expectAsync(empty).toBeResolved();
 
       more.forEach(t => expect(t).toHaveProperty('running', false));
@@ -141,17 +136,17 @@ describe('Unit / Tasks Queue', () => {
     it('can cancel a pending task', async () => {
       let task = async function*() {
         task.step = yield 'foo';
-        task.step = yield sleep(100, 'bar');
-        task.step = yield sleep(500, 'baz');
+        task.step = yield waitForTimeout(100, 'bar');
+        task.step = yield waitForTimeout(500, 'baz');
         task.step = yield 'qux';
       };
 
       let p = q.push('t', task);
-      await sleep(200);
+      await waitForTimeout(200);
       q.cancel('t');
 
       expect(task.step).toBe('bar');
-      await expectAsync(q.idle()).toBeResolved();
+      await generatePromise(q.idle());
       await expectAsync(p).toBeRejected();
     });
   });
@@ -176,7 +171,7 @@ describe('Unit / Tasks Queue', () => {
       let tasks = Array(5).fill().map(() => task(50));
       tasks.forEach((t, i) => q.push(i, t));
 
-      await expectAsync(q.flush()).toBeResolved();
+      await generatePromise(q.flush());
       tasks.forEach(t => expect(t).toHaveProperty('running', false));
     });
 
@@ -191,12 +186,12 @@ describe('Unit / Tasks Queue', () => {
       more.forEach((t, i) => q.push(`more/${i}`, t));
 
       expect(q.running).toBe(false);
-      await expectAsync(q.flush()).toBeResolved();
+      await generatePromise(q.flush());
       tasks.forEach(t => expect(t).toHaveProperty('running', false));
       more.forEach(t => expect(t).not.toHaveProperty('running'));
 
       expect(q.running).toBe(false);
-      await expectAsync(q.flush()).toBeResolved();
+      await generatePromise(q.flush());
       tasks.forEach(t => expect(t).toHaveProperty('running', false));
     });
 
@@ -208,15 +203,14 @@ describe('Unit / Tasks Queue', () => {
 
       expect(q.running).toBe(false);
 
-      let flushing = q.flush();
-      let flushed = flushing.then();
-
+      let ctrl = new AbortController();
+      let flushed = generatePromise(q.flush(), ctrl.signal);
       expect(tasks[0]).toHaveProperty('running', true);
       expect(q.running).toBe(true);
-      flushing.cancel();
+      ctrl.abort();
 
       await expectAsync(flushed).toBeRejected();
-      await q.idle();
+      await generatePromise(q.idle());
 
       expect(tasks[0]).toHaveProperty('running', false);
       expect(tasks[2]).not.toHaveProperty('running');
