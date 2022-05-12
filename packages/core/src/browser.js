@@ -218,7 +218,6 @@ export class Browser extends EventEmitter {
     }
   }
 
-  //
   async spawn(timeout = 30000) {
     // spawn the browser process detached in its own group and session
     this.process = spawn(this.executable, this.args, {
