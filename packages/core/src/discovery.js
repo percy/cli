@@ -81,18 +81,15 @@ export function createRequestFinishedHandler(network, {
           return log.debug(`- Skipping disallowed resource type [${request.type}]`, meta);
         }
 
-        // Ensure we're getting a proper mimetype if the server or
-        // asset discovery browser is sending `text/plain`
-        let resourceMimeType = response.mimeType === 'text/plain' ? mime.lookup(response.url) : response.mimeType;
+        // Try to get the proper mimetype if the server or asset discovery browser is sending `text/plain`
+        let mimeType = (response.mimeType === 'text/plain' && mime.lookup(response.url)) || response.mimeType;
 
-        if (resourceMimeType?.includes('font')) {
-          // Request & save font files directly as binaries rather than relying on
-          // the asset discovery browser to decode font responses properly.
-          // Without this, some fonts may be captured as corrupted
+        if (mimeType?.includes('font')) {
+          // font responses from the browser may not be properly encoded, so request them directly
           body = await makeRequest(response.url, { buffer: true });
         }
 
-        resource = createResource(url, body, resourceMimeType, {
+        resource = createResource(url, body, mimeType, {
           status: response.status,
           // 'Network.responseReceived' returns headers split by newlines, however
           // `Fetch.fulfillRequest` (used for cached responses) will hang with newlines.
@@ -103,7 +100,7 @@ export function createRequestFinishedHandler(network, {
         });
 
         log.debug(`- sha: ${resource.sha}`, meta);
-        log.debug(`- mimetype: ${resourceMimeType}`, meta);
+        log.debug(`- mimetype: ${resource.mimetype}`, meta);
       }
 
       saveResource(resource);
