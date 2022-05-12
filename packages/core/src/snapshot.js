@@ -376,6 +376,7 @@ export async function* discoverSnapshotResources(percy, snapshot, callback) {
 
     if (snapshot.execute) {
       // when any execute options are provided, inject snapshot options
+      /* istanbul ignore next: cannot detect coverage of injected code */
       yield page.eval((_, s) => (window.__PERCY__.snapshot = s), snapshot);
       yield page.evaluate(snapshot.execute.afterNavigation);
     }
