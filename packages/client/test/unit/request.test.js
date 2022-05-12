@@ -164,6 +164,10 @@ describe('Unit / Request', () => {
     await expectAsync(request(server.address)).toBeResolvedTo('test');
   });
 
+  it('returns the successful response body as a buffer', async () => {
+    await expectAsync(request(server.address, { buffer: true })).toBeResolvedTo(Buffer.from('test'));
+  });
+
   it('accepts an incoming message handler', async () => {
     await expectAsync(request(server.address, (body, response) => {
       expect(response.statusCode).toBe(200);
