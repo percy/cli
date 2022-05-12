@@ -1,4 +1,6 @@
+import mime from 'mime-types';
 import logger from '@percy/logger';
+import { request as makeRequest } from '@percy/client/utils';
 import { normalizeURL, hostnameMatches, createResource } from './utils.js';
 
 const MAX_RESOURCE_SIZE = 15 * (1024 ** 2); // 15MB
@@ -79,7 +81,15 @@ export function createRequestFinishedHandler(network, {
           return log.debug(`- Skipping disallowed resource type [${request.type}]`, meta);
         }
 
-        resource = createResource(url, body, response.mimeType, {
+        // Try to get the proper mimetype if the server or asset discovery browser is sending `text/plain`
+        let mimeType = (response.mimeType === 'text/plain' && mime.lookup(response.url)) || response.mimeType;
+
+        if (mimeType?.includes('font')) {
+          // font responses from the browser may not be properly encoded, so request them directly
+          body = await makeRequest(response.url, { buffer: true });
+        }
+
+        resource = createResource(url, body, mimeType, {
           status: response.status,
           // 'Network.responseReceived' returns headers split by newlines, however
           // `Fetch.fulfillRequest` (used for cached responses) will hang with newlines.

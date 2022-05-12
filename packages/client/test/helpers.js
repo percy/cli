@@ -62,7 +62,7 @@ export class MockRequest extends EventEmitter {
 
       // maybe delay response data
       setTimeout(() => {
-        res.emit('data', data);
+        res.emit('data', Buffer.from(data));
         res.emit('end');
       }, this.delay);
     })();
