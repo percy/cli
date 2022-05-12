@@ -5,7 +5,7 @@ import Percy from '@percy/core';
 describe('Discovery', () => {
   let percy, server, captured;
 
-  let testDOM = dedent`
+  const testDOM = dedent`
     <html>
     <head><link href="style.css" rel="stylesheet"/></head>
     <body>
@@ -15,12 +15,12 @@ describe('Discovery', () => {
     </html>
   `;
 
-  let testCSS = dedent`
+  const testCSS = dedent`
     p { color: purple; }
   `;
 
   // http://png-pixel.com/
-  let pixel = Buffer.from('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', 'base64');
+  const pixel = Buffer.from('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', 'base64');
 
   beforeEach(async () => {
     captured = [];
@@ -377,22 +377,14 @@ describe('Discovery', () => {
   });
 
   it('does not mimetype parse resourced with no file extension', async () => {
-    testDOM = dedent`
-    <html>
-    <head><link href="broken-css" rel="stylesheet"/></head>
-    <body>
-      <p>Hello Percy!<p><img src="img.gif" decoding="async"/>
-      ${' '.repeat(1000)}
-    </body>
-    </html>
-  `;
+    let brokeDOM = testDOM.replace('style.css', 'broken-css');
     server.reply('/broken-css', () => [200, 'text/plain', testCSS]);
     percy.loglevel('debug');
 
     await percy.snapshot({
       name: 'test snapshot',
       url: 'http://localhost:8000',
-      domSnapshot: testDOM
+      domSnapshot: brokeDOM
     });
 
     await percy.idle();
