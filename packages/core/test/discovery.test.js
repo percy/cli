@@ -357,6 +357,25 @@ describe('Discovery', () => {
     );
   });
 
+  it('infers mime type when the CDP response mimetype is text/plain', async () => {
+    server.reply('/style.css', () => [200, 'text/plain', testCSS]);
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    });
+
+    await percy.idle();
+    let paths = server.requests.map(r => r[0]);
+    expect(paths).toContain('/style.css');
+
+    expect(logger.stderr).toContain(
+      '[percy:core:discovery] - mimetype: text/css'
+    );
+  });
+
   it('does not capture large files', async () => {
     server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(16_000_000)]);
     percy.loglevel('debug');
