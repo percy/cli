@@ -145,6 +145,20 @@ describe('Snapshot multiple', () => {
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual([]);
     });
+
+    it('can filter snapshots by name', async () => {
+      snapshots.push('/skip', '/do-not/skip');
+      await percy.snapshot({ baseUrl, snapshots, exclude: ['/skip'] });
+
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: home',
+        '[percy] Snapshot taken: /about',
+        '[percy] Snapshot taken: /blog',
+        '[percy] Snapshot taken: /blog (page 2)',
+        '[percy] Snapshot taken: /do-not/skip'
+      ]));
+    });
   });
 
   describe('sitemap syntax', () => {

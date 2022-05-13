@@ -37,7 +37,7 @@ describe('percy snapshot <directory>', () => {
   });
 
   it('starts a static server and snapshots matching files', async () => {
-    await snapshot(['./', '--include=test-*.html']);
+    await snapshot(['./', '--include=/test-*.html']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -88,7 +88,7 @@ describe('percy snapshot <directory>', () => {
       '  options:',
       '  - additionalSnapshots:',
       '    - suffix: " (2)"',
-      '  - include: "*-1.html"',
+      '  - include: "/*-1.html"',
       '    name: First'
     ].join('\n'));
 

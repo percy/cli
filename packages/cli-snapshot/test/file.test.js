@@ -161,7 +161,7 @@ describe('percy snapshot <file>', () => {
     ].join('\n'));
     /* eslint-enable no-template-curly-in-string */
 
-    await snapshot(['./lengthy.js', '--include=*2', '--exclude=[13579]']);
+    await snapshot(['./lengthy.js', '--include=*2', '--exclude=/[13579]/']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([

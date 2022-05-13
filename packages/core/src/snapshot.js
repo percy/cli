@@ -40,15 +40,13 @@ export function snapshotMatches(snapshot, include, exclude) {
     if (predicate && typeof predicate === 'string') {
       // snapshot name matches exactly or matches a glob
       let result = snapshot.name === predicate ||
-        micromatch.isMatch(snapshot.name, predicate, {
-          basename: !predicate.startsWith('/')
-        });
+        micromatch.isMatch(snapshot.name, predicate);
 
       // snapshot might match a string-based regexp pattern
       if (!result) {
         try {
-          let [, parsed = predicate, flags] = RE_REGEXP.exec(predicate) || [];
-          result = new RegExp(parsed, flags).test(snapshot.name);
+          let [, parsed, flags] = RE_REGEXP.exec(predicate) || [];
+          result = !!parsed && new RegExp(parsed, flags).test(snapshot.name);
         } catch {}
       }
 
@@ -212,14 +210,16 @@ export function getSnapshotConfig(percy, options) {
   }, options], (path, prev, next) => {
     switch (path.map(k => k.toString()).join('.')) {
       case 'widths': // dedup, sort, and override widths when not empty
-        return [path, next?.length ? Array.from(new Set(next)).sort((a, b) => a - b) : prev];
+        return [path, !next?.length ? prev : Array.from(new Set(next)).sort((a, b) => a - b)];
       case 'percyCSS': // concatenate percy css
         return [path, [prev, next].filter(Boolean).join('\n')];
       case 'execute': // shorthand for execute.beforeSnapshot
         return (Array.isArray(next) || typeof next !== 'object')
           ? [path.concat('beforeSnapshot'), next] : [path];
       case 'discovery.disallowedHostnames': // prevent disallowing the root hostname
-        return [path, (prev ?? []).concat(next).filter(h => !hostnameMatches(h, options.url))];
+        return [path, !next?.length ? prev : (
+          (prev ?? []).concat(next).filter(h => !hostnameMatches(h, options.url))
+        )];
     }
 
     // ensure additional snapshots have complete names
