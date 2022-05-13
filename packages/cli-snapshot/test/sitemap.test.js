@@ -75,7 +75,7 @@ describe('percy snapshot <sitemap>', () => {
       '  options:',
       '  - additionalSnapshots:',
       '    - suffix: " (2)"',
-      '  - include: "^/$"',
+      '  - include: /^\\/$/',
       '    name: Home'
     ].join('\n'));
 
