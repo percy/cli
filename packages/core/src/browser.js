@@ -68,26 +68,8 @@ export class Browser extends EventEmitter {
     '--remote-debugging-port=0'
   ];
 
-  constructor({
-    executable = process.env.PERCY_BROWSER_EXECUTABLE,
-    timeout = 30000,
-    headless = true,
-    cookies = [],
-    args = []
-  }) {
-    super();
-
-    this.launchTimeout = timeout;
-    this.executable = executable;
-    this.headless = headless;
-
-    /* istanbul ignore next: only false for debugging */
-    if (this.headless) this.args.push('--headless', '--hide-scrollbars', '--mute-audio');
-    for (let a of args) if (!this.args.includes(a)) this.args.push(a);
-
-    // transform cookies object to an array of cookie params
-    this.cookies = Array.isArray(cookies) ? cookies
-      : Object.entries(cookies).map(([name, value]) => ({ name, value }));
+  constructor(percy) {
+    super().percy = percy;
   }
 
   async launch() {
@@ -95,27 +77,32 @@ export class Browser extends EventEmitter {
     if (this.readyState != null) return;
     this.readyState = 0;
 
+    let { cookies = [], launchOptions = {} } = this.percy.config.discovery;
+    let { executable, headless = true, args = [], timeout } = launchOptions;
+
+    // transform cookies object to an array of cookie params
+    this.cookies = Array.isArray(cookies) ? cookies : (
+      Object.entries(cookies).map(([name, value]) => ({ name, value })));
+
     // check if any provided executable exists
-    if (this.executable && !fs.existsSync(this.executable)) {
-      this.log.error(`Browser executable not found: ${this.executable}`);
-      this.executable = null;
+    if (executable && !fs.existsSync(executable)) {
+      this.log.error(`Browser executable not found: ${executable}`);
+      executable = null;
     }
 
     // download and install the browser if not already present
-    this.executable ||= await install.chromium();
-    // create a temporary profile directory
-    this.profile = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'percy-browser-'));
-
-    // spawn the browser process detached in its own group and session
-    let args = this.args.concat(`--user-data-dir=${this.profile}`);
+    this.executable = executable || await install.chromium();
     this.log.debug('Launching browser');
 
-    this.process = spawn(this.executable, args, {
-      detached: process.platform !== 'win32'
-    });
+    // create a temporary profile directory and collect additional launch arguments
+    this.profile = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'percy-browser-'));
+    /* istanbul ignore next: only false for debugging */
+    if (headless) this.args.push('--headless', '--hide-scrollbars', '--mute-audio');
+    for (let a of args) if (!this.args.includes(a)) this.args.push(a);
+    this.args.push(`--user-data-dir=${this.profile}`);
 
-    // connect a websocket to the devtools address
-    this.ws = new WebSocket(await this.address(), { perMessageDeflate: false });
+    // spawn the browser process and connect a websocket to the devtools address
+    this.ws = new WebSocket(await this.spawn(timeout), { perMessageDeflate: false });
 
     // wait until the websocket has connected
     await new Promise(resolve => this.ws.once('open', resolve));
@@ -231,11 +218,14 @@ export class Browser extends EventEmitter {
     }
   }
 
-  // Returns the devtools websocket address. If not already known, will watch the browser's
-  // stderr and resolves when it emits the devtools protocol address or rejects if the process
-  // exits for any reason or if the address does not appear after the timeout.
-  async address(timeout = this.launchTimeout) {
-    this._address ||= await new Promise((resolve, reject) => {
+  async spawn(timeout = 30000) {
+    // spawn the browser process detached in its own group and session
+    this.process = spawn(this.executable, this.args, {
+      detached: process.platform !== 'win32'
+    });
+
+    // watch the process stderr and resolve when it emits the devtools protocol address
+    this.address = await new Promise((resolve, reject) => {
       let stderr = '';
 
       let handleData = chunk => {
@@ -268,7 +258,7 @@ export class Browser extends EventEmitter {
       this.process.on('error', handleError);
     });
 
-    return this._address;
+    return this.address;
   }
 
   _handleMessage(data) {

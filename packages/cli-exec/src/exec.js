@@ -58,7 +58,7 @@ export const exec = command('exec', {
     try {
       yield* percy.yield.start();
     } catch (error) {
-      if (error.canceled) throw error;
+      if (error.name === 'AbortError') throw error;
       log.warn('Skipping visual tests');
       log.error(error);
     }

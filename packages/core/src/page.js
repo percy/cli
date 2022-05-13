@@ -1,14 +1,13 @@
 import fs from 'fs';
 import logger from '@percy/logger';
 import Network from './network.js';
-
+import { PERCY_DOM } from './api.js';
 import {
   hostname,
-  generatePromise,
-  waitFor
+  waitFor,
+  waitForTimeout as sleep,
+  serializeFunction
 } from './utils.js';
-
-import { PERCY_DOM } from './api.js';
 
 export class Page {
   static TIMEOUT = 30000;
@@ -17,6 +16,7 @@ export class Page {
 
   constructor(session, options) {
     this.session = session;
+    this.browser = session.browser;
     this.enableJavaScript = options.enableJavaScript ?? true;
     this.network = new Network(this, options);
     this.meta = options.meta;
@@ -84,10 +84,7 @@ export class Page {
     try {
       // trigger navigation and poll for handlers to have finished
       await Promise.all([navigate(), waitFor(() => {
-        if (this.session.closedReason) {
-          throw new Error(this.session.closedReason);
-        }
-
+        if (this.session.closedReason) throw new Error(this.session.closedReason);
         return handlers.every(handler => handler.finished);
       }, Page.TIMEOUT)]);
     } catch (error) {
@@ -104,38 +101,9 @@ export class Page {
 
   // Evaluate JS functions within the page's execution context
   async eval(fn, ...args) {
-    let fnbody = fn.toString();
-
-    // we might have a function shorthand if this fails
-    /* eslint-disable-next-line no-new, no-new-func */
-    try { new Function(`(${fnbody})`); } catch (error) {
-      fnbody = fnbody.startsWith('async ')
-        ? fnbody.replace(/^async/, 'async function')
-        : `function ${fnbody}`;
-
-      /* eslint-disable-next-line no-new, no-new-func */
-      try { new Function(`(${fnbody})`); } catch (error) {
-        throw new Error('The provided function is not serializable');
-      }
-    }
-
-    // wrap the function body with percy helpers
-    fnbody = 'function withPercyHelpers() {\n' + [
-      `return (${fnbody})({ generatePromise, waitFor }, ...arguments);`,
-      `${generatePromise}`,
-      `${waitFor}`
-    ].join('\n\n') + '}';
-
-    /* istanbul ignore else: ironic. */
-    if (fnbody.includes('cov_')) {
-      // remove coverage statements during testing
-      fnbody = fnbody.replace(/cov_.*?(;\n?|,)\s*/g, '');
-    }
-
-    // send the call function command
     let { result, exceptionDetails } =
       await this.session.send('Runtime.callFunctionOn', {
-        functionDeclaration: fnbody,
+        functionDeclaration: serializeFunction(fn),
         arguments: args.map(value => ({ value })),
         executionContextId: this.contextId,
         returnByValue: true,
@@ -152,18 +120,9 @@ export class Page {
 
   // Evaluate one or more scripts in succession
   async evaluate(scripts) {
-    scripts &&= [].concat(scripts);
-    if (!scripts?.length) return;
-
+    if (!(scripts &&= [].concat(scripts))?.length) return;
     this.log.debug('Evaluate JavaScript', { ...this.meta, scripts });
-
-    for (let script of scripts) {
-      if (typeof script === 'string') {
-        script = `async eval() {\n${script}\n}`;
-      }
-
-      await this.eval(script);
-    }
+    for (let script of scripts) await this.eval(script);
   }
 
   // Take a snapshot after waiting for any timeout, waiting for any selector, executing any scripts,
@@ -173,6 +132,7 @@ export class Page {
     waitForTimeout,
     waitForSelector,
     execute,
+    meta,
     ...options
   }) {
     this.log.debug(`Taking snapshot: ${name}`, this.meta);
@@ -180,24 +140,20 @@ export class Page {
     // wait for any specified timeout
     if (waitForTimeout) {
       this.log.debug(`Wait for ${waitForTimeout}ms timeout`, this.meta);
-      await new Promise(resolve => setTimeout(resolve, waitForTimeout));
+      await sleep(waitForTimeout);
     }
 
     // wait for any specified selector
     if (waitForSelector) {
       this.log.debug(`Wait for selector: ${waitForSelector}`, this.meta);
-
-      /* istanbul ignore next: no instrumenting injected code */
-      await this.eval(function waitForSelector({ waitFor }, selector, timeout) {
-        return waitFor(() => !!document.querySelector(selector), timeout)
-          .catch(() => Promise.reject(new Error(`Failed to find "${selector}"`)));
-      }, waitForSelector, Page.TIMEOUT);
+      await this.eval(`await waitForSelector(${JSON.stringify(waitForSelector)}, ${Page.TIMEOUT})`);
     }
 
     // execute any javascript
-    await this.evaluate(
-      typeof execute === 'object' && !Array.isArray(execute)
-        ? execute.beforeSnapshot : execute);
+    if (execute) {
+      let execBefore = typeof execute === 'object' && !Array.isArray(execute);
+      await this.evaluate(execBefore ? execute.beforeSnapshot : execute);
+    }
 
     // wait for any final network activity before capturing the dom snapshot
     await this.network.idle();
@@ -254,6 +210,11 @@ export class Page {
   _handleExecutionContextCreated = event => {
     if (this.session.targetId === event.context.auxData.frameId) {
       this.contextId = event.context.id;
+
+      // inject global percy config as soon as possible
+      this.eval(`window.__PERCY__ = ${
+        JSON.stringify({ config: this.browser.percy.config })
+      };`).catch(this.session._handleClosedError);
     }
   }
 

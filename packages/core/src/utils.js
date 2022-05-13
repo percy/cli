@@ -1,3 +1,4 @@
+import EventEmitter from 'events';
 import { sha256hash } from '@percy/client/utils';
 
 export {
@@ -40,80 +41,159 @@ export function createLogResource(logs) {
   return createResource(`/percy.${Date.now()}.log`, JSON.stringify(logs), 'text/plain');
 }
 
-// Creates a thennable, cancelable, generator instance
-export function generatePromise(gen) {
-  // ensure a generator is provided
-  if (typeof gen === 'function') gen = gen();
-  if (typeof gen?.then === 'function') return gen;
-  if (typeof gen?.next !== 'function' || !(
-    typeof gen[Symbol.iterator] === 'function' ||
-    typeof gen[Symbol.asyncIterator] === 'function'
-  )) return Promise.resolve(gen);
+// Iterates over the provided generator and resolves to the final value when done. With an
+// AbortSignal, the generator will throw with the abort reason when aborted. Also accepts an
+// optional node-style callback, called before the returned promise resolves.
+export async function generatePromise(gen, signal, cb) {
+  try {
+    if (typeof signal === 'function') [cb, signal] = [signal];
+    if (typeof gen === 'function') gen = await gen();
 
-  // used to trigger cancelation
-  class Canceled extends Error {
-    name = 'Canceled';
-    canceled = true;
+    let { done, value } = (typeof gen?.next === 'function' && (
+      typeof gen[Symbol.iterator] === 'function' ||
+      typeof gen[Symbol.asyncIterator] === 'function'
+    )) ? await gen.next() : { done: true, value: await gen };
+
+    while (!done) {
+      ({ done, value } = signal?.aborted
+        ? await gen.throw(signal.reason)
+        : await gen.next(value));
+    }
+
+    if (!cb) return value;
+    return cb(null, value);
+  } catch (error) {
+    if (!cb) throw error;
+    return cb(error);
   }
-
-  // recursively runs the generator, maybe throwing an error when canceled
-  let handleNext = async (g, last) => {
-    let canceled = g.cancel.triggered;
-
-    let { done, value } = canceled
-      ? await g.throw(canceled)
-      : await g.next(last);
-
-    if (canceled) delete g.cancel.triggered;
-    return done ? value : handleNext(g, value);
-  };
-
-  // handle cancelation errors by calling any cancel handlers
-  let cancelable = (async function*() {
-    try { return yield* gen; } catch (error) {
-      if (error.canceled) {
-        let cancelers = cancelable.cancelers || [];
-        for (let c of cancelers) await c(error);
-      }
-
-      throw error;
-    }
-  })();
-
-  // augment the cancelable generator with promise-like and cancel methods
-  return Object.assign(cancelable, {
-    run: () => (cancelable.promise ||= handleNext(cancelable)),
-    then: (resolve, reject) => cancelable.run().then(resolve, reject),
-    catch: reject => cancelable.run().catch(reject),
-    cancel: message => {
-      cancelable.cancel.triggered = new Canceled(message);
-      return cancelable;
-    },
-    canceled: handler => {
-      (cancelable.cancelers ||= []).push(handler);
-      return cancelable;
-    }
-  });
 }
 
-// Resolves when the predicate function returns true within the timeout. If an idle option is
-// provided, the predicate will be checked again before resolving, after the idle period. The poll
-// option determines how often the predicate check will be run.
-export function waitFor(predicate, options) {
-  let { poll = 10, timeout, idle } = Number.isInteger(options)
-    ? { timeout: options } : (options || {});
+// Bare minimum AbortController polyfill for Node < 16.14
+export class AbortController {
+  signal = new EventEmitter();
+  abort(reason = new AbortError()) {
+    if (this.signal.aborted) return;
+    Object.assign(this.signal, { reason, aborted: true });
+    this.signal.emit('abort', reason);
+  }
+}
 
-  return generatePromise(async function* check(start, done) {
-    while (true) {
-      if (timeout && Date.now() - start >= timeout) {
-        throw new Error(`Timeout of ${timeout}ms exceeded.`);
-      } else if (!predicate()) {
-        yield new Promise(r => setTimeout(r, poll, (done = false)));
-      } else if (idle && !done) {
-        yield new Promise(r => setTimeout(r, idle, (done = true)));
-      } else {
-        return;
-      }
+// Similar to DOMException[AbortError] but accepts additional properties
+export class AbortError extends Error {
+  constructor(msg = 'This operation was aborted', props) {
+    Object.assign(super(msg), { name: 'AbortError', ...props });
+  }
+}
+
+// An async generator that infinitely yields to the predicate function until a truthy value is
+// returned. When a timeout is provided, an error will be thrown during the next iteration after the
+// timeout has been exceeded. If an idle option is provided, the predicate will be yielded to a
+// second time, after the idle period, to ensure the yielded value is still truthy. The poll option
+// determines how long to wait before yielding to the predicate function during each iteration.
+export async function* yieldFor(predicate, options = {}) {
+  if (Number.isInteger(options)) options = { timeout: options };
+  let { timeout, idle, poll = 10 } = options;
+  let start = Date.now();
+  let done, value;
+
+  while (true) {
+    if (timeout && Date.now() - start >= timeout) {
+      throw new Error(`Timeout of ${timeout}ms exceeded.`);
+    } else if (!(value = yield predicate())) {
+      done = await waitForTimeout(poll, false);
+    } else if (idle && !done) {
+      done = await waitForTimeout(idle, true);
+    } else {
+      return value;
     }
-  }(Date.now()));
+  }
+}
+
+// Promisified version of `yieldFor` above.
+export function waitFor() {
+  return generatePromise(yieldFor(...arguments));
+}
+
+// Promisified version of `setTimeout` (no callback argument).
+export function waitForTimeout() {
+  return new Promise(resolve => setTimeout(resolve, ...arguments));
+}
+
+// Browser-specific util to wait for a query selector to exist within an optional timeout.
+/* istanbul ignore next: tested, but coverage is stripped */
+async function waitForSelector(selector, timeout) {
+  try {
+    return await waitFor(() => document.querySelector(selector), timeout);
+  } catch {
+    throw new Error(`Unable to find: ${selector}`);
+  }
+}
+
+// Browser-specific util to wait for an xpath selector to exist within an optional timeout.
+/* istanbul ignore next: tested, but coverage is stripped */
+async function waitForXPath(selector, timeout) {
+  try {
+    let xpath = () => document.evaluate(selector, document, null, 9, null);
+    return await waitFor(() => xpath().singleNodeValue, timeout);
+  } catch {
+    throw new Error(`Unable to find: ${selector}`);
+  }
+}
+
+// Browser-specific util to scroll to the bottom of a page, optionally calling the provided function
+// after each window segment has been scrolled.
+/* istanbul ignore next: tested, but coverage is stripped */
+async function scrollToBottom(options, onScroll) {
+  if (typeof options === 'function') [onScroll, options] = [options];
+  let size = () => Math.ceil(document.body.scrollHeight / window.innerHeight);
+
+  for (let s, i = 1; i < (s = size()); i++) {
+    window.scrollTo({ ...options, top: window.innerHeight * i });
+    await onScroll?.(i, s);
+  }
+}
+
+// Serializes the provided function with percy helpers for use in evaluating browser scripts
+export function serializeFunction(fn) {
+  let fnbody = typeof fn === 'string'
+    ? `async eval() {\n${fn}\n}`
+    : fn.toString();
+
+  // we might have a function shorthand if this fails
+  /* eslint-disable-next-line no-new, no-new-func */
+  try { new Function(`(${fnbody})`); } catch (error) {
+    fnbody = fnbody.startsWith('async ')
+      ? fnbody.replace(/^async/, 'async function')
+      : `function ${fnbody}`;
+
+    /* eslint-disable-next-line no-new, no-new-func */
+    try { new Function(`(${fnbody})`); } catch (error) {
+      throw new Error('The provided function is not serializable');
+    }
+  }
+
+  // wrap the function body with percy helpers
+  fnbody = 'function withPercyHelpers() {\n' + [
+    'const { config, snapshot } = window.__PERCY__ ?? {};',
+    `return (${fnbody})({`,
+    '  config, snapshot, generatePromise, yieldFor,',
+    '  waitFor, waitForTimeout, waitForSelector, waitForXPath,',
+    '  scrollToBottom',
+    '}, ...arguments);',
+    `${generatePromise}`,
+    `${yieldFor}`,
+    `${waitFor}`,
+    `${waitForTimeout}`,
+    `${waitForSelector}`,
+    `${waitForXPath}`,
+    `${scrollToBottom}`
+  ].join('\n') + '\n}';
+
+  /* istanbul ignore else: ironic. */
+  if (fnbody.includes('cov_')) {
+    // remove coverage statements during testing
+    fnbody = fnbody.replace(/cov_.*?(;\n?|,)\s*/g, '');
+  }
+
+  return fnbody;
 }
