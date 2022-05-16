@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-snapshot",
-  "version": "1.1.4",
+  "version": "1.2.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -32,7 +32,7 @@
     ]
   },
   "dependencies": {
-    "@percy/cli-command": "1.1.4",
+    "@percy/cli-command": "1.2.0",
     "yaml": "^2.0.0"
   }
 }
