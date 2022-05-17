@@ -180,7 +180,7 @@ export async function getSitemapSnapshots(options) {
     }
 
     // parse XML content into a list of URLs
-    let urls = body.match(/(?<=<loc>)(.*)(?=<\/loc>)/ig) ?? [];
+    let urls = body.match(/(?<=<loc>)(.*?)(?=<\/loc>)/ig) ?? [];
 
     // filter out duplicate URLs that differ by a trailing slash
     return urls.filter((url, i) => {
