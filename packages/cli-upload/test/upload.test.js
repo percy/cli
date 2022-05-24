@@ -84,6 +84,7 @@ describe('percy upload', () => {
         attributes: {
           name: 'test-1.png',
           widths: [10],
+          scope: null,
           'minimum-height': 10,
           'enable-javascript': null
         },

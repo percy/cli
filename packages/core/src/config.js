@@ -25,6 +25,9 @@ export const configSchema = {
       },
       enableJavaScript: {
         type: 'boolean'
+      },
+      scope: {
+        type: 'string'
       }
     }
   },
@@ -130,6 +133,7 @@ export const snapshotSchema = {
       type: 'object',
       properties: {
         widths: { $ref: '/config/snapshot#/properties/widths' },
+        scope: { $ref: '/config/snapshot#/properties/scope' },
         minHeight: { $ref: '/config/snapshot#/properties/minHeight' },
         percyCSS: { $ref: '/config/snapshot#/properties/percyCSS' },
         enableJavaScript: { $ref: '/config/snapshot#/properties/enableJavaScript' },

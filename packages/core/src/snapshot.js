@@ -254,6 +254,7 @@ function debugSnapshotConfig(snapshot, showInfo) {
   };
 
   debugProp(snapshot, 'url');
+  debugProp(snapshot, 'scope');
   debugProp(snapshot, 'widths', v => `${v}px`);
   debugProp(snapshot, 'minHeight', v => `${v}px`);
   debugProp(snapshot, 'enableJavaScript');
