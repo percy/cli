@@ -480,6 +480,7 @@ describe('PercyClient', () => {
       await expectAsync(client.createSnapshot(123, {
         name: 'snapfoo',
         widths: [1000],
+        scope: '#main',
         minHeight: 1000,
         enableJavaScript: true,
         clientInfo: 'sdk/info',
@@ -506,6 +507,7 @@ describe('PercyClient', () => {
           attributes: {
             name: 'snapfoo',
             widths: [1000],
+            scope: '#main',
             'minimum-height': 1000,
             'enable-javascript': true
           },
@@ -537,6 +539,7 @@ describe('PercyClient', () => {
           attributes: {
             name: null,
             widths: null,
+            scope: null,
             'minimum-height': null,
             'enable-javascript': null
           },
@@ -597,6 +600,7 @@ describe('PercyClient', () => {
           type: 'snapshots',
           attributes: {
             name: 'test snapshot name',
+            scope: null,
             'enable-javascript': null,
             'minimum-height': null,
             widths: null
