@@ -25,6 +25,7 @@ describe('Discovery', () => {
   beforeEach(async () => {
     captured = [];
     await setupTest();
+    delete process.env.PERCY_BROWSER_EXECUTABLE;
 
     api.reply('/builds/123/snapshots', ({ body }) => {
       // resource order is not important, stabilize it for testing
@@ -1238,6 +1239,19 @@ describe('Discovery', () => {
 
       expect(logger.stderr).toEqual([
         '[percy] Browser executable not found: ./404'
+      ]);
+    });
+
+    it('can provide an executable via an environment variable', async () => {
+      process.env.PERCY_BROWSER_EXECUTABLE = './from-var';
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] }
+      });
+
+      expect(logger.stderr).toEqual([
+        '[percy] Browser executable not found: ./from-var'
       ]);
     });
 
