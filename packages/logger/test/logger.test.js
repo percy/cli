@@ -187,7 +187,7 @@ describe('logger', () => {
 
     it('does not colorize formatted messages', () => {
       expect(log.format('warn', 'level')).toEqual('[percy] level');
-      expect(log.format('error', 'level')).toEqual(`[percy] level`);
+      expect(log.format('error', 'level')).toEqual('[percy] level');
       expect(logger.format('other', 'error', 'elapsed', 100)).toEqual('[percy] elapsed');
 
       log.loglevel('debug');
