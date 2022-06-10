@@ -9,6 +9,7 @@ describe('logger', () => {
     await helpers.mock({ ansi: true });
     inst = logger.instance;
     log = logger('test');
+    logger.stdout.isTTY = true;
   });
 
   afterEach(() => {
@@ -171,6 +172,31 @@ describe('logger', () => {
     expect(logger.stderr).toBe(logger.constructor.stderr);
   });
 
+  describe('without a TTY', () => {
+    beforeEach(() => {
+      logger.stdout.isTTY = false;
+    });
+
+    it('does not highlight info URLs', () => {
+      log.info('URL: https://percy.io');
+
+      expect(helpers.stdout).toEqual([
+        '[percy] URL: https://percy.io'
+      ]);
+    });
+
+    it('does not colorize formatted messages', () => {
+      expect(log.format('warn', 'level')).toEqual('[percy] level');
+      expect(log.format('error', 'level')).toEqual(`[percy] level`);
+      expect(logger.format('other', 'error', 'elapsed', 100)).toEqual('[percy] elapsed');
+
+      log.loglevel('debug');
+
+      expect(log.format('error', 'level')).toEqual('[percy:test] level');
+      expect(logger.format('other', 'warn', 'elapsed', 100)).toEqual('[percy:other] elapsed (100ms)');
+    });
+  });
+
   describe('levels', () => {
     it('can be initially set by defining PERCY_LOGLEVEL', () => {
       helpers.reset();
@@ -280,7 +306,7 @@ describe('logger', () => {
 
     it('enables debug logging when PERCY_DEBUG is defined', async () => {
       process.env.PERCY_DEBUG = '*';
-      await helpers.mock({ ansi: true });
+      await helpers.mock({ ansi: true, isTTY: true });
 
       logger('test').debug('Debug log');
 
@@ -292,7 +318,7 @@ describe('logger', () => {
 
     it('filters specific logs for debugging', async () => {
       process.env.PERCY_DEBUG = 'test:*,-test:2,';
-      await helpers.mock({ ansi: true });
+      await helpers.mock({ ansi: true, isTTY: true });
 
       logger('test').debug('Debug test');
       logger('test:1').debug('Debug test 1');
@@ -401,7 +427,7 @@ describe('logger', () => {
         log.progress('baz');
 
         expect(stdout.cursorTo).not.toHaveBeenCalled();
-        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] foo\n`);
+        expect(stdout.write).toHaveBeenCalledWith('[percy] foo\n');
         expect(stdout.clearLine).not.toHaveBeenCalled();
       });
 
@@ -413,10 +439,10 @@ describe('logger', () => {
 
         expect(stdout.cursorTo).not.toHaveBeenCalled();
         expect(stdout.clearLine).not.toHaveBeenCalled();
-        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] bar\n`);
+        expect(stdout.write).toHaveBeenCalledWith('[percy] bar\n');
       });
 
-      it('ignores consecutive persistant logs after the first', () => {
+      it('ignores consecutive persistent logs after the first', () => {
         log.progress('foo', true);
         log.info('bar');
         log.progress('baz', true);
@@ -424,10 +450,10 @@ describe('logger', () => {
 
         expect(stdout.cursorTo).not.toHaveBeenCalled();
         expect(stdout.write).toHaveBeenCalledTimes(3);
-        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] foo\n`);
-        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] bar\n`);
-        expect(stdout.write).not.toHaveBeenCalledWith(`[${colors.magenta('percy')}] baz\n`);
-        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] qux\n`);
+        expect(stdout.write).toHaveBeenCalledWith('[percy] foo\n');
+        expect(stdout.write).toHaveBeenCalledWith('[percy] bar\n');
+        expect(stdout.write).not.toHaveBeenCalledWith('[percy] baz\n');
+        expect(stdout.write).toHaveBeenCalledWith('[percy] qux\n');
         expect(stdout.clearLine).not.toHaveBeenCalled();
       });
     });

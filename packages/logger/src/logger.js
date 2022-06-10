@@ -112,21 +112,21 @@ export class PercyLogger {
 
       // include elapsed time since last log
       if (elapsed != null) {
-        suffix = ' ' + colors.grey(`(${elapsed}ms)`);
+        suffix = ' ' + this.colorize(`(${elapsed}ms)`, colors.grey);
       }
     }
 
-    label = colors.magenta(label);
+    label = this.colorize(label, colors.magenta);
 
     if (level === 'error') {
       // red errors
-      message = colors.red(message);
+      message = this.colorize(message, colors.red);
     } else if (level === 'warn') {
       // yellow warnings
-      message = colors.yellow(message);
+      message = this.colorize(message, colors.yellow);
     } else if (level === 'info' || level === 'debug') {
       // blue info and debug URLs
-      message = message.replace(URL_REGEXP, colors.blue('$&'));
+      message = message.replace(URL_REGEXP, this.colorize('$&', colors.blue));
     }
 
     return `[${label}] ${message}${suffix}`;
@@ -199,6 +199,10 @@ export class PercyLogger {
     (level === 'info' ? stdout : stderr).write(message + '\n');
     if (!this._progress?.persist) delete this._progress;
     else if (progress) stdout.write(progress.message);
+  }
+
+  colorize(message, color) {
+    return this.constructor.stdout.isTTY ? color(message) : message;
   }
 }
 
