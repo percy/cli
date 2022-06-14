@@ -11,7 +11,8 @@ Object.defineProperties(logger, {
   instance: { get: () => new Logger() },
   query: { value: (...args) => logger.instance.query(...args) },
   format: { value: (...args) => logger.instance.format(...args) },
-  loglevel: { value: (...args) => logger.instance.loglevel(...args) }
+  loglevel: { value: (...args) => logger.instance.loglevel(...args) },
+  setWriter: { value: (...args) => logger.instance.setWriter(...args) }
 });
 
 export default logger;

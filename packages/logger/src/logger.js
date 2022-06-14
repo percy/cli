@@ -21,6 +21,9 @@ export class PercyLogger {
   // track deprecations to limit noisy logging
   deprecations = new Set();
 
+  // optional function to override the default write method
+  writer = null;
+
   // static vars can be overriden for testing
   static stdout = process.stdout;
   static stderr = process.stderr;
@@ -43,6 +46,11 @@ export class PercyLogger {
   loglevel(level) {
     if (level) this.level = level;
     return this.level;
+  }
+
+  // Set a function that would be responsible for writing the log message
+  setWriter(writer) {
+    this.writer = writer;
   }
 
   // Change namespaces by generating an array of namespace regular expressions from a
@@ -83,6 +91,7 @@ export class PercyLogger {
         progress: this.progress.bind(this, name),
         format: this.format.bind(this, name),
         loglevel: this.loglevel.bind(this),
+        setWriter: this.setWriter.bind(this),
         stdout: this.constructor.stdout,
         stderr: this.constructor.stderr
       });
@@ -181,7 +190,13 @@ export class PercyLogger {
     if (this.shouldLog(debug, level)) {
       if (err && this.level !== 'debug') message = err;
       let elapsed = timestamp - (this.lastlog || timestamp);
-      this.write(level, this.format(debug, err ? 'error' : level, message, elapsed));
+
+      if (this.writer) {
+        this.writer(level, debug, message, meta, timestamp, this);
+      } else {
+        this.write(level, this.format(debug, err ? 'error' : level, message, elapsed));
+      }
+
       this.lastlog = timestamp;
     }
   }

@@ -432,4 +432,24 @@ describe('logger', () => {
       });
     });
   });
+
+  describe('custom writer', () => {
+    let writer;
+
+    beforeEach(() => {
+      log = logger('custom');
+      writer = jasmine.createSpy('writer');
+
+      logger.setWriter(writer);
+
+      log.info('info message');
+      log.error('error message', { name: 'test' });
+    });
+
+    it('calls custom writer with data to log', () => {
+      expect(writer).toHaveBeenCalledTimes(2);
+      expect(writer).toHaveBeenCalledWith('info', 'custom', 'info message', {}, jasmine.any(Number), inst);
+      expect(writer).toHaveBeenCalledWith('error', 'custom', 'error message', { name: 'test' }, jasmine.any(Number), inst);
+    });
+  });
 });
