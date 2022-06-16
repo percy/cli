@@ -516,7 +516,7 @@ describe('Discovery', () => {
 
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy:core:page] Page created',
-      '[percy:core:page] Resize page to 400x1024',
+      '[percy:core:page] Resize page to 400x1024 at 1x scale',
       '[percy:core:page] Navigate to: http://localhost:8000/',
       '[percy:core:discovery] Handling request: http://localhost:8000/',
       '[percy:core:discovery] - Serving root resource',
@@ -530,7 +530,7 @@ describe('Discovery', () => {
       '[percy:core:discovery] - mimetype: image/gif',
       '[percy:core:page] Page navigated',
       '[percy:core:network] Wait for 100ms idle',
-      '[percy:core:page] Resize page to 1200x1024',
+      '[percy:core:page] Resize page to 1200x1024 at 1x scale',
       '[percy:core:network] Wait for 100ms idle',
       '[percy:core:page] Page closed'
     ]));
@@ -626,6 +626,45 @@ describe('Discovery', () => {
       resource('/img-800w.gif'),
       resource('/img-bg-1.gif'),
       resource('/img-bg-2.gif')
+    ]));
+  });
+
+  it('captures responsive assets at higher pixel densities', async () => {
+    let responsiveDOM = dedent`
+      <html>
+      <head></head>
+      <body>
+        <p>Hello Percy!<p>
+        <img srcset="/img-normal.png, /img-2x.png 2x"
+             src="img-normal.png">
+      </body>
+      </html>
+    `;
+
+    server.reply('/', () => [200, 'text/html', responsiveDOM]);
+    server.reply('/img-normal.png', () => [200, 'image/png', pixel]);
+    server.reply('/img-2x.png', () => new Promise(r => (
+      setTimeout(r, 200, [200, 'image/png', pixel]))));
+
+    await percy.snapshot({
+      name: 'test responsive',
+      url: 'http://localhost:8000',
+      domSnapshot: responsiveDOM,
+      deviceScaleFactor: 2,
+      widths: [400, 800]
+    });
+
+    await percy.idle();
+
+    let resource = path => jasmine.objectContaining({
+      attributes: jasmine.objectContaining({
+        'resource-url': `http://localhost:8000${path}`
+      })
+    });
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      resource('/img-normal.png'),
+      resource('/img-2x.png')
     ]));
   });
 

@@ -28,6 +28,10 @@ export const configSchema = {
       },
       scope: {
         type: 'string'
+      },
+      deviceScaleFactor: {
+        type: 'integer',
+        default: 1
       }
     }
   },
@@ -137,6 +141,7 @@ export const snapshotSchema = {
         minHeight: { $ref: '/config/snapshot#/properties/minHeight' },
         percyCSS: { $ref: '/config/snapshot#/properties/percyCSS' },
         enableJavaScript: { $ref: '/config/snapshot#/properties/enableJavaScript' },
+        deviceScaleFactor: { $ref: '/config/snapshot#/properties/deviceScaleFactor' },
         discovery: {
           type: 'object',
           additionalProperties: false,
