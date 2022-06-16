@@ -22,10 +22,16 @@
   "main": "./dist/index.js",
   "browser": "./dist/bundle.js",
   "exports": {
-    ".": "./dist/index.js",
+    ".": {
+      "node": "./dist/index.js",
+      "default": "./dist/bundle.js"
+    },
     "./test/server": "./test/server.js",
     "./test/client": "./test/client.js",
-    "./test/helpers": "./test/helpers.js"
+    "./test/helpers": {
+      "node": "./test/helpers.js",
+      "default": "./test/client.js"
+    }
   },
   "scripts": {
     "build": "node ../../scripts/build",
