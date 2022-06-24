@@ -35,14 +35,9 @@ export class Page {
     this.log.debug('Page closed', this.meta);
   }
 
-  async reload() {
-    await this.session.send('Page.reload');
-    this.log.debug('Page reloaded', this.meta);
-  }
-
   // Resize the page to the specified width and height
   async resize({ width, height, deviceScaleFactor = 1, mobile = false }) {
-    this.log.debug(`Resize page to ${width}x${height} at ${deviceScaleFactor}x scale`);
+    this.log.debug(`Resize page to ${width}x${height} @${deviceScaleFactor}x`);
 
     await this.session.send('Emulation.setDeviceMetricsOverride', {
       deviceScaleFactor,

@@ -324,10 +324,9 @@ function waitForDiscoveryNetworkIdle(page, options) {
 // Used to cache resources across core instances
 const RESOURCE_CACHE_KEY = Symbol('resource-cache');
 
-function* triggerResourceRequests(page, snapshot) {
+function* triggerResourceRequests(page, pixelRatioPage, snapshot) {
   // copy widths to prevent mutation later
-  let widths = snapshot.widths.slice();
-  let initialWidth = widths.shift();
+  let [initialWidth, ...widths] = snapshot.widths;
 
   // set the initial page size
   yield page.resize({
@@ -347,19 +346,27 @@ function* triggerResourceRequests(page, snapshot) {
 
   // resize and set pixel ratio for higher density images
   if (snapshot.deviceScaleFactor !== 1) {
-    yield waitForDiscoveryNetworkIdle(page, snapshot.discovery);
-    yield page.evaluate(snapshot.execute?.beforeResize);
+    // yield waitForDiscoveryNetworkIdle(page, snapshot.discovery);
+    yield pixelRatioPage.goto(snapshot.url);
 
-    yield page.resize({
+    if (snapshot.execute) {
+      // when any execute options are provided, inject snapshot options
+      /* istanbul ignore next: cannot detect coverage of injected code */
+      yield page.eval((_, s) => (window.__PERCY__.snapshot = s), snapshot);
+      yield page.evaluate(snapshot.execute.afterNavigation);
+    }
+
+    yield pixelRatioPage.evaluate(snapshot.execute?.beforeResize);
+    yield pixelRatioPage.resize({
       mobile: true,
       width: initialWidth,
       height: snapshot.minHeight,
       deviceScaleFactor: snapshot.deviceScaleFactor
     });
 
-    yield page.reload();
-    yield waitForDiscoveryNetworkIdle(page, snapshot.discovery);
-    yield page.evaluate(snapshot.execute?.afterResize);
+    // revisit to ensure mobile assets are loaded
+    yield waitForDiscoveryNetworkIdle(pixelRatioPage, snapshot.discovery);
+    yield pixelRatioPage.evaluate(snapshot.execute?.afterResize);
   }
 
   // trigger resize events for other widths
@@ -371,19 +378,18 @@ function* triggerResourceRequests(page, snapshot) {
 
     // resize and set pixel ratio for higher density images
     if (snapshot.deviceScaleFactor !== 1) {
-      yield waitForDiscoveryNetworkIdle(page, snapshot.discovery);
-      yield page.evaluate(snapshot.execute?.beforeResize);
+      yield waitForDiscoveryNetworkIdle(pixelRatioPage, snapshot.discovery);
+      yield pixelRatioPage.evaluate(snapshot.execute?.beforeResize);
 
-      yield page.resize({
+      yield pixelRatioPage.resize({
         width,
         mobile: true,
         height: snapshot.minHeight,
         deviceScaleFactor: snapshot.deviceScaleFactor
       });
 
-      yield page.reload();
-    } else {
-      yield waitForDiscoveryNetworkIdle(page, snapshot.discovery);
+      yield pixelRatioPage.evaluate(snapshot.execute?.afterResize);
+      yield waitForDiscoveryNetworkIdle(pixelRatioPage, snapshot.discovery);
     }
   }
 }
@@ -409,7 +415,7 @@ export async function* discoverSnapshotResources(percy, snapshot, callback) {
   ));
 
   // open a new browser page
-  let page = yield percy.browser.page({
+  let pageOptions = {
     enableJavaScript: snapshot.enableJavaScript ?? !snapshot.domSnapshot,
     networkIdleTimeout: snapshot.discovery.networkIdleTimeout,
     requestHeaders: snapshot.discovery.requestHeaders,
@@ -426,10 +432,14 @@ export async function* discoverSnapshotResources(percy, snapshot, callback) {
       getResource: u => resources.get(u) || cache.get(u),
       saveResource: r => resources.set(r.url, r) && cache.set(r.url, r)
     }
-  });
+  };
+
+  let page = yield percy.browser.page(pageOptions);
+  // @TODO create this conditionally?
+  let pixelRatioPage = yield percy.browser.page(pageOptions);
 
   try {
-    yield* triggerResourceRequests(page, snapshot);
+    yield* triggerResourceRequests(page, pixelRatioPage, snapshot);
 
     if (snapshot.domSnapshot) {
       // ensure discovery has finished and handle resources
@@ -454,8 +464,10 @@ export async function* discoverSnapshotResources(percy, snapshot, callback) {
 
     // page clean up
     await page.close();
+    await pixelRatioPage.close();
   } catch (error) {
     await page.close();
+    await pixelRatioPage.close();
     throw error;
   }
 }

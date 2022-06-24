@@ -516,7 +516,7 @@ describe('Discovery', () => {
 
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy:core:page] Page created',
-      '[percy:core:page] Resize page to 400x1024 at 1x scale',
+      '[percy:core:page] Resize page to 400x1024 @1x',
       '[percy:core:page] Navigate to: http://localhost:8000/',
       '[percy:core:discovery] Handling request: http://localhost:8000/',
       '[percy:core:discovery] - Serving root resource',
@@ -530,7 +530,7 @@ describe('Discovery', () => {
       '[percy:core:discovery] - mimetype: image/gif',
       '[percy:core:page] Page navigated',
       '[percy:core:network] Wait for 100ms idle',
-      '[percy:core:page] Resize page to 1200x1024 at 1x scale',
+      '[percy:core:page] Resize page to 1200x1024 @1x',
       '[percy:core:network] Wait for 100ms idle',
       '[percy:core:page] Page closed'
     ]));

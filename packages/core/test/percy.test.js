@@ -54,7 +54,6 @@ describe('Percy', () => {
     percy = new Percy({ snapshot: { foo: 'bar' } });
 
     expect(percy.config.snapshot).toEqual({
-      deviceScaleFactor: 1,
       widths: [375, 1280],
       minHeight: 1024,
       percyCSS: ''
