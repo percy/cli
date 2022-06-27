@@ -324,14 +324,15 @@ function waitForDiscoveryNetworkIdle(page, options) {
 // Used to cache resources across core instances
 const RESOURCE_CACHE_KEY = Symbol('resource-cache');
 
-function* triggerResourceRequests(page, pixelRatioPage, snapshot) {
+function* triggerResourceRequests(page, snapshot, options) {
   // copy widths to prevent mutation later
   let [initialWidth, ...widths] = snapshot.widths;
 
   // set the initial page size
   yield page.resize({
     width: initialWidth,
-    height: snapshot.minHeight
+    height: snapshot.minHeight,
+    ...options
   });
 
   // navigate to the url
@@ -344,53 +345,12 @@ function* triggerResourceRequests(page, pixelRatioPage, snapshot) {
     yield page.evaluate(snapshot.execute.afterNavigation);
   }
 
-  // resize and set pixel ratio for higher density images
-  if (snapshot.deviceScaleFactor !== 1) {
-    // yield waitForDiscoveryNetworkIdle(page, snapshot.discovery);
-    yield pixelRatioPage.goto(snapshot.url);
-
-    if (snapshot.execute) {
-      // when any execute options are provided, inject snapshot options
-      /* istanbul ignore next: cannot detect coverage of injected code */
-      yield page.eval((_, s) => (window.__PERCY__.snapshot = s), snapshot);
-      yield page.evaluate(snapshot.execute.afterNavigation);
-    }
-
-    yield pixelRatioPage.evaluate(snapshot.execute?.beforeResize);
-    yield pixelRatioPage.resize({
-      mobile: true,
-      width: initialWidth,
-      height: snapshot.minHeight,
-      deviceScaleFactor: snapshot.deviceScaleFactor
-    });
-
-    // revisit to ensure mobile assets are loaded
-    yield waitForDiscoveryNetworkIdle(pixelRatioPage, snapshot.discovery);
-    yield pixelRatioPage.evaluate(snapshot.execute?.afterResize);
-  }
-
   // trigger resize events for other widths
   for (let width of widths) {
     yield page.evaluate(snapshot.execute?.beforeResize);
     yield waitForDiscoveryNetworkIdle(page, snapshot.discovery);
-    yield page.resize({ width, height: snapshot.minHeight });
+    yield page.resize({ width, height: snapshot.minHeight, ...options });
     yield page.evaluate(snapshot.execute?.afterResize);
-
-    // resize and set pixel ratio for higher density images
-    if (snapshot.deviceScaleFactor !== 1) {
-      yield waitForDiscoveryNetworkIdle(pixelRatioPage, snapshot.discovery);
-      yield pixelRatioPage.evaluate(snapshot.execute?.beforeResize);
-
-      yield pixelRatioPage.resize({
-        width,
-        mobile: true,
-        height: snapshot.minHeight,
-        deviceScaleFactor: snapshot.deviceScaleFactor
-      });
-
-      yield pixelRatioPage.evaluate(snapshot.execute?.afterResize);
-      yield waitForDiscoveryNetworkIdle(pixelRatioPage, snapshot.discovery);
-    }
   }
 }
 
@@ -415,7 +375,7 @@ export async function* discoverSnapshotResources(percy, snapshot, callback) {
   ));
 
   // open a new browser page
-  let pageOptions = {
+  let page = yield percy.browser.page({
     enableJavaScript: snapshot.enableJavaScript ?? !snapshot.domSnapshot,
     networkIdleTimeout: snapshot.discovery.networkIdleTimeout,
     requestHeaders: snapshot.discovery.requestHeaders,
@@ -432,14 +392,21 @@ export async function* discoverSnapshotResources(percy, snapshot, callback) {
       getResource: u => resources.get(u) || cache.get(u),
       saveResource: r => resources.set(r.url, r) && cache.set(r.url, r)
     }
-  };
-
-  let page = yield percy.browser.page(pageOptions);
-  // @TODO create this conditionally?
-  let pixelRatioPage = yield percy.browser.page(pageOptions);
+  });
 
   try {
-    yield* triggerResourceRequests(page, pixelRatioPage, snapshot);
+    yield* triggerResourceRequests(page, snapshot);
+
+    // trigger resource requests for any alternate device pixel ratio
+    if (snapshot.devicePixelRatio) {
+      // wait for any existing pending resource requests first
+      yield waitForDiscoveryNetworkIdle(page, snapshot.discovery);
+
+      yield* triggerResourceRequests(page, snapshot, {
+        deviceScaleFactor: snapshot.devicePixelRatio,
+        mobile: true
+      });
+    }
 
     if (snapshot.domSnapshot) {
       // ensure discovery has finished and handle resources
@@ -461,13 +428,7 @@ export async function* discoverSnapshotResources(percy, snapshot, callback) {
         resources.delete(root.url);
       }
     }
-
-    // page clean up
+  } finally {
     await page.close();
-    await pixelRatioPage.close();
-  } catch (error) {
-    await page.close();
-    await pixelRatioPage.close();
-    throw error;
   }
 }
