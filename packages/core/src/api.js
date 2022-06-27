@@ -2,8 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import logger from '@percy/logger';
-import { getPackageJSON } from './utils.js';
-import Server from './server.js';
+import { getPackageJSON, Server } from './utils.js';
 
 // need require.resolve until import.meta.resolve can be transpiled
 export const PERCY_DOM = createRequire(import.meta.url).resolve('@percy/dom');
@@ -12,7 +11,7 @@ export const PERCY_DOM = createRequire(import.meta.url).resolve('@percy/dom');
 export function createPercyServer(percy, port) {
   let pkg = getPackageJSON(import.meta.url);
 
-  return new Server({ port })
+  return Server.createServer({ port })
   // facilitate logger websocket connections
     .websocket('/(logger)?', ws => {
       ws.addEventListener('message', ({ data }) => {
@@ -88,8 +87,8 @@ export function createPercyServer(percy, port) {
 
 // Create a static server instance with an automatic sitemap
 export function createStaticServer(options) {
-  let { serve, port, baseUrl = '/', ...opts } = options;
-  let server = new Server({ port }).serve(baseUrl, serve, opts);
+  let { serve: dir, baseUrl = '/' } = options;
+  let server = Server.createServer(options);
 
   // used when generating an automatic sitemap
   let toURL = Server.createRewriter((
@@ -105,7 +104,7 @@ export function createStaticServer(options) {
   // include automatic sitemap route
   server.route('get', '/sitemap.xml', async (req, res) => {
     let { default: glob } = await import('fast-glob');
-    let files = await glob('**/*.html', { cwd: serve, fs });
+    let files = await glob('**/*.html', { cwd: dir, fs });
 
     return res.send(200, 'application/xml', [
       '<?xml version="1.0" encoding="UTF-8"?>',

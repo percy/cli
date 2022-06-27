@@ -10,7 +10,7 @@ describe('Unit / Server', () => {
   }
 
   beforeEach(async () => {
-    server = new Server({ port: 8000 });
+    server = Server.createServer({ port: 8000 });
     await mockfs();
   });
 
@@ -37,7 +37,7 @@ describe('Unit / Server', () => {
     });
 
     it('does not include the port without a default when not listening', () => {
-      expect(new Server().address()).toEqual('http://localhost');
+      expect(Server.createServer().address()).toEqual('http://localhost');
     });
   });
 
@@ -56,7 +56,9 @@ describe('Unit / Server', () => {
 
     it('rejects when an error occurs trying to listen', async () => {
       await server.listen();
-      await expectAsync(new Server().listen(server.port)).toBeRejected();
+      await expectAsync(
+        Server.createServer().listen(server.port)
+      ).toBeRejected();
     });
   });
 

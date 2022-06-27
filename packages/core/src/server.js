@@ -351,7 +351,18 @@ function parseByteRange(range, size) {
   if (start >= 0 && start < end) return { start, end };
 }
 
-// include ServerError and createRewriter as static properties
+// shorthand function for creating a new server with specific options
+export function createServer(options = {}) {
+  let { serve, port, baseUrl = '/', ...opts } = options;
+  let server = new Server({ port });
+
+  return serve ? (
+    server.serve(baseUrl, serve, opts)
+  ) : server;
+}
+
+// include some exports as static properties
 Server.Error = ServerError;
 Server.createRewriter = createRewriter;
+Server.createServer = createServer;
 export default Server;

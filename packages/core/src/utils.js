@@ -7,6 +7,11 @@ export {
   hostnameMatches
 } from '@percy/client/utils';
 
+export {
+  Server,
+  createServer
+} from './server.js';
+
 // Returns the hostname portion of a URL.
 export function hostname(url) {
   return new URL(url).hostname;
