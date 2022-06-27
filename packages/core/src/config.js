@@ -28,6 +28,9 @@ export const configSchema = {
       },
       scope: {
         type: 'string'
+      },
+      devicePixelRatio: {
+        type: 'integer'
       }
     }
   },
@@ -137,6 +140,7 @@ export const snapshotSchema = {
         minHeight: { $ref: '/config/snapshot#/properties/minHeight' },
         percyCSS: { $ref: '/config/snapshot#/properties/percyCSS' },
         enableJavaScript: { $ref: '/config/snapshot#/properties/enableJavaScript' },
+        devicePixelRatio: { $ref: '/config/snapshot#/properties/devicePixelRatio' },
         discovery: {
           type: 'object',
           additionalProperties: false,

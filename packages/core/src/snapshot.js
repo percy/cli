@@ -258,6 +258,7 @@ function debugSnapshotConfig(snapshot, showInfo) {
   debugProp(snapshot, 'widths', v => `${v}px`);
   debugProp(snapshot, 'minHeight', v => `${v}px`);
   debugProp(snapshot, 'enableJavaScript');
+  debugProp(snapshot, 'deviceScaleFactor');
   debugProp(snapshot, 'waitForTimeout');
   debugProp(snapshot, 'waitForSelector');
   debugProp(snapshot, 'execute.afterNavigation');
@@ -323,6 +324,38 @@ function waitForDiscoveryNetworkIdle(page, options) {
 // Used to cache resources across core instances
 const RESOURCE_CACHE_KEY = Symbol('resource-cache');
 
+// Trigger resource requests for a page by iterating over snapshot widths and calling any provided
+// execute options. Additional resize options may be provided to capture resources mobile resources
+function* triggerResourceRequests(page, snapshot, options) {
+  // copy widths to prevent mutation later
+  let [initialWidth, ...widths] = snapshot.widths;
+
+  // set the initial page size
+  yield page.resize({
+    width: initialWidth,
+    height: snapshot.minHeight,
+    ...options
+  });
+
+  // navigate to the url
+  yield page.goto(snapshot.url);
+
+  if (snapshot.execute) {
+    // when any execute options are provided, inject snapshot options
+    /* istanbul ignore next: cannot detect coverage of injected code */
+    yield page.eval((_, s) => (window.__PERCY__.snapshot = s), snapshot);
+    yield page.evaluate(snapshot.execute.afterNavigation);
+  }
+
+  // trigger resize events for other widths
+  for (let width of widths) {
+    yield page.evaluate(snapshot.execute?.beforeResize);
+    yield waitForDiscoveryNetworkIdle(page, snapshot.discovery);
+    yield page.resize({ width, height: snapshot.minHeight, ...options });
+    yield page.evaluate(snapshot.execute?.afterResize);
+  }
+}
+
 // Discovers resources for a snapshot using a browser page to intercept requests. The callback
 // function will be called with the snapshot name (for additional snapshots) and an array of
 // discovered resources. When additional snapshots are provided, the callback will be called once
@@ -336,8 +369,6 @@ export async function* discoverSnapshotResources(percy, snapshot, callback) {
 
   // keep a global resource cache across snapshots
   let cache = percy[RESOURCE_CACHE_KEY] ||= new Map();
-  // copy widths to prevent mutation later
-  let widths = snapshot.widths.slice();
 
   // preload the root resource for existing dom snapshots
   let resources = new Map(snapshot.domSnapshot && (
@@ -366,28 +397,17 @@ export async function* discoverSnapshotResources(percy, snapshot, callback) {
   });
 
   try {
-    // set the initial page size
-    yield page.resize({
-      width: widths.shift(),
-      height: snapshot.minHeight
-    });
+    yield* triggerResourceRequests(page, snapshot);
 
-    // navigate to the url
-    yield page.goto(snapshot.url);
-
-    if (snapshot.execute) {
-      // when any execute options are provided, inject snapshot options
-      /* istanbul ignore next: cannot detect coverage of injected code */
-      yield page.eval((_, s) => (window.__PERCY__.snapshot = s), snapshot);
-      yield page.evaluate(snapshot.execute.afterNavigation);
-    }
-
-    // trigger resize events for other widths
-    for (let width of widths) {
-      yield page.evaluate(snapshot.execute?.beforeResize);
+    // trigger resource requests for any alternate device pixel ratio
+    if (snapshot.devicePixelRatio) {
+      // wait for any existing pending resource requests first
       yield waitForDiscoveryNetworkIdle(page, snapshot.discovery);
-      yield page.resize({ width, height: snapshot.minHeight });
-      yield page.evaluate(snapshot.execute?.afterResize);
+
+      yield* triggerResourceRequests(page, snapshot, {
+        deviceScaleFactor: snapshot.devicePixelRatio,
+        mobile: true
+      });
     }
 
     if (snapshot.domSnapshot) {
@@ -410,11 +430,7 @@ export async function* discoverSnapshotResources(percy, snapshot, callback) {
         resources.delete(root.url);
       }
     }
-
-    // page clean up
+  } finally {
     await page.close();
-  } catch (error) {
-    await page.close();
-    throw error;
   }
 }
