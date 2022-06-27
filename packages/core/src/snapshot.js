@@ -324,6 +324,8 @@ function waitForDiscoveryNetworkIdle(page, options) {
 // Used to cache resources across core instances
 const RESOURCE_CACHE_KEY = Symbol('resource-cache');
 
+// Trigger resource requests for a page by iterating over snapshot widths and calling any provided
+// execute options. Additional resize options may be provided to capture resources mobile resources
 function* triggerResourceRequests(page, snapshot, options) {
   // copy widths to prevent mutation later
   let [initialWidth, ...widths] = snapshot.widths;
