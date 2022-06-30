@@ -871,6 +871,58 @@ describe('Discovery', () => {
       ]));
     });
 
+    it('captures fonts with valid auth credentials', async () => {
+      percy.loglevel('debug');
+
+      const fontAuthDOM = dedent`
+        <html>
+        <head>
+          <style>
+           @font-face { font-family: "test"; src: url("font-auth/font.woff") format("woff"); }
+           body { font-family: "test", "sans-serif"; }
+          </style>
+        </head>
+        <body>
+          <p>Hello Percy!<p>
+          ${' '.repeat(1000)}
+        </body>
+        </html>
+      `;
+
+      server.reply('/font-auth/font.woff', ({ headers: { authorization } }) => {
+        if (authorization === 'Basic dGVzdDo=') {
+          return [200, 'font/woff', '<font>'];
+        } else {
+          return [401, {
+            'WWW-Authenticate': 'Basic',
+            'Content-Type': 'text/plain'
+          }, '401 Unauthorized'];
+        }
+      });
+
+      await percy.snapshot({
+        name: 'font auth snapshot',
+        url: 'http://localhost:8000/font-auth',
+        domSnapshot: fontAuthDOM,
+        discovery: {
+          requestHeaders: { Authorization: 'Basic dGVzdDo=' }
+        }
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toContain(
+        '[percy:core:discovery] - Requesting asset directly'
+      );
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/font-auth/font.woff'
+          })
+        })
+      ]));
+    });
+
     it('does not capture without auth credentials', async () => {
       await percy.snapshot({
         name: 'auth snapshot',

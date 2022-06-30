@@ -86,7 +86,8 @@ export function createRequestFinishedHandler(network, {
 
         if (mimeType?.includes('font')) {
           // font responses from the browser may not be properly encoded, so request them directly
-          body = await makeRequest(response.url, { buffer: true });
+          log.debug('- Requesting asset directly');
+          body = await makeRequest(response.url, { buffer: true, headers: request.headers });
         }
 
         resource = createResource(url, body, mimeType, {
