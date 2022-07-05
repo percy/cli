@@ -10,9 +10,9 @@
     "@jridgewell/trace-mapping" "^0.3.0"
 
 "@babel/cli@^7.11.6":
-  version "7.17.10"
-  resolved "https://registry.yarnpkg.com/@babel/cli/-/cli-7.17.10.tgz#5ea0bf6298bb78f3b59c7c06954f9bd1c79d5943"
-  integrity sha512-OygVO1M2J4yPMNOW9pb+I6kFGpQK77HmG44Oz3hg8xQIl5L/2zq+ZohwAdSaqYgVwM0SfmPHZHphH4wR8qzVYw==
+  version "7.18.6"
+  resolved "https://registry.yarnpkg.com/@babel/cli/-/cli-7.18.6.tgz#b1228eb9196b34d608155a47508011d9e47ab1f2"
+  integrity sha512-jXNHoYCbxZ8rKy+2lyy0VjcaGxS4NPbN0qc95DjIiGZQL/mTNx3o2/yI0TG+X0VrrTuwmO7zH52T9NcNdbF9Uw==
   dependencies:
     "@jridgewell/trace-mapping" "^0.3.8"
     commander "^4.0.1"
@@ -1085,15 +1085,7 @@
   resolved "https://registry.yarnpkg.com/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.4.10.tgz#baf57b4e2a690d4f38560171f91783656b7f8186"
   integrity sha512-Ht8wIW5v165atIX1p+JvKR5ONzUyF4Ac8DZIQ5kZs9zrb6M8SJNXpx1zn04rn65VjBMygRoMXcyYwNK0fT7bEg==
 
-"@jridgewell/trace-mapping@^0.3.0", "@jridgewell/trace-mapping@^0.3.8":
-  version "0.3.9"
-  resolved "https://registry.yarnpkg.com/@jridgewell/trace-mapping/-/trace-mapping-0.3.9.tgz#6534fd5933a53ba7cbf3a17615e273a0d1273ff9"
-  integrity sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==
-  dependencies:
-    "@jridgewell/resolve-uri" "^3.0.3"
-    "@jridgewell/sourcemap-codec" "^1.4.10"
-
-"@jridgewell/trace-mapping@^0.3.9":
+"@jridgewell/trace-mapping@^0.3.0", "@jridgewell/trace-mapping@^0.3.8", "@jridgewell/trace-mapping@^0.3.9":
   version "0.3.13"
   resolved "https://registry.yarnpkg.com/@jridgewell/trace-mapping/-/trace-mapping-0.3.13.tgz#dcfe3e95f224c8fe97a87a5235defec999aa92ea"
   integrity sha512-o1xbKhp9qnIAoHJSWd6KlCZfqslL4valSF81H8ImioOAxluWYWOpWkpyktY2vnt4tbrX9XYaxovq6cgowaJp2w==
@@ -2037,10 +2029,10 @@
   resolved "https://registry.yarnpkg.com/@tootallnate/once/-/once-1.1.2.tgz#ccb91445360179a04e7fe6aff78c00ffc1eeaf82"
   integrity sha512-RbzJvlNzmRq5c3O09UipeuXno4tA1FE6ikOjxZK0tuxVv3412l64l5t1W5pj4+rJq9vpkm/kwiR07aZXnsKPxw==
 
-"@tsd/typescript@~4.7.3":
-  version "4.7.3"
-  resolved "https://registry.yarnpkg.com/@tsd/typescript/-/typescript-4.7.3.tgz#b5855528a0cd35039341c4002ec7a74b71c34467"
-  integrity sha512-jjxcFpaWwETZZedPuPhWehlHA6cifStKV8viwc80FUVSUdv6sC4V0dWJ3OCBIWOQcxk7roxCDvzrc40CoDr5tg==
+"@tsd/typescript@~4.7.4":
+  version "4.7.4"
+  resolved "https://registry.yarnpkg.com/@tsd/typescript/-/typescript-4.7.4.tgz#f1e4e6c3099a174a0cb7aa51cf53f34f6494e528"
+  integrity sha512-jbtC+RgKZ9Kk65zuRZbKLTACf+tvFW4Rfq0JEMXrlmV3P3yme+Hm+pnb5fJRyt61SjIitcrC810wj7+1tgsEmg==
 
 "@types/component-emitter@^1.2.10":
   version "1.2.10"
@@ -7401,12 +7393,12 @@ tsconfig-paths@^3.14.1:
     minimist "^1.2.6"
     strip-bom "^3.0.0"
 
-tsd@^0.21.0:
-  version "0.21.0"
-  resolved "https://registry.yarnpkg.com/tsd/-/tsd-0.21.0.tgz#fb1a1aa022cfb4a6d1065bb569687e8ac8f72daf"
-  integrity sha512-6DugCw1Q4H8HYwDT3itzgALjeDxN4RO3iqu7gRdC/YNVSCRSGXRGQRRasftL1uKDuKxlFffYKHv5j5G7YnKGxQ==
+tsd@^0.22.0:
+  version "0.22.0"
+  resolved "https://registry.yarnpkg.com/tsd/-/tsd-0.22.0.tgz#2ff75cf3adff5136896abee1f2c5540497bf3b54"
+  integrity sha512-NH+tfEDQ0Ze8gH7TorB6IxYybD+M68EYawe45YNVrbQcydNBfdQHP9IiD0QbnqmwNXrv+l9GAiULT68mo4q/xA==
   dependencies:
-    "@tsd/typescript" "~4.7.3"
+    "@tsd/typescript" "~4.7.4"
     eslint-formatter-pretty "^4.1.0"
     globby "^11.0.1"
     meow "^9.0.0"
