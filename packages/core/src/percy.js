@@ -44,6 +44,8 @@ export class Percy {
     skipUploads,
     // implies `skipUploads` and also skips asset discovery
     dryRun,
+    // implies `dryRun`, silent logs, and adds extra api endpoints
+    testing,
     // configuration filepath
     config,
     // provided to @percy/client
@@ -57,9 +59,11 @@ export class Percy {
     // options which will become accessible via the `.config` property
     ...options
   } = {}) {
+    if (testing) loglevel = 'silent';
     if (loglevel) this.loglevel(loglevel);
 
-    this.dryRun = !!dryRun;
+    this.testing = testing ? {} : null;
+    this.dryRun = !!testing || !!dryRun;
     this.skipUploads = this.dryRun || !!skipUploads;
     this.deferUploads = this.skipUploads || !!deferUploads;
     if (this.deferUploads) this.#uploads.stop();

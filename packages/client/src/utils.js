@@ -119,7 +119,7 @@ export async function request(url, options = {}, callback) {
   let { proxyAgentFor } = await import('./proxy.js');
 
   // automatically stringify body content
-  if (body && typeof body !== 'string') {
+  if (body !== undefined && typeof body !== 'string') {
     headers = { 'Content-Type': 'application/json', ...headers };
     body = JSON.stringify(body);
   }

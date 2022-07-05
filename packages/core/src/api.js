@@ -11,7 +11,7 @@ export const PERCY_DOM = createRequire(import.meta.url).resolve('@percy/dom');
 export function createPercyServer(percy, port) {
   let pkg = getPackageJSON(import.meta.url);
 
-  return Server.createServer({ port })
+  let server = Server.createServer({ port })
   // facilitate logger websocket connections
     .websocket('/(logger)?', ws => {
       ws.addEventListener('message', ({ data }) => {
@@ -31,7 +31,18 @@ export function createPercyServer(percy, port) {
 
       // add version header
       res.setHeader('Access-Control-Expose-Headers', '*, X-Percy-Core-Version');
-      res.setHeader('X-Percy-Core-Version', pkg.version);
+
+      // skip or change api version header in testing mode
+      if (percy.testing?.version !== false) {
+        res.setHeader('X-Percy-Core-Version', percy.testing?.version ?? pkg.version);
+      }
+
+      // support sabotaging requests in testing mode
+      if (percy.testing?.api?.[req.url.pathname] === 'error') {
+        return res.json(500, { success: false, error: 'Error: testing' });
+      } else if (percy.testing?.api?.[req.url.pathname] === 'disconnect') {
+        return req.connection.destroy();
+      }
 
       // return json errors
       return next().catch(e => res.json(e.status ?? 500, {
@@ -82,6 +93,37 @@ export function createPercyServer(percy, port) {
     .route('/percy/stop', (req, res) => {
       setImmediate(() => percy.stop());
       return res.json(200, { success: true });
+    });
+
+  // add test endpoints only in testing mode
+  return !percy.testing ? server : server
+  // manipulates testing mode configuration to trigger specific scenarios
+    .route('/test/api/:cmd', ({ body, params: { cmd } }, res) => {
+      body = Buffer.isBuffer(body) ? body.toString() : body;
+
+      if (cmd === 'reset') {
+        // the reset command will reset testing mode to its default options
+        percy.testing = {};
+      } else if (cmd === 'version') {
+        // the version command will update the api version header for testing
+        percy.testing.version = body;
+      } else if (cmd === 'error' || cmd === 'disconnect') {
+        // the error or disconnect commands will cause specific endpoints to fail
+        percy.testing.api = { ...percy.testing.api, [body]: cmd };
+      } else {
+        // 404 for unknown commands
+        return res.send(404);
+      }
+
+      return res.json(200, { testing: percy.testing });
+    })
+  // returns an array of raw logs from the logger
+    .route('get', '/test/logs', (req, res) => res.json(200, {
+      logs: Array.from(logger.instance.messages)
+    }))
+  // serves a very basic html page for testing snapshots
+    .route('get', '/test/snapshot', (req, res) => {
+      return res.send(200, 'text/html', '<p>Snapshot Me!</p>');
     });
 }
 

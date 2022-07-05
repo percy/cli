@@ -238,4 +238,79 @@ describe('API Server', () => {
       await expectAsync(percy.stop()).toBeResolved();
     });
   });
+
+  describe('when testing mode is enabled', () => {
+    const addr = 'http://localhost:5338';
+    const get = p => request(`${addr}${p}`);
+    const post = (p, body) => request(`${addr}${p}`, { method: 'post', body });
+    const req = p => request(`${addr}${p}`, { retries: 0 }, false);
+
+    beforeEach(async () => {
+      percy = await Percy.start({
+        testing: true
+      });
+    });
+
+    it('implies loglevel silent and dryRun', () => {
+      expect(percy.testing).toBeDefined();
+      expect(percy.loglevel()).toEqual('silent');
+      expect(percy.dryRun).toBeTrue();
+    });
+
+    it('enables several /test/api endpoint commands', async () => {
+      expect(percy.testing).toEqual({});
+      await post('/test/api/version', false);
+      expect(percy.testing).toHaveProperty('version', false);
+      await post('/test/api/version', '0.0.1');
+      expect(percy.testing).toHaveProperty('version', '0.0.1');
+      await post('/test/api/reset');
+      expect(percy.testing).toEqual({});
+      await post('/test/api/error', '/percy/healthcheck');
+      expect(percy.testing).toHaveProperty('api', { '/percy/healthcheck': 'error' });
+      await post('/test/api/disconnect', '/percy/healthcheck');
+      expect(percy.testing).toHaveProperty('api', { '/percy/healthcheck': 'disconnect' });
+      await expectAsync(post('/test/api/foobar')).toBeRejectedWithError('404 Not Found');
+    });
+
+    it('can manipulate the version header via /test/api/version', async () => {
+      let { headers } = await req('/percy/healthcheck');
+      expect(headers['x-percy-core-version']).toBeDefined();
+
+      await post('/test/api/version', false);
+      ({ headers } = await req('/percy/healthcheck'));
+      expect(headers['x-percy-core-version']).toBeUndefined();
+
+      await post('/test/api/version', '0.0.1');
+      ({ headers } = await req('/percy/healthcheck'));
+      expect(headers['x-percy-core-version']).toEqual('0.0.1');
+    });
+
+    it('can make endpoints return server errors via /test/api/error', async () => {
+      let { statusCode } = await req('/percy/healthcheck');
+      expect(statusCode).toEqual(200);
+
+      await post('/test/api/error', '/percy/healthcheck');
+      ({ statusCode } = await req('/percy/healthcheck'));
+      expect(statusCode).toEqual(500);
+    });
+
+    it('can make endpoints destroy connections via /test/api/disconnect', async () => {
+      await expectAsync(req('/percy/healthcheck')).toBeResolved();
+      await post('/test/api/disconnect', '/percy/healthcheck');
+      await expectAsync(req('/percy/healthcheck')).toBeRejected();
+    });
+
+    it('enables a /test/logs endpoint to return raw logs', async () => {
+      percy.log.info('foo bar from test');
+      let { logs } = await get('/test/logs');
+
+      expect(logs).toEqual(jasmine.arrayContaining([
+        jasmine.objectContaining({ message: 'foo bar from test' })
+      ]));
+    });
+
+    it('enables a /test/snapshot endpoint that serves a simple html document', async () => {
+      await expectAsync(get('/test/snapshot')).toBeResolvedTo('<p>Snapshot Me!</p>');
+    });
+  });
 });
