@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-exec",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -32,7 +32,7 @@
     ]
   },
   "dependencies": {
-    "@percy/cli-command": "1.5.1",
+    "@percy/cli-command": "1.6.0",
     "cross-spawn": "^7.0.3",
     "which": "^2.0.2"
   }
