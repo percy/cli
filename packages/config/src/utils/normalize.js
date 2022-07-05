@@ -7,30 +7,26 @@ const CAMELCASE_MAP = new Map([
   ['javascript', 'JavaScript']
 ]);
 
-// Converts kebab-cased and snake_cased strings to camelCase.
-const KEBAB_SNAKE_REG = /[-_]([^-_]+)/g;
+// Regular expression that matches words from boundaries or consecutive casing
+const WORD_REG = /[a-z]{2,}|[A-Z]{2,}|[0-9]{2,}|[^-_\s]+?(?=[A-Z0-9-_\s]|$)/g;
 
+// Converts kebab-cased and snake_cased strings to camelCase.
 export function camelcase(str) {
   if (typeof str !== 'string') return str;
 
-  return str.replace(KEBAB_SNAKE_REG, (match, word) => (
-    CAMELCASE_MAP.get(word) || (word[0].toUpperCase() + word.slice(1))
-  ));
+  return str.match(WORD_REG).reduce((s, w, i) => s + (i ? (
+    CAMELCASE_MAP.get(w.toLowerCase()) || (
+      w[0].toUpperCase() + w.slice(1).toLowerCase())
+  ) : w.toLowerCase()), '');
 }
 
 // Coverts camelCased and snake_cased strings to kebab-case.
-const CAMEL_SNAKE_REG = /([a-z])([A-Z]+)|_([^_]+)/g;
-
 export function kebabcase(str) {
   if (typeof str !== 'string') return str;
 
   return Array.from(CAMELCASE_MAP)
-    .reduce((str, [word, camel]) => (
-      str.replace(camel, `-${word}`)
-    ), str)
-    .replace(CAMEL_SNAKE_REG, (match, p, n, w) => (
-      `${p || ''}-${(n || w).toLowerCase()}`
-    ));
+    .reduce((str, [word, camel]) => str.replace(camel, `-${word}`), str)
+    .match(WORD_REG).join('-').toLowerCase();
 }
 
 // Removes undefined empty values and renames kebab-case properties to camelCase. Optionally
