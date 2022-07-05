@@ -950,18 +950,20 @@ describe('PercyConfig', () => {
         'foo-bar': 'baz',
         foo: { bar_baz: 'qux' },
         'foo_bar-baz': 'qux',
+        'Bar BAZ qux': 'xyzzy',
         'percy-css': '',
         'enable-javascript': false
       })).toEqual({
         fooBar: 'baz',
         foo: { barBaz: 'qux' },
         fooBarBaz: 'qux',
+        barBazQux: 'xyzzy',
         percyCSS: '',
         enableJavaScript: false
       });
     });
 
-    it('can converts keys to kebab-case', () => {
+    it('can convert keys to kebab-case', () => {
       expect(PercyConfig.normalize({
         'foo-bar': 'baz',
         foo: { bar_baz: 'qux' },
