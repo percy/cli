@@ -7,4 +7,8 @@ export const flags = [{
   parse: Number,
   default: 5338,
   short: 'P'
+}, {
+  name: 'testing',
+  percyrc: 'testing',
+  hidden: true
 }];

@@ -851,8 +851,8 @@ describe('Snapshot', () => {
 
   describe('with percy-css', () => {
     let getResourceData = () => (
-      api.requests['/builds/123/snapshots'][0]
-        .body.data.relationships.resources.data);
+      api.requests['/builds/123/snapshots'][0].body.data.relationships.resources.data
+    ).find(r => r.attributes['resource-url'].endsWith('.css'));
 
     beforeEach(() => {
       percy.config.snapshot.percyCSS = 'p { color: purple; }';
@@ -866,14 +866,14 @@ describe('Snapshot', () => {
 
       await percy.idle();
 
-      let resources = getResourceData();
-      expect(resources[1].id).toBe(sha256hash('p { color: purple; }'));
-      expect(resources[1].attributes['resource-url'])
+      let resource = getResourceData();
+      expect(resource.id).toBe(sha256hash('p { color: purple; }'));
+      expect(resource.attributes['resource-url'])
         .toMatch(/localhost:8000\/percy-specific\.\d+\.css$/);
     });
 
     it('creates a resource for per-snapshot percy-css', async () => {
-      percy.config.snapshot.percyCSS = '';
+      percy.setConfig({ snapshot: { percyCSS: '' } });
 
       await percy.snapshot({
         name: 'test snapshot',
@@ -883,9 +883,9 @@ describe('Snapshot', () => {
 
       await percy.idle();
 
-      let resources = getResourceData();
-      expect(resources[1].id).toBe(sha256hash('body { color: purple; }'));
-      expect(resources[1].attributes['resource-url'])
+      let resource = getResourceData();
+      expect(resource.id).toBe(sha256hash('body { color: purple; }'));
+      expect(resource.attributes['resource-url'])
         .toMatch(/localhost:8000\/percy-specific\.\d+\.css$/);
     });
 
@@ -898,10 +898,10 @@ describe('Snapshot', () => {
 
       await percy.idle();
 
-      let resources = getResourceData();
-      expect(resources[1].id)
+      let resource = getResourceData();
+      expect(resource.id)
         .toBe(sha256hash('p { color: purple; }\np { font-size: 2rem; }'));
-      expect(resources[1].attributes['resource-url'])
+      expect(resource.attributes['resource-url'])
         .toMatch(/localhost:8000\/percy-specific\.\d+\.css$/);
     });
 
@@ -918,7 +918,7 @@ describe('Snapshot', () => {
       await percy.idle();
 
       let root = api.requests['/builds/123/resources'][0].body.data;
-      let cssURL = new URL(getResourceData()[1].attributes['resource-url']);
+      let cssURL = new URL(getResourceData().attributes['resource-url']);
       let injectedDOM = testDOM.replace('</body>', (
        `<link data-percy-specific-css rel="stylesheet" href="${cssURL.pathname}"/>`
       ) + '</body>');

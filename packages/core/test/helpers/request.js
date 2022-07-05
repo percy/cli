@@ -7,7 +7,7 @@ export async function request(url, method = 'GET', handle) {
   try {
     return await request(url, options, cb);
   } catch (error) {
-    if (typeof handle !== 'boolean') throw error;
+    if (!error.response || typeof handle !== 'boolean') throw error;
     return handle ? [error.response.body, error.response] : error.response;
   }
 }
