@@ -41,7 +41,7 @@ export function createRequestHandler(network, { disableCache, disallowedHostname
   };
 }
 
-export function createRequestFinishedHandler(network, {
+export function createRequestFinishedHandler(network, authorization, {
   enableJavaScript,
   allowedHostnames,
   disableCache,
@@ -60,6 +60,7 @@ export function createRequestFinishedHandler(network, {
 
       // process and cache the response and resource
       if (!resource?.root && (!resource || disableCache)) {
+        let headers = request.headers;
         let response = request.response;
         let capture = response && hostnameMatches(allowedHostnames, url);
         let body = capture && await response.buffer();
@@ -84,10 +85,18 @@ export function createRequestFinishedHandler(network, {
         // Try to get the proper mimetype if the server or asset discovery browser is sending `text/plain`
         let mimeType = (response.mimeType === 'text/plain' && mime.lookup(response.url)) || response.mimeType;
 
+        // font responses from the browser may not be properly encoded, so request them directly
         if (mimeType?.includes('font')) {
-          // font responses from the browser may not be properly encoded, so request them directly
           log.debug('- Requesting asset directly');
-          body = await makeRequest(response.url, { buffer: true, headers: request.headers });
+          if (!headers.Authorization && authorization?.username) {
+            let token = Buffer.from(authorization.password
+              ? `${authorization.username}:${authorization.password}`
+              : `${authorization.username}:`).toString('base64');
+
+            headers.Authorization = `Basic ${token}`;
+          }
+
+          body = await makeRequest(response.url, { buffer: true, headers });
         }
 
         resource = createResource(url, body, mimeType, {

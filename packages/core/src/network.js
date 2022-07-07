@@ -31,7 +31,7 @@ export class Network {
 
     if (this.interceptEnabled) {
       this.onRequest = createRequestHandler(this, options.intercept);
-      this.onRequestFinished = createRequestFinishedHandler(this, options.intercept);
+      this.onRequestFinished = createRequestFinishedHandler(this, options.authorization, options.intercept);
       this.onRequestFailed = createRequestFailedHandler(this, options.intercept);
     }
   }
