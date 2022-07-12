@@ -102,8 +102,9 @@ export function createPercyServer(percy, port) {
       body = Buffer.isBuffer(body) ? body.toString() : body;
 
       if (cmd === 'reset') {
-        // the reset command will reset testing mode to its default options
+        // the reset command will reset testing mode and clear any logs
         percy.testing = {};
+        logger.instance.messages.clear();
       } else if (cmd === 'version') {
         // the version command will update the api version header for testing
         percy.testing.version = body;

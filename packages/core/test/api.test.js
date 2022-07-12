@@ -257,6 +257,19 @@ describe('API Server', () => {
       expect(percy.dryRun).toBeTrue();
     });
 
+    it('enables a /test/snapshot endpoint that serves a simple html document', async () => {
+      await expectAsync(get('/test/snapshot')).toBeResolvedTo('<p>Snapshot Me!</p>');
+    });
+
+    it('enables a /test/logs endpoint to return raw logs', async () => {
+      percy.log.info('foo bar from test');
+      let { logs } = await get('/test/logs');
+
+      expect(logs).toEqual(jasmine.arrayContaining([
+        jasmine.objectContaining({ message: 'foo bar from test' })
+      ]));
+    });
+
     it('enables several /test/api endpoint commands', async () => {
       expect(percy.testing).toEqual({});
       await post('/test/api/version', false);
@@ -300,17 +313,22 @@ describe('API Server', () => {
       await expectAsync(req('/percy/healthcheck')).toBeRejected();
     });
 
-    it('enables a /test/logs endpoint to return raw logs', async () => {
+    it('can reset testing mode and clear logs via /test/reset', async () => {
+      // already tested up above
+      await post('/test/api/version', false);
+      await post('/test/api/disconnect', '/percy/healthcheck');
       percy.log.info('foo bar from test');
+
+      // the actual endpoint to test
+      await post('/test/api/reset');
+
+      // everything should work as usual
+      let { headers } = await req('/percy/healthcheck');
+      expect(headers['x-percy-core-version']).toBeDefined();
+
+      // logs should be empty after reset
       let { logs } = await get('/test/logs');
-
-      expect(logs).toEqual(jasmine.arrayContaining([
-        jasmine.objectContaining({ message: 'foo bar from test' })
-      ]));
-    });
-
-    it('enables a /test/snapshot endpoint that serves a simple html document', async () => {
-      await expectAsync(get('/test/snapshot')).toBeResolvedTo('<p>Snapshot Me!</p>');
+      expect(logs).toEqual([]);
     });
   });
 });
