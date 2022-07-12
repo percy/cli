@@ -41,7 +41,7 @@ export function createRequestHandler(network, { disableCache, disallowedHostname
   };
 }
 
-export function createRequestFinishedHandler(network, authorization, {
+export function createRequestFinishedHandler(network, {
   enableJavaScript,
   allowedHostnames,
   disableCache,
@@ -88,10 +88,12 @@ export function createRequestFinishedHandler(network, authorization, {
         // font responses from the browser may not be properly encoded, so request them directly
         if (mimeType?.includes('font')) {
           log.debug('- Requesting asset directly');
-          if (!headers.Authorization && authorization?.username) {
-            let token = Buffer.from(authorization.password
-              ? `${authorization.username}:${authorization.password}`
-              : `${authorization.username}:`).toString('base64');
+
+          if (!headers.Authorization && network.authorization?.username) {
+            let token = Buffer.from([
+              network.authorization.username,
+              network.authorization.password || ''
+            ].join(':')).toString('base64');
 
             headers.Authorization = `Basic ${token}`;
           }
