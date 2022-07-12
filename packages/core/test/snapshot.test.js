@@ -173,6 +173,83 @@ describe('Snapshot', () => {
     expect(resourceURLs.length).toEqual(uniqueURLs.length);
   });
 
+  it('uploads snapshots before the next one when delayed', async () => {
+    // stop and recreate a percy instance with the desired option
+    await percy.stop(true);
+    await api.mock();
+
+    percy = await Percy.start({
+      token: 'PERCY_TOKEN',
+      delayUploads: true
+    });
+
+    // not requested on start
+    expect(api.requests['/builds']).toBeUndefined();
+    expect(api.requests['/builds/123/snapshots']).toBeUndefined();
+
+    await percy.snapshot('http://localhost:8000/one');
+    await percy.idle();
+
+    // build created, not yet uploaded
+    expect(api.requests['/builds']).toBeDefined();
+    expect(api.requests['/builds/123/snapshots']).toBeUndefined();
+
+    await percy.snapshot('http://localhost:8000/two');
+    await percy.idle();
+
+    // one snapshot uploaded, second one queued
+    expect(api.requests['/builds/123/snapshots']).toHaveSize(1);
+
+    let root = i => api.requests['/builds/123/snapshots'][i]
+      .body.data.relationships.resources.data.find(r => r.attributes['is-root']);
+
+    expect(root(0)).toHaveProperty('attributes.resource-url', 'http://localhost:8000/one');
+
+    await percy.stop();
+
+    // all snapshots uploaded, build finalized
+    expect(api.requests['/builds/123/snapshots']).toHaveSize(2);
+    expect(api.requests['/builds/123/finalize']).toBeDefined();
+
+    expect(root(1)).toHaveProperty('attributes.resource-url', 'http://localhost:8000/two');
+  });
+
+  it('uploads all snapshots at the end when deferred', async () => {
+    // stop and recreate a percy instance with the desired option
+    await percy.stop(true);
+    await api.mock();
+
+    percy = await Percy.start({
+      token: 'PERCY_TOKEN',
+      deferUploads: true
+    });
+
+    // not requested on start
+    expect(api.requests['/builds']).toBeUndefined();
+    expect(api.requests['/builds/123/snapshots']).toBeUndefined();
+
+    await percy.snapshot('http://localhost:8000/one');
+    await percy.snapshot('http://localhost:8000/two');
+    await percy.idle();
+
+    // still nothing
+    expect(api.requests['/builds']).toBeUndefined();
+    expect(api.requests['/builds/123/snapshots']).toBeUndefined();
+
+    await percy.stop();
+
+    // all uploaded after stopping
+    expect(api.requests['/builds']).toBeDefined();
+    expect(api.requests['/builds/123/snapshots']).toHaveSize(2);
+    expect(api.requests['/builds/123/finalize']).toBeDefined();
+
+    let roots = api.requests['/builds/123/snapshots'].map(s =>
+      s.body.data.relationships.resources.data.find(r => r.attributes['is-root']));
+
+    expect(roots[0]).toHaveProperty('attributes.resource-url', 'http://localhost:8000/one');
+    expect(roots[1]).toHaveProperty('attributes.resource-url', 'http://localhost:8000/two');
+  });
+
   it('logs after taking the snapshot', async () => {
     await percy.snapshot({
       name: 'test snapshot',

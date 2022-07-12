@@ -58,7 +58,7 @@ export const snapshot = command('snapshot', {
   ],
 
   percy: {
-    deferUploads: true
+    delayUploads: true
   },
 
   config: {

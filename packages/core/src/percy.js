@@ -38,7 +38,9 @@ export class Percy {
   constructor({
     // initial log level
     loglevel,
-    // do not eagerly upload snapshots
+    // process uploads before the next snapshot
+    delayUploads,
+    // process uploads after all snapshots
     deferUploads,
     // run without uploading anything
     skipUploads,
@@ -65,7 +67,8 @@ export class Percy {
     this.testing = testing ? {} : null;
     this.dryRun = !!testing || !!dryRun;
     this.skipUploads = this.dryRun || !!skipUploads;
-    this.deferUploads = this.skipUploads || !!deferUploads;
+    this.delayUploads = this.skipUploads || !!delayUploads;
+    this.deferUploads = this.delayUploads || !!deferUploads;
     if (this.deferUploads) this.#uploads.stop();
 
     this.config = PercyConfig.load({
@@ -77,6 +80,10 @@ export class Percy {
       let { concurrency } = this.config.discovery;
       this.#uploads.concurrency = concurrency;
       this.#snapshots.concurrency = concurrency;
+    }
+
+    if (this.delayUploads) {
+      this.#uploads.concurrency = 1;
     }
 
     this.client = new PercyClient({ token, clientInfo, environmentInfo });
@@ -163,7 +170,7 @@ export class Percy {
           this.build = { id };
           this.build.number = attributes['build-number'];
           this.build.url = attributes['web-url'];
-          this.#uploads.run();
+          if (!this.delayUploads) this.#uploads.run();
         });
     }, 0);
 
@@ -440,7 +447,13 @@ export class Percy {
       throw new Error(this.build.error);
     }
 
+    // when not dry-running, process any existing delayed uploads
+    if (!this.dryRun && this.delayUploads) this.#uploads.run();
+
     return this.#uploads.push(`upload/${name}`, async () => {
+      // when delayed, stop the queue before other uploads are processed
+      if (this.delayUploads) this.#uploads.stop();
+
       try {
         /* istanbul ignore if: useful for other internal packages */
         if (typeof options === 'function') options = await options();
