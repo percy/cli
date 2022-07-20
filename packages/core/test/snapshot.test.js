@@ -60,6 +60,10 @@ describe('Snapshot', () => {
       '[percy] - additionalSnapshots[0]: missing required name, prefix, or suffix',
       '[percy] - additionalSnapshots[1]: prefix & suffix are ignored when a name is provided'
     ]);
+    expect(logger.stdout).toEqual([
+      '[percy] Snapshot taken: /',
+      '[percy] Snapshot taken: nombre'
+    ]);
   });
 
   it('warns when providing conflicting options', async () => {

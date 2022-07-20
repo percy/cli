@@ -207,7 +207,7 @@ export function validate(data, key = '/config') {
         set(data, path, Math.min(error.data, error.schema));
       } else if (keyword === 'required') {
         del(data, path.slice(0, -1));
-      } else {
+      } else if (!params.passingSchemas) {
         del(data, path);
       }
 
