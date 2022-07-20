@@ -443,12 +443,10 @@ export class Percy {
 
   // Queues a snapshot upload with the provided options
   _scheduleUpload(name, options) {
-    if (this.build?.error) {
-      throw new Error(this.build.error);
-    }
+    if (this.build?.error) throw new Error(this.build.error);
 
-    // when not dry-running, process any existing delayed uploads
-    if (!this.dryRun && this.delayUploads) this.#uploads.run();
+    // maybe process any existing delayed uploads
+    if (!this.skipUploads && this.delayUploads) this.#uploads.run();
 
     return this.#uploads.push(`upload/${name}`, async () => {
       // when delayed, stop the queue before other uploads are processed
