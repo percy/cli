@@ -199,7 +199,7 @@ describe('PercyConfig', () => {
           },
           errors: {
             oneOf: ({ params }) => (
-              `must pass a single schema, passed ${params.passingSchemas ?? 0}`
+              `must pass a single schema, passed ${params.passingSchemas?.length ?? 0}`
             )
           }
         }
@@ -298,6 +298,36 @@ describe('PercyConfig', () => {
       }]);
 
       expect(conf).toEqual({});
+    });
+
+    it('does not scrub properties that match at least one schema', () => {
+      PercyConfig.addSchema({
+        foo: {
+          type: 'object',
+          properties: {
+            bar: { const: 'baz' },
+            qux: { const: 'xyzzy' }
+          },
+          oneOf: [
+            { required: ['bar'] },
+            { required: ['qux'] }
+          ],
+          errors: {
+            oneOf: ({ params }) => (
+              `only 1 schema should match (matched ${params.passingSchemas?.length})`
+            )
+          }
+        }
+      });
+
+      let conf = { foo: { bar: 'baz', qux: 'xyzzy' } };
+
+      expect(PercyConfig.validate(conf)).toEqual([{
+        path: 'foo',
+        message: 'only 1 schema should match (matched 2)'
+      }]);
+
+      expect(conf).toEqual({ foo: { bar: 'baz', qux: 'xyzzy' } });
     });
 
     it('can validate functions and regular expressions', () => {
