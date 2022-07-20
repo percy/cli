@@ -218,6 +218,27 @@ describe('Snapshot', () => {
     expect(root(1)).toHaveProperty('attributes.resource-url', 'http://localhost:8000/two');
   });
 
+  it('does not upload delayed snapshots when skipping', async () => {
+    // stop and recreate a percy instance with the desired option
+    await percy.stop(true);
+    await api.mock();
+
+    percy = await Percy.start({
+      token: 'PERCY_TOKEN',
+      delayUploads: true,
+      // skip should be prioritized over delay
+      skipUploads: true
+    });
+
+    await percy.snapshot('http://localhost:8000/one');
+    await percy.snapshot('http://localhost:8000/two');
+    await percy.idle();
+
+    // not requested, ever
+    expect(api.requests['/builds']).toBeUndefined();
+    expect(api.requests['/builds/123/snapshots']).toBeUndefined();
+  });
+
   it('uploads all snapshots at the end when deferred', async () => {
     // stop and recreate a percy instance with the desired option
     await percy.stop(true);
