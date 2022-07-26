@@ -158,11 +158,14 @@ async function scrollToBottom(options, onScroll) {
   }
 }
 
+// Used to test if a string looks like a function
+const FUNC_REG = /^(async\s+)?(function\s*)?(\w+\s*)?\(.*?\)\s*(\{|=>)/is;
+
 // Serializes the provided function with percy helpers for use in evaluating browser scripts
 export function serializeFunction(fn) {
-  let fnbody = typeof fn === 'string'
-    ? `async eval() {\n${fn}\n}`
-    : fn.toString();
+  // stringify or convert a function body into a complete function
+  let fnbody = (typeof fn === 'string' && !FUNC_REG.test(fn))
+    ? `async function eval() {\n${fn}\n}` : fn.toString();
 
   // we might have a function shorthand if this fails
   /* eslint-disable-next-line no-new, no-new-func */
