@@ -1,6 +1,6 @@
 import { colors } from './utils.js';
 
-const URL_REGEXP = /\bhttps?:\/\/[^\s/$.?#].[^\s]*\b/i;
+const URL_REGEXP = /https?:\/\/[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,4}\b([-a-zA-Z0-9@:;%_+.~#?&//=[\]]*)/i;
 const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 
 // A PercyLogger instance retains logs in-memory for quick lookups while also writing log

@@ -75,10 +75,11 @@ describe('logger', () => {
   });
 
   it('highlights info URLs blue', () => {
-    log.info('URL: https://percy.io');
+    let url = 'https://percy.io/?foo[bar]=baz&qux=quux:xyzzy;';
+    log.info(`URL: ${url}`);
 
     expect(helpers.stdout).toEqual([
-      `[${colors.magenta('percy')}] URL: ${colors.blue('https://percy.io')}`
+      `[${colors.magenta('percy')}] URL: ${colors.blue(url)}`
     ]);
   });
 
