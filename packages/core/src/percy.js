@@ -160,12 +160,13 @@ export class Percy {
     let buildTask = this.#uploads.push('build/create', () => {
       // pause other queued tasks until after the build is created
       this.#uploads.stop();
+      this.build = {};
 
       return this.client.createBuild()
         .then(({ data: { id, attributes } }) => {
-          this.build = { id };
-          this.build.number = attributes['build-number'];
-          this.build.url = attributes['web-url'];
+          let url = attributes['web-url'];
+          let number = attributes['build-number'];
+          Object.assign(this.build, { id, url, number });
           if (!this.delayUploads) this.#uploads.run();
         });
     }, 0);
@@ -241,6 +242,8 @@ export class Percy {
 
         // prevent creating an empty build when deferred
         if (!this.deferUploads || !this.#uploads.has('build/create') || this.#uploads.size > 1) {
+          if (this.build && !this.build.id) yield* this.#uploads.idle();
+
           yield* this.#uploads.flush(s => {
             // do not log a count when not closing or while creating a build
             if (!close || this.#uploads.has('build/create')) return;
@@ -442,7 +445,9 @@ export class Percy {
     if (this.build?.error) throw new Error(this.build.error);
 
     // maybe process any existing delayed uploads
-    if (!this.skipUploads && this.delayUploads) this.#uploads.run();
+    if (!this.skipUploads && this.delayUploads && (
+      !this.build || this.build.id
+    )) this.#uploads.run();
 
     return this.#uploads.push(`upload/${name}`, async () => {
       // when delayed, stop the queue before other uploads are processed

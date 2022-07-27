@@ -250,12 +250,20 @@ describe('Snapshot', () => {
       delayUploads: true
     });
 
-    // not requested on start
-    expect(api.requests['/builds']).toBeUndefined();
-    expect(api.requests['/builds/123/snapshots']).toBeUndefined();
+    // delay build creation to ensure uploads are queued whens stopping
+    let resolveBuild;
 
-    // send several snapshots and immediately stop the instance
-    for (let i = 1; i <= 10; i++) percy.snapshot(`http://localhost:8000/${i}`);
+    api.reply('/builds', () => new Promise(resolve => {
+      resolveBuild = () => resolve(api.DEFAULT_REPLIES['/builds']());
+    }));
+
+    // take several snapshots before resolving the build
+    await Promise.all(Array.from({ length: 10 }, (_, i) => (
+      percy.snapshot(`http://localhost:8000/${i}`)
+    )));
+
+    // resolve after stopping to test that uploads don't start before build creation
+    setTimeout(() => resolveBuild(), 100);
     await percy.stop();
 
     // all uploaded after stopping
@@ -266,8 +274,8 @@ describe('Snapshot', () => {
     let roots = api.requests['/builds/123/snapshots'].map(s =>
       s.body.data.relationships.resources.data.find(r => r.attributes['is-root']));
 
-    for (let i = 1; i <= 10; i++) {
-      expect(roots[i - 1]).toHaveProperty('attributes.resource-url', `http://localhost:8000/${i}`);
+    for (let i = 0; i < 10; i++) {
+      expect(roots[i]).toHaveProperty('attributes.resource-url', `http://localhost:8000/${i}`);
     }
   });
 
