@@ -41,8 +41,23 @@ describe('percy build:wait', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: Missing build ID or commit SHA'
+      '[percy] Error: Missing project path or build ID'
     ]);
+  });
+
+  it('logs while waiting for a matching build', async () => {
+    api
+      .reply('/projects/foo/bar/builds?filter[sha]=sha123', () => [200, { data: [] }])
+      .reply('/projects/foo/bar/builds?filter[sha]=sha123', () => [200, {
+        data: [build({ 'total-comparisons-finished': 72, state: 'finished' }).data]
+      }]);
+
+    await wait(['--project=foo/bar', '--commit=sha123', '--timeout=500', '--interval=50']);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Waiting for build...'
+    ]));
   });
 
   it('logs while recieving snapshots', async () => {

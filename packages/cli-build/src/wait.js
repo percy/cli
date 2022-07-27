@@ -12,7 +12,6 @@ export const wait = command('wait', {
   }, {
     name: 'project',
     description: 'Build project slug, requires \'--commit\'',
-    requires: ['commit'],
     type: 'slug',
     short: 'p'
   }, {
@@ -78,9 +77,11 @@ function logProgress({
     'total-comparisons': total,
     'total-comparisons-diff': diffs,
     'total-comparisons-finished': finished
-  }
-}, log) {
+  } = {}
+} = {}, log) {
   switch (state) {
+    case undefined:
+      return log.progress('Waiting for build...');
     case 'pending':
       return log.progress('Recieving snapshots...');
     case 'processing':
@@ -123,10 +124,10 @@ function failureMessage(type, {
 
 // Return true or false if a build is considered failing or not
 function isFailing({
-  attributes: { state, 'total-comparisons-diff': diffs }
-}, { failOnChanges }) {
+  attributes: { state, 'total-comparisons-diff': diffs } = {}
+} = {}, { failOnChanges }) {
   // not pending and not processing
-  return state !== 'pending' && state !== 'processing' &&
+  return state != null && state !== 'pending' && state !== 'processing' &&
     // not finished or finished with diffs
     (state !== 'finished' || (failOnChanges && !!diffs));
 }
