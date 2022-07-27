@@ -95,6 +95,7 @@ export class PercyLogger {
 
   // Formats messages before they are logged to stdio
   format(debug, level, message, elapsed) {
+    let color = (n, m) => this.isTTY ? colors[n](m) : m;
     let label = 'percy';
     let suffix = '';
 
@@ -112,24 +113,30 @@ export class PercyLogger {
 
       // include elapsed time since last log
       if (elapsed != null) {
-        suffix = ' ' + colors.grey(`(${elapsed}ms)`);
+        suffix = ' ' + color('grey', `(${elapsed}ms)`);
       }
     }
 
-    label = colors.magenta(label);
+    // add colors
+    label = color('magenta', label);
 
     if (level === 'error') {
       // red errors
-      message = colors.red(message);
+      message = color('red', message);
     } else if (level === 'warn') {
       // yellow warnings
-      message = colors.yellow(message);
+      message = color('yellow', message);
     } else if (level === 'info' || level === 'debug') {
       // blue info and debug URLs
-      message = message.replace(URL_REGEXP, colors.blue('$&'));
+      message = message.replace(URL_REGEXP, color('blue', '$&'));
     }
 
     return `[${label}] ${message}${suffix}`;
+  }
+
+  // True if stdout is a TTY interface
+  get isTTY() {
+    return !!this.constructor.stdout.isTTY;
   }
 
   // Replaces the current line with a log message
@@ -137,12 +144,12 @@ export class PercyLogger {
     if (!this.shouldLog(debug, 'info')) return;
     let { stdout } = this.constructor;
 
-    if (stdout.isTTY || !this._progress) {
+    if (this.isTTY || !this._progress) {
       message &&= this.format(debug, message);
-      if (stdout.isTTY) stdout.cursorTo(0);
+      if (this.isTTY) stdout.cursorTo(0);
       else message &&= message + '\n';
       if (message) stdout.write(message);
-      if (stdout.isTTY) stdout.clearLine(1);
+      if (this.isTTY) stdout.clearLine(1);
     }
 
     this._progress = !!message && { message, persist };

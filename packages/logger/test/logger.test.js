@@ -6,7 +6,7 @@ describe('logger', () => {
   let log, inst;
 
   beforeEach(async () => {
-    await helpers.mock({ ansi: true });
+    await helpers.mock({ ansi: true, isTTY: true });
     inst = logger.instance;
     log = logger('test');
   });
@@ -281,7 +281,7 @@ describe('logger', () => {
 
     it('enables debug logging when PERCY_DEBUG is defined', async () => {
       process.env.PERCY_DEBUG = '*';
-      await helpers.mock({ ansi: true });
+      await helpers.mock({ ansi: true, isTTY: true });
 
       logger('test').debug('Debug log');
 
@@ -301,9 +301,9 @@ describe('logger', () => {
       logger('test:3').debug('Debug test 3');
 
       expect(helpers.stderr).toEqual([
-        `[${colors.magenta('percy:test')}] Debug test`,
-        `[${colors.magenta('percy:test:1')}] Debug test 1`,
-        `[${colors.magenta('percy:test:3')}] Debug test 3`
+        '[percy:test] Debug test',
+        '[percy:test:1] Debug test 1',
+        '[percy:test:3] Debug test 3'
       ]);
     });
 
@@ -331,7 +331,6 @@ describe('logger', () => {
       spyOn(logger.stdout, 'cursorTo').and.callThrough();
       spyOn(logger.stdout, 'clearLine').and.callThrough();
       spyOn(logger.stdout, 'write').and.callThrough();
-      logger.stdout.isTTY = true;
       ({ stdout } = logger);
     });
 
@@ -402,7 +401,7 @@ describe('logger', () => {
         log.progress('baz');
 
         expect(stdout.cursorTo).not.toHaveBeenCalled();
-        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] foo\n`);
+        expect(stdout.write).toHaveBeenCalledWith('[percy] foo\n');
         expect(stdout.clearLine).not.toHaveBeenCalled();
       });
 
@@ -414,7 +413,7 @@ describe('logger', () => {
 
         expect(stdout.cursorTo).not.toHaveBeenCalled();
         expect(stdout.clearLine).not.toHaveBeenCalled();
-        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] bar\n`);
+        expect(stdout.write).toHaveBeenCalledWith('[percy] bar\n');
       });
 
       it('ignores consecutive persistant logs after the first', () => {
@@ -425,10 +424,10 @@ describe('logger', () => {
 
         expect(stdout.cursorTo).not.toHaveBeenCalled();
         expect(stdout.write).toHaveBeenCalledTimes(3);
-        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] foo\n`);
-        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] bar\n`);
-        expect(stdout.write).not.toHaveBeenCalledWith(`[${colors.magenta('percy')}] baz\n`);
-        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] qux\n`);
+        expect(stdout.write).toHaveBeenCalledWith('[percy] foo\n');
+        expect(stdout.write).toHaveBeenCalledWith('[percy] bar\n');
+        expect(stdout.write).not.toHaveBeenCalledWith('[percy] baz\n');
+        expect(stdout.write).toHaveBeenCalledWith('[percy] qux\n');
         expect(stdout.clearLine).not.toHaveBeenCalled();
       });
     });
