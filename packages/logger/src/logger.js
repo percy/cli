@@ -181,29 +181,32 @@ export class PercyLogger {
     // save log entries
     let timestamp = Date.now();
     message = err ? (message.stack || err) : message.toString();
-    let entry = { debug, level, message, meta, timestamp };
+    let entry = { debug, level, message, meta, timestamp, error: !!err };
     this.messages.add(entry);
 
     // maybe write the message to stdio
     if (this.shouldLog(debug, level)) {
+      // unless the loglevel is debug, write shorter error messages
       if (err && this.level !== 'debug') message = err;
-      let elapsed = timestamp - (this.lastlog || timestamp);
-      this.write(level, this.format(debug, err ? 'error' : level, message, elapsed));
+      this.write({ ...entry, message });
       this.lastlog = timestamp;
     }
   }
 
-  // Writes a message to stdio based on the loglevel
-  write(level, message) {
+  // Writes a log entry to stdio based on the loglevel
+  write({ debug, level, message, timestamp, error }) {
+    let elapsed = timestamp - (this.lastlog || timestamp);
+    let msg = this.format(debug, error ? 'error' : level, message, elapsed);
+    let progress = this.isTTY && this._progress;
     let { stdout, stderr } = this.constructor;
-    let progress = stdout.isTTY && this._progress;
 
+    // clear any logged progress
     if (progress) {
       stdout.cursorTo(0);
       stdout.clearLine(0);
     }
 
-    (level === 'info' ? stdout : stderr).write(message + '\n');
+    (level === 'info' ? stdout : stderr).write(msg + '\n');
     if (!this._progress?.persist) delete this._progress;
     else if (progress) stdout.write(progress.message);
   }

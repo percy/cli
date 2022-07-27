@@ -40,6 +40,7 @@ describe('logger', () => {
     let entry = (level, message, meta) => ({
       timestamp: jasmine.any(Number),
       debug: 'test',
+      error: false,
       level,
       message,
       meta
@@ -92,6 +93,7 @@ describe('logger', () => {
       level: 'error',
       message: error.stack,
       timestamp: jasmine.any(Number),
+      error: true,
       meta: {}
     });
 
@@ -130,7 +132,8 @@ describe('logger', () => {
       level: 'info',
       message: 'Yes me',
       timestamp: jasmine.any(Number),
-      meta: { match: true }
+      meta: { match: true },
+      error: false
     }]);
   });
 
@@ -170,6 +173,32 @@ describe('logger', () => {
   it('exposes own stdout and stderr streams', () => {
     expect(logger.stdout).toBe(logger.constructor.stdout);
     expect(logger.stderr).toBe(logger.constructor.stderr);
+  });
+
+  it('can define a custom instance write method', () => {
+    let write = logger.instance.write = jasmine.createSpy('write');
+
+    log.info('Info log');
+    log.warn('Warn log');
+    log.error('Error log');
+    log.debug('Debug log');
+
+    expect(write).toHaveBeenCalledWith(jasmine.objectContaining(
+      { debug: 'test', level: 'info', message: 'Info log' }));
+    expect(write).toHaveBeenCalledWith(jasmine.objectContaining(
+      { debug: 'test', level: 'warn', message: 'Warn log' }));
+    expect(write).toHaveBeenCalledWith(jasmine.objectContaining(
+      { debug: 'test', level: 'error', message: 'Error log' }));
+
+    // write is not called when a log should not be written
+    expect(write).not.toHaveBeenCalledWith(jasmine.objectContaining(
+      { debug: 'test', level: 'debug', message: 'Debug log' }));
+
+    log.loglevel('debug');
+    log.debug('Debug log');
+
+    expect(write).toHaveBeenCalledWith(jasmine.objectContaining(
+      { debug: 'test', level: 'debug', message: 'Debug log' }));
   });
 
   describe('levels', () => {
