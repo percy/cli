@@ -82,10 +82,6 @@ export class Percy {
       this.#snapshots.concurrency = concurrency;
     }
 
-    if (this.delayUploads) {
-      this.#uploads.concurrency = 1;
-    }
-
     this.client = new PercyClient({ token, clientInfo, environmentInfo });
     if (server) this.server = createPercyServer(this, port);
     this.browser = new Browser(this);
@@ -450,7 +446,7 @@ export class Percy {
 
     return this.#uploads.push(`upload/${name}`, async () => {
       // when delayed, stop the queue before other uploads are processed
-      if (this.delayUploads) this.#uploads.stop();
+      if (this.readyState < 2 && this.delayUploads) this.#uploads.stop();
 
       try {
         /* istanbul ignore if: useful for other internal packages */
