@@ -20,7 +20,9 @@ export const explorer = cosmiconfigSync('percy', {
     '.percy.yaml',
     '.percy.yml',
     '.percy.js',
-    'percy.config.js'
+    '.percy.cjs',
+    'percy.config.js',
+    'percy.config.cjs'
   ]
 });
 

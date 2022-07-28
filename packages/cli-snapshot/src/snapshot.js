@@ -130,12 +130,12 @@ function merge(...objs) {
 async function loadSnapshotFile(file) {
   let ext = path.extname(file);
 
-  if (ext === '.js') {
+  if (/\.(c|m)?js$/.test(ext)) {
     let { default: module } = await import(path.resolve(file));
     return typeof module === 'function' ? await module() : module;
   } else if (ext === '.json') {
     return JSON.parse(fs.readFileSync(file, 'utf-8'));
-  } else if (ext.match(/\.ya?ml$/)) {
+  } else if (/\.ya?ml$/.test(ext)) {
     let { default: YAML } = await import('yaml');
     return YAML.parse(fs.readFileSync(file, 'utf-8'));
   } else {
