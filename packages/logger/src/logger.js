@@ -1,6 +1,6 @@
 import { colors } from './utils.js';
 
-const URL_REGEXP = /\bhttps?:\/\/[^\s/$.?#].[^\s]*\b/i;
+const URL_REGEXP = /https?:\/\/[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,4}\b([-a-zA-Z0-9@:;%_+.~#?&//=[\]]*)/i;
 const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 
 // A PercyLogger instance retains logs in-memory for quick lookups while also writing log
@@ -95,6 +95,7 @@ export class PercyLogger {
 
   // Formats messages before they are logged to stdio
   format(debug, level, message, elapsed) {
+    let color = (n, m) => this.isTTY ? colors[n](m) : m;
     let label = 'percy';
     let suffix = '';
 
@@ -112,24 +113,30 @@ export class PercyLogger {
 
       // include elapsed time since last log
       if (elapsed != null) {
-        suffix = ' ' + colors.grey(`(${elapsed}ms)`);
+        suffix = ' ' + color('grey', `(${elapsed}ms)`);
       }
     }
 
-    label = colors.magenta(label);
+    // add colors
+    label = color('magenta', label);
 
     if (level === 'error') {
       // red errors
-      message = colors.red(message);
+      message = color('red', message);
     } else if (level === 'warn') {
       // yellow warnings
-      message = colors.yellow(message);
+      message = color('yellow', message);
     } else if (level === 'info' || level === 'debug') {
       // blue info and debug URLs
-      message = message.replace(URL_REGEXP, colors.blue('$&'));
+      message = message.replace(URL_REGEXP, color('blue', '$&'));
     }
 
     return `[${label}] ${message}${suffix}`;
+  }
+
+  // True if stdout is a TTY interface
+  get isTTY() {
+    return !!this.constructor.stdout.isTTY;
   }
 
   // Replaces the current line with a log message
@@ -137,12 +144,12 @@ export class PercyLogger {
     if (!this.shouldLog(debug, 'info')) return;
     let { stdout } = this.constructor;
 
-    if (stdout.isTTY || !this._progress) {
+    if (this.isTTY || !this._progress) {
       message &&= this.format(debug, message);
-      if (stdout.isTTY) stdout.cursorTo(0);
+      if (this.isTTY) stdout.cursorTo(0);
       else message &&= message + '\n';
       if (message) stdout.write(message);
-      if (stdout.isTTY) stdout.clearLine(1);
+      if (this.isTTY) stdout.clearLine(1);
     }
 
     this._progress = !!message && { message, persist };
@@ -174,29 +181,32 @@ export class PercyLogger {
     // save log entries
     let timestamp = Date.now();
     message = err ? (message.stack || err) : message.toString();
-    let entry = { debug, level, message, meta, timestamp };
+    let entry = { debug, level, message, meta, timestamp, error: !!err };
     this.messages.add(entry);
 
     // maybe write the message to stdio
     if (this.shouldLog(debug, level)) {
+      // unless the loglevel is debug, write shorter error messages
       if (err && this.level !== 'debug') message = err;
-      let elapsed = timestamp - (this.lastlog || timestamp);
-      this.write(level, this.format(debug, err ? 'error' : level, message, elapsed));
+      this.write({ ...entry, message });
       this.lastlog = timestamp;
     }
   }
 
-  // Writes a message to stdio based on the loglevel
-  write(level, message) {
+  // Writes a log entry to stdio based on the loglevel
+  write({ debug, level, message, timestamp, error }) {
+    let elapsed = timestamp - (this.lastlog || timestamp);
+    let msg = this.format(debug, error ? 'error' : level, message, elapsed);
+    let progress = this.isTTY && this._progress;
     let { stdout, stderr } = this.constructor;
-    let progress = stdout.isTTY && this._progress;
 
+    // clear any logged progress
     if (progress) {
       stdout.cursorTo(0);
       stdout.clearLine(0);
     }
 
-    (level === 'info' ? stdout : stderr).write(message + '\n');
+    (level === 'info' ? stdout : stderr).write(msg + '\n');
     if (!this._progress?.persist) delete this._progress;
     else if (progress) stdout.write(progress.message);
   }

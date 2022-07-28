@@ -6,7 +6,7 @@ describe('logger', () => {
   let log, inst;
 
   beforeEach(async () => {
-    await helpers.mock({ ansi: true });
+    await helpers.mock({ ansi: true, isTTY: true });
     inst = logger.instance;
     log = logger('test');
   });
@@ -40,6 +40,7 @@ describe('logger', () => {
     let entry = (level, message, meta) => ({
       timestamp: jasmine.any(Number),
       debug: 'test',
+      error: false,
       level,
       message,
       meta
@@ -75,10 +76,11 @@ describe('logger', () => {
   });
 
   it('highlights info URLs blue', () => {
-    log.info('URL: https://percy.io');
+    let url = 'https://percy.io/?foo[bar]=baz&qux=quux:xyzzy;';
+    log.info(`URL: ${url}`);
 
     expect(helpers.stdout).toEqual([
-      `[${colors.magenta('percy')}] URL: ${colors.blue('https://percy.io')}`
+      `[${colors.magenta('percy')}] URL: ${colors.blue(url)}`
     ]);
   });
 
@@ -91,6 +93,7 @@ describe('logger', () => {
       level: 'error',
       message: error.stack,
       timestamp: jasmine.any(Number),
+      error: true,
       meta: {}
     });
 
@@ -129,7 +132,8 @@ describe('logger', () => {
       level: 'info',
       message: 'Yes me',
       timestamp: jasmine.any(Number),
-      meta: { match: true }
+      meta: { match: true },
+      error: false
     }]);
   });
 
@@ -169,6 +173,32 @@ describe('logger', () => {
   it('exposes own stdout and stderr streams', () => {
     expect(logger.stdout).toBe(logger.constructor.stdout);
     expect(logger.stderr).toBe(logger.constructor.stderr);
+  });
+
+  it('can define a custom instance write method', () => {
+    let write = logger.instance.write = jasmine.createSpy('write');
+
+    log.info('Info log');
+    log.warn('Warn log');
+    log.error('Error log');
+    log.debug('Debug log');
+
+    expect(write).toHaveBeenCalledWith(jasmine.objectContaining(
+      { debug: 'test', level: 'info', message: 'Info log' }));
+    expect(write).toHaveBeenCalledWith(jasmine.objectContaining(
+      { debug: 'test', level: 'warn', message: 'Warn log' }));
+    expect(write).toHaveBeenCalledWith(jasmine.objectContaining(
+      { debug: 'test', level: 'error', message: 'Error log' }));
+
+    // write is not called when a log should not be written
+    expect(write).not.toHaveBeenCalledWith(jasmine.objectContaining(
+      { debug: 'test', level: 'debug', message: 'Debug log' }));
+
+    log.loglevel('debug');
+    log.debug('Debug log');
+
+    expect(write).toHaveBeenCalledWith(jasmine.objectContaining(
+      { debug: 'test', level: 'debug', message: 'Debug log' }));
   });
 
   describe('levels', () => {
@@ -280,7 +310,7 @@ describe('logger', () => {
 
     it('enables debug logging when PERCY_DEBUG is defined', async () => {
       process.env.PERCY_DEBUG = '*';
-      await helpers.mock({ ansi: true });
+      await helpers.mock({ ansi: true, isTTY: true });
 
       logger('test').debug('Debug log');
 
@@ -300,9 +330,9 @@ describe('logger', () => {
       logger('test:3').debug('Debug test 3');
 
       expect(helpers.stderr).toEqual([
-        `[${colors.magenta('percy:test')}] Debug test`,
-        `[${colors.magenta('percy:test:1')}] Debug test 1`,
-        `[${colors.magenta('percy:test:3')}] Debug test 3`
+        '[percy:test] Debug test',
+        '[percy:test:1] Debug test 1',
+        '[percy:test:3] Debug test 3'
       ]);
     });
 
@@ -330,7 +360,6 @@ describe('logger', () => {
       spyOn(logger.stdout, 'cursorTo').and.callThrough();
       spyOn(logger.stdout, 'clearLine').and.callThrough();
       spyOn(logger.stdout, 'write').and.callThrough();
-      logger.stdout.isTTY = true;
       ({ stdout } = logger);
     });
 
@@ -401,7 +430,7 @@ describe('logger', () => {
         log.progress('baz');
 
         expect(stdout.cursorTo).not.toHaveBeenCalled();
-        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] foo\n`);
+        expect(stdout.write).toHaveBeenCalledWith('[percy] foo\n');
         expect(stdout.clearLine).not.toHaveBeenCalled();
       });
 
@@ -413,7 +442,7 @@ describe('logger', () => {
 
         expect(stdout.cursorTo).not.toHaveBeenCalled();
         expect(stdout.clearLine).not.toHaveBeenCalled();
-        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] bar\n`);
+        expect(stdout.write).toHaveBeenCalledWith('[percy] bar\n');
       });
 
       it('ignores consecutive persistant logs after the first', () => {
@@ -424,10 +453,10 @@ describe('logger', () => {
 
         expect(stdout.cursorTo).not.toHaveBeenCalled();
         expect(stdout.write).toHaveBeenCalledTimes(3);
-        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] foo\n`);
-        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] bar\n`);
-        expect(stdout.write).not.toHaveBeenCalledWith(`[${colors.magenta('percy')}] baz\n`);
-        expect(stdout.write).toHaveBeenCalledWith(`[${colors.magenta('percy')}] qux\n`);
+        expect(stdout.write).toHaveBeenCalledWith('[percy] foo\n');
+        expect(stdout.write).toHaveBeenCalledWith('[percy] bar\n');
+        expect(stdout.write).not.toHaveBeenCalledWith('[percy] baz\n');
+        expect(stdout.write).toHaveBeenCalledWith('[percy] qux\n');
         expect(stdout.clearLine).not.toHaveBeenCalled();
       });
     });
