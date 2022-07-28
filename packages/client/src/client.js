@@ -195,19 +195,21 @@ export class PercyClient {
     timeout = 10 * 60 * 1000,
     interval = 1000
   }, onProgress) {
-    if (commit && !project) {
+    if (!project && commit) {
       throw new Error('Missing project path for commit');
-    } else if (!commit && !build) {
-      throw new Error('Missing build ID or commit SHA');
+    } else if (!project && !build) {
+      throw new Error('Missing project path or build ID');
     } else if (project) {
       validateProjectPath(project);
     }
 
+    commit ||= this.env.git.sha;
+    if (!build && !commit) throw new Error('Missing build commit');
     let sha = commit && (git(`rev-parse ${commit}`) || commit);
 
     let fetchData = async () => build
       ? (await this.getBuild(build)).data
-      : (await this.getBuilds(project, { sha })).data[0];
+      : (await this.getBuilds(project, { sha })).data?.[0];
 
     this.log.debug(`Waiting for build ${build || `${project} (${commit})`}...`);
 
@@ -225,7 +227,7 @@ export class PercyClient {
 
         // no new data within the timeout
         } else if (Date.now() - t >= timeout) {
-          throw new Error('Timeout exceeded without an update');
+          throw new Error(state == null ? 'Build not found' : 'Timeout exceeded with no updates');
         }
 
         // call progress every update after the first update

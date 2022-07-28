@@ -277,14 +277,21 @@ describe('PercyClient', () => {
   });
 
   describe('#waitForBuild()', () => {
-    it('throws when missing a build or commit sha', () => {
-      expect(() => client.waitForBuild({}))
-        .toThrowError('Missing build ID or commit SHA');
+    it('throws when missing a project or build', () => {
+      expect(() => client.waitForBuild({ commit: null }))
+        .toThrowError('Missing project path or build ID');
     });
 
-    it('throws when missing a project with a commit sha', () => {
+    it('throws when missing a project with a commit', () => {
       expect(() => client.waitForBuild({ commit: '...' }))
         .toThrowError('Missing project path for commit');
+    });
+
+    it('throws when missing a commit for a project', () => {
+      Object.defineProperty(client.env, 'git', { value: { sha: null } });
+
+      expect(() => client.waitForBuild({ project: 'foo/bar' }))
+        .toThrowError('Missing build commit');
     });
 
     it('throws when using an invalid project path', () => {
@@ -320,7 +327,18 @@ describe('PercyClient', () => {
       }]);
 
       await expectAsync(client.waitForBuild({ build: '123', timeout: 1500, interval: 50 }))
-        .toBeRejectedWithError('Timeout exceeded without an update');
+        .toBeRejectedWithError('Timeout exceeded with no updates');
+    });
+
+    it('throws when no build is found within the timeout', async () => {
+      api.reply('/projects/foo/bar/builds?filter[sha]=sha123', () => [200, { data: [] }]);
+
+      await expectAsync(client.waitForBuild({
+        project: 'foo/bar',
+        commit: 'sha123',
+        timeout: 500,
+        interval: 50
+      })).toBeRejectedWithError('Build not found');
     });
 
     it('resolves when the build completes', async () => {
@@ -347,7 +365,7 @@ describe('PercyClient', () => {
           data: [{ attributes: { state: 'finished' } }]
         }]);
 
-      await expectAsync(client.waitForBuild({ project: 'foo/bar', commit: 'HEAD', interval: 50 }))
+      await expectAsync(client.waitForBuild({ project: 'foo/bar', interval: 50 }))
         .toBeResolvedTo({ data: { attributes: { state: 'finished' } } });
     });
 
