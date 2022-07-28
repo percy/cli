@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-config",
-  "version": "1.6.4",
+  "version": "1.7.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -32,6 +32,6 @@
     ]
   },
   "dependencies": {
-    "@percy/cli-command": "1.6.4"
+    "@percy/cli-command": "1.7.0"
   }
 }
