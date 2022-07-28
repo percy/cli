@@ -46,6 +46,14 @@ export function createLogResource(logs) {
   return createResource(`/percy.${Date.now()}.log`, JSON.stringify(logs), 'text/plain');
 }
 
+// Returns true or false if the provided object is a generator or not
+export function isGenerator(subject) {
+  return typeof subject?.next === 'function' && (
+    typeof subject[Symbol.iterator] === 'function' ||
+    typeof subject[Symbol.asyncIterator] === 'function'
+  );
+}
+
 // Iterates over the provided generator and resolves to the final value when done. With an
 // AbortSignal, the generator will throw with the abort reason when aborted. Also accepts an
 // optional node-style callback, called before the returned promise resolves.
@@ -54,10 +62,9 @@ export async function generatePromise(gen, signal, cb) {
     if (typeof signal === 'function') [cb, signal] = [signal];
     if (typeof gen === 'function') gen = await gen();
 
-    let { done, value } = (typeof gen?.next === 'function' && (
-      typeof gen[Symbol.iterator] === 'function' ||
-      typeof gen[Symbol.asyncIterator] === 'function'
-    )) ? await gen.next() : { done: true, value: await gen };
+    let { done, value } = !isGenerator(gen)
+      ? { done: true, value: await gen }
+      : await gen.next();
 
     while (!done) {
       ({ done, value } = signal?.aborted
@@ -87,6 +94,31 @@ export class AbortController {
 export class AbortError extends Error {
   constructor(msg = 'This operation was aborted', props) {
     Object.assign(super(msg), { name: 'AbortError', ...props });
+  }
+}
+
+// An async generator that yields after every event loop until the promise settles
+export async function* yieldTo(subject) {
+  let pending = typeof subject?.finally === 'function';
+  if (pending) subject = subject.finally(() => (pending = false));
+  /* eslint-disable-next-line no-unmodified-loop-condition */
+  while (pending) yield new Promise(r => setImmediate(r));
+  return isGenerator(subject) ? yield* subject : await subject;
+}
+
+// An async generator that runs provided generators concurrently
+export async function* yieldAll(all) {
+  let res = new Array(all.length).fill();
+  all = all.map(yieldTo);
+
+  while (true) {
+    res = await Promise.all(all.map((g, i) => (
+      res[i]?.done ? res[i] : g.next(res[i]?.value)
+    )));
+
+    let vals = res.map(r => r?.value);
+    if (res.some(r => !r?.done)) yield vals;
+    else return vals;
   }
 }
 
@@ -188,6 +220,7 @@ export function serializeFunction(fn) {
     '  waitFor, waitForTimeout, waitForSelector, waitForXPath,',
     '  scrollToBottom',
     '}, ...arguments);',
+    `${isGenerator}`,
     `${generatePromise}`,
     `${yieldFor}`,
     `${waitFor}`,

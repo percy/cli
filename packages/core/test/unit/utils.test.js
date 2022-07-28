@@ -1,6 +1,8 @@
 import {
   generatePromise,
-  AbortController
+  AbortController,
+  yieldTo,
+  yieldAll
 } from '../../src/utils.js';
 
 describe('Unit / Utils', () => {
@@ -93,6 +95,75 @@ describe('Unit / Utils', () => {
       ctrl.abort();
 
       expect(handler).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('yieldTo', () => {
+    it('returns a generator that finishes when the promise resolves', async () => {
+      let resolve, promise = new Promise(r => (resolve = r));
+      let gen = yieldTo(promise);
+
+      await expectAsync(gen.next()).toBeResolvedTo({ done: false, value: undefined });
+      await expectAsync(gen.next()).toBeResolvedTo({ done: false, value: undefined });
+      await expectAsync(gen.next()).toBeResolvedTo({ done: false, value: undefined });
+
+      resolve('foo');
+
+      await expectAsync(promise).toBeResolved();
+      await expectAsync(gen.next()).toBeResolvedTo({ done: true, value: 'foo' });
+    });
+
+    it('returns a generator that throws when the promise rejects', async () => {
+      let reject, promise = new Promise((_, r) => (reject = r));
+      let gen = yieldTo(promise);
+
+      await expectAsync(gen.next()).toBeResolvedTo({ done: false, value: undefined });
+
+      reject(new Error('foo'));
+
+      await expectAsync(promise).toBeRejectedWithError('foo');
+      await expectAsync(gen.next()).toBeRejectedWithError('foo');
+    });
+
+    it('returns a generator that yields to a provided generator', async () => {
+      function* test(n) { for (let i = 0; i < n; i++) yield i; return n; }
+      let gen = yieldTo(test(3));
+
+      await expectAsync(gen.next()).toBeResolvedTo({ done: false, value: 0 });
+      await expectAsync(gen.next()).toBeResolvedTo({ done: false, value: 1 });
+      await expectAsync(gen.next()).toBeResolvedTo({ done: false, value: 2 });
+      await expectAsync(gen.next()).toBeResolvedTo({ done: true, value: 3 });
+    });
+
+    it('returns a generator that finishes immediately for other values', async () => {
+      await expectAsync(yieldTo(42).next()).toBeResolvedTo({ done: true, value: 42 });
+    });
+  });
+
+  describe('yieldAll', () => {
+    it('returns a generator that yields to all provided values concurrently', async () => {
+      function* test(n) { for (let i = 0; i < n; i++) yield i; return n; }
+
+      let resolve, promise = new Promise(r => (resolve = r));
+      let gen = yieldAll([test(2), 4, null, test(3), promise]);
+
+      await expectAsync(gen.next()).toBeResolvedTo(
+        { done: false, value: [0, 4, null, 0, undefined] });
+      await expectAsync(gen.next()).toBeResolvedTo(
+        { done: false, value: [1, 4, null, 1, undefined] });
+      await expectAsync(gen.next()).toBeResolvedTo(
+        { done: false, value: [2, 4, null, 2, undefined] });
+      await expectAsync(gen.next()).toBeResolvedTo(
+        { done: false, value: [2, 4, null, 3, undefined] });
+      await expectAsync(gen.next()).toBeResolvedTo(
+        { done: false, value: [2, 4, null, 3, undefined] });
+
+      resolve(6);
+
+      await expectAsync(promise).toBeResolved();
+      //console.log('promise resolved');
+      await expectAsync(gen.next()).toBeResolvedTo(
+        { done: true, value: [2, 4, null, 3, 6] });
     });
   });
 });
