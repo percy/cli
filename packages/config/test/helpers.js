@@ -28,6 +28,9 @@ const INTERNAL_FILE_REG = new RegExp(
     '(src|dist|test|package\\.json)(\\1|$)'
 );
 
+// Used to mock javascript modules
+const JS_FILE_REG = /\.(c|m)?js$/;
+
 // Mock and spy on fs methods using an in-memory filesystem
 export async function mockfs({
   // set `true` to allow mocking files within `node_modules` (may cause dynamic import issues)
@@ -45,7 +48,7 @@ export async function mockfs({
 
   // when .js files are created, also mock the module for importing
   spyOn(vol, 'writeFileSync').and.callFake((...args) => {
-    if (args[0].endsWith('.js')) mockFileModule(...args);
+    if (JS_FILE_REG.test(args[0])) mockFileModule(...args);
     return vol.writeFileSync.and.originalFn.apply(vol, args);
   });
 

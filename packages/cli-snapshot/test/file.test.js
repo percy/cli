@@ -29,7 +29,7 @@ describe('percy snapshot <file>', () => {
           ]
         }], { depth: null }),
 
-        'pages-fn.js': 'module.exports = () => (' + inspect([{
+        'pages-fn.cjs': 'module.exports = () => (' + inspect([{
           name: 'JS Function Snapshot',
           url: 'http://localhost:8000'
         }], { depth: null }) + ')',
@@ -126,7 +126,7 @@ describe('percy snapshot <file>', () => {
   });
 
   it('snapshots pages from .js files that export a function', async () => {
-    await snapshot(['./pages-fn.js']);
+    await snapshot(['./pages-fn.cjs']); // .(c|m)?js
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
