@@ -224,4 +224,24 @@ describe('percy snapshot <file>', () => {
       '[percy] Error: No snapshots found'
     ]);
   });
+
+  it('allows a top-level references object for .yaml references', async () => {
+    fs.writeFileSync('references.yaml', [
+      'references:',
+      '  ref: &ref Reference Snapshot',
+      'snapshots:',
+      '  - url: http://localhost:8000/',
+      '    name: *ref'
+    ].join('\n'));
+
+    await snapshot(['./references.yaml']);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Percy has started!',
+      '[percy] Snapshot taken: Reference Snapshot',
+      '[percy] Uploading 1 snapshot...',
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
+    ]);
+  });
 });
