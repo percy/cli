@@ -79,17 +79,19 @@ export async function mockRequests(baseUrl, defaultReply = () => [200]) {
   if (!jasmine.isSpy(http.request)) {
     spyOn(http, 'request').and.callFake((...a) => new MockRequest(null, ...a));
     spyOn(http, 'get').and.callFake((...a) => new MockRequest(null, ...a).end());
+    mockRequests.spies = new Map();
   }
 
   let any = jasmine.anything();
-  let match = o => o.hostname === hostname &&
-    (o.path ?? o.pathname).startsWith(pathname);
+  let match = o => o.hostname === hostname && (o.path ?? o.pathname).startsWith(pathname);
   let reply = jasmine.createSpy('reply').and.callFake(defaultReply);
+  let spies = mockRequests.spies.get(baseUrl) ?? {};
 
-  http.request.withArgs({ asymmetricMatch: match })
-    .and.callFake((...a) => new MockRequest(reply, ...a));
-  http.get.withArgs({ asymmetricMatch: u => match(new URL(u)) }, any, any)
-    .and.callFake((...a) => new MockRequest(reply, ...a).end());
+  spies.request = spies.request ?? http.request.withArgs({ asymmetricMatch: match });
+  spies.request.and.callFake((...a) => new MockRequest(reply, ...a));
+  spies.get = spies.get ?? http.get.withArgs({ asymmetricMatch: u => match(new URL(u)) }, any, any);
+  spies.get.and.callFake((...a) => new MockRequest(reply, ...a).end());
+  mockRequests.spies.set(baseUrl, spies);
 
   return reply;
 }
