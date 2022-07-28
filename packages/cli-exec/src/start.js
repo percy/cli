@@ -14,15 +14,14 @@ export const start = command('start', {
   }
 }, async function*({ percy, exit }) {
   if (!percy) exit(0, 'Percy is disabled');
+  let { yieldFor } = await import('@percy/cli-command/utils');
 
   // start percy
   yield* percy.yield.start();
 
   try {
     // run until stopped or terminated
-    while (percy.readyState < 3) {
-      yield new Promise(r => setImmediate(r));
-    }
+    yield* yieldFor(() => percy.readyState >= 3);
   } catch (error) {
     await percy.stop(true);
     throw error;

@@ -10,7 +10,8 @@ import {
   hostnameMatches,
   createRootResource,
   createPercyCSSResource,
-  createLogResource
+  createLogResource,
+  yieldTo
 } from './utils.js';
 
 // Throw a better error message for missing or invalid urls
@@ -103,17 +104,16 @@ export function mapSnapshotOptions(percy, snapshots, config) {
 }
 
 // Returns an array of derived snapshot options
-export async function gatherSnapshots(percy, options) {
+export async function* gatherSnapshots(percy, options) {
   let { baseUrl, snapshots } = options;
 
   if ('url' in options) snapshots = [options];
-  if ('sitemap' in options) snapshots = await getSitemapSnapshots(options);
+  if ('sitemap' in options) snapshots = yield getSitemapSnapshots(options);
 
   // validate evaluated snapshots
   if (typeof snapshots === 'function') {
-    ({ snapshots } = validateSnapshotOptions({
-      baseUrl, snapshots: await snapshots(baseUrl)
-    }));
+    snapshots = yield* yieldTo(snapshots(baseUrl));
+    snapshots = validateSnapshotOptions({ baseUrl, snapshots }).snapshots;
   }
 
   // map snapshots with snapshot options

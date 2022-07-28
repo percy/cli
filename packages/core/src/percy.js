@@ -14,7 +14,8 @@ import {
   discoverSnapshotResources
 } from './snapshot.js';
 import {
-  generatePromise
+  generatePromise,
+  yieldAll
 } from './utils.js';
 
 // A Percy instance will create a new build when started, handle snapshot
@@ -365,7 +366,7 @@ export class Percy {
     } else if (this.build?.error) {
       throw new Error(this.build.error);
     } else if (Array.isArray(options)) {
-      return Promise.all(options.map(o => this.snapshot(o)));
+      return yieldAll(options.map(o => this.yield.snapshot(o)));
     }
 
     if (typeof options === 'string') {
@@ -391,12 +392,11 @@ export class Percy {
         }
 
         // gather snapshots from options
-        let snapshots = yield gatherSnapshots(this, options);
+        let snapshots = yield* gatherSnapshots(this, options);
 
         try {
-          // yield each task individually to allow canceling
-          let tasks = snapshots.map(s => this._takeSnapshot(s));
-          for (let task of tasks) yield task;
+          // use a try-catch to cancel snapshots that haven't started when the error occurred
+          yield* yieldAll(snapshots.map(s => this._takeSnapshot(s)));
         } catch (error) {
           // cancel queued snapshots that may not have started
           snapshots.map(s => this._cancelSnapshot(s));

@@ -161,7 +161,6 @@ describe('Unit / Utils', () => {
       resolve(6);
 
       await expectAsync(promise).toBeResolved();
-      //console.log('promise resolved');
       await expectAsync(gen.next()).toBeResolvedTo(
         { done: true, value: [2, 4, null, 3, 6] });
     });
