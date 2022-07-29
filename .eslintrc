@@ -3,6 +3,7 @@ extends: standard
 plugins:
   - babel
 rules:
+  one-var: off
   prefer-const: off
   no-extra-parens: off
   no-unused-expressions: off
