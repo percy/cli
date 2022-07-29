@@ -99,11 +99,19 @@ export class AbortError extends Error {
 
 // An async generator that yields after every event loop until the promise settles
 export async function* yieldTo(subject) {
-  let pending = typeof subject?.finally === 'function';
-  if (pending) subject.then(() => (pending = false), () => (pending = false));
+  // yield to any provided generator or return non-promise values
+  if (isGenerator(subject)) return yield* subject;
+  if (typeof subject?.then !== 'function') return subject;
+
+  // update local variables with the provided promise
+  let result, error, pending = !!subject
+    .then(r => (result = r), e => (error = e))
+    .finally(() => (pending = false));
+
   /* eslint-disable-next-line no-unmodified-loop-condition */
   while (pending) yield new Promise(r => setImmediate(r));
-  return isGenerator(subject) ? yield* subject : await subject;
+  if (error) throw error;
+  return result;
 }
 
 // An async generator that runs provided generators concurrently
