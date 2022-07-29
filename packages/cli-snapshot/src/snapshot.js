@@ -81,8 +81,8 @@ export const snapshot = command('snapshot', {
     if (file) {
       // load snapshots file
       let snapshots = yield loadSnapshotFile(file);
-      // accept a config object instead of an array of snapshots
-      let config = Array.isArray(snapshots) ? { snapshots } : snapshots;
+      // remove any references and accept an array of snapshots instead of an config object
+      let { references, ...config } = Array.isArray(snapshots) ? { snapshots } : snapshots;
       options = merge(config, { baseUrl, include, exclude });
     } else if (serve) {
       // serve and snapshot a static directory
