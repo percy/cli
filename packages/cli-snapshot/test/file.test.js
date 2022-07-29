@@ -120,7 +120,7 @@ describe('percy snapshot <file>', () => {
       '[percy] Snapshot taken: JS Snapshot',
       '[percy] Snapshot taken: JS Snapshot 2',
       '[percy] Snapshot taken: Other JS Snapshot',
-      jasmine.stringMatching('\\[percy\\] Uploading \\d snapshots'),
+      jasmine.stringMatching('\\[percy\\] Uploading \\d snapshots?'),
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
   });
@@ -146,7 +146,7 @@ describe('percy snapshot <file>', () => {
       '[percy] Snapshot taken: /',
       '[percy] Snapshot taken: /one',
       '[percy] Snapshot taken: /two',
-      jasmine.stringMatching('\\[percy\\] Uploading \\d snapshots'),
+      jasmine.stringMatching('\\[percy\\] Uploading \\d snapshots?'),
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]));
   });
@@ -171,7 +171,7 @@ describe('percy snapshot <file>', () => {
       '[percy] Snapshot taken: Snapshot #42',
       '[percy] Snapshot taken: Snapshot #62',
       '[percy] Snapshot taken: Snapshot #82',
-      jasmine.stringMatching('\\[percy\\] Uploading \\d snapshots'),
+      jasmine.stringMatching('\\[percy\\] Uploading \\d snapshots?'),
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]));
   });
