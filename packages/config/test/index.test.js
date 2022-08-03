@@ -147,6 +147,31 @@ describe('PercyConfig', () => {
         message: 'must be a string, received a number'
       }]);
     });
+
+    it('can manipulate other attributes of the config schema', () => {
+      PercyConfig.addSchema([{
+        $config: {
+          properties: {
+            test: { const: 'foo' }
+          }
+        }
+      }, {
+        $config: c => ({
+          properties: {
+            test: {
+              oneOf: [c.properties.test, { const: 'bar' }],
+              errors: { oneOf: 'invalid' }
+            }
+          }
+        })
+      }]);
+
+      expect(PercyConfig.validate({ test: 'foo' })).toBeUndefined();
+      expect(PercyConfig.validate({ test: 'bar' })).toBeUndefined();
+      expect(PercyConfig.validate({ test: 'baz' })).toEqual([
+        { path: 'test', message: 'invalid' }
+      ]);
+    });
   });
 
   describe('.getDefaults()', () => {

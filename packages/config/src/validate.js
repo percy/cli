@@ -130,10 +130,17 @@ export function addSchema(schemas) {
   ajv.removeSchema('/config');
 
   for (let [key, schema] of entries(schemas)) {
-    let $id = `/config/${key}`;
-    if (ajv.getSchema($id)) ajv.removeSchema($id);
-    assign(config.properties, { [key]: { $ref: $id } });
-    ajv.addSchema(schema, $id);
+    if (key === '$config') {
+      assign(config, (
+        typeof schema === 'function'
+          ? schema(config) : schema
+      ));
+    } else {
+      let $id = `/config/${key}`;
+      if (ajv.getSchema($id)) ajv.removeSchema($id);
+      assign(config.properties, { [key]: { $ref: $id } });
+      ajv.addSchema(schema, $id);
+    }
   }
 
   return ajv.addSchema(config, '/config');
