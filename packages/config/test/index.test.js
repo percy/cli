@@ -377,6 +377,99 @@ describe('PercyConfig', () => {
         message: 'disallowed property'
       }]);
     });
+
+    it('handles complex conditional schemas', () => {
+      PercyConfig.addSchema({
+        $id: '/test/complex',
+        $ref: '/test/complex#/$defs/complete',
+        $defs: {
+          condition: {
+            isTrue: {
+              required: ['condition'],
+              properties: { condition: { const: true } }
+            },
+            isNotFalse: {
+              not: {
+                required: ['condition'],
+                properties: { condition: { const: false } }
+              }
+            },
+            disallowBar: {
+              disallowed: ['bar'],
+              error: 'disallowed with condition enabled'
+            }
+          },
+          common: {
+            type: 'object',
+            if: { $ref: '/test/complex#/$defs/condition/isTrue' },
+            then: { $ref: '/test/complex#/$defs/condition/disallowBar' },
+            properties: {
+              foo: { type: 'string' },
+              bar: { type: 'string' },
+              condition: { type: 'boolean' }
+            }
+          },
+          item: {
+            type: 'object',
+            $ref: '/test/complex#/$defs/common',
+            unevaluatedProperties: false,
+            properties: {
+              name: { type: 'string' }
+            }
+          },
+          complete: {
+            type: 'object',
+            unevaluatedProperties: false,
+            $ref: '/test/complex#/$defs/common',
+            properties: {
+              items: {
+                type: 'array',
+                items: { $ref: '/test/complex#/$defs/item' }
+              }
+            },
+            allOf: [{
+              if: { $ref: '/test/complex#/$defs/condition/isTrue' },
+              then: {
+                properties: {
+                  items: {
+                    type: 'array',
+                    items: {
+                      $ref: '/test/complex#/$defs/item',
+                      if: { $ref: '/test/complex#/$defs/condition/isNotFalse' },
+                      then: { $ref: '/test/complex#/$defs/condition/disallowBar' }
+                    }
+                  }
+                }
+              }
+            }]
+          }
+        }
+      });
+
+      expect(PercyConfig.validate({
+        condition: true,
+        foo: 'top foo',
+        bar: 'top bar',
+        items: [{
+          name: 'item 1',
+          foo: 'item 1 foo'
+        }, {
+          name: 'item 2',
+          foo: 'item 2 foo',
+          bar: 'item 2 bar'
+        }, {
+          name: 'item 3',
+          bar: 'item 3 bar',
+          condition: false
+        }]
+      }, '/test/complex')).toEqual([{
+        path: 'bar',
+        message: 'disallowed with condition enabled'
+      }, {
+        path: 'items[1].bar',
+        message: 'disallowed with condition enabled'
+      }]);
+    });
   });
 
   describe('.migrate()', () => {

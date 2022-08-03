@@ -152,7 +152,7 @@ function a(word) {
 }
 
 // Default errors anywhere within these keywords can be confusing
-const HIDE_NESTED_KEYWORDS = ['oneOf', 'anyOf', 'allOf', 'not'];
+const HIDE_NESTED_KEYWORDS = ['oneOf', 'anyOf', 'allOf', 'if', 'then', 'else', 'not'];
 
 function shouldHideError(key, path, error) {
   let { parentSchema, keyword, schemaPath } = error;
