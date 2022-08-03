@@ -130,10 +130,17 @@ export function addSchema(schemas) {
   ajv.removeSchema('/config');
 
   for (let [key, schema] of entries(schemas)) {
-    let $id = `/config/${key}`;
-    if (ajv.getSchema($id)) ajv.removeSchema($id);
-    assign(config.properties, { [key]: { $ref: $id } });
-    ajv.addSchema(schema, $id);
+    if (key === '$config') {
+      assign(config, (
+        typeof schema === 'function'
+          ? schema(config) : schema
+      ));
+    } else {
+      let $id = `/config/${key}`;
+      if (ajv.getSchema($id)) ajv.removeSchema($id);
+      assign(config.properties, { [key]: { $ref: $id } });
+      ajv.addSchema(schema, $id);
+    }
   }
 
   return ajv.addSchema(config, '/config');
@@ -152,7 +159,7 @@ function a(word) {
 }
 
 // Default errors anywhere within these keywords can be confusing
-const HIDE_NESTED_KEYWORDS = ['oneOf', 'anyOf', 'allOf', 'not'];
+const HIDE_NESTED_KEYWORDS = ['oneOf', 'anyOf', 'allOf', 'if', 'then', 'else', 'not'];
 
 function shouldHideError(key, path, error) {
   let { parentSchema, keyword, schemaPath } = error;
