@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli",
-  "version": "1.7.2",
+  "version": "1.8.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -30,13 +30,13 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@percy/cli-build": "1.7.2",
-    "@percy/cli-command": "1.7.2",
-    "@percy/cli-config": "1.7.2",
-    "@percy/cli-exec": "1.7.2",
-    "@percy/cli-snapshot": "1.7.2",
-    "@percy/cli-upload": "1.7.2",
-    "@percy/client": "1.7.2",
-    "@percy/logger": "1.7.2"
+    "@percy/cli-build": "1.8.0",
+    "@percy/cli-command": "1.8.0",
+    "@percy/cli-config": "1.8.0",
+    "@percy/cli-exec": "1.8.0",
+    "@percy/cli-snapshot": "1.8.0",
+    "@percy/cli-upload": "1.8.0",
+    "@percy/client": "1.8.0",
+    "@percy/logger": "1.8.0"
   }
 }
