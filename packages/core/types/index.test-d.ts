@@ -15,7 +15,9 @@ const percyOptions: PercyOptions = {
     widths: [1280],
     minHeight: 1024,
     percyCSS: '.percy { color: purple; }',
-    enableJavaScript: false
+    enableJavaScript: false,
+    scope: '.percy',
+    devicePixelRatio: 2
   },
   discovery: {
     requestHeaders: { Authorization: 'foobar' },

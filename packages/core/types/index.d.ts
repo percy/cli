@@ -38,6 +38,8 @@ interface CommonSnapshotOptions {
   minHeight?: number;
   percyCSS?: string;
   enableJavaScript?: boolean;
+  devicePixelRatio?: number;
+  scope?: string;
 }
 
 export interface SnapshotOptions extends CommonSnapshotOptions {
