@@ -14,12 +14,21 @@ export function createPercyServer(percy, port) {
   let server = Server.createServer({ port })
   // facilitate logger websocket connections
     .websocket('/(logger)?', ws => {
+      // support sabotaging remote logging connections in testing mode
+      if (percy.testing?.remoteLogging === false) return ws.terminate();
+
+      // track all remote logging connections in testing mode
+      if (percy.testing) (percy.testing.remoteLoggers ||= new Set()).add(ws);
+      ws.addEventListener('close', () => percy.testing?.remoteLoggers?.delete(ws));
+
+      // listen for messages with specific logging payloads
       ws.addEventListener('message', ({ data }) => {
         let { log, messages = [] } = JSON.parse(data);
         for (let m of messages) logger.instance.messages.add(m);
         if (log) logger.instance.log(...log);
       });
 
+      // respond with the current loglevel
       ws.send(JSON.stringify({
         loglevel: logger.loglevel()
       }));
@@ -37,25 +46,34 @@ export function createPercyServer(percy, port) {
         res.setHeader('X-Percy-Core-Version', percy.testing?.version ?? pkg.version);
       }
 
+      // track all api reqeusts in testing mode
+      if (percy.testing && !req.url.pathname.startsWith('/test/')) {
+        (percy.testing.requests ||= []).push({
+          url: `${req.url.pathname}${req.url.search}`,
+          method: req.method,
+          body: req.body
+        });
+      }
+
       // support sabotaging requests in testing mode
       if (percy.testing?.api?.[req.url.pathname] === 'error') {
-        return res.json(500, { success: false, error: 'Error: testing' });
+        next = () => Promise.reject(new Error(percy.testing.build?.error || 'testing'));
       } else if (percy.testing?.api?.[req.url.pathname] === 'disconnect') {
-        return req.connection.destroy();
+        next = () => req.connection.destroy();
       }
 
       // return json errors
       return next().catch(e => res.json(e.status ?? 500, {
-        build: percy.build,
+        build: percy.testing?.build || percy.build,
         error: e.message,
         success: false
       }));
     })
   // healthcheck returns basic information
     .route('get', '/percy/healthcheck', (req, res) => res.json(200, {
+      build: percy.testing?.build ?? percy.build,
       loglevel: percy.loglevel(),
       config: percy.config,
-      build: percy.build,
       success: true
     }))
   // get or set config options
@@ -102,22 +120,34 @@ export function createPercyServer(percy, port) {
       body = Buffer.isBuffer(body) ? body.toString() : body;
 
       if (cmd === 'reset') {
-        // the reset command will reset testing mode and clear any logs
-        percy.testing = {};
+        // the reset command will terminate connections, clear logs, and reset testing mode
+        percy.testing.remoteLoggers?.forEach(ws => ws.terminate());
         logger.instance.messages.clear();
+        percy.testing = {};
       } else if (cmd === 'version') {
         // the version command will update the api version header for testing
         percy.testing.version = body;
+      } else if (cmd === 'build-error') {
+        // the build-error command will cause api errors to include a failed build
+        percy.testing.build = { failed: true, error: body };
       } else if (cmd === 'error' || cmd === 'disconnect') {
         // the error or disconnect commands will cause specific endpoints to fail
-        percy.testing.api = { ...percy.testing.api, [body]: cmd };
+        (percy.testing.api ||= {})[body] = cmd;
+      } else if (cmd === 'remote-logging') {
+        // the remote-logging command will toggle remote logging support
+        if (body === false) percy.testing.remoteLoggers?.forEach(ws => ws.terminate());
+        percy.testing.remoteLogging = body;
       } else {
         // 404 for unknown commands
         return res.send(404);
       }
 
-      return res.json(200, { testing: percy.testing });
+      return res.json(200, { success: true });
     })
+  // returns an array of raw requests made to the api
+    .route('get', '/test/requests', (req, res) => res.json(200, {
+      requests: percy.testing.requests
+    }))
   // returns an array of raw logs from the logger
     .route('get', '/test/logs', (req, res) => res.json(200, {
       logs: Array.from(logger.instance.messages)
