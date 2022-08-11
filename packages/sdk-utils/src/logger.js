@@ -82,11 +82,17 @@ const remote = logger.remote = async timeout => {
     let address = new URL('/logger', percy.address).href;
     // create and cache a websocket connection
     let ws = remote.socket = await createWebSocket(address, timeout);
-    // accept loglevel updates
-    /* istanbul ignore next: difficult to test currently */
-    ws.onmessage = e => loglevel(JSON.parse(e.data).loglevel);
-    // cleanup message handler on close
-    ws.onclose = () => (remote.socket = (ws.onmessage = (ws.onclose = null)));
+
+    await new Promise((resolve, reject) => {
+      // accept loglevel updates and resolve after first message
+      ws.onmessage = e => resolve(loglevel(JSON.parse(e.data).loglevel));
+      ws.onclose = () => {
+        // cleanup listeners and reject if not resolved
+        remote.socket = ws.onmessage = ws.onclose = null;
+        reject(new Error('Connection closed'));
+      };
+    });
+
     // send any messages already logged in this environment
     if (log.history) ws.send(JSON.stringify({ messages: log.history }));
   } catch (err) {
