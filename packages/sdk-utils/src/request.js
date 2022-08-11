@@ -14,6 +14,7 @@ export async function request(path, options = {}) {
   if (!(response.status >= 200 && response.status < 300)) {
     throw Object.assign(new Error(), {
       message: response.body.error ||
+      /* istanbul ignore next: in tests, there's always an error message */
         `${response.status} ${response.statusText}`,
       response
     });
