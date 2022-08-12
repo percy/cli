@@ -127,12 +127,12 @@ export function createPercyServer(percy, port) {
       } else if (cmd === 'version') {
         // the version command will update the api version header for testing
         percy.testing.version = body;
-      } else if (cmd === 'build-error') {
-        // the build-error command will cause api errors to include a failed build
-        percy.testing.build = { failed: true, error: body };
       } else if (cmd === 'error' || cmd === 'disconnect') {
         // the error or disconnect commands will cause specific endpoints to fail
         (percy.testing.api ||= {})[body] = cmd;
+      } else if (cmd === 'build-failure') {
+        // the build-failure command will cause api errors to include a failed build
+        percy.testing.build = { failed: true, error: 'Build failed' };
       } else if (cmd === 'remote-logging') {
         // the remote-logging command will toggle remote logging support
         if (body === false) percy.testing.remoteLoggers?.forEach(ws => ws.terminate());

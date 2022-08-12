@@ -106,7 +106,7 @@ describe('SDK Utils', () => {
 
     it('returns false if the build fails during a snapshot', async () => {
       await helpers.test('error', '/percy/snapshot');
-      await helpers.test('build-error', 'build failed');
+      await helpers.test('build-failure');
 
       await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
       await expectAsync(utils.postSnapshot({})).toBeResolved();
@@ -181,7 +181,7 @@ describe('SDK Utils', () => {
 
     it('disables snapshots when a build fails', async () => {
       await helpers.test('error', '/percy/snapshot');
-      await helpers.test('build-error', 'build failed');
+      await helpers.test('build-failure');
       utils.percy.enabled = true;
 
       expect(utils.percy.enabled).toEqual(true);

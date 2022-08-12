@@ -304,8 +304,8 @@ describe('API Server', () => {
       expect(percy.testing).toEqual({});
       await post('/test/api/remote-logging', false);
       expect(percy.testing).toHaveProperty('remoteLogging', false);
-      await post('/test/api/build-error', 'build failed');
-      expect(percy.testing).toHaveProperty('build', { failed: true, error: 'build failed' });
+      await post('/test/api/build-failure');
+      expect(percy.testing).toHaveProperty('build', { failed: true, error: 'Build failed' });
       await post('/test/api/error', '/percy/healthcheck');
       expect(percy.testing).toHaveProperty('api', { '/percy/healthcheck': 'error' });
       await post('/test/api/disconnect', '/percy/healthcheck');
@@ -335,12 +335,12 @@ describe('API Server', () => {
       expect(statusCode).toEqual(500);
     });
 
-    it('can make endpoints return build errors via /test/api/build-error', async () => {
-      let expected = { failed: true, error: 'build failed' };
+    it('can make endpoints return a build failure via /test/api/build-failure', async () => {
+      let expected = { failed: true, error: 'Build failed' };
       let { build } = await get('/percy/healthcheck');
       expect(build).toBeUndefined();
 
-      await post('/test/api/build-error', 'build failed');
+      await post('/test/api/build-failure');
       ({ build } = await get('/percy/healthcheck'));
       expect(build).toEqual(expected);
 
