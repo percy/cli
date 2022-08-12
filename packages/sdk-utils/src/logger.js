@@ -25,9 +25,10 @@ const log = logger.log = (ns, lvl, msg, meta) => {
     if (err) msg = { name: msg.name, message: msg.message, stack: msg.stack };
     return remote.socket.send(JSON.stringify({ log: [ns, lvl, msg, meta] }));
   } else {
-    // keep log history when not remote
-    let [debug, level, message, timestamp] = [ns, lvl, msg, Date.now()];
-    (log.history ||= []).push({ debug, level, message, meta, timestamp });
+    // keep log history of full message when not remote
+    let message = err ? msg.stack : msg.toString();
+    let [debug, level, timestamp, error] = [ns, lvl, Date.now(), !!err];
+    (log.history ||= []).push({ debug, level, message, meta, timestamp, error });
   }
 
   // check if the specific level is within the local loglevel range
@@ -37,7 +38,7 @@ const log = logger.log = (ns, lvl, msg, meta) => {
 
     // colorize the label when possible for consistency with the CLI logger
     if (!process.env.__PERCY_BROWSERIFIED__) label = `\u001b[95m${label}\u001b[39m`;
-    msg = `[${label}] ${(err && debug && msg?.stack) || msg}`;
+    msg = `[${label}] ${(err && debug && msg.stack) || msg}`;
 
     if (process.env.__PERCY_BROWSERIFIED__) {
       // use console[warn|error|log] in browsers
@@ -81,11 +82,17 @@ const remote = logger.remote = async timeout => {
     let address = new URL('/logger', percy.address).href;
     // create and cache a websocket connection
     let ws = remote.socket = await createWebSocket(address, timeout);
-    // accept loglevel updates
-    /* istanbul ignore next: difficult to test currently */
-    ws.onmessage = e => loglevel(JSON.parse(e.data).loglevel);
-    // cleanup message handler on close
-    ws.onclose = () => (remote.socket = (ws.onmessage = (ws.onclose = null)));
+
+    await new Promise((resolve, reject) => {
+      // accept loglevel updates and resolve after first message
+      ws.onmessage = e => resolve(loglevel(JSON.parse(e.data).loglevel));
+      ws.onclose = () => {
+        // cleanup listeners and reject if not resolved
+        remote.socket = ws.onmessage = ws.onclose = null;
+        reject(new Error('Connection closed'));
+      };
+    });
+
     // send any messages already logged in this environment
     if (log.history) ws.send(JSON.stringify({ messages: log.history }));
   } catch (err) {

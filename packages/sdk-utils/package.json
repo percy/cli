@@ -26,8 +26,6 @@
       "node": "./dist/index.js",
       "default": "./dist/bundle.js"
     },
-    "./test/server": "./test/server.js",
-    "./test/client": "./test/client.js",
     "./test/helpers": {
       "node": "./test/helpers.js",
       "default": "./test/client.js"
@@ -36,12 +34,8 @@
   "scripts": {
     "build": "node ../../scripts/build",
     "lint": "eslint --ignore-path ../../.gitignore .",
-    "test": "node ../../scripts/test",
+    "test": "percy exec --testing -- node ../../scripts/test",
     "test:coverage": "yarn test --coverage"
-  },
-  "karma": {
-    "run_start": "node test/server start",
-    "run_complete": "node test/server stop"
   },
   "rollup": {
     "external": [

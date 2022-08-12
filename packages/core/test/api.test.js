@@ -1,4 +1,5 @@
 import path from 'path';
+import WebSocket from 'ws';
 import PercyConfig from '@percy/config';
 import { logger, setupTest, fs } from './helpers/index.js';
 import Percy from '@percy/core';
@@ -245,10 +246,16 @@ describe('API Server', () => {
     const post = (p, body) => request(`${addr}${p}`, { method: 'post', body });
     const req = p => request(`${addr}${p}`, { retries: 0 }, false);
 
+    let log = (lvl, msg) => new Promise((resolve, reject) => {
+      let ws = new WebSocket('ws://localhost:5338/logger');
+      let data = JSON.stringify({ log: ['remote', lvl, msg] });
+      ws.on('close', () => reject(new Error('Connection closed')));
+      ws.on('message', () => resolve(ws.send(data)));
+    });
+
     beforeEach(async () => {
-      percy = await Percy.start({
-        testing: true
-      });
+      percy = await Percy.start({ testing: true });
+      logger.instance.messages.clear();
     });
 
     it('implies loglevel silent and dryRun', () => {
@@ -270,6 +277,23 @@ describe('API Server', () => {
       ]));
     });
 
+    it('enables a /test/requests endpoint to return tracked requests', async () => {
+      // should not track testing mode requests
+      await get('/percy/healthcheck');
+      await get('/test/snapshot');
+      await post('/percy/config', { clientInfo: 'foo/bar' });
+      await get('/test/logs');
+      await get('/percy/idle?param');
+
+      let { requests } = await get('/test/requests');
+
+      expect(requests).toEqual([
+        { method: 'GET', url: '/percy/healthcheck' },
+        { method: 'POST', url: '/percy/config', body: { clientInfo: 'foo/bar' } },
+        { method: 'GET', url: '/percy/idle?param' }
+      ]);
+    });
+
     it('enables several /test/api endpoint commands', async () => {
       expect(percy.testing).toEqual({});
       await post('/test/api/version', false);
@@ -278,6 +302,10 @@ describe('API Server', () => {
       expect(percy.testing).toHaveProperty('version', '0.0.1');
       await post('/test/api/reset');
       expect(percy.testing).toEqual({});
+      await post('/test/api/remote-logging', false);
+      expect(percy.testing).toHaveProperty('remoteLogging', false);
+      await post('/test/api/build-failure');
+      expect(percy.testing).toHaveProperty('build', { failed: true, error: 'Build failed' });
       await post('/test/api/error', '/percy/healthcheck');
       expect(percy.testing).toHaveProperty('api', { '/percy/healthcheck': 'error' });
       await post('/test/api/disconnect', '/percy/healthcheck');
@@ -307,17 +335,62 @@ describe('API Server', () => {
       expect(statusCode).toEqual(500);
     });
 
+    it('can make endpoints return a build failure via /test/api/build-failure', async () => {
+      let expected = { failed: true, error: 'Build failed' };
+      let { build } = await get('/percy/healthcheck');
+      expect(build).toBeUndefined();
+
+      await post('/test/api/build-failure');
+      ({ build } = await get('/percy/healthcheck'));
+      expect(build).toEqual(expected);
+
+      // errors include build info
+      await post('/test/api/error', '/percy/snapshot');
+      let { body: snapshot } = await req('/percy/snapshot');
+      expect(snapshot).toHaveProperty('error', expected.error);
+      expect(snapshot).toHaveProperty('build', expected);
+    });
+
     it('can make endpoints destroy connections via /test/api/disconnect', async () => {
       await expectAsync(req('/percy/healthcheck')).toBeResolved();
       await post('/test/api/disconnect', '/percy/healthcheck');
       await expectAsync(req('/percy/healthcheck')).toBeRejected();
     });
 
+    it('can toggle accepting logging connections via /test/api/remote-logging', async () => {
+      await log('info', 'testing 1');
+
+      // remote log sent
+      expect(await get('/test/logs')).toHaveProperty('logs', [
+        jasmine.objectContaining({ message: 'testing 1' })
+      ]);
+
+      // disable accepting remote logging connections
+      await post('/test/api/remote-logging', false);
+      await expectAsync(log('info', 'testing 2'))
+        .toBeRejectedWithError('Connection closed');
+
+      // logs not sent
+      expect(await get('/test/logs')).toHaveProperty('logs', [
+        jasmine.objectContaining({ message: 'testing 1' })
+      ]);
+
+      // enable accepting remote logging connections again
+      await post('/test/api/remote-logging', true);
+      await log('info', 'testing 3');
+
+      // remote log sent
+      expect(await get('/test/logs')).toHaveProperty('logs', [
+        jasmine.objectContaining({ message: 'testing 1' }),
+        jasmine.objectContaining({ message: 'testing 3' })
+      ]);
+    });
+
     it('can reset testing mode and clear logs via /test/reset', async () => {
       // already tested up above
       await post('/test/api/version', false);
       await post('/test/api/disconnect', '/percy/healthcheck');
-      percy.log.info('foo bar from test');
+      await log('info', 'foo bar from test');
 
       // the actual endpoint to test
       await post('/test/api/reset');
