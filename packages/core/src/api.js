@@ -118,12 +118,12 @@ export function createPercyServer(percy, port) {
   // manipulates testing mode configuration to trigger specific scenarios
     .route('/test/api/:cmd', ({ body, params: { cmd } }, res) => {
       body = Buffer.isBuffer(body) ? body.toString() : body;
+      let { remoteLoggers } = percy.testing;
 
       if (cmd === 'reset') {
-        // the reset command will terminate connections, clear logs, and reset testing mode
-        percy.testing.remoteLoggers?.forEach(ws => ws.terminate());
+        // the reset command will reset testing mode and clear any logs
+        percy.testing = remoteLoggers ? { remoteLoggers } : {};
         logger.instance.messages.clear();
-        percy.testing = {};
       } else if (cmd === 'version') {
         // the version command will update the api version header for testing
         percy.testing.version = body;
@@ -135,7 +135,7 @@ export function createPercyServer(percy, port) {
         percy.testing.build = { failed: true, error: 'Build failed' };
       } else if (cmd === 'remote-logging') {
         // the remote-logging command will toggle remote logging support
-        if (body === false) percy.testing.remoteLoggers?.forEach(ws => ws.terminate());
+        if (body === false) remoteLoggers?.forEach(ws => ws.terminate());
         percy.testing.remoteLogging = body;
       } else {
         // 404 for unknown commands
