@@ -155,7 +155,7 @@ export class Percy {
 
   // Starts a local API server, a browser process, and queues creating a new Percy build which will run
   // at a later time when uploads are deferred, or run immediately when not deferred.
-  async *start(options) {
+  async *start() {
     // already starting or started
     if (this.readyState != null) return;
     this.readyState = 0;
@@ -190,9 +190,7 @@ export class Percy {
       if (!this.deferUploads) await buildTask;
 
       // maybe launch the discovery browser
-      if (!this.skipDiscovery && options?.browser !== false) {
-        yield this.browser.launch();
-      }
+      if (!this.skipDiscovery) yield this.browser.launch();
 
       // start the server after everything else is ready
       yield this.server?.listen();

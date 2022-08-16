@@ -171,9 +171,6 @@ option, if the environment variable `PERCY_ENABLE` is `0`, the callback _will no
 instance (and can act accordingly).
 
 - `percy` — Enables creation of a `@percy/core` instance initialized with provided options.
-  - `discoveryFlags` — When `false` prevents percy discovery flags from being accepted, but will
-    still allow other percy flags such as `--config` and `--dry-run`.
-  - `...` — All other options are passed along to the new percy instance.
 
 #### Config
 

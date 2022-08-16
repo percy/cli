@@ -25,7 +25,7 @@ function withBuiltIns(definition) {
     builtInFlags.PERCY.forEach(addDedupedFlag);
 
     // maybe include percy discovery flags
-    if (def.percy.discoveryFlags !== false) {
+    if (def.percy.skipDiscovery !== true) {
       builtInFlags.DISCOVERY.forEach(addDedupedFlag);
     }
   }
@@ -67,8 +67,8 @@ async function runCommandWithContext(parsed) {
   if (def.percy) {
     let { Percy } = await import('@percy/core');
 
-    // set defaults and prune preconfiguraton options
-    let conf = del({ server: false, ...def.percy }, 'discoveryFlags');
+    // shallow merge with default options
+    let conf = { server: false, ...def.percy };
     if (pkg) conf.clientInfo ||= `${pkg.name}/${pkg.version}`;
     conf.environmentInfo ||= `node/${process.version}`;
 
