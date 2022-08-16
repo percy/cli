@@ -24,6 +24,11 @@ function withBuiltIns(definition) {
   if (def.percy && def.percy !== true) {
     builtInFlags.PERCY.forEach(addDedupedFlag);
 
+    // maybe include percy server flags
+    if (def.percy.server === true) {
+      builtInFlags.SERVER.forEach(addDedupedFlag);
+    }
+
     // maybe include percy discovery flags
     if (def.percy.skipDiscovery !== true) {
       builtInFlags.DISCOVERY.forEach(addDedupedFlag);

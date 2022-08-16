@@ -46,6 +46,18 @@ export const dryRun = {
   short: 'd'
 };
 
+export const port = {
+  name: 'port',
+  description: 'Local CLI server port',
+  env: 'PERCY_SERVER_PORT',
+  percyrc: 'port',
+  type: 'number',
+  parse: Number,
+  default: 5338,
+  group: 'Percy',
+  short: 'P'
+};
+
 export const allowedHostnames = {
   name: 'allowed-hostname',
   description: 'Allowed hostnames to capture in asset discovery',
@@ -100,6 +112,10 @@ export const GLOBAL = [
 export const PERCY = [
   config,
   dryRun
+];
+
+export const SERVER = [
+  port
 ];
 
 export const DISCOVERY = [
