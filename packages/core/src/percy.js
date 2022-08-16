@@ -45,7 +45,9 @@ export class Percy {
     deferUploads,
     // run without uploading anything
     skipUploads,
-    // implies `skipUploads` and also skips asset discovery
+    // run without asset discovery
+    skipDiscovery,
+    // implies `skipUploads` and `skipDiscovery`
     dryRun,
     // implies `dryRun`, silent logs, and adds extra api endpoints
     testing,
@@ -68,6 +70,7 @@ export class Percy {
     this.testing = testing ? {} : null;
     this.dryRun = !!testing || !!dryRun;
     this.skipUploads = this.dryRun || !!skipUploads;
+    this.skipDiscovery = this.dryRun || !!skipDiscovery;
     this.delayUploads = this.skipUploads || !!delayUploads;
     this.deferUploads = this.delayUploads || !!deferUploads;
     if (this.deferUploads) this.#uploads.stop();
@@ -187,7 +190,7 @@ export class Percy {
       if (!this.deferUploads) await buildTask;
 
       // maybe launch the discovery browser
-      if (!this.dryRun && options?.browser !== false) {
+      if (!this.skipDiscovery && options?.browser !== false) {
         yield this.browser.launch();
       }
 
@@ -231,8 +234,8 @@ export class Percy {
         if (close) this.#snapshots.close();
 
         yield* this.#snapshots.flush(s => {
-          // do not log a count when not closing or while dry-running
-          if (!close || this.dryRun) return;
+          // do not log a count when not closing or if asset discovery is disabled
+          if (!close || this.skipDiscovery) return;
           this.log.progress(`Processing ${s} snapshot${s !== 1 ? 's' : ''}...`, !!s);
         });
       }
