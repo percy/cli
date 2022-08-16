@@ -125,3 +125,6 @@ export const DISCOVERY = [
   disableCache,
   debug
 ];
+
+// export the namespace as the default
+export * as default from './flags.js';

@@ -1,6 +1,4 @@
 import command from '@percy/cli-command';
-import * as common from './common.js';
-
 import start from './start.js';
 import stop from './stop.js';
 import ping from './ping.js';
@@ -10,7 +8,7 @@ export const exec = command('exec', {
   usage: '[options] -- <command>',
   commands: [start, stop, ping],
 
-  flags: [...common.flags, {
+  flags: [{
     name: 'parallel',
     description: 'Marks the build as one of many parallel builds',
     parse: () => !!(process.env.PERCY_PARALLEL_TOTAL ||= '-1')
@@ -18,6 +16,10 @@ export const exec = command('exec', {
     name: 'partial',
     description: 'Marks the build as a partial build',
     parse: () => !!(process.env.PERCY_PARTIAL_BUILD ||= '1')
+  }, {
+    name: 'testing',
+    percyrc: 'testing',
+    hidden: true
   }],
 
   examples: [

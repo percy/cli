@@ -1,9 +1,9 @@
 import command from '@percy/cli-command';
-import * as common from './common.js';
+import flags from '@percy/cli-command/flags';
 
 export const ping = command('ping', {
   description: 'Pings a local running Percy snapshot server',
-  flags: common.flags,
+  flags: [flags.port],
   percy: true
 }, async ({ flags, percy, log, exit }) => {
   if (!percy) exit(0, 'Percy is disabled');
