@@ -18,19 +18,19 @@ Usage:
   $ percy exec [options] -- <command>
 
 Subcommands:
-  exec:start [options]               Starts a local Percy snapshot server
-  exec:stop [options]                Stops a local running Percy snapshot server
-  exec:ping [options]                Pings a local running Percy snapshot server
+  exec:start [options]               Starts a locally running Percy process
+  exec:stop [options]                Stops a locally running Percy process
+  exec:ping [options]                Pings a locally running Percy process
   help [command]                     Display command help
 
 Options:
-  -P, --port [number]                Local CLI server port (default: 5338)
   --parallel                         Marks the build as one of many parallel builds
   --partial                          Marks the build as a partial build
 
 Percy options:
   -c, --config <file>                Config file path
   -d, --dry-run                      Print snapshot names only
+  -P, --port [number]                Local CLI server port (default: 5338)
   -h, --allowed-hostname <hostname>  Allowed hostnames to capture in asset discovery
   --disallowed-hostname <hostname>   Disallowed hostnames to abort in asset discovery
   -t, --network-idle-timeout <ms>    Asset discovery network idle timeout
@@ -50,18 +50,16 @@ Examples:
 
 ### `percy exec:start`
 
-Starts a local Percy snapshot server
+Starts a locally running Percy process
 
 ```
 Usage:
   $ percy exec:start [options]
 
-Options:
-  -P, --port [number]                Local CLI server port (default: 5338)
-
 Percy options:
   -c, --config <file>                Config file path
   -d, --dry-run                      Print snapshot names only
+  -P, --port [number]                Local CLI server port (default: 5338)
   -h, --allowed-hostname <hostname>  Allowed hostnames to capture in asset discovery
   --disallowed-hostname <hostname>   Disallowed hostnames to abort in asset discovery
   -t, --network-idle-timeout <ms>    Asset discovery network idle timeout
@@ -80,13 +78,13 @@ Examples:
 
 ### `percy exec:stop`
 
-Stops a local running Percy snapshot server
+Stops a locally running Percy process
 
 ```
 Usage:
   $ percy exec:stop [options]
 
-Options:
+Percy options:
   -P, --port [number]  Local CLI server port (default: 5338)
 
 Global options:
@@ -98,13 +96,13 @@ Global options:
 
 ### `percy exec:ping`
 
-Pings a local running Percy snapshot server
+Pings a locally running Percy process
 
 ```
 Usage:
   $ percy exec:ping [options]
 
-Options:
+Percy options:
   -P, --port [number]  Local CLI server port (default: 5338)
 
 Global options:

@@ -1,7 +1,7 @@
 import command from '@percy/cli-command';
 
 export const start = command('start', {
-  description: 'Starts a local Percy snapshot server',
+  description: 'Starts a locally running Percy process',
   examples: ['$0 &> percy.log'],
   percy: { server: true }
 }, async function*({ percy, exit }) {
