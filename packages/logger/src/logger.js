@@ -1,5 +1,6 @@
 import { colors } from './utils.js';
 
+const LINE_PAD_REGEXP = /^(\n*)(.*?)(\n*)$/s;
 const URL_REGEXP = /https?:\/\/[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,4}\b([-a-zA-Z0-9@:;%_+.~#?&//=[\]]*)/i;
 const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 
@@ -96,8 +97,8 @@ export class PercyLogger {
   // Formats messages before they are logged to stdio
   format(debug, level, message, elapsed) {
     let color = (n, m) => this.isTTY ? colors[n](m) : m;
+    let begin, end, suffix = '';
     let label = 'percy';
-    let suffix = '';
 
     if (arguments.length === 1) {
       // format(message)
@@ -107,8 +108,11 @@ export class PercyLogger {
       [level, message] = [null, level];
     }
 
+    // do not format leading or trailing newlines
+    [, begin, message, end] = message.match(LINE_PAD_REGEXP);
+
+    // include debug information
     if (this.level === 'debug') {
-      // include debug info in the label
       if (debug) label += `:${debug}`;
 
       // include elapsed time since last log
@@ -131,7 +135,7 @@ export class PercyLogger {
       message = message.replace(URL_REGEXP, color('blue', '$&'));
     }
 
-    return `[${label}] ${message}${suffix}`;
+    return `${begin}[${label}] ${message}${suffix}${end}`;
   }
 
   // True if stdout is a TTY interface
