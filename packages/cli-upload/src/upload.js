@@ -48,8 +48,8 @@ export const upload = command('upload', {
   ],
 
   percy: {
-    discoveryFlags: false,
-    deferUploads: true
+    deferUploads: true,
+    skipDiscovery: true
   },
 
   config: {
@@ -76,9 +76,7 @@ export const upload = command('upload', {
 
   // the internal upload queue shares a concurrency with the snapshot queue
   percy.setConfig({ discovery: { concurrency: config.concurrency } });
-
-  // do not launch a browser when starting
-  yield* percy.yield.start({ browser: false });
+  yield* percy.yield.start();
 
   for (let filename of pathnames) {
     let file = path.parse(filename);

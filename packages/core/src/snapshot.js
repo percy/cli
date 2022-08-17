@@ -376,6 +376,13 @@ export async function* discoverSnapshotResources(percy, snapshot, callback) {
       .map(resource => [resource.url, resource])
   ));
 
+  // when no discovery browser is available, do not attempt to discover other resources
+  if (percy.skipDiscovery && !snapshot.domSnapshot) {
+    throw new Error('Cannot capture DOM snapshot when asset discovery is disabled');
+  } else if (percy.skipDiscovery) {
+    return handleSnapshotResources(snapshot, resources, callback);
+  }
+
   // open a new browser page
   let page = yield percy.browser.page({
     enableJavaScript: snapshot.enableJavaScript ?? !snapshot.domSnapshot,

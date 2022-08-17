@@ -716,6 +716,45 @@ describe('Discovery', () => {
     ]));
   });
 
+  it('can skip asset discovery', async () => {
+    // stop current instance to create a new one
+    await percy.stop();
+
+    percy = await Percy.start({
+      token: 'PERCY_TOKEN',
+      skipDiscovery: true,
+      clientInfo: 'testing',
+      environmentInfo: 'testing'
+    });
+
+    logger.reset();
+    await percy.snapshot([{
+      name: 'Snapshot with DOM',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    }, {
+      name: 'Snapshot without DOM',
+      url: 'http://localhost:8000'
+    }]);
+
+    await percy.idle();
+    expect(server.requests).toEqual([]);
+
+    expect(captured).toHaveSize(1);
+    expect(captured[0].map(r => r.attributes['resource-url'])).toEqual([
+      jasmine.stringMatching(/\/percy\.\d+\.log$/),
+      'http://localhost:8000/'
+    ]);
+
+    expect(logger.stdout).toEqual([
+      '[percy] Snapshot taken: Snapshot with DOM'
+    ]);
+    expect(logger.stderr).toEqual([
+      '[percy] Encountered an error taking snapshot: Snapshot without DOM',
+      '[percy] Error: Cannot capture DOM snapshot when asset discovery is disabled'
+    ]);
+  });
+
   describe('idle timeout', () => {
     let Network, timeout;
 

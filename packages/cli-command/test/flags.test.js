@@ -88,7 +88,7 @@ describe('Built-in flags:', () => {
     });
 
     it('does not show discovery flags when excluded', async () => {
-      await command('foo', { percy: { discoveryFlags: false } })(['--help']);
+      await command('foo', { percy: { skipDiscovery: true } })(['--help']);
       expect(logger.stdout).toEqual([expectedMinPercyFlags]);
       expect(logger.stdout).not.toEqual([expectedAllPercyFlags]);
     });
