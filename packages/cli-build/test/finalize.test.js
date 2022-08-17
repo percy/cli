@@ -1,5 +1,5 @@
 import { logger, setupTest } from '@percy/cli-command/test/helpers';
-import finalize from '../src/finalize.js';
+import { finalize } from '@percy/cli-build';
 
 describe('percy build:finalize', () => {
   beforeEach(async () => {
