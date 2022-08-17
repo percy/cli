@@ -52,6 +52,9 @@ async function visibleCommands(command, nested) {
   let visible = [];
 
   for (let cmd of commands) {
+    // skip hidden commands entirely
+    if (cmd.definition.hidden) continue;
+
     // create parent references and format subcommand names
     let name = command.parent ? `${command.name}:${cmd.name}` : cmd.name;
     cmd = { ...cmd, name, parent: command };

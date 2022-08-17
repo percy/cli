@@ -297,26 +297,34 @@ describe('Help output', () => {
       }, {
         name: 'deprecated',
         deprecated: true
-      }]
+      }],
+      commands: [
+        command('command', {}, () => {}),
+        command('hidden', { hidden: true }, () => {})
+      ]
     });
 
     await test();
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([dedent`
       Usage:
-        $ test [options] [arg]
+        $ test <command>
 
       Arguments:
-        arg            (default: "foo")
+        arg                (default: "foo")
+
+      Commands:
+        command [options]
+        help [command]     Display command help
 
       Options:
         --flag
 
       Global options:
-        -v, --verbose  Log everything
-        -q, --quiet    Log errors only
-        -s, --silent   Log nothing
-        -h, --help     Display command help
+        -v, --verbose      Log everything
+        -q, --quiet        Log errors only
+        -s, --silent       Log nothing
+        -h, --help         Display command help
     ` + '\n']);
   });
 
