@@ -168,6 +168,11 @@ describe('logger', () => {
     expect(logger.format('other', 'warn', 'elapsed', 100)).toEqual(
       `[${colors.magenta('percy:other')}] ` +
         `${colors.yellow('elapsed')} ${colors.grey('(100ms)')}`);
+
+    // does not format leading or trailing newlines
+    expect(logger.format('padded', 'debug', '\n\nnewlines\n\n', 25)).toEqual(
+      `\n\n[${colors.magenta('percy:padded')}] ` +
+        `newlines ${colors.grey('(25ms)')}\n\n`);
   });
 
   it('exposes own stdout and stderr streams', () => {

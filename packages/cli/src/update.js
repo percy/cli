@@ -82,13 +82,9 @@ export async function checkForUpdate() {
 
     // a new version is available
     if (age !== 0) {
-      let range = `${colors.red(pkg.version)} -> ${colors.green(versions[0])}`;
-
-      log.stderr.write('\n');
-      log.warn(`${age > 0 && age < 10 ? 'A new version of @percy/cli is available!' : (
+      log.warn(`\n${age > 0 && age < 10 ? 'A new version of @percy/cli is available!' : (
         'Heads up! The current version of @percy/cli is more than 10 releases behind!'
-      )} ${range}`);
-      log.stderr.write('\n');
+      )} ${colors.red(pkg.version)} -> ${colors.green(versions[0])}\n`);
     }
   } catch (err) {
     log.debug('Unable to check for updates');
