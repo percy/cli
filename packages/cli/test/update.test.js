@@ -58,7 +58,7 @@ describe('CLI update check', () => {
     await checkForUpdate();
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '', '[percy] A new version of @percy/cli is available! 1.0.0 -> 1.1.0', ''
+      '\n[percy] A new version of @percy/cli is available! 1.0.0 -> 1.1.0\n'
     ]);
   });
 
@@ -68,8 +68,8 @@ describe('CLI update check', () => {
     await checkForUpdate();
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '', '[percy] Heads up! The current version of @percy/cli ' +
-        'is more than 10 releases behind! 1.0.0 -> 2.0.0', ''
+      '\n[percy] Heads up! The current version of @percy/cli ' +
+        'is more than 10 releases behind! 1.0.0 -> 2.0.0\n'
     ]);
   });
 
