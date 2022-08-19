@@ -160,22 +160,25 @@ export function createPercyServer(percy, port) {
 
 // Create a static server instance with an automatic sitemap
 export function createStaticServer(options) {
-  let { serve: dir, baseUrl = '/' } = options;
+  let { serve: dir, baseUrl = '' } = options;
   let server = Server.createServer(options);
+
+  // remove trailing slashes so the base snapshot name matches other snapshots
+  baseUrl = baseUrl.replace(/\/$/, '');
 
   // used when generating an automatic sitemap
   let toURL = Server.createRewriter((
     // reverse rewrites' src, dest, & order
     Object.entries(options?.rewrites ?? {})
       .reduce((acc, rw) => [rw.reverse(), ...acc], [])
-  ), (filename, rewrite) => new URL(path.posix.join(baseUrl, (
+  ), (filename, rewrite) => new URL(path.posix.join('/', baseUrl, (
     // cleanUrls will trim trailing .html/index.html from paths
     !options.cleanUrls ? rewrite(filename) : (
       rewrite(filename).replace(/(\/index)?\.html$/, ''))
   )), server.address()));
 
   // include automatic sitemap route
-  server.route('get', '/sitemap.xml', async (req, res) => {
+  server.route('get', `${baseUrl}/sitemap.xml`, async (req, res) => {
     let { default: glob } = await import('fast-glob');
     let files = await glob('**/*.html', { cwd: dir, fs });
 

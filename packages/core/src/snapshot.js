@@ -141,9 +141,12 @@ export function validateSnapshotOptions(options) {
     clientInfo, environmentInfo, snapshots, ...migrated
   } = PercyConfig.migrate(options, schema);
 
+  // maintain a trailing slash for base URLs to normalize them
+  if (migrated.baseUrl?.endsWith('/') === false) migrated.baseUrl += '/';
+  let baseUrl = schema === '/snapshot/server' ? 'http://localhost/' : migrated.baseUrl;
+
   // gather info for validating individual snapshot URLs
   let isSnapshot = schema === '/snapshot/dom' || schema === '/snapshot';
-  let baseUrl = schema === '/snapshot/server' ? 'http://localhost' : options.baseUrl;
   let snaps = isSnapshot ? [migrated] : Array.isArray(snapshots) ? snapshots : [];
   for (let snap of snaps) validURL(typeof snap === 'string' ? snap : snap.url, baseUrl);
 

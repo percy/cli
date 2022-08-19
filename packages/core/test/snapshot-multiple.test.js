@@ -328,6 +328,22 @@ describe('Snapshot multiple', () => {
       ]));
     });
 
+    it('can supply a base-url to serve files at', async () => {
+      await percy.snapshot({
+        serve: './public',
+        baseUrl: '/foo/bar',
+        cleanUrls: true
+      });
+
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: /foo/bar',
+        '[percy] Snapshot taken: /foo/bar/about',
+        '[percy] Snapshot taken: /foo/bar/blog/foo',
+        '[percy] Snapshot taken: /foo/bar/blog/bar'
+      ]));
+    });
+
     it('closes the server when aborted', async () => {
       let ctrl = new AbortController();
 
