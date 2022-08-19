@@ -2,7 +2,7 @@ import command from '@percy/cli-command';
 import flags from '@percy/cli-command/flags';
 
 export const stop = command('stop', {
-  description: 'Stops a local running Percy snapshot server',
+  description: 'Stops a locally running Percy process',
   flags: [flags.port],
   percy: true
 }, async ({ flags, percy, log, exit }) => {
