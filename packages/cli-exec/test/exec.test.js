@@ -13,6 +13,7 @@ describe('percy exec', () => {
   afterEach(() => {
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
+    delete process.env.PERCY_BUILD_ID;
     delete process.env.PERCY_PARALLEL_TOTAL;
     delete process.env.PERCY_PARTIAL_BUILD;
   });
@@ -172,6 +173,19 @@ describe('percy exec', () => {
       'let url = new URL("/percy/healthcheck", process.env.PERCY_SERVER_ADDRESS);',
       'await request(url).catch(e => (console.error(e), process.exit(2)));'
     ].join('')]);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Percy has started!',
+      jasmine.stringMatching('\\[percy] Running "node '),
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
+    ]);
+  });
+
+  it('provides the child process with a percy build id env var', async () => {
+    await exec(['--', 'node', '--eval', (
+      'process.env.PERCY_BUILD_ID === "123" || process.exit(2)'
+    )]);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
