@@ -62,7 +62,7 @@ describe('Help output', () => {
             name: 'really-long',
             description: [
               'This is a really long description that should overflow',
-              'the default description length and cause it to be wrapped',
+              'the default description length and cause it to wrap',
               'to the right of flag usage.', '\n',
               '\nIt even includes a couple newlines in an attempt to trip up',
               'the string wrapping helper function.'
@@ -71,6 +71,9 @@ describe('Help output', () => {
           commands: [
             command('nested', {
               description: 'Nested description',
+              commands: [command('deep', {
+                description: 'Deeply nested description'
+              }, () => {})],
               examples: ['$0']
             }, () => {
               test.done = true;
@@ -133,21 +136,22 @@ describe('Help output', () => {
         $ test sub [options]
 
       Subcommands:
-        sub:nested [options]  Nested description
-        help [command]        Display command help
+        sub:nested [options]       Nested description
+        sub:nested:deep [options]  Deeply nested description
+        help [command]             Display command help
 
       Options:
-        --really-long         This is a really long description that should overflow the default
-                              description length and cause it to be wrapped to the right of flag usage.
+        --really-long              This is a really long description that should overflow the default
+                                   description length and cause it to wrap to the right of flag usage.
 
-                              It even includes a couple newlines in an attempt to trip up the string
-                              wrapping helper function.
+                                   It even includes a couple newlines in an attempt to trip up the string
+                                   wrapping helper function.
 
       Global options:
-        -v, --verbose         Log everything
-        -q, --quiet           Log errors only
-        -s, --silent          Log nothing
-        -h, --help            Display command help
+        -v, --verbose              Log everything
+        -q, --quiet                Log errors only
+        -s, --silent               Log nothing
+        -h, --help                 Display command help
     ` + '\n']);
 
     logger.reset();
@@ -161,14 +165,36 @@ describe('Help output', () => {
       Usage:
         $ test sub:nested [options]
 
+      Subcommands:
+        sub:nested:deep [options]  Deeply nested description
+        help [command]             Display command help
+
+      Global options:
+        -v, --verbose              Log everything
+        -q, --quiet                Log errors only
+        -s, --silent               Log nothing
+        -h, --help                 Display command help
+
+      Examples:
+        $ test sub:nested
+    ` + '\n']);
+
+    logger.reset();
+    await test(['sub:nested:deep', '-h']);
+    expect(test.done).not.toBe(true);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([dedent`
+      Deeply nested description
+
+      Usage:
+        $ test sub:nested:deep [options]
+
       Global options:
         -v, --verbose  Log everything
         -q, --quiet    Log errors only
         -s, --silent   Log nothing
         -h, --help     Display command help
-
-      Examples:
-        $ test sub:nested
     ` + '\n']);
   });
 
@@ -271,26 +297,34 @@ describe('Help output', () => {
       }, {
         name: 'deprecated',
         deprecated: true
-      }]
+      }],
+      commands: [
+        command('command', {}, () => {}),
+        command('hidden', { hidden: true }, () => {})
+      ]
     });
 
     await test();
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([dedent`
       Usage:
-        $ test [options] [arg]
+        $ test <command>
 
       Arguments:
-        arg            (default: "foo")
+        arg                (default: "foo")
+
+      Commands:
+        command [options]
+        help [command]     Display command help
 
       Options:
         --flag
 
       Global options:
-        -v, --verbose  Log everything
-        -q, --quiet    Log errors only
-        -s, --silent   Log nothing
-        -h, --help     Display command help
+        -v, --verbose      Log everything
+        -q, --quiet        Log errors only
+        -s, --silent       Log nothing
+        -h, --help         Display command help
     ` + '\n']);
   });
 

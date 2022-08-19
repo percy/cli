@@ -46,12 +46,15 @@ function commandUsage(command) {
 }
 
 // Helper to return an array of visible command usage-description pairs.
-async function visibleCommands(command, help) {
+async function visibleCommands(command, nested) {
   let commands = command.definition.commands ?? [];
   if (typeof commands === 'function') commands = await commands();
   let visible = [];
 
   for (let cmd of commands) {
+    // skip hidden commands entirely
+    if (cmd.definition.hidden) continue;
+
     // create parent references and format subcommand names
     let name = command.parent ? `${command.name}:${cmd.name}` : cmd.name;
     cmd = { ...cmd, name, parent: command };
@@ -62,14 +65,14 @@ async function visibleCommands(command, help) {
       visible.push([commandUsage(cmd), description]);
     }
 
-    // include visible subcommands without their implicit help
-    if (cmd.definition.commands) {
-      visible.push(...await visibleCommands(cmd, false));
+    // include visible subcommands, but not deeply nested subcommands
+    if (!nested && cmd.definition.commands) {
+      visible.push(...await visibleCommands(cmd, true));
     }
   }
 
   // include implicit help if there are visible commands
-  if (help !== false && visible.length) {
+  if (!nested && visible.length) {
     visible.push(['help [command]', 'Display command help']);
   }
 

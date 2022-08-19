@@ -24,6 +24,7 @@
   "type": "module",
   "exports": {
     ".": "./dist/index.js",
+    "./flags": "./dist/flags.js",
     "./utils": "./dist/utils.js",
     "./test/helpers": "./test/helpers.js"
   },

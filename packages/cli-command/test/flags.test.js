@@ -93,6 +93,16 @@ describe('Built-in flags:', () => {
       expect(logger.stdout).not.toEqual([expectedAllPercyFlags]);
     });
 
+    it('shows additional server flags when enabled', async () => {
+      let options = { server: true, skipDiscovery: true };
+      await command('foo', { percy: options })(['--help']);
+      expect(logger.stdout).not.toEqual([expectedAllPercyFlags]);
+      expect(logger.stdout).toEqual([expectedMinPercyFlags]);
+      expect(logger.stdout).toEqual([jasmine.stringContaining(
+        '  -P, --port [number]  Local CLI server port (default: 5338)'
+      )]);
+    });
+
     describe('--debug', () => {
       it('sets the loglevel to debug and skips percy uploads', async () => {
         test = command('percy', {

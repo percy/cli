@@ -247,7 +247,7 @@ describe('Option parsing', () => {
     expect(test.flags).not.toHaveProperty('two');
   });
 
-  it('will map and log warnings for deprecated options', async () => {
+  it('can map and log warnings for deprecated options', async () => {
     let test = cmd('test', {
       flags: [{
         name: 'not-wrong-1',
@@ -409,5 +409,20 @@ describe('Option parsing', () => {
     expect(test.args).toHaveProperty('num', 456);
     expect(test.args).toHaveProperty('foo', '789');
     expect(test.flags).toHaveProperty('baz', 'TEN');
+  });
+
+  it('can optionally log warnings for hidden commands', async () => {
+    let test = cmd('test', {
+      commands: [command('hidden', {
+        hidden: 'this is hidden for a reason',
+        commands: [command('nested', {}, () => {})]
+      })]
+    });
+
+    await test(['hidden:nested']);
+
+    expect(logger.stderr).toEqual([
+      '\n[percy] Warning: this is hidden for a reason\n'
+    ]);
   });
 });

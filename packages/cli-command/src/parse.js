@@ -55,6 +55,11 @@ async function maybeParseCommand(input, parsed) {
     // maintain nested names and parent relationships
     name = parent.parent ? `${parent.name}:${command.name}` : command.name;
     command = await normalizeCommand(command, { name, parent });
+
+    // some hidden commands should produce warnings when used
+    if (typeof command?.definition.hidden === 'string') {
+      logger('cli').warn(`\nWarning: ${command.definition.hidden}\n`);
+    }
   }
 
   if (command) {
