@@ -6,6 +6,7 @@ Commands for interacting with Percy builds
 <!-- commands -->
 * [`percy build:finalize`](#percy-buildfinalize)
 * [`percy build:wait`](#percy-buildwait)
+* [`percy build:id`](#percy-buildid)
 
 ### `percy build:finalize`
 
@@ -47,5 +48,23 @@ Global options:
 Examples:
   $ percy build:wait --build 2222222
   $ percy build:wait --project org/project --commit HEAD
+```
+
+### `percy build:id`
+
+Prints the build ID from a locally running Percy process
+
+```
+Usage:
+  $ percy build:id [options]
+
+Percy options:
+  -P, --port [number]  Local CLI server port (default: 5338)
+
+Global options:
+  -v, --verbose        Log everything
+  -q, --quiet          Log errors only
+  -s, --silent         Log nothing
+  -h, --help           Display command help
 ```
 <!-- commandsstop -->
