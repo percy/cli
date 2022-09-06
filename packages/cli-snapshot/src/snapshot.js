@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import command from '@percy/cli-command';
 import * as SnapshotConfig from './config.js';
 
@@ -131,7 +132,7 @@ async function loadSnapshotFile(file) {
   let ext = path.extname(file);
 
   if (/\.(c|m)?js$/.test(ext)) {
-    let { default: module } = await import(path.resolve(file));
+    let { default: module } = await import(pathToFileURL(file));
     return typeof module === 'function' ? await module() : module;
   } else if (ext === '.json') {
     return JSON.parse(fs.readFileSync(file, 'utf-8'));
