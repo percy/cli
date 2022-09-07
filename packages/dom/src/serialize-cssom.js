@@ -4,13 +4,21 @@ function isCSSOM(styleSheet) {
   return !styleSheet.href && styleSheet.cssRules && styleSheet.ownerNode;
 }
 
+// Returns true if stylesheet rules match one another
+function styleSheetsMatch(sheetA, sheetB) {
+  return Array.from(sheetA.cssRules).every((ruleA, i) => {
+    return ruleA.cssText === sheetB.cssRules[i]?.cssText;
+  });
+}
+
 // Outputs in-memory CSSOM into their respective DOM nodes.
 export function serializeCSSOM(dom, clone) {
   for (let styleSheet of dom.styleSheets) {
     if (isCSSOM(styleSheet)) {
-      let style = clone.createElement('style');
       let styleId = styleSheet.ownerNode.getAttribute('data-percy-element-id');
       let cloneOwnerNode = clone.querySelector(`[data-percy-element-id="${styleId}"]`);
+      if (styleSheetsMatch(styleSheet, cloneOwnerNode.sheet)) continue;
+      let style = clone.createElement('style');
 
       style.type = 'text/css';
       style.setAttribute('data-percy-element-id', styleId);

@@ -24,7 +24,7 @@ export function withCSSOM(rules = [], prepare = () => {}) {
   $test.prepend($style);
 
   for (let rule of [].concat(rules)) {
-    document.styleSheets[0].insertRule(rule);
+    $style.sheet.insertRule(rule);
   }
 }
 
