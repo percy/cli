@@ -4,11 +4,15 @@ function isCSSOM(styleSheet) {
   return !styleSheet.href && styleSheet.cssRules && styleSheet.ownerNode;
 }
 
-// Returns true if stylesheet rules match one another
+// Returns false if any stylesheet rules do not match between two stylesheets
 function styleSheetsMatch(sheetA, sheetB) {
-  return Array.from(sheetA.cssRules).every((ruleA, i) => {
-    return ruleA.cssText === sheetB.cssRules[i]?.cssText;
-  });
+  for (let i = 0; i < sheetA.cssRules.length; i++) {
+    let ruleA = sheetA.cssRules[i].cssText;
+    let ruleB = sheetB.cssRules[i]?.cssText;
+    if (ruleA !== ruleB) return false;
+  }
+
+  return true;
 }
 
 // Outputs in-memory CSSOM into their respective DOM nodes.
