@@ -51,18 +51,15 @@ const log = logger.log = (ns, lvl, msg, meta) => {
 };
 
 // Create a new WebSocket and resolve with it once connected
-async function createWebSocket(address, timeout = 1000) {
-  // attempt to import `ws` in node environments
-  let WebSocket = process.env.__PERCY_BROWSERIFIED__
-  /* eslint-disable-next-line import/no-extraneous-dependencies */
-    ? window.WebSocket : (await import('ws')).default;
-  let ws = new WebSocket(address.replace(/^http/, 'ws'));
-
+function createWebSocket(address, timeout = 1000) {
   return new Promise((resolve, reject) => {
-    let done = ws.onopen = ws.onerror = e => {
-      ws._socket?.unref();
+    let ws;
+
+    let done = e => {
+      ws?._socket?.unref();
       clearTimeout(timeoutid);
-      ws.onopen = ws.onerror = null;
+      /* istanbul ignore else: edge case */
+      if (ws) ws.onopen = ws.onerror = null;
       if (!e.error && e.type !== 'error') return resolve(ws);
       else reject(e.error || 'Error: Socket connection failed');
     };
@@ -70,6 +67,15 @@ async function createWebSocket(address, timeout = 1000) {
     let timeoutid = setTimeout(done, timeout, {
       error: 'Error: Socket connection timed out'
     });
+
+    Promise.resolve(
+      process.env.__PERCY_BROWSERIFIED__
+      /* eslint-disable-next-line import/no-extraneous-dependencies */
+        ? { default: window.WebSocket } : import('ws')
+    ).then(({ default: WS }) => {
+      ws = new WS(address.replace(/^http/, 'ws'));
+      ws.onopen = ws.onerror = done;
+    }, reject);
   });
 }
 
