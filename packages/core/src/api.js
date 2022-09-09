@@ -128,9 +128,12 @@ export function createPercyServer(percy, port) {
       let wrapper = '(window.PercyAgent = class { snapshot(n, o) { return PercyDOM.serialize(o); } });';
       return res.send(200, 'applicaton/javascript', content.concat(wrapper));
     })
-  // post one or more snapshots
+  // post one or more screenshot
     .route('post', '/percy/screenshot', async (req, res) => {
-      // TODO
+      let screenshot = percy.screenshot(req.body);
+      if (!req.url.searchParams.has('async')) await screenshot;
+      // Call Rails EP to mark seesion as Percy Session
+      return res.json(200, { success: true });
     })
   // stops percy at the end of the current event loop
     .route('/percy/stop', (req, res) => {

@@ -73,7 +73,7 @@ export class Percy {
     this.dryRun = !!testing || !!dryRun;
     this.skipUploads = this.dryRun || !!skipUploads;
     this.skipDiscovery = this.dryRun || !!skipDiscovery;
-    this.isApp = !!isApp;
+    this.isApp = isApp;
     this.delayUploads = this.skipUploads || !!delayUploads;
     this.deferUploads = this.delayUploads || !!deferUploads;
     if (this.deferUploads) this.#uploads.stop();
