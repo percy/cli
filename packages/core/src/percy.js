@@ -48,6 +48,8 @@ export class Percy {
     // run without asset discovery
     skipDiscovery,
     // implies `skipUploads` and `skipDiscovery`
+    isApp = false,
+    // true is server is running for native app
     dryRun,
     // implies `dryRun`, silent logs, and adds extra api endpoints
     testing,
@@ -71,6 +73,7 @@ export class Percy {
     this.dryRun = !!testing || !!dryRun;
     this.skipUploads = this.dryRun || !!skipUploads;
     this.skipDiscovery = this.dryRun || !!skipDiscovery;
+    this.isApp = !!isApp;
     this.delayUploads = this.skipUploads || !!delayUploads;
     this.deferUploads = this.delayUploads || !!deferUploads;
     if (this.deferUploads) this.#uploads.stop();

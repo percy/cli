@@ -84,7 +84,9 @@ export function createPercyServer(percy, port) {
   // responds once idle (may take a long time)
     .route('get', '/percy/idle', async (req, res) => res.json(200, {
       success: await percy.idle().then(() => true)
-    }))
+    }));
+
+  let webServer = server
   // convenient @percy/dom bundle
     .route('get', '/percy/dom.js', (req, res) => {
       return res.file(200, PERCY_DOM);
@@ -113,8 +115,32 @@ export function createPercyServer(percy, port) {
       return res.json(200, { success: true });
     });
 
+  let appServer = server
+  // legacy agent wrapper for @percy/dom
+    .route('get', '/percy-agent.js', async (req, res) => {
+      logger('core:server').deprecated([
+        'It looks like you’re using @percy/cli with an older SDK.',
+        'Please upgrade to the latest version to fix this warning.',
+        'See these docs for more info: https:docs.percy.io/docs/migrating-to-percy-cli'
+      ].join(' '));
+
+      let content = await fs.promises.readFile(PERCY_DOM, 'utf-8');
+      let wrapper = '(window.PercyAgent = class { snapshot(n, o) { return PercyDOM.serialize(o); } });';
+      return res.send(200, 'applicaton/javascript', content.concat(wrapper));
+    })
+  // post one or more snapshots
+    .route('post', '/percy/screenshot', async (req, res) => {
+      // TODO
+    })
+  // stops percy at the end of the current event loop
+    .route('/percy/stop', (req, res) => {
+      setImmediate(() => percy.stop());
+      return res.json(200, { success: true });
+    });
+
+  let percyServer = percy.isApp ? appServer : webServer
   // add test endpoints only in testing mode
-  return !percy.testing ? server : server
+  return !percy.testing ? percyServer : percyServer
   // manipulates testing mode configuration to trigger specific scenarios
     .route('/test/api/:cmd', ({ body, params: { cmd } }, res) => {
       body = Buffer.isBuffer(body) ? body.toString() : body;
