@@ -1,5 +1,3 @@
-import percy from './percy-info.js';
-
 // Used when determining if a message should be logged
 const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 
@@ -18,7 +16,6 @@ const loglevel = logger.loglevel = lvl => {
 // Track and send/write logs for the specified namespace and log level
 const log = logger.log = (ns, lvl, msg, meta) => {
   let err = typeof msg !== 'string' && (lvl === 'error' || lvl === 'debug');
-  meta = { remote: true, ...meta };
 
   // keep log history of full message
   let message = err ? msg.stack : msg.toString();

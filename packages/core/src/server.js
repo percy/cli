@@ -142,6 +142,7 @@ export class Server extends http.Server {
       super.close(resolve);
     });
   }
+
   // initial routes include cors and 404 handling
   #routes = [{
     priority: -1,

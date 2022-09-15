@@ -110,7 +110,6 @@ describe('SDK Utils', () => {
       expect(stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy is not running, disabling snapshots'
       ]));
-
     });
 
     it('disables snapshots when the API version is unsupported', async () => {
