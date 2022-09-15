@@ -20,16 +20,10 @@ const log = logger.log = (ns, lvl, msg, meta) => {
   let err = typeof msg !== 'string' && (lvl === 'error' || lvl === 'debug');
   meta = { remote: true, ...meta };
 
-  if (remote.socket) {
-    // prefer remote logging when available and serialize any errors
-    if (err) msg = { name: msg.name, message: msg.message, stack: msg.stack };
-    return remote.socket.send(JSON.stringify({ log: [ns, lvl, msg, meta] }));
-  } else {
-    // keep log history of full message when not remote
-    let message = err ? msg.stack : msg.toString();
-    let [debug, level, timestamp, error] = [ns, lvl, Date.now(), !!err];
-    (log.history ||= []).push({ debug, level, message, meta, timestamp, error });
-  }
+  // keep log history of full message
+  let message = err ? msg.stack : msg.toString();
+  let [debug, level, timestamp, error] = [ns, lvl, Date.now(), !!err];
+  (log.history ||= []).push({ debug, level, message, meta, timestamp, error });
 
   // check if the specific level is within the local loglevel range
   if (LOG_LEVELS[lvl] != null && LOG_LEVELS[lvl] >= LOG_LEVELS[loglevel()]) {
@@ -47,64 +41,6 @@ const log = logger.log = (ns, lvl, msg, meta) => {
       // use process[stdout|stderr].write in node
       process[lvl === 'info' ? 'stdout' : 'stderr'].write(msg + '\n');
     }
-  }
-};
-
-// Create a new WebSocket and resolve with it once connected
-function createWebSocket(address, timeout = 1000) {
-  return new Promise((resolve, reject) => {
-    let ws;
-
-    let done = e => {
-      ws?._socket?.unref();
-      clearTimeout(timeoutid);
-      /* istanbul ignore else: edge case */
-      if (ws) ws.onopen = ws.onerror = null;
-      if (!e.error && e.type !== 'error') return resolve(ws);
-      else reject(e.error || 'Error: Socket connection failed');
-    };
-
-    let timeoutid = setTimeout(done, timeout, {
-      error: 'Error: Socket connection timed out'
-    });
-
-    Promise.resolve(
-      process.env.__PERCY_BROWSERIFIED__
-      /* eslint-disable-next-line import/no-extraneous-dependencies */
-        ? { default: window.WebSocket } : import('ws')
-    ).then(({ default: WS }) => {
-      ws = new WS(address.replace(/^http/, 'ws'));
-      ws.onopen = ws.onerror = done;
-    }, reject);
-  });
-}
-
-// Connect to a remote logger at the specified address within the timeout
-const remote = logger.remote = async timeout => {
-  try {
-    // already connected
-    if (remote.socket?.readyState === 1) return;
-    // connect to namespaced logging address
-    let address = new URL('/logger', percy.address).href;
-    // create and cache a websocket connection
-    let ws = remote.socket = await createWebSocket(address, timeout);
-
-    await new Promise((resolve, reject) => {
-      // accept loglevel updates and resolve after first message
-      ws.onmessage = e => resolve(loglevel(JSON.parse(e.data).loglevel));
-      ws.onclose = () => {
-        // cleanup listeners and reject if not resolved
-        remote.socket = ws.onmessage = ws.onclose = null;
-        reject(new Error('Connection closed'));
-      };
-    });
-
-    // send any messages already logged in this environment
-    if (log.history) ws.send(JSON.stringify({ messages: log.history }));
-  } catch (err) {
-    // there was an error connecting, will fallback to minimal logging
-    logger.log('utils', 'debug', 'Unable to connect to remote logger');
-    logger.log('utils', 'debug', err);
   }
 };
 
