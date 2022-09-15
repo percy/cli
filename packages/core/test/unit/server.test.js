@@ -71,39 +71,6 @@ describe('Unit / Server', () => {
     });
   });
 
-  describe('#websocket([pathname], handler)', () => {
-    async function ws(path) {
-      let res, rej, deferred;
-      let { default: WS } = await import('ws');
-      deferred = new Promise((...a) => ([res, rej] = a));
-      new WS(server.address().replace('http', 'ws') + path)
-        .once('message', v => res(v.toString()))
-        .once('error', e => rej(e));
-      return deferred;
-    }
-
-    beforeEach(async () => {
-      server.websocket('/foo', ws => ws.send('bar'));
-      await server.listen();
-    });
-
-    it('handles websocket upgrades at the specified pathname', async () => {
-      await expectAsync(ws('/foo')).toBeResolvedTo('bar');
-      await expectAsync(ws('/'))
-        .toBeRejectedWithError('Unexpected server response: 400');
-    });
-
-    it('handles websocket upgrades without a pathname', async () => {
-      server.websocket(ws => ws.send('foo'));
-      server.websocket('/bar', ws => ws.send('baz'));
-
-      await expectAsync(ws('/')).toBeResolvedTo('foo');
-      await expectAsync(ws('/foo')).toBeResolvedTo('bar');
-      await expectAsync(ws('/bar')).toBeResolvedTo('baz');
-      await expectAsync(ws('/baz')).toBeResolvedTo('foo');
-    });
-  });
-
   describe('#route([method][, pathname], handler)', () => {
     beforeEach(async () => {
       await server.listen();

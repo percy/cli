@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import http from 'http';
-import { WebSocketServer } from 'ws';
 import mime from 'mime-types';
 import disposition from 'content-disposition';
 import {
@@ -108,12 +107,6 @@ export class Server extends http.Server {
     this.on('request', (req, res) => {
       req.on('end', () => this.#handleRequest(req, res));
     });
-
-    // handle websocket upgrades
-    this.on('upgrade', (req, sock, head) => {
-      this.#handleUpgrade(req, sock, head);
-    });
-
     // track open connections to terminate when the server closes
     this.on('connection', socket => {
       let handleClose = () => this.#sockets.delete(socket);
@@ -149,38 +142,6 @@ export class Server extends http.Server {
       super.close(resolve);
     });
   }
-
-  // handle websocket upgrades
-  #up = [];
-
-  websocket(pathname, handle) {
-    if (!handle) [pathname, handle] = [null, pathname];
-
-    this.#up.push({
-      match: pathname && pathToMatch(pathname),
-      handle: (req, sock, head) => new Promise(resolve => {
-        let wss = new WebSocketServer({ noServer: true, clientTracking: false });
-        wss.handleUpgrade(req, sock, head, resolve);
-      }).then(ws => handle(ws, req))
-    });
-
-    if (pathname) {
-      this.#up.sort((a, b) => (a.match ? -1 : 1) - (b.match ? -1 : 1));
-    }
-
-    return this;
-  }
-
-  #handleUpgrade(req, sock, head) {
-    let up = this.#up.find(u => !u.match || u.match(req.url));
-    if (up) return up.handle(req, sock, head);
-
-    sock.write(
-      `HTTP/1.1 400 ${http.STATUS_CODES[400]}\r\n` +
-      'Connection: close\r\n\r\n');
-    sock.destroy();
-  }
-
   // initial routes include cors and 404 handling
   #routes = [{
     priority: -1,
