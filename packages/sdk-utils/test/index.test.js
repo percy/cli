@@ -2,9 +2,34 @@ import helpers from './helpers.js';
 import utils from '@percy/sdk-utils';
 
 describe('SDK Utils', () => {
+  let err, log, stdout, stderr;
+
+  let { logger } = utils;
   let browser = process.env.__PERCY_BROWSERIFIED__;
+  let ANSI_REG = new RegExp('[\\u001B\\u009B][[\\]()#;?]*(' +
+    '(?:(?:[a-zA-Z\\d]*(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)|' +
+    '(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))', 'g');
+
+  let captureLogs = acc => msg => {
+    msg = msg.replace(/\r\n/g, '\n');
+    msg = msg.replace(ANSI_REG, '');
+    acc.push(msg.replace(/\n$/, ''));
+  };
 
   beforeEach(async () => {
+    logger.loglevel('info');
+    log = logger('test');
+    stdout = [];
+    stderr = [];
+
+    if (process.env.__PERCY_BROWSERIFIED__) {
+      spyOn(console, 'log').and.callFake(captureLogs(stdout));
+      spyOn(console, 'warn').and.callFake(captureLogs(stderr));
+      spyOn(console, 'error').and.callFake(captureLogs(stderr));
+    } else {
+      spyOn(process.stdout, 'write').and.callFake(captureLogs(stdout));
+      spyOn(process.stderr, 'write').and.callFake(captureLogs(stderr));
+    }
     await helpers.setupTest();
   });
 
@@ -73,35 +98,27 @@ describe('SDK Utils', () => {
       await helpers.test('error', '/percy/healthcheck');
       await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
 
-      await expectAsync(helpers.get('logs'))
-        .toBeResolvedTo(jasmine.arrayContaining([
-          'Percy is not running, disabling snapshots'
-        ]));
+      expect(stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Percy is not running, disabling snapshots'
+      ]));
     });
 
     it('disables snapshots when the request errors', async () => {
       await helpers.test('disconnect', '/percy/healthcheck');
       await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
 
-      await expectAsync(helpers.get('logs'))
-        .toBeResolvedTo(jasmine.arrayContaining([
-          'Percy is not running, disabling snapshots'
-        ]));
+      expect(stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Percy is not running, disabling snapshots'
+      ]));
     });
 
     it('disables snapshots when the API version is unsupported', async () => {
       await helpers.test('version', '0.1.0');
       await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
 
-      await expectAsync(helpers.get('logs'))
-        .toBeResolvedTo(jasmine.arrayContaining([
-          'Unsupported Percy CLI version, disabling snapshots'
-        ]));
-    });
-
-    it('enables remote logging on success', async () => {
-      await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
-      expect(utils.logger.remote.socket).toBeDefined();
+      expect(stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Unsupported Percy CLI version, disabling snapshots'
+      ]));
     });
 
     it('returns false if the build fails during a snapshot', async () => {
@@ -127,7 +144,7 @@ describe('SDK Utils', () => {
       spyOn(utils.request, 'fetch').and.callFake((...args) => {
         return utils.request.fetch.calls.count() > 2
           ? utils.request.fetch.and.originalFn(...args)
-          // eslint-disable-next-line prefer-promise-reject-errors
+        // eslint-disable-next-line prefer-promise-reject-errors
           : Promise.reject({ code: 'ETIMEDOUT' });
       });
 
@@ -202,38 +219,9 @@ describe('SDK Utils', () => {
   });
 
   describe('logger()', () => {
-    let err, log, stdout, stderr;
-    let { logger } = utils;
-
-    let ANSI_REG = new RegExp('[\\u001B\\u009B][[\\]()#;?]*(' +
-      '(?:(?:[a-zA-Z\\d]*(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)|' +
-      '(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))', 'g');
-
-    let captureLogs = acc => msg => {
-      msg = msg.replace(/\r\n/g, '\n');
-      msg = msg.replace(ANSI_REG, '');
-      acc.push(msg.replace(/\n$/, ''));
-    };
-
     beforeEach(async () => {
-      await helpers.test('remote-logging', false);
-      while (logger.remote.socket) await new Promise(r => setTimeout(r, 0));
-
       err = new Error('Test error');
       err.stack = 'Error stack';
-      logger.loglevel('info');
-      log = logger('test');
-      stdout = [];
-      stderr = [];
-
-      if (process.env.__PERCY_BROWSERIFIED__) {
-        spyOn(console, 'log').and.callFake(captureLogs(stdout));
-        spyOn(console, 'warn').and.callFake(captureLogs(stderr));
-        spyOn(console, 'error').and.callFake(captureLogs(stderr));
-      } else {
-        spyOn(process.stdout, 'write').and.callFake(captureLogs(stdout));
-        spyOn(process.stderr, 'write').and.callFake(captureLogs(stderr));
-      }
     });
 
     it('creates a minimal percy logger', async () => {
@@ -271,106 +259,6 @@ describe('SDK Utils', () => {
         ...(!browser ? ['[percy:test] Test debug log'] : []),
         '[percy:test] Error stack'
       ]);
-    });
-
-    it('can connect to a remote percy logger instance', async () => {
-      await helpers.test('remote-logging', true);
-      await logger.remote();
-
-      let socket = logger.remote.socket;
-      expect(socket).not.toBeNull();
-
-      // does not initiate new connections once connected
-      await logger.remote();
-      expect(logger.remote.socket).toBe(socket);
-
-      // does not log locally, but sends logs remotely
-      log.info('Test foo');
-      log.error(err);
-
-      expect(stderr).toEqual([]);
-      expect(stdout).toEqual([]);
-
-      await expectAsync(helpers.get('logs', l => l))
-        .toBeResolvedTo([
-          jasmine.objectContaining({
-            debug: 'test',
-            level: 'info',
-            message: 'Test foo',
-            meta: { remote: true }
-          }),
-          jasmine.objectContaining({
-            debug: 'test',
-            level: 'error',
-            message: 'Error stack',
-            meta: { remote: true },
-            error: true
-          })
-        ]);
-    });
-
-    it('sends any existing logs to the connected remote logger', async () => {
-      log.info('Test info');
-      log.warn('Test warn');
-      log.error(err);
-
-      await expectAsync(helpers.get('logs'))
-        .toBeResolvedTo([]);
-
-      expect(stdout).toHaveSize(1);
-      expect(stderr).toHaveSize(2);
-
-      await helpers.test('remote-logging', true);
-      await logger.remote();
-
-      await expectAsync(helpers.get('logs'))
-        .toBeResolvedTo(['Test info', 'Test warn', 'Error stack']);
-    });
-
-    it('sets the local loglevel to reflect the connected remote logger', async () => {
-      delete utils.logger.loglevel.lvl;
-      expect(logger.loglevel()).toEqual('info');
-
-      await helpers.test('remote-logging', true);
-      await logger.remote();
-
-      // remove logger is silent during testing mode
-      expect(utils.logger.loglevel.lvl).toEqual('silent');
-      expect(logger.loglevel()).toEqual('silent');
-    });
-
-    it('silently handles remote connection errors', async () => {
-      let addr = utils.percy.address;
-      utils.percy.address = 'http://no.localhost:9999';
-      await logger.remote().then(() => (utils.percy.address = addr));
-
-      log.info('Test remote');
-
-      expect(logger.remote.socket).toBeFalsy();
-      await expectAsync(helpers.get('logs')).toBeResolvedTo([]);
-      expect(stdout).toEqual(['[percy] Test remote']);
-      expect(stderr).toEqual([]);
-    });
-
-    it('logs debug messages for remote connection errors', async () => {
-      logger.loglevel('debug');
-
-      let addr = utils.percy.address;
-      utils.percy.address = 'http://no.localhost:9999';
-      await logger.remote().then(() => (utils.percy.address = addr));
-
-      log.info('Test remote');
-
-      expect(logger.remote.socket).toBeFalsy();
-      await expectAsync(helpers.get('logs')).toBeResolvedTo([]);
-      // node debug logs write to stderr; browser debug logs use console.log
-      expect(browser ? stdout : stderr).toEqual(jasmine.arrayContaining([
-        '[percy:utils] Unable to connect to remote logger',
-        jasmine.stringMatching(
-          // node throws a real error while browsers show console logs
-          browser ? /Socket connection (failed|timed out)/ : /ECONNREFUSED|ENOTFOUND/
-        )
-      ]));
     });
   });
 });

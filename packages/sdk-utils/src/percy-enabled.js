@@ -26,10 +26,6 @@ export async function isPercyEnabled() {
       log.info('Percy is not running, disabling snapshots');
       log.debug(error);
     }
-
-    if (percy.enabled) {
-      await logger.remote();
-    }
   }
 
   return percy.enabled;

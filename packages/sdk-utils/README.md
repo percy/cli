@@ -43,8 +43,7 @@ percy.domScript === fs.readFile(require.resolve('@percy/dom'))
 Returns `true` or `false` if the Percy CLI API server is running. Calls the server's `/healthcheck`
 endpoint and populates information for the [`percy`](#percy) property. The result of this function
 is cached and subsequent calls will return the first cached result. If the healthcheck fails, will
-log a message unless the CLI loglevel is `quiet` or `silent`. Upon a successful health check, a
-remote logging connection is also established.
+log a message unless the CLI loglevel is `quiet` or `silent`.
 
 ``` js
 import { isPercyEnabled } from '@percy/sdk-utils'

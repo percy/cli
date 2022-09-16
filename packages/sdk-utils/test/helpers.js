@@ -11,7 +11,6 @@ const helpers = {
     delete process.env.PERCY_LOGLEVEL;
     delete process.env.PERCY_SERVER_ADDRESS;
     await helpers.test('reset');
-    await utils.logger.remote();
   },
 
   async test(cmd, arg) {

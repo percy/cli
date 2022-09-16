@@ -12,27 +12,6 @@ export function createPercyServer(percy, port) {
   let pkg = getPackageJSON(import.meta.url);
 
   let server = Server.createServer({ port })
-  // facilitate logger websocket connections
-    .websocket('/(logger)?', ws => {
-      // support sabotaging remote logging connections in testing mode
-      if (percy.testing?.remoteLogging === false) return ws.terminate();
-
-      // track all remote logging connections in testing mode
-      if (percy.testing) (percy.testing.remoteLoggers ||= new Set()).add(ws);
-      ws.addEventListener('close', () => percy.testing?.remoteLoggers?.delete(ws));
-
-      // listen for messages with specific logging payloads
-      ws.addEventListener('message', ({ data }) => {
-        let { log, messages = [] } = JSON.parse(data);
-        for (let m of messages) logger.instance.messages.add(m);
-        if (log) logger.instance.log(...log);
-      });
-
-      // respond with the current loglevel
-      ws.send(JSON.stringify({
-        loglevel: logger.loglevel()
-      }));
-    })
   // general middleware
     .route((req, res, next) => {
       // treat all request bodies as json
@@ -118,11 +97,10 @@ export function createPercyServer(percy, port) {
   // manipulates testing mode configuration to trigger specific scenarios
     .route('/test/api/:cmd', ({ body, params: { cmd } }, res) => {
       body = Buffer.isBuffer(body) ? body.toString() : body;
-      let { remoteLoggers } = percy.testing;
 
       if (cmd === 'reset') {
         // the reset command will reset testing mode and clear any logs
-        percy.testing = remoteLoggers ? { remoteLoggers } : {};
+        percy.testing = {};
         logger.instance.messages.clear();
       } else if (cmd === 'version') {
         // the version command will update the api version header for testing
@@ -133,10 +111,6 @@ export function createPercyServer(percy, port) {
       } else if (cmd === 'build-failure') {
         // the build-failure command will cause api errors to include a failed build
         percy.testing.build = { failed: true, error: 'Build failed' };
-      } else if (cmd === 'remote-logging') {
-        // the remote-logging command will toggle remote logging support
-        if (body === false) remoteLoggers?.forEach(ws => ws.terminate());
-        percy.testing.remoteLogging = body;
       } else {
         // 404 for unknown commands
         return res.send(404);
