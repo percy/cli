@@ -48,6 +48,23 @@ describe('Unit / Config Migration', () => {
     expect(mocked.migrate.map[2][2](false)).toEqual(true);
   });
 
+  it('migrates deprecated config', () => {
+    configMigration({
+      version: 2,
+      snapshot: {
+        devicePixelRatio: 2
+      }
+    }, mocked);
+
+    expect(mocked.migrate.deprecate).toEqual([
+      ['snapshot.devicePixelRatio', {
+        map: 'discovery.devicePixelRatio',
+        type: 'config',
+        until: '2.0.0'
+      }]
+    ]);
+  });
+
   it('does not migrate when not needed', () => {
     configMigration({
       version: 2,

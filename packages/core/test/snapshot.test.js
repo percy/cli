@@ -116,6 +116,17 @@ describe('Snapshot', () => {
     ]);
   });
 
+  it('warns on deprecated options', async () => {
+    await percy.snapshot([
+      { url: 'http://localhost:8000/a', devicePixelRatio: 2 }
+    ]);
+
+    expect(logger.stderr).toEqual([
+      '[percy] Warning: The snapshot option `devicePixelRatio` ' +
+        'will be removed in 2.0.0. Use `discovery.devicePixelRatio` instead.'
+    ]);
+  });
+
   it('errors if the url is invalid', async () => {
     await percy.snapshot({
       name: 'test snapshot',

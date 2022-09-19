@@ -28,9 +28,6 @@ export const configSchema = {
       },
       scope: {
         type: 'string'
-      },
-      devicePixelRatio: {
-        type: 'integer'
       }
     }
   },
@@ -109,6 +106,9 @@ export const configSchema = {
       userAgent: {
         type: 'string'
       },
+      devicePixelRatio: {
+        type: 'integer'
+      },
       concurrency: {
         type: 'integer',
         minimum: 1
@@ -140,7 +140,6 @@ export const snapshotSchema = {
         minHeight: { $ref: '/config/snapshot#/properties/minHeight' },
         percyCSS: { $ref: '/config/snapshot#/properties/percyCSS' },
         enableJavaScript: { $ref: '/config/snapshot#/properties/enableJavaScript' },
-        devicePixelRatio: { $ref: '/config/snapshot#/properties/devicePixelRatio' },
         discovery: {
           type: 'object',
           additionalProperties: false,
@@ -150,7 +149,8 @@ export const snapshotSchema = {
             requestHeaders: { $ref: '/config/discovery#/properties/requestHeaders' },
             authorization: { $ref: '/config/discovery#/properties/authorization' },
             disableCache: { $ref: '/config/discovery#/properties/disableCache' },
-            userAgent: { $ref: '/config/discovery#/properties/userAgent' }
+            userAgent: { $ref: '/config/discovery#/properties/userAgent' },
+            devicePixelRatio: { $ref: '/config/discovery#/properties/devicePixelRatio' }
           }
         }
       }
@@ -360,11 +360,24 @@ export function configMigration(config, util) {
     util.map('agent.assetDiscovery.requestHeaders', 'discovery.requestHeaders');
     util.map('agent.assetDiscovery.pagePoolSizeMax', 'discovery.concurrency');
     util.del('agent');
+  } else {
+    util.deprecate('snapshot.devicePixelRatio', {
+      map: 'discovery.devicePixelRatio',
+      type: 'config',
+      until: '2.0.0'
+    });
   }
 }
 
 // Snapshot option migrate function
 export function snapshotMigration(config, util, root = '') {
+  // discovery options have moved
+  util.deprecate(`${root}.devicePixelRatio`, {
+    map: `${root}.discovery.devicePixelRatio`,
+    type: 'snapshot',
+    until: '2.0.0',
+    warn: true
+  });
 }
 
 // Snapshot list options migrate function
