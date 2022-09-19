@@ -410,12 +410,12 @@ export async function* discoverSnapshotResources(percy, snapshot, callback) {
     yield* triggerResourceRequests(page, snapshot);
 
     // trigger resource requests for any alternate device pixel ratio
-    if (snapshot.devicePixelRatio) {
+    if (snapshot.discovery.devicePixelRatio) {
       // wait for any existing pending resource requests first
       yield waitForDiscoveryNetworkIdle(page, snapshot.discovery);
 
       yield* triggerResourceRequests(page, snapshot, {
-        deviceScaleFactor: snapshot.devicePixelRatio,
+        deviceScaleFactor: snapshot.discovery.devicePixelRatio,
         mobile: true
       });
     }

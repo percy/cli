@@ -650,7 +650,7 @@ describe('Discovery', () => {
       name: 'test responsive',
       url: 'http://localhost:8000',
       domSnapshot: responsiveDOM,
-      devicePixelRatio: 2,
+      discovery: { devicePixelRatio: 2 },
       widths: [400, 800]
     });
 
