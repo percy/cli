@@ -32,24 +32,6 @@ describe('Unit / Config Migration', () => {
     ]);
   });
 
-  it('migrates deprecated config', () => {
-    configMigration({
-      version: 2,
-      static: {
-        baseUrl: 'base-url',
-        files: '*.html',
-        ignore: '*.htm'
-      }
-    }, mocked);
-
-    expect(mocked.migrate.deprecate).toEqual([
-      ['static.files', { map: 'static.include', type: 'config', until: '1.0.0' }],
-      ['static.ignore', { map: 'static.exclude', type: 'config', until: '1.0.0' }],
-      ['static.overrides', { map: 'static.options', type: 'config', until: '1.0.0' }],
-      ['sitemap.overrides', { map: 'sitemap.options', type: 'config', until: '1.0.0' }]
-    ]);
-  });
-
   it('does not migrate when not needed', () => {
     configMigration({
       version: 2,

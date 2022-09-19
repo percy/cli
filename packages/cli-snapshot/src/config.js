@@ -29,19 +29,5 @@ export function configMigration(config, util) {
     util.map('staticSnapshots.snapshotFiles', 'static.include');
     util.map('staticSnapshots.ignoreFiles', 'static.exclude');
     util.del('staticSnapshots');
-  } else {
-    let notice = { type: 'config', until: '1.0.0' };
-    // static files and ignore options were renamed
-    util.deprecate('static.files', { map: 'static.include', ...notice });
-    util.deprecate('static.ignore', { map: 'static.exclude', ...notice });
-    // static and sitemap option overrides were renamed
-    util.deprecate('static.overrides', { map: 'static.options', ...notice });
-    util.deprecate('sitemap.overrides', { map: 'sitemap.options', ...notice });
-
-    for (let i in (config.static?.options || [])) {
-      let k = `static.options[${i}]`;
-      util.deprecate(`${k}.files`, { map: `${k}.include`, ...notice });
-      util.deprecate(`${k}.ignore`, { map: `${k}.exclude`, ...notice });
-    }
   }
 }
