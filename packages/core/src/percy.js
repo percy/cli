@@ -107,7 +107,7 @@ export class Percy {
   }
 
   // Set client & environment info, and override loaded config options
-  setConfig({ clientInfo, environmentInfo, ...config }) {
+  set({ clientInfo, environmentInfo, ...config }) {
     this.client.addClientInfo(clientInfo);
     this.client.addEnvironmentInfo(environmentInfo);
 

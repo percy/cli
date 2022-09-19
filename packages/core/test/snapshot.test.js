@@ -1011,7 +1011,7 @@ describe('Snapshot', () => {
     });
 
     it('creates a resource for per-snapshot percy-css', async () => {
-      percy.setConfig({ snapshot: { percyCSS: '' } });
+      percy.set({ snapshot: { percyCSS: '' } });
 
       await percy.snapshot({
         name: 'test snapshot',

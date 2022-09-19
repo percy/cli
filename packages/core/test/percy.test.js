@@ -139,9 +139,9 @@ describe('Percy', () => {
     });
   });
 
-  describe('#setConfig(config)', () => {
+  describe('#set(config)', () => {
     it('adds client and environment information', () => {
-      expect(percy.setConfig({
+      expect(percy.set({
         clientInfo: 'client/info',
         environmentInfo: 'env/info'
       })).toEqual(percy.config);
@@ -151,7 +151,7 @@ describe('Percy', () => {
     });
 
     it('merges existing and provided config options', () => {
-      expect(percy.setConfig({
+      expect(percy.set({
         snapshot: { widths: [1000] }
       })).toEqual({
         ...percy.config,
@@ -163,7 +163,7 @@ describe('Percy', () => {
     });
 
     it('warns and ignores invalid config options', () => {
-      expect(percy.setConfig({
+      expect(percy.set({
         snapshot: { widths: 1000 },
         foo: 'bar'
       })).toEqual(percy.config);

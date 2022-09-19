@@ -98,7 +98,7 @@ describe('Discovery', () => {
   });
 
   it('waits for discovery network idle timeout', async () => {
-    percy.setConfig({ discovery: { networkIdleTimeout: 400 } });
+    percy.set({ discovery: { networkIdleTimeout: 400 } });
 
     server.reply('/', () => [200, 'text/html', dedent`
       <html><body><script>

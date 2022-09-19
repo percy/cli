@@ -57,7 +57,7 @@ export function createPercyServer(percy, port) {
     }))
   // get or set config options
     .route(['get', 'post'], '/percy/config', async (req, res) => res.json(200, {
-      config: req.body ? await percy.setConfig(req.body) : percy.config,
+      config: req.body ? percy.set(req.body) : percy.config,
       success: true
     }))
   // responds once idle (may take a long time)
