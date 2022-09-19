@@ -360,22 +360,11 @@ export function configMigration(config, util) {
     util.map('agent.assetDiscovery.requestHeaders', 'discovery.requestHeaders');
     util.map('agent.assetDiscovery.pagePoolSizeMax', 'discovery.concurrency');
     util.del('agent');
-  } else {
-    let notice = { type: 'config', until: '1.0.0' };
-    // snapshot discovery options have moved
-    util.deprecate('snapshot.authorization', { map: 'discovery.authorization', ...notice });
-    util.deprecate('snapshot.requestHeaders', { map: 'discovery.requestHeaders', ...notice });
   }
 }
 
 // Snapshot option migrate function
 export function snapshotMigration(config, util, root = '') {
-  let notice = { type: 'snapshot', until: '1.0.0', warn: true };
-  // discovery options have moved
-  util.deprecate(`${root}.authorization`, { map: `${root}.discovery.authorization`, ...notice });
-  util.deprecate(`${root}.requestHeaders`, { map: `${root}.discovery.requestHeaders`, ...notice });
-  // snapshots option was renamed
-  util.deprecate(`${root}.snapshots`, { map: `${root}.additionalSnapshots`, ...notice });
 }
 
 // Snapshot list options migrate function
@@ -388,10 +377,6 @@ export function snapshotListMigration(config, util) {
       }
     }
   }
-
-  // overrides option was renamed
-  let notice = { type: 'snapshot', until: '1.0.0', warn: true };
-  util.deprecate('overrides', { map: 'options', ...notice });
 
   // migrate options
   if (Array.isArray(config.options)) {

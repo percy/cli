@@ -116,23 +116,6 @@ describe('Snapshot', () => {
     ]);
   });
 
-  it('warns on deprecated options', async () => {
-    await percy.snapshot([
-      { url: 'http://localhost:8000/a', requestHeaders: { foo: 'bar' } },
-      { url: 'http://localhost:8000/b', authorization: { username: 'foo' } },
-      { url: 'http://localhost:8000/c', snapshots: [{ name: 'foobar' }] }
-    ]);
-
-    expect(logger.stderr).toEqual([
-      '[percy] Warning: The snapshot option `requestHeaders` ' +
-        'will be removed in 1.0.0. Use `discovery.requestHeaders` instead.',
-      '[percy] Warning: The snapshot option `authorization` ' +
-        'will be removed in 1.0.0. Use `discovery.authorization` instead.',
-      '[percy] Warning: The snapshot option `snapshots` ' +
-        'will be removed in 1.0.0. Use `additionalSnapshots` instead.'
-    ]);
-  });
-
   it('errors if the url is invalid', async () => {
     await percy.snapshot({
       name: 'test snapshot',

@@ -39,17 +39,6 @@ export const snapshot = command('snapshot', {
     description: 'Rewrite static index and filepath URLs to be clean',
     percyrc: 'static.cleanUrls',
     group: 'Static'
-  }, {
-    // deprecated
-    name: 'files',
-    deprecated: ['1.0.0', '--include'],
-    percyrc: 'static.include',
-    type: 'pattern'
-  }, {
-    name: 'ignore',
-    deprecated: ['1.0.0', '--exclude'],
-    percyrc: 'static.exclude',
-    type: 'pattern'
   }],
 
   examples: [
