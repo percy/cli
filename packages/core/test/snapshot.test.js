@@ -68,8 +68,8 @@ describe('Snapshot', () => {
 
   it('warns when providing conflicting options', async () => {
     await percy.snapshot({
-      url: 'http://a',
-      domSnapshot: 'b',
+      url: 'http://localhost:8000',
+      domSnapshot: '<html></html>',
       waitForTimeout: 3,
       waitForSelector: 'd',
       execute: 'e',
@@ -165,7 +165,7 @@ describe('Snapshot', () => {
     });
 
     let resourceURLs = api.requests['/builds/123/snapshots'][0]
-      .body.data.relationships.resources.data.map(resource => resource.attributes['resource-url']);
+      .body.data.relationships.resources.data.map(r => r.attributes['resource-url']);
     let uniqueURLs = [...new Set(resourceURLs)];
 
     expect(resourceURLs.length).toEqual(uniqueURLs.length);
@@ -236,7 +236,7 @@ describe('Snapshot', () => {
   it('uploads remaining snapshots at the end when delayed', async () => {
     // stop and recreate a percy instance with the desired option
     await percy.stop(true);
-    await api.mock({ delay: 100 });
+    await api.mock({ delay: 50 });
 
     percy = await Percy.start({
       token: 'PERCY_TOKEN',
@@ -252,7 +252,7 @@ describe('Snapshot', () => {
     }));
 
     // take several snapshots before resolving the build
-    await Promise.all(Array.from({ length: 10 }, (_, i) => (
+    await Promise.all(Array.from({ length: 5 }, (_, i) => (
       percy.snapshot(`http://localhost:8000/${i}`)
     )));
 
@@ -262,13 +262,13 @@ describe('Snapshot', () => {
 
     // all uploaded after stopping
     expect(api.requests['/builds']).toBeDefined();
-    expect(api.requests['/builds/123/snapshots']).toHaveSize(10);
+    expect(api.requests['/builds/123/snapshots']).toHaveSize(5);
     expect(api.requests['/builds/123/finalize']).toBeDefined();
 
     let roots = api.requests['/builds/123/snapshots'].map(s =>
       s.body.data.relationships.resources.data.find(r => r.attributes['is-root']));
 
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 5; i++) {
       expect(roots[i]).toHaveProperty('attributes.resource-url', `http://localhost:8000/${i}`);
     }
   });
@@ -393,7 +393,7 @@ describe('Snapshot', () => {
 
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy:core:snapshot] ---------',
-      '[percy:core:snapshot] Handling snapshot: test snapshot',
+      '[percy:core:snapshot] Received snapshot: test snapshot',
       '[percy:core:snapshot] - url: http://localhost:8000/',
       '[percy:core:snapshot] - widths: 400px, 1200px',
       '[percy:core:snapshot] - minHeight: 1024px',
@@ -466,7 +466,7 @@ describe('Snapshot', () => {
     }]);
 
     expect(logger.stderr).toEqual([
-      '[percy] Received a duplicate snapshot name, ' +
+      '[percy] Received a duplicate snapshot, ' +
         'the previous snapshot was aborted: /foobar'
     ]);
     expect(logger.stdout).toEqual([

@@ -72,17 +72,18 @@ describe('Percy', () => {
     // navigate to a page and capture a snapshot outside of core
     await page.goto('http://localhost:8000');
 
-    let { url, dom } = await page.snapshot({
+    let snapshot = await page.snapshot({
       execute() {
         let p = document.querySelector('p');
         p.textContent = p.textContent.replace('Hello', 'Hello there,');
       }
     });
 
-    expect(url).toEqual('http://localhost:8000/');
-    expect(dom).toEqual('<!DOCTYPE html><html><head></head><body>' + (
-      `<p>Hello there, Percy!</p>${img}`
-    ) + '</body></html>');
+    expect(snapshot.url).toEqual('http://localhost:8000/');
+    expect(snapshot.domSnapshot).toEqual(
+      '<!DOCTYPE html><html><head></head><body>' + (
+        `<p>Hello there, Percy!</p>${img}`
+      ) + '</body></html>');
   });
 
   describe('.start()', () => {
@@ -369,8 +370,7 @@ describe('Percy', () => {
       })).toThrowError('Failed to create build');
 
       expect(logger.stdout).toEqual([
-        '[percy] Percy has started!',
-        '[percy] Snapshot taken: Snapshot 1'
+        '[percy] Percy has started!'
       ]);
       expect(logger.stderr).toEqual([
         '[percy] Failed to create build',
@@ -599,7 +599,7 @@ describe('Percy', () => {
       ]));
       expect(logger.stderr).toEqual([
         '[percy] Encountered an error uploading snapshot: test snapshot',
-        '[percy] Build has failed',
+        '[percy] Error: Build has failed',
         '[percy] Build #1 failed: https://percy.io/test/test/123'
       ]);
     });
@@ -608,7 +608,6 @@ describe('Percy', () => {
   describe('#idle()', () => {
     beforeEach(async () => {
       await percy.start();
-      logger.reset();
     });
 
     it('resolves after snapshots idle', async () => {
@@ -620,23 +619,8 @@ describe('Percy', () => {
       });
 
       expect(api.requests['/builds/123/snapshots']).toBeUndefined();
-
       await percy.idle();
-
       expect(api.requests['/builds/123/snapshots']).toHaveSize(1);
-    });
-  });
-
-  describe('#capture()', () => {
-    it('is deprecated', async () => {
-      spyOn(percy, 'snapshot').and.resolveTo('fin');
-      await expectAsync(percy.capture()).toBeResolvedTo('fin');
-      expect(percy.snapshot).toHaveBeenCalledTimes(1);
-
-      expect(logger.stderr).toEqual([
-        '[percy] Warning: The #capture() method will be ' +
-          'removed in 1.0.0. Use #snapshot() instead.'
-      ]);
     });
   });
 });
