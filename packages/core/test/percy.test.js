@@ -623,4 +623,52 @@ describe('Percy', () => {
       expect(api.requests['/builds/123/snapshots']).toHaveSize(1);
     });
   });
+
+  describe('#upload()', () => {
+    it('errors when not running', async () => {
+      await percy.stop();
+      expect(() => percy.upload({})).toThrowError('Not running');
+    });
+
+    it('pushes items to the snapshots queue', async () => {
+      await percy.start();
+      expect(api.requests['/builds/123/snapshots']).toBeUndefined();
+      await percy.upload({ name: 'Snapshot 1' });
+      expect(api.requests['/builds/123/snapshots']).toHaveSize(1);
+      await percy.upload([{ name: 'Snapshot 2' }, { name: 'Snapshot 3' }]);
+      expect(api.requests['/builds/123/snapshots']).toHaveSize(3);
+    });
+
+    it('can push a prepare function with the item', async () => {
+      let prepared;
+
+      await percy.start();
+      expect(api.requests['/builds/123/snapshots']).toBeUndefined();
+      await percy.upload({ name: 'Snapshot' }, s => (prepared = s));
+      expect(api.requests['/builds/123/snapshots']).toHaveSize(1);
+      expect(prepared).toHaveProperty('name', 'Snapshot');
+    });
+
+    it('can cancel pending pushed items', async () => {
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        deferUploads: true
+      });
+
+      let ctrl = new AbortController();
+      let promised = generatePromise((
+        percy.yield.upload({ name: 'Snapshot' })
+      ), ctrl.signal);
+
+      await expectAsync(promised).toBePending();
+
+      ctrl.abort();
+      await expectAsync(promised)
+        .toBeRejectedWith(ctrl.signal.reason);
+
+      await percy.stop();
+      expect(api.requests['/builds']).toBeUndefined();
+      expect(api.requests['/builds/123/snapshots']).toBeUndefined();
+    });
+  });
 });

@@ -18,7 +18,8 @@ import {
 } from './discovery.js';
 import {
   generatePromise,
-  yieldAll
+  yieldAll,
+  yieldTo
 } from './utils.js';
 
 // A Percy instance will create a new build when started, handle snapshot creation, asset discovery,
@@ -89,7 +90,7 @@ export class Percy {
     this.#snapshots = createSnapshotsQueue(this);
 
     // generator methods are wrapped to autorun and return promises
-    for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot']) {
+    for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot', 'upload']) {
       // the original generator can be referenced with percy.yield.<method>
       let method = (this.yield ||= {})[m] = this[m].bind(this);
       this[m] = (...args) => generatePromise(method(...args));
@@ -309,6 +310,31 @@ export class Percy {
       } finally {
         // always close any created server
         await server?.close();
+      }
+    }.call(this));
+  }
+
+  // Uploads one or more snapshots directly to the current Percy build. A function may be provided
+  // as the second argument which will be called right before the snapshot is sent. This function is
+  // called with snapshot options and should return new snapshot options to be sent to the build.
+  upload(options, prepare) {
+    if (this.readyState !== 1) {
+      throw new Error('Not running');
+    } else if (Array.isArray(options)) {
+      return yieldAll(options.map(o => this.yield.upload(o, prepare)));
+    }
+
+    // add client & environment info
+    this.client.addClientInfo(options.clientInfo);
+    this.client.addEnvironmentInfo(options.environmentInfo);
+
+    // return an async generator to allow cancelation
+    return (async function*() {
+      try {
+        return yield* yieldTo(this.#snapshots.push(options, prepare));
+      } catch (error) {
+        this.#snapshots.cancel(options);
+        throw error;
       }
     }.call(this));
   }

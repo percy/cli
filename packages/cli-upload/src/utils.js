@@ -1,34 +1,21 @@
 import path from 'path';
-import { sha256hash } from '@percy/client/utils';
 
-// Returns a root resource object with a sha and mimetype.
-function createRootResource(url, content) {
-  return {
-    url,
-    content,
-    sha: sha256hash(content),
-    mimetype: 'text/html',
-    root: true
-  };
-}
+import {
+  createResource,
+  createRootResource
+} from '@percy/cli-command/utils';
 
-// Returns an image resource object with a sha.
-function createImageResource(url, content, mimetype) {
-  return {
-    url,
-    content,
-    sha: sha256hash(content),
-    mimetype
-  };
-}
+export {
+  yieldAll
+} from '@percy/cli-command/utils';
 
 // Returns root resource and image resource objects based on an image's
 // filename, contents, and dimensions. The root resource is a generated DOM
 // designed to display an image at it's native size without margins or padding.
 export function createImageResources(filename, content, size) {
   let { dir, name, ext } = path.parse(filename);
-  let rootUrl = `/${encodeURIComponent(path.join(dir, name))}`;
-  let imageUrl = `/${encodeURIComponent(filename)}`;
+  let rootUrl = `http://localhost/${encodeURIComponent(path.join(dir, name))}`;
+  let imageUrl = `http://localhost/${encodeURIComponent(filename)}`;
   let mimetype = ext === '.png' ? 'image/png' : 'image/jpeg';
 
   return [
@@ -49,7 +36,7 @@ export function createImageResources(filename, content, size) {
         </body>
       </html>
     `),
-    createImageResource(imageUrl, content, mimetype)
+    createResource(imageUrl, content, mimetype)
   ];
 }
 

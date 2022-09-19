@@ -274,11 +274,10 @@ export function createSnapshotsQueue(percy) {
     .handle('find', ({ name }, snapshot) => (
       snapshot.name === name
     ))
-  // when pushed, maybe flush old snapshots or possibly merge with existing snapshots
+  // when pushed, maybe flush old snapshots
     .handle('push', (snapshot, existing) => {
       // immediately flush when uploads are delayed but not skipped
       if (percy.delayUploads && !percy.skipUploads) queue.flush();
-
       return snapshot;
     })
   // send snapshots to be uploaded to the build
