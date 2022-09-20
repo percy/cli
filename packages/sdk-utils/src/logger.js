@@ -17,11 +17,6 @@ const loglevel = logger.loglevel = lvl => {
 const log = logger.log = (ns, lvl, msg, meta) => {
   let err = typeof msg !== 'string' && (lvl === 'error' || lvl === 'debug');
 
-  // keep log history of full message
-  let message = err ? msg.stack : msg.toString();
-  let [debug, level, timestamp, error] = [ns, lvl, Date.now(), !!err];
-  (log.history ||= []).push({ debug, level, message, meta, timestamp, error });
-
   // check if the specific level is within the local loglevel range
   if (LOG_LEVELS[lvl] != null && LOG_LEVELS[lvl] >= LOG_LEVELS[loglevel()]) {
     let debug = loglevel() === 'debug';
