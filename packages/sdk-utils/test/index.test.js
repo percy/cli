@@ -2,34 +2,7 @@ import helpers from './helpers.js';
 import utils from '@percy/sdk-utils';
 
 describe('SDK Utils', () => {
-  let err, log, stdout, stderr;
-
-  let { logger } = utils;
-  let browser = process.env.__PERCY_BROWSERIFIED__;
-  let ANSI_REG = new RegExp('[\\u001B\\u009B][[\\]()#;?]*(' +
-    '(?:(?:[a-zA-Z\\d]*(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)|' +
-    '(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))', 'g');
-
-  let captureLogs = acc => msg => {
-    msg = msg.replace(/\r\n/g, '\n');
-    msg = msg.replace(ANSI_REG, '');
-    acc.push(msg.replace(/\n$/, ''));
-  };
-
   beforeEach(async () => {
-    logger.loglevel('info');
-    log = logger('test');
-    stdout = [];
-    stderr = [];
-
-    if (process.env.__PERCY_BROWSERIFIED__) {
-      spyOn(console, 'log').and.callFake(captureLogs(stdout));
-      spyOn(console, 'warn').and.callFake(captureLogs(stderr));
-      spyOn(console, 'error').and.callFake(captureLogs(stderr));
-    } else {
-      spyOn(process.stdout, 'write').and.callFake(captureLogs(stdout));
-      spyOn(process.stderr, 'write').and.callFake(captureLogs(stderr));
-    }
     await helpers.setupTest();
   });
 
@@ -98,7 +71,7 @@ describe('SDK Utils', () => {
       await helpers.test('error', '/percy/healthcheck');
       await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
 
-      expect(stdout).toEqual(jasmine.arrayContaining([
+      expect(helpers.logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy is not running, disabling snapshots'
       ]));
     });
@@ -107,7 +80,7 @@ describe('SDK Utils', () => {
       await helpers.test('disconnect', '/percy/healthcheck');
       await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
 
-      expect(stdout).toEqual(jasmine.arrayContaining([
+      expect(helpers.logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy is not running, disabling snapshots'
       ]));
     });
@@ -116,7 +89,7 @@ describe('SDK Utils', () => {
       await helpers.test('version', '0.1.0');
       await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
 
-      expect(stdout).toEqual(jasmine.arrayContaining([
+      expect(helpers.logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Unsupported Percy CLI version, disabling snapshots'
       ]));
     });
@@ -219,9 +192,37 @@ describe('SDK Utils', () => {
   });
 
   describe('logger()', () => {
+    let browser = process.env.__PERCY_BROWSERIFIED__;
+    let log, err, stdout, stderr;
+    let { logger } = utils;
+
+    let ANSI_REG = new RegExp('[\\u001B\\u009B][[\\]()#;?]*(' + (
+      '(?:(?:[a-zA-Z\\d]*(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)|' +
+      '(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))'
+    ), 'g');
+
+    let captureLogs = acc => msg => {
+      msg = msg.replace(/\r\n/g, '\n');
+      msg = msg.replace(ANSI_REG, '');
+      acc.push(msg.replace(/\n$/, ''));
+    };
+
     beforeEach(async () => {
+      await helpers.setupTest({ logger: false });
       err = new Error('Test error');
       err.stack = 'Error stack';
+      log = utils.logger('test');
+      stdout = [];
+      stderr = [];
+
+      if (browser) {
+        spyOn(console, 'log').and.callFake(captureLogs(stdout));
+        spyOn(console, 'warn').and.callFake(captureLogs(stderr));
+        spyOn(console, 'error').and.callFake(captureLogs(stderr));
+      } else {
+        spyOn(process.stdout, 'write').and.callFake(captureLogs(stdout));
+        spyOn(process.stderr, 'write').and.callFake(captureLogs(stderr));
+      }
     });
 
     it('creates a minimal percy logger', async () => {
@@ -230,6 +231,9 @@ describe('SDK Utils', () => {
       log.error('Test error');
       log.error({ toString: () => 'Test error object' });
       log.error(err);
+
+      // not logged because loglevel is not debug
+      log.debug('Test debug');
 
       expect(stdout).toEqual([
         '[percy] Test info'
@@ -247,16 +251,23 @@ describe('SDK Utils', () => {
 
       log.info('Test debug info');
       log.debug('Test debug log');
+      log.debug({ stack: 'Error like' });
       log.error(err);
 
       expect(stdout).toEqual([
         '[percy:test] Test debug info',
         // browser debug logs use console.log
-        ...(browser ? ['[percy:test] Test debug log'] : [])
+        ...(browser ? [
+          '[percy:test] Test debug log',
+          '[percy:test] Error like'
+        ] : [])
       ]);
       expect(stderr).toEqual([
         // node debug logs write to stderr
-        ...(!browser ? ['[percy:test] Test debug log'] : []),
+        ...(!browser ? [
+          '[percy:test] Test debug log',
+          '[percy:test] Error like'
+        ] : []),
         '[percy:test] Error stack'
       ]);
     });
