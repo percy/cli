@@ -15,11 +15,11 @@ import {
 const { PERCY_CLIENT_API_URL = 'https://percy.io/api/v1' } = process.env;
 const pkg = getPackageJSON(import.meta.url);
 
-// Validate build ID arguments
-function validateBuildId(id) {
-  if (!id) throw new Error('Missing build ID');
+// Validate ID arguments
+function validateId(type, id) {
+  if (!id) throw new Error(`Missing ${type} ID`);
   if (!(typeof id === 'string' || typeof id === 'number')) {
-    throw new Error('Invalid build ID');
+    throw new Error(`Invalid ${type} ID`);
   }
 }
 
@@ -159,7 +159,7 @@ export class PercyClient {
   // Finalizes the active build. When `all` is true, `all-shards=true` is
   // added as a query param so the API finalizes all other build shards.
   async finalizeBuild(buildId, { all = false } = {}) {
-    validateBuildId(buildId);
+    validateId('build', buildId);
     let qs = all ? 'all-shards=true' : '';
     this.log.debug(`Finalizing build ${buildId}...`);
     return this.post(`builds/${buildId}/finalize?${qs}`);
@@ -167,7 +167,7 @@ export class PercyClient {
 
   // Retrieves build data by id. Requires a read access token.
   async getBuild(buildId) {
-    validateBuildId(buildId);
+    validateId('build', buildId);
     this.log.debug(`Get build ${buildId}`);
     return this.get(`builds/${buildId}`);
   }
@@ -255,10 +255,9 @@ export class PercyClient {
   // `content` is read from the filesystem. The sha is optional and will be
   // created from `content` if one is not provided.
   async uploadResource(buildId, { url, sha, filepath, content } = {}) {
-    validateBuildId(buildId);
-
+    validateId('build', buildId);
     this.log.debug(`Uploading resource: ${url}...`);
-    if (filepath) content = fs.readFileSync(filepath);
+    if (filepath) content = await fs.promises.readFile(filepath);
 
     return this.post(`builds/${buildId}/resources`, {
       data: {
@@ -273,8 +272,7 @@ export class PercyClient {
 
   // Uploads resources to the active build concurrently, two at a time.
   async uploadResources(buildId, resources) {
-    validateBuildId(buildId);
-
+    validateId('build', buildId);
     this.log.debug(`Uploading resources for ${buildId}...`);
 
     return pool(function*() {
@@ -295,7 +293,7 @@ export class PercyClient {
     environmentInfo,
     resources = []
   } = {}) {
-    validateBuildId(buildId);
+    validateId('build', buildId);
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
 
@@ -304,6 +302,11 @@ export class PercyClient {
     }
 
     this.log.debug(`Creating snapshot: ${name}...`);
+
+    for (let resource of resources) {
+      if (resource.sha || resource.content || !resource.filepath) continue;
+      resource.content = await fs.promises.readFile(resource.filepath);
+    }
 
     return this.post(`builds/${buildId}/snapshots`, {
       data: {
@@ -319,7 +322,7 @@ export class PercyClient {
           resources: {
             data: resources.map(r => ({
               type: 'resources',
-              id: r.sha || sha256hash(r.content),
+              id: r.sha ?? (r.content && sha256hash(r.content)),
               attributes: {
                 'resource-url': r.url || null,
                 'is-root': r.root || null,
@@ -335,7 +338,7 @@ export class PercyClient {
 
   // Finalizes a snapshot.
   async finalizeSnapshot(snapshotId) {
-    if (!snapshotId) throw new Error('Missing snapshot ID');
+    validateId('snapshot', snapshotId);
     this.log.debug(`Finalizing snapshot ${snapshotId}...`);
     return this.post(`snapshots/${snapshotId}/finalize`);
   }
@@ -353,6 +356,97 @@ export class PercyClient {
 
     await this.finalizeSnapshot(snapshot.data.id);
     return snapshot;
+  }
+
+  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl } = {}) {
+    validateId('snapshot', snapshotId);
+
+    this.log.debug(`Creating comparision: ${tag.name}...`);
+
+    for (let tile of tiles) {
+      if (tile.sha || tile.content || !tile.filepath) continue;
+      tile.content = await fs.promises.readFile(tile.filepath);
+    }
+
+    return this.post(`snapshots/${snapshotId}/comparisons`, {
+      data: {
+        type: 'comparisons',
+        attributes: {
+          'external-debug-url': externalDebugUrl || null
+        },
+        relationships: {
+          tag: {
+            data: {
+              type: 'tag',
+              attributes: {
+                name: tag.name || null,
+                width: tag.width || null,
+                height: tag.height || null,
+                'os-name': tag.osName || null,
+                'os-version': tag.osVersion || null,
+                orientation: tag.orientation || null
+              }
+            }
+          },
+          tiles: {
+            data: tiles.map(t => ({
+              type: 'tiles',
+              attributes: {
+                sha: t.sha || (t.content && sha256hash(t.content)),
+                'status-bar-height': t.statusBarHeight || null,
+                'nav-bar-height': t.navBarHeight || null,
+                'header-height': t.headerHeight || null,
+                'footer-height': t.footerHeight || null,
+                fullscreen: t.fullscreen || null
+              }
+            }))
+          }
+        }
+      }
+    });
+  }
+
+  async uploadComparisonTile(comparisonId, { index = 0, total = 1, filepath, content } = {}) {
+    validateId('comparison', comparisonId);
+    this.log.debug(`Uploading comparison tile: ${index + 1}/${total} (${comparisonId})...`);
+    if (filepath) content = await fs.promises.readFile(filepath);
+
+    return this.post(`comparisons/${comparisonId}/tiles`, {
+      data: {
+        type: 'tiles',
+        attributes: {
+          'base64-content': base64encode(content),
+          index
+        }
+      }
+    });
+  }
+
+  async uploadComparisonTiles(comparisonId, tiles) {
+    validateId('comparison', comparisonId);
+    this.log.debug(`Uploading comparison tiles for ${comparisonId}...`);
+
+    return pool(function*() {
+      for (let index = 0; index < tiles.length; index++) {
+        yield this.uploadComparisonTile(comparisonId, {
+          index, total: tiles.length, ...tiles[index]
+        });
+      }
+    }, this, 2);
+  }
+
+  async finalizeComparison(comparisonId) {
+    validateId('comparison', comparisonId);
+    this.log.debug(`Finalizing comparison ${comparisonId}...`);
+    return this.post(`comparisons/${comparisonId}/finalize`);
+  }
+
+  async sendComparison(buildId, options) {
+    let snapshot = await this.createSnapshot(buildId, options);
+    let comparison = await this.createComparison(snapshot.data.id, options);
+    await this.uploadComparisonTiles(comparison.data.id, options.tiles);
+    await this.finalizeComparison(comparison.data.id);
+    return comparison;
   }
 }
 

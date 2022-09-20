@@ -7,6 +7,7 @@ builds. Can also be used to query for a project's builds using a read access tok
 - [Usage](#usage)
 - [Create a build](#create-a-build)
 - [Create, upload, and finalize snapshots](#create-upload-and-finalize-snapshots)
+- [Create, upload, and finalize comparisons](#create-upload-and-finalize-comparisons)
 - [Finalize a build](#finalize-a-build)
 - [Query for a build*](#query-for-a-build)
 - [Query for a project's builds*](#query-for-a-projects-builds)
@@ -59,7 +60,39 @@ await client.sendSnapshot(buildId, snapshotOptions)
   - `mimetype` — Resource mimetype (**required**)
   - `content` — Resource content (**required**)
   - `sha` — Resource content sha
-  - `root` — Boolean indicating a root resource
+  - `root` — Boolean indicating a root resource## Create, upload, and finalize snapshots
+
+## Create, upload, and finalize comparisons
+
+This method combines the work of creating a snapshot, creating an associated comparison, uploading
+associated comparison tiles, and finally finalizing the comparison.
+
+``` js
+await client.sendComparison(buildId, comparisonOptions)
+```
+
+#### Options
+
+- `name` — Snapshot name (**required**)
+- `clientInfo` — Additional client info
+- `environmentInfo` — Additional environment info
+- `externalDebugUrl` — External debug URL
+- `tag` — Tagged information about this comparison
+  - `name` — The tag name for this comparison, e.g. "iPhone 14 Pro" (**required**)
+  - `osName` - OS name for the comparison tag; e.g. "iOS"
+  - `osVersion` - OS version for the comparison tag; e.g. "16"
+  - `width` - The width for this type of comparison
+  - `height` - The height for this type of comparison
+  - `orientation` - Either "portrait" or "landscape"
+- `tiles` — Array of comparison tiles
+  - `sha` — Tile file contents SHA-256 hash
+  - `filepath` — Tile filepath in the filesystem (required when missing `content`)
+  - `content` — Tile contents as a string or buffer (required when missing `filepath`)
+  - `statusBarHeight` — Height of any status bar in this tile
+  - `navBarHeight` — Height of any nav bar in this tile
+  - `headerHeight` — Height of any header area in this tile
+  - `footerHeight` — Height of any footer area in this tile
+  - `fullscreen` — Boolean indicating this is a fullscreen tile
 
 ## Finalize a build
 

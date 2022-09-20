@@ -120,6 +120,14 @@ export const api = {
           }
         }
       }
+    }],
+
+    '/snapshots/4567/comparisons': ({ body }) => [201, {
+      data: {
+        id: '891011',
+        attributes: body.attributes,
+        relationships: body.relationships
+      }
     }]
   },
 
