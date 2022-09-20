@@ -232,6 +232,9 @@ describe('SDK Utils', () => {
       log.error({ toString: () => 'Test error object' });
       log.error(err);
 
+      // not logged because loglevel is not debug
+      log.debug('Test debug');
+
       expect(stdout).toEqual([
         '[percy] Test info'
       ]);
@@ -248,16 +251,23 @@ describe('SDK Utils', () => {
 
       log.info('Test debug info');
       log.debug('Test debug log');
+      log.debug({ stack: 'Error like' });
       log.error(err);
 
       expect(stdout).toEqual([
         '[percy:test] Test debug info',
         // browser debug logs use console.log
-        ...(browser ? ['[percy:test] Test debug log'] : [])
+        ...(browser ? [
+          '[percy:test] Test debug log',
+          '[percy:test] Error like'
+        ] : [])
       ]);
       expect(stderr).toEqual([
         // node debug logs write to stderr
-        ...(!browser ? ['[percy:test] Test debug log'] : []),
+        ...(!browser ? [
+          '[percy:test] Test debug log',
+          '[percy:test] Error like'
+        ] : []),
         '[percy:test] Error stack'
       ]);
     });
