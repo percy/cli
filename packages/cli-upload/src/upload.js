@@ -72,10 +72,10 @@ export const upload = command('upload', {
   }
 
   let { default: imageSize } = await import('image-size');
-  let { createImageResources } = await import('./resources.js');
+  let { createImageResources } = await import('./utils.js');
 
-  // the internal upload queue shares a concurrency with the snapshot queue
-  percy.setConfig({ discovery: { concurrency: config.concurrency } });
+  // the internal discovery queue shares a concurrency with the snapshots queue
+  percy.set({ discovery: { concurrency: config.concurrency } });
   yield* percy.yield.start();
 
   for (let filename of pathnames) {
@@ -89,18 +89,18 @@ export const upload = command('upload', {
     } else {
       if (percy.dryRun) log.info(`Snapshot found: ${name}`);
 
-      percy._scheduleUpload(filename, async () => {
+      percy.upload({ name }, async function*() {
         let filepath = path.resolve(args.dirname, filename);
-        let buffer = fs.readFileSync(filepath);
+        let buffer = yield fs.promises.readFile(filepath);
+        let size = imageSize(filepath);
 
         // width and height is clamped to API min and max
-        let size = imageSize(filepath);
         let widths = [Math.max(10, Math.min(size.width, 2000))];
         let minHeight = Math.max(10, Math.min(size.height, 2000));
         let resources = createImageResources(filename, buffer, size);
         return { name, widths, minHeight, resources };
-      }).then(() => {
-        log.info(`Snapshot uploaded: ${name}`);
+      }).then(({ error }) => {
+        if (!error) log.info(`Snapshot uploaded: ${name}`);
       });
     }
   }

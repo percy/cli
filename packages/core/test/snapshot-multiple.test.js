@@ -97,11 +97,11 @@ describe('Snapshot multiple', () => {
         '[percy:core] Snapshot taken: /blog (page 2)'
       ]));
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        '[percy:core:snapshot] Handling snapshot: home',
+        '[percy:core:snapshot] Received snapshot: home',
         '[percy:core:snapshot] - enableJavaScript: true',
-        '[percy:core:snapshot] Handling snapshot: /about',
+        '[percy:core:snapshot] Received snapshot: /about',
         '[percy:core:snapshot] - enableJavaScript: true',
-        '[percy:core:snapshot] Handling snapshot: /blog',
+        '[percy:core:snapshot] Received snapshot: /blog',
         '[percy:core:snapshot] - enableJavaScript: true',
         '[percy:core:snapshot] Additional snapshot: /blog (page 2)'
       ]));
@@ -214,11 +214,11 @@ describe('Snapshot multiple', () => {
         '[percy:core] Snapshot taken: /bar'
       ]));
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        '[percy:core:snapshot] Handling snapshot: /',
+        '[percy:core:snapshot] Received snapshot: /',
         '[percy:core:snapshot] - enableJavaScript: true',
-        '[percy:core:snapshot] Handling snapshot: /foo',
+        '[percy:core:snapshot] Received snapshot: /foo',
         '[percy:core:snapshot] - enableJavaScript: true',
-        '[percy:core:snapshot] Handling snapshot: /bar',
+        '[percy:core:snapshot] Received snapshot: /bar',
         '[percy:core:snapshot] - enableJavaScript: false'
       ]));
     });
@@ -319,11 +319,11 @@ describe('Snapshot multiple', () => {
         '[percy:core] Snapshot taken: /blog/bar'
       ]));
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        '[percy:core:snapshot] Handling snapshot: /',
-        '[percy:core:snapshot] Handling snapshot: /about',
-        '[percy:core:snapshot] Handling snapshot: /blog/foo',
+        '[percy:core:snapshot] Received snapshot: /',
+        '[percy:core:snapshot] Received snapshot: /about',
+        '[percy:core:snapshot] Received snapshot: /blog/foo',
         '[percy:core:snapshot] - enableJavaScript: true',
-        '[percy:core:snapshot] Handling snapshot: /blog/bar',
+        '[percy:core:snapshot] Received snapshot: /blog/bar',
         '[percy:core:snapshot] - enableJavaScript: true'
       ]));
     });
@@ -346,17 +346,18 @@ describe('Snapshot multiple', () => {
 
     it('closes the server when aborted', async () => {
       let ctrl = new AbortController();
+      let client = percy.client;
 
-      // cancel after the second upload is scheduled
-      spyOn(percy, '_scheduleUpload').and.callFake((...args) => {
-        if (percy._scheduleUpload.calls.count() > 1) ctrl.abort();
-        return percy._scheduleUpload.and.originalFn.apply(percy, args);
+      // cancel after the first snapshot is uploaded
+      spyOn(client, 'createSnapshot').and.callFake((...args) => {
+        if (!client.createSnapshot.calls.count()) ctrl.abort();
+        return client.createSnapshot.and.originalFn.apply(client, args);
       });
 
-      await expectAsync(
+      await generatePromise((
         // #yield.snapshot returns a generator that can be aborted
-        generatePromise(percy.yield.snapshot({ serve: './public' }), ctrl.signal)
-      ).toBeRejectedWithError('This operation was aborted');
+        percy.yield.snapshot({ serve: './public' })
+      ), ctrl.signal);
 
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual(jasmine.arrayContaining([

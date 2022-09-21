@@ -98,7 +98,7 @@ describe('Discovery', () => {
   });
 
   it('waits for discovery network idle timeout', async () => {
-    percy.setConfig({ discovery: { networkIdleTimeout: 400 } });
+    percy.set({ discovery: { networkIdleTimeout: 400 } });
 
     server.reply('/', () => [200, 'text/html', dedent`
       <html><body><script>
@@ -529,9 +529,9 @@ describe('Discovery', () => {
       `[percy:core:discovery] - sha: ${sha256hash(pixel)}`,
       '[percy:core:discovery] - mimetype: image/gif',
       '[percy:core:page] Page navigated',
-      '[percy:core:network] Wait for 100ms idle',
+      '[percy:core:discovery] Wait for 100ms idle',
       '[percy:core:page] Resize page to 1200x1024 @1x',
-      '[percy:core:network] Wait for 100ms idle',
+      '[percy:core:discovery] Wait for 100ms idle',
       '[percy:core:page] Page closed'
     ]));
   });
@@ -728,14 +728,19 @@ describe('Discovery', () => {
     });
 
     logger.reset();
-    await percy.snapshot([{
+
+    await percy.snapshot({
       name: 'Snapshot with DOM',
       url: 'http://localhost:8000',
       domSnapshot: testDOM
-    }, {
+    });
+
+    expect(() => percy.snapshot({
       name: 'Snapshot without DOM',
       url: 'http://localhost:8000'
-    }]);
+    })).toThrowError(
+      'Cannot capture DOM snapshots when asset discovery is disabled'
+    );
 
     await percy.idle();
     expect(server.requests).toEqual([]);
@@ -746,12 +751,9 @@ describe('Discovery', () => {
       'http://localhost:8000/'
     ]);
 
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Snapshot taken: Snapshot with DOM'
-    ]);
-    expect(logger.stderr).toEqual([
-      '[percy] Encountered an error taking snapshot: Snapshot without DOM',
-      '[percy] Error: Cannot capture DOM snapshot when asset discovery is disabled'
     ]);
   });
 

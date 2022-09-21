@@ -1,21 +1,16 @@
 import logger from '@percy/logger';
 import PercyConfig from '@percy/config';
 import micromatch from 'micromatch';
-
-import {
-  configSchema
-} from './config.js';
+import { configSchema } from './config.js';
+import Queue from './queue.js';
 import {
   request,
   hostnameMatches,
-  createRootResource,
-  createPercyCSSResource,
-  createLogResource,
   yieldTo
 } from './utils.js';
 
 // Throw a better error message for missing or invalid urls
-export function validURL(url, base) {
+function validURL(url, base) {
   if (!url) {
     throw new Error('Missing required URL for snapshot');
   }
@@ -32,7 +27,7 @@ const RE_REGEXP = /^\/(.+)\/(\w+)?$/;
 
 // Returns true or false if a snapshot matches the provided include and exclude predicates. A
 // predicate can be an array of predicates, a regular expression, a glob pattern, or a function.
-export function snapshotMatches(snapshot, include, exclude) {
+function snapshotMatches(snapshot, include, exclude) {
   // support an options object as the second argument
   if (include?.include || include?.exclude) ({ include, exclude } = include);
 
@@ -74,15 +69,15 @@ export function snapshotMatches(snapshot, include, exclude) {
 }
 
 // Accepts an array of snapshots to filter and map with matching options.
-export function mapSnapshotOptions(percy, snapshots, config) {
+function mapSnapshotOptions(snapshots, context) {
   if (!snapshots?.length) return [];
 
   // reduce options into a single function
-  let applyOptions = [].concat(config?.options || [])
+  let applyOptions = [].concat(context?.options || [])
     .reduceRight((next, { include, exclude, ...opts }) => snap => next(
       // assign additional options to included snaphots
       snapshotMatches(snap, include, exclude) ? Object.assign(snap, opts) : snap
-    ), s => getSnapshotConfig(percy, s));
+    ), snap => getSnapshotOptions(snap, context));
 
   // reduce snapshots with overrides
   return snapshots.reduce((acc, snapshot) => {
@@ -90,12 +85,12 @@ export function mapSnapshotOptions(percy, snapshots, config) {
     if (typeof snapshot === 'string') snapshot = { url: snapshot };
 
     // normalize the snapshot url and use it for the default name
-    let url = validURL(snapshot.url, config?.baseUrl);
+    let url = validURL(snapshot.url, context?.baseUrl);
     snapshot.name ||= `${url.pathname}${url.search}${url.hash}`;
     snapshot.url = url.href;
 
     // use the snapshot when matching include/exclude
-    if (snapshotMatches(snapshot, config)) {
+    if (snapshotMatches(snapshot, context)) {
       acc.push(applyOptions(snapshot));
     }
 
@@ -103,23 +98,45 @@ export function mapSnapshotOptions(percy, snapshots, config) {
   }, []);
 }
 
-// Returns an array of derived snapshot options
-export async function* gatherSnapshots(percy, options) {
-  let { baseUrl, snapshots } = options;
+// Return snapshot options merged with defaults and global config.
+function getSnapshotOptions(options, { config, meta }) {
+  return PercyConfig.merge([{
+    widths: configSchema.snapshot.properties.widths.default,
+    discovery: { allowedHostnames: [validURL(options.url).hostname] },
+    meta: { ...meta, snapshot: { name: options.name } }
+  }, config.snapshot, {
+    // only specific discovery options are used per-snapshot
+    discovery: {
+      allowedHostnames: config.discovery.allowedHostnames,
+      disallowedHostnames: config.discovery.disallowedHostnames,
+      networkIdleTimeout: config.discovery.networkIdleTimeout,
+      requestHeaders: config.discovery.requestHeaders,
+      authorization: config.discovery.authorization,
+      disableCache: config.discovery.disableCache,
+      userAgent: config.discovery.userAgent
+    }
+  }, options], (path, prev, next) => {
+    switch (path.map(k => k.toString()).join('.')) {
+      case 'widths': // dedup, sort, and override widths when not empty
+        return [path, !next?.length ? prev : [...new Set(next)].sort((a, b) => a - b)];
+      case 'percyCSS': // concatenate percy css
+        return [path, [prev, next].filter(Boolean).join('\n')];
+      case 'execute': // shorthand for execute.beforeSnapshot
+        return (Array.isArray(next) || typeof next !== 'object')
+          ? [path.concat('beforeSnapshot'), next] : [path];
+      case 'discovery.disallowedHostnames': // prevent disallowing the root hostname
+        return [path, !next?.length ? prev : (
+          (prev ?? []).concat(next).filter(h => !hostnameMatches(h, options.url))
+        )];
+    }
 
-  if ('url' in options) snapshots = [options];
-  if ('sitemap' in options) snapshots = yield getSitemapSnapshots(options);
-
-  // validate evaluated snapshots
-  if (typeof snapshots === 'function') {
-    snapshots = yield* yieldTo(snapshots(baseUrl));
-    snapshots = validateSnapshotOptions({ baseUrl, snapshots }).snapshots;
-  }
-
-  // map snapshots with snapshot options
-  snapshots = mapSnapshotOptions(percy, snapshots, options);
-  if (!snapshots.length) throw new Error('No snapshots found');
-  return snapshots;
+    // ensure additional snapshots have complete names
+    if (path[0] === 'additionalSnapshots' && path.length === 2) {
+      let { prefix = '', suffix = '', ...n } = next;
+      next = { name: `${prefix}${options.name}${suffix}`, ...n };
+      return [path, next];
+    }
+  });
 }
 
 // Validates and migrates snapshot options against the correct schema based on provided
@@ -172,7 +189,7 @@ export function validateSnapshotOptions(options) {
 
 // Fetches a sitemap and parses it into a list of URLs for taking snapshots. Duplicate URLs,
 // including a trailing slash, are removed from the resulting list.
-export async function getSitemapSnapshots(options) {
+async function getSitemapSnapshots(options) {
   return request(options.sitemap, (body, res) => {
     // validate sitemap content-type
     let [contentType] = res.headers['content-type'].split(';');
@@ -193,254 +210,99 @@ export async function getSitemapSnapshots(options) {
   });
 }
 
-// Return snapshot options merged with defaults and global options.
-export function getSnapshotConfig(percy, options) {
-  return PercyConfig.merge([{
-    widths: configSchema.snapshot.properties.widths.default,
-    discovery: { allowedHostnames: [validURL(options.url).hostname] },
-    meta: { snapshot: { name: options.name }, build: percy.build }
-  }, percy.config.snapshot, {
-    // only specific discovery options are used per-snapshot
-    discovery: {
-      allowedHostnames: percy.config.discovery.allowedHostnames,
-      disallowedHostnames: percy.config.discovery.disallowedHostnames,
-      networkIdleTimeout: percy.config.discovery.networkIdleTimeout,
-      requestHeaders: percy.config.discovery.requestHeaders,
-      authorization: percy.config.discovery.authorization,
-      disableCache: percy.config.discovery.disableCache,
-      userAgent: percy.config.discovery.userAgent
-    }
-  }, options], (path, prev, next) => {
-    switch (path.map(k => k.toString()).join('.')) {
-      case 'widths': // dedup, sort, and override widths when not empty
-        return [path, !next?.length ? prev : Array.from(new Set(next)).sort((a, b) => a - b)];
-      case 'percyCSS': // concatenate percy css
-        return [path, [prev, next].filter(Boolean).join('\n')];
-      case 'execute': // shorthand for execute.beforeSnapshot
-        return (Array.isArray(next) || typeof next !== 'object')
-          ? [path.concat('beforeSnapshot'), next] : [path];
-      case 'discovery.disallowedHostnames': // prevent disallowing the root hostname
-        return [path, !next?.length ? prev : (
-          (prev ?? []).concat(next).filter(h => !hostnameMatches(h, options.url))
-        )];
-    }
+// Returns an array of derived snapshot options
+export async function* gatherSnapshots(options, context) {
+  let { baseUrl, snapshots } = options;
 
-    // ensure additional snapshots have complete names
-    if (path[0] === 'additionalSnapshots' && path.length === 2) {
-      let { prefix = '', suffix = '', ...n } = next;
-      next = { name: `${prefix}${options.name}${suffix}`, ...n };
-      return [path, next];
-    }
-  });
-}
+  if ('url' in options) [snapshots, options] = [[options], {}];
+  if ('sitemap' in options) snapshots = yield getSitemapSnapshots(options);
 
-// Returns a complete and valid snapshot config object and logs verbose debug logs detailing various
-// snapshot options. When `showInfo` is true, specific messages will be logged as info logs rather
-// than debug logs.
-function debugSnapshotConfig(snapshot, showInfo) {
-  let log = logger('core:snapshot');
-
-  // log snapshot info
-  log.debug('---------', snapshot.meta);
-  if (showInfo) log.info(`Snapshot found: ${snapshot.name}`, snapshot.meta);
-  else log.debug(`Handling snapshot: ${snapshot.name}`, snapshot.meta);
-
-  // will log debug info for an object property if its value is defined
-  let debugProp = (obj, prop, format = String) => {
-    let val = prop.split('.').reduce((o, k) => o?.[k], obj);
-
-    if (val != null) {
-      // join formatted array values with a space
-      val = [].concat(val).map(format).join(', ');
-      log.debug(`- ${prop}: ${val}`, snapshot.meta);
-    }
-  };
-
-  debugProp(snapshot, 'url');
-  debugProp(snapshot, 'scope');
-  debugProp(snapshot, 'widths', v => `${v}px`);
-  debugProp(snapshot, 'minHeight', v => `${v}px`);
-  debugProp(snapshot, 'enableJavaScript');
-  debugProp(snapshot, 'deviceScaleFactor');
-  debugProp(snapshot, 'waitForTimeout');
-  debugProp(snapshot, 'waitForSelector');
-  debugProp(snapshot, 'execute.afterNavigation');
-  debugProp(snapshot, 'execute.beforeResize');
-  debugProp(snapshot, 'execute.afterResize');
-  debugProp(snapshot, 'execute.beforeSnapshot');
-  debugProp(snapshot, 'discovery.allowedHostnames');
-  debugProp(snapshot, 'discovery.disallowedHostnames');
-  debugProp(snapshot, 'discovery.requestHeaders', JSON.stringify);
-  debugProp(snapshot, 'discovery.authorization', JSON.stringify);
-  debugProp(snapshot, 'discovery.disableCache');
-  debugProp(snapshot, 'discovery.userAgent');
-  debugProp(snapshot, 'clientInfo');
-  debugProp(snapshot, 'environmentInfo');
-  debugProp(snapshot, 'domSnapshot', Boolean);
-
-  for (let added of (snapshot.additionalSnapshots || [])) {
-    if (showInfo) log.info(`Snapshot found: ${added.name}`, snapshot.meta);
-    else log.debug(`Additional snapshot: ${added.name}`, snapshot.meta);
-
-    debugProp(added, 'waitForTimeout');
-    debugProp(added, 'waitForSelector');
-    debugProp(added, 'execute');
-  }
-}
-
-// Calls the provided callback with additional resources
-function handleSnapshotResources(snapshot, map, callback) {
-  let resources = [...map.values()];
-
-  // sort the root resource first
-  let [root] = resources.splice(resources.findIndex(r => r.root), 1);
-  resources.unshift(root);
-
-  // inject Percy CSS
-  if (snapshot.percyCSS) {
-    let css = createPercyCSSResource(root.url, snapshot.percyCSS);
-    resources.push(css);
-
-    // replace root contents and associated properties
-    Object.assign(root, createRootResource(root.url, (
-      root.content.replace(/(<\/body>)(?!.*\1)/is, (
-        `<link data-percy-specific-css rel="stylesheet" href="${css.pathname}"/>`
-      ) + '$&'))));
+  // validate evaluated snapshots
+  if (typeof snapshots === 'function') {
+    snapshots = yield* yieldTo(snapshots(baseUrl));
+    snapshots = validateSnapshotOptions({ baseUrl, snapshots }).snapshots;
   }
 
-  // include associated snapshot logs matched by meta information
-  resources.push(createLogResource(logger.query(log => (
-    log.meta.snapshot?.name === snapshot.meta.snapshot.name
-  ))));
+  // map snapshots with snapshot options
+  snapshots = mapSnapshotOptions(snapshots, { ...options, ...context });
+  if (!snapshots.length) throw new Error('No snapshots found');
 
-  return callback(snapshot, resources);
+  return snapshots;
 }
 
-// Wait for a page's asset discovery network to idle
-function waitForDiscoveryNetworkIdle(page, options) {
-  let { allowedHostnames, networkIdleTimeout } = options;
-  let filter = r => hostnameMatches(allowedHostnames, r.url);
+// Creates a snapshots queue that manages a Percy build and uploads snapshots.
+export function createSnapshotsQueue(percy) {
+  let { concurrency } = percy.config.discovery;
+  let queue = new Queue();
+  let build;
 
-  return page.network.idle(filter, networkIdleTimeout);
-}
-
-// Used to cache resources across core instances
-const RESOURCE_CACHE_KEY = Symbol('resource-cache');
-
-// Trigger resource requests for a page by iterating over snapshot widths and calling any provided
-// execute options. Additional resize options may be provided to capture resources mobile resources
-function* triggerResourceRequests(page, snapshot, options) {
-  // copy widths to prevent mutation later
-  let [initialWidth, ...widths] = snapshot.widths;
-
-  // set the initial page size
-  yield page.resize({
-    width: initialWidth,
-    height: snapshot.minHeight,
-    ...options
-  });
-
-  // navigate to the url
-  yield page.goto(snapshot.url);
-
-  if (snapshot.execute) {
-    // when any execute options are provided, inject snapshot options
-    /* istanbul ignore next: cannot detect coverage of injected code */
-    yield page.eval((_, s) => (window.__PERCY__.snapshot = s), snapshot);
-    yield page.evaluate(snapshot.execute.afterNavigation);
-  }
-
-  // trigger resize events for other widths
-  for (let width of widths) {
-    yield page.evaluate(snapshot.execute?.beforeResize);
-    yield waitForDiscoveryNetworkIdle(page, snapshot.discovery);
-    yield page.resize({ width, height: snapshot.minHeight, ...options });
-    yield page.evaluate(snapshot.execute?.afterResize);
-  }
-}
-
-// Discovers resources for a snapshot using a browser page to intercept requests. The callback
-// function will be called with the snapshot name (for additional snapshots) and an array of
-// discovered resources. When additional snapshots are provided, the callback will be called once
-// for each snapshot.
-export async function* discoverSnapshotResources(percy, snapshot, callback) {
-  debugSnapshotConfig(snapshot, percy.dryRun);
-
-  // when dry-running, invoke the callback for each snapshot and immediately return
-  let allSnapshots = [snapshot, ...(snapshot.additionalSnapshots || [])];
-  if (percy.dryRun) return allSnapshots.map(s => callback(s));
-
-  // keep a global resource cache across snapshots
-  let cache = percy[RESOURCE_CACHE_KEY] ||= new Map();
-
-  // preload the root resource for existing dom snapshots
-  let resources = new Map(snapshot.domSnapshot && (
-    [createRootResource(snapshot.url, snapshot.domSnapshot)]
-      .map(resource => [resource.url, resource])
-  ));
-
-  // when no discovery browser is available, do not attempt to discover other resources
-  if (percy.skipDiscovery && !snapshot.domSnapshot) {
-    throw new Error('Cannot capture DOM snapshot when asset discovery is disabled');
-  } else if (percy.skipDiscovery) {
-    return handleSnapshotResources(snapshot, resources, callback);
-  }
-
-  // open a new browser page
-  let page = yield percy.browser.page({
-    enableJavaScript: snapshot.enableJavaScript ?? !snapshot.domSnapshot,
-    networkIdleTimeout: snapshot.discovery.networkIdleTimeout,
-    requestHeaders: snapshot.discovery.requestHeaders,
-    authorization: snapshot.discovery.authorization,
-    userAgent: snapshot.discovery.userAgent,
-    meta: snapshot.meta,
-
-    // enable network inteception
-    intercept: {
-      enableJavaScript: snapshot.enableJavaScript,
-      disableCache: snapshot.discovery.disableCache,
-      allowedHostnames: snapshot.discovery.allowedHostnames,
-      disallowedHostnames: snapshot.discovery.disallowedHostnames,
-      getResource: u => resources.get(u) || cache.get(u),
-      saveResource: r => resources.set(r.url, r) && cache.set(r.url, r)
-    }
-  });
-
-  try {
-    yield* triggerResourceRequests(page, snapshot);
-
-    // trigger resource requests for any alternate device pixel ratio
-    if (snapshot.discovery.devicePixelRatio) {
-      // wait for any existing pending resource requests first
-      yield waitForDiscoveryNetworkIdle(page, snapshot.discovery);
-
-      yield* triggerResourceRequests(page, snapshot, {
-        deviceScaleFactor: snapshot.discovery.devicePixelRatio,
-        mobile: true
-      });
-    }
-
-    if (snapshot.domSnapshot) {
-      // ensure discovery has finished and handle resources
-      yield waitForDiscoveryNetworkIdle(page, snapshot.discovery);
-      handleSnapshotResources(snapshot, resources, callback);
-    } else {
-      let { enableJavaScript } = snapshot;
-
-      // capture snapshots sequentially
-      for (let snap of allSnapshots) {
-        // will wait for timeouts, selectors, and additional network activity
-        let { url, dom } = yield page.snapshot({ enableJavaScript, ...snap });
-        let root = createRootResource(url, dom);
-        // use the normalized root url to prevent duplicates
-        resources.set(root.url, root);
-        // shallow merge with root snapshot options
-        handleSnapshotResources({ ...snapshot, ...snap }, resources, callback);
-        // remove the previously captured dom snapshot
-        resources.delete(root.url);
+  return queue
+    .set({ concurrency })
+  // on start, create a new Percy build
+    .handle('start', async () => {
+      try {
+        build = percy.build = {};
+        let { data } = await percy.client.createBuild();
+        let url = data.attributes['web-url'];
+        let number = data.attributes['build-number'];
+        Object.assign(build, { id: data.id, url, number });
+        // immediately run the queue if not delayed or deferred
+        if (!percy.delayUploads && !percy.deferUploads) queue.run();
+      } catch (err) {
+        // immediately throw the error if not delayed or deferred
+        if (!percy.delayUploads && !percy.deferUploads) throw err;
+        Object.assign(build, { error: 'Failed to create build' });
+        percy.log.error(build.error);
+        percy.log.error(err);
+        queue.close(true);
       }
-    }
-  } finally {
-    await page.close();
-  }
+    })
+  // on end, maybe finalize the build and log about build info
+    .handle('end', async () => {
+      if (!percy.readyState) return;
+
+      if (build?.failed) {
+        percy.log.warn(`Build #${build.number} failed: ${build.url}`, { build });
+      } else if (build?.id) {
+        await percy.client.finalizeBuild(build.id);
+        percy.log.info(`Finalized build #${build.number}: ${build.url}`, { build });
+      } else {
+        percy.log.warn('Build not created', { build });
+      }
+    })
+  // snapshots are unique by name alone
+    .handle('find', ({ name }, snapshot) => (
+      snapshot.name === name
+    ))
+  // when pushed, maybe flush old snapshots
+    .handle('push', (snapshot, existing) => {
+      // immediately flush when uploads are delayed but not skipped
+      if (percy.delayUploads && !percy.skipUploads) queue.flush();
+      return snapshot;
+    })
+  // send snapshots to be uploaded to the build
+    .handle('task', async function*(snapshot, prepare) {
+      snapshot = yield* yieldTo(prepare?.(snapshot) ?? snapshot);
+      return yield percy.client.sendSnapshot(build.id, snapshot);
+    })
+  // handle possible build errors returned by the API
+    .handle('error', ({ name, meta }, error) => {
+      if (error.name === 'QueueClosedError') return { error };
+      if (error.name === 'AbortError') return { error };
+
+      let failed = error.response?.statusCode === 422 && (
+        error.response.body.errors.find(e => (
+          e.source?.pointer === '/data/attributes/build'
+        )));
+
+      if (failed) {
+        build.error = error.message = failed.detail;
+        build.failed = true;
+        queue.close(true);
+      }
+
+      percy.log.error(`Encountered an error uploading snapshot: ${name}`, meta);
+      percy.log.error(error, meta);
+      return { error };
+    });
 }

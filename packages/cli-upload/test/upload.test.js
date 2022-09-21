@@ -94,7 +94,7 @@ describe('percy upload', () => {
               type: 'resources',
               id: jasmine.any(String),
               attributes: {
-                'resource-url': '/test-1',
+                'resource-url': 'http://localhost/test-1',
                 mimetype: 'text/html',
                 'is-root': true
               }
@@ -102,7 +102,7 @@ describe('percy upload', () => {
               type: 'resources',
               id: jasmine.any(String),
               attributes: {
-                'resource-url': '/test-1.png',
+                'resource-url': 'http://localhost/test-1.png',
                 mimetype: 'image/png',
                 'is-root': null
               }

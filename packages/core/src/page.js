@@ -125,16 +125,16 @@ export class Page {
     for (let script of scripts) await this.eval(script);
   }
 
-  // Take a snapshot after waiting for any timeout, waiting for any selector, executing any scripts,
-  // and waiting for the network idle
+  // Takes a snapshot after waiting for any timeout, waiting for any selector, executing any
+  // scripts, and waiting for the network idle. Returns all other provided snapshot options along
+  // with the captured URL and DOM snapshot.
   async snapshot({
-    name,
     waitForTimeout,
     waitForSelector,
     execute,
-    meta,
-    ...options
+    ...snapshot
   }) {
+    let { name, enableJavaScript } = snapshot;
     this.log.debug(`Taking snapshot: ${name}`, this.meta);
 
     // wait for any specified timeout
@@ -171,11 +171,13 @@ export class Page {
     this.log.debug('Serialize DOM', this.meta);
 
     /* istanbul ignore next: no instrumenting injected code */
-    return await this.eval((_, options) => ({
+    let capture = await this.eval((_, options) => ({
       /* eslint-disable-next-line no-undef */
-      dom: PercyDOM.serialize(options),
+      domSnapshot: PercyDOM.serialize(options),
       url: document.URL
-    }), options);
+    }), { enableJavaScript });
+
+    return { ...snapshot, ...capture };
   }
 
   // Initialize newly attached pages and iframes with page options
