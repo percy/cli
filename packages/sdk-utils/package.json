@@ -38,9 +38,6 @@
     "test:coverage": "yarn test --coverage"
   },
   "rollup": {
-    "external": [
-      "ws"
-    ],
     "output": {
       "name": "PercySDKUtils"
     },
