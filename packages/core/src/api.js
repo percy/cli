@@ -80,10 +80,16 @@ export function createPercyServer(percy, port) {
       let wrapper = '(window.PercyAgent = class { snapshot(n, o) { return PercyDOM.serialize(o); } });';
       return res.send(200, 'applicaton/javascript', content.concat(wrapper));
     })
-  // post one or more snapshots
+  // post one or more snapshots, optionally async
     .route('post', '/percy/snapshot', async (req, res) => {
       let snapshot = percy.snapshot(req.body);
       if (!req.url.searchParams.has('async')) await snapshot;
+      return res.json(200, { success: true });
+    })
+  // post one or more comparisons, optionally waiting
+    .route('post', '/percy/comparison', async (req, res) => {
+      let upload = percy.upload(req.body);
+      if (req.url.searchParams.has('await')) await upload;
       return res.json(200, { success: true });
     })
   // flushes one or more snapshots from the internal queue

@@ -154,7 +154,7 @@ describe('API Server', () => {
   });
 
   it('can handle snapshots async with a parameter', async () => {
-    let test = new Promise(r => setTimeout(r, 500));
+    let resolve, test = new Promise(r => (resolve = r));
     spyOn(percy, 'snapshot').and.returnValue(test);
     await percy.start();
 
@@ -165,7 +165,51 @@ describe('API Server', () => {
     });
 
     await expectAsync(test).toBePending();
-    await test; // no hanging promises
+    resolve(); // no hanging promises
+  });
+
+  it('has a /comparison endpoint that calls #upload() async with provided options', async () => {
+    let resolve, test = new Promise(r => (resolve = r));
+    spyOn(percy, 'upload').and.returnValue(test);
+    await percy.start();
+
+    await expectAsync(request('/percy/comparison', {
+      method: 'POST',
+      body: { 'test-me': true, me_too: true }
+    })).toBeResolvedTo({
+      success: true
+    });
+
+    expect(percy.upload).toHaveBeenCalledOnceWith(
+      { 'test-me': true, me_too: true }
+    );
+
+    await expectAsync(test).toBePending();
+    resolve(); // no hanging promises
+  });
+
+  it('can wait on comparisons to finish uploading with a parameter', async () => {
+    let resolve, test = new Promise(r => (resolve = r));
+
+    spyOn(percy, 'upload').and.returnValue(test);
+    await percy.start();
+
+    let pending = expectAsync(
+      request('/percy/comparison?await', 'POST')
+    ).toBeResolvedTo({
+      success: true
+    });
+
+    await new Promise(r => setTimeout(r, 50));
+    expect(percy.upload).toHaveBeenCalled();
+
+    await expectAsync(test).toBePending();
+    await expectAsync(pending).toBePending();
+
+    resolve();
+
+    await expectAsync(test).toBeResolved();
+    await expectAsync(pending).toBeResolved();
   });
 
   it('returns a 500 error when an endpoint throws', async () => {
