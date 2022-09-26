@@ -276,19 +276,38 @@ export function createSnapshotsQueue(percy) {
     ))
   // when pushed, maybe flush old snapshots
     .handle('push', (snapshot, existing) => {
+      let { name, meta } = snapshot;
+
+      // log immediately when not deferred or dry-running
+      if (!percy.deferUploads) percy.log.info(`Snapshot taken: ${name}`, meta);
+      if (percy.dryRun) percy.log.info(`Snapshot found: ${name}`, meta);
+
       // immediately flush when uploads are delayed but not skipped
       if (percy.delayUploads && !percy.skipUploads) queue.flush();
       return snapshot;
     })
   // send snapshots to be uploaded to the build
-    .handle('task', async function*(snapshot, prepare) {
-      snapshot = yield* yieldTo(prepare?.(snapshot) ?? snapshot);
-      return yield percy.client.sendSnapshot(build.id, snapshot);
+    .handle('task', async function*({ resources, ...snapshot }) {
+      let { name, meta } = snapshot;
+
+      // yield to evaluated snapshot resources
+      snapshot.resources = typeof resources === 'function'
+        ? yield* yieldTo(resources())
+        : resources;
+
+      // upload the snapshot and log when deferred
+      let response = yield percy.client.sendSnapshot(build.id, snapshot);
+      if (percy.deferUploads) percy.log.info(`Snapshot uploaded: ${name}`, meta);
+
+      return { ...snapshot, response };
     })
   // handle possible build errors returned by the API
-    .handle('error', ({ name, meta }, error) => {
-      if (error.name === 'QueueClosedError') return { error };
-      if (error.name === 'AbortError') return { error };
+    .handle('error', (snapshot, error) => {
+      let result = { ...snapshot, error };
+      let { name, meta } = snapshot;
+
+      if (error.name === 'QueueClosedError') return result;
+      if (error.name === 'AbortError') return result;
 
       let failed = error.response?.statusCode === 422 && (
         error.response.body.errors.find(e => (
@@ -303,6 +322,6 @@ export function createSnapshotsQueue(percy) {
 
       percy.log.error(`Encountered an error uploading snapshot: ${name}`, meta);
       percy.log.error(error, meta);
-      return { error };
+      return result;
     });
 }

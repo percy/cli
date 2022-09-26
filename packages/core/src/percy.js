@@ -302,8 +302,6 @@ export class Percy {
             config: this.config
           })
         }, snapshot => {
-          let { name, meta } = snapshot;
-          if (!this.deferUploads) this.log.info(`Snapshot taken: ${name}`, meta);
           // push each finished snapshot to the snapshots queue
           this.#snapshots.push(snapshot);
         });
@@ -314,14 +312,12 @@ export class Percy {
     }.call(this));
   }
 
-  // Uploads one or more snapshots directly to the current Percy build. A function may be provided
-  // as the second argument which will be called right before the snapshot is sent. This function is
-  // called with snapshot options and should return new snapshot options to be sent to the build.
-  upload(options, prepare) {
+  // Uploads one or more snapshots directly to the current Percy build
+  upload(options) {
     if (this.readyState !== 1) {
       throw new Error('Not running');
     } else if (Array.isArray(options)) {
-      return yieldAll(options.map(o => this.yield.upload(o, prepare)));
+      return yieldAll(options.map(o => this.yield.upload(o)));
     }
 
     // add client & environment info
@@ -331,7 +327,7 @@ export class Percy {
     // return an async generator to allow cancelation
     return (async function*() {
       try {
-        return yield* yieldTo(this.#snapshots.push(options, prepare));
+        return yield* yieldTo(this.#snapshots.push(options));
       } catch (error) {
         this.#snapshots.cancel(options);
         throw error;

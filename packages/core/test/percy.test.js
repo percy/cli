@@ -639,14 +639,28 @@ describe('Percy', () => {
       expect(api.requests['/builds/123/snapshots']).toHaveSize(3);
     });
 
-    it('can push a prepare function with the item', async () => {
-      let prepared;
+    it('can provide a resources function to evaluate within the queue', async () => {
+      let resources = jasmine.createSpy('resources').and.returnValue([
+        { sha: 'eval', url: '/evaluated' }
+      ]);
 
       await percy.start();
-      expect(api.requests['/builds/123/snapshots']).toBeUndefined();
-      await percy.upload({ name: 'Snapshot' }, s => (prepared = s));
-      expect(api.requests['/builds/123/snapshots']).toHaveSize(1);
-      expect(prepared).toHaveProperty('name', 'Snapshot');
+      await percy.upload({ name: 'Snapshot', resources });
+      expect(resources).toHaveBeenCalled();
+
+      expect(api.requests['/builds/123/snapshots'][0]).toHaveProperty('body', {
+        data: jasmine.objectContaining({
+          relationships: {
+            resources: {
+              data: [jasmine.objectContaining({
+                attributes: jasmine.objectContaining({
+                  'resource-url': '/evaluated'
+                })
+              })]
+            }
+          }
+        })
+      });
     });
 
     it('can cancel pending pushed items', async () => {

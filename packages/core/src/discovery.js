@@ -9,15 +9,13 @@ import {
   yieldAll
 } from './utils.js';
 
-// Logs verbose debug logs detailing various snapshot options. When `showInfo` is true, specific
-// messages will be logged as info logs rather than debug logs.
-function debugSnapshotOptions(snapshot, showInfo) {
+// Logs verbose debug logs detailing various snapshot options.
+function debugSnapshotOptions(snapshot) {
   let log = logger('core:snapshot');
 
   // log snapshot info
   log.debug('---------', snapshot.meta);
-  if (showInfo) log.info(`Snapshot found: ${snapshot.name}`, snapshot.meta);
-  else log.debug(`Received snapshot: ${snapshot.name}`, snapshot.meta);
+  log.debug(`Received snapshot: ${snapshot.name}`, snapshot.meta);
 
   // will log debug info for an object property if its value is defined
   let debugProp = (obj, prop, format = String) => {
@@ -53,9 +51,7 @@ function debugSnapshotOptions(snapshot, showInfo) {
   debugProp(snapshot, 'domSnapshot', Boolean);
 
   for (let added of (snapshot.additionalSnapshots || [])) {
-    if (showInfo) log.info(`Snapshot found: ${added.name}`, snapshot.meta);
-    else log.debug(`Additional snapshot: ${added.name}`, snapshot.meta);
-
+    log.debug(`Additional snapshot: ${added.name}`, snapshot.meta);
     debugProp(added, 'waitForTimeout');
     debugProp(added, 'waitForSelector');
     debugProp(added, 'execute');
@@ -178,7 +174,7 @@ export async function* discoverSnapshotResources(queue, options, callback) {
   let { snapshots, skipDiscovery, dryRun } = options;
 
   yield* yieldAll(snapshots.reduce((all, snapshot) => {
-    debugSnapshotOptions(snapshot, dryRun);
+    debugSnapshotOptions(snapshot);
 
     if (skipDiscovery) {
       let { additionalSnapshots, ...baseSnapshot } = snapshot;
