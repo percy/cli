@@ -72,35 +72,29 @@ export const upload = command('upload', {
   }
 
   let { default: imageSize } = await import('image-size');
-  let { createImageResources } = await import('./utils.js');
+  let { getImageResources } = await import('./utils.js');
 
   // the internal discovery queue shares a concurrency with the snapshots queue
   percy.set({ discovery: { concurrency: config.concurrency } });
   yield* percy.yield.start();
 
-  for (let filename of pathnames) {
-    let file = path.parse(filename);
-    let name = config.stripExtensions
-      ? path.join(file.dir, file.name)
-      : filename;
-
-    if (!ALLOWED_FILE_TYPES.test(filename)) {
-      log.info(`Skipping unsupported file type: ${filename}`);
+  for (let relativePath of pathnames) {
+    if (!ALLOWED_FILE_TYPES.test(relativePath)) {
+      log.info(`Skipping unsupported file type: ${relativePath}`);
     } else {
-      if (percy.dryRun) log.info(`Snapshot found: ${name}`);
+      let absolutePath = path.resolve(args.dirname, relativePath);
+      let img = { relativePath, absolutePath, ...imageSize(absolutePath) };
+      let { dir, name, ext } = path.parse(relativePath);
+      img.type = ext === '.png' ? 'png' : 'jpeg';
+      img.name = path.join(dir, name);
 
-      percy.upload({ name }, async function*() {
-        let filepath = path.resolve(args.dirname, filename);
-        let buffer = yield fs.promises.readFile(filepath);
-        let size = imageSize(filepath);
-
+      percy.upload({
+        name: config.stripExtensions ? img.name : relativePath,
         // width and height is clamped to API min and max
-        let widths = [Math.max(10, Math.min(size.width, 2000))];
-        let minHeight = Math.max(10, Math.min(size.height, 2000));
-        let resources = createImageResources(filename, buffer, size);
-        return { name, widths, minHeight, resources };
-      }).then(({ error }) => {
-        if (!error) log.info(`Snapshot uploaded: ${name}`);
+        widths: [Math.max(10, Math.min(img.width, 2000))],
+        minHeight: Math.max(10, Math.min(img.height, 2000)),
+        // resources are read from the filesystem as needed
+        resources: () => getImageResources(img)
       });
     }
   }

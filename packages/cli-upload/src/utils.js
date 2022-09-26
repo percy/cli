@@ -1,4 +1,4 @@
-import path from 'path';
+import fs from 'fs';
 
 import {
   createResource,
@@ -9,14 +9,20 @@ export {
   yieldAll
 } from '@percy/cli-command/utils';
 
-// Returns root resource and image resource objects based on an image's
-// filename, contents, and dimensions. The root resource is a generated DOM
-// designed to display an image at it's native size without margins or padding.
-export function createImageResources(filename, content, size) {
-  let { dir, name, ext } = path.parse(filename);
-  let rootUrl = `http://localhost/${encodeURIComponent(path.join(dir, name))}`;
-  let imageUrl = `http://localhost/${encodeURIComponent(filename)}`;
-  let mimetype = ext === '.png' ? 'image/png' : 'image/jpeg';
+// Returns root resource and image resource objects based on image properties. The root resource is
+// a generated DOM designed to display an image at it's native size without margins or padding.
+export async function getImageResources({
+  name,
+  type,
+  width,
+  height,
+  relativePath,
+  absolutePath
+}) {
+  let rootUrl = `http://localhost/${encodeURIComponent(name)}`;
+  let imageUrl = `http://localhost/${encodeURIComponent(relativePath)}`;
+  let content = await fs.promises.readFile(absolutePath);
+  let mimetype = `image/${type}`;
 
   return [
     createRootResource(rootUrl, `
@@ -24,7 +30,7 @@ export function createImageResources(filename, content, size) {
       <html lang="en">
         <head>
           <meta charset="utf-8">
-          <title>${filename}</title>
+          <title>${name}</title>
           <style>
             *, *::before, *::after { margin: 0; padding: 0; font-size: 0; }
             html, body { width: 100%; }
@@ -32,12 +38,10 @@ export function createImageResources(filename, content, size) {
           </style>
         </head>
         <body>
-          <img src="${imageUrl}" width="${size.width}px" height="${size.height}px"/>
+          <img src="${imageUrl}" width="${width}px" height="${height}px"/>
         </body>
       </html>
     `),
     createResource(imageUrl, content, mimetype)
   ];
 }
-
-export default createImageResources;
