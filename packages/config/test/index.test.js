@@ -1127,6 +1127,22 @@ describe('PercyConfig', () => {
       });
     });
 
+    it('can convert keys to snake_case', () => {
+      expect(PercyConfig.normalize({
+        'foo-bar': 'baz',
+        foo: { bar_baz: 'qux' },
+        fooBar_baz: ['qux'],
+        percyCSS: '',
+        enableJavaScript: false
+      }, { snake: true })).toEqual({
+        foo_bar: 'baz',
+        foo: { bar_baz: 'qux' },
+        foo_bar_baz: ['qux'],
+        percy_css: '',
+        enable_javascript: false
+      });
+    });
+
     it('skips normalizing properties of class instances', () => {
       expect(PercyConfig.normalize({
         inst: new (class { 'don_t-doThis' = 'plz' })(),
