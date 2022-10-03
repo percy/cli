@@ -176,9 +176,9 @@ describe('API Server', () => {
     await expectAsync(request('/percy/comparison', {
       method: 'POST',
       body: { 'test-me': true, me_too: true }
-    })).toBeResolvedTo({
+    })).toBeResolvedTo(jasmine.objectContaining({
       success: true
-    });
+    }));
 
     expect(percy.upload).toHaveBeenCalledOnceWith(
       { 'test-me': true, me_too: true }
@@ -186,6 +186,58 @@ describe('API Server', () => {
 
     await expectAsync(test).toBePending();
     resolve(); // no hanging promises
+  });
+
+  it('includes links in the /comparison endpoint response', async () => {
+    spyOn(percy, 'upload').and.resolveTo();
+    await percy.start();
+
+    await expectAsync(request('/percy/comparison', {
+      method: 'POST',
+      body: {
+        name: 'Snapshot name',
+        tag: {
+          name: 'Tag name',
+          osName: 'OS name',
+          osVersion: 'OS version',
+          width: 800,
+          height: 1280,
+          orientation: 'landscape'
+        }
+      }
+    })).toBeResolvedTo(jasmine.objectContaining({
+      link: `${percy.client.apiUrl}/comparisons/redirect?${[
+        'build_id=123',
+        'snapshot[name]=Snapshot%20name',
+        'tag[name]=Tag%20name',
+        'tag[os_name]=OS%20name',
+        'tag[os_version]=OS%20version',
+        'tag[width]=800',
+        'tag[height]=1280',
+        'tag[orientation]=landscape'
+      ].join('&')}`
+    }));
+
+    await expectAsync(request('/percy/comparison', {
+      method: 'POST',
+      body: [
+        { name: 'Snapshot 1', tag: { name: 'Tag 1' } },
+        { name: 'Snapshot 2', tag: { name: 'Tag 2' } }
+      ]
+    })).toBeResolvedTo(jasmine.objectContaining({
+      links: [
+        `${percy.client.apiUrl}/comparisons/redirect?${[
+          'build_id=123',
+          'snapshot[name]=Snapshot%201',
+          'tag[name]=Tag%201'
+        ].join('&')}`,
+        `${percy.client.apiUrl}/comparisons/redirect?${[
+          'build_id=123',
+          'snapshot[name]=Snapshot%202',
+          'tag[name]=Tag%202'
+        ].join('&')}`
+      ]
+    }));
   });
 
   it('can wait on comparisons to finish uploading with a parameter', async () => {
