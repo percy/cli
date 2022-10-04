@@ -377,7 +377,6 @@ export const comparisonSchema = {
         },
         height: {
           type: 'integer',
-          maximum: 2000,
           minimum: 10
         },
         orientation: {
