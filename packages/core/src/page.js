@@ -134,8 +134,8 @@ export class Page {
     execute,
     ...snapshot
   }) {
-    let { name, enableJavaScript } = snapshot;
-    this.log.debug(`Taking snapshot: ${name}`, this.meta);
+    let { name, width, enableJavaScript } = snapshot;
+    this.log.debug(`Taking snapshot: ${name}${width ? ` @${width}px` : ''}`, this.meta);
 
     // wait for any specified timeout
     if (waitForTimeout) {
