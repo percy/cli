@@ -179,20 +179,24 @@ export class Percy {
   }
 
   // Wait for currently queued snapshots then run and wait for resulting uploads
-  async *flush(callback) {
+  async *flush(options) {
     if (!this.readyState || this.readyState > 2) return;
+    let callback = typeof options === 'function' ? options : null;
+    options &&= !callback ? [].concat(options) : null;
 
     // wait until the next event loop for synchronous snapshots
     yield new Promise(r => setImmediate(r));
 
     // flush and log progress for discovery before snapshots
     if (!this.skipDiscovery && this.#discovery.size) {
-      yield* this.#discovery.flush(size => callback?.('Processing', size));
+      if (options) yield* yieldAll(options.map(o => this.#discovery.process(o)));
+      else yield* this.#discovery.flush(size => callback?.('Processing', size));
     }
 
     // flush and log progress for snapshot uploads
     if (!this.skipUploads && this.#snapshots.size) {
-      yield* this.#snapshots.flush(size => callback?.('Uploading', size));
+      if (options) yield* yieldAll(options.map(o => this.#snapshots.process(o)));
+      else yield* this.#snapshots.flush(size => callback?.('Uploading', size));
     }
   }
 
