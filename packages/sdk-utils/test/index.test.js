@@ -191,6 +191,29 @@ describe('SDK Utils', () => {
     });
   });
 
+  describe('flushSnapshots([options])', () => {
+    let { flushSnapshots } = utils;
+
+    it('does nothing when percy is not enabled', async () => {
+      await expectAsync(flushSnapshots()).toBeResolved();
+      await expectAsync(helpers.get('requests')).toBeResolvedTo({});
+    });
+
+    it('posts options to the CLI API flush endpoint', async () => {
+      utils.percy.enabled = true;
+
+      await expectAsync(flushSnapshots()).toBeResolved();
+      await expectAsync(flushSnapshots({ name: 'foo' })).toBeResolved();
+      await expectAsync(flushSnapshots(['bar', 'baz'])).toBeResolved();
+
+      await expectAsync(helpers.get('requests')).toBeResolvedTo([
+        { url: '/percy/flush', method: 'POST' },
+        { url: '/percy/flush', method: 'POST', body: [{ name: 'foo' }] },
+        { url: '/percy/flush', method: 'POST', body: [{ name: 'bar' }, { name: 'baz' }] }
+      ]);
+    });
+  });
+
   describe('logger()', () => {
     let browser = process.env.__PERCY_BROWSERIFIED__;
     let log, err, stdout, stderr;
