@@ -43,7 +43,8 @@ export function createPercyCSSResource(url, css) {
 
 // Creates a log resource object.
 export function createLogResource(logs) {
-  return createResource(`/percy.${Date.now()}.log`, JSON.stringify(logs), 'text/plain');
+  let [url, content] = [`/percy.${Date.now()}.log`, JSON.stringify(logs)];
+  return createResource(url, content, 'text/plain', { log: true });
 }
 
 // Returns true or false if the provided object is a generator or not
