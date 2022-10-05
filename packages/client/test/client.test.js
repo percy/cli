@@ -507,6 +507,7 @@ describe('PercyClient', () => {
           url: '/foobar',
           content: 'foo',
           mimetype: 'text/html',
+          widths: [1000],
           root: true
         }]
       })).toBeResolved();
@@ -536,8 +537,9 @@ describe('PercyClient', () => {
                 id: sha256hash('foo'),
                 attributes: {
                   'resource-url': '/foobar',
-                  'is-root': true,
-                  mimetype: 'text/html'
+                  mimetype: 'text/html',
+                  'for-widths': [1000],
+                  'is-root': true
                 }
               }]
             }
@@ -568,6 +570,7 @@ describe('PercyClient', () => {
                 id: 'sha',
                 attributes: {
                   'resource-url': null,
+                  'for-widths': null,
                   'is-root': null,
                   mimetype: null
                 }
@@ -608,6 +611,7 @@ describe('PercyClient', () => {
             sha: sha256hash(testDOM),
             mimetype: 'text/html',
             content: testDOM,
+            widths: [1000],
             root: true
           }]
         })
@@ -631,6 +635,7 @@ describe('PercyClient', () => {
                 attributes: {
                   mimetype: 'text/html',
                   'resource-url': null,
+                  'for-widths': [1000],
                   'is-root': true
                 }
               }]

@@ -323,6 +323,7 @@ export class PercyClient {
               attributes: {
                 'resource-url': r.url || null,
                 'is-root': r.root || null,
+                'for-widths': r.widths || null,
                 mimetype: r.mimetype || null
               }
             }))
