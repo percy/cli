@@ -115,6 +115,20 @@ describe('API Server', () => {
     ].join(' ')]);
   });
 
+  it('has a /flush endpoint that calls #flush()', async () => {
+    spyOn(percy, 'flush').and.resolveTo();
+    await percy.start();
+
+    await expectAsync(request('/percy/flush', {
+      body: { name: 'Snapshot name' },
+      method: 'post'
+    })).toBeResolvedTo({ success: true });
+
+    expect(percy.flush).toHaveBeenCalledWith({
+      name: 'Snapshot name'
+    });
+  });
+
   it('has a /stop endpoint that calls #stop()', async () => {
     spyOn(percy, 'stop').and.resolveTo();
     await percy.start();

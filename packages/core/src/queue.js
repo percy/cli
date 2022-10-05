@@ -192,7 +192,8 @@ export class Queue {
   // process a single item task when started
   process(item) {
     let task = this.#find(item);
-    if (this.readyState) this.#process(task);
+    if (task && !this.#start) this.start();
+    this.#start?.promise.then(() => this.#process(task));
     return task?.deferred;
   }
 

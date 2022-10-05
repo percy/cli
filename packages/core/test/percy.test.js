@@ -624,6 +624,85 @@ describe('Percy', () => {
     });
   });
 
+  describe('#flush()', () => {
+    let snapshots;
+
+    beforeEach(async () => {
+      snapshots = [];
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        deferUploads: true
+      });
+
+      for (let i = 0; i < 3; i++) {
+        let resolve, deferred = new Promise(r => (resolve = r));
+        deferred = deferred.then(() => [200, 'text/html', `#${i}`]);
+        server.reply(`/deferred/${i}`, () => deferred);
+
+        let promise = percy.snapshot(`http://localhost:8000/deferred/${i}`);
+        snapshots.push({ resolve, deferred, promise });
+      }
+    });
+
+    afterEach(() => {
+      // no hanging promises
+      for (let { resolve } of snapshots) resolve();
+    });
+
+    it('resolves after flushing all snapshots', async () => {
+      let all = Promise.all(snapshots.map(s => s.promise));
+      let flush = percy.flush();
+
+      await expectAsync(flush).toBePending();
+      await expectAsync(all).toBePending();
+
+      snapshots[0].resolve();
+      snapshots[1].resolve();
+      await expectAsync(flush).toBePending();
+      await expectAsync(all).toBePending();
+
+      snapshots[2].resolve();
+      await expectAsync(flush).toBeResolved();
+      await expectAsync(all).toBeResolved();
+    });
+
+    it('resolves after flushing one or more named snapshots', async () => {
+      let flush1 = percy.flush(
+        { name: '/deferred/1' }
+      );
+
+      await expectAsync(flush1).toBePending();
+      await expectAsync(snapshots[0].promise).toBePending();
+      await expectAsync(snapshots[1].promise).toBePending();
+      await expectAsync(snapshots[2].promise).toBePending();
+
+      snapshots[1].resolve();
+      await expectAsync(flush1).toBeResolved();
+      await expectAsync(snapshots[0].promise).toBePending();
+      await expectAsync(snapshots[1].promise).toBeResolved();
+      await expectAsync(snapshots[2].promise).toBePending();
+
+      let flush2 = percy.flush([
+        { name: '/deferred/0' },
+        { name: '/deferred/2' }
+      ]);
+
+      snapshots[2].resolve();
+      await expectAsync(flush2).toBePending();
+      await expectAsync(snapshots[0].promise).toBePending();
+      await expectAsync(snapshots[1].promise).toBeResolved();
+      await expectAsync(snapshots[2].promise).toBeResolved();
+
+      snapshots[0].resolve();
+      await expectAsync(flush2).toBeResolved();
+      await expectAsync(snapshots[0].promise).toBeResolved();
+      await expectAsync(snapshots[1].promise).toBeResolved();
+      await expectAsync(snapshots[2].promise).toBeResolved();
+    });
+  });
+
   describe('#upload()', () => {
     it('errors when not running', async () => {
       await percy.stop();

@@ -94,30 +94,6 @@ describe('Unit / Tasks Queue', () => {
       .toBeRejectedWithError('This operation was aborted');
   });
 
-  it('can process any queued item once started', async () => {
-    let p1 = q.push('item #1');
-    let p2 = q.push('item #2');
-    expect(q.size).toBe(2);
-
-    await expectAsync(p1).toBePending();
-    await expectAsync(p2).toBePending();
-
-    let p2$2 = q.process('item #2');
-    expect(q.size).toBe(2);
-    expect(p2$2).toBe(p2);
-
-    await expectAsync(p1).toBePending();
-    await expectAsync(p2).toBePending();
-
-    await q.start();
-    expect(q.size).toBe(2);
-    await q.process('item #2');
-    expect(q.size).toBe(1);
-
-    await expectAsync(p1).toBePending();
-    await expectAsync(p2).toBeResolved();
-  });
-
   it('can add a start handler that is called when starting', async () => {
     let start = jasmine.createSpy('start');
     q.handle('start', start);
@@ -126,6 +102,23 @@ describe('Unit / Tasks Queue', () => {
     await q.start();
     await q.start();
     expect(start).toHaveBeenCalled();
+  });
+
+  it('can process any queued item after starting', async () => {
+    let p1 = q.push('item #1');
+    let p2 = q.push('item #2');
+
+    await expectAsync(p1).toBePending();
+    await expectAsync(p2).toBePending();
+    expect(q.readyState).toBe(0);
+    expect(q.size).toBe(2);
+
+    await q.process('item #2');
+
+    await expectAsync(p1).toBePending();
+    await expectAsync(p2).toBeResolved();
+    expect(q.readyState).toBe(1);
+    expect(q.size).toBe(1);
   });
 
   it('can add a task handler for processing queued items', async () => {

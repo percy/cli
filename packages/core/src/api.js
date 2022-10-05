@@ -86,6 +86,10 @@ export function createPercyServer(percy, port) {
       if (!req.url.searchParams.has('async')) await snapshot;
       return res.json(200, { success: true });
     })
+  // flushes one or more snapshots from the internal queue
+    .route('post', '/percy/flush', async (req, res) => res.json(200, {
+      success: await percy.flush(req.body).then(() => true)
+    }))
   // stops percy at the end of the current event loop
     .route('/percy/stop', (req, res) => {
       setImmediate(() => percy.stop());

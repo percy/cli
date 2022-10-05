@@ -5,6 +5,7 @@ import isPercyEnabled from './percy-enabled.js';
 import waitForPercyIdle from './percy-idle.js';
 import fetchPercyDOM from './percy-dom.js';
 import postSnapshot from './post-snapshot.js';
+import flushSnapshots from './flush-snapshots.js';
 
 export {
   logger,
@@ -13,7 +14,8 @@ export {
   isPercyEnabled,
   waitForPercyIdle,
   fetchPercyDOM,
-  postSnapshot
+  postSnapshot,
+  flushSnapshots
 };
 
 // export the namespace by default
