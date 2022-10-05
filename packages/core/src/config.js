@@ -1,5 +1,14 @@
 // Common config options used in Percy commands
 export const configSchema = {
+  percy: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      deferUploads: {
+        type: 'boolean'
+      }
+    }
+  },
   snapshot: {
     type: 'object',
     additionalProperties: false,

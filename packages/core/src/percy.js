@@ -55,7 +55,7 @@ export class Percy {
     // implies `dryRun`, silent logs, and adds extra api endpoints
     testing,
     // configuration filepath
-    config,
+    config: configFile,
     // provided to @percy/client
     token,
     clientInfo = '',
@@ -67,10 +67,13 @@ export class Percy {
     // options which will become accessible via the `.config` property
     ...options
   } = {}) {
-    this.config = PercyConfig.load({
+    let { percy, ...config } = PercyConfig.load({
       overrides: options,
-      path: config
+      path: configFile
     });
+
+    deferUploads ??= percy?.deferUploads;
+    this.config = config;
 
     if (testing) loglevel = 'silent';
     if (loglevel) this.loglevel(loglevel);
