@@ -309,6 +309,122 @@ describe('Snapshot', () => {
     expect(roots[1]).toHaveProperty('attributes.resource-url', 'http://localhost:8000/two');
   });
 
+  it('uploads named snapshots with differing root widths when deferred', async () => {
+    // stop and recreate a percy instance with the desired option
+    await percy.stop(true);
+    await api.mock({ delay: 50 });
+
+    percy = await Percy.start({
+      token: 'PERCY_TOKEN',
+      discovery: { concurrency: 1 },
+      deferUploads: true
+    });
+
+    let snap = (domSnapshot, widths) => percy.snapshot({
+      [Array.isArray(widths) ? 'widths' : 'width']: widths,
+      url: 'http://localhost:8000/',
+      domSnapshot
+    });
+
+    snap('xs width', [400, 600]);
+    snap('sm widths', [400, 600, 800]);
+    snap('med widths', [800, 1000, 1200]);
+    snap('lg widths', 1200);
+    await percy.idle();
+
+    // deferred still works as expected
+    expect(api.requests['/builds']).toBeUndefined();
+    expect(api.requests['/builds/123/snapshots']).toBeUndefined();
+
+    await percy.stop();
+
+    // single snapshot uploaded after stopping
+    expect(api.requests['/builds/123/snapshots']).toHaveSize(1);
+
+    // snapshot should contain 3 roots of differing widths
+    let roots = api.requests['/builds/123/snapshots'][0].body.data
+      .relationships.resources.data.filter(r => r.attributes['is-root']);
+
+    expect(roots).toHaveSize(3);
+    expect(roots[0]).toHaveProperty('attributes.for-widths', [1200]);
+    expect(roots[1]).toHaveProperty('attributes.for-widths', [800, 1000]);
+    expect(roots[2]).toHaveProperty('attributes.for-widths', [400, 600]);
+
+    // roots have the same URL, but different SHA IDs
+    expect(roots[0].attributes['resource-url'])
+      .toEqual(roots[1].attributes['resource-url']);
+    expect(roots[1].attributes['resource-url'])
+      .toEqual(roots[2].attributes['resource-url']);
+    expect(roots[0].id).not.toEqual(roots[1].id);
+    expect(roots[1].id).not.toEqual(roots[2].id);
+  });
+
+  it('can capture snapshots with multiple root widths when deferred', async () => {
+    server.reply('/styles.css', () => [200, 'text/css', '@import "/coverage.css"']);
+    server.reply('/coverage.css', () => [200, 'text/css', 'p { color: purple; }']);
+    // stop and recreate a percy instance with the desired option
+    await percy.stop(true);
+    await api.mock();
+
+    testDOM = `
+      <p id="test"></p>
+      <link rel="stylesheet" href="/styles.css"/>
+      <script>(window.onresize = () => {
+        let width = window.innerWidth;
+        if (width <= 600) test.innerText = 'small';
+        if (width > 600) test.innerText = 'medium';
+        if (width > 1000) test.innerText = 'large';
+      })()</script>
+    `;
+
+    percy = await Percy.start({
+      token: 'PERCY_TOKEN',
+      deferUploads: true
+    });
+
+    percy.snapshot({
+      name: 'Snapshot 0',
+      url: 'http://localhost:8000/',
+      additionalSnapshots: [{ name: 'Snapshot 1' }],
+      widths: [600, 1000, 1600]
+    });
+
+    await percy.idle();
+
+    // deferred still works as expected
+    expect(api.requests['/builds']).toBeUndefined();
+    expect(api.requests['/builds/123/snapshots']).toBeUndefined();
+
+    await percy.stop();
+
+    // snapshots uploaded after stopping
+    expect(api.requests['/builds/123/snapshots']).toHaveSize(2);
+
+    for (let i in api.requests['/builds/123/snapshots']) {
+      let req = api.requests['/builds/123/snapshots'][i];
+      expect(req).toHaveProperty('body.data.attributes.name', `Snapshot ${i}`);
+
+      // snapshots should contain 3 roots of differing widths
+      let roots = req.body.data.relationships
+        .resources.data.filter(r => r.attributes['is-root']);
+
+      expect(roots).toHaveSize(3);
+      expect(roots[0]).toHaveProperty('attributes.for-widths', [1600]);
+      expect(roots[1]).toHaveProperty('attributes.for-widths', [1000]);
+      expect(roots[2]).toHaveProperty('attributes.for-widths', [600]);
+
+      let captured = roots.map(({ id }) => Buffer.from((
+        api.requests['/builds/123/resources']
+          .find(r => r.body.data.id === id)?.body
+          .data.attributes['base64-content']
+      ), 'base64').toString());
+
+      expect(captured[0]).toMatch('<p id="test">large</p>');
+      expect(captured[1]).toMatch('<p id="test">medium</p>');
+      expect(captured[2]).toMatch('<p id="test">small</p>');
+    }
+  });
+
   it('logs after taking the snapshot', async () => {
     await percy.snapshot({
       name: 'test snapshot',

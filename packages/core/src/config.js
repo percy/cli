@@ -287,7 +287,8 @@ export const snapshotSchema = {
       properties: {
         url: { type: 'string' },
         name: { type: 'string' },
-        domSnapshot: { type: 'string' }
+        domSnapshot: { type: 'string' },
+        width: { $ref: '/config/snapshot#/properties/widths/items' }
       },
       errors: {
         unevaluatedProperties: e => (

@@ -230,6 +230,40 @@ export async function* gatherSnapshots(options, context) {
   return snapshots;
 }
 
+// Merges snapshots and deduplicates resource arrays. Duplicate log resources are replaced, root
+// resources are deduplicated by widths, and all other resources are deduplicated by their URL.
+function mergeSnapshotOptions(prev = {}, next) {
+  let { resources: oldResources = [], ...existing } = prev;
+  let { resources: newResources = [], widths = [], width, ...incoming } = next;
+
+  // prioritize singular widths over mutilple widths
+  widths = width ? [width] : widths;
+
+  // deduplicate resources by associated widths and url
+  let resources = oldResources.reduce((all, resource) => {
+    if (resource.log || resource.widths.every(w => widths.includes(w))) return all;
+    if (!resource.root && all.some(r => r.url === resource.url)) return all;
+    resource.widths = resource.widths.filter(w => !widths.includes(w));
+    return all.concat(resource);
+  }, newResources.map(r => ({ ...r, widths })));
+
+  // sort resources after merging; roots first by min-width & logs last
+  resources.sort((a, b) => {
+    if (a.root && b.root) return Math.min(...b.widths) - Math.min(...a.widths);
+    return (a.root || b.log) ? -1 : (a.log || b.root) ? 1 : 0;
+  });
+
+  // overwrite resources and ensure unique widths
+  return PercyConfig.merge([
+    existing, incoming, { widths, resources }
+  ], (path, prev, next) => {
+    if (path[0] === 'resources') return [path, next];
+    if (path[0] === 'widths' && prev && next) {
+      return [path, [...new Set([...prev, ...next])]];
+    }
+  });
+}
+
 // Creates a snapshots queue that manages a Percy build and uploads snapshots.
 export function createSnapshotsQueue(percy) {
   let { concurrency } = percy.config.discovery;
@@ -274,7 +308,7 @@ export function createSnapshotsQueue(percy) {
     .handle('find', ({ name }, snapshot) => (
       snapshot.name === name
     ))
-  // when pushed, maybe flush old snapshots
+  // when pushed, maybe flush old snapshots or possibly merge with existing snapshots
     .handle('push', (snapshot, existing) => {
       let { name, meta } = snapshot;
 
@@ -284,7 +318,10 @@ export function createSnapshotsQueue(percy) {
 
       // immediately flush when uploads are delayed but not skipped
       if (percy.delayUploads && !percy.skipUploads) queue.flush();
-      return snapshot;
+      // overwrite any existing snapshot when not deferred or when resources is a function
+      if (!percy.deferUploads || typeof snapshot.resources === 'function') return snapshot;
+      // merge snapshot options when uploads are deferred
+      return mergeSnapshotOptions(existing, snapshot);
     })
   // send snapshots to be uploaded to the build
     .handle('task', async function*({ resources, ...snapshot }) {

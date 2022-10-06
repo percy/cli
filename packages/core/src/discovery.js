@@ -102,11 +102,19 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
 // the page and calling any provided execute options.
 async function* captureSnapshotResources(page, snapshot, options) {
   let { discovery, additionalSnapshots = [], ...baseSnapshot } = snapshot;
-  if (typeof options === 'function') options = { capture: options };
-  let { capture, deviceScaleFactor, mobile } = options;
+  let { capture, captureWidths, deviceScaleFactor, mobile } = options;
+
+  // used to take snapshots and remove any discovered root resource
+  let takeSnapshot = async (options, width) => {
+    if (captureWidths) options = { ...options, width };
+    let captured = await page.snapshot(options);
+    captured.resources.delete(normalizeURL(captured.url));
+    capture(processSnapshotResources(captured));
+    return captured;
+  };
 
   // used to resize the using capture options
-  let resize = width => page.resize({
+  let resizePage = width => page.resize({
     height: snapshot.minHeight,
     deviceScaleFactor,
     mobile,
@@ -114,7 +122,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
   });
 
   // navigate to the url
-  yield resize(snapshot.widths[0]);
+  yield resizePage(snapshot.widths[0]);
   yield page.goto(snapshot.url);
 
   if (snapshot.execute) {
@@ -128,25 +136,29 @@ async function* captureSnapshotResources(page, snapshot, options) {
   for (let additionalSnapshot of [baseSnapshot, ...additionalSnapshots]) {
     let isBaseSnapshot = additionalSnapshot === baseSnapshot;
     let snap = { ...baseSnapshot, ...additionalSnapshot };
+    let width, { widths, execute } = snap;
 
-    // iterate over widths to trigger reqeusts for the base snapshot
-    if (isBaseSnapshot) {
-      for (let i = 0; i < snap.widths.length - 1; i++) {
-        yield page.evaluate(snap.execute?.beforeResize);
+    // iterate over widths to trigger reqeusts and capture other widths
+    if (isBaseSnapshot || captureWidths) {
+      for (let i = 0; i < widths.length - 1; i++) {
+        if (captureWidths) yield takeSnapshot(snap, width);
+        yield page.evaluate(execute?.beforeResize);
         yield waitForDiscoveryNetworkIdle(page, discovery);
-        yield resize(snap.widths[i + 1]);
-        yield page.evaluate(snap.execute?.afterResize);
+        yield resizePage(width = widths[i + 1]);
+        yield page.evaluate(execute?.afterResize);
       }
     }
 
     if (capture && !snapshot.domSnapshot) {
       // capture this snapshot and update the base snapshot after capture
-      let captured = yield page.snapshot(snap);
+      let captured = yield takeSnapshot(snap, width);
       if (isBaseSnapshot) baseSnapshot = captured;
 
-      // remove any discovered root resource request
-      captured.resources.delete(normalizeURL(captured.url));
-      capture(processSnapshotResources(captured));
+      // resize back to the initial width when capturing additional snapshot widths
+      if (captureWidths && additionalSnapshots.length) {
+        let l = additionalSnapshots.indexOf(additionalSnapshot) + 1;
+        if (l < additionalSnapshots.length) yield resizePage(snapshot.widths[0]);
+      }
     }
   }
 
@@ -213,9 +225,10 @@ export function createDiscoveryQueue(percy) {
     .handle('end', async () => {
       await percy.browser.close();
     })
-  // snapshots are unique by name
-    .handle('find', ({ name }, snapshot) => (
-      snapshot.name === name
+  // snapshots are unique by name; when deferred also by widths
+    .handle('find', ({ name, widths }, snapshot) => (
+      snapshot.name === name && (!percy.deferUploads || (
+        !widths || widths.join() === snapshot.widths.join()))
     ))
   // initialize the root resource for DOM snapshots
     .handle('push', snapshot => {
@@ -249,7 +262,10 @@ export function createDiscoveryQueue(percy) {
       });
 
       try {
-        yield* captureSnapshotResources(page, snapshot, callback);
+        yield* captureSnapshotResources(page, snapshot, {
+          captureWidths: !snapshot.domSnapshot && percy.deferUploads,
+          capture: callback
+        });
       } finally {
         // always close the page when done
         await page.close();
