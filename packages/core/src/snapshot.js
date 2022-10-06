@@ -317,7 +317,7 @@ export function createSnapshotsQueue(percy) {
       if (percy.dryRun) percy.log.info(`Snapshot found: ${name}`, meta);
 
       // immediately flush when uploads are delayed but not skipped
-      if (percy.delayUploads && !percy.skipUploads) queue.flush();
+      if (percy.delayUploads && !percy.deferUploads) queue.flush();
       // overwrite any existing snapshot when not deferred or when resources is a function
       if (!percy.deferUploads || typeof snapshot.resources === 'function') return snapshot;
       // merge snapshot options when uploads are deferred
