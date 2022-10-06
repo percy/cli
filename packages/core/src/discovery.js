@@ -136,7 +136,8 @@ async function* captureSnapshotResources(page, snapshot, options) {
   for (let additionalSnapshot of [baseSnapshot, ...additionalSnapshots]) {
     let isBaseSnapshot = additionalSnapshot === baseSnapshot;
     let snap = { ...baseSnapshot, ...additionalSnapshot };
-    let width, { widths, execute } = snap;
+    let { widths, execute } = snap;
+    let [width] = widths;
 
     // iterate over widths to trigger reqeusts and capture other widths
     if (isBaseSnapshot || captureWidths) {

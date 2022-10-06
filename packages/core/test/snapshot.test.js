@@ -365,6 +365,7 @@ describe('Snapshot', () => {
     // stop and recreate a percy instance with the desired option
     await percy.stop(true);
     await api.mock();
+    logger.reset();
 
     testDOM = `
       <p id="test"></p>
@@ -379,7 +380,10 @@ describe('Snapshot', () => {
 
     percy = await Percy.start({
       token: 'PERCY_TOKEN',
-      deferUploads: true
+      deferUploads: true,
+      loglevel: 'debug',
+      // delay should do nothing
+      delayUploads: true
     });
 
     percy.snapshot({
@@ -396,6 +400,15 @@ describe('Snapshot', () => {
     expect(api.requests['/builds/123/snapshots']).toBeUndefined();
 
     await percy.stop();
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy:core:page] Taking snapshot: Snapshot 0 @600px',
+      '[percy:core:page] Taking snapshot: Snapshot 0 @1000px',
+      '[percy:core:page] Taking snapshot: Snapshot 0 @1600px',
+      '[percy:core:page] Taking snapshot: Snapshot 1 @600px',
+      '[percy:core:page] Taking snapshot: Snapshot 1 @1000px',
+      '[percy:core:page] Taking snapshot: Snapshot 1 @1600px'
+    ]));
 
     // snapshots uploaded after stopping
     expect(api.requests['/builds/123/snapshots']).toHaveSize(2);
