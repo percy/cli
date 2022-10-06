@@ -96,6 +96,7 @@ describe('percy upload', () => {
               attributes: {
                 'resource-url': 'http://localhost/test-1',
                 mimetype: 'text/html',
+                'for-widths': null,
                 'is-root': true
               }
             }, {
@@ -104,6 +105,7 @@ describe('percy upload', () => {
               attributes: {
                 'resource-url': 'http://localhost/test-1.png',
                 mimetype: 'image/png',
+                'for-widths': null,
                 'is-root': null
               }
             }])
