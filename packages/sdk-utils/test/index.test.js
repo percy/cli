@@ -191,6 +191,57 @@ describe('SDK Utils', () => {
     });
   });
 
+  describe('postComparison(options[, params])', () => {
+    let { postComparison } = utils;
+    let options;
+
+    beforeEach(() => {
+      options = {
+        name: 'Snapshot Name',
+        tag: { name: 'Tag Name' },
+        tiles: [{ filename: '/foo/bar' }],
+        externalDebugUrl: 'http://external-debug-url'
+      };
+    });
+
+    it('posts comparison options to the CLI API comparison endpoint', async () => {
+      await expectAsync(postComparison(options)).toBeResolved();
+      await expectAsync(helpers.get('requests')).toBeResolvedTo([{
+        url: '/percy/comparison',
+        method: 'POST',
+        body: options
+      }]);
+    });
+
+    it('throws when the comparison API fails', async () => {
+      await helpers.test('error', '/percy/comparison');
+
+      await expectAsync(postComparison({}))
+        .toBeRejectedWithError('testing');
+    });
+
+    it('disables snapshots when a build fails', async () => {
+      await helpers.test('error', '/percy/comparison');
+      await helpers.test('build-failure');
+      utils.percy.enabled = true;
+
+      expect(utils.percy.enabled).toEqual(true);
+      await expectAsync(postComparison({})).toBeResolved();
+      expect(utils.percy.enabled).toEqual(false);
+    });
+
+    it('accepts URL parameters as the second argument', async () => {
+      let params = { test: 'foobar' };
+
+      await expectAsync(postComparison(options, params)).toBeResolved();
+      await expectAsync(helpers.get('requests')).toBeResolvedTo([{
+        url: `/percy/comparison?${new URLSearchParams(params)}`,
+        method: 'POST',
+        body: options
+      }]);
+    });
+  });
+
   describe('flushSnapshots([options])', () => {
     let { flushSnapshots } = utils;
 

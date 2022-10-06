@@ -19,7 +19,7 @@ export const configSchema = {
         items: {
           type: 'integer',
           maximum: 2000,
-          minimum: 10
+          minimum: 120
         }
       },
       minHeight: {
@@ -353,10 +353,80 @@ export const snapshotSchema = {
   }
 };
 
+// Comparison upload options
+export const comparisonSchema = {
+  type: 'object',
+  $id: '/comparison',
+  required: ['name', 'tag'],
+  additionalProperties: false,
+  properties: {
+    name: { type: 'string' },
+    externalDebugUrl: { type: 'string' },
+    tag: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['name'],
+      properties: {
+        name: { type: 'string' },
+        osName: { type: 'string' },
+        osVersion: { type: 'string' },
+        width: {
+          type: 'integer',
+          maximum: 2000,
+          minimum: 120
+        },
+        height: {
+          type: 'integer',
+          minimum: 10
+        },
+        orientation: {
+          type: 'string',
+          enum: ['portrait', 'landscape']
+        }
+      }
+    },
+    tiles: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          filepath: {
+            type: 'string'
+          },
+          content: {
+            type: 'string'
+          },
+          statusBarHeight: {
+            type: 'integer',
+            minimum: 0
+          },
+          navBarHeight: {
+            type: 'integer',
+            minimum: 0
+          },
+          headerHeight: {
+            type: 'integer',
+            minimum: 0
+          },
+          footerHeight: {
+            type: 'integer',
+            minimum: 0
+          },
+          fullscreen: {
+            type: 'boolean'
+          }
+        }
+      }
+    }
+  }
+};
+
 // Grouped schemas for easier registration
 export const schemas = [
   configSchema,
-  snapshotSchema
+  snapshotSchema,
+  comparisonSchema
 ];
 
 // Config migrate function

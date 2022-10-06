@@ -154,7 +154,7 @@ describe('API Server', () => {
   });
 
   it('can handle snapshots async with a parameter', async () => {
-    let test = new Promise(r => setTimeout(r, 500));
+    let resolve, test = new Promise(r => (resolve = r));
     spyOn(percy, 'snapshot').and.returnValue(test);
     await percy.start();
 
@@ -165,7 +165,103 @@ describe('API Server', () => {
     });
 
     await expectAsync(test).toBePending();
-    await test; // no hanging promises
+    resolve(); // no hanging promises
+  });
+
+  it('has a /comparison endpoint that calls #upload() async with provided options', async () => {
+    let resolve, test = new Promise(r => (resolve = r));
+    spyOn(percy, 'upload').and.returnValue(test);
+    await percy.start();
+
+    await expectAsync(request('/percy/comparison', {
+      method: 'POST',
+      body: { 'test-me': true, me_too: true }
+    })).toBeResolvedTo(jasmine.objectContaining({
+      success: true
+    }));
+
+    expect(percy.upload).toHaveBeenCalledOnceWith(
+      { 'test-me': true, me_too: true }
+    );
+
+    await expectAsync(test).toBePending();
+    resolve(); // no hanging promises
+  });
+
+  it('includes links in the /comparison endpoint response', async () => {
+    spyOn(percy, 'upload').and.resolveTo();
+    await percy.start();
+
+    await expectAsync(request('/percy/comparison', {
+      method: 'POST',
+      body: {
+        name: 'Snapshot name',
+        tag: {
+          name: 'Tag name',
+          osName: 'OS name',
+          osVersion: 'OS version',
+          width: 800,
+          height: 1280,
+          orientation: 'landscape'
+        }
+      }
+    })).toBeResolvedTo(jasmine.objectContaining({
+      link: `${percy.client.apiUrl}/comparisons/redirect?${[
+        'build_id=123',
+        'snapshot[name]=Snapshot%20name',
+        'tag[name]=Tag%20name',
+        'tag[os_name]=OS%20name',
+        'tag[os_version]=OS%20version',
+        'tag[width]=800',
+        'tag[height]=1280',
+        'tag[orientation]=landscape'
+      ].join('&')}`
+    }));
+
+    await expectAsync(request('/percy/comparison', {
+      method: 'POST',
+      body: [
+        { name: 'Snapshot 1', tag: { name: 'Tag 1' } },
+        { name: 'Snapshot 2', tag: { name: 'Tag 2' } }
+      ]
+    })).toBeResolvedTo(jasmine.objectContaining({
+      links: [
+        `${percy.client.apiUrl}/comparisons/redirect?${[
+          'build_id=123',
+          'snapshot[name]=Snapshot%201',
+          'tag[name]=Tag%201'
+        ].join('&')}`,
+        `${percy.client.apiUrl}/comparisons/redirect?${[
+          'build_id=123',
+          'snapshot[name]=Snapshot%202',
+          'tag[name]=Tag%202'
+        ].join('&')}`
+      ]
+    }));
+  });
+
+  it('can wait on comparisons to finish uploading with a parameter', async () => {
+    let resolve, test = new Promise(r => (resolve = r));
+
+    spyOn(percy, 'upload').and.returnValue(test);
+    await percy.start();
+
+    let pending = expectAsync(
+      request('/percy/comparison?await', 'POST')
+    ).toBeResolvedTo({
+      success: true
+    });
+
+    await new Promise(r => setTimeout(r, 50));
+    expect(percy.upload).toHaveBeenCalled();
+
+    await expectAsync(test).toBePending();
+    await expectAsync(pending).toBePending();
+
+    resolve();
+
+    await expectAsync(test).toBeResolved();
+    await expectAsync(pending).toBeResolved();
   });
 
   it('returns a 500 error when an endpoint throws', async () => {

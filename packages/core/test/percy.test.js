@@ -709,7 +709,7 @@ describe('Percy', () => {
       expect(() => percy.upload({})).toThrowError('Not running');
     });
 
-    it('pushes items to the snapshots queue', async () => {
+    it('pushes snapshots to the internal queue', async () => {
       await percy.start();
       expect(api.requests['/builds/123/snapshots']).toBeUndefined();
       await percy.upload({ name: 'Snapshot 1' });
@@ -720,29 +720,89 @@ describe('Percy', () => {
 
     it('can provide a resources function to evaluate within the queue', async () => {
       let resources = jasmine.createSpy('resources').and.returnValue([
-        { sha: 'eval', url: '/evaluated' }
+        { sha: 'eval1', url: '/eval-1', content: 'foo' },
+        { sha: 'eval2', url: '/eval-2', content: 'bar' }
       ]);
 
       await percy.start();
       await percy.upload({ name: 'Snapshot', resources });
       expect(resources).toHaveBeenCalled();
 
-      expect(api.requests['/builds/123/snapshots'][0]).toHaveProperty('body', {
-        data: jasmine.objectContaining({
-          relationships: {
-            resources: {
-              data: [jasmine.objectContaining({
-                attributes: jasmine.objectContaining({
-                  'resource-url': '/evaluated'
-                })
-              })]
-            }
-          }
-        })
-      });
+      expect(api.requests['/builds/123/snapshots']).toHaveSize(1);
+      expect(api.requests['/builds/123/resources']).toHaveSize(2);
+      expect(api.requests['/snapshots/4567/finalize']).toHaveSize(1);
+
+      let partial = jasmine.objectContaining;
+      expect(api.requests['/builds/123/snapshots'][0])
+        .toHaveProperty('body.data.relationships.resources.data', [
+          partial({ attributes: partial({ 'resource-url': '/eval-1' }) }),
+          partial({ attributes: partial({ 'resource-url': '/eval-2' }) })
+        ]);
     });
 
-    it('can cancel pending pushed items', async () => {
+    it('can push snapshot comparisons to the internal queue', async () => {
+      await percy.start();
+
+      await percy.upload({
+        name: 'Snapshot',
+        tag: { name: 'device' },
+        tiles: [{ content: 'foo' }, { content: 'bar' }]
+      });
+
+      expect(api.requests['/builds/123/snapshots']).toHaveSize(1);
+      expect(api.requests['/snapshots/4567/comparisons']).toHaveSize(1);
+      expect(api.requests['/comparisons/891011/tiles']).toHaveSize(2);
+      expect(api.requests['/comparisons/891011/finalize']).toHaveSize(1);
+      expect(api.requests['/snapshots/4567/finalize']).toBeUndefined();
+
+      expect(logger.stderr).toEqual([]);
+      expect(logger.stdout).toEqual([
+        '[percy] Percy has started!',
+        '[percy] Snapshot taken: Snapshot'
+      ]);
+    });
+
+    it('errors when missing any required properties', async () => {
+      await percy.start();
+
+      expect(() => percy.upload({
+        tag: { name: 'device' },
+        tiles: [{ content: 'missing' }]
+      })).toThrowError('Missing required snapshot name');
+
+      expect(() => percy.upload({
+        name: 'Missing tag name',
+        tiles: [{ content: 'missing' }]
+      })).toThrowError('Missing required tag name for comparison');
+    });
+
+    it('warns about invalid snapshot comparison options', async () => {
+      await percy.start();
+
+      await percy.upload({
+        name: 'Snapshot',
+        external_debug_url: 'localhost',
+        some_other_rand_prop: 'random value',
+        tag: { name: 'device', foobar: 'baz' },
+        tiles: [{ content: 'foo' }, { content: [123] }]
+      });
+
+      expect(api.requests['/snapshots/4567/comparisons']).toHaveSize(1);
+      expect(api.requests['/comparisons/891011/tiles']).toHaveSize(1);
+
+      expect(logger.stderr).toEqual([
+        '[percy] Invalid upload options:',
+        '[percy] - someOtherRandProp: unknown property',
+        '[percy] - tag.foobar: unknown property',
+        '[percy] - tiles[1].content: must be a string, received an array'
+      ]);
+      expect(logger.stdout).toEqual([
+        '[percy] Percy has started!',
+        '[percy] Snapshot taken: Snapshot'
+      ]);
+    });
+
+    it('can cancel pending pushed snapshots', async () => {
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
         deferUploads: true

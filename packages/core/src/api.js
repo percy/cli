@@ -2,10 +2,18 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import logger from '@percy/logger';
+import { normalize } from '@percy/config/utils';
 import { getPackageJSON, Server } from './utils.js';
 
 // need require.resolve until import.meta.resolve can be transpiled
 export const PERCY_DOM = createRequire(import.meta.url).resolve('@percy/dom');
+
+// Returns a URL encoded string of nested query params
+function encodeURLSearchParams(subj, prefix) {
+  return typeof subj === 'object' ? Object.entries(subj).map(([key, value]) => (
+    encodeURLSearchParams(value, prefix ? `${prefix}[${key}]` : key)
+  )).join('&') : `${prefix}=${encodeURIComponent(subj)}`;
+}
 
 // Create a Percy CLI API server instance
 export function createPercyServer(percy, port) {
@@ -80,11 +88,28 @@ export function createPercyServer(percy, port) {
       let wrapper = '(window.PercyAgent = class { snapshot(n, o) { return PercyDOM.serialize(o); } });';
       return res.send(200, 'applicaton/javascript', content.concat(wrapper));
     })
-  // post one or more snapshots
+  // post one or more snapshots, optionally async
     .route('post', '/percy/snapshot', async (req, res) => {
       let snapshot = percy.snapshot(req.body);
       if (!req.url.searchParams.has('async')) await snapshot;
       return res.json(200, { success: true });
+    })
+  // post one or more comparisons, optionally waiting
+    .route('post', '/percy/comparison', async (req, res) => {
+      let upload = percy.upload(req.body);
+      if (req.url.searchParams.has('await')) await upload;
+
+      // generate and include one or more redirect links to comparisons
+      let link = ({ name, tag }) => [
+        percy.client.apiUrl, '/comparisons/redirect?',
+        encodeURLSearchParams(normalize({
+          buildId: percy.build?.id, snapshot: { name }, tag
+        }, { snake: true }))
+      ].join('');
+
+      return res.json(200, Object.assign({ success: true }, req.body ? (
+        Array.isArray(req.body) ? { links: req.body.map(link) } : { link: link(req.body) }
+      ) : {}));
     })
   // flushes one or more snapshots from the internal queue
     .route('post', '/percy/flush', async (req, res) => res.json(200, {

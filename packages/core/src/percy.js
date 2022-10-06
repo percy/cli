@@ -327,6 +327,23 @@ export class Percy {
       return yieldAll(options.map(o => this.yield.upload(o)));
     }
 
+    // validate comparison uploads and warn about any errors
+    if ('tag' in options || 'tiles' in options) {
+      // throw when missing required snapshot or tag name
+      if (!options.name) throw new Error('Missing required snapshot name');
+      if (!options.tag?.name) throw new Error('Missing required tag name for comparison');
+
+      // normalize, migrate, and remove certain properties from validating
+      options = PercyConfig.migrate(options, '/comparison');
+      let { clientInfo, environmentInfo, ...comparison } = options;
+      let errors = PercyConfig.validate(comparison, '/comparison');
+
+      if (errors) {
+        this.log.warn('Invalid upload options:');
+        for (let e of errors) this.log.warn(`- ${e.path}: ${e.message}`);
+      }
+    }
+
     // add client & environment info
     this.client.addClientInfo(options.clientInfo);
     this.client.addEnvironmentInfo(options.environmentInfo);

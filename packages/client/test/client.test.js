@@ -423,7 +423,7 @@ describe('PercyClient', () => {
     });
 
     it('can upload a resource from a local path', async () => {
-      spyOn(fs, 'readFileSync').and.callFake(p => `contents of ${p}`);
+      spyOn(fs.promises, 'readFile').and.callFake(async p => `contents of ${p}`);
 
       await expectAsync(client.uploadResource(123, {
         sha: 'foo-sha',
@@ -457,32 +457,34 @@ describe('PercyClient', () => {
     it('uploads multiple resources two at a time', async () => {
       let content = 'foo';
 
-      // to test this, the API is set to delay responses by 15ms...
       api.reply('/builds/123/resources', async () => {
-        await new Promise(r => setTimeout(r, 12));
-        return [201, { success: content }];
+        let result = { content };
+        setTimeout(() => (content = 'bar'), 10);
+        await new Promise(r => setTimeout(r, 20));
+        return [201, result];
       });
 
-      // ...after 20ms (enough time for a single request) the contents change...
-      setTimeout(() => (content = 'bar'), 20);
-      spyOn(fs, 'readFileSync').and.returnValue(content);
+      spyOn(fs.promises, 'readFile').and.resolveTo(content);
 
-      // ... which should result in every 2 uploads being identical
       await expectAsync(client.uploadResources(123, [
         { filepath: 'foo/bar' },
         { filepath: 'foo/bar' },
         { filepath: 'foo/bar' },
         { filepath: 'foo/bar' }
       ])).toBeResolvedTo([
-        { success: 'foo' },
-        { success: 'foo' },
-        { success: 'bar' },
-        { success: 'bar' }
+        { content: 'foo' },
+        { content: 'foo' },
+        { content: 'bar' },
+        { content: 'bar' }
       ]);
     });
 
     it('throws any errors from uploading', async () => {
-      await expectAsync(client.uploadResources(123, [{}])).toBeRejectedWithError();
+      spyOn(fs.promises, 'readFile').and.rejectWith(new Error());
+
+      await expectAsync(client.uploadResources(123, [
+        { filepath: 'foo/bar' }
+      ])).toBeRejectedWithError();
     });
   });
 
@@ -495,6 +497,9 @@ describe('PercyClient', () => {
     });
 
     it('creates a snapshot', async () => {
+      spyOn(fs.promises, 'readFile')
+        .withArgs('foo/bar').and.resolveTo('bar');
+
       await expectAsync(client.createSnapshot(123, {
         name: 'snapfoo',
         widths: [1000],
@@ -504,11 +509,15 @@ describe('PercyClient', () => {
         clientInfo: 'sdk/info',
         environmentInfo: 'sdk/env',
         resources: [{
-          url: '/foobar',
+          url: '/foo',
           content: 'foo',
           mimetype: 'text/html',
           widths: [1000],
           root: true
+        }, {
+          url: '/bar',
+          filepath: 'foo/bar',
+          mimetype: 'image/png'
         }]
       })).toBeResolved();
 
@@ -536,10 +545,19 @@ describe('PercyClient', () => {
                 type: 'resources',
                 id: sha256hash('foo'),
                 attributes: {
-                  'resource-url': '/foobar',
+                  'resource-url': '/foo',
                   mimetype: 'text/html',
                   'for-widths': [1000],
                   'is-root': true
+                }
+              }, {
+                type: 'resources',
+                id: sha256hash('bar'),
+                attributes: {
+                  'resource-url': '/bar',
+                  mimetype: 'image/png',
+                  'for-widths': null,
+                  'is-root': null
                 }
               }]
             }
@@ -672,6 +690,317 @@ describe('PercyClient', () => {
     it('finalizes a snapshot', async () => {
       await expectAsync(client.sendSnapshot(123, { name: 'test snapshot name' })).toBeResolved();
       expect(api.requests['/snapshots/4567/finalize']).toBeDefined();
+    });
+  });
+
+  describe('#createComparison()', () => {
+    it('throws when missing a snapshot id', async () => {
+      await expectAsync(client.createComparison())
+        .toBeRejectedWithError('Missing snapshot ID');
+    });
+
+    it('creates a comparison', async () => {
+      spyOn(fs.promises, 'readFile')
+        .withArgs('foo/bar').and.resolveTo('bar');
+
+      await expectAsync(client.createComparison(4567, {
+        tag: {
+          name: 'tagfoo',
+          width: 748,
+          height: 1024,
+          osName: 'fooOS',
+          osVersion: '0.1.0',
+          orientation: 'portrait'
+        },
+        tiles: [{
+          statusBarHeight: 40,
+          navBarHeight: 30,
+          headerHeight: 20,
+          footerHeight: 50,
+          fullscreen: false,
+          content: 'foo'
+        }, {
+          statusBarHeight: 40,
+          navBarHeight: 30,
+          headerHeight: 20,
+          footerHeight: 50,
+          fullscreen: true,
+          filepath: 'foo/bar'
+        }],
+        externalDebugUrl: 'http://debug.localhost'
+      })).toBeResolved();
+
+      expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
+        data: {
+          type: 'comparisons',
+          attributes: {
+            'external-debug-url': 'http://debug.localhost'
+          },
+          relationships: {
+            tag: {
+              data: {
+                type: 'tag',
+                attributes: {
+                  name: 'tagfoo',
+                  width: 748,
+                  height: 1024,
+                  'os-name': 'fooOS',
+                  'os-version': '0.1.0',
+                  orientation: 'portrait'
+                }
+              }
+            },
+            tiles: {
+              data: [{
+                type: 'tiles',
+                attributes: {
+                  sha: sha256hash('foo'),
+                  'status-bar-height': 40,
+                  'nav-bar-height': 30,
+                  'header-height': 20,
+                  'footer-height': 50,
+                  fullscreen: null
+                }
+              }, {
+                type: 'tiles',
+                attributes: {
+                  sha: sha256hash('bar'),
+                  'status-bar-height': 40,
+                  'nav-bar-height': 30,
+                  'header-height': 20,
+                  'footer-height': 50,
+                  fullscreen: true
+                }
+              }]
+            }
+          }
+        }
+      });
+    });
+
+    it('falls back to null attributes for various properties', async () => {
+      await expectAsync(
+        client.createComparison(4567, { tag: {}, tiles: [{}] })
+      ).toBeResolved();
+
+      expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
+        data: {
+          type: 'comparisons',
+          attributes: {
+            'external-debug-url': null
+          },
+          relationships: {
+            tag: {
+              data: {
+                type: 'tag',
+                attributes: {
+                  name: null,
+                  width: null,
+                  height: null,
+                  'os-name': null,
+                  'os-version': null,
+                  orientation: null
+                }
+              }
+            },
+            tiles: {
+              data: [{
+                type: 'tiles',
+                attributes: {
+                  'status-bar-height': null,
+                  'nav-bar-height': null,
+                  'header-height': null,
+                  'footer-height': null,
+                  fullscreen: null
+                }
+              }]
+            }
+          }
+        }
+      });
+    });
+  });
+
+  describe('#uploadComparisonTile()', () => {
+    it('throws when missing a comparison id', async () => {
+      await expectAsync(client.uploadComparisonTile())
+        .toBeRejectedWithError('Missing comparison ID');
+    });
+
+    it('uploads a tile for a comparison', async () => {
+      await expectAsync(
+        client.uploadComparisonTile(891011, { content: 'foo', index: 3 })
+      ).toBeResolved();
+
+      expect(api.requests['/comparisons/891011/tiles'][0].body).toEqual({
+        data: {
+          type: 'tiles',
+          attributes: {
+            'base64-content': base64encode('foo'),
+            index: 3
+          }
+        }
+      });
+    });
+
+    it('can upload a tile from a local path', async () => {
+      spyOn(fs.promises, 'readFile').and.callFake(async p => `contents of ${p}`);
+
+      await expectAsync(
+        client.uploadComparisonTile(891011, { filepath: 'foo/bar' })
+      ).toBeResolved();
+
+      expect(api.requests['/comparisons/891011/tiles'][0].body).toEqual({
+        data: {
+          type: 'tiles',
+          attributes: {
+            'base64-content': base64encode('contents of foo/bar'),
+            index: 0
+          }
+        }
+      });
+    });
+  });
+
+  describe('#uploadComparisonTiles()', () => {
+    it('throws when missing a build id', async () => {
+      await expectAsync(client.uploadComparisonTiles())
+        .toBeRejectedWithError('Missing comparison ID');
+    });
+
+    it('does nothing when no tiles are provided', async () => {
+      await expectAsync(client.uploadComparisonTiles(891011, [])).toBeResolvedTo([]);
+    });
+
+    it('uploads multiple tiles two at a time', async () => {
+      let content = 'foo';
+
+      api.reply('/comparisons/891011/tiles', async () => {
+        let result = { content };
+        setTimeout(() => (content = 'bar'), 10);
+        await new Promise(r => setTimeout(r, 20));
+        return [201, result];
+      });
+
+      spyOn(fs.promises, 'readFile').and.resolveTo(content);
+
+      await expectAsync(client.uploadComparisonTiles(891011, [
+        { filepath: 'foo/bar' },
+        { filepath: 'foo/bar' },
+        { filepath: 'foo/bar' },
+        { filepath: 'foo/bar' }
+      ])).toBeResolvedTo([
+        { content: 'foo' },
+        { content: 'foo' },
+        { content: 'bar' },
+        { content: 'bar' }
+      ]);
+    });
+
+    it('throws any errors from uploading', async () => {
+      spyOn(fs.promises, 'readFile').and.rejectWith(new Error());
+
+      await expectAsync(client.uploadComparisonTiles(123, [
+        { filepath: 'foo/bar' }
+      ])).toBeRejectedWithError();
+    });
+  });
+
+  describe('#finalizeComparison()', () => {
+    it('throws when missing a comparison id', async () => {
+      await expectAsync(client.finalizeComparison())
+        .toBeRejectedWithError('Missing comparison ID');
+    });
+
+    it('finalizes a comparison', async () => {
+      await expectAsync(client.finalizeComparison(123)).toBeResolved();
+      expect(api.requests['/comparisons/123/finalize']).toBeDefined();
+    });
+  });
+
+  describe('#sendComparison()', () => {
+    beforeEach(async () => {
+      await client.sendComparison(123, {
+        name: 'test snapshot name',
+        tag: { name: 'test tag' },
+        tiles: [{ content: 'tile' }]
+      });
+    });
+
+    it('creates a snapshot', async () => {
+      expect(api.requests['/builds/123/snapshots'][0].body).toEqual({
+        data: {
+          type: 'snapshots',
+          attributes: {
+            name: 'test snapshot name',
+            scope: null,
+            'enable-javascript': null,
+            'minimum-height': null,
+            widths: null
+          },
+          relationships: {
+            resources: {
+              data: []
+            }
+          }
+        }
+      });
+    });
+
+    it('creates a comparison', async () => {
+      expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
+        data: {
+          type: 'comparisons',
+          attributes: {
+            'external-debug-url': null
+          },
+          relationships: {
+            tag: {
+              data: {
+                type: 'tag',
+                attributes: {
+                  name: 'test tag',
+                  width: null,
+                  height: null,
+                  'os-name': null,
+                  'os-version': null,
+                  orientation: null
+                }
+              }
+            },
+            tiles: {
+              data: [{
+                type: 'tiles',
+                attributes: {
+                  sha: jasmine.any(String),
+                  'status-bar-height': null,
+                  'nav-bar-height': null,
+                  'header-height': null,
+                  'footer-height': null,
+                  fullscreen: null
+                }
+              }]
+            }
+          }
+        }
+      });
+    });
+
+    it('uploads comparison tiles', async () => {
+      expect(api.requests['/comparisons/891011/tiles'][0].body).toEqual({
+        data: {
+          type: 'tiles',
+          attributes: {
+            'base64-content': base64encode('tile'),
+            index: 0
+          }
+        }
+      });
+    });
+
+    it('finalizes a comparison', async () => {
+      expect(api.requests['/snapshots/4567/finalize']).not.toBeDefined();
+      expect(api.requests['/comparisons/891011/finalize']).toBeDefined();
     });
   });
 });

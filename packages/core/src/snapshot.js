@@ -333,7 +333,8 @@ export function createSnapshotsQueue(percy) {
         : resources;
 
       // upload the snapshot and log when deferred
-      let response = yield percy.client.sendSnapshot(build.id, snapshot);
+      let send = 'tag' in snapshot ? 'sendComparison' : 'sendSnapshot';
+      let response = yield percy.client[send](build.id, snapshot);
       if (percy.deferUploads) percy.log.info(`Snapshot uploaded: ${name}`, meta);
 
       return { ...snapshot, response };
