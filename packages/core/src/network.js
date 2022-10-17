@@ -279,6 +279,7 @@ async function sendResponseResource(network, request, session) {
       });
     }
   } catch (error) {
+    if (session.closing && error.message.includes('close')) return;
     log.debug(`Encountered an error handling request: ${url}`, meta);
     log.debug(error);
 
