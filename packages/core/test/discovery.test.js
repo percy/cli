@@ -807,6 +807,43 @@ describe('Discovery', () => {
     });
   });
 
+  describe('navigation timeout', () => {
+    let Page, timeout;
+
+    beforeEach(async () => {
+      ({ Page } = await import('../src/page.js'));
+      timeout = Page.TIMEOUT;
+      Page.TIMEOUT = 500;
+
+      server.reply('/', () => [200, 'text/html', testDOM]);
+      // trigger navigation fail
+      server.reply('/img.gif', () => new Promise(r => (
+        setTimeout(r, 3000, [200, 'image/gif', pixel]))));
+    });
+
+    afterEach(() => {
+      Page.TIMEOUT = timeout;
+    });
+
+    it('shows debug info when navigation fails within the timeout', async () => {
+      percy.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'navigation idle',
+        url: 'http://localhost:8000'
+      });
+
+      expect(logger.stderr).toContain(jasmine.stringMatching([
+        '^\\[percy:core] Error: Navigation failed: Timed out waiting for the page load event',
+        '',
+        '  Active requests:',
+        '  - http://localhost:8000/img.gif',
+        '',
+        '(?<stack>(.|\n)*)$'
+      ].join('\n')));
+    });
+  });
+
   describe('cookies', () => {
     let cookie;
 
