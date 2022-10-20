@@ -76,21 +76,24 @@ export class Network {
       timeout: Network.TIMEOUT,
       idle: timeout
     }).catch(error => {
-      // throw a better timeout error
       if (error.message.startsWith('Timeout')) {
-        let msg = 'Timed out waiting for network requests to idle.';
-
-        if (this.log.shouldLog('debug')) {
-          msg += `\n\n  ${['Active requests:',
-            ...requests.map(r => r.url)
-          ].join('\n  - ')}\n`;
-        }
-
-        throw new Error(msg);
+        this._throwTimeoutError((
+          'Timed out waiting for network requests to idle.'
+        ), filter);
       } else {
         throw error;
       }
     });
+  }
+
+  // Throw a better network timeout error
+  _throwTimeoutError(msg, filter = () => true) {
+    if (this.log.shouldLog('debug')) {
+      let reqs = Array.from(this.#requests.values()).filter(filter).map(r => r.url);
+      msg += `\n\n  ${['Active requests:', ...reqs].join('\n  - ')}\n`;
+    }
+
+    throw new Error(msg);
   }
 
   // Called when a request should be removed from various trackers
@@ -276,6 +279,9 @@ async function sendResponseResource(network, request, session) {
       });
     }
   } catch (error) {
+    /* istanbul ignore next: too hard to test (create race condition) */
+    if (session.closing && error.message.includes('close')) return;
+
     log.debug(`Encountered an error handling request: ${url}`, meta);
     log.debug(error);
 

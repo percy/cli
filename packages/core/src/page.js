@@ -88,12 +88,18 @@ export class Page {
         return handlers.every(handler => handler.finished);
       }, Page.TIMEOUT)]);
     } catch (error) {
-      // remove handlers and modify the error message
+      // remove any unused handlers
       for (let handler of handlers) handler.off();
 
-      throw Object.assign(error, {
-        message: `Navigation failed: ${error.message}`
-      });
+      // assign context to unknown errors
+      if (!error.message.startsWith('Timeout')) {
+        throw Object.assign(error, { message: `Navigation failed: ${error.message}` });
+      }
+
+      // throw a network error to show active requests
+      this.network._throwTimeoutError(
+        `Navigation failed: Timed out waiting for the page ${waitUntil} event`
+      );
     }
 
     this.log.debug('Page navigated', this.meta);

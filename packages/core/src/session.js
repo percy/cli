@@ -22,7 +22,8 @@ export class Session extends EventEmitter {
   }
 
   async close() {
-    if (!this.browser) return;
+    if (!this.browser || this.closing) return;
+    this.closing = true;
 
     await this.browser.send('Target.closeTarget', {
       targetId: this.targetId
