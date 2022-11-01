@@ -69,6 +69,7 @@ export const exec = command('exec', {
   // provide SDKs with useful env vars
   env.PERCY_SERVER_ADDRESS = percy?.address();
   env.PERCY_BUILD_ID = percy?.build?.id;
+  env.PERCY_BUILD_URL = percy?.build?.url;
   env.PERCY_LOGLEVEL = log.loglevel();
 
   // run the provided command
