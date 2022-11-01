@@ -194,4 +194,17 @@ describe('percy exec', () => {
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
   });
+
+  it('provides the child process with a percy build id env var', async () => {
+    await exec(['--', 'node', '--eval', (
+      'process.env.PERCY_BUILD_URL === "https://percy.io/test/test/123" || process.exit(2)'
+    )]);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Percy has started!',
+      jasmine.stringMatching('\\[percy] Running "node '),
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
+    ]);
+  });
 });
