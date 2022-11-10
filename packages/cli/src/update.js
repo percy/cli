@@ -69,6 +69,11 @@ export async function checkForUpdate() {
   let pkg = getPackageJSON(import.meta.url);
   let log = logger('cli:update');
 
+  if (process.env.PERCY_SKIP_UPDATE_CHECK) {
+    log.debug('Skipping update check');
+    return;
+  }
+
   try {
     // request new release information if needed
     if (!releases) {

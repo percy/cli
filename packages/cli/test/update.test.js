@@ -37,6 +37,20 @@ describe('CLI update check', () => {
     expect(ghAPI).not.toHaveBeenCalled();
   });
 
+  it('does not fetch the latest release information if PERCY_SKIP_UPDATE_CHECK is present', async () => {
+    expect(fs.existsSync('.releases')).toBe(false);
+    process.env.PERCY_SKIP_UPDATE_CHECK = 1;
+
+    logger.loglevel('debug');
+
+    await checkForUpdate();
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual(['[percy:cli:update] Skipping update check']);
+    expect(ghAPI).not.toHaveBeenCalled();
+
+    delete process.env.PERCY_SKIP_UPDATE_CHECK;
+  });
+
   it('fetchs the latest release information if the cache is outdated', async () => {
     ghAPI.and.returnValue([200, [{ tag_name: 'v1.0.0' }]]);
 
