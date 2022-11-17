@@ -1,5 +1,5 @@
 // Captures the current frame of videos and sets the poster image
-export function serializeVideos(dom, clone) {
+export function serializeVideos({ dom, clone }) {
   for (let video of dom.querySelectorAll('video')) {
     // If the video already has a poster image, no work for us to do
     if (video.getAttribute('poster')) continue;

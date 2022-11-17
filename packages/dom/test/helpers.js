@@ -41,6 +41,7 @@ export function replaceDoctype(name, publicId = '', systemId = '') {
 
 // parses a DOM string into a DOM object and returns a querySelectorAll shortcut
 export function parseDOM(domstring) {
+  if (domstring.html) domstring = domstring.html;
   let dom = new window.DOMParser().parseFromString(domstring, 'text/html');
   return selector => dom.querySelectorAll(selector);
 }

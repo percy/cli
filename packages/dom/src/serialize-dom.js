@@ -21,6 +21,13 @@ function doctype(dom) {
   return `<!DOCTYPE ${name}${deprecated}>`;
 }
 
+// Serializes and returns the cloned DOM as an HTML string
+function serializeHTML(ctx) {
+  let html = ctx.clone.documentElement.outerHTML;
+  // include the doctype with the html string
+  return doctype(ctx.dom) + html;
+}
+
 // Serializes a document and returns the resulting DOM string.
 export function serializeDOM(options) {
   let {
@@ -30,29 +37,38 @@ export function serializeDOM(options) {
     domTransformation = options?.dom_transformation
   } = options || {};
 
-  prepareDOM(dom);
+  // keep certain records throughout serialization
+  let ctx = {
+    resources: new Set(),
+    warnings: new Set(),
+    enableJavaScript
+  };
 
-  let clone = dom.cloneNode(true);
-  serializeInputs(dom, clone);
-  serializeFrames(dom, clone, { enableJavaScript });
-  serializeVideos(dom, clone);
+  ctx.dom = prepareDOM(dom);
+  ctx.clone = ctx.dom.cloneNode(true);
+
+  serializeInputs(ctx);
+  serializeFrames(ctx);
+  serializeVideos(ctx);
 
   if (!enableJavaScript) {
-    serializeCSSOM(dom, clone);
-    serializeCanvas(dom, clone);
+    serializeCSSOM(ctx);
+    serializeCanvas(ctx);
   }
-
-  let doc = clone.documentElement;
 
   if (domTransformation) {
     try {
-      domTransformation(doc);
+      domTransformation(ctx.clone.documentElement);
     } catch (err) {
       console.error('Could not transform the dom:', err.message);
     }
   }
 
-  return doctype(dom) + doc.outerHTML;
+  return {
+    html: serializeHTML(ctx),
+    warnings: Array.from(ctx.warnings),
+    resources: Array.from(ctx.resources)
+  };
 }
 
 export default serializeDOM;

@@ -16,7 +16,7 @@ function styleSheetsMatch(sheetA, sheetB) {
 }
 
 // Outputs in-memory CSSOM into their respective DOM nodes.
-export function serializeCSSOM(dom, clone) {
+export function serializeCSSOM({ dom, clone }) {
   for (let styleSheet of dom.styleSheets) {
     if (isCSSOM(styleSheet)) {
       let styleId = styleSheet.ownerNode.getAttribute('data-percy-element-id');
