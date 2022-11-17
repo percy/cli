@@ -143,6 +143,8 @@ function getSnapshotOptions(options, { config, meta }) {
 // properties. Eagerly throws an error when missing a URL for any snapshot, and warns about all
 // other invalid options which are also scrubbed from the returned migrated options.
 export function validateSnapshotOptions(options) {
+  let log = logger('core:snapshot');
+
   // decide which schema to validate against
   let schema = (
     (['domSnapshot', 'dom-snapshot', 'dom_snapshot']
@@ -170,11 +172,19 @@ export function validateSnapshotOptions(options) {
   // add back snapshots before validating and scrubbing; function snapshots are validated later
   if (snapshots) migrated.snapshots = typeof snapshots === 'function' ? [] : snapshots;
   else if (!isSnapshot && options.snapshots) migrated.snapshots = [];
+
+  // log warnings encountered during dom serialization
+  let domWarnings = migrated.domSnapshot?.warnings || [];
+
+  if (domWarnings.length) {
+    log.warn('Encountered snapshot serialization warnings:');
+    for (let w of domWarnings) log.warn(`- ${w}`);
+  }
+
+  // warn on validation errors
   let errors = PercyConfig.validate(migrated, schema);
 
   if (errors) {
-    // warn on validation errors
-    let log = logger('core:snapshot');
     log.warn('Invalid snapshot options:');
     for (let e of errors) log.warn(`- ${e.path}: ${e.message}`);
   }

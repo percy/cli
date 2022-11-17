@@ -3,6 +3,7 @@ import Queue from './queue.js';
 import {
   normalizeURL,
   hostnameMatches,
+  createResource,
   createRootResource,
   createPercyCSSResource,
   createLogResource,
@@ -66,16 +67,38 @@ function waitForDiscoveryNetworkIdle(page, options) {
   return page.network.idle(filter, networkIdleTimeout);
 }
 
+// Creates an initial resource map for a snapshot containing serialized DOM
+function parseDomResources({ url, domSnapshot }) {
+  if (!domSnapshot) return new Map();
+  let isHTML = typeof domSnapshot === 'string';
+  let { html, resources = [] } = isHTML ? { html: domSnapshot } : domSnapshot;
+  let rootResource = createRootResource(url, html);
+
+  // reduce the array of resources into a keyed map
+  return resources.reduce((map, { url, content, mimetype }) => {
+    // serialized resource contents are base64 encoded
+    content = Buffer.from(content, 'base64');
+    // specify the resource as provided to prevent overwriting during asset discovery
+    let resource = createResource(url, content, mimetype, { provided: true });
+    // key the resource by its url and return the map
+    return map.set(resource.url, resource);
+    // the initial map is created with at least a root resource
+  }, new Map([[rootResource.url, rootResource]]));
+}
+
 // Calls the provided callback with additional resources
 function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   resources = [...(resources?.values() ?? [])];
 
-  // find or create a root resource if one does not exist
-  let root = resources.find(r => r.content === domSnapshot);
+  // find any root resource matching the provided dom snapshot
+  let rootContent = domSnapshot?.html ?? domSnapshot;
+  let root = resources.find(r => r.content === rootContent);
 
+  // initialize root resources if needed
   if (!root) {
-    root = createRootResource(snapshot.url, domSnapshot);
-    resources.unshift(root);
+    let domResources = parseDomResources({ ...snapshot, domSnapshot });
+    resources = [...domResources.values(), ...resources];
+    root = resources[0];
   }
 
   // inject Percy CSS
@@ -231,11 +254,9 @@ export function createDiscoveryQueue(percy) {
       snapshot.name === name && (!percy.deferUploads || (
         !widths || widths.join() === snapshot.widths.join()))
     ))
-  // initialize the root resource for DOM snapshots
+  // initialize the resources for DOM snapshots
     .handle('push', snapshot => {
-      let { url, domSnapshot } = snapshot;
-      let root = domSnapshot && createRootResource(url, domSnapshot);
-      let resources = new Map(root ? [[root.url, root]] : []);
+      let resources = parseDomResources(snapshot);
       return { ...snapshot, resources };
     })
   // discovery resources for snapshots and call the callback for each discovered snapshot

@@ -263,7 +263,7 @@ async function sendResponseResource(network, request, session) {
         requestId: request.interceptId,
         errorReason: 'Aborted'
       });
-    } else if (resource && (resource.root || !disableCache)) {
+    } else if (resource && (resource.root || resource.provided || !disableCache)) {
       log.debug(resource.root ? '- Serving root resource' : '- Resource cache hit', meta);
 
       await session.send('Fetch.fulfillRequest', {
@@ -317,7 +317,7 @@ async function saveResponseResource(network, request) {
   let meta = { ...network.meta, url };
   let resource = network.intercept.getResource(url);
 
-  if (!resource || (!resource.root && disableCache)) {
+  if (!resource || (!resource.root && !resource.provided && disableCache)) {
     try {
       log.debug(`Processing resource: ${url}`, meta);
       let shouldCapture = response && hostnameMatches(allowedHostnames, url);

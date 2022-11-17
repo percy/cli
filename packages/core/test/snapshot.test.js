@@ -585,6 +585,45 @@ describe('Snapshot', () => {
     ]);
   });
 
+  it('accepts serialized dom resources', async () => {
+    let resource = {
+      url: 'http://localhost:8000/__serialized__/_id123.gif',
+      content: 'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
+      mimetype: 'image/gif'
+    };
+
+    await percy.snapshot({
+      name: 'Serialized Snapshot',
+      url: 'http://localhost:8000/',
+      domSnapshot: {
+        html: `<img src="${resource.url}"/>`,
+        warnings: ['Test serialize warning'],
+        resources: [resource]
+      }
+    });
+
+    // test serialization warnings
+    expect(logger.stderr).toEqual([
+      '[percy] Encountered snapshot serialization warnings:',
+      '[percy] - Test serialize warning'
+    ]);
+    expect(logger.stdout).toEqual([
+      '[percy] Snapshot taken: Serialized Snapshot'
+    ]);
+
+    // wait for uploads to assert against
+    await percy.idle();
+
+    let uploads = api.requests['/builds/123/resources']
+      .map(r => r.body.data.attributes['base64-content']);
+
+    // domSnapshot.html is the root resource
+    expect(Buffer.from(uploads[0], 'base64').toString())
+      .toMatch(`<img src="${resource.url}"/>`);
+    // domSnapshot.resources are also uploaded
+    expect(uploads[1]).toEqual(resource.content);
+  });
+
   it('handles duplicate snapshots', async () => {
     await percy.snapshot([{
       url: 'http://localhost:8000/foobar',
