@@ -372,12 +372,13 @@ export const comparisonSchema = {
         osVersion: { type: 'string' },
         width: {
           type: 'integer',
-          maximum: 2000,
-          minimum: 120
+          minimum: 1,
+          maximum: 10000,
         },
         height: {
           type: 'integer',
-          minimum: 10
+          minimum: 1,
+          maximum: 10000,
         },
         orientation: {
           type: 'string',
