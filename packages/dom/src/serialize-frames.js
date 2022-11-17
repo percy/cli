@@ -12,7 +12,7 @@ function setBaseURI(dom) {
 }
 
 // Recursively serializes iframe documents into srcdoc attributes.
-export function serializeFrames({ dom, clone, enableJavaScript }) {
+export function serializeFrames({ dom, clone, warnings, resources, enableJavaScript }) {
   for (let frame of dom.querySelectorAll('iframe')) {
     let percyElementId = frame.getAttribute('data-percy-element-id');
     let cloneEl = clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
@@ -38,8 +38,13 @@ export function serializeFrames({ dom, clone, enableJavaScript }) {
         enableJavaScript
       });
 
-      // assign to srcdoc and remove src
-      cloneEl.setAttribute('srcdoc', serialized);
+      // append serialized warnings and resources
+      /* istanbul ignore next: warnings not implemented yet */
+      for (let w of serialized.warnings) warnings.add(w);
+      for (let r of serialized.resources) resources.add(r);
+
+      // assign serialized html to srcdoc and remove src
+      cloneEl.setAttribute('srcdoc', serialized.html);
       cloneEl.removeAttribute('src');
 
     // delete inaccessible frames built with js when js is disabled because they
