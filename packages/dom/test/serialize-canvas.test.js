@@ -2,7 +2,7 @@ import { withExample, parseDOM } from './helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeCanvas', () => {
-  let $, src;
+  let $, serialized, dataURL;
 
   beforeEach(() => {
     withExample(`
@@ -32,26 +32,35 @@ describe('serializeCanvas', () => {
     ctx.arc(90, 65, 5, 0, Math.PI * 2, true);
     ctx.stroke();
 
-    $ = parseDOM(serializeDOM());
-    src = canvas.toDataURL();
+    serialized = serializeDOM();
+    $ = parseDOM(serialized.html);
+    dataURL = canvas.toDataURL();
   });
 
   it('serializes canvas elements', () => {
     let $canvas = $('#canvas');
     expect($canvas[0].tagName).toBe('IMG');
-    expect($canvas[0].getAttribute('src')).toBe(src);
     expect($canvas[0].getAttribute('width')).toBe('150px');
     expect($canvas[0].getAttribute('height')).toBe('150px');
+    expect($canvas[0].getAttribute('src')).toMatch('/__serialized__/\\w+\\.png');
     expect($canvas[0].getAttribute('style')).toBe('border: 5px solid black; max-width: 100%;');
     expect($canvas[0].matches('[data-percy-canvas-serialized]')).toBe(true);
+
+    expect(serialized.resources).toEqual([{
+      url: $canvas[0].getAttribute('src'),
+      content: dataURL.split(',')[1],
+      mimetype: 'image/png'
+    }]);
   });
 
   it('does not serialize canvas elements when JS is enabled', () => {
-    $ = parseDOM(serializeDOM({ enableJavaScript: true }));
+    serialized = serializeDOM({ enableJavaScript: true });
+    $ = parseDOM(serialized.html);
 
     let $canvas = $('#canvas');
     expect($canvas[0].tagName).toBe('CANVAS');
     expect($canvas[0].matches('[data-percy-canvas-serialized]')).toBe(false);
+    expect(serialized.resources).toEqual([]);
   });
 
   it('does not serialize empty canvas elements', () => {

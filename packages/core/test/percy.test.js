@@ -80,10 +80,11 @@ describe('Percy', () => {
     });
 
     expect(snapshot.url).toEqual('http://localhost:8000/');
-    expect(snapshot.domSnapshot).toEqual(
-      '<!DOCTYPE html><html><head></head><body>' + (
+    expect(snapshot.domSnapshot).toEqual(jasmine.objectContaining({
+      html: '<!DOCTYPE html><html><head></head><body>' + (
         `<p>Hello there, Percy!</p>${img}`
-      ) + '</body></html>');
+      ) + '</body></html>'
+    }));
   });
 
   describe('.start()', () => {

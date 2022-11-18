@@ -21,38 +21,61 @@ function doctype(dom) {
   return `<!DOCTYPE ${name}${deprecated}>`;
 }
 
+// Serializes and returns the cloned DOM as an HTML string
+function serializeHTML(ctx) {
+  let html = ctx.clone.documentElement.outerHTML;
+  // replace serialized data attributes with real attributes
+  html = html.replace(/ data-percy-serialized-attribute-(\w+?)=/ig, ' $1=');
+  // include the doctype with the html string
+  return doctype(ctx.dom) + html;
+}
+
 // Serializes a document and returns the resulting DOM string.
 export function serializeDOM(options) {
   let {
     dom = document,
     // allow snake_case or camelCase
     enableJavaScript = options?.enable_javascript,
-    domTransformation = options?.dom_transformation
+    domTransformation = options?.dom_transformation,
+    stringifyResponse = options?.stringify_response
   } = options || {};
 
-  prepareDOM(dom);
+  // keep certain records throughout serialization
+  let ctx = {
+    resources: new Set(),
+    warnings: new Set(),
+    enableJavaScript
+  };
 
-  let clone = dom.cloneNode(true);
-  serializeInputs(dom, clone);
-  serializeFrames(dom, clone, { enableJavaScript });
-  serializeVideos(dom, clone);
+  ctx.dom = prepareDOM(dom);
+  ctx.clone = ctx.dom.cloneNode(true);
+
+  serializeInputs(ctx);
+  serializeFrames(ctx);
+  serializeVideos(ctx);
 
   if (!enableJavaScript) {
-    serializeCSSOM(dom, clone);
-    serializeCanvas(dom, clone);
+    serializeCSSOM(ctx);
+    serializeCanvas(ctx);
   }
-
-  let doc = clone.documentElement;
 
   if (domTransformation) {
     try {
-      domTransformation(doc);
+      domTransformation(ctx.clone.documentElement);
     } catch (err) {
       console.error('Could not transform the dom:', err.message);
     }
   }
 
-  return doctype(dom) + doc.outerHTML;
+  let result = {
+    html: serializeHTML(ctx),
+    warnings: Array.from(ctx.warnings),
+    resources: Array.from(ctx.resources)
+  };
+
+  return stringifyResponse
+    ? JSON.stringify(result)
+    : result;
 }
 
 export default serializeDOM;

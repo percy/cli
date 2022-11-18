@@ -1,5 +1,7 @@
+import { resourceFromDataURL } from './utils.js';
+
 // Serialize in-memory canvas elements into images.
-export function serializeCanvas(dom, clone) {
+export function serializeCanvas({ dom, clone, resources }) {
   for (let canvas of dom.querySelectorAll('canvas')) {
     // Note: the `.toDataURL` API requires WebGL canvas elements to use
     // `preserveDrawingBuffer: true`. This is because `.toDataURL` uses the
@@ -9,9 +11,15 @@ export function serializeCanvas(dom, clone) {
     // skip empty canvases
     if (!dataUrl || dataUrl === 'data:,') continue;
 
+    // get the element's percy id and create a resource for it
+    let percyElementId = canvas.getAttribute('data-percy-element-id');
+    let resource = resourceFromDataURL(percyElementId, dataUrl);
+    resources.add(resource);
+
     // create an image element in the cloned dom
     let img = clone.createElement('img');
-    img.src = dataUrl;
+    // use a data attribute to avoid making a real request
+    img.setAttribute('data-percy-serialized-attribute-src', resource.url);
 
     // copy canvas element attributes to the image element such as style, class,
     // or data attributes that may be targeted by CSS
@@ -25,7 +33,6 @@ export function serializeCanvas(dom, clone) {
     img.style.maxWidth = img.style.maxWidth || '100%';
 
     // insert the image into the cloned DOM and remove the cloned canvas element
-    let percyElementId = canvas.getAttribute('data-percy-element-id');
     let cloneEl = clone.querySelector(`[data-percy-element-id=${percyElementId}]`);
     cloneEl.parentElement.insertBefore(img, cloneEl);
     cloneEl.remove();

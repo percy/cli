@@ -10,6 +10,8 @@ export function prepareDOM(dom) {
       elem.setAttribute('data-percy-element-id', uid());
     }
   }
+
+  return dom;
 }
 
 export default prepareDOM;

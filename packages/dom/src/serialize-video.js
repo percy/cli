@@ -1,7 +1,9 @@
+import { resourceFromDataURL } from './utils.js';
+
 // Captures the current frame of videos and sets the poster image
-export function serializeVideos(dom, clone) {
+export function serializeVideos({ dom, clone, resources }) {
   for (let video of dom.querySelectorAll('video')) {
-    // If the video already has a poster image, no work for us to do
+    // if the video already has a poster image, no work for us to do
     if (video.getAttribute('poster')) continue;
 
     let videoId = video.getAttribute('data-percy-element-id');
@@ -14,10 +16,15 @@ export function serializeVideos(dom, clone) {
     canvas.getContext('2d').drawImage(video, 0, 0, width, height);
     try { dataUrl = canvas.toDataURL(); } catch {}
 
-    // If the canvas produces a blank image, skip
+    // if the canvas produces a blank image, skip
     if (!dataUrl || dataUrl === 'data:,') continue;
 
-    cloneEl.setAttribute('poster', dataUrl);
+    // create a resource from the serialized data url
+    let resource = resourceFromDataURL(videoId, dataUrl);
+    resources.add(resource);
+
+    // use a data attribute to avoid making a real request
+    cloneEl.setAttribute('data-percy-serialized-attribute-poster', resource.url);
   }
 }
 

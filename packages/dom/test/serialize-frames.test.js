@@ -3,7 +3,7 @@ import { assert, withExample, parseDOM } from './helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeFrames', () => {
-  let $;
+  let $, serialized;
 
   const getFrame = id => when(() => {
     let $frame = document.getElementById(id);
@@ -32,7 +32,9 @@ describe('serializeFrames', () => {
     await I.type(() => $frameInput.contentDocument.querySelector('input'), 'iframe with an input');
 
     let $frameJS = await getFrame('frame-js-no-src');
-    $frameJS.contentDocument.body.innerHTML = '<p>generated iframe</p>';
+    $frameJS.contentDocument.body.innerHTML = '<p>generated iframe</p><canvas id="canvas"/>';
+    let $ctx = $frameJS.contentDocument.getElementById('canvas').getContext('2d');
+    $ctx.fillRect(0, 0, 10, 10);
 
     let $frameEmpty = await getFrame('frame-empty');
     await I.type(() => $frameEmpty.contentDocument.querySelector('input'), 'no document element');
@@ -51,7 +53,8 @@ describe('serializeFrames', () => {
     // ensure external frame has loaded for coverage
     await getFrame('frame-external');
 
-    $ = parseDOM(serializeDOM());
+    serialized = serializeDOM();
+    $ = parseDOM(serialized.html);
   }, 0); // frames may take a bit to load
 
   afterEach(() => {
@@ -69,13 +72,21 @@ describe('serializeFrames', () => {
     ].join(''));
 
     expect($('#frame-js-no-src')[0].getAttribute('src')).toBeNull();
-    expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toBe([
+    expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toMatch([
       '<!DOCTYPE html><html><head>',
       `<base href="${$('#frame-js-no-src')[0].baseURI}">`,
       '</head><body>',
       '<p>generated iframe</p>',
+      '<img .*data-percy-canvas-serialized.*>',
       '</body></html>'
     ].join(''));
+
+    // frame resources are serialized recursively
+    expect(serialized.resources).toEqual([{
+      url: jasmine.stringMatching('/__serialized__/\\w+\\.png'),
+      content: jasmine.any(String),
+      mimetype: 'image/png'
+    }]);
   });
 
   it('serializes iframes that have been interacted with', () => {
