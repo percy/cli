@@ -173,6 +173,12 @@ export function validateSnapshotOptions(options) {
   if (snapshots) migrated.snapshots = typeof snapshots === 'function' ? [] : snapshots;
   else if (!isSnapshot && options.snapshots) migrated.snapshots = [];
 
+  // parse json dom snapshots
+  if (schema === '/snapshot/dom' && typeof migrated.domSnapshot === 'string' &&
+      migrated.domSnapshot.startsWith('{') && migrated.domSnapshot.endsWith('}')) {
+    migrated.domSnapshot = JSON.parse(migrated.domSnapshot);
+  }
+
   // log warnings encountered during dom serialization
   let domWarnings = migrated.domSnapshot?.warnings || [];
 

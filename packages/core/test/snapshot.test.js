@@ -575,13 +575,17 @@ describe('Snapshot', () => {
     }, {
       url: 'http://localhost:8000/three',
       'dom-snapshot': testDOM
+    }, {
+      url: 'http://localhost:8000/four',
+      domSnapshot: JSON.stringify({ html: testDOM })
     }]);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Snapshot taken: /one',
       '[percy] Snapshot taken: /two',
-      '[percy] Snapshot taken: /three'
+      '[percy] Snapshot taken: /three',
+      '[percy] Snapshot taken: /four'
     ]);
   });
 
