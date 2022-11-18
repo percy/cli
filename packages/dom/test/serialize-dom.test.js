@@ -10,6 +10,11 @@ describe('serializeDOM', () => {
     });
   });
 
+  it('optionally returns a stringified response', () => {
+    expect(serializeDOM({ stringifyResponse: true }))
+      .toMatch('{"html":".*","warnings":\\[\\],"resources":\\[\\]}');
+  });
+
   it('always has a doctype', () => {
     document.removeChild(document.doctype);
     expect(serializeDOM().html).toMatch('<!DOCTYPE html>');

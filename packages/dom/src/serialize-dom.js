@@ -36,7 +36,8 @@ export function serializeDOM(options) {
     dom = document,
     // allow snake_case or camelCase
     enableJavaScript = options?.enable_javascript,
-    domTransformation = options?.dom_transformation
+    domTransformation = options?.dom_transformation,
+    stringifyResponse = options?.stringify_response
   } = options || {};
 
   // keep certain records throughout serialization
@@ -66,11 +67,15 @@ export function serializeDOM(options) {
     }
   }
 
-  return {
+  let result = {
     html: serializeHTML(ctx),
     warnings: Array.from(ctx.warnings),
     resources: Array.from(ctx.resources)
   };
+
+  return stringifyResponse
+    ? JSON.stringify(result)
+    : result;
 }
 
 export default serializeDOM;
