@@ -287,8 +287,34 @@ export const snapshotSchema = {
       properties: {
         url: { type: 'string' },
         name: { type: 'string' },
-        domSnapshot: { type: 'string' },
-        width: { $ref: '/config/snapshot#/properties/widths/items' }
+        width: { $ref: '/config/snapshot#/properties/widths/items' },
+        domSnapshot: {
+          oneOf: [{ type: 'string' }, {
+            type: 'object',
+            required: ['html'],
+            unevaluatedProperties: false,
+            properties: {
+              html: { type: 'string' },
+              warnings: {
+                type: 'array',
+                items: { type: 'string' }
+              },
+              resources: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  required: ['url', 'content', 'mimetype'],
+                  unevaluatedProperties: false,
+                  properties: {
+                    url: { type: 'string' },
+                    content: { type: 'string' },
+                    mimetype: { type: 'string' }
+                  }
+                }
+              }
+            }
+          }]
+        }
       },
       errors: {
         unevaluatedProperties: e => (
