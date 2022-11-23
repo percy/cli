@@ -28,7 +28,7 @@ describe('Harness', () => {
       ...env.vars,
       DRONE_SOURCE_BRANCH: 'harness-branch-PR',
       DRONE_BUILD_EVENT: 'pull_request',
-      DRONE_COMMIT_LINK: 'https://github.com/owner/repo-name/pull/718',
+      DRONE_COMMIT_LINK: 'https://github.com/owner/repo-name/pull/718'
     });
 
     expect(env).toHaveProperty('ci', 'harness');
