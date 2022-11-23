@@ -43,6 +43,8 @@ export class PercyEnv {
       return 'github';
     } else if (this.vars.NETLIFY === 'true') {
       return 'netlify';
+    } else if (this.vars.HARNESS_PROJECT_ID) {
+      return 'harness';
     } else if (this.vars.CI) {
       return 'CI/unknown';
     } else {
@@ -103,6 +105,8 @@ export class PercyEnv {
           return this.vars.BITBUCKET_COMMIT;
         case 'github':
           return github(this.vars).pull_request?.head.sha || this.vars.GITHUB_SHA;
+        case 'harness':
+          return this.vars.DRONE_COMMIT_SHA;
       }
     })();
 
@@ -149,6 +153,8 @@ export class PercyEnv {
           return github(this.vars).pull_request?.head.ref || this.vars.GITHUB_REF;
         case 'netlify':
           return this.vars.HEAD;
+        case 'harness':
+          return this.vars.DRONE_SOURCE_BRANCH || this.vars.DRONE_COMMIT_BRANCH;
       }
     })();
 
@@ -193,6 +199,8 @@ export class PercyEnv {
           return this.vars.PULL_REQUEST !== 'false' && this.vars.REVIEW_ID;
         case 'github':
           return github(this.vars).pull_request?.number;
+        case 'harness':
+          return this.vars.DRONE_BUILD_EVENT === 'pull_request' && this.vars.DRONE_COMMIT_LINK?.split('/').slice(-1)[0];
       }
     })();
 
@@ -242,6 +250,8 @@ export class PercyEnv {
           return this.vars.BITBUCKET_BUILD_NUMBER;
         case 'github':
           return this.vars.GITHUB_RUN_ID;
+        case 'harness':
+          return this.vars.HARNESS_BUILD_ID;
       }
     })();
 
