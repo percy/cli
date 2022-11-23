@@ -8,6 +8,7 @@ describe('Harness', () => {
       PERCY_PARALLEL_TOTAL: '-1',
       DRONE_COMMIT_BRANCH: 'harness-branch',
       DRONE_COMMIT_SHA: 'harness-commit-sha',
+      DRONE_BUILD_EVENT: 'pull_request',
       DRONE_COMMIT_LINK: 'https://github.com/owner/repo-name/pull/718',
       HARNESS_BUILD_ID: '49',
       HARNESS_PROJECT_ID: 'harness-project-1'
