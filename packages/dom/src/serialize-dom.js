@@ -4,6 +4,7 @@ import serializeFrames from './serialize-frames';
 import serializeCSSOM from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
+import { cloneNodeAndShadow, getOuterHTML } from './wc-clone'
 
 // Returns a copy or new doctype for a document.
 function doctype(dom) {
@@ -23,7 +24,7 @@ function doctype(dom) {
 
 // Serializes and returns the cloned DOM as an HTML string
 function serializeHTML(ctx) {
-  let html = ctx.clone.documentElement.outerHTML;
+  let html = getOuterHTML(ctx.clone.documentElement);
   // replace serialized data attributes with real attributes
   html = html.replace(/ data-percy-serialized-attribute-(\w+?)=/ig, ' $1=');
   // include the doctype with the html string
@@ -48,7 +49,7 @@ export function serializeDOM(options) {
   };
 
   ctx.dom = prepareDOM(dom);
-  ctx.clone = ctx.dom.cloneNode(true);
+  ctx.clone = cloneNodeAndShadow(ctx.dom);
 
   serializeInputs(ctx);
   serializeFrames(ctx);
