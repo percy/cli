@@ -183,6 +183,14 @@ describe('Percy', () => {
       expect(api.requests['/builds']).toBeDefined();
     });
 
+    it('does not create build if invalid type of project token used', async () => {
+      spyOn(percy.client, 'getProject').and.resolveTo({ data: { attributes: { type: 'app' } } });
+      let spy = spyOn(percy, 'throwIfTypeInvalid').and.callThrough();
+      await expectAsync(percy.start('web')).toBeResolved();
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(percy.readyState).toBe(2);
+    });
+
     it('launches a browser after creating a new build', async () => {
       spyOn(percy.client, 'createBuild').and.callThrough();
       spyOn(percy.browser, 'launch').and.callThrough();
@@ -281,7 +289,11 @@ describe('Percy', () => {
       spyOn(percy.browser, 'launch').and.callFake(() => ctrl.abort());
 
       // #yield.start returns a generator that can be aborted
-      await expectAsync(generatePromise(percy.yield.start(), ctrl.signal))
+      await expectAsync(generatePromise(percy.yield.start('web'), ctrl.signal))
+        .toBeRejectedWithError('This operation was aborted');
+      expect(percy.readyState).toEqual(null);
+
+      await expectAsync(generatePromise(percy.yield.start('app'), ctrl.signal))
         .toBeRejectedWithError('This operation was aborted');
       expect(percy.readyState).toEqual(null);
 
@@ -823,6 +835,18 @@ describe('Percy', () => {
       await percy.stop();
       expect(api.requests['/builds']).toBeUndefined();
       expect(api.requests['/builds/123/snapshots']).toBeUndefined();
+    });
+  });
+
+  describe('#throwIfTypeInvalid', () => {
+    it('app:exec used with web project token', async () => {
+      percy.execType = 'app';
+      expect(() => percy.throwIfTypeInvalid('web')).toThrowError('Invalid Project type. Please verify that the PERCY_TOKEN you are using is for a Percy app project');
+    });
+
+    it('exec used with app project token', async () => {
+      percy.execType = 'web';
+      expect(() => percy.throwIfTypeInvalid('app')).toThrowError('Invalid Project type. Please verify that the PERCY_TOKEN you are using is for a Percy web project');
     });
   });
 });

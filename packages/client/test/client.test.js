@@ -217,6 +217,13 @@ describe('PercyClient', () => {
     });
   });
 
+  describe('#getProject()', () => {
+    it('gets project data', async () => {
+      api.reply('/projects', () => [200, { data: '<<project-data>>' }]);
+      await expectAsync(client.getProject()).toBeResolvedTo({ data: '<<project-data>>' });
+    });
+  });
+
   describe('#getBuild()', () => {
     it('throws when missing a build id', async () => {
       await expectAsync(client.getBuild())
