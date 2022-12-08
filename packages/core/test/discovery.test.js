@@ -428,7 +428,7 @@ describe('Discovery', () => {
     ]);
 
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] - Skipping resource larger than 15MB'
+      '[percy:core:discovery] - Skipping resource larger than 25MB'
     );
   });
 
