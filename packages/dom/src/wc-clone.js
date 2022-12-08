@@ -54,7 +54,7 @@ const cloneNodeAndShadow = doc => {
   mockDocument.head = document.createDocumentFragment();
   mockDocument.documentElement = mockDocument.firstChild;
   // just clone the first node 
-  cloneDocument = doc.cloneNode();
+  let cloneDocument = doc.cloneNode();
   // disolve document fragment in clone document
   cloneDocument.appendChild(mockDocument);
   return cloneDocument;
