@@ -145,10 +145,9 @@ export class Percy {
   async *start(execType) {
     this.execType = execType;
     let project = await this.client.getProject();
-    let projectType = project.type; // TODO: Update
-    if (projectType !== execType) {
-      throw new Error(`Invalid Project type. Please verify that the PERCY_TOKEN you are using is for a Percy ${execType} project`);
-    }
+    console.log(project);
+    let projectType = project?.data?.attributes.type;
+    if (project?.data) this.throwIfTypeInvalid(projectType);
     // already starting or started
     if (this.readyState != null) return;
     this.readyState = 0;
@@ -261,6 +260,12 @@ export class Percy {
 
     // mark instance as stopped
     this.readyState = 3;
+  }
+
+  throwIfTypeInvalid(projectType) {
+    if (projectType !== this.execType) {
+      throw new Error(`Invalid Project type. Please verify that the PERCY_TOKEN you are using is for a Percy ${this.execType} project`);
+    }
   }
 
   // Takes one or more snapshots of a page while discovering resources to upload with the resulting

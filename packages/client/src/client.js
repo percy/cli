@@ -188,8 +188,7 @@ export class PercyClient {
 
   // Retrieve project. Requires a read access token
   async getProject() {
-    // return this.post('projects/get-project'); // TODO: Update
-    return { type: 'app' };
+    return this.get('projects');
   }
 
   // Resolves when the build has finished and is no longer pending or
