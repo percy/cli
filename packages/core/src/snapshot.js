@@ -293,6 +293,14 @@ export function createSnapshotsQueue(percy) {
       try {
         build = percy.build = {};
         let { data } = await percy.client.createBuild();
+        // Fallback mechanish for Percy Token
+        // For customers who don't want to expose read token to CI
+        // FIXME: The created build stays in RECEIVING mode after the err
+        // TODO: Discuss if the error logic should be a separate Percy function
+        // Example: `percy.typeValidProject(data.attributes.type)`
+        if (data.attributes.type !== percy.execType) {
+          throw new Error(`Invalid Project type. Please verify that the PERCY_TOKEN you are using is for a Percy ${percy.execType} project`);
+        }
         let url = data.attributes['web-url'];
         let number = data.attributes['build-number'];
         Object.assign(build, { id: data.id, url, number });
@@ -316,7 +324,7 @@ export function createSnapshotsQueue(percy) {
       } else if (build?.id) {
         await percy.client.finalizeBuild(build.id);
         percy.log.info(`Finalized build #${build.number}: ${build.url}`, { build });
-      } else {
+      } else {̀
         percy.log.warn('Build not created', { build });
       }
     })

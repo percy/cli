@@ -142,7 +142,13 @@ export class Percy {
   }
 
   // Starts a local API server, a browser process, and internal queues.
-  async *start() {
+  async *start(execType) {
+    this.execType = execType;
+    let project = await this.client.getProject();
+    let projectType = project.type; // TODO: Update
+    if (projectType !== execType) {
+      throw new Error(`Invalid Project type. Please verify that the PERCY_TOKEN you are using is for a Percy ${execType} project`);
+    }
     // already starting or started
     if (this.readyState != null) return;
     this.readyState = 0;

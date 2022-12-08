@@ -35,7 +35,7 @@ export const exec = command('exec', {
   percy: {
     server: true
   }
-}, async function*({ flags, argv, env, percy, log, exit }) {
+}, async function*({ flags, argv, env, percy, log, parentCommand, exit }) {
   let [command, ...args] = argv;
 
   // command is required
@@ -58,7 +58,8 @@ export const exec = command('exec', {
     log.warn('Percy is disabled');
   } else {
     try {
-      yield* percy.yield.start();
+      const execType = parentCommand.name === 'app:exec' ? 'app' : 'web';
+      yield* percy.yield.start(execType);
     } catch (error) {
       if (error.name === 'AbortError') throw error;
       log.warn('Skipping visual tests');

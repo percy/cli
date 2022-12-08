@@ -186,6 +186,12 @@ export class PercyClient {
     return this.get(`projects/${project}/builds?${qs}`);
   }
 
+  // Retrieve project. Requires a read access token
+  async getProject() {
+    // return this.post('projects/get-project'); // TODO: Update
+    return { type: 'app' };
+  }
+
   // Resolves when the build has finished and is no longer pending or
   // processing. By default, will time out if no update after 10 minutes.
   waitForBuild({
