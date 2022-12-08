@@ -53,7 +53,11 @@ const cloneNodeAndShadow = doc => {
   let mockDocument = deepClone(doc.documentElement);
   mockDocument.head = document.createDocumentFragment();
   mockDocument.documentElement = mockDocument.firstChild;
-  return mockDocument;
+  // just clone the first node 
+  cloneDocument = doc.cloneNode();
+  // disolve document fragment in clone document
+  cloneDocument.appendChild(mockDocument);
+  return cloneDocument;
 };
 
 /**
