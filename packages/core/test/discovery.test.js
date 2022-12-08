@@ -398,7 +398,7 @@ describe('Discovery', () => {
   });
 
   it('does not capture large files', async () => {
-    server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(16_000_000)]);
+    server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(26_000_000)]);
     percy.loglevel('debug');
 
     await percy.snapshot({
