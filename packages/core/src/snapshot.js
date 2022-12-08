@@ -293,13 +293,11 @@ export function createSnapshotsQueue(percy) {
       try {
         build = percy.build = {};
         let { data } = await percy.client.createBuild();
-        // Fallback mechanish for Percy Token
-        // For customers who don't want to expose read token to CI
-        // FIXME: The created build stays in RECEIVING mode after the err
-        percy.throwIfTypeInvalid(data.attributes.type);
         let url = data.attributes['web-url'];
         let number = data.attributes['build-number'];
         Object.assign(build, { id: data.id, url, number });
+        // For Write-only token users
+        percy.throwIfTypeInvalid(data.attributes.type);
         // immediately run the queue if not delayed or deferred
         if (!percy.delayUploads && !percy.deferUploads) queue.run();
       } catch (err) {

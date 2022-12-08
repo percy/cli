@@ -144,10 +144,11 @@ export class Percy {
   // Starts a local API server, a browser process, and internal queues.
   async *start(execType) {
     this.execType = execType;
-    let project = await this.client.getProject();
-    console.log(project);
-    let projectType = project?.data?.attributes.type;
-    if (project?.data) this.throwIfTypeInvalid(projectType);
+    try {
+      let project = await this.client.getProject();
+      let projectType = project?.data?.attributes.type;
+      this.throwIfTypeInvalid(projectType);
+    } catch (e) {}
     // already starting or started
     if (this.readyState != null) return;
     this.readyState = 0;
@@ -264,6 +265,7 @@ export class Percy {
 
   throwIfTypeInvalid(projectType) {
     if (projectType !== this.execType) {
+      this.readyState = 2;
       throw new Error(`Invalid Project type. Please verify that the PERCY_TOKEN you are using is for a Percy ${this.execType} project`);
     }
   }
