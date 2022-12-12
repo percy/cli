@@ -3,7 +3,7 @@ import logger from '@percy/logger';
 import { request as makeRequest } from '@percy/client/utils';
 import { normalizeURL, hostnameMatches, createResource, waitFor } from './utils.js';
 
-const MAX_RESOURCE_SIZE = 15 * (1024 ** 2); // 15MB
+const MAX_RESOURCE_SIZE = 25 * (1024 ** 2); // 25MB
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 
@@ -331,7 +331,7 @@ async function saveResponseResource(network, request) {
       } else if (!body.length) {
         return log.debug('- Skipping empty response', meta);
       } else if (body.length > MAX_RESOURCE_SIZE) {
-        return log.debug('- Skipping resource larger than 15MB', meta);
+        return log.debug('- Skipping resource larger than 25MB', meta);
       } else if (!ALLOWED_STATUSES.includes(response.status)) {
         return log.debug(`- Skipping disallowed status [${response.status}]`, meta);
       } else if (!enableJavaScript && !ALLOWED_RESOURCES.includes(request.type)) {

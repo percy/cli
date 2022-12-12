@@ -398,7 +398,7 @@ describe('Discovery', () => {
   });
 
   it('does not capture large files', async () => {
-    server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(16_000_000)]);
+    server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(30_000_000)]);
     percy.loglevel('debug');
 
     await percy.snapshot({
@@ -428,7 +428,7 @@ describe('Discovery', () => {
     ]);
 
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] - Skipping resource larger than 15MB'
+      '[percy:core:discovery] - Skipping resource larger than 25MB'
     );
   });
 
