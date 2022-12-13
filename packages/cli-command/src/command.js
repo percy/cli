@@ -62,8 +62,8 @@ function exit(exitCode, reason = '') {
 // and other common command helpers and properties.
 async function runCommandWithContext(parsed) {
   let { command, flags, args, argv, log } = parsed;
-  // include flags, args, argv, logger, exit helper, and env info
-  let context = { flags, args, argv, log, exit };
+  // include cliCommand as command, flags, args, argv, logger, exit helper, and env info
+  let context = { cliCommand: command, flags, args, argv, log, exit };
   let env = context.env = process.env;
   let pkg = command.packageInformation;
   let def = command.definition;
@@ -172,6 +172,10 @@ export function command(name, definition, callback) {
   });
 
   return runner;
+}
+
+export function getExecType(command) {
+  return command.name?.includes('app') ? 'app' : 'web';
 }
 
 export default command;

@@ -1,4 +1,4 @@
-import command from '@percy/cli-command';
+import command, { getExecType } from '@percy/cli-command';
 import start from './start.js';
 import stop from './stop.js';
 import ping from './ping.js';
@@ -35,7 +35,7 @@ export const exec = command('exec', {
   percy: {
     server: true
   }
-}, async function*({ flags, argv, env, percy, log, exit }) {
+}, async function*({ flags, argv, env, percy, log, cliCommand, exit }) {
   let [command, ...args] = argv;
 
   // command is required
@@ -58,7 +58,8 @@ export const exec = command('exec', {
     log.warn('Percy is disabled');
   } else {
     try {
-      yield* percy.yield.start();
+      const execType = getExecType(cliCommand);
+      yield* percy.yield.start(execType);
     } catch (error) {
       if (error.name === 'AbortError') throw error;
       log.warn('Skipping visual tests');

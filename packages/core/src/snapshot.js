@@ -292,7 +292,7 @@ export function createSnapshotsQueue(percy) {
     .handle('start', async () => {
       try {
         build = percy.build = {};
-        let { data } = await percy.client.createBuild();
+        let { data } = await percy.client.createBuild({ execType: percy.execType });
         let url = data.attributes['web-url'];
         let number = data.attributes['build-number'];
         Object.assign(build, { id: data.id, url, number });

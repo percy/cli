@@ -1,5 +1,5 @@
 import { logger, dedent } from './helpers.js';
-import command from '@percy/cli-command';
+import command, { getExecType } from '@percy/cli-command';
 
 describe('Command', () => {
   beforeEach(async () => {
@@ -244,5 +244,12 @@ describe('Command', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([]);
+  });
+
+  it('tests method that return type based on cli command', () => {
+    expect(getExecType({ name: 'exec' })).toBe('web');
+    expect(getExecType({ name: 'app:exec' })).toBe('app');
+    expect(getExecType({ name: 'app:exec:start' })).toBe('app');
+    expect(getExecType({ name: 'app:exec:stop' })).toBe('app');
   });
 });

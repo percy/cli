@@ -142,7 +142,8 @@ export class Percy {
   }
 
   // Starts a local API server, a browser process, and internal queues.
-  async *start() {
+  async *start(execType) {
+    this.execType = execType;
     // already starting or started
     if (this.readyState != null) return;
     this.readyState = 0;
