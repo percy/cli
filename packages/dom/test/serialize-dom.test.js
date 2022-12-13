@@ -1,6 +1,8 @@
 import { withExample, replaceDoctype } from './helpers';
 import serializeDOM from '@percy/dom';
 
+const isChrome = 
+
 describe('serializeDOM', () => {
   it('returns serialied html, warnings, and resources', () => {
     expect(serializeDOM()).toEqual({
@@ -40,7 +42,7 @@ describe('serializeDOM', () => {
         return;
       }
 
-      withExample('<div id="content"></div>', false);
+      withExample('<div id="content"></div>');
       const contentEl = document.querySelector('#content');
       const shadow = contentEl.attachShadow({ mode: 'open' });
       const paragraphEl = document.createElement('p');
@@ -57,7 +59,7 @@ describe('serializeDOM', () => {
         return;
       }
 
-      withExample('<div id="content"></div>', { withShadow: false });
+      withExample('<div id="content"></div>');
       const contentEl = document.querySelector('#content');
       const shadow = contentEl.attachShadow({ mode: 'closed' });
       const paragraphEl = document.createElement('p');
