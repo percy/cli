@@ -174,6 +174,8 @@ export function command(name, definition, callback) {
   return runner;
 }
 
+// App Percy currently only supports `app:exec` command and its sub commands,
+// All the other commands are deemed for Percy Web.
 export function getExecType(command) {
   return command.name?.includes('app') ? 'app' : 'web';
 }
