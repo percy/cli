@@ -1,6 +1,8 @@
 import { withExample, replaceDoctype } from './helpers';
 import serializeDOM from '@percy/dom';
 
+const isChrome = 
+
 describe('serializeDOM', () => {
   it('returns serialied html, warnings, and resources', () => {
     expect(serializeDOM()).toEqual({
@@ -32,6 +34,42 @@ describe('serializeDOM', () => {
     expect(serializeDOM().html).toMatch(`<!DOCTYPE html PUBLIC "${publicId}" "${systemId}">`);
     replaceDoctype('html');
     expect(serializeDOM().html).toMatch('<!DOCTYPE html>');
+  });
+
+  describe('shadow dom', () => {
+    it('renders open root as template tag', () => {
+      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+        return;
+      }
+
+      withExample('<div id="content"></div>');
+      const contentEl = document.querySelector('#content');
+      const shadow = contentEl.attachShadow({ mode: 'open' });
+      const paragraphEl = document.createElement('p');
+      paragraphEl.textContent = 'Hey Percy!';
+      shadow.appendChild(paragraphEl);
+
+      const html = serializeDOM().html;
+      expect(html).toMatch('<template shadowroot="open">');
+      expect(html).toMatch('Hey Percy!');
+    });
+
+    it('does not render closed root', () => {
+      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+        return;
+      }
+
+      withExample('<div id="content"></div>');
+      const contentEl = document.querySelector('#content');
+      const shadow = contentEl.attachShadow({ mode: 'closed' });
+      const paragraphEl = document.createElement('p');
+      paragraphEl.textContent = 'Hey Percy!';
+      shadow.appendChild(paragraphEl);
+
+      const html = serializeDOM().html;
+      expect(html).not.toMatch('<template shadowroot');
+      expect(html).not.toMatch('Hey Percy!');
+    });
   });
 
   describe('with `domTransformation`', () => {
