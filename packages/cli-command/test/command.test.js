@@ -251,6 +251,8 @@ describe('Command', () => {
     expect(getExecType({ name: 'exec:start' })).toBe('web');
     expect(getExecType({ name: 'exec:stop' })).toBe('web');
     expect(getExecType({ name: 'exec:ping' })).toBe('web');
+    expect(getExecType({ name: 'storybook' })).toBe('web');
+    expect(getExecType({ name: 'storybook:start' })).toBe('web');
     expect(getExecType({ name: 'snapshot' })).toBe('web');
     expect(getExecType({ name: 'upload' })).toBe('web');
     expect(getExecType({ name: 'build:finalize' })).toBe('web');
