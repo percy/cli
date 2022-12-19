@@ -3,11 +3,7 @@
  * This enables us to capture shadow DOM in snapshots. It takes advantage of `attachShadow`'s mode option set to open
  * https://developer.mozilla.org/en-US/docs/Web/API/Element/attachShadow#parameters
  */
-import markElement from './prepare-dom';
-
-// returns document fragment
 const deepClone = host => {
-  // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
     let walkTree = (nextn, nextp) => {
       while (nextn) {
@@ -16,16 +12,10 @@ const deepClone = host => {
       }
     };
 
-    // mark the node before cloning
-    markElement(node);
-
     let clone = node.cloneNode();
-
     parent.appendChild(clone);
 
-    // clone shadow DOM
     if (node.shadowRoot) {
-      // create shadowRoot
       if (clone.shadowRoot) {
         // it may be set up in a custom element's constructor
         clone.shadowRoot.innerHTML = '';
@@ -35,19 +25,18 @@ const deepClone = host => {
         });
       }
 
-      // clone stylesheets in shadowRoot
       for (let sheet of node.shadowRoot.adoptedStyleSheets) {
         let cssText = Array.from(sheet.rules).map(rule => rule.cssText).join('\n');
         let style = document.createElement('style');
         style.appendChild(document.createTextNode(cssText));
         clone.shadowRoot.prepend(style);
       }
+    }
 
-      // clone dom elements
+    if (node.shadowRoot) {
       walkTree(node.shadowRoot.firstChild, clone.shadowRoot);
     }
 
-    // clone light DOM
     walkTree(node.firstChild, clone);
   };
 
@@ -56,15 +45,19 @@ const deepClone = host => {
   return fragment;
 };
 
+
 /**
  * Deep clone a document while also preserving shadow roots and converting adoptedStylesheets to <style> tags.
  */
 const cloneNodeAndShadow = doc => {
-  let mockDocumentFragment = deepClone(doc.documentElement);
-  // convert document fragment to document object
+  let mockDocument = deepClone(doc.documentElement);
+  // TODO: remove ?
+  // mockDocument.head = document.createDocumentFragment();
+  mockDocument.documentElement = mockDocument.firstChild;
+  // just clone the first node 
   let cloneDocument = doc.cloneNode();
-  // dissolve document fragment in clone document
-  cloneDocument.appendChild(mockDocumentFragment);
+  // disolve document fragment in clone document
+  cloneDocument.appendChild(mockDocument);
   return cloneDocument;
 };
 
@@ -72,9 +65,8 @@ const cloneNodeAndShadow = doc => {
  * Use `getInnerHTML()` to serialize shadow dom as <template> tags. `innerHTML` and `outerHTML` don't do this. Buzzword: "declarative shadow dom"
  */
 const getOuterHTML = docElement => {
-  // firefox doesn't serialize shadow DOM, we're awaiting API's by firefox to become ready and are not polyfilling it.
-  if (!docElement.getInnerHTML) { return docElement.outerHTML; }
-  // chromium gives us declarative shadow DOM serialization API
+  if (!Element.prototype.getInnerHTML)
+    return docElement.outerHTML;
   let innerHTML = docElement.getInnerHTML({ includeShadowRoots: true });
   docElement.textContent = '';
   return docElement.outerHTML.replace('</html>', `${innerHTML}</html>`);
