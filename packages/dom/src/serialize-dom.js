@@ -4,7 +4,7 @@ import serializeFrames from './serialize-frames';
 import serializeCSSOM from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
-import { cloneNodeAndShadow, getOuterHTML } from './wc-clone'
+import { cloneNodeAndShadow, getOuterHTML } from './clone-dom'
 
 // Returns a copy or new doctype for a document.
 function doctype(dom) {
