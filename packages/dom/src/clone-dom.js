@@ -51,7 +51,8 @@ const deepClone = host => {
  */
 const cloneNodeAndShadow = doc => {
   let mockDocument = deepClone(doc.documentElement);
-  mockDocument.head = document.createDocumentFragment();
+  // TODO: remove ?
+  // mockDocument.head = document.createDocumentFragment();
   mockDocument.documentElement = mockDocument.firstChild;
   // just clone the first node 
   let cloneDocument = doc.cloneNode();
@@ -65,7 +66,7 @@ const cloneNodeAndShadow = doc => {
  */
 const getOuterHTML = docElement => {
   if (!Element.prototype.getInnerHTML)
-    return docElement.outerHTML
+    return docElement.outerHTML;
   let innerHTML = docElement.getInnerHTML({ includeShadowRoots: true });
   docElement.textContent = '';
   return docElement.outerHTML.replace('</html>', `${innerHTML}</html>`);
