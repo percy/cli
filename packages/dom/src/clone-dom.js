@@ -3,8 +3,13 @@
  * This enables us to capture shadow DOM in snapshots. It takes advantage of `attachShadow`'s mode option set to open
  * https://developer.mozilla.org/en-US/docs/Web/API/Element/attachShadow#parameters
  */
+import markElement from './prepare-dom';
+
+// returns document fragment
 const deepClone = host => {
+  // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
+
     let walkTree = (nextn, nextp) => {
       while (nextn) {
         cloneNode(nextn, nextp);
@@ -12,10 +17,17 @@ const deepClone = host => {
       }
     };
 
+    // mark the node before cloning
+    markElement(node);
+
     let clone = node.cloneNode();
+
     parent.appendChild(clone);
 
+    // clone shadow DOM
     if (node.shadowRoot) {
+
+      // create shadowRoot
       if (clone.shadowRoot) {
         // it may be set up in a custom element's constructor
         clone.shadowRoot.innerHTML = '';
@@ -25,19 +37,21 @@ const deepClone = host => {
         });
       }
 
+      // clone stylesheets in shadowRoot
       for (let sheet of node.shadowRoot.adoptedStyleSheets) {
         let cssText = Array.from(sheet.rules).map(rule => rule.cssText).join('\n');
         let style = document.createElement('style');
         style.appendChild(document.createTextNode(cssText));
         clone.shadowRoot.prepend(style);
       }
-    }
 
-    if (node.shadowRoot) {
+      // clone dom elements
       walkTree(node.shadowRoot.firstChild, clone.shadowRoot);
     }
 
+    // clone light DOM
     walkTree(node.firstChild, clone);
+
   };
 
   let fragment = document.createDocumentFragment();
@@ -50,14 +64,14 @@ const deepClone = host => {
  * Deep clone a document while also preserving shadow roots and converting adoptedStylesheets to <style> tags.
  */
 const cloneNodeAndShadow = doc => {
-  let mockDocument = deepClone(doc.documentElement);
+  let mockDocumentFragment = deepClone(doc.documentElement);
   // TODO: remove ?
-  // mockDocument.head = document.createDocumentFragment();
-  mockDocument.documentElement = mockDocument.firstChild;
-  // just clone the first node 
+  // mockDocumentFragment.head = document.createDocumentFragment();
+  mockDocumentFragment.documentElement = mockDocumentFragment.firstChild;
+  // convert document fragment to document object
   let cloneDocument = doc.cloneNode();
-  // disolve document fragment in clone document
-  cloneDocument.appendChild(mockDocument);
+  // dissolve document fragment in clone document
+  cloneDocument.appendChild(mockDocumentFragment);
   return cloneDocument;
 };
 
