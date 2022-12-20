@@ -47,8 +47,11 @@ export function serializeDOM(options) {
     enableJavaScript
   };
 
-  ctx.dom = prepareDOM(dom);
+  ctx.dom = dom;
   ctx.clone = cloneNodeAndShadow(ctx.dom);
+
+
+  console.log("serializeDOM", ctx.clone);
 
   serializeInputs(ctx);
   serializeFrames(ctx);
