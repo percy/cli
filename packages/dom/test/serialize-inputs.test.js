@@ -1,12 +1,9 @@
 import I from 'interactor.js';
-import { withExample, parseDOM } from './helpers';
+import { withExample, parseDOM, withShadowExample, getExampleShadowRoot, parseDeclShadowDOM } from './helpers';
 import serializeDOM from '@percy/dom';
 
-describe('serializeInputs', () => {
-  let $;
-
-  beforeEach(async () => {
-    withExample(`
+async function prepareTest(shadowDom = false) {
+  const html = `
       <form>
         <label for="name">Name</label>
         <input id="name" type="text" />
@@ -42,19 +39,53 @@ describe('serializeInputs', () => {
         <label for="feedback">Feedback</label>
         <textarea id="feedback"></textarea>
       </form>
-    `);
+    `;
+
+  if (shadowDom) {
+    withShadowExample(html);
+  } else {
+    withExample(html);
+  }
+
+  const dom = shadowDom ? getExampleShadowRoot() : document;
+  dom.querySelector('#name').value = 'Bob Boberson';
+  dom.querySelector('#valueAttr').value = 'Replacement Value!';
+  dom.querySelector('#feedback').value = 'This is my feedback... And it is not very helpful';
+  dom.querySelector('#radio').checked = true;
+  dom.querySelector('#mailing').checked = true;
+  dom.querySelector('#singleSelect').value = 'maybe';
+
+  const selected = ['Shelby GT350', 'NA Miata'];
+  Array.from(dom.querySelector('#multiselect').options).forEach(function(option) {
+    // If the option's value is in the selected array, select it
+    // Otherwise, deselect it
+    if (selected.includes(option.innerText)) {
+      option.selected = true;
+    } else {
+      option.selected = false;
+    }
+  });
+  return dom
+
+  //await I(arg)
+    //.find('#name').type('Bob Boberson')
+    //.find('#valueAttr').type('Replacement Value!', { range: [0, 500] })
+    //.find('#feedback').type('This is my feedback... And it is not very helpful')
+    //.find('#radio').check()
+    //.find('#singleSelect').select(I.find.text('Maybe'))
+    //.find('#multiselect').select([I.find.text('Shelby GT350'), I.find.text('NA Miata')])
+    //.find('#mailing').check();
+
+}
+
+describe('serializeInputs', () => {
+  let $, dom;
+
+  beforeEach(async () => {
+    dom = await prepareTest(true)
 
     // interact with the inputs to update properties (does not update attributes)
-    await I('form')
-      .find('#name').type('Bob Boberson')
-      .find('#valueAttr').type('Replacement Value!', { range: [0, 500] })
-      .find('#feedback').type('This is my feedback... And it is not very helpful')
-      .find('#radio').check()
-      .find('#singleSelect').select(I.find.text('Maybe'))
-      .find('#multiselect').select([I.find.text('Shelby GT350'), I.find.text('NA Miata')])
-      .find('#mailing').check();
-
-    $ = parseDOM(serializeDOM());
+    $ = parseDeclShadowDOM(serializeDOM());
   });
 
   it('serializes checked checkboxes', () => {
@@ -91,8 +122,8 @@ describe('serializeInputs', () => {
 
   it('does not mutate original select elements', () => {
     let options = [
-      ...document.querySelector('#multiselect').options,
-      ...document.querySelector('#singleSelect').options
+      ...dom.querySelector('#multiselect').options,
+      ...dom.querySelector('#singleSelect').options
     ];
 
     for (let $option of options) {
@@ -105,16 +136,16 @@ describe('serializeInputs', () => {
   });
 
   it('adds a guid data-attribute to the original DOM', () => {
-    expect(document.querySelectorAll('[data-percy-element-id]')).toHaveSize(9);
+    expect(dom.querySelectorAll('[data-percy-element-id]')).toHaveSize(9);
   });
 
   it('adds matching guids to the orignal DOM and cloned DOM', () => {
-    let og = document.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
+    let og = dom.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
     expect(og).toEqual($('[data-percy-element-id]')[0].getAttribute('data-percy-element-id'));
   });
 
   it('does not override previous guids when reserializing', () => {
-    let getUid = () => document.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
+    let getUid = () => dom.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
     let first = getUid();
 
     serializeDOM();
@@ -123,6 +154,6 @@ describe('serializeInputs', () => {
 
   it('does not mutate values in origial DOM', () => {
     expect($('#name')[0].getAttribute('value')).toBe('Bob Boberson');
-    expect(document.querySelector('#name').getAttribute('value')).toBeNull();
+    expect(dom.querySelector('#name').getAttribute('value')).toBeNull();
   });
 });
