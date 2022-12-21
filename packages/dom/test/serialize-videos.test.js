@@ -1,4 +1,4 @@
-import { parseDOM, withExample, platforms, platformDOM } from './helpers';
+import { withShadowExample, parseDOM, parseDeclShadowDOM, withExample, getExampleShadowRoot } from './helpers';
 import serializeDOM from '@percy/dom';
 
 let canPlay = $video => new Promise(resolve => {
@@ -6,18 +6,21 @@ let canPlay = $video => new Promise(resolve => {
   else $video.addEventListener('canplay', resolve);
 });
 
+let shadowDom = true
+let loadExample = shadowDom ? withShadowExample : withExample
+let parse = shadowDom ? parseDeclShadowDOM : parseDOM
+
 describe('serializeVideos', () => {
   let $, serialized;
 
-  platforms.forEach((platform) => {
-    it(`${platform}: serializes video elements`, async () => {
-      withExample(`
-        <video src="base/test/assets/example.webm" id="video" controls />
-      `);
+  it('serializes video elements', async () => {
+    loadExample(`
+      <video src="base/test/assets/example.webm" id="video" controls />
+    `);
 
-      await canPlay(platform === 'shadow' ? platformDOM(platform).querySelector('video') : window.video);
-      serialized = serializeDOM();
-      $ = parseDOM(serialized.html, platform);
+    await canPlay(shadowDom ? getExampleShadowRoot().querySelector('video') : window.video);
+    serialized = serializeDOM();
+    $ = parse(serialized.html);
 
       expect($('#video')[0].getAttribute('poster'))
         .toMatch('/__serialized__/\\w+\\.png');
@@ -28,37 +31,36 @@ describe('serializeVideos', () => {
       }));
     });
 
-    it(`${platform}: does not serialize videos with an existing poster`, async () => {
-      withExample(`
+  it('does not serialize videos with an existing poster', async () => {
+    loadExample(`
       <video src="base/test/assets/example.webm" id="video" poster="//:0" />
     `);
 
-      await canPlay(platform === 'shadow' ? platformDOM(platform).querySelector('video') : window.video);
-      serialized = serializeDOM();
-      $ = parseDOM(serialized.html);
+    await canPlay(shadowDom ? getExampleShadowRoot().querySelector('video') : window.video);
+    serialized = serializeDOM();
+    $ = parse(serialized.html);
 
       expect($('#video')[0].getAttribute('poster')).toBe('//:0');
       expect(serialized.resources).toEqual([]);
     });
 
-    it(`${platform}: does not apply blank poster images`, () => {
-      withExample(`
+  it('does not apply blank poster images', () => {
+    loadExample(`
       <video src="//:0" id="video" />
     `);
 
-      $ = parseDOM(serializeDOM(), platform);
-      expect($('#video')[0].hasAttribute('poster')).toBe(false);
-    });
+    $ = parse(serializeDOM());
+    expect($('#video')[0].hasAttribute('poster')).toBe(false);
+  });
 
-    it(`${platform}: does not hang serialization when there is an error thrown`, () => {
-      withExample(`
+  it('does not hang serialization when there is an error thrown', () => {
+    loadExample(`
       <video src="//:0" id="video" />
     `);
 
       spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('An error'));
 
-      $ = parseDOM(serializeDOM());
-      expect($('#video')[0].hasAttribute('poster')).toBe(false);
-    });
+    $ = parse(serializeDOM());
+    expect($('#video')[0].hasAttribute('poster')).toBe(false);
   });
 });

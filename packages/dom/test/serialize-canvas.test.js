@@ -1,11 +1,8 @@
-import { withExample, parseDOM, platforms, platformDOM } from './helpers';
+import { withExample, withShadowExample, parseDOM, parseDeclShadowDOM, getExampleShadowRoot } from './helpers';
 import serializeDOM from '@percy/dom';
 
-describe('serializeCanvas', () => {
-  let serialized, cache = { shadow: {}, plain: {} };
-
-  beforeEach(() => {
-    withExample(`
+function prepareTest(shadowDom = false) {
+  const html = `
       <canvas
         id="canvas"
         width="150px"
@@ -18,26 +15,40 @@ describe('serializeCanvas', () => {
         height="0px"
       ></canvas>
     `
-    );
-    platforms.forEach((plat) => {
-      let dom = platformDOM(plat);
-      let canvas = dom.getElementById('canvas');
-      let ctx = canvas.getContext('2d');
 
-      ctx.beginPath();
-      ctx.arc(75, 75, 50, 0, Math.PI * 2, true);
-      ctx.moveTo(110, 75);
-      ctx.arc(75, 75, 35, 0, Math.PI, false);
-      ctx.moveTo(65, 65);
-      ctx.arc(60, 65, 5, 0, Math.PI * 2, true);
-      ctx.moveTo(95, 65);
-      ctx.arc(90, 65, 5, 0, Math.PI * 2, true);
-      ctx.stroke();
+  let canvas;
 
-      cache[plat].dataURL = canvas.toDataURL();
-    });
+  if (shadowDom) {
+    withShadowExample(html)
+    canvas = getExampleShadowRoot().getElementById('canvas')
+  } else {
+    withExample(html)
+    canvas = document.getElementById('canvas')
+  }
 
+  let ctx = canvas.getContext('2d');
+
+  ctx.beginPath();
+  ctx.arc(75, 75, 50, 0, Math.PI * 2, true);
+  ctx.moveTo(110, 75);
+  ctx.arc(75, 75, 35, 0, Math.PI, false);
+  ctx.moveTo(65, 65);
+  ctx.arc(60, 65, 5, 0, Math.PI * 2, true);
+  ctx.moveTo(95, 65);
+  ctx.arc(90, 65, 5, 0, Math.PI * 2, true);
+  ctx.stroke();
+
+  return canvas
+}
+
+describe('serializeCanvas', () => {
+  let $, serialized, dataURL;
+
+  beforeEach(() => {
+    let canvas = prepareTest(true);
     serialized = serializeDOM();
+    $ = parseDeclShadowDOM(serialized.html);
+    dataURL = canvas.toDataURL();
   });
 
   platforms.forEach((platform) => {
@@ -56,12 +67,9 @@ describe('serializeCanvas', () => {
       expect($canvas[0].getAttribute('style')).toBe('border: 5px solid black; max-width: 100%;');
       expect($canvas[0].matches('[data-percy-canvas-serialized]')).toBe(true);
 
-      expect(serialized.resources).toContain(jasmine.objectContaining({
-        url: $canvas[0].getAttribute('src'),
-        content: cache[platform].dataURL.split(',')[1],
-        mimetype: 'image/png'
-      }));
-    });
+  it('does not serialize canvas elements when JS is enabled', () => {
+    serialized = serializeDOM({ enableJavaScript: true });
+    $ = parseDeclShadowDOM(serialized.html);
 
     it(`${platform}: does not serialize canvas elements when JS is enabled`, () => {
       serialized = serializeDOM({ enableJavaScript: true });

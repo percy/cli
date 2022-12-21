@@ -1,11 +1,9 @@
-import { withExample, parseDOM, platforms, platformDOM } from './helpers';
+import I from 'interactor.js';
+import { withExample, parseDOM, withShadowExample, getExampleShadowRoot, parseDeclShadowDOM } from './helpers';
 import serializeDOM from '@percy/dom';
 
-describe('serializeInputs', () => {
-  let cache = { shadow: {}, plain: {} };
-
-  beforeEach(async () => {
-    withExample(`
+async function prepareTest(shadowDom = false) {
+  const html = `
       <form>
         <label for="name">Name</label>
         <input id="name" type="text" />
@@ -41,7 +39,50 @@ describe('serializeInputs', () => {
         <label for="feedback">Feedback</label>
         <textarea id="feedback"></textarea>
       </form>
-    `);
+    `;
+
+  if (shadowDom) {
+    withShadowExample(html);
+  } else {
+    withExample(html);
+  }
+
+  const dom = shadowDom ? getExampleShadowRoot() : document;
+  dom.querySelector('#name').value = 'Bob Boberson';
+  dom.querySelector('#valueAttr').value = 'Replacement Value!';
+  dom.querySelector('#feedback').value = 'This is my feedback... And it is not very helpful';
+  dom.querySelector('#radio').checked = true;
+  dom.querySelector('#mailing').checked = true;
+  dom.querySelector('#singleSelect').value = 'maybe';
+
+  const selected = ['Shelby GT350', 'NA Miata'];
+  Array.from(dom.querySelector('#multiselect').options).forEach(function(option) {
+    // If the option's value is in the selected array, select it
+    // Otherwise, deselect it
+    if (selected.includes(option.innerText)) {
+      option.selected = true;
+    } else {
+      option.selected = false;
+    }
+  });
+  return dom
+
+  //await I(arg)
+    //.find('#name').type('Bob Boberson')
+    //.find('#valueAttr').type('Replacement Value!', { range: [0, 500] })
+    //.find('#feedback').type('This is my feedback... And it is not very helpful')
+    //.find('#radio').check()
+    //.find('#singleSelect').select(I.find.text('Maybe'))
+    //.find('#multiselect').select([I.find.text('Shelby GT350'), I.find.text('NA Miata')])
+    //.find('#mailing').check();
+
+}
+
+describe('serializeInputs', () => {
+  let $, dom;
+
+  beforeEach(async () => {
+    dom = await prepareTest(true)
 
     platforms.forEach((platform) => {
       const dom = platformDOM(platform);
@@ -66,6 +107,7 @@ describe('serializeInputs', () => {
       cache[platform].$ = parseDOM(serializeDOM(), platform);
     });
     // interact with the inputs to update properties (does not update attributes)
+    $ = parseDeclShadowDOM(serializeDOM());
   });
 
   platforms.forEach((platform) => {
@@ -101,11 +143,11 @@ describe('serializeInputs', () => {
       expect($('#singleSelect>:nth-child(3)')[0].selected).toBe(true);
     });
 
-    it(`${platform}: serializes multi-select elements`, () => {
-      expect($('#multiselect>:nth-child(1)')[0].selected).toBe(true);
-      expect($('#multiselect>:nth-child(2)')[0].selected).toBe(false);
-      expect($('#multiselect>:nth-child(3)')[0].selected).toBe(true);
-    });
+  it('does not mutate original select elements', () => {
+    let options = [
+      ...dom.querySelector('#multiselect').options,
+      ...dom.querySelector('#singleSelect').options
+    ];
 
     it(`${platform}: does not mutate original select elements`, () => {
       let options = [
@@ -118,31 +160,25 @@ describe('serializeInputs', () => {
       }
     });
 
-    it(`${platform}: serializes inputs with already present value attributes`, () => {
-      expect($('#valueAttr')[0].getAttribute('value')).toBe('Replacement Value!');
-    });
+  it('adds a guid data-attribute to the original DOM', () => {
+    expect(dom.querySelectorAll('[data-percy-element-id]')).toHaveSize(9);
+  });
 
-    it(`${platform}: adds a guid data-attribute to the original DOM`, () => {
-      // plain platform has extra element #test-shadow
-      expect(dom.querySelectorAll('[data-percy-element-id]')).toHaveSize(platform === 'plain' ? 10 : 9);
-    });
+  it('adds matching guids to the orignal DOM and cloned DOM', () => {
+    let og = dom.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
+    expect(og).toEqual($('[data-percy-element-id]')[0].getAttribute('data-percy-element-id'));
+  });
 
-    it(`${platform}: adds matching guids to the orignal DOM and cloned DOM`, () => {
-      let og = dom.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
-      expect(og).toEqual($('[data-percy-element-id]')[0].getAttribute('data-percy-element-id'));
-    });
+  it('does not override previous guids when reserializing', () => {
+    let getUid = () => dom.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
+    let first = getUid();
 
     it(`${platform}: does not override previous guids when reserializing`, () => {
       let getUid = () => dom.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
       let first = getUid();
 
-      serializeDOM();
-      expect(getUid()).toEqual(first);
-    });
-
-    it(`${platform}: does not mutate values in origial DOM`, () => {
-      expect($('#name')[0].getAttribute('value')).toBe('Bob Boberson');
-      expect(dom.querySelector('#name').getAttribute('value')).toBeNull();
-    });
+  it('does not mutate values in origial DOM', () => {
+    expect($('#name')[0].getAttribute('value')).toBe('Bob Boberson');
+    expect(dom.querySelector('#name').getAttribute('value')).toBeNull();
   });
 });
