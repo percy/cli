@@ -1,8 +1,6 @@
 import { withExample, replaceDoctype } from './helpers';
 import serializeDOM from '@percy/dom';
 
-const isChrome = 
-
 describe('serializeDOM', () => {
   it('returns serialied html, warnings, and resources', () => {
     expect(serializeDOM()).toEqual({

@@ -11,6 +11,26 @@ export function withExample(html) {
   return document;
 }
 
+export function withShadowExample(html) {
+  let $test = document.getElementById('test');
+  if ($test) $test.remove();
+
+  $test = document.createElement('div');
+  $test.id = 'test';
+  let $shadow = $test.attachShadow({ mode: 'open' })
+  $shadow.innerHTML = `<h1>Hello DOM testing</h1>${html}`;
+
+  document.body.appendChild($test);
+  return document;
+}
+
+export function getExampleShadowRoot() {
+  let $test = document.getElementById('test');
+  if (!$test) return null;
+
+  return $test.shadowRoot;
+}
+
 // create a stylesheet in the DOM and add rules using the CSSOM
 export function withCSSOM(rules = [], prepare = () => {}) {
   let $test = document.getElementById('test');
@@ -44,6 +64,14 @@ export function parseDOM(domstring) {
   if (domstring.html) domstring = domstring.html;
   let dom = new window.DOMParser().parseFromString(domstring, 'text/html');
   return selector => dom.querySelectorAll(selector);
+}
+
+export function parseDeclShadowDOM(domstring) {
+  if (domstring.html) domstring = domstring.html;
+  let dom = new window.DOMParser().parseFromString(domstring, 'text/html');
+  let root = dom.getElementById('test')
+
+  return selector => root.firstChild.content.querySelectorAll(selector);
 }
 
 // generic assert

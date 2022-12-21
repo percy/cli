@@ -1,4 +1,4 @@
-import { withExample, parseDOM } from './helpers';
+import { withShadowExample, parseDOM, parseDeclShadowDOM, withExample, getExampleShadowRoot } from './helpers';
 import serializeDOM from '@percy/dom';
 
 let canPlay = $video => new Promise(resolve => {
@@ -6,17 +6,21 @@ let canPlay = $video => new Promise(resolve => {
   else $video.addEventListener('canplay', resolve);
 });
 
+let shadowDom = true
+let loadExample = shadowDom ? withShadowExample : withExample
+let parse = shadowDom ? parseDeclShadowDOM : parseDOM
+
 describe('serializeVideos', () => {
   let $, serialized;
 
   it('serializes video elements', async () => {
-    withExample(`
+    loadExample(`
       <video src="base/test/assets/example.webm" id="video" controls />
     `);
 
-    await canPlay(window.video);
+    await canPlay(shadowDom ? getExampleShadowRoot().querySelector('video') : window.video);
     serialized = serializeDOM();
-    $ = parseDOM(serialized.html);
+    $ = parse(serialized.html);
 
     expect($('#video')[0].getAttribute('poster'))
       .toMatch('/__serialized__/\\w+\\.png');
@@ -28,35 +32,35 @@ describe('serializeVideos', () => {
   });
 
   it('does not serialize videos with an existing poster', async () => {
-    withExample(`
+    loadExample(`
       <video src="base/test/assets/example.webm" id="video" poster="//:0" />
     `);
 
-    await canPlay(window.video);
+    await canPlay(shadowDom ? getExampleShadowRoot().querySelector('video') : window.video);
     serialized = serializeDOM();
-    $ = parseDOM(serialized.html);
+    $ = parse(serialized.html);
 
     expect($('#video')[0].getAttribute('poster')).toBe('//:0');
     expect(serialized.resources).toEqual([]);
   });
 
   it('does not apply blank poster images', () => {
-    withExample(`
+    loadExample(`
       <video src="//:0" id="video" />
     `);
 
-    $ = parseDOM(serializeDOM());
+    $ = parse(serializeDOM());
     expect($('#video')[0].hasAttribute('poster')).toBe(false);
   });
 
   it('does not hang serialization when there is an error thrown', () => {
-    withExample(`
+    loadExample(`
       <video src="//:0" id="video" />
     `);
 
     spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('An error'));
 
-    $ = parseDOM(serializeDOM());
+    $ = parse(serializeDOM());
     expect($('#video')[0].hasAttribute('poster')).toBe(false);
   });
 });

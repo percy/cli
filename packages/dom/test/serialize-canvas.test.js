@@ -1,11 +1,8 @@
-import { withExample, parseDOM } from './helpers';
+import { withExample, withShadowExample, parseDOM, parseDeclShadowDOM, getExampleShadowRoot } from './helpers';
 import serializeDOM from '@percy/dom';
 
-describe('serializeCanvas', () => {
-  let $, serialized, dataURL;
-
-  beforeEach(() => {
-    withExample(`
+function prepareTest(shadowDom = false) {
+  const html = `
       <canvas
         id="canvas"
         width="150px"
@@ -17,23 +14,40 @@ describe('serializeCanvas', () => {
         width="0px"
         height="0px"
       ></canvas>
-    `);
+    `
 
-    let canvas = document.getElementById('canvas');
-    let ctx = canvas.getContext('2d');
+  let canvas;
 
-    ctx.beginPath();
-    ctx.arc(75, 75, 50, 0, Math.PI * 2, true);
-    ctx.moveTo(110, 75);
-    ctx.arc(75, 75, 35, 0, Math.PI, false);
-    ctx.moveTo(65, 65);
-    ctx.arc(60, 65, 5, 0, Math.PI * 2, true);
-    ctx.moveTo(95, 65);
-    ctx.arc(90, 65, 5, 0, Math.PI * 2, true);
-    ctx.stroke();
+  if (shadowDom) {
+    withShadowExample(html)
+    canvas = getExampleShadowRoot().getElementById('canvas')
+  } else {
+    withExample(html)
+    canvas = document.getElementById('canvas')
+  }
 
+  let ctx = canvas.getContext('2d');
+
+  ctx.beginPath();
+  ctx.arc(75, 75, 50, 0, Math.PI * 2, true);
+  ctx.moveTo(110, 75);
+  ctx.arc(75, 75, 35, 0, Math.PI, false);
+  ctx.moveTo(65, 65);
+  ctx.arc(60, 65, 5, 0, Math.PI * 2, true);
+  ctx.moveTo(95, 65);
+  ctx.arc(90, 65, 5, 0, Math.PI * 2, true);
+  ctx.stroke();
+
+  return canvas
+}
+
+describe('serializeCanvas', () => {
+  let $, serialized, dataURL;
+
+  beforeEach(() => {
+    let canvas = prepareTest(true);
     serialized = serializeDOM();
-    $ = parseDOM(serialized.html);
+    $ = parseDeclShadowDOM(serialized.html);
     dataURL = canvas.toDataURL();
   });
 
@@ -55,7 +69,7 @@ describe('serializeCanvas', () => {
 
   it('does not serialize canvas elements when JS is enabled', () => {
     serialized = serializeDOM({ enableJavaScript: true });
-    $ = parseDOM(serialized.html);
+    $ = parseDeclShadowDOM(serialized.html);
 
     let $canvas = $('#canvas');
     expect($canvas[0].tagName).toBe('CANVAS');
