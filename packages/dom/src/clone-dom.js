@@ -73,7 +73,9 @@ const cloneNodeAndShadow = doc => {
  * Use `getInnerHTML()` to serialize shadow dom as <template> tags. `innerHTML` and `outerHTML` don't do this. Buzzword: "declarative shadow dom"
  */
 const getOuterHTML = docElement => {
+  // firefox doesn't serialize shadow DOM
   if (!Element.prototype.getInnerHTML) { return docElement.outerHTML; }
+  // chromium gives us declarative shadow DOM serialization API
   let innerHTML = docElement.getInnerHTML({ includeShadowRoots: true });
   docElement.textContent = '';
   return docElement.outerHTML.replace('</html>', `${innerHTML}</html>`);
