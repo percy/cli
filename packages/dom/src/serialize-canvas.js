@@ -35,7 +35,7 @@ export function serializeCanvas({ dom, clone, resources }) {
 
     // insert the image into the cloned DOM and remove the cloned canvas element
     let cloneEl = clone.querySelector(`[data-percy-element-id=${percyElementId}]`);
-    // `parentElement` for elements directly under shadow root is `null` -> Incase of Nested Shadow DOM.
+    // `parentElement` for elements directly under shadow root is `null`
     if (cloneEl.parentElement) {
       cloneEl.parentElement.insertBefore(img, cloneEl);
     } else {
