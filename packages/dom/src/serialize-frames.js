@@ -20,7 +20,7 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
 
     // delete frames within the head since they usually break pages when
     // rerendered and do not effect the visuals of a page
-    if (clone.head.contains(cloneEl)) {
+    if (clone.head?.contains(cloneEl)) {
       cloneEl.remove();
 
     // if the frame document is accessible and not empty, we can serialize it
@@ -51,6 +51,22 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
     // break asset discovery by creating non-captured requests that hang
     } else if (!enableJavaScript && builtWithJs) {
       cloneEl.remove();
+    }
+  }
+
+  // find iframes inside shadow host and recursively serialize them.
+  for (let shadowHost of dom.querySelectorAll('[data-percy-shadow-host]')) {
+    let percyElementId = shadowHost.getAttribute('data-percy-element-id');
+    let cloneShadowHost = clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
+
+    if (shadowHost.shadowRoot && cloneShadowHost.shadowRoot) {
+      serializeFrames({
+        dom: shadowHost.shadowRoot,
+        clone: cloneShadowHost.shadowRoot,
+        warnings,
+        resources,
+        enableJavaScript
+      });
     }
   }
 }
