@@ -26,6 +26,20 @@ export function serializeVideos({ dom, clone, resources }) {
     // use a data attribute to avoid making a real request
     cloneEl.setAttribute('data-percy-serialized-attribute-poster', resource.url);
   }
+
+  // find video inside shadow host and recursively serialize them.
+  for (let shadowHost of dom.querySelectorAll('[data-percy-shadow-host]')) {
+    let percyElementId = shadowHost.getAttribute('data-percy-element-id');
+    let cloneShadowHost = clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
+
+    if (shadowHost.shadowRoot && cloneShadowHost.shadowRoot) {
+      serializeVideos({
+        dom: shadowHost.shadowRoot,
+        clone: cloneShadowHost.shadowRoot,
+        resources
+      });
+    }
+  }
 }
 
 export default serializeVideos;

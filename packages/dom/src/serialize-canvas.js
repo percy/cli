@@ -17,7 +17,8 @@ export function serializeCanvas({ dom, clone, resources }) {
     resources.add(resource);
 
     // create an image element in the cloned dom
-    let img = clone.createElement('img');
+    // TODO: this works, verify if this is fine?
+    let img = document.createElement('img');
     // use a data attribute to avoid making a real request
     img.setAttribute('data-percy-serialized-attribute-src', resource.url);
 
@@ -34,8 +35,27 @@ export function serializeCanvas({ dom, clone, resources }) {
 
     // insert the image into the cloned DOM and remove the cloned canvas element
     let cloneEl = clone.querySelector(`[data-percy-element-id=${percyElementId}]`);
-    cloneEl.parentElement.insertBefore(img, cloneEl);
+    // `parentElement` for elements directly under shadow root is `null`
+    if (cloneEl.parentElement) {
+      cloneEl.parentElement.insertBefore(img, cloneEl);
+    } else {
+      clone.insertBefore(img, cloneEl);
+    }
     cloneEl.remove();
+  }
+
+  // find canvas inside shadow host and recursively serialize them.
+  for (let shadowHost of dom.querySelectorAll('[data-percy-shadow-host]')) {
+    let percyElementId = shadowHost.getAttribute('data-percy-element-id');
+    let cloneShadowHost = clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
+
+    if (shadowHost.shadowRoot && cloneShadowHost.shadowRoot) {
+      serializeCanvas({
+        dom: shadowHost.shadowRoot,
+        clone: cloneShadowHost.shadowRoot,
+        resources
+      });
+    }
   }
 }
 
