@@ -36,7 +36,8 @@ export function serializeVideos({ dom, clone, resources, warnings }) {
       serializeVideos({
         dom: shadowHost.shadowRoot,
         clone: cloneShadowHost.shadowRoot,
-        resources
+        resources,
+        warnings
       });
     }
   }
