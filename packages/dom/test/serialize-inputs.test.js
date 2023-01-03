@@ -1,4 +1,3 @@
-import I from 'interactor.js';
 import { withExample, parseDOM, withShadowExample, getExampleShadowRoot, parseDeclShadowDOM } from './helpers';
 import serializeDOM from '@percy/dom';
 
@@ -65,7 +64,7 @@ async function prepareTest(shadowDom = false) {
       option.selected = false;
     }
   });
-  return dom
+  return dom;
 
   //await I(arg)
     //.find('#name').type('Bob Boberson')
@@ -78,14 +77,16 @@ async function prepareTest(shadowDom = false) {
 
 }
 
+let shadowDom = true;
+
 describe('serializeInputs', () => {
   let $, dom;
 
   beforeEach(async () => {
-    dom = await prepareTest(true)
+    dom = await prepareTest(shadowDom);
 
     // interact with the inputs to update properties (does not update attributes)
-    $ = parseDeclShadowDOM(serializeDOM());
+    $ = shadowDom ? parseDeclShadowDOM(serializeDOM()) : parseDOM(serializeDOM());
   });
 
   it('serializes checked checkboxes', () => {
