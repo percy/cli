@@ -4,6 +4,7 @@ import serializeCSSOM from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
 import { cloneNodeAndShadow, getOuterHTML } from './clone-dom';
+import injectDeclarativeShadowDOMPolyfill from './inject-polyfill';
 
 // Returns a copy or new doctype for a document.
 function doctype(dom) {
