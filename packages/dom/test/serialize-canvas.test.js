@@ -19,10 +19,10 @@ function prepareTest(shadowDom = false) {
   let canvas;
 
   if (shadowDom) {
-    withShadowExample(html)
+    withShadowExample(html);
     canvas = getExampleShadowRoot().getElementById('canvas')
   } else {
-    withExample(html)
+    withExample(html);
     canvas = document.getElementById('canvas')
   }
 
@@ -38,8 +38,10 @@ function prepareTest(shadowDom = false) {
   ctx.arc(90, 65, 5, 0, Math.PI * 2, true);
   ctx.stroke();
 
-  return canvas
+  return canvas;
 }
+
+let shadowDom = true;
 
 describe('serializeCanvas', () => {
   let $, serialized, dataURL;
@@ -47,7 +49,7 @@ describe('serializeCanvas', () => {
   beforeEach(() => {
     let canvas = prepareTest(true);
     serialized = serializeDOM();
-    $ = parseDeclShadowDOM(serialized.html);
+    $ = shadowDom ? parseDeclShadowDOM(serialized.html) : parseDOM(serialized.html);
     dataURL = canvas.toDataURL();
   });
 
