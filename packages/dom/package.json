@@ -18,8 +18,10 @@
   "scripts": {
     "build": "node ../../scripts/build",
     "lint": "eslint --ignore-path ../../.gitignore .",
-    "test": "node ../../scripts/test",
-    "test:coverage": "yarn test --coverage"
+    "test": "yarn run test:plain && yarn run test:shadow",
+    "test:plain": "node ../../scripts/test",
+    "test:shadow": "node ../../scripts/test --shadow",
+    "test:coverage": "yarn test:plain --coverage"
   },
   "rollup": {
     "output": {
