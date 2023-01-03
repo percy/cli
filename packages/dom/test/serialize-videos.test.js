@@ -1,4 +1,4 @@
-import { withShadowExample, parseDOM, parseDeclShadowDOM, withExample, getExampleShadowRoot } from './helpers';
+import { withShadowExample, parseDOM, parseDeclShadowDOM, withExample, getExampleShadowRoot, isShadowMode } from './helpers';
 import serializeDOM from '@percy/dom';
 
 let canPlay = $video => new Promise(resolve => {
@@ -6,9 +6,9 @@ let canPlay = $video => new Promise(resolve => {
   else $video.addEventListener('canplay', resolve);
 });
 
-let shadowDom = true
-let loadExample = shadowDom ? withShadowExample : withExample
-let parse = shadowDom ? parseDeclShadowDOM : parseDOM
+let shadowDom = isShadowMode;
+let loadExample = shadowDom ? withShadowExample : withExample;
+let parse = shadowDom ? parseDeclShadowDOM : parseDOM;
 
 describe('serializeVideos', () => {
   let $, serialized;

@@ -128,6 +128,8 @@ export function parseDeclShadowDOM(domstring) {
   return selector => root.firstChild.content.querySelectorAll(selector);
 }
 
+export const isShadowMode = !!window.__karma__.config.shadow;
+
 // generic assert
 export function assert(condition, message) {
   if (!condition) throw new Error(message);

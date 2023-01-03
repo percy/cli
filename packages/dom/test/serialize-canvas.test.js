@@ -1,4 +1,4 @@
-import { withExample, withShadowExample, parseDOM, parseDeclShadowDOM, getExampleShadowRoot } from './helpers';
+import { withExample, withShadowExample, parseDOM, parseDeclShadowDOM, getExampleShadowRoot, isShadowMode } from './helpers';
 import serializeDOM from '@percy/dom';
 
 function prepareTest(shadowDom = false) {
@@ -41,13 +41,13 @@ function prepareTest(shadowDom = false) {
   return canvas;
 }
 
-let shadowDom = true;
+let shadowDom = isShadowMode;
 
 describe('serializeCanvas', () => {
   let $, serialized, dataURL;
 
   beforeEach(() => {
-    let canvas = prepareTest(true);
+    let canvas = prepareTest(shadowDom);
     serialized = serializeDOM();
     $ = shadowDom ? parseDeclShadowDOM(serialized.html) : parseDOM(serialized.html);
     dataURL = canvas.toDataURL();
@@ -71,7 +71,7 @@ describe('serializeCanvas', () => {
 
   it('does not serialize canvas elements when JS is enabled', () => {
     serialized = serializeDOM({ enableJavaScript: true });
-    $ = parseDeclShadowDOM(serialized.html);
+    $ = shadowDom ? parseDeclShadowDOM(serialized.html) : parseDOM(serialized.html);
 
     it(`${platform}: does not serialize canvas elements when JS is enabled`, () => {
       serialized = serializeDOM({ enableJavaScript: true });
