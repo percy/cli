@@ -1,16 +1,27 @@
-import { withExample, withCSSOM, parseDOM } from './helpers';
+import { withExample, withCSSOM, parseDOM, withShadowCSSOM, withShadowExample, getExampleShadowRoot, parseDeclShadowDOM } from './helpers';
 import serializeDOM from '@percy/dom';
 
+let shadowDom = true;
 describe('serializeCSSOM', () => {
+  let dom = document;
   beforeEach(() => {
     let link = '<link rel="stylesheet" href="data:text/css,.box { margin: 10px; }"/>';
     let mod = '<style id="mod">.box { width: 500px; }</style>';
     let style = '<style>.box { background: green; }</style>';
 
-    withExample(`<div class="box"></div>${link}${mod}${style}`);
-    withCSSOM('.box { height: 500px; }');
+    const html = `<div class="box"></div>${link}${mod}${style}`;
+    const css = '.box { height: 500px; }';
 
-    let modCSSRule = document.getElementById('mod').sheet.cssRules[0];
+    if (shadowDom) {
+      withShadowExample(html);
+      withShadowCSSOM(css);
+      dom = getExampleShadowRoot();
+    } else {
+      withExample(html);
+      withCSSOM(css);
+    }
+
+    let modCSSRule = dom.getElementById('mod').sheet.cssRules[0];
     if (modCSSRule) modCSSRule.style.cssText = 'width: 1000px';
 
     // give the linked style a few milliseconds to load
@@ -18,22 +29,23 @@ describe('serializeCSSOM', () => {
   });
 
   it('serializes CSSOM and does not mutate the orignal DOM', () => {
-    let $cssom = parseDOM(serializeDOM())('[data-percy-cssom-serialized]');
+    let $ = shadowDom ? parseDeclShadowDOM(serializeDOM()) : parseDOM(serializeDOM());
+    let $cssom = $('[data-percy-cssom-serialized]');
 
     // linked and unmodified stylesheets are not included
     expect($cssom).toHaveSize(2);
     expect($cssom[0].innerHTML).toBe('.box { height: 500px; }');
     expect($cssom[1].innerHTML).toBe('.box { width: 1000px; }');
 
-    expect(document.styleSheets[0].ownerNode.innerText).toBe('');
-    expect(document.styleSheets[1].ownerNode.innerText).toBe('');
-    expect(document.styleSheets[2].ownerNode.innerText).toBe('.box { width: 500px; }');
-    expect(document.styleSheets[3].ownerNode.innerText).toBe('.box { background: green; }');
-    expect(document.querySelectorAll('[data-percy-cssom-serialized]')).toHaveSize(0);
+    expect(dom.styleSheets[0].ownerNode.innerText).toBe('');
+    expect(dom.styleSheets[1].ownerNode.innerText).toBe('');
+    expect(dom.styleSheets[2].ownerNode.innerText).toBe('.box { width: 500px; }');
+    expect(dom.styleSheets[3].ownerNode.innerText).toBe('.box { background: green; }');
+    expect(dom.querySelectorAll('[data-percy-cssom-serialized]')).toHaveSize(0);
   });
 
   it('does not break the CSSOM by adding new styles after serializing', () => {
-    let cssomSheet = document.styleSheets[0];
+    let cssomSheet = dom.styleSheets[0];
 
     // serialize DOM
     serializeDOM();
@@ -48,8 +60,9 @@ describe('serializeCSSOM', () => {
   });
 
   it('does not serialize the CSSOM when JS is enabled', () => {
-    let $ = parseDOM(serializeDOM({ enableJavaScript: true }));
-    expect(document.styleSheets[0]).toHaveProperty('ownerNode.innerText', '');
+    const serializedDOM = serializeDOM({ enableJavaScript: true })
+    let $ = shadowDom ? parseDeclShadowDOM(serializedDOM) : parseDOM(serializedDOM);
+    expect(dom.styleSheets[0]).toHaveProperty('ownerNode.innerText', '');
     expect($('[data-percy-cssom-serialized]')).toHaveSize(0);
   });
 });
