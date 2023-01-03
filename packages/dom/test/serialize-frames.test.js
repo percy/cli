@@ -1,6 +1,8 @@
 import { when } from 'interactor.js';
-import { assert, withExample, parseDOM, platforms, platformDOM } from './helpers';
+import { assert, withExample, parseDOM, withShadowExample, getExampleShadowRoot, parseDeclShadowDOM } from './helpers';
 import serializeDOM from '@percy/dom';
+
+let shadowDom = true;
 
 describe('serializeFrames', () => {
   let serialized, cache = { shadow: {}, plain: {} };
@@ -14,7 +16,7 @@ describe('serializeFrames', () => {
   }, 5000);
 
   beforeEach(async function() {
-    withExample(`
+    const html = `
       <iframe id="frame-external" src="https://example.com"></iframe>
       <iframe id="frame-external-fail" src="https://google.com"></iframe>
       <iframe id="frame-input" srcdoc="<input/>"></iframe>
@@ -26,21 +28,26 @@ describe('serializeFrames', () => {
       <iframe id="frame-empty-self" src="javascript:void(
         Object.defineProperty(this.document, 'documentElement', { value: null })
       )"></iframe>
-    `);
+    `;
+    let dom = document;
+    if (shadowDom) {
+      withShadowExample(html);
+      dom = getExampleShadowRoot();
+    } else {
+      withExample(html);
+    }
 
-    for (const platform of platforms) {
-      let dom = platformDOM(platform);
-      let $frameInput = await getFrame('frame-input', dom);
-      $frameInput.contentDocument.querySelector('input').value = 'iframe with an input';
+    let $frameInput = await getFrame('frame-input', dom);
+    $frameInput.contentDocument.querySelector('input').value = 'iframe with an input';
 
-      let $frameJS = await getFrame('frame-js-no-src', dom);
-      $frameJS.contentDocument.body.innerHTML = '<p>generated iframe</p><canvas id="canvas"/>';
-      let $ctx = $frameJS.contentDocument.getElementById('canvas').getContext('2d');
-      $ctx.fillRect(0, 0, 10, 10);
+    let $frameJS = await getFrame('frame-js-no-src', dom);
+    $frameJS.contentDocument.body.innerHTML = '<p>generated iframe</p><canvas id="canvas"/>';
+    let $ctx = $frameJS.contentDocument.getElementById('canvas').getContext('2d');
+    $ctx.fillRect(0, 0, 10, 10);
 
-      let $frameEmpty = await getFrame('frame-empty', dom);
-      $frameEmpty.contentDocument.querySelector('input').value = 'no document element';
-      Object.defineProperty($frameEmpty.contentDocument, 'documentElement', { value: null });
+    let $frameEmpty = await getFrame('frame-empty', dom);
+    $frameEmpty.contentDocument.querySelector('input').value = 'no document element';
+    Object.defineProperty($frameEmpty.contentDocument, 'documentElement', { value: null });
 
       let $frameHead = document.createElement('iframe');
       $frameHead.id = 'frame-head';
@@ -52,11 +59,14 @@ describe('serializeFrames', () => {
       $frameInject.sandbox = '';
       document.getElementById('test').appendChild($frameInject);
 
-      // ensure external frame has loaded for coverage
-      await getFrame('frame-external', dom);
+    // ensure external frame has loaded for coverage
+    await getFrame('frame-external', dom);
 
-      serialized = serializeDOM();
-      cache[platform].$ = parseDOM(serialized.html, platform);
+    serialized = serializeDOM();
+    if (shadowDom) {
+      $ = parseDeclShadowDOM(serialized.html);
+    } else {
+      $ = parseDOM(serialized.html);
     }
   }, 0); // frames may take a bit to load
 
@@ -108,12 +118,13 @@ describe('serializeFrames', () => {
       ].join('')));
     });
 
-    it(`${platform}: does not serialize iframes with CORS`, () => {
-      expect($('#frame-external')[0].getAttribute('src')).toBe('https://example.com');
-      expect($('#frame-external-fail')[0].getAttribute('src')).toBe('https://google.com');
-      expect($('#frame-external')[0].getAttribute('srcdoc')).toBeNull();
-      expect($('#frame-external-fail')[0].getAttribute('srcdoc')).toBeNull();
-    });
+  it('does not serialize iframes created by JS when JS is enabled', () => {
+    const serializedDOM = serializeDOM({ enableJavaScript: true }).html;
+    $ = shadowDom ? parseDeclShadowDOM(serializedDOM) : parseDOM(serializedDOM);
+    expect($('#frame-js')[0].getAttribute('src')).not.toBeNull();
+    expect($('#frame-js')[0].getAttribute('srcdoc')).toBeNull();
+    expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toBeNull();
+  });
 
     it(`${platform}: does not serialize iframes created by JS when JS is enabled`, () => {
       const serializedDOM = serializeDOM({ enableJavaScript: true }).html;
