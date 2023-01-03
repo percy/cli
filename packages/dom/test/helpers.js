@@ -83,6 +83,22 @@ export function withCSSOM(rules = [], prepare = () => {}, options = { withShadow
   }
 }
 
+export function withShadowCSSOM(rules = [], prepare = () => {}) {
+  let $test = getExampleShadowRoot();
+  let $style = $test.getElementById('test-style');
+  if ($style) $style.remove();
+
+  $style = document.createElement('style');
+  $style.id = 'test-style';
+  $style.type = 'text/css';
+  prepare?.($style);
+  $test.prepend($style);
+
+  for (let rule of [].concat(rules)) {
+    $style.sheet.insertRule(rule);
+  }
+}
+
 // replaces the current document's doctype
 export function replaceDoctype(name, publicId = '', systemId = '') {
   let doctype = document.implementation.createDocumentType(name, publicId, systemId);
