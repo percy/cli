@@ -1,7 +1,7 @@
-import { withExample, withCSSOM, parseDOM, withShadowCSSOM, withShadowExample, getExampleShadowRoot, parseDeclShadowDOM } from './helpers';
+import { withExample, withCSSOM, parseDOM, withShadowCSSOM, withShadowExample, getExampleShadowRoot, parseDeclShadowDOM, isShadowMode } from './helpers';
 import serializeDOM from '@percy/dom';
 
-let shadowDom = true;
+let shadowDom = isShadowMode;
 describe('serializeCSSOM', () => {
   let dom = document;
   beforeEach(() => {

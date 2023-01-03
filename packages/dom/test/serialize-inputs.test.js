@@ -1,4 +1,4 @@
-import { withExample, parseDOM, withShadowExample, getExampleShadowRoot, parseDeclShadowDOM } from './helpers';
+import { withExample, parseDOM, withShadowExample, getExampleShadowRoot, parseDeclShadowDOM, isShadowMode } from './helpers';
 import serializeDOM from '@percy/dom';
 
 async function prepareTest(shadowDom = false) {
@@ -65,19 +65,9 @@ async function prepareTest(shadowDom = false) {
     }
   });
   return dom;
-
-  //await I(arg)
-    //.find('#name').type('Bob Boberson')
-    //.find('#valueAttr').type('Replacement Value!', { range: [0, 500] })
-    //.find('#feedback').type('This is my feedback... And it is not very helpful')
-    //.find('#radio').check()
-    //.find('#singleSelect').select(I.find.text('Maybe'))
-    //.find('#multiselect').select([I.find.text('Shelby GT350'), I.find.text('NA Miata')])
-    //.find('#mailing').check();
-
 }
 
-let shadowDom = true;
+let shadowDom = isShadowMode;
 
 describe('serializeInputs', () => {
   let $, dom;

@@ -1,8 +1,8 @@
 import { when } from 'interactor.js';
-import { assert, withExample, parseDOM, withShadowExample, getExampleShadowRoot, parseDeclShadowDOM } from './helpers';
+import { assert, withExample, parseDOM, withShadowExample, getExampleShadowRoot, parseDeclShadowDOM, isShadowMode } from './helpers';
 import serializeDOM from '@percy/dom';
 
-let shadowDom = true;
+let shadowDom = isShadowMode;
 
 describe('serializeFrames', () => {
   let $, serialized;
