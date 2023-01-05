@@ -428,6 +428,9 @@ export class PercyClient {
 
     return pool(function*() {
       for (let index = 0; index < tiles.length; index++) {
+        if (tiles[index].sha) {
+          continue;
+        }
         yield this.uploadComparisonTile(comparisonId, {
           index, total: tiles.length, ...tiles[index]
         });

@@ -863,16 +863,7 @@ describe('PercyClient', () => {
   });
 
   describe('#uploadComparisonTiles()', () => {
-    it('throws when missing a build id', async () => {
-      await expectAsync(client.uploadComparisonTiles())
-        .toBeRejectedWithError('Missing comparison ID');
-    });
-
-    it('does nothing when no tiles are provided', async () => {
-      await expectAsync(client.uploadComparisonTiles(891011, [])).toBeResolvedTo([]);
-    });
-
-    it('uploads multiple tiles two at a time', async () => {
+    beforeEach(async () => {
       let content = 'foo';
 
       api.reply('/comparisons/891011/tiles', async () => {
@@ -883,7 +874,30 @@ describe('PercyClient', () => {
       });
 
       spyOn(fs.promises, 'readFile').and.resolveTo(content);
+    });
 
+    it('throws when missing a build id', async () => {
+      await expectAsync(client.uploadComparisonTiles())
+        .toBeRejectedWithError('Missing comparison ID');
+    });
+
+    it('does nothing when no tiles are provided', async () => {
+      await expectAsync(client.uploadComparisonTiles(891011, [])).toBeResolvedTo([]);
+    });
+
+    it('does not upload tiles when sha is present', async () => {
+      await expectAsync(client.uploadComparisonTiles(891011, [
+        { sha: sha256hash('foo') },
+        { sha: sha256hash('foo') },
+        { filepath: 'foo/bar' },
+        { filepath: 'foo/bar' }
+      ])).toBeResolvedTo([
+        { content: 'foo' },
+        { content: 'foo' }
+      ]);
+    });
+
+    it('uploads multiple tiles two at a time', async () => {
       await expectAsync(client.uploadComparisonTiles(891011, [
         { filepath: 'foo/bar' },
         { filepath: 'foo/bar' },
