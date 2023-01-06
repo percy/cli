@@ -406,10 +406,18 @@ export class PercyClient {
     });
   }
 
-  async uploadComparisonTile(comparisonId, { index = 0, total = 1, filepath, content } = {}) {
+  async uploadComparisonTile(comparisonId, { index = 0, total = 1, filepath, content, sha } = {}) {
     validateId('comparison', comparisonId);
     this.log.debug(`Uploading comparison tile: ${index + 1}/${total} (${comparisonId})...`);
     if (filepath) content = await fs.promises.readFile(filepath);
+    if (sha) {
+      let success = await this.verifyComparisonTile(comparisonId, sha);
+      if (!success) {
+        this.log.error(`Uploading comparison tile for ${sha} failed`);
+        return false;
+      }
+      return true;
+    }
 
     return this.post(`comparisons/${comparisonId}/tiles`, {
       data: {
@@ -422,15 +430,23 @@ export class PercyClient {
     });
   }
 
+  async verifyComparisonTile(comparisonId, sha) {
+    validateId('comparison', comparisonId);
+    this.log.debug(`Verifying comparison tile with sha: ${sha}`);
+
+    return this.post(`comparisons/${comparisonId}/tile/verify`, {
+      data: {
+        sha: sha
+      }
+    });
+  }
+
   async uploadComparisonTiles(comparisonId, tiles) {
     validateId('comparison', comparisonId);
     this.log.debug(`Uploading comparison tiles for ${comparisonId}...`);
 
     return pool(function*() {
       for (let index = 0; index < tiles.length; index++) {
-        if (tiles[index].sha) {
-          continue;
-        }
         yield this.uploadComparisonTile(comparisonId, {
           index, total: tiles.length, ...tiles[index]
         });

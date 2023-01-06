@@ -860,10 +860,31 @@ describe('PercyClient', () => {
         }
       });
     });
+
+    it('verify a tile for a comparison when sha is present', async () => {
+      await expectAsync(
+        client.uploadComparisonTile(891011, { sha: 'foo', index: 3 })
+      ).toBeResolved();
+
+      expect(api.requests['/comparisons/891011/tile/verify'][0].body).toEqual({
+        data: {
+          sha: 'foo'
+        }
+      });
+    });
   });
 
   describe('#uploadComparisonTiles()', () => {
-    beforeEach(async () => {
+    it('throws when missing a build id', async () => {
+      await expectAsync(client.uploadComparisonTiles())
+        .toBeRejectedWithError('Missing comparison ID');
+    });
+
+    it('does nothing when no tiles are provided', async () => {
+      await expectAsync(client.uploadComparisonTiles(891011, [])).toBeResolvedTo([]);
+    });
+
+    it('uploads multiple tiles two at a time', async () => {
       let content = 'foo';
 
       api.reply('/comparisons/891011/tiles', async () => {
@@ -874,30 +895,7 @@ describe('PercyClient', () => {
       });
 
       spyOn(fs.promises, 'readFile').and.resolveTo(content);
-    });
 
-    it('throws when missing a build id', async () => {
-      await expectAsync(client.uploadComparisonTiles())
-        .toBeRejectedWithError('Missing comparison ID');
-    });
-
-    it('does nothing when no tiles are provided', async () => {
-      await expectAsync(client.uploadComparisonTiles(891011, [])).toBeResolvedTo([]);
-    });
-
-    it('does not upload tiles when sha is present', async () => {
-      await expectAsync(client.uploadComparisonTiles(891011, [
-        { sha: sha256hash('foo') },
-        { sha: sha256hash('foo') },
-        { filepath: 'foo/bar' },
-        { filepath: 'foo/bar' }
-      ])).toBeResolvedTo([
-        { content: 'foo' },
-        { content: 'foo' }
-      ]);
-    });
-
-    it('uploads multiple tiles two at a time', async () => {
       await expectAsync(client.uploadComparisonTiles(891011, [
         { filepath: 'foo/bar' },
         { filepath: 'foo/bar' },
@@ -909,6 +907,28 @@ describe('PercyClient', () => {
         { content: 'bar' },
         { content: 'bar' }
       ]);
+    });
+
+    it('returns true if tile is verified', async () => {
+      api.reply('/comparisons/891011/tile/verify', async () => {
+        return [200, 'success'];
+      });
+
+      await expectAsync(client.uploadComparisonTiles(891011, [
+        { sha: sha256hash('foo') }
+      ])).toBeResolvedTo([
+        true
+      ]);
+    });
+
+    it('throws any errors from verifying', async () => {
+      api.reply('/comparisons/891011/tile/verify', async () => {
+        return [400, 'failure'];
+      });
+
+      await expectAsync(client.uploadComparisonTiles(891011, [
+        { sha: sha256hash('foo') }
+      ])).toBeRejectedWithError();
     });
 
     it('throws any errors from uploading', async () => {
