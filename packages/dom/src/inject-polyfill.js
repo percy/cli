@@ -19,13 +19,12 @@ export function injectDeclarativeShadowDOMPolyfill(ctx) {
       root.querySelectorAll('[data-percy-shadow-host]').forEach(shadowHost => reversePolyFill(shadowHost.shadowRoot));
     }
 
-
     if (["interactive", "complete"].includes(document.readyState)) {
       reversePolyFill();
     } else {
       document.addEventListener("DOMContentLoaded", () => reversePolyFill());
     }
-  `;
+  `.replace(/(\n|\s{2}|\t)/g, '');
 
   clone.body.appendChild(scriptEl);
 }
