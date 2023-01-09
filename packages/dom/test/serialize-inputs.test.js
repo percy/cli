@@ -1,8 +1,14 @@
-import { withExample, parseDOM, withShadowExample, getExampleShadowRoot, parseDeclShadowDOM, isShadowMode } from './helpers';
+import { withExample, parseDOM } from './helpers';
 import serializeDOM from '@percy/dom';
 
-async function prepareTest(shadowDom = false) {
-  const html = `
+const platforms = ['plain', 'shadow'];
+const pdom = (platform) => platform === 'shadow' ? document.getElementById('test-shadow').shadowRoot : document;
+
+describe('serializeInputs', () => {
+  let cache = { shadow: {}, plain: {} };
+
+  beforeEach(async () => {
+    withExample(`
       <form>
         <label for="name">Name</label>
         <input id="name" type="text" />
@@ -38,113 +44,111 @@ async function prepareTest(shadowDom = false) {
         <label for="feedback">Feedback</label>
         <textarea id="feedback"></textarea>
       </form>
-    `;
+    `);
 
-  if (shadowDom) {
-    withShadowExample(html);
-  } else {
-    withExample(html);
-  }
+    platforms.forEach((platform) => {
+      const dom = pdom(platform);
+      dom.querySelector('#name').value = 'Bob Boberson';
+      dom.querySelector('#valueAttr').value = 'Replacement Value!';
+      dom.querySelector('#feedback').value = 'This is my feedback... And it is not very helpful';
+      dom.querySelector('#radio').checked = true;
+      dom.querySelector('#mailing').checked = true;
+      dom.querySelector('#singleSelect').value = 'maybe';
 
-  const dom = shadowDom ? getExampleShadowRoot() : document;
-  dom.querySelector('#name').value = 'Bob Boberson';
-  dom.querySelector('#valueAttr').value = 'Replacement Value!';
-  dom.querySelector('#feedback').value = 'This is my feedback... And it is not very helpful';
-  dom.querySelector('#radio').checked = true;
-  dom.querySelector('#mailing').checked = true;
-  dom.querySelector('#singleSelect').value = 'maybe';
-
-  const selected = ['Shelby GT350', 'NA Miata'];
-  Array.from(dom.querySelector('#multiselect').options).forEach(function(option) {
-    // If the option's value is in the selected array, select it
-    // Otherwise, deselect it
-    if (selected.includes(option.innerText)) {
-      option.selected = true;
-    } else {
-      option.selected = false;
-    }
-  });
-  return dom;
-}
-
-let shadowDom = isShadowMode;
-
-describe('serializeInputs', () => {
-  let $, dom;
-
-  beforeEach(async () => {
-    dom = await prepareTest(shadowDom);
-
+      const selected = ['Shelby GT350', 'NA Miata'];
+      Array.from(dom.querySelector('#multiselect').options).forEach(function(option) {
+        // If the option's value is in the selected array, select it
+        // Otherwise, deselect it
+        if (selected.includes(option.innerText)) {
+          option.selected = true;
+        } else {
+          option.selected = false;
+        }
+      });
+      cache[platform].dom = dom;
+      cache[platform].$ = parseDOM(serializeDOM(), platform);
+    });
     // interact with the inputs to update properties (does not update attributes)
-    $ = shadowDom ? parseDeclShadowDOM(serializeDOM()) : parseDOM(serializeDOM());
   });
 
-  it('serializes checked checkboxes', () => {
-    expect($('#mailing')[0].checked).toBe(true);
-  });
+  platforms.forEach((platform) => {
+    let $, dom;
+    beforeEach(() => {
+      // console.log('beforeEach', cache);
+      dom = cache[platform].dom;
+      $ = cache[platform].$;
+      // dom = pdom(platform);
+      // $ = parseDOM(platform)
+    });
 
-  it('leaves unchecked checkboxes alone', () => {
-    expect($('#nevercheckedradio')[0].checked).toBe(false);
-  });
+    it(`${platform}: serializes checked checkboxes`, () => {
+      expect($('#mailing')[0].checked).toBe(true);
+    });
 
-  it('serializes checked radio buttons', () => {
-    expect($('#radio')[0].checked).toBe(true);
-  });
+    it(`${platform}: leaves unchecked checkboxes alone`, () => {
+      expect($('#nevercheckedradio')[0].checked).toBe(false);
+    });
 
-  it('serializes textareas', () => {
-    expect($('#feedback')[0].innerText).toBe('This is my feedback... And it is not very helpful');
-  });
+    it(`${platform}: serializes checked radio buttons`, () => {
+      expect($('#radio')[0].checked).toBe(true);
+    });
 
-  it('serializes input elements', () => {
-    expect($('#name')[0].getAttribute('value')).toBe('Bob Boberson');
-  });
+    it(`${platform}: serializes textareas`, () => {
+      expect($('#feedback')[0].innerText).toBe('This is my feedback... And it is not very helpful');
+    });
 
-  it('serializes single select elements', () => {
-    expect($('#singleSelect>:nth-child(1)')[0].selected).toBe(false);
-    expect($('#singleSelect>:nth-child(2)')[0].selected).toBe(false);
-    expect($('#singleSelect>:nth-child(3)')[0].selected).toBe(true);
-  });
+    it(`${platform}: serializes input elements`, () => {
+      expect($('#name')[0].getAttribute('value')).toBe('Bob Boberson');
+    });
 
-  it('serializes multi-select elements', () => {
-    expect($('#multiselect>:nth-child(1)')[0].selected).toBe(true);
-    expect($('#multiselect>:nth-child(2)')[0].selected).toBe(false);
-    expect($('#multiselect>:nth-child(3)')[0].selected).toBe(true);
-  });
+    it(`${platform}: serializes single select elements`, () => {
+      expect($('#singleSelect>:nth-child(1)')[0].selected).toBe(false);
+      expect($('#singleSelect>:nth-child(2)')[0].selected).toBe(false);
+      expect($('#singleSelect>:nth-child(3)')[0].selected).toBe(true);
+    });
 
-  it('does not mutate original select elements', () => {
-    let options = [
-      ...dom.querySelector('#multiselect').options,
-      ...dom.querySelector('#singleSelect').options
-    ];
+    it(`${platform}: serializes multi-select elements`, () => {
+      expect($('#multiselect>:nth-child(1)')[0].selected).toBe(true);
+      expect($('#multiselect>:nth-child(2)')[0].selected).toBe(false);
+      expect($('#multiselect>:nth-child(3)')[0].selected).toBe(true);
+    });
 
-    for (let $option of options) {
-      expect($option.getAttribute('selected')).toBeNull();
-    }
-  });
+    it(`${platform}: does not mutate original select elements`, () => {
+      let options = [
+        ...dom.querySelector('#multiselect').options,
+        ...dom.querySelector('#singleSelect').options
+      ];
 
-  it('serializes inputs with already present value attributes', () => {
-    expect($('#valueAttr')[0].getAttribute('value')).toBe('Replacement Value!');
-  });
+      for (let $option of options) {
+        expect($option.getAttribute('selected')).toBeNull();
+      }
+    });
 
-  it('adds a guid data-attribute to the original DOM', () => {
-    expect(dom.querySelectorAll('[data-percy-element-id]')).toHaveSize(9);
-  });
+    it(`${platform}: serializes inputs with already present value attributes`, () => {
+      expect($('#valueAttr')[0].getAttribute('value')).toBe('Replacement Value!');
+    });
 
-  it('adds matching guids to the orignal DOM and cloned DOM', () => {
-    let og = dom.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
-    expect(og).toEqual($('[data-percy-element-id]')[0].getAttribute('data-percy-element-id'));
-  });
+    it(`${platform}: adds a guid data-attribute to the original DOM`, () => {
+      // plain platform has extra element #test-shadow
+      expect(dom.querySelectorAll('[data-percy-element-id]')).toHaveSize(platform === 'plain' ? 10 : 9);
+    });
 
-  it('does not override previous guids when reserializing', () => {
-    let getUid = () => dom.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
-    let first = getUid();
+    it(`${platform}: adds matching guids to the orignal DOM and cloned DOM`, () => {
+      let og = dom.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
+      expect(og).toEqual($('[data-percy-element-id]')[0].getAttribute('data-percy-element-id'));
+    });
 
-    serializeDOM();
-    expect(getUid()).toEqual(first);
-  });
+    it(`${platform}: does not override previous guids when reserializing`, () => {
+      let getUid = () => dom.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
+      let first = getUid();
 
-  it('does not mutate values in origial DOM', () => {
-    expect($('#name')[0].getAttribute('value')).toBe('Bob Boberson');
-    expect(dom.querySelector('#name').getAttribute('value')).toBeNull();
+      serializeDOM();
+      expect(getUid()).toEqual(first);
+    });
+
+    it(`${platform}: does not mutate values in origial DOM`, () => {
+      expect($('#name')[0].getAttribute('value')).toBe('Bob Boberson');
+      expect(dom.querySelector('#name').getAttribute('value')).toBeNull();
+    });
   });
 });
