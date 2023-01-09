@@ -10,9 +10,6 @@ export function withExample(html, shadow = true) {
   let $testShadow = document.getElementById('test-shadow');
   if ($testShadow) $testShadow.remove();
 
-  let $shadowDomHelper = document.getElementById('__percy_shadowdom_helper');
-  if ($shadowDomHelper) $shadowDomHelper.remove();
-
   $test = document.createElement('div');
   $test.id = 'test';
   $test.innerHTML = `<h1>Hello DOM testing</h1>${html}`;
@@ -20,9 +17,6 @@ export function withExample(html, shadow = true) {
   document.body.appendChild($test);
 
   if (shadow) {
-    let $testShadow = document.getElementById('test-shadow');
-    if ($testShadow) $testShadow.remove();
-
     $testShadow = document.createElement('div');
     $testShadow.id = 'test-shadow';
     let $shadow = $testShadow.attachShadow({ mode: 'open' });
