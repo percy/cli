@@ -63,14 +63,14 @@ describe('serializeFrames', () => {
     }
   }, 0); // frames may take a bit to load
 
-  afterEach(() => {
-    document.querySelector('#frame-head').remove();
-  });
-
   platforms.forEach(platform => {
     let $;
     beforeEach(() => {
       $ = cache[platform].$;
+    });
+
+    afterEach(() => {
+      document.querySelector('#frame-head').remove();
     });
 
     it(`${platform}: serializes iframes created with JS`, () => {
