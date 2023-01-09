@@ -21,7 +21,7 @@ export function injectDeclarativeShadowDOMPolyfill(ctx) {
     }
 
     document.addEventListener('DOMContentLoaded', event => reversePolyFill(document));
-  `;
+  `.replace(/(\n|\s{2}|\t)/g, '');
 
   clone.body.appendChild(scriptEl);
 }
