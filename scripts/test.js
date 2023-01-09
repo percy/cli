@@ -67,8 +67,7 @@ async function main({
   browsers,
   coverage,
   reporter,
-  karma: karmaArgs,
-  shadow
+  karma: karmaArgs
 } = argv) {
   // determine arg defaults based on package.json values
   let pkg = JSON.parse(fs.readFileSync(path.join(cwd, 'package.json')));
@@ -88,7 +87,7 @@ async function main({
     await child('spawn', nycbin, ['report', '--check-coverage', ...flagify({ reporter })]);
   } else if (!process.send) {
     // test runners assume they have control over the entire process, so give them each forks
-    let flags = flagify({ coverage, karma: karmaArgs, shadow });
+    let flags = flagify({ coverage, karma: karmaArgs });
     let loader = url.pathToFileURL(path.resolve(filename, '../loader.js')).href;
     let opts = { execArgv: ['--loader', loader, ...process.execArgv] };
 
@@ -134,23 +133,10 @@ async function main({
     let { Server: KarmaServer, config: { parseConfig } } = Karma;
 
     let configFile = path.resolve(filename, '../../karma.config.cjs');
-    let config = await parseConfig(configFile, karmaArgs, {
+    let karma = new KarmaServer(await parseConfig(configFile, karmaArgs, {
       promiseConfig: true,
       throwErrors: true
-    });
-
-    if (shadow) {
-      config.set({
-        browsers: [
-          'ChromeHeadless'
-        ],
-        client: {
-          shadow: true
-        }
-      });
-    }
-
-    let karma = new KarmaServer(config);
+    }));
 
     // attach any karma hooks
     if (pkg.karma) {
