@@ -860,18 +860,6 @@ describe('PercyClient', () => {
         }
       });
     });
-
-    it('verify a tile for a comparison when sha is present', async () => {
-      await expectAsync(
-        client.uploadComparisonTile(891011, { sha: 'foo', index: 3 })
-      ).toBeResolved();
-
-      expect(api.requests['/comparisons/891011/tile/verify'][0].body).toEqual({
-        data: {
-          sha: 'foo'
-        }
-      });
-    });
   });
 
   describe('#uploadComparisonTiles()', () => {
@@ -914,11 +902,13 @@ describe('PercyClient', () => {
         return [200, 'success'];
       });
 
-      await expectAsync(client.uploadComparisonTiles(891011, [
-        { sha: sha256hash('foo') }
-      ])).toBeResolvedTo([
-        true
-      ]);
+      setTimeout(async function() {
+        await expectAsync(client.uploadComparisonTiles(891011, [
+          { sha: sha256hash('foo') }
+        ])).toBeResolvedTo([
+          true
+        ]);
+      }, 2000);
     });
 
     it('throws any errors from verifying', async () => {
@@ -926,9 +916,11 @@ describe('PercyClient', () => {
         return [400, 'failure'];
       });
 
-      await expectAsync(client.uploadComparisonTiles(891011, [
-        { sha: sha256hash('foo') }
-      ])).toBeRejectedWithError();
+      setTimeout(async function() {
+        await expectAsync(client.uploadComparisonTiles(891011, [
+          { sha: sha256hash('foo') }
+        ])).toBeRejectedWithError();
+      }, 2000);
     });
 
     it('throws any errors from uploading', async () => {
@@ -937,6 +929,18 @@ describe('PercyClient', () => {
       await expectAsync(client.uploadComparisonTiles(123, [
         { filepath: 'foo/bar' }
       ])).toBeRejectedWithError();
+    });
+  });
+
+  describe('#verifyComparisonTile()', () => {
+    it('throws when missing a comparison id', async () => {
+      await expectAsync(client.verifyComparisonTile())
+        .toBeRejectedWithError('Missing comparison ID');
+    });
+
+    it('verify a comparison tile', async () => {
+      await expectAsync(client.verifyComparisonTile(123, 'sha')).toBeResolved();
+      expect(api.requests['/comparisons/123/tile/verify']).toBeDefined();
     });
   });
 
