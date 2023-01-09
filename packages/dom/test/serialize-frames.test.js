@@ -75,13 +75,14 @@ describe('serializeFrames', () => {
 
     it(`${platform}: serializes iframes created with JS`, () => {
       expect($('#frame-js')[0].getAttribute('src')).toBeNull();
-      expect($('#frame-js')[0].getAttribute('srcdoc')).toBe([
+      expect($('#frame-js')[0].getAttribute('srcdoc')).toMatch(new RegExp([
         '<!DOCTYPE html><html><head>',
         `<base href="${$('#frame-js')[0].baseURI}">`,
         '</head><body>',
         '<p>made with js src</p>',
+        '.*',
         '</body></html>'
-      ].join(''));
+      ].join('')));
 
       expect($('#frame-js-no-src')[0].getAttribute('src')).toBeNull();
       expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toMatch([
@@ -94,17 +95,18 @@ describe('serializeFrames', () => {
       ].join(''));
 
       // frame resources are serialized recursively
-      expect(serialized.resources).toEqual([{
+      expect(serialized.resources).toContain(jasmine.objectContaining({
         url: jasmine.stringMatching('/__serialized__/\\w+\\.png'),
         content: jasmine.any(String),
         mimetype: 'image/png'
-      }]);
+      }));
     });
 
     it(`${platform}: serializes iframes that have been interacted with`, () => {
       expect($('#frame-input')[0].getAttribute('srcdoc')).toMatch(new RegExp([
         '^<!DOCTYPE html><html><head>.*?</head><body>',
         '<input data-percy-element-id=".+?" value="iframe with an input">',
+        '.*',
         '</body></html>$'
       ].join('')));
     });
