@@ -1,8 +1,5 @@
-import { withExample, parseDOM } from './helpers';
+import { withExample, parseDOM, platforms, platformDOM } from './helpers';
 import serializeDOM from '@percy/dom';
-
-const platforms = ['plain', 'shadow'];
-const pdom = (platform) => platform === 'shadow' ? document.getElementById('test-shadow').shadowRoot : document;
 
 describe('serializeCanvas', () => {
   let serialized, cache = { shadow: {}, plain: {} };
@@ -23,7 +20,7 @@ describe('serializeCanvas', () => {
     `
     );
     platforms.forEach((plat) => {
-      let dom = pdom(plat);
+      let dom = platformDOM(plat);
       let canvas = dom.getElementById('canvas');
       let ctx = canvas.getContext('2d');
 

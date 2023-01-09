@@ -1,8 +1,5 @@
-import { parseDOM, withExample } from './helpers';
+import { parseDOM, withExample, platforms, platformDOM } from './helpers';
 import serializeDOM from '@percy/dom';
-
-const platforms = ['plain', 'shadow'];
-const pdom = (platform) => platform === 'shadow' ? document.getElementById('test-shadow').shadowRoot : document;
 
 let canPlay = $video => new Promise(resolve => {
   if ($video.readyState > 2) resolve();
@@ -18,7 +15,7 @@ describe('serializeVideos', () => {
         <video src="base/test/assets/example.webm" id="video" controls />
       `);
 
-      await canPlay(platform === 'shadow' ? pdom(platform).querySelector('video') : window.video);
+      await canPlay(platform === 'shadow' ? platformDOM(platform).querySelector('video') : window.video);
       serialized = serializeDOM();
       $ = parseDOM(serialized.html, platform);
 
@@ -36,7 +33,7 @@ describe('serializeVideos', () => {
       <video src="base/test/assets/example.webm" id="video" poster="//:0" />
     `);
 
-      await canPlay(platform === 'shadow' ? pdom(platform).querySelector('video') : window.video);
+      await canPlay(platform === 'shadow' ? platformDOM(platform).querySelector('video') : window.video);
       serialized = serializeDOM();
       $ = parseDOM(serialized.html);
 

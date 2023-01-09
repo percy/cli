@@ -1,8 +1,5 @@
-import { withExample, parseDOM } from './helpers';
+import { withExample, parseDOM, platforms, platformDOM } from './helpers';
 import serializeDOM from '@percy/dom';
-
-const platforms = ['plain', 'shadow'];
-const pdom = (platform) => platform === 'shadow' ? document.getElementById('test-shadow').shadowRoot : document;
 
 describe('serializeInputs', () => {
   let cache = { shadow: {}, plain: {} };
@@ -47,7 +44,7 @@ describe('serializeInputs', () => {
     `);
 
     platforms.forEach((platform) => {
-      const dom = pdom(platform);
+      const dom = platformDOM(platform);
       dom.querySelector('#name').value = 'Bob Boberson';
       dom.querySelector('#valueAttr').value = 'Replacement Value!';
       dom.querySelector('#feedback').value = 'This is my feedback... And it is not very helpful';
@@ -74,11 +71,8 @@ describe('serializeInputs', () => {
   platforms.forEach((platform) => {
     let $, dom;
     beforeEach(() => {
-      // console.log('beforeEach', cache);
       dom = cache[platform].dom;
       $ = cache[platform].$;
-      // dom = pdom(platform);
-      // $ = parseDOM(platform)
     });
 
     it(`${platform}: serializes checked checkboxes`, () => {

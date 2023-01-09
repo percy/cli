@@ -1,8 +1,5 @@
-import { withExample, withCSSOM, parseDOM } from './helpers';
+import { withExample, withCSSOM, parseDOM, platforms, platformDOM } from './helpers';
 import serializeDOM from '@percy/dom';
-
-const platforms = ['plain', 'shadow'];
-const pdom = (platform) => platform === 'shadow' ? document.getElementById('test-shadow').shadowRoot : document;
 
 describe('serializeCSSOM', () => {
   beforeEach(() => {
@@ -14,7 +11,7 @@ describe('serializeCSSOM', () => {
     withCSSOM('.box { height: 500px; }');
 
     platforms.forEach((platform) => {
-      let modCSSRule = pdom(platform).getElementById('mod').sheet.cssRules[0];
+      let modCSSRule = platformDOM(platform).getElementById('mod').sheet.cssRules[0];
       if (modCSSRule) modCSSRule.style.cssText = 'width: 1000px';
     });
 
@@ -25,7 +22,7 @@ describe('serializeCSSOM', () => {
   platforms.forEach((platform) => {
     let dom;
     beforeEach(() => {
-      dom = pdom(platform);
+      dom = platformDOM(platform);
     });
 
     it(`${platform}: serializes CSSOM and does not mutate the orignal DOM`, () => {
