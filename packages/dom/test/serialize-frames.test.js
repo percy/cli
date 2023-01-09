@@ -69,10 +69,8 @@ describe('serializeFrames', () => {
       $ = cache[platform].$;
     });
 
-  platforms.forEach(platform => {
-    let $;
-    beforeEach(() => {
-      $ = cache[platform].$;
+    afterEach(() => {
+      document.querySelector('#frame-head').remove();
     });
 
     it(`${platform}: serializes iframes created with JS`, () => {
