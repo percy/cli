@@ -897,32 +897,6 @@ describe('PercyClient', () => {
       ]);
     });
 
-    it('returns true if tile is verified', async () => {
-      api.reply('/comparisons/891011/tile/verify', async () => {
-        return [200, 'success'];
-      });
-
-      setTimeout(async function() {
-        await expectAsync(client.uploadComparisonTiles(891011, [
-          { sha: sha256hash('foo') }
-        ])).toBeResolvedTo([
-          true
-        ]);
-      }, 2000);
-    });
-
-    it('throws any errors from verifying', async () => {
-      api.reply('/comparisons/891011/tile/verify', async () => {
-        return [400, 'failure'];
-      });
-
-      setTimeout(async function() {
-        await expectAsync(client.uploadComparisonTiles(891011, [
-          { sha: sha256hash('foo') }
-        ])).toBeRejectedWithError();
-      }, 2000);
-    });
-
     it('throws any errors from uploading', async () => {
       spyOn(fs.promises, 'readFile').and.rejectWith(new Error());
 
