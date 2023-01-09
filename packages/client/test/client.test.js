@@ -904,6 +904,40 @@ describe('PercyClient', () => {
         { filepath: 'foo/bar' }
       ])).toBeRejectedWithError();
     });
+
+    it('returns true if tile is verified', async () => {
+      api.reply(`/comparisons/891011/tile/verify?sha=${sha256hash('foo')}`, async () => {
+        return [200, 'success'];
+      });
+
+      await expectAsync(client.uploadComparisonTiles(891011, [
+        { sha: sha256hash('foo') }
+      ])).toBeResolvedTo([
+        true
+      ]);
+    });
+
+    it('returns false if tile is not verified', async () => {
+      api.reply(`/comparisons/891011/tile/verify?sha=${sha256hash('foo')}`, async () => {
+        return [409, 'Not found'];
+      });
+
+      await expectAsync(client.uploadComparisonTiles(891011, [
+        { sha: sha256hash('foo') }
+      ])).toBeResolvedTo([
+        false
+      ]);
+    });
+
+    it('throws any errors from verifying', async () => {
+      api.reply(`/comparisons/891011/tile/verify?sha=${sha256hash('foo')}`, async () => {
+        return [400, 'failure'];
+      });
+
+      await expectAsync(client.uploadComparisonTiles(891011, [
+        { sha: sha256hash('foo') }
+      ])).toBeRejectedWithError();
+    });
   });
 
   describe('#verifyComparisonTile()', () => {
@@ -914,7 +948,7 @@ describe('PercyClient', () => {
 
     it('verify a comparison tile', async () => {
       await expectAsync(client.verifyComparisonTile(123, 'sha')).toBeResolved();
-      expect(api.requests['/comparisons/123/tile/verify']).toBeDefined();
+      expect(api.requests['/comparisons/123/tile/verify?sha=sha']).toBeDefined();
     });
   });
 

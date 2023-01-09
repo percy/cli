@@ -412,12 +412,12 @@ export class PercyClient {
     if (filepath) content = await fs.promises.readFile(filepath);
     if (sha) {
       let retries = 10;
-      let success = null;
-      setTimeout(async () => (success = await this.verifyComparisonTile(comparisonId, sha)), 1000);
-
+      setTimeout(() => this.log.debug(`Verifying comparison tile with sha: ${sha}`), 1000);
+      let success = await this.verifyComparisonTile(comparisonId, sha);
       while (retries > 0 && !success) {
         retries -= 1;
-        setTimeout(async () => (success = await this.verifyComparisonTile(comparisonId, sha)), 500);
+        setTimeout(() => this.log.debug(`Verifying comparison tile with sha: ${sha}`), 500);
+        success = await this.verifyComparisonTile(comparisonId, sha);
       }
 
       if (!success) {
@@ -442,11 +442,14 @@ export class PercyClient {
     validateId('comparison', comparisonId);
     this.log.debug(`Verifying comparison tile with sha: ${sha}`);
 
-    return this.get(`comparisons/${comparisonId}/tile/verify`, {
-      data: {
-        sha: sha
+    try {
+      return await this.get(`comparisons/${comparisonId}/tile/verify?sha=${sha}`);
+    } catch (error) {
+      if (error.message.includes('409')) {
+        return false;
       }
-    });
+      throw new Error(error.message);
+    }
   }
 
   async uploadComparisonTiles(comparisonId, tiles) {
