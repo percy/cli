@@ -1,9 +1,6 @@
 import { when } from 'interactor.js';
-import { assert, withExample, parseDOM } from './helpers';
+import { assert, withExample, parseDOM, platforms, platformDOM } from './helpers';
 import serializeDOM from '@percy/dom';
-
-const platforms = ['plain', 'shadow'];
-const pdom = (platform) => platform === 'shadow' ? document.getElementById('test-shadow').shadowRoot : document;
 
 describe('serializeFrames', () => {
   let serialized, cache = { shadow: {}, plain: {} };
@@ -32,7 +29,7 @@ describe('serializeFrames', () => {
     `);
 
     for (const platform of platforms) {
-      let dom = pdom(platform);
+      let dom = platformDOM(platform);
       let $frameInput = await getFrame('frame-input', dom);
       $frameInput.contentDocument.querySelector('input').value = 'iframe with an input';
 
