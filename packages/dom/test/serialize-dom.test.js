@@ -57,7 +57,7 @@ describe('serializeDOM', () => {
         return;
       }
 
-      withExample('<div id="content"></div>', false);
+      withExample('<div id="content"></div>', { withShadow: false });
       const contentEl = document.querySelector('#content');
       const shadow = contentEl.attachShadow({ mode: 'closed' });
       const paragraphEl = document.createElement('p');
@@ -72,7 +72,7 @@ describe('serializeDOM', () => {
 
   describe('with `domTransformation`', () => {
     beforeEach(() => {
-      withExample('<span class="delete-me">Delete me</span>', false);
+      withExample('<span class="delete-me">Delete me</span>', { withShadow: false });
       spyOn(console, 'error');
     });
 

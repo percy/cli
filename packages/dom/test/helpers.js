@@ -1,5 +1,5 @@
 // create and cleanup testing DOM
-export function withExample(html, shadow = true) {
+export function withExample(html, options = { withShadow: true }) {
   let $test = document.getElementById('test');
   if ($test) $test.remove();
 
@@ -12,7 +12,7 @@ export function withExample(html, shadow = true) {
 
   document.body.appendChild($test);
 
-  if (shadow) {
+  if (options?.withShadow) {
     $testShadow = document.createElement('div');
     $testShadow.id = 'test-shadow';
     let $shadow = $testShadow.attachShadow({ mode: 'open' });
@@ -24,7 +24,7 @@ export function withExample(html, shadow = true) {
 }
 
 // create a stylesheet in the DOM and add rules using the CSSOM
-export function withCSSOM(rules = [], prepare = () => {}) {
+export function withCSSOM(rules = [], prepare = () => {}, options = { withShadow: true }) {
   let $test = document.getElementById('test');
   let $style = document.getElementById('test-style');
   if ($style) $style.remove();
@@ -39,22 +39,20 @@ export function withCSSOM(rules = [], prepare = () => {}) {
     $style.sheet.insertRule(rule);
   }
 
-  withShadowCSSOM(rules, prepare);
-}
+  if (options?.withShadow) {
+    let $testShadow = document.getElementById('test-shadow').shadowRoot;
+    let $shadowStyle = $testShadow.getElementById('test-style');
+    if ($shadowStyle) $shadowStyle.remove();
 
-export function withShadowCSSOM(rules = [], prepare = () => {}) {
-  let $test = document.getElementById('test-shadow').shadowRoot;
-  let $style = $test.getElementById('test-style');
-  if ($style) $style.remove();
+    $shadowStyle = document.createElement('style');
+    $shadowStyle.id = 'test-style';
+    $shadowStyle.type = 'text/css';
+    prepare?.($shadowStyle);
+    $testShadow.prepend($shadowStyle);
 
-  $style = document.createElement('style');
-  $style.id = 'test-style';
-  $style.type = 'text/css';
-  prepare?.($style);
-  $test.prepend($style);
-
-  for (let rule of [].concat(rules)) {
-    $style.sheet.insertRule(rule);
+    for (let rule of [].concat(rules)) {
+      $shadowStyle.sheet.insertRule(rule);
+    }
   }
 }
 
