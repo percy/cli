@@ -89,6 +89,20 @@ export function parseDeclShadowDOM(domstring) {
   return selector => root.firstChild.content.querySelectorAll(selector);
 }
 
+export const platforms = (() => {
+  if (navigator.userAgent.toLowerCase().includes('chrome')) {
+    return ['plain', 'shadow'];
+  }
+  return ['plain'];
+})();
+
+export function platformDOM(plat) {
+  if (plat === 'shadow') {
+    return document.getElementById('test-shadow')?.shadowRoot;
+  }
+  return document;
+}
+
 // generic assert
 export function assert(condition, message) {
   if (!condition) throw new Error(message);
