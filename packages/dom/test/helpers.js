@@ -1,5 +1,5 @@
 // create and cleanup testing DOM
-export function withExample(html) {
+export function withExample(html, shadow = true) {
   let $test = document.getElementById('test');
   if ($test) $test.remove();
 
@@ -8,27 +8,19 @@ export function withExample(html) {
   $test.innerHTML = `<h1>Hello DOM testing</h1>${html}`;
 
   document.body.appendChild($test);
+
+  if (shadow) {
+    let $testShadow = document.getElementById('test-shadow');
+    if ($testShadow) $testShadow.remove();
+
+    $testShadow = document.createElement('div');
+    $testShadow.id = 'test-shadow';
+    let $shadow = $testShadow.attachShadow({ mode: 'open' });
+    $shadow.innerHTML = `<h1>Hello DOM testing</h1>${html}`;
+
+    document.body.appendChild($testShadow);
+  }
   return document;
-}
-
-export function withShadowExample(html) {
-  let $test = document.getElementById('test');
-  if ($test) $test.remove();
-
-  $test = document.createElement('div');
-  $test.id = 'test';
-  let $shadow = $test.attachShadow({ mode: 'open' })
-  $shadow.innerHTML = `<h1>Hello DOM testing</h1>${html}`;
-
-  document.body.appendChild($test);
-  return document;
-}
-
-export function getExampleShadowRoot() {
-  let $test = document.getElementById('test');
-  if (!$test) return null;
-
-  return $test.shadowRoot;
 }
 
 // create a stylesheet in the DOM and add rules using the CSSOM
@@ -46,10 +38,12 @@ export function withCSSOM(rules = [], prepare = () => {}) {
   for (let rule of [].concat(rules)) {
     $style.sheet.insertRule(rule);
   }
+
+  withShadowCSSOM(rules, prepare);
 }
 
 export function withShadowCSSOM(rules = [], prepare = () => {}) {
-  let $test = getExampleShadowRoot();
+  let $test = document.getElementById('test-shadow').shadowRoot;
   let $style = $test.getElementById('test-style');
   if ($style) $style.remove();
 
@@ -76,7 +70,10 @@ export function replaceDoctype(name, publicId = '', systemId = '') {
 }
 
 // parses a DOM string into a DOM object and returns a querySelectorAll shortcut
-export function parseDOM(domstring) {
+export function parseDOM(domstring, platform) {
+  if (platform === 'shadow') {
+    return parseDeclShadowDOM(domstring);
+  }
   if (domstring.html) domstring = domstring.html;
   let dom = new window.DOMParser().parseFromString(domstring, 'text/html');
   return selector => dom.querySelectorAll(selector);
@@ -85,12 +82,10 @@ export function parseDOM(domstring) {
 export function parseDeclShadowDOM(domstring) {
   if (domstring.html) domstring = domstring.html;
   let dom = new window.DOMParser().parseFromString(domstring, 'text/html');
-  let root = dom.getElementById('test')
+  let root = dom.getElementById('test-shadow');
 
   return selector => root.firstChild.content.querySelectorAll(selector);
 }
-
-export const isShadowMode = !!window.__karma__.config.shadow;
 
 // generic assert
 export function assert(condition, message) {
