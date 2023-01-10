@@ -448,7 +448,7 @@ export class PercyClient {
       if (error.message.includes('409')) {
         return false;
       }
-      throw new Error(error.message);
+      throw error;
     }
   }
 
