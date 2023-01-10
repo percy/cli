@@ -74,3 +74,31 @@ Individual package scripts can be invoked using yarn's
 ```sh-session
 $ yarn workspace @percy/core test
 ```
+
+
+## Publish
+
+Most of the repos have similar setup as CLI, steps as follows
+
+1.  bump version 
+
+```
+yarn bump-version
+```
+
+2.  commit with following commit message => `:bookmark: vTAG` 
+
+3.  Draft a new release and publish it
+
+This will run release.yml workflow on github actions, which publishes the NPM packages
+
+### Publish with specific tag
+
+Currently release workflow only support publishing with latest tag. 
+To publish with alpha/any other TAG.
+
+1. follow till step 2 above and then run
+
+```
+yarn lerna publish from-package --dist-tag TAG
+```
