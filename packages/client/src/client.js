@@ -2,6 +2,7 @@ import fs from 'fs';
 import PercyEnv from '@percy/env';
 import { git } from '@percy/env/utils';
 import logger from '@percy/logger';
+import { waitForTimeout } from '../../core/src/utils.js';
 
 import {
   pool,
@@ -412,11 +413,11 @@ export class PercyClient {
     if (filepath) content = await fs.promises.readFile(filepath);
     if (sha) {
       let retries = 10;
-      setTimeout(() => this.log.debug(`Verifying comparison tile with sha: ${sha}`), 1000);
+      await waitForTimeout(1000);
       let success = await this.verifyComparisonTile(comparisonId, sha);
       while (retries > 0 && !success) {
         retries -= 1;
-        setTimeout(() => this.log.debug(`Verifying comparison tile with sha: ${sha}`), 500);
+        await waitForTimeout(500);
         success = await this.verifyComparisonTile(comparisonId, sha);
       }
 
