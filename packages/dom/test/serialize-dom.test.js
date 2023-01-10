@@ -35,6 +35,16 @@ describe('serializeDOM', () => {
   });
 
   describe('shadow dom', () => {
+    const createShadowEl = (tag = 0) => {
+      const contentEl = document.createElement('div');
+      contentEl.id = `Percy-${tag}`;
+      const shadow = contentEl.attachShadow({ mode: 'open' });
+      const paragraphEl = document.createElement('p');
+      paragraphEl.textContent = `Percy-${tag}`;
+      shadow.appendChild(paragraphEl);
+      return contentEl;
+    };
+
     it('renders open root as template tag', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
@@ -67,6 +77,89 @@ describe('serializeDOM', () => {
       const html = serializeDOM().html;
       expect(html).not.toMatch('<template shadowroot');
       expect(html).not.toMatch('Hey Percy!');
+    });
+
+    it('renders single nested ', () => {
+      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+        return;
+      }
+
+      withExample('<div id="content"></div>', { withShadow: false });
+      const baseContent = document.querySelector('#content');
+
+      const el1 = createShadowEl(1);
+      const el2 = createShadowEl(2);
+      el1.shadowRoot.appendChild(el2);
+      baseContent.append(el1);
+
+      const html = serializeDOM().html;
+
+      expect(html).toMatch(new RegExp([
+        '<template shadowroot="open">',
+        '<p>Percy-1</p>',
+        '<div id="Percy-2" .*>',
+        '<template shadowroot="open">',
+        '<p>Percy-2</p>',
+        '</template>'
+      ].join('')));
+    });
+
+    it('renders many nested', () => {
+      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+        return;
+      }
+      withExample('<div id="content"></div>', { withShadow: false });
+      const baseContent = document.querySelector('#content');
+
+      const levels = 5;
+
+      let j = levels, el = null;
+      let matchRegex = '';
+
+      while (j--) {
+        let newEl = createShadowEl(j);
+        if (el) {
+          el.shadowRoot.appendChild(newEl);
+        } else {
+          baseContent.appendChild(newEl);
+        }
+        el = newEl;
+        matchRegex += [
+          `<div id="Percy-${j}" .*>`,
+          '<template shadowroot="open">',
+          `<p>Percy-${j}</p>`
+        ].join('');
+      }
+
+      const html = serializeDOM().html;
+      expect(html).toMatch(new RegExp(matchRegex));
+    });
+
+    it('renders many flat', () => {
+      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+        return;
+      }
+      withExample('<div id="content"></div>', { withShadow: false });
+      const baseContent = document.querySelector('#content');
+
+      const levels = 5;
+
+      let j = levels, matchRegex = '';
+
+      while (j--) {
+        let newEl = createShadowEl(j);
+        baseContent.appendChild(newEl);
+        matchRegex += [
+          `<div id="Percy-${j}" .*>`,
+          '<template shadowroot="open">',
+          `<p>Percy-${j}</p>`,
+          '</template>',
+          '</div>'
+        ].join('');
+      }
+
+      const html = serializeDOM().html;
+      expect(html).toMatch(new RegExp(matchRegex));
     });
   });
 
