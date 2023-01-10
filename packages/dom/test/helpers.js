@@ -1,3 +1,7 @@
+
+export const chromeBrowser = 'CHROME';
+export const firefoxBrowser = 'FIREFOX';
+
 // create and cleanup testing DOM
 export function withExample(html, options = { withShadow: true }) {
   let $test = document.getElementById('test');
@@ -5,6 +9,9 @@ export function withExample(html, options = { withShadow: true }) {
 
   let $testShadow = document.getElementById('test-shadow');
   if ($testShadow) $testShadow.remove();
+
+  let $shadowDomHelper = document.getElementById('__percy_shadowdom_helper');
+  if ($shadowDomHelper) $shadowDomHelper.remove();
 
   $test = document.createElement('div');
   $test.id = 'test';
@@ -85,8 +92,12 @@ export function parseDeclShadowDOM(domstring) {
   return selector => root.firstChild.content.querySelectorAll(selector);
 }
 
+export function getTestBrowser() {
+  if (navigator.userAgent.toLowerCase().includes('chrome')) { return chromeBrowser; } else if (navigator.userAgent.toLowerCase().includes('firefox')) { return firefoxBrowser; } else { throw new Error('unsupported test browser'); }
+}
+
 export const platforms = (() => {
-  if (navigator.userAgent.toLowerCase().includes('chrome')) {
+  if (getTestBrowser() === chromeBrowser) {
     return ['plain', 'shadow'];
   }
   return ['plain'];
