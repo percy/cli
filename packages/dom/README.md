@@ -71,7 +71,44 @@ Videos without a `poster` attribute will have the current frame of the video
 serialized into an image and set as the `poster` attribute automatically. This is
 to ensure videos have a stable image to display when screenshots are captured.
 
+### Shadow DOM
+
+Shadow dom  `#shadow-root (open)` is serialized into declarative shadow DOM (`<template shadowroot="open">`) form
+Shadow host element is annotated with special identifier attribute named `data-percy-shadow-host`. This identifier 
+attribute may be used when passing `domTransformation`.
+
 ### Other elements
 
 _All other elements are not serialized._ The resulting cloned document is passed to any provided
 `domTransformation` option before the serialize function returns a DOM string.
+
+
+
+## Examples 
+
+1. perform DOM transformations on serialized DOM 
+
+this example contains scenario of nested shadow DOMs
+
+```js
+import serializeDOM from '@percy/dom';
+
+const domSnapshot = serializeDOM({
+    domTransformation: (documentElement) => {
+      function insertHelloHeader(root) {
+        h1 = document.createElement('h1');
+        h1.innerText = 'Inserted using dom transformations';
+        root.append(h1);
+
+        root.querySelectorAll('[data-percy-shadow-host]')
+          .forEach(
+            shadowHost => {
+              if (shadowHost?.shadowRoot)
+                insertHelloHeader(shadowHost.shadowRoot)
+            });
+
+      }
+      insertHelloHeader(documentElement);
+    }
+  });
+```
