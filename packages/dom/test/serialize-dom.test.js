@@ -165,7 +165,7 @@ describe('serializeDOM', () => {
 
   describe('with `domTransformation`', () => {
     beforeEach(() => {
-      withExample('<span class="delete-me">Delete me</span>', { withShadow: false });
+      withExample('<span class="delete-me">Delete me</span>', { withShadow: true });
       spyOn(console, 'error');
     });
 
