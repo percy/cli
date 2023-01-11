@@ -1,4 +1,4 @@
-import { withExample, replaceDoctype } from './helpers';
+import { withExample, replaceDoctype, createShadowEl } from './helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeDOM', () => {
@@ -35,16 +35,6 @@ describe('serializeDOM', () => {
   });
 
   describe('shadow dom', () => {
-    const createShadowEl = (tag = 0) => {
-      const contentEl = document.createElement('div');
-      contentEl.id = `Percy-${tag}`;
-      const shadow = contentEl.attachShadow({ mode: 'open' });
-      const paragraphEl = document.createElement('p');
-      paragraphEl.textContent = `Percy-${tag}`;
-      shadow.appendChild(paragraphEl);
-      return contentEl;
-    };
-
     it('renders open root as template tag', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;

@@ -89,6 +89,20 @@ export function parseDeclShadowDOM(domstring) {
   return selector => root.firstChild.content.querySelectorAll(selector);
 }
 
+export function createShadowEl(tag = 0) {
+  const contentEl = document.createElement('div');
+  contentEl.id = `Percy-${tag}`;
+  const shadow = contentEl.attachShadow({ mode: 'open' });
+  const paragraphEl = document.createElement('p');
+  paragraphEl.textContent = `Percy-${tag}`;
+  shadow.appendChild(paragraphEl);
+  return contentEl;
+}
+
+export function getTestBrowser() {
+  if (navigator.userAgent.toLowerCase().includes('chrome')) { return chromeBrowser; } else if (navigator.userAgent.toLowerCase().includes('firefox')) { return firefoxBrowser; } else { throw new Error('unsupported test browser'); }
+}
+
 export const platforms = (() => {
   if (navigator.userAgent.toLowerCase().includes('chrome')) {
     return ['plain', 'shadow'];
