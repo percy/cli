@@ -1,4 +1,4 @@
-import { withExample, withCSSOM, parseDOM, platforms, platformDOM } from './helpers';
+import { withExample, withCSSOM, parseDOM, platforms, platformDOM, createShadowEl } from './helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeCSSOM', () => {
@@ -60,6 +60,31 @@ describe('serializeCSSOM', () => {
       let $ = parseDOM(serializedDOM, platform);
       expect(dom.styleSheets[0]).toHaveProperty('ownerNode.innerText', '');
       expect($('[data-percy-cssom-serialized]')).toHaveSize(0);
+    });
+
+    it('captures adoptedStylesheets', () => {
+      if (platform === 'plain') {
+        return;
+      }
+
+      withExample('<div id="box"></div>', { withShadow: false });
+      const box = document.querySelector('#box');
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync('p { color: blue; }');
+      const shadowEl = createShadowEl();
+      shadowEl.shadowRoot.adoptedStyleSheets = [sheet];
+      box.appendChild(shadowEl);
+
+      let $ = parseDOM(serializeDOM(), 'plain');
+
+      const resultShadowEl = $('#Percy-0')[0];
+      // console.log(shadowRoot.children)
+      expect(resultShadowEl.innerHTML).toEqual([
+        '<template shadowroot="open">',
+        '<style>p { color: blue; }</style>',
+        '<p>Percy-0</p>',
+        '</template>'
+      ].join(''));
     });
   });
 });
