@@ -77,7 +77,7 @@ describe('serializeFrames', () => {
         `<base href="${$('#frame-js')[0].baseURI}">`,
         '</head><body>',
         '<p>made with js src</p>',
-        '<script id="__percy_declarative_shadowdom_polyfill" data-percy-injected="true">.*</script>',
+        '<script id="__percy_shadowdom_helper" data-percy-injected="true">.*</script>',
         '</body></html>'
       ].join('')));
 
@@ -103,7 +103,7 @@ describe('serializeFrames', () => {
       expect($('#frame-input')[0].getAttribute('srcdoc')).toMatch(new RegExp([
         '^<!DOCTYPE html><html><head>.*?</head><body>',
         '<input data-percy-element-id=".+?" value="iframe with an input">',
-        '<script id="__percy_declarative_shadowdom_polyfill" data-percy-injected="true">.*</script>',
+        '<script id="__percy_shadowdom_helper" data-percy-injected="true">.*</script>',
         '</body></html>$'
       ].join('')));
     });
