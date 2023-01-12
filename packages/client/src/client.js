@@ -2,7 +2,7 @@ import fs from 'fs';
 import PercyEnv from '@percy/env';
 import { git } from '@percy/env/utils';
 import logger from '@percy/logger';
-import { waitForTimeout } from '../../core/dist/utils.js';
+import waitForTimeout from '@percy/core';
 
 import {
   pool,
