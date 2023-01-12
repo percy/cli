@@ -16,10 +16,15 @@ function styleSheetsMatch(sheetA, sheetB) {
 }
 
 // Outputs in-memory CSSOM into their respective DOM nodes.
-export function serializeCSSOM({ dom, clone }) {
+export function serializeCSSOM({ dom, clone, warnings }) {
   for (let styleSheet of dom.styleSheets) {
     if (isCSSOM(styleSheet)) {
       let styleId = styleSheet.ownerNode.getAttribute('data-percy-element-id');
+      if (!styleId) {
+        let attributes = Array.from(styleSheet.ownerNode.attributes).map(attr => `${attr.name}: ${attr.value}`);
+        warnings.add(`stylesheet with attributes - [ ${attributes} ] - was not serialized`);
+        continue;
+      }
       let cloneOwnerNode = clone.querySelector(`[data-percy-element-id="${styleId}"]`);
       if (styleSheetsMatch(styleSheet, cloneOwnerNode.sheet)) continue;
       let style = document.createElement('style');
