@@ -32,6 +32,6 @@
   },
   "dependencies": {
     "@percy/env": "1.17.0",
-    "@percy/logger": "1.17.0",
+    "@percy/logger": "1.17.0"
   }
 }
