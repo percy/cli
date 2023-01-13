@@ -151,11 +151,25 @@ describe('serializeDOM', () => {
       const html = serializeDOM().html;
       expect(html).toMatch(new RegExp(matchRegex));
     });
+
+    it('respects disableShadowDom', () => {
+      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+        return;
+      }
+      withExample('<div id="content"></div>', { withShadow: false });
+      const baseContent = document.querySelector('#content');
+      const el = createShadowEl(8);
+      baseContent.appendChild(el);
+
+      const html = serializeDOM({ disableShadowDom: true }).html;
+      expect(html).not.toMatch('<p>Percy-8</p>');
+      expect(html).not.toMatch('data-percy-shadow-host=');
+    });
   });
 
   describe('with `domTransformation`', () => {
     beforeEach(() => {
-      withExample('<span class="delete-me">Delete me</span>', { withShadow: true });
+      withExample('<span class="delete-me">Delete me</span>', { withShadow: false });
       spyOn(console, 'error');
     });
 

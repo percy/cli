@@ -38,7 +38,8 @@ export function serializeDOM(options) {
     // allow snake_case or camelCase
     enableJavaScript = options?.enable_javascript,
     domTransformation = options?.dom_transformation,
-    stringifyResponse = options?.stringify_response
+    stringifyResponse = options?.stringify_response,
+    disableShadowDom = options?.disableShadowDom
   } = options || {};
 
   // keep certain records throughout serialization
@@ -49,7 +50,7 @@ export function serializeDOM(options) {
   };
 
   ctx.dom = dom;
-  ctx.clone = cloneNodeAndShadow(ctx.dom);
+  ctx.clone = cloneNodeAndShadow(ctx.dom, disableShadowDom);
 
   serializeInputs(ctx);
   serializeFrames(ctx);

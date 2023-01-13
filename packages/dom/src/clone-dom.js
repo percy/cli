@@ -6,7 +6,7 @@
 import markElement from './prepare-dom';
 
 // returns document fragment
-const deepClone = host => {
+const deepClone = (host, disableShadowDom = false) => {
   // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
     let walkTree = (nextn, nextp) => {
@@ -17,14 +17,14 @@ const deepClone = host => {
     };
 
     // mark the node before cloning
-    markElement(node);
+    markElement(node, disableShadowDom);
 
     let clone = node.cloneNode();
 
     parent.appendChild(clone);
 
     // clone shadow DOM
-    if (node.shadowRoot) {
+    if (node.shadowRoot && !disableShadowDom) {
       // create shadowRoot
       if (clone.shadowRoot) {
         // it may be set up in a custom element's constructor
@@ -59,8 +59,8 @@ const deepClone = host => {
 /**
  * Deep clone a document while also preserving shadow roots and converting adoptedStylesheets to <style> tags.
  */
-const cloneNodeAndShadow = doc => {
-  let mockDocumentFragment = deepClone(doc.documentElement);
+const cloneNodeAndShadow = (doc, disableShadowDom = false) => {
+  let mockDocumentFragment = deepClone(doc.documentElement, disableShadowDom);
   // convert document fragment to document object
   let cloneDocument = doc.cloneNode();
   // dissolve document fragment in clone document
@@ -71,7 +71,7 @@ const cloneNodeAndShadow = doc => {
 /**
  * Use `getInnerHTML()` to serialize shadow dom as <template> tags. `innerHTML` and `outerHTML` don't do this. Buzzword: "declarative shadow dom"
  */
-const getOuterHTML = docElement => {
+const getOuterHTML = (docElement) => {
   // firefox doesn't serialize shadow DOM, we're awaiting API's by firefox to become ready and are not polyfilling it.
   if (!docElement.getInnerHTML) { return docElement.outerHTML; }
   // chromium gives us declarative shadow DOM serialization API
