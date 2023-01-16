@@ -46,11 +46,12 @@ export function serializeDOM(options) {
   let ctx = {
     resources: new Set(),
     warnings: new Set(),
-    enableJavaScript
+    enableJavaScript,
+    disableShadowDom
   };
 
   ctx.dom = dom;
-  ctx.clone = cloneNodeAndShadow(ctx.dom, disableShadowDom);
+  ctx.clone = cloneNodeAndShadow(ctx);
 
   serializeInputs(ctx);
   serializeFrames(ctx);
