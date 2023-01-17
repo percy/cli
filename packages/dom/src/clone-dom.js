@@ -60,11 +60,12 @@ const deepClone = (host, disableShadowDom = false) => {
  * Deep clone a document while also preserving shadow roots and converting adoptedStylesheets to <style> tags.
  */
 const cloneNodeAndShadow = (ctx) => {
-  let mockDocumentFragment = deepClone(ctx.dom.documentElement, ctx.disableShadowDom);
+  let cloneDocumentElementFragment = deepClone(ctx.dom.documentElement, ctx.disableShadowDom);
+  // TODO: we're not properly appending documentElement (html node) in the clone document, this can cause side effects in original document.
   // convert document fragment to document object
   let cloneDocument = ctx.dom.cloneNode();
   // dissolve document fragment in clone document
-  cloneDocument.appendChild(mockDocumentFragment);
+  cloneDocument.appendChild(cloneDocumentElementFragment);
   return cloneDocument;
 };
 
