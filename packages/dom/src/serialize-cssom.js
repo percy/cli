@@ -40,6 +40,21 @@ export function serializeCSSOM({ dom, clone, warnings }) {
     }
   }
 
+  // clone stylesheets in shadowRoot
+  // https://github.com/WICG/construct-stylesheets/issues/93
+  for (let sheet of dom.adoptedStyleSheets) {
+    let style = document.createElement('style');
+    style.innerHTML = Array.from(sheet.cssRules)
+      .map(cssRule => cssRule.cssText).join('\n');
+
+    if (clone.constructor.name === 'HTMLDocument') {
+      // handle document and iframe
+      clone.body.prepend(style);
+    } else if (clone.constructor.name === 'ShadowRoot') {
+      clone.prepend(style);
+    }
+  }
+
   // find stylesheets inside shadow host and recursively serialize them.
   for (let shadowHost of dom.querySelectorAll('[data-percy-shadow-host]')) {
     let percyElementId = shadowHost.getAttribute('data-percy-element-id');

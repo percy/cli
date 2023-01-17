@@ -34,15 +34,6 @@ const deepClone = (host, disableShadowDom = false) => {
           mode: 'open'
         });
       }
-
-      // clone stylesheets in shadowRoot
-      for (let sheet of node.shadowRoot.adoptedStyleSheets) {
-        let cssText = Array.from(sheet.rules).map(rule => rule.cssText).join('\n');
-        let style = document.createElement('style');
-        style.appendChild(document.createTextNode(cssText));
-        clone.shadowRoot.prepend(style);
-      }
-
       // clone dom elements
       walkTree(node.shadowRoot.firstChild, clone.shadowRoot);
     }
