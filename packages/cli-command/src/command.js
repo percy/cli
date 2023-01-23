@@ -118,6 +118,7 @@ async function runCommandWithContext(parsed) {
 // information when requested, and handle any thrown errors exiting when appropriate.
 export function command(name, definition, callback) {
   definition = withBuiltIns(definition);
+
   // auto register config schemas and migrations
   PercyConfig.addSchema(definition.config.schemas);
   PercyConfig.addMigration(definition.config.migrations);

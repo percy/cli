@@ -7,7 +7,6 @@ export const exec = command('exec', {
   description: 'Start and stop Percy around a supplied command',
   usage: '[options] -- <command>',
   commands: [start, stop, ping],
-  projectType: 'web',
 
   flags: [{
     name: 'parallel',

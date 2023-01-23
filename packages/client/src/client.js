@@ -117,7 +117,7 @@ export class PercyClient {
   // Creates a build with optional build resources. Only one build can be
   // created at a time per instance so snapshots and build finalization can be
   // done more seemlessly without manually tracking build ids
-  async createBuild({ resources = [], projectType = null } = {}) {
+  async createBuild({ resources = [], projectType } = {}) {
     this.log.debug('Creating a new build...');
 
     return this.post('builds', {
