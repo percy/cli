@@ -137,7 +137,7 @@ describe('PercyClient', () => {
   });
 
   describe('#createBuild()', () => {
-    it('creates a new build', async () => {
+    it('creates a new build without passing projectType', async () => {
       await expectAsync(client.createBuild()).toBeResolvedTo({
         data: {
           id: '123',
@@ -152,6 +152,7 @@ describe('PercyClient', () => {
         .toEqual(jasmine.objectContaining({
           attributes: {
             branch: client.env.git.branch,
+            type: null,
             'target-branch': client.env.target.branch,
             'target-commit-sha': client.env.target.commit,
             'commit-sha': client.env.git.sha,
