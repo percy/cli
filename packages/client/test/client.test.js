@@ -137,8 +137,8 @@ describe('PercyClient', () => {
   });
 
   describe('#createBuild()', () => {
-    it('creates a new build without passing projectType', async () => {
-      await expectAsync(client.createBuild()).toBeResolvedTo({
+    it('creates a new build with projectType null', async () => {
+      await expectAsync(client.createBuild({ projectType: null })).toBeResolvedTo({
         data: {
           id: '123',
           attributes: {
