@@ -33,7 +33,8 @@ export const exec = command('exec', {
   ].join(' '),
 
   percy: {
-    server: true
+    server: true,
+    projectType: 'web'
   }
 }, async function*({ flags, argv, env, percy, log, exit }) {
   let [command, ...args] = argv;

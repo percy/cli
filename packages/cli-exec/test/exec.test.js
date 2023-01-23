@@ -195,7 +195,7 @@ describe('percy exec', () => {
     ]);
   });
 
-  it('provides the child process with a percy build id env var', async () => {
+  it('provides the child process with a percy build url env var', async () => {
     await exec(['--', 'node', '--eval', (
       'process.env.PERCY_BUILD_URL === "https://percy.io/test/test/123" || process.exit(2)'
     )]);
