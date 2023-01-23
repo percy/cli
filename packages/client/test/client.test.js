@@ -137,7 +137,39 @@ describe('PercyClient', () => {
   });
 
   describe('#createBuild()', () => {
-    it('creates a new build with projectType null', async () => {
+    it('creates a new build', async () => {
+      await expectAsync(client.createBuild()).toBeResolvedTo({
+        data: {
+          id: '123',
+          attributes: {
+            'build-number': 1,
+            'web-url': 'https://percy.io/test/test/123'
+          }
+        }
+      });
+
+      expect(api.requests['/builds'][0].body.data)
+        .toEqual(jasmine.objectContaining({
+          attributes: {
+            branch: client.env.git.branch,
+            'target-branch': client.env.target.branch,
+            'target-commit-sha': client.env.target.commit,
+            'commit-sha': client.env.git.sha,
+            'commit-committed-at': client.env.git.committedAt,
+            'commit-author-name': client.env.git.authorName,
+            'commit-author-email': client.env.git.authorEmail,
+            'commit-committer-name': client.env.git.committerName,
+            'commit-committer-email': client.env.git.committerEmail,
+            'commit-message': client.env.git.message,
+            'pull-request-number': client.env.pullRequest,
+            'parallel-nonce': client.env.parallel.nonce,
+            'parallel-total-shards': client.env.parallel.total,
+            partial: client.env.partial
+          }
+        }));
+    });
+
+    it('creates a new build with projectType passed as null', async () => {
       await expectAsync(client.createBuild({ projectType: null })).toBeResolvedTo({
         data: {
           id: '123',
