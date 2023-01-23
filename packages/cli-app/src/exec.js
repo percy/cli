@@ -10,6 +10,7 @@ export const start = command('start', {
 
   percy: {
     server: true,
+    projectType: 'app',
     skipDiscovery: true
   }
 }, ExecPlugin.start.callback);
