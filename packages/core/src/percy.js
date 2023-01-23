@@ -63,6 +63,7 @@ export class Percy {
     // snapshot server options
     server = true,
     port = 5338,
+    projectType = null,
     // options such as `snapshot` and `discovery` that are valid Percy config
     // options which will become accessible via the `.config` property
     ...options
@@ -78,6 +79,7 @@ export class Percy {
     if (testing) loglevel = 'silent';
     if (loglevel) this.loglevel(loglevel);
 
+    this.projectType = projectType;
     this.testing = testing ? {} : null;
     this.dryRun = !!testing || !!dryRun;
     this.skipUploads = this.dryRun || !!skipUploads;
@@ -142,8 +144,7 @@ export class Percy {
   }
 
   // Starts a local API server, a browser process, and internal queues.
-  async *start(execType) {
-    this.execType = execType;
+  async *start() {
     // already starting or started
     if (this.readyState != null) return;
     this.readyState = 0;

@@ -25,6 +25,7 @@ export const exec = command('exec', {
 
   percy: {
     server: true,
+    projectType: 'app',
     skipDiscovery: true
   }
 }, ExecPlugin.default.callback);

@@ -290,15 +290,15 @@ describe('Percy', () => {
       expect(api.requests['/builds']).toBeUndefined();
     });
 
-    it('has execType', async () => {
-      percy = new Percy({ token: 'PERCY_TOKEN' });
+    it('has projectType', async () => {
+      percy = new Percy({ token: 'PERCY_TOKEN', projectType: 'web' });
 
       // abort when the browser is launched
       let ctrl = new AbortController();
       spyOn(percy.browser, 'launch');
 
-      await generatePromise(percy.yield.start('abc'), ctrl.signal);
-      expect(percy.execType).toEqual('abc');
+      await generatePromise(percy.yield.start(), ctrl.signal);
+      expect(percy.projectType).toEqual('web');
     });
 
     it('does not create an empty build when uploads are deferred', async () => {

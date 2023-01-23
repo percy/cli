@@ -1,5 +1,5 @@
 import { logger, dedent } from './helpers.js';
-import command, { getExecType } from '@percy/cli-command';
+import command from '@percy/cli-command';
 
 describe('Command', () => {
   beforeEach(async () => {
@@ -244,25 +244,5 @@ describe('Command', () => {
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([]);
-  });
-
-  it('tests method that return type based on cli command', () => {
-    expect(getExecType({ name: 'exec' })).toBe('web');
-    expect(getExecType({ name: 'exec:start' })).toBe('web');
-    expect(getExecType({ name: 'exec:stop' })).toBe('web');
-    expect(getExecType({ name: 'exec:ping' })).toBe('web');
-    expect(getExecType({ name: 'storybook' })).toBe('web');
-    expect(getExecType({ name: 'storybook:start' })).toBe('web');
-    expect(getExecType({ name: 'snapshot' })).toBe('web');
-    expect(getExecType({ name: 'upload' })).toBe('web');
-    expect(getExecType({ name: 'build:finalize' })).toBe('web');
-    expect(getExecType({ name: 'build:wait' })).toBe('web');
-    expect(getExecType({ name: 'build:id' })).toBe('web');
-    expect(getExecType({ name: 'config:create' })).toBe('web');
-    expect(getExecType({ name: 'config:validate' })).toBe('web');
-    expect(getExecType({ name: 'config:migrate' })).toBe('web');
-    expect(getExecType({ name: 'app:exec' })).toBe('app');
-    expect(getExecType({ name: 'app:exec:start' })).toBe('app');
-    expect(getExecType({ name: 'app:exec:stop' })).toBe('app');
   });
 });

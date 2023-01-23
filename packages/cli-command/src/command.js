@@ -62,8 +62,8 @@ function exit(exitCode, reason = '') {
 // and other common command helpers and properties.
 async function runCommandWithContext(parsed) {
   let { command, flags, args, argv, log } = parsed;
-  // include execType, flags, args, argv, logger, exit helper, and env info
-  let context = { execType: getExecType(command), flags, args, argv, log, exit };
+  // include flags, args, argv, logger, exit helper, and env info
+  let context = { flags, args, argv, log, exit };
   let env = context.env = process.env;
   let pkg = command.packageInformation;
   let def = command.definition;
@@ -118,7 +118,6 @@ async function runCommandWithContext(parsed) {
 // information when requested, and handle any thrown errors exiting when appropriate.
 export function command(name, definition, callback) {
   definition = withBuiltIns(definition);
-
   // auto register config schemas and migrations
   PercyConfig.addSchema(definition.config.schemas);
   PercyConfig.addMigration(definition.config.migrations);
@@ -172,12 +171,6 @@ export function command(name, definition, callback) {
   });
 
   return runner;
-}
-
-// App Percy currently only supports `app:exec` command and its sub commands,
-// All the other commands are deemed for Percy Web.
-export function getExecType(command) {
-  return command.name?.includes('app') ? 'app' : 'web';
 }
 
 export default command;

@@ -1,4 +1,4 @@
-export { default, command, getExecType } from './command.js';
+export { default, command } from './command.js';
 export { legacyCommand, legacyFlags as flags } from './legacy.js';
 // export common packages to avoid dependency resolution issues
 export { default as PercyConfig } from '@percy/config';

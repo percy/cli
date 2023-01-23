@@ -3,7 +3,7 @@ import command from '@percy/cli-command';
 export const finalize = command('finalize', {
   description: 'Finalize parallel Percy builds',
   percy: true
-}, async ({ env, execType, percy, log, exit }) => {
+}, async ({ env, percy, log, exit }) => {
   if (!percy) exit(0, 'Percy is disabled');
 
   // automatically set parallel total to -1
@@ -19,7 +19,7 @@ export const finalize = command('finalize', {
   log.info('Finalizing parallel build...');
 
   // rely on the parallel nonce to cause the API to return the current running build for the nonce
-  let { data: build } = await percy.client.createBuild({ execType });
+  let { data: build } = await percy.client.createBuild({ projectType: percy.projectType });
   await percy.client.finalizeBuild(build.id, { all: true });
 
   let { 'build-number': number, 'web-url': url } = build.attributes;

@@ -7,6 +7,7 @@ export const exec = command('exec', {
   description: 'Start and stop Percy around a supplied command',
   usage: '[options] -- <command>',
   commands: [start, stop, ping],
+  projectType: 'web',
 
   flags: [{
     name: 'parallel',
@@ -33,9 +34,10 @@ export const exec = command('exec', {
   ].join(' '),
 
   percy: {
-    server: true
+    server: true,
+    projectType: 'web'
   }
-}, async function*({ flags, argv, env, percy, log, execType, exit }) {
+}, async function*({ flags, argv, env, percy, log, exit }) {
   let [command, ...args] = argv;
 
   // command is required
@@ -58,7 +60,7 @@ export const exec = command('exec', {
     log.warn('Percy is disabled');
   } else {
     try {
-      yield* percy.yield.start(execType);
+      yield* percy.yield.start();
     } catch (error) {
       if (error.name === 'AbortError') throw error;
       log.warn('Skipping visual tests');
