@@ -424,6 +424,9 @@ export const comparisonSchema = {
           content: {
             type: 'string'
           },
+          sha: {
+            type: 'string'
+          },
           statusBarHeight: {
             type: 'integer',
             minimum: 0

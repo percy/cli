@@ -19,6 +19,10 @@ export function base64encode(content) {
     .toString('base64');
 }
 
+export function waitForTimeout() {
+  return new Promise(resolve => setTimeout(resolve, ...arguments));
+}
+
 // Returns the package.json content at the package path.
 export function getPackageJSON(rel) {
   /* istanbul ignore else: sanity check */
