@@ -906,7 +906,7 @@ describe('PercyClient', () => {
     });
 
     it('returns true if tile is verified', async () => {
-      api.reply(`/comparisons/891011/tile/verify?sha=${sha256hash('foo')}`, async () => {
+      api.reply('/comparisons/891011/tiles/verify', async () => {
         return [200, 'success'];
       });
 
@@ -918,7 +918,7 @@ describe('PercyClient', () => {
     });
 
     it('returns false if tile is not verified', async () => {
-      api.reply(`/comparisons/891011/tile/verify?sha=${sha256hash('foo')}`, async () => {
+      api.reply('/comparisons/891011/tiles/verify', async () => {
         return [409, 'Not found'];
       });
 
@@ -930,7 +930,7 @@ describe('PercyClient', () => {
     });
 
     it('throws any errors from verifying', async () => {
-      api.reply(`/comparisons/891011/tile/verify?sha=${sha256hash('foo')}`, async () => {
+      api.reply('/comparisons/891011/tiles/verify', async () => {
         return [400, 'failure'];
       });
 
@@ -948,7 +948,37 @@ describe('PercyClient', () => {
 
     it('verify a comparison tile', async () => {
       await expectAsync(client.verifyComparisonTile(123, 'sha')).toBeResolved();
-      expect(api.requests['/comparisons/123/tile/verify?sha=sha']).toBeDefined();
+
+      expect(api.requests['/comparisons/123/tiles/verify'][0].body).toEqual({
+        data: {
+          type: 'tiles',
+          attributes: {
+            sha: 'sha'
+          }
+        }
+      });
+    });
+  });
+
+  describe('#verify()', () => {
+    it('throws when missing a comparison id', async () => {
+      await expectAsync(client.verify())
+        .toBeRejectedWithError('Missing comparison ID');
+    });
+
+    it('verify a comparison tile', async () => {
+      await expectAsync(client.verify(123, 'sha')).toBeResolved();
+
+      expect(api.requests['/comparisons/123/tiles/verify']).toBeDefined();
+      expect(api.requests['/comparisons/1234/tiles/verify']).not.toBeDefined();
+      expect(api.requests['/comparisons/123/tiles/verify'][0].body).toEqual({
+        data: {
+          type: 'tiles',
+          attributes: {
+            sha: 'sha'
+          }
+        }
+      });
     });
   });
 
