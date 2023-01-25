@@ -953,7 +953,7 @@ describe('PercyClient', () => {
         data: {
           type: 'tiles',
           attributes: {
-            sha: 'sha'
+            'sha': 'sha'
           }
         }
       });
@@ -975,7 +975,7 @@ describe('PercyClient', () => {
         data: {
           type: 'tiles',
           attributes: {
-            sha: 'sha'
+            'sha': 'sha'
           }
         }
       });
