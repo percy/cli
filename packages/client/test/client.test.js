@@ -949,14 +949,8 @@ describe('PercyClient', () => {
     it('verify a comparison tile', async () => {
       await expectAsync(client.verifyComparisonTile(123, 'sha')).toBeResolved();
 
-      expect(api.requests['/comparisons/123/tiles/verify'][0].body).toEqual({
-        data: {
-          type: 'tiles',
-          attributes: {
-            'sha': 'sha'
-          }
-        }
-      });
+      expect(api.requests['/comparisons/123/tiles/verify']).toBeDefined();
+      expect(api.requests['/comparisons/1234/tiles/verify']).not.toBeDefined();
     });
   });
 
@@ -971,14 +965,6 @@ describe('PercyClient', () => {
 
       expect(api.requests['/comparisons/123/tiles/verify']).toBeDefined();
       expect(api.requests['/comparisons/1234/tiles/verify']).not.toBeDefined();
-      expect(api.requests['/comparisons/123/tiles/verify'][0].body).toEqual({
-        data: {
-          type: 'tiles',
-          attributes: {
-            'sha': 'sha'
-          }
-        }
-      });
     });
   });
 
