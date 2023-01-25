@@ -23,7 +23,8 @@ export function injectDeclarativeShadowDOMPolyfill(ctx) {
     document.addEventListener('DOMContentLoaded', event => reversePolyFill(document));
   `.replace(/(\n|\s{2}|\t)/g, '');
 
-  clone.body.appendChild(scriptEl);
+  // run polyfill as first thing post dom content is loaded
+  clone.documentElement.prepend(scriptEl);
 }
 
 export default injectDeclarativeShadowDOMPolyfill;
