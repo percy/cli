@@ -8,7 +8,8 @@ import {
   request,
   sha256hash,
   base64encode,
-  getPackageJSON
+  getPackageJSON,
+  waitForTimeout
 } from './utils.js';
 
 // Default client API URL can be set with an env var for API development
@@ -407,10 +408,13 @@ export class PercyClient {
     });
   }
 
-  async uploadComparisonTile(comparisonId, { index = 0, total = 1, filepath, content } = {}) {
+  async uploadComparisonTile(comparisonId, { index = 0, total = 1, filepath, content, sha } = {}) {
     validateId('comparison', comparisonId);
     this.log.debug(`Uploading comparison tile: ${index + 1}/${total} (${comparisonId})...`);
     if (filepath) content = await fs.promises.readFile(filepath);
+    if (sha) {
+      return await this.verify(comparisonId, sha);
+    }
 
     return this.post(`comparisons/${comparisonId}/tiles`, {
       data: {
@@ -421,6 +425,45 @@ export class PercyClient {
         }
       }
     });
+  }
+
+  // Convenience method for verifying if tile is present
+  async verify(comparisonId, sha) {
+    let retries = 10;
+    let success = null;
+    do {
+      await waitForTimeout(500);
+      success = await this.verifyComparisonTile(comparisonId, sha);
+      retries -= 1;
+    }
+    while (retries > 0 && !success);
+
+    if (!success) {
+      this.log.error('Uploading comparison tile failed');
+      return false;
+    }
+    return true;
+  }
+
+  async verifyComparisonTile(comparisonId, sha) {
+    validateId('comparison', comparisonId);
+    this.log.debug(`Verifying comparison tile with sha: ${sha}`);
+
+    try {
+      return await this.get(`comparisons/${comparisonId}/tiles/verify`, {
+        data: {
+          type: 'tiles',
+          attributes: {
+            sha: sha
+          }
+        }
+      });
+    } catch (error) {
+      if (error.message.includes('409')) {
+        return false;
+      }
+      throw error;
+    }
   }
 
   async uploadComparisonTiles(comparisonId, tiles) {
