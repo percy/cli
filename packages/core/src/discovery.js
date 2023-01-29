@@ -193,7 +193,8 @@ async function* captureSnapshotResources(page, snapshot, options) {
 
     yield* captureSnapshotResources(page, snapshot, {
       deviceScaleFactor: discovery.devicePixelRatio,
-      mobile: true
+      mobile: true,
+      capture: snapshot.domSnapshot ? null : capture
     });
   }
 
