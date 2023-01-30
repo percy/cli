@@ -133,7 +133,6 @@ async function* captureSnapshotResources(page, snapshot, options) {
     if (captureWidths) options = { ...options, width };
     let captured = await page.snapshot(options);
     captured.resources.delete(normalizeURL(captured.url));
-    capture(processSnapshotResources(captured));
     return captured;
   };
 
@@ -193,15 +192,20 @@ async function* captureSnapshotResources(page, snapshot, options) {
 
     yield* captureSnapshotResources(page, snapshot, {
       deviceScaleFactor: discovery.devicePixelRatio,
-      mobile: true,
-      capture: snapshot.domSnapshot ? null : capture
+      mobile: true
     });
   }
 
   // wait for final network idle when not capturing DOM
-  if (capture && snapshot.domSnapshot) {
+  if (capture) {
     yield waitForDiscoveryNetworkIdle(page, discovery);
-    capture(processSnapshotResources(snapshot));
+    if (!snapshot.domSnapshot) {
+      // invoked through cli-snapshot
+      snapshot.resources.delete(snapshot.url);
+      capture(processSnapshotResources({ domSnapshot: baseSnapshot.domSnapshot, ...snapshot }));
+    } else {
+      capture(processSnapshotResources(snapshot));
+    }
   }
 }
 
