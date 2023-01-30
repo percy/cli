@@ -279,7 +279,7 @@ export function createDiscoveryQueue(percy) {
           allowedHostnames: snapshot.discovery.allowedHostnames,
           disallowedHostnames: snapshot.discovery.disallowedHostnames,
           getResource: u => snapshot.resources.get(u) || cache.get(u),
-          saveResource: r => snapshot.resources.set(r.url, r) && cache.set(r.url, r)
+          saveResource: r => { snapshot.resources.set(r.url, r); if (!r.root) { cache.set(r.url, r); } }
         }
       });
 
