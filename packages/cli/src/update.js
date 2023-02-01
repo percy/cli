@@ -82,7 +82,8 @@ export async function checkForUpdate() {
     }
 
     // check the current package version against released versions
-    let versions = releases.map(r => r.tag.substr(1));
+    // don't include prerelease - alpha/beta versions
+    let versions = releases.filter(r => !r.prerelease).map(r => r.tag.substr(1));
     let age = versions.indexOf(pkg.version);
 
     // a new version is available

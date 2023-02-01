@@ -76,14 +76,22 @@ describe('CLI update check', () => {
     ]);
   });
 
+  it('does not warns when a new pre release is available', async () => {
+    mockUpdateCache([{ tag: 'v1.1.0', prerelease: true }, { tag: 'v1.0.0' }]);
+
+    await checkForUpdate();
+    expect(logger.stdout).toEqual([]);
+    expect(logger.stderr).toEqual([]);
+  });
+
   it('warns when the current version is outdated', async () => {
-    mockUpdateCache([{ tag: 'v2.0.0' }]);
+    mockUpdateCache([{ tag: 'v2.0.2', prerelease: true }, { tag: 'v2.0.1', prerelease: false }, { tag: 'v2.0.0', prerelease: true }]);
 
     await checkForUpdate();
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
       '\n[percy] Heads up! The current version of @percy/cli ' +
-        'is more than 10 releases behind! 1.0.0 -> 2.0.0\n'
+        'is more than 10 releases behind! 1.0.0 -> 2.0.1\n'
     ]);
   });
 
