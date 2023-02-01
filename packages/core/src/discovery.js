@@ -43,6 +43,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'execute.beforeSnapshot');
   debugProp(snapshot, 'discovery.allowedHostnames');
   debugProp(snapshot, 'discovery.disallowedHostnames');
+  debugProp(snapshot, 'discovery.devicePixelRatio');
   debugProp(snapshot, 'discovery.requestHeaders', JSON.stringify);
   debugProp(snapshot, 'discovery.authorization', JSON.stringify);
   debugProp(snapshot, 'discovery.disableCache');
