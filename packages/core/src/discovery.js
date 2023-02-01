@@ -133,6 +133,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
     if (captureWidths) options = { ...options, width };
     let captured = await page.snapshot(options);
     captured.resources.delete(normalizeURL(captured.url));
+    capture(processSnapshotResources(captured));
     return captured;
   };
 
@@ -197,15 +198,9 @@ async function* captureSnapshotResources(page, snapshot, options) {
   }
 
   // wait for final network idle when not capturing DOM
-  if (capture) {
+  if (capture && snapshot.domSnapshot) {
     yield waitForDiscoveryNetworkIdle(page, discovery);
-    if (!snapshot.domSnapshot) {
-      // invoked through cli-snapshot
-      snapshot.resources.delete(snapshot.url);
-      capture(processSnapshotResources({ domSnapshot: baseSnapshot.domSnapshot, ...snapshot }));
-    } else {
-      capture(processSnapshotResources(snapshot));
-    }
+    capture(processSnapshotResources(snapshot));
   }
 }
 
