@@ -228,7 +228,7 @@ export async function* discoverSnapshotResources(queue, options, callback) {
 }
 
 // Used to cache resources across core instances
-const RESOURCE_CACHE_KEY = Symbol('resource-cache');
+export const RESOURCE_CACHE_KEY = Symbol('resource-cache');
 
 // Creates an asset discovery queue that uses the percy browser instance to create a page for each
 // snapshot which is used to intercept and capture snapshot resource requests.
