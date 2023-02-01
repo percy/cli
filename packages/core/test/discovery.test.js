@@ -629,8 +629,10 @@ describe('Discovery', () => {
     ]));
   });
 
-  it('captures responsive assets at higher pixel densities', async () => {
-    let responsiveDOM = dedent`
+  describe('higher pixel densities', () => {
+    let responsiveDOM;
+    beforeEach(() => {
+      responsiveDOM = dedent`
       <html>
       <head></head>
       <body>
@@ -641,31 +643,59 @@ describe('Discovery', () => {
       </html>
     `;
 
-    server.reply('/', () => [200, 'text/html', responsiveDOM]);
-    server.reply('/img-normal.png', () => [200, 'image/png', pixel]);
-    server.reply('/img-2x.png', () => new Promise(r => (
-      setTimeout(r, 200, [200, 'image/png', pixel]))));
-
-    await percy.snapshot({
-      name: 'test responsive',
-      url: 'http://localhost:8000',
-      domSnapshot: responsiveDOM,
-      discovery: { devicePixelRatio: 2 },
-      widths: [400, 800]
+      server.reply('/', () => [200, 'text/html', responsiveDOM]);
+      server.reply('/img-normal.png', () => [200, 'image/png', pixel]);
+      server.reply('/img-2x.png', () => new Promise(r => (
+        setTimeout(r, 200, [200, 'image/png', pixel]))));
     });
 
-    await percy.idle();
+    it('when domSnapshot present', async () => {
+      await percy.snapshot({
+        name: 'test responsive',
+        url: 'http://localhost:8000',
+        domSnapshot: responsiveDOM,
+        discovery: { devicePixelRatio: 2 },
+        widths: [400, 800]
+      });
 
-    let resource = path => jasmine.objectContaining({
-      attributes: jasmine.objectContaining({
-        'resource-url': `http://localhost:8000${path}`
-      })
+      await percy.idle();
+
+      let resource = path => jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': `http://localhost:8000${path}`
+        })
+      });
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        resource('/img-normal.png'),
+        resource('/img-2x.png')
+      ]));
     });
 
-    expect(captured[0]).toEqual(jasmine.arrayContaining([
-      resource('/img-normal.png'),
-      resource('/img-2x.png')
-    ]));
+    it('when option in config', async () => {
+      percy.config.discovery.devicePixelRatio = 2;
+      await percy.snapshot({
+        name: 'test responsive',
+        url: 'http://localhost:8000',
+        domSnapshot: responsiveDOM,
+        widths: [400, 800]
+      });
+
+      await percy.idle();
+
+      let resource = path => jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': `http://localhost:8000${path}`
+        })
+      });
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        resource('/img-normal.png'),
+        resource('/img-2x.png')
+      ]));
+
+      delete percy.config.discovery.devicePixelRatio;
+    });
   });
 
   it('captures requests from workers', async () => {
