@@ -228,7 +228,7 @@ export async function* discoverSnapshotResources(queue, options, callback) {
 }
 
 // Used to cache resources across core instances
-const RESOURCE_CACHE_KEY = Symbol('resource-cache');
+export const RESOURCE_CACHE_KEY = Symbol('resource-cache');
 
 // Creates an asset discovery queue that uses the percy browser instance to create a page for each
 // snapshot which is used to intercept and capture snapshot resource requests.
@@ -279,7 +279,7 @@ export function createDiscoveryQueue(percy) {
           allowedHostnames: snapshot.discovery.allowedHostnames,
           disallowedHostnames: snapshot.discovery.disallowedHostnames,
           getResource: u => snapshot.resources.get(u) || cache.get(u),
-          saveResource: r => snapshot.resources.set(r.url, r) && cache.set(r.url, r)
+          saveResource: r => { snapshot.resources.set(r.url, r); if (!r.root) { cache.set(r.url, r); } }
         }
       });
 

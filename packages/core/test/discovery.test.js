@@ -1,6 +1,7 @@
 import { sha256hash } from '@percy/client/utils';
 import { logger, api, setupTest, createTestServer, dedent } from './helpers/index.js';
 import Percy from '@percy/core';
+import { RESOURCE_CACHE_KEY } from '../src/discovery.js';
 
 describe('Discovery', () => {
   let percy, server, captured;
@@ -1188,6 +1189,20 @@ describe('Discovery', () => {
       expect(captured[0][1]).toEqual(captured[1][1]);
       expect(captured[0][2]).toEqual(captured[1][2]);
       expect(captured[0][3]).toEqual(captured[1][3]);
+    });
+
+    it('does not cache root resource', async () => {
+      await snapshot(1);
+      // http://localhost:8000/
+      let rootResources = Array.from(percy[RESOURCE_CACHE_KEY].values()).filter(resource => !!resource.root);
+      expect(rootResources.length).toEqual(0);
+    });
+
+    it('caches non root resources', async () => {
+      await snapshot(1);
+      // http://localhost:8000/{img.gif,style.css}
+      let nonRootResources = Array.from(percy[RESOURCE_CACHE_KEY].values()).filter(resource => !resource.root);
+      expect(nonRootResources.length).toEqual(2);
     });
   });
 
