@@ -1,4 +1,4 @@
-import { withExample, replaceDoctype, createShadowEl } from './helpers';
+import { withExample, replaceDoctype, createShadowEl, getTestBrowser, chromeBrowser } from './helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeDOM', () => {
@@ -36,7 +36,7 @@ describe('serializeDOM', () => {
 
   describe('shadow dom', () => {
     it('renders open root as template tag', () => {
-      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+      if (getTestBrowser() !== chromeBrowser) {
         return;
       }
 
@@ -53,7 +53,7 @@ describe('serializeDOM', () => {
     });
 
     it('does not render closed root', () => {
-      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+      if (getTestBrowser() !== chromeBrowser) {
         return;
       }
 
@@ -70,7 +70,7 @@ describe('serializeDOM', () => {
     });
 
     it('renders single nested ', () => {
-      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+      if (getTestBrowser() !== chromeBrowser) {
         return;
       }
 
@@ -95,7 +95,7 @@ describe('serializeDOM', () => {
     });
 
     it('renders many nested', () => {
-      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+      if (getTestBrowser() !== chromeBrowser) {
         return;
       }
       withExample('<div id="content"></div>', { withShadow: false });
@@ -167,7 +167,7 @@ describe('serializeDOM', () => {
     });
 
     it('renders custom elements properly', () => {
-      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+      if (getTestBrowser() !== chromeBrowser) {
         return;
       }
       class TestElement extends window.HTMLElement {
@@ -183,7 +183,7 @@ describe('serializeDOM', () => {
 
       window.customElements.define('test-elem', TestElement);
 
-      withExample('<test-elem/>');
+      withExample('<test-elem/>', { withShadow: false });
       const html = serializeDOM().html;
       expect(html).toMatch('<h2>Test</h2>');
     });

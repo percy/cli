@@ -100,7 +100,13 @@ export function createShadowEl(tag = 0) {
 }
 
 export function getTestBrowser() {
-  if (navigator.userAgent.toLowerCase().includes('chrome')) { return chromeBrowser; } else if (navigator.userAgent.toLowerCase().includes('firefox')) { return firefoxBrowser; } else { throw new Error('unsupported test browser'); }
+  if (navigator.userAgent.toLowerCase().includes('chrome')) {
+    return chromeBrowser;
+  } else if (navigator.userAgent.toLowerCase().includes('firefox')) {
+    return firefoxBrowser;
+  } else {
+    throw new Error('unsupported test browser');
+  }
 }
 
 export const platforms = (() => {
