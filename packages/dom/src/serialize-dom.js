@@ -39,7 +39,7 @@ export function serializeDOM(options) {
     enableJavaScript = options?.enable_javascript,
     domTransformation = options?.dom_transformation,
     stringifyResponse = options?.stringify_response,
-    disableShadowDom = options?.disable_shadowdom
+    disableShadowDom = options?.disable_shadow_dom
   } = options || {};
 
   // keep certain records throughout serialization
