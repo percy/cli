@@ -165,6 +165,28 @@ describe('serializeDOM', () => {
       expect(html).not.toMatch('<p>Percy-8</p>');
       expect(html).not.toMatch('data-percy-shadow-host=');
     });
+
+    it('renders custom elements properly', () => {
+      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+        return;
+      }
+      class TestElement extends window.HTMLElement {
+        constructor() {
+          super();
+          // Create a shadow root
+          const shadow = this.shadowRoot || this.attachShadow({ mode: 'open' });
+          const wrapper = document.createElement('h2');
+          wrapper.innerText = 'Test';
+          shadow.appendChild(wrapper);
+        }
+      }
+
+      window.customElements.define('test-elem', TestElement);
+
+      withExample('<test-elem/>');
+      const html = serializeDOM().html;
+      expect(html).toMatch('<h2>Test</h2>');
+    });
   });
 
   describe('with `domTransformation`', () => {
