@@ -101,7 +101,7 @@ describe('serializeDOM', () => {
       withExample('<div id="content"></div>', { withShadow: false });
       const baseContent = document.querySelector('#content');
 
-      const levels = 5;
+      const levels = 1000;
 
       let j = levels, el = null;
       let matchRegex = '';
@@ -132,7 +132,7 @@ describe('serializeDOM', () => {
       withExample('<div id="content"></div>', { withShadow: false });
       const baseContent = document.querySelector('#content');
 
-      const levels = 5;
+      const levels = 1000;
 
       let j = levels, matchRegex = '';
 
