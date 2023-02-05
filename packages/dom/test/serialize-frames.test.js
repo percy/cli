@@ -74,16 +74,17 @@ describe('serializeFrames', () => {
       expect($('#frame-js')[0].getAttribute('src')).toBeNull();
       expect($('#frame-js')[0].getAttribute('srcdoc')).toMatch(new RegExp([
         '<!DOCTYPE html><html><head>',
+        '<script id="__percy_shadowdom_helper" data-percy-injected="true">.*</script>',
         `<base href="${$('#frame-js')[0].baseURI}">`,
         '</head><body>',
         '<p>made with js src</p>',
-        '<script id="__percy_shadowdom_helper" data-percy-injected="true">.*</script>',
         '</body></html>'
       ].join('')));
 
       expect($('#frame-js-no-src')[0].getAttribute('src')).toBeNull();
       expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toMatch([
         '<!DOCTYPE html><html><head>',
+        '<script id="__percy_shadowdom_helper" data-percy-injected="true">.*</script>',
         `<base href="${$('#frame-js-no-src')[0].baseURI}">`,
         '</head><body>',
         '<p>generated iframe</p>',
@@ -101,9 +102,10 @@ describe('serializeFrames', () => {
 
     it(`${platform}: serializes iframes that have been interacted with`, () => {
       expect($('#frame-input')[0].getAttribute('srcdoc')).toMatch(new RegExp([
-        '^<!DOCTYPE html><html><head>.*?</head><body>',
-        '<input data-percy-element-id=".+?" value="iframe with an input">',
+        '^<!DOCTYPE html><html><head>',
         '<script id="__percy_shadowdom_helper" data-percy-injected="true">.*</script>',
+        '.*?</head><body>',
+        '<input data-percy-element-id=".+?" value="iframe with an input">',
         '</body></html>$'
       ].join('')));
     });

@@ -24,7 +24,7 @@ export function injectDeclarativeShadowDOMPolyfill(ctx) {
   `.replace(/(\n|\s{2}|\t)/g, '');
 
   // run polyfill as first thing post dom content is loaded
-  clone.documentElement.prepend(scriptEl);
+  clone.head.prepend(scriptEl);
 }
 
 export default injectDeclarativeShadowDOMPolyfill;
