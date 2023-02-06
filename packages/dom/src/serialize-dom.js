@@ -70,7 +70,7 @@ export function serializeDOM(options) {
     }
   }
 
-  injectDeclarativeShadowDOMPolyfill(ctx);
+  if (!disableShadowDOM) { injectDeclarativeShadowDOMPolyfill(ctx); }
 
   let result = {
     html: serializeHTML(ctx),
