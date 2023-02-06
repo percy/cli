@@ -110,7 +110,7 @@ export function getTestBrowser() {
 }
 
 export const platforms = (() => {
-  if (navigator.userAgent.toLowerCase().includes('chrome')) {
+  if (getTestBrowser() === chromeBrowser) {
     return ['plain', 'shadow'];
   }
   return ['plain'];

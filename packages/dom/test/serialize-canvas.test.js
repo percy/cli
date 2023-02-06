@@ -43,7 +43,6 @@ describe('serializeCanvas', () => {
   platforms.forEach((platform) => {
     let $;
     beforeEach(() => {
-      // console.log(`beforeEach ${platform}`);
       $ = parseDOM(serialized.html, platform);
     });
 

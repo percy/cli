@@ -78,7 +78,6 @@ describe('serializeCSSOM', () => {
       let $ = parseDOM(serializeDOM(), 'plain');
 
       const resultShadowEl = $('#Percy-0')[0];
-      // console.log(shadowRoot.children)
       expect(resultShadowEl.innerHTML).toEqual([
         '<template shadowroot="open">',
         '<style>p { color: blue; }</style>',

@@ -1,4 +1,4 @@
-import { withExample, replaceDoctype, createShadowEl, getTestBrowser, chromeBrowser } from './helpers';
+import { withExample, replaceDoctype, createShadowEl, getTestBrowser, chromeBrowser, firefoxBrowser } from './helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeDOM', () => {
@@ -126,7 +126,7 @@ describe('serializeDOM', () => {
     });
 
     it('renders many flat', () => {
-      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+      if (getTestBrowser() === firefoxBrowser) {
         return;
       }
       withExample('<div id="content"></div>', { withShadow: false });
@@ -153,9 +153,6 @@ describe('serializeDOM', () => {
     });
 
     it('respects disableShadowDOM', () => {
-      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
-        return;
-      }
       withExample('<div id="content"></div>', { withShadow: false });
       const baseContent = document.querySelector('#content');
       const el = createShadowEl(8);
