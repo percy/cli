@@ -69,7 +69,7 @@ describe('serializeCSSOM', () => {
 
       withExample('<div id="box"></div>', { withShadow: false });
       const box = document.querySelector('#box');
-      const sheet = new CSSStyleSheet();
+      const sheet = new window.CSSStyleSheet();
       sheet.replaceSync('p { color: blue; }');
       const shadowEl = createShadowEl();
       shadowEl.shadowRoot.adoptedStyleSheets = [sheet];
