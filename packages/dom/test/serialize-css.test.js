@@ -69,6 +69,7 @@ describe('serializeCSSOM', () => {
 
       withExample('<div id="box"></div>', { withShadow: false });
       const box = document.querySelector('#box');
+      /* eslint-disable no-undef */
       const sheet = new CSSStyleSheet();
       sheet.replaceSync('p { color: blue; }');
       const shadowEl = createShadowEl();
