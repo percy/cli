@@ -3,7 +3,7 @@ function uid() {
   return `_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-export function markElement(domElement, disableShadowDom = false) {
+export function markElement(domElement, disableShadowDOM) {
   // Mark elements that are to be serialized later with a data attribute.
   if (['input', 'textarea', 'select', 'iframe', 'canvas', 'video', 'style'].includes(domElement.tagName?.toLowerCase())) {
     if (!domElement.getAttribute('data-percy-element-id')) {
@@ -12,7 +12,7 @@ export function markElement(domElement, disableShadowDom = false) {
   }
 
   // add special marker for shadow host
-  if (!disableShadowDom && domElement.shadowRoot) {
+  if (!disableShadowDOM && domElement.shadowRoot) {
     if (!domElement.getAttribute('data-percy-shadow-host')) {
       domElement.setAttribute('data-percy-shadow-host', '');
     }

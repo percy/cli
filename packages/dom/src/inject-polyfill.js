@@ -5,7 +5,7 @@
 export function injectDeclarativeShadowDOMPolyfill(ctx) {
   let clone = ctx.clone;
   let scriptEl = clone.createElement('script');
-  scriptEl.setAttribute('id', '__percy_declarative_shadowdom_polyfill');
+  scriptEl.setAttribute('id', '__percy_shadowdom_helper');
   scriptEl.setAttribute('data-percy-injected', true);
 
   scriptEl.innerHTML = `
