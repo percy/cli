@@ -56,7 +56,8 @@ describe('Percy', () => {
     expect(percy.config.snapshot).toEqual({
       widths: [375, 1280],
       minHeight: 1024,
-      percyCSS: ''
+      percyCSS: '',
+      disableShadowDOM: false
     });
   });
 
@@ -76,7 +77,8 @@ describe('Percy', () => {
       execute() {
         let p = document.querySelector('p');
         p.textContent = p.textContent.replace('Hello', 'Hello there,');
-      }
+      },
+      disableShadowDOM: true
     });
 
     expect(snapshot.url).toEqual('http://localhost:8000/');
