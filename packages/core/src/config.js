@@ -36,7 +36,8 @@ export const configSchema = {
         type: 'boolean'
       },
       disableShadowDOM: {
-        type: 'boolean'
+        type: 'boolean',
+        default: false
       },
       scope: {
         type: 'string'
