@@ -70,19 +70,67 @@ describe('serializeCSSOM', () => {
       withExample('<div id="box"></div>', { withShadow: false });
       const box = document.querySelector('#box');
       const sheet = new window.CSSStyleSheet();
-      sheet.replaceSync('p { color: blue; }');
+      const style = 'p { color: blue; }';
+      sheet.replaceSync(style);
       const shadowEl = createShadowEl();
       shadowEl.shadowRoot.adoptedStyleSheets = [sheet];
       box.appendChild(shadowEl);
 
-      let $ = parseDOM(serializeDOM(), 'plain');
+      const capture = serializeDOM();
+      let $ = parseDOM(capture, 'plain');
 
       const resultShadowEl = $('#Percy-0')[0];
-      // console.log(shadowRoot.children)
+      expect(capture.resources).toEqual(jasmine.arrayContaining([{
+        url: jasmine.stringMatching('\\.css$'),
+        content: style,
+        mimetype: 'text/css'
+      }]));
+
       expect(resultShadowEl.innerHTML).toEqual([
         '<template shadowroot="open">',
-        '<style>p { color: blue; }</style>',
+        `<link rel="stylesheet" href="${capture.resources[0].url}">`,
         '<p>Percy-0</p>',
+        '</template>'
+      ].join(''));
+    });
+
+    it('uses single resource for same adoptedStylesheet', () => {
+      if (platform === 'plain') {
+        return;
+      }
+
+      withExample('<div id="box"></div>', { withShadow: false });
+      const box = document.querySelector('#box');
+      const sheet = new window.CSSStyleSheet();
+      const style = 'p { color: blue; }';
+      sheet.replaceSync(style);
+      const shadowEl = createShadowEl();
+      const shadowElChild = createShadowEl(1);
+      shadowEl.shadowRoot.adoptedStyleSheets = [sheet];
+      shadowElChild.shadowRoot.adoptedStyleSheets = [sheet];
+
+      shadowEl.appendChild(shadowElChild);
+      box.appendChild(shadowEl);
+
+      const capture = serializeDOM();
+      expect(capture.resources.length).toEqual(1);
+
+      let $ = parseDOM(capture, 'plain');
+
+      const resultShadowEl = $('#Percy-0')[0];
+      const resultShadowElChild = $('#Percy-0')[0];
+
+      expect(resultShadowEl.innerHTML).toMatch([
+        '<template shadowroot="open">',
+        `<link rel="stylesheet" href="${capture.resources[0].url}">`,
+        '<p>Percy-0</p>',
+        '</template>'
+      ].join(''));
+
+      expect(resultShadowElChild.innerHTML).toMatch([
+        '<template shadowroot="open">',
+        `<link rel="stylesheet" href="${capture.resources[0].url}">`,
+        '<p>Percy-1</p>',
         '</template>'
       ].join(''));
     });

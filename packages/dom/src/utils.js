@@ -13,3 +13,13 @@ export function resourceFromDataURL(uid, dataURL) {
   // return the url, base64 content, and mimetype
   return { url, content, mimetype };
 }
+
+export function resourceFromText(uid, mimetype, content) {
+  // build a URL for the serialized asset
+  let [, ext] = mimetype.split('/');
+  let path = `/__serialized__/${uid}.${ext}`;
+  let url = new URL(path, document.URL).toString();
+
+  // return the url, base64 content, and mimetype
+  return { url, content, mimetype };
+}

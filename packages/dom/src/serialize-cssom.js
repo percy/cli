@@ -1,3 +1,6 @@
+import { resourceFromText } from './utils';
+import { uid } from './prepare-dom';
+
 // Returns true if a stylesheet is a CSSOM-based stylesheet.
 function isCSSOM(styleSheet) {
   // no href, has a rulesheet, and has an owner node
@@ -16,7 +19,7 @@ function styleSheetsMatch(sheetA, sheetB) {
 }
 
 // Outputs in-memory CSSOM into their respective DOM nodes.
-export function serializeCSSOM({ dom, clone, warnings }) {
+export function serializeCSSOM({ dom, clone, warnings, resources }, adoptedStylesMap = null) {
   for (let styleSheet of dom.styleSheets) {
     if (isCSSOM(styleSheet)) {
       let styleId = styleSheet.ownerNode.getAttribute('data-percy-element-id');
@@ -42,16 +45,28 @@ export function serializeCSSOM({ dom, clone, warnings }) {
 
   // clone stylesheets in shadowRoot
   // https://github.com/WICG/construct-stylesheets/issues/93
+  if (!adoptedStylesMap) {
+    adoptedStylesMap = new Map();
+  }
+
   for (let sheet of dom.adoptedStyleSheets) {
-    let style = document.createElement('style');
-    style.innerHTML = Array.from(sheet.cssRules)
-      .map(cssRule => cssRule.cssText).join('\n');
+    const styleLink = document.createElement('link');
+    styleLink.setAttribute('rel', 'stylesheet');
+
+    if (!adoptedStylesMap.has(sheet)) {
+      const styles = Array.from(sheet.cssRules)
+        .map(cssRule => cssRule.cssText).join('\n');
+      let resource = resourceFromText(uid(), 'text/css', styles);
+      resources.add(resource);
+      adoptedStylesMap.set(sheet, resource.url);
+    }
+    styleLink.setAttribute('href', adoptedStylesMap.get(sheet));
 
     if (clone.constructor.name === 'HTMLDocument') {
       // handle document and iframe
-      clone.body.prepend(style);
+      clone.body.prepend(styleLink);
     } else if (clone.constructor.name === 'ShadowRoot') {
-      clone.prepend(style);
+      clone.prepend(styleLink);
     }
   }
 
@@ -63,8 +78,9 @@ export function serializeCSSOM({ dom, clone, warnings }) {
     if (shadowHost.shadowRoot && cloneShadowHost.shadowRoot) {
       serializeCSSOM({
         dom: shadowHost.shadowRoot,
-        clone: cloneShadowHost.shadowRoot
-      });
+        clone: cloneShadowHost.shadowRoot,
+        resources
+      }, adoptedStylesMap);
     }
   }
 }
