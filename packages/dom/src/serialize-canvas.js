@@ -17,7 +17,6 @@ export function serializeCanvas({ dom, clone, resources }) {
     resources.add(resource);
 
     // create an image element in the cloned dom
-    // TODO: this works, verify if this is fine?
     let img = document.createElement('img');
     // use a data attribute to avoid making a real request
     img.setAttribute('data-percy-serialized-attribute-src', resource.url);

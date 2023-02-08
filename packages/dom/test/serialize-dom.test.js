@@ -1,4 +1,4 @@
-import { withExample, replaceDoctype, createShadowEl, getTestBrowser, chromeBrowser } from './helpers';
+import { withExample, replaceDoctype, createShadowEl, getTestBrowser, chromeBrowser, firefoxBrowser } from './helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeDOM', () => {
@@ -126,7 +126,7 @@ describe('serializeDOM', () => {
     });
 
     it('renders many flat', () => {
-      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+      if (getTestBrowser() === firefoxBrowser) {
         return;
       }
       withExample('<div id="content"></div>', { withShadow: false });
@@ -152,16 +152,13 @@ describe('serializeDOM', () => {
       expect(html).toMatch(new RegExp(matchRegex));
     });
 
-    it('respects disableShadowDom', () => {
-      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
-        return;
-      }
+    it('respects disableShadowDOM', () => {
       withExample('<div id="content"></div>', { withShadow: false });
       const baseContent = document.querySelector('#content');
       const el = createShadowEl(8);
       baseContent.appendChild(el);
 
-      const html = serializeDOM({ disableShadowDom: true }).html;
+      const html = serializeDOM({ disableShadowDOM: true }).html;
       expect(html).not.toMatch('<p>Percy-8</p>');
       expect(html).not.toMatch('data-percy-shadow-host=');
     });

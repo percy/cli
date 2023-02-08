@@ -35,8 +35,9 @@ export const configSchema = {
       enableJavaScript: {
         type: 'boolean'
       },
-      disableShadowDom: {
-        type: 'boolean'
+      disableShadowDOM: {
+        type: 'boolean',
+        default: false
       },
       scope: {
         type: 'string'
@@ -152,7 +153,7 @@ export const snapshotSchema = {
         minHeight: { $ref: '/config/snapshot#/properties/minHeight' },
         percyCSS: { $ref: '/config/snapshot#/properties/percyCSS' },
         enableJavaScript: { $ref: '/config/snapshot#/properties/enableJavaScript' },
-        disableShadowDom: { $ref: '/config/snapshot#/properties/disableShadowDom' },
+        disableShadowDOM: { $ref: '/config/snapshot#/properties/disableShadowDOM' },
         discovery: {
           type: 'object',
           additionalProperties: false,

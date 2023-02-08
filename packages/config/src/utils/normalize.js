@@ -4,7 +4,8 @@ import { getSchema } from '../validate.js';
 // Edge case camelizations
 const CAMELCASE_MAP = new Map([
   ['css', 'CSS'],
-  ['javascript', 'JavaScript']
+  ['javascript', 'JavaScript'],
+  ['dom', 'DOM']
 ]);
 
 // Regular expression that matches words from boundaries or consecutive casing

@@ -12,7 +12,7 @@ function setBaseURI(dom) {
 }
 
 // Recursively serializes iframe documents into srcdoc attributes.
-export function serializeFrames({ dom, clone, warnings, resources, enableJavaScript }) {
+export function serializeFrames({ dom, clone, warnings, resources, enableJavaScript, disableShadowDOM }) {
   for (let frame of dom.querySelectorAll('iframe')) {
     let percyElementId = frame.getAttribute('data-percy-element-id');
     let cloneEl = clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
@@ -35,7 +35,8 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
       let serialized = serializeDOM({
         domTransformation: setBaseURI,
         dom: frame.contentDocument,
-        enableJavaScript
+        enableJavaScript,
+        disableShadowDOM
       });
 
       // append serialized warnings and resources
