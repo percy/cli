@@ -14,11 +14,13 @@ export function resourceFromDataURL(uid, dataURL) {
   return { url, content, mimetype };
 }
 
-export function resourceFromText(uid, mimetype, content) {
+export function resourceFromText(uid, mimetype, data) {
   // build a URL for the serialized asset
   let [, ext] = mimetype.split('/');
   let path = `/__serialized__/${uid}.${ext}`;
   let url = new URL(path, document.URL).toString();
+  // converts text to base64
+  let content = window.btoa(data);
 
   // return the url, base64 content, and mimetype
   return { url, content, mimetype };

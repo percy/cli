@@ -82,7 +82,7 @@ describe('serializeCSSOM', () => {
       const resultShadowEl = $('#Percy-0')[0];
       expect(capture.resources).toEqual(jasmine.arrayContaining([{
         url: jasmine.stringMatching('\\.css$'),
-        content: style,
+        content: window.btoa(style),
         mimetype: 'text/css'
       }]));
 
