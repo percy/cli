@@ -92,6 +92,8 @@ describe('serializeCSSOM', () => {
         '<p>Percy-0</p>',
         '</template>'
       ].join(''));
+
+      shadowEl.shadowRoot.adoptedStyleSheets = [];
     });
 
     it('uses single resource for same adoptedStylesheet', () => {
@@ -133,6 +135,9 @@ describe('serializeCSSOM', () => {
         '<p>Percy-1</p>',
         '</template>'
       ].join(''));
+
+      shadowEl.shadowRoot.adoptedStyleSheets = [];
+      shadowElChild.shadowRoot.adoptedStyleSheets = [];
     });
   });
 });

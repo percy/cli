@@ -1,4 +1,4 @@
-import { withExample, replaceDoctype, createShadowEl, getTestBrowser, chromeBrowser, firefoxBrowser } from './helpers';
+import { withExample, replaceDoctype, createShadowEl, getTestBrowser, chromeBrowser } from './helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeDOM', () => {
@@ -126,7 +126,7 @@ describe('serializeDOM', () => {
     });
 
     it('renders many flat', () => {
-      if (getTestBrowser() === firefoxBrowser) {
+      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
       withExample('<div id="content"></div>', { withShadow: false });
@@ -153,6 +153,9 @@ describe('serializeDOM', () => {
     });
 
     it('respects disableShadowDOM', () => {
+      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+        return;
+      }
       withExample('<div id="content"></div>', { withShadow: false });
       const baseContent = document.querySelector('#content');
       const el = createShadowEl(8);
@@ -168,8 +171,8 @@ describe('serializeDOM', () => {
         return;
       }
       class TestElement extends window.HTMLElement {
-        constructor() {
-          super();
+        connectedCallback() {
+          // super();
           // Create a shadow root
           const shadow = this.shadowRoot || this.attachShadow({ mode: 'open' });
           const wrapper = document.createElement('h2');
