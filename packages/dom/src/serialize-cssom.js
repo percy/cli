@@ -60,7 +60,7 @@ export function serializeCSSOM({ dom, clone, warnings, resources }, adoptedStyle
       resources.add(resource);
       adoptedStylesMap.set(sheet, resource.url);
     }
-    styleLink.setAttribute('href', adoptedStylesMap.get(sheet));
+    styleLink.setAttribute('data-percy-serialized-attribute-href', adoptedStylesMap.get(sheet));
 
     if (clone.constructor.name === 'HTMLDocument') {
       // handle document and iframe
