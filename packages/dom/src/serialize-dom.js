@@ -42,6 +42,24 @@ function serializeElements(ctx) {
   }
 }
 
+function serializeAllElements(ctx) {
+  serializeElements(ctx);
+
+  for (const shadowHost of ctx.dom.querySelectorAll('[data-percy-shadow-host]')) {
+    let percyElementId = shadowHost.getAttribute('data-percy-element-id');
+    let cloneShadowHost = ctx.clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
+    if (shadowHost.shadowRoot && cloneShadowHost.shadowRoot) {
+      serializeAllElements({
+        ...ctx,
+        dom: shadowHost.shadowRoot,
+        clone: cloneShadowHost.shadowRoot
+      });
+    } else {
+      ctx.warnings.add('element with data-percy-shadow-host does not have shadowRoot');
+    }
+  }
+}
+
 // Serializes a document and returns the resulting DOM string.
 export function serializeDOM(options) {
   let {
@@ -65,21 +83,7 @@ export function serializeDOM(options) {
   ctx.dom = dom;
   ctx.clone = cloneNodeAndShadow(ctx);
 
-  serializeElements(ctx);
-
-  for (const shadowHost of ctx.dom.querySelectorAll('[data-percy-shadow-host]')) {
-    let percyElementId = shadowHost.getAttribute('data-percy-element-id');
-    let cloneShadowHost = ctx.clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
-    if (shadowHost.shadowRoot && cloneShadowHost.shadowRoot) {
-      serializeElements({
-        ...ctx,
-        dom: shadowHost.shadowRoot,
-        clone: cloneShadowHost.shadowRoot
-      });
-    } else {
-      ctx.warnings.add('element with data-percy-shadow-host does not have shadowRoot');
-    }
-  }
+  serializeAllElements(ctx);
 
   if (domTransformation) {
     try {

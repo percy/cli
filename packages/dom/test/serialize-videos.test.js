@@ -60,5 +60,31 @@ describe('serializeVideos', () => {
       $ = parseDOM(serializeDOM());
       expect($('#video')[0].hasAttribute('poster')).toBe(false);
     });
+
+    it(`${platform}: serializes video elements inside nested dom`, async () => {
+      if (platform === 'plain') {
+        return;
+      }
+      withExample('<div id="video-container"/>');
+      const dom = platformDOM(platform);
+      const videoContainer = dom.querySelector('#video-container');
+      const shadowRoot = videoContainer.attachShadow({ mode: 'open' });
+      shadowRoot.innerHTML = '<video src="base/test/assets/example.webm" id="video" controls />';
+
+      await canPlay(shadowRoot.querySelector('video'));
+      serialized = serializeDOM();
+      $ = parseDOM(serialized.html, platform);
+
+      const resultRoot = $('#video-container template')[0];
+      const videoElement = resultRoot.content.querySelector('video');
+
+      expect(videoElement.getAttribute('poster'))
+        .toMatch('/__serialized__/\\w+\\.png');
+      expect(serialized.resources).toContain(jasmine.objectContaining({
+        url: videoElement.getAttribute('poster'),
+        content: jasmine.any(String),
+        mimetype: 'image/png'
+      }));
+    });
   });
 });
