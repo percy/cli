@@ -18,8 +18,8 @@ function styleSheetsMatch(sheetA, sheetB) {
   return true;
 }
 
-// Outputs in-memory CSSOM into their respective DOM nodes.
 export function serializeCSSOM({ dom, clone, warnings, resources, cache }) {
+  // in-memory CSSOM into their respective DOM nodes.
   for (let styleSheet of dom.styleSheets) {
     if (isCSSOM(styleSheet)) {
       let styleId = styleSheet.ownerNode.getAttribute('data-percy-element-id');
@@ -43,8 +43,8 @@ export function serializeCSSOM({ dom, clone, warnings, resources, cache }) {
     }
   }
 
-  // clone stylesheets in shadowRoot
-  // https://github.com/WICG/construct-stylesheets/issues/93
+  // clone Adopted Stylesheets
+  // Regarding ordering of the adopted stylesheets - https://github.com/WICG/construct-stylesheets/issues/93
   for (let sheet of dom.adoptedStyleSheets) {
     const styleLink = document.createElement('link');
     styleLink.setAttribute('rel', 'stylesheet');
@@ -58,6 +58,7 @@ export function serializeCSSOM({ dom, clone, warnings, resources, cache }) {
     }
     styleLink.setAttribute('data-percy-serialized-attribute-href', cache.get(sheet));
 
+    /* istanbul ignore next: tested, but coverage is stripped */
     if (clone.constructor.name === 'HTMLDocument') {
       // handle document and iframe
       clone.body.prepend(styleLink);

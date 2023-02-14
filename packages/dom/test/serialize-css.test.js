@@ -1,5 +1,7 @@
 import { withExample, withCSSOM, parseDOM, platforms, platformDOM, createShadowEl } from './helpers';
 import serializeDOM from '@percy/dom';
+import serializeCSSOM from '../src/serialize-cssom';
+import { cloneNodeAndShadow } from '../src/clone-dom';
 
 describe('serializeCSSOM', () => {
   beforeEach(() => {
@@ -23,6 +25,26 @@ describe('serializeCSSOM', () => {
     let dom;
     beforeEach(() => {
       dom = platformDOM(platform);
+    });
+
+    it('skips serialization when data-percy-element-id is not found', () => {
+      if (platform !== 'plain') {
+        return;
+      }
+
+      let ctx = {
+        dom,
+        resources: new Set(),
+        warnings: new Set(),
+        cache: new Map(),
+        enableJavaScript: false,
+        disableShadowDOM: false
+      };
+      ctx.clone = cloneNodeAndShadow(ctx);
+      // remove marker id from all 3 stylesheets
+      Array.from(ctx.dom.styleSheets).forEach(stylesheet => { stylesheet.ownerNode.removeAttribute('data-percy-element-id'); });
+      serializeCSSOM(ctx);
+      expect(ctx.warnings).toHaveSize(3);
     });
 
     it(`${platform}: serializes CSSOM and does not mutate the orignal DOM`, () => {
@@ -121,21 +143,24 @@ describe('serializeCSSOM', () => {
       const sheet = new window.CSSStyleSheet();
       const style = 'p { color: blue; }';
       sheet.replaceSync(style);
+      const sheet2 = new window.CSSStyleSheet();
+      const style2 = 'div {border: 1px solid black;}';
+      sheet2.replaceSync(style2);
       const shadowEl = createShadowEl();
       const shadowElChild = createShadowEl(1);
       shadowEl.shadowRoot.adoptedStyleSheets = [sheet];
-      shadowElChild.shadowRoot.adoptedStyleSheets = [sheet];
+      shadowElChild.shadowRoot.adoptedStyleSheets = [sheet, sheet2];
 
       shadowEl.appendChild(shadowElChild);
       box.appendChild(shadowEl);
 
       const capture = serializeDOM();
-      expect(capture.resources.length).toEqual(1);
+      expect(capture.resources.length).toEqual(2);
 
       let $ = parseDOM(capture, 'plain');
 
       const resultShadowEl = $('#Percy-0')[0];
-      const resultShadowElChild = $('#Percy-0')[0];
+      const resultShadowElChild = $('#Percy-1')[0];
 
       expect(resultShadowEl.innerHTML).toMatch([
         '<template shadowroot="open">',
@@ -146,6 +171,7 @@ describe('serializeCSSOM', () => {
 
       expect(resultShadowElChild.innerHTML).toMatch([
         '<template shadowroot="open">',
+        `<link rel="stylesheet" href="${capture.resources[1].url}">`,
         `<link rel="stylesheet" href="${capture.resources[0].url}">`,
         '<p>Percy-1</p>',
         '</template>'
