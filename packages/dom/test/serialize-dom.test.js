@@ -171,7 +171,8 @@ describe('serializeDOM', () => {
         return;
       }
       class TestElement extends window.HTMLElement {
-        connectedCallback() {
+        constructor() {
+          super();
           // super();
           // Create a shadow root
           const shadow = this.shadowRoot || this.attachShadow({ mode: 'open' });
