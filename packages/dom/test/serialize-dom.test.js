@@ -187,6 +187,17 @@ describe('serializeDOM', () => {
       const html = serializeDOM().html;
       expect(html).toMatch('<h2>Test</h2>');
     });
+
+    it('warns if data-percy-shadow-host incorrectly marked', () => {
+      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+        return;
+      }
+      withExample('<div id="content" data-percy-shadow-host=""></div>', { withShadow: false });
+      const baseContent = document.querySelector('#content');
+      baseContent.innerHTML = '<input type="text></input>';
+      const serialized = serializeDOM();
+      expect(serialized.warnings).toEqual(['element with data-percy-shadow-host does not have shadowRoot']);
+    });
   });
 
   describe('with `domTransformation`', () => {
