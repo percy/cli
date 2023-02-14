@@ -195,9 +195,9 @@ describe('serializeDOM', () => {
       }
       withExample('<div id="content" data-percy-shadow-host=""></div>', { withShadow: false });
       const baseContent = document.querySelector('#content');
-      baseContent.innerHTML = '<input type="text></input>';
+      baseContent.innerHTML = '<input type="text>';
       const serialized = serializeDOM();
-      expect(serialized.warnings).toEqual(['element with data-percy-shadow-host does not have shadowRoot']);
+      expect(serialized.warnings).toEqual(['data-percy-shadow-host does not have shadowRoot']);
     });
   });
 

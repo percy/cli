@@ -40,22 +40,18 @@ function serializeElements(ctx) {
     serializeCSSOM(ctx);
     serializeCanvas(ctx);
   }
-}
-
-function serializeAllElements(ctx) {
-  serializeElements(ctx);
 
   for (const shadowHost of ctx.dom.querySelectorAll('[data-percy-shadow-host]')) {
     let percyElementId = shadowHost.getAttribute('data-percy-element-id');
     let cloneShadowHost = ctx.clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
     if (shadowHost.shadowRoot && cloneShadowHost.shadowRoot) {
-      serializeAllElements({
+      serializeElements({
         ...ctx,
         dom: shadowHost.shadowRoot,
         clone: cloneShadowHost.shadowRoot
       });
     } else {
-      ctx.warnings.add('element with data-percy-shadow-host does not have shadowRoot');
+      ctx.warnings.add('data-percy-shadow-host does not have shadowRoot');
     }
   }
 }
@@ -83,7 +79,7 @@ export function serializeDOM(options) {
   ctx.dom = dom;
   ctx.clone = cloneNodeAndShadow(ctx);
 
-  serializeAllElements(ctx);
+  serializeElements(ctx);
 
   if (domTransformation) {
     try {
