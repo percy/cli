@@ -60,10 +60,45 @@ use the following scripts for various development tasks:
 - `yarn readme` - generate cli commands readme usage
 - `yarn test` - run all tests, one package after another
 - `yarn test:coverage` - run all tests with coverage, one package after another
+- `yarn global:link` - links all packages being developed as global.
+    - requires `yarn build` to be run before
+    - we can then consume this package using
+        `[npm|yarn] link @percy/[core|cli..]`
+    - **Note**: linking is only required once, subsequent changes for development requires running build command. 
+    
+- `yarn global:unlink` - unlinks all packages globally
 
 Individual package scripts can be invoked using yarn's
 [workspace](https://classic.yarnpkg.com/en/docs/cli/workspace/) command. For example:
 
 ```sh-session
 $ yarn workspace @percy/core test
+```
+
+
+## Publish
+
+Most of the repos have similar setup as CLI, steps as follows
+
+1.  bump version 
+
+```
+yarn bump-version
+```
+
+2.  commit with following commit message => `:bookmark: vTAG` 
+
+3.  Draft a new release and publish it
+
+This will run release.yml workflow on github actions, which publishes the NPM packages
+
+### Publish with specific tag
+
+Currently release workflow only support publishing with latest tag. 
+To publish with alpha/any other TAG.
+
+1. follow till step 2 above and then run
+
+```
+yarn lerna publish from-package --dist-tag TAG
 ```

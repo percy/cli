@@ -1,9 +1,10 @@
-import prepareDOM from './prepare-dom';
 import serializeInputs from './serialize-inputs';
 import serializeFrames from './serialize-frames';
 import serializeCSSOM from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
+import { cloneNodeAndShadow, getOuterHTML } from './clone-dom';
+import injectDeclarativeShadowDOMPolyfill from './inject-polyfill';
 
 // Returns a copy or new doctype for a document.
 function doctype(dom) {
@@ -23,11 +24,36 @@ function doctype(dom) {
 
 // Serializes and returns the cloned DOM as an HTML string
 function serializeHTML(ctx) {
-  let html = ctx.clone.documentElement.outerHTML;
+  let html = getOuterHTML(ctx.clone.documentElement);
   // replace serialized data attributes with real attributes
   html = html.replace(/ data-percy-serialized-attribute-(\w+?)=/ig, ' $1=');
   // include the doctype with the html string
   return doctype(ctx.dom) + html;
+}
+
+function serializeElements(ctx) {
+  serializeInputs(ctx);
+  serializeFrames(ctx);
+  serializeVideos(ctx);
+
+  if (!ctx.enableJavaScript) {
+    serializeCSSOM(ctx);
+    serializeCanvas(ctx);
+  }
+
+  for (const shadowHost of ctx.dom.querySelectorAll('[data-percy-shadow-host]')) {
+    let percyElementId = shadowHost.getAttribute('data-percy-element-id');
+    let cloneShadowHost = ctx.clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
+    if (shadowHost.shadowRoot && cloneShadowHost.shadowRoot) {
+      serializeElements({
+        ...ctx,
+        dom: shadowHost.shadowRoot,
+        clone: cloneShadowHost.shadowRoot
+      });
+    } else {
+      ctx.warnings.add('data-percy-shadow-host does not have shadowRoot');
+    }
+  }
 }
 
 // Serializes a document and returns the resulting DOM string.
@@ -37,27 +63,23 @@ export function serializeDOM(options) {
     // allow snake_case or camelCase
     enableJavaScript = options?.enable_javascript,
     domTransformation = options?.dom_transformation,
-    stringifyResponse = options?.stringify_response
+    stringifyResponse = options?.stringify_response,
+    disableShadowDOM = options?.disable_shadow_dom
   } = options || {};
 
   // keep certain records throughout serialization
   let ctx = {
     resources: new Set(),
     warnings: new Set(),
-    enableJavaScript
+    cache: new Map(),
+    enableJavaScript,
+    disableShadowDOM
   };
 
-  ctx.dom = prepareDOM(dom);
-  ctx.clone = ctx.dom.cloneNode(true);
+  ctx.dom = dom;
+  ctx.clone = cloneNodeAndShadow(ctx);
 
-  serializeInputs(ctx);
-  serializeFrames(ctx);
-  serializeVideos(ctx);
-
-  if (!enableJavaScript) {
-    serializeCSSOM(ctx);
-    serializeCanvas(ctx);
-  }
+  serializeElements(ctx);
 
   if (domTransformation) {
     try {
@@ -66,6 +88,8 @@ export function serializeDOM(options) {
       console.error('Could not transform the dom:', err.message);
     }
   }
+
+  if (!disableShadowDOM) { injectDeclarativeShadowDOMPolyfill(ctx); }
 
   let result = {
     html: serializeHTML(ctx),

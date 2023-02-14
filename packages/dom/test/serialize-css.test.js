@@ -1,5 +1,7 @@
-import { withExample, withCSSOM, parseDOM } from './helpers';
+import { withExample, withCSSOM, parseDOM, platforms, platformDOM, createShadowEl } from './helpers';
 import serializeDOM from '@percy/dom';
+import serializeCSSOM from '../src/serialize-cssom';
+import { cloneNodeAndShadow } from '../src/clone-dom';
 
 describe('serializeCSSOM', () => {
   beforeEach(() => {
@@ -10,46 +12,173 @@ describe('serializeCSSOM', () => {
     withExample(`<div class="box"></div>${link}${mod}${style}`);
     withCSSOM('.box { height: 500px; }');
 
-    let modCSSRule = document.getElementById('mod').sheet.cssRules[0];
-    if (modCSSRule) modCSSRule.style.cssText = 'width: 1000px';
+    platforms.forEach((platform) => {
+      let modCSSRule = platformDOM(platform).getElementById('mod').sheet.cssRules[0];
+      if (modCSSRule) modCSSRule.style.cssText = 'width: 1000px';
+    });
 
     // give the linked style a few milliseconds to load
     return new Promise(r => setTimeout(r, 100));
   });
 
-  it('serializes CSSOM and does not mutate the orignal DOM', () => {
-    let $cssom = parseDOM(serializeDOM())('[data-percy-cssom-serialized]');
+  platforms.forEach((platform) => {
+    let dom;
+    beforeEach(() => {
+      dom = platformDOM(platform);
+    });
 
-    // linked and unmodified stylesheets are not included
-    expect($cssom).toHaveSize(2);
-    expect($cssom[0].innerHTML).toBe('.box { height: 500px; }');
-    expect($cssom[1].innerHTML).toBe('.box { width: 1000px; }');
+    it('skips serialization when data-percy-element-id is not found', () => {
+      if (platform !== 'plain') {
+        return;
+      }
 
-    expect(document.styleSheets[0].ownerNode.innerText).toBe('');
-    expect(document.styleSheets[1].ownerNode.innerText).toBe('');
-    expect(document.styleSheets[2].ownerNode.innerText).toBe('.box { width: 500px; }');
-    expect(document.styleSheets[3].ownerNode.innerText).toBe('.box { background: green; }');
-    expect(document.querySelectorAll('[data-percy-cssom-serialized]')).toHaveSize(0);
-  });
+      let ctx = {
+        dom,
+        resources: new Set(),
+        warnings: new Set(),
+        cache: new Map(),
+        enableJavaScript: false,
+        disableShadowDOM: false
+      };
+      ctx.clone = cloneNodeAndShadow(ctx);
+      // remove marker id from all 3 stylesheets
+      Array.from(ctx.dom.styleSheets).forEach(stylesheet => { stylesheet.ownerNode.removeAttribute('data-percy-element-id'); });
+      serializeCSSOM(ctx);
+      expect(ctx.warnings).toHaveSize(3);
+    });
 
-  it('does not break the CSSOM by adding new styles after serializing', () => {
-    let cssomSheet = document.styleSheets[0];
+    it(`${platform}: serializes CSSOM and does not mutate the orignal DOM`, () => {
+      let $cssom = parseDOM(serializeDOM(), platform)('[data-percy-cssom-serialized]');
 
-    // serialize DOM
-    serializeDOM();
+      // linked and unmodified stylesheets are not included
+      expect($cssom).toHaveSize(2);
+      expect($cssom[0].innerHTML).toBe('.box { height: 500px; }');
+      expect($cssom[1].innerHTML).toBe('.box { width: 1000px; }');
 
-    // delete the old rule and create a new one
-    cssomSheet.deleteRule(0);
-    cssomSheet.insertRule('.box { height: 200px; width: 200px; background-color: blue; }');
+      expect(dom.styleSheets[0].ownerNode.innerText).toBe('');
+      expect(dom.styleSheets[1].ownerNode.innerText).toBe('');
+      expect(dom.styleSheets[2].ownerNode.innerText).toBe('.box { width: 500px; }');
+      expect(dom.styleSheets[3].ownerNode.innerText).toBe('.box { background: green; }');
+      expect(dom.querySelectorAll('[data-percy-cssom-serialized]')).toHaveSize(0);
+    });
 
-    expect(cssomSheet.cssRules).toHaveSize(1);
-    expect(cssomSheet.cssRules[0].cssText)
-      .toBe('.box { height: 200px; width: 200px; background-color: blue; }');
-  });
+    it(`${platform}: does not break the CSSOM by adding new styles after serializing`, () => {
+      let cssomSheet = dom.styleSheets[0];
 
-  it('does not serialize the CSSOM when JS is enabled', () => {
-    let $ = parseDOM(serializeDOM({ enableJavaScript: true }));
-    expect(document.styleSheets[0]).toHaveProperty('ownerNode.innerText', '');
-    expect($('[data-percy-cssom-serialized]')).toHaveSize(0);
+      // serialize DOM
+      serializeDOM();
+
+      // delete the old rule and create a new one
+      cssomSheet.deleteRule(0);
+      cssomSheet.insertRule('.box { height: 200px; width: 200px; background-color: blue; }');
+
+      expect(cssomSheet.cssRules).toHaveSize(1);
+      expect(cssomSheet.cssRules[0].cssText)
+        .toBe('.box { height: 200px; width: 200px; background-color: blue; }');
+    });
+
+    it(`${platform}: does not serialize the CSSOM when JS is enabled`, () => {
+      const serializedDOM = serializeDOM({ enableJavaScript: true });
+      let $ = parseDOM(serializedDOM, platform);
+      expect(dom.styleSheets[0]).toHaveProperty('ownerNode.innerText', '');
+      expect($('[data-percy-cssom-serialized]')).toHaveSize(0);
+    });
+
+    it('captures adoptedStylesheets inside document', () => {
+      if (platform !== 'plain') {
+        return;
+      }
+      withExample('<div>AdoptedStyle</div>', { withShadow: false });
+      const sheet = new window.CSSStyleSheet();
+      const style = 'div { background: blue; }';
+      sheet.replaceSync(style);
+      dom.adoptedStyleSheets = [sheet];
+      const capture = serializeDOM();
+      let $ = parseDOM(capture, 'plain');
+      dom.adoptedStyleSheets = [];
+      expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" href="${capture.resources[0].url}">`);
+    });
+
+    it('captures adoptedStylesheets', () => {
+      if (platform === 'plain') {
+        return;
+      }
+
+      withExample('<div id="box"></div>', { withShadow: false });
+      const box = document.querySelector('#box');
+      const sheet = new window.CSSStyleSheet();
+      const style = 'p { color: blue; }';
+      sheet.replaceSync(style);
+      const shadowEl = createShadowEl();
+      shadowEl.shadowRoot.adoptedStyleSheets = [sheet];
+      box.appendChild(shadowEl);
+
+      const capture = serializeDOM();
+      let $ = parseDOM(capture, 'plain');
+
+      const resultShadowEl = $('#Percy-0')[0];
+      expect(capture.resources).toEqual(jasmine.arrayContaining([{
+        url: jasmine.stringMatching('\\.css$'),
+        content: window.btoa(style),
+        mimetype: 'text/css'
+      }]));
+
+      expect(resultShadowEl.innerHTML).toEqual([
+        '<template shadowroot="open">',
+        `<link rel="stylesheet" href="${capture.resources[0].url}">`,
+        '<p>Percy-0</p>',
+        '</template>'
+      ].join(''));
+
+      shadowEl.shadowRoot.adoptedStyleSheets = [];
+    });
+
+    it('uses single resource for same adoptedStylesheet', () => {
+      if (platform === 'plain') {
+        return;
+      }
+
+      withExample('<div id="box"></div>', { withShadow: false });
+      const box = document.querySelector('#box');
+      const sheet = new window.CSSStyleSheet();
+      const style = 'p { color: blue; }';
+      sheet.replaceSync(style);
+      const sheet2 = new window.CSSStyleSheet();
+      const style2 = 'div {border: 1px solid black;}';
+      sheet2.replaceSync(style2);
+      const shadowEl = createShadowEl();
+      const shadowElChild = createShadowEl(1);
+      shadowEl.shadowRoot.adoptedStyleSheets = [sheet];
+      shadowElChild.shadowRoot.adoptedStyleSheets = [sheet, sheet2];
+
+      shadowEl.appendChild(shadowElChild);
+      box.appendChild(shadowEl);
+
+      const capture = serializeDOM();
+      expect(capture.resources.length).toEqual(2);
+
+      let $ = parseDOM(capture, 'plain');
+
+      const resultShadowEl = $('#Percy-0')[0];
+      const resultShadowElChild = $('#Percy-1')[0];
+
+      expect(resultShadowEl.innerHTML).toMatch([
+        '<template shadowroot="open">',
+        `<link rel="stylesheet" href="${capture.resources[0].url}">`,
+        '<p>Percy-0</p>',
+        '</template>'
+      ].join(''));
+
+      expect(resultShadowElChild.innerHTML).toMatch([
+        '<template shadowroot="open">',
+        `<link rel="stylesheet" href="${capture.resources[1].url}">`,
+        `<link rel="stylesheet" href="${capture.resources[0].url}">`,
+        '<p>Percy-1</p>',
+        '</template>'
+      ].join(''));
+
+      shadowEl.shadowRoot.adoptedStyleSheets = [];
+      shadowElChild.shadowRoot.adoptedStyleSheets = [];
+    });
   });
 });

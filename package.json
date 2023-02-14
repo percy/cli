@@ -20,7 +20,9 @@
     "postinstall": "lerna run --stream postinstall",
     "test": "lerna run --stream --concurrency=1 test",
     "test:coverage": "lerna run --stream --concurrency=1 --no-bail test:coverage",
-    "test:types": "lerna run --parallel test:types"
+    "test:types": "lerna run --parallel test:types",
+    "global:link": "lerna exec -- yarn link",
+    "global:unlink": "lerna exec -- yarn unlink"
   },
   "devDependencies": {
     "@babel/cli": "^7.11.6",

@@ -140,7 +140,7 @@ export class Page {
     execute,
     ...snapshot
   }) {
-    let { name, width, enableJavaScript } = snapshot;
+    let { name, width, enableJavaScript, disableShadowDOM } = snapshot;
     this.log.debug(`Taking snapshot: ${name}${width ? ` @${width}px` : ''}`, this.meta);
 
     // wait for any specified timeout
@@ -181,7 +181,7 @@ export class Page {
       /* eslint-disable-next-line no-undef */
       domSnapshot: PercyDOM.serialize(options),
       url: document.URL
-    }), { enableJavaScript });
+    }), { enableJavaScript, disableShadowDOM });
 
     return { ...snapshot, ...capture };
   }

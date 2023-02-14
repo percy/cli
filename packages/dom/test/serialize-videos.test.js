@@ -1,4 +1,4 @@
-import { withExample, parseDOM } from './helpers';
+import { parseDOM, withExample, platforms, platformDOM } from './helpers';
 import serializeDOM from '@percy/dom';
 
 let canPlay = $video => new Promise(resolve => {
@@ -9,54 +9,82 @@ let canPlay = $video => new Promise(resolve => {
 describe('serializeVideos', () => {
   let $, serialized;
 
-  it('serializes video elements', async () => {
-    withExample(`
-      <video src="base/test/assets/example.webm" id="video" controls />
-    `);
+  platforms.forEach((platform) => {
+    it(`${platform}: serializes video elements`, async () => {
+      withExample(`
+        <video src="base/test/assets/example.webm" id="video" controls />
+      `);
 
-    await canPlay(window.video);
-    serialized = serializeDOM();
-    $ = parseDOM(serialized.html);
+      await canPlay(platform === 'shadow' ? platformDOM(platform).querySelector('video') : window.video);
+      serialized = serializeDOM();
+      $ = parseDOM(serialized.html, platform);
 
-    expect($('#video')[0].getAttribute('poster'))
-      .toMatch('/__serialized__/\\w+\\.png');
-    expect(serialized.resources).toEqual([{
-      url: $('#video')[0].getAttribute('poster'),
-      content: jasmine.any(String),
-      mimetype: 'image/png'
-    }]);
-  });
+      expect($('#video')[0].getAttribute('poster'))
+        .toMatch('/__serialized__/\\w+\\.png');
+      expect(serialized.resources).toContain(jasmine.objectContaining({
+        url: $('#video')[0].getAttribute('poster'),
+        content: jasmine.any(String),
+        mimetype: 'image/png'
+      }));
+    });
 
-  it('does not serialize videos with an existing poster', async () => {
-    withExample(`
+    it(`${platform}: does not serialize videos with an existing poster`, async () => {
+      withExample(`
       <video src="base/test/assets/example.webm" id="video" poster="//:0" />
     `);
 
-    await canPlay(window.video);
-    serialized = serializeDOM();
-    $ = parseDOM(serialized.html);
+      await canPlay(platform === 'shadow' ? platformDOM(platform).querySelector('video') : window.video);
+      serialized = serializeDOM();
+      $ = parseDOM(serialized.html);
 
-    expect($('#video')[0].getAttribute('poster')).toBe('//:0');
-    expect(serialized.resources).toEqual([]);
-  });
+      expect($('#video')[0].getAttribute('poster')).toBe('//:0');
+      expect(serialized.resources).toEqual([]);
+    });
 
-  it('does not apply blank poster images', () => {
-    withExample(`
+    it(`${platform}: does not apply blank poster images`, () => {
+      withExample(`
       <video src="//:0" id="video" />
     `);
 
-    $ = parseDOM(serializeDOM());
-    expect($('#video')[0].hasAttribute('poster')).toBe(false);
-  });
+      $ = parseDOM(serializeDOM(), platform);
+      expect($('#video')[0].hasAttribute('poster')).toBe(false);
+    });
 
-  it('does not hang serialization when there is an error thrown', () => {
-    withExample(`
+    it(`${platform}: does not hang serialization when there is an error thrown`, () => {
+      withExample(`
       <video src="//:0" id="video" />
     `);
 
-    spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('An error'));
+      spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('An error'));
 
-    $ = parseDOM(serializeDOM());
-    expect($('#video')[0].hasAttribute('poster')).toBe(false);
+      $ = parseDOM(serializeDOM());
+      expect($('#video')[0].hasAttribute('poster')).toBe(false);
+    });
+
+    it(`${platform}: serializes video elements inside nested dom`, async () => {
+      if (platform === 'plain') {
+        return;
+      }
+      withExample('<div id="video-container"/>');
+      const dom = platformDOM(platform);
+      const videoContainer = dom.querySelector('#video-container');
+      const shadowRoot = videoContainer.attachShadow({ mode: 'open' });
+      shadowRoot.innerHTML = '<video src="base/test/assets/example.webm" id="video" controls />';
+
+      await canPlay(shadowRoot.querySelector('video'));
+      serialized = serializeDOM();
+      $ = parseDOM(serialized.html, platform);
+
+      const resultRoot = $('#video-container template')[0];
+      const videoElement = resultRoot.content.querySelector('video');
+
+      expect(videoElement.getAttribute('poster'))
+        .toMatch('/__serialized__/\\w+\\.png');
+      expect(serialized.resources).toContain(jasmine.objectContaining({
+        url: videoElement.getAttribute('poster'),
+        content: jasmine.any(String),
+        mimetype: 'image/png'
+      }));
+    });
   });
 });

@@ -38,6 +38,7 @@ interface CommonSnapshotOptions {
   minHeight?: number;
   percyCSS?: string;
   enableJavaScript?: boolean;
+  disableShadowDOM?: boolean;
   devicePixelRatio?: number;
   scope?: string;
 }

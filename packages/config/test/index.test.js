@@ -1100,14 +1100,16 @@ describe('PercyConfig', () => {
         'foo_bar-baz': 'qux',
         'Bar BAZ qux': 'xyzzy',
         'percy-css': '',
-        'enable-javascript': false
+        'enable-javascript': false,
+        'disable-shadow-dom': true
       })).toEqual({
         fooBar: 'baz',
         foo: { barBaz: 'qux' },
         fooBarBaz: 'qux',
         barBazQux: 'xyzzy',
         percyCSS: '',
-        enableJavaScript: false
+        enableJavaScript: false,
+        disableShadowDOM: true
       });
     });
 
@@ -1117,13 +1119,15 @@ describe('PercyConfig', () => {
         foo: { bar_baz: 'qux' },
         fooBar_baz: ['qux'],
         percyCSS: '',
-        enableJavaScript: false
+        enableJavaScript: false,
+        disableShadowDOM: true
       }, { kebab: true })).toEqual({
         'foo-bar': 'baz',
         foo: { 'bar-baz': 'qux' },
         'foo-bar-baz': ['qux'],
         'percy-css': '',
-        'enable-javascript': false
+        'enable-javascript': false,
+        'disable-shadow-dom': true
       });
     });
 
@@ -1133,13 +1137,15 @@ describe('PercyConfig', () => {
         foo: { bar_baz: 'qux' },
         fooBar_baz: ['qux'],
         percyCSS: '',
-        enableJavaScript: false
+        enableJavaScript: false,
+        disableShadowDOM: true
       }, { snake: true })).toEqual({
         foo_bar: 'baz',
         foo: { bar_baz: 'qux' },
         foo_bar_baz: ['qux'],
         percy_css: '',
-        enable_javascript: false
+        enable_javascript: false,
+        disable_shadow_dom: true
       });
     });
 
