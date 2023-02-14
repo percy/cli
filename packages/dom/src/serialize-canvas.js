@@ -42,20 +42,6 @@ export function serializeCanvas({ dom, clone, resources }) {
     }
     cloneEl.remove();
   }
-
-  // find canvas inside shadow host and recursively serialize them.
-  for (let shadowHost of dom.querySelectorAll('[data-percy-shadow-host]')) {
-    let percyElementId = shadowHost.getAttribute('data-percy-element-id');
-    let cloneShadowHost = clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
-
-    if (shadowHost.shadowRoot && cloneShadowHost.shadowRoot) {
-      serializeCanvas({
-        dom: shadowHost.shadowRoot,
-        clone: cloneShadowHost.shadowRoot,
-        resources
-      });
-    }
-  }
 }
 
 export default serializeCanvas;

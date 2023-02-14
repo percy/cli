@@ -13,9 +13,7 @@ export function markElement(domElement, disableShadowDOM) {
 
   // add special marker for shadow host
   if (!disableShadowDOM && domElement.shadowRoot) {
-    if (!domElement.getAttribute('data-percy-shadow-host')) {
-      domElement.setAttribute('data-percy-shadow-host', '');
-    }
+    domElement.setAttribute('data-percy-shadow-host', '');
 
     if (!domElement.getAttribute('data-percy-element-id')) {
       domElement.setAttribute('data-percy-element-id', uid());

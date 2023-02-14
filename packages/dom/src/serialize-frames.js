@@ -54,22 +54,6 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
       cloneEl.remove();
     }
   }
-
-  // find iframes inside shadow host and recursively serialize them.
-  for (let shadowHost of dom.querySelectorAll('[data-percy-shadow-host]')) {
-    let percyElementId = shadowHost.getAttribute('data-percy-element-id');
-    let cloneShadowHost = clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
-
-    if (shadowHost.shadowRoot && cloneShadowHost.shadowRoot) {
-      serializeFrames({
-        dom: shadowHost.shadowRoot,
-        clone: cloneShadowHost.shadowRoot,
-        warnings,
-        resources,
-        enableJavaScript
-      });
-    }
-  }
 }
 
 export default serializeFrames;

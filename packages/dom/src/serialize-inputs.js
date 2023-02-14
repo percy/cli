@@ -1,5 +1,5 @@
 // Translates JavaScript properties of inputs into DOM attributes.
-export function serializeInputElements({ dom, clone }) {
+export function serializeInputElements({ dom, clone, warnings }) {
   for (let elem of dom.querySelectorAll('input, textarea, select')) {
     let inputId = elem.getAttribute('data-percy-element-id');
     let cloneEl = clone.querySelector(`[data-percy-element-id="${inputId}"]`);
@@ -26,19 +26,6 @@ export function serializeInputElements({ dom, clone }) {
         break;
       default:
         cloneEl.setAttribute('value', elem.value);
-    }
-  }
-
-  // find inputs inside shadow host and recursively serialize them.
-  for (let shadowHost of dom.querySelectorAll('[data-percy-shadow-host]')) {
-    let percyElementId = shadowHost.getAttribute('data-percy-element-id');
-    let cloneShadowHost = clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
-
-    if (shadowHost.shadowRoot && cloneShadowHost.shadowRoot) {
-      serializeInputElements({
-        dom: shadowHost.shadowRoot,
-        clone: cloneShadowHost.shadowRoot
-      });
     }
   }
 }
