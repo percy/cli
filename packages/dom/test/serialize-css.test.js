@@ -62,6 +62,21 @@ describe('serializeCSSOM', () => {
       expect($('[data-percy-cssom-serialized]')).toHaveSize(0);
     });
 
+    it('captures adoptedStylesheets inside document', () => {
+      if (platform !== 'plain') {
+        return;
+      }
+      withExample('<div>AdoptedStyle</div>', { withShadow: false });
+      const sheet = new window.CSSStyleSheet();
+      const style = 'div { background: blue; }';
+      sheet.replaceSync(style);
+      dom.adoptedStyleSheets = [sheet];
+      const capture = serializeDOM();
+      let $ = parseDOM(capture, 'plain');
+      dom.adoptedStyleSheets = [];
+      expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" href="${capture.resources[0].url}">`);
+    });
+
     it('captures adoptedStylesheets', () => {
       if (platform === 'plain') {
         return;
