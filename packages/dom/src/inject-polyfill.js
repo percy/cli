@@ -3,7 +3,7 @@
 // Since only chromium currently supports declarative shadow DOM - https://caniuse.com/declarative-shadow-dom
 export function injectDeclarativeShadowDOMPolyfill(ctx) {
   let clone = ctx.clone;
-  let scriptEl = clone.createElement('script');
+  let scriptEl = document.createElement('script');
   scriptEl.setAttribute('id', '__percy_shadowdom_helper');
   scriptEl.setAttribute('data-percy-injected', true);
 
