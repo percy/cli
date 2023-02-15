@@ -37,8 +37,6 @@ describe('serializeDOM', () => {
   it('does not trigger DOM events on clone', () => {
     class CallbackTestElement extends window.HTMLElement {
       connectedCallback() {
-        // super();
-        // Create a shadow root
         const wrapper = document.createElement('h2');
         wrapper.className = 'callback';
         wrapper.innerText = 'Test';
@@ -52,7 +50,7 @@ describe('serializeDOM', () => {
     withExample('<callback-test/>', { withShadow: false });
     const $ = parseDOM(serializeDOM().html);
 
-    expect($('h2').length).toEqual(1);
+    expect($('h2.callback').length).toEqual(1);
   });
 
   describe('shadow dom', () => {
@@ -194,7 +192,6 @@ describe('serializeDOM', () => {
       class TestElement extends window.HTMLElement {
         constructor() {
           super();
-          // super();
           // Create a shadow root
           const shadow = this.shadowRoot || this.attachShadow({ mode: 'open' });
           const wrapper = document.createElement('h2');
