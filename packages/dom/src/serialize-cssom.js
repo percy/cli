@@ -18,6 +18,25 @@ function styleSheetsMatch(sheetA, sheetB) {
   return true;
 }
 
+function styleSheetFromNode(node) {
+  /* istanbul ignore if: sanity check */
+  if (node.sheet) return node.sheet;
+  /* istanbul ignore if: sanity check */
+  if (node.constructor.name !== 'HTMLStyleElement') return;
+
+  // Cloned style nodes inside don't have a sheet instance unless cloned along
+  // with document; we get it by temporarily adding the rules to DOM
+  const tempStyle = document.createElement('style');
+  tempStyle.id = 'style-percy-helper';
+  tempStyle.innerText = node.innerText;
+  document.head.appendChild(tempStyle);
+  const sheet = tempStyle.sheet;
+  // Cleanup node
+  tempStyle.remove();
+
+  return sheet;
+}
+
 export function serializeCSSOM({ dom, clone, warnings, resources, cache }) {
   // in-memory CSSOM into their respective DOM nodes.
   for (let styleSheet of dom.styleSheets) {
@@ -29,7 +48,7 @@ export function serializeCSSOM({ dom, clone, warnings, resources, cache }) {
         continue;
       }
       let cloneOwnerNode = clone.querySelector(`[data-percy-element-id="${styleId}"]`);
-      if (styleSheetsMatch(styleSheet, cloneOwnerNode.sheet)) continue;
+      if (styleSheetsMatch(styleSheet, styleSheetFromNode(cloneOwnerNode))) continue;
       let style = document.createElement('style');
 
       style.type = 'text/css';
@@ -59,7 +78,7 @@ export function serializeCSSOM({ dom, clone, warnings, resources, cache }) {
     styleLink.setAttribute('data-percy-serialized-attribute-href', cache.get(sheet));
 
     /* istanbul ignore next: tested, but coverage is stripped */
-    if (clone.constructor.name === 'HTMLDocument') {
+    if (clone.constructor.name === 'HTMLDocument' || clone.constructor.name === 'DocumentFragment') {
       // handle document and iframe
       clone.body.prepend(styleLink);
     } else if (clone.constructor.name === 'ShadowRoot') {
