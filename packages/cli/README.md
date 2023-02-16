@@ -61,9 +61,9 @@ use the following scripts for various development tasks:
 - `yarn test` - run all tests, one package after another
 - `yarn test:coverage` - run all tests with coverage, one package after another
 - `yarn global:link` - links all packages being developed as global.
-    - requires `yarn build` to be run before
+    - requires `yarn build` to be run before consuming.
     - we can then consume this package using
-        `[npm|yarn] link @percy/[core|cli..]`
+        `yarn link @percy/[core|cli..]`
     - **Note**: linking is only required once, subsequent changes for development requires running build command. 
     
 - `yarn global:unlink` - unlinks all packages globally
