@@ -44,7 +44,7 @@ describe('serializeDOM', () => {
       }
     }
 
-    if (!window.customElements.get('cllback-test')) {
+    if (!window.customElements.get('callback-test')) {
       window.customElements.define('callback-test', CallbackTestElement);
     }
     withExample('<callback-test/>', { withShadow: false });
