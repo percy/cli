@@ -276,3 +276,37 @@ environment variable.
 
 > **Warning!** Percy is only tested against the browser it downloads automatically. When providing a
 > custom browser executable, you may experience unexpected issues.
+
+
+### How to update Chromium revision?
+
+`src/install.js` 
+
+```js
+chromium.revisions = {
+  linux: '.*',
+  win64: '.*',
+  win32: '.*',
+  darwin: '.*',
+  darwinArm: '.*'
+};
+```
+
+Nicely summarised in this [stackoverflow](https://stackoverflow.com/a/56366776) answer.
+
+### Excerpt
+
+check the [release information on Github](https://github.com/GoogleChrome/puppeteer/releases) where the expected Chromium version and revision is specified.  
+For example:
+
+> [v1.17.0](https://github.com/GoogleChrome/puppeteer/releases/tag/v1.17.0)  
+Big Changes  
+Chromium 76.0.3803.0 (r662092)
+
+1. Go to [Chromium browser snapshots](https://commondatastorage.googleapis.com/chromium-browser-snapshots/index.html)
+
+2. Choose the directory of your platform (e.g., `Linux_x64`)
+
+3. Copy the revision number into the "Filter:" field without the "r" (e.g., `662092`)
+
+4. Fetch revision number for rest of the platform (`Win`, `Win_x64`, `Mac`, `Mac_Arm`), it should be nearby (Tip: verify the date of upload).
