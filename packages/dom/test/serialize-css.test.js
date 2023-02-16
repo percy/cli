@@ -96,7 +96,7 @@ describe('serializeCSSOM', () => {
       const capture = serializeDOM();
       let $ = parseDOM(capture, 'plain');
       dom.adoptedStyleSheets = [];
-      expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" href="${capture.resources[0].url}">`);
+      expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`);
     });
 
     it('captures adoptedStylesheets', () => {
@@ -125,7 +125,7 @@ describe('serializeCSSOM', () => {
 
       expect(resultShadowEl.innerHTML).toEqual([
         '<template shadowroot="open">',
-        `<link rel="stylesheet" href="${capture.resources[0].url}">`,
+        `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`,
         '<p>Percy-0</p>',
         '</template>'
       ].join(''));
@@ -164,15 +164,15 @@ describe('serializeCSSOM', () => {
 
       expect(resultShadowEl.innerHTML).toMatch([
         '<template shadowroot="open">',
-        `<link rel="stylesheet" href="${capture.resources[0].url}">`,
+        `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`,
         '<p>Percy-0</p>',
         '</template>'
       ].join(''));
 
       expect(resultShadowElChild.innerHTML).toMatch([
         '<template shadowroot="open">',
-        `<link rel="stylesheet" href="${capture.resources[1].url}">`,
-        `<link rel="stylesheet" href="${capture.resources[0].url}">`,
+        `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[1].url}">`,
+        `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`,
         '<p>Percy-1</p>',
         '</template>'
       ].join(''));
