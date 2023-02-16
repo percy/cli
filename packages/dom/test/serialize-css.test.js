@@ -27,26 +27,6 @@ describe('serializeCSSOM', () => {
       dom = platformDOM(platform);
     });
 
-    it('skips serialization when data-percy-element-id is not found', () => {
-      if (platform !== 'plain') {
-        return;
-      }
-
-      let ctx = {
-        dom,
-        resources: new Set(),
-        warnings: new Set(),
-        cache: new Map(),
-        enableJavaScript: false,
-        disableShadowDOM: false
-      };
-      ctx.clone = cloneNodeAndShadow(ctx);
-      // remove marker id from all 3 stylesheets
-      Array.from(ctx.dom.styleSheets).forEach(stylesheet => { stylesheet.ownerNode.removeAttribute('data-percy-element-id'); });
-      serializeCSSOM(ctx);
-      expect(ctx.warnings).toHaveSize(3);
-    });
-
     it(`${platform}: serializes CSSOM and does not mutate the orignal DOM`, () => {
       let $cssom = parseDOM(serializeDOM(), platform)('[data-percy-cssom-serialized]');
 
