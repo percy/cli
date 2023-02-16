@@ -21,15 +21,14 @@ function styleSheetsMatch(sheetA, sheetB) {
 function styleSheetFromNode(node) {
   /* istanbul ignore if: sanity check */
   if (node.sheet) return node.sheet;
-  /* istanbul ignore if: sanity check */
-  if (node.constructor.name !== 'HTMLStyleElement') return;
 
   // Cloned style nodes inside don't have a sheet instance unless cloned along
   // with document; we get it by temporarily adding the rules to DOM
   const tempStyle = document.createElement('style');
-  tempStyle.id = 'style-percy-helper';
-  tempStyle.innerText = node.innerText;
-  document.head.appendChild(tempStyle);
+  tempStyle.setAttribute('data-percy-style-helper', '');
+  tempStyle.innerHTML = node.innerHTML;
+  const clone = document.cloneNode();
+  clone.appendChild(tempStyle);
   const sheet = tempStyle.sheet;
   // Cleanup node
   tempStyle.remove();
