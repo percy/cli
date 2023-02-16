@@ -1,7 +1,5 @@
 import { withExample, withCSSOM, parseDOM, platforms, platformDOM, createShadowEl } from './helpers';
 import serializeDOM from '@percy/dom';
-import serializeCSSOM from '../src/serialize-cssom';
-import { cloneNodeAndShadow } from '../src/clone-dom';
 
 describe('serializeCSSOM', () => {
   beforeEach(() => {
