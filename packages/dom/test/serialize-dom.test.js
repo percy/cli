@@ -1,4 +1,4 @@
-import { withExample, replaceDoctype, createShadowEl, getTestBrowser, chromeBrowser } from './helpers';
+import { withExample, replaceDoctype, createShadowEl, getTestBrowser, chromeBrowser, parseDOM } from './helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeDOM', () => {
@@ -32,6 +32,25 @@ describe('serializeDOM', () => {
     expect(serializeDOM().html).toMatch(`<!DOCTYPE html PUBLIC "${publicId}" "${systemId}">`);
     replaceDoctype('html');
     expect(serializeDOM().html).toMatch('<!DOCTYPE html>');
+  });
+
+  it('does not trigger DOM events on clone', () => {
+    class CallbackTestElement extends window.HTMLElement {
+      connectedCallback() {
+        const wrapper = document.createElement('h2');
+        wrapper.className = 'callback';
+        wrapper.innerText = 'Test';
+        this.appendChild(wrapper);
+      }
+    }
+
+    if (!window.customElements.get('callback-test')) {
+      window.customElements.define('callback-test', CallbackTestElement);
+    }
+    withExample('<callback-test/>', { withShadow: false });
+    const $ = parseDOM(serializeDOM().html);
+
+    expect($('h2.callback').length).toEqual(1);
   });
 
   describe('shadow dom', () => {
@@ -69,7 +88,7 @@ describe('serializeDOM', () => {
       expect(html).not.toMatch('Hey Percy!');
     });
 
-    it('renders single nested ', () => {
+    it('renders single nested', () => {
       if (getTestBrowser() !== chromeBrowser) {
         return;
       }
@@ -173,7 +192,6 @@ describe('serializeDOM', () => {
       class TestElement extends window.HTMLElement {
         constructor() {
           super();
-          // super();
           // Create a shadow root
           const shadow = this.shadowRoot || this.attachShadow({ mode: 'open' });
           const wrapper = document.createElement('h2');

@@ -1,7 +1,5 @@
 import { withExample, withCSSOM, parseDOM, platforms, platformDOM, createShadowEl } from './helpers';
 import serializeDOM from '@percy/dom';
-import serializeCSSOM from '../src/serialize-cssom';
-import { cloneNodeAndShadow } from '../src/clone-dom';
 
 describe('serializeCSSOM', () => {
   beforeEach(() => {
@@ -25,26 +23,6 @@ describe('serializeCSSOM', () => {
     let dom;
     beforeEach(() => {
       dom = platformDOM(platform);
-    });
-
-    it('skips serialization when data-percy-element-id is not found', () => {
-      if (platform !== 'plain') {
-        return;
-      }
-
-      let ctx = {
-        dom,
-        resources: new Set(),
-        warnings: new Set(),
-        cache: new Map(),
-        enableJavaScript: false,
-        disableShadowDOM: false
-      };
-      ctx.clone = cloneNodeAndShadow(ctx);
-      // remove marker id from all 3 stylesheets
-      Array.from(ctx.dom.styleSheets).forEach(stylesheet => { stylesheet.ownerNode.removeAttribute('data-percy-element-id'); });
-      serializeCSSOM(ctx);
-      expect(ctx.warnings).toHaveSize(3);
     });
 
     it(`${platform}: serializes CSSOM and does not mutate the orignal DOM`, () => {
@@ -96,7 +74,7 @@ describe('serializeCSSOM', () => {
       const capture = serializeDOM();
       let $ = parseDOM(capture, 'plain');
       dom.adoptedStyleSheets = [];
-      expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" href="${capture.resources[0].url}">`);
+      expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`);
     });
 
     it('captures adoptedStylesheets', () => {
@@ -125,7 +103,7 @@ describe('serializeCSSOM', () => {
 
       expect(resultShadowEl.innerHTML).toEqual([
         '<template shadowroot="open">',
-        `<link rel="stylesheet" href="${capture.resources[0].url}">`,
+        `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`,
         '<p>Percy-0</p>',
         '</template>'
       ].join(''));
@@ -164,15 +142,15 @@ describe('serializeCSSOM', () => {
 
       expect(resultShadowEl.innerHTML).toMatch([
         '<template shadowroot="open">',
-        `<link rel="stylesheet" href="${capture.resources[0].url}">`,
+        `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`,
         '<p>Percy-0</p>',
         '</template>'
       ].join(''));
 
       expect(resultShadowElChild.innerHTML).toMatch([
         '<template shadowroot="open">',
-        `<link rel="stylesheet" href="${capture.resources[1].url}">`,
-        `<link rel="stylesheet" href="${capture.resources[0].url}">`,
+        `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[1].url}">`,
+        `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`,
         '<p>Percy-1</p>',
         '</template>'
       ].join(''));
