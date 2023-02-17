@@ -3,6 +3,7 @@ import serializeDOM from './serialize-dom';
 // Adds a `<base>` element to the serialized iframe's `<head>`. This is necessary when
 // embedded documents are serialized and their contents become root-relative.
 function setBaseURI(dom) {
+  /* istanbul ignore if: sanity check */
   if (!new URL(dom.baseURI).hostname) return;
 
   let $base = document.createElement('base');
