@@ -22,8 +22,8 @@ function styleSheetFromNode(node) {
   /* istanbul ignore if: sanity check */
   if (node.sheet) return node.sheet;
 
-  // Cloned style nodes inside don't have a sheet instance unless cloned along
-  // with document; we get it by temporarily adding the rules to DOM
+  // Cloned style nodes don't have a sheet instance unless they are within
+  // a document; we get it by temporarily adding the rules to DOM
   const tempStyle = document.createElement('style');
   tempStyle.setAttribute('data-percy-style-helper', '');
   tempStyle.innerHTML = node.innerHTML;
