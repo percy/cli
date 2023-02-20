@@ -83,9 +83,13 @@ export function serializeDOM(options) {
 
   if (domTransformation) {
     try {
+      // eslint-disable-next-line no-eval
+      if (typeof (domTransformation) === 'string') domTransformation = window.eval(domTransformation);
       domTransformation(ctx.clone.documentElement);
     } catch (err) {
-      console.error('Could not transform the dom:', err.message);
+      let errorMessage = `Could not transform the dom: ${err.message}`;
+      ctx.warnings.add(errorMessage);
+      console.error(errorMessage);
     }
   }
 

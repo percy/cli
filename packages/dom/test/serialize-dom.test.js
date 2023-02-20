@@ -236,8 +236,29 @@ describe('serializeDOM', () => {
       expect(document.querySelector('.delete-me').innerText).toBe('Delete me');
     });
 
-    it('logs any errors and returns the serialized DOM', () => {
+    it('String: transforms the DOM without modifying the original DOM', () => {
       let { html } = serializeDOM({
+        domTransformation: "(dom) => { dom.querySelector('.delete-me').remove(); }"
+      });
+
+      expect(html).not.toMatch('Delete me');
+      expect(document.querySelector('.delete-me').innerText).toBe('Delete me');
+    });
+
+    it('String: Logs error when function is not correct', () => {
+      let { html, warnings } = serializeDOM({
+        domTransformation: "(dom) => { dom.querySelector('.delete-me').delete(); }"
+      });
+
+      expect(html).toMatch('Delete me');
+      expect(console.error)
+        .toHaveBeenCalledOnceWith('Could not transform the dom: dom.querySelector(...).delete is not a function');
+
+      expect(warnings).toEqual(['Could not transform the dom: dom.querySelector(...).delete is not a function']);
+    });
+
+    it('logs any errors and returns the serialized DOM', () => {
+      let { html, warnings } = serializeDOM({
         domTransformation(dom) {
           throw new Error('test error');
           // eslint-disable-next-line no-unreachable
@@ -247,7 +268,9 @@ describe('serializeDOM', () => {
 
       expect(html).toMatch('Delete me');
       expect(console.error)
-        .toHaveBeenCalledOnceWith('Could not transform the dom:', 'test error');
+        .toHaveBeenCalledOnceWith('Could not transform the dom: test error');
+
+      expect(warnings).toEqual(['Could not transform the dom: test error']);
     });
   });
 });
