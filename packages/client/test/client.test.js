@@ -1017,6 +1017,7 @@ describe('PercyClient', () => {
 
       expect(api.requests['/comparisons/123/tiles/verify']).toBeDefined();
       expect(api.requests['/comparisons/1234/tiles/verify']).not.toBeDefined();
+      expect(api.requests['/comparisons/123/tiles/verify'][0].method).toBe('POST');
     });
   });
 

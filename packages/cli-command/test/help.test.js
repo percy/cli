@@ -394,4 +394,19 @@ describe('Help output', () => {
         -s, --silent   Log nothing
     ` + '\n']);
   });
+
+  it('can log warnings for hidden commands', async () => {
+    let test = command('test', {
+      commands: [command('hidden', {
+        hidden: 'this is hidden for a reason',
+        commands: [command('nested', {}, () => {})]
+      })]
+    });
+
+    await test(['hidden:nested']);
+
+    expect(logger.stderr).toEqual([
+      '\n[percy] Warning: this is hidden for a reason\n'
+    ]);
+  });
 });

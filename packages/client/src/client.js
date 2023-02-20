@@ -450,7 +450,7 @@ export class PercyClient {
     this.log.debug(`Verifying comparison tile with sha: ${sha}`);
 
     try {
-      return await this.get(`comparisons/${comparisonId}/tiles/verify`, {
+      return await this.post(`comparisons/${comparisonId}/tiles/verify`, {
         data: {
           type: 'tiles',
           attributes: {
