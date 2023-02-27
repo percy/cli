@@ -6,7 +6,7 @@
 import markElement from './prepare-dom';
 
 // returns document fragment
-const deepClone = (host, disableShadowDOM) => {
+const deepClone = (dom, disableShadowDOM) => {
   // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
     let walkTree = (nextn, nextp) => {
@@ -42,8 +42,11 @@ const deepClone = (host, disableShadowDOM) => {
     walkTree(node.firstChild, clone);
   };
 
-  let fragment = document.createDocumentFragment();
-  cloneNode(host, fragment);
+  let fragment = dom.createDocumentFragment();
+  cloneNode(dom.documentElement, fragment);
+  fragment.documentElement = fragment.firstChild;
+  fragment.head = fragment.querySelector('head');
+  fragment.body = fragment.querySelector('body');
   return fragment;
 };
 
@@ -51,11 +54,7 @@ const deepClone = (host, disableShadowDOM) => {
  * Deep clone a document while also preserving shadow roots and converting adoptedStylesheets to <style> tags.
  */
 const cloneNodeAndShadow = (ctx) => {
-  let cloneDocumentFragment = deepClone(ctx.dom.documentElement, ctx.disableShadowDOM);
-  cloneDocumentFragment.documentElement = cloneDocumentFragment.firstChild;
-  cloneDocumentFragment.head = cloneDocumentFragment.querySelector('head');
-  cloneDocumentFragment.body = cloneDocumentFragment.querySelector('body');
-  return cloneDocumentFragment;
+  return deepClone(ctx.dom, ctx.disableShadowDOM);
 };
 
 /**
