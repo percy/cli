@@ -1,5 +1,5 @@
 import { when } from 'interactor.js';
-import { assert, withExample, parseDOM, platforms, platformDOM } from './helpers';
+import { assert, withExample, parseDOM, platforms, platformDOM, getTestBrowser, chromeBrowser, firefoxBrowser } from './helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeFrames', () => {
@@ -27,6 +27,8 @@ describe('serializeFrames', () => {
         Object.defineProperty(this.document, 'documentElement', { value: null })
       )"></iframe>
     `);
+
+    spyOn(window.document, 'createDocumentFragment').and.callThrough();
 
     for (const platform of platforms) {
       let dom = platformDOM(platform);
@@ -59,6 +61,27 @@ describe('serializeFrames', () => {
       cache[platform].$ = parseDOM(serialized.html, platform);
     }
   }, 0); // frames may take a bit to load
+
+  afterEach(() => {
+    window.document.createDocumentFragment.calls.reset();
+  });
+
+  it('calls document.createDocumentFragment once for parent frame', () => {
+    // document.createDocumentFragment is only called on first depth of recursion for serializing iframes
+    // post that the document of the iframe itself should be used for creating document fragment
+    // we're having expection for root frame only currently, this should suffice for now
+
+    let timesCalled = 0;
+    if (getTestBrowser() === chromeBrowser) {
+      // we use plain & shadow platform
+      timesCalled = 2;
+    } else if (getTestBrowser() === firefoxBrowser) {
+      // we use only plain platform
+      timesCalled = 1;
+    }
+
+    expect(window.document.createDocumentFragment).toHaveBeenCalledTimes(timesCalled);
+  });
 
   platforms.forEach(platform => {
     let $;

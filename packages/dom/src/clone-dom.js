@@ -5,8 +5,11 @@
  */
 import markElement from './prepare-dom';
 
-// returns document fragment
-const deepClone = (host, disableShadowDOM) => {
+/**
+ * Deep clone a document while also preserving shadow roots
+ * returns document fragment
+ */
+export function cloneNodeAndShadow({ dom, disableShadowDOM }) {
   // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
     let walkTree = (nextn, nextp) => {
@@ -42,26 +45,18 @@ const deepClone = (host, disableShadowDOM) => {
     walkTree(node.firstChild, clone);
   };
 
-  let fragment = document.createDocumentFragment();
-  cloneNode(host, fragment);
+  let fragment = dom.createDocumentFragment();
+  cloneNode(dom.documentElement, fragment);
+  fragment.documentElement = fragment.firstChild;
+  fragment.head = fragment.querySelector('head');
+  fragment.body = fragment.querySelector('body');
   return fragment;
-};
-
-/**
- * Deep clone a document while also preserving shadow roots and converting adoptedStylesheets to <style> tags.
- */
-const cloneNodeAndShadow = (ctx) => {
-  let cloneDocumentFragment = deepClone(ctx.dom.documentElement, ctx.disableShadowDOM);
-  cloneDocumentFragment.documentElement = cloneDocumentFragment.firstChild;
-  cloneDocumentFragment.head = cloneDocumentFragment.querySelector('head');
-  cloneDocumentFragment.body = cloneDocumentFragment.querySelector('body');
-  return cloneDocumentFragment;
 };
 
 /**
  * Use `getInnerHTML()` to serialize shadow dom as <template> tags. `innerHTML` and `outerHTML` don't do this. Buzzword: "declarative shadow dom"
  */
-const getOuterHTML = (docElement) => {
+export function getOuterHTML(docElement) {
   // firefox doesn't serialize shadow DOM, we're awaiting API's by firefox to become ready and are not polyfilling it.
   if (!docElement.getInnerHTML) { return docElement.outerHTML; }
   // chromium gives us declarative shadow DOM serialization API
@@ -69,5 +64,3 @@ const getOuterHTML = (docElement) => {
   docElement.textContent = '';
   return docElement.outerHTML.replace('</html>', `${innerHTML}</html>`);
 };
-
-export { cloneNodeAndShadow, getOuterHTML };

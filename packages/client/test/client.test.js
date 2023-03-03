@@ -985,7 +985,7 @@ describe('PercyClient', () => {
 
     it('returns false if tile is not verified', async () => {
       api.reply('/comparisons/891011/tiles/verify', async () => {
-        return [409, 'Not found'];
+        return [400, 'failure'];
       });
 
       await expectAsync(client.uploadComparisonTiles(891011, [
@@ -997,7 +997,7 @@ describe('PercyClient', () => {
 
     it('throws any errors from verifying', async () => {
       api.reply('/comparisons/891011/tiles/verify', async () => {
-        return [400, 'failure'];
+        return [409, 'Not found'];
       });
 
       await expectAsync(client.uploadComparisonTiles(891011, [
