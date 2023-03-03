@@ -459,7 +459,7 @@ export class PercyClient {
         }
       });
     } catch (error) {
-      if (error.message.includes('409')) {
+      if (error.response.statusCode == 400) {
         return false;
       }
       throw error;
