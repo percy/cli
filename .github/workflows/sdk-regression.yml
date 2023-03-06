@@ -1,0 +1,38 @@
+on:
+  pull_request:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  check-regression:
+    name: Check if needs to run sdk regression
+    runs-on: ubuntu-latest
+    outputs:
+      run-regression: ${{steps.regcheck.outputs.triggered}}
+    steps:
+      - uses: khan/pull-request-comment-trigger@master
+        name: Check if regression
+        if: github.event_name == 'pull_request'
+        id: regcheck
+        with:
+          trigger: 'RUN_SDK_REGRESSION'
+  sdk-regression:
+    name: Trigger SDK regression test
+    runs-on: ubuntu-latest
+    needs: check-regression
+    if: needs.check-regression.outputs.run-regression == 'true'
+    strategy:
+      matrix:
+        repo: [percy-cypress]
+    steps:
+      - name: Trigger Workflow
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: 'percy',
+              repo: ${{ matrix.repo}}
+              workflow_id: 'test.yml',
+              ref: '${{ github.ref }}',
+            })
