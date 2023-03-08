@@ -1,9 +1,4 @@
-on:
-  pull_request:
-    types: [opened]
-  issue_comment:
-    types: [created]
-
+on: push 
 jobs:
   check-regression:
     name: Check if needs to run sdk regression
@@ -21,7 +16,7 @@ jobs:
     name: Trigger SDK regression test
     runs-on: ubuntu-latest
     needs: check-regression
-    if: needs.check-regression.outputs.run-regression == 'true'
+    # if: needs.check-regression.outputs.run-regression == 'true'
     strategy:
       matrix:
         repo: [percy-cypress]
