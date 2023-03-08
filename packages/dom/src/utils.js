@@ -25,3 +25,21 @@ export function resourceFromText(uid, mimetype, data) {
   // return the url, base64 content, and mimetype
   return { url, content, mimetype };
 }
+
+export function styleSheetFromNode(node) {
+  /* istanbul ignore if: sanity check */
+  if (node.sheet) return node.sheet;
+
+  // Cloned style nodes don't have a sheet instance unless they are within
+  // a document; we get it by temporarily adding the rules to DOM
+  const tempStyle = node.cloneNode();
+  tempStyle.setAttribute('data-percy-style-helper', '');
+  tempStyle.innerHTML = node.innerHTML;
+  const clone = document.cloneNode();
+  clone.appendChild(tempStyle);
+  const sheet = tempStyle.sheet;
+  // Cleanup node
+  tempStyle.remove();
+
+  return sheet;
+}

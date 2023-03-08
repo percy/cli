@@ -1,4 +1,4 @@
-import { resourceFromText } from './utils';
+import { resourceFromText, styleSheetFromNode } from './utils';
 import { uid } from './prepare-dom';
 
 // Returns true if a stylesheet is a CSSOM-based stylesheet.
@@ -16,24 +16,6 @@ function styleSheetsMatch(sheetA, sheetB) {
   }
 
   return true;
-}
-
-function styleSheetFromNode(node) {
-  /* istanbul ignore if: sanity check */
-  if (node.sheet) return node.sheet;
-
-  // Cloned style nodes don't have a sheet instance unless they are within
-  // a document; we get it by temporarily adding the rules to DOM
-  const tempStyle = document.createElement('style');
-  tempStyle.setAttribute('data-percy-style-helper', '');
-  tempStyle.innerHTML = node.innerHTML;
-  const clone = document.cloneNode();
-  clone.appendChild(tempStyle);
-  const sheet = tempStyle.sheet;
-  // Cleanup node
-  tempStyle.remove();
-
-  return sheet;
 }
 
 export function serializeCSSOM({ dom, clone, resources, cache }) {
