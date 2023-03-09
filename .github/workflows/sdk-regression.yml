@@ -31,4 +31,7 @@ jobs:
               repo: '${{ matrix.repo}}',
               workflow_id: 'test.yml',
               ref: '${{ github.ref }}',
+              inputs: {
+                branch: '${{ github.ref_name }}'
+              }
             })
