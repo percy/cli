@@ -24,6 +24,7 @@ jobs:
       - name: Trigger Workflow
         uses: actions/github-script@v6
         with:
+          github-token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           script: |
             github.rest.actions.createWorkflowDispatch({
               owner: 'percy',
