@@ -133,6 +133,22 @@ describe('percy build:wait', () => {
     ]));
   });
 
+  it('does not error on diffs if the review status is approved', async () => {
+    api.reply('/builds/123', () => [200, build({
+      'total-comparisons-diff': 16,
+      'review-state': 'approved',
+      state: 'finished'
+    })]);
+
+    await wait(['--build=123', '-f']);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Build #10 finished! https://percy.io/test/test/123',
+      '[percy] Found 16 changes'
+    ]));
+  });
+
   it('does not error when diffs are not found', async () => {
     api.reply('/builds/123', () => [200, build({
       'total-comparisons-diff': 0,
