@@ -133,14 +133,14 @@ describe('percy build:wait', () => {
     ]));
   });
 
-  it('does not error on diffs if the review status is approved', async () => {
+  it('does not error on diffs if the review status is approved and pass-if-approved is on', async () => {
     api.reply('/builds/123', () => [200, build({
       'total-comparisons-diff': 16,
       'review-state': 'approved',
       state: 'finished'
     })]);
 
-    await wait(['--build=123', '-f']);
+    await wait(['--build=123', '-f', '--pass-if-approved']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([

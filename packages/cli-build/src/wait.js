@@ -36,6 +36,9 @@ export const wait = command('wait', {
     name: 'fail-on-changes',
     description: 'Exit with an error when diffs are found',
     short: 'f'
+  }, {
+    name: 'pass-if-approved',
+    description: 'Approve the build regardless of if diffs are found, if the build is approved. Overrides --fail-on-changes.',
   }],
 
   examples: [
@@ -125,11 +128,11 @@ function failureMessage(type, {
 // Return true or false if a build is considered failing or not
 function isFailing({
   attributes: { state, 'review-state': reviewState, 'total-comparisons-diff': diffs } = {}
-} = {}, { failOnChanges }) {
+} = {}, { failOnChanges, passIfApproved }) {
   // not pending and not processing
   return state != null && state !== 'pending' && state !== 'processing' &&
     // not finished or finished with diffs
-    (state !== 'finished' || (failOnChanges && !!diffs && reviewState !== 'approved'));
+    (state !== 'finished' || (failOnChanges && !!diffs && !(passIfApproved && reviewState !== 'approved')));
 }
 
 export default wait;
