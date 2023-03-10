@@ -124,12 +124,12 @@ function failureMessage(type, {
 
 // Return true or false if a build is considered failing or not
 function isFailing({
-  attributes: { state, 'total-comparisons-diff': diffs } = {}
+  attributes: { state, 'review-state': reviewState, 'total-comparisons-diff': diffs } = {}
 } = {}, { failOnChanges }) {
   // not pending and not processing
   return state != null && state !== 'pending' && state !== 'processing' &&
     // not finished or finished with diffs
-    (state !== 'finished' || (failOnChanges && !!diffs));
+    (state !== 'finished' || (failOnChanges && !!diffs && reviewState !== 'approved'));
 }
 
 export default wait;
