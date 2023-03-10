@@ -16,7 +16,16 @@ export function injectDeclarativeShadowDOMPolyfill(ctx) {
         template.remove();
       });
 
-      root.querySelectorAll('[data-percy-shadow-host]').forEach(shadowHost => reversePolyFill(shadowHost.shadowRoot));
+      root.querySelectorAll('[data-percy-shadow-host]').forEach(shadowHost => {
+        reversePolyFill(shadowHost.shadowRoot);
+        const customElementName = shadowHost.tagName.toLowerCase();
+        if (customElementName.includes('-') && !customElements.get(customElementName)) {
+          customElements.define(
+            customElementName,
+            class extends HTMLElement {}
+          );
+        }
+      });
     }
 
     if (["interactive", "complete"].includes(document.readyState)) {
