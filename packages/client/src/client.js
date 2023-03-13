@@ -369,7 +369,7 @@ export class PercyClient {
       if (tile.sha) continue;
       if (tile.content && typeof tile.content === 'string') {
         // base64 encoded content coming from SDK
-        tile.content = Buffer.from(tile.content, 'base64')
+        tile.content = Buffer.from(tile.content, 'base64');
       } else if (tile.filepath) {
         tile.content = await fs.promises.readFile(tile.filepath);
       }

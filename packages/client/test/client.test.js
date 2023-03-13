@@ -769,6 +769,8 @@ describe('PercyClient', () => {
       spyOn(fs.promises, 'readFile')
         .withArgs('foo/bar').and.resolveTo('bar');
 
+      let tile1Content = 'screenshot';
+
       await expectAsync(client.createComparison(4567, {
         tag: {
           name: 'tagfoo',
@@ -784,7 +786,7 @@ describe('PercyClient', () => {
           headerHeight: 20,
           footerHeight: 50,
           fullscreen: false,
-          content: 'foo'
+          content: Buffer.from(tile1Content).toString('base64')
         }, {
           statusBarHeight: 40,
           navBarHeight: 30,
@@ -792,6 +794,13 @@ describe('PercyClient', () => {
           footerHeight: 50,
           fullscreen: true,
           filepath: 'foo/bar'
+        }, {
+          statusBarHeight: 40,
+          navBarHeight: 30,
+          headerHeight: 20,
+          footerHeight: 50,
+          fullscreen: true,
+          sha: sha256hash('somesha')
         }],
         externalDebugUrl: 'http://debug.localhost'
       })).toBeResolved();
@@ -820,7 +829,7 @@ describe('PercyClient', () => {
               data: [{
                 type: 'tiles',
                 attributes: {
-                  sha: sha256hash('foo'),
+                  sha: sha256hash(Buffer.from(tile1Content)),
                   'status-bar-height': 40,
                   'nav-bar-height': 30,
                   'header-height': 20,
@@ -831,6 +840,16 @@ describe('PercyClient', () => {
                 type: 'tiles',
                 attributes: {
                   sha: sha256hash('bar'),
+                  'status-bar-height': 40,
+                  'nav-bar-height': 30,
+                  'header-height': 20,
+                  'footer-height': 50,
+                  fullscreen: true
+                }
+              }, {
+                type: 'tiles',
+                attributes: {
+                  sha: sha256hash('somesha'),
                   'status-bar-height': 40,
                   'nav-bar-height': 30,
                   'header-height': 20,
@@ -925,6 +944,26 @@ describe('PercyClient', () => {
           }
         }
       });
+    });
+
+    it('does not read file if content is passed', async () => {
+      let readSpy = spyOn(fs.promises, 'readFile');
+
+      let buffer = Buffer.from('screenshot');
+      await expectAsync(
+        client.uploadComparisonTile(891011, { filepath: 'foo/bar', content: buffer })
+      ).toBeResolved();
+
+      expect(api.requests['/comparisons/891011/tiles'][0].body).toEqual({
+        data: {
+          type: 'tiles',
+          attributes: {
+            'base64-content': base64encode(buffer),
+            index: 0
+          }
+        }
+      });
+      expect(readSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -1052,7 +1091,7 @@ describe('PercyClient', () => {
       await client.sendComparison(123, {
         name: 'test snapshot name',
         tag: { name: 'test tag' },
-        tiles: [{ content: 'tile' }]
+        tiles: [{ content: base64encode('tile') }]
       });
     });
 
@@ -1120,7 +1159,7 @@ describe('PercyClient', () => {
         data: {
           type: 'tiles',
           attributes: {
-            'base64-content': base64encode('tile'),
+            'base64-content': base64encode(Buffer.from('tile')),
             index: 0
           }
         }
