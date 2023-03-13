@@ -133,9 +133,26 @@ describe('percy build:wait', () => {
     ]));
   });
 
-  it('errors on diffs if the pass-if-approved is on but review state is not yet approved', async () => {
+  it('errors on diffs if the pass-if-approved is on but diffs are unreviewed', async () => {
     api.reply('/builds/123', () => [200, build({
       'total-comparisons-diff': 16,
+      'review-state': 'unreviewed',
+      state: 'finished'
+    })]);
+
+    await expectAsync(wait(['--build=123', '-f', '--pass-if-approved'])).toBeRejected();
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Build #10 finished! https://percy.io/test/test/123',
+      '[percy] Found 16 changes'
+    ]);
+  });
+
+  it('errors on diffs if the pass-if-approved is on but diffs have changes requested', async () => {
+    api.reply('/builds/123', () => [200, build({
+      'total-comparisons-diff': 16,
+      'review-state': 'changes_requested',
       state: 'finished'
     })]);
 
