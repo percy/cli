@@ -219,9 +219,7 @@ describe('percy build:wait', () => {
     await waiting;
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
-      '[percy] Processing 18 snapshots - 0 of 72 comparisons finished...'
-    ]);
+    expect(logger.stdout).toEqual([]);
   });
 
   describe('failure messages', () => {
@@ -233,7 +231,9 @@ describe('percy build:wait', () => {
 
       await expectAsync(wait(['--build=123'])).toBeRejected();
 
-      expect(logger.stdout).toEqual([]);
+      expect(logger.stdout).toEqual([
+        '[percy] Processing 18 snapshots - 0 of 72 comparisons finished...'
+      ]);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Build #10 failed! https://percy.io/test/test/123',
         '[percy] Some snapshots in this build took too long to render ' +
