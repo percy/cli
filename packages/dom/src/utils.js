@@ -19,11 +19,9 @@ export function resourceFromText(uid, mimetype, data) {
   let [, ext] = mimetype.split('/');
   let path = `/__serialized__/${uid}.${ext}`;
   let url = new URL(path, document.URL).toString();
-  // converts text to base64
-  let content = window.btoa(data);
 
-  // return the url, base64 content, and mimetype
-  return { url, content, mimetype };
+  // return the url, text content, and mimetype
+  return { url, content: data, mimetype };
 }
 
 export function styleSheetFromNode(node) {
