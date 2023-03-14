@@ -24,7 +24,7 @@ function doctype(dom) {
 
 // Serializes and returns the cloned DOM as an HTML string
 function serializeHTML(ctx) {
-  let html = getOuterHTML(ctx.clone.documentElement);
+  let html = getOuterHTML(ctx);
   // replace serialized data attributes with real attributes
   html = html.replace(/ data-percy-serialized-attribute-(\w+?)=/ig, ' $1=');
   // include the doctype with the html string
