@@ -366,8 +366,13 @@ export class PercyClient {
     this.log.debug(`Creating comparision: ${tag.name}...`);
 
     for (let tile of tiles) {
-      if (tile.sha || tile.content || !tile.filepath) continue;
-      tile.content = await fs.promises.readFile(tile.filepath);
+      if (tile.sha) continue;
+      if (tile.content && typeof tile.content === 'string') {
+        // base64 encoded content coming from SDK
+        tile.content = Buffer.from(tile.content, 'base64');
+      } else if (tile.filepath) {
+        tile.content = await fs.promises.readFile(tile.filepath);
+      }
     }
 
     return this.post(`snapshots/${snapshotId}/comparisons`, {
@@ -411,7 +416,7 @@ export class PercyClient {
   async uploadComparisonTile(comparisonId, { index = 0, total = 1, filepath, content, sha } = {}) {
     validateId('comparison', comparisonId);
     this.log.debug(`Uploading comparison tile: ${index + 1}/${total} (${comparisonId})...`);
-    if (filepath) content = await fs.promises.readFile(filepath);
+    if (filepath && !content) content = await fs.promises.readFile(filepath);
     if (sha) {
       return await this.verify(comparisonId, sha);
     }
