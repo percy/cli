@@ -1,11 +1,14 @@
 name: SDK Regression
 on:
-  push:
+  pull_request:
+    types: [opened]
+  issue_comment:
+    types: [created, edited] 
 jobs:
   regression:
     name: Trigger SDK regression test
     runs-on: ubuntu-latest
-    # if: ${{ github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION' }}
+    if: ${{ github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION' }}
     strategy:
       matrix:
         repo: [percy-cypress]
@@ -19,8 +22,8 @@ jobs:
               owner: 'percy',
               repo: '${{ matrix.repo}}',
               workflow_id: 'test.yml',
-              ref: '${{ github.head_ref }}',
+              ref: '${{ github.head_ref || github.ref_name }}',
               inputs: {
-                branch: '${{ github.head_ref_name }}'
+                branch: '${{ github.head_ref || github.ref_name }}'
               }
             })
