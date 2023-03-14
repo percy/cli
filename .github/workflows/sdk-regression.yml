@@ -1,0 +1,29 @@
+on:
+  pull_request:
+    types: [opened]
+  issue_comment:
+    types: [created, edited] 
+jobs:
+  regression:
+    name: Trigger SDK regression test
+    runs-on: ubuntu-latest
+    needs: check-regression
+    if: ${{ github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION' }}
+    strategy:
+      matrix:
+        repo: [percy-cypress]
+    steps:
+      - name: Trigger Workflow
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: 'percy',
+              repo: '${{ matrix.repo}}',
+              workflow_id: 'test.yml',
+              ref: '${{ github.ref }}',
+              inputs: {
+                branch: '${{ github.ref_name }}'
+              }
+            })
