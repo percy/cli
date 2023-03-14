@@ -1,3 +1,4 @@
+name: SDK Regression
 on:
   pull_request:
     types: [opened]
@@ -21,8 +22,8 @@ jobs:
               owner: 'percy',
               repo: '${{ matrix.repo}}',
               workflow_id: 'test.yml',
-              ref: '${{ github.ref }}',
+              ref: '${{ github.head_ref }}',
               inputs: {
-                branch: '${{ github.ref_name }}'
+                branch: '${{ github.head_ref_name }}'
               }
             })
