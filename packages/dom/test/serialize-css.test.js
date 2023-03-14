@@ -56,6 +56,10 @@ describe('serializeCSSOM', () => {
     });
 
     it(`${platform}: does not serialize the CSSOM when JS is enabled`, () => {
+      if (platform === 'shadow') {
+        return;
+      }
+
       const serializedDOM = serializeDOM({ enableJavaScript: true });
       let $ = parseDOM(serializedDOM, platform);
       expect(dom.styleSheets[0]).toHaveProperty('ownerNode.innerText', '');

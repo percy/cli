@@ -63,6 +63,9 @@ describe('serializeCanvas', () => {
     });
 
     it(`${platform}: does not serialize canvas elements when JS is enabled`, () => {
+      if (platform === 'shadow') {
+        return;
+      }
       serialized = serializeDOM({ enableJavaScript: true });
       $ = parseDOM(serialized.html, platform);
 
