@@ -79,7 +79,7 @@ function parseDomResources({ url, domSnapshot }) {
   // reduce the array of resources into a keyed map
   return resources.reduce((map, { url, content, mimetype }) => {
     // serialized resource contents are base64 encoded
-    content = Buffer.from(content, 'base64');
+    content = Buffer.from(content, mimetype.includes('text') ? 'utf8' : 'base64');
     // specify the resource as provided to prevent overwriting during asset discovery
     let resource = createResource(url, content, mimetype, { provided: true });
     // key the resource by its url and return the map

@@ -596,13 +596,19 @@ describe('Snapshot', () => {
       mimetype: 'image/gif'
     };
 
+    let textResource = {
+      url: 'http://localhost:8000/__serialized__/_style1.css',
+      content: 'p{color:blue;}',
+      mimetype: 'text/css'
+    };
+
     await percy.snapshot({
       name: 'Serialized Snapshot',
       url: 'http://localhost:8000/',
       domSnapshot: {
         html: `<img src="${resource.url}"/>`,
         warnings: ['Test serialize warning'],
-        resources: [resource]
+        resources: [resource, textResource]
       }
     });
 
@@ -626,6 +632,7 @@ describe('Snapshot', () => {
       .toMatch(`<img src="${resource.url}"/>`);
     // domSnapshot.resources are also uploaded
     expect(uploads[1]).toEqual(resource.content);
+    expect(uploads[2]).toEqual(Buffer.from(textResource.content).toString('base64'));
   });
 
   it('handles duplicate snapshots', async () => {
