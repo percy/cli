@@ -18,4 +18,4 @@ jobs:
           workflow_file_name: test.yml
           ref: master
           client_payload: '{ "branch": "${{ github.head_ref || github.ref_name }}"}'
-          wait_interval: 30
+          wait_interval: 15
