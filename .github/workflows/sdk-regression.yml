@@ -16,6 +16,6 @@ jobs:
           repo: ${{ matrix.repo }}
           github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           workflow_file_name: test.yml
-          ref: ${{ github.head_ref || github.ref }}
+          ref: master
           client_payload: '{ "branch": "${{ github.head_ref || github.ref_name }}"}'
           wait_interval: 30
