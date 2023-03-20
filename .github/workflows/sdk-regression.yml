@@ -13,17 +13,13 @@ jobs:
       matrix:
         repo: [percy-cypress]
     steps:
-      - name: Trigger Workflow
-        uses: actions/github-script@v6
+      - name: Trigger Workflow & Wait
+      - uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
-          github-token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
-          script: |
-            github.rest.actions.createWorkflowDispatch({
-              owner: 'percy',
-              repo: '${{ matrix.repo}}',
-              workflow_id: 'test.yml',
-              ref: '${{ github.head_ref || github.ref_name }}',
-              inputs: {
-                branch: '${{ github.head_ref || github.ref_name }}'
-              }
-            })
+          owner: percy
+          repo: ${{ matrix.repo }}
+          github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
+          workflow_file_name: test.yml
+          ref: ${{ github.head_ref || github.ref_name }}
+          client_payload: '{ "branch": "${{ github.head_ref || github.ref_name }}"}'
+          wait_interval: 30
