@@ -1101,7 +1101,7 @@ describe('PercyConfig', () => {
         'Bar BAZ qux': 'xyzzy',
         'percy-css': '',
         'enable-javascript': false,
-        'disable-shadow-dom': true
+        'disable-shadow-dom-serialization': true
       })).toEqual({
         fooBar: 'baz',
         foo: { barBaz: 'qux' },
@@ -1127,7 +1127,7 @@ describe('PercyConfig', () => {
         'foo-bar-baz': ['qux'],
         'percy-css': '',
         'enable-javascript': false,
-        'disable-shadow-dom': true
+        'disable-shadow-dom-serialization': true
       });
     });
 
