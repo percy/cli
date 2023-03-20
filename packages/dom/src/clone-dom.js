@@ -9,7 +9,7 @@ import markElement from './prepare-dom';
  * Deep clone a document while also preserving shadow roots
  * returns document fragment
  */
-export function cloneNodeAndShadow({ dom, disableShadowDOM }) {
+export function cloneNodeAndShadow({ dom, disableShadowDOMSerialization }) {
   // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
     let walkTree = (nextn, nextp) => {
@@ -20,14 +20,14 @@ export function cloneNodeAndShadow({ dom, disableShadowDOM }) {
     };
 
     // mark the node before cloning
-    markElement(node, disableShadowDOM);
+    markElement(node, disableShadowDOMSerialization);
 
     let clone = node.cloneNode();
 
     parent.appendChild(clone);
 
     // clone shadow DOM
-    if (node.shadowRoot && !disableShadowDOM) {
+    if (node.shadowRoot && !disableShadowDOMSerialization) {
       // create shadowRoot
       if (clone.shadowRoot) {
         // it may be set up in a custom element's constructor
@@ -62,7 +62,7 @@ export function getOuterHTML(ctx) {
   if (!docElement.getInnerHTML) { return docElement.outerHTML; }
   // chromium gives us declarative shadow DOM serialization API
 
-  let innerHTML = docElement.getInnerHTML({ includeShadowRoots: !ctx.disableShadowDOM && !ctx.enableJavaScript });
+  let innerHTML = docElement.getInnerHTML({ includeShadowRoots: !ctx.disableShadowDOMSerialization });
   docElement.textContent = '';
   return docElement.outerHTML.replace('</html>', `${innerHTML}</html>`);
 };

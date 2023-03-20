@@ -1109,7 +1109,7 @@ describe('PercyConfig', () => {
         barBazQux: 'xyzzy',
         percyCSS: '',
         enableJavaScript: false,
-        disableShadowDOM: true
+        disableShadowDOMSerialization: true
       });
     });
 
@@ -1120,7 +1120,7 @@ describe('PercyConfig', () => {
         fooBar_baz: ['qux'],
         percyCSS: '',
         enableJavaScript: false,
-        disableShadowDOM: true
+        disableShadowDOMSerialization: true
       }, { kebab: true })).toEqual({
         'foo-bar': 'baz',
         foo: { 'bar-baz': 'qux' },
@@ -1138,14 +1138,14 @@ describe('PercyConfig', () => {
         fooBar_baz: ['qux'],
         percyCSS: '',
         enableJavaScript: false,
-        disableShadowDOM: true
+        disableShadowDOMSerialization: true
       }, { snake: true })).toEqual({
         foo_bar: 'baz',
         foo: { bar_baz: 'qux' },
         foo_bar_baz: ['qux'],
         percy_css: '',
         enable_javascript: false,
-        disable_shadow_dom: true
+        disable_shadow_dom_serialization: true
       });
     });
 

@@ -34,7 +34,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'widths', v => `${v}px`);
   debugProp(snapshot, 'minHeight', v => `${v}px`);
   debugProp(snapshot, 'enableJavaScript');
-  debugProp(snapshot, 'disableShadowDOM');
+  debugProp(snapshot, 'disableShadowDOMSerialization');
   debugProp(snapshot, 'deviceScaleFactor');
   debugProp(snapshot, 'waitForTimeout');
   debugProp(snapshot, 'waitForSelector');

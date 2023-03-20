@@ -306,7 +306,7 @@ describe('Discovery', () => {
       name: 'test event snapshot',
       url: 'http://localhost:8000/events',
       enableJavaScript: true,
-      disableShadowDOM: true
+      disableShadowDOMSerialization: true
     });
 
     await percy.idle();

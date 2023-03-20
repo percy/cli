@@ -64,7 +64,7 @@ export function serializeDOM(options) {
     enableJavaScript = options?.enable_javascript,
     domTransformation = options?.dom_transformation,
     stringifyResponse = options?.stringify_response,
-    disableShadowDOM = options?.disable_shadow_dom
+    disableShadowDOMSerialization = options?.disable_shadow_dom_serialization
   } = options || {};
 
   // keep certain records throughout serialization
@@ -73,7 +73,7 @@ export function serializeDOM(options) {
     warnings: new Set(),
     cache: new Map(),
     enableJavaScript,
-    disableShadowDOM
+    disableShadowDOMSerialization
   };
 
   ctx.dom = dom;
@@ -93,7 +93,7 @@ export function serializeDOM(options) {
     }
   }
 
-  if (!disableShadowDOM) { injectDeclarativeShadowDOMPolyfill(ctx); }
+  if (!disableShadowDOMSerialization) { injectDeclarativeShadowDOMPolyfill(ctx); }
 
   let result = {
     html: serializeHTML(ctx),

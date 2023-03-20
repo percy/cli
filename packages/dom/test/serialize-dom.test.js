@@ -171,7 +171,7 @@ describe('serializeDOM', () => {
       expect(html).toMatch(new RegExp(matchRegex));
     });
 
-    it('respects disableShadowDOM', () => {
+    it('respects disableShadowDOMSerialization', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
@@ -180,7 +180,7 @@ describe('serializeDOM', () => {
       const el = createShadowEl(8);
       baseContent.appendChild(el);
 
-      const html = serializeDOM({ disableShadowDOM: true }).html;
+      const html = serializeDOM({ disableShadowDOMSerialization: true }).html;
       expect(html).not.toMatch('<p>Percy-8</p>');
       expect(html).not.toMatch('data-percy-shadow-host=');
     });

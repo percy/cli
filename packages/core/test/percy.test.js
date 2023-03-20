@@ -57,7 +57,7 @@ describe('Percy', () => {
       widths: [375, 1280],
       minHeight: 1024,
       percyCSS: '',
-      disableShadowDOM: false
+      disableShadowDOMSerialization: false
     });
   });
 
@@ -78,7 +78,7 @@ describe('Percy', () => {
         let p = document.querySelector('p');
         p.textContent = p.textContent.replace('Hello', 'Hello there,');
       },
-      disableShadowDOM: true
+      disableShadowDOMSerialization: true
     });
 
     expect(snapshot.url).toEqual('http://localhost:8000/');
