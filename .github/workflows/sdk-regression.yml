@@ -11,7 +11,21 @@ jobs:
     if: ${{ github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION' }}
     strategy:
       matrix:
-        repo: [percy-cypress]
+        repo: 
+          - percy-ember
+          - percy-cypress
+          - percy-puppeteer
+          - percy-storybook
+          - percy-playwright
+          - percy-testcafe
+          - percy-nightwatch
+          - percy-nightmare
+          - percy-webdriverio
+          - percy-protractor
+          - percy-selenium-js
+          - percy-selenium-dotnet
+          - percy-selenium-java
+          - gatsby-plugin-percy
     steps:
       - name: Trigger Workflow & Wait
         uses: convictional/trigger-workflow-and-wait@v1.6.5
