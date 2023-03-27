@@ -103,7 +103,7 @@ async function main({
   } else if (testNode) {
     // $ jasmine <cwd>/test/**/*.test.js --config <config>
     let { default: Jasmine } = await import('jasmine');
-    let { SpecReporter } = await import('jasmine-spec-reporter');
+    // let { SpecReporter } = await import('jasmine-spec-reporter');
     let jasmine = new Jasmine();
 
     jasmine.loadConfig({
@@ -114,16 +114,16 @@ async function main({
       random: false
     });
 
-    jasmine.clearReporters();
-    jasmine.addReporter(new SpecReporter({
-      spec: {
-        displayPending: true
-      },
-      summary: {
-        displayPending: false,
-        displayStacktrace: 'pretty'
-      }
-    }));
+    // jasmine.clearReporters();
+    // jasmine.addReporter(new SpecReporter({
+    //   spec: {
+    //     displayPending: true
+    //   },
+    //   summary: {
+    //     displayPending: false,
+    //     displayStacktrace: 'pretty'
+    //   }
+    // }));
 
     console.log(colors.magenta('Running node tests...\n'));
     await jasmine.execute();
