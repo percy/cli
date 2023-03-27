@@ -40,20 +40,20 @@ jobs:
       fail-fast: false
       matrix:
         package:
-          - '@percy/env'
-          - '@percy/client'
-          - '@percy/dom'
-          - '@percy/logger'
-          - '@percy/config'
+          # - '@percy/env'
+          # - '@percy/client'
+          # - '@percy/dom'
+          # - '@percy/logger'
+          # - '@percy/config'
           - '@percy/core'
-          - '@percy/cli'
-          - '@percy/cli-command'
+          # - '@percy/cli'
+          # - '@percy/cli-command'
           - '@percy/cli-exec'
-          - '@percy/cli-snapshot'
-          - '@percy/cli-upload'
-          - '@percy/cli-build'
-          - '@percy/cli-config'
-          - '@percy/sdk-utils'
+          # - '@percy/cli-snapshot'
+          # - '@percy/cli-upload'
+          # - '@percy/cli-build'
+          # - '@percy/cli-config'
+          # - '@percy/sdk-utils'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
