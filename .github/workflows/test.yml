@@ -83,6 +83,4 @@ jobs:
         run: sudo apt-get install -y libgbm-dev
         if: ${{ matrix.os == 'ubuntu-latest' }}
       - name: Run tests
-        uses: nick-fields/retry@v2.8.3
-        max_attempts: 3
-        command: yarn workspace ${{ matrix.package }} test:coverage --colors
+        run: yarn workspace ${{ matrix.package }} test:coverage --colors
