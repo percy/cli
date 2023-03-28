@@ -82,4 +82,5 @@ jobs:
         uses: nick-fields/retry@v2.8.3
         with:
           max_attempts: 3
+          timeout_minutes: 15
           command: yarn workspace ${{ matrix.package }} test:coverage --colors
