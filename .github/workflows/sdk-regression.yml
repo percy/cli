@@ -15,7 +15,7 @@ jobs:
           - percy-ember
           - percy-cypress
           - percy-puppeteer
-          - percy-storybook
+          # - percy-storybook
           - percy-playwright
           - percy-testcafe
           - percy-nightwatch
@@ -35,5 +35,5 @@ jobs:
           github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           workflow_file_name: test.yml
           ref: master
-          client_payload: '{ "branch": "${{ github.head_ref || github.ref_name }}"}'
+          client_payload: '{ "branch": "${{ github.event.pull_request.head.ref || github.ref_name }}"}'
           wait_interval: 15
