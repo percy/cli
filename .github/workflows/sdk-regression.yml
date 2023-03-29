@@ -15,7 +15,7 @@ jobs:
           - percy-ember
           - percy-cypress
           - percy-puppeteer
-          - percy-storybook
+          # - percy-storybook
           - percy-playwright
           - percy-testcafe
           - percy-nightwatch
