@@ -40,7 +40,7 @@ jobs:
         uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
           owner: percy
-          repo: ${{ matrix.repo }}
+          repo: ${{ steps.split.outputs._0 }}
           github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           workflow_file_name: test.yml
           ref: ${{ steps.split.outputs._1 || 'master' }}
