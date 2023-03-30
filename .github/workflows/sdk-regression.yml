@@ -35,6 +35,7 @@ jobs:
           msg: ${{ matrix.repo }}
           separator: '@'
       - uses: xt0rted/pull-request-comment-branch@v2
+        if: ${{ github.event.issue.pull_request }}
         id: comment-branch
       - name: Trigger Workflow & Wait
         uses: convictional/trigger-workflow-and-wait@v1.6.5
