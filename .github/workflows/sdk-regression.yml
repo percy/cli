@@ -26,6 +26,9 @@ jobs:
           - percy-selenium-js
           - percy-selenium-dotnet
           - percy-selenium-java
+          - percy-selenium-python
+          - percy-capybara
+          - percy-appium-js
           - gatsby-plugin-percy
     steps:
       - uses: jungwinter/split@v2
