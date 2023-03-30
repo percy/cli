@@ -1,14 +1,11 @@
 name: SDK Regression
 on:
-  pull_request:
-    types: [opened]
-  issue_comment:
-    types: [created, edited] 
+  push
 jobs:
   regression:
     name: Trigger SDK regression test
     runs-on: ubuntu-latest
-    if: ${{ github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION' }}
+    # if: ${{ github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION' }}
     strategy:
       matrix:
         repo: 
@@ -47,5 +44,5 @@ jobs:
           github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           workflow_file_name: test.yml
           ref: ${{ steps.split.outputs._1 || master }}
-          client_payload: '{ "branch": "${{ steps.comment-branch.outputs.head_ref }}"}'
+          client_payload: '{ "branch": "master" }'
           wait_interval: 15
