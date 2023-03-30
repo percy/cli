@@ -43,6 +43,6 @@ jobs:
           repo: ${{ matrix.repo }}
           github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           workflow_file_name: test.yml
-          ref: ${{ steps.split.outputs._1 || master }}
+          ref: ${{ steps.split.outputs._1 || 'master' }}
           client_payload: '{ "branch": "master" }'
           wait_interval: 15
