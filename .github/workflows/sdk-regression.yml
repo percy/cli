@@ -36,6 +36,8 @@ jobs:
         with:
           msg: ${{ matrix.repo }}
           separator: '@'
+      - uses: xt0rted/pull-request-comment-branch@v2
+        id: comment-branch
       - name: Trigger Workflow & Wait
         uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
@@ -44,5 +46,5 @@ jobs:
           github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           workflow_file_name: test.yml
           ref: ${{ steps.split.outputs._1 || master }}
-          client_payload: '{ "branch": "${{ github.event.pull_request.head.ref || github.ref_name }}"}'
+          client_payload: '{ "branch": "${{ steps.comment-branch.outputs.head_ref || github.ref_name }}"}'
           wait_interval: 15
