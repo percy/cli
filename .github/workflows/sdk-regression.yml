@@ -31,6 +31,7 @@ jobs:
           - percy-appium-js
           - gatsby-plugin-percy
     steps:
+      # Allow specifying repo@branch
       - uses: jungwinter/split@v2
         id: split
         with:
