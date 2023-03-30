@@ -21,12 +21,18 @@ jobs:
           - percy-nightwatch
           - percy-nightmare
           - percy-webdriverio
+          - percy-webdriverio@v2
           - percy-protractor
           - percy-selenium-js
           - percy-selenium-dotnet
           - percy-selenium-java
           - gatsby-plugin-percy
     steps:
+      - uses: jungwinter/split@v2
+        id: split
+        with:
+          msg: ${{ matrix.repo }}
+          separator: '@'
       - name: Trigger Workflow & Wait
         uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
@@ -34,6 +40,6 @@ jobs:
           repo: ${{ matrix.repo }}
           github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           workflow_file_name: test.yml
-          ref: master
+          ref: ${{ steps.split.outputs._1 || master }}
           client_payload: '{ "branch": "${{ github.event.pull_request.head.ref || github.ref_name }}"}'
           wait_interval: 15
