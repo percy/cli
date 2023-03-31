@@ -81,12 +81,17 @@ jobs:
       - run: |
           cd
           dir
+      - uses: jungwinter/split@v2
+        id: split
+        with:
+          msg: ${{ matrix.package }}
+          separator: '/'
       - name: Run tests
         uses: nick-fields/retry@v2.8.3
         with:
           max_attempts: 3
           timeout_minutes: 15
           command: |
-            cd ${{ matrix.package }}
+            cd packages/${{ steps.split.outputs._1 }}
             yarn test:coverage --colors
-            cd ..
+            cd ../..
