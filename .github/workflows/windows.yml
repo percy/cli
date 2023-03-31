@@ -40,20 +40,20 @@ jobs:
       fail-fast: false
       matrix:
         package:
-          - '@percy/env'
-          - '@percy/client'
-          - '@percy/dom'
-          - '@percy/logger'
-          - '@percy/config'
-          - '@percy/core'
-          - '@percy/cli'
-          - '@percy/cli-command'
-          - '@percy/cli-exec'
-          - '@percy/cli-snapshot'
-          - '@percy/cli-upload'
-          - '@percy/cli-build'
-          - '@percy/cli-config'
-          - '@percy/sdk-utils'
+          - 'env'
+          - 'client'
+          - 'dom'
+          - 'logger'
+          - 'config'
+          - 'core'
+          - 'cli'
+          - 'cli-command'
+          - 'cli-exec'
+          - 'cli-snapshot'
+          - 'cli-upload'
+          - 'cli-build'
+          - 'cli-config'
+          - 'sdk-utils'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
@@ -78,20 +78,12 @@ jobs:
           name: dist
           path: packages
       - run: yarn
-      - run: |
-          cd
-          dir
-      - uses: jungwinter/split@v2
-        id: split
-        with:
-          msg: ${{ matrix.package }}
-          separator: '/'
       - name: Run tests
         uses: nick-fields/retry@v2.8.3
         with:
           max_attempts: 3
           timeout_minutes: 15
           command: |
-            cd packages/${{ steps.split.outputs._1 }}
+            cd ${{ matrix.package }}
             yarn test:coverage --colors
-            cd ../..
+            cd ..
