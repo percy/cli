@@ -78,6 +78,9 @@ jobs:
           name: dist
           path: packages
       - run: yarn
+      - run: |
+          cd
+          dir
       - name: Run tests
         uses: nick-fields/retry@v2.8.3
         with:
