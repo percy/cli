@@ -84,6 +84,6 @@ jobs:
           max_attempts: 3
           timeout_minutes: 15
           command: |
-            cd ../${{ matrix.package }}
+            cd ${{ github.workspace }}/packages/${{ matrix.package }}
             yarn test:coverage --colors
-            cd ../
+            cd ${{ github.workspace }}
