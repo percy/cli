@@ -78,20 +78,5 @@ jobs:
           name: dist
           path: packages
       - run: yarn
-      - run: |
-          cd
-          dir
-      - uses: jungwinter/split@v2
-        id: split
-        with:
-          msg: ${{ matrix.package }}
-          separator: '/'
       - name: Run tests
-        uses: nick-fields/retry@v2.8.3
-        with:
-          max_attempts: 3
-          timeout_minutes: 15
-          command: |
-            cd ${{ github.workspace }}/packages/${{ matrix.package }}
-            yarn test:coverage --colors
-            cd ${{ github.workspace }}
+        run: yarn workspace ${{ matrix.package }} test --colors
