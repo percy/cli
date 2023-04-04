@@ -164,4 +164,4 @@ await client.waitForBuild({
 - `commit` — Commit SHA (**required** when missing `build`)
 - `project` — Project slug (**required** when using `commit`)
 - `timeout` — Timeout in milliseconds to wait with no updates (**default** `10 * 60 * 1000`)
-- `interval` — Interval in miliseconds to check for updates (**default** `1000`)
+- `interval` — Interval in miliseconds to check for updates (**default** `10000`)

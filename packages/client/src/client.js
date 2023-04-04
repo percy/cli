@@ -188,6 +188,11 @@ export class PercyClient {
     return this.get(`projects/${project}/builds?${qs}`);
   }
 
+  // required so we could mock this method in tests :P
+  intervalLessThanThreshold(interval) {
+    return interval < 10_000;
+  }
+
   // Resolves when the build has finished and is no longer pending or
   // processing. By default, will time out if no update after 10 minutes.
   waitForBuild({
@@ -195,8 +200,11 @@ export class PercyClient {
     project,
     commit,
     timeout = 10 * 60 * 1000,
-    interval = 1000
+    interval = 10_000
   }, onProgress) {
+    if (this.intervalLessThanThreshold(interval)) {
+      throw new Error('Interval cannot be less than 10000ms');
+    }
     if (!project && commit) {
       throw new Error('Missing project path for commit');
     } else if (!project && !build) {
@@ -214,6 +222,7 @@ export class PercyClient {
       : (await this.getBuilds(project, { sha })).data?.[0];
 
     this.log.debug(`Waiting for build ${build || `${project} (${commit})`}...`);
+    let self = this;
 
     // recursively poll every second until the build finishes
     return new Promise((resolve, reject) => (async function poll(last, t) {
@@ -239,6 +248,7 @@ export class PercyClient {
 
         // not finished, poll again
         if (pending) {
+          setTimeout(self.log.debug, interval, 'waiting...');
           return setTimeout(poll, interval, data, t);
 
         // build finished

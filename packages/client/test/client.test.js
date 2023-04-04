@@ -9,7 +9,7 @@ describe('PercyClient', () => {
   let client;
 
   beforeEach(async () => {
-    await logger.mock();
+    await logger.mock({ level: 'debug' });
     await api.mock();
 
     client = new PercyClient({
@@ -55,7 +55,7 @@ describe('PercyClient', () => {
         }]
       })).toBeResolved();
 
-      expect(logger.stderr).toEqual(['[percy] Warning: Missing `clientInfo` and/or `environmentInfo` properties']);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Warning: Missing `clientInfo` and/or `environmentInfo` properties']));
     });
 
     it('it logs a debug warning when partial info is passed', async () => {
@@ -77,7 +77,7 @@ describe('PercyClient', () => {
         }]
       })).toBeResolved();
 
-      expect(logger.stderr).toEqual(['[percy] Warning: Missing `clientInfo` and/or `environmentInfo` properties']);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Warning: Missing `clientInfo` and/or `environmentInfo` properties']));
     });
 
     it('does not duplicate or include empty client and environment information', () => {
@@ -343,6 +343,10 @@ describe('PercyClient', () => {
   });
 
   describe('#waitForBuild()', () => {
+    beforeEach(() => {
+      spyOn(client, 'intervalLessThanThreshold').and.returnValue(false);
+    });
+
     it('throws when missing a project or build', () => {
       expect(() => client.waitForBuild({ commit: null }))
         .toThrowError('Missing project path or build ID');
@@ -365,6 +369,12 @@ describe('PercyClient', () => {
         .toThrowError('Invalid project path. Expected "org/project" but received "test"');
     });
 
+    it('throws when interval is less than 10000ms', () => {
+      spyOn(client, 'intervalLessThanThreshold').and.callThrough();
+      expect(() => client.waitForBuild({ interval: 50 }))
+        .toThrowError('Interval cannot be less than 10000ms');
+    });
+
     it('invokes the callback when data changes while waiting', async () => {
       let progress = 0;
 
@@ -385,6 +395,10 @@ describe('PercyClient', () => {
       }, () => progress++);
 
       expect(progress).toEqual(2);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy:client] waiting...',
+        '[percy:client] waiting...'
+      ]));
     });
 
     it('throws when no update happens within the timeout', async () => {
