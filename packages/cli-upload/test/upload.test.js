@@ -103,7 +103,7 @@ describe('percy upload', () => {
               type: 'resources',
               id: jasmine.any(String),
               attributes: {
-                'resource-url': 'http://localhost/test-1.png',
+                'resource-url': 'http://local/test-1.png',
                 mimetype: 'image/png',
                 'for-widths': null,
                 'is-root': null
