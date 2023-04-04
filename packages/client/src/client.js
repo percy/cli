@@ -15,6 +15,8 @@ import {
 // Default client API URL can be set with an env var for API development
 const { PERCY_CLIENT_API_URL = 'https://percy.io/api/v1' } = process.env;
 const pkg = getPackageJSON(import.meta.url);
+// minimum polling interval milliseconds
+const MIN_POLLING_INTERVAL = 1_000;
 
 // Validate ID arguments
 function validateId(type, id) {
@@ -189,8 +191,8 @@ export class PercyClient {
   }
 
   // required so we could mock this method in tests :P
-  intervalLessThanThreshold(interval) {
-    return interval < 10_000;
+  isIntervalLessThanThreshold(interval) {
+    return interval < MIN_POLLING_INTERVAL;
   }
 
   // Resolves when the build has finished and is no longer pending or
@@ -202,8 +204,9 @@ export class PercyClient {
     timeout = 10 * 60 * 1000,
     interval = 10_000
   }, onProgress) {
-    if (this.intervalLessThanThreshold(interval)) {
-      throw new Error('Interval cannot be less than 10000ms');
+    if (this.isIntervalLessThanThreshold(interval)) {
+      this.log.warn(`Considering interval ${MIN_POLLING_INTERVAL}ms, it cannot be less than that.`);
+      interval = MIN_POLLING_INTERVAL;
     }
     if (!project && commit) {
       throw new Error('Missing project path for commit');
@@ -248,7 +251,7 @@ export class PercyClient {
 
         // not finished, poll again
         if (pending) {
-          setTimeout(self.log.debug, interval, 'waiting...');
+          setTimeout(self.log.debug, interval, 'Fetching now...');
           return setTimeout(poll, interval, data, t);
 
         // build finished

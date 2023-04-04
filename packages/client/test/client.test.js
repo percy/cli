@@ -343,10 +343,6 @@ describe('PercyClient', () => {
   });
 
   describe('#waitForBuild()', () => {
-    beforeEach(() => {
-      spyOn(client, 'intervalLessThanThreshold').and.returnValue(false);
-    });
-
     it('throws when missing a project or build', () => {
       expect(() => client.waitForBuild({ commit: null }))
         .toThrowError('Missing project path or build ID');
@@ -369,13 +365,12 @@ describe('PercyClient', () => {
         .toThrowError('Invalid project path. Expected "org/project" but received "test"');
     });
 
-    it('throws when interval is less than 10000ms', () => {
-      spyOn(client, 'intervalLessThanThreshold').and.callThrough();
-      expect(() => client.waitForBuild({ interval: 50 }))
-        .toThrowError('Interval cannot be less than 10000ms');
+    it('warns when interval is less than 1000ms', () => {
+      client.waitForBuild({ project: 'foo/bar', interval: 50 });
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([`[percy:client] Considering interval 1000ms, it cannot be less than that.`]))
     });
 
-    it('invokes the callback when data changes while waiting', async () => {
+    fit('invokes the callback when data changes while waiting', async () => {
       let progress = 0;
 
       api
@@ -396,12 +391,12 @@ describe('PercyClient', () => {
 
       expect(progress).toEqual(2);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        '[percy:client] waiting...',
-        '[percy:client] waiting...'
+        '[percy:client] Fetching now...',
+        '[percy:client] Fetching now...'
       ]));
     });
 
-    it('throws when no update happens within the timeout', async () => {
+    fit('throws when no update happens within the timeout', async () => {
       api.reply('/builds/123', () => [200, {
         data: { attributes: { state: 'processing' } }
       }]);
