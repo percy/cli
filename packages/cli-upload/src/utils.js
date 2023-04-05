@@ -19,7 +19,7 @@ export async function getImageResources({
   relativePath,
   absolutePath
 }) {
-  let rootUrl = `http://localhost/${encodeURIComponent(name)}`;
+  let rootUrl = `http://local/${encodeURIComponent(name)}`;
   let imageUrl = `http://local/${encodeURIComponent(relativePath)}`;
   let content = await fs.promises.readFile(absolutePath);
   let mimetype = `image/${type}`;
