@@ -372,7 +372,7 @@ describe('PercyClient', () => {
         }]);
 
       await client.waitForBuild({ build: '123', interval: 50 });
-      expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Considering interval 1000ms, it cannot be less than that.']));
+      expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Ignoring interval since it cannot be less than 1000ms.']));
     });
 
     it('invokes the callback when data changes while waiting', async () => {

@@ -200,7 +200,7 @@ export class PercyClient {
     interval = 10_000
   }, onProgress) {
     if (interval < MIN_POLLING_INTERVAL) {
-      this.log.warn(`Considering interval ${MIN_POLLING_INTERVAL}ms, it cannot be less than that.`);
+      this.log.warn(`Ignoring interval since it cannot be less than ${MIN_POLLING_INTERVAL}ms.`);
       interval = MIN_POLLING_INTERVAL;
     }
     if (!project && commit) {
