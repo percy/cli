@@ -54,7 +54,7 @@ describe('percy build:wait', () => {
 
     await wait(['--project=foo/bar', '--commit=sha123', '--timeout=500', '--interval=50']);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual(['[percy] Considering interval 1000ms, it cannot be less than that.']);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Waiting for build...'
     ]));
@@ -72,7 +72,7 @@ describe('percy build:wait', () => {
 
     await wait(['--build=123', '--interval=50']);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual(['[percy] Considering interval 1000ms, it cannot be less than that.']);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Recieving snapshots...'
     ]));
@@ -95,7 +95,7 @@ describe('percy build:wait', () => {
 
     await wait(['--build=123', '--interval=50']);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual(['[percy] Considering interval 1000ms, it cannot be less than that.']);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Processing 18 snapshots - 16 of 72 comparisons finished...',
       '[percy] Processing 18 snapshots - 32 of 72 comparisons finished...',
