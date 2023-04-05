@@ -367,10 +367,10 @@ describe('PercyClient', () => {
 
     it('warns when interval is less than 1000ms', () => {
       client.waitForBuild({ project: 'foo/bar', interval: 50 });
-      expect(logger.stderr).toEqual(jasmine.arrayContaining([`[percy:client] Considering interval 1000ms, it cannot be less than that.`]))
+      expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Considering interval 1000ms, it cannot be less than that.']));
     });
 
-    fit('invokes the callback when data changes while waiting', async () => {
+    it('invokes the callback when data changes while waiting', async () => {
       let progress = 0;
 
       api
@@ -390,13 +390,9 @@ describe('PercyClient', () => {
       }, () => progress++);
 
       expect(progress).toEqual(2);
-      expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        '[percy:client] Fetching now...',
-        '[percy:client] Fetching now...'
-      ]));
     });
 
-    fit('throws when no update happens within the timeout', async () => {
+    it('throws when no update happens within the timeout', async () => {
       api.reply('/builds/123', () => [200, {
         data: { attributes: { state: 'processing' } }
       }]);

@@ -225,7 +225,6 @@ export class PercyClient {
       : (await this.getBuilds(project, { sha })).data?.[0];
 
     this.log.debug(`Waiting for build ${build || `${project} (${commit})`}...`);
-    let self = this;
 
     // recursively poll every second until the build finishes
     return new Promise((resolve, reject) => (async function poll(last, t) {
@@ -251,7 +250,6 @@ export class PercyClient {
 
         // not finished, poll again
         if (pending) {
-          setTimeout(self.log.debug, interval, 'Fetching now...');
           return setTimeout(poll, interval, data, t);
 
         // build finished
