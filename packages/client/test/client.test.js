@@ -365,8 +365,13 @@ describe('PercyClient', () => {
         .toThrowError('Invalid project path. Expected "org/project" but received "test"');
     });
 
-    it('warns when interval is less than 1000ms', () => {
-      client.waitForBuild({ project: 'foo/bar', interval: 50 });
+    it('warns when interval is less than 1000ms', async () => {
+      api
+        .reply('/builds/123', () => [200, {
+          data: { attributes: { state: 'finished' } }
+        }]);
+
+      await client.waitForBuild({ build: '123', interval: 50 });
       expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Considering interval 1000ms, it cannot be less than that.']));
     });
 
