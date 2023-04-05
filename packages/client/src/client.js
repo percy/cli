@@ -190,11 +190,6 @@ export class PercyClient {
     return this.get(`projects/${project}/builds?${qs}`);
   }
 
-  // required so we could mock this method in tests :P
-  isIntervalLessThanThreshold(interval) {
-    return interval < MIN_POLLING_INTERVAL;
-  }
-
   // Resolves when the build has finished and is no longer pending or
   // processing. By default, will time out if no update after 10 minutes.
   waitForBuild({
@@ -204,7 +199,7 @@ export class PercyClient {
     timeout = 10 * 60 * 1000,
     interval = 10_000
   }, onProgress) {
-    if (this.isIntervalLessThanThreshold(interval)) {
+    if (interval < MIN_POLLING_INTERVAL) {
       this.log.warn(`Considering interval ${MIN_POLLING_INTERVAL}ms, it cannot be less than that.`);
       interval = MIN_POLLING_INTERVAL;
     }
