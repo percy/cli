@@ -9,7 +9,7 @@ describe('PercyClient', () => {
   let client;
 
   beforeEach(async () => {
-    await logger.mock();
+    await logger.mock({ level: 'debug' });
     await api.mock();
 
     client = new PercyClient({
@@ -55,7 +55,7 @@ describe('PercyClient', () => {
         }]
       })).toBeResolved();
 
-      expect(logger.stderr).toEqual(['[percy] Warning: Missing `clientInfo` and/or `environmentInfo` properties']);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Warning: Missing `clientInfo` and/or `environmentInfo` properties']));
     });
 
     it('it logs a debug warning when partial info is passed', async () => {
@@ -77,7 +77,7 @@ describe('PercyClient', () => {
         }]
       })).toBeResolved();
 
-      expect(logger.stderr).toEqual(['[percy] Warning: Missing `clientInfo` and/or `environmentInfo` properties']);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Warning: Missing `clientInfo` and/or `environmentInfo` properties']));
     });
 
     it('does not duplicate or include empty client and environment information', () => {
@@ -363,6 +363,16 @@ describe('PercyClient', () => {
     it('throws when using an invalid project path', () => {
       expect(() => client.waitForBuild({ commit: '...', project: 'test' }))
         .toThrowError('Invalid project path. Expected "org/project" but received "test"');
+    });
+
+    it('warns when interval is less than 1000ms', async () => {
+      api
+        .reply('/builds/123', () => [200, {
+          data: { attributes: { state: 'finished' } }
+        }]);
+
+      await client.waitForBuild({ build: '123', interval: 50 });
+      expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Ignoring interval since it cannot be less than 1000ms.']));
     });
 
     it('invokes the callback when data changes while waiting', async () => {

@@ -15,6 +15,8 @@ import {
 // Default client API URL can be set with an env var for API development
 const { PERCY_CLIENT_API_URL = 'https://percy.io/api/v1' } = process.env;
 const pkg = getPackageJSON(import.meta.url);
+// minimum polling interval milliseconds
+const MIN_POLLING_INTERVAL = 1_000;
 
 // Validate ID arguments
 function validateId(type, id) {
@@ -195,8 +197,12 @@ export class PercyClient {
     project,
     commit,
     timeout = 10 * 60 * 1000,
-    interval = 1000
+    interval = 10_000
   }, onProgress) {
+    if (interval < MIN_POLLING_INTERVAL) {
+      this.log.warn(`Ignoring interval since it cannot be less than ${MIN_POLLING_INTERVAL}ms.`);
+      interval = MIN_POLLING_INTERVAL;
+    }
     if (!project && commit) {
       throw new Error('Missing project path for commit');
     } else if (!project && !build) {
