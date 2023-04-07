@@ -23,8 +23,15 @@ export function cloneNodeAndShadow({ dom, disableShadowDOM }) {
     markElement(node, disableShadowDOM);
 
     let clone = node.cloneNode();
-
     parent.appendChild(clone);
+
+    // shalow clone should not contain children
+    // these might get added due to DOM side effects
+    if (clone.children) {
+      for (const child of Array.from(clone.children)) {
+        clone.removeChild(child);
+      }
+    }
 
     // clone shadow DOM
     if (node.shadowRoot && !disableShadowDOM) {
