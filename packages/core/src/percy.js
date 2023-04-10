@@ -2,6 +2,7 @@ import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
 import Browser from './browser.js';
+import PoaDriver from '../../cli-poa/src/main.js';
 
 import {
   createPercyServer,
@@ -64,6 +65,9 @@ export class Percy {
     server = true,
     port = 5338,
     projectType = null,
+    sessionId,
+    commandExecutorUrl,
+    capabilities,
     // options such as `snapshot` and `discovery` that are valid Percy config
     // options which will become accessible via the `.config` property
     ...options
@@ -319,6 +323,19 @@ export class Percy {
         await server?.close();
       }
     }.call(this));
+  }
+
+  // Driver Wrapper
+  async driverWrapper(options) {
+    this.sessionId = options.sessionId;
+    this.commandExecutorUrl = options.commandExecutorUrl;
+    this.capabilities = options.capabilities;
+    this.snapshotName = options.snapshotName;
+    this.sessionCapabilites = options.sessionCapabilites;
+    // console.log(this.snapshotName, this.sessionId, this.commandExecutorUrl, this.capabilities);
+    const poa = new PoaDriver(this.sessionId, this.commandExecutorUrl, this.capabilities, this.snapshotName, this.sessionCapabilites);
+    // console.log(poa);
+    await poa;
   }
 
   // Uploads one or more snapshots directly to the current Percy build

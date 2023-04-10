@@ -115,6 +115,10 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/flush', async (req, res) => res.json(200, {
       success: await percy.flush(req.body).then(() => true)
     }))
+  // creating driverWrapper.js
+    .route('post', '/percy/driverWrapper', async (req, res) => res.json(200, {
+      success: await percy.driverWrapper(req.body).then(() => true)
+    }))
   // stops percy at the end of the current event loop
     .route('/percy/stop', (req, res) => {
       setImmediate(() => percy.stop());
