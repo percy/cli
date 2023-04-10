@@ -26,7 +26,7 @@ export function cloneNodeAndShadow({ dom, disableShadowDOM }) {
 
     parent.appendChild(clone);
 
-    // shalow clone should not contain children
+    // shallow clone should not contain children
     // these might get added due to DOM side effects
     if (clone.children) {
       for (const child of Array.from(clone.children)) {
