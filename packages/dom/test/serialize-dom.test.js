@@ -53,6 +53,29 @@ describe('serializeDOM', () => {
     expect($('h2.callback').length).toEqual(1);
   });
 
+  it('clone node is always shallow', () => {
+    class AttributeCallbackTestElement extends window.HTMLElement {
+      static get observedAttributes() {
+        return ['text'];
+      }
+
+      attributeChangedCallback() {
+        const wrapper = document.createElement('h2');
+        wrapper.className = 'callback';
+        wrapper.innerText = 'Test';
+        this.appendChild(wrapper);
+      }
+    }
+
+    if (!window.customElements.get('attr-callback-test')) {
+      window.customElements.define('attr-callback-test', AttributeCallbackTestElement);
+    }
+    withExample('<attr-callback-test text="1"/>', { withShadow: false });
+    const $ = parseDOM(serializeDOM().html);
+
+    expect($('h2.callback').length).toEqual(1);
+  });
+
   describe('shadow dom', () => {
     it('renders open root as template tag', () => {
       if (getTestBrowser() !== chromeBrowser) {
