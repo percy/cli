@@ -6,11 +6,12 @@ on:
     types: [created, edited] 
 jobs:
   regression:
-    name: Trigger SDK regression test
+    name: regression
     runs-on: ubuntu-latest
     if: ${{ github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION' }}
     strategy:
       matrix:
+        # Format: repo@branch (default branch is master)
         repo: 
           - percy-ember
           - percy-cypress
@@ -21,19 +22,32 @@ jobs:
           - percy-nightwatch
           - percy-nightmare
           - percy-webdriverio
+          - percy-webdriverio@v2
           - percy-protractor
           - percy-selenium-js
           - percy-selenium-dotnet
           - percy-selenium-java
+          - percy-selenium-python
+          - percy-selenium-ruby@main
+          - percy-capybara
+          - percy-appium-js
           - gatsby-plugin-percy
     steps:
+      - uses: jungwinter/split@v2
+        id: split
+        with:
+          msg: ${{ matrix.repo }}
+          separator: '@'
+      - uses: xt0rted/pull-request-comment-branch@v2
+        if: ${{ github.event.issue.pull_request }}
+        id: comment-branch
       - name: Trigger Workflow & Wait
         uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
           owner: percy
-          repo: ${{ matrix.repo }}
+          repo: ${{ steps.split.outputs._0 }}
           github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           workflow_file_name: test.yml
-          ref: master
-          client_payload: '{ "branch": "${{ github.head_ref || github.ref_name }}"}'
+          ref: ${{ steps.split.outputs._1 || 'master' }}
+          client_payload: '{ "branch": "${{ steps.comment-branch.outputs.head_ref }}"}'
           wait_interval: 15

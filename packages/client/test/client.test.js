@@ -9,7 +9,7 @@ describe('PercyClient', () => {
   let client;
 
   beforeEach(async () => {
-    await logger.mock();
+    await logger.mock({ level: 'debug' });
     await api.mock();
 
     client = new PercyClient({
@@ -55,7 +55,7 @@ describe('PercyClient', () => {
         }]
       })).toBeResolved();
 
-      expect(logger.stderr).toEqual(['[percy] Warning: Missing `clientInfo` and/or `environmentInfo` properties']);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Warning: Missing `clientInfo` and/or `environmentInfo` properties']));
     });
 
     it('it logs a debug warning when partial info is passed', async () => {
@@ -77,7 +77,7 @@ describe('PercyClient', () => {
         }]
       })).toBeResolved();
 
-      expect(logger.stderr).toEqual(['[percy] Warning: Missing `clientInfo` and/or `environmentInfo` properties']);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Warning: Missing `clientInfo` and/or `environmentInfo` properties']));
     });
 
     it('does not duplicate or include empty client and environment information', () => {
@@ -363,6 +363,16 @@ describe('PercyClient', () => {
     it('throws when using an invalid project path', () => {
       expect(() => client.waitForBuild({ commit: '...', project: 'test' }))
         .toThrowError('Invalid project path. Expected "org/project" but received "test"');
+    });
+
+    it('warns when interval is less than 1000ms', async () => {
+      api
+        .reply('/builds/123', () => [200, {
+          data: { attributes: { state: 'finished' } }
+        }]);
+
+      await client.waitForBuild({ build: '123', interval: 50 });
+      expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Ignoring interval since it cannot be less than 1000ms.']));
     });
 
     it('invokes the callback when data changes while waiting', async () => {
@@ -770,6 +780,28 @@ describe('PercyClient', () => {
         .withArgs('foo/bar').and.resolveTo('bar');
 
       let tile1Content = 'screenshot';
+      let ignoredElementsData = {
+        ignoreElementsData: [
+          {
+            selector: 'xpaths',
+            'co-ordinates': {
+              top: 1042,
+              bottom: 1147,
+              left: 108,
+              right: 972
+            }
+          },
+          {
+            selector: 'appiumWebElement',
+            'co-ordinates': {
+              top: 1199,
+              bottom: 1304,
+              left: 108,
+              right: 972
+            }
+          }
+        ]
+      };
 
       await expectAsync(client.createComparison(4567, {
         tag: {
@@ -802,14 +834,16 @@ describe('PercyClient', () => {
           fullscreen: true,
           sha: sha256hash('somesha')
         }],
-        externalDebugUrl: 'http://debug.localhost'
+        externalDebugUrl: 'http://debug.localhost',
+        ignoredElementsData: ignoredElementsData
       })).toBeResolved();
 
       expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
         data: {
           type: 'comparisons',
           attributes: {
-            'external-debug-url': 'http://debug.localhost'
+            'external-debug-url': 'http://debug.localhost',
+            'ignore-elements-data': ignoredElementsData
           },
           relationships: {
             tag: {
@@ -872,7 +906,8 @@ describe('PercyClient', () => {
         data: {
           type: 'comparisons',
           attributes: {
-            'external-debug-url': null
+            'external-debug-url': null,
+            'ignore-elements-data': null
           },
           relationships: {
             tag: {
@@ -1120,7 +1155,8 @@ describe('PercyClient', () => {
         data: {
           type: 'comparisons',
           attributes: {
-            'external-debug-url': null
+            'external-debug-url': null,
+            'ignore-elements-data': null
           },
           relationships: {
             tag: {

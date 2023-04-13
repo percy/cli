@@ -28,7 +28,7 @@ export const wait = command('wait', {
     short: 't'
   }, {
     name: 'interval',
-    description: 'Interval at which to poll for updates, defaults to 1 second',
+    description: 'Interval at which to poll for updates, defaults to 10 second',
     type: 'ms',
     parse: Number,
     short: 'i'

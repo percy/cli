@@ -1,6 +1,6 @@
 {
   "name": "@percy/core",
-  "version": "1.21.0",
+  "version": "1.23.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -39,10 +39,10 @@
     "test:types": "tsd"
   },
   "dependencies": {
-    "@percy/client": "1.21.0",
-    "@percy/config": "1.21.0",
-    "@percy/dom": "1.21.0",
-    "@percy/logger": "1.21.0",
+    "@percy/client": "1.23.0",
+    "@percy/config": "1.23.0",
+    "@percy/dom": "1.23.0",
+    "@percy/logger": "1.23.0",
     "content-disposition": "^0.5.4",
     "cross-spawn": "^7.0.3",
     "extract-zip": "^2.0.1",
