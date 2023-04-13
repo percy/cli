@@ -6,7 +6,7 @@ on:
     types: [created, edited] 
 jobs:
   regression:
-    name: Trigger SDK regression test
+    name: regression
     runs-on: ubuntu-latest
     if: ${{ github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION' }}
     strategy:
