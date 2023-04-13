@@ -28,7 +28,7 @@ jobs:
           - percy-selenium-dotnet
           - percy-selenium-java
           - percy-selenium-python
-          - percy-selenium-ruby
+          - percy-selenium-ruby@main
           - percy-capybara
           - percy-appium-js
           - gatsby-plugin-percy
