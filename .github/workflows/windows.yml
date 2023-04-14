@@ -93,7 +93,6 @@ jobs:
         if: steps.retry1.outcome=='failure'
         run: yarn workspace ${{ matrix.package }} test --colors
       - name: Run tests Retry (3/3)
-        continue-on-error: true
         id: retry3
         if: steps.retry2.outcome=='failure'
         run: yarn workspace ${{ matrix.package }} test --colors
