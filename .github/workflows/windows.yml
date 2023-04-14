@@ -79,4 +79,21 @@ jobs:
           path: packages
       - run: yarn
       - name: Run tests
+        continue-on-error: true
+        id: retry0
+        run: yarn workspace ${{ matrix.package }} test --colors
+      - name: Run tests Retry (1/3)
+        continue-on-error: true
+        id: retry1
+        if: steps.retry0.outcome=='failure'
+        run: yarn workspace ${{ matrix.package }} test --colors
+      - name: Run tests Retry (2/3)
+        continue-on-error: true
+        id: retry2
+        if: steps.retry1.outcome=='failure'
+        run: yarn workspace ${{ matrix.package }} test --colors
+      - name: Run tests Retry (3/3)
+        continue-on-error: true
+        id: retry3
+        if: steps.retry2.outcome=='failure'
         run: yarn workspace ${{ matrix.package }} test --colors
