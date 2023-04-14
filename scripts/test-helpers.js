@@ -4,7 +4,7 @@ const env = jasmine.getEnv();
 
 beforeAll(() => {
   // default timeout to 10s
-  jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+  jasmine.DEFAULT_TIMEOUT_INTERVAL = 20000;
 
   // allow re-spying
   env.allowRespy(true);
