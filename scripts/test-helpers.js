@@ -4,7 +4,11 @@ const env = jasmine.getEnv();
 
 beforeAll(() => {
   // default timeout to 10s
-  jasmine.DEFAULT_TIMEOUT_INTERVAL = 23000;
+  if (process.platform === 'win32') {
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 25000;
+  } else {
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
+  }
 
   // allow re-spying
   env.allowRespy(true);
