@@ -73,7 +73,7 @@ export default class PoaDriver {
     this.percyScreenshot(this.snapshotName);
   }
 
-  async getTag1() {
+  async getTag() {
     const { width, height } = await this.commonMetaData.windowSize();
     const orientation = (await this.commonMetaData.orientation());
     return {
@@ -102,7 +102,7 @@ export default class PoaDriver {
   }
 
   async percyScreenshot(name) {
-    const tag = await this.getTag1();
+    const tag = await this.getTag();
     console.log(tag);
     const tiles = this.getTiles();
     const eUrl = 'https://localhost/v1';
