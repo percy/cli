@@ -1,5 +1,3 @@
-import { WebDriver } from 'selenium-webdriver';
-import { HttpClient, Executor } from 'selenium-webdriver/http/index.js';
 import fs from 'fs';
 import { postComparison } from '@percy/sdk-utils';
 import Driver from './driverResolver/driver.js';
@@ -29,7 +27,6 @@ export default class PoaDriver {
   sessionId = '';
   commandExecutorUrl = '';
   capabilities = {};
-  driver = null;
   driver2 = null;
   constructor(
     sessionId,
@@ -44,15 +41,8 @@ export default class PoaDriver {
     this.snapshotName = snapshotName;
     this.sessionCapabilites = sessionCapabilites;
     this.metaData = {};
-    this.createDriver();
     this.createDriver2();
     this.takeScreenshot();
-  }
-
-  createDriver() {
-    this.driver = new WebDriver(
-      this.sessionId,
-      new Executor(Promise.resolve(this.commandExecutorUrl).then(url => new HttpClient(this.commandExecutorUrl, null, null))));
   }
 
   async createDriver2() {
@@ -70,7 +60,7 @@ export default class PoaDriver {
     // const metaObj = new MetaDataResolver();
     // this.metaData = await metaObj.resolve(this.capabilities);
     const fileName = `./outScreenshot_${this.snapshotName}.png`;
-    this.driver.takeScreenshot().then(
+    this.driver2.takeScreenshot().then(
       function(image, err) {
         fs.writeFile(fileName, image, 'base64', function(err) {
           console.log(err);
