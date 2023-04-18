@@ -42,10 +42,10 @@ jobs:
             const sha = '${{ steps.comment-branch.outputs.head_sha }}'
             const state = 'pending';
             const target_url = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
-            const context = 'SDK Regression ${{ matrix.repo }}'
+            const check_name = 'SDK Regression ${{ matrix.repo }}'
             
             github.repos.createCommitStatus({
-              context,
+              context: check_name,
               owner,
               repo,
               sha,
@@ -77,10 +77,10 @@ jobs:
             const sha = '${{ steps.reg-test.outcome }}'
             const state = 'pending';
             const target_url = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
-            const context = 'SDK Regression ${{ matrix.repo }}'
+            const check_name = 'SDK Regression ${{ matrix.repo }}'
             
             github.repos.createCommitStatus({
-              context,
+              context: check_name,
               owner,
               repo,
               sha,
