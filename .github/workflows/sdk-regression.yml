@@ -1,7 +1,5 @@
 name: SDK Regression
 on:
-  pull_request:
-    types: [opened]
   issue_comment:
     types: [created, edited] 
 jobs:
@@ -33,16 +31,35 @@ jobs:
           - percy-appium-js
           - gatsby-plugin-percy
     steps:
+      - uses: xt0rted/pull-request-comment-branch@v2
+        if: ${{ github.event.issue.pull_request }}
+        id: comment-branch
+      - uses: actions/github-script@v4
+        with:
+          github-token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const sha = '${{ steps.comment-branch.outputs.head_sha }}'
+            const state = 'pending';
+            const target_url = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            const context = 'SDK Regression ${{ matrix.repo }}'
+            
+            github.repos.createCommitStatus({
+              context,
+              owner,
+              repo,
+              sha,
+              state,
+              target_url
+            });
       - uses: jungwinter/split@v2
         id: split
         with:
           msg: ${{ matrix.repo }}
           separator: '@'
-      - uses: xt0rted/pull-request-comment-branch@v2
-        if: ${{ github.event.issue.pull_request }}
-        id: comment-branch
       - name: Trigger Workflow & Wait
         uses: convictional/trigger-workflow-and-wait@v1.6.5
+        id: reg-test
         with:
           owner: percy
           repo: ${{ steps.split.outputs._0 }}
@@ -51,3 +68,22 @@ jobs:
           ref: ${{ steps.split.outputs._1 || 'master' }}
           client_payload: '{ "branch": "${{ steps.comment-branch.outputs.head_ref }}"}'
           wait_interval: 15
+      - name: Update Status
+        uses: actions/github-script@v4
+        with:
+          github-token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const sha = '${{ steps.reg-test.outcome }}'
+            const state = 'pending';
+            const target_url = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            const context = 'SDK Regression ${{ matrix.repo }}'
+            
+            github.repos.createCommitStatus({
+              context,
+              owner,
+              repo,
+              sha,
+              state,
+              target_url
+            });
