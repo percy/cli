@@ -27,7 +27,7 @@ export default class PoaDriver {
   sessionId = '';
   commandExecutorUrl = '';
   capabilities = {};
-  driver2 = null;
+  driver = null;
   constructor(
     sessionId,
     commandExecutorUrl,
@@ -41,15 +41,15 @@ export default class PoaDriver {
     this.snapshotName = snapshotName;
     this.sessionCapabilites = sessionCapabilites;
     this.metaData = {};
-    this.createDriver2();
+    this.createDriver();
     this.takeScreenshot();
   }
 
-  async createDriver2() {
-    this.driver2 = new Driver(this.sessionId, this.commandExecutorUrl);
-    const caps = await this.driver2.helper.getCapabilites();
+  async createDriver() {
+    this.driver = new Driver(this.sessionId, this.commandExecutorUrl);
+    const caps = await this.driver.helper.getCapabilites();
     console.log(caps);
-    this.commonMetaData = await CommonMetaDataResolver.resolve(this.driver2, caps.value, this.capabilities);
+    this.commonMetaData = await CommonMetaDataResolver.resolve(this.driver, caps.value, this.capabilities);
   }
 
   async takeScreenshot() {
@@ -60,7 +60,7 @@ export default class PoaDriver {
     // const metaObj = new MetaDataResolver();
     // this.metaData = await metaObj.resolve(this.capabilities);
     const fileName = `./outScreenshot_${this.snapshotName}.png`;
-    this.driver2.takeScreenshot().then(
+    this.driver.takeScreenshot().then(
       function(image, err) {
         fs.writeFile(fileName, image, 'base64', function(err) {
           console.log(err);
