@@ -40,7 +40,6 @@ export default class PoaDriver {
     this.capabilities = capabilities;
     this.snapshotName = snapshotName;
     this.sessionCapabilites = sessionCapabilites;
-    this.metaData = {};
     this.createDriver();
     this.takeScreenshot();
   }
@@ -57,8 +56,6 @@ export default class PoaDriver {
   }
 
   async localScreenshot() {
-    // const metaObj = new MetaDataResolver();
-    // this.metaData = await metaObj.resolve(this.capabilities);
     const fileName = `./outScreenshot_${this.snapshotName}.png`;
     this.driver.takeScreenshot().then(
       function(image, err) {
@@ -74,19 +71,6 @@ export default class PoaDriver {
   async triggerAppPercy() {
     // const app = new AppiumDriver(this.driver);
     this.percyScreenshot(this.snapshotName);
-  }
-
-  async getTag() {
-    const { width, height } = await this.metaData.screenSize();
-    const orientation = (await this.metaData.orientation());
-    return {
-      name: await this.metaData.deviceName() || 'unknown',
-      osName: await this.metaData.osName() || 'unknown',
-      osVersion: await this.metaData.osVersion(),
-      width,
-      height,
-      orientation: orientation
-    };
   }
 
   async getTag1() {
