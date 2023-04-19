@@ -4,28 +4,28 @@ export default class CommonDesktopMetaDataResolver {
     this.capabilities = opts;
   }
 
-  async browserName() {
-    return await this.capabilities.browserName.toLowerCase();
+  browserName() {
+    return this.capabilities.browserName.toLowerCase();
   }
 
-  async osName() {
-    let osName = await this.capabilities.osVersion;
+  osName() {
+    let osName = this.capabilities.osVersion;
     if (osName) return osName.toLowerCase();
 
-    osName = await this.capabilities.platform;
+    osName = this.capabilities.platform;
     return osName;
   }
 
   // desktop will show this as browser version
-  async osVersion() {
-    return await this.capabilities.version.split('.')[0];
+  osVersion() {
+    return this.capabilities.version.split('.')[0];
   }
 
-  async deviceName() {
-    return await this.browserName() + '_' + await this.osVersion() + '_' + await this.osName();
+  deviceName() {
+    return this.browserName() + '_' + this.osVersion() + '_' + this.osName();
   }
 
-  async orientation() {
+  orientation() {
     return 'portrait';
   }
 

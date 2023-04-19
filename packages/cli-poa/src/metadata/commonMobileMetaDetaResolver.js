@@ -4,28 +4,28 @@ export default class CommonMobileMetaDataResolver {
     this.capabilities = opts;
   }
 
-  async browserName() {
-    return await this.capabilities.browserName.toLowerCase();
+  browserName() {
+    return this.capabilities.browserName.toLowerCase();
   }
 
-  async osName() {
-    let osName = await this.capabilities.os.toLowerCase();
-    if (osName === 'mac' && await this.browserName() === 'iphone') {
+  osName() {
+    let osName = this.capabilities.os.toLowerCase();
+    if (osName === 'mac' && this.browserName() === 'iphone') {
       osName = 'ios';
     }
     return osName;
   }
 
-  async osVersion() {
-    return await this.capabilities.osVersion.split('.')[0];
+  osVersion() {
+    return this.capabilities.osVersion.split('.')[0];
   }
 
-  async deviceName() {
-    return await this.capabilities.deviceName.split('-')[0];
+  deviceName() {
+    return this.capabilities.deviceName.split('-')[0];
   }
 
-  async orientation() {
-    return await this.capabilities.orientation;
+  orientation() {
+    return this.capabilities.orientation;
   }
 
   async windowSize() {

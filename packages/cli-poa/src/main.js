@@ -48,7 +48,7 @@ export default class PoaDriver {
     this.commonMetaData = await CommonMetaDataResolver.resolve(this.driver, caps.value, this.capabilities);
   }
 
-  async takeScreenshot() {
+  takeScreenshot() {
     // takeScreenshot is a wrapper function to implement multiple screenshot techniques
     return this.localScreenshot();
   }
@@ -62,11 +62,11 @@ export default class PoaDriver {
 
   async getTag() {
     const { width, height } = await this.commonMetaData.windowSize();
-    const orientation = (await this.commonMetaData.orientation());
+    const orientation = this.commonMetaData.orientation();
     return {
-      name: await this.commonMetaData.deviceName() || 'unknown',
-      osName: await this.commonMetaData.osName() || 'unknown',
-      osVersion: await this.commonMetaData.osVersion(),
+      name: this.commonMetaData.deviceName() || 'unknown',
+      osName: this.commonMetaData.osName() || 'unknown',
+      osVersion: this.commonMetaData.osVersion(),
       width,
       height,
       orientation: orientation
