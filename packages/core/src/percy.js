@@ -332,10 +332,9 @@ export class Percy {
     this.capabilities = options.capabilities;
     this.snapshotName = options.snapshotName;
     this.sessionCapabilites = options.sessionCapabilites;
-    // console.log(this.snapshotName, this.sessionId, this.commandExecutorUrl, this.capabilities);
     const poa = new PoaDriver(this.sessionId, this.commandExecutorUrl, this.capabilities, this.snapshotName, this.sessionCapabilites);
-    // console.log(poa);
-    await poa;
+    await poa.createDriver();
+    await poa.takeScreenshot();
   }
 
   // Uploads one or more snapshots directly to the current Percy build

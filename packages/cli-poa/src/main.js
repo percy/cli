@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs from 'fs/promises';
 import { postComparison } from '@percy/sdk-utils';
 import Driver from './driverResolver/driver.js';
 import CommonMetaDataResolver from './metadata/commonMetaDataResolver.js';
@@ -40,37 +40,24 @@ export default class PoaDriver {
     this.capabilities = capabilities;
     this.snapshotName = snapshotName;
     this.sessionCapabilites = sessionCapabilites;
-    this.createDriver();
-    this.takeScreenshot();
   }
 
   async createDriver() {
     this.driver = new Driver(this.sessionId, this.commandExecutorUrl);
     const caps = await this.driver.helper.getCapabilites();
-    console.log(caps);
     this.commonMetaData = await CommonMetaDataResolver.resolve(this.driver, caps.value, this.capabilities);
   }
 
   async takeScreenshot() {
-    await this.localScreenshot();
+    // takeScreenshot is a wrapper function to implement multiple screenshot techniques
+    return this.localScreenshot();
   }
 
   async localScreenshot() {
     const fileName = `./outScreenshot_${this.snapshotName}.png`;
-    this.driver.helper.takeScreenshot().then(
-      function(image, err) {
-        fs.writeFile(fileName, image.value, 'base64', function(err) {
-          console.log(err);
-        });
-      }
-    ).then(() => {
-      this.triggerAppPercy();
-    });
-  }
-
-  async triggerAppPercy() {
-    // const app = new AppiumDriver(this.driver);
-    this.percyScreenshot(this.snapshotName);
+    const imageBase64 = await this.driver.helper.takeScreenshot();
+    await fs.writeFile(fileName, imageBase64.value, 'base64');
+    return this.percyScreenshot(this.snapshotName);
   }
 
   async getTag() {
@@ -103,10 +90,9 @@ export default class PoaDriver {
 
   async percyScreenshot(name) {
     const tag = await this.getTag();
-    console.log(tag);
     const tiles = this.getTiles();
     const eUrl = 'https://localhost/v1';
-    return await postComparison({
+    return postComparison({
       name,
       tag,
       tiles,
