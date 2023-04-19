@@ -34,4 +34,11 @@ export default class DriverWrapper {
     console.log(response);
     return response;
   }
+
+  async takeScreenshot(){
+    const baseUrl = `${this.executorUrl}/session/${this.sessionId}/screenshot`;
+    const screenShot = (await fetch(baseUrl)).json();
+    console.log(screenShot)
+    return screenShot;
+  }
 }

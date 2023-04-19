@@ -57,9 +57,9 @@ export default class PoaDriver {
 
   async localScreenshot() {
     const fileName = `./outScreenshot_${this.snapshotName}.png`;
-    this.driver.takeScreenshot().then(
+    this.driver.helper.takeScreenshot().then(
       function(image, err) {
-        fs.writeFile(fileName, image, 'base64', function(err) {
+        fs.writeFile(fileName, image.value, 'base64', function(err) {
           console.log(err);
         });
       }
