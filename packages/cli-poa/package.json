@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "POC for POA",
   "main": "./dist/work.js",
-  "type":"module",
-  "exports":{ 
+  "type": "module",
+  "exports": {
     ".": "./dist/work.js"
   },
   "scripts": {
@@ -20,7 +20,8 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@percy/sdk-utils": "1.22.0",
     "selenium-webdriver": "3.5.0",
-    "@percy/sdk-utils": "1.22.0"
+    "tmp": "^0.2.1"
   }
 }

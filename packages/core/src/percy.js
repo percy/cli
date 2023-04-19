@@ -3,6 +3,7 @@ import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
 import Browser from './browser.js';
 import PoaDriver from '../../cli-poa/src/main.js';
+import GenericProvider from '../../cli-poa/src/providers/genericProvider.js';
 
 import {
   createPercyServer,
@@ -332,9 +333,12 @@ export class Percy {
     this.capabilities = options.capabilities;
     this.snapshotName = options.snapshotName;
     this.sessionCapabilites = options.sessionCapabilites;
-    const poa = new PoaDriver(this.sessionId, this.commandExecutorUrl, this.capabilities, this.snapshotName, this.sessionCapabilites);
-    await poa.createDriver();
-    await poa.takeScreenshot();
+    // const poa = new PoaDriver(this.sessionId, this.commandExecutorUrl, this.capabilities, this.snapshotName, this.sessionCapabilites);
+    const provider = new GenericProvider(this.sessionId, this.commandExecutorUrl, this.capabilities, this.snapshotName, this.sessionCapabilites);
+    // await poa.createDriver();
+    // await poa.takeScreenshot();
+    await provider.createDriver();
+    await provider.screenshot(options.snapshotName)
   }
 
   // Uploads one or more snapshots directly to the current Percy build
