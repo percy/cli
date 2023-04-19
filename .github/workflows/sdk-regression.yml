@@ -41,7 +41,7 @@ jobs:
             const { owner, repo } = context.repo;
             const sha = '${{ steps.comment-branch.outputs.head_sha }}'
             const state = 'pending';
-            const target_url = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            const target_url = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs/${{ jobs.job_id }}'
             const check_name = 'SDK Regression ${{ matrix.repo }}'
             
             github.repos.createCommitStatus({
@@ -74,9 +74,9 @@ jobs:
           github-token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           script: |
             const { owner, repo } = context.repo;
-            const sha = '${{ steps.reg-test.outcome }}'
-            const state = 'pending';
-            const target_url = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            const sha = '${{ steps.comment-branch.outputs.head_sha }}'
+            const state = '${{ steps.reg-test.outcome }}';
+            const target_url = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs/${{ jobs.job_id }}'
             const check_name = 'SDK Regression ${{ matrix.repo }}'
             
             github.repos.createCommitStatus({
