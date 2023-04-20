@@ -995,7 +995,13 @@ describe('Snapshot', () => {
         execute: {
           afterNavigation: domtest('afterNavigation', () => window.location.href),
           beforeSnapshot: domtest('beforeSnapshot', () => 'done!')
-        }
+        },
+        domTransformation: `(documentElement) => 
+            { 
+              let p = document.createElement('p');
+              p.innerText = 'added using domTransformation';
+              documentElement.querySelector('body').append(p);
+              return documentElement;}`
       });
 
       await percy.snapshot({
@@ -1021,7 +1027,8 @@ describe('Snapshot', () => {
           .body.data.attributes['base64-content']
       ), 'base64').toString()).toMatch([
         '<p>afterNavigation - http://localhost:8000/</p>',
-        '<p>beforeSnapshot - done!</p>'
+        '<p>beforeSnapshot - done!</p>',
+        '<p>added using domTransformation</p>'
       ].join(''));
 
       expect(Buffer.from((
