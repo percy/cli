@@ -996,12 +996,13 @@ describe('Snapshot', () => {
           afterNavigation: domtest('afterNavigation', () => window.location.href),
           beforeSnapshot: domtest('beforeSnapshot', () => 'done!')
         },
-        domTransformation: `(documentElement) => 
-            { 
+        domTransformation: `
+          (documentElement) => { 
               let p = document.createElement('p');
               p.innerText = 'added using domTransformation';
               documentElement.querySelector('body').append(p);
-              return documentElement;}`
+              return documentElement;
+          }`
       });
 
       await percy.snapshot({
