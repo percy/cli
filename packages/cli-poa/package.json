@@ -21,7 +21,6 @@
   "license": "MIT",
   "dependencies": {
     "@percy/sdk-utils": "1.22.0",
-    "selenium-webdriver": "3.5.0",
     "tmp": "^0.2.1"
   }
 }
