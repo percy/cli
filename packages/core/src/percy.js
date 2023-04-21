@@ -332,7 +332,7 @@ export class Percy {
     this.capabilities = options.capabilities;
     this.snapshotName = options.snapshotName;
     this.sessionCapabilites = options.sessionCapabilites;
-    const provider = ProviderResolver.resolve(this.sessionId, this.commandExecutorUrl, this.capabilities, this.snapshotName, this.sessionCapabilites);
+    const provider = ProviderResolver.resolve(this.sessionId, this.commandExecutorUrl, this.capabilities, this.sessionCapabilites);
     await provider.createDriver();
     await provider.screenshot(options.snapshotName)
   }

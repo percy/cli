@@ -16,13 +16,11 @@ export default class GenericProvider {
     sessionId,
     commandExecutorUrl,
     capabilities,
-    snapshotName,
     sessionCapabilites
   ) {
     this.sessionId = sessionId;
     this.commandExecutorUrl = commandExecutorUrl;
     this.capabilities = capabilities;
-    this.snapshotName = snapshotName;
     this.sessionCapabilites = sessionCapabilites;
     this.driver = null;
     this.commonMetaData = null;

@@ -5,14 +5,12 @@ export default class AutomateProvider extends GenericProvider {
     sessionId,
     commandExecutorUrl,
     capabilities,
-    snapshotName,
     sessionCapabilites
   ) {
     super(
     sessionId,
     commandExecutorUrl,
     capabilities,
-    snapshotName,
     sessionCapabilites
     )
   }
