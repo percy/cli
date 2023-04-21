@@ -1001,7 +1001,6 @@ describe('Snapshot', () => {
               let p = document.createElement('p');
               p.innerText = 'added using domTransformation';
               documentElement.querySelector('body').append(p);
-              return documentElement;
           }`
       });
 
