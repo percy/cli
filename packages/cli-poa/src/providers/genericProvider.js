@@ -5,7 +5,7 @@ import fs from 'fs/promises'
 import CommonMetaDataResolver from '../metadata/commonMetaDataResolver.js';
 import log from '../util/log.js'
 import Tile from '../util/tile.js'
-import Driver from '../driverResolver/driver.js';
+import Driver from '../driver.js';
 
 // TODO: Need to pass parameter from sdk and catch in cli
 const CLIENT_INFO = `local-poc-poa`
@@ -29,7 +29,7 @@ export default class GenericProvider {
 
   async createDriver() {
     this.driver = new Driver(this.sessionId, this.commandExecutorUrl);
-    const caps = await this.driver.helper.getCapabilites();
+    const caps = await this.driver.getCapabilites();
     this.commonMetaData = await CommonMetaDataResolver.resolve(this.driver, caps.value, this.capabilities);
   }
 
@@ -59,7 +59,7 @@ export default class GenericProvider {
   }
 
   async getTiles(fullscreen) {
-    const base64content = await this.driver.helper.takeScreenshot();
+    const base64content = await this.driver.takeScreenshot();
     const path = await this.writeTempImage(base64content.value);
     return [
       new Tile({

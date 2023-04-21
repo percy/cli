@@ -31,13 +31,13 @@ export default class CommonDesktopMetaDataResolver {
 
   async windowSize() {
     const dpr = await this.devicePixelRatio();
-    const data = await this.driver.helper.getWindowSize();
+    const data = await this.driver.getWindowSize();
     const width = parseInt(data.value.width * dpr), height = parseInt(data.value.height * dpr);
     return { width, height };
   }
 
   async devicePixelRatio() {
-    const devicePixelRatio = await this.driver.helper.executeScript({ script: 'return window.devicePixelRatio;', args: [] });
+    const devicePixelRatio = await this.driver.executeScript({ script: 'return window.devicePixelRatio;', args: [] });
     return devicePixelRatio.value;
   }
 }

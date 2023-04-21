@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import { postComparison } from '@percy/sdk-utils';
-import Driver from './driverResolver/driver.js';
+import Driver from './driver.js';
 import CommonMetaDataResolver from './metadata/commonMetaDataResolver.js';
 
 class Tile {
@@ -44,7 +44,7 @@ export default class PoaDriver {
 
   async createDriver() {
     this.driver = new Driver(this.sessionId, this.commandExecutorUrl);
-    const caps = await this.driver.helper.getCapabilites();
+    const caps = await this.driver.getCapabilites();
     this.commonMetaData = await CommonMetaDataResolver.resolve(this.driver, caps.value, this.capabilities);
   }
 
@@ -55,7 +55,7 @@ export default class PoaDriver {
 
   async localScreenshot() {
     const fileName = `./outScreenshot_${this.snapshotName}.png`;
-    const imageBase64 = await this.driver.helper.takeScreenshot();
+    const imageBase64 = await this.driver.takeScreenshot();
     await fs.writeFile(fileName, imageBase64.value, 'base64');
     return this.percyScreenshot(this.snapshotName);
   }

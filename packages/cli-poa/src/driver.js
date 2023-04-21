@@ -1,9 +1,8 @@
 import fetch from 'node-fetch';
 
-export default class DriverWrapper {
+export default class Driver {
   constructor(sessionId, executorUrl) {
     this.sessionId = sessionId;
-    // https://hub-cloud.browserstack.com/wd/hub
     this.executorUrl = executorUrl;
   }
 
@@ -14,7 +13,6 @@ export default class DriverWrapper {
   }
 
   async getWindowSize() {
-    // https://hub-cloud.browserstack.com/wd/hub/session/c339c990e148bee627c76ad0e9205846ece378d8/window/current/size
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/window/current/size`;
     const windowSize = (await fetch(baseUrl)).json();
     return windowSize;
