@@ -334,7 +334,7 @@ export class Percy {
     this.sessionCapabilites = options.sessionCapabilites;
     const automate = AutomateProvider.resolve(this.sessionId, this.commandExecutorUrl, this.capabilities, this.sessionCapabilites);
     await automate.createDriver();
-    await automate.screenshot(options.snapshotName)
+    await automate.screenshot(options.snapshotName);
   }
 
   // Uploads one or more snapshots directly to the current Percy build

@@ -8,11 +8,11 @@ export default class AutomateProvider extends GenericProvider {
     sessionCapabilites
   ) {
     super(
-    sessionId,
-    commandExecutorUrl,
-    capabilities,
-    sessionCapabilites
-    )
+      sessionId,
+      commandExecutorUrl,
+      capabilities,
+      sessionCapabilites
+    );
   }
 
   static supports(commandExecutorUrl) {
@@ -21,12 +21,12 @@ export default class AutomateProvider extends GenericProvider {
 
   async browserstackExecutor(action, args) {
     let options = args ? { action, arguments: args } : { action };
-    let res = await this.driver.executeScript({script:`browserstack_executor: ${JSON.stringify(options)}`, args: []}); 
-    return res
+    let res = await this.driver.executeScript({ script: `browserstack_executor: ${JSON.stringify(options)}`, args: [] });
+    return res;
   }
 
   async setDebugUrl() {
-    const sessionDetails = await this.browserstackExecutor('getSessionDetails')
-    this.debugUrl = JSON.parse(sessionDetails['value'])['browser_url']
+    const sessionDetails = await this.browserstackExecutor('getSessionDetails');
+    this.debugUrl = JSON.parse(sessionDetails.value).browser_url;
   }
 }

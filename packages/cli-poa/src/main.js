@@ -1,3 +1,3 @@
-import ProviderResolver from "./providers/providerResolver.js"
+import ProviderResolver from './providers/providerResolver.js';
 
-export default ProviderResolver
+export default ProviderResolver;

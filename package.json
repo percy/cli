@@ -16,6 +16,7 @@
     "chromium-revision": "./scripts/chromium-revision.js",
     "clean": "git clean -Xdf -e !node_modules -e !**/node_modules/**",
     "lint": "eslint --ignore-path .gitignore .",
+    "lint:fix": "eslint --fix --ignore-path .gitignore .",
     "readme": "lerna run --parallel readme",
     "postinstall": "lerna run --stream postinstall",
     "test": "lerna run --stream --concurrency=1 test",
