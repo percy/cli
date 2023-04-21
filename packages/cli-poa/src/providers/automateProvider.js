@@ -1,20 +1,6 @@
 import GenericProvider from './genericProvider.js';
 
 export default class AutomateProvider extends GenericProvider {
-  constructor(
-    sessionId,
-    commandExecutorUrl,
-    capabilities,
-    sessionCapabilites
-  ) {
-    super(
-      sessionId,
-      commandExecutorUrl,
-      capabilities,
-      sessionCapabilites
-    );
-  }
-
   static supports(commandExecutorUrl) {
     return commandExecutorUrl.includes(process.env.AA_DOMAIN || 'browserstack');
   }
