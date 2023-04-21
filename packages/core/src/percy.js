@@ -325,8 +325,7 @@ export class Percy {
     }.call(this));
   }
 
-  // Driver Wrapper
-  async driverWrapper(options) {
+  async automateScreenshot(options) {
     this.sessionId = options.sessionId;
     this.commandExecutorUrl = options.commandExecutorUrl;
     this.capabilities = options.capabilities;
