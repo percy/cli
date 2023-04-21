@@ -1,14 +1,10 @@
-const { GenericProvider } = require('./genericProvider');
-const { AppAutomateProvider } = require('./appAutomateProvider');
+import GenericProvider from './genericProvider.js';
+import AutomateProvider from './automateProvider.js';
 
-class ProviderResolver {
-  static resolve(driver) {
+export default class ProviderResolver {
+  static resolve(sessionId, commandExecutorUrl, capabilities, snapshotName, sessionCapabilities) {
     // We can safely do [0] because GenericProvider is catch all
-    const Klass = [AppAutomateProvider, GenericProvider].filter(x => x.supports(driver))[0];
-    return new Klass(driver);
+    const Klass = [AutomateProvider, GenericProvider].filter(x => x.supports(commandExecutorUrl))[0];
+    return new Klass(sessionId, commandExecutorUrl, capabilities, snapshotName, sessionCapabilities);
   }
 }
-
-module.exports = {
-  ProviderResolver
-};

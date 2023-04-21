@@ -35,7 +35,7 @@ export default class GenericProvider {
     this.commonMetaData = await CommonMetaDataResolver.resolve(this.driver, caps.value, this.capabilities);
   }
 
-  static supports(_driver) {
+  static supports(_commandExecutorUrl) {
     return true;
   }
 
@@ -44,6 +44,7 @@ export default class GenericProvider {
 
     const tag = await this.getTag();
     const tiles = await this.getTiles(fullscreen);
+    await this.setDebugUrl();
 
     log.debug(`${name} : Tag ${JSON.stringify(tag)}`);
     log.debug(`${name} : Tiles ${JSON.stringify(tiles)}`);
@@ -53,7 +54,7 @@ export default class GenericProvider {
       tag,
       tiles,
       // TODO: Fetch this one for bs automate, check appium sdk
-      externalDebugUrl: 'https://localhost/v1',
+      externalDebugUrl: this.debugUrl,
       environmentInfo: ENV_INFO,
       clientInfo: CLIENT_INFO
     });
@@ -117,7 +118,7 @@ export default class GenericProvider {
     });
   }
 
-  async getDebugUrl() {
-    return this.debugUrl;
+  async setDebugUrl() {
+    this.debugUrl = 'https://localhost/v1';
   }
 }
