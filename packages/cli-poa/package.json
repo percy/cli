@@ -2,10 +2,10 @@
   "name": "@percy/cli-poa",
   "version": "1.0.0",
   "description": "POC for POA",
-  "main": "./dist/work.js",
+  "main": "./dist/main.js",
   "type": "module",
   "exports": {
-    ".": "./dist/work.js"
+    ".": "./dist/main.js"
   },
   "scripts": {
     "build": "node ../../scripts/build",

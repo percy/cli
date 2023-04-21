@@ -2,7 +2,7 @@ import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
 import Browser from './browser.js';
-import ProviderResolver from '../../cli-poa/src/providers/providerResolver.js';
+import AutomateProvider from '@percy/cli-poa';
 
 import {
   createPercyServer,
@@ -325,15 +325,16 @@ export class Percy {
     }.call(this));
   }
 
+  // automateScreenshot
   async automateScreenshot(options) {
     this.sessionId = options.sessionId;
     this.commandExecutorUrl = options.commandExecutorUrl;
     this.capabilities = options.capabilities;
     this.snapshotName = options.snapshotName;
     this.sessionCapabilites = options.sessionCapabilites;
-    const provider = ProviderResolver.resolve(this.sessionId, this.commandExecutorUrl, this.capabilities, this.sessionCapabilites);
-    await provider.createDriver();
-    await provider.screenshot(options.snapshotName)
+    const automate = AutomateProvider.resolve(this.sessionId, this.commandExecutorUrl, this.capabilities, this.sessionCapabilites);
+    await automate.createDriver();
+    await automate.screenshot(options.snapshotName)
   }
 
   // Uploads one or more snapshots directly to the current Percy build
