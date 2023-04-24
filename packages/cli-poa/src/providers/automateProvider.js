@@ -6,6 +6,7 @@ export default class AutomateProvider extends GenericProvider {
   }
 
   async browserstackExecutor(action, args) {
+    if (!this.driver) throw new Error(`Driver is null, please initialize driver with createDriver().`)
     let options = args ? { action, arguments: args } : { action };
     let res = await this.driver.executeScript({ script: `browserstack_executor: ${JSON.stringify(options)}`, args: [] });
     return res;
