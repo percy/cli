@@ -16,7 +16,7 @@ beforeAll(() => {
   // add or patch missing or broken matchers
   jasmine.addMatchers({
     // If any property within the path is not defined, it will show a failure rather than error
-    // about accessing a property of an undefined value.
+    // about accessing a propertfy of an undefined value.
     toHaveProperty: util => ({
       compare(object, path, expected) {
         let value = path.split('.').reduce((v, k) => v && v[k], object);
