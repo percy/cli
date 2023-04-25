@@ -13,6 +13,11 @@ describe('CommonMetaDataResolver', () => {
       driver = new Driver('123', 'http:executorUrl');
       capabilities = {};
     })
+
+    it('throws error is driver is not sent', () => {
+      expect(() => CommonMetaDataResolver.resolve(null, capabilities, {platform: 'ios'}))
+        .toThrowError('Please pass a Driver object');
+    })
     
     it('resolves CommonMobileMetaData correctly', () => {
       metadata = CommonMetaDataResolver.resolve(driver, capabilities, {platform: 'ios'});
