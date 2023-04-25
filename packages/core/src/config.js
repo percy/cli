@@ -39,6 +39,9 @@ export const configSchema = {
         type: 'boolean',
         default: false
       },
+      domTransformation: {
+        type: 'string'
+      },
       scope: {
         type: 'string'
       }
@@ -154,6 +157,7 @@ export const snapshotSchema = {
         percyCSS: { $ref: '/config/snapshot#/properties/percyCSS' },
         enableJavaScript: { $ref: '/config/snapshot#/properties/enableJavaScript' },
         disableShadowDOM: { $ref: '/config/snapshot#/properties/disableShadowDOM' },
+        domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
         discovery: {
           type: 'object',
           additionalProperties: false,

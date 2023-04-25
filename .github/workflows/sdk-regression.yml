@@ -40,6 +40,14 @@ jobs:
             echo "Invalid branch name"
             exit 1
           fi
+      - name: Get Current Job Log URL
+        uses: Tiryoh/gha-jobid-action@v0
+        id: job-url
+        with:
+          github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
+          job_name: "regression (${{ matrix.repo }})" 
+      - name: Output Current Job Log URL
+        run: echo ${{ steps.jobs.outputs.html_url }}
       - uses: actions/github-script@v4
         with:
           github-token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
@@ -47,7 +55,7 @@ jobs:
             const { owner, repo } = context.repo;
             const sha = '${{ steps.comment-branch.outputs.head_sha }}'
             const state = 'pending';
-            const target_url = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs/${{ jobs.job_id }}'
+            const target_url = '${{ steps.job-url.outputs.html_url }}'
             const check_name = 'SDK Regression ${{ matrix.repo }}'
             
             github.repos.createCommitStatus({
@@ -82,7 +90,7 @@ jobs:
             const { owner, repo } = context.repo;
             const sha = '${{ steps.comment-branch.outputs.head_sha }}'
             const state = '${{ steps.reg-test.outcome }}';
-            const target_url = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs/${{ jobs.job_id }}'
+            const target_url = '${{ steps.job-url.outputs.html_url }}'
             const check_name = 'SDK Regression ${{ matrix.repo }}'
             
             github.repos.createCommitStatus({
