@@ -26,7 +26,7 @@ export default class CommonDesktopMetaDataResolver {
   }
 
   orientation() {
-    return 'portrait';
+    return 'landscape';
   }
 
   async windowSize() {
