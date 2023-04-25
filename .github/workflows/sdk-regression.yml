@@ -34,12 +34,15 @@ jobs:
       - uses: xt0rted/pull-request-comment-branch@v2
         if: ${{ github.event.issue.pull_request }}
         id: comment-branch
-      - name: Validate branch name
-        run: |
-          if [[ ! "${{ steps.comment-branch.outputs.head_ref }}" =~ ^[a-zA-Z0-9_\-]+$ ]]; then
-            echo "Invalid branch name"
-            exit 1
-          fi
+      - uses: actions-ecosystem/action-regex-match@v2
+        id: regex-match
+        with:
+          text: ${{ steps.comment-branch.outputs.head_ref }}
+          regex: '^[a-zA-Z0-9_/\-]+$'
+      - name: Break on invalid branch name
+        run: exit 1
+        if: ${{ steps.regex-match.outputs.match == '' }}
+
       - name: Get Current Job Log URL
         uses: Tiryoh/gha-jobid-action@v0
         id: job-url
