@@ -9,7 +9,7 @@ export default class Driver {
   async getCapabilites() {
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}`;
     const caps = (await fetch(baseUrl)).json();
-    return caps;
+    return caps.value;
   }
 
   async getWindowSize() {

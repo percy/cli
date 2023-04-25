@@ -30,7 +30,7 @@ export default class GenericProvider {
   async createDriver() {
     this.driver = new Driver(this.sessionId, this.commandExecutorUrl);
     const caps = await this.driver.getCapabilites();
-    this.commonMetaData = await CommonMetaDataResolver.resolve(this.driver, caps.value, this.capabilities);
+    this.commonMetaData = await CommonMetaDataResolver.resolve(this.driver, caps, this.capabilities);
   }
 
   static supports(_commandExecutorUrl) {
