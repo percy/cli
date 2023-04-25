@@ -8,7 +8,7 @@ export default class Driver {
 
   async getCapabilites() {
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}`;
-    const caps = (await fetch(baseUrl)).json();
+    const caps = await (await fetch(baseUrl)).json();
     return caps.value;
   }
 
