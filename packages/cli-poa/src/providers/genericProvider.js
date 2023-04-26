@@ -59,8 +59,9 @@ export default class GenericProvider {
   }
 
   async getTiles(fullscreen) {
+    if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     const base64content = await this.driver.takeScreenshot();
-    const path = await this.writeTempImage(base64content.value);
+    const path = await this.writeTempImage(base64content);
     return [
       new Tile({
         filepath: path,
@@ -75,6 +76,7 @@ export default class GenericProvider {
   }
 
   async getTag() {
+    if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     const { width, height } = await this.commonMetaData.windowSize();
     const orientation = this.commonMetaData.orientation();
     return {

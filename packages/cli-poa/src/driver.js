@@ -34,7 +34,7 @@ export default class Driver {
 
   async takeScreenshot() {
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/screenshot`;
-    const screenShot = (await fetch(baseUrl)).json();
-    return screenShot;
+    const screenShot = await (await fetch(baseUrl)).json();
+    return screenShot.value;
   }
 }
