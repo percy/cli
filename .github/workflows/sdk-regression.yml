@@ -6,7 +6,7 @@ jobs:
   regression:
     name: regression
     runs-on: ubuntu-latest
-    if: ${{ github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION' }}
+    if: ${{ github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION' && !github.event.pull_request.head.repo.fork }}
     strategy:
       matrix:
         # Format: repo@branch (default branch is master)
