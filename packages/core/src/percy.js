@@ -2,7 +2,6 @@ import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
 import Browser from './browser.js';
-import AutomateProvider from '@percy/cli-poa';
 
 import {
   createPercyServer,
@@ -65,9 +64,6 @@ export class Percy {
     server = true,
     port = 5338,
     projectType = null,
-    sessionId,
-    commandExecutorUrl,
-    capabilities,
     // options such as `snapshot` and `discovery` that are valid Percy config
     // options which will become accessible via the `.config` property
     ...options
@@ -323,18 +319,6 @@ export class Percy {
         await server?.close();
       }
     }.call(this));
-  }
-
-  // automateScreenshot
-  async automateScreenshot(options) {
-    this.sessionId = options.sessionId;
-    this.commandExecutorUrl = options.commandExecutorUrl;
-    this.capabilities = options.capabilities;
-    this.snapshotName = options.snapshotName;
-    this.sessionCapabilites = options.sessionCapabilites;
-    const automate = AutomateProvider.resolve(this.sessionId, this.commandExecutorUrl, this.capabilities, this.sessionCapabilites);
-    await automate.createDriver();
-    await automate.screenshot(options.snapshotName);
   }
 
   // Uploads one or more snapshots directly to the current Percy build

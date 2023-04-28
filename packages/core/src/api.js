@@ -4,6 +4,7 @@ import { createRequire } from 'module';
 import logger from '@percy/logger';
 import { normalize } from '@percy/config/utils';
 import { getPackageJSON, Server } from './utils.js';
+import automateScreenshot from '@percy/cli-poa';
 
 // need require.resolve until import.meta.resolve can be transpiled
 export const PERCY_DOM = createRequire(import.meta.url).resolve('@percy/dom');
@@ -117,7 +118,7 @@ export function createPercyServer(percy, port) {
     }))
   // creating driverWrapper.js
     .route('post', '/percy/automateScreenshot', async (req, res) => res.json(200, {
-      success: await percy.automateScreenshot(req.body).then(() => true)
+      success: await automateScreenshot(req.body).then(() => true)
     }))
   // stops percy at the end of the current event loop
     .route('/percy/stop', (req, res) => {
