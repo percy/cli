@@ -3,10 +3,10 @@ import tmp from 'tmp';
 import fs from 'fs/promises';
 
 import CommonMetaDataResolver from '../metadata/commonMetaDataResolver.js';
-import log from '../util/log.js';
 import Tile from '../util/tile.js';
 import Driver from '../driver.js';
 
+const log = utils.logger('webdriver-utils:genericProvider');
 // TODO: Need to pass parameter from sdk and catch in cli
 const CLIENT_INFO = 'local-poc-poa';
 const ENV_INFO = 'staging-poc-poa';
