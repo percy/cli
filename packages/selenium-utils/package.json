@@ -1,5 +1,5 @@
 {
-  "name": "@percy/cli-poa",
+  "name": "@percy/selenium-utils",
   "version": "1.0.0",
   "description": "POC for POA",
   "main": "./dist/main.js",
