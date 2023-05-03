@@ -67,7 +67,11 @@ async function main({
   browsers,
   coverage,
   reporter,
-  karma: karmaArgs
+  karma: karmaArgs,
+  branches,
+  functions,
+  lines,
+  statements
 } = argv) {
   // determine arg defaults based on package.json values
   let pkg = JSON.parse(fs.readFileSync(path.join(cwd, 'package.json')));
@@ -84,7 +88,7 @@ async function main({
 
     await new Promise(r => rimraf(path.join(cwd, '{.nyc_output,coverage}'), r));
     await child('spawn', nycbin, ['--silent', '--no-clean', 'node', filename, ...flags]);
-    await child('spawn', nycbin, ['report', '--check-coverage', ...flagify({ reporter })]);
+    await child('spawn', nycbin, ['report', '--check-coverage', ...flagify({ reporter, branches, functions, lines, statements })]);
   } else if (!process.send) {
     // test runners assume they have control over the entire process, so give them each forks
     let flags = flagify({ coverage, karma: karmaArgs });
