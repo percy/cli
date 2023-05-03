@@ -13,10 +13,10 @@
   "files": [
     "dist"
   ],
-  "main": "./dist/main.js",
+  "main": "./dist/index.js",
   "type": "module",
   "exports": {
-    ".": "./dist/main.js"
+    ".": "./dist/index.js"
   },
   "scripts": {
     "build": "node ../../scripts/build",

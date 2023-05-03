@@ -116,7 +116,6 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/flush', async (req, res) => res.json(200, {
       success: await percy.flush(req.body).then(() => true)
     }))
-  // creating driverWrapper.js
     .route('post', '/percy/automateScreenshot', async (req, res) => res.json(200, {
       success: await automateScreenshot(req.body).then(() => true)
     }))
