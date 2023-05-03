@@ -4,7 +4,8 @@ import { createRequire } from 'module';
 import logger from '@percy/logger';
 import { normalize } from '@percy/config/utils';
 import { getPackageJSON, Server } from './utils.js';
-import automateScreenshot from '@percy/webdriver-utils';
+// TODO Remove below esline disable once we publish webdriver-util
+import automateScreenshot from '@percy/webdriver-utils'; // eslint-disable-line import/no-extraneous-dependencies
 
 // need require.resolve until import.meta.resolve can be transpiled
 export const PERCY_DOM = createRequire(import.meta.url).resolve('@percy/dom');

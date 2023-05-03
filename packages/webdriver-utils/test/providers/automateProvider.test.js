@@ -4,11 +4,10 @@ import AutomateProvider from '../../src/providers/automateProvider.js';
 describe('AutomateProvider', () => {
   describe('browserstackExecutor', () => {
     let executeScriptSpy;
-    let capabilitiesSpy;
 
     beforeEach(async () => {
       executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
-      capabilitiesSpy = spyOn(Driver.prototype, 'getCapabilites');
+      spyOn(Driver.prototype, 'getCapabilites');
     });
 
     it('throws Error when called without initializing driver', async () => {

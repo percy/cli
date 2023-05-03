@@ -34,11 +34,8 @@ describe('GenericProvider', () => {
   // this is due to internal limitations of jasmine, where mocking functions from module is not possible
   // check - https://github.com/jasmine/jasmine/issues/1414
   describe('getTiles', () => {
-    let takeScreenshotSpy;
-
     beforeEach(() => {
-      takeScreenshotSpy = spyOn(Driver.prototype, 'takeScreenshot')
-        .and.returnValue(Promise.resolve('123b='));
+      spyOn(Driver.prototype, 'takeScreenshot').and.returnValue(Promise.resolve('123b='));
     });
 
     it('creates tiles from screenshot', async () => {
@@ -50,25 +47,18 @@ describe('GenericProvider', () => {
   });
 
   describe('getTag', () => {
-    let windowSizeSpy;
-    let orientationSpy;
-    let deviceNameSpy;
-    let osNameSpy;
-    let osVersionSpy;
-    let browserNameSpy;
-
     beforeEach(() => {
-      windowSizeSpy = spyOn(CommonDesktopMetaDataResolver.prototype, 'windowSize')
+      spyOn(CommonDesktopMetaDataResolver.prototype, 'windowSize')
         .and.returnValue(Promise.resolve({ width: 1000, height: 1000 }));
-      orientationSpy = spyOn(CommonDesktopMetaDataResolver.prototype, 'orientation')
+      spyOn(CommonDesktopMetaDataResolver.prototype, 'orientation')
         .and.returnValue('landscape');
-      deviceNameSpy = spyOn(CommonDesktopMetaDataResolver.prototype, 'deviceName')
+      spyOn(CommonDesktopMetaDataResolver.prototype, 'deviceName')
         .and.returnValue('mockDeviceName');
-      osNameSpy = spyOn(CommonDesktopMetaDataResolver.prototype, 'osName')
+      spyOn(CommonDesktopMetaDataResolver.prototype, 'osName')
         .and.returnValue('mockOsName');
-      osVersionSpy = spyOn(CommonDesktopMetaDataResolver.prototype, 'osVersion')
+      spyOn(CommonDesktopMetaDataResolver.prototype, 'osVersion')
         .and.returnValue('mockOsVersion');
-      browserNameSpy = spyOn(CommonDesktopMetaDataResolver.prototype, 'browserName')
+      spyOn(CommonDesktopMetaDataResolver.prototype, 'browserName')
         .and.returnValue('mockBrowserName');
     });
 
