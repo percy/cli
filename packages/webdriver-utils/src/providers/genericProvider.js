@@ -85,7 +85,10 @@ export default class GenericProvider {
       osVersion: this.commonMetaData.osVersion(),
       width,
       height,
-      orientation: orientation
+      orientation: orientation,
+      browserName: this.commonMetaData.browserName() || 'unknown',
+      // TODO
+      browserVersion: 'unknown'
     };
   }
 

@@ -55,6 +55,7 @@ describe('GenericProvider', () => {
     let deviceNameSpy;
     let osNameSpy;
     let osVersionSpy;
+    let browserNameSpy;
 
     beforeEach(() => {
       windowSizeSpy = spyOn(CommonDesktopMetaDataResolver.prototype, 'windowSize')
@@ -67,6 +68,8 @@ describe('GenericProvider', () => {
         .and.returnValue('mockOsName');
       osVersionSpy = spyOn(CommonDesktopMetaDataResolver.prototype, 'osVersion')
         .and.returnValue('mockOsVersion');
+      browserNameSpy = spyOn(CommonDesktopMetaDataResolver.prototype, 'browserName')
+        .and.returnValue('mockBrowserName');
     });
 
     it('returns correct tag', async () => {
@@ -79,7 +82,9 @@ describe('GenericProvider', () => {
         osVersion: 'mockOsVersion',
         width: 1000,
         height: 1000,
-        orientation: 'landscape'
+        orientation: 'landscape',
+        browserName: 'mockBrowserName',
+        browserVersion: 'unknown'
       });
     });
   });
