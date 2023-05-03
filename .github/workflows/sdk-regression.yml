@@ -34,6 +34,7 @@ jobs:
       - uses: xt0rted/pull-request-comment-branch@v2
         if: ${{ github.event.issue.pull_request }}
         id: comment-branch
+      - run: echo "Hey"
       - name: Get Current Job Log URL
         uses: Tiryoh/gha-jobid-action@v0
         id: job-url
