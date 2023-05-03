@@ -9,4 +9,3 @@ export default async function automateScreenshot(options) {
   await automate.createDriver();
   await automate.screenshot(options.snapshotName);
 }
-
