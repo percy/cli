@@ -3,7 +3,7 @@ import fetch from 'node-fetch';
 export default class Driver {
   constructor(sessionId, executorUrl) {
     this.sessionId = sessionId;
-    this.executorUrl = executorUrl;
+    this.executorUrl = executorUrl.includes('@') ? `https://${executorUrl.split('@')[1]}` : executorUrl;
   }
 
   async getCapabilites() {
