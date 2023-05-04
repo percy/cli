@@ -2,7 +2,7 @@ import utils from '@percy/sdk-utils';
 import tmp from 'tmp';
 import fs from 'fs/promises';
 
-import CommonMetaDataResolver from '../metadata/commonMetaDataResolver.js';
+import MetaDataResolver from '../metadata/metaDataResolver.js';
 import Tile from '../util/tile.js';
 import Driver from '../driver.js';
 
@@ -23,14 +23,14 @@ export default class GenericProvider {
     this.capabilities = capabilities;
     this.sessionCapabilites = sessionCapabilites;
     this.driver = null;
-    this.commonMetaData = null;
+    this.metaData = null;
     this.debugUrl = null;
   }
 
   async createDriver() {
     this.driver = new Driver(this.sessionId, this.commandExecutorUrl);
     const caps = await this.driver.getCapabilites();
-    this.commonMetaData = await CommonMetaDataResolver.resolve(this.driver, caps, this.capabilities);
+    this.metaData = await MetaDataResolver.resolve(this.driver, caps, this.capabilities);
   }
 
   static supports(_commandExecutorUrl) {
@@ -77,16 +77,16 @@ export default class GenericProvider {
 
   async getTag() {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
-    const { width, height } = await this.commonMetaData.windowSize();
-    const orientation = this.commonMetaData.orientation();
+    const { width, height } = await this.metaData.windowSize();
+    const orientation = this.metaData.orientation();
     return {
-      name: this.commonMetaData.deviceName() || 'unknown',
-      osName: this.commonMetaData.osName() || 'unknown',
-      osVersion: this.commonMetaData.osVersion(),
+      name: this.metaData.deviceName() || 'unknown',
+      osName: this.metaData.osName() || 'unknown',
+      osVersion: this.metaData.osVersion(),
       width,
       height,
       orientation: orientation,
-      browserName: this.commonMetaData.browserName() || 'unknown',
+      browserName: this.metaData.browserName() || 'unknown',
       // TODO
       browserVersion: 'unknown'
     };

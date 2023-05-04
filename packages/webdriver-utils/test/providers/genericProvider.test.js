@@ -1,7 +1,7 @@
 import GenericProvider from '../../src/providers/genericProvider.js';
 import Driver from '../../src/driver.js';
-import CommonMetaDataResolver from '../../src/metadata/commonMetaDataResolver.js';
-import CommonDesktopMetaDataResolver from '../../src/metadata/commonDesktopMetaDataResolver.js';
+import MetaDataResolver from '../../src/metadata/metaDataResolver.js';
+import DesktopMetaData from '../../src/metadata/desktopMetaData.js';
 
 describe('GenericProvider', () => {
   let genericProvider;
@@ -13,11 +13,11 @@ describe('GenericProvider', () => {
   });
 
   describe('createDriver', () => {
-    let commonMetaDataResolverSpy;
+    let metaDataResolverSpy;
     let expectedDriver;
 
     beforeEach(() => {
-      commonMetaDataResolverSpy = spyOn(CommonMetaDataResolver, 'resolve');
+      metaDataResolverSpy = spyOn(MetaDataResolver, 'resolve');
       expectedDriver = new Driver('123', 'http:executorUrl');
     });
 
@@ -26,7 +26,7 @@ describe('GenericProvider', () => {
       await genericProvider.createDriver();
       expect(genericProvider.driver).toEqual(expectedDriver);
       expect(capabilitiesSpy).toHaveBeenCalledTimes(1);
-      expect(commonMetaDataResolverSpy).toHaveBeenCalledWith(expectedDriver, { browserName: 'Chrome' }, {});
+      expect(metaDataResolverSpy).toHaveBeenCalledWith(expectedDriver, { browserName: 'Chrome' }, {});
     });
   });
 
@@ -48,17 +48,17 @@ describe('GenericProvider', () => {
 
   describe('getTag', () => {
     beforeEach(() => {
-      spyOn(CommonDesktopMetaDataResolver.prototype, 'windowSize')
+      spyOn(DesktopMetaData.prototype, 'windowSize')
         .and.returnValue(Promise.resolve({ width: 1000, height: 1000 }));
-      spyOn(CommonDesktopMetaDataResolver.prototype, 'orientation')
+      spyOn(DesktopMetaData.prototype, 'orientation')
         .and.returnValue('landscape');
-      spyOn(CommonDesktopMetaDataResolver.prototype, 'deviceName')
+      spyOn(DesktopMetaData.prototype, 'deviceName')
         .and.returnValue('mockDeviceName');
-      spyOn(CommonDesktopMetaDataResolver.prototype, 'osName')
+      spyOn(DesktopMetaData.prototype, 'osName')
         .and.returnValue('mockOsName');
-      spyOn(CommonDesktopMetaDataResolver.prototype, 'osVersion')
+      spyOn(DesktopMetaData.prototype, 'osVersion')
         .and.returnValue('mockOsVersion');
-      spyOn(CommonDesktopMetaDataResolver.prototype, 'browserName')
+      spyOn(DesktopMetaData.prototype, 'browserName')
         .and.returnValue('mockBrowserName');
     });
 

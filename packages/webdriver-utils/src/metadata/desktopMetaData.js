@@ -1,4 +1,4 @@
-export default class CommonMobileMetaDataResolver {
+export default class DesktopMetaData {
   constructor(driver, opts = {}) {
     this.driver = driver;
     this.capabilities = opts;
@@ -9,23 +9,24 @@ export default class CommonMobileMetaDataResolver {
   }
 
   osName() {
-    let osName = this.capabilities.os.toLowerCase();
-    if (osName === 'mac' && this.browserName() === 'iphone') {
-      osName = 'ios';
-    }
+    let osName = this.capabilities.osVersion;
+    if (osName) return osName.toLowerCase();
+
+    osName = this.capabilities.platform;
     return osName;
   }
 
+  // desktop will show this as browser version
   osVersion() {
-    return this.capabilities.osVersion.split('.')[0];
+    return this.capabilities.version.split('.')[0];
   }
 
   deviceName() {
-    return this.capabilities.deviceName.split('-')[0];
+    return this.browserName() + '_' + this.osVersion() + '_' + this.osName();
   }
 
   orientation() {
-    return this.capabilities.orientation;
+    return 'landscape';
   }
 
   async windowSize() {
