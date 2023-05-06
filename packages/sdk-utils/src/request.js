@@ -50,7 +50,8 @@ if (process.env.__PERCY_BROWSERIFIED__) {
   // use http.request in node
   request.fetch = async function fetch(url, options) {
     let { protocol } = new URL(url);
-    let { default: http } = await import(protocol === 'https:' ? 'https' : 'http');
+    // rollup throws error for -> await import(protocol === 'https:' ? 'https' : 'http')
+    let { default: http } = protocol === 'https:' ? await import('https') : await import('http');
 
     return new Promise((resolve, reject) => {
       http.request(url, options)
