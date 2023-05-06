@@ -2,10 +2,7 @@ import percy from './percy-info.js';
 
 // Helper to send a request to the local CLI API
 export async function request(path, options = {}) {
-  let url = path;
-  if (!path.startsWith('http')) {
-    url = `${percy.address}${path}`;
-  }
+  let url = path.startsWith('http') ? path : `${percy.address}${path}`;
   let response = await request.fetch(url, options);
 
   // maybe parse response body as json
