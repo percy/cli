@@ -21,6 +21,13 @@ export default class Driver {
 
   // command => {script: "", args: []}
   async executeScript(command) {
+    if ((!command.constructor === Object) ||
+      !(Object.keys(command).length === 2 &&
+      Object.keys(command).includes('script') &&
+      Object.keys(command).includes('args'))
+    ) {
+      throw new Error('Please pass command as {script: "", args: []}');
+    }
     const options = {
       method: 'POST',
       headers: {
