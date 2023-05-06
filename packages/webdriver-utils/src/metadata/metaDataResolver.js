@@ -1,5 +1,5 @@
-import DesktopMetaData from './desktopMetaData.js'
-import MobileMetaData from './mobileMetaData.js'
+import DesktopMetaData from './desktopMetaData.js';
+import MobileMetaData from './mobileMetaData.js';
 
 export default class MetaDataResolver {
   static resolve(driver, capabilities, opts) {

@@ -1,4 +1,4 @@
-import DesktopMetaData from '../../src/metadata/desktopMetaData.js'
+import DesktopMetaData from '../../src/metadata/desktopMetaData.js';
 import Driver from '../../src/driver.js';
 
 describe('DesktopMetaData', () => {

@@ -3,7 +3,7 @@ import percy from './percy-info.js';
 // Helper to send a request to the local CLI API
 export async function request(path, options = {}) {
   let url = path;
-  if(!path.startsWith('http')){
+  if (!path.startsWith('http')) {
     url = `${percy.address}${path}`;
   }
   let response = await request.fetch(url, options);
@@ -52,7 +52,7 @@ if (process.env.__PERCY_BROWSERIFIED__) {
 } else {
   // use http.request in node
   request.fetch = async function fetch(url, options) {
-    let {protocol} = new URL(url);
+    let { protocol } = new URL(url);
     let { default: http } = await import(protocol === 'https:' ? 'https' : 'http');
 
     return new Promise((resolve, reject) => {

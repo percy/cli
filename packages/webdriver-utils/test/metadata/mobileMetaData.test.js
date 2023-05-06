@@ -1,4 +1,4 @@
-import MobileMetaData from '../../src/metadata/mobileMetaData.js'
+import MobileMetaData from '../../src/metadata/mobileMetaData.js';
 import Driver from '../../src/driver.js';
 
 describe('MobileMetaData', () => {
