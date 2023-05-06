@@ -1,4 +1,5 @@
-import { request } from '@percy/sdk-utils';
+import utils from '@percy/sdk-utils';
+const { request } = utils;
 
 export default class Driver {
   constructor(sessionId, executorUrl) {
