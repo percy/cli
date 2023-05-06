@@ -2,7 +2,11 @@ import percy from './percy-info.js';
 
 // Helper to send a request to the local CLI API
 export async function request(path, options = {}) {
-  let response = await request.fetch(`${percy.address}${path}`, options);
+  let url = path;
+  if(!path.startsWith('http')){
+    url = `${percy.address}${path}`;
+  }
+  let response = await request.fetch(url, options);
 
   // maybe parse response body as json
   if (typeof response.body === 'string' &&
@@ -48,7 +52,8 @@ if (process.env.__PERCY_BROWSERIFIED__) {
 } else {
   // use http.request in node
   request.fetch = async function fetch(url, options) {
-    let { default: http } = await import('http');
+    let {protocol} = new URL(url);
+    let { default: http } = await import(protocol === 'https:' ? 'https' : 'http');
 
     return new Promise((resolve, reject) => {
       http.request(url, options)

@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+import { request } from '@percy/sdk-utils';
 
 export default class Driver {
   constructor(sessionId, executorUrl) {
@@ -8,13 +8,13 @@ export default class Driver {
 
   async getCapabilites() {
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}`;
-    const caps = await (await fetch(baseUrl)).json();
+    const caps = JSON.parse((await request(baseUrl)).body);
     return caps.value;
   }
 
   async getWindowSize() {
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/window/current/size`;
-    const windowSize = (await fetch(baseUrl)).json();
+    const windowSize = JSON.parse((await request(baseUrl)).body);
     return windowSize;
   }
 
@@ -28,13 +28,13 @@ export default class Driver {
       body: JSON.stringify(command)
     };
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/execute/sync`;
-    const response = (await fetch(baseUrl, options)).json();
+    const response = JSON.parse((await request(baseUrl, options)).body);
     return response;
   }
 
   async takeScreenshot() {
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/screenshot`;
-    const screenShot = await (await fetch(baseUrl)).json();
+    const screenShot = JSON.parse((await request(baseUrl)).body);
     return screenShot.value;
   }
 }

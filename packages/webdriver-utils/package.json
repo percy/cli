@@ -26,7 +26,6 @@
   },
   "dependencies": {
     "@percy/sdk-utils": "1.22.0",
-    "node-fetch": "^3.3.1",
     "tmp": "^0.2.1"
   }
 }
