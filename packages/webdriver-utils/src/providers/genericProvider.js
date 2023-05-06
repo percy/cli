@@ -47,7 +47,7 @@ export default class GenericProvider {
     log.debug(`${name} : Tag ${JSON.stringify(tag)}`);
     log.debug(`${name} : Tiles ${JSON.stringify(tiles)}`);
     log.debug(`${name} : Debug url ${this.debugUrl}`);
-    return await utils.postComparison({
+    return {
       name,
       tag,
       tiles,
@@ -55,7 +55,7 @@ export default class GenericProvider {
       externalDebugUrl: this.debugUrl,
       environmentInfo: ENV_INFO,
       clientInfo: CLIENT_INFO
-    });
+    };
   }
 
   async getTiles(fullscreen) {
