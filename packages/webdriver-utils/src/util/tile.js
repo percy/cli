@@ -1,6 +1,6 @@
 export default class Tile {
   constructor({
-    filepath,
+    content,
     statusBarHeight,
     navBarHeight,
     headerHeight,
@@ -8,7 +8,7 @@ export default class Tile {
     fullscreen,
     sha
   }) {
-    this.filepath = filepath;
+    this.content = content;
     this.statusBarHeight = statusBarHeight;
     this.navBarHeight = navBarHeight;
     this.headerHeight = headerHeight;
