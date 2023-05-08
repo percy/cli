@@ -30,9 +30,6 @@ describe('GenericProvider', () => {
     });
   });
 
-  // not testing screenshot function as utils.postComparisons cannot be mocked
-  // this is due to internal limitations of jasmine, where mocking functions from module is not possible
-  // check - https://github.com/jasmine/jasmine/issues/1414
   describe('getTiles', () => {
     beforeEach(() => {
       spyOn(Driver.prototype, 'takeScreenshot').and.returnValue(Promise.resolve('123b='));
@@ -43,6 +40,11 @@ describe('GenericProvider', () => {
       genericProvider.createDriver();
       const tiles = await genericProvider.getTiles(false);
       expect(tiles.length).toEqual(1);
+    });
+
+    it('throws error if driver not initailized', async () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await expectAsync(genericProvider.getTiles(false)).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().')
     });
   });
 
@@ -77,13 +79,36 @@ describe('GenericProvider', () => {
         browserVersion: 'unknown'
       });
     });
+
+    it('throws error if driver not initailized', async () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await expectAsync(genericProvider.getTag()).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().')
+    });
   });
 
-  // describe('writeTempImage', () => {
+  describe('screenshot', () => {
+    let getTagSpy;
+    let getTilesSpy;
 
-  // })
+    beforeEach(() => {
+      getTagSpy = spyOn(GenericProvider.prototype, 'getTag').and.returnValue(Promise.resolve('mock-tag'))
+      getTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve('mock-tile'))
+    })
 
-  // describe('tempFile', () => {
-
-  // })
+    it('calls correct funcs', async () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await genericProvider.createDriver();
+      let res = await genericProvider.screenshot('mock-name');
+      expect(getTagSpy).toHaveBeenCalledTimes(1);
+      expect(getTilesSpy).toHaveBeenCalledOnceWith(false);
+      expect(res).toEqual({
+        name: 'mock-name',
+        tag: 'mock-tag',
+        tiles: 'mock-tile',
+        externalDebugUrl: 'https://localhost/v1',
+        environmentInfo: 'staging-poc-poa',
+        clientInfo: 'local-poc-poa'
+      })
+    })
+  })
 });
