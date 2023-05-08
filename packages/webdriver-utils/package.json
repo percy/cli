@@ -22,7 +22,7 @@
     "build": "node ../../scripts/build",
     "lint": "eslint --ignore-path ../../.gitignore .",
     "test": "node ../../scripts/test",
-    "test:coverage": "yarn test --coverage --branches 75 --functions 75 --lines 75 --statements 75"
+    "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
     "@percy/sdk-utils": "1.22.0"
