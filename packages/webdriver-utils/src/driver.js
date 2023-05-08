@@ -1,4 +1,5 @@
 import utils from '@percy/sdk-utils';
+import Cache from './util/cache.js';
 const { request } = utils;
 
 export default class Driver {
@@ -8,9 +9,11 @@ export default class Driver {
   }
 
   async getCapabilites() {
-    const baseUrl = `${this.executorUrl}/session/${this.sessionId}`;
-    const caps = JSON.parse((await request(baseUrl)).body);
-    return caps.value;
+    return await Cache.withCache(Cache.caps, this.sessionId, async() => {
+      const baseUrl = `${this.executorUrl}/session/${this.sessionId}`;
+      const caps = JSON.parse((await request(baseUrl)).body);
+      return caps.value;
+    })
   }
 
   async getWindowSize() {
