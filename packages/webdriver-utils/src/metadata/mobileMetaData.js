@@ -1,5 +1,5 @@
 export default class MobileMetaData {
-  constructor(driver, opts = {}) {
+  constructor(driver, opts) {
     this.driver = driver;
     this.capabilities = opts;
   }

@@ -1,5 +1,5 @@
 export default class DesktopMetaData {
-  constructor(driver, opts = {}) {
+  constructor(driver, opts) {
     this.driver = driver;
     this.capabilities = opts;
   }

@@ -77,13 +77,13 @@ export default class GenericProvider {
     const { width, height } = await this.metaData.windowSize();
     const orientation = this.metaData.orientation();
     return {
-      name: this.metaData.deviceName() || 'unknown',
-      osName: this.metaData.osName() || 'unknown',
+      name: this.metaData.deviceName(),
+      osName: this.metaData.osName(),
       osVersion: this.metaData.osVersion(),
       width,
       height,
       orientation: orientation,
-      browserName: this.metaData.browserName() || 'unknown',
+      browserName: this.metaData.browserName(),
       // TODO
       browserVersion: 'unknown'
     };
