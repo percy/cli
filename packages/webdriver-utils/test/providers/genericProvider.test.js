@@ -44,7 +44,7 @@ describe('GenericProvider', () => {
 
     it('throws error if driver not initailized', async () => {
       genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
-      await expectAsync(genericProvider.getTiles(false)).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().')
+      await expectAsync(genericProvider.getTiles(false)).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
     });
   });
 
@@ -82,7 +82,7 @@ describe('GenericProvider', () => {
 
     it('throws error if driver not initailized', async () => {
       genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
-      await expectAsync(genericProvider.getTag()).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().')
+      await expectAsync(genericProvider.getTag()).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
     });
   });
 
@@ -91,9 +91,9 @@ describe('GenericProvider', () => {
     let getTilesSpy;
 
     beforeEach(() => {
-      getTagSpy = spyOn(GenericProvider.prototype, 'getTag').and.returnValue(Promise.resolve('mock-tag'))
-      getTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve('mock-tile'))
-    })
+      getTagSpy = spyOn(GenericProvider.prototype, 'getTag').and.returnValue(Promise.resolve('mock-tag'));
+      getTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve('mock-tile'));
+    });
 
     it('calls correct funcs', async () => {
       genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
@@ -108,7 +108,7 @@ describe('GenericProvider', () => {
         externalDebugUrl: 'https://localhost/v1',
         environmentInfo: 'staging-poc-poa',
         clientInfo: 'local-poc-poa'
-      })
-    })
-  })
+      });
+    });
+  });
 });
