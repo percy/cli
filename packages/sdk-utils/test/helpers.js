@@ -26,6 +26,12 @@ const helpers = {
     return Array.isArray(res.body[what]) ? res.body[what].map(map) : map(res.body);
   },
 
+  async mockGetCurrentUrl() {
+    try {
+      await utils.request('/wd/hub/session');
+    } catch {}
+  },
+
   get testSnapshotURL() {
     return `${utils.percy.address}/test/snapshot`;
   },

@@ -7,6 +7,7 @@ import fetchPercyDOM from './percy-dom.js';
 import postSnapshot from './post-snapshot.js';
 import postComparison from './post-comparison.js';
 import flushSnapshots from './flush-snapshots.js';
+import postScreenshot from './post-screenshot.js';
 
 export {
   logger,
@@ -17,7 +18,8 @@ export {
   fetchPercyDOM,
   postSnapshot,
   postComparison,
-  flushSnapshots
+  flushSnapshots,
+  postScreenshot
 };
 
 // export the namespace by default
