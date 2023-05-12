@@ -1,7 +1,7 @@
 import GenericProvider from '../../src/providers/genericProvider.js';
 import Driver from '../../src/driver.js';
-import CommonMetaDataResolver from '../../src/metadata/commonMetaDataResolver.js';
-import CommonDesktopMetaDataResolver from '../../src/metadata/commonDesktopMetaDataResolver.js';
+import MetaDataResolver from '../../src/metadata/metaDataResolver.js';
+import DesktopMetaData from '../../src/metadata/desktopMetaData.js';
 
 describe('GenericProvider', () => {
   let genericProvider;
@@ -13,11 +13,11 @@ describe('GenericProvider', () => {
   });
 
   describe('createDriver', () => {
-    let commonMetaDataResolverSpy;
+    let metaDataResolverSpy;
     let expectedDriver;
 
     beforeEach(() => {
-      commonMetaDataResolverSpy = spyOn(CommonMetaDataResolver, 'resolve');
+      metaDataResolverSpy = spyOn(MetaDataResolver, 'resolve');
       expectedDriver = new Driver('123', 'http:executorUrl');
     });
 
@@ -26,19 +26,13 @@ describe('GenericProvider', () => {
       await genericProvider.createDriver();
       expect(genericProvider.driver).toEqual(expectedDriver);
       expect(capabilitiesSpy).toHaveBeenCalledTimes(1);
-      expect(commonMetaDataResolverSpy).toHaveBeenCalledWith(expectedDriver, { browserName: 'Chrome' }, {});
+      expect(metaDataResolverSpy).toHaveBeenCalledWith(expectedDriver, { browserName: 'Chrome' }, {});
     });
   });
 
-  // not testing screenshot function as utils.postComparisons cannot be mocked
-  // this is due to internal limitations of jasmine, where mocking functions from module is not possible
-  // check - https://github.com/jasmine/jasmine/issues/1414
   describe('getTiles', () => {
-    let takeScreenshotSpy;
-
     beforeEach(() => {
-      takeScreenshotSpy = spyOn(Driver.prototype, 'takeScreenshot')
-        .and.returnValue(Promise.resolve('123b='));
+      spyOn(Driver.prototype, 'takeScreenshot').and.returnValue(Promise.resolve('123b='));
     });
 
     it('creates tiles from screenshot', async () => {
@@ -47,26 +41,27 @@ describe('GenericProvider', () => {
       const tiles = await genericProvider.getTiles(false);
       expect(tiles.length).toEqual(1);
     });
+
+    it('throws error if driver not initailized', async () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await expectAsync(genericProvider.getTiles(false)).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
+    });
   });
 
   describe('getTag', () => {
-    let windowSizeSpy;
-    let orientationSpy;
-    let deviceNameSpy;
-    let osNameSpy;
-    let osVersionSpy;
-
     beforeEach(() => {
-      windowSizeSpy = spyOn(CommonDesktopMetaDataResolver.prototype, 'windowSize')
+      spyOn(DesktopMetaData.prototype, 'windowSize')
         .and.returnValue(Promise.resolve({ width: 1000, height: 1000 }));
-      orientationSpy = spyOn(CommonDesktopMetaDataResolver.prototype, 'orientation')
+      spyOn(DesktopMetaData.prototype, 'orientation')
         .and.returnValue('landscape');
-      deviceNameSpy = spyOn(CommonDesktopMetaDataResolver.prototype, 'deviceName')
+      spyOn(DesktopMetaData.prototype, 'deviceName')
         .and.returnValue('mockDeviceName');
-      osNameSpy = spyOn(CommonDesktopMetaDataResolver.prototype, 'osName')
+      spyOn(DesktopMetaData.prototype, 'osName')
         .and.returnValue('mockOsName');
-      osVersionSpy = spyOn(CommonDesktopMetaDataResolver.prototype, 'osVersion')
+      spyOn(DesktopMetaData.prototype, 'osVersion')
         .and.returnValue('mockOsVersion');
+      spyOn(DesktopMetaData.prototype, 'browserName')
+        .and.returnValue('mockBrowserName');
     });
 
     it('returns correct tag', async () => {
@@ -79,16 +74,41 @@ describe('GenericProvider', () => {
         osVersion: 'mockOsVersion',
         width: 1000,
         height: 1000,
-        orientation: 'landscape'
+        orientation: 'landscape',
+        browserName: 'mockBrowserName',
+        browserVersion: 'unknown'
       });
+    });
+
+    it('throws error if driver not initailized', async () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await expectAsync(genericProvider.getTag()).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
     });
   });
 
-  // describe('writeTempImage', () => {
+  describe('screenshot', () => {
+    let getTagSpy;
+    let getTilesSpy;
 
-  // })
+    beforeEach(() => {
+      getTagSpy = spyOn(GenericProvider.prototype, 'getTag').and.returnValue(Promise.resolve('mock-tag'));
+      getTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve('mock-tile'));
+    });
 
-  // describe('tempFile', () => {
-
-  // })
+    it('calls correct funcs', async () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await genericProvider.createDriver();
+      let res = await genericProvider.screenshot('mock-name');
+      expect(getTagSpy).toHaveBeenCalledTimes(1);
+      expect(getTilesSpy).toHaveBeenCalledOnceWith(false);
+      expect(res).toEqual({
+        name: 'mock-name',
+        tag: 'mock-tag',
+        tiles: 'mock-tile',
+        externalDebugUrl: 'https://localhost/v1',
+        environmentInfo: 'staging-poc-poa',
+        clientInfo: 'local-poc-poa'
+      });
+    });
+  });
 });

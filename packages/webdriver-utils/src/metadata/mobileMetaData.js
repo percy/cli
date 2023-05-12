@@ -1,5 +1,5 @@
-export default class CommonMobileMetaDataResolver {
-  constructor(driver, opts = {}) {
+export default class MobileMetaData {
+  constructor(driver, opts) {
     this.driver = driver;
     this.capabilities = opts;
   }

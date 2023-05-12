@@ -1,4 +1,5 @@
 import GenericProvider from './genericProvider.js';
+import Cache from '../util/cache.js';
 
 export default class AutomateProvider extends GenericProvider {
   static supports(commandExecutorUrl) {
@@ -13,7 +14,11 @@ export default class AutomateProvider extends GenericProvider {
   }
 
   async setDebugUrl() {
-    const sessionDetails = await this.browserstackExecutor('getSessionDetails');
-    this.debugUrl = JSON.parse(sessionDetails.value).browser_url;
+    if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
+    this.debugUrl = await Cache.withCache(Cache.bstackSessionDetails, this.driver.sessionId,
+      async () => {
+        const sessionDetails = await this.browserstackExecutor('getSessionDetails');
+        return JSON.parse(sessionDetails.value).browser_url;
+      });
   }
 }

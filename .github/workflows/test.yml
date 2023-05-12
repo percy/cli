@@ -55,6 +55,7 @@ jobs:
           - '@percy/cli-build'
           - '@percy/cli-config'
           - '@percy/sdk-utils'
+          - '@percy/webdriver-utils'
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3

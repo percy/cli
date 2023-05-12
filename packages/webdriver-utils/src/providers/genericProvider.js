@@ -1,8 +1,6 @@
 import utils from '@percy/sdk-utils';
-import tmp from 'tmp';
-import fs from 'fs/promises';
 
-import CommonMetaDataResolver from '../metadata/commonMetaDataResolver.js';
+import MetaDataResolver from '../metadata/metaDataResolver.js';
 import Tile from '../util/tile.js';
 import Driver from '../driver.js';
 
@@ -23,14 +21,14 @@ export default class GenericProvider {
     this.capabilities = capabilities;
     this.sessionCapabilites = sessionCapabilites;
     this.driver = null;
-    this.commonMetaData = null;
+    this.metaData = null;
     this.debugUrl = null;
   }
 
   async createDriver() {
     this.driver = new Driver(this.sessionId, this.commandExecutorUrl);
     const caps = await this.driver.getCapabilites();
-    this.commonMetaData = await CommonMetaDataResolver.resolve(this.driver, caps, this.capabilities);
+    this.metaData = await MetaDataResolver.resolve(this.driver, caps, this.capabilities);
   }
 
   static supports(_commandExecutorUrl) {
@@ -47,7 +45,7 @@ export default class GenericProvider {
     log.debug(`${name} : Tag ${JSON.stringify(tag)}`);
     log.debug(`${name} : Tiles ${JSON.stringify(tiles)}`);
     log.debug(`${name} : Debug url ${this.debugUrl}`);
-    return await utils.postComparison({
+    return {
       name,
       tag,
       tiles,
@@ -55,16 +53,15 @@ export default class GenericProvider {
       externalDebugUrl: this.debugUrl,
       environmentInfo: ENV_INFO,
       clientInfo: CLIENT_INFO
-    });
+    };
   }
 
   async getTiles(fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     const base64content = await this.driver.takeScreenshot();
-    const path = await this.writeTempImage(base64content);
     return [
       new Tile({
-        filepath: path,
+        content: base64content,
         // TODO: Need to add method to fetch these attr
         statusBarHeight: 0,
         navBarHeight: 0,
@@ -77,45 +74,19 @@ export default class GenericProvider {
 
   async getTag() {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
-    const { width, height } = await this.commonMetaData.windowSize();
-    const orientation = this.commonMetaData.orientation();
+    const { width, height } = await this.metaData.windowSize();
+    const orientation = this.metaData.orientation();
     return {
-      name: this.commonMetaData.deviceName() || 'unknown',
-      osName: this.commonMetaData.osName() || 'unknown',
-      osVersion: this.commonMetaData.osVersion(),
+      name: this.metaData.deviceName(),
+      osName: this.metaData.osName(),
+      osVersion: this.metaData.osVersion(),
       width,
       height,
-      orientation: orientation
+      orientation: orientation,
+      browserName: this.metaData.browserName(),
+      // TODO
+      browserVersion: 'unknown'
     };
-  }
-
-  async writeTempImage(base64content) {
-    const path = await this.tempFile();
-    const buffer = Buffer.from(base64content, 'base64');
-    await fs.writeFile(path, buffer);
-    return path;
-  }
-
-  // this creates a temp file and closes descriptor
-  async tempFile() {
-    const percyTmpDir = process.env.PERCY_TMP_DIR;
-    if (percyTmpDir) {
-      // this does not throw for existing directory if recursive is true
-      await fs.mkdir(percyTmpDir, { recursive: true });
-    }
-    return await new Promise((resolve, reject) => {
-      tmp.file({
-        mode: 0o644,
-        tmpdir: percyTmpDir,
-        prefix: 'percy-',
-        postfix: '.png',
-        discardDescriptor: true
-      }, (err, path) => {
-        /* istanbul ignore next */ // hard to test
-        if (err) reject(err);
-        resolve(path);
-      });
-    });
   }
 
   async setDebugUrl() {

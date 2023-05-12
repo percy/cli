@@ -1,5 +1,5 @@
-export default class CommonDesktopMetaDataResolver {
-  constructor(driver, opts = {}) {
+export default class DesktopMetaData {
+  constructor(driver, opts) {
     this.driver = driver;
     this.capabilities = opts;
   }

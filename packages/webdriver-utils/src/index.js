@@ -7,6 +7,5 @@ export default async function automateScreenshot(options) {
   log.info('Starting automate screenshot');
   const automate = ProviderResolver.resolve(options.sessionId, options.commandExecutorUrl, options.capabilities, options.sessionCapabilites);
   await automate.createDriver();
-  await automate.screenshot(options.snapshotName);
+  return await automate.screenshot(options.snapshotName);
 }
-
