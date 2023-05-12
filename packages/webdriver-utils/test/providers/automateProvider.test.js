@@ -11,13 +11,13 @@ describe('AutomateProvider', () => {
     });
 
     it('throws Error when called without initializing driver', async () => {
-      let automateProvider = new AutomateProvider('1234', 'command-browserstack', { platform: 'win' }, {});
+      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {});
       await expectAsync(automateProvider.browserstackExecutor('getSessionDetails'))
         .toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
     });
 
     it('calls browserstackExecutor with correct arguemnts for actions only', async () => {
-      let automateProvider = new AutomateProvider('1234', 'command-browserstack', { platform: 'win' }, {});
+      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {});
       await automateProvider.createDriver();
       await automateProvider.browserstackExecutor('getSessionDetails');
       expect(executeScriptSpy)
@@ -25,7 +25,7 @@ describe('AutomateProvider', () => {
     });
 
     it('calls browserstackExecutor with correct arguemnts for actions + args', async () => {
-      let automateProvider = new AutomateProvider('1234', 'command-browserstack', { platform: 'win' }, {});
+      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {});
       await automateProvider.createDriver();
       await automateProvider.browserstackExecutor('getSessionDetails', 'new');
       expect(executeScriptSpy)
@@ -37,15 +37,23 @@ describe('AutomateProvider', () => {
     let browserstackExecutorSpy;
 
     beforeEach(async () => {
+      spyOn(Driver.prototype, 'getCapabilites');
       browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
         .and.returnValue(Promise.resolve({ value: '{"browser_url": "http:localhost"}' }));
     });
 
     it('calls browserstackExecutor getSessionDetails', async () => {
-      let automateProvider = new AutomateProvider('1234', 'command-browserstack', { platform: 'win' }, {});
+      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {});
+      await automateProvider.createDriver();
       await automateProvider.setDebugUrl();
       expect(browserstackExecutorSpy).toHaveBeenCalledWith('getSessionDetails');
       expect(automateProvider.debugUrl).toEqual('http:localhost');
+    });
+
+    it('throws error if driver is not initialized', async () => {
+      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {});
+      await expectAsync(automateProvider.setDebugUrl())
+        .toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
     });
   });
 
