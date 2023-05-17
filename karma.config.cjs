@@ -29,7 +29,7 @@ module.exports = async config => {
       '/_/': 'localhost/'
     },
 
-    // create dedicated bundles for src, test helpers, and each test suite
+    // create dedicated bundles for src, test helpers, and each test suites
     preprocessors: {
       'src/index.js': ['rollup'],
       'test/helpers.js': ['rollupTestHelpers'],
