@@ -23,7 +23,9 @@ module.exports = async config => {
       { pattern: 'test/**/*.test.js', type: 'module', watched: false },
       { pattern: 'test/assets/**', watched: false, included: false }
     ],
-
+    exclude: [
+      '**/test/request.test.js',
+    ],
     proxies: {
       // useful when the contents of a fake asset do not matter
       '/_/': 'localhost/'
