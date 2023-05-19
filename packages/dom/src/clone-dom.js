@@ -67,5 +67,7 @@ export function getOuterHTML(docElement) {
   // chromium gives us declarative shadow DOM serialization API
   let innerHTML = docElement.getInnerHTML({ includeShadowRoots: true });
   docElement.textContent = '';
-  return docElement.outerHTML.replace('</html>', `${innerHTML}</html>`);
+  // Note: Here we are specifically passing replacer function to avoid any replacements due to
+  // special characters in client's dom like $&
+  return docElement.outerHTML.replace('</html>', () => `${innerHTML}</html>`);
 };
