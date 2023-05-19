@@ -5,7 +5,7 @@ import logger from '@percy/logger';
 import { normalize } from '@percy/config/utils';
 import { getPackageJSON, Server } from './utils.js';
 // TODO Remove below esline disable once we publish webdriver-util
-import automateScreenshot from '@percy/webdriver-utils'; // eslint-disable-line import/no-extraneous-dependencies
+import WebdriverUtils from '@percy/webdriver-utils'; // eslint-disable-line import/no-extraneous-dependencies
 
 // need require.resolve until import.meta.resolve can be transpiled
 export const PERCY_DOM = createRequire(import.meta.url).resolve('@percy/dom');
@@ -118,7 +118,7 @@ export function createPercyServer(percy, port) {
       success: await percy.flush(req.body).then(() => true)
     }))
     .route('post', '/percy/automateScreenshot', async (req, res) => res.json(200, {
-      success: await (percy.upload(await automateScreenshot(req.body))).then(() => true)
+      success: await (percy.upload(await new WebdriverUtils(req.body).automateScreenshot())).then(() => true)
     }))
   // stops percy at the end of the current event loop
     .route('/percy/stop', (req, res) => {
