@@ -3,7 +3,7 @@ import utils from '@percy/sdk-utils';
 
 export default class WebdriverUtils {
   log = utils.logger('webdriver-utils:main');
-  constructor({sessionId, commandExecutorUrl, capabilities, sessionCapabilites, snapshotName}){
+  constructor({ sessionId, commandExecutorUrl, capabilities, sessionCapabilites, snapshotName }) {
     this.sessionId = sessionId;
     this.commandExecutorUrl = commandExecutorUrl;
     this.capabilities = capabilities;
@@ -11,7 +11,7 @@ export default class WebdriverUtils {
     this.snapshotName = snapshotName;
   }
 
-  async automateScreenshot(){
+  async automateScreenshot() {
     this.log.info('Starting automate screenshot');
     const automate = ProviderResolver.resolve(this.sessionId, this.commandExecutorUrl, this.capabilities, this.sessionCapabilites);
     await automate.createDriver();

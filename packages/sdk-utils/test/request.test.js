@@ -2,10 +2,11 @@ import utils from '@percy/sdk-utils';
 import https from 'https';
 import http from 'http';
 import fs from 'fs';
+import path from 'path';
 
 const ssl = {
-  cert: fs.readFileSync(`${__dirname}/assets/certs/test.crt`),
-  key: fs.readFileSync(`${__dirname}/assets/certs/test.key`)
+  cert: fs.readFileSync(path.join(__dirname, 'assets', 'certs', 'test.crt')),
+  key: fs.readFileSync(path.join(__dirname, 'assets', 'certs', 'test.key'))
 };
 
 // Returns the port number of a URL object. Defaults to port 443 for https
@@ -61,13 +62,6 @@ function createTestServer({ type = 'http', ...options } = {}, handler) {
       (options.routes ||= {})[url] = handler;
     },
 
-    request: (path, options) => {
-      return request(new URL(path, url).href, {
-        rejectUnauthorized: false,
-        ...options
-      });
-    },
-
     async start() {
       return new Promise((resolve, reject) => {
         server.listen(this.port)
@@ -89,11 +83,11 @@ describe('Utils Requests', () => {
   // Adding below env variables to support self signed certs
   beforeAll(() => {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-  })
+  });
 
   afterAll(() => {
     delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-  })
+  });
 
   beforeEach(async () => {
     server = await createTestServer({ type: 'https', port: 8080 }).start();
@@ -103,8 +97,8 @@ describe('Utils Requests', () => {
     await server?.close();
   });
 
-  it('returns the successful response body', async() => {
-    let res = await utils.request(server.address)
-    expect(res.body).toBe('test')
-  })
-})
+  it('returns the successful response body', async () => {
+    let res = await utils.request(server.address);
+    expect(res.body).toBe('test');
+  });
+});

@@ -1,5 +1,5 @@
 
-import validations from './validations.js'
+import validations from './validations.js';
 const { Undefined } = validations;
 
 export default class Cache {
