@@ -11,9 +11,7 @@ describe('serializeDOM', () => {
   });
 
   it('keeps replace special chars as is and does not replace with regex rules', () => {
-    const paraEl = document.createElement('p');
-    paraEl.textContent = 'Hey Percy $&';
-    document.documentElement.appendChild(paraEl);
+    withExample('<p>Hey Percy $&</p>');
 
     const result = serializeDOM();
     expect(result.html).toContain('Hey Percy $&');
