@@ -2,6 +2,7 @@ import path from 'path';
 import PercyConfig from '@percy/config';
 import { logger, setupTest, fs } from './helpers/index.js';
 import Percy from '@percy/core';
+import WebdriverUtils from '@percy/webdriver-utils'; // eslint-disable-line import/no-extraneous-dependencies
 
 describe('API Server', () => {
   let percy;
@@ -127,6 +128,17 @@ describe('API Server', () => {
     expect(percy.flush).toHaveBeenCalledWith({
       name: 'Snapshot name'
     });
+  });
+
+  it('has a /automateScreenshot endpoint that calls #upload()', async () => {
+    spyOn(percy, 'upload').and.resolveTo();
+    spyOn(WebdriverUtils.prototype, 'automateScreenshot').and.resolveTo(true);
+    await percy.start();
+
+    await expectAsync(request('/percy/automateScreenshot', {
+      body: { name: 'Snapshot name' },
+      method: 'post'
+    })).toBeResolvedTo({ success: true });
   });
 
   it('has a /stop endpoint that calls #stop()', async () => {
