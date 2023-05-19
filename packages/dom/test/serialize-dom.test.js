@@ -10,6 +10,15 @@ describe('serializeDOM', () => {
     });
   });
 
+  it('keeps replace special chars as is and does not replace with regex rules', () => {
+    const paraEl = document.createElement('p');
+    paraEl.textContent = 'Hey Percy $&';
+    document.documentElement.appendChild(paraEl);
+
+    const result = serializeDOM();
+    expect(result.html).toContain('Hey Percy $&');
+  });
+
   it('optionally returns a stringified response', () => {
     expect(serializeDOM({ stringifyResponse: true }))
       .toMatch('{"html":".*","warnings":\\[\\],"resources":\\[\\]}');
