@@ -6,6 +6,8 @@ function dropLoadingAttribute(domElement) {
 }
 
 // All transformations that we need to apply for a successful discovery and stable render
-export function maybeTranformElement(domElement) {
+export function applyElementTransformations(domElement) {
   dropLoadingAttribute(domElement);
 }
+
+export default applyElementTransformations;
