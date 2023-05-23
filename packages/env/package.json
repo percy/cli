@@ -29,5 +29,8 @@
     "lint": "eslint --ignore-path ../../.gitignore .",
     "test": "node ../../scripts/test",
     "test:coverage": "yarn test --coverage"
+  },
+  "dependencies": {
+    "@percy/logger": "1.24.2"
   }
 }

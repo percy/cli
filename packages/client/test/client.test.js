@@ -36,7 +36,7 @@ describe('PercyClient', () => {
       );
       expect(logger.stderr).toEqual([
         '[percy:env] Detected ci as null',
-        '[percy:env] Detected info as null',
+        '[percy:env] Detected info as null'
       ]);
     });
 
