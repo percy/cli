@@ -60,7 +60,7 @@ describe('serializeDOM', () => {
     expect($('h2.callback').length).toEqual(1);
   });
 
-  it('drops the loading attribute', () => {
+  it('applies dom transformations', () => {
     withExample('<img loading="lazy" src="http://some-url"/><iframe loading="lazy" src="">');
 
     const result = serializeDOM();
