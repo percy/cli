@@ -34,7 +34,10 @@ describe('PercyClient', () => {
       expect(client.userAgent()).toMatch(
         /^Percy\/v1 @percy\/client\/\S+ client-info \(env-info; node\/v[\d.]+.*\)$/
       );
-      expect(logger.stderr).toEqual([]);
+      expect(logger.stderr).toEqual([
+        '[percy:env] Detected ci as null',
+        '[percy:env] Detected info as null',
+      ]);
     });
 
     it('it logs a debug warning when no info is passed', async () => {
