@@ -1,11 +1,5 @@
-import utils from '@percy/sdk-utils';
 import GenericProvider from './genericProvider.js';
 import Cache from '../util/cache.js';
-import Tile from '../util/tile.js';
-import NormalizeData from '../metadata/normalizeData.js';
-
-const log = utils.logger('webdriver-utils:automateProvider');
-const { TimeIt } = utils;
 
 export default class AutomateProvider extends GenericProvider {
   constructor(
@@ -156,45 +150,8 @@ export default class AutomateProvider extends GenericProvider {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     this.debugUrl = await Cache.withCache(Cache.bstackSessionDetails, this.driver.sessionId,
       async () => {
-        return `https://automate.browserstack.com/builds/${this.automateResults.buildHash}/sessions/${this.automateResults.sessionHash}`;
+        const sessionDetails = await this.browserstackExecutor('getSessionDetails');
+        return JSON.parse(sessionDetails.value).browser_url;
       });
-  }
-
-  async getTag() {
-    if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
-    if (!this.automateResults) throw new Error('Comparison tag details not available');
-
-    const automateCaps = this.automateResults.capabilities;
-    const normalizeTags = new NormalizeData();
-
-    let deviceName = this.automateResults.deviceName;
-    const osName = normalizeTags.osRollUp(automateCaps.os);
-    const osVersion = automateCaps.os_version?.split('.')[0];
-    const browserName = normalizeTags.browserRollUp(automateCaps.browserName, this.metaData.device());
-    const browserVersion = normalizeTags.browserVersionOrDeviceNameRollup(automateCaps.browserVersion, deviceName, this.metaData.device());
-
-    if (!this.metaData.device()) {
-      deviceName = `${osName}_${osVersion}_${browserName}_${browserVersion}`;
-    }
-
-    let { width, height } = await this.metaData.windowSize();
-    const resolution = await this.metaData.screenResolution();
-    const orientation = (this.metaData.orientation() || automateCaps.deviceOrientation)?.toLowerCase();
-
-    // for android window size only constitutes of browser viewport, hence adding nav / status / url bar heights
-    [this.header, this.footer] = await this.getHeaderFooter(deviceName, osVersion, browserName);
-    height = this.metaData.device() && osName?.toLowerCase() === 'android' ? height + this.header + this.footer : height;
-
-    return {
-      name: deviceName,
-      osName,
-      osVersion,
-      width,
-      height,
-      orientation,
-      browserName,
-      browserVersion,
-      resolution
-    };
   }
 }

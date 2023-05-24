@@ -2,9 +2,6 @@ import GenericProvider from '../../src/providers/genericProvider.js';
 import Driver from '../../src/driver.js';
 import MetaDataResolver from '../../src/metadata/metaDataResolver.js';
 import DesktopMetaData from '../../src/metadata/desktopMetaData.js';
-import Cache from '../../src/util/cache.js';
-import MobileMetaData from '../../src/metadata/mobileMetaData.js';
-import utils from '@percy/sdk-utils';
 
 describe('GenericProvider', () => {
   let genericProvider;
@@ -21,11 +18,11 @@ describe('GenericProvider', () => {
 
     beforeEach(() => {
       metaDataResolverSpy = spyOn(MetaDataResolver, 'resolve');
-      expectedDriver = new Driver('123', 'http:executorUrl', {});
+      expectedDriver = new Driver('123', 'http:executorUrl');
     });
 
     it('creates driver', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', {});
+      genericProvider = new GenericProvider('123', 'http:executorUrl', {}, {});
       await genericProvider.createDriver();
       expect(genericProvider.driver).toEqual(expectedDriver);
       expect(capabilitiesSpy).toHaveBeenCalledTimes(1);
@@ -36,23 +33,17 @@ describe('GenericProvider', () => {
   describe('getTiles', () => {
     beforeEach(() => {
       spyOn(Driver.prototype, 'takeScreenshot').and.returnValue(Promise.resolve('123b='));
-      spyOn(GenericProvider.prototype, 'getHeaderFooter').and.returnValue(Promise.resolve([123, 456]));
     });
 
     it('creates tiles from screenshot', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
       genericProvider.createDriver();
-      const tiles = await genericProvider.getTiles(123, 456, false);
-      expect(tiles.tiles.length).toEqual(1);
-      expect(tiles.tiles[0].navBarHeight).toEqual(0);
-      expect(tiles.tiles[0].statusBarHeight).toEqual(0);
-      expect(tiles.tiles[0].footerHeight).toEqual(456);
-      expect(tiles.tiles[0].headerHeight).toEqual(123);
-      expect(Object.keys(tiles)).toContain('domInfoSha');
+      const tiles = await genericProvider.getTiles(false);
+      expect(tiles.length).toEqual(1);
     });
 
     it('throws error if driver not initailized', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
       await expectAsync(genericProvider.getTiles(false)).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
     });
   });
@@ -75,27 +66,8 @@ describe('GenericProvider', () => {
         .and.returnValue('111');
     });
 
-    it('returns correct tag for android', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'android', platformName: 'android' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
-      spyOn(MobileMetaData.prototype, 'osName').and.returnValue('android');
-      await genericProvider.createDriver();
-      const tag = await genericProvider.getTag();
-      expect(tag).toEqual({
-        name: 'mockDeviceName',
-        osName: 'android',
-        osVersion: 'mockOsVersion',
-        width: 1000,
-        height: 1000 + 123 + 456,
-        orientation: 'landscape',
-        browserName: 'mockBrowserName',
-        browserVersion: '111',
-        resolution: '1980 x 1080'
-      });
-    });
-
-    it('returns correct tag for others', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
-      spyOn(MobileMetaData.prototype, 'osName').and.returnValue('mockOsName');
+    it('returns correct tag', async () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
       await genericProvider.createDriver();
       const tag = await genericProvider.getTag();
       expect(tag).toEqual({
@@ -111,7 +83,7 @@ describe('GenericProvider', () => {
     });
 
     it('throws error if driver not initailized', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
       await expectAsync(genericProvider.getTag()).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
     });
   });
@@ -119,26 +91,19 @@ describe('GenericProvider', () => {
   describe('screenshot', () => {
     let getTagSpy;
     let getTilesSpy;
-    let addPercyCSSSpy;
-    let removePercyCSSSpy;
 
     beforeEach(() => {
       getTagSpy = spyOn(GenericProvider.prototype, 'getTag').and.returnValue(Promise.resolve('mock-tag'));
-      getTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve({ tiles: 'mock-tile', domInfoSha: 'mock-dom-sha' }));
-      addPercyCSSSpy = spyOn(GenericProvider.prototype, 'addPercyCSS').and.returnValue(Promise.resolve(true));
-      removePercyCSSSpy = spyOn(GenericProvider.prototype, 'removePercyCSS').and.returnValue(Promise.resolve(true));
-      spyOn(DesktopMetaData.prototype, 'windowSize')
-        .and.returnValue(Promise.resolve({ width: 1920, height: 1080 }));
+      getTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve('mock-tile'));
     });
 
     it('calls correct funcs', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
       await genericProvider.createDriver();
       let res = await genericProvider.screenshot('mock-name', {});
       expect(addPercyCSSSpy).toHaveBeenCalledTimes(1);
       expect(getTagSpy).toHaveBeenCalledTimes(1);
-      expect(getTilesSpy).toHaveBeenCalledOnceWith(0, 0, false);
-      expect(removePercyCSSSpy).toHaveBeenCalledTimes(1);
+      expect(getTilesSpy).toHaveBeenCalledOnceWith(false);
       expect(res).toEqual({
         name: 'mock-name',
         tag: 'mock-tag',
