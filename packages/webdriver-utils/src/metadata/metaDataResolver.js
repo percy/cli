@@ -6,9 +6,7 @@ export default class MetaDataResolver {
     if (!driver) throw new Error('Please pass a Driver object');
 
     const platform = opts.platformName || opts.platform;
-    if (['ios', 'android'].includes(platform.toLowerCase()) ||
-      ['ios', 'android'].includes(capabilities?.platformName?.toLowerCase()) ||
-      ['ipad', 'iphone'].includes(capabilities?.device?.toString()?.toLowerCase())) {
+    if (['ios', 'android'].includes(platform.toLowerCase())) {
       return new MobileMetaData(driver, capabilities);
     } else {
       return new DesktopMetaData(driver, capabilities);

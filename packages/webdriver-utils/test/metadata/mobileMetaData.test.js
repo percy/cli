@@ -1,6 +1,5 @@
 import MobileMetaData from '../../src/metadata/mobileMetaData.js';
 import Driver from '../../src/driver.js';
-import Cache from '../../src/util/cache.js';
 
 describe('MobileMetaData', () => {
   let getWindowSizeSpy;
@@ -10,7 +9,6 @@ describe('MobileMetaData', () => {
   beforeEach(() => {
     getWindowSizeSpy = spyOn(Driver.prototype, 'getWindowSize');
     executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
-    Cache.reset();
     mobileMetaData = new MobileMetaData(new Driver('123', 'http:executorUrl'), {
       osVersion: '12.0',
       browserName: 'Chrome',
@@ -25,25 +23,6 @@ describe('MobileMetaData', () => {
   describe('browserName', () => {
     it('calculates browserName', () => {
       expect(mobileMetaData.browserName()).toEqual('chrome');
-    });
-  });
-
-  describe('browserVersion', () => {
-    it('calculates browserVersion', () => {
-      expect(mobileMetaData.browserVersion()).toEqual('111');
-    });
-
-    it('calculates alternate browserVersion', () => {
-      mobileMetaData = new MobileMetaData(new Driver('123', 'http:executorUrl'), {
-        osVersion: '12.0',
-        browserName: 'iphone',
-        os: 'mac',
-        browserVersion: '108.0',
-        orientation: 'landscape',
-        deviceName: 'SamsungS21-XYZ',
-        platform: 'win'
-      });
-      expect(mobileMetaData.browserVersion()).toEqual('108');
     });
   });
 
@@ -66,7 +45,7 @@ describe('MobileMetaData', () => {
     });
   });
 
-  describe('osVersion', () => {
+  describe('osVersin', () => {
     it('calculates OsVersion', () => {
       expect(mobileMetaData.osVersion()).toEqual('12');
     });
@@ -113,27 +92,6 @@ describe('MobileMetaData', () => {
       expect(devicePixelRatio).toEqual(2);
       expect(executeScriptSpy)
         .toHaveBeenCalledWith({ script: 'return window.devicePixelRatio;', args: [] });
-    });
-  });
-
-  describe('screenResolution', () => {
-    let screenInfo;
-
-    beforeEach(() => {
-      executeScriptSpy.and.returnValue(Promise.resolve({ value: ['1980', '1080'] }));
-    });
-
-    it('calclulates the screen resolution', async () => {
-      screenInfo = await mobileMetaData.screenResolution();
-      expect(screenInfo).toEqual('1980 x 1080');
-      expect(executeScriptSpy)
-        .toHaveBeenCalledWith({ script: 'return [parseInt(window.screen.width * window.devicePixelRatio).toString(), parseInt(window.screen.height * window.devicePixelRatio).toString()];', args: [] });
-    });
-  });
-
-  describe('device', () => {
-    it('returns false', () => {
-      expect(mobileMetaData.device()).toEqual(true);
     });
   });
 });

@@ -1,25 +1,18 @@
 import utils from '@percy/sdk-utils';
 import Cache from './util/cache.js';
 const { request } = utils;
-const log = utils.logger('webdriver-utils:driver');
 
 export default class Driver {
-  constructor(sessionId, executorUrl, passedCapabilities) {
+  constructor(sessionId, executorUrl) {
     this.sessionId = sessionId;
     this.executorUrl = executorUrl.includes('@') ? `https://${executorUrl.split('@')[1]}` : executorUrl;
-    this.passedCapabilities = passedCapabilities;
   }
 
   async getCapabilites() {
     return await Cache.withCache(Cache.caps, this.sessionId, async () => {
-      try {
-        const baseUrl = `${this.executorUrl}/session/${this.sessionId}`;
-        const caps = JSON.parse((await request(baseUrl)).body);
-        return caps.value;
-      } catch (err) {
-        log.warn(`Falling back to legacy protocol, Error: ${err.message}`);
-        return this.passedCapabilities;
-      }
+      const baseUrl = `${this.executorUrl}/session/${this.sessionId}`;
+      const caps = JSON.parse((await request(baseUrl)).body);
+      return caps.value;
     });
   }
 
@@ -38,11 +31,6 @@ export default class Driver {
     ) {
       throw new Error('Please pass command as {script: "", args: []}');
     }
-    // browser_executor is custom BS executor script, if there is anything extra it breaks
-    // percy_automate_script is an anchor comment to identify percy automate scripts
-    if (!command.script.includes('browserstack_executor')) {
-      command.script = `/* percy_automate_script */ \n ${command.script}`;
-    }
     const options = {
       method: 'POST',
       headers: {
@@ -59,24 +47,5 @@ export default class Driver {
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/screenshot`;
     const screenShot = JSON.parse((await request(baseUrl)).body);
     return screenShot.value;
-  }
-
-  async rect(elementId) {
-    const baseUrl = `${this.executorUrl}/session/${this.sessionId}/element/${elementId}/rect`;
-    const response = JSON.parse((await request(baseUrl)).body);
-    return response.value;
-  }
-
-  async findElement(using, value) {
-    const options = {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json;charset=utf-8'
-      },
-      body: JSON.stringify({ using, value })
-    };
-    const baseUrl = `${this.executorUrl}/session/${this.sessionId}/element`;
-    const response = JSON.parse((await request(baseUrl, options)).body);
-    return response.value;
   }
 }

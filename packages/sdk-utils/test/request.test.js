@@ -4,7 +4,6 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 
-// NOTE: Although sdk-utils test run in browser as well, we do not run sdk-utils/request test in browsers as we require creation of https server for this test
 const ssl = {
   cert: fs.readFileSync(path.join(__dirname, 'assets', 'certs', 'test.crt')),
   key: fs.readFileSync(path.join(__dirname, 'assets', 'certs', 'test.key'))

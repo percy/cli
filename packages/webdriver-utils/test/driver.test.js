@@ -10,17 +10,13 @@ describe('Driver', () => {
   };
   let sessionId = '123';
   let executorUrl = 'http://localhost/wd/hub';
-  let passedCapabilities = {
-    browser: 'chrome',
-    platform: 'win'
-  };
   let driver;
 
   beforeEach(() => {
     requestSpy = spyOn(utils.request, 'fetch').and.returnValue(
       Promise.resolve(mockResponseObject)
     );
-    driver = new Driver(sessionId, executorUrl, passedCapabilities);
+    driver = new Driver(sessionId, executorUrl);
   });
 
   describe('constructor', () => {
@@ -38,29 +34,6 @@ describe('Driver', () => {
     });
   });
 
-  describe('getCapabilities fallback', () => {
-    const mockFailedResponse = {
-      body: '{"value": {"message" : "Internal Server Error"}',
-      status: 500,
-      headers: { 'content-type': 'application/text' }
-    };
-    let requestFailedSpy;
-    const sessionId = '1234';
-    const newDriver = new Driver(sessionId, executorUrl, passedCapabilities);
-
-    beforeEach(() => {
-      requestFailedSpy = spyOn(utils.request, 'fetch').and.returnValue(
-        Promise.resolve(mockFailedResponse)
-      );
-    });
-
-    it('falls back to passed capabilites', async () => {
-      let res = await newDriver.getCapabilites();
-      expect(requestFailedSpy).toHaveBeenCalledOnceWith(`${executorUrl}/session/${sessionId}`, Object({}));
-      expect(res).toBe(passedCapabilities);
-    });
-  });
-
   describe('getWindowsize', () => {
     it('calls requests', async () => {
       let res = await driver.getWindowSize();
@@ -75,24 +48,6 @@ describe('Driver', () => {
     it('calls requests', async () => {
       let command = { script: 'abc', args: [] };
       let res = await driver.executeScript(command);
-      expect(command.script).toEqual('/* percy_automate_script */ \n abc');
-      expect(requestSpy).toHaveBeenCalledOnceWith(
-        `${executorUrl}/session/${sessionId}/execute/sync`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json;charset=utf-8'
-          },
-          body: JSON.stringify(command)
-        }
-      );
-      expect(res).toEqual({ value: 'mockVal' });
-    });
-
-    it('does not add anchor comment to browserstack_executor', async () => {
-      let command = { script: 'browserstack_executor', args: [] };
-      let res = await driver.executeScript(command);
-      expect(command.script).toEqual('browserstack_executor');
       expect(requestSpy).toHaveBeenCalledOnceWith(
         `${executorUrl}/session/${sessionId}/execute/sync`,
         {
@@ -119,44 +74,6 @@ describe('Driver', () => {
       let res = await driver.takeScreenshot();
       expect(requestSpy).toHaveBeenCalledOnceWith(
         `${executorUrl}/session/${sessionId}/screenshot`,
-        Object({}));
-      expect(res).toEqual('mockVal');
-    });
-  });
-
-  describe('findElement', () => {
-    it('calls requests', async () => {
-      let using = 'xpath';
-      let value = '/html';
-      let res = await driver.findElement(using, value);
-      expect(requestSpy).toHaveBeenCalledOnceWith(
-        `${executorUrl}/session/${sessionId}/element`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json;charset=utf-8'
-          },
-          body: JSON.stringify({ using, value: value })
-        }
-      );
-      expect(res).toEqual('mockVal');
-    });
-
-    it('throws error', async () => {
-      let using = 'xpath';
-      let value = '/html';
-      await expectAsync(driver.executeScript(using, value)).toBeRejectedWith(
-        new Error('Please pass command as {script: "", args: []}')
-      );
-    });
-  });
-
-  describe('rect', () => {
-    it('calls requests', async () => {
-      const elementId = 'element';
-      let res = await driver.rect(elementId);
-      expect(requestSpy).toHaveBeenCalledOnceWith(
-        `${executorUrl}/session/${sessionId}/element/${elementId}/rect`,
         Object({}));
       expect(res).toEqual('mockVal');
     });
