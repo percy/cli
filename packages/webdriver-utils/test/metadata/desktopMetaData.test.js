@@ -11,22 +11,14 @@ describe('DesktopMetaData', () => {
     executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
     desktopMetaData = new DesktopMetaData(new Driver('123', 'http:executorUrl'), {
       browserName: 'Chrome',
-      browserVersion: '111.12.32',
       version: '111.0',
-      platform: 'win',
-      osVersion: '10'
+      platform: 'win'
     });
   });
 
   describe('browserName', () => {
     it('calculates browserName', () => {
       expect(desktopMetaData.browserName()).toEqual('chrome');
-    });
-  });
-
-  describe('browserVersion', () => {
-    it('calculates browserVersion', () => {
-      expect(desktopMetaData.browserVersion()).toEqual('111');
     });
   });
 
@@ -38,29 +30,27 @@ describe('DesktopMetaData', () => {
     it('calculates alternate osName', () => {
       desktopMetaData = new DesktopMetaData(new Driver('123', 'http:executorUrl'), {
         browserName: 'Chrome',
-        browserVersion: '111.12.32',
         version: '111.0',
-        os: 'win',
         osVersion: '10'
       });
-      expect(desktopMetaData.osName()).toEqual('win');
+      expect(desktopMetaData.osName()).toEqual('10');
     });
   });
 
-  describe('osVersion', () => {
-    it('calculates osVersion', () => {
-      expect(desktopMetaData.osVersion()).toEqual('10');
+  describe('osVersin', () => {
+    it('calculates OsVersion', () => {
+      expect(desktopMetaData.osVersion()).toEqual('111');
     });
   });
 
   describe('deviceName', () => {
     it('calculates deviceName', () => {
-      expect(desktopMetaData.deviceName()).toEqual('win_10_chrome_111');
+      expect(desktopMetaData.deviceName()).toEqual('chrome_111_win');
     });
   });
 
   describe('orientation', () => {
-    it('calculates orientation', () => {
+    it('calculates browserName', () => {
       expect(desktopMetaData.orientation()).toEqual('landscape');
     });
   });

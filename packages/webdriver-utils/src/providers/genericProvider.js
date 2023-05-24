@@ -3,76 +3,31 @@ import utils from '@percy/sdk-utils';
 import MetaDataResolver from '../metadata/metaDataResolver.js';
 import Tile from '../util/tile.js';
 import Driver from '../driver.js';
-import Cache from '../util/cache.js';
-const { request } = utils;
 
-const DEVICES_CONFIG_URL = 'https://storage.googleapis.com/percy-utils/devices.json';
 const log = utils.logger('webdriver-utils:genericProvider');
+// TODO: Need to pass parameter from sdk and catch in cli
+const CLIENT_INFO = 'local-poc-poa';
+const ENV_INFO = 'staging-poc-poa';
 
 export default class GenericProvider {
-  clientInfo = new Set();
-  environmentInfo = new Set();
-  options = {};
   constructor(
     sessionId,
     commandExecutorUrl,
     capabilities,
-    sessionCapabilites,
-    clientInfo,
-    environmentInfo,
-    options,
-    buildInfo
+    sessionCapabilites
   ) {
     this.sessionId = sessionId;
     this.commandExecutorUrl = commandExecutorUrl;
     this.capabilities = capabilities;
     this.sessionCapabilites = sessionCapabilites;
-    this.addClientInfo(clientInfo);
-    this.addEnvironmentInfo(environmentInfo);
-    this.options = options;
-    this.buildInfo = buildInfo;
     this.driver = null;
     this.metaData = null;
     this.debugUrl = null;
-    this.header = 0;
-    this.footer = 0;
-  }
-
-  addDefaultOptions() {
-    this.options.freezeAnimation = this.options.freezeAnimation || false;
-  }
-
-  defaultPercyCSS() {
-    return `*, *::before, *::after {
-      -moz-transition: none !important;
-      transition: none !important;
-      -moz-animation: none !important;
-      animation: none !important;
-      animation-duration: 0 !important;
-      caret-color: transparent !important;
-      content-visibility: visible !important;
-    }
-    html{
-      scrollbar-width: auto !important;
-    }
-    svg {
-      shape-rendering: geometricPrecision !important;
-    }
-    scrollbar, scrollcorner, scrollbar thumb, scrollbar scrollbarbutton {
-      pointer-events: none !important;
-      -moz-appearance: none !important;
-      display: none !important;
-    }
-    video::-webkit-media-controls {
-      display: none !important;
-    }`;
   }
 
   async createDriver() {
-    this.driver = new Driver(this.sessionId, this.commandExecutorUrl, this.capabilities);
-    log.debug(`Passed capabilities -> ${JSON.stringify(this.capabilities)}`);
+    this.driver = new Driver(this.sessionId, this.commandExecutorUrl);
     const caps = await this.driver.getCapabilites();
-    log.debug(`Fetched capabilities -> ${JSON.stringify(caps)}`);
     this.metaData = await MetaDataResolver.resolve(this.driver, caps, this.capabilities);
   }
 
@@ -80,119 +35,47 @@ export default class GenericProvider {
     return true;
   }
 
-  addClientInfo(info) {
-    for (let i of [].concat(info)) {
-      if (i) this.clientInfo.add(i);
-    }
-  }
-
-  addEnvironmentInfo(info) {
-    for (let i of [].concat(info)) {
-      if (i) this.environmentInfo.add(i);
-    }
-  }
-
-  async addPercyCSS(userCSS) {
-    const createStyleElement = `const e = document.createElement('style');
-      e.setAttribute('data-percy-specific-css', true);
-      e.innerHTML = '${userCSS}';
-      document.body.appendChild(e);`;
-    await this.driver.executeScript({ script: createStyleElement, args: [] });
-  }
-
-  async removePercyCSS() {
-    const removeStyleElement = `const n = document.querySelector('[data-percy-specific-css]');
-      n.remove();`;
-    await this.driver.executeScript({ script: removeStyleElement, args: [] });
-  }
-
-  async screenshot(name, {
-    ignoreRegionXpaths = [],
-    ignoreRegionSelectors = [],
-    ignoreRegionElements = [],
-    customIgnoreRegions = [],
-    considerRegionXpaths = [],
-    considerRegionSelectors = [],
-    considerRegionElements = [],
-    customConsiderRegions = []
-  }) {
+  async screenshot(name) {
     let fullscreen = false;
 
-    this.addDefaultOptions();
-
-    const percyCSS = (this.defaultPercyCSS() + (this.options.percyCSS || '')).split('\n').join('');
-    log.debug(`[${name}] : Applying the percyCSS - ${this.options.percyCSS}`);
-    await this.addPercyCSS(percyCSS);
-
-    log.debug('Fetching comparisong tag ...');
     const tag = await this.getTag();
-    log.debug(`[${name}] : Tag ${JSON.stringify(tag)}`);
-
-    const tiles = await this.getTiles(this.header, this.footer, fullscreen);
-    log.debug(`[${name}] : Tiles ${JSON.stringify(tiles)}`);
-
-    const ignoreRegions = await this.findRegions(
-      ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions
-    );
-    const considerRegions = await this.findRegions(
-      considerRegionXpaths, considerRegionSelectors, considerRegionElements, customConsiderRegions
-    );
+    const tiles = await this.getTiles(fullscreen);
     await this.setDebugUrl();
-    log.debug(`[${name}] : Debug url ${this.debugUrl}`);
 
-    await this.removePercyCSS();
+    log.debug(`${name} : Tag ${JSON.stringify(tag)}`);
+    log.debug(`${name} : Tiles ${JSON.stringify(tiles)}`);
+    log.debug(`${name} : Debug url ${this.debugUrl}`);
     return {
       name,
       tag,
-      tiles: tiles.tiles,
+      tiles,
       // TODO: Fetch this one for bs automate, check appium sdk
       externalDebugUrl: this.debugUrl,
-      ignoredElementsData: {
-        ignoreElementsData: ignoreRegions
-      },
-      consideredElementsData: {
-        considerElementsData: considerRegions
-      },
-      environmentInfo: [...this.environmentInfo].join('; '),
-      clientInfo: [...this.clientInfo].join(' '),
-      domInfoSha: tiles.domInfoSha
+      environmentInfo: ENV_INFO,
+      clientInfo: CLIENT_INFO
     };
   }
 
-  // TODO: get dom sha for non-automate
-  async getDomContent() {
-    // execute script and return dom content
-    return 'dummyValue';
-  }
-
-  async getTiles(headerHeight, footerHeight, fullscreen) {
+  async getTiles(fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     const base64content = await this.driver.takeScreenshot();
-    log.debug('Tiles captured successfully');
-    return {
-      tiles: [
-        new Tile({
-          content: base64content,
-          statusBarHeight: 0,
-          navBarHeight: 0,
-          headerHeight,
-          footerHeight,
-          fullscreen
-        })
-      ],
-      // TODO: Add Generic support sha for contextual diff for non-automate
-      domInfoSha: await this.getDomContent()
-    };
+    return [
+      new Tile({
+        content: base64content,
+        // TODO: Need to add method to fetch these attr
+        statusBarHeight: 0,
+        navBarHeight: 0,
+        headerHeight: 0,
+        footerHeight: 0,
+        fullscreen
+      })
+    ];
   }
 
   async getTag() {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
-    let { width, height } = await this.metaData.windowSize();
-    const resolution = await this.metaData.screenResolution();
+    const { width, height } = await this.metaData.windowSize();
     const orientation = this.metaData.orientation();
-    [this.header, this.footer] = await this.getHeaderFooter();
-    // for android window size only constitutes of browser viewport, hence adding nav / status / url bar heights
-    height = this.metaData.osName() === 'android' ? height + this.header + this.footer : height;
     return {
       name: this.metaData.deviceName(),
       osName: this.metaData.osName(),
@@ -201,12 +84,11 @@ export default class GenericProvider {
       height,
       orientation: orientation,
       browserName: this.metaData.browserName(),
-      browserVersion: this.metaData.browserVersion(),
-      resolution: resolution
+      // TODO
+      browserVersion: 'unknown'
     };
   }
 
-  // TODO: Add Debugging Url for non-automate
   async setDebugUrl() {
     this.debugUrl = 'https://localhost/v1';
   }

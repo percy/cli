@@ -4,21 +4,12 @@ import GenericProvider from '../../src/providers/genericProvider.js';
 
 describe('ProviderResolver', () => {
   describe('resolve', () => {
-    let buildInfo;
-
-    beforeEach(() => {
-      buildInfo = {
-        id: '123',
-        url: 'https://percy.io/abc/123'
-      };
-    });
-
     it('returns automateProvider correctly', () => {
-      expect(ProviderResolver.resolve('123', 'http:browserstack', {}, {}, 'client', 'environment', {}, buildInfo)).toBeInstanceOf(AutomateProvider);
+      expect(ProviderResolver.resolve('123', 'http:browserstack', {}, {})).toBeInstanceOf(AutomateProvider);
     });
 
     it('returns genericProvider correctly', () => {
-      expect(ProviderResolver.resolve('123', 'http:outside', {}, {}, 'client', 'environment', {}, buildInfo)).toBeInstanceOf(GenericProvider);
+      expect(ProviderResolver.resolve('123', 'http:outside', {}, {})).toBeInstanceOf(GenericProvider);
     });
   });
 });

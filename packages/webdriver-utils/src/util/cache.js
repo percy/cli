@@ -1,6 +1,6 @@
 
-import utils from '@percy/sdk-utils';
-const { Undefined } = utils;
+import validations from './validations.js';
+const { Undefined } = validations;
 
 export default class Cache {
   static cache = {};
@@ -9,9 +9,6 @@ export default class Cache {
   static caps = 'caps';
   static bstackSessionDetails = 'bstackSessionDetails';
   static systemBars = 'systemBars';
-  static devicesConfig = 'devicesConfig';
-  static dpr = 'dpr';
-  static resolution = 'resolution';
 
   // maintainance
   static lastTime = Date.now();
