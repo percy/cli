@@ -12,6 +12,7 @@ export async function isPercyEnabled() {
       let response = await request('/percy/healthcheck');
       percy.version = response.headers['x-percy-core-version'];
       percy.config = response.body.config;
+      percy.build = response.body.build;
       percy.enabled = true;
     } catch (e) {
       percy.enabled = false;

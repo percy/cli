@@ -4,6 +4,7 @@ const helpers = {
   async setupTest({ logger = true } = {}) {
     utils.percy.version = '';
     delete utils.percy.config;
+    delete utils.percy.build;
     delete utils.percy.enabled;
     delete utils.percy.domScript;
     delete utils.logger.log.history;

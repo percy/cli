@@ -51,6 +51,11 @@ describe('SDK Utils', () => {
       it('contains percy config', () => {
         expect(percy).toHaveProperty('config.snapshot.widths', [375, 1280]);
       });
+
+      it('contains percy build info', () => {
+        expect(percy.build).toHaveProperty('id', '123');
+        expect(percy.build).toHaveProperty('url', 'https://percy.io/test/test/123');
+      });
     });
   });
 
