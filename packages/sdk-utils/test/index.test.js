@@ -36,6 +36,7 @@ describe('SDK Utils', () => {
 
       beforeEach(async () => {
         await helpers.test('version', '1.2.3-beta.4');
+        await helpers.test('build-created');
         await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
       });
 

@@ -140,6 +140,9 @@ export function createPercyServer(percy, port) {
       } else if (cmd === 'build-failure') {
         // the build-failure command will cause api errors to include a failed build
         percy.testing.build = { failed: true, error: 'Build failed' };
+      } else if (cmd === 'build-created') {
+        // the build-failure command will cause api errors to include a failed build
+        percy.testing.build = { id: '123', url: 'https://percy.io/test/test/123' };
       } else {
         // 404 for unknown commands
         return res.send(404);
