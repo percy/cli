@@ -39,6 +39,9 @@ export const configSchema = {
         type: 'boolean',
         default: false
       },
+      domTransformation: {
+        type: 'string'
+      },
       scope: {
         type: 'string'
       }
@@ -154,6 +157,7 @@ export const snapshotSchema = {
         percyCSS: { $ref: '/config/snapshot#/properties/percyCSS' },
         enableJavaScript: { $ref: '/config/snapshot#/properties/enableJavaScript' },
         disableShadowDOM: { $ref: '/config/snapshot#/properties/disableShadowDOM' },
+        domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
         discovery: {
           type: 'object',
           additionalProperties: false,
@@ -450,6 +454,46 @@ export const comparisonSchema = {
           },
           fullscreen: {
             type: 'boolean'
+          }
+        }
+      }
+    },
+    ignoredElementsData: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['ignoreElementsData'],
+      properties: {
+        ignoreElementsData: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              selector: {
+                type: 'string'
+              },
+              coOrdinates: {
+                type: 'object',
+                properties: {
+                  top: {
+                    type: 'integer',
+                    minimum: 0
+                  },
+                  left: {
+                    type: 'integer',
+                    minimum: 0
+                  },
+                  bottom: {
+                    type: 'integer',
+                    minimum: 0
+                  },
+                  right: {
+                    type: 'integer',
+                    minimum: 0
+                  }
+                }
+              }
+            }
           }
         }
       }

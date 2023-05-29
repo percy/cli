@@ -73,6 +73,8 @@ describe('Percy', () => {
     // navigate to a page and capture a snapshot outside of core
     await page.goto('http://localhost:8000');
 
+    let evalSpy = spyOn(page, 'eval').and.callThrough();
+
     let snapshot = await page.snapshot({
       execute() {
         let p = document.querySelector('p');
@@ -80,6 +82,9 @@ describe('Percy', () => {
       },
       disableShadowDOM: true
     });
+
+    // expect required arguments are passed to PercyDOM.serialize
+    expect(evalSpy.calls.allArgs()[3]).toEqual(jasmine.arrayContaining([jasmine.anything(), { enableJavaScript: undefined, disableShadowDOM: true, domTransformation: undefined }]));
 
     expect(snapshot.url).toEqual('http://localhost:8000/');
     expect(snapshot.domSnapshot).toEqual(jasmine.objectContaining({

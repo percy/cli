@@ -1,12 +1,10 @@
 name: SDK Regression
 on:
-  pull_request:
-    types: [opened]
   issue_comment:
     types: [created, edited] 
 jobs:
   regression:
-    name: Trigger SDK regression test
+    name: regression
     runs-on: ubuntu-latest
     if: ${{ github.event.issue.pull_request && github.event.comment.body == 'RUN_REGRESSION' }}
     strategy:
@@ -16,7 +14,7 @@ jobs:
           - percy-ember
           - percy-cypress
           - percy-puppeteer
-          # - percy-storybook
+          - percy-storybook
           - percy-playwright
           - percy-testcafe
           - percy-nightwatch
@@ -28,20 +26,48 @@ jobs:
           - percy-selenium-dotnet
           - percy-selenium-java
           - percy-selenium-python
+          - percy-selenium-ruby@main
           - percy-capybara
           - percy-appium-js
           - gatsby-plugin-percy
     steps:
+      - uses: xt0rted/pull-request-comment-branch@v2
+        if: ${{ github.event.issue.pull_request }}
+        id: comment-branch
+      - name: Get Current Job Log URL
+        uses: Tiryoh/gha-jobid-action@v0
+        id: job-url
+        with:
+          github_token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
+          job_name: "regression (${{ matrix.repo }})" 
+      - name: Output Current Job Log URL
+        run: echo ${{ steps.jobs.outputs.html_url }}
+      - uses: actions/github-script@v4
+        with:
+          github-token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const sha = '${{ steps.comment-branch.outputs.head_sha }}'
+            const state = 'pending';
+            const target_url = '${{ steps.job-url.outputs.html_url }}'
+            const check_name = 'SDK Regression ${{ matrix.repo }}'
+            
+            github.repos.createCommitStatus({
+              context: check_name,
+              owner,
+              repo,
+              sha,
+              state,
+              target_url
+            });
       - uses: jungwinter/split@v2
         id: split
         with:
           msg: ${{ matrix.repo }}
           separator: '@'
-      - uses: xt0rted/pull-request-comment-branch@v2
-        if: ${{ github.event.issue.pull_request }}
-        id: comment-branch
       - name: Trigger Workflow & Wait
         uses: convictional/trigger-workflow-and-wait@v1.6.5
+        id: reg-test
         with:
           owner: percy
           repo: ${{ steps.split.outputs._0 }}
@@ -50,3 +76,22 @@ jobs:
           ref: ${{ steps.split.outputs._1 || 'master' }}
           client_payload: '{ "branch": "${{ steps.comment-branch.outputs.head_ref }}"}'
           wait_interval: 15
+      - name: Update Status
+        uses: actions/github-script@v4
+        with:
+          github-token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const sha = '${{ steps.comment-branch.outputs.head_sha }}'
+            const state = '${{ steps.reg-test.outcome }}';
+            const target_url = '${{ steps.job-url.outputs.html_url }}'
+            const check_name = 'SDK Regression ${{ matrix.repo }}'
+            
+            github.repos.createCommitStatus({
+              context: check_name,
+              owner,
+              repo,
+              sha,
+              state,
+              target_url
+            });

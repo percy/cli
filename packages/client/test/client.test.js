@@ -780,6 +780,28 @@ describe('PercyClient', () => {
         .withArgs('foo/bar').and.resolveTo('bar');
 
       let tile1Content = 'screenshot';
+      let ignoredElementsData = {
+        ignoreElementsData: [
+          {
+            selector: 'xpaths',
+            'co-ordinates': {
+              top: 1042,
+              bottom: 1147,
+              left: 108,
+              right: 972
+            }
+          },
+          {
+            selector: 'appiumWebElement',
+            'co-ordinates': {
+              top: 1199,
+              bottom: 1304,
+              left: 108,
+              right: 972
+            }
+          }
+        ]
+      };
 
       await expectAsync(client.createComparison(4567, {
         tag: {
@@ -812,14 +834,16 @@ describe('PercyClient', () => {
           fullscreen: true,
           sha: sha256hash('somesha')
         }],
-        externalDebugUrl: 'http://debug.localhost'
+        externalDebugUrl: 'http://debug.localhost',
+        ignoredElementsData: ignoredElementsData
       })).toBeResolved();
 
       expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
         data: {
           type: 'comparisons',
           attributes: {
-            'external-debug-url': 'http://debug.localhost'
+            'external-debug-url': 'http://debug.localhost',
+            'ignore-elements-data': ignoredElementsData
           },
           relationships: {
             tag: {
@@ -882,7 +906,8 @@ describe('PercyClient', () => {
         data: {
           type: 'comparisons',
           attributes: {
-            'external-debug-url': null
+            'external-debug-url': null,
+            'ignore-elements-data': null
           },
           relationships: {
             tag: {
@@ -1130,7 +1155,8 @@ describe('PercyClient', () => {
         data: {
           type: 'comparisons',
           attributes: {
-            'external-debug-url': null
+            'external-debug-url': null,
+            'ignore-elements-data': null
           },
           relationships: {
             tag: {

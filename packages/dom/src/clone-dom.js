@@ -26,6 +26,11 @@ export function cloneNodeAndShadow({ dom, disableShadowDOM }) {
 
     parent.appendChild(clone);
 
+    // shallow clone should not contain children
+    if (clone.children) {
+      Array.from(clone.children).forEach(child => clone.removeChild(child));
+    }
+
     // clone shadow DOM
     if (node.shadowRoot && !disableShadowDOM) {
       // create shadowRoot

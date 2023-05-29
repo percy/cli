@@ -1,4 +1,4 @@
-import Cache from "../../src/util/cache.js";
+import Cache from '../../src/util/cache.js';
 
 describe('Cache', () => {
   const store = 'abc';

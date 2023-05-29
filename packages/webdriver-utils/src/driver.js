@@ -9,11 +9,11 @@ export default class Driver {
   }
 
   async getCapabilites() {
-    return await Cache.withCache(Cache.caps, this.sessionId, async() => {
+    return await Cache.withCache(Cache.caps, this.sessionId, async () => {
       const baseUrl = `${this.executorUrl}/session/${this.sessionId}`;
       const caps = JSON.parse((await request(baseUrl)).body);
       return caps.value;
-    })
+    });
   }
 
   async getWindowSize() {

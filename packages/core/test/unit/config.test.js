@@ -1,5 +1,5 @@
 import logger from '@percy/logger/test/helpers';
-import { configMigration } from '../../src/config.js';
+import { configMigration, snapshotSchema } from '../../src/config.js';
 
 describe('Unit / Config Migration', () => {
   let mocked = {
@@ -75,5 +75,11 @@ describe('Unit / Config Migration', () => {
 
     expect(mocked.migrate.map).toEqual([]);
     expect(mocked.migrate.del).toEqual([]);
+  });
+});
+
+describe('SnapshotSchema', () => {
+  it('should contain domTransformation', () => {
+    expect(snapshotSchema.$defs.common.properties).toEqual(jasmine.objectContaining({ domTransformation: jasmine.anything() }));
   });
 });
