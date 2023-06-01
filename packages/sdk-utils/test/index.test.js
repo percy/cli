@@ -191,6 +191,59 @@ describe('SDK Utils', () => {
     });
   });
 
+  describe('postScreenshot(options[, params])', () => {
+    let { postScreenshot } = utils;
+    let options;
+
+    beforeEach(() => {
+      options = {
+        name: 'Snapshot Name',
+        executorUrl: 'http://localhost:8000/',
+        capabilities: '<SERIALIZED_DOM>',
+        clientInfo: 'sdk/version',
+        environmentInfo: ['lib/version', 'lang/version'],
+        enableJavaScript: true
+      };
+    });
+
+    it('posts snapshot options to the CLI API snapshot endpoint', async () => {
+      await expectAsync(postScreenshot(options)).toBeResolved();
+      await expectAsync(helpers.get('requests')).toBeResolvedTo([{
+        url: '/percy/automateScreenshot',
+        method: 'POST',
+        body: options
+      }]);
+    });
+
+    it('throws when the snapshot API fails', async () => {
+      await helpers.test('error', '/percy/automateScreenshot');
+
+      await expectAsync(postScreenshot({}))
+        .toBeRejectedWithError('testing');
+    });
+
+    it('disables snapshots when a build fails', async () => {
+      await helpers.test('error', '/percy/automateScreenshot');
+      await helpers.test('build-failure');
+      utils.percy.enabled = true;
+
+      expect(utils.percy.enabled).toEqual(true);
+      await expectAsync(postScreenshot({})).toBeResolved();
+      expect(utils.percy.enabled).toEqual(false);
+    });
+
+    it('accepts URL parameters as the second argument', async () => {
+      let params = { test: 'foobar' };
+
+      await expectAsync(postScreenshot(options, params)).toBeResolved();
+      await expectAsync(helpers.get('requests')).toBeResolvedTo([{
+        url: `/percy/automateScreenshot?${new URLSearchParams(params)}`,
+        method: 'POST',
+        body: options
+      }]);
+    });
+  });
+
   describe('postComparison(options[, params])', () => {
     let { postComparison } = utils;
     let options;
