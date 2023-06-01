@@ -3,7 +3,7 @@ import utils from '@percy/sdk-utils';
 
 export default class WebdriverUtils {
   log = utils.logger('webdriver-utils:main');
-  constructor({ sessionId, commandExecutorUrl, capabilities, sessionCapabilites, snapshotName, options }) {
+  constructor({ sessionId, commandExecutorUrl, capabilities, sessionCapabilites, snapshotName, options = {} }) {
     this.sessionId = sessionId;
     this.commandExecutorUrl = commandExecutorUrl;
     this.capabilities = capabilities;
