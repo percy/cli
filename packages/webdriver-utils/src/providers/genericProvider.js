@@ -36,10 +36,10 @@ export default class GenericProvider {
   }
 
   async screenshot(name, {
-    ignoreRegionXpaths,
-    ignoreRegionSelectors,
-    ignoreRegionSeleniumElements,
-    customIgnoreRegions
+    ignoreRegionXpaths = [],
+    ignoreRegionSelectors = [],
+    ignoreRegionSeleniumElements = [],
+    customIgnoreRegions = []
   }) {
     let fullscreen = false;
 
@@ -104,10 +104,10 @@ export default class GenericProvider {
 
   async findIgnoredRegions(ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionSeleniumElements, customIgnoreRegions) {
     const ignoredElementsArray = [];
-    await this.ignoreRegionsByXpaths(ignoredElementsArray, ignoreRegionXpaths || []);
-    await this.ignoreRegionsBySelector(ignoredElementsArray, ignoreRegionSelectors || []);
-    await this.ignoreRegionsByElement(ignoredElementsArray, ignoreRegionSeleniumElements || []);
-    await this.addCustomIgnoreRegions(ignoredElementsArray, customIgnoreRegions || []);
+    await this.ignoreRegionsByXpaths(ignoredElementsArray, ignoreRegionXpaths);
+    await this.ignoreRegionsBySelector(ignoredElementsArray, ignoreRegionSelectors);
+    await this.ignoreRegionsByElement(ignoredElementsArray, ignoreRegionSeleniumElements);
+    await this.addCustomIgnoreRegions(ignoredElementsArray, customIgnoreRegions);
 
     const ignoredElementsLocations = {
       ignoreElementsData: ignoredElementsArray
