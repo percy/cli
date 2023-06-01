@@ -78,4 +78,42 @@ describe('Driver', () => {
       expect(res).toEqual('mockVal');
     });
   });
+
+  describe('findElement', () => {
+    it('calls requests', async () => {
+      let using = 'xpath';
+      let value = '/html';
+      let res = await driver.findElement(using, value);
+      expect(requestSpy).toHaveBeenCalledOnceWith(
+        `${executorUrl}/session/${sessionId}/element`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json;charset=utf-8'
+          },
+          body: JSON.stringify({ using, value: value })
+        }
+      );
+      expect(res).toEqual('mockVal');
+    });
+
+    it('throws error', async () => {
+      let using = 'xpath';
+      let value = '/html';
+      await expectAsync(driver.executeScript(using, value)).toBeRejectedWith(
+        new Error('Please pass command as {script: "", args: []}')
+      );
+    });
+  });
+
+  describe('rect', () => {
+    it('calls requests', async () => {
+      const elementId = 'element';
+      let res = await driver.rect(elementId);
+      expect(requestSpy).toHaveBeenCalledOnceWith(
+        `${executorUrl}/session/${sessionId}/element/${elementId}/rect`,
+        Object({}));
+      expect(res).toEqual('mockVal');
+    });
+  });
 });
