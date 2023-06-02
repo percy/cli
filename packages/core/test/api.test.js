@@ -364,6 +364,8 @@ describe('API Server', () => {
       expect(percy.testing).toEqual({});
       await post('/test/api/build-failure');
       expect(percy.testing).toHaveProperty('build', { failed: true, error: 'Build failed' });
+      await post('/test/api/build-created');
+      expect(percy.testing).toHaveProperty('build', { id: '123', url: 'https://percy.io/test/test/123' });
       await post('/test/api/error', '/percy/healthcheck');
       expect(percy.testing).toHaveProperty('api', { '/percy/healthcheck': 'error' });
       await post('/test/api/disconnect', '/percy/healthcheck');
