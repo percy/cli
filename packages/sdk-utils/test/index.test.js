@@ -191,8 +191,8 @@ describe('SDK Utils', () => {
     });
   });
 
-  describe('postScreenshot(options[, params])', () => {
-    let { postScreenshot } = utils;
+  describe('captureAutomateScreenshot(options[, params])', () => {
+    let { captureAutomateScreenshot } = utils;
     let options;
 
     beforeEach(() => {
@@ -209,13 +209,13 @@ describe('SDK Utils', () => {
     });
 
     it('posts screenshot options to the CLI API snapshot endpoint', async () => {
-      await postScreenshot(options);
+      await captureAutomateScreenshot(options);
       expect(utils.request.post).toHaveBeenCalledWith('/percy/automateScreenshot', options);
     });
 
     it('throws when the screenshot API fails', async () => {
       spyOn(utils.request, 'post').and.callFake(() => Promise.reject(new Error('testing')));
-      await expectAsync(postScreenshot({}))
+      await expectAsync(captureAutomateScreenshot({}))
         .toBeRejectedWithError('testing');
     });
 
@@ -225,14 +225,14 @@ describe('SDK Utils', () => {
 
       utils.percy.enabled = true;
       expect(utils.percy.enabled).toEqual(true);
-      await postScreenshot({});
+      await captureAutomateScreenshot({});
       expect(utils.percy.enabled).toEqual(false);
     });
 
     it('accepts URL parameters as the second argument', async () => {
       let params = { test: 'foobar' };
 
-      await expectAsync(postScreenshot(options, params)).toBeResolved();
+      await expectAsync(captureAutomateScreenshot(options, params)).toBeResolved();
       expect(utils.request.post).toHaveBeenCalledWith(`/percy/automateScreenshot?${new URLSearchParams(params)}`, options);
     });
   });

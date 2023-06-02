@@ -3,7 +3,7 @@ import request from './request.js';
 
 // Post screenshot data to the CLI automateScreenshot endpoint. If the endpoint responds with a build error,
 // indicate that Percy has been disabled.
-export async function postScreenshot(options, params) {
+export async function captureAutomateScreenshot(options, params) {
   let query = params ? `?${new URLSearchParams(params)}` : '';
 
   await request.post(`/percy/automateScreenshot${query}`, options).catch(err => {
@@ -15,4 +15,4 @@ export async function postScreenshot(options, params) {
   });
 }
 
-export default postScreenshot;
+export default captureAutomateScreenshot;
