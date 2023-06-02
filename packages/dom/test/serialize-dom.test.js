@@ -60,6 +60,13 @@ describe('serializeDOM', () => {
     expect($('h2.callback').length).toEqual(1);
   });
 
+  it('applies dom transformations', () => {
+    withExample('<img loading="lazy" src="http://some-url"/><iframe loading="lazy" src="">');
+
+    const result = serializeDOM();
+    expect(result.html).not.toContain('loading="lazy"');
+  });
+
   it('clone node is always shallow', () => {
     class AttributeCallbackTestElement extends window.HTMLElement {
       static get observedAttributes() {

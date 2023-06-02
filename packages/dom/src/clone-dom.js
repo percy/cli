@@ -4,6 +4,7 @@
  * https://developer.mozilla.org/en-US/docs/Web/API/Element/attachShadow#parameters
  */
 import markElement from './prepare-dom';
+import applyElementTransformations from './transform-dom';
 
 /**
  * Deep clone a document while also preserving shadow roots
@@ -23,6 +24,9 @@ export function cloneNodeAndShadow({ dom, disableShadowDOM }) {
     markElement(node, disableShadowDOM);
 
     let clone = node.cloneNode();
+
+    // We apply any element transformations here to avoid another treeWalk
+    applyElementTransformations(clone);
 
     parent.appendChild(clone);
 
