@@ -144,7 +144,7 @@ export default class GenericProvider {
         const ignoredRegion = await this.ignoreElementObject(selector, element.ELEMENT);
         ignoredElementsArray.push(ignoredRegion);
       } catch (e) {
-        log.info(`Selenium Element with xpath: ${xpath} not found. Ignoring this xpath.`);
+        log.warn(`Selenium Element with xpath: ${xpath} not found. Ignoring this xpath.`);
         log.debug(e.toString());
       }
     }
@@ -158,7 +158,7 @@ export default class GenericProvider {
         const ignoredRegion = await this.ignoreElementObject(selector, element.ELEMENT);
         ignoredElementsArray.push(ignoredRegion);
       } catch (e) {
-        log.info(`Selenium Element with id: ${id} not found. Ignoring this id.`);
+        log.warn(`Selenium Element with id: ${id} not found. Ignoring this id.`);
         log.debug(e.toString());
       }
     }
@@ -172,7 +172,7 @@ export default class GenericProvider {
         const ignoredRegion = await this.ignoreElementObject(selector, elements[index]);
         ignoredElementsArray.push(ignoredRegion);
       } catch (e) {
-        log.info(`Correct Web Element not passed at index ${index}.`);
+        log.warn(`Correct Web Element not passed at index ${index}.`);
         log.debug(e.toString());
       }
     }
@@ -197,7 +197,7 @@ export default class GenericProvider {
         };
         ignoredElementsArray.push(ignoredRegion);
       } else {
-        log.info(`Values passed in custom ignored region at index: ${index} is not valid`);
+        log.warn(`Values passed in custom ignored region at index: ${index} is not valid`);
       }
     }
   }

@@ -197,38 +197,35 @@ describe('SDK Utils', () => {
 
     beforeEach(() => {
       options = {
-        name: 'Snapshot Name',
-        executorUrl: 'http://localhost:8000/',
-        capabilities: '<SERIALIZED_DOM>',
+        snapshotName: 'Snapshot Name',
+        commandExecutorUrl: 'http://localhost:8000/',
+        capabilities: '<SERIALIZED_capabilities>',
+        sessionCapabilites: '<SERIALIZED_capabilities>',
         clientInfo: 'sdk/version',
         environmentInfo: ['lib/version', 'lang/version'],
-        enableJavaScript: true
+        sessionId: '123'
       };
+      spyOn(utils.request, 'post').and.callFake(() => Promise.resolve(true));
     });
 
-    it('posts snapshot options to the CLI API snapshot endpoint', async () => {
-      await expectAsync(postScreenshot(options)).toBeResolved();
-      await expectAsync(helpers.get('requests')).toBeResolvedTo([{
-        url: '/percy/automateScreenshot',
-        method: 'POST',
-        body: options
-      }]);
+    it('posts screenshot options to the CLI API snapshot endpoint', async () => {
+      await postScreenshot(options);
+      expect(utils.request.post).toHaveBeenCalledWith('/percy/automateScreenshot', options);
     });
 
-    it('throws when the snapshot API fails', async () => {
-      await helpers.test('error', '/percy/automateScreenshot');
-
+    it('throws when the screenshot API fails', async () => {
+      spyOn(utils.request, 'post').and.callFake(() => Promise.reject(new Error('testing')));
       await expectAsync(postScreenshot({}))
         .toBeRejectedWithError('testing');
     });
 
-    it('disables snapshots when a build fails', async () => {
-      await helpers.test('error', '/percy/automateScreenshot');
-      await helpers.test('build-failure');
-      utils.percy.enabled = true;
+    it('disables screenshots when a build fails', async () => {
+      // eslint-disable-next-line prefer-promise-reject-errors
+      spyOn(utils.request, 'post').and.callFake(() => Promise.reject({ response: { body: { build: { error: true } } } }));
 
+      utils.percy.enabled = true;
       expect(utils.percy.enabled).toEqual(true);
-      await expectAsync(postScreenshot({})).toBeResolved();
+      await postScreenshot({});
       expect(utils.percy.enabled).toEqual(false);
     });
 
@@ -236,11 +233,7 @@ describe('SDK Utils', () => {
       let params = { test: 'foobar' };
 
       await expectAsync(postScreenshot(options, params)).toBeResolved();
-      await expectAsync(helpers.get('requests')).toBeResolvedTo([{
-        url: `/percy/automateScreenshot?${new URLSearchParams(params)}`,
-        method: 'POST',
-        body: options
-      }]);
+      expect(utils.request.post).toHaveBeenCalledWith(`/percy/automateScreenshot?${new URLSearchParams(params)}`, options);
     });
   });
 
