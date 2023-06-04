@@ -5,21 +5,27 @@ import Tile from '../util/tile.js';
 import Driver from '../driver.js';
 
 const log = utils.logger('webdriver-utils:genericProvider');
-// TODO: Need to pass parameter from sdk and catch in cli
-const CLIENT_INFO = 'local-poc-poa';
-const ENV_INFO = 'staging-poc-poa';
 
 export default class GenericProvider {
+  clientInfo = new Set();
+  environmentInfo = new Set();
+  options = {};
   constructor(
     sessionId,
     commandExecutorUrl,
     capabilities,
-    sessionCapabilites
+    sessionCapabilites,
+    clientInfo,
+    environmentInfo,
+    options
   ) {
     this.sessionId = sessionId;
     this.commandExecutorUrl = commandExecutorUrl;
     this.capabilities = capabilities;
     this.sessionCapabilites = sessionCapabilites;
+    this.addClientInfo(clientInfo);
+    this.addEnvironmentInfo(environmentInfo);
+    this.options = options;
     this.driver = null;
     this.metaData = null;
     this.debugUrl = null;
@@ -33,6 +39,18 @@ export default class GenericProvider {
 
   static supports(_commandExecutorUrl) {
     return true;
+  }
+
+  addClientInfo(info) {
+    for (let i of [].concat(info)) {
+      if (i) this.clientInfo.add(i);
+    }
+  }
+
+  addEnvironmentInfo(info) {
+    for (let i of [].concat(info)) {
+      if (i) this.environmentInfo.add(i);
+    }
   }
 
   async screenshot(name) {
@@ -51,8 +69,8 @@ export default class GenericProvider {
       tiles,
       // TODO: Fetch this one for bs automate, check appium sdk
       externalDebugUrl: this.debugUrl,
-      environmentInfo: ENV_INFO,
-      clientInfo: CLIENT_INFO
+      environmentInfo: [...this.environmentInfo].join('; '),
+      clientInfo: [...this.clientInfo].join(' ')
     };
   }
 
@@ -84,8 +102,7 @@ export default class GenericProvider {
       height,
       orientation: orientation,
       browserName: this.metaData.browserName(),
-      // TODO
-      browserVersion: 'unknown'
+      browserVersion: this.metaData.browserVersion()
     };
   }
 

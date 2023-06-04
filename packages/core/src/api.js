@@ -117,9 +117,20 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/flush', async (req, res) => res.json(200, {
       success: await percy.flush(req.body).then(() => true)
     }))
-    .route('post', '/percy/automateScreenshot', async (req, res) => res.json(200, {
-      success: await (percy.upload(await new WebdriverUtils(req.body).automateScreenshot())).then(() => true)
-    }))
+    .route('post', '/percy/automateScreenshot', async (req, res) => {
+      if (req.body.client_info) {
+        req.body.clientInfo = req.body.client_info;
+      }
+      if (req.body.environment_info) {
+        req.body.environmentInfo = req.body.environment_info;
+      }
+      if (!req.body.options) {
+        req.body.options = {};
+      }
+      res.json(200, {
+        success: await (percy.upload(await new WebdriverUtils(req.body).automateScreenshot())).then(() => true)
+      });
+    })
   // stops percy at the end of the current event loop
     .route('/percy/stop', (req, res) => {
       setImmediate(() => percy.stop());

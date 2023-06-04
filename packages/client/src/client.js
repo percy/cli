@@ -368,7 +368,8 @@ export class PercyClient {
 
   async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData } = {}) {
     validateId('snapshot', snapshotId);
-
+    // Remove post percy api deploy
+    externalDebugUrl = externalDebugUrl.replace('automate', 'app-automate');
     this.log.debug(`Creating comparision: ${tag.name}...`);
 
     for (let tile of tiles) {
