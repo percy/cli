@@ -39,6 +39,9 @@ export const snapshot = command('snapshot', {
     description: 'Rewrite static index and filepath URLs to be clean',
     percyrc: 'static.cleanUrls',
     group: 'Static'
+  }, {
+    name: 'run-client-js',
+    description: 'Runs clients JS in asset discovery browser before taking dom snapshot'
   }],
 
   examples: [
@@ -56,7 +59,7 @@ export const snapshot = command('snapshot', {
     migrations: [SnapshotConfig.configMigration]
   }
 }, async function*({ percy, args, flags, log, exit }) {
-  let { include, exclude, baseUrl, cleanUrls } = flags;
+  let { include, exclude, baseUrl, cleanUrls, runClientJs } = flags;
   let { file, serve, sitemap } = args;
 
   // parse and validate the --base-url flag after args are parsed
@@ -66,6 +69,11 @@ export const snapshot = command('snapshot', {
 
   try {
     let options;
+
+    percy.runClientJs = runClientJs;
+    if (percy.runClientJs === true) {
+      percy.log.debug('--run-client-js is set');
+    }
 
     /* istanbul ignore else: arg is required and always one of these */
     if (file) {

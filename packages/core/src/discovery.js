@@ -267,7 +267,7 @@ export function createDiscoveryQueue(percy) {
 
       // create a new browser page
       let page = yield percy.browser.page({
-        enableJavaScript: snapshot.enableJavaScript ?? !snapshot.domSnapshot,
+        enableJavaScript: percy.runClientJs || (snapshot.enableJavaScript ?? !snapshot.domSnapshot),
         networkIdleTimeout: snapshot.discovery.networkIdleTimeout,
         requestHeaders: snapshot.discovery.requestHeaders,
         authorization: snapshot.discovery.authorization,
