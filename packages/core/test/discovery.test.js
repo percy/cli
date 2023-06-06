@@ -1603,7 +1603,7 @@ describe('Discovery', () => {
     });
   });
 
-  fdescribe('Asset Discovery Page JS =>', () => {
+  describe('Asset Discovery Page JS =>', () => {
     beforeEach(() => {
       // global defaults
       percy.config.snapshot.enableJavaScript = false;
