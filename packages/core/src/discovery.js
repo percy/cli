@@ -34,6 +34,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'widths', v => `${v}px`);
   debugProp(snapshot, 'minHeight', v => `${v}px`);
   debugProp(snapshot, 'enableJavaScript');
+  debugProp(snapshot, 'cliEnableJavaScript');
   debugProp(snapshot, 'disableShadowDOM');
   debugProp(snapshot, 'deviceScaleFactor');
   debugProp(snapshot, 'waitForTimeout');
@@ -265,9 +266,13 @@ export function createDiscoveryQueue(percy) {
     .handle('task', async function*(snapshot, callback) {
       percy.log.debug(`Discovering resources: ${snapshot.name}`, snapshot.meta);
 
+      // expectation explained in tests
+      let assetDiscoveryPageEnableJS = (snapshot.cliEnableJavaScript && !snapshot.domSnapshot) || (snapshot.enableJavaScript ?? !snapshot.domSnapshot);
+
+      percy.log.debug(`Asset discovery Browser Page enable JS: ${assetDiscoveryPageEnableJS}`);
       // create a new browser page
       let page = yield percy.browser.page({
-        enableJavaScript: snapshot.enableJavaScript ?? !snapshot.domSnapshot,
+        enableJavaScript: assetDiscoveryPageEnableJS,
         networkIdleTimeout: snapshot.discovery.networkIdleTimeout,
         requestHeaders: snapshot.discovery.requestHeaders,
         authorization: snapshot.discovery.authorization,
