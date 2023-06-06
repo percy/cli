@@ -267,6 +267,7 @@ export function createDiscoveryQueue(percy) {
       percy.log.debug(`Discovering resources: ${snapshot.name}`, snapshot.meta);
 
       // expectation explained in tests
+      /* istanbul ignore next: tested, but coverage is stripped */
       let assetDiscoveryPageEnableJS = (snapshot.cliEnableJavaScript && !snapshot.domSnapshot) || (snapshot.enableJavaScript ?? !snapshot.domSnapshot);
 
       percy.log.debug(`Asset discovery Browser Page enable JS: ${assetDiscoveryPageEnableJS}`);
