@@ -144,7 +144,7 @@ describe('GenericProvider', () => {
     });
   });
 
-  describe('ignoreRegionsByXpaths', () => {
+  describe('getIgnoreRegionsByXpaths', () => {
     let ignoreElementObjectSpy;
     let provider;
 
@@ -158,7 +158,7 @@ describe('GenericProvider', () => {
       spyOn(Driver.prototype, 'findElement').and.returnValue(Promise.resolve({ ELEMENT: 'mock_id' }));
       const xpaths = ['/xpath/1', '/xpath/2', '/xpath/3'];
 
-      const ignoredElementsArray = await provider.ignoreRegionsBy('xpath', xpaths);
+      const ignoredElementsArray = await provider.getIgnoreRegionsBy('xpath', xpaths);
 
       expect(provider.driver.findElement).toHaveBeenCalledTimes(3);
       expect(ignoreElementObjectSpy).toHaveBeenCalledTimes(3);
@@ -169,7 +169,7 @@ describe('GenericProvider', () => {
       spyOn(Driver.prototype, 'findElement').and.rejectWith(new Error('Element not found'));
       const xpaths = ['/xpath/1', '/xpath/2', '/xpath/3'];
 
-      const ignoredElementsArray = await provider.ignoreRegionsBy('xpath', xpaths);
+      const ignoredElementsArray = await provider.getIgnoreRegionsBy('xpath', xpaths);
 
       expect(provider.driver.findElement).toHaveBeenCalledTimes(3);
       expect(ignoreElementObjectSpy).not.toHaveBeenCalled();
@@ -177,7 +177,7 @@ describe('GenericProvider', () => {
     });
   });
 
-  describe('ignoreRegionsBySelector', () => {
+  describe('getIgnoreRegionsBySelector', () => {
     let ignoreElementObjectSpy;
     let provider;
 
@@ -191,7 +191,7 @@ describe('GenericProvider', () => {
       spyOn(Driver.prototype, 'findElement').and.returnValue(Promise.resolve({ ELEMENT: 'mock_id' }));
       const ids = ['#id1', '#id2', '#id3'];
 
-      const ignoredElementsArray = await provider.ignoreRegionsBy('css selector', ids);
+      const ignoredElementsArray = await provider.getIgnoreRegionsBy('css selector', ids);
 
       expect(provider.driver.findElement).toHaveBeenCalledTimes(3);
       expect(ignoreElementObjectSpy).toHaveBeenCalledTimes(3);
@@ -202,7 +202,7 @@ describe('GenericProvider', () => {
       spyOn(Driver.prototype, 'findElement').and.rejectWith(new Error('Element not found'));
       const ids = ['#id1', '#id2', '#id3'];
 
-      const ignoredElementsArray = await provider.ignoreRegionsBy('css selector', ids);
+      const ignoredElementsArray = await provider.getIgnoreRegionsBy('css selector', ids);
 
       expect(provider.driver.findElement).toHaveBeenCalledTimes(3);
       expect(ignoreElementObjectSpy).not.toHaveBeenCalled();
@@ -210,7 +210,7 @@ describe('GenericProvider', () => {
     });
   });
 
-  describe('ignoreRegionsByElement', () => {
+  describe('getIgnoreRegionsByElement', () => {
     let ignoreElementObjectSpy;
     let provider;
 
@@ -223,7 +223,7 @@ describe('GenericProvider', () => {
     it('should ignore regions for each element', async () => {
       const elements = ['mockElement_1', 'mockElement_2', 'mockElement_3'];
 
-      const ignoredElementsArray = await provider.ignoreRegionsByElement(elements);
+      const ignoredElementsArray = await provider.getIgnoreRegionsByElement(elements);
 
       expect(ignoreElementObjectSpy).toHaveBeenCalledTimes(3);
       expect(ignoredElementsArray).toEqual([{}, {}, {}]);
@@ -233,7 +233,7 @@ describe('GenericProvider', () => {
       ignoreElementObjectSpy.and.rejectWith(new Error('Element not found'));
       const elements = ['mockElement_1', 'mockElement_2', 'mockElement_3'];
 
-      const ignoredElementsArray = await provider.ignoreRegionsByElement(elements);
+      const ignoredElementsArray = await provider.getIgnoreRegionsByElement(elements);
 
       expect(ignoredElementsArray).toEqual([]);
     });
@@ -255,7 +255,7 @@ describe('GenericProvider', () => {
         { top: 300, bottom: 400, left: 300, right: 400 }
       ];
 
-      const ignoredElementsArray = await provider.addCustomIgnoreRegions(customLocations);
+      const ignoredElementsArray = await provider.getCustomIgnoreRegions(customLocations);
 
       expect(ignoredElementsArray).toEqual([
         {
@@ -275,7 +275,7 @@ describe('GenericProvider', () => {
         { top: 300, bottom: 400, left: 300, right: 1921 }
       ];
 
-      const ignoredElementsArray = await provider.addCustomIgnoreRegions(customLocations);
+      const ignoredElementsArray = await provider.getCustomIgnoreRegions(customLocations);
 
       expect(ignoredElementsArray).toEqual([]);
     });
