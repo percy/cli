@@ -38,7 +38,7 @@ export default class GenericProvider {
   async screenshot(name, {
     ignoreRegionXpaths = [],
     ignoreRegionSelectors = [],
-    ignoreRegionSeleniumElements = [],
+    ignoreRegionElements = [],
     customIgnoreRegions = []
   }) {
     let fullscreen = false;
@@ -46,7 +46,7 @@ export default class GenericProvider {
     const tag = await this.getTag();
     const tiles = await this.getTiles(fullscreen);
     const ignoreRegions = await this.findIgnoredRegions(
-      ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionSeleniumElements, customIgnoreRegions
+      ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions
     );
     await this.setDebugUrl();
 
@@ -102,10 +102,10 @@ export default class GenericProvider {
     this.debugUrl = 'https://localhost/v1';
   }
 
-  async findIgnoredRegions(ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionSeleniumElements, customIgnoreRegions) {
+  async findIgnoredRegions(ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions) {
     const ignoreElementXpaths = await this.getIgnoreRegionsBy('xpath', ignoreRegionXpaths);
     const ignoreElementSelectors = await this.getIgnoreRegionsBy('css selector', ignoreRegionSelectors);
-    const ignoreElements = await this.getIgnoreRegionsByElement(ignoreRegionSeleniumElements);
+    const ignoreElements = await this.getIgnoreRegionsByElement(ignoreRegionElements);
     const ignoreElementCustom = await this.getCustomIgnoreRegions(customIgnoreRegions);
 
     return {
@@ -119,7 +119,7 @@ export default class GenericProvider {
   }
 
   async ignoreElementObject(selector, elementId) {
-    const scaleFactor = await this.metaData.devicePixelRatio();
+    const scaleFactor = parseInt(await this.metaData.devicePixelRatio());
     const rect = await this.driver.rect(elementId);
     const location = { x: parseInt(rect.x), y: parseInt(rect.y) };
     const size = { height: parseInt(rect.height), width: parseInt(rect.width) };
@@ -140,14 +140,14 @@ export default class GenericProvider {
 
   async getIgnoreRegionsBy(findBy, elements) {
     const ignoredElementsArray = [];
-    for (const ele in elements) {
+    for (const idx in elements) {
       try {
-        const element = await this.driver.findElement(findBy, ele);
-        const selector = `${findBy}: ${ele}`;
+        const element = await this.driver.findElement(findBy, elements[idx]);
+        const selector = `${findBy}: ${elements[idx]}`;
         const ignoredRegion = await this.ignoreElementObject(selector, element.ELEMENT);
         ignoredElementsArray.push(ignoredRegion);
       } catch (e) {
-        log.warn(`Selenium Element with ${findBy}: ${ele} not found. Ignoring this ${findBy}.`);
+        log.warn(`Selenium Element with ${findBy}: ${elements[idx]} not found. Ignoring this ${findBy}.`);
         log.debug(e.toString());
       }
     }
