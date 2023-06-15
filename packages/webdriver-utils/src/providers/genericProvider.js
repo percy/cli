@@ -66,28 +66,33 @@ export default class GenericProvider {
     return {
       name,
       tag,
-      tiles,
+      tiles: tiles.tiles,
       // TODO: Fetch this one for bs automate, check appium sdk
       externalDebugUrl: this.debugUrl,
       environmentInfo: [...this.environmentInfo].join('; '),
-      clientInfo: [...this.clientInfo].join(' ')
+      clientInfo: [...this.clientInfo].join(' '),
+      domSha: tiles.domSha
     };
   }
 
   async getTiles(fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     const base64content = await this.driver.takeScreenshot();
-    return [
-      new Tile({
-        content: base64content,
-        // TODO: Need to add method to fetch these attr
-        statusBarHeight: 0,
-        navBarHeight: 0,
-        headerHeight: 0,
-        footerHeight: 0,
-        fullscreen
-      })
-    ];
+    return {
+      tiles: [
+        new Tile({
+          content: base64content,
+          // TODO: Need to add method to fetch these attr
+          statusBarHeight: 0,
+          navBarHeight: 0,
+          headerHeight: 0,
+          footerHeight: 0,
+          fullscreen
+        })
+      ],
+      // TODO: Add Generic support sha for contextual diff
+      domSha: 'dummyValue'
+    };
   }
 
   async getTag() {
@@ -106,6 +111,7 @@ export default class GenericProvider {
     };
   }
 
+  // TODO: Add Debugging Url
   async setDebugUrl() {
     this.debugUrl = 'https://localhost/v1';
   }

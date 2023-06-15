@@ -366,10 +366,9 @@ export class PercyClient {
     return snapshot;
   }
 
-  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData } = {}) {
+  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domSha } = {}) {
     validateId('snapshot', snapshotId);
     // Remove post percy api deploy
-    externalDebugUrl = externalDebugUrl.replace('automate', 'app-automate');
     this.log.debug(`Creating comparision: ${tag.name}...`);
 
     for (let tile of tiles) {
@@ -387,7 +386,8 @@ export class PercyClient {
         type: 'comparisons',
         attributes: {
           'external-debug-url': externalDebugUrl || null,
-          'ignore-elements-data': ignoredElementsData || null
+          'ignore-elements-data': ignoredElementsData || null,
+          'dom-info-sha': domSha || null
         },
         relationships: {
           tag: {
@@ -399,7 +399,9 @@ export class PercyClient {
                 height: tag.height || null,
                 'os-name': tag.osName || null,
                 'os-version': tag.osVersion || null,
-                orientation: tag.orientation || null
+                orientation: tag.orientation || null,
+                browser_name: tag.browserName || null,
+                browser_version: tag.browserVersion || null
               }
             }
           },

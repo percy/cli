@@ -397,6 +397,7 @@ export const comparisonSchema = {
   properties: {
     name: { type: 'string' },
     externalDebugUrl: { type: 'string' },
+    domSha: { type: 'string' },
     tag: {
       type: 'object',
       additionalProperties: false,
@@ -418,7 +419,9 @@ export const comparisonSchema = {
         orientation: {
           type: 'string',
           enum: ['portrait', 'landscape']
-        }
+        },
+        browserName: { type: 'string' },
+        browserVersion: { type: 'string' }
       }
     },
     tiles: {

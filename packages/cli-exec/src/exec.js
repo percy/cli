@@ -3,40 +3,7 @@ import start from './start.js';
 import stop from './stop.js';
 import ping from './ping.js';
 
-export const exec = command('exec', {
-  description: 'Start and stop Percy around a supplied command',
-  usage: '[options] -- <command>',
-  commands: [start, stop, ping],
-
-  flags: [{
-    name: 'parallel',
-    description: 'Marks the build as one of many parallel builds',
-    parse: () => !!(process.env.PERCY_PARALLEL_TOTAL ||= '-1')
-  }, {
-    name: 'partial',
-    description: 'Marks the build as a partial build',
-    parse: () => !!(process.env.PERCY_PARTIAL_BUILD ||= '1')
-  }, {
-    name: 'testing',
-    percyrc: 'testing',
-    hidden: true
-  }],
-
-  examples: [
-    '$0 -- echo "percy is running around this echo command"',
-    '$0 -- yarn test'
-  ],
-
-  loose: [
-    'Warning: Missing command separator (--),',
-    'some command options may not work as expected'
-  ].join(' '),
-
-  percy: {
-    server: true,
-    projectType: 'web'
-  }
-}, async function*({ flags, argv, env, percy, log, exit }) {
+const execCallback = async function*({ flags, argv, env, percy, log, exit }) {
   let [command, ...args] = argv;
 
   // command is required
@@ -82,7 +49,42 @@ export const exec = command('exec', {
 
   // forward any returned status code
   if (status) exit(status, error);
-});
+};
+
+const webExec = command('exec', {
+  description: 'Start and stop Percy around a supplied command',
+  usage: '[options] -- <command>',
+  commands: [start, stop, ping],
+
+  flags: [{
+    name: 'parallel',
+    description: 'Marks the build as one of many parallel builds',
+    parse: () => !!(process.env.PERCY_PARALLEL_TOTAL ||= '-1')
+  }, {
+    name: 'partial',
+    description: 'Marks the build as a partial build',
+    parse: () => !!(process.env.PERCY_PARTIAL_BUILD ||= '1')
+  }, {
+    name: 'testing',
+    percyrc: 'testing',
+    hidden: true
+  }],
+
+  examples: [
+    '$0 -- echo "percy is running around this echo command"',
+    '$0 -- yarn test'
+  ],
+
+  loose: [
+    'Warning: Missing command separator (--),',
+    'some command options may not work as expected'
+  ].join(' '),
+
+  percy: {
+    server: true,
+    projectType: 'web'
+  }
+}, execCallback);
 
 // Spawn a command with cross-spawn and return an array containing the resulting status code along
 // with any error encountered while running. Uses a generator pattern to handle interupt signals.
@@ -109,5 +111,42 @@ async function* spawn(cmd, args) {
     return [0, err];
   }
 }
+
+const autoStart = command('start', {
+  description: 'Starts a locally running Percy process for automate sessions',
+  examples: ['$0 &> percy.log'],
+
+  percy: {
+    server: true,
+    projectType: 'automate',
+    skipDiscovery: true
+  }
+}, start.callback);
+
+const autoExec = command('exec', {
+  description: 'Start and stop Percy around a supplied command for native apps',
+  usage: '[options] -- <command>',
+  commands: [autoStart, stop, ping],
+
+  flags: webExec.definition
+  // grouped flags are built-in flags
+    .flags.filter(f => !f.group),
+
+  percy: {
+    server: true,
+    projectType: 'automate',
+    skipDiscovery: true
+  }
+}, execCallback);
+
+let execRe;
+
+if (process.env.PERCY_TOKEN.split('_')[0].toLowerCase() === 'auto') {
+  execRe = autoExec;
+} else {
+  execRe = webExec;
+}
+
+export const exec = execRe;
 
 export default exec;

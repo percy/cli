@@ -8,6 +8,10 @@ export default class MobileMetaData {
     return this.capabilities.browserName.toLowerCase();
   }
 
+  browserVersion() {
+    return this.capabilities.browserVersion.split('.')[0];
+  }
+
   osName() {
     let osName = this.capabilities.os.toLowerCase();
     if (osName === 'mac' && this.browserName() === 'iphone') {

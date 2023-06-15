@@ -76,7 +76,7 @@ export default class AutomateProvider extends GenericProvider {
           state: 'end'
         });
       } catch (e) {
-        log.debug(`[${name}] Could not mark App Automate session as percy`);
+        log.debug(`[${name}] Could not mark Automate session as percy`);
       }
     });
   }
@@ -111,10 +111,9 @@ export default class AutomateProvider extends GenericProvider {
         footerHeight: 0,
         fullscreen,
         sha: tileData.split('-')[0] // drop build id
-        // dom-sha: tileData.dom_sha
       }));
     }
-    return tiles;
+    return { tiles: tiles, domSha: tileResponse.dom_sha };
   }
 
   async browserstackExecutor(action, args) {
