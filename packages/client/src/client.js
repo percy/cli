@@ -366,6 +366,14 @@ export class PercyClient {
     return snapshot;
   }
 
+  async listSnapshots(buildId) {
+    return this.get(`snapshots?build_id=${buildId}`);
+  }
+
+  async getSnapshot(snapshotId) {
+    return this.get(`snapshots/${snapshotId}`);
+  }
+
   async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData } = {}) {
     validateId('snapshot', snapshotId);
 

@@ -688,6 +688,20 @@ describe('PercyClient', () => {
     });
   });
 
+  describe('#listSnapshots()', () => {
+    it('retrieves snapshots from a build', async() => {
+      await expectAsync(client.listSnapshots('123')).toBeResolved();
+      expect(api.requests['/snapshots?build_id=123']).toBeDefined();
+    })
+  })
+
+  describe('#getSnapshot()', () => {
+    it('retrieves a single snapshot by id', async() => {
+      await expectAsync(client.getSnapshot('123')).toBeResolved();
+      expect(api.requests['/snapshots/123']).toBeDefined();
+    })
+  })
+
   describe('#sendSnapshot()', () => {
     let testDOM = `
       <!doctype html>
