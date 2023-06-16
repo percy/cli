@@ -4,12 +4,13 @@ import { git } from '@percy/env/utils';
 import logger from '@percy/logger';
 
 import {
+  buildQueryStringArrayFromObject,
   pool,
   request,
   sha256hash,
   base64encode,
   getPackageJSON,
-  waitForTimeout, buildQueryStringArrayFromObject
+  waitForTimeout
 } from './utils.js';
 
 // Default client API URL can be set with an env var for API development

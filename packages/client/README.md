@@ -131,6 +131,9 @@ await client.getBuilds(projectSlug)
 
 // get all builds for a project's "master" branch
 await client.getBuilds(projectSlug, { branch: 'master' })
+
+// get all builds for a project with limit
+await client.getBuilds(projectSlug, {}, { limit: 20 }) 
 ```
 
 #### Filters
