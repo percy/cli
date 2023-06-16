@@ -177,17 +177,22 @@ export class PercyClient {
   }
 
   // Retrieves project builds optionally filtered. Requires a read access token.
-  async getBuilds(project, filters = {}) {
+  async getBuilds(project, filters = {}, page = {}) {
     validateProjectPath(project);
 
-    let qs = Object.keys(filters).map(k => (
-      Array.isArray(filters[k])
-        ? filters[k].map(v => `filter[${k}][]=${v}`).join('&')
-        : `filter[${k}]=${filters[k]}`
-    )).join('&');
+    let qs = this.#buildQueryString(filters, 'filter');
+    qs = qs.length && Object.keys(page).length ? qs + '&' : qs;
+    qs += this.#buildQueryString(page, 'page');
 
     this.log.debug(`Fetching builds for ${project}`);
     return this.get(`projects/${project}/builds?${qs}`);
+  }
+
+  #buildQueryString(arr, arrName) {
+    return Object.keys(arr).map(k => (Array.isArray(arr[k])
+      ? arr[k].map(v => `${arrName}[${k}][]=${v}`).join('&')
+      : `${arrName}[${k}]=${arr[k]}`
+    )).join('&');
   }
 
   // Resolves when the build has finished and is no longer pending or
