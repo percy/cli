@@ -19,6 +19,19 @@ export function base64encode(content) {
     .toString('base64');
 }
 
+/**
+ * Takes an object and builds a query string out of it
+ * @param obj       the object to iterate through and generate a query string with
+ * @param arrayKey  the array key for the query string params
+ * @return {string}
+ */
+export function buildQueryStringArrayFromObject(obj, arrayKey) {
+  return Object.keys(obj).map(k => (Array.isArray(obj[k])
+    ? obj[k].map(v => `${arrayKey}[${k}][]=${v}`).join('&')
+    : `${arrayKey}[${k}]=${obj[k]}`
+  )).join('&');
+}
+
 export function waitForTimeout() {
   return new Promise(resolve => setTimeout(resolve, ...arguments));
 }

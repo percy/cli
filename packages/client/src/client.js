@@ -9,7 +9,7 @@ import {
   sha256hash,
   base64encode,
   getPackageJSON,
-  waitForTimeout
+  waitForTimeout, buildQueryStringArrayFromObject
 } from './utils.js';
 
 // Default client API URL can be set with an env var for API development
@@ -180,19 +180,12 @@ export class PercyClient {
   async getBuilds(project, filters = {}, page = {}) {
     validateProjectPath(project);
 
-    let qs = this.#buildQueryString(filters, 'filter');
+    let qs = buildQueryStringArrayFromObject(filters, 'filter');
     qs = qs.length && Object.keys(page).length ? qs + '&' : qs;
-    qs += this.#buildQueryString(page, 'page');
+    qs += buildQueryStringArrayFromObject(page, 'page');
 
     this.log.debug(`Fetching builds for ${project}`);
     return this.get(`projects/${project}/builds?${qs}`);
-  }
-
-  #buildQueryString(arr, arrName) {
-    return Object.keys(arr).map(k => (Array.isArray(arr[k])
-      ? arr[k].map(v => `${arrName}[${k}][]=${v}`).join('&')
-      : `${arrName}[${k}]=${arr[k]}`
-    )).join('&');
   }
 
   // Resolves when the build has finished and is no longer pending or
