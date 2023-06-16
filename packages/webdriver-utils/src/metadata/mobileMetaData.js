@@ -9,7 +9,11 @@ export default class MobileMetaData {
   }
 
   browserVersion() {
-    return this.capabilities.browserVersion.split('.')[0];
+    const bsVersion = this.capabilities.browserVersion?.split('.');
+    if (bsVersion?.length > 0) {
+      return bsVersion[0];
+    }
+    return this.capabilities.version.split('.')[0];
   }
 
   osName() {

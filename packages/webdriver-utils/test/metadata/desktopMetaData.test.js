@@ -36,6 +36,13 @@ describe('DesktopMetaData', () => {
     });
 
     it('calculates alternate osName', () => {
+      desktopMetaData = new DesktopMetaData(new Driver('123', 'http:executorUrl'), {
+        browserName: 'Chrome',
+        browserVersion: '111.12.32',
+        version: '111.0',
+        os: 'win',
+        osVersion: '10'
+      });
       expect(desktopMetaData.osName()).toEqual('win');
     });
   });

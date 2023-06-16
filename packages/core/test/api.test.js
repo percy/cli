@@ -54,7 +54,8 @@ describe('API Server', () => {
         id: '123',
         number: 1,
         url: 'https://percy.io/test/test/123'
-      }
+      },
+      type: ''
     });
   });
 
