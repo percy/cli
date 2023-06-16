@@ -321,20 +321,20 @@ describe('PercyClient', () => {
     });
 
     it('get projects builds with "page" params', async() => {
-      api.reply('/projects/foo/bar/builds?page[limit]=150', () => (
+      api.reply('/projects/foo/bar/builds?page[limit]=20', () => (
         [200, { data: ['<<build-data>>'] }]
       ));
 
-      await expectAsync(client.getBuilds('foo/bar', {}, { limit: 150 }))
+      await expectAsync(client.getBuilds('foo/bar', {}, { limit: 20 }))
         .toBeResolvedTo({ data: ['<<build-data>>'] });
     })
 
     it('get projects builds with "filter" and "page" params together', async() => {
-      api.reply('/projects/foo/bar/builds?filter[sha]=test-sha&page[limit]=150', () => (
+      api.reply('/projects/foo/bar/builds?filter[sha]=test-sha&page[cursor]=56789&page[limit]=20', () => (
         [200, { data: ['<<build-data>>'] }]
       ));
 
-      await expectAsync(client.getBuilds('foo/bar', { sha: 'test-sha' }, { limit: 150 }))
+      await expectAsync(client.getBuilds('foo/bar', { sha: 'test-sha' }, { cursor: '56789', limit: 20 }))
         .toBeResolvedTo({ data: ['<<build-data>>'] });
     })
 
