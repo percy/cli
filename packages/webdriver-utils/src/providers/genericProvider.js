@@ -75,6 +75,12 @@ export default class GenericProvider {
     };
   }
 
+  // TODO: get dom sha for non-automate
+  async getDomContent() {
+    // execute script and return dom content
+    return 'dummyValue';
+  }
+
   async getTiles(fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     const base64content = await this.driver.takeScreenshot();
@@ -91,7 +97,7 @@ export default class GenericProvider {
         })
       ],
       // TODO: Add Generic support sha for contextual diff
-      domSha: 'dummyValue'
+      domSha: this.getDomContent()
     };
   }
 

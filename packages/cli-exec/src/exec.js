@@ -3,7 +3,40 @@ import start from './start.js';
 import stop from './stop.js';
 import ping from './ping.js';
 
-const execCallback = async function*({ flags, argv, env, percy, log, exit }) {
+const webExec = command('exec', {
+  description: 'Start and stop Percy around a supplied command',
+  usage: '[options] -- <command>',
+  commands: [start, stop, ping],
+
+  flags: [{
+    name: 'parallel',
+    description: 'Marks the build as one of many parallel builds',
+    parse: () => !!(process.env.PERCY_PARALLEL_TOTAL ||= '-1')
+  }, {
+    name: 'partial',
+    description: 'Marks the build as a partial build',
+    parse: () => !!(process.env.PERCY_PARTIAL_BUILD ||= '1')
+  }, {
+    name: 'testing',
+    percyrc: 'testing',
+    hidden: true
+  }],
+
+  examples: [
+    '$0 -- echo "percy is running around this echo command"',
+    '$0 -- yarn test'
+  ],
+
+  loose: [
+    'Warning: Missing command separator (--),',
+    'some command options may not work as expected'
+  ].join(' '),
+
+  percy: {
+    server: true,
+    projectType: 'web'
+  }
+}, async function*({ flags, argv, env, percy, log, exit }) {
   let [command, ...args] = argv;
 
   // command is required
@@ -49,42 +82,7 @@ const execCallback = async function*({ flags, argv, env, percy, log, exit }) {
 
   // forward any returned status code
   if (status) exit(status, error);
-};
-
-const webExec = command('exec', {
-  description: 'Start and stop Percy around a supplied command',
-  usage: '[options] -- <command>',
-  commands: [start, stop, ping],
-
-  flags: [{
-    name: 'parallel',
-    description: 'Marks the build as one of many parallel builds',
-    parse: () => !!(process.env.PERCY_PARALLEL_TOTAL ||= '-1')
-  }, {
-    name: 'partial',
-    description: 'Marks the build as a partial build',
-    parse: () => !!(process.env.PERCY_PARTIAL_BUILD ||= '1')
-  }, {
-    name: 'testing',
-    percyrc: 'testing',
-    hidden: true
-  }],
-
-  examples: [
-    '$0 -- echo "percy is running around this echo command"',
-    '$0 -- yarn test'
-  ],
-
-  loose: [
-    'Warning: Missing command separator (--),',
-    'some command options may not work as expected'
-  ].join(' '),
-
-  percy: {
-    server: true,
-    projectType: 'web'
-  }
-}, execCallback);
+});
 
 // Spawn a command with cross-spawn and return an array containing the resulting status code along
 // with any error encountered while running. Uses a generator pattern to handle interupt signals.
@@ -137,7 +135,7 @@ const autoExec = command('exec', {
     projectType: 'automate',
     skipDiscovery: true
   }
-}, execCallback);
+}, webExec.callback);
 
 let execRe;
 

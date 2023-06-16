@@ -22,7 +22,7 @@ describe('GenericProvider', () => {
     });
 
     it('creates driver', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', {}, {});
+      genericProvider = new GenericProvider('123', 'http:executorUrl', {});
       await genericProvider.createDriver();
       expect(genericProvider.driver).toEqual(expectedDriver);
       expect(capabilitiesSpy).toHaveBeenCalledTimes(1);
@@ -36,14 +36,15 @@ describe('GenericProvider', () => {
     });
 
     it('creates tiles from screenshot', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       genericProvider.createDriver();
       const tiles = await genericProvider.getTiles(false);
-      expect(tiles.length).toEqual(1);
+      expect(tiles.tiles.length).toEqual(1);
+      expect(Object.keys(tiles)).toContain('domSha');
     });
 
     it('throws error if driver not initailized', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       await expectAsync(genericProvider.getTiles(false)).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
     });
   });
@@ -62,10 +63,12 @@ describe('GenericProvider', () => {
         .and.returnValue('mockOsVersion');
       spyOn(DesktopMetaData.prototype, 'browserName')
         .and.returnValue('mockBrowserName');
+      spyOn(DesktopMetaData.prototype, 'browserVersion')
+        .and.returnValue('111');
     });
 
     it('returns correct tag', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       await genericProvider.createDriver();
       const tag = await genericProvider.getTag();
       expect(tag).toEqual({
@@ -76,12 +79,12 @@ describe('GenericProvider', () => {
         height: 1000,
         orientation: 'landscape',
         browserName: 'mockBrowserName',
-        browserVersion: 'unknown'
+        browserVersion: '111'
       });
     });
 
     it('throws error if driver not initailized', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       await expectAsync(genericProvider.getTag()).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
     });
   });
@@ -92,11 +95,11 @@ describe('GenericProvider', () => {
 
     beforeEach(() => {
       getTagSpy = spyOn(GenericProvider.prototype, 'getTag').and.returnValue(Promise.resolve('mock-tag'));
-      getTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve('mock-tile'));
+      getTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve({ tiles: 'mock-tile', domSha: 'mock-dom-sha' }));
     });
 
     it('calls correct funcs', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       await genericProvider.createDriver();
       let res = await genericProvider.screenshot('mock-name');
       expect(getTagSpy).toHaveBeenCalledTimes(1);
@@ -107,7 +110,8 @@ describe('GenericProvider', () => {
         tiles: 'mock-tile',
         externalDebugUrl: 'https://localhost/v1',
         environmentInfo: 'staging-poc-poa',
-        clientInfo: 'local-poc-poa'
+        clientInfo: 'local-poc-poa',
+        domSha: 'mock-dom-sha'
       });
     });
   });
