@@ -48,4 +48,23 @@ export default class Driver {
     const screenShot = JSON.parse((await request(baseUrl)).body);
     return screenShot.value;
   }
+
+  async rect(elementId) {
+    const baseUrl = `${this.executorUrl}/session/${this.sessionId}/element/${elementId}/rect`;
+    const response = JSON.parse((await request(baseUrl)).body);
+    return response.value;
+  }
+
+  async findElement(using, value) {
+    const options = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json;charset=utf-8'
+      },
+      body: JSON.stringify({ using, value })
+    };
+    const baseUrl = `${this.executorUrl}/session/${this.sessionId}/element`;
+    const response = JSON.parse((await request(baseUrl, options)).body);
+    return response.value;
+  }
 }
