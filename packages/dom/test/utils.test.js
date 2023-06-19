@@ -13,15 +13,16 @@ describe('utils', () => {
   });
 
   describe('resourceFromDataURL', () => {
+    const spyResourceFromDataURL = spyOn(window, 'resourceFromDataURL').and.callThrough();
     const uid = (Math.random() + 1).toString(36).substring(10);
     const dataURL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAAAXNSR0IArs4c6QAACbVJREFUeF7tXAWoFVEQnW+';
     it('If URL is localhost, replace it to render.percy.local', () => {
-      Object.defineProperty(window.document, 'URL', {
+    Object.defineProperty(window.document, 'URL', {
         writable: true,
         value: 'http://localhost'
-      });
-      const result = resourceFromDataURL(uid, dataURL);
-      expect(result).toEqual({
+    });
+    const result = resourceFromDataURL(uid, dataURL);
+    expect(result).toEqual({
         url: `http://render.percy.local/__serialized__/${uid}.png`,
         content: 'iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAAAXNSR0IArs4c6QAACbVJREFUeF7tXAWoFVEQnW+',
         mimetype: 'image/png'
@@ -39,8 +40,14 @@ describe('utils', () => {
         mimetype: 'image/png'
       });
     });
+    it('Shouldve been called twice', () => {
+      expect(spyResourceFromDataURL).toHaveBeenCalled();
+      expect(spyResourceFromDataURL.calls.count()).toEqual(2);
+
+    });
   });
   describe('resourceFromText', () => {
+    const spyResourceFromText = spyOn(window, 'resourceFromText').and.callThrough();
     const uid = (Math.random() + 1).toString(36).substring(10);
     const dataURL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAAAXNSR0IArs4c6QAACbVJREFUeF7tXAWoFVEQnW+';
     it('Replace localhost to render.percy.local', () => {
@@ -66,6 +73,10 @@ describe('utils', () => {
         content: dataURL,
         mimetype: 'image/png'
       });
+    });
+    it('Shouldve been called twice', () => {
+      expect(spyResourceFromText).toHaveBeenCalled();
+      expect(spyResourceFromDataURL.calls.count()).toEqual(2);
     });
   });
 });
