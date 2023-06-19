@@ -55,15 +55,15 @@ export default class GenericProvider {
 
   async addPercyCSS(userCSS) {
     const createStyleElement = `const e = document.createElement('style');
-      e.setAttribute('class', 'poa-user-css-injected');
+      e.setAttribute('data-percy-specific-css', true);
       e.innerHTML = '${userCSS}';
-      document.head.appendChild(e);`;
+      document.body.appendChild(e);`;
     await this.driver.executeScript({ script: createStyleElement, args: [] });
   }
 
   async removePercyCSS() {
-    const removeStyleElement = `const n = document.querySelectorAll('.poa-user-css-injected');
-      n.forEach((e) => {e.remove()});`;
+    const removeStyleElement = `const n = document.querySelector('[data-percy-specific-css]');
+      n.remove();`;
     await this.driver.executeScript({ script: removeStyleElement, args: [] });
   }
 
