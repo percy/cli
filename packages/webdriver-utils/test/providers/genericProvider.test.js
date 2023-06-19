@@ -95,6 +95,8 @@ describe('GenericProvider', () => {
     beforeEach(() => {
       getTagSpy = spyOn(GenericProvider.prototype, 'getTag').and.returnValue(Promise.resolve('mock-tag'));
       getTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve('mock-tile'));
+      spyOn(DesktopMetaData.prototype, 'windowSize')
+        .and.returnValue(Promise.resolve({ width: 1920, height: 1080 }));
     });
 
     it('calls correct funcs', async () => {

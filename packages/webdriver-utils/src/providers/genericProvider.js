@@ -41,11 +41,19 @@ export default class GenericProvider {
     return true;
   }
 
-  async screenshot(name) {
+  async screenshot(name, {
+    ignoreRegionXpaths = [],
+    ignoreRegionSelectors = [],
+    ignoreRegionElements = [],
+    customIgnoreRegions = []
+  }) {
     let fullscreen = false;
 
     const tag = await this.getTag();
     const tiles = await this.getTiles(fullscreen);
+    const ignoreRegions = await this.findIgnoredRegions(
+      ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions
+    );
     await this.setDebugUrl();
 
     log.debug(`${name} : Tag ${JSON.stringify(tag)}`);
@@ -57,6 +65,7 @@ export default class GenericProvider {
       tiles,
       // TODO: Fetch this one for bs automate, check appium sdk
       externalDebugUrl: this.debugUrl,
+      ignoredElementsData: ignoreRegions,
       environmentInfo: ENV_INFO,
       clientInfo: CLIENT_INFO
     };

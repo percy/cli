@@ -1,5 +1,6 @@
 import ProviderResolver from './providers/providerResolver.js';
 import utils from '@percy/sdk-utils';
+import { camelcase } from '@percy/config/utils';
 
 export default class WebdriverUtils {
   log = utils.logger('webdriver-utils:main');
@@ -33,6 +34,6 @@ export default class WebdriverUtils {
     this.log.info('Starting automate screenshot');
     const automate = ProviderResolver.resolve(this.sessionId, this.commandExecutorUrl, this.capabilities, this.sessionCapabilites);
     await automate.createDriver();
-    return await automate.screenshot(this.snapshotName);
+    return await automate.screenshot(this.snapshotName, this.options);
   }
 }
