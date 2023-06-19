@@ -24,7 +24,7 @@ describe('utils', () => {
       expect(result).toEqual({
         url: `http://render.percy.local/__serialized__/${uid}.png`,
         content: 'iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAAAXNSR0IArs4c6QAACbVJREFUeF7tXAWoFVEQnW+',
-        mimetype: 'image/png'  
+        mimetype: 'image/png'
       });
     });
     it('If URL is not localhost, return as is', () => {
@@ -36,23 +36,23 @@ describe('utils', () => {
       expect(result).toEqual({
         url: `http://example.com/__serialized__/${uid}.png`,
         content: 'iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAAAXNSR0IArs4c6QAACbVJREFUeF7tXAWoFVEQnW+',
-        mimetype: 'image/png'       
+        mimetype: 'image/png'
       });
     });
-  })
+  });
   describe('resourceFromText', () => {
     const uid = (Math.random() + 1).toString(36).substring(10);
     const dataURL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAAAXNSR0IArs4c6QAACbVJREFUeF7tXAWoFVEQnW+';
     it('Replace localhost to render.percy.local', () => {
       Object.defineProperty(window.document, 'URL', {
         writable: true,
-        value: 'http://localhost',
+        value: 'http://localhost'
       });
       const result = resourceFromText(uid, 'image/png', dataURL);
       expect(result).toEqual({
         url: `http://render.percy.local/__serialized__/${uid}.png`,
         content: dataURL,
-        mimetype: 'image/png',  
+        mimetype: 'image/png'
       });
     });
     it('If URL is not localhost, return as is', () => {
@@ -64,8 +64,8 @@ describe('utils', () => {
       expect(result).toEqual({
         url: `http://example.com/__serialized__/${uid}.png`,
         content: dataURL,
-        mimetype: 'image/png'        
+        mimetype: 'image/png'
       });
     });
-  })
+  });
 });
