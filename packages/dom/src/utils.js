@@ -8,7 +8,7 @@ export function resourceFromDataURL(uid, dataURL) {
   // build a URL for the serialized asset
   let [, ext] = mimetype.split('/');
   let path = `/__serialized__/${uid}.${ext}`;
-  let url = rewriteLocalhostURL(path)
+  let url = rewriteLocalhostURL(path);
 
   // return the url, base64 content, and mimetype
   return { url, content, mimetype };
@@ -18,7 +18,7 @@ export function resourceFromText(uid, mimetype, data) {
   // build a URL for the serialized asset
   let [, ext] = mimetype.split('/');
   let path = `/__serialized__/${uid}.${ext}`;
-  let url = rewriteLocalhostURL(path)
+  let url = rewriteLocalhostURL(path);
   // return the url, text content, and mimetype
   return { url, content: data, mimetype };
 }
