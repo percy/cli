@@ -92,18 +92,24 @@ describe('GenericProvider', () => {
   describe('screenshot', () => {
     let getTagSpy;
     let getTilesSpy;
+    let addPercyCSSSpy;
+    let removePercyCSSSpy;
 
     beforeEach(() => {
       getTagSpy = spyOn(GenericProvider.prototype, 'getTag').and.returnValue(Promise.resolve('mock-tag'));
       getTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve({ tiles: 'mock-tile', domSha: 'mock-dom-sha' }));
+      addPercyCSSSpy = spyOn(GenericProvider.prototype, 'addPercyCSS').and.returnValue(Promise.resolve(true));
+      removePercyCSSSpy = spyOn(GenericProvider.prototype, 'removePercyCSS').and.returnValue(Promise.resolve(true));
     });
 
     it('calls correct funcs', async () => {
       genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       await genericProvider.createDriver();
       let res = await genericProvider.screenshot('mock-name');
+      expect(addPercyCSSSpy).toHaveBeenCalledTimes(1);
       expect(getTagSpy).toHaveBeenCalledTimes(1);
       expect(getTilesSpy).toHaveBeenCalledOnceWith(false);
+      expect(removePercyCSSSpy).toHaveBeenCalledTimes(1);
       expect(res).toEqual({
         name: 'mock-name',
         tag: 'mock-tag',
@@ -113,6 +119,41 @@ describe('GenericProvider', () => {
         clientInfo: 'local-poc-poa',
         domSha: 'mock-dom-sha'
       });
+    });
+  });
+
+  describe('addPercyCSS', () => {
+    beforeEach(() => {
+      spyOn(Driver.prototype, 'executeScript').and.returnValue(Promise.resolve(true));
+    });
+
+    it('should call executeScript to add style', async () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      await genericProvider.createDriver();
+      const percyCSS = 'h1{color:green !important;}';
+      await genericProvider.addPercyCSS(percyCSS);
+      const expectedArgs = `const e = document.createElement('style');
+      e.setAttribute('data-percy-specific-css', true);
+      e.innerHTML = '${percyCSS}';
+      document.body.appendChild(e);`;
+      expect(genericProvider.driver.executeScript).toHaveBeenCalledTimes(1);
+      expect(genericProvider.driver.executeScript).toHaveBeenCalledWith({ script: expectedArgs, args: [] });
+    });
+  });
+
+  describe('removePercyCSS', () => {
+    beforeEach(() => {
+      spyOn(Driver.prototype, 'executeScript').and.returnValue(Promise.resolve(true));
+    });
+
+    it('should call executeScript to add style', async () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      await genericProvider.createDriver();
+      await genericProvider.removePercyCSS();
+      const expectedArgs = `const n = document.querySelector('[data-percy-specific-css]');
+      n.remove();`;
+      expect(genericProvider.driver.executeScript).toHaveBeenCalledTimes(1);
+      expect(genericProvider.driver.executeScript).toHaveBeenCalledWith({ script: expectedArgs, args: [] });
     });
   });
 });

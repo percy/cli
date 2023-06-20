@@ -53,12 +53,29 @@ export default class GenericProvider {
     }
   }
 
+  async addPercyCSS(userCSS) {
+    const createStyleElement = `const e = document.createElement('style');
+      e.setAttribute('data-percy-specific-css', true);
+      e.innerHTML = '${userCSS}';
+      document.body.appendChild(e);`;
+    await this.driver.executeScript({ script: createStyleElement, args: [] });
+  }
+
+  async removePercyCSS() {
+    const removeStyleElement = `const n = document.querySelector('[data-percy-specific-css]');
+      n.remove();`;
+    await this.driver.executeScript({ script: removeStyleElement, args: [] });
+  }
+
   async screenshot(name) {
     let fullscreen = false;
 
+    const percyCSS = this.options.percyCSS || '';
+    await this.addPercyCSS(percyCSS);
     const tag = await this.getTag();
     const tiles = await this.getTiles(fullscreen);
     await this.setDebugUrl();
+    await this.removePercyCSS();
 
     log.debug(`${name} : Tag ${JSON.stringify(tag)}`);
     log.debug(`${name} : Tiles ${JSON.stringify(tiles)}`);
