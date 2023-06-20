@@ -130,8 +130,14 @@ describe('GenericProvider', () => {
     it('should call executeScript to add style', async () => {
       genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       await genericProvider.createDriver();
-      await genericProvider.addPercyCSS('h1{color:green !important;}');
+      const percyCSS = 'h1{color:green !important;}';
+      await genericProvider.addPercyCSS(percyCSS);
+      const expectedArgs = `const e = document.createElement('style');
+      e.setAttribute('data-percy-specific-css', true);
+      e.innerHTML = '${percyCSS}';
+      document.body.appendChild(e);`;
       expect(genericProvider.driver.executeScript).toHaveBeenCalledTimes(1);
+      expect(genericProvider.driver.executeScript).toHaveBeenCalledWith({ script: expectedArgs, args: [] });
     });
   });
 
@@ -144,7 +150,10 @@ describe('GenericProvider', () => {
       genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       await genericProvider.createDriver();
       await genericProvider.removePercyCSS();
+      const expectedArgs = `const n = document.querySelector('[data-percy-specific-css]');
+      n.remove();`;
       expect(genericProvider.driver.executeScript).toHaveBeenCalledTimes(1);
+      expect(genericProvider.driver.executeScript).toHaveBeenCalledWith({ script: expectedArgs, args: [] });
     });
   });
 });
