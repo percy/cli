@@ -39,7 +39,7 @@ describe('utils', () => {
         mimetype: 'image/png'
       });
     });
-  });
+  });  
   describe('resourceFromText', () => {
     const uid = (Math.random() + 1).toString(36).substring(10);
     const dataURL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAAAXNSR0IArs4c6QAACbVJREFUeF7tXAWoFVEQnW+';
@@ -66,6 +66,22 @@ describe('utils', () => {
         content: dataURL,
         mimetype: 'image/png'
       });
+    });
+  });
+  describe('rewriteLocalhostURL', () => {
+    it('should replace with render.percy.local', () => {
+      const case1 = utilFunction.rewriteLocalhostURL('https://localhost/hello')
+      expect(case1).toEqual('https://render.percy.local/hello')
+      const case2 = utilFunction.rewriteLocalhostURL('http://localhost:4000/hello')
+      expect(case2).toEqual('http://render.percy.local/hello')
+      const case3 = utilFunction.rewriteLocalhostURL('http://localhost/hello')
+      expect(case3).toEqual('http://render.percy.local/hello')
+    });
+    it('Should not replace url', () => {
+      const case1 = utilFunction.rewriteLocalhostURL('http://hello.com/localhost/')
+      expect(case1).toEqual('http://hello.com/localhost/')
+      const case2 = utilFunction.rewriteLocalhostURL('http://hello/world')
+      expect(case2).toEqual('http://hello/world')
     });
   });
 });
