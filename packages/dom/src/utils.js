@@ -41,7 +41,6 @@ export function styleSheetFromNode(node) {
   return sheet;
 }
 
-export function rewriteLocalhostURL(path) {
-  let renderPercyURL = document.URL.replace(/(http[s]{0,1}:\/\/)localhost[:\d+]*/, '$1render.percy.local');
-  return document.URL.includes('localhost') ? new URL(path, renderPercyURL).toString() : new URL(path, document.URL).toString();
+function rewriteLocalhostURL(path) {
+  return new URL(path, document.URL.replace(/(http[s]{0,1}:\/\/)localhost[:\d+]*/, '$1render.percy.local')).toString();
 }
