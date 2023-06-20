@@ -849,9 +849,9 @@ describe('Percy', () => {
       delete process.env.PERCY_TOKEN;
     });
 
-    it('should return empty for old tokens', () => {
+    it('should return web for default token', () => {
       process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-      expect(percy.tokenType()).toBe('');
+      expect(percy.tokenType()).toBe('web');
     });
 
     it('should return web for web tokens', () => {
@@ -874,8 +874,14 @@ describe('Percy', () => {
       expect(percy.tokenType()).toBe('generic');
     });
 
-    it('should return empty for no token', () => {
-      expect(percy.tokenType()).toBe('');
+    it('should return web for default token', () => {
+      process.env.PERCY_TOKEN = 'abcdef123';
+      expect(percy.tokenType()).toBe('web');
+    });
+
+    it('should throw error for no token', () => {
+      process.env.PERCY_TOKEN = '';
+      expect(() => { percy.tokenType(); }).toThrowError('Missing Percy token');
     });
   });
 });

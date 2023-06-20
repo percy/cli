@@ -363,7 +363,7 @@ export class Percy {
 
   // decides project type
   tokenType() {
-    if (!process.env.PERCY_TOKEN || typeof process.env.PERCY_TOKEN !== 'string') return '';
+    if (!process.env.PERCY_TOKEN || typeof process.env.PERCY_TOKEN !== 'string') { throw new Error('Missing Percy token'); }
 
     const type = process.env.PERCY_TOKEN?.split('_')[0];
     switch (type) {
@@ -376,7 +376,7 @@ export class Percy {
       case 'ss':
         return 'generic';
       default:
-        return '';
+        return 'web';
     }
   }
 }
