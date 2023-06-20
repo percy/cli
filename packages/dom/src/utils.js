@@ -43,5 +43,5 @@ export function styleSheetFromNode(node) {
 
 export function rewriteLocalhostURL(url) {
   let baseURL = url.toString();
-  return baseURL.replace(/(http[s]{0,1}:\/\/)localhost[:\d+]*/, '$1render.percy.local')
+  return baseURL.replace(/(http[s]{0,1}:\/\/)localhost[:\d+]*/, '$1render.percy.local');
 }
