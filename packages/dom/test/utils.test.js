@@ -1,11 +1,11 @@
-import * as utilFunction from '../src/utils';
+import { resourceFromDataURL, resourceFromText, rewriteLocalhostURL, styleSheetFromNode } from '../src/utils';
 describe('utils', () => {
   describe('styleSheetFromNode', () => {
     it('creates stylesheet properly', () => {
       const node = document.createElement('style');
       node.innerText = 'p { background-color: red }';
       const cloneSpy = spyOn(node, 'cloneNode').and.callThrough();
-      const sheet = utilFunction.styleSheetFromNode(node);
+      const sheet = styleSheetFromNode(node);
       expect(sheet.cssRules[0].cssText).toEqual('p { background-color: red; }');
       // nonce needs to be copied
       expect(cloneSpy).toHaveBeenCalled();
@@ -20,7 +20,7 @@ describe('utils', () => {
         writable: true,
         value: 'http://localhost'
       });
-      const result = utilFunction.resourceFromDataURL(uid, dataURL);
+      const result = resourceFromDataURL(uid, dataURL);
       expect(result).toEqual({
         url: `http://render.percy.local/__serialized__/${uid}.png`,
         content: 'iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAAAXNSR0IArs4c6QAACbVJREFUeF7tXAWoFVEQnW+',
@@ -32,7 +32,7 @@ describe('utils', () => {
         writable: true,
         value: 'http://example.com'
       });
-      const result = utilFunction.resourceFromDataURL(uid, dataURL);
+      const result = resourceFromDataURL(uid, dataURL);
       expect(result).toEqual({
         url: `http://example.com/__serialized__/${uid}.png`,
         content: 'iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAAAXNSR0IArs4c6QAACbVJREFUeF7tXAWoFVEQnW+',
@@ -48,7 +48,7 @@ describe('utils', () => {
         writable: true,
         value: 'http://localhost'
       });
-      const result = utilFunction.resourceFromText(uid, 'image/png', dataURL);
+      const result = resourceFromText(uid, 'image/png', dataURL);
       expect(result).toEqual({
         url: `http://render.percy.local/__serialized__/${uid}.png`,
         content: dataURL,
@@ -60,7 +60,7 @@ describe('utils', () => {
         writable: true,
         value: 'http://example.com'
       });
-      const result = utilFunction.resourceFromText(uid, 'image/png', dataURL);
+      const result = resourceFromText(uid, 'image/png', dataURL);
       expect(result).toEqual({
         url: `http://example.com/__serialized__/${uid}.png`,
         content: dataURL,
@@ -70,18 +70,24 @@ describe('utils', () => {
   });
   describe('rewriteLocalhostURL', () => {
     it('should replace with render.percy.local', () => {
-      const case1 = utilFunction.rewriteLocalhostURL('https://localhost/hello');
+      const case1 = rewriteLocalhostURL('https://localhost/hello');
       expect(case1).toEqual('https://render.percy.local/hello');
-      const case2 = utilFunction.rewriteLocalhostURL('http://localhost:4000/hello');
+      const case2 = rewriteLocalhostURL('http://localhost:4000/hello');
       expect(case2).toEqual('http://render.percy.local/hello');
-      const case3 = utilFunction.rewriteLocalhostURL('http://localhost/hello');
+      const case3 = rewriteLocalhostURL('http://localhost/hello');
       expect(case3).toEqual('http://render.percy.local/hello');
+      const case4 = rewriteLocalhostURL('https://localhost:4000/hello');
+      expect(case4).toEqual('https://render.percy.local/hello')
     });
     it('Should not replace url', () => {
-      const case1 = utilFunction.rewriteLocalhostURL('http://hello.com/localhost/');
+      const case1 = rewriteLocalhostURL('http://hello.com/localhost/');
       expect(case1).toEqual('http://hello.com/localhost/');
-      const case2 = utilFunction.rewriteLocalhostURL('http://hello/world');
+      const case2 = rewriteLocalhostURL('http://hello/world');
       expect(case2).toEqual('http://hello/world');
+      const case3 = rewriteLocalhostURL('http://hellolocalhost:2000/world');
+      expect(case3).toEqual('http://hellolocalhost:2000/world');
+      const case4 = rewriteLocalhostURL('https://hellolocalhost:2000/world');
+      expect(case4).toEqual('https://hellolocalhost:2000/world');
     });
   });
 });
