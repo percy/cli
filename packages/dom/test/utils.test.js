@@ -77,7 +77,7 @@ describe('utils', () => {
       const case3 = rewriteLocalhostURL('http://localhost/hello');
       expect(case3).toEqual('http://render.percy.local/hello');
       const case4 = rewriteLocalhostURL('https://localhost:4000/hello');
-      expect(case4).toEqual('https://render.percy.local/hello')
+      expect(case4).toEqual('https://render.percy.local/hello');
     });
     it('Should not replace url', () => {
       const case1 = rewriteLocalhostURL('http://hello.com/localhost/');
