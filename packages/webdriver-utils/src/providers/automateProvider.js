@@ -31,13 +31,18 @@ export default class AutomateProvider extends GenericProvider {
     return commandExecutorUrl.includes(process.env.AA_DOMAIN || 'browserstack');
   }
 
-  async screenshot(name) {
+  async screenshot(name, {
+    ignoreRegionXpaths = [],
+    ignoreRegionSelectors = [],
+    ignoreRegionElements = [],
+    customIgnoreRegions = []
+  }) {
     let response = null;
     let error;
     try {
       let result = await this.percyScreenshotBegin(name);
       this.setDebugUrl(result);
-      response = await super.screenshot(name);
+      response = await super.screenshot(name, { ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions });
     } catch (e) {
       error = e;
       throw e;

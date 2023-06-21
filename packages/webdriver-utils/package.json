@@ -25,6 +25,7 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@percy/sdk-utils": "1.22.0"
+    "@percy/sdk-utils": "1.22.0",
+    "@percy/config": "1.22.0"
   }
 }

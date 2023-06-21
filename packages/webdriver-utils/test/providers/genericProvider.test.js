@@ -100,12 +100,14 @@ describe('GenericProvider', () => {
       getTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve({ tiles: 'mock-tile', domSha: 'mock-dom-sha' }));
       addPercyCSSSpy = spyOn(GenericProvider.prototype, 'addPercyCSS').and.returnValue(Promise.resolve(true));
       removePercyCSSSpy = spyOn(GenericProvider.prototype, 'removePercyCSS').and.returnValue(Promise.resolve(true));
+      spyOn(DesktopMetaData.prototype, 'windowSize')
+        .and.returnValue(Promise.resolve({ width: 1920, height: 1080 }));
     });
 
     it('calls correct funcs', async () => {
       genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       await genericProvider.createDriver();
-      let res = await genericProvider.screenshot('mock-name');
+      let res = await genericProvider.screenshot('mock-name', {});
       expect(addPercyCSSSpy).toHaveBeenCalledTimes(1);
       expect(getTagSpy).toHaveBeenCalledTimes(1);
       expect(getTilesSpy).toHaveBeenCalledOnceWith(false);
@@ -116,6 +118,7 @@ describe('GenericProvider', () => {
         tiles: 'mock-tile',
         externalDebugUrl: 'https://localhost/v1',
         environmentInfo: 'staging-poc-poa',
+        ignoredElementsData: { ignoreElementsData: [] },
         clientInfo: 'local-poc-poa',
         domSha: 'mock-dom-sha'
       });
@@ -154,6 +157,172 @@ describe('GenericProvider', () => {
       n.remove();`;
       expect(genericProvider.driver.executeScript).toHaveBeenCalledTimes(1);
       expect(genericProvider.driver.executeScript).toHaveBeenCalledWith({ script: expectedArgs, args: [] });
+    });
+  });
+
+  describe('ignoreElementObject', () => {
+    let provider;
+    let mockLocation = { x: 10, y: 20, width: 100, height: 200 };
+    beforeEach(() => {
+      // mock metadata
+      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
+        .and.returnValue(1);
+      spyOn(Driver.prototype, 'rect').and.returnValue(Promise.resolve(mockLocation));
+    });
+
+    it('should return a JSON object with the correct selector and coordinates', async () => {
+      await provider.createDriver();
+
+      // Call function with mock data
+      const selector = 'mock-selector';
+      const result = await provider.ignoreElementObject(selector, 'mockElementId');
+
+      // Assert expected result
+      expect(result.selector).toEqual(selector);
+      expect(result.coOrdinates).toEqual({
+        top: mockLocation.y,
+        bottom: mockLocation.y + mockLocation.height,
+        left: mockLocation.x,
+        right: mockLocation.x + mockLocation.width
+      });
+    });
+  });
+
+  describe('getIgnoreRegionsByXpaths', () => {
+    let ignoreElementObjectSpy;
+    let provider;
+
+    beforeEach(async () => {
+      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await provider.createDriver();
+      ignoreElementObjectSpy = spyOn(GenericProvider.prototype, 'ignoreElementObject').and.returnValue({});
+    });
+
+    it('should ignore regions for each xpath', async () => {
+      spyOn(Driver.prototype, 'findElement').and.returnValue(Promise.resolve({ ELEMENT: 'mock_id' }));
+      const xpaths = ['/xpath/1', '/xpath/2', '/xpath/3'];
+
+      const ignoredElementsArray = await provider.getIgnoreRegionsBy('xpath', xpaths);
+
+      expect(provider.driver.findElement).toHaveBeenCalledTimes(3);
+      expect(ignoreElementObjectSpy).toHaveBeenCalledTimes(3);
+      expect(ignoredElementsArray).toEqual([{}, {}, {}]);
+    });
+
+    it('should ignore xpath when element is not found', async () => {
+      spyOn(Driver.prototype, 'findElement').and.rejectWith(new Error('Element not found'));
+      const xpaths = ['/xpath/1', '/xpath/2', '/xpath/3'];
+
+      const ignoredElementsArray = await provider.getIgnoreRegionsBy('xpath', xpaths);
+
+      expect(provider.driver.findElement).toHaveBeenCalledTimes(3);
+      expect(ignoreElementObjectSpy).not.toHaveBeenCalled();
+      expect(ignoredElementsArray).toEqual([]);
+    });
+  });
+
+  describe('getIgnoreRegionsBySelector', () => {
+    let ignoreElementObjectSpy;
+    let provider;
+
+    beforeEach(async () => {
+      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await provider.createDriver();
+      ignoreElementObjectSpy = spyOn(GenericProvider.prototype, 'ignoreElementObject').and.returnValue({});
+    });
+
+    it('should ignore regions for each id', async () => {
+      spyOn(Driver.prototype, 'findElement').and.returnValue(Promise.resolve({ ELEMENT: 'mock_id' }));
+      const ids = ['#id1', '#id2', '#id3'];
+
+      const ignoredElementsArray = await provider.getIgnoreRegionsBy('css selector', ids);
+
+      expect(provider.driver.findElement).toHaveBeenCalledTimes(3);
+      expect(ignoreElementObjectSpy).toHaveBeenCalledTimes(3);
+      expect(ignoredElementsArray).toEqual([{}, {}, {}]);
+    });
+
+    it('should ignore id when element is not found', async () => {
+      spyOn(Driver.prototype, 'findElement').and.rejectWith(new Error('Element not found'));
+      const ids = ['#id1', '#id2', '#id3'];
+
+      const ignoredElementsArray = await provider.getIgnoreRegionsBy('css selector', ids);
+
+      expect(provider.driver.findElement).toHaveBeenCalledTimes(3);
+      expect(ignoreElementObjectSpy).not.toHaveBeenCalled();
+      expect(ignoredElementsArray).toEqual([]);
+    });
+  });
+
+  describe('getIgnoreRegionsByElement', () => {
+    let ignoreElementObjectSpy;
+    let provider;
+
+    beforeEach(async () => {
+      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await provider.createDriver();
+      ignoreElementObjectSpy = spyOn(GenericProvider.prototype, 'ignoreElementObject').and.returnValue({});
+    });
+
+    it('should ignore regions for each element', async () => {
+      const elements = ['mockElement_1', 'mockElement_2', 'mockElement_3'];
+
+      const ignoredElementsArray = await provider.getIgnoreRegionsByElement(elements);
+
+      expect(ignoreElementObjectSpy).toHaveBeenCalledTimes(3);
+      expect(ignoredElementsArray).toEqual([{}, {}, {}]);
+    });
+
+    it('should ignore when error', async () => {
+      ignoreElementObjectSpy.and.rejectWith(new Error('Element not found'));
+      const elements = ['mockElement_1', 'mockElement_2', 'mockElement_3'];
+
+      const ignoredElementsArray = await provider.getIgnoreRegionsByElement(elements);
+
+      expect(ignoredElementsArray).toEqual([]);
+    });
+  });
+
+  describe('addCustomIgnoreRegions function', () => {
+    let provider;
+
+    beforeEach(async () => {
+      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await provider.createDriver();
+      spyOn(DesktopMetaData.prototype, 'windowSize')
+        .and.returnValue(Promise.resolve({ width: 1920, height: 1080 }));
+    });
+
+    it('should add custom ignore regions to the provided array', async () => {
+      const customLocations = [
+        { top: 100, bottom: 200, left: 100, right: 200 },
+        { top: 300, bottom: 400, left: 300, right: 400 }
+      ];
+
+      const ignoredElementsArray = await provider.getCustomIgnoreRegions(customLocations);
+
+      expect(ignoredElementsArray).toEqual([
+        {
+          selector: 'custom ignore region 0',
+          coOrdinates: { top: 100, bottom: 200, left: 100, right: 200 }
+        },
+        {
+          selector: 'custom ignore region 1',
+          coOrdinates: { top: 300, bottom: 400, left: 300, right: 400 }
+        }
+      ]);
+    });
+
+    it('should ignore invalid custom ignore regions', async () => {
+      const customLocations = [
+        { top: 100, bottom: 1090, left: 100, right: 200 },
+        { top: 300, bottom: 400, left: 300, right: 1921 }
+      ];
+
+      const ignoredElementsArray = await provider.getCustomIgnoreRegions(customLocations);
+
+      expect(ignoredElementsArray).toEqual([]);
     });
   });
 });

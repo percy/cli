@@ -67,13 +67,22 @@ export default class GenericProvider {
     await this.driver.executeScript({ script: removeStyleElement, args: [] });
   }
 
-  async screenshot(name) {
+  async screenshot(name, {
+    ignoreRegionXpaths = [],
+    ignoreRegionSelectors = [],
+    ignoreRegionElements = [],
+    customIgnoreRegions = []
+  }) {
     let fullscreen = false;
 
     const percyCSS = this.options.percyCSS || '';
     await this.addPercyCSS(percyCSS);
     const tag = await this.getTag();
+
     const tiles = await this.getTiles(fullscreen);
+    const ignoreRegions = await this.findIgnoredRegions(
+      ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions
+    );
     await this.setDebugUrl();
     await this.removePercyCSS();
 
@@ -86,6 +95,7 @@ export default class GenericProvider {
       tiles: tiles.tiles,
       // TODO: Fetch this one for bs automate, check appium sdk
       externalDebugUrl: this.debugUrl,
+      ignoredElementsData: ignoreRegions,
       environmentInfo: [...this.environmentInfo].join('; '),
       clientInfo: [...this.clientInfo].join(' '),
       domSha: tiles.domSha
@@ -137,5 +147,99 @@ export default class GenericProvider {
   // TODO: Add Debugging Url
   async setDebugUrl() {
     this.debugUrl = 'https://localhost/v1';
+  }
+
+  async findIgnoredRegions(ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions) {
+    const ignoreElementXpaths = await this.getIgnoreRegionsBy('xpath', ignoreRegionXpaths);
+    const ignoreElementSelectors = await this.getIgnoreRegionsBy('css selector', ignoreRegionSelectors);
+    const ignoreElements = await this.getIgnoreRegionsByElement(ignoreRegionElements);
+    const ignoreElementCustom = await this.getCustomIgnoreRegions(customIgnoreRegions);
+
+    return {
+      ignoreElementsData: [
+        ...ignoreElementXpaths,
+        ...ignoreElementSelectors,
+        ...ignoreElements,
+        ...ignoreElementCustom
+      ]
+    };
+  }
+
+  async ignoreElementObject(selector, elementId) {
+    const scaleFactor = parseInt(await this.metaData.devicePixelRatio());
+    const rect = await this.driver.rect(elementId);
+    const location = { x: parseInt(rect.x), y: parseInt(rect.y) };
+    const size = { height: parseInt(rect.height), width: parseInt(rect.width) };
+    const coOrdinates = {
+      top: location.y * scaleFactor,
+      bottom: (location.y + size.height) * scaleFactor,
+      left: location.x * scaleFactor,
+      right: (location.x + size.width) * scaleFactor
+    };
+
+    const jsonObject = {
+      selector,
+      coOrdinates
+    };
+
+    return jsonObject;
+  }
+
+  async getIgnoreRegionsBy(findBy, elements) {
+    const ignoredElementsArray = [];
+    for (const idx in elements) {
+      try {
+        const element = await this.driver.findElement(findBy, elements[idx]);
+        const selector = `${findBy}: ${elements[idx]}`;
+        const ignoredRegion = await this.ignoreElementObject(selector, element[Object.keys(element)[0]]);
+        ignoredElementsArray.push(ignoredRegion);
+      } catch (e) {
+        log.warn(`Selenium Element with ${findBy}: ${elements[idx]} not found. Ignoring this ${findBy}.`);
+        log.error(e.toString());
+      }
+    }
+    return ignoredElementsArray;
+  }
+
+  async getIgnoreRegionsByElement(elements) {
+    const ignoredElementsArray = [];
+    for (let index = 0; index < elements.length; index++) {
+      try {
+        const selector = `element: ${index}`;
+
+        const ignoredRegion = await this.ignoreElementObject(selector, elements[index]);
+        ignoredElementsArray.push(ignoredRegion);
+      } catch (e) {
+        log.warn(`Correct Web Element not passed at index ${index}.`);
+        log.debug(e.toString());
+      }
+    }
+    return ignoredElementsArray;
+  }
+
+  async getCustomIgnoreRegions(customLocations) {
+    const ignoredElementsArray = [];
+    const { width, height } = await this.metaData.windowSize();
+    for (let index = 0; index < customLocations.length; index++) {
+      const customLocation = customLocations[index];
+      const invalid = customLocation.top >= height || customLocation.bottom > height || customLocation.left >= width || customLocation.right > width;
+
+      if (!invalid) {
+        const selector = `custom ignore region ${index}`;
+        const ignoredRegion = {
+          selector,
+          coOrdinates: {
+            top: customLocation.top,
+            bottom: customLocation.bottom,
+            left: customLocation.left,
+            right: customLocation.right
+          }
+        };
+        ignoredElementsArray.push(ignoredRegion);
+      } else {
+        log.warn(`Values passed in custom ignored region at index: ${index} is not valid`);
+      }
+    }
+    return ignoredElementsArray;
   }
 }

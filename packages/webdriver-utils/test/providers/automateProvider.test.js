@@ -82,6 +82,7 @@ describe('AutomateProvider', () => {
   describe('screenshot', () => {
     let percyScreenshotBeginSpy;
     let percyScreenshotEndSpy;
+    const ignoreRegionOptions = { ignoreRegionXpaths: [], ignoreRegionSelectors: [], ignoreRegionElements: [], customIgnoreRegions: [] };
     const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {});
 
     beforeEach(async () => {
@@ -95,10 +96,10 @@ describe('AutomateProvider', () => {
     it('test call with default args', async () => {
       await automateProvider.createDriver();
       superScreenshotSpy.and.resolveTo({ body: { link: 'link to screenshot' } });
-      await automateProvider.screenshot('abc');
+      await automateProvider.screenshot('abc', ignoreRegionOptions);
 
       expect(percyScreenshotBeginSpy).toHaveBeenCalledWith('abc');
-      expect(superScreenshotSpy).toHaveBeenCalledWith('abc');
+      expect(superScreenshotSpy).toHaveBeenCalledWith('abc', ignoreRegionOptions);
       expect(percyScreenshotEndSpy).toHaveBeenCalledWith('abc', 'link to screenshot', 'undefined');
     });
 
@@ -107,7 +108,7 @@ describe('AutomateProvider', () => {
       const errorMessage = 'Some error occured';
       superScreenshotSpy.and.rejectWith(new Error(errorMessage));
       percyScreenshotEndSpy.and.rejectWith(new Error(errorMessage));
-      await expectAsync(automateProvider.screenshot('abc')).toBeRejectedWithError(errorMessage);
+      await expectAsync(automateProvider.screenshot('abc', ignoreRegionOptions)).toBeRejectedWithError(errorMessage);
       expect(percyScreenshotBeginSpy).toHaveBeenCalledWith('abc');
       expect(percyScreenshotEndSpy).toHaveBeenCalledWith('abc', undefined, `Error: ${errorMessage}`);
     });
