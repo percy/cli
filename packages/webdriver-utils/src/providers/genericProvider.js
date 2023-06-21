@@ -98,7 +98,7 @@ export default class GenericProvider {
       ignoredElementsData: ignoreRegions,
       environmentInfo: [...this.environmentInfo].join('; '),
       clientInfo: [...this.clientInfo].join(' '),
-      domSha: tiles.domSha
+      domInfoSha: tiles.domInfoSha
     };
   }
 
@@ -124,7 +124,7 @@ export default class GenericProvider {
         })
       ],
       // TODO: Add Generic support sha for contextual diff
-      domSha: this.getDomContent()
+      domInfoSha: this.getDomContent()
     };
   }
 

@@ -366,7 +366,7 @@ export class PercyClient {
     return snapshot;
   }
 
-  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domSha } = {}) {
+  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domInfoSha } = {}) {
     validateId('snapshot', snapshotId);
     // Remove post percy api deploy
     this.log.debug(`Creating comparision: ${tag.name}...`);
@@ -387,7 +387,7 @@ export class PercyClient {
         attributes: {
           'external-debug-url': externalDebugUrl || null,
           'ignore-elements-data': ignoredElementsData || null,
-          'dom-info-sha': domSha || null
+          'dom-info-sha': domInfoSha || null
         },
         relationships: {
           tag: {
@@ -506,6 +506,26 @@ export class PercyClient {
     await this.uploadComparisonTiles(comparison.data.id, options.tiles);
     await this.finalizeComparison(comparison.data.id);
     return comparison;
+  }
+
+  // decides project type
+  tokenType() {
+    let token = this.token || this.env.token;
+    if (!token || typeof token !== 'string') { throw new Error('Missing Percy token'); }
+
+    const type = token.split('_')[0];
+    switch (type) {
+      case 'auto':
+        return 'automate';
+      case 'web':
+        return 'web';
+      case 'app':
+        return 'app';
+      case 'ss':
+        return 'generic';
+      default:
+        return 'web';
+    }
   }
 }
 

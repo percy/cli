@@ -40,7 +40,7 @@ describe('GenericProvider', () => {
       genericProvider.createDriver();
       const tiles = await genericProvider.getTiles(false);
       expect(tiles.tiles.length).toEqual(1);
-      expect(Object.keys(tiles)).toContain('domSha');
+      expect(Object.keys(tiles)).toContain('domInfoSha');
     });
 
     it('throws error if driver not initailized', async () => {
@@ -97,7 +97,7 @@ describe('GenericProvider', () => {
 
     beforeEach(() => {
       getTagSpy = spyOn(GenericProvider.prototype, 'getTag').and.returnValue(Promise.resolve('mock-tag'));
-      getTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve({ tiles: 'mock-tile', domSha: 'mock-dom-sha' }));
+      getTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve({ tiles: 'mock-tile', domInfoSha: 'mock-dom-sha' }));
       addPercyCSSSpy = spyOn(GenericProvider.prototype, 'addPercyCSS').and.returnValue(Promise.resolve(true));
       removePercyCSSSpy = spyOn(GenericProvider.prototype, 'removePercyCSS').and.returnValue(Promise.resolve(true));
       spyOn(DesktopMetaData.prototype, 'windowSize')
@@ -120,7 +120,7 @@ describe('GenericProvider', () => {
         environmentInfo: 'staging-poc-poa',
         ignoredElementsData: { ignoreElementsData: [] },
         clientInfo: 'local-poc-poa',
-        domSha: 'mock-dom-sha'
+        domInfoSha: 'mock-dom-sha'
       });
     });
   });

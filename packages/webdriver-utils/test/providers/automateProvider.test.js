@@ -176,7 +176,7 @@ describe('AutomateProvider', () => {
       expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
       expect(executeScriptSpy).toHaveBeenCalledTimes(1);
       expect(Object.keys(res).length).toEqual(2);
-      expect(res.domSha).toBe('abc');
+      expect(res.domInfoSha).toBe('abc');
       expect(res.tiles.length).toEqual(2);
       expect(res.tiles[0]).toBeInstanceOf(Tile);
       expect(res.tiles[1]).toBeInstanceOf(Tile);

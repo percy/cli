@@ -55,7 +55,7 @@ describe('API Server', () => {
         number: 1,
         url: 'https://percy.io/test/test/123'
       },
-      type: percy.tokenType()
+      type: percy.client.tokenType()
     });
   });
 

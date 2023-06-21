@@ -64,7 +64,7 @@ export function createPercyServer(percy, port) {
       loglevel: percy.loglevel(),
       config: percy.config,
       success: true,
-      type: percy.tokenType()
+      type: percy.client.tokenType()
     }))
   // get or set config options
     .route(['get', 'post'], '/percy/config', async (req, res) => res.json(200, {

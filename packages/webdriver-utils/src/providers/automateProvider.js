@@ -2,9 +2,10 @@ import utils from '@percy/sdk-utils';
 import GenericProvider from './genericProvider.js';
 import Cache from '../util/cache.js';
 import Tile from '../util/tile.js';
-import TimeIt from '../util/timing.js';
 
 const log = utils.logger('webdriver-utils:automateProvider');
+const TimeIt = utils.TimeIt;
+
 export default class AutomateProvider extends GenericProvider {
   constructor(
     sessionId,
@@ -118,7 +119,7 @@ export default class AutomateProvider extends GenericProvider {
         sha: tileData.split('-')[0] // drop build id
       }));
     }
-    return { tiles: tiles, domSha: tileResponse.dom_sha };
+    return { tiles: tiles, domInfoSha: tileResponse.dom_sha };
   }
 
   async browserstackExecutor(action, args) {

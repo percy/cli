@@ -59,8 +59,8 @@ export const exec = command('exec', {
     log.warn('Percy is disabled');
   } else {
     try {
-      percy.projectType = percy?.tokenType();
-      percy.skipDiscovery = percy.projectType === 'web';
+      percy.projectType = percy.client.tokenType();
+      percy.skipDiscovery = percy.projectType !== 'web';
       yield* percy.yield.start();
     } catch (error) {
       if (error.name === 'AbortError') throw error;
