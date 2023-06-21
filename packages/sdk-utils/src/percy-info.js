@@ -13,6 +13,7 @@ function toVersion(str) {
       get patch() { return this[2] || 0; },
       get prerelease() { return this[3]; },
       get build() { return this[4]; },
+      get type() { return this[5]; },
       toString() { return str; }
     });
 }
