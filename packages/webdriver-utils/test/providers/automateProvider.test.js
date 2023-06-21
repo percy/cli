@@ -96,7 +96,7 @@ describe('AutomateProvider', () => {
     it('test call with default args', async () => {
       await automateProvider.createDriver();
       superScreenshotSpy.and.resolveTo({ body: { link: 'link to screenshot' } });
-      await automateProvider.screenshot('abc', ignoreRegionOptions);
+      await automateProvider.screenshot('abc', { });
 
       expect(percyScreenshotBeginSpy).toHaveBeenCalledWith('abc');
       expect(superScreenshotSpy).toHaveBeenCalledWith('abc', ignoreRegionOptions);
