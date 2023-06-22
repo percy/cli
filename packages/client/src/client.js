@@ -510,8 +510,7 @@ export class PercyClient {
 
   // decides project type
   tokenType() {
-    let token = this.token || this.env.token;
-    if (!token || typeof token !== 'string') { throw new Error('Missing Percy token'); }
+    let token = this.getToken();
 
     const type = token.split('_')[0];
     switch (type) {

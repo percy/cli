@@ -66,6 +66,7 @@ export default class AutomateProvider extends GenericProvider {
         return result;
       } catch (e) {
         log.debug(`[${name}] Could not mark Automate session as percy`);
+        log.error(`[${name}] error: ${e.toString()}`);
         return null;
       }
     });
