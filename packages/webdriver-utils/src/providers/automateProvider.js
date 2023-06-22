@@ -2,9 +2,10 @@ import utils from '@percy/sdk-utils';
 import GenericProvider from './genericProvider.js';
 import Cache from '../util/cache.js';
 import Tile from '../util/tile.js';
-import TimeIt from '../util/timing.js';
 
 const log = utils.logger('webdriver-utils:automateProvider');
+const TimeIt = utils.TimeIt;
+
 export default class AutomateProvider extends GenericProvider {
   constructor(
     sessionId,
@@ -31,13 +32,18 @@ export default class AutomateProvider extends GenericProvider {
     return commandExecutorUrl.includes(process.env.AA_DOMAIN || 'browserstack');
   }
 
-  async screenshot(name) {
+  async screenshot(name, {
+    ignoreRegionXpaths = [],
+    ignoreRegionSelectors = [],
+    ignoreRegionElements = [],
+    customIgnoreRegions = []
+  }) {
     let response = null;
     let error;
     try {
       let result = await this.percyScreenshotBegin(name);
       this.setDebugUrl(result);
-      response = await super.screenshot(name);
+      response = await super.screenshot(name, { ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions });
     } catch (e) {
       error = e;
       throw e;
@@ -60,6 +66,7 @@ export default class AutomateProvider extends GenericProvider {
         return result;
       } catch (e) {
         log.debug(`[${name}] Could not mark Automate session as percy`);
+        log.error(`[${name}] error: ${e.toString()}`);
         return null;
       }
     });
@@ -113,7 +120,7 @@ export default class AutomateProvider extends GenericProvider {
         sha: tileData.split('-')[0] // drop build id
       }));
     }
-    return { tiles: tiles, domSha: tileResponse.dom_sha };
+    return { tiles: tiles, domInfoSha: tileResponse.dom_sha };
   }
 
   async browserstackExecutor(action, args) {

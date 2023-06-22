@@ -1,4 +1,4 @@
-import TimeIt from '../../src/util/timing.js';
+import TimeIt from '../src/timing.js';
 
 describe('TimeIt', () => {
   const store = 'store';
@@ -26,6 +26,27 @@ describe('TimeIt', () => {
   });
 
   describe('run', () => {
+    describe('run when disabled', () => {
+      const funFunc = { funcReturns };
+      let funcReturnsSpy;
+      TimeIt.enabled = false;
+
+      beforeEach(() => {
+        funcReturnsSpy = spyOn(funFunc, 'funcReturns');
+      });
+
+      afterEach(() => {
+        TimeIt.reset();
+      });
+
+      it('returns the func which is passed', async () => {
+        TimeIt.enabled = false;
+        await TimeIt.run(store, funcReturnsSpy);
+        expect(funcReturnsSpy).toHaveBeenCalledTimes(1);
+        TimeIt.enabled = true;
+      });
+    });
+
     it('runs func and returns result', async () => {
       const val = await TimeIt.run(store, funcReturns);
       expect(val).toEqual(expectedVal);

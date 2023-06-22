@@ -55,7 +55,7 @@ describe('API Server', () => {
         number: 1,
         url: 'https://percy.io/test/test/123'
       },
-      type: ''
+      type: percy.client.tokenType()
     });
   });
 
@@ -327,8 +327,13 @@ describe('API Server', () => {
     const req = p => request(`${addr}${p}`, { retries: 0 }, false);
 
     beforeEach(async () => {
+      process.env.PERCY_TOKEN = 'TEST_TOKEN';
       percy = await Percy.start({ testing: true });
       logger.instance.messages.clear();
+    });
+
+    afterEach(() => {
+      delete process.env.PERCY_TOKEN;
     });
 
     it('implies loglevel silent and dryRun', () => {

@@ -360,25 +360,6 @@ export class Percy {
       }
     }.call(this));
   }
-
-  // decides project type
-  tokenType() {
-    if (!process.env.PERCY_TOKEN || typeof process.env.PERCY_TOKEN !== 'string') return '';
-
-    const type = process.env.PERCY_TOKEN?.split('_')[0];
-    switch (type) {
-      case 'auto':
-        return 'automate';
-      case 'web':
-        return 'web';
-      case 'app':
-        return 'app';
-      case 'ss':
-        return 'generic';
-      default:
-        return '';
-    }
-  }
 }
 
 export default Percy;

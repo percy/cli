@@ -13,7 +13,7 @@ export default class WebdriverUtils {
       snapshotName,
       clientInfo,
       environmentInfo,
-      options
+      options = {}
     }) {
     this.sessionId = sessionId;
     this.commandExecutorUrl = commandExecutorUrl;

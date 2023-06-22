@@ -810,7 +810,9 @@ describe('PercyClient', () => {
           height: 1024,
           osName: 'fooOS',
           osVersion: '0.1.0',
-          orientation: 'portrait'
+          orientation: 'portrait',
+          browserName: 'chrome',
+          browserVersion: '111.0.0'
         },
         tiles: [{
           statusBarHeight: 40,
@@ -835,7 +837,8 @@ describe('PercyClient', () => {
           sha: sha256hash('somesha')
         }],
         externalDebugUrl: 'http://debug.localhost',
-        ignoredElementsData: ignoredElementsData
+        ignoredElementsData: ignoredElementsData,
+        domInfoSha: 'abcd='
       })).toBeResolved();
 
       expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
@@ -843,7 +846,8 @@ describe('PercyClient', () => {
           type: 'comparisons',
           attributes: {
             'external-debug-url': 'http://debug.localhost',
-            'ignore-elements-data': ignoredElementsData
+            'ignore-elements-data': ignoredElementsData,
+            'dom-info-sha': 'abcd='
           },
           relationships: {
             tag: {
@@ -855,7 +859,9 @@ describe('PercyClient', () => {
                   height: 1024,
                   'os-name': 'fooOS',
                   'os-version': '0.1.0',
-                  orientation: 'portrait'
+                  orientation: 'portrait',
+                  browser_name: 'chrome',
+                  browser_version: '111.0.0'
                 }
               }
             },
@@ -907,7 +913,8 @@ describe('PercyClient', () => {
           type: 'comparisons',
           attributes: {
             'external-debug-url': null,
-            'ignore-elements-data': null
+            'ignore-elements-data': null,
+            'dom-info-sha': null
           },
           relationships: {
             tag: {
@@ -919,7 +926,9 @@ describe('PercyClient', () => {
                   height: null,
                   'os-name': null,
                   'os-version': null,
-                  orientation: null
+                  orientation: null,
+                  browser_name: null,
+                  browser_version: null
                 }
               }
             },
@@ -1156,7 +1165,8 @@ describe('PercyClient', () => {
           type: 'comparisons',
           attributes: {
             'external-debug-url': null,
-            'ignore-elements-data': null
+            'ignore-elements-data': null,
+            'dom-info-sha': null
           },
           relationships: {
             tag: {
@@ -1168,7 +1178,9 @@ describe('PercyClient', () => {
                   height: null,
                   'os-name': null,
                   'os-version': null,
-                  orientation: null
+                  orientation: null,
+                  browser_name: null,
+                  browser_version: null
                 }
               }
             },
@@ -1205,6 +1217,51 @@ describe('PercyClient', () => {
     it('finalizes a comparison', async () => {
       expect(api.requests['/snapshots/4567/finalize']).not.toBeDefined();
       expect(api.requests['/comparisons/891011/finalize']).toBeDefined();
+    });
+  });
+
+  describe('#tokenType', () => {
+    let client;
+
+    beforeEach(() => {
+      client = new PercyClient({
+        token: 'PERCY_TOKEN'
+      });
+    });
+
+    it('should return web for default token', () => {
+      client.token = '<<PERCY_TOKEN>>';
+      expect(client.tokenType()).toBe('web');
+    });
+
+    it('should return web for web tokens', () => {
+      client.token = 'web_abc';
+      expect(client.tokenType()).toBe('web');
+    });
+
+    it('should return app for app tokens', () => {
+      client.token = 'app_abc';
+      expect(client.tokenType()).toBe('app');
+    });
+
+    it('should return automate for auto tokens', () => {
+      client.token = 'auto_abc';
+      expect(client.tokenType()).toBe('automate');
+    });
+
+    it('should return generic for ss tokens', () => {
+      client.token = 'ss_abc';
+      expect(client.tokenType()).toBe('generic');
+    });
+
+    it('should return web for default token', () => {
+      client.token = 'abcdef123';
+      expect(client.tokenType()).toBe('web');
+    });
+
+    it('should throw error for no token', () => {
+      client.token = '';
+      expect(() => { client.tokenType(); }).toThrowError('Missing Percy token');
     });
   });
 });

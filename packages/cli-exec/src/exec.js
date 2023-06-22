@@ -3,7 +3,7 @@ import start from './start.js';
 import stop from './stop.js';
 import ping from './ping.js';
 
-const webExec = command('exec', {
+export const exec = command('exec', {
   description: 'Start and stop Percy around a supplied command',
   usage: '[options] -- <command>',
   commands: [start, stop, ping],
@@ -59,6 +59,8 @@ const webExec = command('exec', {
     log.warn('Percy is disabled');
   } else {
     try {
+      percy.projectType = percy.client.tokenType();
+      percy.skipDiscovery = percy.projectType !== 'web';
       yield* percy.yield.start();
     } catch (error) {
       if (error.name === 'AbortError') throw error;
@@ -109,42 +111,5 @@ async function* spawn(cmd, args) {
     return [0, err];
   }
 }
-
-const autoStart = command('start', {
-  description: 'Starts a locally running Percy process for automate sessions',
-  examples: ['$0 &> percy.log'],
-
-  percy: {
-    server: true,
-    projectType: 'automate',
-    skipDiscovery: true
-  }
-}, start.callback);
-
-const autoExec = command('exec', {
-  description: 'Start and stop Percy around a supplied command for native apps',
-  usage: '[options] -- <command>',
-  commands: [autoStart, stop, ping],
-
-  flags: webExec.definition
-  // grouped flags are built-in flags
-    .flags.filter(f => !f.group),
-
-  percy: {
-    server: true,
-    projectType: 'automate',
-    skipDiscovery: true
-  }
-}, webExec.callback);
-
-let execRe;
-
-if (process.env.PERCY_TOKEN.split('_')[0].toLowerCase() === 'auto') {
-  execRe = autoExec;
-} else {
-  execRe = webExec;
-}
-
-export const exec = execRe;
 
 export default exec;

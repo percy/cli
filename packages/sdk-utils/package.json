@@ -34,7 +34,7 @@
   "scripts": {
     "build": "node ../../scripts/build",
     "lint": "eslint --ignore-path ../../.gitignore .",
-    "test": "percy exec --testing -- node ../../scripts/test",
+    "test": "PERCY_TOKEN=TEST_TOKEN percy exec --testing -- node ../../scripts/test",
     "test:coverage": "yarn test --coverage"
   },
   "rollup": {

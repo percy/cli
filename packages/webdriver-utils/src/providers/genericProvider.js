@@ -53,6 +53,20 @@ export default class GenericProvider {
     }
   }
 
+  async addPercyCSS(userCSS) {
+    const createStyleElement = `const e = document.createElement('style');
+      e.setAttribute('data-percy-specific-css', true);
+      e.innerHTML = '${userCSS}';
+      document.body.appendChild(e);`;
+    await this.driver.executeScript({ script: createStyleElement, args: [] });
+  }
+
+  async removePercyCSS() {
+    const removeStyleElement = `const n = document.querySelector('[data-percy-specific-css]');
+      n.remove();`;
+    await this.driver.executeScript({ script: removeStyleElement, args: [] });
+  }
+
   async screenshot(name) {
     const {
       ignoreRegionXpaths = [],
@@ -62,12 +76,16 @@ export default class GenericProvider {
     } = this.options;
     let fullscreen = false;
 
+    const percyCSS = this.options.percyCSS || '';
+    await this.addPercyCSS(percyCSS);
     const tag = await this.getTag();
+
     const tiles = await this.getTiles(fullscreen);
     const ignoreRegions = await this.findIgnoredRegions(
       ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions
     );
     await this.setDebugUrl();
+    await this.removePercyCSS();
 
     log.debug(`${name} : Tag ${JSON.stringify(tag)}`);
     log.debug(`${name} : Tiles ${JSON.stringify(tiles)}`);
@@ -81,7 +99,7 @@ export default class GenericProvider {
       ignoredElementsData: ignoreRegions,
       environmentInfo: [...this.environmentInfo].join('; '),
       clientInfo: [...this.clientInfo].join(' '),
-      domSha: tiles.domSha
+      domInfoSha: tiles.domInfoSha
     };
   }
 
@@ -107,7 +125,7 @@ export default class GenericProvider {
         })
       ],
       // TODO: Add Generic support sha for contextual diff
-      domSha: this.getDomContent()
+      domInfoSha: this.getDomContent()
     };
   }
 
@@ -174,11 +192,11 @@ export default class GenericProvider {
       try {
         const element = await this.driver.findElement(findBy, elements[idx]);
         const selector = `${findBy}: ${elements[idx]}`;
-        const ignoredRegion = await this.ignoreElementObject(selector, element.ELEMENT);
+        const ignoredRegion = await this.ignoreElementObject(selector, element[Object.keys(element)[0]]);
         ignoredElementsArray.push(ignoredRegion);
       } catch (e) {
         log.warn(`Selenium Element with ${findBy}: ${elements[idx]} not found. Ignoring this ${findBy}.`);
-        log.debug(e.toString());
+        log.error(e.toString());
       }
     }
     return ignoredElementsArray;

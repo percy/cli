@@ -1,5 +1,4 @@
-import validations from './validations.js';
-const { Undefined } = validations;
+import { Undefined } from './validations.js';
 
 export default class TimeIt {
   static data = {};
