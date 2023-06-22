@@ -8,21 +8,26 @@ export default class DesktopMetaData {
     return this.capabilities.browserName.toLowerCase();
   }
 
+  browserVersion() {
+    return this.capabilities.browserVersion.split('.')[0];
+  }
+
   osName() {
-    let osName = this.capabilities.osVersion;
+    let osName = this.capabilities.os;
     if (osName) return osName.toLowerCase();
 
     osName = this.capabilities.platform;
     return osName;
   }
 
-  // desktop will show this as browser version
+  // showing major version
   osVersion() {
-    return this.capabilities.version.split('.')[0];
+    return this.capabilities.osVersion.toLowerCase();
   }
 
+  // combination of browserName + browserVersion + osVersion + osName
   deviceName() {
-    return this.browserName() + '_' + this.osVersion() + '_' + this.osName();
+    return this.browserName() + '_' + this.browserVersion() + '_' + this.osVersion() + '_' + this.osName();
   }
 
   orientation() {

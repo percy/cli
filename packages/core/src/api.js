@@ -3,7 +3,7 @@ import path from 'path';
 import { createRequire } from 'module';
 import logger from '@percy/logger';
 import { normalize } from '@percy/config/utils';
-import { getPackageJSON, Server } from './utils.js';
+import { getPackageJSON, Server, percyAutomateRequestHandler } from './utils.js';
 // TODO Remove below esline disable once we publish webdriver-util
 import WebdriverUtils from '@percy/webdriver-utils'; // eslint-disable-line import/no-extraneous-dependencies
 
@@ -63,7 +63,8 @@ export function createPercyServer(percy, port) {
       build: percy.testing?.build ?? percy.build,
       loglevel: percy.loglevel(),
       config: percy.config,
-      success: true
+      success: true,
+      type: percy.tokenType() || ''
     }))
   // get or set config options
     .route(['get', 'post'], '/percy/config', async (req, res) => res.json(200, {
@@ -117,9 +118,12 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/flush', async (req, res) => res.json(200, {
       success: await percy.flush(req.body).then(() => true)
     }))
-    .route('post', '/percy/automateScreenshot', async (req, res) => res.json(200, {
-      success: await (percy.upload(await new WebdriverUtils(req.body).automateScreenshot())).then(() => true)
-    }))
+    .route('post', '/percy/automateScreenshot', async (req, res) => {
+      req = percyAutomateRequestHandler(req);
+      res.json(200, {
+        success: await (percy.upload(await new WebdriverUtils(req.body).automateScreenshot())).then(() => true)
+      });
+    })
   // stops percy at the end of the current event loop
     .route('/percy/stop', (req, res) => {
       setImmediate(() => percy.stop());

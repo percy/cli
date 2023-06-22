@@ -5,21 +5,27 @@ import Tile from '../util/tile.js';
 import Driver from '../driver.js';
 
 const log = utils.logger('webdriver-utils:genericProvider');
-// TODO: Need to pass parameter from sdk and catch in cli
-const CLIENT_INFO = 'local-poc-poa';
-const ENV_INFO = 'staging-poc-poa';
 
 export default class GenericProvider {
+  clientInfo = new Set();
+  environmentInfo = new Set();
+  options = {};
   constructor(
     sessionId,
     commandExecutorUrl,
     capabilities,
-    sessionCapabilites
+    sessionCapabilites,
+    clientInfo,
+    environmentInfo,
+    options
   ) {
     this.sessionId = sessionId;
     this.commandExecutorUrl = commandExecutorUrl;
     this.capabilities = capabilities;
     this.sessionCapabilites = sessionCapabilites;
+    this.addClientInfo(clientInfo);
+    this.addEnvironmentInfo(environmentInfo);
+    this.options = options;
     this.driver = null;
     this.metaData = null;
     this.debugUrl = null;
@@ -35,12 +41,25 @@ export default class GenericProvider {
     return true;
   }
 
-  async screenshot(name, {
-    ignoreRegionXpaths = [],
-    ignoreRegionSelectors = [],
-    ignoreRegionElements = [],
-    customIgnoreRegions = []
-  }) {
+  addClientInfo(info) {
+    for (let i of [].concat(info)) {
+      if (i) this.clientInfo.add(i);
+    }
+  }
+
+  addEnvironmentInfo(info) {
+    for (let i of [].concat(info)) {
+      if (i) this.environmentInfo.add(i);
+    }
+  }
+
+  async screenshot(name) {
+    const {
+      ignoreRegionXpaths = [],
+      ignoreRegionSelectors = [],
+      ignoreRegionElements = [],
+      customIgnoreRegions = []
+    } = this.options;
     let fullscreen = false;
 
     const tag = await this.getTag();
@@ -56,29 +75,40 @@ export default class GenericProvider {
     return {
       name,
       tag,
-      tiles,
+      tiles: tiles.tiles,
       // TODO: Fetch this one for bs automate, check appium sdk
       externalDebugUrl: this.debugUrl,
       ignoredElementsData: ignoreRegions,
-      environmentInfo: ENV_INFO,
-      clientInfo: CLIENT_INFO
+      environmentInfo: [...this.environmentInfo].join('; '),
+      clientInfo: [...this.clientInfo].join(' '),
+      domSha: tiles.domSha
     };
+  }
+
+  // TODO: get dom sha for non-automate
+  async getDomContent() {
+    // execute script and return dom content
+    return 'dummyValue';
   }
 
   async getTiles(fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     const base64content = await this.driver.takeScreenshot();
-    return [
-      new Tile({
-        content: base64content,
-        // TODO: Need to add method to fetch these attr
-        statusBarHeight: 0,
-        navBarHeight: 0,
-        headerHeight: 0,
-        footerHeight: 0,
-        fullscreen
-      })
-    ];
+    return {
+      tiles: [
+        new Tile({
+          content: base64content,
+          // TODO: Need to add method to fetch these attr
+          statusBarHeight: 0,
+          navBarHeight: 0,
+          headerHeight: 0,
+          footerHeight: 0,
+          fullscreen
+        })
+      ],
+      // TODO: Add Generic support sha for contextual diff
+      domSha: this.getDomContent()
+    };
   }
 
   async getTag() {
@@ -93,11 +123,11 @@ export default class GenericProvider {
       height,
       orientation: orientation,
       browserName: this.metaData.browserName(),
-      // TODO
-      browserVersion: 'unknown'
+      browserVersion: this.metaData.browserVersion()
     };
   }
 
+  // TODO: Add Debugging Url
   async setDebugUrl() {
     this.debugUrl = 'https://localhost/v1';
   }

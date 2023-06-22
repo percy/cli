@@ -843,4 +843,39 @@ describe('Percy', () => {
       expect(api.requests['/builds/123/snapshots']).toBeUndefined();
     });
   });
+
+  describe('#tokenType', () => {
+    afterEach(() => {
+      delete process.env.PERCY_TOKEN;
+    });
+
+    it('should return empty for old tokens', () => {
+      process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+      expect(percy.tokenType()).toBe('');
+    });
+
+    it('should return web for web tokens', () => {
+      process.env.PERCY_TOKEN = 'web_abc';
+      expect(percy.tokenType()).toBe('web');
+    });
+
+    it('should return app for app tokens', () => {
+      process.env.PERCY_TOKEN = 'app_abc';
+      expect(percy.tokenType()).toBe('app');
+    });
+
+    it('should return automate for auto tokens', () => {
+      process.env.PERCY_TOKEN = 'auto_abc';
+      expect(percy.tokenType()).toBe('automate');
+    });
+
+    it('should return generic for ss tokens', () => {
+      process.env.PERCY_TOKEN = 'ss_abc';
+      expect(percy.tokenType()).toBe('generic');
+    });
+
+    it('should return empty for no token', () => {
+      expect(percy.tokenType()).toBe('');
+    });
+  });
 });
