@@ -53,7 +53,7 @@ describe('SDK Utils', () => {
       });
 
       it('contains type', () => {
-        expect(percy.type).toEqual(''); // since this is being ran using old percy token
+        expect(percy.type).toEqual('web');
       });
     });
   });
