@@ -13,13 +13,13 @@ function toVersion(str) {
       get patch() { return this[2] || 0; },
       get prerelease() { return this[3]; },
       get build() { return this[4]; },
-      get type() { return this[5]; },
       toString() { return str; }
     });
 }
 
 // private version cache
 let version = toVersion();
+let type;
 
 // contains local percy info
 const info = {
@@ -28,7 +28,10 @@ const info = {
   set address(addr) { return (process.env.PERCY_SERVER_ADDRESS = addr); },
   // version information
   get version() { return version; },
-  set version(v) { return (version = toVersion(v)); }
+  set version(v) { return (version = toVersion(v)); },
+
+  get type() { return type; },
+  set type(t) { return (type = t); }
 };
 
 export default info;
