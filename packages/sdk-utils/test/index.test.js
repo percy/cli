@@ -51,6 +51,10 @@ describe('SDK Utils', () => {
       it('contains percy config', () => {
         expect(percy).toHaveProperty('config.snapshot.widths', [375, 1280]);
       });
+
+      it('contains type', () => {
+        expect(percy.type).toEqual(''); // since this is being ran using old percy token
+      });
     });
   });
 
