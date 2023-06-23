@@ -1258,10 +1258,43 @@ describe('PercyClient', () => {
       client.token = 'abcdef123';
       expect(client.tokenType()).toBe('web');
     });
+  });
 
-    it('should throw error for no token', () => {
-      client.token = '';
-      expect(() => { client.tokenType(); }).toThrowError('Missing Percy token');
+  describe('#computeSkipDiscoveryState', () => {
+    it('should return true if testing is true', () => {
+      client = new PercyClient({
+        token: 'PERCY_TOKEN',
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info',
+        testing: true
+      });
+      expect(client.computeSkipDiscoveryState()).toBe(true);
+    });
+
+    it('should return false if token is not set', () => {
+      client = new PercyClient({
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
+      });
+      expect(client.computeSkipDiscoveryState()).toBe(false);
+    });
+
+    it('should return false if web token is set', () => {
+      client = new PercyClient({
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info',
+        token: 'PERCY_TOKEN'
+      });
+      expect(client.computeSkipDiscoveryState()).toBe(false);
+    });
+
+    it('should return true if auto token is set', () => {
+      client = new PercyClient({
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info',
+        token: 'auto_PERCY_TOKEN'
+      });
+      expect(client.computeSkipDiscoveryState()).toBe(true);
     });
   });
 });

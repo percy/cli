@@ -60,7 +60,7 @@ export const exec = command('exec', {
   } else {
     try {
       percy.projectType = percy.client.tokenType();
-      percy.skipDiscovery = percy.projectType !== 'web';
+      percy.skipDiscovery = percy.client.computeSkipDiscoveryState();
       yield* percy.yield.start();
     } catch (error) {
       if (error.name === 'AbortError') throw error;

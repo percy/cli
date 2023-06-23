@@ -42,6 +42,7 @@ export class PercyClient {
   env = new PercyEnv(process.env);
   clientInfo = new Set();
   environmentInfo = new Set();
+  testing = false;
 
   constructor({
     // read or write token, defaults to PERCY_TOKEN environment variable
@@ -49,12 +50,14 @@ export class PercyClient {
     // initial user agent info
     clientInfo,
     environmentInfo,
+    testing,
     // versioned api url
     apiUrl = PERCY_CLIENT_API_URL
   } = {}) {
     Object.assign(this, { token, apiUrl });
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
+    this.testing = testing || false;
   }
 
   // Adds additional unique client info.
@@ -510,7 +513,7 @@ export class PercyClient {
 
   // decides project type
   tokenType() {
-    let token = this.getToken();
+    let token = this.token || this.env.token || '';
 
     const type = token.split('_')[0];
     switch (type) {
@@ -525,6 +528,12 @@ export class PercyClient {
       default:
         return 'web';
     }
+  }
+
+  computeSkipDiscoveryState() {
+    const type = this.tokenType();
+    if (this.testing) { return true; }
+    return type !== 'web';
   }
 }
 

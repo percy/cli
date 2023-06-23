@@ -87,7 +87,7 @@ export class Percy {
     this.delayUploads = this.skipUploads || !!delayUploads;
     this.deferUploads = this.skipUploads || !!deferUploads;
 
-    this.client = new PercyClient({ token, clientInfo, environmentInfo });
+    this.client = new PercyClient({ token, clientInfo, environmentInfo, testing });
     if (server) this.server = createPercyServer(this, port);
     this.browser = new Browser(this);
 
