@@ -59,14 +59,22 @@ export function href(options) {
     (path || `${pathname || ''}${search || ''}${hash || ''}`);
 };
 
+// auto strip double quotes/spaces if any
+function stripQuotesAndSpaces(line) {
+  if (line == null) {return null};
+  const regex = /^["\s"]+|["\s"]+$/g;
+  const strippedLine = line.replace(regex, '');
+  return strippedLine;
+}
+
 // Returns the proxy URL for a set of request options
 export function getProxy(options) {
   let proxyUrl = (options.protocol === 'https:' &&
-    (process.env.https_proxy || process.env.HTTPS_PROXY)) ||
-    (process.env.http_proxy || process.env.HTTP_PROXY);
+    (stripQuotesAndSpaces(process.env.https_proxy) || stripQuotesAndSpaces(process.env.HTTPS_PROXY))) ||
+    (stripQuotesAndSpaces(process.env.http_proxy) || stripQuotesAndSpaces(process.env.HTTP_PROXY));
 
   let shouldProxy = !!proxyUrl && !hostnameMatches((
-    process.env.no_proxy || process.env.NO_PROXY
+    stripQuotesAndSpaces(process.env.no_proxy) || stripQuotesAndSpaces(process.env.NO_PROXY)
   ), href(options));
 
   if (shouldProxy) {
