@@ -1,6 +1,6 @@
 
 import utils from '@percy/sdk-utils';
-const Undefined = utils.Undefined;
+const { Undefined } = utils;
 
 export default class Cache {
   static cache = {};
