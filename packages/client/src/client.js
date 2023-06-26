@@ -84,9 +84,9 @@ export class PercyClient {
   }
 
   // Checks for a Percy token and returns it.
-  getToken() {
+  getToken(raiseIfMissing = true) {
     let token = this.token || this.env.token;
-    if (!token) throw new Error('Missing Percy token');
+    if (!token && raiseIfMissing) throw new Error('Missing Percy token');
     return token;
   }
 
@@ -510,7 +510,7 @@ export class PercyClient {
 
   // decides project type
   tokenType() {
-    let token = this.token || this.env.token || '';
+    let token = this.getToken(false) || '';
 
     const type = token.split('_')[0];
     switch (type) {
