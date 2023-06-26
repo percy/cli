@@ -1258,5 +1258,10 @@ describe('PercyClient', () => {
       client.token = 'abcdef123';
       expect(client.tokenType()).toBe('web');
     });
+
+    it('should return web for no token', () => {
+      client.token = '';
+      expect(client.tokenType()).toBe('web');
+    });
   });
 });
