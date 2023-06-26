@@ -87,7 +87,7 @@ export class Percy {
     this.delayUploads = this.skipUploads || !!delayUploads;
     this.deferUploads = this.skipUploads || !!deferUploads;
 
-    this.client = new PercyClient({ token, clientInfo, environmentInfo, testing });
+    this.client = new PercyClient({ token, clientInfo, environmentInfo });
     if (server) this.server = createPercyServer(this, port);
     this.browser = new Browser(this);
 
@@ -359,6 +359,11 @@ export class Percy {
         throw error;
       }
     }.call(this));
+  }
+
+  shouldSkipAssetDiscovery(tokenType) {
+    if (this.testing && JSON.stringify(this.testing) === JSON.stringify({})) { return true; }
+    return tokenType !== 'web';
   }
 }
 
