@@ -62,3 +62,11 @@ export function github({ GITHUB_EVENT_PATH }) {
 
   return (github.payload ||= {});
 }
+
+// auto strip double quotes/spaces if any
+export function stripQuotesAndSpaces(line) {
+  if (line == null) { return null; };
+  const regex = /^["\s"]+|["\s"]+$/g;
+  const strippedLine = line.replace(regex, '');
+  return strippedLine;
+}

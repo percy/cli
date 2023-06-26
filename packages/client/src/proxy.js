@@ -3,6 +3,7 @@ import tls from 'tls';
 import http from 'http';
 import https from 'https';
 import logger from '@percy/logger';
+import { stripQuotesAndSpaces } from '@percy/env/utils';
 
 const CRLF = '\r\n';
 const STATUS_REG = /^HTTP\/1.[01] (\d*)/;
@@ -58,14 +59,6 @@ export function href(options) {
   return `${protocol}//${hostname}:${port(options)}` +
     (path || `${pathname || ''}${search || ''}${hash || ''}`);
 };
-
-// auto strip double quotes/spaces if any
-function stripQuotesAndSpaces(line) {
-  if (line == null) {return null};
-  const regex = /^["\s"]+|["\s"]+$/g;
-  const strippedLine = line.replace(regex, '');
-  return strippedLine;
-}
 
 // Returns the proxy URL for a set of request options
 export function getProxy(options) {
