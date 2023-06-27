@@ -2,9 +2,14 @@ import fs from 'fs';
 import path from 'path';
 import command from '@percy/cli-command';
 import * as UploadConfig from './config.js';
+import PercyClient from '@percy/client';
 
 const ALLOWED_FILE_TYPES = /\.(png|jpg|jpeg)$/i;
 
+function tokenType() {
+  const percyClient = new PercyClient({ token: null, clientInfo: null, environmentInfo: null });
+  return percyClient.tokenType();
+}
 export const upload = command('upload', {
   description: 'Upload a directory of images to Percy',
 
@@ -87,15 +92,34 @@ export const upload = command('upload', {
       let { dir, name, ext } = path.parse(relativePath);
       img.type = ext === '.png' ? 'png' : 'jpeg';
       img.name = path.join(dir, name);
-
-      percy.upload({
-        name: config.stripExtensions ? img.name : relativePath,
-        // width and height is clamped to API min and max
-        widths: [Math.max(10, Math.min(img.width, 2000))],
-        minHeight: Math.max(10, Math.min(img.height, 2000)),
-        // resources are read from the filesystem as needed
-        resources: () => getImageResources(img)
-      });
+      if (tokenType().toLowerCase() === 'web') {
+        percy.upload({
+          name: config.stripExtensions ? img.name : relativePath,
+          // width and height is clamped to API min and max
+          widths: [Math.max(10, Math.min(img.width, 2000))],
+          minHeight: Math.max(10, Math.min(img.height, 2000)),
+          // resources are read from the filesystem as needed
+          resources: () => getImageResources(img)
+        });
+      } else if (tokenType().toLowerCase() === 'generic') {
+        let options = {
+          name: config.stripExtensions ? img.name : relativePath,
+          tag: {
+            name: 'uploaded_image',
+            width: 1200,
+            height: 900
+          },
+          tiles: [
+            {
+              filepath: img.absolutePath
+            }
+          ],
+          widths: [Math.max(10, Math.min(img.width, 2000))]
+        };
+        percy.upload(options);
+      } else {
+        throw new Error('Invalid Token Type');
+      }
     }
   }
 
