@@ -63,12 +63,15 @@ export function href(options) {
 // Returns the proxy URL for a set of request options
 export function getProxy(options) {
   let proxyUrl = (options.protocol === 'https:' &&
-    (stripQuotesAndSpaces(process.env.https_proxy) || stripQuotesAndSpaces(process.env.HTTPS_PROXY))) ||
-    (stripQuotesAndSpaces(process.env.http_proxy) || stripQuotesAndSpaces(process.env.HTTP_PROXY));
+    (process.env.https_proxy || process.env.HTTPS_PROXY)) ||
+    (process.env.http_proxy || process.env.HTTP_PROXY);
 
   let shouldProxy = !!proxyUrl && !hostnameMatches((
-    stripQuotesAndSpaces(process.env.no_proxy) || stripQuotesAndSpaces(process.env.NO_PROXY)
+    process.env.no_proxy || process.env.NO_PROXY
   ), href(options));
+
+  if (proxyUrl != null && typeof proxyUrl === 'string') { proxyUrl = stripQuotesAndSpaces(proxyUrl); }
+  if (shouldProxy != null && typeof shouldProxy === 'string') { shouldProxy = stripQuotesAndSpaces(shouldProxy); }
 
   if (shouldProxy) {
     proxyUrl = new URL(proxyUrl);
