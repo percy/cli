@@ -200,6 +200,20 @@ describe('percy upload', () => {
     ]);
   });
 
+  it('should be able to upload generic project images with strips file extensions', async () => {
+    process.env.PERCY_TOKEN = 'ss_<<PERCY_TOKEN>>';
+    await upload(['./images', '--strip-extensions']);
+    expect(logger.stdout).toEqual([
+      '[percy] Percy has started!',
+      '[percy] Uploading 3 snapshots...',
+      '[percy] Snapshot uploaded: test-1',
+      '[percy] Snapshot uploaded: test-2',
+      '[percy] Snapshot uploaded: test-3',
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
+    ]);
+    expect(logger.stderr).toEqual([]);
+  });
+
   it('should be able to upload generic project images', async () => {
     process.env.PERCY_TOKEN = 'ss_<<PERCY_TOKEN>>';
     await upload(['./images']);
