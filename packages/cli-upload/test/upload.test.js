@@ -9,7 +9,7 @@ const pixel = Buffer.from((
 describe('percy upload', () => {
   beforeEach(async () => {
     upload.packageInformation = { name: '@percy/cli-upload' };
-    process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+    process.env.PERCY_TOKEN = 'web_<<PERCY_TOKEN>>';
 
     await setupTest({
       filesystem: {
@@ -198,5 +198,24 @@ describe('percy upload', () => {
       '[percy] Snapshot uploaded: test-1.png',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
+  });
+
+  it('should be able to upload generic project images', async () => {
+    process.env.PERCY_TOKEN = 'ss_<<PERCY_TOKEN>>';
+    await upload(['./images']);
+    expect(logger.stdout).toEqual([
+      '[percy] Percy has started!',
+      '[percy] Uploading 3 snapshots...',
+      '[percy] Snapshot uploaded: test-1.png',
+      '[percy] Snapshot uploaded: test-2.jpg',
+      '[percy] Snapshot uploaded: test-3.jpeg',
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
+    ]);
+    expect(logger.stderr).toEqual([]);
+  });
+
+  it('should give error for token type other than web and generic', async () => {
+    process.env.PERCY_TOKEN = 'app_invalid_token';
+    await expectAsync(upload(['./images'])).toBeRejected();
   });
 });

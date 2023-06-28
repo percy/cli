@@ -2,14 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import command from '@percy/cli-command';
 import * as UploadConfig from './config.js';
-import PercyClient from '@percy/client';
 
 const ALLOWED_FILE_TYPES = /\.(png|jpg|jpeg)$/i;
 
-function tokenType() {
-  const percyClient = new PercyClient({ token: null, clientInfo: null, environmentInfo: null });
-  return percyClient.tokenType();
-}
 export const upload = command('upload', {
   description: 'Upload a directory of images to Percy',
 
@@ -92,7 +87,7 @@ export const upload = command('upload', {
       let { dir, name, ext } = path.parse(relativePath);
       img.type = ext === '.png' ? 'png' : 'jpeg';
       img.name = path.join(dir, name);
-      if (tokenType().toLowerCase() === 'web') {
+      if (percy.client.tokenType().toLowerCase() === 'web') {
         percy.upload({
           name: config.stripExtensions ? img.name : relativePath,
           // width and height is clamped to API min and max
@@ -101,7 +96,7 @@ export const upload = command('upload', {
           // resources are read from the filesystem as needed
           resources: () => getImageResources(img)
         });
-      } else if (tokenType().toLowerCase() === 'generic') {
+      } else if (percy.client.tokenType().toLowerCase() === 'generic') {
         let options = {
           name: config.stripExtensions ? img.name : relativePath,
           tag: {
@@ -113,8 +108,7 @@ export const upload = command('upload', {
             {
               filepath: img.absolutePath
             }
-          ],
-          widths: [Math.max(10, Math.min(img.width, 2000))]
+          ]
         };
         percy.upload(options);
       } else {
