@@ -22,7 +22,7 @@ describe('GenericProvider', () => {
     });
 
     it('creates driver', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', {}, {});
+      genericProvider = new GenericProvider('123', 'http:executorUrl', {});
       await genericProvider.createDriver();
       expect(genericProvider.driver).toEqual(expectedDriver);
       expect(capabilitiesSpy).toHaveBeenCalledTimes(1);
@@ -36,14 +36,15 @@ describe('GenericProvider', () => {
     });
 
     it('creates tiles from screenshot', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       genericProvider.createDriver();
       const tiles = await genericProvider.getTiles(false);
-      expect(tiles.length).toEqual(1);
+      expect(tiles.tiles.length).toEqual(1);
+      expect(Object.keys(tiles)).toContain('domInfoSha');
     });
 
     it('throws error if driver not initailized', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       await expectAsync(genericProvider.getTiles(false)).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
     });
   });
@@ -62,10 +63,12 @@ describe('GenericProvider', () => {
         .and.returnValue('mockOsVersion');
       spyOn(DesktopMetaData.prototype, 'browserName')
         .and.returnValue('mockBrowserName');
+      spyOn(DesktopMetaData.prototype, 'browserVersion')
+        .and.returnValue('111');
     });
 
     it('returns correct tag', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       await genericProvider.createDriver();
       const tag = await genericProvider.getTag();
       expect(tag).toEqual({
@@ -76,12 +79,12 @@ describe('GenericProvider', () => {
         height: 1000,
         orientation: 'landscape',
         browserName: 'mockBrowserName',
-        browserVersion: 'unknown'
+        browserVersion: '111'
       });
     });
 
     it('throws error if driver not initailized', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       await expectAsync(genericProvider.getTag()).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
     });
   });
@@ -89,20 +92,26 @@ describe('GenericProvider', () => {
   describe('screenshot', () => {
     let getTagSpy;
     let getTilesSpy;
+    let addPercyCSSSpy;
+    let removePercyCSSSpy;
 
     beforeEach(() => {
       getTagSpy = spyOn(GenericProvider.prototype, 'getTag').and.returnValue(Promise.resolve('mock-tag'));
-      getTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve('mock-tile'));
+      getTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve({ tiles: 'mock-tile', domInfoSha: 'mock-dom-sha' }));
+      addPercyCSSSpy = spyOn(GenericProvider.prototype, 'addPercyCSS').and.returnValue(Promise.resolve(true));
+      removePercyCSSSpy = spyOn(GenericProvider.prototype, 'removePercyCSS').and.returnValue(Promise.resolve(true));
       spyOn(DesktopMetaData.prototype, 'windowSize')
         .and.returnValue(Promise.resolve({ width: 1920, height: 1080 }));
     });
 
     it('calls correct funcs', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       await genericProvider.createDriver();
       let res = await genericProvider.screenshot('mock-name', {});
+      expect(addPercyCSSSpy).toHaveBeenCalledTimes(1);
       expect(getTagSpy).toHaveBeenCalledTimes(1);
       expect(getTilesSpy).toHaveBeenCalledOnceWith(false);
+      expect(removePercyCSSSpy).toHaveBeenCalledTimes(1);
       expect(res).toEqual({
         name: 'mock-name',
         tag: 'mock-tag',
@@ -110,8 +119,44 @@ describe('GenericProvider', () => {
         externalDebugUrl: 'https://localhost/v1',
         environmentInfo: 'staging-poc-poa',
         ignoredElementsData: { ignoreElementsData: [] },
-        clientInfo: 'local-poc-poa'
+        clientInfo: 'local-poc-poa',
+        domInfoSha: 'mock-dom-sha'
       });
+    });
+  });
+
+  describe('addPercyCSS', () => {
+    beforeEach(() => {
+      spyOn(Driver.prototype, 'executeScript').and.returnValue(Promise.resolve(true));
+    });
+
+    it('should call executeScript to add style', async () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      await genericProvider.createDriver();
+      const percyCSS = 'h1{color:green !important;}';
+      await genericProvider.addPercyCSS(percyCSS);
+      const expectedArgs = `const e = document.createElement('style');
+      e.setAttribute('data-percy-specific-css', true);
+      e.innerHTML = '${percyCSS}';
+      document.body.appendChild(e);`;
+      expect(genericProvider.driver.executeScript).toHaveBeenCalledTimes(1);
+      expect(genericProvider.driver.executeScript).toHaveBeenCalledWith({ script: expectedArgs, args: [] });
+    });
+  });
+
+  describe('removePercyCSS', () => {
+    beforeEach(() => {
+      spyOn(Driver.prototype, 'executeScript').and.returnValue(Promise.resolve(true));
+    });
+
+    it('should call executeScript to add style', async () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      await genericProvider.createDriver();
+      await genericProvider.removePercyCSS();
+      const expectedArgs = `const n = document.querySelector('[data-percy-specific-css]');
+      n.remove();`;
+      expect(genericProvider.driver.executeScript).toHaveBeenCalledTimes(1);
+      expect(genericProvider.driver.executeScript).toHaveBeenCalledWith({ script: expectedArgs, args: [] });
     });
   });
 

@@ -2,7 +2,8 @@ import {
   generatePromise,
   AbortController,
   yieldTo,
-  yieldAll
+  yieldAll,
+  percyAutomateRequestHandler
 } from '../../src/utils.js';
 
 describe('Unit / Utils', () => {
@@ -163,6 +164,34 @@ describe('Unit / Utils', () => {
       await expectAsync(promise).toBeResolved();
       await expectAsync(gen.next()).toBeResolvedTo(
         { done: true, value: [2, 4, null, 3, 6] });
+    });
+  });
+
+  describe('percyAutomateRequestHandler', () => {
+    let req;
+    beforeAll(() => {
+      req = {
+        body: {
+          name: 'abc',
+          client_info: 'client',
+          environment_info: 'environment'
+        }
+      };
+    });
+
+    it('converts client_info to clientInfo', () => {
+      const nreq = percyAutomateRequestHandler(req);
+      expect(nreq.body.clientInfo).toBe('client');
+    });
+
+    it('converts environment_info to environmentInfo', () => {
+      const nreq = percyAutomateRequestHandler(req);
+      expect(nreq.body.environmentInfo).toBe('environment');
+    });
+
+    it('adds options', () => {
+      const nreq = percyAutomateRequestHandler(req);
+      expect(nreq.body.options).toEqual({});
     });
   });
 });

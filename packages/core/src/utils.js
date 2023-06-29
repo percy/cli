@@ -23,6 +23,20 @@ export function normalizeURL(url) {
   return `${protocol}//${host}${pathname}${search}`;
 }
 
+// Returns the body for automateScreenshot in structure
+export function percyAutomateRequestHandler(req) {
+  if (req.body.client_info) {
+    req.body.clientInfo = req.body.client_info;
+  }
+  if (req.body.environment_info) {
+    req.body.environmentInfo = req.body.environment_info;
+  }
+  if (!req.body.options) {
+    req.body.options = {};
+  }
+  return req;
+}
+
 // Creates a local resource object containing the resource URL, mimetype, content, sha, and any
 // other additional resources attributes.
 export function createResource(url, content, mimetype, attrs) {

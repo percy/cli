@@ -84,9 +84,9 @@ export class PercyClient {
   }
 
   // Checks for a Percy token and returns it.
-  getToken() {
+  getToken(raiseIfMissing = true) {
     let token = this.token || this.env.token;
-    if (!token) throw new Error('Missing Percy token');
+    if (!token && raiseIfMissing) throw new Error('Missing Percy token');
     return token;
   }
 
@@ -366,9 +366,9 @@ export class PercyClient {
     return snapshot;
   }
 
-  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData } = {}) {
+  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domInfoSha } = {}) {
     validateId('snapshot', snapshotId);
-
+    // Remove post percy api deploy
     this.log.debug(`Creating comparision: ${tag.name}...`);
 
     for (let tile of tiles) {
@@ -386,7 +386,8 @@ export class PercyClient {
         type: 'comparisons',
         attributes: {
           'external-debug-url': externalDebugUrl || null,
-          'ignore-elements-data': ignoredElementsData || null
+          'ignore-elements-data': ignoredElementsData || null,
+          'dom-info-sha': domInfoSha || null
         },
         relationships: {
           tag: {
@@ -398,7 +399,9 @@ export class PercyClient {
                 height: tag.height || null,
                 'os-name': tag.osName || null,
                 'os-version': tag.osVersion || null,
-                orientation: tag.orientation || null
+                orientation: tag.orientation || null,
+                browser_name: tag.browserName || null,
+                browser_version: tag.browserVersion || null
               }
             }
           },
@@ -503,6 +506,25 @@ export class PercyClient {
     await this.uploadComparisonTiles(comparison.data.id, options.tiles);
     await this.finalizeComparison(comparison.data.id);
     return comparison;
+  }
+
+  // decides project type
+  tokenType() {
+    let token = this.getToken(false) || '';
+
+    const type = token.split('_')[0];
+    switch (type) {
+      case 'auto':
+        return 'automate';
+      case 'web':
+        return 'web';
+      case 'app':
+        return 'app';
+      case 'ss':
+        return 'generic';
+      default:
+        return 'web';
+    }
   }
 }
 

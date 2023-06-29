@@ -360,6 +360,11 @@ export class Percy {
       }
     }.call(this));
   }
+
+  shouldSkipAssetDiscovery(tokenType) {
+    if (this.testing && JSON.stringify(this.testing) === JSON.stringify({})) { return true; }
+    return tokenType !== 'web';
+  }
 }
 
 export default Percy;
