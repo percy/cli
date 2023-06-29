@@ -472,6 +472,7 @@ export const comparisonSchema = {
     name: { type: 'string' },
     externalDebugUrl: { type: 'string' },
     domInfoSha: { type: 'string' },
+    domInfoSha: { type: 'string' },
     tag: {
       type: 'object',
       additionalProperties: false,
@@ -495,11 +496,7 @@ export const comparisonSchema = {
           enum: ['portrait', 'landscape']
         },
         browserName: { type: 'string' },
-        browserVersion: { type: 'string' },
-        resolution: { type: 'string' },
-        browserName: { type: 'string' },
-        browserVersion: { type: 'string' },
-        resolution: { type: 'string' }
+        browserVersion: { type: 'string' }
       }
     },
     tiles: {

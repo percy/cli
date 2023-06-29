@@ -5,21 +5,27 @@ import Tile from '../util/tile.js';
 import Driver from '../driver.js';
 
 const log = utils.logger('webdriver-utils:genericProvider');
-// TODO: Need to pass parameter from sdk and catch in cli
-const CLIENT_INFO = 'local-poc-poa';
-const ENV_INFO = 'staging-poc-poa';
 
 export default class GenericProvider {
+  clientInfo = new Set();
+  environmentInfo = new Set();
+  options = {};
   constructor(
     sessionId,
     commandExecutorUrl,
     capabilities,
-    sessionCapabilites
+    sessionCapabilites,
+    clientInfo,
+    environmentInfo,
+    options
   ) {
     this.sessionId = sessionId;
     this.commandExecutorUrl = commandExecutorUrl;
     this.capabilities = capabilities;
     this.sessionCapabilites = sessionCapabilites;
+    this.addClientInfo(clientInfo);
+    this.addEnvironmentInfo(environmentInfo);
+    this.options = options;
     this.driver = null;
     this.metaData = null;
     this.debugUrl = null;
@@ -35,6 +41,32 @@ export default class GenericProvider {
     return true;
   }
 
+  addClientInfo(info) {
+    for (let i of [].concat(info)) {
+      if (i) this.clientInfo.add(i);
+    }
+  }
+
+  addEnvironmentInfo(info) {
+    for (let i of [].concat(info)) {
+      if (i) this.environmentInfo.add(i);
+    }
+  }
+
+  async addPercyCSS(userCSS) {
+    const createStyleElement = `const e = document.createElement('style');
+      e.setAttribute('data-percy-specific-css', true);
+      e.innerHTML = '${userCSS}';
+      document.body.appendChild(e);`;
+    await this.driver.executeScript({ script: createStyleElement, args: [] });
+  }
+
+  async removePercyCSS() {
+    const removeStyleElement = `const n = document.querySelector('[data-percy-specific-css]');
+      n.remove();`;
+    await this.driver.executeScript({ script: removeStyleElement, args: [] });
+  }
+
   async screenshot(name, {
     ignoreRegionXpaths = [],
     ignoreRegionSelectors = [],
@@ -43,12 +75,16 @@ export default class GenericProvider {
   }) {
     let fullscreen = false;
 
+    const percyCSS = this.options.percyCSS || '';
+    await this.addPercyCSS(percyCSS);
     const tag = await this.getTag();
+
     const tiles = await this.getTiles(fullscreen);
     const ignoreRegions = await this.findIgnoredRegions(
       ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions
     );
     await this.setDebugUrl();
+    await this.removePercyCSS();
 
     log.debug(`${name} : Tag ${JSON.stringify(tag)}`);
     log.debug(`${name} : Tiles ${JSON.stringify(tiles)}`);
@@ -56,29 +92,40 @@ export default class GenericProvider {
     return {
       name,
       tag,
-      tiles,
+      tiles: tiles.tiles,
       // TODO: Fetch this one for bs automate, check appium sdk
       externalDebugUrl: this.debugUrl,
       ignoredElementsData: ignoreRegions,
-      environmentInfo: ENV_INFO,
-      clientInfo: CLIENT_INFO
+      environmentInfo: [...this.environmentInfo].join('; '),
+      clientInfo: [...this.clientInfo].join(' '),
+      domInfoSha: tiles.domInfoSha
     };
+  }
+
+  // TODO: get dom sha for non-automate
+  async getDomContent() {
+    // execute script and return dom content
+    return 'dummyValue';
   }
 
   async getTiles(fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     const base64content = await this.driver.takeScreenshot();
-    return [
-      new Tile({
-        content: base64content,
-        // TODO: Need to add method to fetch these attr
-        statusBarHeight: 0,
-        navBarHeight: 0,
-        headerHeight: 0,
-        footerHeight: 0,
-        fullscreen
-      })
-    ];
+    return {
+      tiles: [
+        new Tile({
+          content: base64content,
+          // TODO: Need to add method to fetch these attr
+          statusBarHeight: 0,
+          navBarHeight: 0,
+          headerHeight: 0,
+          footerHeight: 0,
+          fullscreen
+        })
+      ],
+      // TODO: Add Generic support sha for contextual diff
+      domInfoSha: this.getDomContent()
+    };
   }
 
   async getTag() {
@@ -93,11 +140,11 @@ export default class GenericProvider {
       height,
       orientation: orientation,
       browserName: this.metaData.browserName(),
-      // TODO
-      browserVersion: 'unknown'
+      browserVersion: this.metaData.browserVersion()
     };
   }
 
+  // TODO: Add Debugging Url
   async setDebugUrl() {
     this.debugUrl = 'https://localhost/v1';
   }
@@ -144,11 +191,11 @@ export default class GenericProvider {
       try {
         const element = await this.driver.findElement(findBy, elements[idx]);
         const selector = `${findBy}: ${elements[idx]}`;
-        const ignoredRegion = await this.ignoreElementObject(selector, element.ELEMENT);
+        const ignoredRegion = await this.ignoreElementObject(selector, element[Object.keys(element)[0]]);
         ignoredElementsArray.push(ignoredRegion);
       } catch (e) {
         log.warn(`Selenium Element with ${findBy}: ${elements[idx]} not found. Ignoring this ${findBy}.`);
-        log.debug(e.toString());
+        log.error(e.toString());
       }
     }
     return ignoredElementsArray;

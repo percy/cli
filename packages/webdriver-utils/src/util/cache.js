@@ -1,6 +1,6 @@
 
-import validations from './validations.js';
-const { Undefined } = validations;
+import utils from '@percy/sdk-utils';
+const { Undefined } = utils;
 
 export default class Cache {
   static cache = {};

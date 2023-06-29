@@ -86,7 +86,7 @@ export class PercyClient {
   // Checks for a Percy token and returns it.
   getToken(raiseIfMissing = trueraiseIfMissing = true) {
     let token = this.token || this.env.token;
-    if (!token && raiseIfMissing && raiseIfMissing) throw new Error('Missing Percy token');
+    if (!token && raiseIfMissing && raiseIfMissing && raiseIfMissing) throw new Error('Missing Percy token');
     return token;
   }
 
@@ -366,7 +366,7 @@ export class PercyClient {
     return snapshot;
   }
 
-  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domInfoSha, consideredElementsData } = {}) {
+  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domInfoSha } = {}) {
     validateId('snapshot', snapshotId);
     // Remove post percy api deploy
     this.log.debug(`Creating comparision: ${tag.name}...`);
@@ -387,7 +387,6 @@ export class PercyClient {
         attributes: {
           'external-debug-url': externalDebugUrl || null,
           'ignore-elements-data': ignoredElementsData || null,
-          'consider-elements-data': consideredElementsData || null,
           'dom-info-sha': domInfoSha || null
         },
         relationships: {
@@ -401,12 +400,8 @@ export class PercyClient {
                 'os-name': tag.osName || null,
                 'os-version': tag.osVersion || null,
                 orientation: tag.orientation || null,
-                'browser-name': tag.browserName || null,
-                'browser-version': tag.browserVersion || null,
-                resolution: tag.resolution || null,
-                'browser-name': tag.browserName || null,
-                'browser-version': tag.browserVersion || null,
-                resolution: tag.resolution || null
+                browser_name: tag.browserName || null,
+                browser_version: tag.browserVersion || null
               }
             }
           },
@@ -511,6 +506,25 @@ export class PercyClient {
     await this.uploadComparisonTiles(comparison.data.id, options.tiles);
     await this.finalizeComparison(comparison.data.id);
     return comparison;
+  }
+
+  // decides project type
+  tokenType() {
+    let token = this.getToken(false) || '';
+
+    const type = token.split('_')[0];
+    switch (type) {
+      case 'auto':
+        return 'automate';
+      case 'web':
+        return 'web';
+      case 'app':
+        return 'app';
+      case 'ss':
+        return 'generic';
+      default:
+        return 'web';
+    }
   }
 
   // decides project type
