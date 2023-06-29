@@ -245,5 +245,8 @@ describe('percy upload', () => {
   it('throws error for token type other than web and generic', async () => {
     process.env.PERCY_TOKEN = 'app_invalid_token';
     await expectAsync(upload(['./images'])).toBeRejected();
+    expect(logger.stderr).toEqual([
+      '[percy] Error: Invalid Token Type, only web, self managed token type are allowed.'
+    ]);
   });
 });

@@ -4,6 +4,7 @@ import command from '@percy/cli-command';
 import * as UploadConfig from './config.js';
 
 const ALLOWED_FILE_TYPES = /\.(png|jpg|jpeg)$/i;
+const ALLOWED_TOKEN_TYPES = ['web', 'generic'];
 
 // All BYOS screenshots have a fixed comparison tag
 export const BYOS_TAG = {
@@ -87,6 +88,10 @@ export const upload = command('upload', {
 
   const tokenType = percy.client.tokenType();
 
+  if (!ALLOWED_TOKEN_TYPES.includes(tokenType)) {
+    exit(1, 'Invalid Token Type, only web, self managed token type are allowed.');
+  }
+
   for (let relativePath of pathnames) {
     if (!ALLOWED_FILE_TYPES.test(relativePath)) {
       log.info(`Skipping unsupported file type: ${relativePath}`);
@@ -115,8 +120,6 @@ export const upload = command('upload', {
             { filepath: img.absolutePath }
           ]
         });
-      } else {
-        throw new Error('Invalid Token Type');
       }
     }
   }
