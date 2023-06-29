@@ -96,4 +96,19 @@ describe('DesktopMetaData', () => {
         .toHaveBeenCalledWith({ script: 'return window.devicePixelRatio;', args: [] });
     });
   });
+
+  describe('screenResolution', () => {
+    let screenInfo;
+
+    beforeEach(() => {
+      executeScriptSpy.and.returnValue(Promise.resolve({ value: ['1980', '1080'] }));
+    });
+
+    it('calclulates the screen resolution', async () => {
+      screenInfo = await desktopMetaData.screenResolution();
+      expect(screenInfo).toEqual('1980 x 1080');
+      expect(executeScriptSpy)
+        .toHaveBeenCalledWith({ script: 'return [window.screen.width.toString(), window.screen.height.toString()];', args: [] });
+    });
+  });
 });
