@@ -131,6 +131,7 @@ export default class GenericProvider {
   async getTag() {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     const { width, height } = await this.metaData.windowSize();
+    const resolution = await this.metaData.screenResolution();
     const orientation = this.metaData.orientation();
     return {
       name: this.metaData.deviceName(),
@@ -140,7 +141,8 @@ export default class GenericProvider {
       height,
       orientation: orientation,
       browserName: this.metaData.browserName(),
-      browserVersion: this.metaData.browserVersion()
+      browserVersion: this.metaData.browserVersion(),
+      resolution: resolution
     };
   }
 
