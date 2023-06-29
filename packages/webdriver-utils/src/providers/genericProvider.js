@@ -124,7 +124,7 @@ export default class GenericProvider {
         })
       ],
       // TODO: Add Generic support sha for contextual diff
-      domInfoSha: this.getDomContent()
+      domInfoSha: await this.getDomContent()
     };
   }
 
