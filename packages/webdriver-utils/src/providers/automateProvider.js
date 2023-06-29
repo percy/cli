@@ -1,5 +1,10 @@
+import utils from '@percy/sdk-utils';
 import GenericProvider from './genericProvider.js';
 import Cache from '../util/cache.js';
+import Tile from '../util/tile.js';
+
+const log = utils.logger('webdriver-utils:automateProvider');
+const { TimeIt } = utils;
 
 export default class AutomateProvider extends GenericProvider {
   constructor(

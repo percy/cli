@@ -26,6 +26,25 @@ describe('MobileMetaData', () => {
     });
   });
 
+  describe('browserVersion', () => {
+    it('calculates browserVersion', () => {
+      expect(mobileMetaData.browserVersion()).toEqual('111');
+    });
+
+    it('calculates alternate browserVersion', () => {
+      mobileMetaData = new MobileMetaData(new Driver('123', 'http:executorUrl'), {
+        osVersion: '12.0',
+        browserName: 'iphone',
+        os: 'mac',
+        browserVersion: '108.0',
+        orientation: 'landscape',
+        deviceName: 'SamsungS21-XYZ',
+        platform: 'win'
+      });
+      expect(mobileMetaData.browserVersion()).toEqual('108');
+    });
+  });
+
   describe('osName', () => {
     it('calculates osName', () => {
       expect(mobileMetaData.osName()).toEqual('android');
@@ -45,7 +64,7 @@ describe('MobileMetaData', () => {
     });
   });
 
-  describe('osVersin', () => {
+  describe('osVersion', () => {
     it('calculates OsVersion', () => {
       expect(mobileMetaData.osVersion()).toEqual('12');
     });

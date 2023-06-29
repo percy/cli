@@ -851,7 +851,6 @@ describe('PercyClient', () => {
         }],
         externalDebugUrl: 'http://debug.localhost',
         ignoredElementsData: ignoredElementsData,
-        consideredElementsData: consideredElementsData,
         domInfoSha: 'abcd='
       })).toBeResolved();
 
@@ -861,7 +860,6 @@ describe('PercyClient', () => {
           attributes: {
             'external-debug-url': 'http://debug.localhost',
             'ignore-elements-data': ignoredElementsData,
-            'consider-elements-data': consideredElementsData,
             'dom-info-sha': 'abcd='
           },
           relationships: {
@@ -929,7 +927,6 @@ describe('PercyClient', () => {
           attributes: {
             'external-debug-url': null,
             'ignore-elements-data': null,
-            'consider-elements-data': null,
             'dom-info-sha': null
           },
           relationships: {
@@ -1182,7 +1179,6 @@ describe('PercyClient', () => {
           attributes: {
             'external-debug-url': null,
             'ignore-elements-data': null,
-            'consider-elements-data': null,
             'dom-info-sha': null
           },
           relationships: {
