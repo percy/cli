@@ -22,6 +22,14 @@ export default class MobileMetaData {
     return this.capabilities?.version?.split('.')[0];
   }
 
+  browserVersion() {
+    const bsVersion = this.capabilities.browserVersion?.split('.');
+    if (bsVersion?.length > 0) {
+      return bsVersion[0];
+    }
+    return this.capabilities.version.split('.')[0];
+  }
+
   osName() {
     let osName = this.capabilities?.os?.toLowerCase();
     if (osName === 'mac' && this.browserName() === 'iphone') {
