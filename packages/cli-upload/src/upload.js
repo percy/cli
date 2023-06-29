@@ -79,18 +79,18 @@ export const upload = command('upload', {
     exit(1, `No matching files found in '${args.dirname}'`);
   }
 
+  const tokenType = percy.client.tokenType();
+
+  if (!ALLOWED_TOKEN_TYPES.includes(tokenType)) {
+    exit(1, 'Invalid Token Type. Only "web" and "self-managed" token types are allowed.');
+  }
+
   let { default: imageSize } = await import('image-size');
   let { getImageResources } = await import('./utils.js');
 
   // the internal discovery queue shares a concurrency with the snapshots queue
   percy.set({ discovery: { concurrency: config.concurrency } });
   yield* percy.yield.start();
-
-  const tokenType = percy.client.tokenType();
-
-  if (!ALLOWED_TOKEN_TYPES.includes(tokenType)) {
-    exit(1, 'Invalid Token Type, only web, self managed token type are allowed.');
-  }
 
   for (let relativePath of pathnames) {
     if (!ALLOWED_FILE_TYPES.test(relativePath)) {
@@ -103,7 +103,15 @@ export const upload = command('upload', {
       img.name = path.join(dir, name);
       let snapshotName = config.stripExtensions ? img.name : relativePath;
 
-      if (tokenType === 'web') {
+      if (tokenType === 'generic') {
+        percy.upload({
+          name: snapshotName,
+          tag: BYOS_TAG,
+          tiles: [
+            { filepath: img.absolutePath }
+          ]
+        });
+      } else {
         percy.upload({
           name: snapshotName,
           // width and height is clamped to API min and max
@@ -111,14 +119,6 @@ export const upload = command('upload', {
           minHeight: Math.max(10, Math.min(img.height, 2000)),
           // resources are read from the filesystem as needed
           resources: () => getImageResources(img)
-        });
-      } else if (tokenType === 'generic') {
-        percy.upload({
-          name: snapshotName,
-          tag: BYOS_TAG,
-          tiles: [
-            { filepath: img.absolutePath }
-          ]
         });
       }
     }
