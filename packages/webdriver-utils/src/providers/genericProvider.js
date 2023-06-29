@@ -170,13 +170,13 @@ export default class GenericProvider {
   async ignoreElementObject(selector, elementId) {
     const scaleFactor = parseInt(await this.metaData.devicePixelRatio());
     const rect = await this.driver.rect(elementId);
-    const location = { x: parseInt(rect.x), y: parseInt(rect.y) };
-    const size = { height: parseInt(rect.height), width: parseInt(rect.width) };
+    const location = { x: rect.x, y: rect.y };
+    const size = { height: rect.height, width: rect.width };
     const coOrdinates = {
-      top: location.y * scaleFactor,
-      bottom: (location.y + size.height) * scaleFactor,
-      left: location.x * scaleFactor,
-      right: (location.x + size.width) * scaleFactor
+      top: Math.floor(location.y * scaleFactor),
+      bottom: Math.ceil((location.y + size.height) * scaleFactor),
+      left: Math.floor(location.x * scaleFactor),
+      right: Math.ceil((location.x + size.width) * scaleFactor)
     };
 
     const jsonObject = {
