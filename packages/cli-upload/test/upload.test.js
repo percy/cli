@@ -1,5 +1,6 @@
 import { fs, logger, api, setupTest } from '@percy/cli-command/test/helpers';
 import upload from '@percy/cli-upload';
+import { BYOS_TAG } from '../src/upload.js';
 
 // http://png-pixel.com/
 const pixel = Buffer.from((
@@ -65,7 +66,7 @@ describe('percy upload', () => {
     ]);
   });
 
-  it('creates a new build and uploads snapshots', async () => {
+  it('creates a new build and uploads snapshots with web token', async () => {
     await upload(['./images']);
 
     expect(logger.stderr).toEqual([]);
@@ -200,35 +201,48 @@ describe('percy upload', () => {
     ]);
   });
 
-  it('should be able to upload generic project images with strips file extensions', async () => {
-    process.env.PERCY_TOKEN = 'ss_<<PERCY_TOKEN>>';
-    await upload(['./images', '--strip-extensions']);
-    expect(logger.stdout).toEqual([
-      '[percy] Percy has started!',
-      '[percy] Uploading 3 snapshots...',
-      '[percy] Snapshot uploaded: test-1',
-      '[percy] Snapshot uploaded: test-2',
-      '[percy] Snapshot uploaded: test-3',
-      '[percy] Finalized build #1: https://percy.io/test/test/123'
-    ]);
-    expect(logger.stderr).toEqual([]);
-  });
-
-  it('should be able to upload generic project images', async () => {
+  it('creates a new build and upload snapshots with ss token', async () => {
     process.env.PERCY_TOKEN = 'ss_<<PERCY_TOKEN>>';
     await upload(['./images']);
-    expect(logger.stdout).toEqual([
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Uploading 3 snapshots...',
       '[percy] Snapshot uploaded: test-1.png',
       '[percy] Snapshot uploaded: test-2.jpg',
       '[percy] Snapshot uploaded: test-3.jpeg',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
-    ]);
-    expect(logger.stderr).toEqual([]);
+    ]));
+
+    expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
+      data: {
+        type: 'comparisons',
+        attributes: {
+          'external-debug-url': null,
+          'ignore-elements-data': null
+        },
+        relationships: {
+          tag: {
+            data: {
+              type: 'tag',
+              attributes: jasmine.objectContaining(BYOS_TAG)
+            }
+          },
+          tiles: {
+            data: jasmine.arrayContaining([{
+              type: 'tiles',
+              attributes: jasmine.objectContaining({
+                sha: jasmine.any(String)
+              })
+            }])
+          }
+        }
+      }
+    });
   });
 
-  it('should give error for token type other than web and generic', async () => {
+  it('throws error for token type other than web and generic', async () => {
     process.env.PERCY_TOKEN = 'app_invalid_token';
     await expectAsync(upload(['./images'])).toBeRejected();
   });

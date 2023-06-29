@@ -5,6 +5,13 @@ import * as UploadConfig from './config.js';
 
 const ALLOWED_FILE_TYPES = /\.(png|jpg|jpeg)$/i;
 
+// All BYOS screenshots have a fixed comparison tag
+export const BYOS_TAG = {
+  name: 'BYOS',
+  width: 1,
+  height: 1
+};
+
 export const upload = command('upload', {
   description: 'Upload a directory of images to Percy',
 
@@ -78,6 +85,8 @@ export const upload = command('upload', {
   percy.set({ discovery: { concurrency: config.concurrency } });
   yield* percy.yield.start();
 
+  const tokenType = percy.client.tokenType();
+
   for (let relativePath of pathnames) {
     if (!ALLOWED_FILE_TYPES.test(relativePath)) {
       log.info(`Skipping unsupported file type: ${relativePath}`);
@@ -87,30 +96,25 @@ export const upload = command('upload', {
       let { dir, name, ext } = path.parse(relativePath);
       img.type = ext === '.png' ? 'png' : 'jpeg';
       img.name = path.join(dir, name);
-      if (percy.client.tokenType().toLowerCase() === 'web') {
+      let snapshotName = config.stripExtensions ? img.name : relativePath;
+
+      if (tokenType === 'web') {
         percy.upload({
-          name: config.stripExtensions ? img.name : relativePath,
+          name: snapshotName,
           // width and height is clamped to API min and max
           widths: [Math.max(10, Math.min(img.width, 2000))],
           minHeight: Math.max(10, Math.min(img.height, 2000)),
           // resources are read from the filesystem as needed
           resources: () => getImageResources(img)
         });
-      } else if (percy.client.tokenType().toLowerCase() === 'generic') {
-        let options = {
-          name: config.stripExtensions ? img.name : relativePath,
-          tag: {
-            name: 'uploaded_image',
-            width: 1200,
-            height: 900
-          },
+      } else if (tokenType === 'generic') {
+        percy.upload({
+          name: snapshotName,
+          tag: BYOS_TAG,
           tiles: [
-            {
-              filepath: img.absolutePath
-            }
+            { filepath: img.absolutePath }
           ]
-        };
-        percy.upload(options);
+        });
       } else {
         throw new Error('Invalid Token Type');
       }
