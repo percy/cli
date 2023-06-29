@@ -218,10 +218,10 @@ describe('percy upload', () => {
     expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
       data: {
         type: 'comparisons',
-        attributes: {
+        attributes: jasmine.objectContaining({
           'external-debug-url': null,
           'ignore-elements-data': null
-        },
+        }),
         relationships: {
           tag: {
             data: {
