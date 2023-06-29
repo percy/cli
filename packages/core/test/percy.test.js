@@ -843,4 +843,50 @@ describe('Percy', () => {
       expect(api.requests['/builds/123/snapshots']).toBeUndefined();
     });
   });
+
+  describe('#shouldSkipAssetDiscovery', () => {
+    it('should return true if testing is true', () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info',
+        testing: true
+      });
+      expect(percy.shouldSkipAssetDiscovery(percy.client.tokenType())).toBe(true);
+    });
+
+    it('should return false if token is not set', () => {
+      percy = new Percy({
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
+      });
+      expect(percy.shouldSkipAssetDiscovery(percy.client.tokenType())).toBe(false);
+    });
+
+    it('should return false if web token is set', () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
+      });
+      expect(percy.shouldSkipAssetDiscovery(percy.client.tokenType())).toBe(false);
+    });
+
+    it('should return true if auto token is set', () => {
+      percy = new Percy({
+        token: 'auto_PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
+      });
+      expect(percy.shouldSkipAssetDiscovery(percy.client.tokenType())).toBe(true);
+    });
+  });
 });

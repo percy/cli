@@ -78,8 +78,8 @@ describe('TimeIt', () => {
       expect(Object.keys(summary).length).toEqual(2);
 
       // funcReturns
-      expect(summary.funcReturns.min - 100).toBeLessThan(10.0); // keeping 3 ms as buffer
-      expect(summary.funcReturns.max - 100).toBeLessThan(10.0);
+      expect(summary.funcReturns.min - 100).toBeLessThan(15.0); // adding buffer for win test
+      expect(summary.funcReturns.max - 100).toBeLessThan(15.0); // adding buffer for win test
       expect(summary.funcReturns.avg - 100).toBeLessThan(10.0);
       expect(summary.funcReturns.vals.length).toEqual(3);
 

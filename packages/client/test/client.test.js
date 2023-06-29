@@ -1259,9 +1259,25 @@ describe('PercyClient', () => {
       expect(client.tokenType()).toBe('web');
     });
 
-    it('should throw error for no token', () => {
+    it('should return web for no token', () => {
       client.token = '';
-      expect(() => { client.tokenType(); }).toThrowError('Missing Percy token');
+      expect(client.tokenType()).toBe('web');
+    });
+  });
+
+  describe('#getToken', () => {
+    it('should throw error when called with true', () => {
+      const client = new PercyClient({});
+      expect(() => {
+        client.getToken();
+      }).toThrowError('Missing Percy token');
+    });
+
+    it('should not throw error when called with false', () => {
+      const client = new PercyClient({
+        token: 'PERCY_TOKEN'
+      });
+      expect(client.getToken(false)).toBe('PERCY_TOKEN');
     });
   });
 });

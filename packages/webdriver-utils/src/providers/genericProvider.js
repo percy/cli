@@ -67,13 +67,12 @@ export default class GenericProvider {
     await this.driver.executeScript({ script: removeStyleElement, args: [] });
   }
 
-  async screenshot(name) {
-    const {
-      ignoreRegionXpaths = [],
-      ignoreRegionSelectors = [],
-      ignoreRegionElements = [],
-      customIgnoreRegions = []
-    } = this.options;
+  async screenshot(name, {
+    ignoreRegionXpaths = [],
+    ignoreRegionSelectors = [],
+    ignoreRegionElements = [],
+    customIgnoreRegions = []
+  }) {
     let fullscreen = false;
 
     const percyCSS = this.options.percyCSS || '';
