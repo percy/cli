@@ -57,7 +57,9 @@ describe('Percy', () => {
       widths: [375, 1280],
       minHeight: 1024,
       percyCSS: '',
-      disableShadowDOM: false
+      enableJavaScript: false,
+      disableShadowDOM: false,
+      cliEnableJavaScript: true
     });
   });
 

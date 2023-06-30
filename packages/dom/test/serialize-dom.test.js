@@ -10,6 +10,13 @@ describe('serializeDOM', () => {
     });
   });
 
+  it('keeps replace special chars as is and does not replace with regex rules', () => {
+    withExample('<p>Hey Percy $&</p>');
+
+    const result = serializeDOM();
+    expect(result.html).toContain('Hey Percy $&');
+  });
+
   it('optionally returns a stringified response', () => {
     expect(serializeDOM({ stringifyResponse: true }))
       .toMatch('{"html":".*","warnings":\\[\\],"resources":\\[\\]}');
@@ -51,6 +58,13 @@ describe('serializeDOM', () => {
     const $ = parseDOM(serializeDOM().html);
 
     expect($('h2.callback').length).toEqual(1);
+  });
+
+  it('applies dom transformations', () => {
+    withExample('<img loading="lazy" src="http://some-url"/><iframe loading="lazy" src="">');
+
+    const result = serializeDOM();
+    expect(result.html).not.toContain('loading="lazy"');
   });
 
   it('clone node is always shallow', () => {

@@ -3,10 +3,12 @@ import {
   getJenkinsSha,
   github
 } from './utils.js';
+import logger from '@percy/logger';
 
 export class PercyEnv {
   constructor(vars = process.env) {
     this.vars = vars;
+    this.log = logger('env');
   }
 
   // used for getter switch statements
@@ -299,6 +301,9 @@ Object.defineProperties(PercyEnv.prototype, (
           get() {
             let value = get.call(this);
             Object.defineProperty(this, key, { value });
+            if (key !== 'token') {
+              this.log.debug(`Detected ${key} as ${JSON.stringify(value)}`);
+            }
             return value;
           }
         })

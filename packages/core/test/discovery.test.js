@@ -1602,4 +1602,187 @@ describe('Discovery', () => {
       );
     });
   });
+
+  describe('Asset Discovery Page JS =>', () => {
+    beforeEach(() => {
+      // global defaults
+      percy.config.snapshot.enableJavaScript = false;
+      percy.config.snapshot.cliEnableJavaScript = true;
+    });
+
+    describe('cli-snapshot =>', () => {
+      it('enabled when enableJavascript: false and cliEnableJavaScript: true', async () => {
+        percy.loglevel('debug');
+
+        await percy.snapshot({
+          name: 'test snapshot',
+          url: 'http://localhost:8000',
+          domSnapshot: ''
+        });
+
+        await percy.idle();
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy:core:snapshot] - enableJavaScript: false',
+          '[percy:core:snapshot] - cliEnableJavaScript: true',
+          '[percy:core:snapshot] - domSnapshot: false',
+          '[percy:core] Asset discovery Browser Page enable JS: true'
+        ]));
+      });
+
+      it('enabled when enableJavascript: true and cliEnableJavaScript: true', async () => {
+        percy.config.snapshot.enableJavaScript = true;
+        percy.config.snapshot.cliEnableJavaScript = true;
+
+        percy.loglevel('debug');
+
+        await percy.snapshot({
+          name: 'test snapshot',
+          url: 'http://localhost:8000',
+          domSnapshot: ''
+        });
+
+        await percy.idle();
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy:core:snapshot] - enableJavaScript: true',
+          '[percy:core:snapshot] - cliEnableJavaScript: true',
+          '[percy:core:snapshot] - domSnapshot: false',
+          '[percy:core] Asset discovery Browser Page enable JS: true'
+        ]));
+      });
+
+      it('enabled when enableJavascript: true and cliEnableJavaScript: false', async () => {
+        percy.config.snapshot.enableJavaScript = true;
+        percy.config.snapshot.cliEnableJavaScript = false;
+
+        percy.loglevel('debug');
+
+        await percy.snapshot({
+          name: 'test snapshot',
+          url: 'http://localhost:8000',
+          domSnapshot: ''
+        });
+
+        await percy.idle();
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy:core:snapshot] - enableJavaScript: true',
+          '[percy:core:snapshot] - cliEnableJavaScript: false',
+          '[percy:core:snapshot] - domSnapshot: false',
+          '[percy:core] Asset discovery Browser Page enable JS: true'
+        ]));
+      });
+
+      it('disabled when enableJavascript: false and cliEnableJavaScript: false', async () => {
+        percy.config.snapshot.enableJavaScript = false;
+        percy.config.snapshot.cliEnableJavaScript = false;
+
+        percy.loglevel('debug');
+
+        await percy.snapshot({
+          name: 'test snapshot',
+          url: 'http://localhost:8000',
+          domSnapshot: ''
+        });
+
+        await percy.idle();
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy:core:snapshot] - enableJavaScript: false',
+          '[percy:core:snapshot] - cliEnableJavaScript: false',
+          '[percy:core:snapshot] - domSnapshot: false',
+          '[percy:core] Asset discovery Browser Page enable JS: false'
+        ]));
+      });
+    });
+
+    describe('percySnapshot with cli-exec =>', () => {
+      // cliEnableJavaScript has no effect
+      it('disabled when enableJavascript: false and cliEnableJavaScript: true', async () => {
+        percy.loglevel('debug');
+
+        await percy.snapshot({
+          name: 'test snapshot',
+          url: 'http://localhost:8000',
+          domSnapshot: testDOM
+        });
+
+        await percy.idle();
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy:core:snapshot] - enableJavaScript: false',
+          '[percy:core:snapshot] - cliEnableJavaScript: true',
+          '[percy:core:snapshot] - domSnapshot: true',
+          '[percy:core] Asset discovery Browser Page enable JS: false'
+        ]));
+      });
+
+      it('enabled when enableJavascript: true and cliEnableJavaScript: true', async () => {
+        percy.config.snapshot.enableJavaScript = true;
+        percy.config.snapshot.cliEnableJavaScript = true;
+
+        percy.loglevel('debug');
+
+        await percy.snapshot({
+          name: 'test snapshot',
+          url: 'http://localhost:8000',
+          domSnapshot: testDOM
+        });
+
+        await percy.idle();
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy:core:snapshot] - enableJavaScript: true',
+          '[percy:core:snapshot] - cliEnableJavaScript: true',
+          '[percy:core:snapshot] - domSnapshot: true',
+          '[percy:core] Asset discovery Browser Page enable JS: true'
+        ]));
+      });
+
+      it('enabled when enableJavascript: true and cliEnableJavaScript: false', async () => {
+        percy.config.snapshot.enableJavaScript = true;
+        percy.config.snapshot.cliEnableJavaScript = false;
+
+        percy.loglevel('debug');
+
+        await percy.snapshot({
+          name: 'test snapshot',
+          url: 'http://localhost:8000',
+          domSnapshot: testDOM
+        });
+
+        await percy.idle();
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy:core:snapshot] - enableJavaScript: true',
+          '[percy:core:snapshot] - cliEnableJavaScript: false',
+          '[percy:core:snapshot] - domSnapshot: true',
+          '[percy:core] Asset discovery Browser Page enable JS: true'
+        ]));
+      });
+
+      it('disabled when enableJavascript: false and cliEnableJavaScript: false', async () => {
+        percy.config.snapshot.enableJavaScript = false;
+        percy.config.snapshot.cliEnableJavaScript = false;
+
+        percy.loglevel('debug');
+
+        await percy.snapshot({
+          name: 'test snapshot',
+          url: 'http://localhost:8000',
+          domSnapshot: testDOM
+        });
+
+        await percy.idle();
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy:core:snapshot] - enableJavaScript: false',
+          '[percy:core:snapshot] - cliEnableJavaScript: false',
+          '[percy:core:snapshot] - domSnapshot: true',
+          '[percy:core] Asset discovery Browser Page enable JS: false'
+        ]));
+      });
+    });
+  });
 });

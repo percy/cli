@@ -4,6 +4,7 @@
  * https://developer.mozilla.org/en-US/docs/Web/API/Element/attachShadow#parameters
  */
 import markElement from './prepare-dom';
+import applyElementTransformations from './transform-dom';
 
 /**
  * Deep clone a document while also preserving shadow roots
@@ -23,6 +24,9 @@ export function cloneNodeAndShadow({ dom, disableShadowDOM }) {
     markElement(node, disableShadowDOM);
 
     let clone = node.cloneNode();
+
+    // We apply any element transformations here to avoid another treeWalk
+    applyElementTransformations(clone);
 
     parent.appendChild(clone);
 
@@ -67,5 +71,7 @@ export function getOuterHTML(docElement) {
   // chromium gives us declarative shadow DOM serialization API
   let innerHTML = docElement.getInnerHTML({ includeShadowRoots: true });
   docElement.textContent = '';
-  return docElement.outerHTML.replace('</html>', `${innerHTML}</html>`);
+  // Note: Here we are specifically passing replacer function to avoid any replacements due to
+  // special characters in client's dom like $&
+  return docElement.outerHTML.replace('</html>', () => `${innerHTML}</html>`);
 };

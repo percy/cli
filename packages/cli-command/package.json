@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-command",
-  "version": "1.24.0",
+  "version": "1.26.1",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -8,7 +8,8 @@
     "directory": "packages/cli-command"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "tag": "latest"
   },
   "files": [
     "dist",
@@ -35,8 +36,8 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@percy/config": "1.24.0",
-    "@percy/core": "1.24.0",
-    "@percy/logger": "1.24.0"
+    "@percy/config": "1.26.1",
+    "@percy/core": "1.26.1",
+    "@percy/logger": "1.26.1"
   }
 }

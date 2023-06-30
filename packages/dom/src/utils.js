@@ -8,7 +8,7 @@ export function resourceFromDataURL(uid, dataURL) {
   // build a URL for the serialized asset
   let [, ext] = mimetype.split('/');
   let path = `/__serialized__/${uid}.${ext}`;
-  let url = new URL(path, document.URL).toString();
+  let url = rewriteLocalhostURL(new URL(path, document.URL).toString());
 
   // return the url, base64 content, and mimetype
   return { url, content, mimetype };
@@ -18,8 +18,7 @@ export function resourceFromText(uid, mimetype, data) {
   // build a URL for the serialized asset
   let [, ext] = mimetype.split('/');
   let path = `/__serialized__/${uid}.${ext}`;
-  let url = new URL(path, document.URL).toString();
-
+  let url = rewriteLocalhostURL(new URL(path, document.URL).toString());
   // return the url, text content, and mimetype
   return { url, content: data, mimetype };
 }
@@ -40,4 +39,8 @@ export function styleSheetFromNode(node) {
   tempStyle.remove();
 
   return sheet;
+}
+
+export function rewriteLocalhostURL(url) {
+  return url.replace(/(http[s]{0,1}:\/\/)localhost[:\d+]*/, '$1render.percy.local');
 }

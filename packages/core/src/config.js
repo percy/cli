@@ -33,7 +33,12 @@ export const configSchema = {
         default: ''
       },
       enableJavaScript: {
-        type: 'boolean'
+        type: 'boolean',
+        default: false
+      },
+      cliEnableJavaScript: {
+        type: 'boolean',
+        default: true
       },
       disableShadowDOM: {
         type: 'boolean',
@@ -156,6 +161,7 @@ export const snapshotSchema = {
         minHeight: { $ref: '/config/snapshot#/properties/minHeight' },
         percyCSS: { $ref: '/config/snapshot#/properties/percyCSS' },
         enableJavaScript: { $ref: '/config/snapshot#/properties/enableJavaScript' },
+        cliEnableJavaScript: { $ref: '/config/snapshot#/properties/cliEnableJavaScript' },
         disableShadowDOM: { $ref: '/config/snapshot#/properties/disableShadowDOM' },
         domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
         discovery: {
