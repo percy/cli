@@ -790,12 +790,12 @@ describe('Discovery', () => {
   });
 
   describe('idle timeout', () => {
-    let Network, timeout;
+    let Network;
 
     beforeEach(async () => {
       ({ Network } = await import('../src/network.js'));
-      timeout = Network.TIMEOUT;
-      Network.TIMEOUT = 500;
+      Network.TIMEOUT = undefined;
+      process.env.PERCY_NETWORK_IDLE_WAIT_TIMEOUT = 500;
 
       // some async request that takes a while
       server.reply('/img.gif', () => new Promise(r => (
@@ -806,7 +806,8 @@ describe('Discovery', () => {
     });
 
     afterEach(() => {
-      Network.TIMEOUT = timeout;
+      Network.TIMEOUT = undefined;
+      process.env.PERCY_NETWORK_IDLE_WAIT_TIMEOUT = undefined;
     });
 
     it('throws an error when requests fail to idle in time', async () => {
@@ -837,15 +838,28 @@ describe('Discovery', () => {
         '(?<stack>(.|\n)*)$'
       ].join('\n')));
     });
+
+    it('shows a warning when idle wait timeout is set over 60000ms', async () => {
+      process.env.PERCY_NETWORK_IDLE_WAIT_TIMEOUT = 80000;
+
+      await percy.snapshot({
+        name: 'test idle',
+        url: 'http://localhost:8000'
+      });
+
+      expect(logger.stderr).toContain(jasmine.stringMatching(
+        '^\\[percy] Setting PERCY_NETWORK_IDLE_WAIT_TIMEOUT over 60000ms is not'
+      ));
+    });
   });
 
   describe('navigation timeout', () => {
-    let Page, timeout;
+    let Page;
 
     beforeEach(async () => {
       ({ Page } = await import('../src/page.js'));
-      timeout = Page.TIMEOUT;
-      Page.TIMEOUT = 500;
+      Page.TIMEOUT = undefined;
+      process.env.PERCY_PAGE_LOAD_TIMEOUT = 500;
 
       server.reply('/', () => [200, 'text/html', testDOM]);
       // trigger navigation fail
@@ -854,7 +868,8 @@ describe('Discovery', () => {
     });
 
     afterEach(() => {
-      Page.TIMEOUT = timeout;
+      Page.TIMEOUT = undefined;
+      process.env.PERCY_PAGE_LOAD_TIMEOUT = undefined;
     });
 
     it('shows debug info when navigation fails within the timeout', async () => {
@@ -873,6 +888,20 @@ describe('Discovery', () => {
         '',
         '(?<stack>(.|\n)*)$'
       ].join('\n')));
+    });
+
+    it('shows a warning when page load timeout is set over 60000ms', async () => {
+      percy.loglevel('debug');
+      process.env.PERCY_PAGE_LOAD_TIMEOUT = 80000;
+
+      await percy.snapshot({
+        name: 'navigation idle',
+        url: 'http://localhost:8000'
+      });
+
+      expect(logger.stderr).toContain(jasmine.stringMatching(
+        '^\\[percy:core:page] Setting PERCY_PAGE_LOAD_TIMEOUT over 60000ms is not recommended.'
+      ));
     });
   });
 

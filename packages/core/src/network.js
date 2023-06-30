@@ -10,7 +10,7 @@ const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', '
 // The Interceptor class creates common handlers for dealing with intercepting asset requests
 // for a given page using various devtools protocol events and commands.
 export class Network {
-  static TIMEOUT = 30000;
+  static TIMEOUT = undefined;
 
   log = logger('core:discovery');
 
@@ -29,6 +29,7 @@ export class Network {
       page.session.browser.version.userAgent.replace('Headless', '');
     this.intercept = options.intercept;
     this.meta = options.meta;
+    this._initializeNetworkIdleWaitTimeout();
   }
 
   watch(session) {
@@ -236,6 +237,18 @@ export class Network {
     }
 
     this._forgetRequest(request);
+  }
+
+  _initializeNetworkIdleWaitTimeout() {
+    if (Network.TIMEOUT) return;
+
+    Network.TIMEOUT = parseInt(process.env.PERCY_NETWORK_IDLE_WAIT_TIMEOUT) || 30000;
+
+    if (Network.TIMEOUT > 60000) {
+      this.log.warn('Setting PERCY_NETWORK_IDLE_WAIT_TIMEOUT over 60000ms is not recommended. ' +
+        'If your page needs more than 60000ms to idle due to CPU/Network load, ' +
+        'its recommended to increase CI resources where this cli is running.');
+    }
   }
 }
 
