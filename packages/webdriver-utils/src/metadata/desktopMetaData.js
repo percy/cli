@@ -41,6 +41,12 @@ export default class DesktopMetaData {
     return { width, height };
   }
 
+  async screenResolution() {
+    const data = await this.driver.executeScript({ script: 'return [window.screen.width.toString(), window.screen.height.toString()];', args: [] });
+    const screenInfo = data.value;
+    return `${screenInfo[0]} x ${screenInfo[1]}`;
+  }
+
   async devicePixelRatio() {
     const devicePixelRatio = await this.driver.executeScript({ script: 'return window.devicePixelRatio;', args: [] });
     return devicePixelRatio.value;

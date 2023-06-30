@@ -13,6 +13,7 @@ export async function isPercyEnabled() {
       percy.version = response.headers['x-percy-core-version'];
       percy.config = response.body.config;
       percy.enabled = true;
+      percy.type = response.body.type;
     } catch (e) {
       percy.enabled = false;
       error = e;
