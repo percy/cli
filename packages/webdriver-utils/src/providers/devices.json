@@ -1,0 +1,296 @@
+[
+  {
+    "osVersion" : "16",
+    "browserName" : "Safari",
+    "deviceName" : "iPhone 14 Pro Max"
+  },
+ {
+    "osVersion" : "16",
+    "browserName" : "Safari",
+    "deviceName" : "iPhone 14 Pro"
+  },
+  {
+    "osVersion" : "16",
+    "browserName" : "Safari",
+    "deviceName" : "iPhone 14 Plus"
+  },
+  {
+    "osVersion" : "16",
+    "browserName" : "Safari",
+    "deviceName" : "iPhone 14"
+  },
+  {
+    "osVersion" : "16",
+    "browserName" : "Safari",
+    "deviceName" : "iPhone 12 Pro Max"
+  },
+  {
+    "osVersion" : "16",
+    "browserName" : "Safari",
+    "deviceName" : "iPhone 12 Pro"
+  },
+  {
+    "osVersion" : "16",
+    "browserName" : "Safari",
+    "deviceName" : "iPhone 12 Mini"
+  },
+  {
+    "osVersion" : "16",
+    "browserName" : "Safari",
+    "deviceName" : "iPhone 11 Pro Max"
+  },
+  {
+    "osVersion" : "15",
+    "browserName" : "Safari",
+    "deviceName" : "iPhone XS"
+  },
+  {
+    "osVersion" : "15",
+    "browserName" : "Safari",
+    "deviceName" : "iPhone 13 Pro Max"
+  },
+  {
+    "osVersion": "15",
+    "browserName": "Safari",
+    "deviceName": "iPhone 13 Pro"
+  },
+   {
+    "osVersion": "15",
+    "browserName": "Safari",
+    "deviceName": "iPhone 13 Mini"
+  },
+   {
+    "osVersion": "15",
+    "browserName": "Safari",
+    "deviceName": "iPhone 13"
+  },
+   {
+    "osVersion": "15",
+    "browserName": "Safari",
+    "deviceName": "iPhone 11 Pro"
+  },
+   {
+    "osVersion": "15",
+    "browserName": "Safari",
+    "deviceName": "iPhone 11"
+  },
+   {
+    "osVersion": "14",
+    "browserName": "Safari",
+    "deviceName": "iPhone XS"
+  },
+   {
+    "osVersion": "14",
+    "browserName": "Safari",
+    "deviceName": "iPhone 12 Pro Max"
+  },
+   {
+    "osVersion": "14",
+    "browserName": "Safari",
+    "deviceName": "iPhone 12 Pro"
+  },
+   {
+    "osVersion": "14",
+    "browserName": "Safari",
+    "deviceName": "iPhone 12 Mini"
+  },
+   {
+    "osVersion": "14",
+    "browserName": "Safari",
+    "deviceName": "iPhone 12"
+  },
+   {
+    "osVersion": "14",
+    "browserName": "Safari",
+    "deviceName": "iPhone 11 Pro Max"
+  },
+   {
+    "osVersion": "14",
+    "browserName": "Safari",
+    "deviceName": "iPhone 11"
+  },
+   {
+    "osVersion": "13",
+    "browserName": "Safari",
+    "deviceName": "iPhone XS"
+  },
+   {
+    "osVersion": "13",
+    "browserName": "Safari",
+    "deviceName": "iPhone 11 Pro"
+  },
+  {
+    "osVersion": "13",
+    "browserName": "Safari",
+    "deviceName": "iPhone 11"
+  },
+  {
+    "osVersion": "12",
+    "browserName": "Safari",
+    "deviceName": "iPhone XS Max"
+  },
+   {
+    "osVersion": "15",
+    "browserName": "Safari",
+    "deviceName": "iPhone XR"
+  },
+   {
+    "osVersion": "12",
+    "browserName": "Safari",
+    "deviceName": "iPhone XR"
+  },
+   {
+    "osVersion": "15",
+    "browserName": "Safari",
+    "deviceName": "iPhone 8"
+  },
+   {
+    "osVersion": "13",
+    "browserName": "Safari",
+    "deviceName": "iPhone 8"
+  },
+   {
+    "osVersion": "12",
+    "browserName": "Safari",
+    "deviceName": "iPhone 8"
+  },
+   {
+    "osVersion": "12",
+    "browserName": "Safari",
+    "deviceName": "iPhone 8 Plus"
+  },
+   {
+    "osVersion": "12",
+    "browserName": "Safari",
+    "deviceName": "iPhone 7"
+  },
+   {
+    "osVersion": "12",
+    "browserName": "Safari",
+    "deviceName": "iPhone 6S"
+  },
+  {
+    "osVersion" : "16",
+    "browserName" : "Safari",
+    "deviceName" : "iPhone SE 2020"
+  }
+  ,
+  {
+    "osVersion" : "15",
+    "browserName" : "Safari",
+    "deviceName" : "iPhone SE 2022"
+  }
+  ,
+  {
+    "osVersion" : "13",
+    "browserName" : "Safari",
+    "deviceName" : "iPhone SE 2020"
+  },
+  {
+    "osVersion" : "14",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Air 4"
+  },
+   {
+    "osVersion" : "15",
+    "browserName" : "Safari",
+    "deviceName" : "iPad 9th"
+  }, {
+    "osVersion" : "16",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Pro 12.9 2022"
+  }, {
+    "osVersion" : "16",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Pro 12.9 2020"
+  }, {
+    "osVersion" : "16",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Pro 11 2022"
+  }, {
+    "osVersion" : "15",
+    "browserName" : "Safari",
+    "deviceName" : "iPad 10th"
+  }, {
+    "osVersion" : "15",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Air 5"
+  }, {
+    "osVersion" : "14",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Pro 12.9 2021"
+  }, {
+    "osVersion" : "14",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Pro 11 2021"
+  }, {
+    "osVersion" : "13",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Pro 12.9 2020"
+  }, {
+    "osVersion" : "16",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Pro 11 2020"
+  },
+  {
+    "osVersion" : "16",
+    "browserName" : "Safari",
+    "deviceName" : "iPad 8th"
+  },
+  {
+    "osVersion" : "15",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Pro 12.9 2018"
+  },
+  {
+    "osVersion" : "15",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Mini 2021"
+  },
+  {
+    "osVersion" : "13",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Pro 12.9 2018"
+  },
+  {
+    "osVersion" : "14",
+    "browserName" : "Safari",
+    "deviceName" : "iPad 8th"
+  },
+  {
+    "osVersion" : "13",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Pro 11 2020"
+  },
+  {
+    "osVersion" : "12",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Air 2019"
+  },
+  {
+    "osVersion" : "12",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Mini 2019"
+  },
+  {
+    "osVersion" : "12",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Pro 11 2018"
+  },{
+    "osVersion" : "12",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Pro 12.9 2018"
+  },{
+    "osVersion" : "13",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Mini 2019"
+  },{
+    "osVersion" : "13",
+    "browserName" : "Safari",
+    "deviceName" : "iPad Air 2019"
+  },{
+    "osVersion" : "13",
+    "browserName" : "Safari",
+    "deviceName" : "iPad 7th"
+  }
+]

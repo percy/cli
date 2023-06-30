@@ -1,0 +1,168 @@
+
+ScreenHeight : 932
+windowHeight : 740
+HeaderHeight : 177
+FooterHeight : 399
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPhone 14 Pro Max_Safari_1 (44310ms)
+
+ScreenHeight : 852
+windowHeight : 660
+HeaderHeight : 177
+FooterHeight : 399
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPhone 14 Pro_Safari_1 (42877ms)
+
+ScreenHeight : 926
+windowHeight : 746
+HeaderHeight : 141
+FooterHeight : 399
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPhone 14 Plus_Safari_1 (44321ms)
+
+ScreenHeight : 844
+windowHeight : 664
+HeaderHeight : 141
+FooterHeight : 399
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPhone 14_Safari_1 (42442ms)
+
+ScreenHeight : 926
+windowHeight : 746
+HeaderHeight : 141
+FooterHeight : 399
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPhone 12 Pro Max_Safari_1 (44774ms)
+
+ScreenHeight : 844
+windowHeight : 664
+HeaderHeight : 141
+FooterHeight : 399
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPhone 12 Pro_Safari_1 (45545ms)
+
+ScreenHeight : 812
+windowHeight : 629
+HeaderHeight : 150
+FooterHeight : 399
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPhone 12 Mini_Safari_1 (45216ms)
+
+ScreenHeight : 896
+windowHeight : 719
+HeaderHeight : 132
+FooterHeight : 399
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPhone 11 Pro Max_Safari_1 (44870ms)
+
+ScreenHeight : 812
+windowHeight : 635
+HeaderHeight : 132
+FooterHeight : 399
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone XS_Safari_1 (42393ms)
+
+ScreenHeight : 926
+windowHeight : 746
+HeaderHeight : 141
+FooterHeight : 399
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone 13 Pro Max_Safari_1 (44621ms)
+
+ScreenHeight : 844
+windowHeight : 664
+HeaderHeight : 141
+FooterHeight : 399
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone 13 Pro_Safari_1 (43594ms)
+
+ScreenHeight : 812
+windowHeight : 629
+HeaderHeight : 150
+FooterHeight : 399
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone 13 Mini_Safari_1 (43366ms)
+
+ScreenHeight : 844
+windowHeight : 664
+HeaderHeight : 141
+FooterHeight : 399
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone 13_Safari_1 (44876ms)
+
+ScreenHeight : 812
+windowHeight : 635
+HeaderHeight : 132
+FooterHeight : 399
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone 11 Pro_Safari_1 (43087ms)
+
+ScreenHeight : 896
+windowHeight : 715
+HeaderHeight : 96
+FooterHeight : 266
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone 11_Safari_1 (43597ms)
+
+ScreenHeight : 812
+windowHeight : 635
+HeaderHeight : 282
+FooterHeight : 249
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPhone XS_Safari_1 (46672ms)
+
+ScreenHeight : 926
+windowHeight : 746
+HeaderHeight : 291
+FooterHeight : 249
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPhone 12 Pro Max_Safari_1 (47106ms)
+
+ScreenHeight : 844
+windowHeight : 664
+HeaderHeight : 291
+FooterHeight : 249
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPhone 12 Pro_Safari_1 (44796ms)
+
+ScreenHeight : 812
+windowHeight : 629
+HeaderHeight : 300
+FooterHeight : 249
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPhone 12 Mini_Safari_1 (45026ms)
+
+ScreenHeight : 844
+windowHeight : 664
+HeaderHeight : 291
+FooterHeight : 249
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPhone 12_Safari_1 (43916ms)
+
+ScreenHeight : 896
+windowHeight : 719
+HeaderHeight : 282
+FooterHeight : 249
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPhone 11 Pro Max_Safari_1 (44773ms)
+
+ScreenHeight : 896
+windowHeight : 715
+HeaderHeight : 196
+FooterHeight : 166
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPhone 11_Safari_1 (44167ms)
+
+ScreenHeight : 812
+windowHeight : 635
+HeaderHeight : 282
+FooterHeight : 249
+[percy:core] Snapshot taken: exhaustive_test_poa_13_iPhone XS_Safari_1 (44558ms)
+
+ScreenHeight : 896
+windowHeight : 719
+HeaderHeight : 282
+FooterHeight : 249
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPhone 11 Pro Max_Safari_1 (44581ms)
+
+ScreenHeight : 812
+windowHeight : 635
+HeaderHeight : 282
+FooterHeight : 249
+[percy:core] Snapshot taken: exhaustive_test_poa_13_iPhone 11 Pro_Safari_1 (44850ms)
+
+ScreenHeight : 896
+windowHeight : 719
+HeaderHeight : 188
+FooterHeight : 166
+[percy:core] Snapshot taken: exhaustive_test_poa_13_iPhone 11_Safari_1 (45127ms)
+
+ScreenHeight : 896
+windowHeight : 719
+HeaderHeight : 282
+FooterHeight : 249
+[percy:core] Snapshot taken: exhaustive_test_poa_12_iPhone XS Max_Safari_1 (37765ms)
+
+ScreenHeight : 896
+windowHeight : 715
+HeaderHeight : 96
+FooterHeight : 266
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone XR_Safari_1

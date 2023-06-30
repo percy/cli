@@ -1,0 +1,366 @@
+Scrolled: 84
+ScreenHeight : 932
+windowHeight : 821
+HeaderHeight : 174
+FooterHeight : 159
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPhone 14 Pro Max_Safari_0 (98572ms)
+Scrolled: 84
+ScreenHeight : 852
+windowHeight : 741
+HeaderHeight : 174
+FooterHeight : 159
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPhone 14 Pro_Safari_0 (53990ms)
+Scrolled: 82
+ScreenHeight : 926
+windowHeight : 827
+HeaderHeight : 141
+FooterHeight : 156
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPhone 14 Plus_Safari_0 (47207ms)
+Scrolled: 82
+ScreenHeight : 844
+windowHeight : 745
+HeaderHeight : 141
+FooterHeight : 156
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPhone 14_Safari_0 (41759ms)
+Scrolled: 84
+ScreenHeight : 926
+windowHeight : 827
+HeaderHeight : 138
+FooterHeight : 159
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPhone 12 Pro Max_Safari_0 (40745ms)
+Scrolled: 84
+ScreenHeight : 844
+windowHeight : 745
+HeaderHeight : 138
+FooterHeight : 159
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPhone 12 Pro_Safari_0 (40270ms)
+Scrolled: 84
+ScreenHeight : 812
+windowHeight : 710
+HeaderHeight : 147
+FooterHeight : 159
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPhone 12 Mini_Safari_0 (42016ms)
+Scrolled: 84
+ScreenHeight : 896
+windowHeight : 800
+HeaderHeight : 129
+FooterHeight : 159
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPhone 11 Pro Max_Safari_0 (43473ms)
+Scrolled: 88
+ScreenHeight : 812
+windowHeight : 716
+HeaderHeight : 129
+FooterHeight : 159
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone XS_Safari_0 (43326ms)
+Scrolled: 86
+ScreenHeight : 926
+windowHeight : 827
+HeaderHeight : 138
+FooterHeight : 159
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone 13 Pro Max_Safari_0 (40408ms)
+Scrolled: 88
+ScreenHeight : 844
+windowHeight : 745
+HeaderHeight : 138
+FooterHeight : 159
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone 13 Pro_Safari_0 (52383ms)
+Scrolled: 88
+ScreenHeight : 812
+windowHeight : 710
+HeaderHeight : 147
+FooterHeight : 159
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone 13 Mini_Safari_0 (38794ms)
+Scrolled: 86
+ScreenHeight : 844
+windowHeight : 745
+HeaderHeight : 138
+FooterHeight : 159
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone 13_Safari_0 (37255ms)
+Scrolled: 86
+ScreenHeight : 812
+windowHeight : 716
+HeaderHeight : 129
+FooterHeight : 159
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone 11 Pro_Safari_0 (39222ms)
+Scrolled: 89
+ScreenHeight : 896
+windowHeight : 796
+HeaderHeight : 96
+FooterHeight : 104
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone 11_Safari_0 (39514ms)
+Scrolled: 52
+ScreenHeight : 812
+windowHeight : 749
+HeaderHeight : 186
+FooterHeight : 3
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPhone XS_Safari_0 (41059ms)
+Scrolled: 52
+ScreenHeight : 926
+windowHeight : 860
+HeaderHeight : 195
+FooterHeight : 3
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPhone 12 Pro Max_Safari_0 (40016ms)
+Scrolled: 52
+ScreenHeight : 844
+windowHeight : 778
+HeaderHeight : 195
+FooterHeight : 3
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPhone 12 Pro_Safari_0 (41224ms)
+Scrolled: 52
+ScreenHeight : 812
+windowHeight : 743
+HeaderHeight : 204
+FooterHeight : 3
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPhone 12 Mini_Safari_0 (41319ms)
+Scrolled: 52
+ScreenHeight : 844
+windowHeight : 778
+HeaderHeight : 195
+FooterHeight : 3
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPhone 12_Safari_0 (41619ms)
+Scrolled: 52
+ScreenHeight : 896
+windowHeight : 833
+HeaderHeight : 186
+FooterHeight : 3
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPhone 11 Pro Max_Safari_0 (39106ms)
+Scrolled: 53
+ScreenHeight : 896
+windowHeight : 829
+HeaderHeight : 134
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPhone 11_Safari_0 (38875ms)
+Scrolled: 52
+ScreenHeight : 812
+windowHeight : 749
+HeaderHeight : 186
+FooterHeight : 3
+[percy:core] Snapshot taken: exhaustive_test_poa_13_iPhone XS_Safari_0 (41372ms)
+Scrolled: 52
+ScreenHeight : 896
+windowHeight : 833
+HeaderHeight : 186
+FooterHeight : 3
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPhone 11 Pro Max_Safari_0 (42075ms)
+Scrolled: 52
+ScreenHeight : 812
+windowHeight : 749
+HeaderHeight : 186
+FooterHeight : 3
+[percy:core] Snapshot taken: exhaustive_test_poa_13_iPhone 11 Pro_Safari_0 (37341ms)
+Scrolled: 53
+ScreenHeight : 896
+windowHeight : 833
+HeaderHeight : 126
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_13_iPhone 11_Safari_0 (37390ms)
+Scrolled: 0
+ScreenHeight : 896
+windowHeight : 832
+HeaderHeight : 24
+FooterHeight : 168
+[percy:core] Snapshot taken: exhaustive_test_poa_12_iPhone XS Max_Safari_0 (37063ms)
+Scrolled: 89
+ScreenHeight : 896
+windowHeight : 796
+HeaderHeight : 96
+FooterHeight : 104
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone XR_Safari_0 (43704ms)
+Scrolled: 0
+ScreenHeight : 896
+windowHeight : 833
+HeaderHeight : 16
+FooterHeight : 110
+[percy:core] Snapshot taken: exhaustive_test_poa_12_iPhone XR_Safari_0 (101808ms)
+Scrolled: 87
+ScreenHeight : 667
+windowHeight : 625
+HeaderHeight : 40
+FooterHeight : 44
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone 8_Safari_0 (42183ms)
+Scrolled: 53
+ScreenHeight : 667
+windowHeight : 628
+HeaderHeight : 78
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_13_iPhone 8_Safari_0 (43549ms)
+Scrolled: 0
+ScreenHeight : 667
+windowHeight : 628
+HeaderHeight : -32
+FooterHeight : 110
+[percy:core] Invalid upload options: (32239ms)
+[percy:core] - tiles[0].headerHeight: must be >= 0 (0ms)
+[percy:core] Snapshot taken: exhaustive_test_poa_12_iPhone 8_Safari_0 (1ms)
+Scrolled: 0
+ScreenHeight : 736
+windowHeight : 622
+HeaderHeight : 210
+FooterHeight : 132
+[percy:core] Snapshot taken: exhaustive_test_poa_12_iPhone 8 Plus_Safari_0 (40857ms)
+Scrolled: 0
+ScreenHeight : 667
+windowHeight : 628
+HeaderHeight : -32
+FooterHeight : 110
+[percy:core] Invalid upload options: (46541ms)
+[percy:core] - tiles[0].headerHeight: must be >= 0 (1ms)
+[percy:core] Snapshot taken: exhaustive_test_poa_12_iPhone 7_Safari_0 (0ms)
+Scrolled: 0
+ScreenHeight : 667
+windowHeight : 628
+HeaderHeight : -32
+FooterHeight : 110
+[percy:core] Invalid upload options: (42358ms)
+[percy:core] - tiles[0].headerHeight: must be >= 0 (1ms)
+[percy:core] Snapshot taken: exhaustive_test_poa_12_iPhone 6S_Safari_0 (0ms)
+Scrolled: 87
+ScreenHeight : 667
+windowHeight : 625
+HeaderHeight : 40
+FooterHeight : 44
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPhone SE 2020_Safari_0 (40570ms)
+Scrolled: 87
+ScreenHeight : 667
+windowHeight : 625
+HeaderHeight : 40
+FooterHeight : 44
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPhone SE 2022_Safari_0 (39885ms)
+Scrolled: 53
+ScreenHeight : 667
+windowHeight : 628
+HeaderHeight : 78
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_13_iPhone SE 2020_Safari_0 (43285ms)
+Scrolled: 53
+ScreenHeight : 1180
+windowHeight : 1137
+HeaderHeight : 86
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPad Air 4_Safari_0 (40642ms)
+Scrolled: 51
+ScreenHeight : 1080
+windowHeight : 1041
+HeaderHeight : 78
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPad 9th_Safari_0 (39653ms)
+Scrolled: 56
+ScreenHeight : 1366
+windowHeight : 1323
+HeaderHeight : 86
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPad Pro 12.9 2022_Safari_0 (40641ms)
+Scrolled: 54
+ScreenHeight : 1366
+windowHeight : 1323
+HeaderHeight : 86
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPad Pro 12.9 2020_Safari_0 (48588ms)
+Scrolled: 56
+ScreenHeight : 1194
+windowHeight : 1151
+HeaderHeight : 86
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPad Pro 11 2022_Safari_0 (40892ms)
+Scrolled: 53
+ScreenHeight : 1180
+windowHeight : 1137
+HeaderHeight : 86
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPad 10th_Safari_0 (44639ms)
+Scrolled: 56
+ScreenHeight : 1180
+windowHeight : 1137
+HeaderHeight : 86
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPad Air 5_Safari_0 (39010ms)
+Scrolled: 53
+ScreenHeight : 1366
+windowHeight : 1323
+HeaderHeight : 86
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPad Pro 12.9 2021_Safari_0 (40261ms)
+Scrolled: 53
+ScreenHeight : 1194
+windowHeight : 1151
+HeaderHeight : 86
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPad Pro 11 2021_Safari_0 (40189ms)
+Scrolled: 53
+ScreenHeight : 1366
+windowHeight : 1323
+HeaderHeight : 86
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_13_iPad Pro 12.9 2020_Safari_0 (46291ms)
+Scrolled: 56
+ScreenHeight : 1194
+windowHeight : 1151
+HeaderHeight : 86
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPad Pro 11 2020_Safari_0 (42075ms)
+Scrolled: 51
+ScreenHeight : 1080
+windowHeight : 1041
+HeaderHeight : 78
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_16_iPad 8th_Safari_0 (44115ms)
+Scrolled: 56
+ScreenHeight : 1366
+windowHeight : 1323
+HeaderHeight : 86
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPad Pro 12.9 2018_Safari_0 (40816ms)
+Scrolled: 51
+ScreenHeight : 1133
+windowHeight : 1090
+HeaderHeight : 86
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_15_iPad Mini 2021_Safari_0 (39653ms)
+Scrolled: 53
+ScreenHeight : 1366
+windowHeight : 1323
+HeaderHeight : 86
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_13_iPad Pro 12.9 2018_Safari_0 (42306ms)
+Scrolled: 53
+ScreenHeight : 1080
+windowHeight : 1041
+HeaderHeight : 78
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_14_iPad 8th_Safari_0 (43438ms)
+Scrolled: 53
+ScreenHeight : 1194
+windowHeight : 1151
+HeaderHeight : 86
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_13_iPad Pro 11 2020_Safari_0 (42940ms)
+Scrolled: 0
+ScreenHeight : 1112
+windowHeight : 1042
+HeaderHeight : 140
+FooterHeight : 0
+[percy:core] Snapshot taken: exhaustive_test_poa_12_iPad Air 2019_Safari_0 (43337ms)
+Scrolled: 0
+ScreenHeight : 1024
+windowHeight : 985
+HeaderHeight : -28
+FooterHeight : 106
+[percy:core] Invalid upload options: (33180ms)
+[percy:core] - tiles[0].headerHeight: must be >= 0 (0ms)
+[percy:core] Snapshot taken: exhaustive_test_poa_12_iPad Mini 2019_Safari_0 (0ms)
+Scrolled: 0
+ScreenHeight : 1194
+windowHeight : 1151
+HeaderHeight : -20
+FooterHeight : 106
+[percy:core] Invalid upload options: (46094ms)
+[percy:core] - tiles[0].headerHeight: must be >= 0 (0ms)
+[percy:core] Snapshot taken: exhaustive_test_poa_12_iPad Pro 11 2018_Safari_0 (1ms)
+Scrolled: 0
+ScreenHeight : 1366
+windowHeight : 1323
+HeaderHeight : -20
+FooterHeight : 106
+[percy:core] Invalid upload options: (42925ms)
+[percy:core] - tiles[0].headerHeight: must be >= 0 (3ms)
+[percy:core] Snapshot taken: exhaustive_test_poa_12_iPad Pro 12.9 2018_Safari_0 (0ms)

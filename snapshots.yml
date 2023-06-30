@@ -1,0 +1,37 @@
+
+# - name: coa_flakes
+#   url: https://helpless-bear-3.telebit.io/us-en/home/ecommerce-solutions.html
+#   enable-javascript: true
+#   widths: [375, 1280]
+#   percy-css: |
+#     .secondaryNavIparsys .c-nav-secondary, .c-navigation, .c-voc-footer--action-bar, .c-navigation--bar.c-navigation--bar--main, .c-navigation--bar.c-navigation--bar--secondary { position: static; }
+
+
+
+# - name: PPLT-2124
+#   url: https://77da5098c4f541a38e9f2a76b0b0e147.sandbox.multiscreensite.com/Social-icons
+#   widths: [1900]
+#   enable-javascript: false
+  # discovery:
+  #   allowedHostnames: ['static-cdn-lambda.dwhitelabel.com', 'irt-cdn.multiscreensite.com', 'fonts.gstatic.com', 'fonts.googleapis.com'] 
+
+# - name: publicis
+#   url: https://www.dhl.com/us-en/home/ecommerce-solutions.html?cookieBanner=no
+#   enable-javascript: false
+#   widths: [375, 1280]
+#   execute:
+#     beforeSnapshot: |
+#       function scroll(){
+#         console.log("=============== Test ===================");
+#         const scroll_height = Math.max( document.body.scrollHeight,document.body.clientHeight,document.body.offsetHeight,document.documentElement.scrollHeight,document.documentElement.clientHeight,document.documentElement.offsetHeight);
+#         const dpr = window.devicePixelRatio;
+#         for(let itr = 0; itr <= scroll_height*dpr; itr+=100){
+#           window.scrollTo(0,itr);
+#         }
+#       };
+#       scroll();
+
+- name: publicis
+  url: https://www.dhl.com/us-en/home/ecommerce-solutions.html?cookieBanner=no
+  enable-javascript: false
+  widths: [375, 1280]
