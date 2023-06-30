@@ -8,7 +8,7 @@ const ALLOWED_TOKEN_TYPES = ['web', 'generic'];
 
 // All BYOS screenshots have a fixed comparison tag
 export const BYOS_TAG = {
-  name: 'BYOS',
+  name: 'Uploaded Screenshot',
   width: 1,
   height: 1
 };
