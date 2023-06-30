@@ -65,6 +65,8 @@ describe('GenericProvider', () => {
         .and.returnValue('mockBrowserName');
       spyOn(DesktopMetaData.prototype, 'browserVersion')
         .and.returnValue('111');
+      spyOn(DesktopMetaData.prototype, 'screenResolution')
+        .and.returnValue('1980 x 1080');
     });
 
     it('returns correct tag', async () => {
@@ -79,7 +81,8 @@ describe('GenericProvider', () => {
         height: 1000,
         orientation: 'landscape',
         browserName: 'mockBrowserName',
-        browserVersion: '111'
+        browserVersion: '111',
+        resolution: '1980 x 1080'
       });
     });
 

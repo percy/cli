@@ -825,7 +825,8 @@ describe('PercyClient', () => {
           osVersion: '0.1.0',
           orientation: 'portrait',
           browserName: 'chrome',
-          browserVersion: '111.0.0'
+          browserVersion: '111.0.0',
+          resolution: '1980 x 1080'
         },
         tiles: [{
           statusBarHeight: 40,
@@ -873,8 +874,9 @@ describe('PercyClient', () => {
                   'os-name': 'fooOS',
                   'os-version': '0.1.0',
                   orientation: 'portrait',
-                  browser_name: 'chrome',
-                  browser_version: '111.0.0'
+                  'browser-name': 'chrome',
+                  'browser-version': '111.0.0',
+                  resolution: '1980 x 1080'
                 }
               }
             },
@@ -940,8 +942,9 @@ describe('PercyClient', () => {
                   'os-name': null,
                   'os-version': null,
                   orientation: null,
-                  browser_name: null,
-                  browser_version: null
+                  'browser-name': null,
+                  'browser-version': null,
+                  resolution: null
                 }
               }
             },
@@ -1192,8 +1195,9 @@ describe('PercyClient', () => {
                   'os-name': null,
                   'os-version': null,
                   orientation: null,
-                  browser_name: null,
-                  browser_version: null
+                  'browser-name': null,
+                  'browser-version': null,
+                  resolution: null
                 }
               }
             },

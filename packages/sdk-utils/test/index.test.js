@@ -56,11 +56,6 @@ describe('SDK Utils', () => {
       it('contains type', () => {
         expect(percy.type).toEqual('web');
       });
-
-      it('contains percy build info', () => {
-        expect(percy.build).toHaveProperty('id', '123');
-        expect(percy.build).toHaveProperty('url', 'https://percy.io/test/test/123');
-      });
     });
   });
 

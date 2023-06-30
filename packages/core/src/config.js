@@ -496,7 +496,8 @@ export const comparisonSchema = {
           enum: ['portrait', 'landscape']
         },
         browserName: { type: 'string' },
-        browserVersion: { type: 'string' }
+        browserVersion: { type: 'string' },
+        resolution: { type: 'string' }
       }
     },
     tiles: {

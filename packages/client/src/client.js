@@ -400,8 +400,9 @@ export class PercyClient {
                 'os-name': tag.osName || null,
                 'os-version': tag.osVersion || null,
                 orientation: tag.orientation || null,
-                browser_name: tag.browserName || null,
-                browser_version: tag.browserVersion || null
+                'browser-name': tag.browserName || null,
+                'browser-version': tag.browserVersion || null,
+                resolution: tag.resolution || null
               }
             }
           },
