@@ -7,6 +7,10 @@
     "url": "https://github.com/percy/cli",
     "directory": "packages/webdriver-utils"
   },
+  "publishConfig": {
+    "access": "public",
+    "tag": "latest"
+  },
   "engines": {
     "node": ">=14"
   },
