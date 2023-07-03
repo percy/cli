@@ -840,6 +840,7 @@ describe('Discovery', () => {
     });
 
     it('shows a warning when idle wait timeout is set over 60000ms', async () => {
+      percy.loglevel('debug');
       process.env.PERCY_NETWORK_IDLE_WAIT_TIMEOUT = 80000;
 
       await percy.snapshot({
@@ -848,7 +849,10 @@ describe('Discovery', () => {
       });
 
       expect(logger.stderr).toContain(jasmine.stringMatching(
-        '^\\[percy] Setting PERCY_NETWORK_IDLE_WAIT_TIMEOUT over 60000ms is not'
+        '^\\[percy:core:discovery] Wait for 100ms idle'
+      ));
+      expect(logger.stderr).toContain(jasmine.stringMatching(
+        '^\\[percy:core:discovery] Setting PERCY_NETWORK_IDLE_WAIT_TIMEOUT over 60000ms is not'
       ));
     });
   });
@@ -899,6 +903,9 @@ describe('Discovery', () => {
         url: 'http://localhost:8000'
       });
 
+      expect(logger.stderr).toContain(jasmine.stringMatching(
+        '^\\[percy:core:discovery] Wait for 100ms idle'
+      ));
       expect(logger.stderr).toContain(jasmine.stringMatching(
         '^\\[percy:core:page] Setting PERCY_PAGE_LOAD_TIMEOUT over 60000ms is not recommended.'
       ));
