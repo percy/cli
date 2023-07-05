@@ -62,6 +62,32 @@ export function serializeCSSOM({ dom, clone, resources, cache }) {
       clone.prepend(styleLink);
     }
   }
+
+  // Capture blob css assets
+  for (let styleSheet of dom.styleSheets) {
+    if (styleSheet instanceof CSSStyleSheet && styleSheet.href && styleSheet.href.startsWith("blob:")) {
+      const styleLink = document.createElement('link');
+      styleLink.setAttribute('rel', 'stylesheet');
+
+      if (!cache.has(styleSheet)) {
+        const styles = Array.from(styleSheet.cssRules)
+          .map(cssRule => cssRule.cssText).join('\n');
+        let resource = resourceFromText(uid(), 'text/css', styles);
+        resources.add(resource);
+        cache.set(styleSheet, resource.url);
+      }
+      styleLink.setAttribute('data-percy-adopted-stylesheets-serialized', 'true');
+      styleLink.setAttribute('data-percy-serialized-attribute-href', cache.get(styleSheet));
+
+      /* istanbul ignore next: tested, but coverage is stripped */
+      if (clone.constructor.name === 'HTMLDocument' || clone.constructor.name === 'DocumentFragment') {
+        // handle document and iframe
+        clone.body.prepend(styleLink);
+      } else if (clone.constructor.name === 'ShadowRoot') {
+        clone.prepend(styleLink);
+      }
+    }
+  }
 }
 
 export default serializeCSSOM;
