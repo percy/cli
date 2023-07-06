@@ -1,5 +1,5 @@
 import { when } from 'interactor.js';
-import { withExample, withCSSOM, parseDOM, platforms, platformDOM, createShadowEl } from './helpers';
+import { assert, withExample, withCSSOM, parseDOM, platforms, platformDOM, createShadowEl } from './helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeCSSOM', () => {
@@ -194,10 +194,12 @@ describe('serializeCSSOM', () => {
       dom.head.appendChild(linkElement3);
 
       await when(() => {
-        const capture = serializeDOM();
-        let $ = parseDOM(capture, 'plain');
-        expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" data-percy-blob-stylesheets-serialized="true" href="${capture.resources[0].url}">`);
+        assert(dom.styleSheets.length === 3);
       }, 5000);
+      const capture = serializeDOM();
+      let $ = parseDOM(capture, 'plain');
+      expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" data-percy-blob-stylesheets-serialized="true" href="${capture.resources[0].url}">`);
+
       dom.head.removeChild(linkElement1);
       dom.head.removeChild(linkElement2);
       dom.head.removeChild(linkElement3);

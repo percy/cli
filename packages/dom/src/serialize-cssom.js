@@ -18,11 +18,10 @@ function styleSheetsMatch(sheetA, sheetB) {
   return true;
 }
 
-function createStyleResource(styleSheet, resources) {
+function createStyleResource(styleSheet) {
   const styles = Array.from(styleSheet.cssRules)
     .map(cssRule => cssRule.cssText).join('\n');
   let resource = resourceFromText(uid(), 'text/css', styles);
-  resources.add(resource);
   return resource;
 }
 
@@ -43,10 +42,11 @@ export function serializeCSSOM({ dom, clone, resources, cache }) {
 
       cloneOwnerNode.parentNode.insertBefore(style, cloneOwnerNode.nextSibling);
       cloneOwnerNode.remove();
-    } else if (styleSheet instanceof window.CSSStyleSheet && styleSheet.href && styleSheet.href.startsWith('blob:')) {
+    } else if (styleSheet.href && styleSheet.href.startsWith('blob:')) {
       const styleLink = document.createElement('link');
       styleLink.setAttribute('rel', 'stylesheet');
-      let resource = createStyleResource(styleSheet, resources);
+      let resource = createStyleResource(styleSheet);
+      resources.add(resource);
 
       styleLink.setAttribute('data-percy-blob-stylesheets-serialized', 'true');
       styleLink.setAttribute('data-percy-serialized-attribute-href', resource.url);
@@ -68,7 +68,8 @@ export function serializeCSSOM({ dom, clone, resources, cache }) {
     styleLink.setAttribute('rel', 'stylesheet');
 
     if (!cache.has(sheet)) {
-      let resource = createStyleResource(sheet, resources);
+      let resource = createStyleResource(sheet);
+      resources.add(resource);
       cache.set(sheet, resource.url);
     }
     styleLink.setAttribute('data-percy-adopted-stylesheets-serialized', 'true');
