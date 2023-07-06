@@ -42,7 +42,7 @@ export function serializeCSSOM({ dom, clone, resources, cache }) {
 
       cloneOwnerNode.parentNode.insertBefore(style, cloneOwnerNode.nextSibling);
       cloneOwnerNode.remove();
-    } else if (styleSheet.href && styleSheet.href.startsWith('blob:')) {
+    } else if (styleSheet.href?.startsWith('blob:')) {
       const styleLink = document.createElement('link');
       styleLink.setAttribute('rel', 'stylesheet');
       let resource = createStyleResource(styleSheet);
