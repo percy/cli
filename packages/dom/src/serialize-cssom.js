@@ -65,19 +65,20 @@ export function serializeCSSOM({ dom, clone, resources, cache }) {
 
   // Capture blob css assets
   for (let styleSheet of dom.styleSheets) {
-    if (styleSheet instanceof CSSStyleSheet && styleSheet.href && styleSheet.href.startsWith("blob:")) {
+    if (styleSheet instanceof window.CSSStyleSheet && styleSheet.href && styleSheet.href.startsWith('blob:')) {
       const styleLink = document.createElement('link');
       styleLink.setAttribute('rel', 'stylesheet');
+      const styles = Array.from(styleSheet.cssRules)
+        .map(cssRule => cssRule.cssText).join('\n');
 
-      if (!cache.has(styleSheet)) {
-        const styles = Array.from(styleSheet.cssRules)
-          .map(cssRule => cssRule.cssText).join('\n');
-        let resource = resourceFromText(uid(), 'text/css', styles);
-        resources.add(resource);
-        cache.set(styleSheet, resource.url);
-      }
-      styleLink.setAttribute('data-percy-adopted-stylesheets-serialized', 'true');
-      styleLink.setAttribute('data-percy-serialized-attribute-href', cache.get(styleSheet));
+      if (cache.has(styles)) { continue; }
+
+      let resource = resourceFromText(uid(), 'text/css', styles);
+      resources.add(resource);
+      cache.set(styles, resource.url);
+
+      styleLink.setAttribute('data-percy-blob-stylesheets-serialized', 'true');
+      styleLink.setAttribute('data-percy-serialized-attribute-href', cache.get(styles));
 
       /* istanbul ignore next: tested, but coverage is stripped */
       if (clone.constructor.name === 'HTMLDocument' || clone.constructor.name === 'DocumentFragment') {

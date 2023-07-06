@@ -158,5 +158,58 @@ describe('serializeCSSOM', () => {
       shadowEl.shadowRoot.adoptedStyleSheets = [];
       shadowElChild.shadowRoot.adoptedStyleSheets = [];
     });
+
+    it('captures blob styleSheets', () => {
+      if (platform !== 'plain') {
+        return;
+      }
+      withExample('<div>BlobStyle</div>', { withShadow: false });
+
+      function generateBlobUrl(cssStyle) {
+        const blob = new window.Blob([cssStyle], { type: 'text/css' });
+        return window.URL.createObjectURL(blob);
+      }
+
+      function createLinkElement(blobURL) {
+        const linkElement = dom.createElement('link');
+        linkElement.rel = 'stylesheet';
+        linkElement.type = 'text/css';
+        linkElement.href = blobURL;
+        return linkElement;
+      }
+
+      const cssStyle1 = '.box { height: 500px; }';
+      const cssStyle2 = '.box { height: 1000px; }';
+
+      const blobUrl1 = generateBlobUrl(cssStyle1);
+      const blobUrl2 = generateBlobUrl(cssStyle2);
+
+      const linkElement1 = createLinkElement(blobUrl1);
+      const linkElement2 = createLinkElement(blobUrl1);
+      const linkElement3 = createLinkElement(blobUrl2);
+
+      dom.head.appendChild(linkElement1);
+      dom.head.appendChild(linkElement2);
+      dom.head.appendChild(linkElement3);
+
+      linkElement1.addEventListener('load', handler);
+      linkElement2.addEventListener('load', handler);
+      linkElement3.addEventListener('load', handler);
+
+      function handler() {
+        linkElement1.removeEventListener('load', handler);
+        linkElement2.removeEventListener('load', handler);
+        linkElement3.removeEventListener('load', handler);
+
+        const capture = serializeDOM();
+        let $ = parseDOM(capture, 'plain');
+        expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" data-percy-blob-stylesheets-serialized="true" href="${capture.resources[0].url}">`);
+        dom.head.removeChild(linkElement1);
+        dom.head.removeChild(linkElement2);
+        dom.head.removeChild(linkElement3);
+        URL.revokeObjectURL(blobUrl1);
+        URL.revokeObjectURL(blobUrl2);
+      }
+    });
   });
 });
