@@ -1,3 +1,4 @@
+import { when } from 'interactor.js';
 import { withExample, withCSSOM, parseDOM, platforms, platformDOM, createShadowEl } from './helpers';
 import serializeDOM from '@percy/dom';
 
@@ -159,7 +160,7 @@ describe('serializeCSSOM', () => {
       shadowElChild.shadowRoot.adoptedStyleSheets = [];
     });
 
-    it('captures blob styleSheets', () => {
+    it('captures blob styleSheets', async () => {
       if (platform !== 'plain') {
         return;
       }
@@ -170,7 +171,7 @@ describe('serializeCSSOM', () => {
         return window.URL.createObjectURL(blob);
       }
 
-      function createLinkElement(blobURL) {
+      function createStyleLinkElement(blobURL) {
         const linkElement = dom.createElement('link');
         linkElement.rel = 'stylesheet';
         linkElement.type = 'text/css';
@@ -184,32 +185,24 @@ describe('serializeCSSOM', () => {
       const blobUrl1 = generateBlobUrl(cssStyle1);
       const blobUrl2 = generateBlobUrl(cssStyle2);
 
-      const linkElement1 = createLinkElement(blobUrl1);
-      const linkElement2 = createLinkElement(blobUrl1);
-      const linkElement3 = createLinkElement(blobUrl2);
+      const linkElement1 = createStyleLinkElement(blobUrl1);
+      const linkElement2 = createStyleLinkElement(blobUrl1);
+      const linkElement3 = createStyleLinkElement(blobUrl2);
 
       dom.head.appendChild(linkElement1);
       dom.head.appendChild(linkElement2);
       dom.head.appendChild(linkElement3);
 
-      linkElement1.addEventListener('load', handler);
-      linkElement2.addEventListener('load', handler);
-      linkElement3.addEventListener('load', handler);
-
-      function handler() {
-        linkElement1.removeEventListener('load', handler);
-        linkElement2.removeEventListener('load', handler);
-        linkElement3.removeEventListener('load', handler);
-
+      await when(() => {
         const capture = serializeDOM();
         let $ = parseDOM(capture, 'plain');
         expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" data-percy-blob-stylesheets-serialized="true" href="${capture.resources[0].url}">`);
-        dom.head.removeChild(linkElement1);
-        dom.head.removeChild(linkElement2);
-        dom.head.removeChild(linkElement3);
-        URL.revokeObjectURL(blobUrl1);
-        URL.revokeObjectURL(blobUrl2);
-      }
+      }, 5000);
+      dom.head.removeChild(linkElement1);
+      dom.head.removeChild(linkElement2);
+      dom.head.removeChild(linkElement3);
+      URL.revokeObjectURL(blobUrl1);
+      URL.revokeObjectURL(blobUrl2);
     });
   });
 });
