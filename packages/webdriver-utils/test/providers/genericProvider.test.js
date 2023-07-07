@@ -335,73 +335,72 @@ describe('GenericProvider', () => {
 
   describe('getHeaderFooter', () => {
     let provider;
-    let requestSpy;
 
     beforeEach(async () => {
-      provider = new GenericProvider('123', 'http:executorUrl', { 'browserName': 'safari', 'deviceName': 'iPhone 12 Pro' }, {});
+      provider = new GenericProvider('123', 'http:executorUrl', { browserName: 'safari', deviceName: 'iPhone 12 Pro' }, {});
     });
 
     it('should return the matching header and footer', async () => {
       let mockResponseObject = {
         body: {
-          'iPhone 12 Pro':{
-            'safari': {
-              'header': 141,
-              'footer': 399
+          'iPhone 12 Pro': {
+            safari: {
+              header: 141,
+              footer: 399
             }
           }
         },
         status: 200,
         headers: { 'content-type': 'application/json' }
-      }
-      requestSpy = spyOn(utils.request, 'fetch').and.returnValue(
+      };
+      spyOn(utils.request, 'fetch').and.returnValue(
         Promise.resolve(mockResponseObject)
       );
-      const [header, footer] = await provider.getHeaderFooter()
+      const [header, footer] = await provider.getHeaderFooter();
       expect(header).toEqual(141);
       expect(footer).toEqual(399);
-    })
+    });
 
     it('should return 0,0 for unmatched device name', async () => {
       let mockResponseObject = {
         body: {
-          'iPhone 13 Pro':{
-            'safari': {
-              'header': 141,
-              'footer': 399
+          'iPhone 13 Pro': {
+            safari: {
+              header: 141,
+              footer: 399
             }
           }
         },
         status: 200,
         headers: { 'content-type': 'application/json' }
-      }
-      requestSpy = spyOn(utils.request, 'fetch').and.returnValue(
+      };
+      spyOn(utils.request, 'fetch').and.returnValue(
         Promise.resolve(mockResponseObject)
       );
-      const [header, footer] = await provider.getHeaderFooter()
+      const [header, footer] = await provider.getHeaderFooter();
       expect(header).toEqual(0);
       expect(footer).toEqual(0);
-    })
+    });
 
     it('should return 0,0 for unmatched browser name', async () => {
       let mockResponseObject = {
         body: {
-          'iPhone 12 Pro':{
-            'chrome': {
-              'header': 141,
-              'footer': 399
+          'iPhone 12 Pro': {
+            chrome: {
+              header: 141,
+              footer: 399
             }
           }
         },
         status: 200,
         headers: { 'content-type': 'application/json' }
-      }
-      requestSpy = spyOn(utils.request, 'fetch').and.returnValue(
+      };
+      spyOn(utils.request, 'fetch').and.returnValue(
         Promise.resolve(mockResponseObject)
       );
-      const [header, footer] = await provider.getHeaderFooter()
+      const [header, footer] = await provider.getHeaderFooter();
       expect(header).toEqual(0);
       expect(footer).toEqual(0);
-    })
-  })
+    });
+  });
 });

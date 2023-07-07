@@ -5,7 +5,7 @@ import Tile from '../util/tile.js';
 import Driver from '../driver.js';
 const { request } = utils;
 
-const DEVICES_CONFIG_URL = 'https://storage.googleapis.com/percy-utils/devices.json'
+const DEVICES_CONFIG_URL = 'https://storage.googleapis.com/percy-utils/devices.json';
 const log = utils.logger('webdriver-utils:genericProvider');
 
 export default class GenericProvider {
@@ -250,14 +250,14 @@ export default class GenericProvider {
   }
 
   async getHeaderFooter() {
-    const devicesConfig = (await request(DEVICES_CONFIG_URL)).body
-    let deviceKey = this.capabilities['deviceModel'] ? this.capabilities['deviceModel'] : this.capabilities['deviceName']
-    let browserName = this.capabilities['browserName']
-    return devicesConfig[deviceKey] ?
-      (
-        devicesConfig[deviceKey][browserName] ?
-        [devicesConfig[deviceKey][browserName]['header'], devicesConfig[deviceKey][browserName]['footer']] :
-        [0,0]
-      ) : [0,0]
+    const devicesConfig = (await request(DEVICES_CONFIG_URL)).body;
+    let deviceKey = this.capabilities.deviceModel ? this.capabilities.deviceModel : this.capabilities.deviceName;
+    let browserName = this.capabilities.browserName;
+    return devicesConfig[deviceKey]
+      ? (
+          devicesConfig[deviceKey][browserName]
+            ? [devicesConfig[deviceKey][browserName].header, devicesConfig[deviceKey][browserName].footer]
+            : [0, 0]
+        ) : [0, 0];
   }
 }
