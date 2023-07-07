@@ -3,7 +3,9 @@ import utils from '@percy/sdk-utils';
 import MetaDataResolver from '../metadata/metaDataResolver.js';
 import Tile from '../util/tile.js';
 import Driver from '../driver.js';
+const { request } = utils;
 
+const DEVICES_CONFIG_URL = 'https://storage.googleapis.com/percy-utils/devices.json'
 const log = utils.logger('webdriver-utils:genericProvider');
 
 export default class GenericProvider {
@@ -111,13 +113,15 @@ export default class GenericProvider {
   async getTiles(fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     const base64content = await this.driver.takeScreenshot();
+    log.debug('Tiles captured successfully');
+    const [header, footer] = await this.getHeaderFooter();
     return {
       tiles: [
         new Tile({
           content: base64content,
           // TODO: Need to add method to fetch these attr
-          statusBarHeight: 0,
-          navBarHeight: 0,
+          statusBarHeight: header,
+          navBarHeight: footer,
           headerHeight: 0,
           footerHeight: 0,
           fullscreen
@@ -243,5 +247,17 @@ export default class GenericProvider {
       }
     }
     return ignoredElementsArray;
+  }
+
+  async getHeaderFooter() {
+    const devicesConfig = (await request(DEVICES_CONFIG_URL)).body
+    let deviceKey = this.capabilities['deviceModel'] ? this.capabilities['deviceModel'] : this.capabilities['deviceName']
+    let browserName = this.capabilities['browserName']
+    return devicesConfig[deviceKey] ?
+      (
+        devicesConfig[deviceKey][browserName] ?
+        [devicesConfig[deviceKey][browserName]['header'], devicesConfig[deviceKey][browserName]['footer']] :
+        [0,0]
+      ) : [0,0]
   }
 }

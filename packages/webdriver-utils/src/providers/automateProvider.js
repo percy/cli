@@ -109,11 +109,13 @@ export default class AutomateProvider extends GenericProvider {
 
     const tiles = [];
     const tileResponse = JSON.parse(responseValue.result);
+    log.debug('Tiles captured successfully');
+    const [header, footer] = await this.getHeaderFooter();
 
     for (let tileData of tileResponse.sha) {
       tiles.push(new Tile({
-        statusBarHeight: 0,
-        navBarHeight: 0,
+        statusBarHeight: header,
+        navBarHeight: footer,
         headerHeight: 0,
         footerHeight: 0,
         fullscreen,
