@@ -170,6 +170,7 @@ describe('Unit / Utils', () => {
 
   describe('percyAutomateRequestHandler', () => {
     let req;
+    let percyBuildInfo;
     beforeAll(() => {
       req = {
         body: {
@@ -178,21 +179,31 @@ describe('Unit / Utils', () => {
           environment_info: 'environment'
         }
       };
+
+      percyBuildInfo = {
+        id: '123',
+        url: 'https://percy.io/abc/123'
+      };
     });
 
     it('converts client_info to clientInfo', () => {
-      const nreq = percyAutomateRequestHandler(req);
+      const nreq = percyAutomateRequestHandler(req, percyBuildInfo);
       expect(nreq.body.clientInfo).toBe('client');
     });
 
     it('converts environment_info to environmentInfo', () => {
-      const nreq = percyAutomateRequestHandler(req);
+      const nreq = percyAutomateRequestHandler(req, percyBuildInfo);
       expect(nreq.body.environmentInfo).toBe('environment');
     });
 
     it('adds options', () => {
-      const nreq = percyAutomateRequestHandler(req);
+      const nreq = percyAutomateRequestHandler(req, percyBuildInfo);
       expect(nreq.body.options).toEqual({});
+    });
+
+    it('adds percyBuildInfo', () => {
+      const nreq = percyAutomateRequestHandler(req, percyBuildInfo);
+      expect(nreq.body.buildInfo).toEqual(percyBuildInfo);
     });
   });
 });

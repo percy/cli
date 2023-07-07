@@ -17,7 +17,8 @@ export default class GenericProvider {
     sessionCapabilites,
     clientInfo,
     environmentInfo,
-    options
+    options,
+    buildInfo
   ) {
     this.sessionId = sessionId;
     this.commandExecutorUrl = commandExecutorUrl;
@@ -26,6 +27,7 @@ export default class GenericProvider {
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
     this.options = options;
+    this.buildInfo = buildInfo;
     this.driver = null;
     this.metaData = null;
     this.debugUrl = null;
