@@ -2,6 +2,7 @@ import GenericProvider from '../../src/providers/genericProvider.js';
 import Driver from '../../src/driver.js';
 import MetaDataResolver from '../../src/metadata/metaDataResolver.js';
 import DesktopMetaData from '../../src/metadata/desktopMetaData.js';
+import utils from '@percy/sdk-utils';
 
 describe('GenericProvider', () => {
   let genericProvider;
@@ -33,6 +34,7 @@ describe('GenericProvider', () => {
   describe('getTiles', () => {
     beforeEach(() => {
       spyOn(Driver.prototype, 'takeScreenshot').and.returnValue(Promise.resolve('123b='));
+      spyOn(GenericProvider.prototype, 'getHeaderFooter').and.returnValue(Promise.resolve([123, 456]));
     });
 
     it('creates tiles from screenshot', async () => {
@@ -40,6 +42,8 @@ describe('GenericProvider', () => {
       genericProvider.createDriver();
       const tiles = await genericProvider.getTiles(false);
       expect(tiles.tiles.length).toEqual(1);
+      expect(tiles.tiles[0].statusBarHeight).toEqual(123);
+      expect(tiles.tiles[0].navBarHeight).toEqual(456);
       expect(Object.keys(tiles)).toContain('domInfoSha');
     });
 
@@ -328,4 +332,76 @@ describe('GenericProvider', () => {
       expect(ignoredElementsArray).toEqual([]);
     });
   });
+
+  describe('getHeaderFooter', () => {
+    let provider;
+    let requestSpy;
+
+    beforeEach(async () => {
+      provider = new GenericProvider('123', 'http:executorUrl', { 'browserName': 'safari', 'deviceName': 'iPhone 12 Pro' }, {});
+    });
+
+    it('should return the matching header and footer', async () => {
+      let mockResponseObject = {
+        body: {
+          'iPhone 12 Pro':{
+            'safari': {
+              'header': 141,
+              'footer': 399
+            }
+          }
+        },
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      }
+      requestSpy = spyOn(utils.request, 'fetch').and.returnValue(
+        Promise.resolve(mockResponseObject)
+      );
+      const [header, footer] = await provider.getHeaderFooter()
+      expect(header).toEqual(141);
+      expect(footer).toEqual(399);
+    })
+
+    it('should return 0,0 for unmatched device name', async () => {
+      let mockResponseObject = {
+        body: {
+          'iPhone 13 Pro':{
+            'safari': {
+              'header': 141,
+              'footer': 399
+            }
+          }
+        },
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      }
+      requestSpy = spyOn(utils.request, 'fetch').and.returnValue(
+        Promise.resolve(mockResponseObject)
+      );
+      const [header, footer] = await provider.getHeaderFooter()
+      expect(header).toEqual(0);
+      expect(footer).toEqual(0);
+    })
+
+    it('should return 0,0 for unmatched browser name', async () => {
+      let mockResponseObject = {
+        body: {
+          'iPhone 12 Pro':{
+            'chrome': {
+              'header': 141,
+              'footer': 399
+            }
+          }
+        },
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      }
+      requestSpy = spyOn(utils.request, 'fetch').and.returnValue(
+        Promise.resolve(mockResponseObject)
+      );
+      const [header, footer] = await provider.getHeaderFooter()
+      expect(header).toEqual(0);
+      expect(footer).toEqual(0);
+    })
+  })
 });

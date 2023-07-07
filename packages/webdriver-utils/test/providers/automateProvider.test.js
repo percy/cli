@@ -164,6 +164,7 @@ describe('AutomateProvider', () => {
 
     beforeEach(async () => {
       spyOn(Driver.prototype, 'getCapabilites');
+      spyOn(GenericProvider.prototype, 'getHeaderFooter').and.returnValue(Promise.resolve([123, 456]));
       browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
         .and.returnValue(Promise.resolve({ value: '{ "result": "{\\"dom_sha\\": \\"abc\\", \\"sha\\": [\\"abc-1\\", \\"xyz-2\\"]}", "success":true }' }));
       executeScriptSpy = spyOn(Driver.prototype, 'executeScript')
@@ -182,6 +183,8 @@ describe('AutomateProvider', () => {
       expect(res.tiles[1]).toBeInstanceOf(Tile);
       expect(res.tiles[0].sha).toEqual('abc');
       expect(res.tiles[1].sha).toEqual('xyz');
+      expect(res.tiles[0].statusBarHeight).toEqual(123);
+      expect(res.tiles[0].navBarHeight).toEqual(456);
     });
 
     it('throws error when response is false', async () => {
