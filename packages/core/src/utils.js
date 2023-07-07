@@ -24,7 +24,7 @@ export function normalizeURL(url) {
 }
 
 // Returns the body for automateScreenshot in structure
-export function percyAutomateRequestHandler(req) {
+export function percyAutomateRequestHandler(req, buildInfo) {
   if (req.body.client_info) {
     req.body.clientInfo = req.body.client_info;
   }
@@ -34,6 +34,7 @@ export function percyAutomateRequestHandler(req) {
   if (!req.body.options) {
     req.body.options = {};
   }
+  req.body.buildInfo = buildInfo;
   return req;
 }
 

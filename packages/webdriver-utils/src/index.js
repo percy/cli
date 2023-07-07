@@ -13,7 +13,8 @@ export default class WebdriverUtils {
       snapshotName,
       clientInfo,
       environmentInfo,
-      options = {}
+      options = {},
+      buildInfo = {}
     }) {
     this.sessionId = sessionId;
     this.commandExecutorUrl = commandExecutorUrl;
@@ -28,11 +29,12 @@ export default class WebdriverUtils {
     this.options = camelCasedOptions;
     this.clientInfo = clientInfo;
     this.environmentInfo = environmentInfo;
+    this.buildInfo = buildInfo;
   }
 
   async automateScreenshot() {
     this.log.info('Starting automate screenshot');
-    const automate = ProviderResolver.resolve(this.sessionId, this.commandExecutorUrl, this.capabilities, this.sessionCapabilites, this.clientInfo, this.environmentInfo, this.options);
+    const automate = ProviderResolver.resolve(this.sessionId, this.commandExecutorUrl, this.capabilities, this.sessionCapabilites, this.clientInfo, this.environmentInfo, this.options, this.buildInfo);
     await automate.createDriver();
     return await automate.screenshot(this.snapshotName, this.options);
   }
