@@ -198,9 +198,11 @@ describe('serializeCSSOM', () => {
       }, 5000);
       const capture = serializeDOM();
       let $ = parseDOM(capture, 'plain');
-      expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" data-percy-blob-stylesheets-serialized="true" href="${capture.resources[0].url}">`);
-      expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" data-percy-blob-stylesheets-serialized="true" href="${capture.resources[1].url}">`);
-      expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" data-percy-blob-stylesheets-serialized="true" href="${capture.resources[2].url}">`);
+      expect($('body')[0].innerHTML).toMatch(
+        `<link rel="stylesheet" data-percy-blob-stylesheets-serialized="true" href="${capture.resources[2].url}">` +
+        `<link rel="stylesheet" data-percy-blob-stylesheets-serialized="true" href="${capture.resources[1].url}">` +
+        `<link rel="stylesheet" data-percy-blob-stylesheets-serialized="true" href="${capture.resources[0].url}">`
+      );
 
       dom.head.removeChild(linkElement1);
       dom.head.removeChild(linkElement2);
