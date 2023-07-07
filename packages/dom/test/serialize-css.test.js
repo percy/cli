@@ -1,4 +1,5 @@
-import { withExample, withCSSOM, parseDOM, platforms, platformDOM, createShadowEl } from './helpers';
+import { when } from 'interactor.js';
+import { assert, withExample, withCSSOM, parseDOM, platforms, platformDOM, createShadowEl } from './helpers';
 import serializeDOM from '@percy/dom';
 
 describe('serializeCSSOM', () => {
@@ -157,6 +158,57 @@ describe('serializeCSSOM', () => {
 
       shadowEl.shadowRoot.adoptedStyleSheets = [];
       shadowElChild.shadowRoot.adoptedStyleSheets = [];
+    });
+
+    it('captures blob styleSheets', async () => {
+      if (platform !== 'plain') {
+        return;
+      }
+      withExample('<div>BlobStyle</div>', { withShadow: false });
+
+      function generateBlobUrl(cssStyle) {
+        const blob = new window.Blob([cssStyle], { type: 'text/css' });
+        return window.URL.createObjectURL(blob);
+      }
+
+      function createStyleLinkElement(blobURL) {
+        const linkElement = dom.createElement('link');
+        linkElement.rel = 'stylesheet';
+        linkElement.type = 'text/css';
+        linkElement.href = blobURL;
+        return linkElement;
+      }
+
+      const cssStyle1 = '.box { height: 500px; }';
+      const cssStyle2 = '.box { height: 1000px; }';
+
+      const blobUrl1 = generateBlobUrl(cssStyle1);
+      const blobUrl2 = generateBlobUrl(cssStyle2);
+
+      const linkElement1 = createStyleLinkElement(blobUrl1);
+      const linkElement2 = createStyleLinkElement(blobUrl1);
+      const linkElement3 = createStyleLinkElement(blobUrl2);
+
+      dom.head.appendChild(linkElement1);
+      dom.head.appendChild(linkElement2);
+      dom.head.appendChild(linkElement3);
+
+      await when(() => {
+        assert(dom.styleSheets.length === 3);
+      }, 5000);
+      const capture = serializeDOM();
+      let $ = parseDOM(capture, 'plain');
+      expect($('body')[0].innerHTML).toMatch(
+        `<link rel="stylesheet" data-percy-blob-stylesheets-serialized="true" href="${capture.resources[2].url}">` +
+        `<link rel="stylesheet" data-percy-blob-stylesheets-serialized="true" href="${capture.resources[1].url}">` +
+        `<link rel="stylesheet" data-percy-blob-stylesheets-serialized="true" href="${capture.resources[0].url}">`
+      );
+
+      dom.head.removeChild(linkElement1);
+      dom.head.removeChild(linkElement2);
+      dom.head.removeChild(linkElement3);
+      URL.revokeObjectURL(blobUrl1);
+      URL.revokeObjectURL(blobUrl2);
     });
   });
 });
