@@ -42,8 +42,8 @@ describe('GenericProvider', () => {
       genericProvider.createDriver();
       const tiles = await genericProvider.getTiles(false);
       expect(tiles.tiles.length).toEqual(1);
-      expect(tiles.tiles[0].statusBarHeight).toEqual(0);
-      expect(tiles.tiles[0].navBarHeight).toEqual(0);
+      expect(tiles.tiles[0].footerHeight).toEqual(0);
+      expect(tiles.tiles[0].headerHeight).toEqual(0);
       expect(Object.keys(tiles)).toContain('domInfoSha');
     });
 

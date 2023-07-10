@@ -183,8 +183,8 @@ describe('AutomateProvider', () => {
       expect(res.tiles[1]).toBeInstanceOf(Tile);
       expect(res.tiles[0].sha).toEqual('abc');
       expect(res.tiles[1].sha).toEqual('xyz');
-      expect(res.tiles[0].statusBarHeight).toEqual(123);
-      expect(res.tiles[0].navBarHeight).toEqual(456);
+      expect(res.tiles[0].headerHeight).toEqual(0);
+      expect(res.tiles[0].footerHeight).toEqual(0);
     });
 
     it('throws error when response is false', async () => {
