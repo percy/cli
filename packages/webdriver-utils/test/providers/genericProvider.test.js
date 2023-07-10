@@ -42,8 +42,8 @@ describe('GenericProvider', () => {
       genericProvider.createDriver();
       const tiles = await genericProvider.getTiles(false);
       expect(tiles.tiles.length).toEqual(1);
-      expect(tiles.tiles[0].statusBarHeight).toEqual(123);
-      expect(tiles.tiles[0].navBarHeight).toEqual(456);
+      expect(tiles.tiles[0].statusBarHeight).toEqual(0);
+      expect(tiles.tiles[0].navBarHeight).toEqual(0);
       expect(Object.keys(tiles)).toContain('domInfoSha');
     });
 
@@ -71,6 +71,7 @@ describe('GenericProvider', () => {
         .and.returnValue('111');
       spyOn(DesktopMetaData.prototype, 'screenResolution')
         .and.returnValue('1980 x 1080');
+      spyOn(GenericProvider.prototype, 'getHeaderFooter').and.returnValue(Promise.resolve([123, 456]));
     });
 
     it('returns correct tag', async () => {
@@ -82,7 +83,7 @@ describe('GenericProvider', () => {
         osName: 'mockOsName',
         osVersion: 'mockOsVersion',
         width: 1000,
-        height: 1000,
+        height: 1000 + 123 + 456,
         orientation: 'landscape',
         browserName: 'mockBrowserName',
         browserVersion: '111',
