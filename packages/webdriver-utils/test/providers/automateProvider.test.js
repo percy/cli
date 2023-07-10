@@ -173,7 +173,7 @@ describe('AutomateProvider', () => {
 
     it('should return tiles when success', async () => {
       await automateProvider.createDriver();
-      const res = await automateProvider.getTiles(false);
+      const res = await automateProvider.getTiles(123, 456, false);
       expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
       expect(executeScriptSpy).toHaveBeenCalledTimes(1);
       expect(Object.keys(res).length).toEqual(2);
@@ -183,8 +183,10 @@ describe('AutomateProvider', () => {
       expect(res.tiles[1]).toBeInstanceOf(Tile);
       expect(res.tiles[0].sha).toEqual('abc');
       expect(res.tiles[1].sha).toEqual('xyz');
-      expect(res.tiles[0].headerHeight).toEqual(0);
-      expect(res.tiles[0].footerHeight).toEqual(0);
+      expect(res.tiles[0].headerHeight).toEqual(123);
+      expect(res.tiles[0].footerHeight).toEqual(456);
+      expect(res.tiles[0].navBarHeight).toEqual(0);
+      expect(res.tiles[0].statusBarHeight).toEqual(0);
     });
 
     it('throws error when response is false', async () => {

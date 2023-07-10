@@ -83,7 +83,7 @@ export default class GenericProvider {
     await this.addPercyCSS(percyCSS);
     const tag = await this.getTag();
 
-    const tiles = await this.getTiles(fullscreen);
+    const tiles = await this.getTiles(this.header, this.footer, fullscreen);
     const ignoreRegions = await this.findIgnoredRegions(
       ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions
     );
@@ -112,7 +112,7 @@ export default class GenericProvider {
     return 'dummyValue';
   }
 
-  async getTiles(fullscreen) {
+  async getTiles(headerHeight, footerHeight, fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     const base64content = await this.driver.takeScreenshot();
     log.debug('Tiles captured successfully');
@@ -123,8 +123,8 @@ export default class GenericProvider {
           // TODO: Need to add method to fetch these attr
           statusBarHeight: 0,
           navBarHeight: 0,
-          headerHeight: this.header,
-          footerHeight: this.footer,
+          headerHeight,
+          footerHeight,
           fullscreen
         })
       ],

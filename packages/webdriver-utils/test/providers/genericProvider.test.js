@@ -40,10 +40,12 @@ describe('GenericProvider', () => {
     it('creates tiles from screenshot', async () => {
       genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       genericProvider.createDriver();
-      const tiles = await genericProvider.getTiles(false);
+      const tiles = await genericProvider.getTiles(123, 456, false);
       expect(tiles.tiles.length).toEqual(1);
-      expect(tiles.tiles[0].footerHeight).toEqual(0);
-      expect(tiles.tiles[0].headerHeight).toEqual(0);
+      expect(tiles.tiles[0].navBarHeight).toEqual(0);
+      expect(tiles.tiles[0].statusBarHeight).toEqual(0);
+      expect(tiles.tiles[0].footerHeight).toEqual(456);
+      expect(tiles.tiles[0].headerHeight).toEqual(123);
       expect(Object.keys(tiles)).toContain('domInfoSha');
     });
 
@@ -118,7 +120,7 @@ describe('GenericProvider', () => {
       let res = await genericProvider.screenshot('mock-name', {});
       expect(addPercyCSSSpy).toHaveBeenCalledTimes(1);
       expect(getTagSpy).toHaveBeenCalledTimes(1);
-      expect(getTilesSpy).toHaveBeenCalledOnceWith(false);
+      expect(getTilesSpy).toHaveBeenCalledOnceWith(0,0,false);
       expect(removePercyCSSSpy).toHaveBeenCalledTimes(1);
       expect(res).toEqual({
         name: 'mock-name',

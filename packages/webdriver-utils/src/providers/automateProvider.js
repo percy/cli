@@ -88,7 +88,7 @@ export default class AutomateProvider extends GenericProvider {
     });
   }
 
-  async getTiles(fullscreen) {
+  async getTiles(headerHeight, footerHeight, fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
 
     const response = await TimeIt.run('percyScreenshot:screenshot', async () => {
@@ -115,8 +115,8 @@ export default class AutomateProvider extends GenericProvider {
       tiles.push(new Tile({
         statusBarHeight: 0,
         navBarHeight: 0,
-        headerHeight: this.header,
-        footerHeight: this.footer,
+        headerHeight,
+        footerHeight,
         fullscreen,
         sha: tileData.split('-')[0] // drop build id
       }));
