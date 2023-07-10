@@ -31,6 +31,8 @@ export default class GenericProvider {
     this.driver = null;
     this.metaData = null;
     this.debugUrl = null;
+    this.header = 0;
+    this.footer = 0;
   }
 
   async createDriver() {
@@ -114,16 +116,15 @@ export default class GenericProvider {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     const base64content = await this.driver.takeScreenshot();
     log.debug('Tiles captured successfully');
-    const [header, footer] = await this.getHeaderFooter();
     return {
       tiles: [
         new Tile({
           content: base64content,
           // TODO: Need to add method to fetch these attr
-          statusBarHeight: header,
-          navBarHeight: footer,
-          headerHeight: 0,
-          footerHeight: 0,
+          statusBarHeight: 0,
+          navBarHeight: 0,
+          headerHeight: this.header,
+          footerHeight: this.footer,
           fullscreen
         })
       ],
@@ -137,12 +138,13 @@ export default class GenericProvider {
     const { width, height } = await this.metaData.windowSize();
     const resolution = await this.metaData.screenResolution();
     const orientation = this.metaData.orientation();
+    [this.header, this.footer] = await this.getHeaderFooter();
     return {
       name: this.metaData.deviceName(),
       osName: this.metaData.osName(),
       osVersion: this.metaData.osVersion(),
       width,
-      height,
+      height: height + this.header + this.footer,
       orientation: orientation,
       browserName: this.metaData.browserName(),
       browserVersion: this.metaData.browserVersion(),
