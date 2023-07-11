@@ -3,6 +3,7 @@ import Driver from '../../src/driver.js';
 import MetaDataResolver from '../../src/metadata/metaDataResolver.js';
 import DesktopMetaData from '../../src/metadata/desktopMetaData.js';
 import utils from '@percy/sdk-utils';
+import MobileMetaData from '../../src/metadata/mobileMetaData.js';
 
 describe('GenericProvider', () => {
   let genericProvider;
@@ -73,11 +74,27 @@ describe('GenericProvider', () => {
         .and.returnValue('111');
       spyOn(DesktopMetaData.prototype, 'screenResolution')
         .and.returnValue('1980 x 1080');
+      spyOn(MobileMetaData.prototype, 'windowSize')
+        .and.returnValue(Promise.resolve({ width: 1000, height: 1000 }));
+      spyOn(MobileMetaData.prototype, 'orientation')
+        .and.returnValue('landscape');
+      spyOn(MobileMetaData.prototype, 'deviceName')
+        .and.returnValue('mockDeviceName');
+      spyOn(MobileMetaData.prototype, 'osName')
+        .and.returnValue('mockOsName');
+      spyOn(MobileMetaData.prototype, 'osVersion')
+        .and.returnValue('mockOsVersion');
+      spyOn(MobileMetaData.prototype, 'browserName')
+        .and.returnValue('mockBrowserName');
+      spyOn(MobileMetaData.prototype, 'browserVersion')
+        .and.returnValue('111');
+      spyOn(MobileMetaData.prototype, 'screenResolution')
+        .and.returnValue('1980 x 1080');
       spyOn(GenericProvider.prototype, 'getHeaderFooter').and.returnValue(Promise.resolve([123, 456]));
     });
 
-    it('returns correct tag', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+    it('returns correct tag for android', async () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'android', platformName: 'android' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       await genericProvider.createDriver();
       const tag = await genericProvider.getTag();
       expect(tag).toEqual({
@@ -86,6 +103,23 @@ describe('GenericProvider', () => {
         osVersion: 'mockOsVersion',
         width: 1000,
         height: 1000 + 123 + 456,
+        orientation: 'landscape',
+        browserName: 'mockBrowserName',
+        browserVersion: '111',
+        resolution: '1980 x 1080'
+      });
+    });
+
+    it('returns correct tag for others', async () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      await genericProvider.createDriver();
+      const tag = await genericProvider.getTag();
+      expect(tag).toEqual({
+        name: 'mockDeviceName',
+        osName: 'mockOsName',
+        osVersion: 'mockOsVersion',
+        width: 1000,
+        height: 1000,
         orientation: 'landscape',
         browserName: 'mockBrowserName',
         browserVersion: '111',
