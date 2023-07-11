@@ -169,16 +169,18 @@ export default class GenericProvider {
 
   async getTag() {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
-    const { width, height } = await this.metaData.windowSize();
+    let { width, height } = await this.metaData.windowSize();
     const resolution = await this.metaData.screenResolution();
     const orientation = this.metaData.orientation();
     [this.header, this.footer] = await this.getHeaderFooter();
+    // for android window size only constitutes of browser viewport, hence adding nav / status / url bar heights
+    height = this.capabilities.platformName && this.capabilities.platformName.toLowerCase() === "android" ? height + this.header + this.footer : height
     return {
       name: this.metaData.deviceName(),
       osName: this.metaData.osName(),
       osVersion: this.metaData.osVersion(),
       width,
-      height: height + this.header + this.footer,
+      height,
       orientation: orientation,
       browserName: this.metaData.browserName(),
       browserVersion: this.metaData.browserVersion(),
