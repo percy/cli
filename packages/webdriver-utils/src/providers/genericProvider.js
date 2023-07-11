@@ -17,7 +17,8 @@ export default class GenericProvider {
     sessionCapabilites,
     clientInfo,
     environmentInfo,
-    options
+    options,
+    buildInfo
   ) {
     this.sessionId = sessionId;
     this.commandExecutorUrl = commandExecutorUrl;
@@ -26,9 +27,40 @@ export default class GenericProvider {
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
     this.options = options;
+    this.buildInfo = buildInfo;
     this.driver = null;
     this.metaData = null;
     this.debugUrl = null;
+  }
+
+  addDefaultOptions() {
+    this.options.freezeAnimation = this.options.freezeAnimation || false;
+  }
+
+  defaultPercyCSS() {
+    return `*, *::before, *::after {
+      -moz-transition: none !important;
+      transition: none !important;
+      -moz-animation: none !important;
+      animation: none !important;
+      animation-duration: 0 !important;
+      caret-color: transparent !important;
+      content-visibility: visible !important;
+    }
+    html{
+      scrollbar-width: auto !important;
+    }
+    svg {
+      shape-rendering: geometricPrecision !important;
+    }
+    scrollbar, scrollcorner, scrollbar thumb, scrollbar scrollbarbutton {
+      pointer-events: none !important;
+      -moz-appearance: none !important;
+      display: none !important;
+    }
+    video::-webkit-media-controls {
+      display: none !important;
+    }`;
   }
 
   async createDriver() {
@@ -75,7 +107,9 @@ export default class GenericProvider {
   }) {
     let fullscreen = false;
 
-    const percyCSS = this.options.percyCSS || '';
+    this.addDefaultOptions();
+
+    const percyCSS = (this.defaultPercyCSS() + (this.options.percyCSS || '')).split('\n').join('');
     await this.addPercyCSS(percyCSS);
     const tag = await this.getTag();
 
