@@ -43,6 +43,12 @@ export default class MobileMetaData {
     return { width, height };
   }
 
+  async screenResolution() {
+    const data = await this.driver.executeScript({ script: 'return [(window.screen.width * window.devicePixelRatio).toString(), (window.screen.height * window.devicePixelRatio).toString()];', args: [] });
+    const screenInfo = data.value;
+    return `${screenInfo[0]} x ${screenInfo[1]}`;
+  }
+
   async devicePixelRatio() {
     const devicePixelRatio = await this.driver.executeScript({ script: 'return window.devicePixelRatio;', args: [] });
     return devicePixelRatio.value;
