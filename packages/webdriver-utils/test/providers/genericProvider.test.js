@@ -156,7 +156,7 @@ describe('GenericProvider', () => {
       expect(addPercyCSSSpy).toHaveBeenCalledTimes(1);
       expect(addPercyCSSSpy).toHaveBeenCalledWith(defaultPercyCSS);
       expect(getTagSpy).toHaveBeenCalledTimes(1);
-      expect(getTilesSpy).toHaveBeenCalledOnceWith(0,0,false);
+      expect(getTilesSpy).toHaveBeenCalledOnceWith(0, 0, false);
       expect(removePercyCSSSpy).toHaveBeenCalledTimes(1);
       expect(res).toEqual({
         name: 'mock-name',
