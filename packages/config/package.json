@@ -23,7 +23,10 @@
   "types": "./types/index.d.ts",
   "type": "module",
   "exports": {
-    ".": "./dist/index.js",
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./dist/index.js"
+    },
     "./utils": "./dist/utils/index.js",
     "./test/helpers": "./test/helpers.js"
   },
