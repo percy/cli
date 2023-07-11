@@ -21,4 +21,11 @@ describe('stripQuotesAndSpaces', () => {
     const actual = stripQuotesAndSpaces(line);
     expect(actual).toBe(expected);
   });
+
+  it('should return null if line is null', () => {
+    const line = null;
+    const expected = null;
+    const actual = stripQuotesAndSpaces(line);
+    expect(actual).toBe(expected);
+  });
 });
