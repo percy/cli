@@ -113,4 +113,19 @@ describe('MobileMetaData', () => {
         .toHaveBeenCalledWith({ script: 'return window.devicePixelRatio;', args: [] });
     });
   });
+
+  describe('screenResolution', () => {
+    let screenInfo;
+
+    beforeEach(() => {
+      executeScriptSpy.and.returnValue(Promise.resolve({ value: ['1980', '1080'] }));
+    });
+
+    it('calclulates the screen resolution', async () => {
+      screenInfo = await mobileMetaData.screenResolution();
+      expect(screenInfo).toEqual('1980 x 1080');
+      expect(executeScriptSpy)
+        .toHaveBeenCalledWith({ script: 'return [(window.screen.width * window.devicePixelRatio).toString(), (window.screen.height * window.devicePixelRatio).toString()];', args: [] });
+    });
+  });
 });

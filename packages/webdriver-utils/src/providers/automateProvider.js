@@ -14,7 +14,8 @@ export default class AutomateProvider extends GenericProvider {
     sessionCapabilites,
     clientInfo,
     environmentInfo,
-    options
+    options,
+    buildInfo
   ) {
     super(
       sessionId,
@@ -23,7 +24,8 @@ export default class AutomateProvider extends GenericProvider {
       sessionCapabilites,
       clientInfo,
       environmentInfo,
-      options
+      options,
+      buildInfo
     );
     this._markedPercy = false;
   }
@@ -58,8 +60,8 @@ export default class AutomateProvider extends GenericProvider {
       try {
         let result = await this.browserstackExecutor('percyScreenshot', {
           name,
-          percyBuildId: process.env.PERCY_BUILD_ID,
-          percyBuildUrl: process.env.PERCY_BUILD_URL,
+          percyBuildId: this.buildInfo.id,
+          percyBuildUrl: this.buildInfo.url,
           state: 'begin'
         });
         this._markedPercy = result.success;
@@ -94,7 +96,7 @@ export default class AutomateProvider extends GenericProvider {
     const response = await TimeIt.run('percyScreenshot:screenshot', async () => {
       return await this.browserstackExecutor('percyScreenshot', {
         state: 'screenshot',
-        percyBuildId: process.env.PERCY_BUILD_ID,
+        percyBuildId: this.buildInfo.id,
         screenshotType: 'singlepage',
         scaleFactor: await this.driver.executeScript({ script: 'return window.devicePixelRatio;', args: [] }),
         options: this.options

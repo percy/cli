@@ -118,7 +118,9 @@ describe('GenericProvider', () => {
       genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       await genericProvider.createDriver();
       let res = await genericProvider.screenshot('mock-name', {});
+      const defaultPercyCSS = genericProvider.defaultPercyCSS().split('\n').join('');
       expect(addPercyCSSSpy).toHaveBeenCalledTimes(1);
+      expect(addPercyCSSSpy).toHaveBeenCalledWith(defaultPercyCSS);
       expect(getTagSpy).toHaveBeenCalledTimes(1);
       expect(getTilesSpy).toHaveBeenCalledOnceWith(0,0,false);
       expect(removePercyCSSSpy).toHaveBeenCalledTimes(1);
@@ -132,6 +134,38 @@ describe('GenericProvider', () => {
         clientInfo: 'local-poc-poa',
         domInfoSha: 'mock-dom-sha'
       });
+    });
+  });
+
+  describe('defaultPercyCSS', () => {
+    const expectedResult = `*, *::before, *::after {
+      -moz-transition: none !important;
+      transition: none !important;
+      -moz-animation: none !important;
+      animation: none !important;
+      animation-duration: 0 !important;
+      caret-color: transparent !important;
+      content-visibility: visible !important;
+    }
+    html{
+      scrollbar-width: auto !important;
+    }
+    svg {
+      shape-rendering: geometricPrecision !important;
+    }
+    scrollbar, scrollcorner, scrollbar thumb, scrollbar scrollbarbutton {
+      pointer-events: none !important;
+      -moz-appearance: none !important;
+      display: none !important;
+    }
+    video::-webkit-media-controls {
+      display: none !important;
+    }`;
+
+    it('should return defaultPercyCSS', () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      const resp = genericProvider.defaultPercyCSS();
+      expect(resp).toBe(expectedResult);
     });
   });
 
