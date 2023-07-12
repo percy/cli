@@ -289,7 +289,7 @@ export default class GenericProvider {
 
   async getHeaderFooter() {
     const devicesConfig = (await request(DEVICES_CONFIG_URL)).body;
-    let deviceKey = `${this.metaData.deviceName()}-${this.metaData.osVersion()}`
+    let deviceKey = `${this.metaData.deviceName()}-${this.metaData.osVersion()}`;
     let browserName = this.capabilities.browserName;
     return devicesConfig[deviceKey]
       ? (
