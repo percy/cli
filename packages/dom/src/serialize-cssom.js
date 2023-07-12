@@ -25,7 +25,7 @@ function createStyleResource(styleSheet) {
   return resource;
 }
 
-export function serializeCSSOM({ dom, clone, resources, cache }) {
+export function serializeCSSOM({ dom, clone, resources, cache, warnings }) {
   // in-memory CSSOM into their respective DOM nodes.
   for (let styleSheet of dom.styleSheets) {
     if (isCSSOM(styleSheet)) {
@@ -85,6 +85,8 @@ export function serializeCSSOM({ dom, clone, resources, cache }) {
         clone.prepend(styleLink);
       }
     }
+  } else {
+    warnings.add('Skipping `adoptedStyleSheets` as it is not supported.');
   }
 }
 
