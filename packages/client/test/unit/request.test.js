@@ -381,6 +381,20 @@ describe('Unit / Request', () => {
             expect(proxy.connects).toEqual([]);
           });
 
+          it('successfully proxies requests when `noProxy` is null or not string', async () => {
+            process.env.no_proxy = null;
+            proxyAgentFor.cache.clear();
+
+            await expectAsync(server.request('/test'))
+              .toBeResolvedTo('test proxied');
+
+            process.env.no_proxy = 1234;
+            proxyAgentFor.cache.clear();
+
+            await expectAsync(server.request('/test'))
+              .toBeResolvedTo('test proxied');
+          });
+
           it('does not proxy requests if the `noProxy` option is truthy', async () => {
             await expectAsync(server.request('/test', { noProxy: true }))
               .toBeResolvedTo('test');
