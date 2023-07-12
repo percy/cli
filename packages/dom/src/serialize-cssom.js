@@ -25,7 +25,7 @@ function createStyleResource(styleSheet) {
   return resource;
 }
 
-export function serializeCSSOM({ dom, clone, resources, cache }) {
+export function serializeCSSOM({ dom, clone, resources, cache, warnings }) {
   // in-memory CSSOM into their respective DOM nodes.
   for (let styleSheet of dom.styleSheets) {
     if (isCSSOM(styleSheet)) {
@@ -63,25 +63,30 @@ export function serializeCSSOM({ dom, clone, resources, cache }) {
 
   // clone Adopted Stylesheets
   // Regarding ordering of the adopted stylesheets - https://github.com/WICG/construct-stylesheets/issues/93
-  for (let sheet of dom.adoptedStyleSheets) {
-    const styleLink = document.createElement('link');
-    styleLink.setAttribute('rel', 'stylesheet');
+  /* istanbul ignore next: tested, but coverage is stripped */
+  if (dom.adoptedStyleSheets) {
+    for (let sheet of dom.adoptedStyleSheets) {
+      const styleLink = document.createElement('link');
+      styleLink.setAttribute('rel', 'stylesheet');
 
-    if (!cache.has(sheet)) {
-      let resource = createStyleResource(sheet);
-      resources.add(resource);
-      cache.set(sheet, resource.url);
-    }
-    styleLink.setAttribute('data-percy-adopted-stylesheets-serialized', 'true');
-    styleLink.setAttribute('data-percy-serialized-attribute-href', cache.get(sheet));
+      if (!cache.has(sheet)) {
+        let resource = createStyleResource(sheet);
+        resources.add(resource);
+        cache.set(sheet, resource.url);
+      }
+      styleLink.setAttribute('data-percy-adopted-stylesheets-serialized', 'true');
+      styleLink.setAttribute('data-percy-serialized-attribute-href', cache.get(sheet));
 
-    /* istanbul ignore next: tested, but coverage is stripped */
-    if (clone.constructor.name === 'HTMLDocument' || clone.constructor.name === 'DocumentFragment') {
-      // handle document and iframe
-      clone.body.prepend(styleLink);
-    } else if (clone.constructor.name === 'ShadowRoot') {
-      clone.prepend(styleLink);
+      /* istanbul ignore next: tested, but coverage is stripped */
+      if (clone.constructor.name === 'HTMLDocument' || clone.constructor.name === 'DocumentFragment') {
+        // handle document and iframe
+        clone.body.prepend(styleLink);
+      } else if (clone.constructor.name === 'ShadowRoot') {
+        clone.prepend(styleLink);
+      }
     }
+  } else {
+    warnings.add('Skipping `adoptedStyleSheets` as it is not supported.');
   }
 }
 
