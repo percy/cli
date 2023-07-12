@@ -408,13 +408,16 @@ describe('GenericProvider', () => {
     let provider;
 
     beforeEach(async () => {
-      provider = new GenericProvider('123', 'http:executorUrl', { browserName: 'safari', deviceName: 'iPhone 12 Pro' }, {});
+      provider = new GenericProvider('123', 'http:executorUrl', { browserName: 'safari', deviceName: 'iPhone 12 Pro', platform: 'iOS' }, {});
+      spyOn(MobileMetaData.prototype, 'deviceName').and.returnValue('iPhone 12 Pro')
+      spyOn(MobileMetaData.prototype, 'osVersion').and.returnValue('13')
     });
 
     it('should return the matching header and footer', async () => {
+      await provider.createDriver()
       let mockResponseObject = {
         body: {
-          'iPhone 12 Pro': {
+          'iPhone 12 Pro-13': {
             safari: {
               header: 141,
               footer: 399
@@ -433,9 +436,10 @@ describe('GenericProvider', () => {
     });
 
     it('should return 0,0 for unmatched device name', async () => {
+      await provider.createDriver()
       let mockResponseObject = {
         body: {
-          'iPhone 13 Pro': {
+          'iPhone 13 Pro-14': {
             safari: {
               header: 141,
               footer: 399
@@ -454,9 +458,10 @@ describe('GenericProvider', () => {
     });
 
     it('should return 0,0 for unmatched browser name', async () => {
+      await provider.createDriver()
       let mockResponseObject = {
         body: {
-          'iPhone 12 Pro': {
+          'iPhone 12 Pro-13': {
             chrome: {
               header: 141,
               footer: 399
