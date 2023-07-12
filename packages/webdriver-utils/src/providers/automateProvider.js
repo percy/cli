@@ -85,7 +85,7 @@ export default class AutomateProvider extends GenericProvider {
           state: 'end'
         });
       } catch (e) {
-        log.debug(`[${name}] Could not mark Automate session as percy`);
+        log.debug(`[${name}] Could not execute percyScreenshot command for Automate`);
       }
     });
   }
