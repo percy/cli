@@ -174,7 +174,7 @@ export default class GenericProvider {
     const orientation = this.metaData.orientation();
     [this.header, this.footer] = await this.getHeaderFooter();
     // for android window size only constitutes of browser viewport, hence adding nav / status / url bar heights
-    height = this.capabilities.platformName && this.capabilities.platformName.toLowerCase() === 'android' ? height + this.header + this.footer : height;
+    height = this.metaData.osName() === 'android' ? height + this.header + this.footer : height;
     return {
       name: this.metaData.deviceName(),
       osName: this.metaData.osName(),
