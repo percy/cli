@@ -80,8 +80,6 @@ describe('GenericProvider', () => {
         .and.returnValue('landscape');
       spyOn(MobileMetaData.prototype, 'deviceName')
         .and.returnValue('mockDeviceName');
-      spyOn(MobileMetaData.prototype, 'osName')
-        .and.returnValue('mockOsName');
       spyOn(MobileMetaData.prototype, 'osVersion')
         .and.returnValue('mockOsVersion');
       spyOn(MobileMetaData.prototype, 'browserName')
@@ -95,11 +93,12 @@ describe('GenericProvider', () => {
 
     it('returns correct tag for android', async () => {
       genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'android', platformName: 'android' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      spyOn(MobileMetaData.prototype, 'osName').and.returnValue('android');
       await genericProvider.createDriver();
       const tag = await genericProvider.getTag();
       expect(tag).toEqual({
         name: 'mockDeviceName',
-        osName: 'mockOsName',
+        osName: 'android',
         osVersion: 'mockOsVersion',
         width: 1000,
         height: 1000 + 123 + 456,
@@ -112,6 +111,7 @@ describe('GenericProvider', () => {
 
     it('returns correct tag for others', async () => {
       genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      spyOn(MobileMetaData.prototype, 'osName').and.returnValue('mockOsName');
       await genericProvider.createDriver();
       const tag = await genericProvider.getTag();
       expect(tag).toEqual({
