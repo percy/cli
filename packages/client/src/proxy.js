@@ -66,12 +66,11 @@ export function getProxy(options) {
     (process.env.https_proxy || process.env.HTTPS_PROXY)) ||
     (process.env.http_proxy || process.env.HTTP_PROXY);
 
-  let shouldProxy = !!proxyUrl && !hostnameMatches((
-    process.env.no_proxy || process.env.NO_PROXY
-  ), href(options));
+  let shouldProxy = !!proxyUrl && !hostnameMatches(
+    stripQuotesAndSpaces(process.env.no_proxy || process.env.NO_PROXY)
+    , href(options));
 
-  if (proxyUrl != null && typeof proxyUrl === 'string') { proxyUrl = stripQuotesAndSpaces(proxyUrl); }
-  if (shouldProxy != null && typeof shouldProxy === 'string') { shouldProxy = stripQuotesAndSpaces(shouldProxy); }
+  if (proxyUrl && typeof proxyUrl === 'string') { proxyUrl = stripQuotesAndSpaces(proxyUrl); }
 
   if (shouldProxy) {
     proxyUrl = new URL(proxyUrl);
