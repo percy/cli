@@ -2,6 +2,9 @@ import GenericProvider from '../../src/providers/genericProvider.js';
 import Driver from '../../src/driver.js';
 import MetaDataResolver from '../../src/metadata/metaDataResolver.js';
 import DesktopMetaData from '../../src/metadata/desktopMetaData.js';
+import Cache from '../../src/util/cache.js';
+import MobileMetaData from '../../src/metadata/mobileMetaData.js';
+import utils from '@percy/sdk-utils';
 
 describe('GenericProvider', () => {
   let genericProvider;
@@ -33,13 +36,18 @@ describe('GenericProvider', () => {
   describe('getTiles', () => {
     beforeEach(() => {
       spyOn(Driver.prototype, 'takeScreenshot').and.returnValue(Promise.resolve('123b='));
+      spyOn(GenericProvider.prototype, 'getHeaderFooter').and.returnValue(Promise.resolve([123, 456]));
     });
 
     it('creates tiles from screenshot', async () => {
       genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       genericProvider.createDriver();
-      const tiles = await genericProvider.getTiles(false);
+      const tiles = await genericProvider.getTiles(123, 456, false);
       expect(tiles.tiles.length).toEqual(1);
+      expect(tiles.tiles[0].navBarHeight).toEqual(0);
+      expect(tiles.tiles[0].statusBarHeight).toEqual(0);
+      expect(tiles.tiles[0].footerHeight).toEqual(456);
+      expect(tiles.tiles[0].headerHeight).toEqual(123);
       expect(Object.keys(tiles)).toContain('domInfoSha');
     });
 
@@ -67,8 +75,27 @@ describe('GenericProvider', () => {
         .and.returnValue('111');
     });
 
-    it('returns correct tag', async () => {
+    it('returns correct tag for android', async () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'android', platformName: 'android' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      spyOn(MobileMetaData.prototype, 'osName').and.returnValue('android');
+      await genericProvider.createDriver();
+      const tag = await genericProvider.getTag();
+      expect(tag).toEqual({
+        name: 'mockDeviceName',
+        osName: 'android',
+        osVersion: 'mockOsVersion',
+        width: 1000,
+        height: 1000 + 123 + 456,
+        orientation: 'landscape',
+        browserName: 'mockBrowserName',
+        browserVersion: '111',
+        resolution: '1980 x 1080'
+      });
+    });
+
+    it('returns correct tag for others', async () => {
       genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      spyOn(MobileMetaData.prototype, 'osName').and.returnValue('mockOsName');
       await genericProvider.createDriver();
       const tag = await genericProvider.getTag();
       expect(tag).toEqual({
@@ -110,7 +137,7 @@ describe('GenericProvider', () => {
       let res = await genericProvider.screenshot('mock-name', {});
       expect(addPercyCSSSpy).toHaveBeenCalledTimes(1);
       expect(getTagSpy).toHaveBeenCalledTimes(1);
-      expect(getTilesSpy).toHaveBeenCalledOnceWith(false);
+      expect(getTilesSpy).toHaveBeenCalledOnceWith(0, 0, false);
       expect(removePercyCSSSpy).toHaveBeenCalledTimes(1);
       expect(res).toEqual({
         name: 'mock-name',
@@ -430,6 +457,74 @@ describe('GenericProvider', () => {
         Promise.resolve(mockResponseObject)
       );
       const [header, footer] = await provider.getHeaderFooter('iPhone 13 Pro', '14', 'safari');
+      expect(header).toEqual(0);
+      expect(footer).toEqual(0);
+    });
+
+    it('should return 0,0 for unmatched browser name', async () => {
+      await provider.createDriver();
+      let mockResponseObject = {
+        'iPhone 12 Pro-13': {
+          chrome: {
+            header: 141,
+            footer: 399
+          }
+        }
+      };
+      spyOn(Cache, 'withCache').and.returnValue(
+        Promise.resolve(mockResponseObject)
+      );
+      const [header, footer] = await provider.getHeaderFooter();
+      expect(header).toEqual(0);
+      expect(footer).toEqual(0);
+    });
+  });
+
+  describe('getHeaderFooter', () => {
+    let provider;
+
+    beforeEach(async () => {
+      provider = new GenericProvider('123', 'http:executorUrl', { browserName: 'safari', deviceName: 'iPhone 12 Pro', platform: 'iOS' }, {});
+      spyOn(MobileMetaData.prototype, 'deviceName').and.returnValue('iPhone 12 Pro');
+      spyOn(MobileMetaData.prototype, 'osVersion').and.returnValue('13');
+    });
+
+    it('should return the matching header and footer', async () => {
+      await provider.createDriver();
+      let mockResponseObject = {
+        body: {
+          'iPhone 12 Pro-13': {
+            safari: {
+              header: 141,
+              footer: 399
+            }
+          }
+        },
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      };
+      spyOn(utils.request, 'fetch').and.returnValue(
+        Promise.resolve(mockResponseObject)
+      );
+      const [header, footer] = await provider.getHeaderFooter();
+      expect(header).toEqual(141);
+      expect(footer).toEqual(399);
+    });
+
+    it('should return 0,0 for unmatched device name', async () => {
+      await provider.createDriver();
+      let mockResponseObject = {
+        'iPhone 13 Pro-14': {
+          safari: {
+            header: 141,
+            footer: 399
+          }
+        }
+      };
+      spyOn(Cache, 'withCache').and.returnValue(
+        Promise.resolve(mockResponseObject)
+      );
+      const [header, footer] = await provider.getHeaderFooter();
       expect(header).toEqual(0);
       expect(footer).toEqual(0);
     });
