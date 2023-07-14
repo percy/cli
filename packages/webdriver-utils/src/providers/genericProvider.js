@@ -161,7 +161,6 @@ export default class GenericProvider {
       tiles: [
         new Tile({
           content: base64content,
-          // TODO: Need to add method to fetch these attr
           statusBarHeight: 0,
           navBarHeight: 0,
           headerHeight,
@@ -169,7 +168,7 @@ export default class GenericProvider {
           fullscreen
         })
       ],
-      // TODO: Add Generic support sha for contextual diff
+      // TODO: Add Generic support sha for contextual diff for non-automate
       domInfoSha: await this.getDomContent()
     };
   }
@@ -195,7 +194,7 @@ export default class GenericProvider {
     };
   }
 
-  // TODO: Add Debugging Url
+  // TODO: Add Debugging Url for non-automate
   async setDebugUrl() {
     this.debugUrl = 'https://localhost/v1';
   }
