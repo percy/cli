@@ -10,7 +10,7 @@ import {
 } from './utils.js';
 
 export class Page {
-  static TIMEOUT = 30000;
+  static TIMEOUT = undefined;
 
   log = logger('core:page');
 
@@ -20,6 +20,7 @@ export class Page {
     this.enableJavaScript = options.enableJavaScript ?? true;
     this.network = new Network(this, options);
     this.meta = options.meta;
+    this._initializeLoadTimeout();
 
     session.on('Runtime.executionContextCreated', this._handleExecutionContextCreated);
     session.on('Runtime.executionContextDestroyed', this._handleExecutionContextDestroyed);
@@ -235,6 +236,18 @@ export class Page {
 
   _handleExecutionContextsCleared = () => {
     this.contextId = null;
+  }
+
+  _initializeLoadTimeout() {
+    if (Page.TIMEOUT) return;
+
+    Page.TIMEOUT = parseInt(process.env.PERCY_PAGE_LOAD_TIMEOUT) || 30000;
+
+    if (Page.TIMEOUT > 60000) {
+      this.log.warn('Setting PERCY_PAGE_LOAD_TIMEOUT over 60000ms is not recommended. ' +
+        'If your page needs more than 60000ms to load due to CPU/Network load, ' +
+        'its recommended to increase CI resources where this cli is running.');
+    }
   }
 }
 

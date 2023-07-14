@@ -3,6 +3,7 @@ import tls from 'tls';
 import http from 'http';
 import https from 'https';
 import logger from '@percy/logger';
+import { stripQuotesAndSpaces } from '@percy/env/utils';
 
 const CRLF = '\r\n';
 const STATUS_REG = /^HTTP\/1.[01] (\d*)/;
@@ -65,9 +66,11 @@ export function getProxy(options) {
     (process.env.https_proxy || process.env.HTTPS_PROXY)) ||
     (process.env.http_proxy || process.env.HTTP_PROXY);
 
-  let shouldProxy = !!proxyUrl && !hostnameMatches((
-    process.env.no_proxy || process.env.NO_PROXY
-  ), href(options));
+  let shouldProxy = !!proxyUrl && !hostnameMatches(
+    stripQuotesAndSpaces(process.env.no_proxy || process.env.NO_PROXY)
+    , href(options));
+
+  if (proxyUrl && typeof proxyUrl === 'string') { proxyUrl = stripQuotesAndSpaces(proxyUrl); }
 
   if (shouldProxy) {
     proxyUrl = new URL(proxyUrl);
