@@ -5,7 +5,10 @@ import Tile from '../util/tile.js';
 import Driver from '../driver.js';
 import Cache from '../util/cache.js';
 const { request } = utils;
+import Cache from '../util/cache.js';
+const { request } = utils;
 
+const DEVICES_CONFIG_URL = 'https://storage.googleapis.com/percy-utils/devices.json';
 const DEVICES_CONFIG_URL = 'https://storage.googleapis.com/percy-utils/devices.json';
 const log = utils.logger('webdriver-utils:genericProvider');
 
@@ -64,12 +67,45 @@ export default class GenericProvider {
     video::-webkit-media-controls {
       display: none !important;
     }`;
+    this.header = 0;
+    this.footer = 0;
+  }
+
+  addDefaultOptions() {
+    this.options.freezeAnimation = this.options.freezeAnimation || false;
+  }
+
+  defaultPercyCSS() {
+    return `*, *::before, *::after {
+      -moz-transition: none !important;
+      transition: none !important;
+      -moz-animation: none !important;
+      animation: none !important;
+      animation-duration: 0 !important;
+      caret-color: transparent !important;
+      content-visibility: visible !important;
+    }
+    html{
+      scrollbar-width: auto !important;
+    }
+    svg {
+      shape-rendering: geometricPrecision !important;
+    }
+    scrollbar, scrollcorner, scrollbar thumb, scrollbar scrollbarbutton {
+      pointer-events: none !important;
+      -moz-appearance: none !important;
+      display: none !important;
+    }
+    video::-webkit-media-controls {
+      display: none !important;
+    }`;
   }
 
   async createDriver() {
-    this.driver = new Driver(this.sessionId, this.commandExecutorUrl, this.capabilities);
+    this.driver = new Driver(this.sessionId, this.commandExecutorUrl);
     log.debug(`Passed capabilities -> ${JSON.stringify(this.capabilities)}`);
     const caps = await this.driver.getCapabilites();
+    log.debug(`Fetched capabilities -> ${JSON.stringify(caps)}`);
     log.debug(`Fetched capabilities -> ${JSON.stringify(caps)}`);
     this.metaData = await MetaDataResolver.resolve(this.driver, caps, this.capabilities);
   }
@@ -119,8 +155,10 @@ export default class GenericProvider {
     this.addDefaultOptions();
 
     const percyCSS = (this.defaultPercyCSS() + (this.options.percyCSS || '')).split('\n').join('');
-    log.debug(`[${name}] : Applying the percyCSS - ${this.options.percyCSS}`);
+    log.debug(`Applying the percyCSS - ${this.options.percyCSS}`);
     await this.addPercyCSS(percyCSS);
+
+    log.debug('Fetching comparisong tag ...');
 
     log.debug('Fetching comparisong tag ...');
     const tag = await this.getTag();
@@ -133,7 +171,7 @@ export default class GenericProvider {
       considerRegionXpaths, considerRegionSelectors, considerRegionElements, customConsiderRegions
     );
     await this.setDebugUrl();
-    log.debug(`[${name}] : Debug url ${this.debugUrl}`);
+    log.debug(`${name} : Debug url ${this.debugUrl}`);
 
     await this.removePercyCSS();
     return {
@@ -160,9 +198,10 @@ export default class GenericProvider {
     return 'dummyValue';
   }
 
-  async getTiles(headerHeight, footerHeight, fullscreen) {
+  async getTiles(headerHeight, footerHeight, headerHeight, footerHeight, fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     const base64content = await this.driver.takeScreenshot();
+    log.debug('Tiles captured successfully');
     log.debug('Tiles captured successfully');
     return {
       tiles: [
@@ -187,6 +226,9 @@ export default class GenericProvider {
     [this.header, this.footer] = await this.getHeaderFooter();
     // for android window size only constitutes of browser viewport, hence adding nav / status / url bar heights
     height = this.metaData.osName() === 'android' ? height + this.header + this.footer : height;
+    [this.header, this.footer] = await this.getHeaderFooter();
+    // for android window size only constitutes of browser viewport, hence adding nav / status / url bar heights
+    height = this.metaData.osName() === 'android' ? height + this.header + this.footer : height;
     return {
       name: this.metaData.deviceName(),
       osName: this.metaData.osName(),
@@ -199,7 +241,7 @@ export default class GenericProvider {
     };
   }
 
-  // TODO: Add Debugging Url for non-automate
+  // TODO: Add Debugging Url for non-automate for non-automate
   async setDebugUrl() {
     this.debugUrl = 'https://localhost/v1';
   }
