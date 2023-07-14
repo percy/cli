@@ -69,7 +69,9 @@ export default class GenericProvider {
 
   async createDriver() {
     this.driver = new Driver(this.sessionId, this.commandExecutorUrl);
+    log.debug(`Passed capabilities -> ${JSON.stringify(this.capabilities)}`)
     const caps = await this.driver.getCapabilites();
+    log.debug(`Fetched capabilities -> ${JSON.stringify(caps)}`)
     this.metaData = await MetaDataResolver.resolve(this.driver, caps, this.capabilities);
   }
 
@@ -114,19 +116,23 @@ export default class GenericProvider {
     this.addDefaultOptions();
 
     const percyCSS = (this.defaultPercyCSS() + (this.options.percyCSS || '')).split('\n').join('');
+    log.debug(`Applying the percyCSS - ${this.options.percyCSS}`)
     await this.addPercyCSS(percyCSS);
+
+    log.debug('Fetching comparisong tag ...');
     const tag = await this.getTag();
+    log.debug(`${name} : Tag ${JSON.stringify(tag)}`);
 
     const tiles = await this.getTiles(this.header, this.footer, fullscreen);
+    log.debug(`${name} : Tiles ${JSON.stringify(tiles)}`);
+
     const ignoreRegions = await this.findIgnoredRegions(
       ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions
     );
     await this.setDebugUrl();
-    await this.removePercyCSS();
-
-    log.debug(`${name} : Tag ${JSON.stringify(tag)}`);
-    log.debug(`${name} : Tiles ${JSON.stringify(tiles)}`);
     log.debug(`${name} : Debug url ${this.debugUrl}`);
+
+    await this.removePercyCSS();
     return {
       name,
       tag,
