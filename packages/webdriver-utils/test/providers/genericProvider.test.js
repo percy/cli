@@ -3,6 +3,7 @@ import Driver from '../../src/driver.js';
 import MetaDataResolver from '../../src/metadata/metaDataResolver.js';
 import DesktopMetaData from '../../src/metadata/desktopMetaData.js';
 import utils from '@percy/sdk-utils';
+import Cache from '../../src/util/cache.js'
 import MobileMetaData from '../../src/metadata/mobileMetaData.js';
 
 describe('GenericProvider', () => {
@@ -416,18 +417,14 @@ describe('GenericProvider', () => {
     it('should return the matching header and footer', async () => {
       await provider.createDriver();
       let mockResponseObject = {
-        body: {
-          'iPhone 12 Pro-13': {
-            safari: {
-              header: 141,
-              footer: 399
-            }
+        'iPhone 12 Pro-13': {
+          safari: {
+            header: 141,
+            footer: 399
           }
-        },
-        status: 200,
-        headers: { 'content-type': 'application/json' }
+        }
       };
-      spyOn(utils.request, 'fetch').and.returnValue(
+      spyOn(Cache, 'withCache').and.returnValue(
         Promise.resolve(mockResponseObject)
       );
       const [header, footer] = await provider.getHeaderFooter();
@@ -438,18 +435,14 @@ describe('GenericProvider', () => {
     it('should return 0,0 for unmatched device name', async () => {
       await provider.createDriver();
       let mockResponseObject = {
-        body: {
-          'iPhone 13 Pro-14': {
-            safari: {
-              header: 141,
-              footer: 399
-            }
+        'iPhone 13 Pro-14': {
+          safari: {
+            header: 141,
+            footer: 399
           }
-        },
-        status: 200,
-        headers: { 'content-type': 'application/json' }
+        }
       };
-      spyOn(utils.request, 'fetch').and.returnValue(
+      spyOn(Cache, 'withCache').and.returnValue(
         Promise.resolve(mockResponseObject)
       );
       const [header, footer] = await provider.getHeaderFooter();
@@ -460,18 +453,14 @@ describe('GenericProvider', () => {
     it('should return 0,0 for unmatched browser name', async () => {
       await provider.createDriver();
       let mockResponseObject = {
-        body: {
-          'iPhone 12 Pro-13': {
-            chrome: {
-              header: 141,
-              footer: 399
-            }
+        'iPhone 12 Pro-13': {
+          chrome: {
+            header: 141,
+            footer: 399
           }
-        },
-        status: 200,
-        headers: { 'content-type': 'application/json' }
+        }
       };
-      spyOn(utils.request, 'fetch').and.returnValue(
+      spyOn(Cache, 'withCache').and.returnValue(
         Promise.resolve(mockResponseObject)
       );
       const [header, footer] = await provider.getHeaderFooter();
