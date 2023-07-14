@@ -3,6 +3,7 @@ import utils from '@percy/sdk-utils';
 import MetaDataResolver from '../metadata/metaDataResolver.js';
 import Tile from '../util/tile.js';
 import Driver from '../driver.js';
+import Cache from '../util/cache.js';
 const { request } = utils;
 
 const DEVICES_CONFIG_URL = 'https://storage.googleapis.com/percy-utils/devices.json';
@@ -294,7 +295,10 @@ export default class GenericProvider {
   }
 
   async getHeaderFooter() {
-    const devicesConfig = (await request(DEVICES_CONFIG_URL)).body;
+    // passing 0 as key, since across different pages and tests, this config will remain same
+    const devicesConfig = await Cache.withCache(Cache.devicesConfig, 0, async() => {
+      return (await request(DEVICES_CONFIG_URL)).body
+    });
     let deviceKey = `${this.metaData.deviceName()}-${this.metaData.osVersion()}`;
     let browserName = this.capabilities.browserName;
     return devicesConfig[deviceKey]
