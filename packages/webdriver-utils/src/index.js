@@ -33,11 +33,11 @@ export default class WebdriverUtils {
   }
 
   async automateScreenshot() {
-    log.info('Starting automate screenshot ...');
+    this.log.info('Starting automate screenshot ...');
     const automate = ProviderResolver.resolve(this.sessionId, this.commandExecutorUrl, this.capabilities, this.sessionCapabilites, this.clientInfo, this.environmentInfo, this.options, this.buildInfo);
-    log.debug('Resolved provider ...')
+    this.log.debug('Resolved provider ...')
     await automate.createDriver();
-    log.debug('Created driver ...')
+    this.log.debug('Created driver ...')
     return await automate.screenshot(this.snapshotName, this.options);
   }
 }
