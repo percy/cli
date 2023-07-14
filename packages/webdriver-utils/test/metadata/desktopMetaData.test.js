@@ -55,7 +55,7 @@ describe('DesktopMetaData', () => {
 
   describe('deviceName', () => {
     it('calculates deviceName', () => {
-      expect(desktopMetaData.deviceName()).toEqual('chrome_111_10_win');
+      expect(desktopMetaData.deviceName()).toEqual('win_10_chrome_111');
     });
   });
 
