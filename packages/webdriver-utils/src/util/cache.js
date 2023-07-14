@@ -9,6 +9,7 @@ export default class Cache {
   static caps = 'caps';
   static bstackSessionDetails = 'bstackSessionDetails';
   static systemBars = 'systemBars';
+  static devicesConfig = 'devicesConfig';
 
   // maintainance
   static lastTime = Date.now();
