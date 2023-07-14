@@ -27,7 +27,7 @@ export default class DesktopMetaData {
 
   // combination of browserName + browserVersion + osVersion + osName
   deviceName() {
-    return this.browserName() + '_' + this.browserVersion() + '_' + this.osVersion() + '_' + this.osName();
+    return this.osName() + '_' + this.osVersion() + '_' + this.browserName() + '_' + this.browserVersion();
   }
 
   orientation() {

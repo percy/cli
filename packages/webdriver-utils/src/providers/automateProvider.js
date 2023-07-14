@@ -42,8 +42,11 @@ export default class AutomateProvider extends GenericProvider {
   }) {
     let response = null;
     let error;
+    log.info('Preparing to capture screenshots on automate ...');
     try {
+      log.debug('Marking automate session as percy ...');
       let result = await this.percyScreenshotBegin(name);
+      log.debug('Fetching the debug url ...');
       this.setDebugUrl(result);
       response = await super.screenshot(name, { ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions });
     } catch (e) {
@@ -85,13 +88,15 @@ export default class AutomateProvider extends GenericProvider {
           state: 'end'
         });
       } catch (e) {
-        log.debug(`[${name}] Could not mark Automate session as percy`);
+        log.debug(`[${name}] Could not execute percyScreenshot command for Automate`);
+        log.error(e);
       }
     });
   }
 
-  async getTiles(fullscreen) {
+  async getTiles(headerHeight, footerHeight, fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
+    log.info('Starting actual screenshotting phase');
 
     const response = await TimeIt.run('percyScreenshot:screenshot', async () => {
       return await this.browserstackExecutor('percyScreenshot', {
@@ -111,13 +116,14 @@ export default class AutomateProvider extends GenericProvider {
 
     const tiles = [];
     const tileResponse = JSON.parse(responseValue.result);
+    log.debug('Tiles captured successfully');
 
     for (let tileData of tileResponse.sha) {
       tiles.push(new Tile({
         statusBarHeight: 0,
         navBarHeight: 0,
-        headerHeight: 0,
-        footerHeight: 0,
+        headerHeight,
+        footerHeight,
         fullscreen,
         sha: tileData.split('-')[0] // drop build id
       }));
