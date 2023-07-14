@@ -42,11 +42,11 @@ export default class AutomateProvider extends GenericProvider {
   }) {
     let response = null;
     let error;
-    log.info('Preparing to capture screenshots on automate ...')
+    log.info('Preparing to capture screenshots on automate ...');
     try {
-      log.debug('Marking automate session as percy ...')
+      log.debug('Marking automate session as percy ...');
       let result = await this.percyScreenshotBegin(name);
-      log.debug('Fetching the debug url ...')
+      log.debug('Fetching the debug url ...');
       this.setDebugUrl(result);
       response = await super.screenshot(name, { ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions });
     } catch (e) {
@@ -89,14 +89,14 @@ export default class AutomateProvider extends GenericProvider {
         });
       } catch (e) {
         log.debug(`[${name}] Could not execute percyScreenshot command for Automate`);
-        log.error(e)
+        log.error(e);
       }
     });
   }
 
   async getTiles(headerHeight, footerHeight, fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
-    log.info('Starting actual screenshotting phase')
+    log.info('Starting actual screenshotting phase');
 
     const response = await TimeIt.run('percyScreenshot:screenshot', async () => {
       return await this.browserstackExecutor('percyScreenshot', {

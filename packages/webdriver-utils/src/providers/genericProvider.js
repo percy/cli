@@ -69,9 +69,9 @@ export default class GenericProvider {
 
   async createDriver() {
     this.driver = new Driver(this.sessionId, this.commandExecutorUrl);
-    log.debug(`Passed capabilities -> ${JSON.stringify(this.capabilities)}`)
+    log.debug(`Passed capabilities -> ${JSON.stringify(this.capabilities)}`);
     const caps = await this.driver.getCapabilites();
-    log.debug(`Fetched capabilities -> ${JSON.stringify(caps)}`)
+    log.debug(`Fetched capabilities -> ${JSON.stringify(caps)}`);
     this.metaData = await MetaDataResolver.resolve(this.driver, caps, this.capabilities);
   }
 
@@ -116,7 +116,7 @@ export default class GenericProvider {
     this.addDefaultOptions();
 
     const percyCSS = (this.defaultPercyCSS() + (this.options.percyCSS || '')).split('\n').join('');
-    log.debug(`Applying the percyCSS - ${this.options.percyCSS}`)
+    log.debug(`Applying the percyCSS - ${this.options.percyCSS}`);
     await this.addPercyCSS(percyCSS);
 
     log.debug('Fetching comparisong tag ...');
