@@ -4,6 +4,7 @@ import MetaDataResolver from '../../src/metadata/metaDataResolver.js';
 import DesktopMetaData from '../../src/metadata/desktopMetaData.js';
 import Cache from '../../src/util/cache.js';
 import MobileMetaData from '../../src/metadata/mobileMetaData.js';
+import utils from '@percy/sdk-utils';
 
 describe('GenericProvider', () => {
   let genericProvider;
@@ -416,14 +417,18 @@ describe('GenericProvider', () => {
     it('should return the matching header and footer', async () => {
       await provider.createDriver();
       let mockResponseObject = {
-        'iPhone 12 Pro-13': {
-          safari: {
-            header: 141,
-            footer: 399
+        body: {
+          'iPhone 12 Pro-13': {
+            safari: {
+              header: 141,
+              footer: 399
+            }
           }
-        }
+        },
+        status: 200,
+        headers: { 'content-type': 'application/json' }
       };
-      spyOn(Cache, 'withCache').and.returnValue(
+      spyOn(utils.request, 'fetch').and.returnValue(
         Promise.resolve(mockResponseObject)
       );
       const [header, footer] = await provider.getHeaderFooter();
