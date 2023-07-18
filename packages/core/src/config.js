@@ -426,7 +426,7 @@ const regionsSchema = {
       }
     }
   }
-}
+};
 
 // Comparison upload options
 export const comparisonSchema = {
