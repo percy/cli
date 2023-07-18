@@ -802,6 +802,19 @@ describe('PercyClient', () => {
           }
         ]
       };
+      let consideredElementsData = {
+        considerElementsData: [
+          {
+            selector: 'xpaths',
+            'co-ordinates': {
+              top: 300,
+              bottom: 480,
+              left: 108,
+              right: 220
+            }
+          }
+        ]
+      };
 
       await expectAsync(client.createComparison(4567, {
         tag: {
@@ -839,6 +852,7 @@ describe('PercyClient', () => {
         }],
         externalDebugUrl: 'http://debug.localhost',
         ignoredElementsData: ignoredElementsData,
+        consideredElementsData: consideredElementsData,
         domInfoSha: 'abcd='
       })).toBeResolved();
 
@@ -848,6 +862,7 @@ describe('PercyClient', () => {
           attributes: {
             'external-debug-url': 'http://debug.localhost',
             'ignore-elements-data': ignoredElementsData,
+            'consider-elements-data': consideredElementsData,
             'dom-info-sha': 'abcd='
           },
           relationships: {
@@ -916,6 +931,7 @@ describe('PercyClient', () => {
           attributes: {
             'external-debug-url': null,
             'ignore-elements-data': null,
+            'consider-elements-data': null,
             'dom-info-sha': null
           },
           relationships: {
@@ -1169,6 +1185,7 @@ describe('PercyClient', () => {
           attributes: {
             'external-debug-url': null,
             'ignore-elements-data': null,
+            'consider-elements-data': null,
             'dom-info-sha': null
           },
           relationships: {
