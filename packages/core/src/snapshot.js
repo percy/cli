@@ -79,7 +79,7 @@ function mapSnapshotOptions(snapshots, context) {
       snapshotMatches(snap, include, exclude) ? Object.assign(snap, opts) : snap
     ), snap => getSnapshotOptions(snap, context));
 
-  // reduce snapshots with overrides
+  // reduce snapshots with options
   return snapshots.reduce((acc, snapshot) => {
     // transform snapshot URL shorthand into an object
     if (typeof snapshot === 'string') snapshot = { url: snapshot };
