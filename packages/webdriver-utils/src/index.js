@@ -41,8 +41,8 @@ export default class WebdriverUtils {
       this.log.debug('Created driver ...');
       return await automate.screenshot(this.snapshotName, this.options);
     } catch (e) {
-      this.log.error(`Error: ${e.message}`);
-      this.log.error(`Error Log: ${e.toString()}`);
+      this.log.error(`[${this.snapshotName}] : Error - ${e.message}`);
+      this.log.error(`[${this.snapshotName}] : Error Log - ${e.toString()}`);
     }
   }
 }

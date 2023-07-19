@@ -32,6 +32,12 @@ describe('percy exec:start', () => {
     await started;
   });
 
+  it('calls percy project attribute calculation', async () => {
+    expect(logger.stdout[0]).toEqual(
+      '[percy] Percy project attribute calculation'
+    );
+  });
+
   it('starts a long-running percy process', async () => {
     let response = await request('http://localhost:5338/percy/healthcheck');
     expect(response).toHaveProperty('success', true);

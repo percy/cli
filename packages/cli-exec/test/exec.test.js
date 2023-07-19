@@ -44,9 +44,9 @@ describe('percy exec', () => {
 
   it('starts and stops the percy process around the command', async () => {
     await exec(['--', 'node', '--eval', '']);
-
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
+      '[percy] Percy project attribute calculation',
       '[percy] Percy has started!',
       '[percy] Running "node --eval "',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
@@ -77,6 +77,15 @@ describe('percy exec', () => {
     ]);
   });
 
+  describe('projectType is not app', () => {
+    it('calls override functions', async () => {
+      await exec(['--', 'node', '--eval', '']);
+      expect(logger.stdout[0]).toEqual(
+        '[percy] Percy project attribute calculation'
+      );
+    });
+  });
+
   it('runs the command even when PERCY_TOKEN is missing', async () => {
     delete process.env.PERCY_TOKEN;
     await exec(['--', 'node', '--eval', '']);
@@ -86,6 +95,7 @@ describe('percy exec', () => {
       '[percy] Error: Missing Percy token'
     ]);
     expect(logger.stdout).toEqual([
+      '[percy] Percy project attribute calculation',
       '[percy] Running "node --eval "'
     ]);
   });
@@ -97,6 +107,7 @@ describe('percy exec', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
+      '[percy] Percy project attribute calculation',
       '[percy] Percy has started!',
       '[percy] Running "node --eval process.exit(3)"',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
@@ -135,6 +146,7 @@ describe('percy exec', () => {
       '[percy] Error: spawn error'
     ]);
     expect(logger.stdout).toEqual([
+      '[percy] Percy project attribute calculation',
       '[percy] Percy has started!',
       '[percy] Running "foobar"',
       '[percy] Stopping percy...',
@@ -176,6 +188,7 @@ describe('percy exec', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
+      '[percy] Percy project attribute calculation',
       '[percy] Percy has started!',
       jasmine.stringMatching('\\[percy] Running "node '),
       '[percy] Finalized build #1: https://percy.io/test/test/123'
@@ -189,6 +202,7 @@ describe('percy exec', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
+      '[percy] Percy project attribute calculation',
       '[percy] Percy has started!',
       jasmine.stringMatching('\\[percy] Running "node '),
       '[percy] Finalized build #1: https://percy.io/test/test/123'
@@ -202,6 +216,7 @@ describe('percy exec', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
+      '[percy] Percy project attribute calculation',
       '[percy] Percy has started!',
       jasmine.stringMatching('\\[percy] Running "node '),
       '[percy] Finalized build #1: https://percy.io/test/test/123'
