@@ -32,6 +32,25 @@ describe('percy exec:start', () => {
     await started;
   });
 
+  describe('projectType is app', () => {
+    let type = start.definition.percy.projectType;
+    beforeAll(async () => {
+      start.definition.percy.projectType = 'app';
+    });
+
+    afterAll(() => {
+      start.definition.percy.projectType = type;
+    });
+
+    it('does not call override function', async () => {
+      await stop();
+
+      expect(logger.stdout[0]).not.toEqual(
+        '[percy] Percy project attribute calculation'
+      );
+    });
+  });
+
   it('calls percy project attribute calculation', async () => {
     expect(logger.stdout[0]).toEqual(
       '[percy] Percy project attribute calculation'

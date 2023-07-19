@@ -44,6 +44,7 @@ describe('percy exec', () => {
 
   it('starts and stops the percy process around the command', async () => {
     await exec(['--', 'node', '--eval', '']);
+
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy project attribute calculation',
@@ -77,10 +78,18 @@ describe('percy exec', () => {
     ]);
   });
 
-  describe('projectType is not app', () => {
-    it('calls override functions', async () => {
+  describe('projectType is app', () => {
+    let type = exec.definition.percy.projectType;
+    beforeAll(() => {
+      exec.definition.percy.projectType = 'app';
+    });
+
+    afterAll(() => {
+      exec.definition.percy.projectType = type;
+    });
+    it('does not call override function', async () => {
       await exec(['--', 'node', '--eval', '']);
-      expect(logger.stdout[0]).toEqual(
+      expect(logger.stdout[0]).not.toEqual(
         '[percy] Percy project attribute calculation'
       );
     });
