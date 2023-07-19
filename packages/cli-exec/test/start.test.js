@@ -70,7 +70,9 @@ describe('percy exec:start', () => {
 
     await expectAsync(start()).toBeRejected();
 
-    expect(logger.stdout).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Percy project attribute calculation'
+    ]);
     expect(logger.stderr).toEqual([
       '[percy] Error: Percy is already running or the port is in use'
     ]);
