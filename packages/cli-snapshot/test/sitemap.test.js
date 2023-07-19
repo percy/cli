@@ -68,7 +68,7 @@ describe('percy snapshot <sitemap>', () => {
     ]);
   });
 
-  it('accepts snapshot config overrides', async () => {
+  it('accepts snapshot config options', async () => {
     fs.writeFileSync('.percy.yml', [
       'version: 2',
       'sitemap:',
