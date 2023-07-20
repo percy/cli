@@ -33,8 +33,8 @@ describe('percy exec:start', () => {
   });
 
   describe('projectType is app', () => {
-    let type = start.definition.percy.projectType;
-    beforeAll(async () => {
+    const type = start.definition.percy.projectType;
+    beforeAll(() => {
       start.definition.percy.projectType = 'app';
     });
 
@@ -45,16 +45,12 @@ describe('percy exec:start', () => {
     it('does not call override function', async () => {
       await stop();
 
-      expect(logger.stdout[0]).not.toEqual(
-        '[percy] Percy project attribute calculation'
+      expect(logger.stderr).toEqual(
+        jasmine.arrayContaining([
+          '[percy:cli] Skipping percy project attribute calculation'
+        ])
       );
     });
-  });
-
-  it('calls percy project attribute calculation', async () => {
-    expect(logger.stdout[0]).toEqual(
-      '[percy] Percy project attribute calculation'
-    );
   });
 
   it('starts a long-running percy process', async () => {
@@ -89,9 +85,7 @@ describe('percy exec:start', () => {
 
     await expectAsync(start()).toBeRejected();
 
-    expect(logger.stdout).toEqual([
-      '[percy] Percy project attribute calculation'
-    ]);
+    expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
       '[percy] Error: Percy is already running or the port is in use'
     ]);

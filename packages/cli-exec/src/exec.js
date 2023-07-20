@@ -62,9 +62,10 @@ export const exec = command('exec', {
       // Skip this for app because they are triggered as app:exec
       // Remove this once they move to exec command as well
       if (percy.projectType !== 'app') {
-        log.info('Percy project attribute calculation');
         percy.projectType = percy.client.tokenType();
         percy.skipDiscovery = percy.shouldSkipAssetDiscovery(percy.projectType);
+      } else {
+        log.debug('Skipping percy project attribute calculation');
       }
       yield* percy.yield.start();
     } catch (error) {
