@@ -34,17 +34,21 @@ describe('percy exec:start', () => {
 
   describe('projectType is app', () => {
     const type = start.definition.percy.projectType;
+    const logInfo = logger.loglevel();
     beforeAll(() => {
       start.definition.percy.projectType = 'app';
+      logger.loglevel('debug');
+      process.env.PERCY_LOGLEVEL = 'debug';
     });
 
     afterAll(() => {
       start.definition.percy.projectType = type;
+      logger.loglevel(logInfo);
+      logger.reset(true);
+      delete process.env.PERCY_LOGLEVEL;
     });
 
-    it('does not call override function', async () => {
-      await stop();
-
+    it('does not call override function', () => {
       expect(logger.stderr).toEqual(
         jasmine.arrayContaining([
           '[percy:cli] Skipping percy project attribute calculation'

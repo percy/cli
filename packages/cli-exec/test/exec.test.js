@@ -18,6 +18,33 @@ describe('percy exec', () => {
     delete process.env.PERCY_PARTIAL_BUILD;
   });
 
+  describe('projectType is app', () => {
+    const type = exec.definition.percy.projectType;
+    const logInfo = logger.loglevel();
+
+    beforeEach(() => {
+      exec.definition.percy.projectType = 'app';
+      logger.loglevel('debug');
+      process.env.PERCY_LOGLEVEL = 'debug';
+    });
+
+    afterEach(() => {
+      exec.definition.percy.projectType = type;
+      logger.loglevel(logInfo);
+      logger.reset(true);
+      delete process.env.PERCY_LOGLEVEL;
+    });
+
+    it('does not call override function', async () => {
+      await exec(['--', 'node', '--eval', '']);
+      expect(logger.stderr).toEqual(
+        jasmine.arrayContaining([
+          '[percy:cli] Skipping percy project attribute calculation'
+        ])
+      );
+    });
+  });
+
   it('logs an error when no command is provided', async () => {
     await expectAsync(exec()).toBeRejected();
 
@@ -75,27 +102,6 @@ describe('percy exec', () => {
     expect(logger.stdout).toEqual([
       '[percy] Running "node --eval "'
     ]);
-  });
-
-  describe('projectType is app', () => {
-    const type = exec.definition.percy.projectType;
-    beforeAll(() => {
-      exec.definition.percy.projectType = 'app';
-    });
-
-    afterAll(() => {
-      exec.definition.percy.projectType = type;
-    });
-
-    it('does not call override function', async () => {
-      await exec(['--debug', '--', 'node', '--eval', '']);
-
-      expect(logger.stderr).toEqual(
-        jasmine.arrayContaining([
-          '[percy:cli] Skipping percy project attribute calculation'
-        ])
-      );
-    });
   });
 
   it('runs the command even when PERCY_TOKEN is missing', async () => {
