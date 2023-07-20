@@ -79,7 +79,7 @@ describe('percy exec', () => {
 
   describe('projectType is app', () => {
     const type = exec.definition.percy.projectType;
-    beforeAll(async () => {
+    beforeAll(() => {
       exec.definition.percy.projectType = 'app';
     });
 
