@@ -1,5 +1,6 @@
 import MobileMetaData from '../../src/metadata/mobileMetaData.js';
 import Driver from '../../src/driver.js';
+import Cache from '../../src/util/cache.js';
 
 describe('MobileMetaData', () => {
   let getWindowSizeSpy;
@@ -9,6 +10,7 @@ describe('MobileMetaData', () => {
   beforeEach(() => {
     getWindowSizeSpy = spyOn(Driver.prototype, 'getWindowSize');
     executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
+    Cache.reset();
     mobileMetaData = new MobileMetaData(new Driver('123', 'http:executorUrl'), {
       osVersion: '12.0',
       browserName: 'Chrome',
@@ -125,7 +127,13 @@ describe('MobileMetaData', () => {
       screenInfo = await mobileMetaData.screenResolution();
       expect(screenInfo).toEqual('1980 x 1080');
       expect(executeScriptSpy)
-        .toHaveBeenCalledWith({ script: 'return [(window.screen.width * window.devicePixelRatio).toString(), (window.screen.height * window.devicePixelRatio).toString()];', args: [] });
+        .toHaveBeenCalledWith({ script: 'return [parseInt(window.screen.width * window.devicePixelRatio).toString(), parseInt(window.screen.height * window.devicePixelRatio).toString()];', args: [] });
+    });
+  });
+
+  describe('device', () => {
+    it('returns false', () => {
+      expect(mobileMetaData.device()).toEqual(true);
     });
   });
 });
