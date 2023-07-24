@@ -38,7 +38,11 @@ export default class AutomateProvider extends GenericProvider {
     ignoreRegionXpaths = [],
     ignoreRegionSelectors = [],
     ignoreRegionElements = [],
-    customIgnoreRegions = []
+    customIgnoreRegions = [],
+    considerRegionXpaths = [],
+    considerRegionSelectors = [],
+    considerRegionElements = [],
+    customConsiderRegions = []
   }) {
     let response = null;
     let error;
@@ -48,7 +52,16 @@ export default class AutomateProvider extends GenericProvider {
       let result = await this.percyScreenshotBegin(name);
       log.debug('Fetching the debug url ...');
       this.setDebugUrl(result);
-      response = await super.screenshot(name, { ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions });
+      response = await super.screenshot(name, {
+        ignoreRegionXpaths,
+        ignoreRegionSelectors,
+        ignoreRegionElements,
+        customIgnoreRegions,
+        considerRegionXpaths,
+        considerRegionSelectors,
+        considerRegionElements,
+        customConsiderRegions
+      });
     } catch (e) {
       error = e;
       throw e;
