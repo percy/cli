@@ -108,7 +108,11 @@ export default class GenericProvider {
     ignoreRegionXpaths = [],
     ignoreRegionSelectors = [],
     ignoreRegionElements = [],
-    customIgnoreRegions = []
+    customIgnoreRegions = [],
+    considerRegionXpaths = [],
+    considerRegionSelectors = [],
+    considerRegionElements = [],
+    customConsiderRegions = []
   }) {
     let fullscreen = false;
 
@@ -125,6 +129,9 @@ export default class GenericProvider {
     const ignoreRegions = await this.findIgnoredRegions(
       ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions
     );
+    const considerRegions = await this.findRegions(
+      considerRegionXpaths, considerRegionSelectors, considerRegionElements, customConsiderRegions
+    );
     await this.setDebugUrl();
     log.debug(`${name} : Debug url ${this.debugUrl}`);
 
@@ -135,7 +142,12 @@ export default class GenericProvider {
       tiles: tiles.tiles,
       // TODO: Fetch this one for bs automate, check appium sdk
       externalDebugUrl: this.debugUrl,
-      ignoredElementsData: ignoreRegions,
+      ignoredElementsData: {
+        ignoreElementsData: ignoreRegions
+      },
+      consideredElementsData: {
+        considerElementsData: considerRegions
+      },
       environmentInfo: [...this.environmentInfo].join('; '),
       clientInfo: [...this.clientInfo].join(' '),
       domInfoSha: tiles.domInfoSha

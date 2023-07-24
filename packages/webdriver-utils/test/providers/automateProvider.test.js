@@ -99,7 +99,7 @@ describe('AutomateProvider', () => {
       await automateProvider.screenshot('abc', { });
 
       expect(percyScreenshotBeginSpy).toHaveBeenCalledWith('abc');
-      expect(superScreenshotSpy).toHaveBeenCalledWith('abc', ignoreRegionOptions);
+      expect(superScreenshotSpy).toHaveBeenCalledWith('abc', options);
       expect(percyScreenshotEndSpy).toHaveBeenCalledWith('abc', 'link to screenshot', 'undefined');
     });
 
@@ -108,7 +108,7 @@ describe('AutomateProvider', () => {
       const errorMessage = 'Some error occured';
       superScreenshotSpy.and.rejectWith(new Error(errorMessage));
       percyScreenshotEndSpy.and.rejectWith(new Error(errorMessage));
-      await expectAsync(automateProvider.screenshot('abc', ignoreRegionOptions)).toBeRejectedWithError(errorMessage);
+      await expectAsync(automateProvider.screenshot('abc', options)).toBeRejectedWithError(errorMessage);
       expect(percyScreenshotBeginSpy).toHaveBeenCalledWith('abc');
       expect(percyScreenshotEndSpy).toHaveBeenCalledWith('abc', undefined, `Error: ${errorMessage}`);
     });
