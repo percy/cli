@@ -82,8 +82,26 @@ describe('AutomateProvider', () => {
   describe('screenshot', () => {
     let percyScreenshotBeginSpy;
     let percyScreenshotEndSpy;
+<<<<<<< HEAD
     const ignoreRegionOptions = { ignoreRegionXpaths: [], ignoreRegionSelectors: [], ignoreRegionElements: [], customIgnoreRegions: [] };
     const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {});
+=======
+    const options = {
+      ignoreRegionXpaths: [],
+      ignoreRegionSelectors: [],
+      ignoreRegionElements: [],
+      customIgnoreRegions: [],
+      considerRegionXpaths: [],
+      considerRegionSelectors: [],
+      considerRegionElements: [],
+      customConsiderRegions: []
+    };
+    let percyBuildInfo = {
+      id: '123',
+      url: 'https://percy.io/abc/123'
+    };
+    const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', {}, percyBuildInfo);
+>>>>>>> 270edc3f ([PER-2277] Add consider regions (#1318))
 
     beforeEach(async () => {
       percyScreenshotBeginSpy = spyOn(AutomateProvider.prototype,
@@ -99,7 +117,7 @@ describe('AutomateProvider', () => {
       await automateProvider.screenshot('abc', { });
 
       expect(percyScreenshotBeginSpy).toHaveBeenCalledWith('abc');
-      expect(superScreenshotSpy).toHaveBeenCalledWith('abc', ignoreRegionOptions);
+      expect(superScreenshotSpy).toHaveBeenCalledWith('abc', options);
       expect(percyScreenshotEndSpy).toHaveBeenCalledWith('abc', 'link to screenshot', 'undefined');
     });
 
@@ -108,7 +126,7 @@ describe('AutomateProvider', () => {
       const errorMessage = 'Some error occured';
       superScreenshotSpy.and.rejectWith(new Error(errorMessage));
       percyScreenshotEndSpy.and.rejectWith(new Error(errorMessage));
-      await expectAsync(automateProvider.screenshot('abc', ignoreRegionOptions)).toBeRejectedWithError(errorMessage);
+      await expectAsync(automateProvider.screenshot('abc', options)).toBeRejectedWithError(errorMessage);
       expect(percyScreenshotBeginSpy).toHaveBeenCalledWith('abc');
       expect(percyScreenshotEndSpy).toHaveBeenCalledWith('abc', undefined, `Error: ${errorMessage}`);
     });
