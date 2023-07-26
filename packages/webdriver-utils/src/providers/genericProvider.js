@@ -110,7 +110,11 @@ export default class GenericProvider {
     ignoreRegionXpaths = [],
     ignoreRegionSelectors = [],
     ignoreRegionElements = [],
-    customIgnoreRegions = []
+    customIgnoreRegions = [],
+    considerRegionXpaths = [],
+    considerRegionSelectors = [],
+    considerRegionElements = [],
+    customConsiderRegions = []
   }) {
     let fullscreen = false;
 
@@ -127,8 +131,11 @@ export default class GenericProvider {
     const tiles = await this.getTiles(this.header, this.footer, fullscreen);
     log.debug(`[${name}] : Tiles ${JSON.stringify(tiles)}`);
 
-    const ignoreRegions = await this.findIgnoredRegions(
+    const ignoreRegions = await this.findRegions(
       ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions
+    );
+    const considerRegions = await this.findRegions(
+      considerRegionXpaths, considerRegionSelectors, considerRegionElements, customConsiderRegions
     );
     await this.setDebugUrl();
     log.debug(`[${name}] : Debug url ${this.debugUrl}`);
@@ -140,7 +147,12 @@ export default class GenericProvider {
       tiles: tiles.tiles,
       // TODO: Fetch this one for bs automate, check appium sdk
       externalDebugUrl: this.debugUrl,
-      ignoredElementsData: ignoreRegions,
+      ignoredElementsData: {
+        ignoreElementsData: ignoreRegions
+      },
+      consideredElementsData: {
+        considerElementsData: considerRegions
+      },
       environmentInfo: [...this.environmentInfo].join('; '),
       clientInfo: [...this.clientInfo].join(' '),
       domInfoSha: tiles.domInfoSha
@@ -199,23 +211,21 @@ export default class GenericProvider {
     this.debugUrl = 'https://localhost/v1';
   }
 
-  async findIgnoredRegions(ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions) {
-    const ignoreElementXpaths = await this.getIgnoreRegionsBy('xpath', ignoreRegionXpaths);
-    const ignoreElementSelectors = await this.getIgnoreRegionsBy('css selector', ignoreRegionSelectors);
-    const ignoreElements = await this.getIgnoreRegionsByElement(ignoreRegionElements);
-    const ignoreElementCustom = await this.getCustomIgnoreRegions(customIgnoreRegions);
+  async findRegions(xpaths, selectors, elements, customLocations) {
+    const xpathRegions = await this.getSeleniumRegionsBy('xpath', xpaths);
+    const selectorRegions = await this.getSeleniumRegionsBy('css selector', selectors);
+    const elementRegions = await this.getSeleniumRegionsByElement(elements);
+    const customRegions = await this.getSeleniumRegionsByLocation(customLocations);
 
-    return {
-      ignoreElementsData: [
-        ...ignoreElementXpaths,
-        ...ignoreElementSelectors,
-        ...ignoreElements,
-        ...ignoreElementCustom
-      ]
-    };
+    return [
+      ...xpathRegions,
+      ...selectorRegions,
+      ...elementRegions,
+      ...customRegions
+    ];
   }
 
-  async ignoreElementObject(selector, elementId) {
+  async getRegionObject(selector, elementId) {
     const scaleFactor = parseInt(await this.metaData.devicePixelRatio());
     const rect = await this.driver.rect(elementId);
     const location = { x: rect.x, y: rect.y };
@@ -235,39 +245,39 @@ export default class GenericProvider {
     return jsonObject;
   }
 
-  async getIgnoreRegionsBy(findBy, elements) {
-    const ignoredElementsArray = [];
+  async getSeleniumRegionsBy(findBy, elements) {
+    const regionsArray = [];
     for (const idx in elements) {
       try {
         const element = await this.driver.findElement(findBy, elements[idx]);
         const selector = `${findBy}: ${elements[idx]}`;
-        const ignoredRegion = await this.ignoreElementObject(selector, element[Object.keys(element)[0]]);
-        ignoredElementsArray.push(ignoredRegion);
+        const ignoredRegion = await this.getRegionObject(selector, element[Object.keys(element)[0]]);
+        regionsArray.push(ignoredRegion);
       } catch (e) {
         log.warn(`Selenium Element with ${findBy}: ${elements[idx]} not found. Ignoring this ${findBy}.`);
         log.error(e.toString());
       }
     }
-    return ignoredElementsArray;
+    return regionsArray;
   }
 
-  async getIgnoreRegionsByElement(elements) {
-    const ignoredElementsArray = [];
+  async getSeleniumRegionsByElement(elements) {
+    const regionsArray = [];
     for (let index = 0; index < elements.length; index++) {
       try {
         const selector = `element: ${index}`;
 
-        const ignoredRegion = await this.ignoreElementObject(selector, elements[index]);
-        ignoredElementsArray.push(ignoredRegion);
+        const ignoredRegion = await this.getRegionObject(selector, elements[index]);
+        regionsArray.push(ignoredRegion);
       } catch (e) {
         log.warn(`Correct Web Element not passed at index ${index}.`);
         log.debug(e.toString());
       }
     }
-    return ignoredElementsArray;
+    return regionsArray;
   }
 
-  async getCustomIgnoreRegions(customLocations) {
+  async getSeleniumRegionsByLocation(customLocations) {
     const ignoredElementsArray = [];
     const { width, height } = await this.metaData.windowSize();
     for (let index = 0; index < customLocations.length; index++) {

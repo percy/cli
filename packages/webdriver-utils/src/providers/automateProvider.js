@@ -40,7 +40,11 @@ export default class AutomateProvider extends GenericProvider {
     ignoreRegionXpaths = [],
     ignoreRegionSelectors = [],
     ignoreRegionElements = [],
-    customIgnoreRegions = []
+    customIgnoreRegions = [],
+    considerRegionXpaths = [],
+    considerRegionSelectors = [],
+    considerRegionElements = [],
+    customConsiderRegions = []
   }) {
     let response = null;
     let error;
@@ -51,7 +55,16 @@ export default class AutomateProvider extends GenericProvider {
       this.automateResults = JSON.parse(result.value);
       log.debug(`[${name}] : Fetching the debug url ...`);
       this.setDebugUrl();
-      response = await super.screenshot(name, { ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions });
+      response = await super.screenshot(name, {
+        ignoreRegionXpaths,
+        ignoreRegionSelectors,
+        ignoreRegionElements,
+        customIgnoreRegions,
+        considerRegionXpaths,
+        considerRegionSelectors,
+        considerRegionElements,
+        customConsiderRegions
+      });
     } catch (e) {
       error = e;
       throw e;
@@ -160,7 +173,7 @@ export default class AutomateProvider extends GenericProvider {
     const osName = normalizeTags.osRollUp(automateCaps.os);
     const osVersion = automateCaps.os_version?.split('.')[0];
     const browserName = normalizeTags.browserRollUp(automateCaps.browserName, this.metaData.device());
-    const browserVersion = normalizeTags.browserVersionRollUp(automateCaps.browserVersion, deviceName, this.metaData.device());
+    const browserVersion = normalizeTags.browserVersionOrDeviceNameRollup(automateCaps.browserVersion, deviceName, this.metaData.device());
 
     if (!this.metaData.device()) {
       deviceName = `${osName}_${osVersion}_${browserName}_${browserVersion}`;

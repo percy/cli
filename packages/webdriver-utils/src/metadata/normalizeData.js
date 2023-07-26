@@ -24,9 +24,11 @@ export default class NormalizeData {
     return browserName;
   }
 
-  browserVersionRollUp(browserVersion, deviceName, device) {
+  // Responses for browser version differ for devices and desktops from capabilities
+  // Differenences in selenium and appium responses causes inconsistency
+  // So to tackle for devices on UI we will show device names else browser versions
+  browserVersionOrDeviceNameRollup(browserVersion, deviceName, device) {
     if (device) {
-      // return `${this.osRollUp(os)} ${osVersion?.split('.')[0]}`;
       return deviceName;
     }
     return browserVersion?.split('.')[0];

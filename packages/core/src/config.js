@@ -394,6 +394,40 @@ export const snapshotSchema = {
   }
 };
 
+const regionsSchema = {
+  type: 'array',
+  items: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      selector: {
+        type: 'string'
+      },
+      coOrdinates: {
+        type: 'object',
+        properties: {
+          top: {
+            type: 'integer',
+            minimum: 0
+          },
+          left: {
+            type: 'integer',
+            minimum: 0
+          },
+          bottom: {
+            type: 'integer',
+            minimum: 0
+          },
+          right: {
+            type: 'integer',
+            minimum: 0
+          }
+        }
+      }
+    }
+  }
+};
+
 // Comparison upload options
 export const comparisonSchema = {
   type: 'object',
@@ -473,39 +507,8 @@ export const comparisonSchema = {
       additionalProperties: false,
       required: ['ignoreElementsData'],
       properties: {
-        ignoreElementsData: {
-          type: 'array',
-          items: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              selector: {
-                type: 'string'
-              },
-              coOrdinates: {
-                type: 'object',
-                properties: {
-                  top: {
-                    type: 'integer',
-                    minimum: 0
-                  },
-                  left: {
-                    type: 'integer',
-                    minimum: 0
-                  },
-                  bottom: {
-                    type: 'integer',
-                    minimum: 0
-                  },
-                  right: {
-                    type: 'integer',
-                    minimum: 0
-                  }
-                }
-              }
-            }
-          }
-        }
+        ignoreElementsData: regionsSchema,
+        considerElementsData: regionsSchema
       }
     }
   }
