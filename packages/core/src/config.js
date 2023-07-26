@@ -507,7 +507,14 @@ export const comparisonSchema = {
       additionalProperties: false,
       required: ['ignoreElementsData'],
       properties: {
-        ignoreElementsData: regionsSchema,
+        ignoreElementsData: regionsSchema
+      }
+    },
+    consideredElementsData: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['considerElementsData'],
+      properties: {
         considerElementsData: regionsSchema
       }
     }

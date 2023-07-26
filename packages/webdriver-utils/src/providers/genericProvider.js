@@ -251,8 +251,8 @@ export default class GenericProvider {
       try {
         const element = await this.driver.findElement(findBy, elements[idx]);
         const selector = `${findBy}: ${elements[idx]}`;
-        const ignoredRegion = await this.getRegionObject(selector, element[Object.keys(element)[0]]);
-        regionsArray.push(ignoredRegion);
+        const region = await this.getRegionObject(selector, element[Object.keys(element)[0]]);
+        regionsArray.push(region);
       } catch (e) {
         log.warn(`Selenium Element with ${findBy}: ${elements[idx]} not found. Ignoring this ${findBy}.`);
         log.error(e.toString());
@@ -267,8 +267,8 @@ export default class GenericProvider {
       try {
         const selector = `element: ${index}`;
 
-        const ignoredRegion = await this.getRegionObject(selector, elements[index]);
-        regionsArray.push(ignoredRegion);
+        const region = await this.getRegionObject(selector, elements[index]);
+        regionsArray.push(region);
       } catch (e) {
         log.warn(`Correct Web Element not passed at index ${index}.`);
         log.debug(e.toString());
@@ -278,15 +278,15 @@ export default class GenericProvider {
   }
 
   async getSeleniumRegionsByLocation(customLocations) {
-    const ignoredElementsArray = [];
+    const elementsArray = [];
     const { width, height } = await this.metaData.windowSize();
     for (let index = 0; index < customLocations.length; index++) {
       const customLocation = customLocations[index];
       const invalid = customLocation.top >= height || customLocation.bottom > height || customLocation.left >= width || customLocation.right > width;
 
       if (!invalid) {
-        const selector = `custom ignore region ${index}`;
-        const ignoredRegion = {
+        const selector = `custom region ${index}`;
+        const region = {
           selector,
           coOrdinates: {
             top: customLocation.top,
@@ -295,12 +295,12 @@ export default class GenericProvider {
             right: customLocation.right
           }
         };
-        ignoredElementsArray.push(ignoredRegion);
+        elementsArray.push(region);
       } else {
         log.warn(`Values passed in custom ignored region at index: ${index} is not valid`);
       }
     }
-    return ignoredElementsArray;
+    return elementsArray;
   }
 
   async getHeaderFooter() {

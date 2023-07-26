@@ -384,17 +384,17 @@ describe('GenericProvider', () => {
 
       expect(elementsArray).toEqual([
         {
-          selector: 'custom ignore region 0',
+          selector: 'custom region 0',
           coOrdinates: { top: 100, bottom: 200, left: 100, right: 200 }
         },
         {
-          selector: 'custom ignore region 1',
+          selector: 'custom region 1',
           coOrdinates: { top: 300, bottom: 400, left: 300, right: 400 }
         }
       ]);
     });
 
-    it('should ignore invalid custom ignore regions', async () => {
+    it('should ignore invalid custom regions', async () => {
       const customLocations = [
         { top: 100, bottom: 1090, left: 100, right: 200 },
         { top: 300, bottom: 400, left: 300, right: 1921 }
