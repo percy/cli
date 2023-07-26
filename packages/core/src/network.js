@@ -6,6 +6,7 @@ import { normalizeURL, hostnameMatches, createResource, waitFor } from './utils.
 const MAX_RESOURCE_SIZE = 25 * (1024 ** 2); // 25MB
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
+const ABORTED_MESSAGE = 'Request was aborted by browser';
 
 // The Interceptor class creates common handlers for dealing with intercepting asset requests
 // for a given page using various devtools protocol events and commands.
@@ -18,6 +19,7 @@ export class Network {
   #requests = new Map();
   #intercepts = new Map();
   #authentications = new Set();
+  #aborted = new Set();
 
   constructor(page, options) {
     this.page = page;
@@ -87,6 +89,25 @@ export class Network {
     });
   }
 
+  // Validates that requestId is still valid as sometimes request gets cancelled and we have already executed
+  // _forgetRequest for the same, but we still attempt to make a call for it and it fails
+  // with Protocol error (Fetch.failRequest): Invalid InterceptionId.
+  async send(session, method, params) {
+    /* istanbul ignore else: currently all send have requestId */
+    if (params.requestId) {
+      /* istanbul ignore if: race condition, very hard to mock this */
+      if (this.isAborted(params.requestId)) {
+        throw new Error(ABORTED_MESSAGE);
+      }
+    }
+
+    return await session.send(method, params);
+  }
+
+  isAborted(requestId) {
+    return this.#aborted.has(requestId);
+  }
+
   // Throw a better network timeout error
   _throwTimeoutError(msg, filter = () => true) {
     if (this.log.shouldLog('debug')) {
@@ -122,7 +143,7 @@ export class Network {
       this.#authentications.add(requestId);
     }
 
-    await session.send('Fetch.continueWithAuth', {
+    await this.send(session, 'Fetch.continueWithAuth', {
       requestId: event.requestId,
       authChallengeResponse: { response, username, password }
     });
@@ -200,7 +221,7 @@ export class Network {
 
     request.response = response;
     request.response.buffer = async () => {
-      let result = await session.send('Network.getResponseBody', { requestId });
+      let result = await this.send(session, 'Network.getResponseBody', { requestId });
       return Buffer.from(result.body, result.base64Encoded ? 'base64' : 'utf-8');
     };
   }
@@ -230,8 +251,15 @@ export class Network {
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
 
-    // do not log generic messages since the real error was likely logged elsewhere
-    if (event.errorText !== 'net::ERR_FAILED') {
+    // If request was aborted, keep track of it as we need to cancel any in process callbacks for
+    // such a request to avoid Invalid InterceptionId errors
+    // Note: 404s also show up under ERR_ABORTED and not ERR_FAILED
+    if (event.errorText === 'net::ERR_ABORTED') {
+      let message = `Request aborted for ${request.url}: ${event.errorText}`;
+      this.log.debug(message, { ...this.meta, url: request.url });
+      this.#aborted.add(request.requestId);
+    } else if (event.errorText !== 'net::ERR_FAILED') {
+      // do not log generic messages since the real error was likely logged elsewhere
       let message = `Request failed for ${request.url}: ${event.errorText}`;
       this.log.debug(message, { ...this.meta, url: request.url });
     }
@@ -264,6 +292,7 @@ async function sendResponseResource(network, request, session) {
   let log = network.log;
   let url = originURL(request);
   let meta = { ...network.meta, url };
+  let send = async (method, params) => await network.send(session, method, params);
 
   try {
     let resource = network.intercept.getResource(url);
@@ -272,14 +301,14 @@ async function sendResponseResource(network, request, session) {
     if (!resource?.root && hostnameMatches(disallowedHostnames, url)) {
       log.debug('- Skipping disallowed hostname', meta);
 
-      await session.send('Fetch.failRequest', {
+      await send('Fetch.failRequest', {
         requestId: request.interceptId,
         errorReason: 'Aborted'
       });
     } else if (resource && (resource.root || resource.provided || !disableCache)) {
       log.debug(resource.root ? '- Serving root resource' : '- Resource cache hit', meta);
 
-      await session.send('Fetch.fulfillRequest', {
+      await send('Fetch.fulfillRequest', {
         requestId: request.interceptId,
         responseCode: resource.status || 200,
         body: Buffer.from(resource.content).toString('base64'),
@@ -287,7 +316,7 @@ async function sendResponseResource(network, request, session) {
           .map(([k, v]) => ({ name: k.toLowerCase(), value: String(v) }))
       });
     } else {
-      await session.send('Fetch.continueRequest', {
+      await send('Fetch.continueRequest', {
         requestId: request.interceptId
       });
     }
@@ -295,11 +324,28 @@ async function sendResponseResource(network, request, session) {
     /* istanbul ignore next: too hard to test (create race condition) */
     if (session.closing && error.message.includes('close')) return;
 
+    // if failure is due to an already aborted request, ignore it
+    // due to race condition we might get aborted event later and see a `Invalid InterceptionId`
+    // error before, in which case we should wait for a tick and check again
+    // Note: its not a necessity that we would get aborted callback in a tick, its just that if we
+    // already have it then we can safely ignore this error
+    // Its very hard to test it as this function should be called and request should get cancelled before
+    if (error.message === ABORTED_MESSAGE || error.message.includes('Invalid InterceptionId')) {
+      // defer this to the end of queue to make sure that any incoming aborted messages were
+      // handled and network.#aborted is updated
+      await new Promise((res, _) => process.nextTick(res));
+      /* istanbul ignore else: too hard to create race where abortion event is delayed */
+      if (network.isAborted(request.requestId)) {
+        log.debug(`Ignoring further steps for ${url} as request was aborted by the browser.`);
+        return;
+      }
+    }
+
     log.debug(`Encountered an error handling request: ${url}`, meta);
     log.debug(error);
 
     /* istanbul ignore next: catch race condition */
-    await session.send('Fetch.failRequest', {
+    await send('Fetch.failRequest', {
       requestId: request.interceptId,
       errorReason: 'Failed'
     }).catch(e => log.debug(e, meta));
