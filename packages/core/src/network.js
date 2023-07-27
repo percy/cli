@@ -292,7 +292,7 @@ async function sendResponseResource(network, request, session) {
   let log = network.log;
   let url = originURL(request);
   let meta = { ...network.meta, url };
-  let send = async (method, params) => await network.send(session, method, params);
+  let send = (method, params) => network.send(session, method, params);
 
   try {
     let resource = network.intercept.getResource(url);
