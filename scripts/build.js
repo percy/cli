@@ -1,9 +1,10 @@
 /* eslint-disable import/no-extraneous-dependencies */
 import fs from 'fs';
+import { readFile, writeFile } from 'fs/promises';
 import path from 'path';
 import colors from 'colors/safe.js';
 import parse from 'yargs-parser';
-
+import babelCore from '@babel/core';
 const cwd = process.cwd();
 process.env.NODE_ENV = 'production';
 
@@ -48,6 +49,15 @@ async function main({ node, bundle } = argv) {
         colors.green(`${config.input} → ${config.output.file}`)
       } (${Date.now() - start}ms)`);
     }
+    const bundleFile = await readFile('./dist/bundle.js')
+    const { code } = babelCore.transformSync(bundleFile, {
+      plugins: [
+        '@babel/plugin-transform-nullish-coalescing-operator',
+        '@babel/plugin-transform-object-rest-spread'
+      ],
+      sourceMaps: true,
+    });
+    await writeFile('./dist/bundle.js', code)
   }
 }
 

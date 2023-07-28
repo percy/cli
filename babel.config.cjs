@@ -29,6 +29,10 @@ module.exports = {
         modules: false,
         targets: { node: '14' }
       }]
+    ],
+    plugins: [
+      '@babel/plugin-transform-nullish-coalescing-operator',
+      ["@babel/plugin-transform-object-rest-spread", { "useBuiltIns": true }]
     ]
   }, {
     test: name => dist?.includes(name) === false &&
