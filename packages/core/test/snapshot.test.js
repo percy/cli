@@ -469,6 +469,57 @@ describe('Snapshot', () => {
     ]);
   });
 
+  describe('duplicate snapshots', () => {
+    beforeEach(() => {
+      api.reply('/builds/123/snapshots', () => [400, {
+        errors: [{ status: 'bad_request' },
+          { detail: 'The name of each snapshot must be unique ...' }]
+      }]);
+    });
+
+    it('ignores and logs duplicate snapshots', async () => {
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+
+      expect(logger.stdout).toEqual([
+        '[percy] Snapshot taken: test snapshot'
+      ]);
+      expect(logger.stderr).toEqual([
+        '[percy] Ignored duplicate snapshot. The name of each snapshot must be unique ...'
+      ]);
+    });
+
+    describe('with PERCY_IGNORE_DUPLICATES is true', () => {
+      beforeEach(() => {
+        process.env.PERCY_IGNORE_DUPLICATES = 'true';
+      });
+
+      afterEach(() => {
+        process.env.PERCY_IGNORE_DUPLICATES = 'false';
+      });
+
+      it('skips logs for duplicate snapshots if ', async () => {
+        await percy.snapshot({
+          name: 'test snapshot',
+          url: 'http://localhost:8000',
+          domSnapshot: testDOM
+        });
+        await percy.idle();
+
+        expect(logger.stdout).toEqual([
+          '[percy] Snapshot taken: test snapshot'
+        ]);
+        expect(logger.stderr).not.toEqual([
+          '[percy] Ignored duplicate snapshot. The name of each snapshot must be unique ...'
+        ]);
+      });
+    });
+  });
+
   it('logs any encountered errors when uploading', async () => {
     api.reply('/builds/123/snapshots', () => [401, {
       errors: [{ detail: 'unexpected upload error' }]
