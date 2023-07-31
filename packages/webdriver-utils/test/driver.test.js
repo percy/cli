@@ -48,6 +48,7 @@ describe('Driver', () => {
     it('calls requests', async () => {
       let command = { script: 'abc', args: [] };
       let res = await driver.executeScript(command);
+      expect(command.script).toEqual('/* percy_automate_script */\nabc');
       expect(requestSpy).toHaveBeenCalledOnceWith(
         `${executorUrl}/session/${sessionId}/execute/sync`,
         {

@@ -31,6 +31,7 @@ export default class Driver {
     ) {
       throw new Error('Please pass command as {script: "", args: []}');
     }
+    command.script = `/* percy_automate_script */\n${command.script}`;
     const options = {
       method: 'POST',
       headers: {
