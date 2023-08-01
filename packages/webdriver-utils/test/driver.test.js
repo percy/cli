@@ -48,6 +48,24 @@ describe('Driver', () => {
     it('calls requests', async () => {
       let command = { script: 'abc', args: [] };
       let res = await driver.executeScript(command);
+      expect(command.script).toEqual('/* percy_automate_script */ \n abc');
+      expect(requestSpy).toHaveBeenCalledOnceWith(
+        `${executorUrl}/session/${sessionId}/execute/sync`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json;charset=utf-8'
+          },
+          body: JSON.stringify(command)
+        }
+      );
+      expect(res).toEqual({ value: 'mockVal' });
+    });
+
+    it('does not add anchor comment to browserstack_executor', async () => {
+      let command = { script: 'browserstack_executor', args: [] };
+      let res = await driver.executeScript(command);
+      expect(command.script).toEqual('browserstack_executor');
       expect(requestSpy).toHaveBeenCalledOnceWith(
         `${executorUrl}/session/${sessionId}/execute/sync`,
         {

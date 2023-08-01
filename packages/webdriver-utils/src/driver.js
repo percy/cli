@@ -31,6 +31,11 @@ export default class Driver {
     ) {
       throw new Error('Please pass command as {script: "", args: []}');
     }
+    // browser_executor is custom BS executor script, if there is anything extra it breaks
+    // percy_automate_script is an anchor comment to identify percy automate scripts
+    if (!command.script.includes('browserstack_executor')) {
+      command.script = `/* percy_automate_script */ \n ${command.script}`;
+    }
     const options = {
       method: 'POST',
       headers: {
