@@ -375,6 +375,15 @@ export function createSnapshotsQueue(percy) {
         queue.close(true);
       }
 
+      let errors = error.response?.body?.errors;
+      let duplicate = errors?.length > 1 && errors[1].detail.includes('must be unique');
+      if (duplicate) {
+        if (process.env.PERCY_IGNORE_DUPLICATES !== 'true') {
+          percy.log.warn(`Ignored duplicate snapshot. ${errors[1].detail}`);
+        }
+        return result;
+      }
+
       percy.log.error(`Encountered an error uploading snapshot: ${name}`, meta);
       percy.log.error(error, meta);
       return result;
