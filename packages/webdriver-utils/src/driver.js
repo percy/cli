@@ -1,18 +1,25 @@
 import utils from '@percy/sdk-utils';
 import Cache from './util/cache.js';
 const { request } = utils;
+const log = utils.logger('webdriver-utils:driver');
 
 export default class Driver {
-  constructor(sessionId, executorUrl) {
+  constructor(sessionId, executorUrl, passedCapabilities) {
     this.sessionId = sessionId;
     this.executorUrl = executorUrl.includes('@') ? `https://${executorUrl.split('@')[1]}` : executorUrl;
+    this.passedCapabilities = passedCapabilities;
   }
 
   async getCapabilites() {
     return await Cache.withCache(Cache.caps, this.sessionId, async () => {
-      const baseUrl = `${this.executorUrl}/session/${this.sessionId}`;
-      const caps = JSON.parse((await request(baseUrl)).body);
-      return caps.value;
+      try {
+        const baseUrl = `${this.executorUrl}/session/${this.sessionId}`;
+        const caps = JSON.parse((await request(baseUrl)).body);
+        return caps.value;
+      } catch (err) {
+        log.warn(`Falling back to legacy protocol, Error: ${err.message}`);
+        return this.passedCapabilities;
+      }
     });
   }
 

@@ -2,6 +2,7 @@ import utils from '@percy/sdk-utils';
 import GenericProvider from './genericProvider.js';
 import Cache from '../util/cache.js';
 import Tile from '../util/tile.js';
+import NormalizeData from '../metadata/normalizeData.js';
 
 const log = utils.logger('webdriver-utils:automateProvider');
 const { TimeIt } = utils;
@@ -28,6 +29,7 @@ export default class AutomateProvider extends GenericProvider {
       buildInfo
     );
     this._markedPercy = false;
+    this.automateResults = null;
   }
 
   static supports(commandExecutorUrl) {
@@ -46,12 +48,13 @@ export default class AutomateProvider extends GenericProvider {
   }) {
     let response = null;
     let error;
-    log.info('Preparing to capture screenshots on automate ...');
+    log.debug(`[${name}] : Preparing to capture screenshots on automate ...`);
     try {
-      log.debug('Marking automate session as percy ...');
-      let result = await this.percyScreenshotBegin(name);
-      log.debug('Fetching the debug url ...');
-      this.setDebugUrl(result);
+      log.debug(`[${name}] : Marking automate session as percy ...`);
+      const result = await this.percyScreenshotBegin(name);
+      this.automateResults = JSON.parse(result.value);
+      log.debug(`[${name}] : Fetching the debug url ...`);
+      this.setDebugUrl();
       response = await super.screenshot(name, {
         ignoreRegionXpaths,
         ignoreRegionSelectors,
@@ -83,8 +86,8 @@ export default class AutomateProvider extends GenericProvider {
         this._markedPercy = result.success;
         return result;
       } catch (e) {
-        log.debug(`[${name}] Could not mark Automate session as percy`);
-        log.error(`[${name}] error: ${e.toString()}`);
+        log.debug(`[${name}] : Could not mark Automate session as percy`);
+        log.error(`[${name}] : error: ${e.toString()}`);
         return null;
       }
     });
@@ -101,7 +104,7 @@ export default class AutomateProvider extends GenericProvider {
           state: 'end'
         });
       } catch (e) {
-        log.debug(`[${name}] Could not execute percyScreenshot command for Automate`);
+        log.debug(`[${name}] : Could not execute percyScreenshot command for Automate`);
         log.error(e);
       }
     });
@@ -109,14 +112,14 @@ export default class AutomateProvider extends GenericProvider {
 
   async getTiles(headerHeight, footerHeight, fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
-    log.info('Starting actual screenshotting phase');
+    log.debug('Starting actual screenshotting phase');
 
     const response = await TimeIt.run('percyScreenshot:screenshot', async () => {
       return await this.browserstackExecutor('percyScreenshot', {
         state: 'screenshot',
         percyBuildId: this.buildInfo.id,
         screenshotType: 'singlepage',
-        scaleFactor: await this.driver.executeScript({ script: 'return window.devicePixelRatio;', args: [] }),
+        scaleFactor: await this.metaData.devicePixelRatio(),
         options: this.options
       });
     });
@@ -155,8 +158,45 @@ export default class AutomateProvider extends GenericProvider {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     this.debugUrl = await Cache.withCache(Cache.bstackSessionDetails, this.driver.sessionId,
       async () => {
-        const sessionDetails = await this.browserstackExecutor('getSessionDetails');
-        return JSON.parse(sessionDetails.value).browser_url;
+        return `https://automate.browserstack.com/builds/${this.automateResults.buildHash}/sessions/${this.automateResults.sessionHash}`;
       });
+  }
+
+  async getTag() {
+    if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
+    if (!this.automateResults) throw new Error('Comparison tag details not available');
+
+    const automateCaps = this.automateResults.capabilities;
+    const normalizeTags = new NormalizeData();
+
+    let deviceName = this.automateResults.deviceName;
+    const osName = normalizeTags.osRollUp(automateCaps.os);
+    const osVersion = automateCaps.os_version?.split('.')[0];
+    const browserName = normalizeTags.browserRollUp(automateCaps.browserName, this.metaData.device());
+    const browserVersion = normalizeTags.browserVersionOrDeviceNameRollup(automateCaps.browserVersion, deviceName, this.metaData.device());
+
+    if (!this.metaData.device()) {
+      deviceName = `${osName}_${osVersion}_${browserName}_${browserVersion}`;
+    }
+
+    let { width, height } = await this.metaData.windowSize();
+    const resolution = await this.metaData.screenResolution();
+    const orientation = (this.metaData.orientation() || automateCaps.deviceOrientation)?.toLowerCase();
+
+    // for android window size only constitutes of browser viewport, hence adding nav / status / url bar heights
+    [this.header, this.footer] = await this.getHeaderFooter(deviceName, osVersion, browserName);
+    height = this.metaData.device() && osName?.toLowerCase() === 'android' ? height + this.header + this.footer : height;
+
+    return {
+      name: deviceName,
+      osName,
+      osVersion,
+      width,
+      height,
+      orientation,
+      browserName,
+      browserVersion,
+      resolution
+    };
   }
 }

@@ -111,4 +111,10 @@ describe('DesktopMetaData', () => {
         .toHaveBeenCalledWith({ script: 'return [window.screen.width.toString(), window.screen.height.toString()];', args: [] });
     });
   });
+
+  describe('device', () => {
+    it('returns false', () => {
+      expect(desktopMetaData.device()).toEqual(false);
+    });
+  });
 });
