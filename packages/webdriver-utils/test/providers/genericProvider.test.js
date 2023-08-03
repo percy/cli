@@ -469,17 +469,12 @@ describe('GenericProvider', () => {
     it('should return 0,0 for unmatched device name', async () => {
       await provider.createDriver();
       let mockResponseObject = {
-        'iPhone 13 Pro-14': {
-          safari: {
-            header: 141,
-            footer: 399
-          }
-        }
+        'iPhone 13 Pro-14': {}
       };
       spyOn(Cache, 'withCache').and.returnValue(
         Promise.resolve(mockResponseObject)
       );
-      const [header, footer] = await provider.getHeaderFooter();
+      const [header, footer] = await provider.getHeaderFooter('iPhone 13 Pro', '14', 'safari');
       expect(header).toEqual(0);
       expect(footer).toEqual(0);
     });

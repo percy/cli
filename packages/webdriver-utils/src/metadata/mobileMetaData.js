@@ -27,7 +27,7 @@ export default class MobileMetaData {
     if (bsVersion?.length > 0) {
       return bsVersion[0];
     }
-    return this.capabilities.version.split('.')[0];
+    return this.capabilities?.version?.split('.')[0];
   }
 
   osName() {
