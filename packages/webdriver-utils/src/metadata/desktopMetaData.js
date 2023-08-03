@@ -1,28 +1,34 @@
+import Cache from '../util/cache.js';
+
 export default class DesktopMetaData {
   constructor(driver, opts) {
     this.driver = driver;
     this.capabilities = opts;
   }
 
+  device() {
+    return false;
+  }
+
   browserName() {
-    return this.capabilities.browserName.toLowerCase();
+    return this.capabilities?.browserName?.toLowerCase();
   }
 
   browserVersion() {
-    return this.capabilities.browserVersion.split('.')[0];
+    return this.capabilities?.browserVersion?.split('.')[0];
   }
 
   osName() {
-    let osName = this.capabilities.os;
-    if (osName) return osName.toLowerCase();
+    let osName = this.capabilities?.os;
+    if (osName) return osName?.toLowerCase();
 
-    osName = this.capabilities.platform;
+    osName = this.capabilities?.platform;
     return osName;
   }
 
   // showing major version
   osVersion() {
-    return this.capabilities.osVersion.toLowerCase();
+    return this.capabilities?.osVersion?.toLowerCase();
   }
 
   // combination of browserName + browserVersion + osVersion + osName
@@ -42,7 +48,9 @@ export default class DesktopMetaData {
   }
 
   async devicePixelRatio() {
-    const devicePixelRatio = await this.driver.executeScript({ script: 'return window.devicePixelRatio;', args: [] });
-    return devicePixelRatio.value;
+    return await Cache.withCache(Cache.dpr, this.driver.sessionId, async () => {
+      const devicePixelRatio = await this.driver.executeScript({ script: 'return window.devicePixelRatio;', args: [] });
+      return devicePixelRatio.value;
+    });
   }
 }

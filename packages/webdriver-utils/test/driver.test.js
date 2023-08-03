@@ -10,13 +10,17 @@ describe('Driver', () => {
   };
   let sessionId = '123';
   let executorUrl = 'http://localhost/wd/hub';
+  let passedCapabilities = {
+    browser: 'chrome',
+    platform: 'win'
+  };
   let driver;
 
   beforeEach(() => {
     requestSpy = spyOn(utils.request, 'fetch').and.returnValue(
       Promise.resolve(mockResponseObject)
     );
-    driver = new Driver(sessionId, executorUrl);
+    driver = new Driver(sessionId, executorUrl, passedCapabilities);
   });
 
   describe('constructor', () => {
@@ -31,6 +35,29 @@ describe('Driver', () => {
       let res = await driver.getCapabilites();
       expect(requestSpy).toHaveBeenCalledOnceWith(`${executorUrl}/session/${sessionId}`, Object({}));
       expect(res).toBe('mockVal');
+    });
+  });
+
+  describe('getCapabilities fallback', () => {
+    const mockFailedResponse = {
+      body: '{"value": {"message" : "Internal Server Error"}',
+      status: 500,
+      headers: { 'content-type': 'application/text' }
+    };
+    let requestFailedSpy;
+    const sessionId = '1234';
+    const newDriver = new Driver(sessionId, executorUrl, passedCapabilities);
+
+    beforeEach(() => {
+      requestFailedSpy = spyOn(utils.request, 'fetch').and.returnValue(
+        Promise.resolve(mockFailedResponse)
+      );
+    });
+
+    it('falls back to passed capabilites', async () => {
+      let res = await newDriver.getCapabilites();
+      expect(requestFailedSpy).toHaveBeenCalledOnceWith(`${executorUrl}/session/${sessionId}`, Object({}));
+      expect(res).toBe(passedCapabilities);
     });
   });
 

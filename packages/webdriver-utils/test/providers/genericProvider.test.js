@@ -21,7 +21,7 @@ describe('GenericProvider', () => {
 
     beforeEach(() => {
       metaDataResolverSpy = spyOn(MetaDataResolver, 'resolve');
-      expectedDriver = new Driver('123', 'http:executorUrl');
+      expectedDriver = new Driver('123', 'http:executorUrl', {});
     });
 
     it('creates driver', async () => {

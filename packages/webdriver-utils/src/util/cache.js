@@ -10,6 +10,8 @@ export default class Cache {
   static bstackSessionDetails = 'bstackSessionDetails';
   static systemBars = 'systemBars';
   static devicesConfig = 'devicesConfig';
+  static dpr = 'dpr';
+  static resolution = 'resolution';
 
   // maintainance
   static lastTime = Date.now();
