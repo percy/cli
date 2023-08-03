@@ -67,7 +67,7 @@ export default class GenericProvider {
   }
 
   async createDriver() {
-    this.driver = new Driver(this.sessionId, this.commandExecutorUrl);
+    this.driver = new Driver(this.sessionId, this.commandExecutorUrl, this.capabilities);
     log.debug(`Passed capabilities -> ${JSON.stringify(this.capabilities)}`);
     const caps = await this.driver.getCapabilites();
     log.debug(`Fetched capabilities -> ${JSON.stringify(caps)}`);
@@ -119,21 +119,24 @@ export default class GenericProvider {
     this.addDefaultOptions();
 
     const percyCSS = (this.defaultPercyCSS() + (this.options.percyCSS || '')).split('\n').join('');
-    log.debug(`Applying the percyCSS - ${this.options.percyCSS}`);
+    log.debug(`[${name}] : Applying the percyCSS - ${this.options.percyCSS}`);
     await this.addPercyCSS(percyCSS);
 
     log.debug('Fetching comparisong tag ...');
     const tag = await this.getTag();
+    log.debug(`[${name}] : Tag ${JSON.stringify(tag)}`);
 
-    const tiles = await this.getTiles(fullscreen);
-    const ignoreRegions = await this.findIgnoredRegions(
+    const tiles = await this.getTiles(this.header, this.footer, fullscreen);
+    log.debug(`[${name}] : Tiles ${JSON.stringify(tiles)}`);
+
+    const ignoreRegions = await this.findRegions(
       ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions
     );
     const considerRegions = await this.findRegions(
       considerRegionXpaths, considerRegionSelectors, considerRegionElements, customConsiderRegions
     );
     await this.setDebugUrl();
-    log.debug(`${name} : Debug url ${this.debugUrl}`);
+    log.debug(`[${name}] : Debug url ${this.debugUrl}`);
 
     await this.removePercyCSS();
     return {
@@ -296,7 +299,7 @@ export default class GenericProvider {
     return ignoredElementsArray;
   }
 
-  async getHeaderFooter(deviceName, osVersion, browserName) {
+  async getHeaderFooter(deviceName, osVersion, browserNamedeviceName, osVersion, browserName) {
     // passing 0 as key, since across different pages and tests, this config will remain same
     const devicesConfig = await Cache.withCache(Cache.devicesConfig, 0, async () => {
       return (await request(DEVICES_CONFIG_URL)).body;

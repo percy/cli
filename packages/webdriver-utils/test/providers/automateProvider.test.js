@@ -1,7 +1,9 @@
 import Driver from '../../src/driver.js';
 import GenericProvider from '../../src/providers/genericProvider.js';
 import AutomateProvider from '../../src/providers/automateProvider.js';
+import DesktopMetaData from '../../src/metadata/desktopMetaData.js';
 import Tile from '../../src/util/tile.js';
+import MobileMetaData from '../../src/metadata/mobileMetaData.js';
 
 describe('AutomateProvider', () => {
   let superScreenshotSpy;
@@ -46,20 +48,25 @@ describe('AutomateProvider', () => {
   });
 
   describe('setDebugUrl', () => {
-    let browserstackExecutorSpy;
+    let percyScreenshotBeginSpy;
+    let percyBuildInfo = {
+      id: '123',
+      url: 'https://percy.io/abc/123'
+    };
 
     beforeEach(async () => {
+      percyScreenshotBeginSpy = spyOn(AutomateProvider.prototype,
+        'percyScreenshotBegin').and.returnValue(Promise.resolve({ value: '{"buildHash":"12e3","sessionHash":"abc1d"}' }));
       spyOn(Driver.prototype, 'getCapabilites');
-      browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
-        .and.returnValue(Promise.resolve({ value: '{"browser_url": "http:localhost"}' }));
     });
 
-    it('calls browserstackExecutor getSessionDetails', async () => {
-      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {});
+    it('sets automate url', async () => {
+      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', {}, percyBuildInfo);
       await automateProvider.createDriver();
-      await automateProvider.setDebugUrl();
-      expect(browserstackExecutorSpy).toHaveBeenCalledWith('getSessionDetails');
-      expect(automateProvider.debugUrl).toEqual('http:localhost');
+      await automateProvider.screenshot('abc', { });
+
+      expect(percyScreenshotBeginSpy).toHaveBeenCalledWith('abc');
+      expect(automateProvider.debugUrl).toEqual('https://automate.browserstack.com/builds/12e3/sessions/abc1d');
     });
 
     it('throws error if driver is not initialized', async () => {
@@ -82,10 +89,6 @@ describe('AutomateProvider', () => {
   describe('screenshot', () => {
     let percyScreenshotBeginSpy;
     let percyScreenshotEndSpy;
-<<<<<<< HEAD
-    const ignoreRegionOptions = { ignoreRegionXpaths: [], ignoreRegionSelectors: [], ignoreRegionElements: [], customIgnoreRegions: [] };
-    const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {});
-=======
     const options = {
       ignoreRegionXpaths: [],
       ignoreRegionSelectors: [],
@@ -101,11 +104,10 @@ describe('AutomateProvider', () => {
       url: 'https://percy.io/abc/123'
     };
     const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', {}, percyBuildInfo);
->>>>>>> 270edc3f ([PER-2277] Add consider regions (#1318))
 
     beforeEach(async () => {
       percyScreenshotBeginSpy = spyOn(AutomateProvider.prototype,
-        'percyScreenshotBegin').and.returnValue(true);
+        'percyScreenshotBegin').and.returnValue({ value: '{"buildHash":"12e3","sessionHash":"abc1d"}' });
       percyScreenshotEndSpy = spyOn(AutomateProvider.prototype,
         'percyScreenshotEnd').and.returnValue(true);
       spyOn(Driver.prototype, 'getCapabilites');
@@ -217,6 +219,115 @@ describe('AutomateProvider', () => {
     it('throws error when driver is null', async () => {
       automateProvider.driver = null;
       await expectAsync(automateProvider.getTiles(false)).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
+    });
+  });
+
+  describe('getTag', () => {
+    let percyScreenshotBeginSpy;
+    let windowSizeSpy;
+    let orientationSpy;
+    let resolutionSpy;
+    let getHeaderFooterSpy;
+    let percyBuildInfo = {
+      id: '123',
+      url: 'https://percy.io/abc/123'
+    };
+
+    describe('for desktop', () => {
+      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', {}, percyBuildInfo);
+      beforeEach(async () => {
+        percyScreenshotBeginSpy = spyOn(AutomateProvider.prototype,
+          'percyScreenshotBegin').and.returnValue({ value: '{"buildHash":"12e3","sessionHash":"abc1d","capabilities":{"browserName":"chrome","browserVersion":"113.0","os":"win11","os_version":"11","deviceOrientation":false,"resolution":["1920","1080"]},"success":true,"deviceName":"x.x.x.x"}' });
+        spyOn(Driver.prototype, 'getCapabilites');
+        getHeaderFooterSpy = spyOn(GenericProvider.prototype, 'getHeaderFooter').and.returnValue(Promise.resolve([0, 0]));
+        windowSizeSpy = spyOn(DesktopMetaData.prototype, 'windowSize')
+          .and.returnValue(Promise.resolve({ width: 1000, height: 1000 }));
+        resolutionSpy = spyOn(DesktopMetaData.prototype, 'screenResolution')
+          .and.returnValue('1980 x 1080');
+        orientationSpy = spyOn(DesktopMetaData.prototype, 'orientation')
+          .and.returnValue('landscape');
+      });
+
+      it('generates comparison tag for desktop', async () => {
+        await automateProvider.createDriver();
+        await automateProvider.screenshot('abc', { });
+
+        const res = await automateProvider.getTag();
+
+        expect(percyScreenshotBeginSpy).toHaveBeenCalledWith('abc');
+        expect(windowSizeSpy).toHaveBeenCalledTimes(1);
+        expect(resolutionSpy).toHaveBeenCalledTimes(1);
+        expect(orientationSpy).toHaveBeenCalledTimes(1);
+        expect(getHeaderFooterSpy).toHaveBeenCalledTimes(1);
+        expect(res).toEqual({
+          name: 'Windows_11_chrome_113',
+          osName: 'Windows',
+          osVersion: '11',
+          width: 1000,
+          height: 1000,
+          orientation: 'landscape',
+          browserName: 'chrome',
+          browserVersion: '113',
+          resolution: '1980 x 1080'
+        });
+      });
+    });
+
+    describe('for devices', () => {
+      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'android' }, {}, {}, 'client', 'environment', {}, percyBuildInfo);
+      beforeEach(async () => {
+        percyScreenshotBeginSpy = spyOn(AutomateProvider.prototype,
+          'percyScreenshotBegin').and.returnValue({ value: '{"buildHash":"12e3","sessionHash":"abc1d","capabilities":{"browserName":"chrome_android","browserVersion":"chrome_android","os":"android","os_version":"11","deviceOrientation":"portrait","resolution":["1920","1080"]},"success":true,"deviceName":"Samsung Galaxy S21"}' });
+        spyOn(Driver.prototype, 'getCapabilites');
+        getHeaderFooterSpy = spyOn(GenericProvider.prototype, 'getHeaderFooter').and.returnValue(Promise.resolve([0, 0]));
+        windowSizeSpy = spyOn(MobileMetaData.prototype, 'windowSize')
+          .and.returnValue(Promise.resolve({ width: 1000, height: 1000 }));
+        resolutionSpy = spyOn(MobileMetaData.prototype, 'screenResolution')
+          .and.returnValue('1980 x 1080');
+        orientationSpy = spyOn(MobileMetaData.prototype, 'orientation')
+          .and.returnValue(undefined);
+      });
+
+      it('generates comparsion tag for mobile', async () => {
+        await automateProvider.createDriver();
+        await automateProvider.screenshot('abc', { });
+
+        const res = await automateProvider.getTag();
+
+        expect(percyScreenshotBeginSpy).toHaveBeenCalledWith('abc');
+        expect(windowSizeSpy).toHaveBeenCalledTimes(1);
+        expect(resolutionSpy).toHaveBeenCalledTimes(1);
+        expect(orientationSpy).toHaveBeenCalledTimes(1);
+        expect(getHeaderFooterSpy).toHaveBeenCalledTimes(1);
+        expect(res).toEqual({
+          name: 'Samsung Galaxy S21',
+          osName: 'Android',
+          osVersion: '11',
+          width: 1000,
+          height: 1000,
+          orientation: 'portrait',
+          browserName: 'chrome',
+          browserVersion: 'Samsung Galaxy S21',
+          resolution: '1980 x 1080'
+        });
+      });
+    });
+
+    describe('driver is null', () => {
+      it('throws Error when called without initializing driver', async () => {
+        let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', {}, percyBuildInfo);
+        await expectAsync(automateProvider.getTag())
+          .toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
+      });
+    });
+
+    describe('automateResults is null', () => {
+      it('throws Error automateResults are not available', async () => {
+        let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', {}, percyBuildInfo);
+        await automateProvider.createDriver();
+        await expectAsync(automateProvider.getTag())
+          .toBeRejectedWithError('Comparison tag details not available');
+      });
     });
   });
 });
