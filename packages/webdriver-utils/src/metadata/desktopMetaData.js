@@ -47,6 +47,14 @@ export default class DesktopMetaData {
     return { width, height };
   }
 
+  async screenResolution() {
+    return await Cache.withCache(Cache.resolution, this.driver.sessionId, async () => {
+      const data = await this.driver.executeScript({ script: 'return [(window.screen.width * window.devicePixelRatio).toString(), (window.screen.height * window.devicePixelRatio).toString()];', args: [] });
+      const screenInfo = data.value;
+      return `${screenInfo[0]} x ${screenInfo[1]}`;
+    });
+  }
+
   async devicePixelRatio() {
     return await Cache.withCache(Cache.dpr, this.driver.sessionId, async () => {
       const devicePixelRatio = await this.driver.executeScript({ script: 'return window.devicePixelRatio;', args: [] });

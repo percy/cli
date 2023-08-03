@@ -48,7 +48,11 @@ describe('AutomateProvider', () => {
   });
 
   describe('setDebugUrl', () => {
-    let browserstackExecutorSpy;
+    let percyScreenshotBeginSpy;
+    let percyBuildInfo = {
+      id: '123',
+      url: 'https://percy.io/abc/123'
+    };
 
     beforeEach(async () => {
       percyScreenshotBeginSpy = spyOn(AutomateProvider.prototype,
@@ -56,8 +60,8 @@ describe('AutomateProvider', () => {
       spyOn(Driver.prototype, 'getCapabilites');
     });
 
-    it('calls browserstackExecutor getSessionDetails', async () => {
-      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {});
+    it('sets automate url', async () => {
+      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', {}, percyBuildInfo);
       await automateProvider.createDriver();
       await automateProvider.screenshot('abc', { });
 
