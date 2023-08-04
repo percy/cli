@@ -397,13 +397,17 @@ async function saveResponseResource(network, request) {
         return log.debug(`- Skipping disallowed resource type [${request.type}]`, meta);
       }
 
+      let detectedMime = mime.lookup(response.url);
       let mimeType = (
         // ensure the mimetype is correct for text/plain responses
-        response.mimeType === 'text/plain' && mime.lookup(response.url)
+        response.mimeType === 'text/plain' && detectedMime
       ) || response.mimeType;
 
-      // font responses from the browser may not be properly encoded, so request them directly
-      if (mimeType?.includes('font')) {
+      // if we detect a font mime, we dont want to override it as different browsers may behave
+      // differently for incorrect mimetype in font response, but we want to treat it as a
+      // font anyway as font responses from the browser may not be properly encoded,
+      // so request them directly.
+      if (mimeType?.includes('font') || (detectedMime && detectedMime.includes('font'))) {
         log.debug('- Requesting asset directly');
         body = await makeDirectRequest(network, request);
       }

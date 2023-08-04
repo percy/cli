@@ -380,6 +380,37 @@ describe('Discovery', () => {
     );
   });
 
+  describe('when response mime is application/octate-stream for a font file', () => {
+    it('fetches font file correctly with makeDirect', async () => {
+      // add font to page via stylesheet
+      server.reply('/style.css', () => [200, 'text/css', [
+        '@font-face { font-family: "test"; src: url("/font.woff") format("woff"); }',
+        'body { font-family: "test", "sans-serif"; }'
+      ].join('')]);
+
+      server.reply('/font.woff', () => {
+        return [200, 'application/octate-stream', '<font>'];
+      });
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await percy.idle();
+      // confirm that request was made 2 times, once via browser and once due to makeDirectRequest
+      let paths = server.requests.map(r => r[0]);
+      expect(paths.filter(x => x === '/font.woff').length).toEqual(2);
+
+      let requestData = captured[0].map((x) => x.attributes)
+        .filter(x => x['resource-url'] === 'http://localhost:8000/font.woff')[0];
+
+      // confirm that original response mimetype is not tampered
+      expect(requestData.mimetype).toEqual('application/octate-stream');
+    });
+  });
+
   it('does not mimetype parse resourced with no file extension', async () => {
     let brokeDOM = testDOM.replace('style.css', 'broken-css');
     server.reply('/broken-css', () => [200, 'text/plain', testCSS]);
