@@ -366,7 +366,7 @@ export class PercyClient {
     return snapshot;
   }
 
-  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domInfoSha, consideredElementsData, windowHeight } = {}) {
+  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domInfoSha, consideredElementsData } = {}) {
     validateId('snapshot', snapshotId);
     // Remove post percy api deploy
     this.log.debug(`Creating comparision: ${tag.name}...`);
@@ -388,8 +388,7 @@ export class PercyClient {
           'external-debug-url': externalDebugUrl || null,
           'ignore-elements-data': ignoredElementsData || null,
           'consider-elements-data': consideredElementsData || null,
-          'dom-info-sha': domInfoSha || null,
-          'window-height': windowHeight || null
+          'dom-info-sha': domInfoSha || null
         },
         relationships: {
           tag: {
@@ -402,6 +401,9 @@ export class PercyClient {
                 'os-name': tag.osName || null,
                 'os-version': tag.osVersion || null,
                 orientation: tag.orientation || null,
+                'browser-name': tag.browserName || null,
+                'browser-version': tag.browserVersion || null,
+                resolution: tag.resolution || null,
                 'browser-name': tag.browserName || null,
                 'browser-version': tag.browserVersion || null,
                 resolution: tag.resolution || null
@@ -567,6 +569,47 @@ export class PercyClient {
         return 'web';
     }
   }
+
+  // decides project type
+  tokenType() {
+    let token = this.getToken(false) || '';
+
+    const type = token.split('_')[0];
+    switch (type) {
+      case 'auto':
+        return 'automate';
+      case 'web':
+        return 'web';
+      case 'app':
+        return 'app';
+      case 'ss':
+        return 'generic';
+      default:
+        return 'web';
+    }
+  }
+<<<<<<< HEAD
+
+  // decides project type
+  tokenType() {
+    let token = this.getToken(false) || '';
+
+    const type = token.split('_')[0];
+    switch (type) {
+      case 'auto':
+        return 'automate';
+      case 'web':
+        return 'web';
+      case 'app':
+        return 'app';
+      case 'ss':
+        return 'generic';
+      default:
+        return 'web';
+    }
+  }
+=======
+>>>>>>> 9e176ee4 (✨ Percy on Automate Support (#1292))
 }
 
 export default PercyClient;

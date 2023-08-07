@@ -155,8 +155,7 @@ export default class GenericProvider {
       },
       environmentInfo: [...this.environmentInfo].join('; '),
       clientInfo: [...this.clientInfo].join(' '),
-      domInfoSha: tiles.domInfoSha,
-      windowHeight: tiles.windowHeight
+      domInfoSha: tiles.domInfoSha
     };
   }
 
