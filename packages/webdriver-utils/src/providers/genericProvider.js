@@ -156,7 +156,7 @@ export default class GenericProvider {
       environmentInfo: [...this.environmentInfo].join('; '),
       clientInfo: [...this.clientInfo].join(' '),
       domInfoSha: tiles.domInfoSha,
-      windowHeight: tiles.windowHeight
+      windowHeight: tiles.windowHeight || null
     };
   }
 
@@ -164,6 +164,12 @@ export default class GenericProvider {
   async getDomContent() {
     // execute script and return dom content
     return 'dummyValue';
+  }
+
+  // TODO: get window height for non-automate
+  async getWindowHeight() {
+    // execute script and return window height
+    await this.driver.executeScript({ script: 'return window.innerHeight', args: [] }); ;
   }
 
   async getTiles(headerHeight, footerHeight, fullscreen) {
@@ -182,7 +188,8 @@ export default class GenericProvider {
         })
       ],
       // TODO: Add Generic support sha for contextual diff for non-automate
-      domInfoSha: await this.getDomContent()
+      domInfoSha: await this.getDomContent(),
+      windowHeight: await this.getWindowHeight()
     };
   }
 

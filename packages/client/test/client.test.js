@@ -853,7 +853,8 @@ describe('PercyClient', () => {
         externalDebugUrl: 'http://debug.localhost',
         ignoredElementsData: ignoredElementsData,
         consideredElementsData: consideredElementsData,
-        domInfoSha: 'abcd='
+        domInfoSha: 'abcd=',
+        windowHeight: 1947
       })).toBeResolved();
 
       expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
@@ -863,7 +864,8 @@ describe('PercyClient', () => {
             'external-debug-url': 'http://debug.localhost',
             'ignore-elements-data': ignoredElementsData,
             'consider-elements-data': consideredElementsData,
-            'dom-info-sha': 'abcd='
+            'dom-info-sha': 'abcd=',
+            'window-height': 1947
           },
           relationships: {
             tag: {
@@ -932,7 +934,8 @@ describe('PercyClient', () => {
             'external-debug-url': null,
             'ignore-elements-data': null,
             'consider-elements-data': null,
-            'dom-info-sha': null
+            'dom-info-sha': null,
+            'window-height': null
           },
           relationships: {
             tag: {
@@ -1186,7 +1189,8 @@ describe('PercyClient', () => {
             'external-debug-url': null,
             'ignore-elements-data': null,
             'consider-elements-data': null,
-            'dom-info-sha': null
+            'dom-info-sha': null,
+            'window-height': null
           },
           relationships: {
             tag: {

@@ -37,6 +37,7 @@ describe('GenericProvider', () => {
     beforeEach(() => {
       spyOn(Driver.prototype, 'takeScreenshot').and.returnValue(Promise.resolve('123b='));
       spyOn(GenericProvider.prototype, 'getHeaderFooter').and.returnValue(Promise.resolve([123, 456]));
+      spyOn(GenericProvider.prototype, 'getWindowHeight').and.returnValue(Promise.resolve(1947));
     });
 
     it('creates tiles from screenshot', async () => {
@@ -168,7 +169,8 @@ describe('GenericProvider', () => {
         ignoredElementsData: { ignoreElementsData: [] },
         consideredElementsData: { considerElementsData: [] },
         clientInfo: 'local-poc-poa',
-        domInfoSha: 'mock-dom-sha'
+        domInfoSha: 'mock-dom-sha',
+        windowHeight: null
       });
     });
   });
