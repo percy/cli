@@ -14,6 +14,7 @@ export async function isPercyEnabled() {
       percy.config = response.body.config;
       percy.build = response.body.build;
       percy.enabled = true;
+      percy.type = response.body.type;
     } catch (e) {
       percy.enabled = false;
       error = e;

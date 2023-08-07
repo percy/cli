@@ -59,6 +59,14 @@ export const exec = command('exec', {
     log.warn('Percy is disabled');
   } else {
     try {
+      // Skip this for app because they are triggered as app:exec
+      // Remove this once they move to exec command as well
+      if (percy.projectType !== 'app') {
+        percy.projectType = percy.client.tokenType();
+        percy.skipDiscovery = percy.shouldSkipAssetDiscovery(percy.projectType);
+      } else {
+        log.debug('Skipping percy project attribute calculation');
+      }
       yield* percy.yield.start();
     } catch (error) {
       if (error.name === 'AbortError') throw error;

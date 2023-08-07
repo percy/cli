@@ -54,6 +54,7 @@ jobs:
           - '@percy/cli-build'
           - '@percy/cli-config'
           - '@percy/sdk-utils'
+          - '@percy/webdriver-utils'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3

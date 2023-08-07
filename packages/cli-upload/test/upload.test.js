@@ -1,5 +1,6 @@
 import { fs, logger, api, setupTest } from '@percy/cli-command/test/helpers';
 import upload from '@percy/cli-upload';
+import { BYOS_TAG } from '../src/upload.js';
 
 // http://png-pixel.com/
 const pixel = Buffer.from((
@@ -9,7 +10,7 @@ const pixel = Buffer.from((
 describe('percy upload', () => {
   beforeEach(async () => {
     upload.packageInformation = { name: '@percy/cli-upload' };
-    process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+    process.env.PERCY_TOKEN = 'web_<<PERCY_TOKEN>>';
 
     await setupTest({
       filesystem: {
@@ -65,7 +66,7 @@ describe('percy upload', () => {
     ]);
   });
 
-  it('creates a new build and uploads snapshots', async () => {
+  it('creates a new build and uploads snapshots with web token', async () => {
     await upload(['./images']);
 
     expect(logger.stderr).toEqual([]);
@@ -197,6 +198,55 @@ describe('percy upload', () => {
       '[percy] Stopping percy...',
       '[percy] Snapshot uploaded: test-1.png',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
+    ]);
+  });
+
+  it('creates a new build and upload snapshots with ss token', async () => {
+    process.env.PERCY_TOKEN = 'ss_<<PERCY_TOKEN>>';
+    await upload(['./images']);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Percy has started!',
+      '[percy] Uploading 3 snapshots...',
+      '[percy] Snapshot uploaded: test-1.png',
+      '[percy] Snapshot uploaded: test-2.jpg',
+      '[percy] Snapshot uploaded: test-3.jpeg',
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
+    ]));
+
+    expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
+      data: {
+        type: 'comparisons',
+        attributes: jasmine.objectContaining({
+          'external-debug-url': null,
+          'ignore-elements-data': null
+        }),
+        relationships: {
+          tag: {
+            data: {
+              type: 'tag',
+              attributes: jasmine.objectContaining(BYOS_TAG)
+            }
+          },
+          tiles: {
+            data: jasmine.arrayContaining([{
+              type: 'tiles',
+              attributes: jasmine.objectContaining({
+                sha: jasmine.any(String)
+              })
+            }])
+          }
+        }
+      }
+    });
+  });
+
+  it('throws error for token type other than web and generic', async () => {
+    process.env.PERCY_TOKEN = 'app_invalid_token';
+    await expectAsync(upload(['./images'])).toBeRejected();
+    expect(logger.stderr).toEqual([
+      '[percy] Error: Invalid Token Type. Only "web" and "self-managed" token types are allowed.'
     ]);
   });
 });

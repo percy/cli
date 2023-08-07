@@ -53,6 +53,10 @@ describe('SDK Utils', () => {
         expect(percy).toHaveProperty('config.snapshot.widths', [375, 1280]);
       });
 
+      it('contains type', () => {
+        expect(percy.type).toEqual('web');
+      });
+
       it('contains percy build info', () => {
         expect(percy.build).toHaveProperty('id', '123');
         expect(percy.build).toHaveProperty('url', 'https://percy.io/test/test/123');
@@ -194,6 +198,52 @@ describe('SDK Utils', () => {
         method: 'POST',
         body: options
       }]);
+    });
+  });
+
+  describe('captureAutomateScreenshot(options[, params])', () => {
+    let { captureAutomateScreenshot } = utils;
+    let options;
+
+    beforeEach(() => {
+      options = {
+        snapshotName: 'Snapshot Name',
+        commandExecutorUrl: 'http://localhost:8000/',
+        capabilities: '<SERIALIZED_capabilities>',
+        sessionCapabilites: '<SERIALIZED_capabilities>',
+        clientInfo: 'sdk/version',
+        environmentInfo: ['lib/version', 'lang/version'],
+        sessionId: '123'
+      };
+      spyOn(utils.request, 'post').and.callFake(() => Promise.resolve(true));
+    });
+
+    it('posts screenshot options to the CLI API snapshot endpoint', async () => {
+      await captureAutomateScreenshot(options);
+      expect(utils.request.post).toHaveBeenCalledWith('/percy/automateScreenshot', options);
+    });
+
+    it('throws when the screenshot API fails', async () => {
+      spyOn(utils.request, 'post').and.callFake(() => Promise.reject(new Error('testing')));
+      await expectAsync(captureAutomateScreenshot({}))
+        .toBeRejectedWithError('testing');
+    });
+
+    it('disables screenshots when a build fails', async () => {
+      // eslint-disable-next-line prefer-promise-reject-errors
+      spyOn(utils.request, 'post').and.callFake(() => Promise.reject({ response: { body: { build: { error: true } } } }));
+
+      utils.percy.enabled = true;
+      expect(utils.percy.enabled).toEqual(true);
+      await captureAutomateScreenshot({});
+      expect(utils.percy.enabled).toEqual(false);
+    });
+
+    it('accepts URL parameters as the second argument', async () => {
+      let params = { test: 'foobar' };
+
+      await expectAsync(captureAutomateScreenshot(options, params)).toBeResolved();
+      expect(utils.request.post).toHaveBeenCalledWith(`/percy/automateScreenshot?${new URLSearchParams(params)}`, options);
     });
   });
 

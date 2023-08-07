@@ -2,6 +2,7 @@ import path from 'path';
 import PercyConfig from '@percy/config';
 import { logger, setupTest, fs } from './helpers/index.js';
 import Percy from '@percy/core';
+import WebdriverUtils from '@percy/webdriver-utils'; // eslint-disable-line import/no-extraneous-dependencies
 
 describe('API Server', () => {
   let percy;
@@ -53,7 +54,8 @@ describe('API Server', () => {
         id: '123',
         number: 1,
         url: 'https://percy.io/test/test/123'
-      }
+      },
+      type: percy.client.tokenType()
     });
   });
 
@@ -127,6 +129,17 @@ describe('API Server', () => {
     expect(percy.flush).toHaveBeenCalledWith({
       name: 'Snapshot name'
     });
+  });
+
+  it('has a /automateScreenshot endpoint that calls #upload()', async () => {
+    spyOn(percy, 'upload').and.resolveTo();
+    spyOn(WebdriverUtils.prototype, 'automateScreenshot').and.resolveTo(true);
+    await percy.start();
+
+    await expectAsync(request('/percy/automateScreenshot', {
+      body: { name: 'Snapshot name' },
+      method: 'post'
+    })).toBeResolvedTo({ success: true });
   });
 
   it('has a /stop endpoint that calls #stop()', async () => {
@@ -314,8 +327,13 @@ describe('API Server', () => {
     const req = p => request(`${addr}${p}`, { retries: 0 }, false);
 
     beforeEach(async () => {
+      process.env.PERCY_TOKEN = 'TEST_TOKEN';
       percy = await Percy.start({ testing: true });
       logger.instance.messages.clear();
+    });
+
+    afterEach(() => {
+      delete process.env.PERCY_TOKEN;
     });
 
     it('implies loglevel silent and dryRun', () => {
