@@ -2,6 +2,7 @@ import { sha256hash } from '@percy/client/utils';
 import { logger, api, setupTest, createTestServer, dedent } from './helpers/index.js';
 import Percy from '@percy/core';
 import { RESOURCE_CACHE_KEY } from '../src/discovery.js';
+import Session from '../src/session.js';
 
 describe('Discovery', () => {
   let percy, server, captured;
@@ -379,6 +380,37 @@ describe('Discovery', () => {
     );
   });
 
+  describe('when response mime is application/octate-stream for a font file', () => {
+    it('fetches font file correctly with makeDirect', async () => {
+      // add font to page via stylesheet
+      server.reply('/style.css', () => [200, 'text/css', [
+        '@font-face { font-family: "test"; src: url("/font.woff") format("woff"); }',
+        'body { font-family: "test", "sans-serif"; }'
+      ].join('')]);
+
+      server.reply('/font.woff', () => {
+        return [200, 'application/octate-stream', '<font>'];
+      });
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await percy.idle();
+      // confirm that request was made 2 times, once via browser and once due to makeDirectRequest
+      let paths = server.requests.map(r => r[0]);
+      expect(paths.filter(x => x === '/font.woff').length).toEqual(2);
+
+      let requestData = captured[0].map((x) => x.attributes)
+        .filter(x => x['resource-url'] === 'http://localhost:8000/font.woff')[0];
+
+      // confirm that original response mimetype is not tampered
+      expect(requestData.mimetype).toEqual('application/octate-stream');
+    });
+  });
+
   it('does not mimetype parse resourced with no file extension', async () => {
     let brokeDOM = testDOM.replace('style.css', 'broken-css');
     server.reply('/broken-css', () => [200, 'text/plain', testCSS]);
@@ -540,18 +572,20 @@ describe('Discovery', () => {
 
   it('logs failed request errors with a debug loglevel', async () => {
     percy.loglevel('debug');
+
     await percy.snapshot({
       name: 'test snapshot',
       url: 'http://localhost:8000',
-      domSnapshot: testDOM.replace('style.css', '/404/style.css')
+      domSnapshot: testDOM.replace('style.css', 'http://localhost:404/style.css')
     });
+    // with an unknown port number, we should get connection refused error
 
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy:core] Snapshot taken: test snapshot'
     ]));
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       jasmine.stringMatching(new RegExp( // eslint-disable-line prefer-regex-literals
-        '^\\[percy:core:discovery\\] Request failed for http://localhost:8000/404/style\\.css: net::'
+        '^\\[percy:core:discovery\\] Request failed for http://localhost:404/style\\.css: net::ERR_CONNECTION_REFUSED'
       ))
     ]));
   });
@@ -745,6 +779,81 @@ describe('Discovery', () => {
           'resource-url': 'http://localhost:8000/img.gif'
         })
       })
+    ]));
+  });
+
+  it('does not error on cancelled requests', async () => {
+    percy.loglevel('debug');
+
+    let url = 'http://localhost:8000/test';
+    let doc = dedent`
+      <!DOCTYPE html><html><head></head><body><script>
+        async function fetchWithTimeout(resource, options = {}) {
+          const { timeout = 8000 } = options;
+          const controller = new AbortController();
+          const id = setTimeout(() => controller.abort(), timeout);
+          const response = await fetch(resource, {
+            ...options,
+            signal: controller.signal
+          });
+          clearTimeout(id);
+          return response;
+        }
+        setTimeout(() => fetchWithTimeout("${url}", { timeout: 50 }), 10);
+      </script></body></html>
+    `;
+    // above request is cancelled in 50ms, and it will not resolve in 50ms as per following
+    // mock so we can reproduce browser cancelling the request post requesting it
+
+    spyOn(Session.prototype, 'send').and.callFake(function(method, params) {
+      if (method === 'Fetch.continueRequest') {
+        this.log.debug(`Got Fetch.continueRequest ${params.requestId}`);
+        this.log.debug(`Waiting for request to get aborted ${params.requestId}`);
+
+        // waste 1 sec
+        let startTime = new Date().getSeconds();
+        while (startTime === new Date().getSeconds()) {
+          // waste time
+          // We cant use jasmine timer tick here as thats simulated time vs we want to actually
+          // wait for 1 sec
+          // We are waiting for js fetch call in above doc to get cancelled as we have set timeout
+          // of 50ms there
+          // Current real time wait would stall the request for a second so that it cant resolve in
+          // 50 ms. Allowing us to reproduce the race condition
+        }
+        // note, while we wait 1 sec on primary page load request as well, that will not get
+        // aborted so we are good, even if request is delayed
+      }
+      return this.send.and.originalFn.call(this, method, params);
+    });
+
+    server.reply('/', () => [200, 'text/html', doc]);
+
+    server.reply('/test', () => [200, 'text/plain', 'abc']);
+
+    await percy.snapshot({
+      name: 'cancelled request',
+      url: 'http://localhost:8000',
+      enableJavaScript: true
+    });
+
+    await percy.idle();
+
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy:core] Snapshot taken: cancelled request'
+    ]));
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(new RegExp( // eslint-disable-line prefer-regex-literals
+        `^\\[percy:core:discovery\\] Request aborted for ${url}: net::ERR_ABORTED`
+      )),
+      jasmine.stringMatching(new RegExp( // eslint-disable-line prefer-regex-literals
+        `^\\[percy:core:discovery\\] Ignoring further steps for ${url} as request was aborted by the browser.`
+      ))
+    ]));
+    expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(new RegExp( // eslint-disable-line prefer-regex-literals
+        '^\\[percy:core:discovery\\] Error: Protocol error (Fetch.fulfillRequest): Invalid InterceptionId.'
+      ))
     ]));
   });
 

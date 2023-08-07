@@ -79,7 +79,7 @@ function mapSnapshotOptions(snapshots, context) {
       snapshotMatches(snap, include, exclude) ? Object.assign(snap, opts) : snap
     ), snap => getSnapshotOptions(snap, context));
 
-  // reduce snapshots with overrides
+  // reduce snapshots with options
   return snapshots.reduce((acc, snapshot) => {
     // transform snapshot URL shorthand into an object
     if (typeof snapshot === 'string') snapshot = { url: snapshot };
@@ -373,6 +373,15 @@ export function createSnapshotsQueue(percy) {
         build.error = error.message = failed.detail;
         build.failed = true;
         queue.close(true);
+      }
+
+      let errors = error.response?.body?.errors;
+      let duplicate = errors?.length > 1 && errors[1].detail.includes('must be unique');
+      if (duplicate) {
+        if (process.env.PERCY_IGNORE_DUPLICATES !== 'true') {
+          percy.log.warn(`Ignored duplicate snapshot. ${errors[1].detail}`);
+        }
+        return result;
       }
 
       percy.log.error(`Encountered an error uploading snapshot: ${name}`, meta);
