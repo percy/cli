@@ -226,6 +226,20 @@ describe('GenericProvider', () => {
     });
   });
 
+  describe('getWindowHeight', () => {
+    beforeEach(() => {
+      spyOn(Driver.prototype, 'executeScript').and.returnValue(Promise.resolve(true));
+    });
+
+    it('should call executeScript to get windowHeight', async () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      await genericProvider.createDriver();
+      await genericProvider.getWindowHeight();
+      expect(genericProvider.driver.executeScript).toHaveBeenCalledTimes(1);
+      expect(genericProvider.driver.executeScript).toHaveBeenCalledWith({ script: 'return window.innerHeight', args: [] });
+    });
+  });
+
   describe('removePercyCSS', () => {
     beforeEach(() => {
       spyOn(Driver.prototype, 'executeScript').and.returnValue(Promise.resolve(true));
