@@ -138,8 +138,8 @@ export default class AutomateProvider extends GenericProvider {
 
     for (let tileData of tileResponse.sha) {
       tiles.push(new Tile({
-        statusBarHeight: 0,
-        navBarHeight: 0,
+        statusBarHeight: tileResponse.header_height || 0,
+        navBarHeight: tileResponse.footer_height || 0,
         headerHeight,
         footerHeight,
         fullscreen,
