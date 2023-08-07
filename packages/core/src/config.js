@@ -428,6 +428,40 @@ const regionsSchema = {
   }
 };
 
+const regionsSchema = {
+  type: 'array',
+  items: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      selector: {
+        type: 'string'
+      },
+      coOrdinates: {
+        type: 'object',
+        properties: {
+          top: {
+            type: 'integer',
+            minimum: 0
+          },
+          left: {
+            type: 'integer',
+            minimum: 0
+          },
+          bottom: {
+            type: 'integer',
+            minimum: 0
+          },
+          right: {
+            type: 'integer',
+            minimum: 0
+          }
+        }
+      }
+    }
+  }
+};
+
 // Comparison upload options
 export const comparisonSchema = {
   type: 'object',
@@ -438,7 +472,6 @@ export const comparisonSchema = {
     name: { type: 'string' },
     externalDebugUrl: { type: 'string' },
     domInfoSha: { type: 'string' },
-    windowHeight: { type: 'integer' },
     tag: {
       type: 'object',
       additionalProperties: false,
@@ -461,6 +494,9 @@ export const comparisonSchema = {
           type: 'string',
           enum: ['portrait', 'landscape']
         },
+        browserName: { type: 'string' },
+        browserVersion: { type: 'string' },
+        resolution: { type: 'string' },
         browserName: { type: 'string' },
         browserVersion: { type: 'string' },
         resolution: { type: 'string' }

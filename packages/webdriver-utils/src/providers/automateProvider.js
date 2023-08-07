@@ -133,20 +133,18 @@ export default class AutomateProvider extends GenericProvider {
     const tiles = [];
     const tileResponse = JSON.parse(responseValue.result);
     log.debug('Tiles captured successfully');
-    const windowHeight = (await this.driver.executeScript({ script: 'return window.innerHeight;', args: [] })).value;
-    const dpr = (await this.driver.executeScript({ script: 'return window.devicePixelRatio;', args: [] })).value;
 
     for (let tileData of tileResponse.sha) {
       tiles.push(new Tile({
-        statusBarHeight: tileResponse.header_height || 0,
-        navBarHeight: tileResponse.footer_height || 0,
+        statusBarHeight: 0,
+        navBarHeight: 0,
         headerHeight,
         footerHeight,
         fullscreen,
         sha: tileData.split('-')[0] // drop build id
       }));
     }
-    return { tiles: tiles, domInfoSha: tileResponse.dom_sha, windowHeight: Math.ceil(windowHeight * dpr) };
+    return { tiles: tiles, domInfoSha: tileResponse.dom_sha };
   }
 
   async browserstackExecutor(action, args) {
