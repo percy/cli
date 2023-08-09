@@ -212,7 +212,7 @@ describe('AutomateProvider', () => {
       await automateProvider.createDriver();
       const res = await automateProvider.getTiles(123, 456, false);
       expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
-      expect(executeScriptSpy).toHaveBeenCalledTimes(3);
+      expect(executeScriptSpy).toHaveBeenCalledTimes(1);
       expect(Object.keys(res).length).toEqual(3);
       expect(res.domInfoSha).toBe('abc');
       expect(res.tiles.length).toEqual(2);
