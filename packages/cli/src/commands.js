@@ -130,7 +130,7 @@ export async function importCommands() {
       pkgs.set(pkg.name, async () => {
         if (pkg.oclif.hooks?.init) {
           let initPath = path.join(pkgPath, pkg.oclif.hooks.init);
-          let init = await import(formatFilepath(initPath));
+          let init = await import(url.pathToFileURL(initPath).href);
           await init.default();
         }
 
