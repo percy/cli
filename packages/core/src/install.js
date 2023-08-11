@@ -69,7 +69,6 @@ export async function download({
     outdir = outdir.replace("/", "");
   }
   let archive = path.join(outdir, decodeURIComponent(url.split('/').pop()));
-  let exec = path.join(outdir, executable);
 
   if (archive.includes("C:")) {
     command = "cd";
@@ -77,6 +76,7 @@ export async function download({
 
   outdir = outdir.replace("C:\\","");
   archive = archive.replace("C:\\","");
+  let exec = path.join(outdir, executable);
 
   if (!fs.existsSync(exec)) {
     let log = logger('core:install');
