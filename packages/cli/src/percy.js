@@ -1,7 +1,6 @@
 import command from '@percy/cli-command';
 import { getPackageJSON } from '@percy/cli-command/utils';
 import { importCommands } from './commands.js';
-import { cli } from '@percy/cli';
 
 const pkg = getPackageJSON(import.meta.url);
 

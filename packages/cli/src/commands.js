@@ -92,11 +92,10 @@ function importLegacyCommands(commandsPath) {
   });
 }
 
-// Helper to import and wrap legacy percy commands for reverse compatibility
 function formatFilepath(filepath) {
-  let path = url.pathToFileURL(filepath).href.replace("file:///","");
-  if (!path.includes("C:")) {
-    path = "/" + path;
+  let path = url.pathToFileURL(filepath).href.replace('file:///', '');
+  if (!path.includes('C:')) {
+    path = '/' + path;
   }
   return path;
 }
