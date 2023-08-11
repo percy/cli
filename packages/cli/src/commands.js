@@ -92,14 +92,6 @@ function importLegacyCommands(commandsPath) {
   });
 }
 
-function formatFilepath(filepath) {
-  let path = url.pathToFileURL(filepath).href.replace('file:///', '');
-  if (!path.includes('C:')) {
-    path = '/' + path;
-  }
-  return path;
-}
-
 // Imports and returns compatibile CLI commands from various sources
 export async function importCommands() {
   let root = path.resolve(url.fileURLToPath(import.meta.url), '../..');
@@ -148,7 +140,7 @@ export async function importCommands() {
       pkgs.set(pkg.name, () => Promise.all(
         pkg['@percy/cli'].commands.map(async cmdPath => {
           let modulePath = path.join(pkgPath, cmdPath);
-          let module = await import(formatFilepath(modulePath));
+          let module = await import(url.pathToFileURL(modulePath).href);
           module.default.packageInformation ||= pkg;
           return module.default;
         })

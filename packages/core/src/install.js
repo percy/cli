@@ -4,7 +4,6 @@ import path from 'path';
 import https from 'https';
 import logger from '@percy/logger';
 import { ProxyHttpsAgent } from '@percy/client/utils';
-import { execSync } from 'child_process';
 
 // Formats a raw byte integer as a string
 function formatBytes(int) {
@@ -63,19 +62,8 @@ export async function download({
   directory,
   executable
 }) {
-  let command = 'pwd';
   let outdir = path.join(directory, revision);
-  if (outdir.charAt(0) === '/') {
-    outdir = outdir.replace('/', '');
-  }
   let archive = path.join(outdir, decodeURIComponent(url.split('/').pop()));
-
-  if (archive.includes('C:')) {
-    command = 'cd';
-  }
-
-  outdir = outdir.replace('C:\\', '');
-  archive = archive.replace('C:\\', '');
   let exec = path.join(outdir, executable);
 
   if (!fs.existsSync(exec)) {
@@ -118,9 +106,6 @@ export async function download({
         );
       }).on('error', reject));
 
-      let output = execSync(command, { encoding: 'utf-8' }).trim();
-      archive = output.concat('/', archive);
-      outdir = output.concat('/', outdir);
       // extract the downloaded file
       await extract(archive, outdir);
 
