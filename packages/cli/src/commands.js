@@ -92,6 +92,15 @@ function importLegacyCommands(commandsPath) {
   });
 }
 
+// Helper to import and wrap legacy percy commands for reverse compatibility
+function formatFilepath(filepath) {
+  let path = url.pathToFileURL(filepath).href.replace("file:///","");
+  if (!path.includes("C:")) {
+    path = "/" + path;
+  }
+  return path;
+}
+
 // Imports and returns compatibile CLI commands from various sources
 export async function importCommands() {
   let root = path.resolve(url.fileURLToPath(import.meta.url), '../..');
@@ -122,7 +131,7 @@ export async function importCommands() {
       pkgs.set(pkg.name, async () => {
         if (pkg.oclif.hooks?.init) {
           let initPath = path.join(pkgPath, pkg.oclif.hooks.init);
-          let init = await import(url.pathToFileURL(initPath).href);
+          let init = await import(formatFilepath(initPath));
           await init.default();
         }
 
@@ -140,7 +149,7 @@ export async function importCommands() {
       pkgs.set(pkg.name, () => Promise.all(
         pkg['@percy/cli'].commands.map(async cmdPath => {
           let modulePath = path.join(pkgPath, cmdPath);
-          let module = await import(url.pathToFileURL(modulePath).href);
+          let module = await import(formatFilepath(modulePath));
           module.default.packageInformation ||= pkg;
           return module.default;
         })
