@@ -169,7 +169,7 @@ export default class GenericProvider {
   // TODO: get window height for non-automate
   async getWindowHeight() {
     // execute script and return window height
-    await this.driver.executeScript({ script: 'return window.innerHeight', args: [] }); ;
+    return await this.driver.executeScript({ script: 'return window.innerHeight', args: [] }); ;
   }
 
   async getTiles(headerHeight, footerHeight, fullscreen) {
