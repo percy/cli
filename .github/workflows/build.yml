@@ -12,8 +12,13 @@ jobs:
       - run: ./scripts/build.sh
       - uses: actions/upload-artifact@v3
         with:
-          name: executables
-          path: |
-            run-macos
-            run-linux
-            run-win.exe
+          name: macos executable
+          path: run-macos
+      - uses: actions/upload-artifact@v3
+        with:
+          name: linux executable
+          path: run-linux
+      - uses: actions/upload-artifact@v3
+        with:
+          name: win executable
+          path: run-win.exe
