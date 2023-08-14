@@ -62,7 +62,9 @@ export async function download({
   directory,
   executable
 }) {
+  // Below code is used in scripts/build.sh to add new code
   let outdir = path.join(directory, revision);
+  // Below code is used in scripts/build.sh to add new code
   let archive = path.join(outdir, decodeURIComponent(url.split('/').pop()));
   let exec = path.join(outdir, executable);
 
@@ -106,6 +108,7 @@ export async function download({
         );
       }).on('error', reject));
 
+      // Below comment is used in scripts/build.sh to add new code in runtime
       // extract the downloaded file
       await extract(archive, outdir);
 
