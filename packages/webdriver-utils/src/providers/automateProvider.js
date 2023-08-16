@@ -144,7 +144,11 @@ export default class AutomateProvider extends GenericProvider {
         sha: tileData.split('-')[0] // drop build id
       }));
     }
-    return { tiles: tiles, domInfoSha: tileResponse.dom_sha, windowHeight: Math.ceil(windowHeight * dpr) };
+
+    const metaData = {
+      windowHeight: Math.ceil(windowHeight * dpr)
+    };
+    return { tiles: tiles, domInfoSha: tileResponse.dom_sha, metaData: metaData };
   }
 
   async browserstackExecutor(action, args) {

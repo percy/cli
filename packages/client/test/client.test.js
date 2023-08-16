@@ -854,7 +854,9 @@ describe('PercyClient', () => {
         ignoredElementsData: ignoredElementsData,
         consideredElementsData: consideredElementsData,
         domInfoSha: 'abcd=',
-        windowHeight: 1947
+        metaData: {
+          windowHeight: 1947
+        }
       })).toBeResolved();
 
       expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
@@ -865,7 +867,9 @@ describe('PercyClient', () => {
             'ignore-elements-data': ignoredElementsData,
             'consider-elements-data': consideredElementsData,
             'dom-info-sha': 'abcd=',
-            'window-height': 1947
+            metadata: {
+              windowHeight: 1947
+            }
           },
           relationships: {
             tag: {
@@ -935,7 +939,7 @@ describe('PercyClient', () => {
             'ignore-elements-data': null,
             'consider-elements-data': null,
             'dom-info-sha': null,
-            'window-height': null
+            metadata: null
           },
           relationships: {
             tag: {
@@ -1190,7 +1194,7 @@ describe('PercyClient', () => {
             'ignore-elements-data': null,
             'consider-elements-data': null,
             'dom-info-sha': null,
-            'window-height': null
+            metadata: null
           },
           relationships: {
             tag: {
