@@ -145,10 +145,10 @@ export default class AutomateProvider extends GenericProvider {
       }));
     }
 
-    const metaData = {
+    const metadata = {
       windowHeight: Math.ceil(windowHeight * dpr)
     };
-    return { tiles: tiles, domInfoSha: tileResponse.dom_sha, metaData: metaData };
+    return { tiles: tiles, domInfoSha: tileResponse.dom_sha, metadata: metadata };
   }
 
   async browserstackExecutor(action, args) {

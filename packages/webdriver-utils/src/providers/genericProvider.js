@@ -156,7 +156,7 @@ export default class GenericProvider {
       environmentInfo: [...this.environmentInfo].join('; '),
       clientInfo: [...this.clientInfo].join(' '),
       domInfoSha: tiles.domInfoSha,
-      metaData: tiles.metaData || null
+      metadata: tiles.metadata || null
     };
   }
 
@@ -188,7 +188,7 @@ export default class GenericProvider {
       ],
       // TODO: Add Generic support sha for contextual diff for non-automate
       domInfoSha: await this.getDomContent(),
-      metaData: {
+      metadata: {
         windowHeight: await this.getWindowHeight()
       }
     };

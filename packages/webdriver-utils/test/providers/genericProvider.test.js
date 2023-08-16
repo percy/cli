@@ -170,7 +170,7 @@ describe('GenericProvider', () => {
         consideredElementsData: { considerElementsData: [] },
         clientInfo: 'local-poc-poa',
         domInfoSha: 'mock-dom-sha',
-        metaData: null
+        metadata: null
       });
     });
   });

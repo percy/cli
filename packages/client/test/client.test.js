@@ -854,7 +854,7 @@ describe('PercyClient', () => {
         ignoredElementsData: ignoredElementsData,
         consideredElementsData: consideredElementsData,
         domInfoSha: 'abcd=',
-        metaData: {
+        metadata: {
           windowHeight: 1947
         }
       })).toBeResolved();

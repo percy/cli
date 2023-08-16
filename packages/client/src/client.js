@@ -366,7 +366,7 @@ export class PercyClient {
     return snapshot;
   }
 
-  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domInfoSha, consideredElementsData, metaData } = {}) {
+  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domInfoSha, consideredElementsData, metadata } = {}) {
     validateId('snapshot', snapshotId);
     // Remove post percy api deploy
     this.log.debug(`Creating comparision: ${tag.name}...`);
@@ -389,7 +389,7 @@ export class PercyClient {
           'ignore-elements-data': ignoredElementsData || null,
           'consider-elements-data': consideredElementsData || null,
           'dom-info-sha': domInfoSha || null,
-          metadata: metaData || null
+          metadata: metadata || null
         },
         relationships: {
           tag: {
