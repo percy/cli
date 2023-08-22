@@ -37,6 +37,7 @@ describe('GenericProvider', () => {
     beforeEach(() => {
       spyOn(Driver.prototype, 'takeScreenshot').and.returnValue(Promise.resolve('123b='));
       spyOn(GenericProvider.prototype, 'getHeaderFooter').and.returnValue(Promise.resolve([123, 456]));
+      spyOn(GenericProvider.prototype, 'getWindowHeight').and.returnValue(Promise.resolve(1947));
     });
 
     it('creates tiles from screenshot', async () => {
@@ -168,7 +169,8 @@ describe('GenericProvider', () => {
         ignoredElementsData: { ignoreElementsData: [] },
         consideredElementsData: { considerElementsData: [] },
         clientInfo: 'local-poc-poa',
-        domInfoSha: 'mock-dom-sha'
+        domInfoSha: 'mock-dom-sha',
+        metadata: null
       });
     });
   });
@@ -221,6 +223,20 @@ describe('GenericProvider', () => {
       document.body.appendChild(e);`;
       expect(genericProvider.driver.executeScript).toHaveBeenCalledTimes(1);
       expect(genericProvider.driver.executeScript).toHaveBeenCalledWith({ script: expectedArgs, args: [] });
+    });
+  });
+
+  describe('getWindowHeight', () => {
+    beforeEach(() => {
+      spyOn(Driver.prototype, 'executeScript').and.returnValue(Promise.resolve(true));
+    });
+
+    it('should call executeScript to get windowHeight', async () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      await genericProvider.createDriver();
+      await genericProvider.getWindowHeight();
+      expect(genericProvider.driver.executeScript).toHaveBeenCalledTimes(1);
+      expect(genericProvider.driver.executeScript).toHaveBeenCalledWith({ script: 'return window.innerHeight', args: [] });
     });
   });
 

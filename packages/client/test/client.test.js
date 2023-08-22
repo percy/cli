@@ -4,6 +4,8 @@ import { mockgit } from '@percy/env/test/helpers';
 import { sha256hash, base64encode } from '@percy/client/utils';
 import PercyClient from '@percy/client';
 import api from './helpers.js';
+import * as CoreConfig from '@percy/core/config';
+import PercyConfig from '@percy/config';
 
 describe('PercyClient', () => {
   let client;
@@ -853,7 +855,10 @@ describe('PercyClient', () => {
         externalDebugUrl: 'http://debug.localhost',
         ignoredElementsData: ignoredElementsData,
         consideredElementsData: consideredElementsData,
-        domInfoSha: 'abcd='
+        domInfoSha: 'abcd=',
+        metadata: {
+          windowHeight: 1947
+        }
       })).toBeResolved();
 
       expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
@@ -863,7 +868,10 @@ describe('PercyClient', () => {
             'external-debug-url': 'http://debug.localhost',
             'ignore-elements-data': ignoredElementsData,
             'consider-elements-data': consideredElementsData,
-            'dom-info-sha': 'abcd='
+            'dom-info-sha': 'abcd=',
+            metadata: {
+              windowHeight: 1947
+            }
           },
           relationships: {
             tag: {
@@ -932,7 +940,8 @@ describe('PercyClient', () => {
             'external-debug-url': null,
             'ignore-elements-data': null,
             'consider-elements-data': null,
-            'dom-info-sha': null
+            'dom-info-sha': null,
+            metadata: null
           },
           relationships: {
             tag: {
@@ -966,6 +975,47 @@ describe('PercyClient', () => {
           }
         }
       });
+    });
+
+    it('throws unknown property in invalid comparison json', () => {
+      spyOn(fs.promises, 'readFile')
+        .withArgs('foo/bar').and.resolveTo('bar');
+
+      const comparison = {
+        name: 'test',
+        tag: {
+          name: 'Samsung Galaxy S22',
+          osName: 'Android',
+          osVersion: '12',
+          width: 1080,
+          height: 2115,
+          orientation: 'portrait',
+          browserName: 'chrome',
+          browserVersion: 'Samsung Galaxy S22',
+          resolution: '1080 x 2340'
+        },
+        tiles: [
+          {
+            statusBarHeight: 0,
+            navBarHeight: 0,
+            headerHeight: 0,
+            footerHeight: 168,
+            fullscreen: false,
+            sha: 'abcd'
+          }],
+        externalDebugUrl: 'https://automate.browserstack.com/builds/acs',
+        metadata: {
+          windowHeight: 1947,
+          abc: 123
+        }
+      };
+
+      PercyConfig.addSchema(CoreConfig.schemas);
+      const errors = PercyConfig.validate(comparison, '/comparison');
+      expect(errors).not.toBe(null);
+      expect(errors.length).toBe(1);
+      expect(errors[0].path).toBe('metadata.abc');
+      expect(errors[0].message).toBe('unknown property');
     });
   });
 
@@ -1186,7 +1236,8 @@ describe('PercyClient', () => {
             'external-debug-url': null,
             'ignore-elements-data': null,
             'consider-elements-data': null,
-            'dom-info-sha': null
+            'dom-info-sha': null,
+            metadata: null
           },
           relationships: {
             tag: {

@@ -113,13 +113,13 @@ export default class AutomateProvider extends GenericProvider {
   async getTiles(headerHeight, footerHeight, fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     log.debug('Starting actual screenshotting phase');
-
+    const dpr = await this.metaData.devicePixelRatio();
     const response = await TimeIt.run('percyScreenshot:screenshot', async () => {
       return await this.browserstackExecutor('percyScreenshot', {
         state: 'screenshot',
         percyBuildId: this.buildInfo.id,
         screenshotType: 'singlepage',
-        scaleFactor: await this.metaData.devicePixelRatio(),
+        scaleFactor: dpr,
         options: this.options
       });
     });
@@ -133,18 +133,22 @@ export default class AutomateProvider extends GenericProvider {
     const tiles = [];
     const tileResponse = JSON.parse(responseValue.result);
     log.debug('Tiles captured successfully');
-
+    const windowHeight = responseValue?.metadata?.window_height || 0;
     for (let tileData of tileResponse.sha) {
       tiles.push(new Tile({
-        statusBarHeight: 0,
-        navBarHeight: 0,
+        statusBarHeight: tileResponse.header_height || 0,
+        navBarHeight: tileResponse.footer_height || 0,
         headerHeight,
         footerHeight,
         fullscreen,
         sha: tileData.split('-')[0] // drop build id
       }));
     }
-    return { tiles: tiles, domInfoSha: tileResponse.dom_sha };
+
+    const metadata = {
+      windowHeight: Math.ceil(windowHeight * dpr)
+    };
+    return { tiles: tiles, domInfoSha: tileResponse.dom_sha, metadata: metadata };
   }
 
   async browserstackExecutor(action, args) {
