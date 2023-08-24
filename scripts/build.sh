@@ -10,7 +10,7 @@ cd ..
 
 yarn install
 
-cp -R ./temp//node_modules/@percy/* packages/
+cp -R ./temp/node_modules/@percy/* packages/
 
 sed -i '' '/"type": "module",/d' ./package.json
 
@@ -59,7 +59,7 @@ npm run build_cjs
 
 cp -R ./build/* packages/
 
-pkg ./packages/cli/bin/run.js -d
+pkg ./packages/cli/bin/run.js -o percy
 
 # cleanup
 rm -rf temp

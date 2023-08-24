@@ -13,12 +13,12 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: macos executable
-          path: run-macos
+          path: percy-macos
       - uses: actions/upload-artifact@v3
         with:
           name: linux executable
-          path: run-linux
+          path: percy-linux
       - uses: actions/upload-artifact@v3
         with:
           name: win executable
-          path: run-win.exe
+          path: percy-win.exe
