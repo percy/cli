@@ -59,7 +59,11 @@ npm run build_cjs
 
 cp -R ./build/* packages/
 
-pkg ./packages/cli/bin/run.js -o percy
+pkg ./packages/cli/bin/run.js -d
+
+mv run-macos percy-macos
+mv run-linux percy-linux
+mv run-win.exe percy-win.exe
 
 # cleanup
 rm -rf temp
