@@ -1,5 +1,7 @@
 name: Build Executables
-on: push
+on:
+  release:
+    types: [published]
 jobs:
   lint:
     name: Build Executables

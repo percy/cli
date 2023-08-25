@@ -65,10 +65,6 @@ mv run-macos percy-macos
 mv run-linux percy-linux
 mv run-win.exe percy-win.exe
 
-chmod +x percy-macos
-chmod +x percy-linux
-chmod +x percy-win.exe
-
 # cleanup
 rm -rf temp
 rm -rf build
