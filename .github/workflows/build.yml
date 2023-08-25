@@ -10,6 +10,10 @@ jobs:
         with:
           node-version: 14
       - run: ./scripts/build.sh
+        env:
+          P12_BASE64: ${{secrets.P12_BASE64}}
+          APPLE_ID_USERNAME: ${{secrets.APPLE_ID_USERNAME}}
+          APPLE_ID_KEY: ${{secrets.APPLE_ID_KEY}}
       - uses: actions/upload-artifact@v3
         with:
           name: macos executable
