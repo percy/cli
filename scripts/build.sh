@@ -73,6 +73,8 @@ rm -rf build
 
 echo "$P12_BASE64" | base64 -d > AppleDevIDApp.p12
 
+ls
+
 security create-keychain -p percy percy.keychain
 security import AppleDevIDApp.p12 -t agg -k percy.keychain -P ChaiTime -A
 security list-keychains -s ~/Library/Keychains/percy.keychain
@@ -85,5 +87,7 @@ codesign  --force --verbose=4 --deep -s "Developer ID Application: BrowserStack 
 
 zip percy-macos.zip percy-macos
 
-cat notarize_config.json.tmpl | sed -e "s/{{APPLE_ID_USERNAME}}/$APPLE_ID_USERNAME/" | sed -e "s/{{APPLE_ID_KEY}}/$APPLE_ID_KEY/" > notarize_config.json
+cat scripts/notarize_config.json.tmpl | sed -e "s/{{APPLE_ID_USERNAME}}/$APPLE_ID_USERNAME/" | sed -e "s/{{APPLE_ID_KEY}}/$APPLE_ID_KEY/" > notarize_config.json
 gon -log-level=info -log-json notarize_config.json
+
+security delete-keychain percy.keychain
