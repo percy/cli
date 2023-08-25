@@ -71,7 +71,7 @@ rm -rf build
 
 # Sign & Notrize mac app
 
-echo "$P12_BASE64" | base64 -d > AppleDevIDApp.p12
+echo "$APPLE_DEV_CERT" | base64 -d > AppleDevIDApp.p12
 
 ls
 
