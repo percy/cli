@@ -1,7 +1,5 @@
 name: Build Executables
-on:
-  release:
-    types: [published]
+on: push
 jobs:
   lint:
     name: Build Executables
@@ -22,13 +20,21 @@ jobs:
           APPLE_ID_KEY: ${{secrets.APPLE_ID_KEY}}
       - uses: actions/upload-artifact@v3
         with:
-          name: macos executable
-          path: percy-macos
+          name: macos executable arm64
+          path: percy-macos-arm64
       - uses: actions/upload-artifact@v3
         with:
-          name: linux executable
-          path: percy-linux
+          name: macos executable x64
+          path: percy-macos-x64
+      - uses: actions/upload-artifact@v3
+        with:
+          name: linux executable arm64
+          path: percy-linux-arm64
+      - uses: actions/upload-artifact@v3
+        with:
+          name: linux executable x64
+          path: percy-linux-x64
       - uses: actions/upload-artifact@v3
         with:
           name: win executable
-          path: percy-win.exe
+          path: percy-win-x64.exe
