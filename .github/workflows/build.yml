@@ -28,13 +28,9 @@ jobs:
           path: percy-macos-x64
       - uses: actions/upload-artifact@v3
         with:
-          name: linux executable arm64
-          path: percy-linux-arm64
-      - uses: actions/upload-artifact@v3
-        with:
           name: linux executable x64
           path: percy-linux-x64
       - uses: actions/upload-artifact@v3
         with:
           name: win executable
-          path: percy-win-x64.exe
+          path: percy-win.exe
