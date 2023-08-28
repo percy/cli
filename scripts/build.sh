@@ -12,7 +12,7 @@ yarn install
 
 cp -R ./temp/node_modules/@percy/* packages/
 
-# Copy current src to dist
+# Copy current src to dist folders
 cp -R packages/cli/src/ packages/cli/dist/
 cp -R packages/cli-app/src/ packages/cli-app/dist/
 cp -R packages/cli-build/src/ packages/cli-build/dist/
@@ -30,8 +30,8 @@ cp -R packages/logger/src/ packages/logger/dist/
 cp -R packages/sdk-utils/src/ packages/sdk-utils/dist/ 
 cp -R packages/webdriver-utils/src/ packages/webdriver-utils/dist/
 
+# Remove type from package.json files
 sed -i '' '/"type": "module",/d' ./package.json
-
 cd packages && sed -i '' '/"type": "module",/d' ./*/package.json && cd ..
 
 echo "import { cli } from '@percy/cli';\
@@ -73,45 +73,37 @@ sed -i '' '/let outdir/a \
   }
 ' ./packages/core/dist/install.js
 
+# Convert ES6 code to cjs
 npm run build_cjs
-
 cp -R ./build/* packages/
 
-# pkg ./packages/cli/bin/run.js -d
-pkg --targets node14-macos-arm64 ./packages/cli/bin/run.js -d
+# Create executables
+pkg ./packages/cli/bin/run.js -d
 
-ls
-mv run-macos percy-macos-x64
-mv run-macos-arm64 percy-macos-arm64
-mv run-linux percy-linux-x64
+# Rename executables
+mv run-macos percy-macos
+mv run-linux percy-linux
 mv run-win.exe percy-win.exe
 
-# cleanup
+# Cleanup temp folder
 rm -rf temp
 rm -rf build
 
 # Sign & Notrize mac app
+echo "$APPLE_DEV_CERT" | base64 -d > AppleDevIDApp.p12
 
-# echo "$APPLE_DEV_CERT" | base64 -d > AppleDevIDApp.p12
+security create-keychain -p percy percy.keychain
+security import AppleDevIDApp.p12 -t agg -k percy.keychain -P ChaiTime -A
+security list-keychains -s ~/Library/Keychains/percy.keychain
+security default-keychain -s ~/Library/Keychains/percy.keychain
+security unlock-keychain -p "percy" ~/Library/Keychains/percy.keychain
+security set-keychain-settings -t 3600 -l ~/Library/Keychains/percy.keychain
+security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k percy ~/Library/Keychains/percy.keychain-db
 
-# security create-keychain -p percy percy.keychain
-# security import AppleDevIDApp.p12 -t agg -k percy.keychain -P ChaiTime -A
-# security list-keychains -s ~/Library/Keychains/percy.keychain
-# security default-keychain -s ~/Library/Keychains/percy.keychain
-# security unlock-keychain -p "percy" ~/Library/Keychains/percy.keychain
-# security set-keychain-settings -t 3600 -l ~/Library/Keychains/percy.keychain
-# security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k percy ~/Library/Keychains/percy.keychain-db
+codesign  --force --verbose=4 --deep -s "Developer ID Application: BrowserStack Inc (763K6K6H44)" --options runtime --keychain ~/Library/Keychains/percy.keychain percy-macos-arm64
 
-# codesign  --force --verbose=4 --deep -s "Developer ID Application: BrowserStack Inc (763K6K6H44)" --options runtime --keychain ~/Library/Keychains/percy.keychain percy-macos-arm64
-# codesign  --force --verbose=4 --deep -s "Developer ID Application: BrowserStack Inc (763K6K6H44)" --options runtime --keychain ~/Library/Keychains/percy.keychain percy-macos-x64
+zip percy-macos.zip percy-macos
+cat scripts/notarize_config.json.tmpl | sed -e "s/{{APPLE_ID_USERNAME}}/$APPLE_ID_USERNAME/" | sed -e "s/{{APPLE_ID_KEY}}/$APPLE_ID_KEY/" > notarize_config.json
+gon -log-level=info -log-json notarize_config.json
 
-# zip percy-macos-arm64.zip percy-macos-arm64
-# zip percy-macos-x64.zip percy-macos-x64
-
-# cat scripts/notarize_config.json.tmpl | sed -e "s/{{APPLE_ID_USERNAME}}/$APPLE_ID_USERNAME/" | sed -e "s/{{APPLE_ID_KEY}}/$APPLE_ID_KEY/" | sed -e "s/{{ZIP}}/percy-macos-x64.zip/" | sed -e "s/{{BUNDLE_ID}}/com.percy.io.intel/" > notarize_config_intel.json
-# cat scripts/notarize_config.json.tmpl | sed -e "s/{{APPLE_ID_USERNAME}}/$APPLE_ID_USERNAME/" | sed -e "s/{{APPLE_ID_KEY}}/$APPLE_ID_KEY/" | sed -e "s/{{ZIP}}/percy-macos-arm64.zip/" | sed -e "s/{{BUNDLE_ID}}/com.percy.io.arm/" > notarize_config_arm.json
-
-# gon -log-level=info -log-json notarize_config_intel.json
-# gon -log-level=info -log-json notarize_config_arm.json
-
-# security delete-keychain percy.keychain
+security delete-keychain percy.keychain

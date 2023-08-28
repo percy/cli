@@ -20,16 +20,12 @@ jobs:
           APPLE_ID_KEY: ${{secrets.APPLE_ID_KEY}}
       - uses: actions/upload-artifact@v3
         with:
-          name: macos executable arm64
-          path: percy-macos-arm64
+          name: macos executable
+          path: percy-macos
       - uses: actions/upload-artifact@v3
         with:
-          name: macos executable x64
-          path: percy-macos-x64
-      - uses: actions/upload-artifact@v3
-        with:
-          name: linux executable x64
-          path: percy-linux-x64
+          name: linux executable
+          path: percy-linux
       - uses: actions/upload-artifact@v3
         with:
           name: win executable
