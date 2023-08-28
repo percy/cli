@@ -79,6 +79,7 @@ cp -R ./build/* packages/
 
 pkg --targets node14-linux-x64,node14-macos-x64,node14-macos-arm64,node14-win-x64,node14-linux-arm64  ./packages/cli/bin/run.js -d
 
+ls
 mv run-macos-x64 percy-macos-x64
 mv run-macos-arm64 percy-macos-arm64
 mv run-linux-arm64 percy-linux-arm64
