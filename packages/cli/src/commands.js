@@ -93,6 +93,7 @@ function importLegacyCommands(commandsPath) {
 }
 
 // Below comment is used in scripts/build.sh to insert a function
+// Inserts formatFilepath function
 // Imports and returns compatibile CLI commands from various sources
 export async function importCommands() {
   let root = path.resolve(url.fileURLToPath(import.meta.url), '../..');

@@ -12,6 +12,24 @@ yarn install
 
 cp -R ./temp/node_modules/@percy/* packages/
 
+# Copy current src to dist
+cp -R packages/cli/src/ packages/cli/dist/
+cp -R packages/cli-app/src/ packages/cli-app/dist/
+cp -R packages/cli-build/src/ packages/cli-build/dist/
+cp -R packages/cli-command/src/ packages/cli-command/dist/
+cp -R packages/cli-config/src/ packages/cli-config/dist/
+cp -R packages/cli-exec/src/ packages/cli-exec/dist/
+cp -R packages/cli-snapshot/src/ packages/cli-snapshot/dist/
+cp -R packages/cli-upload/src/ packages/cli-upload/dist/
+cp -R packages/client/src/ packages/client/dist/
+cp -R packages/config/src/ packages/config/dist/
+cp -R packages/core/src/ packages/core/dist/
+cp -R packages/dom/src/ packages/dom/dist/
+cp -R packages/env/src/ packages/env/dist/
+cp -R packages/logger/src/ packages/logger/dist/
+cp -R packages/sdk-utils/src/ packages/sdk-utils/dist/ 
+cp -R packages/webdriver-utils/src/ packages/webdriver-utils/dist/
+
 sed -i '' '/"type": "module",/d' ./package.json
 
 cd packages && sed -i '' '/"type": "module",/d' ./*/package.json && cd ..
@@ -19,7 +37,7 @@ cd packages && sed -i '' '/"type": "module",/d' ./*/package.json && cd ..
 echo "import { cli } from '@percy/cli';\
 $(cat ./packages/cli/dist/percy.js)" > ./packages/cli/dist/percy.js
 
-sed -i '' '/Imports and returns compatibile CLI commands from various sources/a \
+sed -i '' '/Inserts formatFilepath function/a \
 function formatFilepath(filepath) {\
   let path = url.pathToFileURL(filepath).href.replace("file:///","");\
   if (!path.includes("C:")) {\
@@ -34,7 +52,7 @@ sed -i '' 's/import(url.pathToFileURL(modulePath).href);/import(formatFilepath(m
 echo "import { execSync } from 'child_process';\
 $(cat ./packages/core/dist/install.js)" > ./packages/core/dist/install.js
 
-sed -i '' '/extract the downloaded file/a \
+sed -i '' '/Update outdir to absolute path/a \
       var output = execSync(command, { encoding: "utf-8" }).trim();\
       archive = output.concat("/", archive);\
       outdir = output.concat("/", outdir);

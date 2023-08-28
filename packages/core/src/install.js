@@ -109,6 +109,7 @@ export async function download({
       }).on('error', reject));
 
       // Below comment is used in scripts/build.sh to add new code in runtime
+      // Update outdir to absolute path
       // extract the downloaded file
       await extract(archive, outdir);
 
