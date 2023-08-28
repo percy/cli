@@ -100,7 +100,7 @@ security unlock-keychain -p "percy" ~/Library/Keychains/percy.keychain
 security set-keychain-settings -t 3600 -l ~/Library/Keychains/percy.keychain
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k percy ~/Library/Keychains/percy.keychain-db
 
-codesign  --force --verbose=4 --deep -s "Developer ID Application: BrowserStack Inc (763K6K6H44)" --options runtime --keychain ~/Library/Keychains/percy.keychain percy-macos-arm64
+codesign  --force --verbose=4 --deep -s "Developer ID Application: BrowserStack Inc (763K6K6H44)" --options runtime --keychain ~/Library/Keychains/percy.keychain percy-macos
 
 zip percy-macos.zip percy-macos
 cat scripts/notarize_config.json.tmpl | sed -e "s/{{APPLE_ID_USERNAME}}/$APPLE_ID_USERNAME/" | sed -e "s/{{APPLE_ID_KEY}}/$APPLE_ID_KEY/" > notarize_config.json
