@@ -3,6 +3,7 @@ import url from 'url';
 import path from 'path';
 import https from 'https';
 import logger from '@percy/logger';
+import { execSync } from 'child_process';
 import { ProxyHttpsAgent } from '@percy/client/utils';
 
 // Formats a raw byte integer as a string
@@ -62,10 +63,22 @@ export async function download({
   directory,
   executable
 }) {
-  // Below code is used in scripts/build.sh to add new code
   let outdir = path.join(directory, revision);
-  // Below code is used in scripts/build.sh to add new code
+  if (process.env.ENVIRONMENT === 'executable') {
+    if (outdir.charAt(0) === '/') {
+      outdir = outdir.replace('/', '');
+    }
+  }
+
+  let command = 'pwd';
   let archive = path.join(outdir, decodeURIComponent(url.split('/').pop()));
+  if (process.env.ENVIRONMENT === 'executable') {
+    if (archive.includes('C:')) {
+      command = 'cd';
+    }
+    outdir = outdir.replace('C:\\\\', '');
+    archive = archive.replace('C:\\\\', '');
+  }
   let exec = path.join(outdir, executable);
 
   if (!fs.existsSync(exec)) {
@@ -108,8 +121,11 @@ export async function download({
         );
       }).on('error', reject));
 
-      // Below comment is used in scripts/build.sh to add new code in runtime
-      // Update outdir to absolute path
+      if (process.env.ENVIRONMENT === 'executable') {
+        let output = execSync(command, { encoding: 'utf-8' }).trim();
+        archive = output.concat('/', archive);
+        outdir = output.concat('/', outdir);
+      }
       // extract the downloaded file
       await extract(archive, outdir);
 

@@ -92,8 +92,14 @@ function importLegacyCommands(commandsPath) {
   });
 }
 
-// Below comment is used in scripts/build.sh to insert a function
-// Inserts formatFilepath function
+function formatFilepath(filepath) {
+  let path = url.pathToFileURL(filepath).href.replace('file:///', '');
+  if (!path.includes('C:')) {
+    path = '/' + path;
+  }
+  return path;
+}
+
 // Imports and returns compatibile CLI commands from various sources
 export async function importCommands() {
   let root = path.resolve(url.fileURLToPath(import.meta.url), '../..');
@@ -143,7 +149,12 @@ export async function importCommands() {
         pkg['@percy/cli'].commands.map(async cmdPath => {
           let modulePath = path.join(pkgPath, cmdPath);
           // Below code is used in scripts/build.sh to update href
-          let module = await import(url.pathToFileURL(modulePath).href);
+          let module = null;
+          if (process.env.ENVIRONMENT === 'executable') {
+            module = await import(formatFilepath(modulePath));
+          } else {
+            module = await import(url.pathToFileURL(modulePath).href);
+          }
           module.default.packageInformation ||= pkg;
           return module.default;
         })
