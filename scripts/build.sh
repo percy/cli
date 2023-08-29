@@ -1,34 +1,8 @@
-mkdir temp && cd temp
-
-npm init -y
-
-npm install --save-dev @percy/cli
-
 npm install -g pkg
 
-cd ..
+yarn build
 
 yarn install
-
-cp -R ./temp/node_modules/@percy/* packages/
-
-# Copy current src to dist folders
-cp -R packages/cli/src/ packages/cli/dist/
-cp -R packages/cli-app/src/ packages/cli-app/dist/
-cp -R packages/cli-build/src/ packages/cli-build/dist/
-cp -R packages/cli-command/src/ packages/cli-command/dist/
-cp -R packages/cli-config/src/ packages/cli-config/dist/
-cp -R packages/cli-exec/src/ packages/cli-exec/dist/
-cp -R packages/cli-snapshot/src/ packages/cli-snapshot/dist/
-cp -R packages/cli-upload/src/ packages/cli-upload/dist/
-cp -R packages/client/src/ packages/client/dist/
-cp -R packages/config/src/ packages/config/dist/
-cp -R packages/core/src/ packages/core/dist/
-cp -R packages/dom/src/ packages/dom/dist/
-cp -R packages/env/src/ packages/env/dist/
-cp -R packages/logger/src/ packages/logger/dist/
-cp -R packages/sdk-utils/src/ packages/sdk-utils/dist/ 
-cp -R packages/webdriver-utils/src/ packages/webdriver-utils/dist/
 
 # Remove type from package.json files
 sed -i '' '/"type": "module",/d' ./package.json
