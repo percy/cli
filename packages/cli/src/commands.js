@@ -94,7 +94,7 @@ function importLegacyCommands(commandsPath) {
 
 function formatFilepath(filepath) {
   /* istanbul ignore next */
-  if (!(process.platform === 'win32' || process.platform === 'win64')) {
+  if (!(process.platform.startsWith('win'))) {
     filepath = '/' + filepath;
   }
   return filepath;

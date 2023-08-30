@@ -20,17 +20,21 @@ cd packages && sed -i '' '/"type": "module",/d' ./*/package.json && cd ..
 echo "import { cli } from '@percy/cli';\
 $(cat ./packages/cli/dist/percy.js)" > ./packages/cli/dist/percy.js
 
+sed -i '' '/Update NODE_ENV for executable/a \
+  process.env.NODE_ENV = "executable";
+' ./packages/cli/bin/run.cjs
+
 # Convert ES6 code to cjs
 npm run build_cjs
 cp -R ./build/* packages/
 
 # Create executables
-pkg ./packages/cli/bin/executable.js -d
+pkg ./packages/cli/bin/run.js -d
 
 # Rename executables
-mkdir -p osx && mv executable-macos osx/percy
-mkdir -p linux && mv executable-linux linux/percy
-mkdir -p win && mv executable-win.exe win/percy.exe
+mkdir -p osx && mv run-macos osx/percy && chmod +x osx/percy
+mkdir -p linux && mv run-linux linux/percy && chmod +x linux/percy
+mkdir -p win && mv run-win.exe win/percy.exe && chmod +x win/percy.exe
 
 # Sign & Notrize mac app
 echo "$APPLE_DEV_CERT" | base64 -d > AppleDevIDApp.p12

@@ -74,7 +74,7 @@ export async function download({
   let archive = path.join(outdir, decodeURIComponent(url.split('/').pop()));
   if (process.env.NODE_ENV === 'executable') {
     /* istanbul ignore next */
-    if (process.platform === 'win32' || process.platform === 'win64') {
+    if (process.platform.startsWith('win')) {
       command = 'cd';
     }
     outdir = outdir.replace('C:\\', '');

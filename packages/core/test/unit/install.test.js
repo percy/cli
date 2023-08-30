@@ -280,7 +280,7 @@ describe('Unit / Install in executable', () => {
   it('extracts the downloaded archive to the output directory', async () => {
     await install.download(options);
     let prefix = null;
-    if (process.platform === 'win32' || process.platform === 'win64') {
+    if (process.platform.startsWith('win')) {
       prefix = '\\';
     } else {
       prefix = '/';
