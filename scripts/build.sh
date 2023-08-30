@@ -8,6 +8,8 @@ function cleanup {
 }
 
 npm install -g pkg
+echo "ENVIRONMENT='executable'" > .env
+npm install -g dotenv
 
 yarn build
 
@@ -18,6 +20,7 @@ sed -i '' '/"type": "module",/d' ./package.json
 cd packages && sed -i '' '/"type": "module",/d' ./*/package.json && cd ..
 
 echo "import { cli } from '@percy/cli';\
+import 'dotenv/config';\
 $(cat ./packages/cli/dist/percy.js)" > ./packages/cli/dist/percy.js
 
 # Convert ES6 code to cjs
