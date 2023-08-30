@@ -93,12 +93,11 @@ function importLegacyCommands(commandsPath) {
 }
 
 function formatFilepath(filepath) {
-  let path = filepath;
   /* istanbul ignore next */
-  if (!(process.platform == "win32" || process.platform == "win64")) {
-    path = '/' + path;
+  if (!(process.platform === 'win32' || process.platform === 'win64')) {
+    filepath = '/' + filepath;
   }
-  return path;
+  return filepath;
 }
 
 // Imports and returns compatibile CLI commands from various sources
