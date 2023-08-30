@@ -34,12 +34,16 @@ export default class WebdriverUtils {
 
   async automateScreenshot() {
     try {
+      const startTime = Date.now();
       this.log.info(`[${this.snapshotName}] : Starting automate screenshot ...`);
       const automate = ProviderResolver.resolve(this.sessionId, this.commandExecutorUrl, this.capabilities, this.sessionCapabilites, this.clientInfo, this.environmentInfo, this.options, this.buildInfo);
       this.log.debug(`[${this.snapshotName}] : Resolved provider ...`);
       await automate.createDriver();
       this.log.debug(`[${this.snapshotName}] : Created driver ...`);
-      return await automate.screenshot(this.snapshotName, this.options);
+      const comparisonData = await automate.screenshot(this.snapshotName, this.options);
+      comparisonData.metadata.cliScreenshotStartTime = startTime;
+      comparisonData.metadata.cliScreenshotEndTime = Date.now();
+      return comparisonData;
     } catch (e) {
       this.log.error(`[${this.snapshotName}] : Error - ${e.message}`);
       this.log.error(`[${this.snapshotName}] : Error Log - ${e.toString()}`);

@@ -445,7 +445,9 @@ export const comparisonSchema = {
         windowHeight: {
           type: 'integer',
           minimum: 0
-        }
+        },
+        cliScreenshotStartTime: { type: 'integer', default: 0 },
+        cliScreenshotEndTime: { type: 'integer', default: 0 }
       }
     },
     tag: {
