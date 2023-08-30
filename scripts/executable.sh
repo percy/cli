@@ -9,9 +9,8 @@ function cleanup {
 
 npm install -g pkg
 
-yarn build
-
 yarn install
+yarn build
 
 # Remove type from package.json files
 sed -i '' '/"type": "module",/d' ./package.json
