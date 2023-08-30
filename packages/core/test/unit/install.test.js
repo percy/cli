@@ -287,8 +287,8 @@ describe('Unit / Install in executable', () => {
     }
 
     expect(options.extract).toHaveBeenCalledOnceWith(
-      path.join(prefix, '.downloads', 'v0', 'archive.zip'),
-      path.join(prefix, '.downloads', 'v0')
+      path.join(`${prefix}.downloads`, 'v0', 'archive.zip'),
+      path.join(`${prefix}.downloads`, 'v0')
     );
   });
 

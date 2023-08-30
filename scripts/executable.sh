@@ -31,9 +31,9 @@ cp -R ./build/* packages/
 pkg ./packages/cli/bin/run.js -d
 
 # Rename executables
-mkdir -p osx && mv run-macos osx/percy && chmod +x osx/percy
-mkdir -p linux && mv run-linux linux/percy && chmod +x linux/percy
-mkdir -p win && mv run-win.exe win/percy.exe && chmod +x win/percy.exe
+mkdir -p osx && mv run-macos percy && chmod +x percy
+mkdir -p linux && mv run-linux percy-linux && chmod +x percy-linux
+mkdir -p win && mv run-win.exe percy.exe && chmod +x percy.exe
 
 # Sign & Notrize mac app
 # echo "$APPLE_DEV_CERT" | base64 -d > AppleDevIDApp.p12
@@ -46,7 +46,7 @@ mkdir -p win && mv run-win.exe win/percy.exe && chmod +x win/percy.exe
 # security set-keychain-settings -t 3600 -l ~/Library/Keychains/percy.keychain
 # security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k percy ~/Library/Keychains/percy.keychain-db
 
-# codesign  --force --verbose=4 -s "Developer ID Application: BrowserStack Inc (763K6K6H44)" --options runtime --entitlements scripts/files/entitlement.plist --keychain ~/Library/Keychains/percy.keychain osx/percy
+# codesign  --force --verbose=4 -s "Developer ID Application: BrowserStack Inc (763K6K6H44)" --options runtime --entitlements scripts/files/entitlement.plist --keychain ~/Library/Keychains/percy.keychain percy-macos
 
 # zip percy-osx.zip osx/percy
 # cat scripts/files/notarize_config.json.tmpl | sed -e "s/{{APPLE_ID_USERNAME}}/$APPLE_ID_USERNAME/" | sed -e "s/{{APPLE_ID_KEY}}/$APPLE_ID_KEY/" > notarize_config.json
