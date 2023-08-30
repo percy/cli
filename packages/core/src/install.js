@@ -74,11 +74,11 @@ export async function download({
   let archive = path.join(outdir, decodeURIComponent(url.split('/').pop()));
   if (process.env.NODE_ENV === 'executable') {
     /* istanbul ignore next */
-    if (archive.includes('C:')) {
+    if (process.platform === 'win32' || process.platform === 'win64') {
       command = 'cd';
     }
-    outdir = outdir.replace('C:\\\\', '');
-    archive = archive.replace('C:\\\\', '');
+    outdir = outdir.replace('C:\\', '');
+    archive = archive.replace('C:\\', '');
   }
   let exec = path.join(outdir, executable);
 

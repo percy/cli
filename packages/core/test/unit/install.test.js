@@ -279,10 +279,16 @@ describe('Unit / Install in executable', () => {
 
   it('extracts the downloaded archive to the output directory', async () => {
     await install.download(options);
+    let prefix = null;
+    if (process.platform === 'win32' || process.platform === 'win64') {
+      prefix = '\\';
+    } else {
+      prefix = '/';
+    }
 
     expect(options.extract).toHaveBeenCalledOnceWith(
-      path.join('/', '.downloads', 'v0', 'archive.zip'),
-      path.join('/', '.downloads', 'v0')
+      path.join(prefix, '.downloads', 'v0', 'archive.zip'),
+      path.join(prefix, '.downloads', 'v0')
     );
   });
 
