@@ -9,7 +9,6 @@ function cleanup {
 
 npm install -g pkg
 echo "ENVIRONMENT='executable'" > .env
-npm install -g dotenv
 
 yarn build
 
