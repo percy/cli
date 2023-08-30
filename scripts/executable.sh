@@ -52,4 +52,4 @@ mkdir -p win && mv run-win.exe win/percy.exe && chmod +x win/percy.exe
 # cat scripts/files/notarize_config.json.tmpl | sed -e "s/{{APPLE_ID_USERNAME}}/$APPLE_ID_USERNAME/" | sed -e "s/{{APPLE_ID_KEY}}/$APPLE_ID_KEY/" > notarize_config.json
 # gon -log-level=error -log-json notarize_config.json
 
-cleanup
+# cleanup
