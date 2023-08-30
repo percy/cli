@@ -85,7 +85,7 @@ describe('CLI commands', () => {
     beforeEach(async () => {
       process.env.ENVIRONMENT = 'executable';
     });
-  
+
     afterEach(() => {
       delete process.env.ENVIRONMENT;
     });

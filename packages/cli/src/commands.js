@@ -94,6 +94,7 @@ function importLegacyCommands(commandsPath) {
 
 function formatFilepath(filepath) {
   let path = url.pathToFileURL(filepath).href.replace('file:///', '');
+  /* istanbul ignore next */
   if (!path.includes('C:')) {
     path = '/' + path;
   }
