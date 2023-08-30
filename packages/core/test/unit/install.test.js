@@ -206,7 +206,7 @@ describe('Unit / Install in executable', () => {
   let dl, options;
 
   beforeEach(async () => {
-    process.env.ENVIRONMENT = 'executable';
+    process.env.NODE_ENV = 'executable';
     await logger.mock({ isTTY: true });
     await mockfs();
     await mockgit();
@@ -226,7 +226,7 @@ describe('Unit / Install in executable', () => {
   });
 
   afterEach(() => {
-    delete process.env.ENVIRONMENT;
+    delete process.env.NODE_ENV;
   });
 
   it('does nothing if the executable already exists in the output directory', async () => {

@@ -8,7 +8,7 @@ function cleanup {
 }
 
 npm install -g pkg
-echo "ENVIRONMENT='executable'" > .env
+echo "NODE_ENV='executable'" > .env
 
 yarn build
 
@@ -30,9 +30,9 @@ cp -R ./build/* packages/
 pkg ./packages/cli/bin/run.js -d
 
 # Rename executables
-mv run-macos percy-macos
-mv run-linux percy-linux
-mv run-win.exe percy-win.exe
+mv run-macos osx/percy
+mv run-linux linux/percy
+mv run-win.exe win/percy.exe
 
 # Sign & Notrize mac app
 echo "$APPLE_DEV_CERT" | base64 -d > AppleDevIDApp.p12

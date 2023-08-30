@@ -1,7 +1,5 @@
 name: Build Executables
-on:
-  release:
-    types: [published]
+on: push
 jobs:
   lint:
     name: Build Executables
@@ -15,20 +13,20 @@ jobs:
         run: |
           brew tap mitchellh/gon
           brew install mitchellh/gon/gon
-      - run: ./scripts/build.sh
+      - run: ./scripts/executable.sh
         env:
           APPLE_DEV_CERT: ${{secrets.APPLE_DEV_CERT}}
           APPLE_ID_USERNAME: ${{secrets.APPLE_ID_USERNAME}}
           APPLE_ID_KEY: ${{secrets.APPLE_ID_KEY}}
       - uses: actions/upload-artifact@v3
         with:
-          name: macos executable
-          path: percy-macos
+          name: percy-osx
+          path: osx/percy
       - uses: actions/upload-artifact@v3
         with:
-          name: linux executable
-          path: percy-linux
+          name: percy-linux
+          path: linux/percy
       - uses: actions/upload-artifact@v3
         with:
-          name: win executable
-          path: percy-win.exe
+          name: percy-win
+          path: win/percy.exe

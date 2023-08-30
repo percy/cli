@@ -83,11 +83,11 @@ describe('CLI commands', () => {
 
   describe('from node_modules with executable', () => {
     beforeEach(async () => {
-      process.env.ENVIRONMENT = 'executable';
+      process.env.NODE_ENV = 'executable';
     });
 
     afterEach(() => {
-      delete process.env.ENVIRONMENT;
+      delete process.env.NODE_ENV;
     });
 
     const mockCmds = {

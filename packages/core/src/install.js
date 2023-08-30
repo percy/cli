@@ -64,7 +64,7 @@ export async function download({
   executable
 }) {
   let outdir = path.join(directory, revision);
-  if (process.env.ENVIRONMENT === 'executable') {
+  if (process.env.NODE_ENV === 'executable') {
     if (outdir.charAt(0) === '/') {
       outdir = outdir.replace('/', '');
     }
@@ -72,7 +72,7 @@ export async function download({
 
   let command = 'pwd';
   let archive = path.join(outdir, decodeURIComponent(url.split('/').pop()));
-  if (process.env.ENVIRONMENT === 'executable') {
+  if (process.env.NODE_ENV === 'executable') {
     /* istanbul ignore next */
     if (archive.includes('C:')) {
       command = 'cd';
@@ -122,7 +122,7 @@ export async function download({
         );
       }).on('error', reject));
 
-      if (process.env.ENVIRONMENT === 'executable') {
+      if (process.env.NODE_ENV === 'executable') {
         let output = cp.execSync(command, { encoding: 'utf-8' }).trim();
         archive = output.concat('/', archive);
         outdir = output.concat('/', outdir);

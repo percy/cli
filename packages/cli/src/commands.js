@@ -93,9 +93,9 @@ function importLegacyCommands(commandsPath) {
 }
 
 function formatFilepath(filepath) {
-  let path = url.pathToFileURL(filepath).href.replace('file:///', '');
+  let path = filepath;
   /* istanbul ignore next */
-  if (!path.includes('C:')) {
+  if (!(process.platform == "win32" || process.platform == "win64")) {
     path = '/' + path;
   }
   return path;
@@ -151,7 +151,7 @@ export async function importCommands() {
           let modulePath = path.join(pkgPath, cmdPath);
           // Below code is used in scripts/build.sh to update href
           let module = null;
-          if (process.env.ENVIRONMENT === 'executable') {
+          if (process.env.NODE_ENV === 'executable') {
             module = await import(formatFilepath(modulePath));
           } else {
             module = await import(url.pathToFileURL(modulePath).href);
