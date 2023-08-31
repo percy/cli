@@ -202,7 +202,7 @@ describe('Unit / Install', () => {
   });
 });
 
-fdescribe('Unit / Install in executable', () => {
+describe('Unit / Install in executable', () => {
   let dl, options;
 
   beforeEach(async () => {
@@ -281,8 +281,8 @@ fdescribe('Unit / Install in executable', () => {
     await install.download(options);
 
     expect(options.extract).toHaveBeenCalledOnceWith(
-      path.join(`/.downloads`, 'v0', 'archive.zip'),
-      path.join(`/.downloads`, 'v0')
+      path.join('/.downloads', 'v0', 'archive.zip'),
+      path.join('/.downloads', 'v0')
     );
   });
 
