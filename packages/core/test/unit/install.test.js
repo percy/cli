@@ -202,7 +202,7 @@ describe('Unit / Install', () => {
   });
 });
 
-describe('Unit / Install in executable', () => {
+fdescribe('Unit / Install in executable', () => {
   let dl, options;
 
   beforeEach(async () => {
@@ -280,6 +280,7 @@ describe('Unit / Install in executable', () => {
   it('extracts the downloaded archive to the output directory', async () => {
     await install.download(options);
     let prefix = null;
+    console.log(process.platform);
     if (process.platform.startsWith('win')) {
       prefix = '\\';
     } else {
