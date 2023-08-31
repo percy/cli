@@ -17,10 +17,23 @@ yarn build
 # Remove type from package.json files
 gsed -i '/"type": "module",/{s///;h};${x;/./{x;q0};x;q1}' ./package.json
 
+# Create array of package.json files
 array=($(ls -d ./packages/*/package.json))
+
+# Delete package.json filepath where type module is not defined
+delete=(./packages/dom/package.json ./packages/sdk-utils/package.json)
+for del in ${delete[@]}
+do
+   array=("${array[@]/$del}")
+done
+
+# Remove type module from package.json where present
 for package in "${array[@]}"
 do
-  gsed -i '/"type": "module",/{s///;h};${x;/./{x;q0};x;q1}' $package
+  if [ ! -z "$package" ]
+  then
+    gsed -i '/"type": "module",/{s///;h};${x;/./{x;q0};x;q1}' $package
+  fi
 done
 
 echo "import { cli } from '@percy/cli';\
