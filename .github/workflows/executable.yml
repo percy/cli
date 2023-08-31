@@ -22,11 +22,12 @@ jobs:
           APPLE_ID_KEY: ${{secrets.APPLE_ID_KEY}}
       - name: Create tar files
         run: |
-          tar -cvf percy-osx.tar percy
-          ./percy --version
-          mv percy-linux percy
           tar -cvf percy-linux.tar percy
+          mv percy-osx percy
+          tar -cvf percy-osx.tar percy
           tar -cvf percy-win.tar percy.exe
+      - name: Verify executable
+        run: ./percy --version
       - uses: actions/upload-artifact@v3
         with:
           name: percy-osx
