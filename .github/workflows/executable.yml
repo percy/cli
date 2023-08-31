@@ -21,6 +21,7 @@ jobs:
       - name: Create tar files
         run: |
           tar -cvf percy-osx.tar percy
+          ./percy --version
           mv percy-linux percy
           tar -cvf percy-linux.tar percy
           tar -cvf percy-win.tar percy.exe
