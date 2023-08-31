@@ -1,4 +1,4 @@
-import TimeIt from '../src/timing.js';
+import TimeIt from '../../src/util/timing.js';
 
 describe('TimeIt', () => {
   const store = 'store';
