@@ -8,21 +8,25 @@ function cleanup {
   security delete-keychain percy.keychain
 }
 
+brew install gnu-sed
 npm install -g pkg
 
 yarn install
 yarn build
 
 # Remove type from package.json files
-sed -i '' '/"type": "module",/d' ./package.json
-cd packages && sed -i '' '/"type": "module",/d' ./*/package.json && cd ..
+gsed -i '/"type": "module",/{s///;h};${x;/./{x;q0};x;q1}' ./package.json
+
+array=($(ls -d ./packages/*/package.json))
+for package in "${array[@]}"
+do
+  gsed -i '/"type": "module",/{s///;h};${x;/./{x;q0};x;q1}' $package
+done
 
 echo "import { cli } from '@percy/cli';\
 $(cat ./packages/cli/dist/percy.js)" > ./packages/cli/dist/percy.js
 
-sed -i '' '/Update NODE_ENV for executable/a \
-  process.env.NODE_ENV = "executable";
-' ./packages/cli/bin/run.cjs
+gsed -i '/Update NODE_ENV for executable/{s//\nprocess.env.NODE_ENV = "executable";/;h};${x;/./{x;q0};x;q1}' ./packages/cli/bin/run.cjs
 
 # Convert ES6 code to cjs
 npm run build_cjs
