@@ -279,17 +279,10 @@ fdescribe('Unit / Install in executable', () => {
 
   it('extracts the downloaded archive to the output directory', async () => {
     await install.download(options);
-    let prefix = null;
-    console.log(process.platform);
-    if (process.platform.startsWith('win')) {
-      prefix = '\\';
-    } else {
-      prefix = '/';
-    }
 
     expect(options.extract).toHaveBeenCalledOnceWith(
-      path.join(`${prefix}.downloads`, 'v0', 'archive.zip'),
-      path.join(`${prefix}.downloads`, 'v0')
+      path.join(`/.downloads`, 'v0', 'archive.zip'),
+      path.join(`/.downloads`, 'v0')
     );
   });
 
