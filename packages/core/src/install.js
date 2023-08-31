@@ -124,8 +124,14 @@ export async function download({
 
       if (process.env.NODE_ENV === 'executable') {
         let output = cp.execSync(command, { encoding: 'utf-8' }).trim();
-        archive = output.concat('/', archive);
-        outdir = output.concat('/', outdir);
+        let prefix = null;
+        if (process.platform.startsWith('win')) {
+          prefix = '\\';
+        } else {
+          prefix = '/';
+        }
+        archive = output.concat(prefix, archive);
+        outdir = output.concat(prefix, outdir);
       }
       // extract the downloaded file
       await extract(archive, outdir);
