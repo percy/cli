@@ -20,22 +20,20 @@ jobs:
           APPLE_DEV_CERT: ${{secrets.APPLE_DEV_CERT}}
           APPLE_ID_USERNAME: ${{secrets.APPLE_ID_USERNAME}}
           APPLE_ID_KEY: ${{secrets.APPLE_ID_KEY}}
-      - name: Tar file osx
-        run: tar -cvf percy-osx.tar percy
+      - name: Create tar files
+        run: |
+          tar -cvf percy-osx.tar percy
+          mv percy-linux percy
+          tar -cvf percy-linux.tar percy
+          tar -cvf percy-win.tar percy.exe
       - uses: actions/upload-artifact@v3
         with:
           name: percy-osx
           path: percy-osx.tar
-      - name: Move linux executable to percy
-        run: mv percy-linux percy
-      - name: Tar file linux
-        run: tar -cvf percy-linux.tar percy
       - uses: actions/upload-artifact@v3
         with:
           name: percy-linux
           path: percy-linux.tar
-      - name: Tar file win
-        run: tar -cvf percy-win.tar percy.exe
       - uses: actions/upload-artifact@v3
         with:
           name: percy-win

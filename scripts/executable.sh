@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e -o pipefail
 
 function cleanup {
   rm -rf build
