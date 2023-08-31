@@ -49,9 +49,9 @@ cp -R ./build/* packages/
 pkg ./packages/cli/bin/run.js -d
 
 # Rename executables
-mkdir -p linux && mv run-linux percy-linux && chmod +x percy
-mkdir -p osx && mv run-macos percy && chmod +x percy-osx
-mkdir -p win && mv run-win.exe percy.exe && chmod +x percy.exe
+mv run-linux percy && chmod +x percy
+mv run-macos percy-osx && chmod +x percy-osx
+mv run-win.exe percy.exe && chmod +x percy.exe
 
 # Sign & Notrize mac app
 echo "$APPLE_DEV_CERT" | base64 -d > AppleDevIDApp.p12
