@@ -66,7 +66,7 @@ security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k percy ~/Li
 
 codesign  --force --verbose=4 -s "Developer ID Application: BrowserStack Inc (763K6K6H44)" --options runtime --entitlements scripts/files/entitlement.plist --keychain ~/Library/Keychains/percy.keychain percy
 
-zip percy-osx.zip osx/percy
+zip percy-osx.zip percy
 cat scripts/files/notarize_config.json.tmpl | sed -e "s/{{APPLE_ID_USERNAME}}/$APPLE_ID_USERNAME/" | sed -e "s/{{APPLE_ID_KEY}}/$APPLE_ID_KEY/" > notarize_config.json
 gon -log-level=error -log-json notarize_config.json
 
