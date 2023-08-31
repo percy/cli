@@ -59,6 +59,10 @@ module.exports = {
           exclude: ['dist', 'test']
         }]
       ]
+    },
+    dev: {
+      presets: ["@babel/preset-env"],
+      plugins: ["babel-plugin-transform-import-meta"]
     }
   }
 };

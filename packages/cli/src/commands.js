@@ -92,6 +92,14 @@ function importLegacyCommands(commandsPath) {
   });
 }
 
+function formatFilepath(filepath) {
+  /* istanbul ignore next */
+  if (!(process.platform.startsWith('win'))) {
+    filepath = '/' + filepath;
+  }
+  return filepath;
+}
+
 // Imports and returns compatibile CLI commands from various sources
 export async function importCommands() {
   let root = path.resolve(url.fileURLToPath(import.meta.url), '../..');
@@ -140,7 +148,13 @@ export async function importCommands() {
       pkgs.set(pkg.name, () => Promise.all(
         pkg['@percy/cli'].commands.map(async cmdPath => {
           let modulePath = path.join(pkgPath, cmdPath);
-          let module = await import(url.pathToFileURL(modulePath).href);
+          // Below code is used in scripts/build.sh to update href
+          let module = null;
+          if (process.env.NODE_ENV === 'executable') {
+            module = await import(formatFilepath(modulePath));
+          } else {
+            module = await import(url.pathToFileURL(modulePath).href);
+          }
           module.default.packageInformation ||= pkg;
           return module.default;
         })

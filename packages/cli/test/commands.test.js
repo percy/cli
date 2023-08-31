@@ -81,6 +81,72 @@ describe('CLI commands', () => {
     });
   });
 
+  describe('from node_modules with executable', () => {
+    beforeEach(async () => {
+      process.env.NODE_ENV = 'executable';
+    });
+
+    afterEach(() => {
+      delete process.env.NODE_ENV;
+    });
+
+    const mockCmds = {
+      '@percy/cli-exec': { name: 'exec' },
+      '@percy/cli-config': { name: 'config' },
+      '@percy/storybook': { name: 'storybook' },
+      '@percy/core': null,
+      '@percy/cli': null,
+      'percy-cli-custom': { name: 'custom' },
+      'percy-cli-other': null,
+      'other-dep': null
+    };
+
+    const expectedCmds = [
+      jasmine.objectContaining({ name: 'config' }),
+      jasmine.objectContaining({ name: 'custom' }),
+      jasmine.objectContaining({ name: 'exec' }),
+      jasmine.objectContaining({ name: 'storybook' })
+    ];
+
+    it('imports from dependencies', async () => {
+      await mockModuleCommands(path.resolve('.'), mockCmds);
+      await expectAsync(importCommands()).toBeResolvedTo(expectedCmds);
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([]);
+    });
+
+    it('imports from a parent directory', async () => {
+      await mockModuleCommands(path.resolve('../..'), mockCmds);
+      await expectAsync(importCommands()).toBeResolvedTo(expectedCmds);
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([]);
+    });
+
+    it('imports from the current project', async () => {
+      await mockModuleCommands(process.cwd(), mockCmds);
+      await expectAsync(importCommands()).toBeResolvedTo(expectedCmds);
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([]);
+    });
+
+    it('automatically includes package information', async () => {
+      await mockModuleCommands(path.resolve('.'), mockCmds);
+      let cmds = await importCommands();
+
+      expect(cmds[0].packageInformation.name).toEqual('@percy/cli-config');
+    });
+
+    it('handles errors and logs debug info', async () => {
+      fs.$vol.fromJSON({ './node_modules': null });
+      fs.readdirSync.and.throwError(new Error('EACCES'));
+      await expectAsync(importCommands()).toBeResolvedTo([]);
+      expect(logger.stdout).toEqual([]);
+      expect(logger.stderr).toEqual([
+        jasmine.stringContaining('[percy:cli:plugins] Error: EACCES')
+      ]);
+    });
+  });
+
   describe('from yarn pnp', () => {
     let Module, plugPnpApi;
 

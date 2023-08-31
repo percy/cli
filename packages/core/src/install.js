@@ -3,6 +3,7 @@ import url from 'url';
 import path from 'path';
 import https from 'https';
 import logger from '@percy/logger';
+import cp from 'child_process';
 import { ProxyHttpsAgent } from '@percy/client/utils';
 
 // Formats a raw byte integer as a string
@@ -63,7 +64,22 @@ export async function download({
   executable
 }) {
   let outdir = path.join(directory, revision);
+  if (process.env.NODE_ENV === 'executable') {
+    if (outdir.charAt(0) === '/') {
+      outdir = outdir.replace('/', '');
+    }
+  }
+
+  let command = 'pwd';
   let archive = path.join(outdir, decodeURIComponent(url.split('/').pop()));
+  if (process.env.NODE_ENV === 'executable') {
+    /* istanbul ignore next */
+    if (process.platform.startsWith('win')) {
+      command = 'cd';
+    }
+    outdir = outdir.replace('C:\\', '');
+    archive = archive.replace('C:\\', '');
+  }
   let exec = path.join(outdir, executable);
 
   if (!fs.existsSync(exec)) {
@@ -106,6 +122,17 @@ export async function download({
         );
       }).on('error', reject));
 
+      if (process.env.NODE_ENV === 'executable') {
+        let output = cp.execSync(command, { encoding: 'utf-8' }).trim();
+        let prefix = null;
+        if (process.platform.startsWith('win')) {
+          prefix = '\\';
+        } else {
+          prefix = '/';
+        }
+        archive = output.concat(prefix, archive);
+        outdir = output.concat(prefix, outdir);
+      }
       // extract the downloaded file
       await extract(archive, outdir);
 
