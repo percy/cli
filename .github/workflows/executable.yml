@@ -20,23 +20,20 @@ jobs:
           APPLE_DEV_CERT: ${{secrets.APPLE_DEV_CERT}}
           APPLE_ID_USERNAME: ${{secrets.APPLE_ID_USERNAME}}
           APPLE_ID_KEY: ${{secrets.APPLE_ID_KEY}}
-      - name: Create tar files
+      - name: Create zip files
         run: |
-          tar -cvf percy-linux.tar percy
+          zip percy-linux.zip percy
           mv percy-osx percy
-          tar -cvf percy-osx.tar percy
-          tar -cvf percy-win.tar percy.exe
+          zip percy-osx.zip percy
+          zip percy-win.zip percy.exe
       - name: Verify executable
         run: ./percy --version
-      - uses: actions/upload-artifact@v3
+      - name: Upload assets
+        uses: softprops/action-gh-release@v1
         with:
-          name: percy-osx
-          path: percy-osx.tar
-      - uses: actions/upload-artifact@v3
-        with:
-          name: percy-linux
-          path: percy-linux.tar
-      - uses: actions/upload-artifact@v3
-        with:
-          name: percy-win
-          path: percy-win.tar
+          files: |
+            percy-osx.zip
+            percy-linux.zip
+            percy-win.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
