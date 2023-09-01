@@ -20,12 +20,6 @@ jobs:
           APPLE_DEV_CERT: ${{secrets.APPLE_DEV_CERT}}
           APPLE_ID_USERNAME: ${{secrets.APPLE_ID_USERNAME}}
           APPLE_ID_KEY: ${{secrets.APPLE_ID_KEY}}
-      - name: Create zip files
-        run: |
-          zip percy-linux.zip percy
-          mv percy-osx percy
-          zip percy-osx.zip percy
-          zip percy-win.zip percy.exe
       - name: Verify executable
         run: ./percy --version
       - name: Upload assets
