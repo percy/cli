@@ -118,8 +118,9 @@ export function createPercyServer(percy, port) {
     }))
     .route('post', '/percy/automateScreenshot', async (req, res) => {
       req = percyAutomateRequestHandler(req, percy.build);
+      percy.upload(await new WebdriverUtils(req.body).automateScreenshot());
       res.json(200, {
-        success: await (percy.upload(await new WebdriverUtils(req.body).automateScreenshot())).then(() => true)
+        success: true
       });
     })
   // stops percy at the end of the current event loop
