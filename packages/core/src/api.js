@@ -117,7 +117,7 @@ export function createPercyServer(percy, port) {
       success: await percy.flush(req.body).then(() => true)
     }))
     .route('post', '/percy/automateScreenshot', async (req, res) => {
-      req = percyAutomateRequestHandler(req, percy.build);
+      req = percyAutomateRequestHandler(req, percy);
       res.json(200, {
         success: await (percy.upload(await new WebdriverUtils(req.body).automateScreenshot())).then(() => true)
       });

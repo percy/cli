@@ -1,6 +1,5 @@
 import ProviderResolver from './providers/providerResolver.js';
 import utils from '@percy/sdk-utils';
-import { camelcase } from '@percy/config/utils';
 
 export default class WebdriverUtils {
   log = utils.logger('webdriver-utils:main');
@@ -21,12 +20,7 @@ export default class WebdriverUtils {
     this.capabilities = capabilities;
     this.sessionCapabilites = sessionCapabilites;
     this.snapshotName = snapshotName;
-    const camelCasedOptions = {};
-    Object.keys(options).forEach((key) => {
-      let newKey = camelcase(key);
-      camelCasedOptions[newKey] = options[key];
-    });
-    this.options = camelCasedOptions;
+    this.options = options;
     this.clientInfo = clientInfo;
     this.environmentInfo = environmentInfo;
     this.buildInfo = buildInfo;
