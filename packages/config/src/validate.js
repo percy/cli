@@ -19,6 +19,17 @@ const ajv = new AJV({
     getDefaultSchema()
   ],
   keywords: [{
+    keyword: 'onlyAutomate',
+    error: {
+      message: 'Only valid for Automate type projects'
+    },
+    code: cxt => {
+      let isAutomateProjectToken = (process.env.PERCY_TOKEN || '').split('_')[0] === 'auto';
+      if (!isAutomateProjectToken) {
+        cxt.error();
+      }
+    }
+  }, {
     // custom instanceof schema validation
     keyword: 'instanceof',
     metaSchema: {
