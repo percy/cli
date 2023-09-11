@@ -48,7 +48,12 @@ export function percyAutomateRequestHandler(req, percy) {
     considerRegionXPaths: percy.config.snapshot.considerRegions.considerRegionXPaths
   },
   camelCasedOptions
-  ]);
+  ], (path, prev, next) => {
+    switch (path.map(k => k.toString()).join('.')) {
+      case 'percyCSS': // concatenate percy css
+        return [path, [prev, next].filter(Boolean).join('\n')];
+    }
+  });
 
   req.body.buildInfo = percy.build;
   return req;
