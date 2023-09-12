@@ -42,10 +42,10 @@ export function percyAutomateRequestHandler(req, percy) {
   req.body.options = merge([{
     percyCSS: percy.config.snapshot.percyCSS,
     freezeAnimation: percy.config.snapshot.freezeAnimation,
-    ignoreRegionSelectors: percy.config.snapshot.ignoreRegions.ignoreRegionSelectors,
-    ignoreRegionXpaths: percy.config.snapshot.ignoreRegions.ignoreRegionXpaths,
-    considerRegionSelectors: percy.config.snapshot.considerRegions.considerRegionSelectors,
-    considerRegionXPaths: percy.config.snapshot.considerRegions.considerRegionXPaths
+    ignoreRegionSelectors: percy.config.snapshot.ignoreRegions?.ignoreRegionSelectors,
+    ignoreRegionXpaths: percy.config.snapshot.ignoreRegions?.ignoreRegionXpaths,
+    considerRegionSelectors: percy.config.snapshot.considerRegions?.considerRegionSelectors,
+    considerRegionXPaths: percy.config.snapshot.considerRegions?.considerRegionXPaths,
   },
   camelCasedOptions
   ], (path, prev, next) => {

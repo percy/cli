@@ -52,7 +52,6 @@ export const configSchema = {
       },
       freezeAnimation: {
         type: 'boolean',
-        default: false,
         onlyAutomate: true
       },
       ignoreRegions: {
@@ -62,14 +61,12 @@ export const configSchema = {
         properties: {
           ignoreRegionSelectors: {
             type: 'array',
-            default: [],
             items: {
               type: 'string'
             }
           },
           ignoreRegionXpaths: {
             type: 'array',
-            default: [],
             items: {
               type: 'string'
             }
@@ -83,14 +80,12 @@ export const configSchema = {
         properties: {
           considerRegionSelectors: {
             type: 'array',
-            default: [],
             items: {
               type: 'string'
             }
           },
           considerRegionXPaths: {
             type: 'array',
-            default: [],
             items: {
               type: 'string'
             }

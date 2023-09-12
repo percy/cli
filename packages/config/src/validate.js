@@ -21,11 +21,12 @@ const ajv = new AJV({
   keywords: [{
     keyword: 'onlyAutomate',
     error: {
-      message: 'Only valid for Automate type projects'
+      message: 'property only valid with Automate integration.'
     },
     code: cxt => {
       let isAutomateProjectToken = (process.env.PERCY_TOKEN || '').split('_')[0] === 'auto';
-      if (!isAutomateProjectToken) {
+      // we do validation only when token is passed
+      if (!!process.env.PERCY_TOKEN && !isAutomateProjectToken) {
         cxt.error();
       }
     }
