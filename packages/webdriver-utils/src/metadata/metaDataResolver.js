@@ -8,7 +8,8 @@ export default class MetaDataResolver {
     const platform = opts.platformName || opts.platform;
     if (['ios', 'android'].includes(platform.toLowerCase()) ||
       ['ios', 'android'].includes(capabilities?.platformName?.toLowerCase()) ||
-      ['ipad', 'iphone'].includes(capabilities?.device?.toString()?.toLowerCase())) {
+      ['ipad', 'iphone'].includes(capabilities?.device?.toString()?.toLowerCase()) ||
+      opts?.deviceName !== undefined) {
       return new MobileMetaData(driver, capabilities);
     } else {
       return new DesktopMetaData(driver, capabilities);
