@@ -1,5 +1,6 @@
 import EventEmitter from 'events';
 import { sha256hash } from '@percy/client/utils';
+import { camelcase, merge } from '@percy/config/utils';
 
 export {
   request,
@@ -23,19 +24,38 @@ export function normalizeURL(url) {
   return `${protocol}//${host}${pathname}${search}`;
 }
 
+/* istanbul ignore next: tested, but coverage is stripped */
 // Returns the body for automateScreenshot in structure
-export function percyAutomateRequestHandler(req, buildInfo) {
+export function percyAutomateRequestHandler(req, percy) {
   if (req.body.client_info) {
     req.body.clientInfo = req.body.client_info;
   }
   if (req.body.environment_info) {
     req.body.environmentInfo = req.body.environment_info;
   }
-  if (!req.body.options) {
-    req.body.options = {};
-  }
-  req.body.buildInfo = buildInfo;
-  return req;
+
+  // combines array and overrides global config with per-screenshot config
+  let camelCasedOptions = {};
+  Object.entries(req.body.options || {}).forEach(([key, value]) => {
+    camelCasedOptions[camelcase(key)] = value;
+  });
+
+  req.body.options = merge([{
+    percyCSS: percy.config.snapshot.percyCSS,
+    freezeAnimation: percy.config.snapshot.freezeAnimation,
+    ignoreRegionSelectors: percy.config.snapshot.ignoreRegions?.ignoreRegionSelectors,
+    ignoreRegionXpaths: percy.config.snapshot.ignoreRegions?.ignoreRegionXpaths,
+    considerRegionSelectors: percy.config.snapshot.considerRegions?.considerRegionSelectors,
+    considerRegionXPaths: percy.config.snapshot.considerRegions?.considerRegionXPaths
+  },
+  camelCasedOptions
+  ], (path, prev, next) => {
+    switch (path.map(k => k.toString()).join('.')) {
+      case 'percyCSS': // concatenate percy css
+        return [path, [prev, next].filter(Boolean).join('\n')];
+    }
+  });
+  req.body.buildInfo = percy.build;
 }
 
 // Creates a local resource object containing the resource URL, mimetype, content, sha, and any

@@ -49,6 +49,48 @@ export const configSchema = {
       },
       scope: {
         type: 'string'
+      },
+      freezeAnimation: {
+        type: 'boolean',
+        onlyAutomate: true
+      },
+      ignoreRegions: {
+        type: 'object',
+        additionalProperties: false,
+        onlyAutomate: true,
+        properties: {
+          ignoreRegionSelectors: {
+            type: 'array',
+            items: {
+              type: 'string'
+            }
+          },
+          ignoreRegionXpaths: {
+            type: 'array',
+            items: {
+              type: 'string'
+            }
+          }
+        }
+      },
+      considerRegions: {
+        type: 'object',
+        additionalProperties: false,
+        onlyAutomate: true,
+        properties: {
+          considerRegionSelectors: {
+            type: 'array',
+            items: {
+              type: 'string'
+            }
+          },
+          considerRegionXPaths: {
+            type: 'array',
+            items: {
+              type: 'string'
+            }
+          }
+        }
       }
     }
   },
