@@ -56,8 +56,6 @@ export function percyAutomateRequestHandler(req, percy) {
     }
   });
   req.body.buildInfo = percy.build;
-  // returning for testing purpose.
-  return req;
 }
 
 // Creates a local resource object containing the resource URL, mimetype, content, sha, and any
