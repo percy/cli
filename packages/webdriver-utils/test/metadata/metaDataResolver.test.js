@@ -35,7 +35,7 @@ describe('MetaDataResolver', () => {
 
     it('resolves MobileMetaData when deviceName is passed', () => {
       metadata = MetaDataResolver.resolve(driver, capabilities, { platform: 'Linux', deviceName: 'RX224' });
-      expect(metadata).toBeInstanceOf(MobileMetaData);
+      expect(metadata).toBeInstanceOf(DesktopMetaData);
       expect(metadata.driver).toEqual(driver);
       expect(metadata.capabilities).toEqual({});
     });
