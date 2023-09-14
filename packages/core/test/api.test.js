@@ -2,7 +2,7 @@ import path from 'path';
 import PercyConfig from '@percy/config';
 import { logger, setupTest, fs } from './helpers/index.js';
 import Percy from '@percy/core';
-import WebdriverUtils from '@percy/webdriver-utils'; // eslint-disable-line import/no-extraneous-dependencies
+import WebdriverUtils from '@percy/webdriver-utils';
 
 describe('API Server', () => {
   let percy;
@@ -129,17 +129,6 @@ describe('API Server', () => {
     expect(percy.flush).toHaveBeenCalledWith({
       name: 'Snapshot name'
     });
-  });
-
-  it('has a /automateScreenshot endpoint that calls #upload()', async () => {
-    spyOn(percy, 'upload').and.resolveTo();
-    spyOn(WebdriverUtils.prototype, 'automateScreenshot').and.resolveTo(true);
-    await percy.start();
-
-    await expectAsync(request('/percy/automateScreenshot', {
-      body: { name: 'Snapshot name' },
-      method: 'post'
-    })).toBeResolvedTo({ success: true });
   });
 
   it('has a /stop endpoint that calls #stop()', async () => {
@@ -275,6 +264,82 @@ describe('API Server', () => {
 
     await expectAsync(test).toBeResolved();
     await expectAsync(pending).toBeResolved();
+  });
+
+  // describe('percyAutomateRequestHandler', () => {
+  //   let req;
+  //   let percyBuildInfo;
+  //   beforeAll(() => {
+  //     req = {
+  //       body: {
+  //         name: 'abc',
+  //         client_info: 'client',
+  //         environment_info: 'environment'
+  //       }
+  //     };
+
+  //     percyBuildInfo = {
+  //       id: '123',
+  //       url: 'https://percy.io/abc/123'
+  //     };
+  //   });
+
+  //   it('converts client_info to clientInfo', () => {
+  //     const nreq = percyAutomateRequestHandler(req, percyBuildInfo);
+  //     expect(nreq.body.clientInfo).toBe('client');
+  //   });
+
+  //   it('converts environment_info to environmentInfo', () => {
+  //     const nreq = percyAutomateRequestHandler(req, percyBuildInfo);
+  //     expect(nreq.body.environmentInfo).toBe('environment');
+  //   });
+
+  //   it('adds options', () => {
+  //     const nreq = percyAutomateRequestHandler(req, percyBuildInfo);
+  //     expect(nreq.body.options).toEqual({});
+  //   });
+
+  //   it('adds percyBuildInfo', () => {
+  //     const nreq = percyAutomateRequestHandler(req, percyBuildInfo);
+  //     expect(nreq.body.buildInfo).toEqual(percyBuildInfo);
+  //   });
+  // });
+
+  fit('has a /automateScreenshot endpoint that calls #upload() async with provided options', async () => {
+    let resolve, test = new Promise(r => (resolve = r));
+    spyOn(percy, 'upload').and.returnValue(test);
+    let mockWebdriverUtilResponse = 'TODO: mocked response';
+    // let percyAutomateRequestHandlerSpy = spyOn(utils, 'percyAutomateRequestHandler').and.callThrough();
+    spyOn(WebdriverUtils.prototype, 'automateScreenshot').and.resolveTo(mockWebdriverUtilResponse);
+
+    await percy.start();
+
+    percy.config.snapshot.percyCSS = '.global { color: blue }';
+    percy.config.snapshot.freezeAnimation = false;
+    percy.config.snapshot.ignoreRegions = { ignoreRegionSelectors: ['.selector-global'] };
+    percy.config.snapshot.considerRegions = { considerRegionXPaths: ['/xpath-global'] };
+
+    await expectAsync(request('/percy/automateScreenshot', {
+      body: {
+        name: 'Snapshot name',
+        client_info: 'client',
+        environment_info: 'environment',
+        options: {
+          percyCSS: '.percy-screenshot: { color: red }',
+          freeze_animation: true,
+          ignore_region_xpaths: ['/xpath-per-screenshot'],
+          consider_region_xpaths: ['/xpath-per-screenshot']
+        }
+      },
+      method: 'post'
+    })).toBeResolvedTo({ success: true });
+
+    // expect(percyAutomateRequestHandlerSpy).toHaveBeenCalledOnceWith({
+
+    // })
+    expect(percy.upload).toHaveBeenCalledOnceWith(mockWebdriverUtilResponse);
+    await expectAsync(test).toBePending();
+    resolve(); // no hanging promises
   });
 
   it('returns a 500 error when an endpoint throws', async () => {

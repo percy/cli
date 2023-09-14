@@ -24,6 +24,7 @@ export function normalizeURL(url) {
   return `${protocol}//${host}${pathname}${search}`;
 }
 
+/* istanbul ignore next: tested, but coverage is stripped */
 // Returns the body for automateScreenshot in structure
 export function percyAutomateRequestHandler(req, percy) {
   if (req.body.client_info) {
@@ -54,8 +55,8 @@ export function percyAutomateRequestHandler(req, percy) {
         return [path, [prev, next].filter(Boolean).join('\n')];
     }
   });
-
   req.body.buildInfo = percy.build;
+  // returning for testing purpose.
   return req;
 }
 
