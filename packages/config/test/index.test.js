@@ -355,6 +355,104 @@ describe('PercyConfig', () => {
       expect(conf).toEqual({ foo: { bar: 'baz', qux: 'xyzzy' } });
     });
 
+    describe('validates automate integration specific properties', () => {
+      beforeEach(() => {
+        delete process.env.PERCY_TOKEN;
+
+        PercyConfig.addSchema({
+          test: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              foo: {
+                type: 'number',
+                onlyAutomate: true
+              },
+              bar: {
+                type: 'number'
+              }
+            }
+          }
+        });
+      });
+
+      it('passes when no token present', () => {
+        expect(PercyConfig.validate({
+          test: {
+            foo: 1,
+            bar: 2
+          }
+        })).toBeUndefined();
+      });
+
+      it('passes when token is of automate project', () => {
+        process.env.PERCY_TOKEN = 'auto_PERCY_TOKEN';
+
+        expect(PercyConfig.validate({
+          test: {
+            foo: 1,
+            bar: 2
+          }
+        })).toBeUndefined();
+      });
+
+      it('warns when token is of legacy web project', () => {
+        process.env.PERCY_TOKEN = 'PERCY_TOKEN';
+
+        expect(PercyConfig.validate({
+          test: {
+            foo: 1,
+            bar: 2
+          }
+        })).toEqual([{
+          path: 'test.foo',
+          message: 'property only valid with Automate integration.'
+        }]);
+      });
+
+      it('warns when token is of web project', () => {
+        process.env.PERCY_TOKEN = 'web_PERCY_TOKEN';
+
+        expect(PercyConfig.validate({
+          test: {
+            foo: 1,
+            bar: 2
+          }
+        })).toEqual([{
+          path: 'test.foo',
+          message: 'property only valid with Automate integration.'
+        }]);
+      });
+
+      it('warns when token is of app project', () => {
+        process.env.PERCY_TOKEN = 'app_PERCY_TOKEN';
+
+        expect(PercyConfig.validate({
+          test: {
+            foo: 1,
+            bar: 2
+          }
+        })).toEqual([{
+          path: 'test.foo',
+          message: 'property only valid with Automate integration.'
+        }]);
+      });
+
+      it('warns when token is of self serve project', () => {
+        process.env.PERCY_TOKEN = 'ss_PERCY_TOKEN';
+
+        expect(PercyConfig.validate({
+          test: {
+            foo: 1,
+            bar: 2
+          }
+        })).toEqual([{
+          path: 'test.foo',
+          message: 'property only valid with Automate integration.'
+        }]);
+      });
+    });
+
     it('can validate functions and regular expressions', () => {
       PercyConfig.addSchema({
         func: { instanceof: 'Function' },
@@ -1102,7 +1200,8 @@ describe('PercyConfig', () => {
         'percy-css': '',
         'enable-javascript': false,
         'disable-shadow-dom': true,
-        'cli-enable-javascript': true
+        'cli-enable-javascript': true,
+        'ignore-region-xpaths': ['']
       })).toEqual({
         fooBar: 'baz',
         foo: { barBaz: 'qux' },
@@ -1111,7 +1210,8 @@ describe('PercyConfig', () => {
         percyCSS: '',
         enableJavaScript: false,
         disableShadowDOM: true,
-        cliEnableJavaScript: true
+        cliEnableJavaScript: true,
+        ignoreRegionXPaths: ['']
       });
     });
 
@@ -1123,7 +1223,8 @@ describe('PercyConfig', () => {
         percyCSS: '',
         enableJavaScript: false,
         disableShadowDOM: true,
-        cliEnableJavaScript: true
+        cliEnableJavaScript: true,
+        ignoreRegionXPaths: ['']
       }, { kebab: true })).toEqual({
         'foo-bar': 'baz',
         foo: { 'bar-baz': 'qux' },
@@ -1131,7 +1232,8 @@ describe('PercyConfig', () => {
         'percy-css': '',
         'enable-javascript': false,
         'disable-shadow-dom': true,
-        'cli-enable-javascript': true
+        'cli-enable-javascript': true,
+        'ignore-region-xpaths': ['']
       });
     });
 
@@ -1143,7 +1245,8 @@ describe('PercyConfig', () => {
         percyCSS: '',
         enableJavaScript: false,
         disableShadowDOM: true,
-        cliEnableJavaScript: true
+        cliEnableJavaScript: true,
+        ignoreRegionXPaths: ['']
       }, { snake: true })).toEqual({
         foo_bar: 'baz',
         foo: { bar_baz: 'qux' },
@@ -1151,7 +1254,8 @@ describe('PercyConfig', () => {
         percy_css: '',
         enable_javascript: false,
         disable_shadow_dom: true,
-        cli_enable_javascript: true
+        cli_enable_javascript: true,
+        ignore_region_xpaths: ['']
       });
     });
 
