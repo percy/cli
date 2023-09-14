@@ -266,51 +266,11 @@ describe('API Server', () => {
     await expectAsync(pending).toBeResolved();
   });
 
-  // describe('percyAutomateRequestHandler', () => {
-  //   let req;
-  //   let percyBuildInfo;
-  //   beforeAll(() => {
-  //     req = {
-  //       body: {
-  //         name: 'abc',
-  //         client_info: 'client',
-  //         environment_info: 'environment'
-  //       }
-  //     };
-
-  //     percyBuildInfo = {
-  //       id: '123',
-  //       url: 'https://percy.io/abc/123'
-  //     };
-  //   });
-
-  //   it('converts client_info to clientInfo', () => {
-  //     const nreq = percyAutomateRequestHandler(req, percyBuildInfo);
-  //     expect(nreq.body.clientInfo).toBe('client');
-  //   });
-
-  //   it('converts environment_info to environmentInfo', () => {
-  //     const nreq = percyAutomateRequestHandler(req, percyBuildInfo);
-  //     expect(nreq.body.environmentInfo).toBe('environment');
-  //   });
-
-  //   it('adds options', () => {
-  //     const nreq = percyAutomateRequestHandler(req, percyBuildInfo);
-  //     expect(nreq.body.options).toEqual({});
-  //   });
-
-  //   it('adds percyBuildInfo', () => {
-  //     const nreq = percyAutomateRequestHandler(req, percyBuildInfo);
-  //     expect(nreq.body.buildInfo).toEqual(percyBuildInfo);
-  //   });
-  // });
-
-  fit('has a /automateScreenshot endpoint that calls #upload() async with provided options', async () => {
+  it('has a /automateScreenshot endpoint that calls #upload() async with provided options', async () => {
     let resolve, test = new Promise(r => (resolve = r));
     spyOn(percy, 'upload').and.returnValue(test);
     let mockWebdriverUtilResponse = 'TODO: mocked response';
-    // let percyAutomateRequestHandlerSpy = spyOn(utils, 'percyAutomateRequestHandler').and.callThrough();
-    spyOn(WebdriverUtils.prototype, 'automateScreenshot').and.resolveTo(mockWebdriverUtilResponse);
+    let automateScreenshotSpy = spyOn(WebdriverUtils, 'automateScreenshot').and.resolveTo(mockWebdriverUtilResponse);
 
     await percy.start();
 
@@ -334,9 +294,19 @@ describe('API Server', () => {
       method: 'post'
     })).toBeResolvedTo({ success: true });
 
-    // expect(percyAutomateRequestHandlerSpy).toHaveBeenCalledOnceWith({
+    expect(automateScreenshotSpy).toHaveBeenCalledOnceWith(jasmine.objectContaining({
+      clientInfo: 'client',
+      environmentInfo: 'environment',
+      buildInfo: { id: '123', url: 'https://percy.io/test/test/123', number: 1 },
+      options: {
+        freezeAnimation: true,
+        percyCSS: '.global { color: blue }\n.percy-screenshot: { color: red }',
+        ignoreRegionSelectors: ['.selector-global'],
+        ignoreRegionXPaths: ['/xpath-per-screenshot'],
+        considerRegionXPaths: ['/xpath-global', '/xpath-per-screenshot']
+      }
+    }));
 
-    // })
     expect(percy.upload).toHaveBeenCalledOnceWith(mockWebdriverUtilResponse);
     await expectAsync(test).toBePending();
     resolve(); // no hanging promises
