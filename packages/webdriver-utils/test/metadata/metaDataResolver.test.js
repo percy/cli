@@ -32,5 +32,19 @@ describe('MetaDataResolver', () => {
       expect(metadata.driver).toEqual(driver);
       expect(metadata.capabilities).toEqual({});
     });
+
+    it('resolves MobileMetaData when deviceName is passed', () => {
+      metadata = MetaDataResolver.resolve(driver, capabilities, { platform: 'Linux', deviceName: 'RX224' });
+      expect(metadata).toBeInstanceOf(DesktopMetaData);
+      expect(metadata.driver).toEqual(driver);
+      expect(metadata.capabilities).toEqual({});
+    });
+
+    it('resolves DesktopMetaData when no deviceName is passed', () => {
+      metadata = MetaDataResolver.resolve(driver, capabilities, { platform: 'Linux' });
+      expect(metadata).toBeInstanceOf(DesktopMetaData);
+      expect(metadata.driver).toEqual(driver);
+      expect(metadata.capabilities).toEqual({});
+    });
   });
 });
