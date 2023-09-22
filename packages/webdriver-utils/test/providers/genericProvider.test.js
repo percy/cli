@@ -138,14 +138,10 @@ describe('GenericProvider', () => {
   describe('screenshot', () => {
     let getTagSpy;
     let getTilesSpy;
-    let addPercyCSSSpy;
-    let removePercyCSSSpy;
 
     beforeEach(() => {
       getTagSpy = spyOn(GenericProvider.prototype, 'getTag').and.returnValue(Promise.resolve('mock-tag'));
       getTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve({ tiles: 'mock-tile', domInfoSha: 'mock-dom-sha' }));
-      addPercyCSSSpy = spyOn(GenericProvider.prototype, 'addPercyCSS').and.returnValue(Promise.resolve(true));
-      removePercyCSSSpy = spyOn(GenericProvider.prototype, 'removePercyCSS').and.returnValue(Promise.resolve(true));
       spyOn(DesktopMetaData.prototype, 'windowSize')
         .and.returnValue(Promise.resolve({ width: 1920, height: 1080 }));
     });
@@ -154,12 +150,8 @@ describe('GenericProvider', () => {
       genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       await genericProvider.createDriver();
       let res = await genericProvider.screenshot('mock-name', {});
-      const defaultPercyCSS = genericProvider.defaultPercyCSS().split('\n').join('');
-      expect(addPercyCSSSpy).toHaveBeenCalledTimes(1);
-      expect(addPercyCSSSpy).toHaveBeenCalledWith(defaultPercyCSS);
       expect(getTagSpy).toHaveBeenCalledTimes(1);
       expect(getTilesSpy).toHaveBeenCalledOnceWith(0, 0, false);
-      expect(removePercyCSSSpy).toHaveBeenCalledTimes(1);
       expect(res).toEqual({
         name: 'mock-name',
         tag: 'mock-tag',
@@ -175,57 +167,6 @@ describe('GenericProvider', () => {
     });
   });
 
-  describe('defaultPercyCSS', () => {
-    const expectedResult = `*, *::before, *::after {
-      -moz-transition: none !important;
-      transition: none !important;
-      -moz-animation: none !important;
-      animation: none !important;
-      animation-duration: 0 !important;
-      caret-color: transparent !important;
-      content-visibility: visible !important;
-    }
-    html{
-      scrollbar-width: auto !important;
-    }
-    svg {
-      shape-rendering: geometricPrecision !important;
-    }
-    scrollbar, scrollcorner, scrollbar thumb, scrollbar scrollbarbutton {
-      pointer-events: none !important;
-      -moz-appearance: none !important;
-      display: none !important;
-    }
-    video::-webkit-media-controls {
-      display: none !important;
-    }`;
-
-    it('should return defaultPercyCSS', () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
-      const resp = genericProvider.defaultPercyCSS();
-      expect(resp).toBe(expectedResult);
-    });
-  });
-
-  describe('addPercyCSS', () => {
-    beforeEach(() => {
-      spyOn(Driver.prototype, 'executeScript').and.returnValue(Promise.resolve(true));
-    });
-
-    it('should call executeScript to add style', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
-      await genericProvider.createDriver();
-      const percyCSS = 'h1{color:green !important;}';
-      await genericProvider.addPercyCSS(percyCSS);
-      const expectedArgs = `const e = document.createElement('style');
-      e.setAttribute('data-percy-specific-css', true);
-      e.innerHTML = '${percyCSS}';
-      document.body.appendChild(e);`;
-      expect(genericProvider.driver.executeScript).toHaveBeenCalledTimes(1);
-      expect(genericProvider.driver.executeScript).toHaveBeenCalledWith({ script: expectedArgs, args: [] });
-    });
-  });
-
   describe('getWindowHeight', () => {
     beforeEach(() => {
       spyOn(Driver.prototype, 'executeScript').and.returnValue(Promise.resolve(true));
@@ -237,22 +178,6 @@ describe('GenericProvider', () => {
       await genericProvider.getWindowHeight();
       expect(genericProvider.driver.executeScript).toHaveBeenCalledTimes(1);
       expect(genericProvider.driver.executeScript).toHaveBeenCalledWith({ script: 'return window.innerHeight', args: [] });
-    });
-  });
-
-  describe('removePercyCSS', () => {
-    beforeEach(() => {
-      spyOn(Driver.prototype, 'executeScript').and.returnValue(Promise.resolve(true));
-    });
-
-    it('should call executeScript to add style', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
-      await genericProvider.createDriver();
-      await genericProvider.removePercyCSS();
-      const expectedArgs = `const n = document.querySelector('[data-percy-specific-css]');
-      n.remove();`;
-      expect(genericProvider.driver.executeScript).toHaveBeenCalledTimes(1);
-      expect(genericProvider.driver.executeScript).toHaveBeenCalledWith({ script: expectedArgs, args: [] });
     });
   });
 

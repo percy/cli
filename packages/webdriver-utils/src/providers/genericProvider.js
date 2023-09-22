@@ -42,32 +42,6 @@ export default class GenericProvider {
     this.options.freezeAnimation = this.options.freezeAnimation || false;
   }
 
-  defaultPercyCSS() {
-    return `*, *::before, *::after {
-      -moz-transition: none !important;
-      transition: none !important;
-      -moz-animation: none !important;
-      animation: none !important;
-      animation-duration: 0 !important;
-      caret-color: transparent !important;
-      content-visibility: visible !important;
-    }
-    html{
-      scrollbar-width: auto !important;
-    }
-    svg {
-      shape-rendering: geometricPrecision !important;
-    }
-    scrollbar, scrollcorner, scrollbar thumb, scrollbar scrollbarbutton {
-      pointer-events: none !important;
-      -moz-appearance: none !important;
-      display: none !important;
-    }
-    video::-webkit-media-controls {
-      display: none !important;
-    }`;
-  }
-
   async createDriver() {
     this.driver = new Driver(this.sessionId, this.commandExecutorUrl, this.capabilities);
     log.debug(`Passed capabilities -> ${JSON.stringify(this.capabilities)}`);
@@ -92,20 +66,6 @@ export default class GenericProvider {
     }
   }
 
-  async addPercyCSS(userCSS) {
-    const createStyleElement = `const e = document.createElement('style');
-      e.setAttribute('data-percy-specific-css', true);
-      e.innerHTML = '${userCSS}';
-      document.body.appendChild(e);`;
-    await this.driver.executeScript({ script: createStyleElement, args: [] });
-  }
-
-  async removePercyCSS() {
-    const removeStyleElement = `const n = document.querySelector('[data-percy-specific-css]');
-      n.remove();`;
-    await this.driver.executeScript({ script: removeStyleElement, args: [] });
-  }
-
   async screenshot(name, {
     ignoreRegionXpaths = [],
     ignoreRegionSelectors = [],
@@ -120,9 +80,7 @@ export default class GenericProvider {
 
     this.addDefaultOptions();
 
-    const percyCSS = (this.defaultPercyCSS() + (this.options.percyCSS || '')).split('\n').join('');
-    log.debug(`[${name}] : Applying the percyCSS - ${this.options.percyCSS}`);
-    await this.addPercyCSS(percyCSS);
+    this.options.percyCSS = (this.options.percyCSS || '').split('\n').join('');
 
     log.debug('Fetching comparisong tag ...');
     const tag = await this.getTag();
@@ -140,7 +98,6 @@ export default class GenericProvider {
     await this.setDebugUrl();
     log.debug(`[${name}] : Debug url ${this.debugUrl}`);
 
-    await this.removePercyCSS();
     return {
       name,
       tag,
