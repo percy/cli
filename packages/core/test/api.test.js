@@ -277,7 +277,7 @@ describe('API Server', () => {
     percy.config.snapshot.percyCSS = '.global { color: blue }';
     percy.config.snapshot.freezeAnimation = false;
     percy.config.snapshot.ignoreRegions = { ignoreRegionSelectors: ['.selector-global'] };
-    percy.config.snapshot.considerRegions = { considerRegionXPaths: ['/xpath-global'] };
+    percy.config.snapshot.considerRegions = { considerRegionXpaths: ['/xpath-global'] };
 
     await expectAsync(request('/percy/automateScreenshot', {
       body: {
@@ -302,8 +302,8 @@ describe('API Server', () => {
         freezeAnimation: true,
         percyCSS: '.global { color: blue }\n.percy-screenshot: { color: red }',
         ignoreRegionSelectors: ['.selector-global'],
-        ignoreRegionXPaths: ['/xpath-per-screenshot'],
-        considerRegionXPaths: ['/xpath-global', '/xpath-per-screenshot']
+        ignoreRegionXpaths: ['/xpath-per-screenshot'],
+        considerRegionXpaths: ['/xpath-global', '/xpath-per-screenshot']
       }
     }));
 

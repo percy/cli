@@ -84,7 +84,7 @@ export const configSchema = {
               type: 'string'
             }
           },
-          considerRegionXPaths: {
+          considerRegionXpaths: {
             type: 'array',
             items: {
               type: 'string'

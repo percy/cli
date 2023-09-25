@@ -5,8 +5,7 @@ import { getSchema } from '../validate.js';
 const CAMELCASE_MAP = new Map([
   ['css', 'CSS'],
   ['javascript', 'JavaScript'],
-  ['dom', 'DOM'],
-  ['xpaths', 'XPaths']
+  ['dom', 'DOM']
 ]);
 
 // Regular expression that matches words from boundaries or consecutive casing
