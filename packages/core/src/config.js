@@ -45,8 +45,7 @@ export const configSchema = {
         default: false
       },
       enableLayout: {
-        type: 'boolean',
-        default: false
+        type: 'boolean'
       },
       domTransformation: {
         type: 'string'

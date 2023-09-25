@@ -59,8 +59,7 @@ describe('Percy', () => {
       percyCSS: '',
       enableJavaScript: false,
       disableShadowDOM: false,
-      cliEnableJavaScript: true,
-      enableLayout: false
+      cliEnableJavaScript: true
     });
   });
 

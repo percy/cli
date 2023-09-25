@@ -1932,28 +1932,7 @@ describe('Discovery', () => {
   });
 
   describe('Enable Layout =>', () => {
-    beforeEach(() => {
-      // global defaults
-      percy.config.snapshot.enableLayout = false;
-    });
-
     describe('cli-snapshot =>', () => {
-      it('disabled by default', async () => {
-        percy.loglevel('debug');
-
-        await percy.snapshot({
-          name: 'test snapshot',
-          url: 'http://localhost:8000',
-          domSnapshot: ''
-        });
-
-        await percy.idle();
-
-        expect(logger.stderr).toEqual(jasmine.arrayContaining([
-          '[percy:core:snapshot] - enableLayout: false'
-        ]));
-      });
-
       it('enable when enableLayout: true', async () => {
         percy.config.snapshot.enableLayout = true;
         percy.loglevel('debug');
@@ -1973,22 +1952,6 @@ describe('Discovery', () => {
     });
 
     describe('percySnapshot with cli-exec =>', () => {
-      it('disabled by default', async () => {
-        percy.loglevel('debug');
-
-        await percy.snapshot({
-          name: 'test snapshot',
-          url: 'http://localhost:8000',
-          domSnapshot: testDOM
-        });
-
-        await percy.idle();
-
-        expect(logger.stderr).toEqual(jasmine.arrayContaining([
-          '[percy:core:snapshot] - enableLayout: false'
-        ]));
-      });
-
       it('enable when enableLayout: true', async () => {
         percy.config.snapshot.enableLayout = true;
         percy.loglevel('debug');
