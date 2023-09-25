@@ -38,6 +38,7 @@ const domSnapshot = await page.evaluate(() => PercyDOM.serialize(options))
 - `enableJavaScript` — When true, does not serialize some DOM elements
 - `domTransformation` — Function to transform the DOM after serialization
 - `disableShadowDOM` — disable shadow DOM capturing, this option can be passed to `percySnapshot` its part of per-snapshot config.
+- `enableLayout` - When true, It enables layout testing.
 
 ## Serialized Content
 

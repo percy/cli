@@ -584,6 +584,7 @@ describe('PercyClient', () => {
         scope: '#main',
         minHeight: 1000,
         enableJavaScript: true,
+        enableLayout: true,
         clientInfo: 'sdk/info',
         environmentInfo: 'sdk/env',
         resources: [{
@@ -615,7 +616,8 @@ describe('PercyClient', () => {
             widths: [1000],
             scope: '#main',
             'minimum-height': 1000,
-            'enable-javascript': true
+            'enable-javascript': true,
+            'enable-layout': true
           },
           relationships: {
             resources: {
@@ -657,7 +659,8 @@ describe('PercyClient', () => {
             widths: null,
             scope: null,
             'minimum-height': null,
-            'enable-javascript': null
+            'enable-javascript': null,
+            'enable-layout': false
           },
           relationships: {
             resources: {
@@ -721,7 +724,8 @@ describe('PercyClient', () => {
             scope: null,
             'enable-javascript': null,
             'minimum-height': null,
-            widths: null
+            widths: null,
+            'enable-layout': false
           },
           relationships: {
             resources: {
@@ -1217,7 +1221,8 @@ describe('PercyClient', () => {
             scope: null,
             'enable-javascript': null,
             'minimum-height': null,
-            widths: null
+            widths: null,
+            'enable-layout': false
           },
           relationships: {
             resources: {

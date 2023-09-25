@@ -297,6 +297,7 @@ export class PercyClient {
     scope,
     minHeight,
     enableJavaScript,
+    enableLayout,
     clientInfo,
     environmentInfo,
     resources = []
@@ -324,7 +325,8 @@ export class PercyClient {
           widths: widths || null,
           scope: scope || null,
           'minimum-height': minHeight || null,
-          'enable-javascript': enableJavaScript || null
+          'enable-javascript': enableJavaScript || null,
+          'enable-layout': enableLayout || false
         },
         relationships: {
           resources: {
