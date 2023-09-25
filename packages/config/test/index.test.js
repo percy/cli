@@ -1212,7 +1212,7 @@ describe('PercyConfig', () => {
         enableJavaScript: false,
         disableShadowDOM: true,
         cliEnableJavaScript: true,
-        ignoreRegionXPaths: [''],
+        ignoreRegionXpaths: [''],
         enableLayout: false
       });
     });
@@ -1226,7 +1226,7 @@ describe('PercyConfig', () => {
         enableJavaScript: false,
         disableShadowDOM: true,
         cliEnableJavaScript: true,
-        ignoreRegionXPaths: [''],
+        ignoreRegionXpaths: [''],
         enableLayout: false
       }, { kebab: true })).toEqual({
         'foo-bar': 'baz',
@@ -1250,7 +1250,7 @@ describe('PercyConfig', () => {
         enableJavaScript: false,
         disableShadowDOM: true,
         cliEnableJavaScript: true,
-        ignoreRegionXPaths: [''],
+        ignoreRegionXpaths: [''],
         enableLayout: false
       }, { snake: true })).toEqual({
         foo_bar: 'baz',
