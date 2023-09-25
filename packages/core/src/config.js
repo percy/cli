@@ -210,7 +210,7 @@ export const snapshotSchema = {
         cliEnableJavaScript: { $ref: '/config/snapshot#/properties/cliEnableJavaScript' },
         disableShadowDOM: { $ref: '/config/snapshot#/properties/disableShadowDOM' },
         domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
-        enableLayout: {$ref: '/config/snapshot#/properties/enableLayout'},
+        enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
         discovery: {
           type: 'object',
           additionalProperties: false,
