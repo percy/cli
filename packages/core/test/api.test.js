@@ -275,7 +275,8 @@ describe('API Server', () => {
     await percy.start();
 
     percy.config.snapshot.percyCSS = '.global { color: blue }';
-    percy.config.snapshot.freezeAnimation = false;
+    percy.config.snapshot.freezeAnimatedImage = false;
+    percy.config.snapshot.freezeAnimatedImageOptions = { freezeImageByXpaths: ['/xpath-global'] };
     percy.config.snapshot.ignoreRegions = { ignoreRegionSelectors: ['.selector-global'] };
     percy.config.snapshot.considerRegions = { considerRegionXpaths: ['/xpath-global'] };
 
@@ -286,7 +287,8 @@ describe('API Server', () => {
         environment_info: 'environment',
         options: {
           percyCSS: '.percy-screenshot: { color: red }',
-          freeze_animation: true,
+          freeze_animated_image: true,
+          freezeImageBySelectors: ['.selector-per-screenshot'],
           ignore_region_xpaths: ['/xpath-per-screenshot'],
           consider_region_xpaths: ['/xpath-per-screenshot']
         }
@@ -299,7 +301,9 @@ describe('API Server', () => {
       environmentInfo: 'environment',
       buildInfo: { id: '123', url: 'https://percy.io/test/test/123', number: 1 },
       options: {
-        freezeAnimation: true,
+        freezeAnimatedImage: true,
+        freezeImageBySelectors: ['.selector-per-screenshot'],
+        freezeImageByXpaths: ['/xpath-global'],
         percyCSS: '.global { color: blue }\n.percy-screenshot: { color: red }',
         ignoreRegionSelectors: ['.selector-global'],
         ignoreRegionXpaths: ['/xpath-per-screenshot'],
