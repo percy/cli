@@ -50,9 +50,32 @@ export const configSchema = {
       scope: {
         type: 'string'
       },
-      freezeAnimation: {
+      freezeAnimation: { // for backward compatibility
         type: 'boolean',
         onlyAutomate: true
+      },
+      freezeAnimatedImage: {
+        type: 'boolean',
+        onlyAutomate: true
+      },
+      freezeAnimatedImageOptions: {
+        type: 'object',
+        additionalProperties: false,
+        onlyAutomate: true,
+        properties: {
+          freezeImageBySelectors: {
+            type: 'array',
+            items: {
+              type: 'string'
+            }
+          },
+          freezeImageByXpaths: {
+            type: 'array',
+            items: {
+              type: 'string'
+            }
+          }
+        }
       },
       ignoreRegions: {
         type: 'object',

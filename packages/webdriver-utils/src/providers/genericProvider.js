@@ -39,7 +39,7 @@ export default class GenericProvider {
   }
 
   addDefaultOptions() {
-    this.options.freezeAnimation = this.options.freezeAnimation || false;
+    this.options.freezeAnimation = this.options.freezeAnimatedImage || this.options.freezeAnimation || false;
   }
 
   async createDriver() {

@@ -42,7 +42,9 @@ export function percyAutomateRequestHandler(req, percy) {
 
   req.body.options = merge([{
     percyCSS: percy.config.snapshot.percyCSS,
-    freezeAnimation: percy.config.snapshot.freezeAnimation,
+    freezeAnimatedImage: percy.config.snapshot.freezeAnimatedImage || percy.config.snapshot.freezeAnimation,
+    freezeImageBySelectors: percy.config.snapshot.freezeAnimatedImageOptions?.freezeImageBySelectors,
+    freezeImageByXpaths: percy.config.snapshot.freezeAnimatedImageOptions?.freezeImageByXpaths,
     ignoreRegionSelectors: percy.config.snapshot.ignoreRegions?.ignoreRegionSelectors,
     ignoreRegionXpaths: percy.config.snapshot.ignoreRegions?.ignoreRegionXpaths,
     considerRegionSelectors: percy.config.snapshot.considerRegions?.considerRegionSelectors,
