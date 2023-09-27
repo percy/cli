@@ -50,6 +50,10 @@ export const configSchema = {
       scope: {
         type: 'string'
       },
+      freezeAnimation: { // for backward compatibility
+        type: 'boolean',
+        onlyAutomate: true
+      },
       freezeAnimatedImage: {
         type: 'boolean',
         onlyAutomate: true
