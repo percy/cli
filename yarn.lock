@@ -4872,9 +4872,9 @@ inquirer@^8.2.4:
     wrap-ansi "^7.0.0"
 
 interactor.js@^2.0.0-beta.10:
-  version "2.0.0-beta.11"
-  resolved "https://registry.yarnpkg.com/interactor.js/-/interactor.js-2.0.0-beta.11.tgz#a32242ba570f5118af8e07c73239f5f0e0dab1bb"
-  integrity sha512-tbcPkofD5ssFxP0WS5PhDNke22dfaaSOFbu1g9fzDxzCrM+YDNPNFQ7R2WnHSIPV7+ec2zWD2K3yrB0h0jwMNw==
+  version "2.0.0-beta.14"
+  resolved "https://registry.yarnpkg.com/interactor.js/-/interactor.js-2.0.0-beta.14.tgz#8cf0afc70320a0e81f0ad62fb001c1a3e39f7f17"
+  integrity sha512-KWxaPh19TRo823OBQIhyfatSLqkKxpqz9lMwUTC/OMoYpI4u6BU5TZm2rdMYw8DgrKJ7NsPGU/qMdnCulA/CTQ==
 
 internal-slot@^1.0.3:
   version "1.0.3"
