@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+// This is deprecated as it is not working for 115
+
 const url = await import('url');
 const path = await import('path');
 
@@ -124,7 +126,6 @@ async function printVersionRevisions(version) {
 
         // no matching revision for this platform
         if (!items) continue;
-
         // check if the revision's commit is included in the desired release version
         let sha = items[0].metadata['cr-git-commit'];
         let tags = (await request(`${GH_TAGS_URL}/${sha}`, {}))
