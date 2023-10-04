@@ -1,7 +1,7 @@
-import mime from 'mime-types';
-import logger from '@percy/logger';
 import { request as makeRequest } from '@percy/client/utils';
-import { normalizeURL, hostnameMatches, createResource, waitFor } from './utils.js';
+import logger from '@percy/logger';
+import mime from 'mime-types';
+import { createResource, hostnameMatches, normalizeURL, waitFor } from './utils.js';
 
 const MAX_RESOURCE_SIZE = 25 * (1024 ** 2); // 25MB
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
@@ -397,7 +397,10 @@ async function saveResponseResource(network, request) {
         return log.debug(`- Skipping disallowed resource type [${request.type}]`, meta);
       }
 
-      let detectedMime = mime.lookup(response.url);
+      // mime package does not handle query params
+      let urlObj = new URL(url);
+      let urlWithoutSearchParams = urlObj.origin + urlObj.pathname;
+      let detectedMime = mime.lookup(urlWithoutSearchParams);
       let mimeType = (
         // ensure the mimetype is correct for text/plain responses
         response.mimeType === 'text/plain' && detectedMime
