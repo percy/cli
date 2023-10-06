@@ -6,6 +6,9 @@ export const configSchema = {
     properties: {
       deferUploads: {
         type: 'boolean'
+      },
+      token: {
+        type: 'string'
       }
     }
   },

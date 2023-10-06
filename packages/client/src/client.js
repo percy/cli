@@ -49,10 +49,11 @@ export class PercyClient {
     // initial user agent info
     clientInfo,
     environmentInfo,
+    config,
     // versioned api url
     apiUrl = PERCY_CLIENT_API_URL
   } = {}) {
-    Object.assign(this, { token, apiUrl });
+    Object.assign(this, { token, config: config || {}, apiUrl });
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
   }
@@ -84,8 +85,12 @@ export class PercyClient {
   }
 
   // Checks for a Percy token and returns it.
+  // Priority order is
+  // 1. passed token to constructor
+  // 2. PERCY_TOKEN env var [ from env package ]
+  // 3. token from percy config
   getToken(raiseIfMissing = true) {
-    let token = this.token || this.env.token;
+    let token = this.token || this.env.token || this.config.percy?.token;
     if (!token && raiseIfMissing) throw new Error('Missing Percy token');
     return token;
   }

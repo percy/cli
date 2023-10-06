@@ -68,12 +68,12 @@ export class Percy {
     // options which will become accessible via the `.config` property
     ...options
   } = {}) {
-    let { percy, ...config } = PercyConfig.load({
+    let config = PercyConfig.load({
       overrides: options,
       path: configFile
     });
 
-    deferUploads ??= percy?.deferUploads;
+    deferUploads ??= config.percy?.deferUploads;
     this.config = config;
 
     if (testing) loglevel = 'silent';
@@ -87,7 +87,7 @@ export class Percy {
     this.delayUploads = this.skipUploads || !!delayUploads;
     this.deferUploads = this.skipUploads || !!deferUploads;
 
-    this.client = new PercyClient({ token, clientInfo, environmentInfo });
+    this.client = new PercyClient({ token, clientInfo, environmentInfo, config });
     if (server) this.server = createPercyServer(this, port);
     this.browser = new Browser(this);
 
