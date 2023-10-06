@@ -40,10 +40,6 @@ describe('PercyClient', () => {
     });
 
     it('it logs a debug warning when no info is passed', async () => {
-      client = new PercyClient({
-        token: 'PERCY_TOKEN'
-      });
-
       await expectAsync(client.createSnapshot(123, {
         name: 'snapfoo',
         widths: [1000],
@@ -1338,6 +1334,10 @@ describe('PercyClient', () => {
   });
 
   describe('#getToken', () => {
+    afterEach(() => {
+      delete process.env.PERCY_TOKEN;
+    });
+
     it('should throw error when called with true', () => {
       const client = new PercyClient({});
       expect(() => {
@@ -1350,6 +1350,21 @@ describe('PercyClient', () => {
         token: 'PERCY_TOKEN'
       });
       expect(client.getToken(false)).toBe('PERCY_TOKEN');
+    });
+
+    it('should read from env package if token is not passed', () => {
+      process.env.PERCY_TOKEN = 'PERCY_TOKEN';
+      const client = new PercyClient({
+        config: { percy: { token: 'DONT_USE_THIS' } }
+      });
+      expect(client.getToken()).toBe('PERCY_TOKEN');
+    });
+
+    it('should read from config if env is not set and config has percy.token', () => {
+      const client = new PercyClient({
+        config: { percy: { token: 'USE_THIS_TOKEN' } }
+      });
+      expect(client.getToken()).toBe('USE_THIS_TOKEN');
     });
   });
 });

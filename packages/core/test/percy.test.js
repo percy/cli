@@ -26,6 +26,10 @@ describe('Percy', () => {
     await server.close();
   });
 
+  it('loads config and intializes client with config', () => {
+    expect(percy.client.config).toEqual(percy.config);
+  });
+
   it('logs when a snapshot is missing env info', async () => {
     percy = new Percy({
       token: 'PERCY_TOKEN',
