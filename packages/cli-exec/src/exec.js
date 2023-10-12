@@ -128,9 +128,7 @@ async function* spawn(cmd, args) {
         console.error(`Process exited with code ${code}`);
       }
     
-      //console.error('Stderr:', stderrData);
-      console.error('stdoutData:', stdoutData.length);
-      console.error('Stderr:', stderrData.length);
+      // We can send stderr `stderrData`  or stdout `stdoutData` to the api from here
     });
     
 
