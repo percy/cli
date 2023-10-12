@@ -57,6 +57,7 @@ export const exec = command('exec', {
   // attempt to start percy if enabled
   if (!percy) {
     log.warn('Percy is disabled');
+    // we can send this data as well.
   } else {
     try {
       // Skip this for app because they are triggered as app:exec
@@ -97,14 +98,47 @@ export const exec = command('exec', {
 async function* spawn(cmd, args) {
   let { default: crossSpawn } = await import('cross-spawn');
   let proc, closed, error;
+  let stderrData = '';
+  let stdoutData = '';
 
   try {
-    proc = crossSpawn(cmd, args, { stdio: 'inherit' });
-    proc.on('close', code => (closed = code));
+    proc = crossSpawn(cmd, args, { stdio: 'pipe' });
+    // Writing stdout of proc to process 
+    if (proc.stdout) {
+      proc.stdout.on('data', (data) => {
+        stdoutData += data;
+        process.stdout.write(`${data}`);
+      });
+    }
+
+    if (proc.stderr) {
+      proc.stderr.on('data', (data) => {
+        stderrData += data;
+        process.stderr.write(`${data}`);
+      });
+    }
+
     proc.on('error', err => (error = err));
+
+    proc.on('close', (code, signal) => {
+      closed = code;
+      if (code === 0) {
+        console.log('Process successfully completed');
+      } else {
+        console.error(`Process exited with code ${code}`);
+      }
+    
+      //console.error('Stderr:', stderrData);
+      console.error('stdoutData:', stdoutData.length);
+      console.error('Stderr:', stderrData.length);
+    });
+    
 
     // run until an event is triggered
     /* eslint-disable-next-line no-unmodified-loop-condition */
+    // console.error('Stderr:', stderrData);
+    // console.error('Stderr:', stderrData.length);
+
     while (closed == null && error == null) {
       yield new Promise(r => setImmediate(r));
     }
