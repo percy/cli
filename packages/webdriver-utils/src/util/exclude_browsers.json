@@ -1,0 +1,35 @@
+{
+    "os": {
+      "OS X": {
+        "os_versions": ["Snow Leopard", "Lion", "Mountain Lion", "Mavericks", "Yosemite", "El Capitan", "Sierra", "High Sierra", "Mojave"],
+        "browsers": {
+            "chrome": {
+                "min_version": "92"
+            },
+            "firefox": {
+                "min_version": "92"
+            },
+            "edge": {
+                "min_version": "92"
+            }
+        }
+      },
+      "Windows": {
+        "os_versions": ["8.1", "8.0", "7", "XP"],
+        "browsers": {
+            "chrome": {
+                "min_version": "92"
+            },
+            "firefox": {
+                "min_version": "92"
+            },
+            "edge": {
+                "min_version": "92"
+            },
+            "ie": {
+                "min_version": "all"
+            }
+        }
+      }
+    }
+}

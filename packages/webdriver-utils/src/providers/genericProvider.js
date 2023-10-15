@@ -4,6 +4,7 @@ import MetaDataResolver from '../metadata/metaDataResolver.js';
 import Tile from '../util/tile.js';
 import Driver from '../driver.js';
 import Cache from '../util/cache.js';
+import CapabilitiesValidator from '../util/capabilityValidator.js';
 const { request } = utils;
 
 const DEVICES_CONFIG_URL = 'https://storage.googleapis.com/percy-utils/devices.json';
@@ -47,6 +48,9 @@ export default class GenericProvider {
     log.debug(`Passed capabilities -> ${JSON.stringify(this.capabilities)}`);
     const caps = await this.driver.getCapabilites();
     log.debug(`Fetched capabilities -> ${JSON.stringify(caps)}`);
+    log.debug('Validating Capabilites');
+    const validator = new CapabilitiesValidator(caps);
+    validator.validateBrowserOSVersions();
     this.metaData = await MetaDataResolver.resolve(this.driver, caps, this.capabilities);
   }
 
