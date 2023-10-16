@@ -20,6 +20,13 @@ export default class CapabilitiesValidator {
 
     const { os, osVersion, browserName, browserVersion } = this.capabilities;
 
+    if (!os || !osVersion || !browserName || !browserVersion) {
+      colors.yellow(
+        console.warn(
+          `OS/Browser Combination ${os}: ${osVersion}: ${browserName} ${browserName}  is not supported in Percy`
+        )
+      );
+    }
     if (excludeBrowserData?.os[os]) {
       const osData = excludeBrowserData?.os[os];
       if (osData?.os_versions) {
