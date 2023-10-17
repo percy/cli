@@ -16,11 +16,10 @@ const GIT_COMMIT_FORMAT = [
 ].join('%n'); // git show format uses %n for newlines.
 
 export function git(args) {
+  if (process.env.PERCY_SKIP_GIT_CHECK === 'true') {
+    return '';
+  }
   try {
-    if (process.env.PERCY_SKIP_GIT_CHECK) {
-      log.debug('Skipping git commands');
-      return '';
-    }
     return cp.execSync(`git ${args}`, {
       stdio: ['ignore', 'pipe', 'ignore'],
       encoding: 'utf-8'
