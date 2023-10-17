@@ -1,5 +1,8 @@
 import fs from 'fs';
 import cp from 'child_process';
+import logger from '@percy/logger';
+
+let log = logger('cli');
 
 const GIT_COMMIT_FORMAT = [
   'COMMIT_SHA:%H',
@@ -14,6 +17,10 @@ const GIT_COMMIT_FORMAT = [
 
 export function git(args) {
   try {
+    if (process.env.PERCY_SKIP_GIT_CHECK) {
+      log.debug('Skipping git commands');
+      return '';
+    }
     return cp.execSync(`git ${args}`, {
       stdio: ['ignore', 'pipe', 'ignore'],
       encoding: 'utf-8'
