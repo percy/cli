@@ -173,7 +173,6 @@ describe('Defaults', () => {
   });
 
   describe('env PERCY_SKIP_GIT_CHECK', () => {
-  
     beforeEach(() => {
       process.env.PERCY_SKIP_GIT_CHECK = true;
     });
@@ -188,5 +187,4 @@ describe('Defaults', () => {
       expect(env).toHaveProperty('git.sha', null);
     });
   });
-
 });

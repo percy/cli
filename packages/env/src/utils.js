@@ -1,8 +1,5 @@
 import fs from 'fs';
 import cp from 'child_process';
-import logger from '@percy/logger';
-
-let log = logger('cli');
 
 const GIT_COMMIT_FORMAT = [
   'COMMIT_SHA:%H',
