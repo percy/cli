@@ -516,6 +516,22 @@ export class PercyClient {
     return comparison;
   }
 
+  async sendFailedEvents(buildId, { errorKind =  'cli', client = null, clientVersion = null, cliVersion = null, errorMessage } = {}) {
+    //validateId(buildId);
+    console.log(`data: ${buildId}, ${errorKind}, ${client}, ${clientVersion}, ${cliVersion}, ${errorMessage}`);
+    this.log.debug(`Sending FailedEvents`);
+    return this.post(`builds/${buildId}/failed-events`, {
+      data: {
+        buildId: buildId,
+        errorKind: errorKind,
+        client: client,
+        clientVersion: clientVersion,
+        cliVersion: cliVersion,
+        errorMessage: errorMessage
+      }
+    });
+  }
+
   // decides project type
   tokenType() {
     let token = this.getToken(false) || '';

@@ -84,7 +84,7 @@ export const exec = command('exec', {
 
   // run the provided command
   log.info(`Running "${[command, ...args].join(' ')}"`);
-  let [status, error] = yield* spawn(command, args);
+  let [status, error] = yield* spawn(command, args, percy);
 
   // stop percy if running (force stop if there is an error);
   await percy?.stop(!!error);
@@ -95,7 +95,7 @@ export const exec = command('exec', {
 
 // Spawn a command with cross-spawn and return an array containing the resulting status code along
 // with any error encountered while running. Uses a generator pattern to handle interupt signals.
-async function* spawn(cmd, args) {
+async function* spawn(cmd, args, percy) {
   let { default: crossSpawn } = await import('cross-spawn');
   let proc, closed, error;
   let stderrData = '';
@@ -126,6 +126,18 @@ async function* spawn(cmd, args) {
         console.log('Process successfully completed');
       } else {
         console.error(`Process exited with code ${code}`);
+      }
+      console.log(`percyToken: ${percy.client.getToken(false)}`);
+      if (percy.client.getToken(false)) {
+        const myObject = {
+          errorKind: 'cli',
+          client: percy.clientInfo,
+          clientVersion: null,
+          cliVersion: null,
+          errorMessage: stderrData // You can set any initial value or leave it as undefined
+        };
+        console.log(`percy: ${JSON.stringify(myObject)}`)
+        percy.client.sendFailedEvents(percy.build.id, myObject);
       }
     
       // We can send stderr `stderrData`  or stdout `stdoutData` to the api from here

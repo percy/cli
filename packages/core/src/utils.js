@@ -1,5 +1,5 @@
 import EventEmitter from 'events';
-import { sha256hash } from '@percy/client/utils';
+import { sha256hash, getPackageJSON } from '@percy/client/utils';
 import { camelcase, merge } from '@percy/config/utils';
 
 export {
@@ -58,6 +58,24 @@ export function percyAutomateRequestHandler(req, percy) {
     }
   });
   req.body.buildInfo = percy.build;
+}
+
+// Returns the body for failedEvent structure
+export function percyFailedRequestHandler(req) {
+  if (req.body.clientInfo) {
+    const [client, clientVersion] = req.body.clientInfo.split('/');
+
+    // Add the client and clientVersion fields to the existing object
+    req.body.client = client;
+    req.body.clientVersion = clientVersion;
+
+    // Remove the original clientInfo field
+    delete req.body.clientInfo;
+  }
+  // console.log(`req: ${JSON.stringify(req.body)}`);
+  let pkg = getPackageJSON(import.meta.url);
+  req.body.cliVersion = pkg.version;
+  console.log(`req: ${JSON.stringify(req.body)}`);
 }
 
 // Creates a local resource object containing the resource URL, mimetype, content, sha, and any
