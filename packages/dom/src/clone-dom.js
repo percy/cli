@@ -15,7 +15,9 @@ export function cloneNodeAndShadow({ dom, disableShadowDOM }) {
   let cloneNode = (node, parent) => {
     let walkTree = (nextn, nextp) => {
       while (nextn) {
-        cloneNode(nextn, nextp);
+        if (nextn.nodeName != "NOSCRIPT"){
+          cloneNode(nextn, nextp);
+        }
         nextn = nextn.nextSibling;
       }
     };
