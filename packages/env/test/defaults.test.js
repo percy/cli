@@ -181,7 +181,7 @@ describe('Defaults', () => {
       process.env.PERCY_SKIP_GIT_CHECK = false;
     });
 
-    it('does not make git commands, if there are any', () => {
+    it('does not make git commands when set to true', () => {
       mockgit('mock branch').and.returnValue('');
 
       expect(env).toHaveProperty('git.sha', null);
