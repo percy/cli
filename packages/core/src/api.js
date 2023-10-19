@@ -121,7 +121,7 @@ export function createPercyServer(percy, port) {
       percy.upload(await WebdriverUtils.automateScreenshot(req.body));
       res.json(200, { success: true });
     })
-  // Recieves events from sdk's. 
+  // Recieves events from sdk's.
     .route('post', '/percy/events', async (req, res) => {
       percyFailedRequestHandler(req);
       console.log(`percy: ${JSON.stringify(percy.build)}`);

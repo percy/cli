@@ -99,14 +99,12 @@ async function* spawn(cmd, args, percy) {
   let { default: crossSpawn } = await import('cross-spawn');
   let proc, closed, error;
   let stderrData = '';
-  let stdoutData = '';
 
   try {
     proc = crossSpawn(cmd, args, { stdio: 'pipe' });
-    // Writing stdout of proc to process 
+    // Writing stdout of proc to process
     if (proc.stdout) {
       proc.stdout.on('data', (data) => {
-        stdoutData += data;
         process.stdout.write(`${data}`);
       });
     }
@@ -122,33 +120,25 @@ async function* spawn(cmd, args, percy) {
 
     proc.on('close', (code, signal) => {
       closed = code;
-      if (code === 0) {
-        console.log('Process successfully completed');
-      } else {
-        console.error(`Process exited with code ${code}`);
+      if (code !== 0) {
+        // Only send event when there is a global error code
+        if (percy.client.getToken(false)) {
+          const myObject = {
+            errorKind: 'cli',
+            client: percy.clientInfo,
+            clientVersion: null,
+            cliVersion: null,
+            errorMessage: stderrData // You can set any initial value or leave it as undefined
+          };
+          percy.client.sendFailedEvents(percy.build.id, myObject);
+        }
       }
-      console.log(`percyToken: ${percy.client.getToken(false)}`);
-      if (percy.client.getToken(false)) {
-        const myObject = {
-          errorKind: 'cli',
-          client: percy.clientInfo,
-          clientVersion: null,
-          cliVersion: null,
-          errorMessage: stderrData // You can set any initial value or leave it as undefined
-        };
-        console.log(`percy: ${JSON.stringify(myObject)}`)
-        percy.client.sendFailedEvents(percy.build.id, myObject);
-      }
-    
+
       // We can send stderr `stderrData`  or stdout `stdoutData` to the api from here
     });
-    
 
     // run until an event is triggered
     /* eslint-disable-next-line no-unmodified-loop-condition */
-    // console.error('Stderr:', stderrData);
-    // console.error('Stderr:', stderrData.length);
-
     while (closed == null && error == null) {
       yield new Promise(r => setImmediate(r));
     }
