@@ -4,6 +4,7 @@ import MetaDataResolver from '../metadata/metaDataResolver.js';
 import Tile from '../util/tile.js';
 import Driver from '../driver.js';
 import Cache from '../util/cache.js';
+import httpsAgent from '../util/utils.js';
 const { request } = utils;
 
 const DEVICES_CONFIG_URL = 'https://storage.googleapis.com/percy-utils/devices.json';

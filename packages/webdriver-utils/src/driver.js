@@ -1,5 +1,6 @@
 import utils from '@percy/sdk-utils';
 import Cache from './util/cache.js';
+import { httpsAgent } from './util/utils.js';
 const { request } = utils;
 const log = utils.logger('webdriver-utils:driver');
 
@@ -13,8 +14,11 @@ export default class Driver {
   async getCapabilites() {
     return await Cache.withCache(Cache.caps, this.sessionId, async () => {
       try {
+        const options = {
+          // agent: httpsAgent()
+        };
         const baseUrl = `${this.executorUrl}/session/${this.sessionId}`;
-        const caps = JSON.parse((await request(baseUrl)).body);
+        const caps = JSON.parse((await request(baseUrl, options)).body);
         return caps.value;
       } catch (err) {
         log.warn(`Falling back to legacy protocol, Error: ${err.message}`);
@@ -24,8 +28,11 @@ export default class Driver {
   }
 
   async getWindowSize() {
-    const baseUrl = `${this.executorUrl}/session/${this.sessionId}/window/current/size`;
-    const windowSize = JSON.parse((await request(baseUrl)).body);
+    const options = {
+      // agent: httpsAgent()
+    };
+    const baseUrl = `${this.executForUrl}/session/${this.sessionId}/window/current/size`;
+    const windowSize = JSON.parse((await request(baseUrl, options)).body);
     return windowSize;
   }
 
@@ -48,6 +55,7 @@ export default class Driver {
       headers: {
         'Content-Type': 'application/json;charset=utf-8'
       },
+      // agent: httpsAgent(),
       body: JSON.stringify(command)
     };
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/execute/sync`;
@@ -56,14 +64,20 @@ export default class Driver {
   }
 
   async takeScreenshot() {
+    const options = {
+      // agent: httpsAgent()
+    };
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/screenshot`;
-    const screenShot = JSON.parse((await request(baseUrl)).body);
+    const screenShot = JSON.parse((await request(baseUrl, options)).body);
     return screenShot.value;
   }
 
   async rect(elementId) {
+    const options = {
+      // agent: httpsAgent()
+    };
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/element/${elementId}/rect`;
-    const response = JSON.parse((await request(baseUrl)).body);
+    const response = JSON.parse((await request(baseUrl, options)).body);
     return response.value;
   }
 
@@ -73,6 +87,7 @@ export default class Driver {
       headers: {
         'Content-Type': 'application/json;charset=utf-8'
       },
+      // agent: httpsAgent(),
       body: JSON.stringify({ using, value })
     };
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/element`;
