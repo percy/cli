@@ -316,6 +316,61 @@ describe('API Server', () => {
     resolve(); // no hanging promises
   });
 
+  it('has a /events endpoint that calls #sendFailedEvents() async with provided options with clientInfo present', async () => {
+    let { getPackageJSON } = await import('@percy/client/utils');
+    let pkg = getPackageJSON(import.meta.url);
+    let resolve, test = new Promise(r => (resolve = r));
+    // spyOn(percy.client, 'sendFailedEvents').and.returnValue(test);
+    // let mockWebdriverUtilResponse = 'TODO: mocked response';
+    let sendFailedEventsSpy = spyOn(percy.client, 'sendFailedEvents').and.resolveTo('some response');
+
+    await percy.start();
+
+    await expectAsync(request('/percy/events', {
+      body: {
+        errorMessage: 'some error',
+        clientInfo: 'percy-appium-dotnet/3.0.1'
+      },
+      method: 'post'
+    })).toBeResolvedTo({ success: true });
+
+    expect(sendFailedEventsSpy).toHaveBeenCalledOnceWith(percy.build.id, jasmine.objectContaining({
+      errorMessage: 'some error',
+      client: 'percy-appium-dotnet',
+      clientVersion: '3.0.1',
+      cliVersion: pkg.version
+    }));
+
+    await expectAsync(test).toBePending();
+    resolve(); // no hanging promises
+  });
+
+  it('has a /events endpoint that calls #sendFailedEvents() async with provided options with clientInfo absent', async () => {
+    let { getPackageJSON } = await import('@percy/client/utils');
+    let pkg = getPackageJSON(import.meta.url);
+    let resolve, test = new Promise(r => (resolve = r));
+    // spyOn(percy.client, 'sendFailedEvents').and.returnValue(test);
+    // let mockWebdriverUtilResponse = 'TODO: mocked response';
+    let sendFailedEventsSpy = spyOn(percy.client, 'sendFailedEvents').and.resolveTo('some response');
+
+    await percy.start();
+
+    await expectAsync(request('/percy/events', {
+      body: {
+        errorMessage: 'some error'
+      },
+      method: 'post'
+    })).toBeResolvedTo({ success: true });
+
+    expect(sendFailedEventsSpy).toHaveBeenCalledOnceWith(percy.build.id, jasmine.objectContaining({
+      errorMessage: 'some error',
+      cliVersion: pkg.version
+    }));
+
+    await expectAsync(test).toBePending();
+    resolve(); // no hanging promises
+  });
+
   it('returns a 500 error when an endpoint throws', async () => {
     spyOn(percy, 'snapshot').and.rejectWith(new Error('test error'));
     await percy.start();

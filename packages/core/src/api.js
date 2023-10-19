@@ -3,7 +3,7 @@ import path from 'path';
 import { createRequire } from 'module';
 import logger from '@percy/logger';
 import { normalize } from '@percy/config/utils';
-import { getPackageJSON, Server, percyAutomateRequestHandler, percyFailedRequestHandler } from './utils.js';
+import { getPackageJSON, Server, percyAutomateRequestHandler, percyFailedEventHandler } from './utils.js';
 import WebdriverUtils from '@percy/webdriver-utils';
 // need require.resolve until import.meta.resolve can be transpiled
 export const PERCY_DOM = createRequire(import.meta.url).resolve('@percy/dom');
@@ -123,10 +123,7 @@ export function createPercyServer(percy, port) {
     })
   // Recieves events from sdk's.
     .route('post', '/percy/events', async (req, res) => {
-      percyFailedRequestHandler(req);
-      console.log(`percy: ${JSON.stringify(percy.build)}`);
-      console.log(`body: ${JSON.stringify(req.body)}`);
-      req.body.errorKind = 'sdk';
+      percyFailedEventHandler(req, pkg.version);
       await percy.client.sendFailedEvents(percy.build.id, req.body);
       res.json(200, { success: true });
     })

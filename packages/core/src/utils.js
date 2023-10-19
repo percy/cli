@@ -61,7 +61,7 @@ export function percyAutomateRequestHandler(req, percy) {
 }
 
 // Returns the body for failedEvent structure
-export function percyFailedRequestHandler(req) {
+export function percyFailedEventHandler(req, cliVersion) {
   if (req.body.clientInfo) {
     const [client, clientVersion] = req.body.clientInfo.split('/');
 
@@ -72,6 +72,7 @@ export function percyFailedRequestHandler(req) {
     // Remove the original clientInfo field
     delete req.body.clientInfo;
   }
+  req.body.cliVersion = cliVersion;
   let pkg = getPackageJSON(import.meta.url);
   req.body.cliVersion = pkg.version;
 }
