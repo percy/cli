@@ -1,7 +1,6 @@
 import https from 'https';
 
 export function httpsAgent() {
-  // return {};
   return new https.Agent({
     minVersion: 'TLSv1.2',
     maxVersion: 'TLSv1.2'

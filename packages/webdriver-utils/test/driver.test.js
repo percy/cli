@@ -33,7 +33,10 @@ describe('Driver', () => {
   describe('getCapabilities', () => {
     it('calls requests', async () => {
       let res = await driver.getCapabilites();
-      expect(requestSpy).toHaveBeenCalledOnceWith(`${executorUrl}/session/${sessionId}`, Object({}));
+      expect(requestSpy).toHaveBeenCalledWith(
+        `${executorUrl}/session/${sessionId}`,
+        { agent: jasmine.any(Object) }
+      );
       expect(res).toBe('mockVal');
     });
   });
@@ -56,7 +59,9 @@ describe('Driver', () => {
 
     it('falls back to passed capabilites', async () => {
       let res = await newDriver.getCapabilites();
-      expect(requestFailedSpy).toHaveBeenCalledOnceWith(`${executorUrl}/session/${sessionId}`, Object({}));
+      expect(requestFailedSpy).toHaveBeenCalledOnceWith(`${executorUrl}/session/${sessionId}`,
+        { agent: jasmine.any(Object) }
+      );
       expect(res).toBe(passedCapabilities);
     });
   });
@@ -66,7 +71,7 @@ describe('Driver', () => {
       let res = await driver.getWindowSize();
       expect(requestSpy).toHaveBeenCalledOnceWith(
         `${executorUrl}/session/${sessionId}/window/current/size`,
-        Object({}));
+        { agent: jasmine.any(Object) });
       expect(res).toEqual({ value: 'mockVal' });
     });
   });
@@ -83,7 +88,8 @@ describe('Driver', () => {
           headers: {
             'Content-Type': 'application/json;charset=utf-8'
           },
-          body: JSON.stringify(command)
+          body: JSON.stringify(command),
+          agent: jasmine.any(Object)
         }
       );
       expect(res).toEqual({ value: 'mockVal' });
@@ -100,7 +106,8 @@ describe('Driver', () => {
           headers: {
             'Content-Type': 'application/json;charset=utf-8'
           },
-          body: JSON.stringify(command)
+          body: JSON.stringify(command),
+          agent: jasmine.any(Object)
         }
       );
       expect(res).toEqual({ value: 'mockVal' });
@@ -119,7 +126,7 @@ describe('Driver', () => {
       let res = await driver.takeScreenshot();
       expect(requestSpy).toHaveBeenCalledOnceWith(
         `${executorUrl}/session/${sessionId}/screenshot`,
-        Object({}));
+        { agent: jasmine.any(Object) });
       expect(res).toEqual('mockVal');
     });
   });
@@ -136,7 +143,8 @@ describe('Driver', () => {
           headers: {
             'Content-Type': 'application/json;charset=utf-8'
           },
-          body: JSON.stringify({ using, value: value })
+          body: JSON.stringify({ using, value: value }),
+          agent: jasmine.any(Object)
         }
       );
       expect(res).toEqual('mockVal');
@@ -157,7 +165,7 @@ describe('Driver', () => {
       let res = await driver.rect(elementId);
       expect(requestSpy).toHaveBeenCalledOnceWith(
         `${executorUrl}/session/${sessionId}/element/${elementId}/rect`,
-        Object({}));
+        { agent: jasmine.any(Object) });
       expect(res).toEqual('mockVal');
     });
   });
