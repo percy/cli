@@ -517,7 +517,7 @@ export class PercyClient {
   }
 
   async sendFailedEvents(buildId, { errorKind = 'cli', client = null, clientVersion = null, cliVersion = null, errorMessage = null } = {}) {
-    validateId(buildId);
+    validateId('build', buildId);
     this.log.debug('Sending FailedEvents');
     return this.post(`builds/${buildId}/failed-events`, {
       data: {
