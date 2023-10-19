@@ -1,4 +1,5 @@
 import percy from './percy-info.js';
+import logger from './logger.js';
 
 // Helper to send a request to the local CLI API
 export async function request(path, options = {}) {
@@ -52,6 +53,9 @@ if (process.env.__PERCY_BROWSERIFIED__) {
     let { protocol } = new URL(url);
     // rollup throws error for -> await import(protocol === 'https:' ? 'https' : 'http')
     let { default: http } = protocol === 'https:' ? await import('https') : await import('http');
+
+    const log = logger('request');
+    log.debug(`Request object for url: ${url},\nRequest object: ${JSON.stringify(options)}`);
 
     return new Promise((resolve, reject) => {
       http.request(url, options)

@@ -1,6 +1,6 @@
 import utils from '@percy/sdk-utils';
 import Cache from './util/cache.js';
-import { httpsAgent } from './util/utils.js';
+import httpsAgent from './util/utils.js';
 const { request } = utils;
 const log = utils.logger('webdriver-utils:driver');
 
@@ -15,7 +15,7 @@ export default class Driver {
     return await Cache.withCache(Cache.caps, this.sessionId, async () => {
       try {
         const options = {
-          // agent: httpsAgent()
+          agent: httpsAgent()
         };
         const baseUrl = `${this.executorUrl}/session/${this.sessionId}`;
         const caps = JSON.parse((await request(baseUrl, options)).body);
@@ -29,9 +29,9 @@ export default class Driver {
 
   async getWindowSize() {
     const options = {
-      // agent: httpsAgent()
+      agent: httpsAgent()
     };
-    const baseUrl = `${this.executForUrl}/session/${this.sessionId}/window/current/size`;
+    const baseUrl = `${this.executorUrl}/session/${this.sessionId}/window/current/size`;
     const windowSize = JSON.parse((await request(baseUrl, options)).body);
     return windowSize;
   }
@@ -55,7 +55,7 @@ export default class Driver {
       headers: {
         'Content-Type': 'application/json;charset=utf-8'
       },
-      // agent: httpsAgent(),
+      agent: httpsAgent(),
       body: JSON.stringify(command)
     };
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/execute/sync`;
@@ -65,7 +65,7 @@ export default class Driver {
 
   async takeScreenshot() {
     const options = {
-      // agent: httpsAgent()
+      agent: httpsAgent()
     };
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/screenshot`;
     const screenShot = JSON.parse((await request(baseUrl, options)).body);
@@ -74,7 +74,7 @@ export default class Driver {
 
   async rect(elementId) {
     const options = {
-      // agent: httpsAgent()
+      agent: httpsAgent()
     };
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/element/${elementId}/rect`;
     const response = JSON.parse((await request(baseUrl, options)).body);
@@ -87,7 +87,7 @@ export default class Driver {
       headers: {
         'Content-Type': 'application/json;charset=utf-8'
       },
-      // agent: httpsAgent(),
+      agent: httpsAgent(),
       body: JSON.stringify({ using, value })
     };
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/element`;

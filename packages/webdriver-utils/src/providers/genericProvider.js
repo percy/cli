@@ -273,7 +273,7 @@ export default class GenericProvider {
   async getHeaderFooter(deviceName, osVersion, browserName) {
     // passing 0 as key, since across different pages and tests, this config will remain same
     const devicesConfig = await Cache.withCache(Cache.devicesConfig, 0, async () => {
-      return (await request(DEVICES_CONFIG_URL)).body;
+      return (await request(DEVICES_CONFIG_URL, httpsAgent())).body;
     });
     let deviceKey = `${deviceName}-${osVersion}`;
     return devicesConfig[deviceKey]
