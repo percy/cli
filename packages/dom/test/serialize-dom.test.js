@@ -17,6 +17,14 @@ describe('serializeDOM', () => {
     expect(result.html).toContain('Hey Percy $&');
   });
 
+  it('excludes noscript tags when present', () => {
+    withExample('<p>Hey Percy $&</p><noscript>Your browser does not support JavaScript!</noscript>');
+
+    const result = serializeDOM();
+    expect(result.html).not.toContain('<noscript>');
+    expect(result.html).toContain('Hey Percy $&');
+  });
+
   it('optionally returns a stringified response', () => {
     expect(serializeDOM({ stringifyResponse: true }))
       .toMatch('{"html":".*","warnings":\\[\\],"resources":\\[\\]}');

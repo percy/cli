@@ -10,12 +10,17 @@ import applyElementTransformations from './transform-dom';
  * Deep clone a document while also preserving shadow roots
  * returns document fragment
  */
+
+const ignoreTags = ['NOSCRIPT'];
+
 export function cloneNodeAndShadow({ dom, disableShadowDOM }) {
   // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
     let walkTree = (nextn, nextp) => {
       while (nextn) {
-        cloneNode(nextn, nextp);
+        if (!ignoreTags.includes(nextn.nodeName)) {
+          cloneNode(nextn, nextp);
+        }
         nextn = nextn.nextSibling;
       }
     };
