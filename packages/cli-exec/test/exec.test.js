@@ -131,7 +131,7 @@ describe('percy exec', () => {
   });
 
   it('tests process.stdout', async () => {
-    let stdoutSpy = spyOn(process.stdout, 'write').and.resolveTo('some response')
+    let stdoutSpy = spyOn(process.stdout, 'write').and.resolveTo('some response');
     await exec(['--', 'echo', 'Hi!']);
 
     expect(stdoutSpy).toHaveBeenCalled();
@@ -144,11 +144,11 @@ describe('percy exec', () => {
   });
 
   it('tests process.stderr', async () => {
-    let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo('some response')
+    let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo('some response');
     await expectAsync(
       exec(['--', 'node', 'random.js']) // invalid command
     ).toBeRejectedWithError('EEXIT: 1');
-  
+
     expect(stderrSpy).toHaveBeenCalled();
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
