@@ -320,8 +320,6 @@ describe('API Server', () => {
     let { getPackageJSON } = await import('@percy/client/utils');
     let pkg = getPackageJSON(import.meta.url);
     let resolve, test = new Promise(r => (resolve = r));
-    // spyOn(percy.client, 'sendFailedEvents').and.returnValue(test);
-    // let mockWebdriverUtilResponse = 'TODO: mocked response';
     let sendFailedEventsSpy = spyOn(percy.client, 'sendFailedEvents').and.resolveTo('some response');
 
     await percy.start();
@@ -349,8 +347,6 @@ describe('API Server', () => {
     let { getPackageJSON } = await import('@percy/client/utils');
     let pkg = getPackageJSON(import.meta.url);
     let resolve, test = new Promise(r => (resolve = r));
-    // spyOn(percy.client, 'sendFailedEvents').and.returnValue(test);
-    // let mockWebdriverUtilResponse = 'TODO: mocked response';
     let sendFailedEventsSpy = spyOn(percy.client, 'sendFailedEvents').and.resolveTo('some response');
 
     await percy.start();

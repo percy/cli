@@ -118,7 +118,7 @@ async function* spawn(cmd, args, percy) {
 
     proc.on('error', err => (error = err));
 
-    proc.on('close', (code, signal) => {
+    proc.on('close', code => {
       closed = code;
       if (code !== 0) {
         // Only send event when there is a global error code

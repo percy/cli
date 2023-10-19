@@ -130,6 +130,34 @@ describe('percy exec', () => {
     ]);
   });
 
+  it('tests process.stdout', async () => {
+    let stdoutSpy = spyOn(process.stdout, 'write').and.resolveTo('some response')
+    await exec(['--', 'echo', 'Hi!']);
+
+    expect(stdoutSpy).toHaveBeenCalled();
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Percy has started!',
+      '[percy] Running "echo Hi!"',
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
+    ]);
+  });
+
+  it('tests process.stderr', async () => {
+    let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo('some response')
+    await expectAsync(
+      exec(['--', 'node', 'random.js']) // invalid command
+    ).toBeRejectedWithError('EEXIT: 1');
+  
+    expect(stderrSpy).toHaveBeenCalled();
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Percy has started!',
+      '[percy] Running "node random.js"',
+      '[percy] Finalized build #1: https://percy.io/test/test/123'
+    ]);
+  });
+
   it('does not run the command if canceled beforehand', async () => {
     // delay build creation to give time to cancel
     api.reply('/builds', () => new Promise(resolve => {
