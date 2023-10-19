@@ -57,7 +57,6 @@ export const exec = command('exec', {
   // attempt to start percy if enabled
   if (!percy) {
     log.warn('Percy is disabled');
-    // we can send this data as well.
   } else {
     try {
       // Skip this for app because they are triggered as app:exec
@@ -128,8 +127,6 @@ async function* spawn(cmd, args, percy) {
           percy.client.sendFailedEvents(percy.build.id, myObject);
         }
       }
-
-      // We can send stderr `stderrData`  or stdout `stdoutData` to the api from here
     });
 
     // run until an event is triggered
