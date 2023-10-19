@@ -72,10 +72,8 @@ export function percyFailedRequestHandler(req) {
     // Remove the original clientInfo field
     delete req.body.clientInfo;
   }
-  // console.log(`req: ${JSON.stringify(req.body)}`);
   let pkg = getPackageJSON(import.meta.url);
   req.body.cliVersion = pkg.version;
-  console.log(`req: ${JSON.stringify(req.body)}`);
 }
 
 // Creates a local resource object containing the resource URL, mimetype, content, sha, and any
