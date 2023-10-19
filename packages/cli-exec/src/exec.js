@@ -98,7 +98,6 @@ export const exec = command('exec', {
 async function* spawn(cmd, args, percy) {
   let { default: crossSpawn } = await import('cross-spawn');
   let proc, closed, error;
-  let stderrData = '';
 
   try {
     proc = crossSpawn(cmd, args, { stdio: 'pipe' });
@@ -111,7 +110,6 @@ async function* spawn(cmd, args, percy) {
 
     if (proc.stderr) {
       proc.stderr.on('data', (data) => {
-        stderrData += data;
         process.stderr.write(`${data}`);
       });
     }
@@ -122,13 +120,10 @@ async function* spawn(cmd, args, percy) {
       closed = code;
       if (code !== 0) {
         // Only send event when there is a global error code
-        if (percy.client.getToken(false)) {
+        if (process.env.PERCY_TOKEN) {
           const myObject = {
             errorKind: 'cli',
-            client: percy.clientInfo,
-            clientVersion: null,
-            cliVersion: null,
-            errorMessage: stderrData // You can set any initial value or leave it as undefined
+            errorMessage: '1'
           };
           percy.client.sendFailedEvents(percy.build.id, myObject);
         }

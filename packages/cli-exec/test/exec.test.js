@@ -143,7 +143,7 @@ describe('percy exec', () => {
     ]);
   });
 
-  it('tests process.stderr', async () => {
+  it('tests process.stderr when token is present', async () => {
     let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo('some response');
     await expectAsync(
       exec(['--', 'node', 'random.js']) // invalid command
@@ -156,6 +156,37 @@ describe('percy exec', () => {
       '[percy] Running "node random.js"',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
+
+    expect(api.requests['/builds/123/failed-events']).toBeDefined();
+    expect(api.requests['/builds/123/failed-events'][0].body).toEqual({
+      data: {
+        buildId: '123',
+        errorKind: 'cli',
+        client: null,
+        clientVersion: null,
+        cliVersion: null,
+        message: '1'
+      }
+    });
+  });
+
+  it('tests process.stderr when token is not present', async () => {
+    delete process.env.PERCY_TOKEN;
+    let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo('some response');
+    await expectAsync(
+      exec(['--', 'node', 'random.js']) // invalid command
+    ).toBeRejectedWithError('EEXIT: 1');
+
+    expect(stderrSpy).toHaveBeenCalled();
+    expect(logger.stderr).toEqual([
+      '[percy] Skipping visual tests',
+      '[percy] Error: Missing Percy token'
+    ]);
+    expect(logger.stdout).toEqual([
+      '[percy] Running "node random.js"'
+    ]);
+
+    expect(api.requests['/builds/123/failed-events']).not.toBeDefined();
   });
 
   it('does not run the command if canceled beforehand', async () => {
