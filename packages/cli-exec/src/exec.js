@@ -118,7 +118,8 @@ async function* spawn(cmd, args, percy) {
     proc.on('close', code => {
       closed = code;
       if (code !== 0) {
-        // Only send event when there is a global error code
+        // Only send event when there is a global error code and
+        // percy token is present
         if (process.env.PERCY_TOKEN) {
           const myObject = {
             errorKind: 'cli',
