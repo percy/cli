@@ -344,8 +344,6 @@ describe('API Server', () => {
   });
 
   it('has a /events endpoint that calls #sendFailedEvents() async with provided options with clientInfo absent', async () => {
-    let { getPackageJSON } = await import('@percy/client/utils');
-    let pkg = getPackageJSON(import.meta.url);
     let resolve, test = new Promise(r => (resolve = r));
     let sendFailedEventsSpy = spyOn(percy.client, 'sendFailedEvents').and.resolveTo('some response');
 
@@ -353,14 +351,15 @@ describe('API Server', () => {
 
     await expectAsync(request('/percy/events', {
       body: {
-        errorMessage: 'some error'
+        errorMessage: 'some error',
+        cliVersion: '1.2.3'
       },
       method: 'post'
     })).toBeResolvedTo({ success: true });
 
     expect(sendFailedEventsSpy).toHaveBeenCalledOnceWith(percy.build.id, jasmine.objectContaining({
       errorMessage: 'some error',
-      cliVersion: pkg.version
+      cliVersion: '1.2.3'
     }));
 
     await expectAsync(test).toBePending();

@@ -1,5 +1,5 @@
 import EventEmitter from 'events';
-import { sha256hash, getPackageJSON } from '@percy/client/utils';
+import { sha256hash } from '@percy/client/utils';
 import { camelcase, merge } from '@percy/config/utils';
 
 export {
@@ -72,9 +72,9 @@ export function percyFailedEventHandler(req, cliVersion) {
     // Remove the original clientInfo field
     delete req.body.clientInfo;
   }
-  req.body.cliVersion = cliVersion;
-  let pkg = getPackageJSON(import.meta.url);
-  req.body.cliVersion = pkg.version;
+  if (!req.body.cliVersion) {
+    req.body.cliVersion = cliVersion;
+  }
 }
 
 // Creates a local resource object containing the resource URL, mimetype, content, sha, and any
