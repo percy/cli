@@ -108,7 +108,7 @@ describe('DesktopMetaData', () => {
       screenInfo = await desktopMetaData.screenResolution();
       expect(screenInfo).toEqual('1980 x 1080');
       expect(executeScriptSpy)
-        .toHaveBeenCalledWith({ script: 'return [(window.screen.width * window.devicePixelRatio).toString(), (window.screen.height * window.devicePixelRatio).toString()];', args: [] });
+        .toHaveBeenCalledWith({ script: 'return [parseInt(window.screen.width * window.devicePixelRatio).toString(), parseInt(window.screen.height * window.devicePixelRatio).toString()];', args: [] });
     });
   });
 

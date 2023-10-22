@@ -161,4 +161,18 @@ describe('Driver', () => {
       expect(res).toEqual('mockVal');
     });
   });
+
+  describe('requestPostOptions', () => {
+    const command = { simple: 'test' };
+    const expectedResponse = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json;charset=utf-8'
+      },
+      body: JSON.stringify(command)
+    };
+    it('returns post options', () => {
+      expect(driver.requestPostOptions(command)).toEqual(expectedResponse);
+    });
+  });
 });

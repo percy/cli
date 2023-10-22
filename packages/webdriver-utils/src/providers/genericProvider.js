@@ -36,6 +36,8 @@ export default class GenericProvider {
     this.debugUrl = null;
     this.header = 0;
     this.footer = 0;
+    this.pageYShiftFactor = 0;
+    this.pageXShiftFactor = 0;
   }
 
   addDefaultOptions() {
@@ -88,6 +90,10 @@ export default class GenericProvider {
 
     const tiles = await this.getTiles(this.header, this.footer, fullscreen);
     log.debug(`[${name}] : Tiles ${JSON.stringify(tiles)}`);
+
+    const scrollFactors = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX * window.devicePixelRatio), parseInt(window.scrollY * window.devicePixelRatio)];', args: [] });
+    this.pageYShiftFactor = tag.osName === 'iOS' ? tiles.tiles[0].statusBarHeight : (tiles.tiles[0].statusBarHeight - scrollFactors.value[1]);
+    this.pageXShiftFactor = tag.osName === 'iOS' ? 0 : (-scrollFactors.value[0]);
 
     const ignoreRegions = await this.findRegions(
       ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions
@@ -192,15 +198,15 @@ export default class GenericProvider {
   }
 
   async getRegionObject(selector, elementId) {
-    const scaleFactor = parseInt(await this.metaData.devicePixelRatio());
+    const scaleFactor = await this.metaData.devicePixelRatio();
     const rect = await this.driver.rect(elementId);
     const location = { x: rect.x, y: rect.y };
     const size = { height: rect.height, width: rect.width };
     const coOrdinates = {
-      top: Math.floor(location.y * scaleFactor),
-      bottom: Math.ceil((location.y + size.height) * scaleFactor),
-      left: Math.floor(location.x * scaleFactor),
-      right: Math.ceil((location.x + size.width) * scaleFactor)
+      top: Math.floor(location.y * scaleFactor) + this.pageYShiftFactor,
+      bottom: Math.ceil((location.y + size.height) * scaleFactor) + this.pageYShiftFactor,
+      left: Math.floor(location.x * scaleFactor) + this.pageXShiftFactor,
+      right: Math.ceil((location.x + size.width) * scaleFactor) + this.pageXShiftFactor
     };
 
     const jsonObject = {
