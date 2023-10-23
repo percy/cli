@@ -84,7 +84,7 @@ export default class AutomateProvider extends GenericProvider {
           state: 'begin'
         });
         // Selenium Hub, set status error Code to 13 if an error is thrown
-        if (result?.status !== 200) throw new Error(result?.value || 'Got invalid error response')
+        if (result?.status !== 200) throw new Error(result?.value || 'Got invalid error response');
         this._markedPercy = result.success;
         return result;
       } catch (e) {
@@ -92,14 +92,14 @@ export default class AutomateProvider extends GenericProvider {
         log.error(`[${name}] : error: ${e.toString()}`);
         /**
          * ERROR response format from SeleniumHUB `{
-         * sessionId: ..., 
-         * status: 13, 
+         * sessionId: ...,
+         * status: 13,
          * value: { error: '', message: ''}
          * }
          */
-        const errResponse = e?.response?.body && JSON.parse(e?.response?.body)?.value || {}
-        const errMessage = errResponse?.message || errResponse?.error || e?.message || e?.error || e?.value || e.toString()
-        throw new Error(errMessage)
+        const errResponse = (e?.response?.body && JSON.parse(e?.response?.body)?.value) || {};
+        const errMessage = errResponse?.message || errResponse?.error || e?.message || e?.error || e?.value || e.toString();
+        throw new Error(errMessage);
       }
     });
   }
