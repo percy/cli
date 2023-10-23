@@ -83,12 +83,24 @@ export default class AutomateProvider extends GenericProvider {
           percyBuildUrl: this.buildInfo.url,
           state: 'begin'
         });
+        // Selenium Hub, set status error Code to 13 if an error is thrown
+        if (result?.status !== 200) throw new Error(result)
         this._markedPercy = result.success;
         return result;
       } catch (e) {
         log.debug(`[${name}] : Could not mark Automate session as percy`);
         log.error(`[${name}] : error: ${e.toString()}`);
-        return null;
+        /**
+         * ERROR response format from SeleniumHUB `{
+         * sessionId: ..., 
+         * status: 13, 
+         * value: { error: '', message: ''}
+         * }
+         */
+        const errResponse = e?.response?.body && JSON.parse(e?.response?.body)?.value || {}
+        const errMessage = errResponse?.message || errResponse?.error || e?.message || e?.error || e?.value || e.toString()
+
+        throw new Error(errMessage)
       }
     });
   }
@@ -127,7 +139,7 @@ export default class AutomateProvider extends GenericProvider {
     const responseValue = JSON.parse(response.value);
     if (!responseValue.success) {
       throw new Error('Failed to get screenshots from Automate.' +
-      ' Check dashboard for error.');
+        ' Check dashboard for error.');
     }
 
     const tiles = [];
