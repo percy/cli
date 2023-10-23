@@ -138,7 +138,7 @@ export default class AutomateProvider extends GenericProvider {
     const responseValue = JSON.parse(response.value);
     if (!responseValue.success) {
       throw new Error('Failed to get screenshots from Automate.' +
-        ' Check dashboard for error.');
+      ' Check dashboard for error.');
     }
 
     const tiles = [];
