@@ -170,12 +170,27 @@ describe('AutomateProvider', () => {
       await expectAsync(automateProvider.percyScreenshotBegin('abc')).toBeRejectedWithError('OS/Browser/Selenium combination is not supported');
     });
 
+    it('throw "Got invalid error resposne" if result.value does not exists', async () => {
+      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', {}, percyBuildInfo);
+      await automateProvider.createDriver();
+      automateProvider.driver.executeScript = jasmine.createSpy().and.returnValue(Promise.resolve({ status: 13 }));
+      await expectAsync(automateProvider.percyScreenshotBegin('abc')).toBeRejectedWithError('Got invalid error response');
+    });
+
     it('mark percy sesssion as failure', async () => {
       const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', {}, percyBuildInfo);
       await automateProvider.createDriver();
       // eslint-disable-next-line prefer-promise-reject-errors
       automateProvider.driver.executeScript = jasmine.createSpy().and.returnValue(Promise.reject({ response: { body: JSON.stringify({ value: { error: 'OS/Browser/Selenium combination is not supported', message: 'OS/Browser/Selenium combination is not supported' } }) } }));
       await expectAsync(automateProvider.percyScreenshotBegin('abc')).toBeRejectedWithError('OS/Browser/Selenium combination is not supported');
+    });
+
+    it('catch direct response error', async () => {
+      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', {}, percyBuildInfo);
+      await automateProvider.createDriver();
+      // eslint-disable-next-line prefer-promise-reject-errors
+      automateProvider.driver.executeScript = jasmine.createSpy().and.returnValue(Promise.reject('Random Error'));
+      await expectAsync(automateProvider.percyScreenshotBegin('abc')).toBeRejectedWithError('Random Error');
     });
   });
 
