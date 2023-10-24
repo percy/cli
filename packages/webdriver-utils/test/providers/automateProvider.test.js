@@ -166,16 +166,17 @@ describe('AutomateProvider', () => {
     it('throw error if statusCode:13', async () => {
       const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', {}, percyBuildInfo);
       await automateProvider.createDriver();
-      automateProvider.driver.executeScript = jasmine.createSpy().and.returnValue(Promise.resolve({ status: 13, value: 'OS/Browser/Selenium combination is not supported'}));
+      automateProvider.driver.executeScript = jasmine.createSpy().and.returnValue(Promise.resolve({ status: 13, value: 'OS/Browser/Selenium combination is not supported' }));
       await expectAsync(automateProvider.percyScreenshotBegin('abc')).toBeRejectedWithError('OS/Browser/Selenium combination is not supported');
-    })
+    });
 
     it('mark percy sesssion as failure', async () => {
       const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', {}, percyBuildInfo);
       await automateProvider.createDriver();
-      automateProvider.driver.executeScript = jasmine.createSpy().and.returnValue(Promise.reject({ response: { body: JSON.stringify({value: { error: "OS/Browser/Selenium combination is not supported", message: "OS/Browser/Selenium combination is not supported"}})} }));
+      // eslint-disable-next-line prefer-promise-reject-errors
+      automateProvider.driver.executeScript = jasmine.createSpy().and.returnValue(Promise.reject({ response: { body: JSON.stringify({ value: { error: 'OS/Browser/Selenium combination is not supported', message: 'OS/Browser/Selenium combination is not supported' } }) } }));
       await expectAsync(automateProvider.percyScreenshotBegin('abc')).toBeRejectedWithError('OS/Browser/Selenium combination is not supported');
-    })
+    });
   });
 
   describe('percyScreenshotEnd', () => {
