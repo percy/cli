@@ -152,7 +152,7 @@ describe('AutomateProvider', () => {
       const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', {}, percyBuildInfo);
       await automateProvider.createDriver();
       automateProvider.driver.executeScript = jasmine.createSpy().and.rejectWith(new Error('Random network error'));
-      await automateProvider.percyScreenshotBegin('abc');
+      await expectAsync(automateProvider.percyScreenshotBegin('abc')).toBeRejectedWithError('Random network error');
     });
 
     it('marks the percy session as success', async () => {
@@ -162,6 +162,20 @@ describe('AutomateProvider', () => {
       await automateProvider.percyScreenshotBegin('abc');
       expect(automateProvider._markedPercy).toBeTruthy();
     });
+
+    it('throw error if statusCode:13', async () => {
+      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', {}, percyBuildInfo);
+      await automateProvider.createDriver();
+      automateProvider.driver.executeScript = jasmine.createSpy().and.returnValue(Promise.resolve({ status: 13, value: 'OS/Browser/Selenium combination is not supported'}));
+      await expectAsync(automateProvider.percyScreenshotBegin('abc')).toBeRejectedWithError('OS/Browser/Selenium combination is not supported');
+    })
+
+    it('mark percy sesssion as failure', async () => {
+      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', {}, percyBuildInfo);
+      await automateProvider.createDriver();
+      automateProvider.driver.executeScript = jasmine.createSpy().and.returnValue(Promise.reject({ response: { body: JSON.stringify({value: { error: "OS/Browser/Selenium combination is not supported", message: "OS/Browser/Selenium combination is not supported"}})} }));
+      await expectAsync(automateProvider.percyScreenshotBegin('abc')).toBeRejectedWithError('OS/Browser/Selenium combination is not supported');
+    })
   });
 
   describe('percyScreenshotEnd', () => {
