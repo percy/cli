@@ -1,5 +1,6 @@
 import { logger, api, setupTest } from '@percy/cli-command/test/helpers';
 import exec from '@percy/cli-exec';
+import { getPackageJSON } from '@percy/cli-command/utils';
 
 describe('percy exec', () => {
   beforeEach(async () => {
@@ -144,6 +145,7 @@ describe('percy exec', () => {
   });
 
   it('tests process.stderr when token is present', async () => {
+    const pkg = getPackageJSON(import.meta.url);
     let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo('some response');
     await expectAsync(
       exec(['--', 'node', 'random.js']) // invalid command
@@ -157,14 +159,11 @@ describe('percy exec', () => {
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
 
-    expect(api.requests['/builds/123/failed-events']).toBeDefined();
-    expect(api.requests['/builds/123/failed-events'][0].body).toEqual({
+    expect(api.requests['/builds/123/send-events']).toBeDefined();
+    expect(api.requests['/builds/123/send-events'][0].body).toEqual({
       data: {
-        buildId: '123',
         errorKind: 'cli',
-        client: null,
-        clientVersion: null,
-        cliVersion: null,
+        cliVersion: pkg.version,
         message: '1'
       }
     });
@@ -186,7 +185,7 @@ describe('percy exec', () => {
       '[percy] Running "node random.js"'
     ]);
 
-    expect(api.requests['/builds/123/failed-events']).not.toBeDefined();
+    expect(api.requests['/builds/123/send-events']).not.toBeDefined();
   });
 
   it('does not run the command if canceled beforehand', async () => {

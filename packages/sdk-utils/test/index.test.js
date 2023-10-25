@@ -298,8 +298,8 @@ describe('SDK Utils', () => {
     });
   });
 
-  describe('postFailedEvent(options)', () => {
-    let { postFailedEvent } = utils;
+  describe('postBuildEvents(options)', () => {
+    let { postBuildEvents } = utils;
     let options;
 
     beforeEach(() => {
@@ -312,14 +312,14 @@ describe('SDK Utils', () => {
 
     it('posts comparison options to the CLI API event endpoint', async () => {
       spyOn(utils.request, 'post').and.callFake(() => Promise.resolve());
-      await expectAsync(postFailedEvent(options)).toBeResolved();
+      await expectAsync(postBuildEvents(options)).toBeResolved();
       await expectAsync(helpers.get('requests')).toBeResolvedTo({});
     });
 
     it('throws when the event API fails', async () => {
       await helpers.test('error', '/percy/events');
 
-      await expectAsync(postFailedEvent({}))
+      await expectAsync(postBuildEvents({}))
         .toBeRejectedWithError('testing');
     });
   });

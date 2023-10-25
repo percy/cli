@@ -60,20 +60,32 @@ export function percyAutomateRequestHandler(req, percy) {
   req.body.buildInfo = percy.build;
 }
 
-// Returns the body for failedEvent structure
-export function percyFailedEventHandler(req, cliVersion) {
-  if (req.body.clientInfo) {
-    const [client, clientVersion] = req.body.clientInfo.split('/');
+// Returns the body for sendEvent structure
+export function percyBuildEventHandler(req, cliVersion) {
+  if (Array.isArray(req.body)) {
+    req.body.forEach(element => {
+      processSendEventData(element, cliVersion);
+    });
+  } else {
+    // Treat the input as an object and perform instructions
+    processSendEventData(req.body, cliVersion);
+  }
+}
+
+// Process sendEvent object
+function processSendEventData(input, cliVersion) {
+  if (input.clientInfo) {
+    const [client, clientVersion] = input.clientInfo.split('/');
 
     // Add the client and clientVersion fields to the existing object
-    req.body.client = client;
-    req.body.clientVersion = clientVersion;
+    input.client = client;
+    input.clientVersion = clientVersion;
 
     // Remove the original clientInfo field
-    delete req.body.clientInfo;
+    delete input.clientInfo;
   }
-  if (!req.body.cliVersion) {
-    req.body.cliVersion = cliVersion;
+  if (!input.cliVersion) {
+    input.cliVersion = cliVersion;
   }
 }
 

@@ -1333,37 +1333,20 @@ describe('PercyClient', () => {
     });
   });
 
-  describe('sendFailedEvents', () => {
-    it('should send failed event with default values', async () => {
-      await expectAsync(client.sendFailedEvents(123)).toBeResolved();
-      expect(api.requests['/builds/123/failed-events']).toBeDefined();
-      expect(api.requests['/builds/123/failed-events'][0].method).toBe('POST');
-      expect(api.requests['/builds/123/failed-events'][0].body).toEqual({
-        data: {
-          buildId: 123,
-          errorKind: 'sdk',
-          client: null,
-          clientVersion: null,
-          cliVersion: null,
-          message: null
-        }
-      });
-    });
-
-    it('should send failed event with default values', async () => {
-      await expectAsync(client.sendFailedEvents(123, {
+  describe('sendBuildEvents', () => {
+    it('should send build event with default values', async () => {
+      await expectAsync(client.sendBuildEvents(123, {
         errorKind: 'cli',
         client: 'percy-appium-dotnet',
         clientVersion: '3.0.1',
         cliVersion: '1.27.3',
-        errorMessage: 'some error'
+        message: 'some error'
       })).toBeResolved();
 
-      expect(api.requests['/builds/123/failed-events']).toBeDefined();
-      expect(api.requests['/builds/123/failed-events'][0].method).toBe('POST');
-      expect(api.requests['/builds/123/failed-events'][0].body).toEqual({
+      expect(api.requests['/builds/123/send-events']).toBeDefined();
+      expect(api.requests['/builds/123/send-events'][0].method).toBe('POST');
+      expect(api.requests['/builds/123/send-events'][0].body).toEqual({
         data: {
-          buildId: 123,
           errorKind: 'cli',
           client: 'percy-appium-dotnet',
           clientVersion: '3.0.1',

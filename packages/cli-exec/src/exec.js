@@ -2,6 +2,9 @@ import command from '@percy/cli-command';
 import start from './start.js';
 import stop from './stop.js';
 import ping from './ping.js';
+import { getPackageJSON } from '@percy/cli-command/utils';
+
+const pkg = getPackageJSON(import.meta.url);
 
 export const exec = command('exec', {
   description: 'Start and stop Percy around a supplied command',
@@ -123,9 +126,10 @@ async function* spawn(cmd, args, percy) {
         if (process.env.PERCY_TOKEN) {
           const myObject = {
             errorKind: 'cli',
-            errorMessage: '1'
+            cliVersion: pkg.version,
+            message: '1'
           };
-          percy.client.sendFailedEvents(percy.build.id, myObject);
+          percy.client.sendBuildEvents(percy.build.id, myObject);
         }
       }
     });
