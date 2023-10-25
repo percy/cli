@@ -84,7 +84,7 @@ export default class AutomateProvider extends GenericProvider {
           state: 'begin'
         });
         // Selenium Hub, set status error Code to 13 if an error is thrown
-        if (result?.status && result.status === 13) throw new Error(result?.value || 'Got invalid error response');
+        if (result?.status === 13) throw new Error(result?.value || 'Got invalid error response');
         this._markedPercy = result.success;
         return result;
       } catch (e) {
