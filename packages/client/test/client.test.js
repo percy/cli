@@ -1333,6 +1333,30 @@ describe('PercyClient', () => {
     });
   });
 
+  describe('sendBuildEvents', () => {
+    it('should send build event with default values', async () => {
+      await expectAsync(client.sendBuildEvents(123, {
+        errorKind: 'cli',
+        client: 'percy-appium-dotnet',
+        clientVersion: '3.0.1',
+        cliVersion: '1.27.3',
+        message: 'some error'
+      })).toBeResolved();
+
+      expect(api.requests['/builds/123/send-events']).toBeDefined();
+      expect(api.requests['/builds/123/send-events'][0].method).toBe('POST');
+      expect(api.requests['/builds/123/send-events'][0].body).toEqual({
+        data: {
+          errorKind: 'cli',
+          client: 'percy-appium-dotnet',
+          clientVersion: '3.0.1',
+          cliVersion: '1.27.3',
+          message: 'some error'
+        }
+      });
+    });
+  });
+
   describe('#getToken', () => {
     afterEach(() => {
       delete process.env.PERCY_TOKEN;

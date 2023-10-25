@@ -6,6 +6,7 @@ import waitForPercyIdle from './percy-idle.js';
 import fetchPercyDOM from './percy-dom.js';
 import postSnapshot from './post-snapshot.js';
 import postComparison from './post-comparison.js';
+import postBuildEvents from './post-build-event.js';
 import flushSnapshots from './flush-snapshots.js';
 import captureAutomateScreenshot from './post-screenshot.js';
 
@@ -19,7 +20,8 @@ export {
   postSnapshot,
   postComparison,
   flushSnapshots,
-  captureAutomateScreenshot
+  captureAutomateScreenshot,
+  postBuildEvents
 };
 
 // export the namespace by default

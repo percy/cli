@@ -516,6 +516,14 @@ export class PercyClient {
     return comparison;
   }
 
+  async sendBuildEvents(buildId, body) {
+    validateId('build', buildId);
+    this.log.debug('Sending Build Events');
+    return this.post(`builds/${buildId}/send-events`, {
+      data: body
+    });
+  }
+
   // decides project type
   tokenType() {
     let token = this.getToken(false) || '';
