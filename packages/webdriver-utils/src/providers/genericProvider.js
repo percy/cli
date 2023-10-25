@@ -214,8 +214,10 @@ export default class GenericProvider {
     const rect = await this.driver.rect(elementId);
     const location = { x: rect.x, y: rect.y };
     const size = { height: rect.height, width: rect.width };
-    // Update YFactor Element is not visible in viewport
-    // In case of iOS if the element is not visible in viewport it gives 0,0 as coordinate.
+    // Update pageShiftFactor Element is not visible in viewport
+    // In case of iOS if the element is not visible in viewport it gives 0 for x-y coordinate.
+    // In case of iOS if the element is partially visible it gives negative x-y coordinate.
+    // Subtracting ScrollY/ScrollX ensures if the element is visible in viewport or not.
     await this.updatePageShiftFactor(location);
     const coOrdinates = {
       top: Math.floor(location.y * scaleFactor) + this.pageYShiftFactor,
