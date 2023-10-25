@@ -84,6 +84,7 @@ export default class AutomateProvider extends GenericProvider {
           state: 'begin'
         });
         // Selenium Hub, set status error Code to 13 if an error is thrown
+        // Handling error with Selenium dialect is != W3C
         if (result?.status === 13) throw new Error(result?.value || 'Got invalid error response');
         this._markedPercy = result.success;
         return result;
@@ -91,6 +92,7 @@ export default class AutomateProvider extends GenericProvider {
         log.debug(`[${name}] : Could not mark Automate session as percy`);
         log.error(`[${name}] : error: ${e.toString()}`);
         /**
+         * - Handling Error when dialect is W3C
          * ERROR response format from SeleniumHUB `{
          * sessionId: ...,
          * status: 13,
