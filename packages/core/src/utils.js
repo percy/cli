@@ -63,30 +63,37 @@ export function percyAutomateRequestHandler(req, percy) {
 // Returns the body for sendEvent structure
 export function percyBuildEventHandler(req, cliVersion) {
   if (Array.isArray(req.body)) {
-    req.body.forEach(element => {
-      processSendEventData(element, cliVersion);
-    });
+    return req.body.map(item => processSendEventData(item, cliVersion));
   } else {
     // Treat the input as an object and perform instructions
-    processSendEventData(req.body, cliVersion);
+    return processSendEventData(req.body, cliVersion);
   }
 }
 
 // Process sendEvent object
 function processSendEventData(input, cliVersion) {
-  if (input.clientInfo) {
-    const [client, clientVersion] = input.clientInfo.split('/');
-
-    // Add the client and clientVersion fields to the existing object
-    input.client = client;
-    input.clientVersion = clientVersion;
-
-    // Remove the original clientInfo field
-    delete input.clientInfo;
+  // Add Properties here to send to eventData
+  const allowedEventProperties = ['message', 'cliVersion', 'clientInfo', 'errorKind', 'extra'];
+  const extractedData = {};
+  for (const property of allowedEventProperties) {
+    if (Object.prototype.hasOwnProperty.call(input, property)) {
+      extractedData[property] = input[property];
+    }
   }
+
+  if (extractedData.clientInfo) {
+    const [client, clientVersion] = extractedData.clientInfo.split('/');
+
+    // Add the client and clientVersion fields to the object
+    extractedData.client = client;
+    extractedData.clientVersion = clientVersion;
+    delete extractedData.clientInfo;
+  }
+
   if (!input.cliVersion) {
-    input.cliVersion = cliVersion;
+    extractedData.cliVersion = cliVersion;
   }
+  return extractedData;
 }
 
 // Creates a local resource object containing the resource URL, mimetype, content, sha, and any

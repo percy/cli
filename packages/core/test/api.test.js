@@ -326,14 +326,14 @@ describe('API Server', () => {
 
     await expectAsync(request('/percy/events', {
       body: {
-        errorMessage: 'some error',
+        message: 'some error',
         clientInfo: 'percy-appium-dotnet/3.0.1'
       },
       method: 'post'
     })).toBeResolvedTo({ success: true });
 
     expect(sendBuildEventsSpy).toHaveBeenCalledOnceWith(percy.build.id, jasmine.objectContaining({
-      errorMessage: 'some error',
+      message: 'some error',
       client: 'percy-appium-dotnet',
       clientVersion: '3.0.1',
       cliVersion: pkg.version
@@ -354,11 +354,11 @@ describe('API Server', () => {
     await expectAsync(request('/percy/events', {
       body: [
         {
-          errorMessage: 'some error 1',
+          message: 'some error 1',
           clientInfo: 'percy-appium-dotnet/3.0.1'
         },
         {
-          errorMessage: 'some error 2',
+          message: 'some error 2',
           clientInfo: 'percy-appium-dotnet/3.0.1'
         }
       ],
@@ -368,13 +368,13 @@ describe('API Server', () => {
     expect(sendBuildEventsSpy).toHaveBeenCalledOnceWith(percy.build.id, jasmine.objectContaining(
       [
         {
-          errorMessage: 'some error 1',
+          message: 'some error 1',
           client: 'percy-appium-dotnet',
           clientVersion: '3.0.1',
           cliVersion: pkg.version
         },
         {
-          errorMessage: 'some error 2',
+          message: 'some error 2',
           client: 'percy-appium-dotnet',
           clientVersion: '3.0.1',
           cliVersion: pkg.version
@@ -395,14 +395,14 @@ describe('API Server', () => {
 
     await expectAsync(request('/percy/events', {
       body: {
-        errorMessage: 'some error',
+        message: 'some error',
         cliVersion: '1.2.3'
       },
       method: 'post'
     })).toBeResolvedTo({ success: true });
 
     expect(sendBuildEventsSpy).toHaveBeenCalledOnceWith(percy.build.id, jasmine.objectContaining({
-      errorMessage: 'some error',
+      message: 'some error',
       cliVersion: '1.2.3'
     }));
 
