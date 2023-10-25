@@ -273,6 +273,44 @@ describe('GenericProvider', () => {
     });
   });
 
+  describe('updateYFactor', () => {
+    let provider;
+
+    describe('When iOS', () => {
+      beforeEach(() => {
+        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+        provider.currentOs = 'iOS';
+        provider.scrollYFactor = 10;
+        provider.pageYShiftFactor = 0;
+      });
+
+      it('should update pageYShiftFactor for iOS when location.y is 0', () => {
+        provider.updateYFactor({ y: 0 });
+        expect(provider.pageYShiftFactor).toBe(-provider.scrollYFactor);
+      });
+
+      it('should not update pageYShiftFactor for iOS when location.y is not 0', () => {
+        // Location.y is not 0
+        provider.updateYFactor({ y: 5 });
+        expect(provider.pageYShiftFactor).toBe(0);
+      });
+    });
+
+    describe('When Other', () => {
+      beforeEach(() => {
+        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+        provider.currentOs = 'Android';
+        provider.scrollYFactor = 10;
+        provider.pageYShiftFactor = 0;
+      });
+
+      it('should not update pageYShiftFactor for non-iOS platforms', () => {
+        provider.updateYFactor({ y: 0 });
+        expect(provider.pageYShiftFactor).toBe(0);
+      });
+    });
+  });
+
   describe('getRegionObject', () => {
     let provider;
     let mockLocation = { x: 10, y: 20, width: 100, height: 200 };
