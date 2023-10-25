@@ -172,7 +172,7 @@ describe('Driver', () => {
       body: JSON.stringify(command)
     };
     it('returns post options', () => {
-      expect(driver.requestPostOptions(command)).toEqual(expectedResponse);
+      expect(Driver.requestPostOptions(command)).toEqual(expectedResponse);
     });
   });
 });

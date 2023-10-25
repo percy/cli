@@ -36,11 +36,10 @@ export default class GenericProvider {
     this.debugUrl = null;
     this.header = 0;
     this.footer = 0;
-    this.pageYShiftFactor = 0;
+    this.statusBarHeight = 0;
     this.pageXShiftFactor = 0;
-    this.scrollXFactor = 0;
-    this.scrollYFactor = 0;
-    this.currentOs = null;
+    this.pageYShiftFactor = 0;
+    this.currentOperatingSystem = null;
   }
 
   addDefaultOptions() {
@@ -94,12 +93,8 @@ export default class GenericProvider {
     const tiles = await this.getTiles(this.header, this.footer, fullscreen);
     log.debug(`[${name}] : Tiles ${JSON.stringify(tiles)}`);
 
-    const scrollFactors = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX * window.devicePixelRatio), parseInt(window.scrollY * window.devicePixelRatio)];', args: [] });
-    this.scrollXFactor = scrollFactors.value[0];
-    this.scrollYFactor = scrollFactors.value[1];
-    this.currentOs = tag.osName;
-    this.pageYShiftFactor = tag.osName === 'iOS' ? tiles.tiles[0].statusBarHeight : (tiles.tiles[0].statusBarHeight - scrollFactors.value[1]);
-    this.pageXShiftFactor = tag.osName === 'iOS' ? 0 : (-scrollFactors.value[0]);
+    this.currentOperatingSystem = tag.osName;
+    this.statusBarHeight = tiles.tiles[0].statusBarHeight;
 
     const ignoreRegions = await this.findRegions(
       ignoreRegionXpaths, ignoreRegionSelectors, ignoreRegionElements, customIgnoreRegions
@@ -203,10 +198,13 @@ export default class GenericProvider {
     ];
   }
 
-  updateYFactor(location) {
-    if (this.currentOs === 'iOS') {
+  async updatePageShiftFactor(location) {
+    const scrollFactors = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX * window.devicePixelRatio), parseInt(window.scrollY * window.devicePixelRatio)];', args: [] });
+    this.pageYShiftFactor = this.currentOperatingSystem === 'iOS' ? this.statusBarHeight : (this.statusBarHeight - scrollFactors.value[1]);
+    this.pageXShiftFactor = this.currentOperatingSystem === 'iOS' ? 0 : (-scrollFactors.value[0]);
+    if (this.currentOperatingSystem === 'iOS') {
       if (location.y === 0) {
-        this.pageYShiftFactor += (-this.scrollYFactor);
+        this.pageYShiftFactor += (-scrollFactors.value[1]);
       }
     }
   }
@@ -218,7 +216,7 @@ export default class GenericProvider {
     const size = { height: rect.height, width: rect.width };
     // Update YFactor Element is not visible in viewport
     // In case of iOS if the element is not visible in viewport it gives 0,0 as coordinate.
-    this.updateYFactor(location);
+    await this.updatePageShiftFactor(location);
     const coOrdinates = {
       top: Math.floor(location.y * scaleFactor) + this.pageYShiftFactor,
       bottom: Math.ceil((location.y + size.height) * scaleFactor) + this.pageYShiftFactor,

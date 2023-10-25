@@ -10,7 +10,7 @@ export default class Driver {
     this.passedCapabilities = passedCapabilities;
   }
 
-  requestPostOptions(command) {
+  static requestPostOptions(command) {
     return {
       method: 'POST',
       headers: {
@@ -53,7 +53,7 @@ export default class Driver {
     if (!command.script.includes('browserstack_executor')) {
       command.script = `/* percy_automate_script */ \n ${command.script}`;
     }
-    const options = this.requestPostOptions(command);
+    const options = Driver.requestPostOptions(command);
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/execute/sync`;
     const response = JSON.parse((await request(baseUrl, options)).body);
     return response;
@@ -72,7 +72,7 @@ export default class Driver {
   }
 
   async findElement(using, value) {
-    const options = this.requestPostOptions({ using, value });
+    const options = Driver.requestPostOptions({ using, value });
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/element`;
     const response = JSON.parse((await request(baseUrl, options)).body);
     return response.value;

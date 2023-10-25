@@ -167,13 +167,10 @@ describe('GenericProvider', () => {
           }],
           domInfoSha: 'mock-dom-sha'
         };
-        const scrollFactors = { value: [0, 10] };
         getTagSpy = spyOn(GenericProvider.prototype, 'getTag').and.returnValue(Promise.resolve(desktopTag));
         getTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve(desktopTiles));
         spyOn(DesktopMetaData.prototype, 'windowSize')
           .and.returnValue(Promise.resolve({ width: 1920, height: 1080 }));
-        spyOn(Driver.prototype, 'executeScript')
-          .and.returnValue(scrollFactors);
       });
 
       it('calls correct funcs', async () => {
@@ -181,8 +178,7 @@ describe('GenericProvider', () => {
         await genericProvider.createDriver();
         let res = await genericProvider.screenshot('mock-name', {});
         expect(getTagSpy).toHaveBeenCalledTimes(1);
-        expect(genericProvider.pageYShiftFactor).toEqual(-10);
-        expect(genericProvider.pageXShiftFactor).toEqual(-0);
+        expect(genericProvider.statusBarHeight).toEqual(0);
         expect(getTilesSpy).toHaveBeenCalledOnceWith(0, 0, false);
         expect(res).toEqual({
           name: 'mock-name',
@@ -240,8 +236,7 @@ describe('GenericProvider', () => {
         await genericProvider.createDriver();
         let res = await genericProvider.screenshot('mock-name', {});
         expect(iOSGetTagSpy).toHaveBeenCalledTimes(1);
-        expect(genericProvider.pageYShiftFactor).toEqual(132);
-        expect(genericProvider.pageXShiftFactor).toEqual(0);
+        expect(genericProvider.statusBarHeight).toEqual(132);
         expect(iOSGetTilesSpy).toHaveBeenCalledOnceWith(0, 0, false);
         expect(res).toEqual({
           name: 'mock-name',
@@ -273,40 +268,49 @@ describe('GenericProvider', () => {
     });
   });
 
-  describe('updateYFactor', () => {
+  describe('updatePageShiftFactor', () => {
     let provider;
 
     describe('When iOS', () => {
-      beforeEach(() => {
+      beforeEach(async () => {
         provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
-        provider.currentOs = 'iOS';
-        provider.scrollYFactor = 10;
+        await provider.createDriver();
+        spyOn(Driver.prototype, 'executeScript').and.returnValue({ value: [0, 10] });
+        provider.currentOperatingSystem = 'iOS';
         provider.pageYShiftFactor = 0;
+        provider.statusBarHeight = 0;
       });
 
-      it('should update pageYShiftFactor for iOS when location.y is 0', () => {
-        provider.updateYFactor({ y: 0 });
-        expect(provider.pageYShiftFactor).toBe(-provider.scrollYFactor);
+      it('should update pageYShiftFactor for iOS when location.y is 0', async () => {
+        await provider.updatePageShiftFactor({ y: 0 });
+        expect(provider.pageYShiftFactor).toBe(-10);
       });
 
-      it('should not update pageYShiftFactor for iOS when location.y is not 0', () => {
+      it('should not update pageYShiftFactor for iOS when location.y is not 0', async () => {
         // Location.y is not 0
-        provider.updateYFactor({ y: 5 });
+        await provider.updatePageShiftFactor({ y: 5 });
         expect(provider.pageYShiftFactor).toBe(0);
       });
     });
 
     describe('When Other', () => {
-      beforeEach(() => {
+      beforeEach(async () => {
         provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
-        provider.currentOs = 'Android';
-        provider.scrollYFactor = 10;
+        await provider.createDriver();
+        provider.currentOperatingSystem = 'Android';
         provider.pageYShiftFactor = 0;
       });
 
-      it('should not update pageYShiftFactor for non-iOS platforms', () => {
-        provider.updateYFactor({ y: 0 });
+      it('should not update pageYShiftFactor for non-iOS platforms', async () => {
+        spyOn(Driver.prototype, 'executeScript').and.returnValue({ value: [0, 0] });
+        await provider.updatePageShiftFactor({ y: 0 });
         expect(provider.pageYShiftFactor).toBe(0);
+      });
+
+      it('should update pageYShiftFactor for non-iOS platforms accordingly if scrolled', async () => {
+        spyOn(Driver.prototype, 'executeScript').and.returnValue({ value: [0, 10] });
+        await provider.updatePageShiftFactor({ y: 0 });
+        expect(provider.pageYShiftFactor).toBe(-10);
       });
     });
   });
@@ -316,11 +320,14 @@ describe('GenericProvider', () => {
     let mockLocation = { x: 10, y: 20, width: 100, height: 200 };
 
     describe('When on Tile 0', () => {
-      beforeEach(() => {
+      beforeEach(async () => {
         // mock metadata
         provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+        await provider.createDriver();
         spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
           .and.returnValue(1);
+        spyOn(Driver.prototype, 'executeScript')
+          .and.returnValue({ value: [0, 0] });
         spyOn(Driver.prototype, 'rect').and.returnValue(Promise.resolve(mockLocation));
       });
 
@@ -343,11 +350,14 @@ describe('GenericProvider', () => {
     });
 
     describe('When on Tile 1', () => {
-      beforeEach(() => {
+      beforeEach(async () => {
         // mock metadata
         provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+        await provider.createDriver();
         spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
           .and.returnValue(1);
+        spyOn(Driver.prototype, 'executeScript')
+          .and.returnValue({ value: [0, 0] });
         spyOn(Driver.prototype, 'rect').and.returnValue(Promise.resolve(mockLocation));
         provider.pageYShiftFactor = -10;
       });
