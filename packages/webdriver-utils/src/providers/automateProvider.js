@@ -187,10 +187,6 @@ export default class AutomateProvider extends GenericProvider {
     const resolution = await this.metaData.screenResolution();
     const orientation = (this.metaData.orientation() || automateCaps.deviceOrientation)?.toLowerCase();
 
-    // for android window size only constitutes of browser viewport, hence adding nav / status / url bar heights
-    [this.header, this.footer] = await this.getHeaderFooter(deviceName, osVersion, browserName);
-    height = this.metaData.device() && osName?.toLowerCase() === 'android' ? height + this.header + this.footer : height;
-
     return {
       name: deviceName,
       osName,
