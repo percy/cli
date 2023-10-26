@@ -2,9 +2,7 @@ import GenericProvider from '../../src/providers/genericProvider.js';
 import Driver from '../../src/driver.js';
 import MetaDataResolver from '../../src/metadata/metaDataResolver.js';
 import DesktopMetaData from '../../src/metadata/desktopMetaData.js';
-import Cache from '../../src/util/cache.js';
 import MobileMetaData from '../../src/metadata/mobileMetaData.js';
-import utils from '@percy/sdk-utils';
 
 describe('GenericProvider', () => {
   let genericProvider;
