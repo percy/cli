@@ -74,16 +74,15 @@ export default class GenericProvider {
     considerRegionXpaths = [],
     considerRegionSelectors = [],
     considerRegionElements = [],
-    customConsiderRegions = []
+    customConsiderRegions = [],
+    fullscreen = false
   }) {
-    let fullscreen = false;
-
     this.addDefaultOptions();
 
     this.options.percyCSS = (this.options.percyCSS || '').split('\n').join('');
 
     log.debug('Fetching comparisong tag ...');
-    const tag = await this.getTag();
+    const tag = await this.getTag(fullscreen);
     log.debug(`[${name}] : Tag ${JSON.stringify(tag)}`);
 
     const tiles = await this.getTiles(this.header, this.footer, fullscreen);

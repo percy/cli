@@ -118,7 +118,7 @@ export default class AutomateProvider extends GenericProvider {
       return await this.browserstackExecutor('percyScreenshot', {
         state: 'screenshot',
         percyBuildId: this.buildInfo.id,
-        screenshotType: 'singlepage',
+        screenshotType: fullscreen ? 'fullpage' : 'singlepage',
         scaleFactor: dpr,
         options: this.options
       });
@@ -166,7 +166,7 @@ export default class AutomateProvider extends GenericProvider {
       });
   }
 
-  async getTag() {
+  async getTag(fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     if (!this.automateResults) throw new Error('Comparison tag details not available');
 
@@ -184,6 +184,7 @@ export default class AutomateProvider extends GenericProvider {
     }
 
     let { width, height } = await this.metaData.windowSize();
+    if (fullscreen) height = await this.metaData.pageHeight();
     const resolution = await this.metaData.screenResolution();
     const orientation = (this.metaData.orientation() || automateCaps.deviceOrientation)?.toLowerCase();
 

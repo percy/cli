@@ -55,6 +55,11 @@ export default class DesktopMetaData {
     });
   }
 
+  async pageHeight() {
+    const height = await this.driver.executeScript({ script: 'return Math.max(document.body.scrollHeight, document.body.clientHeight, document.body.offsetHeight)', args: [] });
+    return height.value;
+  }
+
   async devicePixelRatio() {
     return await Cache.withCache(Cache.dpr, this.driver.sessionId, async () => {
       const devicePixelRatio = await this.driver.executeScript({ script: 'return window.devicePixelRatio;', args: [] });
