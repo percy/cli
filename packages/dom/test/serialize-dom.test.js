@@ -6,7 +6,8 @@ describe('serializeDOM', () => {
     expect(serializeDOM()).toEqual({
       html: jasmine.any(String),
       warnings: jasmine.any(Array),
-      resources: jasmine.any(Array)
+      resources: jasmine.any(Array),
+      hints: jasmine.any(Array)
     });
   });
 
@@ -27,7 +28,7 @@ describe('serializeDOM', () => {
 
   it('optionally returns a stringified response', () => {
     expect(serializeDOM({ stringifyResponse: true }))
-      .toMatch('{"html":".*","warnings":\\[\\],"resources":\\[\\]}');
+      .toMatch('{"html":".*","warnings":\\[\\],"resources":\\[\\],"hints":\\[\\]}');
   });
 
   it('always has a doctype', () => {
@@ -68,7 +69,7 @@ describe('serializeDOM', () => {
     expect($('h2.callback').length).toEqual(1);
   });
 
-  it('applies dom transformations', () => {
+  it('applies default dom transformations', () => {
     withExample('<img loading="lazy" src="http://some-url"/><iframe loading="lazy" src="">');
 
     const result = serializeDOM();
@@ -316,6 +317,24 @@ describe('serializeDOM', () => {
         .toHaveBeenCalledOnceWith('Could not transform the dom: test error');
 
       expect(warnings).toEqual(['Could not transform the dom: test error']);
+    });
+  });
+
+  describe('with `reshuffleInvalidTags`', () => {
+    beforeEach(() => {
+      withExample('', { withShadow: false, invalidTagsOutsideBody: true });
+    });
+
+    it('does not reshuffle tags outside </body>', () => {
+      const result = serializeDOM();
+      expect(result.html).toContain('P tag outside body');
+      expect(result.hints).toEqual(['DOM elements found outside </body>']);
+    });
+
+    it('reshuffles tags outside </body>', () => {
+      const result = serializeDOM({ reshuffleInvalidTags: true });
+      expect(result.html).toContain('P tag outside body');
+      expect(result.hints).toEqual([]);
     });
   });
 });

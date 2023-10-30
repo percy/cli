@@ -659,7 +659,8 @@ describe('Snapshot', () => {
       domSnapshot: {
         html: `<img src="${resource.url}"/>`,
         warnings: ['Test serialize warning'],
-        resources: [resource, textResource]
+        resources: [resource, textResource],
+        hints: ['DOM elements found outside </body>']
       }
     });
 
@@ -1300,6 +1301,27 @@ describe('Snapshot', () => {
 
       expect(root.id).toEqual(sha256hash(injectedDOM));
       expect(root.attributes).toHaveProperty('base64-content', base64encode(injectedDOM));
+    });
+
+    it('warns when domSnapshot hints of invalid tags', async () => {
+      await percy.snapshot({
+        name: 'Serialized Snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: '',
+          warnings: [],
+          resources: [],
+          hints: ['DOM elements found outside </body>']
+        }
+
+      });
+
+      expect(logger.stderr).toEqual([
+        '[percy] DOM elements found outside </body>, percyCSS might not work'
+      ]);
+      expect(logger.stdout).toEqual([
+        '[percy] Snapshot taken: Serialized Snapshot'
+      ]);
     });
   });
 });

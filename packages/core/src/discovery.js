@@ -37,6 +37,8 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'cliEnableJavaScript');
   debugProp(snapshot, 'disableShadowDOM');
   debugProp(snapshot, 'enableLayout');
+  debugProp(snapshot, 'domTransformation');
+  debugProp(snapshot, 'reshuffleInvalidTags');
   debugProp(snapshot, 'deviceScaleFactor');
   debugProp(snapshot, 'waitForTimeout');
   debugProp(snapshot, 'waitForSelector');
@@ -92,6 +94,7 @@ function parseDomResources({ url, domSnapshot }) {
 
 // Calls the provided callback with additional resources
 function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
+  let log = logger('core:snapshot');
   resources = [...(resources?.values() ?? [])];
 
   // find any root resource matching the provided dom snapshot
@@ -107,6 +110,12 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
 
   // inject Percy CSS
   if (snapshot.percyCSS) {
+    // check @percy/dom/serialize-dom.js
+    let domSnapshotHints = domSnapshot?.hints ?? [];
+    if (domSnapshotHints.includes('DOM elements found outside </body>')) {
+      log.warn('DOM elements found outside </body>, percyCSS might not work');
+    }
+
     let css = createPercyCSSResource(root.url, snapshot.percyCSS);
     resources.push(css);
 

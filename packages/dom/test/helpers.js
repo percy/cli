@@ -3,7 +3,7 @@ export const chromeBrowser = 'CHROME';
 export const firefoxBrowser = 'FIREFOX';
 
 // create and cleanup testing DOM
-export function withExample(html, options = { withShadow: true }) {
+export function withExample(html, options = { withShadow: true, invalidTagsOutsideBody: false }) {
   let $test = document.getElementById('test');
   if ($test) $test.remove();
 
@@ -16,13 +16,22 @@ export function withExample(html, options = { withShadow: true }) {
 
   document.body.appendChild($test);
 
-  if (options?.withShadow) {
+  if (options.withShadow) {
     $testShadow = document.createElement('div');
     $testShadow.id = 'test-shadow';
     let $shadow = $testShadow.attachShadow({ mode: 'open' });
     $shadow.innerHTML = `<h1>Hello DOM testing</h1>${html}`;
 
     document.body.appendChild($testShadow);
+  }
+
+  if (options.invalidTagsOutsideBody) {
+    let p = document.getElementById('invalid-p');
+    p?.remove();
+    p = document.createElement('p');
+    p.id = 'invalid-p';
+    p.innerText = 'P tag outside body';
+    document.documentElement.append(p);
   }
   return document;
 }
