@@ -39,6 +39,7 @@ interface CommonSnapshotOptions {
   percyCSS?: string;
   enableJavaScript?: boolean;
   disableShadowDOM?: boolean;
+  enableLayout?: boolean;
   devicePixelRatio?: number;
   scope?: string;
 }
