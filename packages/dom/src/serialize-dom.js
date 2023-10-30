@@ -72,6 +72,7 @@ export function serializeDOM(options) {
   let ctx = {
     resources: new Set(),
     warnings: new Set(),
+    hints: new Set(),
     cache: new Map(),
     enableJavaScript,
     disableShadowDOM
@@ -102,13 +103,14 @@ export function serializeDOM(options) {
       clonedBody.append(sibling);
     }
   } else if (ctx.clone.body.nextSibling) {
-    ctx.warnings.add('DOM elements found outside </body>');
+    ctx.hints.add('DOM elements found outside </body>');
   }
 
   let result = {
     html: serializeHTML(ctx),
     warnings: Array.from(ctx.warnings),
-    resources: Array.from(ctx.resources)
+    resources: Array.from(ctx.resources),
+    hints: Array.from(ctx.hints)
   };
 
   return stringifyResponse

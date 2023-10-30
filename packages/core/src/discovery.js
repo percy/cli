@@ -111,9 +111,9 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   // inject Percy CSS
   if (snapshot.percyCSS) {
     // check @percy/dom/serialize-dom.js
-    let elementsOutsideBodySerializationWarningRegex = /<\/body>/;
-    if (domSnapshot?.warnings.some(e => elementsOutsideBodySerializationWarningRegex.test(e))) {
-      log.warn('percyCSS might not work, please follow LINK');
+    let domSnapshotHints = domSnapshot?.hints ?? [];
+    if (domSnapshotHints.includes('DOM elements found outside </body>')) {
+      log.warn('DOM elements found outside </body>, percyCSS might not work');
     }
 
     let css = createPercyCSSResource(root.url, snapshot.percyCSS);

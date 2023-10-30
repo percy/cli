@@ -401,6 +401,10 @@ export const snapshotSchema = {
                     mimetype: { type: 'string' }
                   }
                 }
+              },
+              hints: {
+                type: 'array',
+                items: { type: 'string' }
               }
             }
           }]
