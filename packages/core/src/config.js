@@ -44,14 +44,16 @@ export const configSchema = {
         default: true
       },
       disableShadowDOM: {
-        type: 'boolean',
-        default: false
+        type: 'boolean'
       },
       enableLayout: {
         type: 'boolean'
       },
       domTransformation: {
         type: 'string'
+      },
+      reshuffleInvalidTags: {
+        type: 'boolean'
       },
       scope: {
         type: 'string'
@@ -236,6 +238,7 @@ export const snapshotSchema = {
         disableShadowDOM: { $ref: '/config/snapshot#/properties/disableShadowDOM' },
         domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
         enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
+        reshuffleInvalidTags: { $ref: '/config/snapshot#/properties/reshuffleInvalidTags' },
         discovery: {
           type: 'object',
           additionalProperties: false,

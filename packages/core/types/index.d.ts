@@ -40,6 +40,8 @@ interface CommonSnapshotOptions {
   enableJavaScript?: boolean;
   disableShadowDOM?: boolean;
   enableLayout?: boolean;
+  domTransformation?: string;
+  reshuffleInvalidTags?: boolean;
   devicePixelRatio?: number;
   scope?: string;
 }
