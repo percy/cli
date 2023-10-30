@@ -44,7 +44,8 @@ export const configSchema = {
         default: true
       },
       disableShadowDOM: {
-        type: 'boolean'
+        type: 'boolean',
+        default: false
       },
       enableLayout: {
         type: 'boolean'
