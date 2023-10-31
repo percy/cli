@@ -10,6 +10,16 @@ export default class Driver {
     this.passedCapabilities = passedCapabilities;
   }
 
+  static requestPostOptions(command) {
+    return {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json;charset=utf-8'
+      },
+      body: JSON.stringify(command)
+    };
+  }
+
   async getCapabilites() {
     return await Cache.withCache(Cache.caps, this.sessionId, async () => {
       try {
@@ -43,13 +53,7 @@ export default class Driver {
     if (!command.script.includes('browserstack_executor')) {
       command.script = `/* percy_automate_script */ \n ${command.script}`;
     }
-    const options = {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json;charset=utf-8'
-      },
-      body: JSON.stringify(command)
-    };
+    const options = Driver.requestPostOptions(command);
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/execute/sync`;
     const response = JSON.parse((await request(baseUrl, options)).body);
     return response;
@@ -68,13 +72,7 @@ export default class Driver {
   }
 
   async findElement(using, value) {
-    const options = {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json;charset=utf-8'
-      },
-      body: JSON.stringify({ using, value })
-    };
+    const options = Driver.requestPostOptions({ using, value });
     const baseUrl = `${this.executorUrl}/session/${this.sessionId}/element`;
     const response = JSON.parse((await request(baseUrl, options)).body);
     return response.value;

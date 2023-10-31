@@ -24,6 +24,7 @@ export default class WebdriverUtils {
       const comparisonData = await automate.screenshot(snapshotName, options);
       comparisonData.metadata.cliScreenshotStartTime = startTime;
       comparisonData.metadata.cliScreenshotEndTime = Date.now();
+      log.debug(`[${snapshotName}] : Comparison Data: ${JSON.stringify(comparisonData)}`);
       return comparisonData;
     } catch (e) {
       log.error(`[${snapshotName}] : Error - ${e.message}`);

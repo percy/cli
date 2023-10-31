@@ -201,7 +201,6 @@ describe('AutomateProvider', () => {
 
     beforeEach(async () => {
       spyOn(Driver.prototype, 'getCapabilites');
-      spyOn(GenericProvider.prototype, 'getHeaderFooter').and.returnValue(Promise.resolve([123, 456]));
       browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
         .and.returnValue(Promise.resolve({ value: '{ "result": "{\\"dom_sha\\": \\"abc\\", \\"sha\\": [\\"abc-1\\", \\"xyz-2\\"]}", "success":true }' }));
       executeScriptSpy = spyOn(Driver.prototype, 'executeScript')
@@ -244,7 +243,6 @@ describe('AutomateProvider', () => {
     let windowSizeSpy;
     let orientationSpy;
     let resolutionSpy;
-    let getHeaderFooterSpy;
     let percyBuildInfo = {
       id: '123',
       url: 'https://percy.io/abc/123'
@@ -256,7 +254,6 @@ describe('AutomateProvider', () => {
         percyScreenshotBeginSpy = spyOn(AutomateProvider.prototype,
           'percyScreenshotBegin').and.returnValue({ value: '{"buildHash":"12e3","sessionHash":"abc1d","capabilities":{"browserName":"chrome","browserVersion":"113.0","os":"win11","os_version":"11","deviceOrientation":false,"resolution":["1920","1080"]},"success":true,"deviceName":"x.x.x.x"}' });
         spyOn(Driver.prototype, 'getCapabilites');
-        getHeaderFooterSpy = spyOn(GenericProvider.prototype, 'getHeaderFooter').and.returnValue(Promise.resolve([0, 0]));
         windowSizeSpy = spyOn(DesktopMetaData.prototype, 'windowSize')
           .and.returnValue(Promise.resolve({ width: 1000, height: 1000 }));
         resolutionSpy = spyOn(DesktopMetaData.prototype, 'screenResolution')
@@ -275,7 +272,6 @@ describe('AutomateProvider', () => {
         expect(windowSizeSpy).toHaveBeenCalledTimes(1);
         expect(resolutionSpy).toHaveBeenCalledTimes(1);
         expect(orientationSpy).toHaveBeenCalledTimes(1);
-        expect(getHeaderFooterSpy).toHaveBeenCalledTimes(1);
         expect(res).toEqual({
           name: 'Windows_11_chrome_113',
           osName: 'Windows',
@@ -296,7 +292,6 @@ describe('AutomateProvider', () => {
         percyScreenshotBeginSpy = spyOn(AutomateProvider.prototype,
           'percyScreenshotBegin').and.returnValue({ value: '{"buildHash":"12e3","sessionHash":"abc1d","capabilities":{"browserName":"chrome_android","browserVersion":"chrome_android","os":"android","os_version":"11","deviceOrientation":"portrait","resolution":["1920","1080"]},"success":true,"deviceName":"Samsung Galaxy S21"}' });
         spyOn(Driver.prototype, 'getCapabilites');
-        getHeaderFooterSpy = spyOn(GenericProvider.prototype, 'getHeaderFooter').and.returnValue(Promise.resolve([0, 0]));
         windowSizeSpy = spyOn(MobileMetaData.prototype, 'windowSize')
           .and.returnValue(Promise.resolve({ width: 1000, height: 1000 }));
         resolutionSpy = spyOn(MobileMetaData.prototype, 'screenResolution')
@@ -315,7 +310,6 @@ describe('AutomateProvider', () => {
         expect(windowSizeSpy).toHaveBeenCalledTimes(1);
         expect(resolutionSpy).toHaveBeenCalledTimes(1);
         expect(orientationSpy).toHaveBeenCalledTimes(1);
-        expect(getHeaderFooterSpy).toHaveBeenCalledTimes(1);
         expect(res).toEqual({
           name: 'Samsung Galaxy S21',
           osName: 'Android',
