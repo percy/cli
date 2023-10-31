@@ -119,7 +119,7 @@ export class Page {
       });
 
     if (exceptionDetails) {
-      throw exceptionDetails.exception.description;
+      throw exceptionDetails.exception.description || exceptionDetails.exception.value;
     } else {
       return result.value;
     }
