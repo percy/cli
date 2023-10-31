@@ -40,6 +40,8 @@ export default class GenericProvider {
     this.pageXShiftFactor = 0;
     this.pageYShiftFactor = 0;
     this.currentOperatingSystem = null;
+    this.removeElementShiftFactor = 50000;
+    this.initialScrollFactor = { value: [0, 0] };
   }
 
   addDefaultOptions() {
@@ -203,7 +205,11 @@ export default class GenericProvider {
     this.pageYShiftFactor = this.currentOperatingSystem === 'iOS' ? this.statusBarHeight : (this.statusBarHeight - scrollFactors.value[1]);
     this.pageXShiftFactor = this.currentOperatingSystem === 'iOS' ? 0 : (-scrollFactors.value[0]);
     if (this.currentOperatingSystem === 'iOS') {
-      if (location.y === 0) {
+      console.log(scrollFactors, this.initialScrollFactor);
+      if (scrollFactors.value[0] !== this.initialScrollFactor.value[0] || scrollFactors.value[1] !== this.initialScrollFactor.value[1]) {
+        this.pageXShiftFactor = (-1 * this.removeElementShiftFactor);
+        this.pageYShiftFactor = (-1 * this.removeElementShiftFactor);
+      } else if (location.y === 0) {
         this.pageYShiftFactor += (-scrollFactors.value[1]);
       }
     }
@@ -234,13 +240,34 @@ export default class GenericProvider {
     return jsonObject;
   }
 
+  async getRegionObjectFromBoundingBox(selector, element) {
+    const scaleFactor = await this.metaData.devicePixelRatio();
+    let headerAdjustment = 0;
+    if (this.currentOperatingSystem === 'iOS') {
+      headerAdjustment = this.statusBarHeight;
+    }
+    const coOrdinates = {
+      top: Math.floor(element.y * scaleFactor) + headerAdjustment,
+      bottom: Math.ceil((element.y + element.height) * scaleFactor) + headerAdjustment,
+      left: Math.floor(element.x * scaleFactor),
+      right: Math.ceil((element.x + element.width) * scaleFactor)
+    };
+
+    const jsonObject = {
+      selector,
+      coOrdinates
+    };
+
+    return jsonObject;
+  }
+
   async getSeleniumRegionsBy(findBy, elements) {
     const regionsArray = [];
     for (const idx in elements) {
       try {
-        const element = await this.driver.findElement(findBy, elements[idx]);
+        const boundingBoxRegion = await this.driver.findElementBoundingBox(findBy, elements[idx]);
         const selector = `${findBy}: ${elements[idx]}`;
-        const region = await this.getRegionObject(selector, element[Object.keys(element)[0]]);
+        const region = await this.getRegionObjectFromBoundingBox(selector, boundingBoxRegion);
         regionsArray.push(region);
       } catch (e) {
         log.warn(`Selenium Element with ${findBy}: ${elements[idx]} not found. Ignoring this ${findBy}.`);
@@ -250,12 +277,24 @@ export default class GenericProvider {
     return regionsArray;
   }
 
+  async getInitialPosition() {
+    if (this.currentOperatingSystem === 'iOS') {
+      this.initialScrollFactor = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX * window.devicePixelRatio), parseInt(window.scrollY * window.devicePixelRatio)];', args: [] });
+    }
+  }
+
+  async scrollToInitialPosition(x, y) {
+    if (this.currentOperatingSystem === 'iOS') {
+      await this.driver.executeScript({ script: `window.scrollTo(${x}, ${y})`, args: [] });
+    }
+  }
+
   async getSeleniumRegionsByElement(elements) {
     const regionsArray = [];
+    await this.getInitialPosition();
     for (let index = 0; index < elements.length; index++) {
       try {
         const selector = `element: ${index}`;
-
         const region = await this.getRegionObject(selector, elements[index]);
         regionsArray.push(region);
       } catch (e) {
@@ -263,6 +302,7 @@ export default class GenericProvider {
         log.debug(e.toString());
       }
     }
+    await this.scrollToInitialPosition(this.initialScrollFactor.value[0], this.initialScrollFactor.value[1]);
     return regionsArray;
   }
 

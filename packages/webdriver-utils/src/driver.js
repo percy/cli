@@ -77,4 +77,25 @@ export default class Driver {
     const response = JSON.parse((await request(baseUrl, options)).body);
     return response.value;
   }
+
+  async findElementBoundingBox(using, value) {
+    if (using === 'xpath') {
+      return await this.findElementXpath(value);
+    } else if (using === 'css selector') {
+      return await this.findElementSelector(value);
+    }
+  }
+
+  async findElementXpath(xpath) {
+    const command = { script: `return document.evaluate('${xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.getBoundingClientRect();`, args: [] };
+    const response = await this.executeScript(command);
+    return response.value;
+  }
+
+  async findElementSelector(selector) {
+    selector = selector.replace('\\', '\\\\');
+    const command = { script: `return document.querySelector('${selector}').getBoundingClientRect();`, args: [] };
+    const response = await this.executeScript(command);
+    return response.value;
+  }
 }
