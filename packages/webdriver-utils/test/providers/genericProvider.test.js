@@ -281,15 +281,36 @@ describe('GenericProvider', () => {
         provider.statusBarHeight = 0;
       });
 
-      it('should update pageYShiftFactor for iOS when location.y is 0', async () => {
-        await provider.updatePageShiftFactor({ y: 0 });
-        expect(provider.pageYShiftFactor).toBe(-10);
+      describe('when element is visible in viewport', () => {
+        beforeEach(() => {
+          provider.initialScrollFactor = { value: [0, 10] };
+        });
+        it('should update pageYShiftFactor for iOS when location.y is 0', async () => {
+          await provider.updatePageShiftFactor({ y: 0 });
+          expect(provider.pageYShiftFactor).toBe(-10);
+        });
+
+        it('should not update pageYShiftFactor for iOS when location.y is not 0', async () => {
+          // Location.y is not 0
+          await provider.updatePageShiftFactor({ y: 5 });
+          expect(provider.pageYShiftFactor).toBe(0);
+        });
       });
 
-      it('should not update pageYShiftFactor for iOS when location.y is not 0', async () => {
-        // Location.y is not 0
-        await provider.updatePageShiftFactor({ y: 5 });
-        expect(provider.pageYShiftFactor).toBe(0);
+      describe('when element is not visible in viewport and iOS scrolls automatically', () => {
+        beforeEach(() => {
+          provider.initialScrollFactor = { value: [0, 30] };
+        });
+        it('should update pageYShiftFactor to negative value even if location.y is 0', async () => {
+          await provider.updatePageShiftFactor({ y: 0 });
+          expect(provider.pageYShiftFactor).toBe(-50000);
+        });
+
+        it('should update pageYShiftFactor to negative value even if location.y is not 0', async () => {
+          // Location.y is not 0
+          await provider.updatePageShiftFactor({ y: 5 });
+          expect(provider.pageYShiftFactor).toBe(-50000);
+        });
       });
     });
 
@@ -384,34 +405,88 @@ describe('GenericProvider', () => {
     });
   });
 
+  describe('getRegionObjectFromBoundingBox', () => {
+    let provider;
+    let mockLocation = { x: 10, y: 20, width: 100, height: 200 };
+    beforeEach(async () => {
+      // mock metadata
+      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await provider.createDriver();
+      spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
+        .and.returnValue(1);
+      provider.statusBarHeight = 0;
+    });
+
+    describe('When not an iOS', () => {
+      it('should return a JSON object with the correct selector and coordinates', async () => {
+        // Call function with mock data
+        const selector = 'mock-selector';
+        const result = await provider.getRegionObjectFromBoundingBox(selector, mockLocation);
+
+        // Assert expected result
+        expect(result.selector).toEqual(selector);
+        expect(result.coOrdinates).toEqual({
+          top: mockLocation.y,
+          bottom: mockLocation.y + mockLocation.height,
+          left: mockLocation.x,
+          right: mockLocation.x + mockLocation.width
+        });
+      });
+    });
+
+    describe('When iOS', () => {
+      beforeEach(() => {
+        provider.currentOperatingSystem = 'iOS';
+        provider.statusBarHeight = 132;
+      });
+      it('should return a JSON object with the correct selector and coordinates with added statusBarHeight', async () => {
+        await provider.createDriver();
+
+        // Call function with mock data
+        const selector = 'mock-selector';
+        const result = await provider.getRegionObjectFromBoundingBox(selector, mockLocation);
+
+        // Assert expected result
+        expect(result.selector).toEqual(selector);
+        expect(result.coOrdinates).toEqual({
+          top: mockLocation.y + provider.statusBarHeight,
+          bottom: mockLocation.y + mockLocation.height + provider.statusBarHeight,
+          left: mockLocation.x,
+          right: mockLocation.x + mockLocation.width
+        });
+      });
+    });
+  });
+
   describe('getSeleniumRegionsByXpaths', () => {
     let getRegionObjectSpy;
     let provider;
+    let xpathResponse = { top: 0, bottom: 500, right: 0, left: 300 };
 
     beforeEach(async () => {
       provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
       await provider.createDriver();
-      getRegionObjectSpy = spyOn(GenericProvider.prototype, 'getRegionObject').and.returnValue({});
+      getRegionObjectSpy = spyOn(GenericProvider.prototype, 'getRegionObjectFromBoundingBox').and.returnValue(xpathResponse);
     });
 
     it('should add regions for each xpath', async () => {
-      spyOn(Driver.prototype, 'findElement').and.returnValue(Promise.resolve({ ELEMENT: 'mock_id' }));
+      spyOn(Driver.prototype, 'findElementBoundingBox').and.returnValue(Promise.resolve({ x: 0, y: 100, height: 500, width: 300 }));
       const xpaths = ['/xpath/1', '/xpath/2', '/xpath/3'];
 
       const elementsArray = await provider.getSeleniumRegionsBy('xpath', xpaths);
 
-      expect(provider.driver.findElement).toHaveBeenCalledTimes(3);
+      expect(provider.driver.findElementBoundingBox).toHaveBeenCalledTimes(3);
       expect(getRegionObjectSpy).toHaveBeenCalledTimes(3);
-      expect(elementsArray).toEqual([{}, {}, {}]);
+      expect(elementsArray).toEqual([xpathResponse, xpathResponse, xpathResponse]);
     });
 
     it('should ignore xpath when element is not found', async () => {
-      spyOn(Driver.prototype, 'findElement').and.rejectWith(new Error('Element not found'));
+      spyOn(Driver.prototype, 'findElementBoundingBox').and.rejectWith(new Error('Element not found'));
       const xpaths = ['/xpath/1', '/xpath/2', '/xpath/3'];
 
       const elementsArray = await provider.getSeleniumRegionsBy('xpath', xpaths);
 
-      expect(provider.driver.findElement).toHaveBeenCalledTimes(3);
+      expect(provider.driver.findElementBoundingBox).toHaveBeenCalledTimes(3);
       expect(getRegionObjectSpy).not.toHaveBeenCalled();
       expect(elementsArray).toEqual([]);
     });
@@ -424,48 +499,118 @@ describe('GenericProvider', () => {
     beforeEach(async () => {
       provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
       await provider.createDriver();
-      getRegionObjectSpy = spyOn(GenericProvider.prototype, 'getRegionObject').and.returnValue({});
+      getRegionObjectSpy = spyOn(GenericProvider.prototype, 'getRegionObjectFromBoundingBox').and.returnValue({});
     });
 
     it('should add regions for each id', async () => {
-      spyOn(Driver.prototype, 'findElement').and.returnValue(Promise.resolve({ ELEMENT: 'mock_id' }));
+      spyOn(Driver.prototype, 'findElementBoundingBox').and.returnValue(Promise.resolve({ value: { x: 0, y: 100, height: 500, width: 300 } }));
       const ids = ['#id1', '#id2', '#id3'];
 
       const elementsArray = await provider.getSeleniumRegionsBy('css selector', ids);
 
-      expect(provider.driver.findElement).toHaveBeenCalledTimes(3);
+      expect(provider.driver.findElementBoundingBox).toHaveBeenCalledTimes(3);
       expect(getRegionObjectSpy).toHaveBeenCalledTimes(3);
       expect(elementsArray).toEqual([{}, {}, {}]);
     });
 
     it('should ignore id when element is not found', async () => {
-      spyOn(Driver.prototype, 'findElement').and.rejectWith(new Error('Element not found'));
+      spyOn(Driver.prototype, 'findElementBoundingBox').and.rejectWith(new Error('Element not found'));
       const ids = ['#id1', '#id2', '#id3'];
 
       const elementsArray = await provider.getSeleniumRegionsBy('css selector', ids);
 
-      expect(provider.driver.findElement).toHaveBeenCalledTimes(3);
+      expect(provider.driver.findElementBoundingBox).toHaveBeenCalledTimes(3);
       expect(getRegionObjectSpy).not.toHaveBeenCalled();
       expect(elementsArray).toEqual([]);
     });
   });
 
+  describe('getInitialPosition', () => {
+    let provider;
+    beforeEach(async () => {
+      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await provider.createDriver();
+    });
+    describe('when not IOS', () => {
+      it('should not get the initial scroll position', async () => {
+        await provider.getInitialPosition();
+        expect(provider.initialScrollFactor).toEqual({ value: [0, 0] });
+      });
+    });
+
+    describe('when IOS', () => {
+      let executeScriptSpy;
+      beforeEach(() => {
+        provider.currentOperatingSystem = 'iOS';
+        executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
+      });
+
+      afterEach(() => {
+        provider.currentOperatingSystem = null;
+      });
+      it('should get the initial scroll position', async () => {
+        spyOn(Driver.prototype, 'executeScript').and.returnValue({ value: [0, 200] });
+        await provider.getInitialPosition();
+        expect(executeScriptSpy).toHaveBeenCalledWith({ script: 'return [parseInt(window.scrollX * window.devicePixelRatio), parseInt(window.scrollY * window.devicePixelRatio)];', args: [] });
+        expect(provider.initialScrollFactor).toEqual({ value: [0, 200] });
+      });
+    });
+  });
+
+  describe('scrollToInitialPosition', () => {
+    let provider;
+    beforeEach(async () => {
+      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await provider.createDriver();
+    });
+    describe('when not IOS', () => {
+      it('should not scroll to position', async () => {
+        await provider.scrollToInitialPosition(0, 50);
+        expect(spyOn(Driver.prototype, 'executeScript')).toHaveBeenCalledTimes(0);
+      });
+    });
+
+    describe('when IOS', () => {
+      let executeScriptSpy;
+      beforeEach(() => {
+        provider.currentOperatingSystem = 'iOS';
+        provider.initialScrollFactor = { value: [0, 50] };
+        executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
+      });
+
+      afterEach(() => {
+        provider.currentOperatingSystem = null;
+      });
+      it('should scroll to position', async () => {
+        await provider.scrollToInitialPosition(0, 50);
+        expect(executeScriptSpy).toHaveBeenCalledTimes(1);
+        expect(executeScriptSpy).toHaveBeenCalledWith({ script: 'window.scrollTo(0, 50)', args: [] });
+      });
+    });
+  });
+
   describe('getSeleniumRegionsByElement', () => {
     let getRegionObjectSpy;
+    let getInitialPositionSpy;
+    let scrollToInitialPositionSpy;
     let provider;
 
     beforeEach(async () => {
       provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
       await provider.createDriver();
       getRegionObjectSpy = spyOn(GenericProvider.prototype, 'getRegionObject').and.returnValue({});
+      getInitialPositionSpy = spyOn(GenericProvider.prototype, 'getInitialPosition');
+      scrollToInitialPositionSpy = spyOn(GenericProvider.prototype, 'scrollToInitialPosition');
     });
 
     it('should add regions for each element', async () => {
       const elements = ['mockElement_1', 'mockElement_2', 'mockElement_3'];
 
       const elementsArray = await provider.getSeleniumRegionsByElement(elements);
-
+      expect(getInitialPositionSpy).toHaveBeenCalledTimes(1);
       expect(getRegionObjectSpy).toHaveBeenCalledTimes(3);
+      expect(scrollToInitialPositionSpy).toHaveBeenCalledTimes(1);
+      expect(scrollToInitialPositionSpy).toHaveBeenCalledWith(provider.initialScrollFactor.value[0], provider.initialScrollFactor.value[1]);
       expect(elementsArray).toEqual([{}, {}, {}]);
     });
 

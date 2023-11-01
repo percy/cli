@@ -205,7 +205,6 @@ export default class GenericProvider {
     this.pageYShiftFactor = this.currentOperatingSystem === 'iOS' ? this.statusBarHeight : (this.statusBarHeight - scrollFactors.value[1]);
     this.pageXShiftFactor = this.currentOperatingSystem === 'iOS' ? 0 : (-scrollFactors.value[0]);
     if (this.currentOperatingSystem === 'iOS') {
-      console.log(scrollFactors, this.initialScrollFactor);
       if (scrollFactors.value[0] !== this.initialScrollFactor.value[0] || scrollFactors.value[1] !== this.initialScrollFactor.value[1]) {
         this.pageXShiftFactor = (-1 * this.removeElementShiftFactor);
         this.pageYShiftFactor = (-1 * this.removeElementShiftFactor);
