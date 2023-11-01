@@ -69,6 +69,18 @@ export default class GenericProvider {
     }
   }
 
+  async getInitialPosition() {
+    if (this.currentOperatingSystem === 'iOS') {
+      this.initialScrollFactor = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX * window.devicePixelRatio), parseInt(window.scrollY * window.devicePixelRatio)];', args: [] });
+    }
+  }
+
+  async scrollToInitialPosition(x, y) {
+    if (this.currentOperatingSystem === 'iOS') {
+      await this.driver.executeScript({ script: `window.scrollTo(${x}, ${y})`, args: [] });
+    }
+  }
+
   async screenshot(name, {
     ignoreRegionXpaths = [],
     ignoreRegionSelectors = [],
@@ -195,45 +207,6 @@ export default class GenericProvider {
     ];
   }
 
-  async updatePageShiftFactor(location) {
-    const scrollFactors = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX * window.devicePixelRatio), parseInt(window.scrollY * window.devicePixelRatio)];', args: [] });
-    this.pageYShiftFactor = this.currentOperatingSystem === 'iOS' ? this.statusBarHeight : (this.statusBarHeight - scrollFactors.value[1]);
-    this.pageXShiftFactor = this.currentOperatingSystem === 'iOS' ? 0 : (-scrollFactors.value[0]);
-    if (this.currentOperatingSystem === 'iOS') {
-      if (scrollFactors.value[0] !== this.initialScrollFactor.value[0] || scrollFactors.value[1] !== this.initialScrollFactor.value[1]) {
-        this.pageXShiftFactor = (-1 * this.removeElementShiftFactor);
-        this.pageYShiftFactor = (-1 * this.removeElementShiftFactor);
-      } else if (location.y === 0) {
-        this.pageYShiftFactor += (-scrollFactors.value[1]);
-      }
-    }
-  }
-
-  async getRegionObject(selector, elementId) {
-    const scaleFactor = await this.metaData.devicePixelRatio();
-    const rect = await this.driver.rect(elementId);
-    const location = { x: rect.x, y: rect.y };
-    const size = { height: rect.height, width: rect.width };
-    // Update pageShiftFactor Element is not visible in viewport
-    // In case of iOS if the element is not visible in viewport it gives 0 for x-y coordinate.
-    // In case of iOS if the element is partially visible it gives negative x-y coordinate.
-    // Subtracting ScrollY/ScrollX ensures if the element is visible in viewport or not.
-    await this.updatePageShiftFactor(location);
-    const coOrdinates = {
-      top: Math.floor(location.y * scaleFactor) + this.pageYShiftFactor,
-      bottom: Math.ceil((location.y + size.height) * scaleFactor) + this.pageYShiftFactor,
-      left: Math.floor(location.x * scaleFactor) + this.pageXShiftFactor,
-      right: Math.ceil((location.x + size.width) * scaleFactor) + this.pageXShiftFactor
-    };
-
-    const jsonObject = {
-      selector,
-      coOrdinates
-    };
-
-    return jsonObject;
-  }
-
   async getRegionObjectFromBoundingBox(selector, element) {
     const scaleFactor = await this.metaData.devicePixelRatio();
     let headerAdjustment = 0;
@@ -271,16 +244,43 @@ export default class GenericProvider {
     return regionsArray;
   }
 
-  async getInitialPosition() {
+  async updatePageShiftFactor(location) {
+    const scrollFactors = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX * window.devicePixelRatio), parseInt(window.scrollY * window.devicePixelRatio)];', args: [] });
+    this.pageYShiftFactor = this.currentOperatingSystem === 'iOS' ? this.statusBarHeight : (this.statusBarHeight - scrollFactors.value[1]);
+    this.pageXShiftFactor = this.currentOperatingSystem === 'iOS' ? 0 : (-scrollFactors.value[0]);
     if (this.currentOperatingSystem === 'iOS') {
-      this.initialScrollFactor = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX * window.devicePixelRatio), parseInt(window.scrollY * window.devicePixelRatio)];', args: [] });
+      if (scrollFactors.value[0] !== this.initialScrollFactor.value[0] || scrollFactors.value[1] !== this.initialScrollFactor.value[1]) {
+        this.pageXShiftFactor = (-1 * this.removeElementShiftFactor);
+        this.pageYShiftFactor = (-1 * this.removeElementShiftFactor);
+      } else if (location.y === 0) {
+        this.pageYShiftFactor += (-scrollFactors.value[1]);
+      }
     }
   }
 
-  async scrollToInitialPosition(x, y) {
-    if (this.currentOperatingSystem === 'iOS') {
-      await this.driver.executeScript({ script: `window.scrollTo(${x}, ${y})`, args: [] });
-    }
+  async getRegionObject(selector, elementId) {
+    const scaleFactor = await this.metaData.devicePixelRatio();
+    const rect = await this.driver.rect(elementId);
+    const location = { x: rect.x, y: rect.y };
+    const size = { height: rect.height, width: rect.width };
+    // Update pageShiftFactor Element is not visible in viewport
+    // In case of iOS if the element is not visible in viewport it gives 0 for x-y coordinate.
+    // In case of iOS if the element is partially visible it gives negative x-y coordinate.
+    // Subtracting ScrollY/ScrollX ensures if the element is visible in viewport or not.
+    await this.updatePageShiftFactor(location);
+    const coOrdinates = {
+      top: Math.floor(location.y * scaleFactor) + this.pageYShiftFactor,
+      bottom: Math.ceil((location.y + size.height) * scaleFactor) + this.pageYShiftFactor,
+      left: Math.floor(location.x * scaleFactor) + this.pageXShiftFactor,
+      right: Math.ceil((location.x + size.width) * scaleFactor) + this.pageXShiftFactor
+    };
+
+    const jsonObject = {
+      selector,
+      coOrdinates
+    };
+
+    return jsonObject;
   }
 
   async getSeleniumRegionsByElement(elements) {
