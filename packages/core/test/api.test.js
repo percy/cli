@@ -316,6 +316,100 @@ describe('API Server', () => {
     resolve(); // no hanging promises
   });
 
+  it('has a /events endpoint that calls #sendBuildEvents() async with provided options with clientInfo present', async () => {
+    let { getPackageJSON } = await import('@percy/client/utils');
+    let pkg = getPackageJSON(import.meta.url);
+    let resolve, test = new Promise(r => (resolve = r));
+    let sendBuildEventsSpy = spyOn(percy.client, 'sendBuildEvents').and.resolveTo('some response');
+
+    await percy.start();
+
+    await expectAsync(request('/percy/events', {
+      body: {
+        message: 'some error',
+        clientInfo: 'percy-appium-dotnet/3.0.1'
+      },
+      method: 'post'
+    })).toBeResolvedTo({ success: true });
+
+    expect(sendBuildEventsSpy).toHaveBeenCalledOnceWith(percy.build.id, jasmine.objectContaining({
+      message: 'some error',
+      client: 'percy-appium-dotnet',
+      clientVersion: '3.0.1',
+      cliVersion: pkg.version
+    }));
+
+    await expectAsync(test).toBePending();
+    resolve(); // no hanging promises
+  });
+
+  it('has a /events endpoint called with body array that calls #sendBuildEvents() async with provided options with clientInfo present', async () => {
+    let { getPackageJSON } = await import('@percy/client/utils');
+    let pkg = getPackageJSON(import.meta.url);
+    let resolve, test = new Promise(r => (resolve = r));
+    let sendBuildEventsSpy = spyOn(percy.client, 'sendBuildEvents').and.resolveTo('some response');
+
+    await percy.start();
+
+    await expectAsync(request('/percy/events', {
+      body: [
+        {
+          message: 'some error 1',
+          clientInfo: 'percy-appium-dotnet/3.0.1'
+        },
+        {
+          message: 'some error 2',
+          clientInfo: 'percy-appium-dotnet/3.0.1'
+        }
+      ],
+      method: 'post'
+    })).toBeResolvedTo({ success: true });
+
+    expect(sendBuildEventsSpy).toHaveBeenCalledOnceWith(percy.build.id, jasmine.objectContaining(
+      [
+        {
+          message: 'some error 1',
+          client: 'percy-appium-dotnet',
+          clientVersion: '3.0.1',
+          cliVersion: pkg.version
+        },
+        {
+          message: 'some error 2',
+          client: 'percy-appium-dotnet',
+          clientVersion: '3.0.1',
+          cliVersion: pkg.version
+
+        }
+      ]
+    ));
+
+    await expectAsync(test).toBePending();
+    resolve(); // no hanging promises
+  });
+
+  it('has a /events endpoint that calls #sendBuildEvents() async with provided options with clientInfo absent', async () => {
+    let resolve, test = new Promise(r => (resolve = r));
+    let sendBuildEventsSpy = spyOn(percy.client, 'sendBuildEvents').and.resolveTo('some response');
+
+    await percy.start();
+
+    await expectAsync(request('/percy/events', {
+      body: {
+        message: 'some error',
+        cliVersion: '1.2.3'
+      },
+      method: 'post'
+    })).toBeResolvedTo({ success: true });
+
+    expect(sendBuildEventsSpy).toHaveBeenCalledOnceWith(percy.build.id, jasmine.objectContaining({
+      message: 'some error',
+      cliVersion: '1.2.3'
+    }));
+
+    await expectAsync(test).toBePending();
+    resolve(); // no hanging promises
+  });
+
   it('returns a 500 error when an endpoint throws', async () => {
     spyOn(percy, 'snapshot').and.rejectWith(new Error('test error'));
     await percy.start();

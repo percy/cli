@@ -3,10 +3,7 @@ import utils from '@percy/sdk-utils';
 import MetaDataResolver from '../metadata/metaDataResolver.js';
 import Tile from '../util/tile.js';
 import Driver from '../driver.js';
-import Cache from '../util/cache.js';
-const { request } = utils;
 
-const DEVICES_CONFIG_URL = 'https://storage.googleapis.com/percy-utils/devices.json';
 const log = utils.logger('webdriver-utils:genericProvider');
 
 export default class GenericProvider {
@@ -165,9 +162,7 @@ export default class GenericProvider {
     let { width, height } = await this.metaData.windowSize();
     const resolution = await this.metaData.screenResolution();
     const orientation = this.metaData.orientation();
-    [this.header, this.footer] = await this.getHeaderFooter();
-    // for android window size only constitutes of browser viewport, hence adding nav / status / url bar heights
-    height = this.metaData.osName() === 'android' ? height + this.header + this.footer : height;
+
     return {
       name: this.metaData.deviceName(),
       osName: this.metaData.osName(),
@@ -329,19 +324,5 @@ export default class GenericProvider {
       }
     }
     return elementsArray;
-  }
-
-  async getHeaderFooter(deviceName, osVersion, browserName) {
-    // passing 0 as key, since across different pages and tests, this config will remain same
-    const devicesConfig = await Cache.withCache(Cache.devicesConfig, 0, async () => {
-      return (await request(DEVICES_CONFIG_URL)).body;
-    });
-    let deviceKey = `${deviceName}-${osVersion}`;
-    return devicesConfig[deviceKey]
-      ? (
-          devicesConfig[deviceKey][browserName]
-            ? [devicesConfig[deviceKey][browserName].header, devicesConfig[deviceKey][browserName].footer]
-            : [0, 0]
-        ) : [0, 0];
   }
 }

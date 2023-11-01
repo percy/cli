@@ -2,6 +2,9 @@ import command from '@percy/cli-command';
 import start from './start.js';
 import stop from './stop.js';
 import ping from './ping.js';
+import { getPackageJSON } from '@percy/cli-command/utils';
+
+const pkg = getPackageJSON(import.meta.url);
 
 export const exec = command('exec', {
   description: 'Start and stop Percy around a supplied command',
@@ -83,7 +86,7 @@ export const exec = command('exec', {
 
   // run the provided command
   log.info(`Running "${[command, ...args].join(' ')}"`);
-  let [status, error] = yield* spawn(command, args);
+  let [status, error] = yield* spawn(command, args, percy);
 
   // stop percy if running (force stop if there is an error);
   await percy?.stop(!!error);
@@ -94,14 +97,42 @@ export const exec = command('exec', {
 
 // Spawn a command with cross-spawn and return an array containing the resulting status code along
 // with any error encountered while running. Uses a generator pattern to handle interupt signals.
-async function* spawn(cmd, args) {
+async function* spawn(cmd, args, percy) {
   let { default: crossSpawn } = await import('cross-spawn');
   let proc, closed, error;
 
   try {
-    proc = crossSpawn(cmd, args, { stdio: 'inherit' });
-    proc.on('close', code => (closed = code));
+    proc = crossSpawn(cmd, args, { stdio: 'pipe' });
+    // Writing stdout of proc to process
+    if (proc.stdout) {
+      proc.stdout.on('data', (data) => {
+        process.stdout.write(`${data}`);
+      });
+    }
+
+    if (proc.stderr) {
+      proc.stderr.on('data', (data) => {
+        process.stderr.write(`${data}`);
+      });
+    }
+
     proc.on('error', err => (error = err));
+
+    proc.on('close', code => {
+      closed = code;
+      if (code !== 0) {
+        // Only send event when there is a global error code and
+        // percy token is present
+        if (process.env.PERCY_TOKEN) {
+          const myObject = {
+            errorKind: 'cli',
+            cliVersion: pkg.version,
+            message: '1'
+          };
+          percy.client.sendBuildEvents(percy.build.id, myObject);
+        }
+      }
+    });
 
     // run until an event is triggered
     /* eslint-disable-next-line no-unmodified-loop-condition */

@@ -1930,4 +1930,44 @@ describe('Discovery', () => {
       });
     });
   });
+
+  describe('Enable Layout =>', () => {
+    describe('cli-snapshot =>', () => {
+      it('enable when enableLayout: true', async () => {
+        percy.config.snapshot.enableLayout = true;
+        percy.loglevel('debug');
+
+        await percy.snapshot({
+          name: 'test snapshot',
+          url: 'http://localhost:8000',
+          domSnapshot: ''
+        });
+
+        await percy.idle();
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy:core:snapshot] - enableLayout: true'
+        ]));
+      });
+    });
+
+    describe('percySnapshot with cli-exec =>', () => {
+      it('enable when enableLayout: true', async () => {
+        percy.config.snapshot.enableLayout = true;
+        percy.loglevel('debug');
+
+        await percy.snapshot({
+          name: 'test snapshot',
+          url: 'http://localhost:8000',
+          domSnapshot: testDOM
+        });
+
+        await percy.idle();
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy:core:snapshot] - enableLayout: true'
+        ]));
+      });
+    });
+  });
 });

@@ -64,13 +64,15 @@ export function serializeDOM(options) {
     enableJavaScript = options?.enable_javascript,
     domTransformation = options?.dom_transformation,
     stringifyResponse = options?.stringify_response,
-    disableShadowDOM = options?.disable_shadow_dom
+    disableShadowDOM = options?.disable_shadow_dom,
+    reshuffleInvalidTags = options?.reshuffle_invalid_tags
   } = options || {};
 
   // keep certain records throughout serialization
   let ctx = {
     resources: new Set(),
     warnings: new Set(),
+    hints: new Set(),
     cache: new Map(),
     enableJavaScript,
     disableShadowDOM
@@ -94,11 +96,21 @@ export function serializeDOM(options) {
   }
 
   if (!disableShadowDOM) { injectDeclarativeShadowDOMPolyfill(ctx); }
+  if (reshuffleInvalidTags) {
+    let clonedBody = ctx.clone.body;
+    while (clonedBody.nextSibling) {
+      let sibling = clonedBody.nextSibling;
+      clonedBody.append(sibling);
+    }
+  } else if (ctx.clone.body.nextSibling) {
+    ctx.hints.add('DOM elements found outside </body>');
+  }
 
   let result = {
     html: serializeHTML(ctx),
     warnings: Array.from(ctx.warnings),
-    resources: Array.from(ctx.resources)
+    resources: Array.from(ctx.resources),
+    hints: Array.from(ctx.hints)
   };
 
   return stringifyResponse
