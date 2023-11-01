@@ -161,7 +161,7 @@ export const configSchema = {
       networkIdleTimeout: {
         type: 'integer',
         default: 100,
-        maximum: 750,
+        maximum: 2000,
         minimum: 1
       },
       disableCache: {
