@@ -71,7 +71,7 @@ export default class GenericProvider {
 
   async getInitialPosition() {
     if (this.currentOperatingSystem === 'iOS') {
-      this.initialScrollFactor = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX * window.devicePixelRatio), parseInt(window.scrollY * window.devicePixelRatio)];', args: [] });
+      this.initialScrollFactor = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX), parseInt(window.scrollY)];', args: [] });
     }
   }
 
@@ -244,16 +244,16 @@ export default class GenericProvider {
     return regionsArray;
   }
 
-  async updatePageShiftFactor(location) {
-    const scrollFactors = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX * window.devicePixelRatio), parseInt(window.scrollY * window.devicePixelRatio)];', args: [] });
-    this.pageYShiftFactor = this.currentOperatingSystem === 'iOS' ? this.statusBarHeight : (this.statusBarHeight - scrollFactors.value[1]);
-    this.pageXShiftFactor = this.currentOperatingSystem === 'iOS' ? 0 : (-scrollFactors.value[0]);
+  async updatePageShiftFactor(location, scaleFactor) {
+    const scrollFactors = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX), parseInt(window.scrollY)];', args: [] });
+    this.pageYShiftFactor = this.currentOperatingSystem === 'iOS' ? this.statusBarHeight : (this.statusBarHeight - (scrollFactors.value[1] * scaleFactor));
+    this.pageXShiftFactor = this.currentOperatingSystem === 'iOS' ? 0 : (-(scrollFactors.value[0] * scaleFactor));
     if (this.currentOperatingSystem === 'iOS') {
       if (scrollFactors.value[0] !== this.initialScrollFactor.value[0] || scrollFactors.value[1] !== this.initialScrollFactor.value[1]) {
         this.pageXShiftFactor = (-1 * this.removeElementShiftFactor);
         this.pageYShiftFactor = (-1 * this.removeElementShiftFactor);
       } else if (location.y === 0) {
-        this.pageYShiftFactor += (-scrollFactors.value[1]);
+        this.pageYShiftFactor += (-(scrollFactors.value[1] * scaleFactor));
       }
     }
   }
@@ -267,7 +267,7 @@ export default class GenericProvider {
     // In case of iOS if the element is not visible in viewport it gives 0 for x-y coordinate.
     // In case of iOS if the element is partially visible it gives negative x-y coordinate.
     // Subtracting ScrollY/ScrollX ensures if the element is visible in viewport or not.
-    await this.updatePageShiftFactor(location);
+    await this.updatePageShiftFactor(location, scaleFactor);
     const coOrdinates = {
       top: Math.floor(location.y * scaleFactor) + this.pageYShiftFactor,
       bottom: Math.ceil((location.y + size.height) * scaleFactor) + this.pageYShiftFactor,

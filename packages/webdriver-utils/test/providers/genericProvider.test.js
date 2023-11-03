@@ -282,13 +282,13 @@ describe('GenericProvider', () => {
           provider.initialScrollFactor = { value: [0, 10] };
         });
         it('should update pageYShiftFactor for iOS when location.y is 0', async () => {
-          await provider.updatePageShiftFactor({ y: 0 });
-          expect(provider.pageYShiftFactor).toBe(-10);
+          await provider.updatePageShiftFactor({ y: 0 }, 2);
+          expect(provider.pageYShiftFactor).toBe(-20);
         });
 
         it('should not update pageYShiftFactor for iOS when location.y is not 0', async () => {
           // Location.y is not 0
-          await provider.updatePageShiftFactor({ y: 5 });
+          await provider.updatePageShiftFactor({ y: 5 }, 2);
           expect(provider.pageYShiftFactor).toBe(0);
         });
       });
@@ -298,13 +298,13 @@ describe('GenericProvider', () => {
           provider.initialScrollFactor = { value: [0, 30] };
         });
         it('should update pageYShiftFactor to negative value even if location.y is 0', async () => {
-          await provider.updatePageShiftFactor({ y: 0 });
+          await provider.updatePageShiftFactor({ y: 0 }, 2);
           expect(provider.pageYShiftFactor).toBe(-50000);
         });
 
         it('should update pageYShiftFactor to negative value even if location.y is not 0', async () => {
           // Location.y is not 0
-          await provider.updatePageShiftFactor({ y: 5 });
+          await provider.updatePageShiftFactor({ y: 5 }, 2);
           expect(provider.pageYShiftFactor).toBe(-50000);
         });
       });
@@ -320,13 +320,13 @@ describe('GenericProvider', () => {
 
       it('should not update pageYShiftFactor for non-iOS platforms', async () => {
         spyOn(Driver.prototype, 'executeScript').and.returnValue({ value: [0, 0] });
-        await provider.updatePageShiftFactor({ y: 0 });
+        await provider.updatePageShiftFactor({ y: 0 }, 1);
         expect(provider.pageYShiftFactor).toBe(0);
       });
 
       it('should update pageYShiftFactor for non-iOS platforms accordingly if scrolled', async () => {
         spyOn(Driver.prototype, 'executeScript').and.returnValue({ value: [0, 10] });
-        await provider.updatePageShiftFactor({ y: 0 });
+        await provider.updatePageShiftFactor({ y: 0 }, 1);
         expect(provider.pageYShiftFactor).toBe(-10);
       });
     });
@@ -547,7 +547,7 @@ describe('GenericProvider', () => {
       it('should get the initial scroll position', async () => {
         spyOn(Driver.prototype, 'executeScript').and.returnValue({ value: [0, 200] });
         await provider.getInitialPosition();
-        expect(executeScriptSpy).toHaveBeenCalledWith({ script: 'return [parseInt(window.scrollX * window.devicePixelRatio), parseInt(window.scrollY * window.devicePixelRatio)];', args: [] });
+        expect(executeScriptSpy).toHaveBeenCalledWith({ script: 'return [parseInt(window.scrollX), parseInt(window.scrollY)];', args: [] });
         expect(provider.initialScrollFactor).toEqual({ value: [0, 200] });
       });
     });
