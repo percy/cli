@@ -29,13 +29,13 @@ describe('AutomateProvider', () => {
     });
 
     it('throws Error when called without initializing driver', async () => {
-      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', percyBuildInfo);
+      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', {}, percyBuildInfo);
       await expectAsync(automateProvider.browserstackExecutor('getSessionDetails'))
         .toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
     });
 
     it('calls browserstackExecutor with correct arguemnts for actions only', async () => {
-      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', percyBuildInfo);
+      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', {}, percyBuildInfo);
       await automateProvider.createDriver();
       await automateProvider.browserstackExecutor('getSessionDetails');
       expect(executeScriptSpy)
@@ -43,7 +43,7 @@ describe('AutomateProvider', () => {
     });
 
     it('calls browserstackExecutor with correct arguemnts for actions + args', async () => {
-      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', percyBuildInfo);
+      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', {}, percyBuildInfo);
       await automateProvider.createDriver();
       await automateProvider.browserstackExecutor('getSessionDetails', 'new');
       expect(executeScriptSpy)
@@ -65,7 +65,7 @@ describe('AutomateProvider', () => {
     });
 
     it('sets automate url', async () => {
-      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', percyBuildInfo);
+      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', {}, percyBuildInfo);
       await automateProvider.createDriver();
       await automateProvider.screenshot('abc', { });
 
@@ -74,7 +74,7 @@ describe('AutomateProvider', () => {
     });
 
     it('throws error if driver is not initialized', async () => {
-      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', percyBuildInfo);
+      let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', {}, percyBuildInfo);
       await expectAsync(automateProvider.setDebugUrl())
         .toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
     });
@@ -107,7 +107,7 @@ describe('AutomateProvider', () => {
       id: '123',
       url: 'https://percy.io/abc/123'
     };
-    const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', percyBuildInfo);
+    const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', {}, percyBuildInfo);
 
     beforeEach(async () => {
       percyScreenshotBeginSpy = spyOn(AutomateProvider.prototype,
@@ -149,14 +149,14 @@ describe('AutomateProvider', () => {
     });
 
     it('supresses exception and does not throw', async () => {
-      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', percyBuildInfo);
+      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', {}, percyBuildInfo);
       await automateProvider.createDriver();
       automateProvider.driver.executeScript = jasmine.createSpy().and.rejectWith(new Error('Random network error'));
       await automateProvider.percyScreenshotBegin('abc');
     });
 
     it('marks the percy session as success', async () => {
-      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', percyBuildInfo);
+      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', {}, percyBuildInfo);
       await automateProvider.createDriver();
       automateProvider.driver.executeScript = jasmine.createSpy().and.returnValue(Promise.resolve({ success: true }));
       await automateProvider.percyScreenshotBegin('abc');
@@ -171,7 +171,7 @@ describe('AutomateProvider', () => {
     };
 
     let errorObj = new Error('Random network error');
-    const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', percyBuildInfo);
+    const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', {}, percyBuildInfo);
 
     beforeEach(async () => {
       spyOn(Driver.prototype, 'getCapabilites');
@@ -215,7 +215,7 @@ describe('AutomateProvider', () => {
       id: '123',
       url: 'https://percy.io/abc/123'
     };
-    const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', percyBuildInfo);
+    const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', {}, percyBuildInfo);
 
     beforeEach(async () => {
       spyOn(Driver.prototype, 'getCapabilites');
@@ -267,7 +267,7 @@ describe('AutomateProvider', () => {
     };
 
     describe('for desktop', () => {
-      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', percyBuildInfo);
+      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', {}, percyBuildInfo);
       beforeEach(async () => {
         percyScreenshotBeginSpy = spyOn(AutomateProvider.prototype,
           'percyScreenshotBegin').and.returnValue({ value: '{"buildHash":"12e3","sessionHash":"abc1d","capabilities":{"browserName":"chrome","browserVersion":"113.0","os":"win11","os_version":"11","deviceOrientation":false,"resolution":["1920","1080"]},"success":true,"deviceName":"x.x.x.x"}' });
@@ -305,7 +305,7 @@ describe('AutomateProvider', () => {
     });
 
     describe('for devices', () => {
-      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'android' }, {}, {}, 'client', 'environment', percyBuildInfo);
+      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', {}, percyBuildInfo);
       beforeEach(async () => {
         percyScreenshotBeginSpy = spyOn(AutomateProvider.prototype,
           'percyScreenshotBegin').and.returnValue({ value: '{"buildHash":"12e3","sessionHash":"abc1d","capabilities":{"browserName":"chrome_android","browserVersion":"chrome_android","os":"android","os_version":"11","deviceOrientation":"portrait","resolution":["1920","1080"]},"success":true,"deviceName":"Samsung Galaxy S21"}' });
@@ -344,7 +344,7 @@ describe('AutomateProvider', () => {
 
     describe('driver is null', () => {
       it('throws Error when called without initializing driver', async () => {
-        let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', percyBuildInfo);
+        let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', {}, percyBuildInfo);
         await expectAsync(automateProvider.getTag())
           .toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
       });
@@ -352,7 +352,7 @@ describe('AutomateProvider', () => {
 
     describe('automateResults is null', () => {
       it('throws Error automateResults are not available', async () => {
-        let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, {}, 'client', 'environment', percyBuildInfo);
+        let automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', {}, percyBuildInfo);
         await automateProvider.createDriver();
         await expectAsync(automateProvider.getTag())
           .toBeRejectedWithError('Comparison tag details not available');
