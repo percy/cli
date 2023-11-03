@@ -98,7 +98,7 @@ export default class AutomateProvider extends GenericProvider {
       try {
         await this.browserstackExecutor('percyScreenshot', {
           name,
-          percyScreenshotUrl: this.buildInfo.url,
+          percyScreenshotUrl: this.buildInfo?.url,
           status: error ? 'failure' : 'success',
           statusMessage: error ? `${error}` : '',
           state: 'end'
