@@ -69,7 +69,7 @@ export default class AutomateProvider extends GenericProvider {
       error = e;
       throw e;
     } finally {
-      await this.percyScreenshotEnd(name, response?.body?.link, `${error}`);
+      await this.percyScreenshotEnd(name, error);
     }
     return response;
   }
@@ -93,14 +93,14 @@ export default class AutomateProvider extends GenericProvider {
     });
   }
 
-  async percyScreenshotEnd(name, percyScreenshotUrl, statusMessage = null) {
+  async percyScreenshotEnd(name, error) {
     return await TimeIt.run('percyScreenshotEnd', async () => {
       try {
         await this.browserstackExecutor('percyScreenshot', {
           name,
-          percyScreenshotUrl,
-          status: percyScreenshotUrl ? 'success' : 'failure',
-          statusMessage,
+          percyScreenshotUrl: this.buildInfo.url,
+          status: error ? 'failure' : 'success',
+          statusMessage: error ? `${error}` : '',
           state: 'end'
         });
       } catch (e) {
