@@ -305,7 +305,7 @@ describe('AutomateProvider', () => {
     });
 
     describe('for devices', () => {
-      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', {}, percyBuildInfo);
+      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'android' }, {}, 'client', 'environment', {}, percyBuildInfo);
       beforeEach(async () => {
         percyScreenshotBeginSpy = spyOn(AutomateProvider.prototype,
           'percyScreenshotBegin').and.returnValue({ value: '{"buildHash":"12e3","sessionHash":"abc1d","capabilities":{"browserName":"chrome_android","browserVersion":"chrome_android","os":"android","os_version":"11","deviceOrientation":"portrait","resolution":["1920","1080"]},"success":true,"deviceName":"Samsung Galaxy S21"}' });
