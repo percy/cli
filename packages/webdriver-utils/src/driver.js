@@ -87,6 +87,7 @@ export default class Driver {
   }
 
   async findElementXpath(xpath) {
+    xpath = xpath.replace(/'/g, '"');
     const command = { script: `return document.evaluate('${xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.getBoundingClientRect();`, args: [] };
     const response = await this.executeScript(command);
     return response.value;

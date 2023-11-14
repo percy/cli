@@ -272,7 +272,7 @@ describe('GenericProvider', () => {
         provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
         await provider.createDriver();
         spyOn(Driver.prototype, 'executeScript').and.returnValue({ value: [0, 10] });
-        provider.currentOperatingSystem = 'iOS';
+        provider.currentTag = { osName: 'iOS' };
         provider.pageYShiftFactor = 0;
         provider.statusBarHeight = 0;
       });
@@ -310,11 +310,52 @@ describe('GenericProvider', () => {
       });
     });
 
+    describe('When OS X', () => {
+      beforeEach(async () => {
+        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'OS X' }, {});
+        await provider.createDriver();
+        spyOn(Driver.prototype, 'executeScript').and.returnValue({ value: [0, 10] });
+        provider.currentTag = { osName: 'OS X' };
+        provider.pageYShiftFactor = 0;
+        provider.statusBarHeight = 0;
+      });
+
+      describe('When Safari browserVersion > 13', () => {
+        describe('when element is visible in viewport', () => {
+          beforeEach(() => {
+            provider.initialScrollFactor = { value: [0, 10] };
+            provider.currentTag.browserName = 'safari';
+            provider.currentTag.browserVersion = 15;
+          });
+
+          it('should not update pageYShiftFactor for OS X if scrolled', async () => {
+            await provider.updatePageShiftFactor({ y: 0 }, 1);
+            expect(provider.pageYShiftFactor).toBe(0);
+          });
+        });
+      });
+
+      describe('When Safari browserVersion <= 13', () => {
+        describe('when element is visible in viewport', () => {
+          beforeEach(() => {
+            provider.initialScrollFactor = { value: [0, 10] };
+            provider.currentTag.browserName = 'safari';
+            provider.currentTag.browserVersion = 13;
+          });
+
+          it('should update pageYShiftFactor for OS X platforms accordingly if scrolled', async () => {
+            await provider.updatePageShiftFactor({ y: 0 }, 1);
+            expect(provider.pageYShiftFactor).toBe(-10);
+          });
+        });
+      });
+    });
+
     describe('When Other', () => {
       beforeEach(async () => {
         provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
         await provider.createDriver();
-        provider.currentOperatingSystem = 'Android';
+        provider.currentTag = { osName: 'Android' };
         provider.pageYShiftFactor = 0;
       });
 
@@ -340,6 +381,7 @@ describe('GenericProvider', () => {
       beforeEach(async () => {
         // mock metadata
         provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+        provider.currentTag = { osName: 'Windows' };
         await provider.createDriver();
         spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
           .and.returnValue(1);
@@ -370,6 +412,7 @@ describe('GenericProvider', () => {
       beforeEach(async () => {
         // mock metadata
         provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+        provider.currentTag = { osName: 'iOS' };
         await provider.createDriver();
         spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
           .and.returnValue(1);
@@ -381,6 +424,7 @@ describe('GenericProvider', () => {
 
       afterEach(() => {
         provider.pageYShiftFactor = 0;
+        provider.currentTag = null;
       });
       it('should return a JSON object with the correct selector and coordinates', async () => {
         await provider.createDriver();
@@ -407,6 +451,7 @@ describe('GenericProvider', () => {
     beforeEach(async () => {
       // mock metadata
       provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      provider.currentTag = { osName: 'Windows' };
       await provider.createDriver();
       spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
         .and.returnValue(1);
@@ -432,7 +477,7 @@ describe('GenericProvider', () => {
 
     describe('When iOS', () => {
       beforeEach(() => {
-        provider.currentOperatingSystem = 'iOS';
+        provider.currentTag = { osName: 'iOS' };
         provider.statusBarHeight = 132;
       });
       it('should return a JSON object with the correct selector and coordinates with added statusBarHeight', async () => {
@@ -525,6 +570,7 @@ describe('GenericProvider', () => {
     let provider;
     beforeEach(async () => {
       provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      provider.currentTag = { osName: 'Windows' };
       await provider.createDriver();
     });
     describe('when not IOS', () => {
@@ -537,12 +583,12 @@ describe('GenericProvider', () => {
     describe('when IOS', () => {
       let executeScriptSpy;
       beforeEach(() => {
-        provider.currentOperatingSystem = 'iOS';
+        provider.currentTag = { osName: 'iOS' };
         executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
       });
 
       afterEach(() => {
-        provider.currentOperatingSystem = null;
+        provider.currentTag = null;
       });
       it('should get the initial scroll position', async () => {
         spyOn(Driver.prototype, 'executeScript').and.returnValue({ value: [0, 200] });
@@ -557,6 +603,7 @@ describe('GenericProvider', () => {
     let provider;
     beforeEach(async () => {
       provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      provider.currentTag = { osName: 'Windows' };
       await provider.createDriver();
     });
     describe('when not IOS', () => {
@@ -569,13 +616,13 @@ describe('GenericProvider', () => {
     describe('when IOS', () => {
       let executeScriptSpy;
       beforeEach(() => {
-        provider.currentOperatingSystem = 'iOS';
+        provider.currentTag = { osName: 'iOS' };
         provider.initialScrollFactor = { value: [0, 50] };
         executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
       });
 
       afterEach(() => {
-        provider.currentOperatingSystem = null;
+        provider.currentTag = null;
       });
       it('should scroll to position', async () => {
         await provider.scrollToInitialPosition(0, 50);

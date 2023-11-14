@@ -36,7 +36,7 @@ export default class GenericProvider {
     this.statusBarHeight = 0;
     this.pageXShiftFactor = 0;
     this.pageYShiftFactor = 0;
-    this.currentOperatingSystem = null;
+    this.currentTag = null;
     this.removeElementShiftFactor = 50000;
     this.initialScrollFactor = { value: [0, 0] };
   }
@@ -70,13 +70,13 @@ export default class GenericProvider {
   }
 
   async getInitialPosition() {
-    if (this.currentOperatingSystem === 'iOS') {
+    if (this.currentTag.osName === 'iOS') {
       this.initialScrollFactor = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX), parseInt(window.scrollY)];', args: [] });
     }
   }
 
   async scrollToInitialPosition(x, y) {
-    if (this.currentOperatingSystem === 'iOS') {
+    if (this.currentTag.osName === 'iOS') {
       await this.driver.executeScript({ script: `window.scrollTo(${x}, ${y})`, args: [] });
     }
   }
@@ -104,7 +104,7 @@ export default class GenericProvider {
     const tiles = await this.getTiles(this.header, this.footer, fullscreen);
     log.debug(`[${name}] : Tiles ${JSON.stringify(tiles)}`);
 
-    this.currentOperatingSystem = tag.osName;
+    this.currentTag = tag;
     this.statusBarHeight = tiles.tiles[0].statusBarHeight;
 
     const ignoreRegions = await this.findRegions(
@@ -210,7 +210,7 @@ export default class GenericProvider {
   async getRegionObjectFromBoundingBox(selector, element) {
     const scaleFactor = await this.metaData.devicePixelRatio();
     let headerAdjustment = 0;
-    if (this.currentOperatingSystem === 'iOS') {
+    if (this.currentTag.osName === 'iOS') {
       headerAdjustment = this.statusBarHeight;
     }
     const coOrdinates = {
@@ -246,9 +246,13 @@ export default class GenericProvider {
 
   async updatePageShiftFactor(location, scaleFactor) {
     const scrollFactors = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX), parseInt(window.scrollY)];', args: [] });
-    this.pageYShiftFactor = this.currentOperatingSystem === 'iOS' ? this.statusBarHeight : (this.statusBarHeight - (scrollFactors.value[1] * scaleFactor));
-    this.pageXShiftFactor = this.currentOperatingSystem === 'iOS' ? 0 : (-(scrollFactors.value[0] * scaleFactor));
-    if (this.currentOperatingSystem === 'iOS') {
+    if (this.currentTag.osName === 'iOS' || (this.currentTag.osName === 'OS X' && parseInt(this.currentTag.browserVersion) > 13 && this.currentTag.browserName.toLowerCase() === 'safari')) {
+      this.pageYShiftFactor = this.statusBarHeight;
+    } else {
+      this.pageYShiftFactor = this.statusBarHeight - (scrollFactors.value[1] * scaleFactor);
+    }
+    this.pageXShiftFactor = this.currentTag.osName === 'iOS' ? 0 : (-(scrollFactors.value[0] * scaleFactor));
+    if (this.currentTag.osName === 'iOS') {
       if (scrollFactors.value[0] !== this.initialScrollFactor.value[0] || scrollFactors.value[1] !== this.initialScrollFactor.value[1]) {
         this.pageXShiftFactor = (-1 * this.removeElementShiftFactor);
         this.pageYShiftFactor = (-1 * this.removeElementShiftFactor);
