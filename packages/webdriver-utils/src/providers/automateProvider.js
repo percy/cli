@@ -131,7 +131,7 @@ export default class AutomateProvider extends GenericProvider {
       return await this.browserstackExecutor('percyScreenshot', {
         state: 'screenshot',
         percyBuildId: this.buildInfo.id,
-        screenshotType: 'singlepage',
+        screenshotType: this.options?.fullPage ? 'fullpage' : 'singlepage',
         scaleFactor: dpr,
         options: this.options
       });
