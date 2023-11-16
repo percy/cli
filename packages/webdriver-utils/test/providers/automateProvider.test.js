@@ -268,13 +268,13 @@ describe('AutomateProvider', () => {
       beforeEach(async () => {
         Cache.reset();
         spyOn(Driver.prototype, 'getCapabilites');
-        browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
-          .and.returnValue(Promise.resolve({ value: '{"success": true, "result": "{\\"tiles\\":[{\\"sha\\":\\"abc\\",\\"status_bar\\":0,\\"nav_bar\\":156,\\"header_height\\":0,\\"footer_height\\":156,\\"index\\":0},{\\"sha\\":\\"cde\\",\\"status_bar\\":0,\\"nav_bar\\":156,\\"header_height\\":0.0,\\"footer_height\\":156.0,\\"index\\":1}],\\"dom_sha\\":\\"def\\"}"}' }));
         executeScriptSpy = spyOn(Driver.prototype, 'executeScript')
           .and.returnValue(Promise.resolve(1));
       });
 
       it('should return tiles when success', async () => {
+        browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
+          .and.returnValue(Promise.resolve({ value: '{"success": true, "result": "{\\"tiles\\":[{\\"sha\\":\\"abc\\",\\"status_bar\\":0,\\"nav_bar\\":156,\\"header_height\\":0,\\"footer_height\\":156,\\"index\\":0},{\\"sha\\":\\"cde\\",\\"status_bar\\":0,\\"nav_bar\\":156,\\"header_height\\":0.0,\\"footer_height\\":156.0,\\"index\\":1}],\\"dom_sha\\":\\"def\\"}"}' }));
         await automateProvider.createDriver();
         const res = await automateProvider.getTiles(false);
         const expectedOutput = {
@@ -303,6 +303,31 @@ describe('AutomateProvider', () => {
         expect(executeScriptSpy).toHaveBeenCalledTimes(1);
         expect(res).toEqual(expectedOutput);
       });
+
+      it('should return default values of header and footer if not in response', async () => {
+        browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
+          .and.returnValue(Promise.resolve({ value: '{"success": true, "result": "{\\"tiles\\":[{\\"sha\\":\\"abc\\",\\"index\\":0}],\\"dom_sha\\":\\"def\\"}"}' }));
+        await automateProvider.createDriver();
+        const res = await automateProvider.getTiles(false);
+        const expectedOutput = {
+          tiles: [
+            new Tile({
+              statusBarHeight: 0,
+              navBarHeight: 0,
+              headerHeight: 0,
+              footerHeight: 0,
+              fullscreen: false,
+              sha: 'abc'
+            })
+          ],
+          domInfoSha: 'def',
+          metadata: {}
+        };
+        expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
+        expect(executeScriptSpy).toHaveBeenCalledTimes(1);
+        expect(res).toEqual(expectedOutput);
+      });
+
       tilesErrorResponseCheck(automateProvider);
     });
 
