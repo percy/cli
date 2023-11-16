@@ -9,7 +9,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "latest"
+    "tag": "beta"
   },
   "main": "dist/bundle.js",
   "browser": "dist/bundle.js",
