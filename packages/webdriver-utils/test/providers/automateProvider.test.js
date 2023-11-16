@@ -250,27 +250,43 @@ describe('AutomateProvider', () => {
     beforeEach(async () => {
       spyOn(Driver.prototype, 'getCapabilites');
       browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
-        .and.returnValue(Promise.resolve({ value: '{ "result": "{\\"dom_sha\\": \\"abc\\", \\"sha\\": [\\"abc-1\\", \\"xyz-2\\"]}", "success":true }' }));
+        .and.returnValue(Promise.resolve({ value: '{"success": true, "result": "{\\"tiles\\":[{\\"sha\\":\\"abc\\",\\"status_bar\\":0,\\"nav_bar\\":156,\\"header_height\\":0,\\"footer_height\\":156,\\"index\\":0},{\\"sha\\":\\"cde\\",\\"status_bar\\":0,\\"nav_bar\\":156,\\"header_height\\":0.0,\\"footer_height\\":156.0,\\"index\\":1}],\\"dom_sha\\":\\"def\\"}"}' }));
       executeScriptSpy = spyOn(Driver.prototype, 'executeScript')
         .and.returnValue(Promise.resolve(1));
     });
 
     it('should return tiles when success', async () => {
       await automateProvider.createDriver();
-      const res = await automateProvider.getTiles(123, 456, false);
+      const res = await automateProvider.getTiles(false);
+      const expectedOutput = {
+        tiles: [
+          new Tile({
+            statusBarHeight: 0,
+            navBarHeight: 156,
+            headerHeight: 0,
+            footerHeight: 156,
+            fullscreen: false,
+            sha: 'abc'
+          }),
+          new Tile({
+            statusBarHeight: 0,
+            navBarHeight: 156,
+            headerHeight: 0,
+            footerHeight: 156,
+            fullscreen: false,
+            sha: 'cde'
+          })
+        ],
+        domInfoSha: 'def'
+      };
       expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
       expect(executeScriptSpy).toHaveBeenCalledTimes(1);
-      expect(Object.keys(res).length).toEqual(3);
-      expect(res.domInfoSha).toBe('abc');
+      expect(Object.keys(res).length).toEqual(2);
+      expect(res.domInfoSha).toBe('def');
       expect(res.tiles.length).toEqual(2);
       expect(res.tiles[0]).toBeInstanceOf(Tile);
       expect(res.tiles[1]).toBeInstanceOf(Tile);
-      expect(res.tiles[0].sha).toEqual('abc');
-      expect(res.tiles[1].sha).toEqual('xyz');
-      expect(res.tiles[0].headerHeight).toEqual(123);
-      expect(res.tiles[0].footerHeight).toEqual(456);
-      expect(res.tiles[0].navBarHeight).toEqual(0);
-      expect(res.tiles[0].statusBarHeight).toEqual(0);
+      expect(res).toEqual(expectedOutput);
     });
 
     it('throws error when response is false', async () => {

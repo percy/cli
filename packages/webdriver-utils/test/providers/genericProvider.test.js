@@ -40,12 +40,12 @@ describe('GenericProvider', () => {
     it('creates tiles from screenshot', async () => {
       genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
       genericProvider.createDriver();
-      const tiles = await genericProvider.getTiles(123, 456, false);
+      const tiles = await genericProvider.getTiles(false);
       expect(tiles.tiles.length).toEqual(1);
       expect(tiles.tiles[0].navBarHeight).toEqual(0);
       expect(tiles.tiles[0].statusBarHeight).toEqual(0);
-      expect(tiles.tiles[0].footerHeight).toEqual(456);
-      expect(tiles.tiles[0].headerHeight).toEqual(123);
+      expect(tiles.tiles[0].footerHeight).toEqual(0);
+      expect(tiles.tiles[0].headerHeight).toEqual(0);
       expect(Object.keys(tiles)).toContain('domInfoSha');
     });
 
@@ -246,6 +246,85 @@ describe('GenericProvider', () => {
           domInfoSha: 'mock-dom-sha',
           metadata: null
         });
+      });
+    });
+  });
+
+<<<<<<< HEAD
+    describe('With Mobile iOS', () => {
+      let iosTag;
+      let iosTiles;
+
+      beforeEach(() => {
+        const scrollFactors = { value: [0, 10] };
+        iosTag = {
+          name: 'iPhone 11 Pro',
+          osName: 'iOS',
+          osVersion: '15',
+          width: 1000,
+          height: 1000,
+          orientation: 'potrait',
+          browserName: 'safari',
+          browserVersion: '15',
+          resolution: '1980 x 1080'
+        };
+        iosTiles = {
+          tiles: [{
+            statusBarHeight: 132,
+            sha: 'abc',
+            navBarHeight: 0,
+            headerHeight: 0,
+            footerHeight: 0,
+            fullscreen: false
+          }],
+          domInfoSha: 'mock-dom-sha'
+        };
+        iOSGetTagSpy = spyOn(GenericProvider.prototype, 'getTag').and.returnValue(Promise.resolve(iosTag));
+        iOSGetTilesSpy = spyOn(GenericProvider.prototype, 'getTiles').and.returnValue(Promise.resolve(iosTiles));
+        spyOn(DesktopMetaData.prototype, 'windowSize')
+          .and.returnValue(Promise.resolve({ width: 1920, height: 1080 }));
+        spyOn(Driver.prototype, 'executeScript')
+          .and.returnValue(scrollFactors);
+      });
+
+      it('calls correct funcs with iOS', async () => {
+        genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+        await genericProvider.createDriver();
+        let res = await genericProvider.screenshot('mock-name', {});
+        expect(iOSGetTagSpy).toHaveBeenCalledTimes(1);
+        expect(genericProvider.statusBarHeight).toEqual(132);
+        expect(iOSGetTilesSpy).toHaveBeenCalledOnceWith(0, 0, false);
+        expect(res).toEqual({
+          name: 'mock-name',
+          tag: iosTag,
+          tiles: iosTiles.tiles,
+          externalDebugUrl: 'https://localhost/v1',
+          environmentInfo: 'staging-poc-poa',
+          ignoredElementsData: { ignoreElementsData: [] },
+          consideredElementsData: { considerElementsData: [] },
+          clientInfo: 'local-poc-poa',
+          domInfoSha: 'mock-dom-sha',
+          metadata: null
+        });
+=======
+    it('calls correct funcs', async () => {
+      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      await genericProvider.createDriver();
+      let res = await genericProvider.screenshot('mock-name', {});
+      expect(getTagSpy).toHaveBeenCalledTimes(1);
+      expect(getTilesSpy).toHaveBeenCalledOnceWith(false);
+      expect(res).toEqual({
+        name: 'mock-name',
+        tag: 'mock-tag',
+        tiles: 'mock-tile',
+        externalDebugUrl: 'https://localhost/v1',
+        environmentInfo: 'staging-poc-poa',
+        ignoredElementsData: { ignoreElementsData: [] },
+        consideredElementsData: { considerElementsData: [] },
+        clientInfo: 'local-poc-poa',
+        domInfoSha: 'mock-dom-sha',
+        metadata: null
+>>>>>>> 6871fe8b (Using tile based response)
       });
     });
   });

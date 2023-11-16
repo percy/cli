@@ -101,7 +101,7 @@ export default class GenericProvider {
     const tag = await this.getTag();
     log.debug(`[${name}] : Tag ${JSON.stringify(tag)}`);
 
-    const tiles = await this.getTiles(this.header, this.footer, fullscreen);
+    const tiles = await this.getTiles(fullscreen);
     log.debug(`[${name}] : Tiles ${JSON.stringify(tiles)}`);
 
     this.currentTag = tag;
@@ -146,7 +146,7 @@ export default class GenericProvider {
     return await this.driver.executeScript({ script: 'return window.innerHeight', args: [] }); ;
   }
 
-  async getTiles(headerHeight, footerHeight, fullscreen) {
+  async getTiles(fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     const base64content = await this.driver.takeScreenshot();
     log.debug('Tiles captured successfully');
@@ -156,8 +156,8 @@ export default class GenericProvider {
           content: base64content,
           statusBarHeight: 0,
           navBarHeight: 0,
-          headerHeight,
-          footerHeight,
+          headerHeight: this.header,
+          footerHeight: this.footer,
           fullscreen
         })
       ],
