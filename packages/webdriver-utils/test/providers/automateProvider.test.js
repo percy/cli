@@ -277,11 +277,12 @@ describe('AutomateProvider', () => {
             sha: 'cde'
           })
         ],
-        domInfoSha: 'def'
+        domInfoSha: 'def',
+        metadata: {}
       };
       expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
       expect(executeScriptSpy).toHaveBeenCalledTimes(1);
-      expect(Object.keys(res).length).toEqual(2);
+      expect(Object.keys(res).length).toEqual(3);
       expect(res.domInfoSha).toBe('def');
       expect(res.tiles.length).toEqual(2);
       expect(res.tiles[0]).toBeInstanceOf(Tile);
