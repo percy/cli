@@ -302,6 +302,7 @@ export class PercyClient {
     scope,
     minHeight,
     enableJavaScript,
+    enableLayout,
     clientInfo,
     environmentInfo,
     resources = []
@@ -329,7 +330,8 @@ export class PercyClient {
           widths: widths || null,
           scope: scope || null,
           'minimum-height': minHeight || null,
-          'enable-javascript': enableJavaScript || null
+          'enable-javascript': enableJavaScript || null,
+          'enable-layout': enableLayout || false
         },
         relationships: {
           resources: {
@@ -514,6 +516,14 @@ export class PercyClient {
     await this.uploadComparisonTiles(comparison.data.id, options.tiles);
     await this.finalizeComparison(comparison.data.id);
     return comparison;
+  }
+
+  async sendBuildEvents(buildId, body) {
+    validateId('build', buildId);
+    this.log.debug('Sending Build Events');
+    return this.post(`builds/${buildId}/send-events`, {
+      data: body
+    });
   }
 
   // decides project type

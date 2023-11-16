@@ -298,6 +298,32 @@ describe('SDK Utils', () => {
     });
   });
 
+  describe('postBuildEvents(options)', () => {
+    let { postBuildEvents } = utils;
+    let options;
+
+    beforeEach(() => {
+      options = {
+        errorMessage: 'someError',
+        errorKind: 'sdk',
+        cliVersion: '1.2.3'
+      };
+    });
+
+    it('posts comparison options to the CLI API event endpoint', async () => {
+      spyOn(utils.request, 'post').and.callFake(() => Promise.resolve());
+      await expectAsync(postBuildEvents(options)).toBeResolved();
+      await expectAsync(helpers.get('requests')).toBeResolvedTo({});
+    });
+
+    it('throws when the event API fails', async () => {
+      await helpers.test('error', '/percy/events');
+
+      await expectAsync(postBuildEvents({}))
+        .toBeRejectedWithError('testing');
+    });
+  });
+
   describe('flushSnapshots([options])', () => {
     let { flushSnapshots } = utils;
 

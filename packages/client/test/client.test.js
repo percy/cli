@@ -580,6 +580,7 @@ describe('PercyClient', () => {
         scope: '#main',
         minHeight: 1000,
         enableJavaScript: true,
+        enableLayout: true,
         clientInfo: 'sdk/info',
         environmentInfo: 'sdk/env',
         resources: [{
@@ -611,7 +612,8 @@ describe('PercyClient', () => {
             widths: [1000],
             scope: '#main',
             'minimum-height': 1000,
-            'enable-javascript': true
+            'enable-javascript': true,
+            'enable-layout': true
           },
           relationships: {
             resources: {
@@ -653,7 +655,8 @@ describe('PercyClient', () => {
             widths: null,
             scope: null,
             'minimum-height': null,
-            'enable-javascript': null
+            'enable-javascript': null,
+            'enable-layout': false
           },
           relationships: {
             resources: {
@@ -717,7 +720,8 @@ describe('PercyClient', () => {
             scope: null,
             'enable-javascript': null,
             'minimum-height': null,
-            widths: null
+            widths: null,
+            'enable-layout': false
           },
           relationships: {
             resources: {
@@ -1213,7 +1217,8 @@ describe('PercyClient', () => {
             scope: null,
             'enable-javascript': null,
             'minimum-height': null,
-            widths: null
+            widths: null,
+            'enable-layout': false
           },
           relationships: {
             resources: {
@@ -1330,6 +1335,30 @@ describe('PercyClient', () => {
     it('should return web for no token', () => {
       client.token = '';
       expect(client.tokenType()).toBe('web');
+    });
+  });
+
+  describe('sendBuildEvents', () => {
+    it('should send build event with default values', async () => {
+      await expectAsync(client.sendBuildEvents(123, {
+        errorKind: 'cli',
+        client: 'percy-appium-dotnet',
+        clientVersion: '3.0.1',
+        cliVersion: '1.27.3',
+        message: 'some error'
+      })).toBeResolved();
+
+      expect(api.requests['/builds/123/send-events']).toBeDefined();
+      expect(api.requests['/builds/123/send-events'][0].method).toBe('POST');
+      expect(api.requests['/builds/123/send-events'][0].body).toEqual({
+        data: {
+          errorKind: 'cli',
+          client: 'percy-appium-dotnet',
+          clientVersion: '3.0.1',
+          cliVersion: '1.27.3',
+          message: 'some error'
+        }
+      });
     });
   });
 

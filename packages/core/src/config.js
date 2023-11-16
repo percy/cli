@@ -47,8 +47,14 @@ export const configSchema = {
         type: 'boolean',
         default: false
       },
+      enableLayout: {
+        type: 'boolean'
+      },
       domTransformation: {
         type: 'string'
+      },
+      reshuffleInvalidTags: {
+        type: 'boolean'
       },
       scope: {
         type: 'string'
@@ -232,6 +238,8 @@ export const snapshotSchema = {
         cliEnableJavaScript: { $ref: '/config/snapshot#/properties/cliEnableJavaScript' },
         disableShadowDOM: { $ref: '/config/snapshot#/properties/disableShadowDOM' },
         domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
+        enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
+        reshuffleInvalidTags: { $ref: '/config/snapshot#/properties/reshuffleInvalidTags' },
         discovery: {
           type: 'object',
           additionalProperties: false,
@@ -394,6 +402,10 @@ export const snapshotSchema = {
                     mimetype: { type: 'string' }
                   }
                 }
+              },
+              hints: {
+                type: 'array',
+                items: { type: 'string' }
               }
             }
           }]

@@ -87,7 +87,8 @@ describe('percy upload', () => {
           widths: [10],
           scope: null,
           'minimum-height': 10,
-          'enable-javascript': null
+          'enable-javascript': null,
+          'enable-layout': false
         },
         relationships: {
           resources: {

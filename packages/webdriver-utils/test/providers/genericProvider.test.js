@@ -2,9 +2,7 @@ import GenericProvider from '../../src/providers/genericProvider.js';
 import Driver from '../../src/driver.js';
 import MetaDataResolver from '../../src/metadata/metaDataResolver.js';
 import DesktopMetaData from '../../src/metadata/desktopMetaData.js';
-import Cache from '../../src/util/cache.js';
 import MobileMetaData from '../../src/metadata/mobileMetaData.js';
-import utils from '@percy/sdk-utils';
 
 describe('GenericProvider', () => {
   let genericProvider;
@@ -36,7 +34,6 @@ describe('GenericProvider', () => {
   describe('getTiles', () => {
     beforeEach(() => {
       spyOn(Driver.prototype, 'takeScreenshot').and.returnValue(Promise.resolve('123b='));
-      spyOn(GenericProvider.prototype, 'getHeaderFooter').and.returnValue(Promise.resolve([123, 456]));
       spyOn(GenericProvider.prototype, 'getWindowHeight').and.returnValue(Promise.resolve(1947));
     });
 
@@ -90,7 +87,6 @@ describe('GenericProvider', () => {
         .and.returnValue('111');
       spyOn(MobileMetaData.prototype, 'screenResolution')
         .and.returnValue('1980 x 1080');
-      spyOn(GenericProvider.prototype, 'getHeaderFooter').and.returnValue(Promise.resolve([123, 456]));
     });
 
     it('returns correct tag for android', async () => {
@@ -103,7 +99,7 @@ describe('GenericProvider', () => {
         osName: 'android',
         osVersion: 'mockOsVersion',
         width: 1000,
-        height: 1000 + 123 + 456,
+        height: 1000,
         orientation: 'landscape',
         browserName: 'mockBrowserName',
         browserVersion: '111',
@@ -344,69 +340,6 @@ describe('GenericProvider', () => {
       const elementsArray = await provider.getSeleniumRegionsByLocation(customLocations);
 
       expect(elementsArray).toEqual([]);
-    });
-  });
-
-  describe('getHeaderFooter', () => {
-    let provider;
-
-    beforeEach(async () => {
-      provider = new GenericProvider('123', 'http:executorUrl', { browserName: 'safari', deviceName: 'iPhone 12 Pro', platform: 'iOS' }, {});
-      spyOn(MobileMetaData.prototype, 'deviceName').and.returnValue('iPhone 12 Pro');
-      spyOn(MobileMetaData.prototype, 'osVersion').and.returnValue('13');
-    });
-
-    it('should return the matching header and footer', async () => {
-      await provider.createDriver();
-      let mockResponseObject = {
-        body: {
-          'iPhone 12 Pro-13': {
-            safari: {
-              header: 141,
-              footer: 399
-            }
-          }
-        },
-        status: 200,
-        headers: { 'content-type': 'application/json' }
-      };
-      spyOn(utils.request, 'fetch').and.returnValue(
-        Promise.resolve(mockResponseObject)
-      );
-      const [header, footer] = await provider.getHeaderFooter('iPhone 12 Pro', '13', 'safari');
-      expect(header).toEqual(141);
-      expect(footer).toEqual(399);
-    });
-
-    it('should return 0,0 for unmatched device name', async () => {
-      await provider.createDriver();
-      let mockResponseObject = {
-        'iPhone 13 Pro-14': {}
-      };
-      spyOn(Cache, 'withCache').and.returnValue(
-        Promise.resolve(mockResponseObject)
-      );
-      const [header, footer] = await provider.getHeaderFooter('iPhone 13 Pro', '14', 'safari');
-      expect(header).toEqual(0);
-      expect(footer).toEqual(0);
-    });
-
-    it('should return 0,0 for unmatched browser name', async () => {
-      await provider.createDriver();
-      let mockResponseObject = {
-        'iPhone 12 Pro-13': {
-          chrome: {
-            header: 141,
-            footer: 399
-          }
-        }
-      };
-      spyOn(Cache, 'withCache').and.returnValue(
-        Promise.resolve(mockResponseObject)
-      );
-      const [header, footer] = await provider.getHeaderFooter();
-      expect(header).toEqual(0);
-      expect(footer).toEqual(0);
     });
   });
 });
