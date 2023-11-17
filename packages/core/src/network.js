@@ -169,7 +169,7 @@ export class Network {
   // Called when a request will be sent. If the request has already been intercepted, handle it;
   // otherwise set it to be pending until it is paused.
   _handleRequestWillBeSent = async event => {
-    let { requestId, request } = event;
+    let { requestId, request, type} = event;
 
     // do not handle data urls
     if (request.url.startsWith('data:')) return;
@@ -183,6 +183,9 @@ export class Network {
         let { session, requestId: interceptId, resourceType } = intercept;
         await this._handleRequest(session, { ...event, resourceType, interceptId });
         this.#intercepts.delete(requestId);
+      } else {
+        let session;
+        await this._handleRequest(session, {...event, resourceType: type, interceptId: requestId}, true);
       }
     }
   }
@@ -190,7 +193,7 @@ export class Network {
   // Called when a pending request is paused. Handles associating redirected requests with
   // responses and calls this.onrequest with request info and callbacks to continue, respond,
   // or abort a request. One of the callbacks is required to be called and only one.
-  _handleRequest = async (session, event) => {
+  _handleRequest = async (session, event, serviceWorker = false) => {
     let { request, requestId, interceptId, resourceType } = event;
     let redirectChain = [];
 
@@ -208,7 +211,9 @@ export class Network {
     request.redirectChain = redirectChain;
     this.#requests.set(requestId, request);
 
-    await sendResponseResource(this, request, session);
+    if(!serviceWorker){
+      await sendResponseResource(this, request, session);
+    }
   }
 
   // Called when a response has been received for a specific request. Associates the response with
