@@ -169,7 +169,7 @@ export class Network {
   // Called when a request will be sent. If the request has already been intercepted, handle it;
   // otherwise set it to be pending until it is paused.
   _handleRequestWillBeSent = async event => {
-    let { requestId, request, type} = event;
+    let { requestId, request, type } = event;
 
     // do not handle data urls
     if (request.url.startsWith('data:')) return;
@@ -185,7 +185,7 @@ export class Network {
         this.#intercepts.delete(requestId);
       } else {
         let session;
-        await this._handleRequest(session, {...event, resourceType: type, interceptId: requestId}, true);
+        await this._handleRequest(session, { ...event, resourceType: type, interceptId: requestId }, true);
       }
     }
   }
@@ -211,7 +211,7 @@ export class Network {
     request.redirectChain = redirectChain;
     this.#requests.set(requestId, request);
 
-    if(!serviceWorker){
+    if (!serviceWorker) {
       await sendResponseResource(this, request, session);
     }
   }
