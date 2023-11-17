@@ -43,7 +43,7 @@ export class Network {
 
     let commands = [
       session.send('Network.enable'),
-      session.send('Network.setBypassServiceWorker', { bypass: true }),
+      session.send('Network.setBypassServiceWorker', { bypass: false }),
       session.send('Network.setCacheDisabled', { cacheDisabled: true }),
       session.send('Network.setUserAgentOverride', { userAgent: this.userAgent }),
       session.send('Network.setExtraHTTPHeaders', { headers: this.requestHeaders })
