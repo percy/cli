@@ -214,8 +214,8 @@ export default class GenericProvider {
       headerAdjustment = this.statusBarHeight;
     }
     const coOrdinates = {
-      top: Math.floor(element.y * scaleFactor) + headerAdjustment,
-      bottom: Math.ceil((element.y + element.height) * scaleFactor) + headerAdjustment,
+      top: Math.floor(element.y * scaleFactor) + Math.floor(headerAdjustment),
+      bottom: Math.ceil((element.y + element.height) * scaleFactor) + Math.ceil(headerAdjustment),
       left: Math.floor(element.x * scaleFactor),
       right: Math.ceil((element.x + element.width) * scaleFactor)
     };
@@ -273,10 +273,10 @@ export default class GenericProvider {
     // Subtracting ScrollY/ScrollX ensures if the element is visible in viewport or not.
     await this.updatePageShiftFactor(location, scaleFactor);
     const coOrdinates = {
-      top: Math.floor(location.y * scaleFactor) + this.pageYShiftFactor,
-      bottom: Math.ceil((location.y + size.height) * scaleFactor) + this.pageYShiftFactor,
-      left: Math.floor(location.x * scaleFactor) + this.pageXShiftFactor,
-      right: Math.ceil((location.x + size.width) * scaleFactor) + this.pageXShiftFactor
+      top: Math.floor(location.y * scaleFactor) + Math.floor(this.pageYShiftFactor),
+      bottom: Math.ceil((location.y + size.height) * scaleFactor) + Math.ceil(this.pageYShiftFactor),
+      left: Math.floor(location.x * scaleFactor) + Math.floor(this.pageXShiftFactor),
+      right: Math.ceil((location.x + size.width) * scaleFactor) + Math.ceil(this.pageXShiftFactor)
     };
 
     const jsonObject = {
