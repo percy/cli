@@ -193,18 +193,54 @@ export default class GenericProvider {
     this.debugUrl = 'https://localhost/v1';
   }
 
-  async findRegions(xpaths, selectors, elements, customLocations) {
-    const xpathRegions = await this.getSeleniumRegionsBy('xpath', xpaths);
-    const selectorRegions = await this.getSeleniumRegionsBy('css selector', selectors);
-    const elementRegions = await this.getSeleniumRegionsByElement(elements);
-    const customRegions = await this.getSeleniumRegionsByLocation(customLocations);
+  async doTransformations() {
+    const hideScrollbarStyle = `
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    ::-webkit-scrollbar {
+      display: none !important;
+    }
 
-    return [
-      ...xpathRegions,
-      ...selectorRegions,
-      ...elementRegions,
-      ...customRegions
-    ];
+    /* Hide scrollbar for IE, Edge and Firefox */
+    body, html {
+      -ms-overflow-style: none !important;  /* IE and Edge */
+      scrollbar-width: none !important;  /* Firefox */
+    }`.replace(/\n/g, '');
+    const jsScript = `
+    const e = document.createElement('style');
+    e.setAttribute('class', 'poa-injected');
+    e.innerHTML = '${hideScrollbarStyle}'
+    document.head.appendChild(e);`;
+
+    await this.driver.executeScript({ script: jsScript, args: [] });
+  }
+
+  async undoTransformations(data) {
+    const jsScript = `
+      const n = document.querySelectorAll('${data}');
+      n.forEach((e) => {e.remove()});`;
+
+    await this.driver.executeScript({ script: jsScript, args: [] });
+  }
+
+  async findRegions(xpaths, selectors, elements, customLocations) {
+    let isRegionPassed = [xpaths, selectors, elements, customLocations].some(regions => regions.length > 0);
+    if (isRegionPassed) {
+      await this.doTransformations();
+      const xpathRegions = await this.getSeleniumRegionsBy('xpath', xpaths);
+      const selectorRegions = await this.getSeleniumRegionsBy('css selector', selectors);
+      const elementRegions = await this.getSeleniumRegionsByElement(elements);
+      const customRegions = await this.getSeleniumRegionsByLocation(customLocations);
+      await this.undoTransformations('.poa-injected');
+
+      return [
+        ...xpathRegions,
+        ...selectorRegions,
+        ...elementRegions,
+        ...customRegions
+      ];
+    } else {
+      return [];
+    }
   }
 
   async getRegionObjectFromBoundingBox(selector, element) {

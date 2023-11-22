@@ -708,4 +708,107 @@ describe('GenericProvider', () => {
       expect(elementsArray).toEqual([]);
     });
   });
+
+  describe('findRegions', () => {
+    let provider;
+    let doTransformationSpy;
+    let undoTransformationSpy;
+    let getSeleniumRegionsBySpy;
+    let getSeleniumRegionsByElementSpy;
+    let getSeleniumRegionsByLocationSpy;
+    const location = [
+      { top: 100, bottom: 1090, left: 100, right: 200 },
+    ];
+
+    beforeEach(async () => {
+      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await provider.createDriver();
+      doTransformationSpy = spyOn(GenericProvider.prototype, 'doTransformations');
+      undoTransformationSpy = spyOn(GenericProvider.prototype, 'undoTransformations');
+      getSeleniumRegionsBySpy = spyOn(GenericProvider.prototype, 'getSeleniumRegionsBy').and.returnValue(Promise.resolve(location));
+      getSeleniumRegionsByElementSpy = spyOn(GenericProvider.prototype, 'getSeleniumRegionsByElement').and.returnValue(Promise.resolve([]));
+      getSeleniumRegionsByLocationSpy = spyOn(GenericProvider.prototype, 'getSeleniumRegionsByLocation').and.returnValue(Promise.resolve([]));
+    });
+
+    describe('When no regions are passed', () => {
+      it('should return empty array when called and no transformation should be applied', async () => {
+        const xpath = [];
+        const selector = [];
+        const seleniumElements = [];
+        const customRegions = [];
+        const res = await provider.findRegions(xpath, selector, seleniumElements, customRegions);
+        expect(doTransformationSpy).not.toHaveBeenCalled();
+        expect(undoTransformationSpy).not.toHaveBeenCalled();
+        expect(res).toEqual([]);
+      });
+    });
+
+    describe('When regions are passed', () => {
+      it('should return array when called transformation should be applied', async () => {
+        const xpath = ['/a/b/c'];
+        const selector = [];
+        const seleniumElements = [];
+        const customRegions = [];
+        await provider.findRegions(xpath, selector, seleniumElements, customRegions);
+        expect(doTransformationSpy).toHaveBeenCalled();
+        expect(getSeleniumRegionsBySpy).toHaveBeenCalledTimes(2);
+        expect(getSeleniumRegionsByElementSpy).toHaveBeenCalledTimes(1);
+        expect(getSeleniumRegionsByLocationSpy).toHaveBeenCalledTimes(1);
+        expect(undoTransformationSpy).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('doTransformations', () => {
+    let provider;
+    let executeScriptSpy;
+
+    beforeEach(async () => {
+      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await provider.createDriver();
+      executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
+    });
+
+    it('should do transfomation', async () => {
+      const hideScrollbarStyle = `
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    ::-webkit-scrollbar {
+      display: none !important;
+    }
+
+    /* Hide scrollbar for IE, Edge and Firefox */
+    body, html {
+      -ms-overflow-style: none !important;  /* IE and Edge */
+      scrollbar-width: none !important;  /* Firefox */
+    }`.replace(/\n/g, '');
+      const jsScript = `
+    const e = document.createElement('style');
+    e.setAttribute('class', 'poa-injected');
+    e.innerHTML = '${hideScrollbarStyle}'
+    document.head.appendChild(e);`;
+      await provider.doTransformations();
+      expect(executeScriptSpy).toHaveBeenCalledWith({ script: jsScript, args: [] });
+    });
+  });
+
+  describe('undoTransformations', () => {
+    let provider;
+    let executeScriptSpy;
+
+    beforeEach(async () => {
+      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await provider.createDriver();
+      executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
+    });
+
+    it('should remove transfomation', async () => {
+      const data = '.abcdef';
+      const jsScript = `
+      const n = document.querySelectorAll('${data}');
+      n.forEach((e) => {e.remove()});`;
+
+      await provider.undoTransformations(data);
+      expect(executeScriptSpy).toHaveBeenCalledWith({ script: jsScript, args: [] });
+    });
+  });
 });
