@@ -187,6 +187,9 @@ export class Queue {
   // clear and abort any queued tasks
   clear() {
     let tasks = [...this.#queued];
+    if (process.env.PERCY_QUEUE_STATS_LOGS) {
+      this.log.debug(`Clearing ${this.name} queue, queue size ${this.#queued.size}`);
+    }
     this.#queued.clear();
 
     for (let task of tasks) {
