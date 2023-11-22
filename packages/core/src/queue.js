@@ -3,6 +3,7 @@ import {
   generatePromise,
   AbortController
 } from './utils.js';
+import logger from '@percy/logger';
 
 // Assigns a deffered promise and resolve & reject functions to an object
 function deferred(obj) {
@@ -31,6 +32,11 @@ class QueueClosedError extends Error {
 export class Queue {
   // item concurrency
   concurrency = 10;
+  log = logger('core:queue');
+
+  constructor(name) {
+    this.name = name;
+  }
 
   // Configure queue properties
   set({ concurrency }) {
@@ -245,6 +251,7 @@ export class Queue {
   // process items up to the latest queued item, starting the queue if necessary;
   // returns a generator that yields until the flushed item has finished processing
   flush(callback) {
+    this.log.debug(`Flushing ${this.name} queue`);
     let interrupt = (
       // check for existing interrupts
       [...this.#pending].find(t => t.stop) ??
@@ -278,6 +285,9 @@ export class Queue {
         if (!task?.stop && task?.pending != null) pending = positionOf(this.#pending, task);
         // call the callback and return true when not queued or pending
         let position = (queued ?? 0) + (pending ?? 0);
+        if (process.env.PERCY_QUEUE_STATS_LOGS) {
+          this.log.debug(`${this.name} queue state pending: ${this.#pending.size}, queued: ${this.#queued.size}`);
+        }
         callback?.(position);
         return !position;
       }, { idle: 10 });

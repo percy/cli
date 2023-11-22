@@ -5,7 +5,7 @@ describe('Unit / Tasks Queue', () => {
   let q;
 
   beforeEach(() => {
-    q = new Queue();
+    q = new Queue('test');
   });
 
   it('has a customizable concurrency', () => {
