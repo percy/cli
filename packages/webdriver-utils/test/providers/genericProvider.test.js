@@ -717,7 +717,7 @@ describe('GenericProvider', () => {
     let getSeleniumRegionsByElementSpy;
     let getSeleniumRegionsByLocationSpy;
     const location = [
-      { top: 100, bottom: 1090, left: 100, right: 200 },
+      { top: 100, bottom: 1090, left: 100, right: 200 }
     ];
 
     beforeEach(async () => {
