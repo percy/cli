@@ -20,6 +20,7 @@ export class Network {
   #intercepts = new Map();
   #authentications = new Set();
   #aborted = new Set();
+  #serviceWorkerRequests = new Map();
 
   constructor(page, options) {
     this.page = page;
@@ -49,7 +50,7 @@ export class Network {
       session.send('Network.setExtraHTTPHeaders', { headers: this.requestHeaders })
     ];
 
-    if (this.intercept && session.isDocument) {
+    if (this.intercept) {
       session.on('Fetch.requestPaused', this._handleRequestPaused.bind(this, session));
       session.on('Fetch.authRequired', this._handleAuthRequired.bind(this, session));
 
@@ -155,6 +156,7 @@ export class Network {
     let { networkId: requestId, requestId: interceptId, resourceType } = event;
     let pending = this.#pending.get(requestId);
     this.#pending.delete(requestId);
+    this.#serviceWorkerRequests.delete(requestId);
 
     // guard against redirects with the same requestId
     if (pending?.request.url === event.request.url &&
@@ -184,8 +186,7 @@ export class Network {
         await this._handleRequest(session, { ...event, resourceType, interceptId });
         this.#intercepts.delete(requestId);
       } else {
-        let session;
-        await this._handleRequest(session, { ...event, resourceType: type, interceptId: requestId }, true);
+        this.#serviceWorkerRequests.set(requestId, request)
       }
     }
   }
@@ -193,8 +194,8 @@ export class Network {
   // Called when a pending request is paused. Handles associating redirected requests with
   // responses and calls this.onrequest with request info and callbacks to continue, respond,
   // or abort a request. One of the callbacks is required to be called and only one.
-  _handleRequest = async (session, event, serviceWorker = false) => {
-    let { request, requestId, interceptId, resourceType } = event;
+  _handleRequest = async (session, event) => {
+    let { request, requestId, interceptId, resourceType, loaderId } = event;
     let redirectChain = [];
 
     // if handling a redirected request, associate the response and add to its redirect chain
@@ -209,11 +210,10 @@ export class Network {
     request.requestId = requestId;
     request.interceptId = interceptId;
     request.redirectChain = redirectChain;
+    request.loaderId = loaderId;
     this.#requests.set(requestId, request);
 
-    if (!serviceWorker) {
-      await sendResponseResource(this, request, session);
-    }
+    await sendResponseResource(this, request, session);
   }
 
   // Called when a response has been received for a specific request. Associates the response with
@@ -224,11 +224,24 @@ export class Network {
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
 
+    if(request.loaderId == ""){
+      // get original request's requestId and use that instead
+      for (const [rqId, rq] of Object.entries(this.#serviceWorkerRequests)) {
+        if(request.url === rq.url && request.method === rq.method){
+          requestId = rqId;
+          request.type = rq.type;
+          this.#serviceWorkerRequests.delete(rqId);
+          break;
+        }
+      }
+    }
+
     request.response = response;
     request.response.buffer = async () => {
       let result = await this.send(session, 'Network.getResponseBody', { requestId });
       return Buffer.from(result.body, result.base64Encoded ? 'base64' : 'utf-8');
     };
+
   }
 
   // Called when a request streams events. These types of requests break asset discovery because
