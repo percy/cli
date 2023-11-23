@@ -287,7 +287,7 @@ export class Queue {
         // rest of the tasks but ideally it should wait for flushing of all the tasks till the last dequeued task.
         // if (!task?.stop && task?.pending != null) pending = positionOf(this.#pending, task);
         // call the callback and return true when not queued or pending
-        let position = (queued ?? 0) + (pending ?? 0);
+        let position = (queued ?? 0) + pending;
         callback?.(position);
         return !position;
       }, { idle: 10 });
