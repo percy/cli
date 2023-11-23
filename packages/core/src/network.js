@@ -30,8 +30,10 @@ class DefaultMap extends Map {
 
 class RequestLifeCycle {
   constructor() {
-    this.requestWillBeSentKey = null;
-    this.checkRequestSent = new Promise((resolve) => (this.requestWillBeSentKey = resolve));
+    this.releaseRequest = null;
+    this.releaseResponse = null;
+    this.checkRequestSent = new Promise((resolve) => (this.releaseRequest = resolve));
+    this.checkResponseSent = new Promise((resolve) => (this.releaseResponse = resolve));
   }
 }
 // The Interceptor class creates common handlers for dealing with intercepting asset requests
@@ -204,7 +206,7 @@ export class Network {
     if (this.intercept) {
       this.#pending.set(requestId, event);
       // release lock
-      this.#requestsLifeCycle.get(requestId).requestWillBeSentKey();
+      this.#requestsLifeCycle.get(requestId).releaseRequest();
     }
   }
 
@@ -234,8 +236,10 @@ export class Network {
 
   // Called when a response has been received for a specific request. Associates the response with
   // the request data and adds a buffer method to fetch the response body when needed.
-  _handleResponseReceived = (session, event) => {
+  _handleResponseReceived = async (session, event) => {
     let { requestId, response } = event;
+    // wait for upto 2 seconds to check if request has been processed
+    await Promise.any([this.#requestsLifeCycle.get(requestId).checkRequestSent, new Promise((resolve) => setTimeout(resolve, 2000))]);
     let request = this.#requests.get(requestId);
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
@@ -245,6 +249,8 @@ export class Network {
       let result = await this.send(session, 'Network.getResponseBody', { requestId });
       return Buffer.from(result.body, result.base64Encoded ? 'base64' : 'utf-8');
     };
+    // release response
+    this.#requestsLifeCycle.get(requestId).releaseResponse();
   }
 
   // Called when a request streams events. These types of requests break asset discovery because
@@ -258,7 +264,10 @@ export class Network {
   // Called when a request has finished loading which triggers the this.onrequestfinished
   // callback. The request should have an associated response and be finished with any redirects.
   _handleLoadingFinished = async event => {
-    let request = this.#requests.get(event.requestId);
+    let { requestId } = event;
+    // wait for upto 2 seconds for response
+    await Promise.any([this.#requestsLifeCycle.get(requestId).checkResponseSent, new Promise((resolve) => setTimeout(resolve, 2000))]);
+    let request = this.#requests.get(requestId);
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
 
