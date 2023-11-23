@@ -8,6 +8,32 @@ const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
 
+class DefaultMap extends Map {
+  constructor(getDefaultValue, ...mapConstructorArgs) {
+    super(...mapConstructorArgs);
+
+    if (typeof getDefaultValue !== 'function') {
+      throw new Error('getDefaultValue must be a function');
+    }
+
+    this.getDefaultValue = getDefaultValue;
+  }
+
+  get = (key) => {
+    if (!this.has(key)) {
+      this.set(key, this.getDefaultValue(key));
+    }
+
+    return super.get(key);
+  };
+};
+
+class RequestLifeCycle {
+  constructor() {
+    this.requestWillBeSentKey = null;
+    this.checkRequestSent = new Promise((resolve) => (this.requestWillBeSentKey = resolve));
+  }
+}
 // The Interceptor class creates common handlers for dealing with intercepting asset requests
 // for a given page using various devtools protocol events and commands.
 export class Network {
@@ -15,9 +41,10 @@ export class Network {
 
   log = logger('core:discovery');
 
+  #requestsLifeCycle = new DefaultMap(() => new RequestLifeCycle());
   #pending = new Map();
   #requests = new Map();
-  #intercepts = new Map();
+  // #intercepts = new Map();
   #authentications = new Set();
   #aborted = new Set();
 
@@ -125,7 +152,7 @@ export class Network {
 
     if (!keepPending) {
       this.#pending.delete(requestId);
-      this.#intercepts.delete(requestId);
+      // this.#intercepts.delete(requestId);
     }
   }
 
@@ -153,6 +180,9 @@ export class Network {
   // aborted. If the request is already pending, handle it; otherwise set it to be intercepted.
   _handleRequestPaused = async (session, event) => {
     let { networkId: requestId, requestId: interceptId, resourceType } = event;
+
+    // wait for requestWillBeSent event
+    await this.#requestsLifeCycle.get(requestId).checkRequestSent;
     let pending = this.#pending.get(requestId);
     this.#pending.delete(requestId);
 
@@ -160,9 +190,6 @@ export class Network {
     if (pending?.request.url === event.request.url &&
         pending.request.method === event.request.method) {
       await this._handleRequest(session, { ...pending, resourceType, interceptId });
-    } else {
-      // track the session that intercepted the request
-      this.#intercepts.set(requestId, { ...event, session });
     }
   }
 
@@ -175,15 +202,9 @@ export class Network {
     if (request.url.startsWith('data:')) return;
 
     if (this.intercept) {
-      let intercept = this.#intercepts.get(requestId);
       this.#pending.set(requestId, event);
-
-      if (intercept) {
-        // handle the request with the session that intercepted it
-        let { session, requestId: interceptId, resourceType } = intercept;
-        await this._handleRequest(session, { ...event, resourceType, interceptId });
-        this.#intercepts.delete(requestId);
-      }
+      // release lock
+      this.#requestsLifeCycle.get(requestId).requestWillBeSentKey();
     }
   }
 
