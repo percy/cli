@@ -48,7 +48,8 @@ export function percyAutomateRequestHandler(req, percy) {
     ignoreRegionSelectors: percy.config.snapshot.ignoreRegions?.ignoreRegionSelectors,
     ignoreRegionXpaths: percy.config.snapshot.ignoreRegions?.ignoreRegionXpaths,
     considerRegionSelectors: percy.config.snapshot.considerRegions?.considerRegionSelectors,
-    considerRegionXpaths: percy.config.snapshot.considerRegions?.considerRegionXpaths
+    considerRegionXpaths: percy.config.snapshot.considerRegions?.considerRegionXpaths,
+    version: 'v2'
   },
   camelCasedOptions
   ], (path, prev, next) => {

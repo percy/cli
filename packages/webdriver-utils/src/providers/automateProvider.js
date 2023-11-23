@@ -127,7 +127,6 @@ export default class AutomateProvider extends GenericProvider {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     log.debug('Starting actual screenshotting phase');
     const dpr = await this.metaData.devicePixelRatio();
-    this.options.version = 'v2';
     const response = await TimeIt.run('percyScreenshot:screenshot', async () => {
       return await this.browserstackExecutor('percyScreenshot', {
         state: 'screenshot',
