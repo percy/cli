@@ -436,6 +436,16 @@ describe('Unit / Tasks Queue', () => {
     expect(q.size).toBe(0);
   });
 
+  it('empty flush', async () => {
+    q.set({ concurrency: 1 });
+    await q.start();
+    q.readyState = 2;
+    expect(q.size).toBe(0);
+    let promise = generatePromise(q.flush());
+    await expectAsync(promise).toBePending();
+    await expectAsync(promise).toBeResolved();
+  });
+
   it('cancels the flush when aborted', async () => {
     let resolve, deferred = new Promise(r => (resolve = r));
     let p1 = q.push(deferred);
