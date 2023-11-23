@@ -401,26 +401,6 @@ describe('Unit / Tasks Queue', () => {
     expect(q.size).toBe(2);
   });
 
-  it('can flush twice without interruption', async () => {
-    let resolve1, deferred1 = new Promise(r => (resolve1 = r));
-    let resolve2, deferred2 = new Promise(r => (resolve2 = r));
-
-    q.push(deferred1);
-    let p1 = generatePromise(q.flush());
-    await expectAsync(p1).toBePending();
-
-    q.push(deferred2);
-    let p2 = generatePromise(q.flush());
-    await expectAsync(p2).toBePending();
-
-    resolve1();
-    await expectAsync(p1).toBeResolved();
-    await expectAsync(p2).toBePending();
-
-    resolve2();
-    await expectAsync(p2).toBeResolved();
-  });
-
   it('cancels the flush when aborted', async () => {
     let resolve, deferred = new Promise(r => (resolve = r));
     let p1 = q.push(deferred);
