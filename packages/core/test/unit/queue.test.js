@@ -401,6 +401,13 @@ describe('Unit / Tasks Queue', () => {
     expect(q.size).toBe(2);
   });
 
+  it('can wait for queued item as well', async () => {
+    q.set({ concurrency: 1 });
+    let p = q.push('item_1');
+    q.flush();
+    await expectAsync(p).toBeResolved();
+  });
+
   it('cancels the flush when aborted', async () => {
     let resolve, deferred = new Promise(r => (resolve = r));
     let p1 = q.push(deferred);
