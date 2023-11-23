@@ -187,9 +187,7 @@ export class Queue {
   // clear and abort any queued tasks
   clear() {
     let tasks = [...this.#queued];
-    if (process.env.PERCY_QUEUE_STATS_LOGS) {
-      this.log.debug(`Clearing ${this.name} queue, queue size ${this.#queued.size}`);
-    }
+    this.log.debug(`Clearing ${this.name} queue, queued state: ${this.#queued.size}, pending state: ${this.#pending.size}`);
     this.#queued.clear();
 
     for (let task of tasks) {
@@ -254,7 +252,7 @@ export class Queue {
   // process items up to the latest queued item, starting the queue if necessary;
   // returns a generator that yields until the flushed item has finished processing
   flush(callback) {
-    this.log.debug(`Flushing ${this.name} queue`);
+    this.log.debug(`Flushing ${this.name} queue, queued state: ${this.#queued.size}, pending state: ${this.#pending.size}`);
     let interrupt = (
       // check for existing interrupts
       [...this.#pending].find(t => t.stop) ??
@@ -285,12 +283,11 @@ export class Queue {
         // calculate the position within queued when not pending
         if (task && task.pending == null) queued = positionOf(this.#queued, task);
         // calculate the position within pending when not stopping
-        if (!task?.stop && task?.pending != null) pending = positionOf(this.#pending, task);
+        // Commenting below line reason being currently if the task passed is found we will stop flushing
+        // rest of the tasks but ideally it should wait for flushing of all the tasks till the last dequeued task.
+        // if (!task?.stop && task?.pending != null) pending = positionOf(this.#pending, task);
         // call the callback and return true when not queued or pending
         let position = (queued ?? 0) + (pending ?? 0);
-        if (process.env.PERCY_QUEUE_STATS_LOGS) {
-          this.log.debug(`${this.name} queue state pending: ${this.#pending.size}, queued: ${this.#queued.size}`);
-        }
         callback?.(position);
         return !position;
       }, { idle: 10 });
