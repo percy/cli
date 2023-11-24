@@ -13,10 +13,10 @@ const ABORTED_MESSAGE = 'Request was aborted by browser';
 // ServiceWorker flow:  requestWillBeSent -> responseReceived -> loadingFinished / loadingFailed
 class RequestLifeCycleHandler {
   constructor() {
-    this.releaseRequest = null;
-    this.releaseResponse = null;
-    this.checkRequestSent = new Promise((resolve) => (this.releaseRequest = resolve));
-    this.checkResponseSent = new Promise((resolve) => (this.releaseResponse = resolve));
+    this.resolveRequestWillBeSent = null;
+    this.resolveResponseReceived = null;
+    this.requestWillBeSent = new Promise((resolve) => (this.resolveRequestWillBeSent = resolve));
+    this.responseReceived = new Promise((resolve) => (this.resolveResponseReceived = resolve));
   }
 }
 // The Interceptor class creates common handlers for dealing with intercepting asset requests
@@ -167,7 +167,7 @@ export class Network {
     let { networkId: requestId, requestId: interceptId, resourceType } = event;
 
     // wait for request to be sent
-    await this.#requestsLifeCycleHandler.get(requestId).checkRequestSent;
+    await this.#requestsLifeCycleHandler.get(requestId).requestWillBeSent;
     let pending = this.#pending.get(requestId);
     this.#pending.delete(requestId);
 
@@ -192,7 +192,7 @@ export class Network {
     // release request
     // note: we are releasing this, even if intercept is not set for network.js
     // since, we want to process all-requests in-order doesn't matter if it should be intercepted or not
-    this.#requestsLifeCycleHandler.get(requestId).releaseRequest();
+    this.#requestsLifeCycleHandler.get(requestId).resolveRequestWillBeSent();
   }
 
   // Called when a pending request is paused. Handles associating redirected requests with
@@ -225,7 +225,7 @@ export class Network {
     let { requestId, response } = event;
     // await on requestWillBeSent
     // no explicitly wait on requestWillBePaused as we implictly wait on it, since it manipulates the lifeCycle of request using Fetch module
-    await this.#requestsLifeCycleHandler.get(requestId).checkRequestSent;
+    await this.#requestsLifeCycleHandler.get(requestId).requestWillBeSent;
     let request = this.#requests.get(requestId);
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
@@ -236,7 +236,7 @@ export class Network {
       return Buffer.from(result.body, result.base64Encoded ? 'base64' : 'utf-8');
     };
     // release response
-    this.#requestsLifeCycleHandler.get(requestId).releaseResponse();
+    this.#requestsLifeCycleHandler.get(requestId).resolveResponseReceived();
   }
 
   // Called when a request streams events. These types of requests break asset discovery because
@@ -244,7 +244,7 @@ export class Network {
   _handleEventSourceMessageReceived = async event => {
     let { requestId } = event;
     // wait for request to be sent
-    await this.#requestsLifeCycleHandler.get(requestId).checkRequestSent;
+    await this.#requestsLifeCycleHandler.get(requestId).requestWillBeSent;
     let request = this.#requests.get(requestId);
     /* istanbul ignore else: race condition paranioa */
     if (request) this._forgetRequest(request);
@@ -255,7 +255,7 @@ export class Network {
   _handleLoadingFinished = async event => {
     let { requestId } = event;
     // wait for upto 2 seconds or check if response has been sent
-    await this.#requestsLifeCycleHandler.get(requestId).checkResponseSent;
+    await this.#requestsLifeCycleHandler.get(requestId).responseReceived;
     let request = this.#requests.get(requestId);
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
@@ -268,10 +268,10 @@ export class Network {
   _handleLoadingFailed = async event => {
     let { requestId } = event;
     // wait for request to be sent
-    // note: we are waiting on checkRequestSent and NOT checkResponseSent
+    // note: we are waiting on requestWillBeSent and NOT responseReceived
     // since, requests can be cancelled in-flight without Network.responseReceived having been triggered
     // and in any case, order of processing for responseReceived and loadingFailed does not matter, as response capturing is done in loadingFinished
-    await this.#requestsLifeCycleHandler.get(requestId).checkRequestSent
+    await this.#requestsLifeCycleHandler.get(requestId).requestWillBeSent
     let request = this.#requests.get(event.requestId);
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
