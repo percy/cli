@@ -188,9 +188,11 @@ export class Network {
 
     if (this.intercept) {
       this.#pending.set(requestId, event);
-      // release request
-      this.#requestsLifeCycleHandler.get(requestId).releaseRequest();
     }
+    // release request
+    // note: we are releasing this, even if intercept is not set for network.js
+    // since, we want to process all-requests in-order doesn't matter if it should be intercepted or not
+    this.#requestsLifeCycleHandler.get(requestId).releaseRequest();
   }
 
   // Called when a pending request is paused. Handles associating redirected requests with
@@ -221,9 +223,9 @@ export class Network {
   // the request data and adds a buffer method to fetch the response body when needed.
   _handleResponseReceived = async (session, event) => {
     let { requestId, response } = event;
-    // wait for upto 2 seconds or check if request has been sent
+    // await on requestWillBeSent
     // no explicitly wait on requestWillBePaused as we implictly wait on it, since it manipulates the lifeCycle of request using Fetch module
-    await Promise.any([this.#requestsLifeCycleHandler.get(requestId).checkRequestSent, new Promise((resolve) => setTimeout(resolve, 2000))]);
+    await this.#requestsLifeCycleHandler.get(requestId).checkRequestSent;
     let request = this.#requests.get(requestId);
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
@@ -250,7 +252,7 @@ export class Network {
   _handleLoadingFinished = async event => {
     let { requestId } = event;
     // wait for upto 2 seconds or check if response has been sent
-    await Promise.any([this.#requestsLifeCycleHandler.get(requestId).checkResponseSent, new Promise((resolve) => setTimeout(resolve, 2000))]);
+    await this.#requestsLifeCycleHandler.get(requestId).checkResponseSent;
     let request = this.#requests.get(requestId);
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
