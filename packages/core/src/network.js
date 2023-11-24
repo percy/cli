@@ -271,7 +271,7 @@ export class Network {
     // note: we are waiting on requestWillBeSent and NOT responseReceived
     // since, requests can be cancelled in-flight without Network.responseReceived having been triggered
     // and in any case, order of processing for responseReceived and loadingFailed does not matter, as response capturing is done in loadingFinished
-    await this.#requestsLifeCycleHandler.get(requestId).requestWillBeSent
+    await this.#requestsLifeCycleHandler.get(requestId).requestWillBeSent;
     let request = this.#requests.get(event.requestId);
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
