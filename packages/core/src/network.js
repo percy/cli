@@ -8,6 +8,8 @@ const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
 
+// DefaultMap, which returns a default value for an uninitialized key
+// Similar to defaultDict in python
 class DefaultMap extends Map {
   constructor(getDefaultValue, ...mapConstructorArgs) {
     super(...mapConstructorArgs);
@@ -28,7 +30,10 @@ class DefaultMap extends Map {
   };
 };
 
-class RequestLifeCycle {
+// RequestLifeCycleHandler handles life cycle of a requestId
+// Ideal flow:          requestWillBeSent -> requestPaused -> responseReceived -> loadingFinished / loadingFailed
+// ServiceWorker flow:  requestWillBeSent -> responseReceived -> loadingFinished / loadingFailed
+class RequestLifeCycleHandler {
   constructor() {
     this.releaseRequest = null;
     this.releaseResponse = null;
@@ -43,7 +48,7 @@ export class Network {
 
   log = logger('core:discovery');
 
-  #requestsLifeCycle = new DefaultMap(() => new RequestLifeCycle());
+  #requestsLifeCycleHandler = new DefaultMap(() => new RequestLifeCycleHandler());
   #pending = new Map();
   #requests = new Map();
   // #intercepts = new Map();
@@ -183,8 +188,8 @@ export class Network {
   _handleRequestPaused = async (session, event) => {
     let { networkId: requestId, requestId: interceptId, resourceType } = event;
 
-    // wait for requestWillBeSent event
-    await this.#requestsLifeCycle.get(requestId).checkRequestSent;
+    // wait for request to be sent
+    await this.#requestsLifeCycleHandler.get(requestId).checkRequestSent;
     let pending = this.#pending.get(requestId);
     this.#pending.delete(requestId);
 
@@ -205,8 +210,8 @@ export class Network {
 
     if (this.intercept) {
       this.#pending.set(requestId, event);
-      // release lock
-      this.#requestsLifeCycle.get(requestId).releaseRequest();
+      // release request
+      this.#requestsLifeCycleHandler.get(requestId).releaseRequest();
     }
   }
 
@@ -238,8 +243,9 @@ export class Network {
   // the request data and adds a buffer method to fetch the response body when needed.
   _handleResponseReceived = async (session, event) => {
     let { requestId, response } = event;
-    // wait for upto 2 seconds to check if request has been processed
-    await Promise.any([this.#requestsLifeCycle.get(requestId).checkRequestSent, new Promise((resolve) => setTimeout(resolve, 2000))]);
+    // wait for upto 2 seconds or check if request has been sent
+    // no explicitly wait on requestWillBePaused as we implictly wait on it, since it manipulates the lifeCycle of request using Fetch module
+    await Promise.any([this.#requestsLifeCycleHandler.get(requestId).checkRequestSent, new Promise((resolve) => setTimeout(resolve, 2000))]);
     let request = this.#requests.get(requestId);
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
@@ -250,7 +256,7 @@ export class Network {
       return Buffer.from(result.body, result.base64Encoded ? 'base64' : 'utf-8');
     };
     // release response
-    this.#requestsLifeCycle.get(requestId).releaseResponse();
+    this.#requestsLifeCycleHandler.get(requestId).releaseResponse();
   }
 
   // Called when a request streams events. These types of requests break asset discovery because
@@ -265,8 +271,8 @@ export class Network {
   // callback. The request should have an associated response and be finished with any redirects.
   _handleLoadingFinished = async event => {
     let { requestId } = event;
-    // wait for upto 2 seconds for response
-    await Promise.any([this.#requestsLifeCycle.get(requestId).checkResponseSent, new Promise((resolve) => setTimeout(resolve, 2000))]);
+    // wait for upto 2 seconds or check if response has been sent
+    await Promise.any([this.#requestsLifeCycleHandler.get(requestId).checkResponseSent, new Promise((resolve) => setTimeout(resolve, 2000))]);
     let request = this.#requests.get(requestId);
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
