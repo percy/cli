@@ -1,11 +1,13 @@
 import { AbortController, generatePromise, waitForTimeout } from '../../src/utils.js';
 import Queue from '../../src/queue.js';
+import { logger, setupTest } from '../helpers/index.js';
 
 describe('Unit / Tasks Queue', () => {
   let q;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     q = new Queue('test');
+    await setupTest();
   });
 
   it('has a customizable concurrency', () => {
@@ -238,10 +240,10 @@ describe('Unit / Tasks Queue', () => {
     let p1 = q.push('item #1');
     let p2 = q.push('item #2');
     expect(q.size).toBe(2);
-
+    q.log.loglevel('debug');
     q.close(true);
+    expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:core:queue] Clearing test queue, queued state: 2, pending state: 0']));
     expect(q.size).toBe(0);
-
     await expectAsync(p1)
       .toBeRejectedWithError('This operation was aborted');
     await expectAsync(p2)
@@ -403,6 +405,7 @@ describe('Unit / Tasks Queue', () => {
 
   it('flushing queued task', async () => {
     q.set({ concurrency: 1 });
+    q.log.loglevel('debug');
     await q.start();
     let resolve, deferred = new Promise(r => (resolve = r));
     q.readyState = 2;
@@ -410,6 +413,7 @@ describe('Unit / Tasks Queue', () => {
     let p1 = q.push(deferred);
     expect(q.size).toBe(2);
     let promise = generatePromise(q.flush());
+    expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:core:queue] Flushing test queue, queued state: 1, pending state: 1']));
     await expectAsync(promise).toBePending();
     await expectAsync(p1).toBePending();
     q.process(deferred);
@@ -421,10 +425,12 @@ describe('Unit / Tasks Queue', () => {
 
   it('empty flush', async () => {
     q.set({ concurrency: 1 });
+    q.log.loglevel('debug');
     await q.start();
     q.readyState = 2;
     expect(q.size).toBe(0);
     let promise = generatePromise(q.flush());
+    expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:core:queue] Flushing test queue, queued state: 0, pending state: 0']));
     await expectAsync(promise).toBePending();
     await expectAsync(promise).toBeResolved();
   });
