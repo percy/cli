@@ -1,34 +1,12 @@
 import { request as makeRequest } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
-import { createResource, hostnameMatches, normalizeURL, waitFor } from './utils.js';
+import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor } from './utils.js';
 
 const MAX_RESOURCE_SIZE = 25 * (1024 ** 2); // 25MB
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
-
-// DefaultMap, which returns a default value for an uninitialized key
-// Similar to defaultDict in python
-class DefaultMap extends Map {
-  constructor(getDefaultValue, ...mapConstructorArgs) {
-    super(...mapConstructorArgs);
-
-    if (typeof getDefaultValue !== 'function') {
-      throw new Error('getDefaultValue must be a function');
-    }
-
-    this.getDefaultValue = getDefaultValue;
-  }
-
-  get = (key) => {
-    if (!this.has(key)) {
-      this.set(key, this.getDefaultValue(key));
-    }
-
-    return super.get(key);
-  };
-};
 
 // RequestLifeCycleHandler handles life cycle of a requestId
 // Ideal flow:          requestWillBeSent -> requestPaused -> responseReceived -> loadingFinished / loadingFailed
