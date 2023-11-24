@@ -241,8 +241,11 @@ export class Network {
 
   // Called when a request streams events. These types of requests break asset discovery because
   // they never finish loading, so we untrack them to signal idle after the first event.
-  _handleEventSourceMessageReceived = event => {
-    let request = this.#requests.get(event.requestId);
+  _handleEventSourceMessageReceived = async event => {
+    let { requestId } = event;
+    // wait for request to be sent
+    await this.#requestsLifeCycleHandler.get(requestId).checkRequestSent;
+    let request = this.#requests.get(requestId);
     /* istanbul ignore else: race condition paranioa */
     if (request) this._forgetRequest(request);
   }
@@ -262,7 +265,13 @@ export class Network {
   }
 
   // Called when a request has failed loading and triggers the this.onrequestfailed callback.
-  _handleLoadingFailed = event => {
+  _handleLoadingFailed = async event => {
+    let { requestId } = event;
+    // wait for request to be sent
+    // note: we are waiting on checkRequestSent and NOT checkResponseSent
+    // since, requests can be cancelled in-flight without Network.responseReceived having been triggered
+    // and in any case, order of processing for responseReceived and loadingFailed does not matter, as response capturing is done in loadingFinished
+    await this.#requestsLifeCycleHandler.get(requestId).checkRequestSent
     let request = this.#requests.get(event.requestId);
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
