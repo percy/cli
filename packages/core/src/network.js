@@ -172,10 +172,9 @@ export class Network {
     this.#pending.delete(requestId);
 
     // guard against redirects with the same requestId
-    if (pending?.request.url === event.request.url &&
-        pending.request.method === event.request.method) {
-      await this._handleRequest(session, { ...pending, resourceType, interceptId });
-    }
+    pending?.request.url === event.request.url &&
+    pending.request.method === event.request.method &&
+    await this._handleRequest(session, { ...pending, resourceType, interceptId });
   }
 
   // Called when a request will be sent. If the request has already been intercepted, handle it;
