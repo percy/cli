@@ -29,7 +29,6 @@ export class Network {
   #requestsLifeCycleHandler = new DefaultMap(() => new RequestLifeCycleHandler());
   #pending = new Map();
   #requests = new Map();
-  // #intercepts = new Map();
   #authentications = new Set();
   #aborted = new Set();
 
@@ -137,7 +136,6 @@ export class Network {
 
     if (!keepPending) {
       this.#pending.delete(requestId);
-      // this.#intercepts.delete(requestId);
     }
   }
 
