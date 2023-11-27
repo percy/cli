@@ -55,7 +55,7 @@ export class Network {
 
     let commands = [
       session.send('Network.enable'),
-      session.send('Network.setBypassServiceWorker', { bypass: !this.captureServiceWorker}),
+      session.send('Network.setBypassServiceWorker', { bypass: !this.captureServiceWorker }),
       session.send('Network.setCacheDisabled', { cacheDisabled: true }),
       session.send('Network.setUserAgentOverride', { userAgent: this.userAgent }),
       session.send('Network.setExtraHTTPHeaders', { headers: this.requestHeaders })
@@ -187,7 +187,7 @@ export class Network {
     if (this.intercept) {
       this.#pending.set(requestId, event);
       if (this.captureServiceWorker) {
-        await this._handleRequest(undefined, {...event, resourceType: type, interceptId: requestId}, true);
+        await this._handleRequest(undefined, { ...event, resourceType: type, interceptId: requestId }, true);
       }
     }
     // release request
@@ -217,7 +217,7 @@ export class Network {
     request.redirectChain = redirectChain;
     this.#requests.set(requestId, request);
 
-    if(!serviceWorker){
+    if (!serviceWorker) {
       await sendResponseResource(this, request, session);
     }
   }
