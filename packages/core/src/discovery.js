@@ -289,6 +289,7 @@ export function createDiscoveryQueue(percy) {
         requestHeaders: snapshot.discovery.requestHeaders,
         authorization: snapshot.discovery.authorization,
         userAgent: snapshot.discovery.userAgent,
+        captureServiceWorker: snapshot.discovery.captureServiceWorker,
         meta: snapshot.meta,
 
         // enable network inteception
