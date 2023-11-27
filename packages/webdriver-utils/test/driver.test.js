@@ -151,6 +151,66 @@ describe('Driver', () => {
     });
   });
 
+  describe('findElementBoundingBox', () => {
+    let xpathFindElementSpy;
+    let cssSelectorFindElementSpy;
+    beforeEach(() => {
+      xpathFindElementSpy = spyOn(Driver.prototype, 'findElementXpath').and.returnValue(Promise.resolve({ x: 0, y: 10, height: 100, width: 100 }));
+      cssSelectorFindElementSpy = spyOn(Driver.prototype, 'findElementSelector').and.returnValue(Promise.resolve({ x: 0, y: 10, height: 100, width: 100 }));
+    });
+    describe('when xpath is passed', () => {
+      it('calls the required function', async () => {
+        const res = await driver.findElementBoundingBox('xpath', '/xpath1');
+        expect(cssSelectorFindElementSpy).toHaveBeenCalledTimes(0);
+        expect(xpathFindElementSpy).toHaveBeenCalledTimes(1);
+        expect(xpathFindElementSpy).toHaveBeenCalledWith('/xpath1');
+        expect(res).toEqual({ x: 0, y: 10, height: 100, width: 100 });
+      });
+    });
+
+    describe('when selector is passed', () => {
+      it('calls the required function', async () => {
+        const res = await driver.findElementBoundingBox('css selector', '#id1');
+        expect(xpathFindElementSpy).toHaveBeenCalledTimes(0);
+        expect(cssSelectorFindElementSpy).toHaveBeenCalledTimes(1);
+        expect(cssSelectorFindElementSpy).toHaveBeenCalledWith('#id1');
+        expect(res).toEqual({ x: 0, y: 10, height: 100, width: 100 });
+      });
+    });
+
+    describe('when invalid is passed', () => {
+      it('calls nothing', async () => {
+        await driver.findElementBoundingBox('abc', '#id1');
+        expect(xpathFindElementSpy).toHaveBeenCalledTimes(0);
+        expect(cssSelectorFindElementSpy).toHaveBeenCalledTimes(0);
+      });
+    });
+  });
+
+  describe('findElementXpath', () => {
+    let executeScriptSpy;
+    beforeEach(() => {
+      executeScriptSpy = spyOn(Driver.prototype, 'executeScript').and.returnValue(Promise.resolve({ value: { x: 0, y: 10, height: 100, width: 100 } }));
+    });
+    it('calls requests', async () => {
+      const res = await driver.findElementXpath('/xpath1');
+      expect(executeScriptSpy).toHaveBeenCalledWith({ script: "return document.evaluate('/xpath1', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.getBoundingClientRect();", args: [] });
+      expect(res).toEqual({ x: 0, y: 10, height: 100, width: 100 });
+    });
+  });
+
+  describe('findElementSelector', () => {
+    let executeScriptSpy;
+    beforeEach(() => {
+      executeScriptSpy = spyOn(Driver.prototype, 'executeScript').and.returnValue(Promise.resolve({ value: { x: 0, y: 10, height: 100, width: 100 } }));
+    });
+    it('calls requests', async () => {
+      const res = await driver.findElementSelector('#id1');
+      expect(executeScriptSpy).toHaveBeenCalledWith({ script: "return document.querySelector('#id1').getBoundingClientRect();", args: [] });
+      expect(res).toEqual({ x: 0, y: 10, height: 100, width: 100 });
+    });
+  });
+
   describe('rect', () => {
     it('calls requests', async () => {
       const elementId = 'element';
