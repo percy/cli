@@ -52,6 +52,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'discovery.requestHeaders', JSON.stringify);
   debugProp(snapshot, 'discovery.authorization', JSON.stringify);
   debugProp(snapshot, 'discovery.disableCache');
+  debugProp(snapshot, 'discovery.captureServiceWorker');
   debugProp(snapshot, 'discovery.userAgent');
   debugProp(snapshot, 'clientInfo');
   debugProp(snapshot, 'environmentInfo');
