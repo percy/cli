@@ -114,6 +114,11 @@ export class Server extends http.Server {
     });
   }
 
+  // return host bind address - defaults to 0.0.0.0
+  get host() {
+    return process.env.PERCY_SERVER_HOST || '0.0.0.0';
+  }
+
   // return the listening port or any default port
   get port() {
     return super.address()?.port ?? this.#defaultPort;
@@ -122,7 +127,7 @@ export class Server extends http.Server {
   // return a string representation of the server address
   address() {
     let port = this.port;
-    let host = 'http://localhost';
+    let host = `http://${this.host}`;
     return port ? `${host}:${port}` : host;
   }
 
@@ -131,7 +136,7 @@ export class Server extends http.Server {
     return new Promise((resolve, reject) => {
       let handle = err => off() && err ? reject(err) : resolve(this);
       let off = () => this.off('error', handle).off('listening', handle);
-      super.listen(port, handle).once('error', handle);
+      super.listen(port, this.host, handle).once('error', handle);
     });
   }
 

@@ -20,6 +20,43 @@ describe('Unit / Server', () => {
     await new Promise(r => setImmediate(setImmediate, r));
   });
 
+  describe('#host', () => {
+    beforeEach(async () => {
+      await server.listen(9000);
+      server.route('get', '/test/:path', (req, res) => res.text(req.params.path));
+    });
+
+    it('returns the host', async () => {
+      expect(server.host).toEqual('0.0.0.0');
+
+      // test connection via 0.0.0.0
+      await expectAsync(request('/test/foo', 'GET')).toBeResolvedTo('foo');
+
+      // test connection via localhost
+      let { request } = await import('../helpers/request.js');
+      await expectAsync(request(new URL(path, 'localhost'), 'GET')).toBeResolvedTo('foo');
+    });
+
+    describe('with PERCY_SERVER_HOST set', () => {
+      beforeEach(() => {
+        process.env.PERCY_SERVER_HOST = 'localhost';
+      });
+
+      afterEach(() => {
+        delete process.env.PERCY_SERVER_HOST;
+      });
+
+      it('uses correct host', async () => {
+        // test connection via localhost
+        await expectAsync(request('/test/foo', 'GET')).toBeResolvedTo('foo');
+
+        // test connection via 0.0.0.0
+        let { request } = await import('../helpers/request.js');
+        await expectAsync(request(new URL(path, '0.0.0.0'), 'GET')).toBeRejected();
+      });
+    });
+  });
+
   describe('#port', () => {
     it('returns the provided default port when not listening', () => {
       expect(server.port).toEqual(8000);
