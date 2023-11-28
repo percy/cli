@@ -18,7 +18,7 @@ interface DiscoveryOptions {
   authorization?: AuthCredentials;
   allowedHostnames?: string[];
   disableCache?: boolean;
-  captureServiceWorker?: boolean;
+  captureMockedServiceWorker?: boolean;
 }
 
 interface DiscoveryLaunchOptions {

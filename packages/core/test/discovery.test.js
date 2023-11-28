@@ -2016,7 +2016,7 @@ describe('Discovery', () => {
         url: 'http://localhost:8000',
         waitForSelector: '#injected-image',
         discovery: {
-          captureServiceWorker: true
+          captureMockedServiceWorker: true
         }
       });
 

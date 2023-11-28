@@ -52,7 +52,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'discovery.requestHeaders', JSON.stringify);
   debugProp(snapshot, 'discovery.authorization', JSON.stringify);
   debugProp(snapshot, 'discovery.disableCache');
-  debugProp(snapshot, 'discovery.captureServiceWorker');
+  debugProp(snapshot, 'discovery.captureMockedServiceWorker');
   debugProp(snapshot, 'discovery.userAgent');
   debugProp(snapshot, 'clientInfo');
   debugProp(snapshot, 'environmentInfo');
@@ -289,7 +289,7 @@ export function createDiscoveryQueue(percy) {
         requestHeaders: snapshot.discovery.requestHeaders,
         authorization: snapshot.discovery.authorization,
         userAgent: snapshot.discovery.userAgent,
-        captureServiceWorker: snapshot.discovery.captureServiceWorker,
+        captureMockedServiceWorker: snapshot.discovery.captureMockedServiceWorker,
         meta: snapshot.meta,
 
         // enable network inteception

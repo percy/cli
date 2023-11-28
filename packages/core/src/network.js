@@ -37,7 +37,7 @@ export class Network {
     this.timeout = options.networkIdleTimeout ?? 100;
     this.authorization = options.authorization;
     this.requestHeaders = options.requestHeaders ?? {};
-    this.captureServiceWorker = options.captureServiceWorker ?? false;
+    this.captureMockedServiceWorker = options.captureMockedServiceWorker ?? false;
     this.userAgent = options.userAgent ??
       // by default, emulate a non-headless browser
       page.session.browser.version.userAgent.replace('Headless', '');
@@ -55,7 +55,7 @@ export class Network {
 
     let commands = [
       session.send('Network.enable'),
-      session.send('Network.setBypassServiceWorker', { bypass: !this.captureServiceWorker }),
+      session.send('Network.setBypassServiceWorker', { bypass: !this.captureMockedServiceWorker }),
       session.send('Network.setCacheDisabled', { cacheDisabled: true }),
       session.send('Network.setUserAgentOverride', { userAgent: this.userAgent }),
       session.send('Network.setExtraHTTPHeaders', { headers: this.requestHeaders })
@@ -186,7 +186,7 @@ export class Network {
 
     if (this.intercept) {
       this.#pending.set(requestId, event);
-      if (this.captureServiceWorker) {
+      if (this.captureMockedServiceWorker) {
         await this._handleRequest(undefined, { ...event, resourceType: type, interceptId: requestId }, true);
       }
     }
