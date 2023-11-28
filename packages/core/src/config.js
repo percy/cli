@@ -167,6 +167,10 @@ export const configSchema = {
       disableCache: {
         type: 'boolean'
       },
+      captureMockedServiceWorker: {
+        type: 'boolean',
+        default: false
+      },
       requestHeaders: {
         type: 'object',
         normalize: false,
@@ -249,6 +253,7 @@ export const snapshotSchema = {
             requestHeaders: { $ref: '/config/discovery#/properties/requestHeaders' },
             authorization: { $ref: '/config/discovery#/properties/authorization' },
             disableCache: { $ref: '/config/discovery#/properties/disableCache' },
+            captureMockedServiceWorker: { $ref: '/config/discovery#/properties/captureMockedServiceWorker' },
             userAgent: { $ref: '/config/discovery#/properties/userAgent' },
             devicePixelRatio: { $ref: '/config/discovery#/properties/devicePixelRatio' }
           }
