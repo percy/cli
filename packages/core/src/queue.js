@@ -3,6 +3,7 @@ import {
   generatePromise,
   AbortController
 } from './utils.js';
+import logger from '@percy/logger';
 
 // Assigns a deffered promise and resolve & reject functions to an object
 function deferred(obj) {
@@ -31,6 +32,11 @@ class QueueClosedError extends Error {
 export class Queue {
   // item concurrency
   concurrency = 10;
+  log = logger('core:queue');
+
+  constructor(name) {
+    this.name = name;
+  }
 
   // Configure queue properties
   set({ concurrency }) {
@@ -181,6 +187,7 @@ export class Queue {
   // clear and abort any queued tasks
   clear() {
     let tasks = [...this.#queued];
+    this.log.debug(`Clearing ${this.name} queue, queued state: ${this.#queued.size}, pending state: ${this.#pending.size}`);
     this.#queued.clear();
 
     for (let task of tasks) {
@@ -245,6 +252,7 @@ export class Queue {
   // process items up to the latest queued item, starting the queue if necessary;
   // returns a generator that yields until the flushed item has finished processing
   flush(callback) {
+    this.log.debug(`Flushing ${this.name} queue, queued state: ${this.#queued.size}, pending state: ${this.#pending.size}`);
     let interrupt = (
       // check for existing interrupts
       [...this.#pending].find(t => t.stop) ??
@@ -274,10 +282,8 @@ export class Queue {
         let queued, pending = this.#pending.size;
         // calculate the position within queued when not pending
         if (task && task.pending == null) queued = positionOf(this.#queued, task);
-        // calculate the position within pending when not stopping
-        if (!task?.stop && task?.pending != null) pending = positionOf(this.#pending, task);
         // call the callback and return true when not queued or pending
-        let position = (queued ?? 0) + (pending ?? 0);
+        let position = (queued ?? 0) + pending;
         callback?.(position);
         return !position;
       }, { idle: 10 });
