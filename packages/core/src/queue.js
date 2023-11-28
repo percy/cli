@@ -282,10 +282,6 @@ export class Queue {
         let queued, pending = this.#pending.size;
         // calculate the position within queued when not pending
         if (task && task.pending == null) queued = positionOf(this.#queued, task);
-        // calculate the position within pending when not stopping
-        // Commenting below line reason being currently if the task passed is found we will stop flushing
-        // rest of the tasks but ideally it should wait for flushing of all the tasks till the last dequeued task.
-        // if (!task?.stop && task?.pending != null) pending = positionOf(this.#pending, task);
         // call the callback and return true when not queued or pending
         let position = (queued ?? 0) + pending;
         callback?.(position);
