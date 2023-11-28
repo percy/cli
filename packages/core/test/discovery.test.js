@@ -1970,4 +1970,68 @@ describe('Discovery', () => {
       });
     });
   });
+
+  describe('Service Worker =>', () => {
+    it('captures original request', async () => {
+      server.reply('/sw.js', () => [200, 'text/javascript', dedent`
+      const fetchUpstream = async(request) => {
+        return await fetch(request.clone());
+      }
+      
+      self.addEventListener('fetch', (event) => {
+        const { request } = event
+        event.respondWith(fetchUpstream(request));
+      });
+      
+      self.addEventListener("activate", (event) => {
+        event.waitUntil(clients.claim());
+      });
+      `]);
+
+      server.reply('/app.js', () => [200, 'text/javascript', dedent`
+      const registerServiceWorker = async () => {
+        await navigator.serviceWorker.register('sw.js',{ scope: './', });
+      };
+      
+      await registerServiceWorker();
+      
+      // create and insert image element which will be intercepted and resolved by service worker
+      // adding a sleep of 1s for service worker to get activated
+      await new Promise(r => setTimeout(r, 1000));
+      var img = document.createElement('img');
+      img.id = 'injected-image';
+      img.src = './img.gif';
+      document.getElementById('container').appendChild(img);
+      `]);
+
+      server.reply('/', () => [200, 'text/html', dedent`
+      <!DOCTYPE html><html><head></head><body>
+        <div id="container"></div>
+        <script type="module" src="app.js"></script>
+      </body></html>
+      `]);
+
+      await percy.snapshot({
+        name: 'first service worker snapshot',
+        url: 'http://localhost:8000',
+        waitForSelector: '#injected-image',
+        discovery: {
+          captureServiceWorker: true
+        }
+      });
+
+      await percy.idle();
+
+      let paths = server.requests.map(r => r[0]);
+      expect(paths).toContain('/img.gif');
+      expect(captured).toContain(jasmine.arrayContaining([
+        jasmine.objectContaining({
+          id: sha256hash(pixel),
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/img.gif'
+          })
+        })
+      ]));
+    });
+  });
 });
