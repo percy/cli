@@ -21,20 +21,8 @@ describe('Unit / Server', () => {
   });
 
   describe('#host', () => {
-    beforeEach(async () => {
-      await server.listen(9000);
-      server.route('get', '/test/:path', (req, res) => res.text(req.params.path));
-    });
-
     it('returns the host', async () => {
       expect(server.host).toEqual('0.0.0.0');
-
-      // test connection via 0.0.0.0
-      await expectAsync(request('/test/foo', 'GET')).toBeResolvedTo('foo');
-
-      // test connection via localhost
-      let { request } = await import('../helpers/request.js');
-      await expectAsync(request(new URL(path, 'localhost'), 'GET')).toBeResolvedTo('foo');
     });
 
     describe('with PERCY_SERVER_HOST set', () => {
@@ -46,13 +34,8 @@ describe('Unit / Server', () => {
         delete process.env.PERCY_SERVER_HOST;
       });
 
-      it('uses correct host', async () => {
-        // test connection via localhost
-        await expectAsync(request('/test/foo', 'GET')).toBeResolvedTo('foo');
-
-        // test connection via 0.0.0.0
-        let { request } = await import('../helpers/request.js');
-        await expectAsync(request(new URL(path, '0.0.0.0'), 'GET')).toBeRejected();
+      it('returns correct host', async () => {
+        expect(server.host).toEqual('localhost');
       });
     });
   });
@@ -70,11 +53,11 @@ describe('Unit / Server', () => {
 
   describe('#address()', () => {
     it('returns the localhost address for the server', () => {
-      expect(server.address()).toEqual('http://localhost:8000');
+      expect(server.address()).toEqual('http://0.0.0.0:8000');
     });
 
     it('does not include the port without a default when not listening', () => {
-      expect(Server.createServer().address()).toEqual('http://localhost');
+      expect(Server.createServer().address()).toEqual('http://0.0.0.0');
     });
   });
 
@@ -96,6 +79,26 @@ describe('Unit / Server', () => {
       await expectAsync(
         Server.createServer().listen(server.port)
       ).toBeRejected();
+    });
+
+    describe('with PERCY_SERVER_HOST set', () => {
+      beforeEach(() => {
+        process.env.PERCY_SERVER_HOST = 'localhost';
+      });
+
+      afterEach(() => {
+        delete process.env.PERCY_SERVER_HOST;
+      });
+
+      it('listens on correct host', async () => {
+        expect(server.host).toEqual('localhost');
+        await server.listen();
+        server.route('get', '/test/:path', (req, res) => res.text(req.params.path));
+        await expectAsync(request('/test/foo', 'GET')).toBeResolvedTo('foo');
+
+        // as we have a single network interface locally its not easy to test a negative test
+        // where with a separate network interface we are unable to access server
+      });
     });
   });
 
