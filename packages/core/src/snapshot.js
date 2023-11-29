@@ -285,7 +285,7 @@ function mergeSnapshotOptions(prev = {}, next) {
 // Creates a snapshots queue that manages a Percy build and uploads snapshots.
 export function createSnapshotsQueue(percy) {
   let { concurrency } = percy.config.discovery;
-  let queue = new Queue();
+  let queue = new Queue('snapshot');
   let build;
 
   return queue

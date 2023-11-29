@@ -248,7 +248,7 @@ export const RESOURCE_CACHE_KEY = Symbol('resource-cache');
 // snapshot which is used to intercept and capture snapshot resource requests.
 export function createDiscoveryQueue(percy) {
   let { concurrency } = percy.config.discovery;
-  let queue = new Queue();
+  let queue = new Queue('discovery');
   let cache;
 
   return queue
