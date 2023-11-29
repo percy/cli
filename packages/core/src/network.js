@@ -1,13 +1,24 @@
 import { request as makeRequest } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
-import { createResource, hostnameMatches, normalizeURL, waitFor } from './utils.js';
+import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor } from './utils.js';
 
 const MAX_RESOURCE_SIZE = 25 * (1024 ** 2); // 25MB
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
 
+// RequestLifeCycleHandler handles life cycle of a requestId
+// Ideal flow:          requestWillBeSent -> requestPaused -> responseReceived -> loadingFinished / loadingFailed
+// ServiceWorker flow:  requestWillBeSent -> responseReceived -> loadingFinished / loadingFailed
+class RequestLifeCycleHandler {
+  constructor() {
+    this.resolveRequestWillBeSent = null;
+    this.resolveResponseReceived = null;
+    this.requestWillBeSent = new Promise((resolve) => (this.resolveRequestWillBeSent = resolve));
+    this.responseReceived = new Promise((resolve) => (this.resolveResponseReceived = resolve));
+  }
+}
 // The Interceptor class creates common handlers for dealing with intercepting asset requests
 // for a given page using various devtools protocol events and commands.
 export class Network {
@@ -15,9 +26,9 @@ export class Network {
 
   log = logger('core:discovery');
 
+  #requestsLifeCycleHandler = new DefaultMap(() => new RequestLifeCycleHandler());
   #pending = new Map();
   #requests = new Map();
-  #intercepts = new Map();
   #authentications = new Set();
   #aborted = new Set();
 
@@ -26,6 +37,7 @@ export class Network {
     this.timeout = options.networkIdleTimeout ?? 100;
     this.authorization = options.authorization;
     this.requestHeaders = options.requestHeaders ?? {};
+    this.captureMockedServiceWorker = options.captureMockedServiceWorker ?? false;
     this.userAgent = options.userAgent ??
       // by default, emulate a non-headless browser
       page.session.browser.version.userAgent.replace('Headless', '');
@@ -43,7 +55,7 @@ export class Network {
 
     let commands = [
       session.send('Network.enable'),
-      session.send('Network.setBypassServiceWorker', { bypass: true }),
+      session.send('Network.setBypassServiceWorker', { bypass: !this.captureMockedServiceWorker }),
       session.send('Network.setCacheDisabled', { cacheDisabled: true }),
       session.send('Network.setUserAgentOverride', { userAgent: this.userAgent }),
       session.send('Network.setExtraHTTPHeaders', { headers: this.requestHeaders })
@@ -125,7 +137,6 @@ export class Network {
 
     if (!keepPending) {
       this.#pending.delete(requestId);
-      this.#intercepts.delete(requestId);
     }
   }
 
@@ -153,44 +164,42 @@ export class Network {
   // aborted. If the request is already pending, handle it; otherwise set it to be intercepted.
   _handleRequestPaused = async (session, event) => {
     let { networkId: requestId, requestId: interceptId, resourceType } = event;
+
+    // wait for request to be sent
+    await this.#requestsLifeCycleHandler.get(requestId).requestWillBeSent;
     let pending = this.#pending.get(requestId);
     this.#pending.delete(requestId);
 
     // guard against redirects with the same requestId
-    if (pending?.request.url === event.request.url &&
-        pending.request.method === event.request.method) {
-      await this._handleRequest(session, { ...pending, resourceType, interceptId });
-    } else {
-      // track the session that intercepted the request
-      this.#intercepts.set(requestId, { ...event, session });
-    }
+    pending?.request.url === event.request.url &&
+    pending.request.method === event.request.method &&
+    await this._handleRequest(session, { ...pending, resourceType, interceptId });
   }
 
   // Called when a request will be sent. If the request has already been intercepted, handle it;
   // otherwise set it to be pending until it is paused.
   _handleRequestWillBeSent = async event => {
-    let { requestId, request } = event;
+    let { requestId, request, type } = event;
 
     // do not handle data urls
     if (request.url.startsWith('data:')) return;
 
     if (this.intercept) {
-      let intercept = this.#intercepts.get(requestId);
       this.#pending.set(requestId, event);
-
-      if (intercept) {
-        // handle the request with the session that intercepted it
-        let { session, requestId: interceptId, resourceType } = intercept;
-        await this._handleRequest(session, { ...event, resourceType, interceptId });
-        this.#intercepts.delete(requestId);
+      if (this.captureMockedServiceWorker) {
+        await this._handleRequest(undefined, { ...event, resourceType: type, interceptId: requestId }, true);
       }
     }
+    // release request
+    // note: we are releasing this, even if intercept is not set for network.js
+    // since, we want to process all-requests in-order doesn't matter if it should be intercepted or not
+    this.#requestsLifeCycleHandler.get(requestId).resolveRequestWillBeSent();
   }
 
   // Called when a pending request is paused. Handles associating redirected requests with
   // responses and calls this.onrequest with request info and callbacks to continue, respond,
   // or abort a request. One of the callbacks is required to be called and only one.
-  _handleRequest = async (session, event) => {
+  _handleRequest = async (session, event, serviceWorker = false) => {
     let { request, requestId, interceptId, resourceType } = event;
     let redirectChain = [];
 
@@ -208,13 +217,18 @@ export class Network {
     request.redirectChain = redirectChain;
     this.#requests.set(requestId, request);
 
-    await sendResponseResource(this, request, session);
+    if (!serviceWorker) {
+      await sendResponseResource(this, request, session);
+    }
   }
 
   // Called when a response has been received for a specific request. Associates the response with
   // the request data and adds a buffer method to fetch the response body when needed.
-  _handleResponseReceived = (session, event) => {
+  _handleResponseReceived = async (session, event) => {
     let { requestId, response } = event;
+    // await on requestWillBeSent
+    // no explicitly wait on requestWillBePaused as we implictly wait on it, since it manipulates the lifeCycle of request using Fetch module
+    await this.#requestsLifeCycleHandler.get(requestId).requestWillBeSent;
     let request = this.#requests.get(requestId);
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
@@ -224,12 +238,17 @@ export class Network {
       let result = await this.send(session, 'Network.getResponseBody', { requestId });
       return Buffer.from(result.body, result.base64Encoded ? 'base64' : 'utf-8');
     };
+    // release response
+    this.#requestsLifeCycleHandler.get(requestId).resolveResponseReceived();
   }
 
   // Called when a request streams events. These types of requests break asset discovery because
   // they never finish loading, so we untrack them to signal idle after the first event.
-  _handleEventSourceMessageReceived = event => {
-    let request = this.#requests.get(event.requestId);
+  _handleEventSourceMessageReceived = async event => {
+    let { requestId } = event;
+    // wait for request to be sent
+    await this.#requestsLifeCycleHandler.get(requestId).requestWillBeSent;
+    let request = this.#requests.get(requestId);
     /* istanbul ignore else: race condition paranioa */
     if (request) this._forgetRequest(request);
   }
@@ -237,7 +256,10 @@ export class Network {
   // Called when a request has finished loading which triggers the this.onrequestfinished
   // callback. The request should have an associated response and be finished with any redirects.
   _handleLoadingFinished = async event => {
-    let request = this.#requests.get(event.requestId);
+    let { requestId } = event;
+    // wait for upto 2 seconds or check if response has been sent
+    await this.#requestsLifeCycleHandler.get(requestId).responseReceived;
+    let request = this.#requests.get(requestId);
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
 
@@ -246,7 +268,13 @@ export class Network {
   }
 
   // Called when a request has failed loading and triggers the this.onrequestfailed callback.
-  _handleLoadingFailed = event => {
+  _handleLoadingFailed = async event => {
+    let { requestId } = event;
+    // wait for request to be sent
+    // note: we are waiting on requestWillBeSent and NOT responseReceived
+    // since, requests can be cancelled in-flight without Network.responseReceived having been triggered
+    // and in any case, order of processing for responseReceived and loadingFailed does not matter, as response capturing is done in loadingFinished
+    await this.#requestsLifeCycleHandler.get(requestId).requestWillBeSent;
     let request = this.#requests.get(event.requestId);
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;

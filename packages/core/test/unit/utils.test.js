@@ -2,7 +2,8 @@ import {
   generatePromise,
   AbortController,
   yieldTo,
-  yieldAll
+  yieldAll,
+  DefaultMap
 } from '../../src/utils.js';
 
 describe('Unit / Utils', () => {
@@ -163,6 +164,23 @@ describe('Unit / Utils', () => {
       await expectAsync(promise).toBeResolved();
       await expectAsync(gen.next()).toBeResolvedTo(
         { done: true, value: [2, 4, null, 3, 6] });
+    });
+  });
+
+  describe('DefaultMap', () => {
+    it('should throw an error if getDefaultValue is not a function', () => {
+      expect(() => new DefaultMap('not a function')).toThrow(new Error('getDefaultValue must be a function'));
+    });
+
+    it('should return the default value for a key that has not been set', () => {
+      const map = new DefaultMap((key) => `default value for ${key}`);
+      expect(map.get('testKey')).toEqual('default value for testKey');
+    });
+
+    it('should return the correct value for a key that has been set', () => {
+      const map = new DefaultMap((key) => `default value for ${key}`);
+      map.set('testKey', 'testValue');
+      expect(map.get('testKey')).toEqual('testValue');
     });
   });
 });
