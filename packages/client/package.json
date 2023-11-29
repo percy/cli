@@ -32,7 +32,7 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@percy/env": "1.27.5-beta.1",
-    "@percy/logger": "1.27.5-beta.1"
+    "@percy/env": "1.27.5-beta.2",
+    "@percy/logger": "1.27.5-beta.2"
   }
 }
