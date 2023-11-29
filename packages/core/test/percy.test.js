@@ -149,7 +149,7 @@ describe('Percy', () => {
 
   describe('#address()', () => {
     it('returns the server API address', async () => {
-      expect(percy.address()).toEqual('http://0.0.0.0:5338');
+      expect(percy.address()).toEqual('http://localhost:5338');
     });
   });
 

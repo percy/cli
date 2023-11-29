@@ -53,11 +53,38 @@ describe('Unit / Server', () => {
 
   describe('#address()', () => {
     it('returns the localhost address for the server', () => {
-      expect(server.address()).toEqual('http://0.0.0.0:8000');
+      // converts default 0.0.0.0 to localhost
+      expect(server.address()).toEqual('http://localhost:8000');
     });
 
     it('does not include the port without a default when not listening', () => {
-      expect(Server.createServer().address()).toEqual('http://0.0.0.0');
+      expect(Server.createServer().address()).toEqual('http://localhost');
+    });
+
+    describe('with PERCY_SERVER_HOST set', () => {
+      afterEach(() => {
+        delete process.env.PERCY_SERVER_HOST;
+      });
+
+      describe('when PERCY_SERVER_HOST=localhost', () => {
+        beforeEach(() => {
+          process.env.PERCY_SERVER_HOST = 'localhost';
+        });
+
+        it('it uses localhost correctly', () => {
+          expect(Server.createServer().address()).toEqual('http://localhost');
+        });
+      });
+
+      describe('when PERCY_SERVER_HOST=120.22.12.1', () => {
+        beforeEach(() => {
+          process.env.PERCY_SERVER_HOST = '120.22.12.1';
+        });
+
+        it('it uses 120.22.12.1 correctly', () => {
+          expect(Server.createServer().address()).toEqual('http://120.22.12.1');
+        });
+      });
     });
   });
 

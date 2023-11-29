@@ -127,7 +127,11 @@ export class Server extends http.Server {
   // return a string representation of the server address
   address() {
     let port = this.port;
-    let host = `http://${this.host}`;
+    // we need to specifically map 0.0.0.0 to localhost on windows as even though we
+    // can listen to all interfaces using 0.0.0.0 we cant make a request on 0.0.0.0 as
+    // its an invalid ip address as per spec, but unix systems allow request to it and
+    // falls back to localhost
+    let host = `http://${this.host === '0.0.0.0' ? 'localhost' : this.host}`;
     return port ? `${host}:${port}` : host;
   }
 

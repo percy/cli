@@ -1493,7 +1493,7 @@ describe('Discovery', () => {
 
       server2.reply('/img.gif', () => new Promise(resolve => {
         // should not resolve within the test timeout
-        setTimeout(resolve, 10000, [200, 'image/gif', pixel]);
+        setTimeout(resolve, jasmine.DEFAULT_TIMEOUT_INTERVAL + 5000, [200, 'image/gif', pixel]);
       }));
 
       await percy.snapshot({
@@ -1507,8 +1507,13 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      let paths2 = server2.requests.map(r => r[0]);
-      expect(paths2).toContain('/img.gif');
+      expect(captured[0]).not.toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
     });
 
     it('captures remote resources from allowed hostnames', async () => {
