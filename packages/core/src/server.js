@@ -114,6 +114,11 @@ export class Server extends http.Server {
     });
   }
 
+  // return host bind address - defaults to 0.0.0.0
+  get host() {
+    return process.env.PERCY_SERVER_HOST || '0.0.0.0';
+  }
+
   // return the listening port or any default port
   get port() {
     return super.address()?.port ?? this.#defaultPort;
@@ -122,7 +127,11 @@ export class Server extends http.Server {
   // return a string representation of the server address
   address() {
     let port = this.port;
-    let host = 'http://localhost';
+    // we need to specifically map 0.0.0.0 to localhost on windows as even though we
+    // can listen to all interfaces using 0.0.0.0 we cant make a request on 0.0.0.0 as
+    // its an invalid ip address as per spec, but unix systems allow request to it and
+    // falls back to localhost
+    let host = `http://${this.host === '0.0.0.0' ? 'localhost' : this.host}`;
     return port ? `${host}:${port}` : host;
   }
 
@@ -131,7 +140,7 @@ export class Server extends http.Server {
     return new Promise((resolve, reject) => {
       let handle = err => off() && err ? reject(err) : resolve(this);
       let off = () => this.off('error', handle).off('listening', handle);
-      super.listen(port, handle).once('error', handle);
+      super.listen(port, this.host, handle).once('error', handle);
     });
   }
 
