@@ -6,18 +6,13 @@ export function uid() {
 export function markElement(domElement, disableShadowDOM) {
   // Mark elements that are to be serialized later with a data attribute.
   if (['input', 'textarea', 'select', 'iframe', 'canvas', 'video', 'style'].includes(domElement.tagName?.toLowerCase())) {
-    if (!domElement.getAttribute('data-percy-element-id')) {
-      domElement.setAttribute('data-percy-element-id', uid());
-    }
+    domElement.setAttribute('data-percy-element-id', uid());
   }
 
   // add special marker for shadow host
   if (!disableShadowDOM && domElement.shadowRoot) {
     domElement.setAttribute('data-percy-shadow-host', '');
-
-    if (!domElement.getAttribute('data-percy-element-id')) {
-      domElement.setAttribute('data-percy-element-id', uid());
-    }
+    domElement.setAttribute('data-percy-element-id', uid());
   }
 }
 
