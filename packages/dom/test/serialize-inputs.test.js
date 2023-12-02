@@ -4,9 +4,8 @@ import serializeDOM from '@percy/dom';
 describe('serializeInputs', () => {
   let cache = { shadow: {}, plain: {} };
 
-  beforeAll(async () => {
-    platforms.forEach((platform) => {
-      withExample(`
+  beforeEach(async () => {
+    withExample(`
       <form>
         <label for="name">Name</label>
         <input id="name" type="text" />
@@ -43,6 +42,7 @@ describe('serializeInputs', () => {
         <textarea id="feedback"></textarea>
       </form>
     `);
+    platforms.forEach((platform) => {
       const dom = platformDOM(platform);
       dom.querySelector('#name').value = 'Bob Boberson';
       dom.querySelector('#valueAttr').value = 'Replacement Value!';
