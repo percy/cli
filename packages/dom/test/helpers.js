@@ -120,7 +120,7 @@ export function getTestBrowser() {
 
 export const platforms = (() => {
   if (getTestBrowser() === chromeBrowser) {
-    return ['shadow', 'plain'];
+    return ['plain', 'shadow'];
   }
   return ['plain'];
 })();
