@@ -42,6 +42,7 @@ describe('serializeInputs', () => {
         <textarea id="feedback"></textarea>
       </form>
     `);
+
     platforms.forEach((platform) => {
       const dom = platformDOM(platform);
       dom.querySelector('#name').value = 'Bob Boberson';
@@ -62,6 +63,8 @@ describe('serializeInputs', () => {
         }
       });
       cache[platform].$ = parseDOM(serializeDOM(), platform);
+      // save DOM, only after serializing it
+      // clone DOM, so that during next platform iteration, serializeDOM doesn't change current original DOM
       cache[platform].dom = platform === 'shadow' ? dom : dom.cloneNode(true);
     });
     // interact with the inputs to update properties (does not update attributes)
