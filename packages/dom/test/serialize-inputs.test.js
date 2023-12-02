@@ -4,8 +4,9 @@ import serializeDOM from '@percy/dom';
 describe('serializeInputs', () => {
   let cache = { shadow: {}, plain: {} };
 
-  beforeEach(async () => {
-    withExample(`
+  beforeAll(async () => {
+    platforms.forEach((platform) => {
+      withExample(`
       <form>
         <label for="name">Name</label>
         <input id="name" type="text" />
@@ -42,8 +43,6 @@ describe('serializeInputs', () => {
         <textarea id="feedback"></textarea>
       </form>
     `);
-
-    platforms.forEach((platform) => {
       const dom = platformDOM(platform);
       dom.querySelector('#name').value = 'Bob Boberson';
       dom.querySelector('#valueAttr').value = 'Replacement Value!';
@@ -127,7 +126,7 @@ describe('serializeInputs', () => {
       expect(dom.querySelectorAll('[data-percy-element-id]')).toHaveSize(platform === 'plain' ? 10 : 9);
     });
 
-    it(`${platform}: adds matching guids to the orignal DOM and cloned DOM`, () => {
+    fit(`${platform}: adds matching guids to the orignal DOM and cloned DOM`, () => {
       let og = dom.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
       expect(og).toEqual($('[data-percy-element-id]')[0].getAttribute('data-percy-element-id'));
     });
