@@ -62,7 +62,7 @@ describe('serializeInputs', () => {
         }
       });
       cache[platform].$ = parseDOM(serializeDOM(), platform);
-      cache[platform].dom = platform === 'shadow' ? dom : dom.cloneNode(true)
+      cache[platform].dom = platform === 'shadow' ? dom : dom.cloneNode(true);
     });
     // interact with the inputs to update properties (does not update attributes)
   });
