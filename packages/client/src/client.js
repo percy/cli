@@ -300,6 +300,7 @@ export class PercyClient {
     name,
     widths,
     scope,
+    scopeOptions,
     minHeight,
     enableJavaScript,
     enableLayout,
@@ -329,6 +330,7 @@ export class PercyClient {
           name: name || null,
           widths: widths || null,
           scope: scope || null,
+          'scope-options': scopeOptions || {},
           'minimum-height': minHeight || null,
           'enable-javascript': enableJavaScript || null,
           'enable-layout': enableLayout || false
