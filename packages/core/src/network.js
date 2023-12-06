@@ -439,7 +439,7 @@ async function saveResponseResource(network, request) {
       // font anyway as font responses from the browser may not be properly encoded,
       // so request them directly.
       if (mimeType?.includes('font') || (detectedMime && detectedMime.includes('font'))) {
-        log.debug('- Requesting asset directly');
+        log.debug('- Requesting asset directly', meta);
         body = await makeDirectRequest(network, request);
       }
 
