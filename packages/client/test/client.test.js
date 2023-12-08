@@ -578,6 +578,7 @@ describe('PercyClient', () => {
         name: 'snapfoo',
         widths: [1000],
         scope: '#main',
+        scopeOptions: {},
         minHeight: 1000,
         enableJavaScript: true,
         enableLayout: true,
@@ -612,6 +613,7 @@ describe('PercyClient', () => {
             widths: [1000],
             scope: '#main',
             'minimum-height': 1000,
+            'scope-options': {},
             'enable-javascript': true,
             'enable-layout': true
           },
@@ -654,6 +656,7 @@ describe('PercyClient', () => {
             name: null,
             widths: null,
             scope: null,
+            'scope-options': {},
             'minimum-height': null,
             'enable-javascript': null,
             'enable-layout': false
@@ -718,6 +721,7 @@ describe('PercyClient', () => {
           attributes: {
             name: 'test snapshot name',
             scope: null,
+            'scope-options': {},
             'enable-javascript': null,
             'minimum-height': null,
             widths: null,
@@ -1215,6 +1219,7 @@ describe('PercyClient', () => {
           attributes: {
             name: 'test snapshot name',
             scope: null,
+            'scope-options': {},
             'enable-javascript': null,
             'minimum-height': null,
             widths: null,
