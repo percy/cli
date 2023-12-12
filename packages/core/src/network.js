@@ -171,6 +171,7 @@ export class Network {
     this.#pending.delete(requestId);
 
     // guard against redirects with the same requestId
+    // eslint-disable-next-line babel/no-unused-expressions
     pending?.request.url === event.request.url &&
     pending.request.method === event.request.method &&
     await this._handleRequest(session, { ...pending, resourceType, interceptId });
