@@ -22,7 +22,7 @@ describe('Unit / Server', () => {
 
   describe('#host', () => {
     it('returns the host', async () => {
-      expect(server.host).toEqual('0.0.0.0');
+      expect(server.host).toEqual('::');
     });
 
     describe('with PERCY_SERVER_HOST set', () => {
