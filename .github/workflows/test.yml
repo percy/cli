@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: 14
+          node-version: 18
       - uses: actions/cache@v3
         with:
           path: |
@@ -20,11 +20,11 @@ jobs:
             packages/*/node_modules
             packages/core/.local-chromium
           key: >
-            ${{ runner.os }}/node-14/
+            ${{ runner.os }}/node-18/
             ${{ hashFiles('.github/.cache-key') }}/
             ${{ hashFiles('**/yarn.lock') }}
           restore-keys: >
-            ${{ runner.os }}/node-14/
+            ${{ runner.os }}/node-18/
             ${{ hashFiles('.github/.cache-key') }}/
       - run: yarn
       - run: yarn build
@@ -39,7 +39,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        node: [14]
+        node: [18]
         package:
           - '@percy/env'
           - '@percy/client'
