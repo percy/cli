@@ -175,7 +175,7 @@ describe('GenericProvider', () => {
         let res = await genericProvider.screenshot('mock-name', {});
         expect(getTagSpy).toHaveBeenCalledTimes(1);
         expect(genericProvider.statusBarHeight).toEqual(0);
-        expect(getTilesSpy).toHaveBeenCalledOnceWith(0, 0, false);
+        expect(getTilesSpy).toHaveBeenCalledOnceWith(false);
         expect(res).toEqual({
           name: 'mock-name',
           tag: desktopTag,
@@ -233,7 +233,7 @@ describe('GenericProvider', () => {
         let res = await genericProvider.screenshot('mock-name', {});
         expect(iOSGetTagSpy).toHaveBeenCalledTimes(1);
         expect(genericProvider.statusBarHeight).toEqual(132);
-        expect(iOSGetTilesSpy).toHaveBeenCalledOnceWith(0, 0, false);
+        expect(iOSGetTilesSpy).toHaveBeenCalledOnceWith(false);
         expect(res).toEqual({
           name: 'mock-name',
           tag: iosTag,
