@@ -38,7 +38,7 @@ export default class GenericProvider {
     this.pageYShiftFactor = 0;
     this.currentTag = null;
     this.removeElementShiftFactor = 50000;
-    this.initialScrollFactor = { value: [0, 0] };
+    this.initialScrollFactor = null;
   }
 
   addDefaultOptions() {
@@ -69,15 +69,27 @@ export default class GenericProvider {
     }
   }
 
+  async getScrollDetails() {
+    return await this.driver.executeScript({ script: 'return [parseInt(window.scrollX), parseInt(window.scrollY)];', args: [] });
+  }
+
+  async getInitialScrollFactor() {
+    if (this.initialScrollFactor) {
+      return this.initialScrollFactor;
+    }
+    this.initialScrollFactor = await this.getScrollDetails();
+    return this.initialScrollFactor;
+  }
+
   async getInitialPosition() {
     if (this.currentTag.osName === 'iOS') {
-      this.initialScrollFactor = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX), parseInt(window.scrollY)];', args: [] });
+      this.initialScrollFactor = await this.getInitialScrollFactor();
     }
   }
 
-  async scrollToInitialPosition(x, y) {
+  async scrollToInitialPosition() {
     if (this.currentTag.osName === 'iOS') {
-      await this.driver.executeScript({ script: `window.scrollTo(${x}, ${y})`, args: [] });
+      await this.driver.executeScript({ script: `window.scrollTo(${this.initialScrollFactor.value[0]}, ${this.initialScrollFactor.value[1]})`, args: [] });
     }
   }
 
@@ -245,15 +257,22 @@ export default class GenericProvider {
 
   async getRegionObjectFromBoundingBox(selector, element) {
     const scaleFactor = await this.metaData.devicePixelRatio();
+    let scrollX = 0, scrollY = 0;
+    if (this.options?.fullPage) {
+      const scrollParams = await this.getInitialScrollFactor();
+      scrollX = scrollParams.value[0];
+      scrollY = scrollParams.value[1];
+    }
+
     let headerAdjustment = 0;
     if (this.currentTag.osName === 'iOS') {
       headerAdjustment = this.statusBarHeight;
     }
     const coOrdinates = {
-      top: Math.floor(element.y * scaleFactor) + Math.floor(headerAdjustment),
-      bottom: Math.ceil((element.y + element.height) * scaleFactor) + Math.ceil(headerAdjustment),
-      left: Math.floor(element.x * scaleFactor),
-      right: Math.ceil((element.x + element.width) * scaleFactor)
+      top: Math.floor((element.y + scrollY) * scaleFactor) + Math.floor(headerAdjustment),
+      bottom: Math.ceil((element.y + element.height + scrollY) * scaleFactor) + Math.ceil(headerAdjustment),
+      left: Math.floor((element.x + scrollX) * scaleFactor),
+      right: Math.ceil((element.x + element.width + scrollX) * scaleFactor)
     };
 
     const jsonObject = {
@@ -280,15 +299,14 @@ export default class GenericProvider {
     return regionsArray;
   }
 
-  async updatePageShiftFactor(location, scaleFactor) {
-    const scrollFactors = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX), parseInt(window.scrollY)];', args: [] });
+  async updatePageShiftFactor(location, scaleFactor, scrollFactors) {
     if (this.currentTag.osName === 'iOS' || (this.currentTag.osName === 'OS X' && parseInt(this.currentTag.browserVersion) > 13 && this.currentTag.browserName.toLowerCase() === 'safari')) {
       this.pageYShiftFactor = this.statusBarHeight;
     } else {
       this.pageYShiftFactor = this.statusBarHeight - (scrollFactors.value[1] * scaleFactor);
     }
     this.pageXShiftFactor = this.currentTag.osName === 'iOS' ? 0 : (-(scrollFactors.value[0] * scaleFactor));
-    if (this.currentTag.osName === 'iOS') {
+    if (this.currentTag.osName === 'iOS' && !this.options?.fullPage) {
       if (scrollFactors.value[0] !== this.initialScrollFactor.value[0] || scrollFactors.value[1] !== this.initialScrollFactor.value[1]) {
         this.pageXShiftFactor = (-1 * this.removeElementShiftFactor);
         this.pageYShiftFactor = (-1 * this.removeElementShiftFactor);
@@ -303,16 +321,23 @@ export default class GenericProvider {
     const rect = await this.driver.rect(elementId);
     const location = { x: rect.x, y: rect.y };
     const size = { height: rect.height, width: rect.width };
+    let scrollX = 0, scrollY = 0;
+    const scrollFactors = await this.getScrollDetails();
+    if (this.options?.fullPage) {
+      scrollX = scrollFactors.value[0];
+      scrollY = scrollFactors.value[1];
+    }
+
     // Update pageShiftFactor Element is not visible in viewport
     // In case of iOS if the element is not visible in viewport it gives 0 for x-y coordinate.
     // In case of iOS if the element is partially visible it gives negative x-y coordinate.
     // Subtracting ScrollY/ScrollX ensures if the element is visible in viewport or not.
-    await this.updatePageShiftFactor(location, scaleFactor);
+    await this.updatePageShiftFactor(location, scaleFactor, scrollFactors);
     const coOrdinates = {
-      top: Math.floor(location.y * scaleFactor) + Math.floor(this.pageYShiftFactor),
-      bottom: Math.ceil((location.y + size.height) * scaleFactor) + Math.ceil(this.pageYShiftFactor),
-      left: Math.floor(location.x * scaleFactor) + Math.floor(this.pageXShiftFactor),
-      right: Math.ceil((location.x + size.width) * scaleFactor) + Math.ceil(this.pageXShiftFactor)
+      top: Math.floor((location.y + scrollY) * scaleFactor) + Math.floor(this.pageYShiftFactor),
+      bottom: Math.ceil((location.y + size.height + scrollY) * scaleFactor) + Math.ceil(this.pageYShiftFactor),
+      left: Math.floor((location.x + scrollX) * scaleFactor) + Math.floor(this.pageXShiftFactor),
+      right: Math.ceil((location.x + size.width + scrollX) * scaleFactor) + Math.ceil(this.pageXShiftFactor)
     };
 
     const jsonObject = {
@@ -336,7 +361,7 @@ export default class GenericProvider {
         log.debug(e.toString());
       }
     }
-    await this.scrollToInitialPosition(this.initialScrollFactor.value[0], this.initialScrollFactor.value[1]);
+    await this.scrollToInitialPosition();
     return regionsArray;
   }
 
