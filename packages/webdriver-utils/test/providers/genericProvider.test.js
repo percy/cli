@@ -306,25 +306,6 @@ describe('GenericProvider', () => {
           domInfoSha: 'mock-dom-sha',
           metadata: null
         });
-=======
-    it('calls correct funcs', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
-      await genericProvider.createDriver();
-      let res = await genericProvider.screenshot('mock-name', {});
-      expect(getTagSpy).toHaveBeenCalledTimes(1);
-      expect(getTilesSpy).toHaveBeenCalledOnceWith(false);
-      expect(res).toEqual({
-        name: 'mock-name',
-        tag: 'mock-tag',
-        tiles: 'mock-tile',
-        externalDebugUrl: 'https://localhost/v1',
-        environmentInfo: 'staging-poc-poa',
-        ignoredElementsData: { ignoreElementsData: [] },
-        consideredElementsData: { considerElementsData: [] },
-        clientInfo: 'local-poc-poa',
-        domInfoSha: 'mock-dom-sha',
-        metadata: null
->>>>>>> 6871fe8b (Using tile based response)
       });
     });
   });
