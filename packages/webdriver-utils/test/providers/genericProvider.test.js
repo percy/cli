@@ -250,7 +250,6 @@ describe('GenericProvider', () => {
     });
   });
 
-<<<<<<< HEAD
     describe('With Mobile iOS', () => {
       let iosTag;
       let iosTiles;
