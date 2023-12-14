@@ -266,12 +266,12 @@ describe('GenericProvider', () => {
 
   describe('updatePageShiftFactor', () => {
     let provider;
-
-    describe('When iOS', () => {
+    let scrollFactors;
+    describe('When iOS singlepage screenshot', () => {
       beforeEach(async () => {
         provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
         await provider.createDriver();
-        spyOn(Driver.prototype, 'executeScript').and.returnValue({ value: [0, 10] });
+        scrollFactors = { value: [0, 10] };
         provider.currentTag = { osName: 'iOS' };
         provider.pageYShiftFactor = 0;
         provider.statusBarHeight = 0;
@@ -282,13 +282,13 @@ describe('GenericProvider', () => {
           provider.initialScrollFactor = { value: [0, 10] };
         });
         it('should update pageYShiftFactor for iOS when location.y is 0', async () => {
-          await provider.updatePageShiftFactor({ y: 0 }, 2);
+          await provider.updatePageShiftFactor({ y: 0 }, 2, scrollFactors);
           expect(provider.pageYShiftFactor).toBe(-20);
         });
 
         it('should not update pageYShiftFactor for iOS when location.y is not 0', async () => {
           // Location.y is not 0
-          await provider.updatePageShiftFactor({ y: 5 }, 2);
+          await provider.updatePageShiftFactor({ y: 5 }, 2, scrollFactors);
           expect(provider.pageYShiftFactor).toBe(0);
         });
       });
@@ -298,23 +298,43 @@ describe('GenericProvider', () => {
           provider.initialScrollFactor = { value: [0, 30] };
         });
         it('should update pageYShiftFactor to negative value even if location.y is 0', async () => {
-          await provider.updatePageShiftFactor({ y: 0 }, 2);
+          await provider.updatePageShiftFactor({ y: 0 }, 2, scrollFactors);
           expect(provider.pageYShiftFactor).toBe(-50000);
         });
 
         it('should update pageYShiftFactor to negative value even if location.y is not 0', async () => {
           // Location.y is not 0
-          await provider.updatePageShiftFactor({ y: 5 }, 2);
+          await provider.updatePageShiftFactor({ y: 5 }, 2, scrollFactors);
           expect(provider.pageYShiftFactor).toBe(-50000);
         });
       });
     });
 
-    describe('When OS X', () => {
+    describe('When iOS fullpage screenshot', () => {
+      beforeEach(async () => {
+        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'client', 'environment', { fullPage: true });
+        await provider.createDriver();
+        scrollFactors = { value: [0, 10] };
+        provider.currentTag = { osName: 'iOS' };
+        provider.pageYShiftFactor = 0;
+      });
+
+      describe('when element is present in DOM', () => {
+        beforeEach(() => {
+          provider.statusBarHeight = 10;
+        });
+        it('should update pageYShiftFactor for iOS to statusBarHeight', async () => {
+          await provider.updatePageShiftFactor({ y: 0 }, 2, scrollFactors);
+          expect(provider.pageYShiftFactor).toBe(10);
+        });
+      });
+    });
+
+    describe('When OS X singlepage', () => {
       beforeEach(async () => {
         provider = new GenericProvider('123', 'http:executorUrl', { platform: 'OS X' }, {});
         await provider.createDriver();
-        spyOn(Driver.prototype, 'executeScript').and.returnValue({ value: [0, 10] });
+        scrollFactors = { value: [0, 10] };
         provider.currentTag = { osName: 'OS X' };
         provider.pageYShiftFactor = 0;
         provider.statusBarHeight = 0;
@@ -329,7 +349,7 @@ describe('GenericProvider', () => {
           });
 
           it('should not update pageYShiftFactor for OS X if scrolled', async () => {
-            await provider.updatePageShiftFactor({ y: 0 }, 1);
+            await provider.updatePageShiftFactor({ y: 0 }, 1, scrollFactors);
             expect(provider.pageYShiftFactor).toBe(0);
           });
         });
@@ -344,14 +364,55 @@ describe('GenericProvider', () => {
           });
 
           it('should update pageYShiftFactor for OS X platforms accordingly if scrolled', async () => {
-            await provider.updatePageShiftFactor({ y: 0 }, 1);
+            await provider.updatePageShiftFactor({ y: 0 }, 1, scrollFactors);
             expect(provider.pageYShiftFactor).toBe(-10);
           });
         });
       });
     });
 
-    describe('When Other', () => {
+    describe('When OS X fullpage screenshot', () => {
+      beforeEach(async () => {
+        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'OS X' }, {}, 'client', 'environment', { fullPage: true });
+        await provider.createDriver();
+        scrollFactors = { value: [0, 10] };
+        provider.currentTag = { osName: 'OS X' };
+        provider.pageYShiftFactor = 0;
+      });
+
+      describe('When Safari browserVersion > 13', () => {
+        describe('when element is present in DOM', () => {
+          beforeEach(() => {
+            provider.currentTag.browserName = 'safari';
+            provider.currentTag.browserVersion = 15;
+            provider.statusBarHeight = 0;
+          });
+
+          it('should update pageYShiftFactor for OS X to statusBarHeight', async () => {
+            await provider.updatePageShiftFactor({ y: 0 }, 1, scrollFactors);
+            expect(provider.pageYShiftFactor).toBe(0);
+          });
+        });
+      });
+
+      describe('When Safari browserVersion <= 13', () => {
+        describe('when element is present in DOM', () => {
+          beforeEach(() => {
+            provider.currentTag.browserName = 'safari';
+            provider.currentTag.browserVersion = 13;
+            provider.statusBarHeight = 20;
+          });
+
+          it('should update pageYShiftFactor for OS X platforms accordingly if scrolled', async () => {
+            scrollFactors = { value: [0, 10] };
+            await provider.updatePageShiftFactor({ y: 0 }, 1, scrollFactors);
+            expect(provider.pageYShiftFactor).toBe(10);
+          });
+        });
+      });
+    });
+
+    describe('When Other singlepage', () => {
       beforeEach(async () => {
         provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
         await provider.createDriver();
@@ -360,14 +421,30 @@ describe('GenericProvider', () => {
       });
 
       it('should not update pageYShiftFactor for non-iOS platforms', async () => {
-        spyOn(Driver.prototype, 'executeScript').and.returnValue({ value: [0, 0] });
-        await provider.updatePageShiftFactor({ y: 0 }, 1);
+        scrollFactors = { value: [0, 0] };
+        await provider.updatePageShiftFactor({ y: 0 }, 1, scrollFactors);
         expect(provider.pageYShiftFactor).toBe(0);
       });
 
       it('should update pageYShiftFactor for non-iOS platforms accordingly if scrolled', async () => {
-        spyOn(Driver.prototype, 'executeScript').and.returnValue({ value: [0, 10] });
-        await provider.updatePageShiftFactor({ y: 0 }, 1);
+        scrollFactors = { value: [0, 10] };
+        await provider.updatePageShiftFactor({ y: 0 }, 1, scrollFactors);
+        expect(provider.pageYShiftFactor).toBe(-10);
+      });
+    });
+
+    describe('When Other fullpage', () => {
+      beforeEach(async () => {
+        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'client', 'environment', { fullPage: true });
+        await provider.createDriver();
+        provider.currentTag = { osName: 'Android' };
+        provider.pageYShiftFactor = 0;
+        provider.statusBarHeight = 0;
+      });
+
+      it('should update pageYShiftFactor for non-iOS platforms accordingly if scrolled', async () => {
+        scrollFactors = { value: [0, 10] };
+        await provider.updatePageShiftFactor({ y: 0 }, 1, scrollFactors);
         expect(provider.pageYShiftFactor).toBe(-10);
       });
     });
@@ -376,70 +453,144 @@ describe('GenericProvider', () => {
   describe('getRegionObject', () => {
     let provider;
     let mockLocation = { x: 10, y: 20, width: 100, height: 200 };
+    let scrollFactors = { value: [0, 0] };
+    describe('When singlepage screenshot', () => {
+      describe('When on Tile 0', () => {
+        beforeEach(async () => {
+          // mock metadata
+          provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+          provider.currentTag = { osName: 'Windows' };
+          await provider.createDriver();
+          spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
+            .and.returnValue(1);
+          spyOn(GenericProvider.prototype, 'getScrollDetails')
+            .and.returnValue(scrollFactors);
+          spyOn(Driver.prototype, 'rect').and.returnValue(Promise.resolve(mockLocation));
+        });
 
-    describe('When on Tile 0', () => {
-      beforeEach(async () => {
-        // mock metadata
-        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
-        provider.currentTag = { osName: 'Windows' };
-        await provider.createDriver();
-        spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
-          .and.returnValue(1);
-        spyOn(Driver.prototype, 'executeScript')
-          .and.returnValue({ value: [0, 0] });
-        spyOn(Driver.prototype, 'rect').and.returnValue(Promise.resolve(mockLocation));
+        it('should return a JSON object with the correct selector and coordinates for tile 0', async () => {
+          await provider.createDriver();
+
+          // Call function with mock data
+          const selector = 'mock-selector';
+          const result = await provider.getRegionObject(selector, 'mockElementId');
+
+          // Assert expected result
+          expect(result.selector).toEqual(selector);
+          expect(result.coOrdinates).toEqual({
+            top: mockLocation.y,
+            bottom: mockLocation.y + mockLocation.height,
+            left: mockLocation.x,
+            right: mockLocation.x + mockLocation.width
+          });
+        });
       });
 
-      it('should return a JSON object with the correct selector and coordinates for tile 0', async () => {
-        await provider.createDriver();
+      describe('When on Tile 1', () => {
+        beforeEach(async () => {
+          // mock metadata
+          provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+          provider.currentTag = { osName: 'iOS' };
+          await provider.createDriver();
+          spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
+            .and.returnValue(1);
+          spyOn(GenericProvider.prototype, 'getScrollDetails')
+            .and.returnValue(scrollFactors);
+          spyOn(Driver.prototype, 'rect').and.returnValue(Promise.resolve(mockLocation));
+          provider.pageYShiftFactor = -10;
+          provider.initialScrollFactor = scrollFactors;
+        });
 
-        // Call function with mock data
-        const selector = 'mock-selector';
-        const result = await provider.getRegionObject(selector, 'mockElementId');
+        afterEach(() => {
+          provider.pageYShiftFactor = 0;
+          provider.currentTag = null;
+        });
+        it('should return a JSON object with the correct selector and coordinates', async () => {
+          await provider.createDriver();
 
-        // Assert expected result
-        expect(result.selector).toEqual(selector);
-        expect(result.coOrdinates).toEqual({
-          top: mockLocation.y,
-          bottom: mockLocation.y + mockLocation.height,
-          left: mockLocation.x,
-          right: mockLocation.x + mockLocation.width
+          // Call function with mock data
+          const selector = 'mock-selector';
+          const result = await provider.getRegionObject(selector, 'mockElementId');
+
+          // Assert expected result
+          expect(result.selector).toEqual(selector);
+          expect(result.coOrdinates).toEqual({
+            top: mockLocation.y + provider.pageYShiftFactor,
+            bottom: mockLocation.y + mockLocation.height + provider.pageYShiftFactor,
+            left: mockLocation.x,
+            right: mockLocation.x + mockLocation.width
+          });
         });
       });
     });
 
-    describe('When on Tile 1', () => {
-      beforeEach(async () => {
-        // mock metadata
-        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
-        provider.currentTag = { osName: 'iOS' };
-        await provider.createDriver();
-        spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
-          .and.returnValue(1);
-        spyOn(Driver.prototype, 'executeScript')
-          .and.returnValue({ value: [0, 0] });
-        spyOn(Driver.prototype, 'rect').and.returnValue(Promise.resolve(mockLocation));
-        provider.pageYShiftFactor = -10;
+    describe('When fullpage screenshot', () => {
+      describe('When no scroll', () => {
+        beforeEach(async () => {
+          // mock metadata
+          provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'client', 'environment', { fullPage: true });
+          provider.currentTag = { osName: 'Windows' };
+          await provider.createDriver();
+          spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
+            .and.returnValue(1);
+          spyOn(Driver.prototype, 'executeScript')
+            .and.returnValue({ value: [0, 0] });
+          spyOn(Driver.prototype, 'rect').and.returnValue(Promise.resolve(mockLocation));
+        });
+
+        it('should return a JSON object with the correct selector and coordinates for tile 0', async () => {
+          await provider.createDriver();
+
+          // Call function with mock data
+          const selector = 'mock-selector';
+          const result = await provider.getRegionObject(selector, 'mockElementId');
+
+          // Assert expected result
+          expect(result.selector).toEqual(selector);
+          expect(result.coOrdinates).toEqual({
+            top: mockLocation.y,
+            bottom: mockLocation.y + mockLocation.height,
+            left: mockLocation.x,
+            right: mockLocation.x + mockLocation.width
+          });
+        });
       });
 
-      afterEach(() => {
-        provider.pageYShiftFactor = 0;
-        provider.currentTag = null;
-      });
-      it('should return a JSON object with the correct selector and coordinates', async () => {
-        await provider.createDriver();
+      describe('When there is a scroll', () => {
+        let scrollX = 10;
+        let scrollY = 20;
+        beforeEach(async () => {
+          // mock metadata
+          provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'client', 'environment', { fullPage: true });
+          provider.currentTag = { osName: 'iOS' };
+          await provider.createDriver();
+          spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
+            .and.returnValue(1);
+          spyOn(GenericProvider.prototype, 'getScrollDetails')
+            .and.returnValue({ value: [scrollX, scrollY] });
+          spyOn(Driver.prototype, 'rect').and.returnValue(Promise.resolve(mockLocation));
+          provider.pageYShiftFactor = -10;
+        });
 
-        // Call function with mock data
-        const selector = 'mock-selector';
-        const result = await provider.getRegionObject(selector, 'mockElementId');
+        afterEach(() => {
+          provider.pageYShiftFactor = 0;
+          provider.currentTag = null;
+        });
+        it('should return a JSON object with the correct selector and coordinates', async () => {
+          await provider.createDriver();
 
-        // Assert expected result
-        expect(result.selector).toEqual(selector);
-        expect(result.coOrdinates).toEqual({
-          top: mockLocation.y + provider.pageYShiftFactor,
-          bottom: mockLocation.y + mockLocation.height + provider.pageYShiftFactor,
-          left: mockLocation.x,
-          right: mockLocation.x + mockLocation.width
+          // Call function with mock data
+          const selector = 'mock-selector';
+          const result = await provider.getRegionObject(selector, 'mockElementId');
+
+          // Assert expected result
+          expect(result.selector).toEqual(selector);
+          expect(result.coOrdinates).toEqual({
+            top: mockLocation.y + scrollY + provider.pageYShiftFactor,
+            bottom: mockLocation.y + mockLocation.height + scrollY + provider.pageYShiftFactor,
+            left: mockLocation.x + scrollX,
+            right: mockLocation.x + mockLocation.width + scrollX
+          });
         });
       });
     });
@@ -448,52 +599,111 @@ describe('GenericProvider', () => {
   describe('getRegionObjectFromBoundingBox', () => {
     let provider;
     let mockLocation = { x: 10, y: 20, width: 100, height: 200 };
-    beforeEach(async () => {
-      // mock metadata
-      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
-      provider.currentTag = { osName: 'Windows' };
-      await provider.createDriver();
-      spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
-        .and.returnValue(1);
-      provider.statusBarHeight = 0;
-    });
 
-    describe('When not an iOS', () => {
-      it('should return a JSON object with the correct selector and coordinates', async () => {
-        // Call function with mock data
-        const selector = 'mock-selector';
-        const result = await provider.getRegionObjectFromBoundingBox(selector, mockLocation);
+    describe('When singlepage screenshot', () => {
+      beforeEach(async () => {
+        // mock metadata
+        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+        provider.currentTag = { osName: 'Windows' };
+        await provider.createDriver();
+        spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
+          .and.returnValue(1);
+        provider.statusBarHeight = 0;
+      });
 
-        // Assert expected result
-        expect(result.selector).toEqual(selector);
-        expect(result.coOrdinates).toEqual({
-          top: mockLocation.y,
-          bottom: mockLocation.y + mockLocation.height,
-          left: mockLocation.x,
-          right: mockLocation.x + mockLocation.width
+      describe('When not an iOS', () => {
+        it('should return a JSON object with the correct selector and coordinates', async () => {
+          // Call function with mock data
+          const selector = 'mock-selector';
+          const result = await provider.getRegionObjectFromBoundingBox(selector, mockLocation);
+          // Assert expected result
+          expect(result.selector).toEqual(selector);
+          expect(result.coOrdinates).toEqual({
+            top: mockLocation.y,
+            bottom: mockLocation.y + mockLocation.height,
+            left: mockLocation.x,
+            right: mockLocation.x + mockLocation.width
+          });
+        });
+      });
+
+      describe('When iOS', () => {
+        beforeEach(() => {
+          provider.currentTag = { osName: 'iOS' };
+          provider.statusBarHeight = 132;
+        });
+        it('should return a JSON object with the correct selector and coordinates with added statusBarHeight', async () => {
+          await provider.createDriver();
+
+          // Call function with mock data
+          const selector = 'mock-selector';
+          const result = await provider.getRegionObjectFromBoundingBox(selector, mockLocation);
+
+          // Assert expected result
+          expect(result.selector).toEqual(selector);
+          expect(result.coOrdinates).toEqual({
+            top: mockLocation.y + provider.statusBarHeight,
+            bottom: mockLocation.y + mockLocation.height + provider.statusBarHeight,
+            left: mockLocation.x,
+            right: mockLocation.x + mockLocation.width
+          });
         });
       });
     });
 
-    describe('When iOS', () => {
-      beforeEach(() => {
-        provider.currentTag = { osName: 'iOS' };
-        provider.statusBarHeight = 132;
-      });
-      it('should return a JSON object with the correct selector and coordinates with added statusBarHeight', async () => {
+    describe('When fullpage screenshot', () => {
+      beforeEach(async () => {
+        // mock metadata
+        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'client', 'environment', { fullPage: true });
+        provider.currentTag = { osName: 'Windows' };
         await provider.createDriver();
+        spyOn(GenericProvider.prototype, 'getInitialScrollFactor')
+          .and.returnValue({ value: [0, 0] });
+        spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
+          .and.returnValue(1);
+        provider.statusBarHeight = 0;
+      });
 
-        // Call function with mock data
-        const selector = 'mock-selector';
-        const result = await provider.getRegionObjectFromBoundingBox(selector, mockLocation);
+      describe('When not an iOS', () => {
+        it('should return a JSON object with the correct selector and coordinates', async () => {
+          // Call function with mock data
+          const selector = 'mock-selector';
+          const result = await provider.getRegionObjectFromBoundingBox(selector, mockLocation);
+          // Assert expected result
+          expect(result.selector).toEqual(selector);
+          expect(result.coOrdinates).toEqual({
+            top: mockLocation.y,
+            bottom: mockLocation.y + mockLocation.height,
+            left: mockLocation.x,
+            right: mockLocation.x + mockLocation.width
+          });
+        });
+      });
 
-        // Assert expected result
-        expect(result.selector).toEqual(selector);
-        expect(result.coOrdinates).toEqual({
-          top: mockLocation.y + provider.statusBarHeight,
-          bottom: mockLocation.y + mockLocation.height + provider.statusBarHeight,
-          left: mockLocation.x,
-          right: mockLocation.x + mockLocation.width
+      describe('When iOS', () => {
+        let scrollX = 10;
+        let scrollY = 20;
+        beforeEach(() => {
+          provider.currentTag = { osName: 'iOS' };
+          provider.statusBarHeight = 132;
+          spyOn(GenericProvider.prototype, 'getInitialScrollFactor')
+            .and.returnValue({ value: [scrollX, scrollY] });
+        });
+        it('should return a JSON object with the correct selector and coordinates with added statusBarHeight', async () => {
+          await provider.createDriver();
+
+          // Call function with mock data
+          const selector = 'mock-selector';
+          const result = await provider.getRegionObjectFromBoundingBox(selector, mockLocation);
+
+          // Assert expected result
+          expect(result.selector).toEqual(selector);
+          expect(result.coOrdinates).toEqual({
+            top: mockLocation.y + scrollY + provider.statusBarHeight,
+            bottom: mockLocation.y + mockLocation.height + scrollY + provider.statusBarHeight,
+            left: mockLocation.x + scrollX,
+            right: mockLocation.x + mockLocation.width + scrollX
+          });
         });
       });
     });
@@ -576,24 +786,21 @@ describe('GenericProvider', () => {
     describe('when not IOS', () => {
       it('should not get the initial scroll position', async () => {
         await provider.getInitialPosition();
-        expect(provider.initialScrollFactor).toEqual({ value: [0, 0] });
+        expect(provider.initialScrollFactor).toEqual(null);
       });
     });
 
     describe('when IOS', () => {
-      let executeScriptSpy;
       beforeEach(() => {
         provider.currentTag = { osName: 'iOS' };
-        executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
       });
 
       afterEach(() => {
         provider.currentTag = null;
       });
       it('should get the initial scroll position', async () => {
-        spyOn(Driver.prototype, 'executeScript').and.returnValue({ value: [0, 200] });
+        spyOn(GenericProvider.prototype, 'getInitialScrollFactor').and.returnValue({ value: [0, 200] });
         await provider.getInitialPosition();
-        expect(executeScriptSpy).toHaveBeenCalledWith({ script: 'return [parseInt(window.scrollX), parseInt(window.scrollY)];', args: [] });
         expect(provider.initialScrollFactor).toEqual({ value: [0, 200] });
       });
     });
@@ -608,7 +815,7 @@ describe('GenericProvider', () => {
     });
     describe('when not IOS', () => {
       it('should not scroll to position', async () => {
-        await provider.scrollToInitialPosition(0, 50);
+        await provider.scrollToInitialPosition();
         expect(spyOn(Driver.prototype, 'executeScript')).toHaveBeenCalledTimes(0);
       });
     });
@@ -625,7 +832,7 @@ describe('GenericProvider', () => {
         provider.currentTag = null;
       });
       it('should scroll to position', async () => {
-        await provider.scrollToInitialPosition(0, 50);
+        await provider.scrollToInitialPosition();
         expect(executeScriptSpy).toHaveBeenCalledTimes(1);
         expect(executeScriptSpy).toHaveBeenCalledWith({ script: 'window.scrollTo(0, 50)', args: [] });
       });
@@ -653,7 +860,6 @@ describe('GenericProvider', () => {
       expect(getInitialPositionSpy).toHaveBeenCalledTimes(1);
       expect(getRegionObjectSpy).toHaveBeenCalledTimes(3);
       expect(scrollToInitialPositionSpy).toHaveBeenCalledTimes(1);
-      expect(scrollToInitialPositionSpy).toHaveBeenCalledWith(provider.initialScrollFactor.value[0], provider.initialScrollFactor.value[1]);
       expect(elementsArray).toEqual([{}, {}, {}]);
     });
 
