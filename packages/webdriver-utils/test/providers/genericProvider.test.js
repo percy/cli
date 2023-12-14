@@ -1017,4 +1017,42 @@ describe('GenericProvider', () => {
       expect(executeScriptSpy).toHaveBeenCalledWith({ script: jsScript, args: [] });
     });
   });
+
+  describe('getScrollDetails', () => {
+    let provider;
+    let executeScriptSpy;
+
+    beforeEach(async () => {
+      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await provider.createDriver();
+      executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
+    });
+
+    it('should return scroll params', async () => {
+      await provider.getScrollDetails();
+      expect(executeScriptSpy).toHaveBeenCalledWith({ script: 'return [parseInt(window.scrollX), parseInt(window.scrollY)];', args: [] });
+    });
+  });
+
+  describe('getInitialScrollFactor', () => {
+    let provider;
+    let getScrollDetailsSpy;
+
+    beforeEach(async () => {
+      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      await provider.createDriver();
+      getScrollDetailsSpy = spyOn(GenericProvider.prototype, 'getScrollDetails');
+      provider.initialScrollFactor = { value: [1, 1] };
+    });
+
+    it('do not get scroll details if already present', async () => {
+      provider.getInitialScrollFactor();
+      expect(getScrollDetailsSpy).not.toHaveBeenCalled();
+    });
+    it('gets scroll details if not present', async () => {
+      provider.initialScrollFactor = null;
+      provider.getInitialScrollFactor();
+      expect(getScrollDetailsSpy).toHaveBeenCalled();
+    });
+  });
 });
