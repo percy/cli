@@ -17,6 +17,7 @@ const percyOptions: PercyOptions = {
     percyCSS: '.percy { color: purple; }',
     enableJavaScript: false,
     scope: '.percy',
+    scopeOptions: { scroll: true },
     devicePixelRatio: 2
   },
   discovery: {

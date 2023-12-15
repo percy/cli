@@ -578,7 +578,7 @@ describe('PercyClient', () => {
         name: 'snapfoo',
         widths: [1000],
         scope: '#main',
-        scopeOptions: {},
+        scopeOptions: { scroll: true },
         minHeight: 1000,
         enableJavaScript: true,
         enableLayout: true,
@@ -613,7 +613,7 @@ describe('PercyClient', () => {
             widths: [1000],
             scope: '#main',
             'minimum-height': 1000,
-            'scope-options': {},
+            'scope-options': { scroll: true },
             'enable-javascript': true,
             'enable-layout': true
           },
