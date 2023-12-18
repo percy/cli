@@ -253,13 +253,7 @@ export const snapshotSchema = {
         domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
         enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
         reshuffleInvalidTags: { $ref: '/config/snapshot#/properties/reshuffleInvalidTags' },
-        scopeOptions: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            scroll: { $ref: '/config/snapshot#/properties/scopeOptions/properties/scroll' }
-          }
-        },
+        scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
         discovery: {
           type: 'object',
           additionalProperties: false,
