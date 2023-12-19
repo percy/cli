@@ -297,7 +297,9 @@ describe('AutomateProvider', () => {
             })
           ],
           domInfoSha: 'def',
-          metadata: {}
+          metadata: {
+            screenshotType: 'fullpage'
+          }
         };
         expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
         expect(executeScriptSpy).toHaveBeenCalledTimes(1);
@@ -321,7 +323,9 @@ describe('AutomateProvider', () => {
             })
           ],
           domInfoSha: 'def',
-          metadata: {}
+          metadata: {
+            screenshotType: 'fullpage'
+          }
         };
         expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
         expect(executeScriptSpy).toHaveBeenCalledTimes(1);
@@ -357,7 +361,9 @@ describe('AutomateProvider', () => {
             })
           ],
           domInfoSha: 'def',
-          metadata: {}
+          metadata: {
+            screenshotType: 'singlepage'
+          }
         };
         expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
         expect(executeScriptSpy).toHaveBeenCalledTimes(1);

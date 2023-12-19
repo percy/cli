@@ -857,7 +857,8 @@ describe('PercyClient', () => {
         consideredElementsData: consideredElementsData,
         domInfoSha: 'abcd=',
         metadata: {
-          windowHeight: 1947
+          windowHeight: 1947,
+          screenshotType: 'singlepage'
         }
       })).toBeResolved();
 
@@ -870,7 +871,8 @@ describe('PercyClient', () => {
             'consider-elements-data': consideredElementsData,
             'dom-info-sha': 'abcd=',
             metadata: {
-              windowHeight: 1947
+              windowHeight: 1947,
+              screenshotType: 'singlepage'
             }
           },
           relationships: {
@@ -1006,6 +1008,7 @@ describe('PercyClient', () => {
         externalDebugUrl: 'https://automate.browserstack.com/builds/acs',
         metadata: {
           windowHeight: 1947,
+          screenshotType: 'fullpage',
           abc: 123
         }
       };
