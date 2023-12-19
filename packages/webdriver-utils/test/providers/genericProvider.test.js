@@ -279,7 +279,7 @@ describe('GenericProvider', () => {
 
       describe('when element is visible in viewport', () => {
         beforeEach(() => {
-          provider.initialScrollFactor = { value: [0, 10] };
+          provider.initialScrollLocation = { value: [0, 10] };
         });
         it('should update pageYShiftFactor for iOS when location.y is 0', async () => {
           await provider.updatePageShiftFactor({ y: 0 }, 2, scrollFactors);
@@ -295,7 +295,7 @@ describe('GenericProvider', () => {
 
       describe('when element is not visible in viewport and iOS scrolls automatically', () => {
         beforeEach(() => {
-          provider.initialScrollFactor = { value: [0, 30] };
+          provider.initialScrollLocation = { value: [0, 30] };
         });
         it('should update pageYShiftFactor to negative value even if location.y is 0', async () => {
           await provider.updatePageShiftFactor({ y: 0 }, 2, scrollFactors);
@@ -343,7 +343,7 @@ describe('GenericProvider', () => {
       describe('When Safari browserVersion > 13', () => {
         describe('when element is visible in viewport', () => {
           beforeEach(() => {
-            provider.initialScrollFactor = { value: [0, 10] };
+            provider.initialScrollLocation = { value: [0, 10] };
             provider.currentTag.browserName = 'safari';
             provider.currentTag.browserVersion = 15;
           });
@@ -358,7 +358,7 @@ describe('GenericProvider', () => {
       describe('When Safari browserVersion <= 13', () => {
         describe('when element is visible in viewport', () => {
           beforeEach(() => {
-            provider.initialScrollFactor = { value: [0, 10] };
+            provider.initialScrollLocation = { value: [0, 10] };
             provider.currentTag.browserName = 'safari';
             provider.currentTag.browserVersion = 13;
           });
@@ -493,7 +493,7 @@ describe('GenericProvider', () => {
           // mock metadata
           provider.currentTag = { osName: 'iOS' };
           provider.pageYShiftFactor = -10;
-          provider.initialScrollFactor = scrollFactors;
+          provider.initialScrollLocation = scrollFactors;
         });
         expectRegionObject(0, 0);
       });
@@ -583,7 +583,7 @@ describe('GenericProvider', () => {
         provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'client', 'environment', { fullPage: true });
         provider.currentTag = { osName: 'Windows' };
         await provider.createDriver();
-        spyOn(GenericProvider.prototype, 'getInitialScrollFactor')
+        spyOn(GenericProvider.prototype, 'getInitialScrollPosition')
           .and.returnValue({ value: [scrollX, scrollY] });
       });
 
@@ -678,7 +678,7 @@ describe('GenericProvider', () => {
     describe('when not IOS', () => {
       it('should not get the initial scroll position', async () => {
         await provider.getInitialPosition();
-        expect(provider.initialScrollFactor).toEqual(null);
+        expect(provider.initialScrollLocation).toEqual(null);
       });
     });
 
@@ -691,9 +691,9 @@ describe('GenericProvider', () => {
         provider.currentTag = null;
       });
       it('should get the initial scroll position', async () => {
-        spyOn(GenericProvider.prototype, 'getInitialScrollFactor').and.returnValue({ value: [0, 200] });
+        spyOn(GenericProvider.prototype, 'getInitialScrollPosition').and.returnValue({ value: [0, 200] });
         await provider.getInitialPosition();
-        expect(provider.initialScrollFactor).toEqual({ value: [0, 200] });
+        expect(provider.initialScrollLocation).toEqual({ value: [0, 200] });
       });
     });
   });
@@ -716,7 +716,7 @@ describe('GenericProvider', () => {
       let executeScriptSpy;
       beforeEach(() => {
         provider.currentTag = { osName: 'iOS' };
-        provider.initialScrollFactor = { value: [0, 50] };
+        provider.initialScrollLocation = { value: [0, 50] };
         executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
       });
 
@@ -926,7 +926,7 @@ describe('GenericProvider', () => {
     });
   });
 
-  describe('getInitialScrollFactor', () => {
+  describe('getInitialScrollPosition', () => {
     let provider;
     let getScrollDetailsSpy;
 
@@ -934,16 +934,16 @@ describe('GenericProvider', () => {
       provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
       await provider.createDriver();
       getScrollDetailsSpy = spyOn(GenericProvider.prototype, 'getScrollDetails');
-      provider.initialScrollFactor = { value: [1, 1] };
+      provider.initialScrollLocation = { value: [1, 1] };
     });
 
     it('do not get scroll details if already present', async () => {
-      provider.getInitialScrollFactor();
+      provider.getInitialScrollPosition();
       expect(getScrollDetailsSpy).not.toHaveBeenCalled();
     });
     it('gets scroll details if not present', async () => {
-      provider.initialScrollFactor = null;
-      provider.getInitialScrollFactor();
+      provider.initialScrollLocation = null;
+      provider.getInitialScrollPosition();
       expect(getScrollDetailsSpy).toHaveBeenCalled();
     });
   });

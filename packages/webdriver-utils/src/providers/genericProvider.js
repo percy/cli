@@ -38,7 +38,7 @@ export default class GenericProvider {
     this.pageYShiftFactor = 0;
     this.currentTag = null;
     this.removeElementShiftFactor = 50000;
-    this.initialScrollFactor = null;
+    this.initialScrollLocation = null;
   }
 
   addDefaultOptions() {
@@ -73,23 +73,23 @@ export default class GenericProvider {
     return await this.driver.executeScript({ script: 'return [parseInt(window.scrollX), parseInt(window.scrollY)];', args: [] });
   }
 
-  async getInitialScrollFactor() {
-    if (this.initialScrollFactor) {
-      return this.initialScrollFactor;
+  async getInitialScrollPosition() {
+    if (this.initialScrollLocation) {
+      return this.initialScrollLocation;
     }
-    this.initialScrollFactor = await this.getScrollDetails();
-    return this.initialScrollFactor;
+    this.initialScrollLocation = await this.getScrollDetails();
+    return this.initialScrollLocation;
   }
 
   async getInitialPosition() {
     if (this.currentTag.osName === 'iOS') {
-      this.initialScrollFactor = await this.getInitialScrollFactor();
+      this.initialScrollLocation = await this.getInitialScrollPosition();
     }
   }
 
   async scrollToInitialPosition() {
     if (this.currentTag.osName === 'iOS') {
-      await this.driver.executeScript({ script: `window.scrollTo(${this.initialScrollFactor.value[0]}, ${this.initialScrollFactor.value[1]})`, args: [] });
+      await this.driver.executeScript({ script: `window.scrollTo(${this.initialScrollLocation.value[0]}, ${this.initialScrollLocation.value[1]})`, args: [] });
     }
   }
 
@@ -259,7 +259,7 @@ export default class GenericProvider {
     const scaleFactor = await this.metaData.devicePixelRatio();
     let scrollX = 0, scrollY = 0;
     if (this.options?.fullPage) {
-      const scrollParams = await this.getInitialScrollFactor();
+      const scrollParams = await this.getInitialScrollPosition();
       scrollX = scrollParams.value[0];
       scrollY = scrollParams.value[1];
     }
@@ -307,7 +307,7 @@ export default class GenericProvider {
     }
     this.pageXShiftFactor = this.currentTag.osName === 'iOS' ? 0 : (-(scrollFactors.value[0] * scaleFactor));
     if (this.currentTag.osName === 'iOS' && !this.options?.fullPage) {
-      if (scrollFactors.value[0] !== this.initialScrollFactor.value[0] || scrollFactors.value[1] !== this.initialScrollFactor.value[1]) {
+      if (scrollFactors.value[0] !== this.initialScrollLocation.value[0] || scrollFactors.value[1] !== this.initialScrollLocation.value[1]) {
         this.pageXShiftFactor = (-1 * this.removeElementShiftFactor);
         this.pageYShiftFactor = (-1 * this.removeElementShiftFactor);
       } else if (location.y === 0) {
