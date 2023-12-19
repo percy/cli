@@ -583,8 +583,7 @@ describe('GenericProvider', () => {
         provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'client', 'environment', { fullPage: true });
         provider.currentTag = { osName: 'Windows' };
         await provider.createDriver();
-        spyOn(GenericProvider.prototype, 'getInitialScrollPosition')
-          .and.returnValue({ value: [scrollX, scrollY] });
+        provider.initialScrollLocation = { value: [scrollX, scrollY] };
       });
 
       describe('When not an iOS', () => {
@@ -668,100 +667,78 @@ describe('GenericProvider', () => {
     });
   });
 
-  describe('getInitialPosition', () => {
+  describe('scrollToPosition', () => {
     let provider;
+    let executeScriptSpy;
     beforeEach(async () => {
       provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
       provider.currentTag = { osName: 'Windows' };
       await provider.createDriver();
-    });
-    describe('when not IOS', () => {
-      it('should not get the initial scroll position', async () => {
-        await provider.getInitialPosition();
-        expect(provider.initialScrollLocation).toEqual(null);
-      });
+      executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
     });
 
-    describe('when IOS', () => {
-      beforeEach(() => {
-        provider.currentTag = { osName: 'iOS' };
-      });
-
-      afterEach(() => {
-        provider.currentTag = null;
-      });
-      it('should get the initial scroll position', async () => {
-        spyOn(GenericProvider.prototype, 'getInitialScrollPosition').and.returnValue({ value: [0, 200] });
-        await provider.getInitialPosition();
-        expect(provider.initialScrollLocation).toEqual({ value: [0, 200] });
-      });
+    it('should scroll to correct position', async () => {
+      await provider.scrollToPosition(10, 20);
+      expect(executeScriptSpy).toHaveBeenCalledWith({ script: 'window.scrollTo(10, 20)', args: [] });
     });
   });
 
-  describe('scrollToInitialPosition', () => {
+  describe('isIOS', () => {
     let provider;
     beforeEach(async () => {
       provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
       provider.currentTag = { osName: 'Windows' };
-      await provider.createDriver();
-    });
-    describe('when not IOS', () => {
-      it('should not scroll to position', async () => {
-        await provider.scrollToInitialPosition();
-        expect(spyOn(Driver.prototype, 'executeScript')).toHaveBeenCalledTimes(0);
-      });
     });
 
-    describe('when IOS', () => {
-      let executeScriptSpy;
-      beforeEach(() => {
-        provider.currentTag = { osName: 'iOS' };
-        provider.initialScrollLocation = { value: [0, 50] };
-        executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
-      });
+    it('when not iOS returns false', async () => {
+      let result = provider.isIOS();
+      expect(result).toEqual(false);
+    });
 
-      afterEach(() => {
-        provider.currentTag = null;
-      });
-      it('should scroll to position', async () => {
-        await provider.scrollToInitialPosition();
-        expect(executeScriptSpy).toHaveBeenCalledTimes(1);
-        expect(executeScriptSpy).toHaveBeenCalledWith({ script: 'window.scrollTo(0, 50)', args: [] });
-      });
+    it('when iOS returns true', async () => {
+      provider.currentTag = { osName: 'iOS' };
+      let result = provider.isIOS();
+      expect(result).toEqual(true);
     });
   });
 
   describe('getSeleniumRegionsByElement', () => {
     let getRegionObjectSpy;
-    let getInitialPositionSpy;
-    let scrollToInitialPositionSpy;
+    let scrollToPositionSpy;
     let provider;
+    const elements = ['mockElement_1', 'mockElement_2', 'mockElement_3'];
 
     beforeEach(async () => {
       provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
       await provider.createDriver();
       getRegionObjectSpy = spyOn(GenericProvider.prototype, 'getRegionObject').and.returnValue({});
-      getInitialPositionSpy = spyOn(GenericProvider.prototype, 'getInitialPosition');
-      scrollToInitialPositionSpy = spyOn(GenericProvider.prototype, 'scrollToInitialPosition');
+      scrollToPositionSpy = spyOn(GenericProvider.prototype, 'scrollToPosition');
     });
 
     it('should add regions for each element', async () => {
-      const elements = ['mockElement_1', 'mockElement_2', 'mockElement_3'];
-
       const elementsArray = await provider.getSeleniumRegionsByElement(elements);
-      expect(getInitialPositionSpy).toHaveBeenCalledTimes(1);
       expect(getRegionObjectSpy).toHaveBeenCalledTimes(3);
-      expect(scrollToInitialPositionSpy).toHaveBeenCalledTimes(1);
       expect(elementsArray).toEqual([{}, {}, {}]);
     });
 
     it('should ignore when error', async () => {
       getRegionObjectSpy.and.rejectWith(new Error('Element not found'));
-      const elements = ['mockElement_1', 'mockElement_2', 'mockElement_3'];
 
       const elementsArray = await provider.getSeleniumRegionsByElement(elements);
 
       expect(elementsArray).toEqual([]);
+    });
+
+    it('should not scroll back to initial position for non iOS', async () => {
+      await provider.getSeleniumRegionsByElement(elements);
+      expect(scrollToPositionSpy).not.toHaveBeenCalled();
+    });
+
+    it('should scroll back to initial position for iOS', async () => {
+      provider.currentTag = { osName: 'iOS' };
+      provider.initialScrollLocation = { value: [10, 20] };
+      await provider.getSeleniumRegionsByElement(elements);
+      expect(scrollToPositionSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -860,11 +837,13 @@ describe('GenericProvider', () => {
   describe('doTransformations', () => {
     let provider;
     let executeScriptSpy;
+    let getInitialScrollLocationSpy;
 
     beforeEach(async () => {
       provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
       await provider.createDriver();
       executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
+      getInitialScrollLocationSpy = spyOn(GenericProvider.prototype, 'getInitialScrollLocation');
     });
 
     it('should do transfomation', async () => {
@@ -886,6 +865,25 @@ describe('GenericProvider', () => {
     document.head.appendChild(e);`;
       await provider.doTransformations();
       expect(executeScriptSpy).toHaveBeenCalledWith({ script: jsScript, args: [] });
+    });
+
+    it('should not get initial scroll position for singlepage for non ios', async () => {
+      await provider.doTransformations();
+      expect(getInitialScrollLocationSpy).not.toHaveBeenCalled();
+    });
+
+    it('should get initial scroll position for singlepage for ios', async () => {
+      provider.currentTag = { osName: 'iOS' };
+      await provider.createDriver();
+      await provider.doTransformations();
+      expect(getInitialScrollLocationSpy).toHaveBeenCalled();
+    });
+
+    it('should get initial scroll position for singlepage', async () => {
+      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'client', 'environment', { fullPage: true });
+      await provider.createDriver();
+      await provider.doTransformations();
+      expect(getInitialScrollLocationSpy).toHaveBeenCalled();
     });
   });
 
@@ -926,7 +924,7 @@ describe('GenericProvider', () => {
     });
   });
 
-  describe('getInitialScrollPosition', () => {
+  describe('getInitialScrollLocation', () => {
     let provider;
     let getScrollDetailsSpy;
 
@@ -938,12 +936,12 @@ describe('GenericProvider', () => {
     });
 
     it('do not get scroll details if already present', async () => {
-      provider.getInitialScrollPosition();
+      provider.getInitialScrollLocation();
       expect(getScrollDetailsSpy).not.toHaveBeenCalled();
     });
     it('gets scroll details if not present', async () => {
       provider.initialScrollLocation = null;
-      provider.getInitialScrollPosition();
+      provider.getInitialScrollLocation();
       expect(getScrollDetailsSpy).toHaveBeenCalled();
     });
   });

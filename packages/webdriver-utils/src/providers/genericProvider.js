@@ -69,11 +69,15 @@ export default class GenericProvider {
     }
   }
 
+  isIOS() {
+    return this.currentTag?.osName === 'iOS';
+  }
+
   async getScrollDetails() {
     return await this.driver.executeScript({ script: 'return [parseInt(window.scrollX), parseInt(window.scrollY)];', args: [] });
   }
 
-  async getInitialScrollPosition() {
+  async getInitialScrollLocation() {
     if (this.initialScrollLocation) {
       return this.initialScrollLocation;
     }
@@ -81,16 +85,8 @@ export default class GenericProvider {
     return this.initialScrollLocation;
   }
 
-  async getInitialPosition() {
-    if (this.currentTag.osName === 'iOS') {
-      this.initialScrollLocation = await this.getInitialScrollPosition();
-    }
-  }
-
-  async scrollToInitialPosition() {
-    if (this.currentTag.osName === 'iOS') {
-      await this.driver.executeScript({ script: `window.scrollTo(${this.initialScrollLocation.value[0]}, ${this.initialScrollLocation.value[1]})`, args: [] });
-    }
+  async scrollToPosition(x, y) {
+    await this.driver.executeScript({ script: `window.scrollTo(${x}, ${y})`, args: [] });
   }
 
   async screenshot(name, {
@@ -224,6 +220,9 @@ export default class GenericProvider {
     document.head.appendChild(e);`;
 
     await this.driver.executeScript({ script: jsScript, args: [] });
+    if (this.options?.fullPage || this.isIOS()) {
+      await this.getInitialScrollLocation();
+    }
   }
 
   async undoTransformations(data) {
@@ -259,13 +258,12 @@ export default class GenericProvider {
     const scaleFactor = await this.metaData.devicePixelRatio();
     let scrollX = 0, scrollY = 0;
     if (this.options?.fullPage) {
-      const scrollParams = await this.getInitialScrollPosition();
-      scrollX = scrollParams.value[0];
-      scrollY = scrollParams.value[1];
+      scrollX = this.initialScrollLocation.value[0];
+      scrollY = this.initialScrollLocation.value[1];
     }
 
     let headerAdjustment = 0;
-    if (this.currentTag.osName === 'iOS') {
+    if (this.isIOS()) {
       headerAdjustment = this.statusBarHeight;
     }
     const coOrdinates = {
@@ -300,13 +298,13 @@ export default class GenericProvider {
   }
 
   async updatePageShiftFactor(location, scaleFactor, scrollFactors) {
-    if (this.currentTag.osName === 'iOS' || (this.currentTag.osName === 'OS X' && parseInt(this.currentTag.browserVersion) > 13 && this.currentTag.browserName.toLowerCase() === 'safari')) {
+    if (this.isIOS() || (this.currentTag.osName === 'OS X' && parseInt(this.currentTag.browserVersion) > 13 && this.currentTag.browserName.toLowerCase() === 'safari')) {
       this.pageYShiftFactor = this.statusBarHeight;
     } else {
       this.pageYShiftFactor = this.statusBarHeight - (scrollFactors.value[1] * scaleFactor);
     }
-    this.pageXShiftFactor = this.currentTag.osName === 'iOS' ? 0 : (-(scrollFactors.value[0] * scaleFactor));
-    if (this.currentTag.osName === 'iOS' && !this.options?.fullPage) {
+    this.pageXShiftFactor = this.isIOS() ? 0 : (-(scrollFactors.value[0] * scaleFactor));
+    if (this.isIOS() && !this.options?.fullPage) {
       if (scrollFactors.value[0] !== this.initialScrollLocation.value[0] || scrollFactors.value[1] !== this.initialScrollLocation.value[1]) {
         this.pageXShiftFactor = (-1 * this.removeElementShiftFactor);
         this.pageYShiftFactor = (-1 * this.removeElementShiftFactor);
@@ -350,7 +348,6 @@ export default class GenericProvider {
 
   async getSeleniumRegionsByElement(elements) {
     const regionsArray = [];
-    await this.getInitialPosition();
     for (let index = 0; index < elements.length; index++) {
       try {
         const selector = `element: ${index}`;
@@ -361,7 +358,10 @@ export default class GenericProvider {
         log.debug(e.toString());
       }
     }
-    await this.scrollToInitialPosition();
+
+    if (this.isIOS()) {
+      await this.scrollToPosition(this.initialScrollLocation.value[0], this.initialScrollLocation.value[1]);
+    }
     return regionsArray;
   }
 
