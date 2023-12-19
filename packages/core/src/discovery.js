@@ -42,6 +42,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'deviceScaleFactor');
   debugProp(snapshot, 'waitForTimeout');
   debugProp(snapshot, 'waitForSelector');
+  debugProp(snapshot, 'scopeOptions.scroll');
   debugProp(snapshot, 'execute.afterNavigation');
   debugProp(snapshot, 'execute.beforeResize');
   debugProp(snapshot, 'execute.afterResize');

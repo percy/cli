@@ -21,6 +21,10 @@ interface DiscoveryOptions {
   captureMockedServiceWorker?: boolean;
 }
 
+interface ScopeOptions {
+  scroll?: boolean;
+}
+
 interface DiscoveryLaunchOptions {
   executable?: string;
   args?: string[];
@@ -45,6 +49,7 @@ interface CommonSnapshotOptions {
   reshuffleInvalidTags?: boolean;
   devicePixelRatio?: number;
   scope?: string;
+  scopeOptions?: ScopeOptions;
 }
 
 export interface SnapshotOptions extends CommonSnapshotOptions {

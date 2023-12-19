@@ -59,6 +59,15 @@ export const configSchema = {
       scope: {
         type: 'string'
       },
+      scopeOptions: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          scroll: {
+            type: 'boolean'
+          }
+        }
+      },
       freezeAnimation: { // for backward compatibility
         type: 'boolean',
         onlyAutomate: true
@@ -244,6 +253,7 @@ export const snapshotSchema = {
         domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
         enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
         reshuffleInvalidTags: { $ref: '/config/snapshot#/properties/reshuffleInvalidTags' },
+        scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
         discovery: {
           type: 'object',
           additionalProperties: false,
@@ -258,6 +268,9 @@ export const snapshotSchema = {
             devicePixelRatio: { $ref: '/config/discovery#/properties/devicePixelRatio' }
           }
         }
+      },
+      dependencies: {
+        scopeOptions: ['scope']
       }
     },
     exec: {

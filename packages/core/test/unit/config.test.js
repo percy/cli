@@ -1,5 +1,7 @@
 import logger from '@percy/logger/test/helpers';
 import { configMigration, snapshotSchema } from '../../src/config.js';
+import * as CoreConfig from '@percy/core/config';
+import PercyConfig from '@percy/config';
 
 describe('Unit / Config Migration', () => {
   let mocked = {
@@ -81,5 +83,37 @@ describe('Unit / Config Migration', () => {
 describe('SnapshotSchema', () => {
   it('should contain domTransformation', () => {
     expect(snapshotSchema.$defs.common.properties).toEqual(jasmine.objectContaining({ domTransformation: jasmine.anything() }));
+  });
+
+  it('scopeOptions should work with scope', () => {
+    const comparison = {
+      name: 'snapfoo',
+      url: 'some_url',
+      widths: [1000],
+      scope: '#main',
+      scopeOptions: { scroll: true },
+      enableJavaScript: true
+    };
+
+    PercyConfig.addSchema(CoreConfig.schemas);
+    const errors = PercyConfig.validate(comparison, '/snapshot');
+    expect(errors).toBe(undefined);
+  });
+
+  it('scopeOptions should not work without scope', () => {
+    const comparison = {
+      name: 'snapfoo',
+      url: 'some_url',
+      widths: [1000],
+      scopeOptions: { scroll: true },
+      enableJavaScript: true
+    };
+
+    PercyConfig.addSchema(CoreConfig.schemas);
+    const errors = PercyConfig.validate(comparison, '/snapshot');
+    expect(errors).not.toBe(null);
+    expect(errors.length).toBe(1);
+    expect(errors[0].path).toBe('scope');
+    expect(errors[0].message).toBe('must have property scope when property scopeOptions is present');
   });
 });
