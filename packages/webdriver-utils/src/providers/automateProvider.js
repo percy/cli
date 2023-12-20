@@ -127,11 +127,12 @@ export default class AutomateProvider extends GenericProvider {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     log.debug('Starting actual screenshotting phase');
     const dpr = await this.metaData.devicePixelRatio();
+    const screenshotType = this.options?.fullPage ? 'fullpage' : 'singlepage';
     const response = await TimeIt.run('percyScreenshot:screenshot', async () => {
       return await this.browserstackExecutor('percyScreenshot', {
         state: 'screenshot',
         percyBuildId: this.buildInfo.id,
-        screenshotType: this.options?.fullPage ? 'fullpage' : 'singlepage',
+        screenshotType: screenshotType,
         scaleFactor: dpr,
         options: this.options
       });
@@ -156,7 +157,9 @@ export default class AutomateProvider extends GenericProvider {
         sha: tileData.sha.split('-')[0] // drop build id
       }));
     }
-    const metadata = {};
+    const metadata = {
+      screenshotType: screenshotType
+    };
     return { tiles: tiles, domInfoSha: tileResponse.dom_sha, metadata: metadata };
   }
 
