@@ -545,7 +545,8 @@ export const comparisonSchema = {
           minimum: 0
         },
         cliScreenshotStartTime: { type: 'integer', default: 0 },
-        cliScreenshotEndTime: { type: 'integer', default: 0 }
+        cliScreenshotEndTime: { type: 'integer', default: 0 },
+        screenshotType: { type: 'string', default: 'singlepage' }
       }
     },
     tag: {

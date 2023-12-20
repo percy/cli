@@ -4,6 +4,7 @@ import AutomateProvider from '../../src/providers/automateProvider.js';
 import DesktopMetaData from '../../src/metadata/desktopMetaData.js';
 import Tile from '../../src/util/tile.js';
 import MobileMetaData from '../../src/metadata/mobileMetaData.js';
+import Cache from '../../src/util/cache.js';
 
 describe('AutomateProvider', () => {
   let superScreenshotSpy;
@@ -238,43 +239,10 @@ describe('AutomateProvider', () => {
     });
   });
 
-  describe('getTiles', () => {
-    let browserstackExecutorSpy;
-    let executeScriptSpy;
-    let percyBuildInfo = {
-      id: '123',
-      url: 'https://percy.io/abc/123'
-    };
-    const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', {}, percyBuildInfo);
-
-    beforeEach(async () => {
-      spyOn(Driver.prototype, 'getCapabilites');
-      browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
-        .and.returnValue(Promise.resolve({ value: '{ "result": "{\\"dom_sha\\": \\"abc\\", \\"sha\\": [\\"abc-1\\", \\"xyz-2\\"]}", "success":true }' }));
-      executeScriptSpy = spyOn(Driver.prototype, 'executeScript')
-        .and.returnValue(Promise.resolve(1));
-    });
-
-    it('should return tiles when success', async () => {
-      await automateProvider.createDriver();
-      const res = await automateProvider.getTiles(123, 456, false);
-      expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
-      expect(executeScriptSpy).toHaveBeenCalledTimes(1);
-      expect(Object.keys(res).length).toEqual(3);
-      expect(res.domInfoSha).toBe('abc');
-      expect(res.tiles.length).toEqual(2);
-      expect(res.tiles[0]).toBeInstanceOf(Tile);
-      expect(res.tiles[1]).toBeInstanceOf(Tile);
-      expect(res.tiles[0].sha).toEqual('abc');
-      expect(res.tiles[1].sha).toEqual('xyz');
-      expect(res.tiles[0].headerHeight).toEqual(123);
-      expect(res.tiles[0].footerHeight).toEqual(456);
-      expect(res.tiles[0].navBarHeight).toEqual(0);
-      expect(res.tiles[0].statusBarHeight).toEqual(0);
-    });
-
+  function tilesErrorResponseCheck(automateProvider) {
     it('throws error when response is false', async () => {
       await automateProvider.createDriver();
+      let browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor');
       browserstackExecutorSpy.and.returnValue(Promise.resolve({ value: '{ "error": "Random Error", "success":false }' }));
       await expectAsync(automateProvider.getTiles(false)).toBeRejectedWithError('Failed to get screenshots from Automate.' +
         ' Check dashboard for error.');
@@ -283,6 +251,125 @@ describe('AutomateProvider', () => {
     it('throws error when driver is null', async () => {
       automateProvider.driver = null;
       await expectAsync(automateProvider.getTiles(false)).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
+    });
+  }
+
+  describe('getTiles', () => {
+    let percyBuildInfo = {
+      id: '123',
+      url: 'https://percy.io/abc/123'
+    };
+    let browserstackExecutorSpy = null;
+    let executeScriptSpy;
+
+    describe('fullpage', () => {
+      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', { fullPage: true }, percyBuildInfo);
+
+      beforeEach(async () => {
+        Cache.reset();
+        spyOn(Driver.prototype, 'getCapabilites');
+        executeScriptSpy = spyOn(Driver.prototype, 'executeScript')
+          .and.returnValue(Promise.resolve(1));
+      });
+
+      it('should return tiles when success', async () => {
+        browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
+          .and.returnValue(Promise.resolve({ value: '{"success": true, "result": "{\\"tiles\\":[{\\"sha\\":\\"abc\\",\\"status_bar\\":0,\\"nav_bar\\":156,\\"header_height\\":0,\\"footer_height\\":156,\\"index\\":0},{\\"sha\\":\\"cde\\",\\"status_bar\\":0,\\"nav_bar\\":156,\\"header_height\\":0.0,\\"footer_height\\":156.0,\\"index\\":1}],\\"dom_sha\\":\\"def\\"}"}' }));
+        await automateProvider.createDriver();
+        const res = await automateProvider.getTiles(false);
+        const expectedOutput = {
+          tiles: [
+            new Tile({
+              statusBarHeight: 0,
+              navBarHeight: 156,
+              headerHeight: 0,
+              footerHeight: 156,
+              fullscreen: false,
+              sha: 'abc'
+            }),
+            new Tile({
+              statusBarHeight: 0,
+              navBarHeight: 156,
+              headerHeight: 0,
+              footerHeight: 156,
+              fullscreen: false,
+              sha: 'cde'
+            })
+          ],
+          domInfoSha: 'def',
+          metadata: {
+            screenshotType: 'fullpage'
+          }
+        };
+        expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
+        expect(executeScriptSpy).toHaveBeenCalledTimes(1);
+        expect(res).toEqual(expectedOutput);
+      });
+
+      it('should return default values of header and footer if not in response', async () => {
+        browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
+          .and.returnValue(Promise.resolve({ value: '{"success": true, "result": "{\\"tiles\\":[{\\"sha\\":\\"abc\\",\\"index\\":0}],\\"dom_sha\\":\\"def\\"}"}' }));
+        await automateProvider.createDriver();
+        const res = await automateProvider.getTiles(false);
+        const expectedOutput = {
+          tiles: [
+            new Tile({
+              statusBarHeight: 0,
+              navBarHeight: 0,
+              headerHeight: 0,
+              footerHeight: 0,
+              fullscreen: false,
+              sha: 'abc'
+            })
+          ],
+          domInfoSha: 'def',
+          metadata: {
+            screenshotType: 'fullpage'
+          }
+        };
+        expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
+        expect(executeScriptSpy).toHaveBeenCalledTimes(1);
+        expect(res).toEqual(expectedOutput);
+      });
+
+      tilesErrorResponseCheck(automateProvider);
+    });
+
+    describe('singlepage', () => {
+      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', {}, percyBuildInfo);
+      beforeEach(async () => {
+        Cache.reset();
+        spyOn(Driver.prototype, 'getCapabilites');
+        browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
+          .and.returnValue(Promise.resolve({ value: '{"success": true, "result": "{\\"tiles\\":[{\\"sha\\":\\"abc\\",\\"status_bar\\":0,\\"nav_bar\\":156,\\"header_height\\":0,\\"footer_height\\":156,\\"index\\":0}],\\"dom_sha\\":\\"def\\"}"}' }));
+        executeScriptSpy = spyOn(Driver.prototype, 'executeScript')
+          .and.returnValue(Promise.resolve(1));
+      });
+
+      it('should return tiles when success', async () => {
+        await automateProvider.createDriver();
+        const res = await automateProvider.getTiles(false);
+        const expectedOutput = {
+          tiles: [
+            new Tile({
+              statusBarHeight: 0,
+              navBarHeight: 156,
+              headerHeight: 0,
+              footerHeight: 156,
+              fullscreen: false,
+              sha: 'abc'
+            })
+          ],
+          domInfoSha: 'def',
+          metadata: {
+            screenshotType: 'singlepage'
+          }
+        };
+        expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
+        expect(executeScriptSpy).toHaveBeenCalledTimes(1);
+        expect(res).toEqual(expectedOutput);
+      });
+      tilesErrorResponseCheck(automateProvider);
     });
   });
 

@@ -307,7 +307,8 @@ describe('API Server', () => {
         percyCSS: '.global { color: blue }\n.percy-screenshot: { color: red }',
         ignoreRegionSelectors: ['.selector-global'],
         ignoreRegionXpaths: ['/xpath-per-screenshot'],
-        considerRegionXpaths: ['/xpath-global', '/xpath-per-screenshot']
+        considerRegionXpaths: ['/xpath-global', '/xpath-per-screenshot'],
+        version: 'v2'
       }
     }));
 

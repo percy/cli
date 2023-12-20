@@ -38,7 +38,7 @@ export default class GenericProvider {
     this.pageYShiftFactor = 0;
     this.currentTag = null;
     this.removeElementShiftFactor = 50000;
-    this.initialScrollFactor = { value: [0, 0] };
+    this.initialScrollLocation = null;
   }
 
   addDefaultOptions() {
@@ -69,16 +69,24 @@ export default class GenericProvider {
     }
   }
 
-  async getInitialPosition() {
-    if (this.currentTag.osName === 'iOS') {
-      this.initialScrollFactor = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX), parseInt(window.scrollY)];', args: [] });
-    }
+  isIOS() {
+    return this.currentTag?.osName === 'iOS';
   }
 
-  async scrollToInitialPosition(x, y) {
-    if (this.currentTag.osName === 'iOS') {
-      await this.driver.executeScript({ script: `window.scrollTo(${x}, ${y})`, args: [] });
+  async getScrollDetails() {
+    return await this.driver.executeScript({ script: 'return [parseInt(window.scrollX), parseInt(window.scrollY)];', args: [] });
+  }
+
+  async getInitialScrollLocation() {
+    if (this.initialScrollLocation) {
+      return this.initialScrollLocation;
     }
+    this.initialScrollLocation = await this.getScrollDetails();
+    return this.initialScrollLocation;
+  }
+
+  async scrollToPosition(x, y) {
+    await this.driver.executeScript({ script: `window.scrollTo(${x}, ${y})`, args: [] });
   }
 
   async screenshot(name, {
@@ -101,7 +109,7 @@ export default class GenericProvider {
     const tag = await this.getTag();
     log.debug(`[${name}] : Tag ${JSON.stringify(tag)}`);
 
-    const tiles = await this.getTiles(this.header, this.footer, fullscreen);
+    const tiles = await this.getTiles(fullscreen);
     log.debug(`[${name}] : Tiles ${JSON.stringify(tiles)}`);
 
     this.currentTag = tag;
@@ -146,7 +154,7 @@ export default class GenericProvider {
     return await this.driver.executeScript({ script: 'return window.innerHeight', args: [] }); ;
   }
 
-  async getTiles(headerHeight, footerHeight, fullscreen) {
+  async getTiles(fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     const base64content = await this.driver.takeScreenshot();
     log.debug('Tiles captured successfully');
@@ -156,8 +164,8 @@ export default class GenericProvider {
           content: base64content,
           statusBarHeight: 0,
           navBarHeight: 0,
-          headerHeight,
-          footerHeight,
+          headerHeight: this.header,
+          footerHeight: this.footer,
           fullscreen
         })
       ],
@@ -212,6 +220,9 @@ export default class GenericProvider {
     document.head.appendChild(e);`;
 
     await this.driver.executeScript({ script: jsScript, args: [] });
+    if (this.options?.fullPage || this.isIOS()) {
+      await this.getInitialScrollLocation();
+    }
   }
 
   async undoTransformations(data) {
@@ -245,15 +256,21 @@ export default class GenericProvider {
 
   async getRegionObjectFromBoundingBox(selector, element) {
     const scaleFactor = await this.metaData.devicePixelRatio();
+    let scrollX = 0, scrollY = 0;
+    if (this.options?.fullPage) {
+      scrollX = this.initialScrollLocation.value[0];
+      scrollY = this.initialScrollLocation.value[1];
+    }
+
     let headerAdjustment = 0;
-    if (this.currentTag.osName === 'iOS') {
+    if (this.isIOS()) {
       headerAdjustment = this.statusBarHeight;
     }
     const coOrdinates = {
-      top: Math.floor(element.y * scaleFactor) + Math.floor(headerAdjustment),
-      bottom: Math.ceil((element.y + element.height) * scaleFactor) + Math.ceil(headerAdjustment),
-      left: Math.floor(element.x * scaleFactor),
-      right: Math.ceil((element.x + element.width) * scaleFactor)
+      top: Math.floor((element.y + scrollY) * scaleFactor) + Math.floor(headerAdjustment),
+      bottom: Math.ceil((element.y + element.height + scrollY) * scaleFactor) + Math.ceil(headerAdjustment),
+      left: Math.floor((element.x + scrollX) * scaleFactor),
+      right: Math.ceil((element.x + element.width + scrollX) * scaleFactor)
     };
 
     const jsonObject = {
@@ -280,16 +297,15 @@ export default class GenericProvider {
     return regionsArray;
   }
 
-  async updatePageShiftFactor(location, scaleFactor) {
-    const scrollFactors = await this.driver.executeScript({ script: 'return [parseInt(window.scrollX), parseInt(window.scrollY)];', args: [] });
-    if (this.currentTag.osName === 'iOS' || (this.currentTag.osName === 'OS X' && parseInt(this.currentTag.browserVersion) > 13 && this.currentTag.browserName.toLowerCase() === 'safari')) {
+  async updatePageShiftFactor(location, scaleFactor, scrollFactors) {
+    if (this.isIOS() || (this.currentTag.osName === 'OS X' && parseInt(this.currentTag.browserVersion) > 13 && this.currentTag.browserName.toLowerCase() === 'safari')) {
       this.pageYShiftFactor = this.statusBarHeight;
     } else {
       this.pageYShiftFactor = this.statusBarHeight - (scrollFactors.value[1] * scaleFactor);
     }
-    this.pageXShiftFactor = this.currentTag.osName === 'iOS' ? 0 : (-(scrollFactors.value[0] * scaleFactor));
-    if (this.currentTag.osName === 'iOS') {
-      if (scrollFactors.value[0] !== this.initialScrollFactor.value[0] || scrollFactors.value[1] !== this.initialScrollFactor.value[1]) {
+    this.pageXShiftFactor = this.isIOS() ? 0 : (-(scrollFactors.value[0] * scaleFactor));
+    if (this.isIOS() && !this.options?.fullPage) {
+      if (scrollFactors.value[0] !== this.initialScrollLocation.value[0] || scrollFactors.value[1] !== this.initialScrollLocation.value[1]) {
         this.pageXShiftFactor = (-1 * this.removeElementShiftFactor);
         this.pageYShiftFactor = (-1 * this.removeElementShiftFactor);
       } else if (location.y === 0) {
@@ -303,16 +319,23 @@ export default class GenericProvider {
     const rect = await this.driver.rect(elementId);
     const location = { x: rect.x, y: rect.y };
     const size = { height: rect.height, width: rect.width };
+    let scrollX = 0, scrollY = 0;
+    const scrollFactors = await this.getScrollDetails();
+    if (this.options?.fullPage) {
+      scrollX = scrollFactors.value[0];
+      scrollY = scrollFactors.value[1];
+    }
+
     // Update pageShiftFactor Element is not visible in viewport
     // In case of iOS if the element is not visible in viewport it gives 0 for x-y coordinate.
     // In case of iOS if the element is partially visible it gives negative x-y coordinate.
     // Subtracting ScrollY/ScrollX ensures if the element is visible in viewport or not.
-    await this.updatePageShiftFactor(location, scaleFactor);
+    await this.updatePageShiftFactor(location, scaleFactor, scrollFactors);
     const coOrdinates = {
-      top: Math.floor(location.y * scaleFactor) + Math.floor(this.pageYShiftFactor),
-      bottom: Math.ceil((location.y + size.height) * scaleFactor) + Math.ceil(this.pageYShiftFactor),
-      left: Math.floor(location.x * scaleFactor) + Math.floor(this.pageXShiftFactor),
-      right: Math.ceil((location.x + size.width) * scaleFactor) + Math.ceil(this.pageXShiftFactor)
+      top: Math.floor((location.y + scrollY) * scaleFactor) + Math.floor(this.pageYShiftFactor),
+      bottom: Math.ceil((location.y + size.height + scrollY) * scaleFactor) + Math.ceil(this.pageYShiftFactor),
+      left: Math.floor((location.x + scrollX) * scaleFactor) + Math.floor(this.pageXShiftFactor),
+      right: Math.ceil((location.x + size.width + scrollX) * scaleFactor) + Math.ceil(this.pageXShiftFactor)
     };
 
     const jsonObject = {
@@ -325,7 +348,6 @@ export default class GenericProvider {
 
   async getSeleniumRegionsByElement(elements) {
     const regionsArray = [];
-    await this.getInitialPosition();
     for (let index = 0; index < elements.length; index++) {
       try {
         const selector = `element: ${index}`;
@@ -336,7 +358,10 @@ export default class GenericProvider {
         log.debug(e.toString());
       }
     }
-    await this.scrollToInitialPosition(this.initialScrollFactor.value[0], this.initialScrollFactor.value[1]);
+
+    if (this.isIOS()) {
+      await this.scrollToPosition(this.initialScrollLocation.value[0], this.initialScrollLocation.value[1]);
+    }
     return regionsArray;
   }
 
