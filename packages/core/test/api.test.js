@@ -287,6 +287,7 @@ describe('API Server', () => {
         client_info: 'client',
         environment_info: 'environment',
         options: {
+          fullPage: true,
           percyCSS: '.percy-screenshot: { color: red }',
           freeze_animated_image: true,
           freezeImageBySelectors: ['.selector-per-screenshot'],
@@ -302,7 +303,7 @@ describe('API Server', () => {
       environmentInfo: 'environment',
       buildInfo: { id: '123', url: 'https://percy.io/test/test/123', number: 1 },
       options: {
-        fullPage: false,
+        fullPage: true,
         freezeAnimatedImage: true,
         freezeImageBySelectors: ['.selector-per-screenshot'],
         freezeImageByXpaths: ['/xpath-global'],
