@@ -94,11 +94,12 @@ describe('serializeFrames', () => {
     });
 
     it(`${platform}: serializes iframes created with JS`, () => {
+      let dom = platformDOM(platform);
       expect($('#frame-js')[0].getAttribute('src')).toBeNull();
       expect($('#frame-js')[0].getAttribute('srcdoc')).toMatch(new RegExp([
         '<!DOCTYPE html><html><head>',
         '<script id="__percy_shadowdom_helper" data-percy-injected="true">.*</script>',
-        `<base href="${$('#frame-js')[0].baseURI}">`,
+        `<base href="${dom.querySelector('#frame-js').baseURI}">`,
         '</head><body>',
         '<p>made with js src</p>',
         '</body></html>'
@@ -108,7 +109,7 @@ describe('serializeFrames', () => {
       expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toMatch([
         '<!DOCTYPE html><html><head>',
         '<script id="__percy_shadowdom_helper" data-percy-injected="true">.*</script>',
-        `<base href="${$('#frame-js-no-src')[0].baseURI}">`,
+        `<base href="${dom.querySelector('#frame-js-no-src').baseURI}">`,
         '</head><body>',
         '<p>generated iframe</p>',
         '<img .*data-percy-canvas-serialized.*>',
