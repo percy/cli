@@ -274,6 +274,7 @@ describe('API Server', () => {
 
     await percy.start();
 
+    percy.config.snapshot.fullPage = false;
     percy.config.snapshot.percyCSS = '.global { color: blue }';
     percy.config.snapshot.freezeAnimatedImage = false;
     percy.config.snapshot.freezeAnimatedImageOptions = { freezeImageByXpaths: ['/xpath-global'] };
@@ -301,6 +302,7 @@ describe('API Server', () => {
       environmentInfo: 'environment',
       buildInfo: { id: '123', url: 'https://percy.io/test/test/123', number: 1 },
       options: {
+        fullPage: false,
         freezeAnimatedImage: true,
         freezeImageBySelectors: ['.selector-per-screenshot'],
         freezeImageByXpaths: ['/xpath-global'],
