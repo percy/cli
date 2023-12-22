@@ -68,6 +68,10 @@ export const configSchema = {
           }
         }
       },
+      fullPage: {
+        type: 'boolean',
+        onlyAutomate: true
+      },
       freezeAnimation: { // for backward compatibility
         type: 'boolean',
         onlyAutomate: true

@@ -1202,7 +1202,8 @@ describe('PercyConfig', () => {
         'disable-shadow-dom': true,
         'cli-enable-javascript': true,
         'ignore-region-xpaths': [''],
-        'enable-layout': false
+        'enable-layout': false,
+        'full-page': false
       })).toEqual({
         fooBar: 'baz',
         foo: { barBaz: 'qux' },
@@ -1213,7 +1214,8 @@ describe('PercyConfig', () => {
         disableShadowDOM: true,
         cliEnableJavaScript: true,
         ignoreRegionXpaths: [''],
-        enableLayout: false
+        enableLayout: false,
+        fullPage: false
       });
     });
 
@@ -1227,7 +1229,8 @@ describe('PercyConfig', () => {
         disableShadowDOM: true,
         cliEnableJavaScript: true,
         ignoreRegionXpaths: [''],
-        enableLayout: false
+        enableLayout: false,
+        fullPage: false
       }, { kebab: true })).toEqual({
         'foo-bar': 'baz',
         foo: { 'bar-baz': 'qux' },
@@ -1237,7 +1240,8 @@ describe('PercyConfig', () => {
         'disable-shadow-dom': true,
         'cli-enable-javascript': true,
         'ignore-region-xpaths': [''],
-        'enable-layout': false
+        'enable-layout': false,
+        'full-page': false
       });
     });
 
@@ -1251,7 +1255,8 @@ describe('PercyConfig', () => {
         disableShadowDOM: true,
         cliEnableJavaScript: true,
         ignoreRegionXpaths: [''],
-        enableLayout: false
+        enableLayout: false,
+        fullPage: false
       }, { snake: true })).toEqual({
         foo_bar: 'baz',
         foo: { bar_baz: 'qux' },
@@ -1261,7 +1266,8 @@ describe('PercyConfig', () => {
         disable_shadow_dom: true,
         cli_enable_javascript: true,
         ignore_region_xpaths: [''],
-        enable_layout: false
+        enable_layout: false,
+        full_page: false
       });
     });
 

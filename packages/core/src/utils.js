@@ -41,6 +41,7 @@ export function percyAutomateRequestHandler(req, percy) {
   });
 
   req.body.options = merge([{
+    fullPage: percy.config.snapshot.fullPage,
     percyCSS: percy.config.snapshot.percyCSS,
     freezeAnimatedImage: percy.config.snapshot.freezeAnimatedImage || percy.config.snapshot.freezeAnimation,
     freezeImageBySelectors: percy.config.snapshot.freezeAnimatedImageOptions?.freezeImageBySelectors,
