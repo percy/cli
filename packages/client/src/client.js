@@ -6,6 +6,7 @@ import logger from '@percy/logger';
 import {
   pool,
   request,
+  formatBytes,
   sha256hash,
   base64encode,
   getPackageJSON,
@@ -269,15 +270,17 @@ export class PercyClient {
   // created from `content` if one is not provided.
   async uploadResource(buildId, { url, sha, filepath, content } = {}) {
     validateId('build', buildId);
-    this.log.debug(`Uploading resource: ${url}...`);
     if (filepath) content = await fs.promises.readFile(filepath);
+    let encodedContent = base64encode(content);
+
+    this.log.debug(`Uploading ${formatBytes(encodedContent.length)} resource: ${url}...`);
 
     return this.post(`builds/${buildId}/resources`, {
       data: {
         type: 'resources',
         id: sha || sha256hash(content),
         attributes: {
-          'base64-content': base64encode(content)
+          'base64-content': encodedContent
         }
       }
     });
@@ -437,17 +440,19 @@ export class PercyClient {
 
   async uploadComparisonTile(comparisonId, { index = 0, total = 1, filepath, content, sha } = {}) {
     validateId('comparison', comparisonId);
-    this.log.debug(`Uploading comparison tile: ${index + 1}/${total} (${comparisonId})...`);
-    if (filepath && !content) content = await fs.promises.readFile(filepath);
     if (sha) {
       return await this.verify(comparisonId, sha);
     }
+    if (filepath && !content) content = await fs.promises.readFile(filepath);
+    let encodedContent = base64encode(content);
+
+    this.log.debug(`Uploading ${formatBytes(encodedContent.length)} comparison tile: ${index + 1}/${total} (${comparisonId})...`);
 
     return this.post(`comparisons/${comparisonId}/tiles`, {
       data: {
         type: 'tiles',
         attributes: {
-          'base64-content': base64encode(content),
+          'base64-content': encodedContent,
           index
         }
       }

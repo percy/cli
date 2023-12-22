@@ -483,7 +483,8 @@ describe('PercyClient', () => {
     });
 
     it('uploads a resource for a build', async () => {
-      await expectAsync(client.uploadResource(123, { content: 'foo' })).toBeResolved();
+      await expectAsync(client.uploadResource(123, { content: 'foo', url: 'foo/bar' })).toBeResolved();
+      expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Uploading 4B resource: foo/bar...']));
 
       expect(api.requests['/builds/123/resources'][0].body).toEqual({
         data: {
@@ -1036,6 +1037,8 @@ describe('PercyClient', () => {
       await expectAsync(
         client.uploadComparisonTile(891011, { content: 'foo', index: 3 })
       ).toBeResolved();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Uploading 4B comparison tile: 4/1 (891011)...']));
 
       expect(api.requests['/comparisons/891011/tiles'][0].body).toEqual({
         data: {
