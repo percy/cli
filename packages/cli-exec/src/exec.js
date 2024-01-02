@@ -100,6 +100,7 @@ export const exec = command('exec', {
 async function* spawn(cmd, args, percy) {
   let { default: crossSpawn } = await import('cross-spawn');
   let proc, closed, error;
+  let errorMessage = '';
 
   try {
     proc = crossSpawn(cmd, args, { stdio: 'pipe' });
@@ -109,9 +110,17 @@ async function* spawn(cmd, args, percy) {
         process.stdout.write(`${data}`);
       });
     }
+    // Piping proc sdtin to process
+    process.stdin.pipe(proc.stdin);
+
+    // On end event also end proc event
+    process.stdin.on('end', () => {
+      proc.stdin.end();
+    });
 
     if (proc.stderr) {
       proc.stderr.on('data', (data) => {
+        errorMessage += data.toString();
         process.stderr.write(`${data}`);
       });
     }
@@ -121,13 +130,17 @@ async function* spawn(cmd, args, percy) {
     proc.on('close', code => {
       closed = code;
       if (code !== 0) {
+        // Only send cli error when PERCY_CLIENT_ERROR_LOGS is set to true
+        if (process.env.PERCY_CLIENT_ERROR_LOGS && process.env.PERCY_CLIENT_ERROR_LOGS === 'false') {
+          errorMessage = '1';
+        }
         // Only send event when there is a global error code and
         // percy token is present
         if (process.env.PERCY_TOKEN) {
           const myObject = {
             errorKind: 'cli',
             cliVersion: pkg.version,
-            message: '1'
+            message: errorMessage
           };
           percy.client.sendBuildEvents(percy.build.id, myObject);
         }
