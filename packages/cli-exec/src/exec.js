@@ -113,11 +113,6 @@ async function* spawn(cmd, args, percy) {
     // Piping proc sdtin to process
     process.stdin.pipe(proc.stdin);
 
-    // On end event also end proc event
-    process.stdin.on('end', () => {
-      proc.stdin.end();
-    });
-
     if (proc.stderr) {
       proc.stderr.on('data', (data) => {
         errorMessage += data.toString();

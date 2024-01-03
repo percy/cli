@@ -148,25 +148,25 @@ describe('percy exec', () => {
   it('tests process.stderr when token is present and PERCY_CLIENT_ERROR_LOGS is not present', async () => {
     delete process.env.PERCY_CLIENT_ERROR_LOGS;
     const pkg = getPackageJSON(import.meta.url);
-    let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo('some response');
+    let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo(jasmine.stringMatching(/Some error/));
     await expectAsync(
-      exec(['--', 'node', 'random.js']) // invalid command
+      exec(['--', 'node', './test/test_prog.js', 'error']) // Throws Error
     ).toBeRejectedWithError('EEXIT: 1');
 
-    expect(stderrSpy).toHaveBeenCalled();
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
-      '[percy] Running "node random.js"',
+      '[percy] Running "node ./test/test_prog.js error"',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
 
+    expect(stderrSpy).toHaveBeenCalled();
     expect(api.requests['/builds/123/send-events']).toBeDefined();
     expect(api.requests['/builds/123/send-events'][0].body).toEqual({
       data: {
         errorKind: 'cli',
         cliVersion: pkg.version,
-        message: '1'
+        message: jasmine.stringMatching(/Some error/)
       }
     });
   });
@@ -174,16 +174,16 @@ describe('percy exec', () => {
   it('tests process.stderr when token is present and PERCY_CLIENT_ERROR_LOGS is present and set to false', async () => {
     process.env.PERCY_CLIENT_ERROR_LOGS = 'false';
     const pkg = getPackageJSON(import.meta.url);
-    let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo('some response');
+    let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo(jasmine.stringMatching(/Some error/));
     await expectAsync(
-      exec(['--', 'node', 'random.js']) // invalid command
+      exec(['--', 'node', './test/test_prog.js', 'error']) // Throws Error
     ).toBeRejectedWithError('EEXIT: 1');
 
     expect(stderrSpy).toHaveBeenCalled();
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
-      '[percy] Running "node random.js"',
+      '[percy] Running "node ./test/test_prog.js error"',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
 
@@ -200,16 +200,16 @@ describe('percy exec', () => {
   it('tests process.stderr when token is present and PERCY_CLIENT_ERROR_LOGS is present and set to true', async () => {
     process.env.PERCY_CLIENT_ERROR_LOGS = 'true';
     const pkg = getPackageJSON(import.meta.url);
-    let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo('some response');
+    let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo(jasmine.stringMatching(/Some error/));
     await expectAsync(
-      exec(['--', 'node', 'random.js']) // invalid command
+      exec(['--', 'node', './test/test_prog.js', 'error']) // Throws Error
     ).toBeRejectedWithError('EEXIT: 1');
 
     expect(stderrSpy).toHaveBeenCalled();
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
-      '[percy] Running "node random.js"',
+      '[percy] Running "node ./test/test_prog.js error"',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
 
@@ -218,7 +218,7 @@ describe('percy exec', () => {
       data: {
         errorKind: 'cli',
         cliVersion: pkg.version,
-        message: 'some response'
+        message: jasmine.stringMatching(/Some error/)
       }
     });
   });
@@ -267,9 +267,10 @@ describe('percy exec', () => {
     let [e, err] = [new EventEmitter(), new Error('spawn error')];
     let crossSpawn = () => (setImmediate(() => e.emit('error', err)), e);
     global.__MOCK_IMPORTS__.set('cross-spawn', { default: crossSpawn });
+    let stdinSpy = spyOn(process.stdin, 'pipe').and.resolveTo('some response');
 
     await expectAsync(exec(['--', 'foobar'])).toBeRejected();
-
+    expect(stdinSpy).toHaveBeenCalled();
     expect(logger.stderr).toEqual([
       '[percy] Error: spawn error'
     ]);
