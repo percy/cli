@@ -150,13 +150,13 @@ describe('percy exec', () => {
     const pkg = getPackageJSON(import.meta.url);
     let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo(jasmine.stringMatching(/Some error/));
     await expectAsync(
-      exec(['--', 'node', './test/test_prog.js', 'error']) // Throws Error
+      exec(['--', 'node', './test/test-data/test_prog.js', 'error']) // Throws Error
     ).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
-      '[percy] Running "node ./test/test_prog.js error"',
+      '[percy] Running "node ./test/test-data/test_prog.js error"',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
 
@@ -176,14 +176,14 @@ describe('percy exec', () => {
     const pkg = getPackageJSON(import.meta.url);
     let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo(jasmine.stringMatching(/Some error/));
     await expectAsync(
-      exec(['--', 'node', './test/test_prog.js', 'error']) // Throws Error
+      exec(['--', 'node', './test/test-data/test_prog.js', 'error']) // Throws Error
     ).toBeRejectedWithError('EEXIT: 1');
 
     expect(stderrSpy).toHaveBeenCalled();
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
-      '[percy] Running "node ./test/test_prog.js error"',
+      '[percy] Running "node ./test/test-data/test_prog.js error"',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
 
@@ -192,7 +192,7 @@ describe('percy exec', () => {
       data: {
         errorKind: 'cli',
         cliVersion: pkg.version,
-        message: '1'
+        message: 'Log sharing is disabled'
       }
     });
   });
@@ -202,14 +202,14 @@ describe('percy exec', () => {
     const pkg = getPackageJSON(import.meta.url);
     let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo(jasmine.stringMatching(/Some error/));
     await expectAsync(
-      exec(['--', 'node', './test/test_prog.js', 'error']) // Throws Error
+      exec(['--', 'node', './test/test-data/test_prog.js', 'error']) // Throws Error
     ).toBeRejectedWithError('EEXIT: 1');
 
     expect(stderrSpy).toHaveBeenCalled();
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
-      '[percy] Running "node ./test/test_prog.js error"',
+      '[percy] Running "node ./test/test-data/test_prog.js error"',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
 

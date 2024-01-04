@@ -126,8 +126,8 @@ async function* spawn(cmd, args, percy) {
       closed = code;
       if (code !== 0) {
         // Only send cli error when PERCY_CLIENT_ERROR_LOGS is set to true
-        if (process.env.PERCY_CLIENT_ERROR_LOGS && process.env.PERCY_CLIENT_ERROR_LOGS === 'false') {
-          errorMessage = '1';
+        if (process.env.PERCY_CLIENT_ERROR_LOGS === 'false') {
+          errorMessage = 'Log sharing is disabled';
         }
         // Only send event when there is a global error code and
         // percy token is present
