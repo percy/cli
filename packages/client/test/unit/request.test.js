@@ -2,7 +2,7 @@ import fs from 'fs';
 import net from 'net';
 import http from 'http';
 import https from 'https';
-import { request, ProxyHttpAgent } from '@percy/client/utils';
+import { request, ProxyHttpAgent, formatBytes } from '@percy/client/utils';
 import { port, href, proxyAgentFor } from '../../src/proxy.js';
 
 const ssl = {
@@ -506,4 +506,13 @@ describe('Unit / Request', () => {
       });
     });
   }
+});
+
+describe('Unit / formatBytes', () => {
+  it('returns correct format', () => {
+    expect(formatBytes(500)).toBe('500B');
+    expect(formatBytes(1024)).toBe('1.0kB');
+    expect(formatBytes(750 * 1024)).toBe('750.0kB');
+    expect(formatBytes(500 * 1024 * 1024)).toBe('500.0MB');
+  });
 });
