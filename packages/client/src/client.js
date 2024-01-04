@@ -274,6 +274,7 @@ export class PercyClient {
     let encodedContent = base64encode(content);
 
     this.log.debug(`Uploading ${formatBytes(encodedContent.length)} resource: ${url}...`);
+    this.mayBeLogUploadSize(encodedContent.length);
 
     return this.post(`builds/${buildId}/resources`, {
       data: {
@@ -447,6 +448,7 @@ export class PercyClient {
     let encodedContent = base64encode(content);
 
     this.log.debug(`Uploading ${formatBytes(encodedContent.length)} comparison tile: ${index + 1}/${total} (${comparisonId})...`);
+    this.mayBeLogUploadSize(encodedContent.length);
 
     return this.post(`comparisons/${comparisonId}/tiles`, {
       data: {
@@ -531,6 +533,14 @@ export class PercyClient {
     return this.post(`builds/${buildId}/send-events`, {
       data: body
     });
+  }
+
+  mayBeLogUploadSize(contentSize) {
+    if (contentSize >= 25 * 1024 * 1024) {
+      this.log.error('Uploading resource above 25MB might fail the build...');
+    } else if (contentSize >= 20 * 1024 * 1024) {
+      this.log.warn('Uploading resource above 20MB might slow the build...');
+    }
   }
 
   // decides project type

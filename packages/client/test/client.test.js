@@ -1349,7 +1349,7 @@ describe('PercyClient', () => {
     });
   });
 
-  describe('sendBuildEvents', () => {
+  describe('#sendBuildEvents', () => {
     it('should send build event with default values', async () => {
       await expectAsync(client.sendBuildEvents(123, {
         errorKind: 'cli',
@@ -1370,6 +1370,23 @@ describe('PercyClient', () => {
           message: 'some error'
         }
       });
+    });
+  });
+
+  describe('#mayBeLogUploadSize', () => {
+    it('does not warns when upload size less 20MB/25MB', () => {
+      client.mayBeLogUploadSize(1000);
+      expect(logger.stderr).toEqual([]);
+    });
+
+    it('warns when upload size above 20MB', () => {
+      client.mayBeLogUploadSize(20 * 1024 * 1024);
+      expect(logger.stderr).toEqual(['[percy:client] Uploading resource above 20MB might slow the build...']);
+    });
+
+    it('log error when upload size above 25MB', () => {
+      client.mayBeLogUploadSize(25 * 1024 * 1024);
+      expect(logger.stderr).toEqual(['[percy:client] Uploading resource above 25MB might fail the build...']);
     });
   });
 
