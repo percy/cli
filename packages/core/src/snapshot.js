@@ -359,14 +359,12 @@ export function createSnapshotsQueue(percy) {
       // Pushing to syncQueue, that will check for
       // snapshot processing status, and will resolve afterwards
       if (snapshot.sync) {
-        // TODO/NOTE: syncQueue is not created yet, it just a reference from here to align with approach
-        // syncQueue will be created later on, and this comment wil be removed before final PR.
         percy.syncQueue.push({
           id: response.data.id,
           name: snapshot.name,
           resolve: snapshot.resolve,
           reject: snapshot.reject
-        });
+        })
       }
 
       return { ...snapshot, response };

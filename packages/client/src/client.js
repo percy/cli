@@ -115,7 +115,7 @@ export class PercyClient {
 
   // Performs a POST request to a JSON API endpoint with appropriate headers.
   post(path, body = {}) {
-    return request(`${this.apiUrl}/${path}?sync=true`, {
+    return request(`${this.apiUrl}/${path}`, {
       headers: this.headers({ 'Content-Type': 'application/vnd.api+json' }),
       method: 'POST',
       body

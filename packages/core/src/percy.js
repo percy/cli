@@ -312,7 +312,7 @@ export class Percy {
           })
         }, snapshot => {
           // In case callback is null, nothing changes
-          Object.assign(snapshot, { ...callback });
+          Object.assign(snapshot, { ...callback })
           // push each finished snapshot to the snapshots queue
           this.#snapshots.push(snapshot);
         });
