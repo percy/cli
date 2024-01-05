@@ -262,7 +262,7 @@ export class Percy {
   // Takes one or more snapshots of a page while discovering resources to upload with the resulting
   // snapshots. Once asset discovery has completed for the provided snapshots, the queued task will
   // resolve and an upload task will be queued separately.
-  snapshot(options) {
+  snapshot(options, callback = null) {
     if (this.readyState !== 1) {
       throw new Error('Not running');
     } else if (this.build?.error) {
@@ -311,6 +311,8 @@ export class Percy {
             config: this.config
           })
         }, snapshot => {
+          // In case callback is null, nothing changes
+          Object.assign(snapshot, { ...callback })
           // push each finished snapshot to the snapshots queue
           this.#snapshots.push(snapshot);
         });

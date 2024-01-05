@@ -355,6 +355,18 @@ export function createSnapshotsQueue(percy) {
       let response = yield percy.client[send](build.id, snapshot);
       if (percy.deferUploads) percy.log.info(`Snapshot uploaded: ${name}`, meta);
 
+      // Synchronous cli support
+      // Pushing to syncQueue, that will check for
+      // snapshot processing status, and will resolve afterwards
+      if (snapshot.sync) {
+        percy.syncQueue.push({
+          id: response.data.id,
+          name: snapshot.name,
+          resolve: snapshot.resolve,
+          reject: snapshot.reject
+        })
+      }
+
       return { ...snapshot, response };
     })
   // handle possible build errors returned by the API

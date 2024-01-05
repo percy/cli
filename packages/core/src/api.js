@@ -91,7 +91,10 @@ export function createPercyServer(percy, port) {
     })
   // post one or more snapshots, optionally async
     .route('post', '/percy/snapshot', async (req, res) => {
-      let snapshot = percy.snapshot(req.body);
+      let snapshot = req.body['enableSync']
+        ? await new Promise((resolve, reject) => percy.snapshot(req.body, { resolve, reject }))
+        : percy.snapshot(req.body)
+
       if (!req.url.searchParams.has('async')) await snapshot;
       return res.json(200, { success: true });
     })
