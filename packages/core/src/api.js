@@ -15,6 +15,10 @@ function encodeURLSearchParams(subj, prefix) {
   )).join('&') : `${prefix}=${encodeURIComponent(subj)}`;
 }
 
+function promiseWrapper(fn, ...params) {
+  return new Promise((resolve, reject) => fn(...params, { resolve, reject }));
+}
+
 // Create a Percy CLI API server instance
 export function createPercyServer(percy, port) {
   let pkg = getPackageJSON(import.meta.url);
@@ -92,16 +96,19 @@ export function createPercyServer(percy, port) {
   // post one or more snapshots, optionally async
     .route('post', '/percy/snapshot', async (req, res) => {
       let snapshot = req.body.enableSync
-        ? await new Promise((resolve, reject) => percy.snapshot(req.body, { resolve, reject }))
+        ? await promiseWrapper(percy.snapshot, req.body)
         : percy.snapshot(req.body);
 
       if (!req.url.searchParams.has('async')) await snapshot;
-      return res.json(200, { success: true });
+      return res.json(200, { success: true, data: snapshot });
     })
   // post one or more comparisons, optionally waiting
     .route('post', '/percy/comparison', async (req, res) => {
-      let upload = percy.upload(req.body);
-      if (req.url.searchParams.has('await')) await upload;
+      let response = req.body.enableSync
+        ? await promiseWrapper(percy.upload, req.body)
+        : percy.upload(req.body);
+
+      if (req.url.searchParams.has('await')) await response;
 
       // generate and include one or more redirect links to comparisons
       let link = ({ name, tag }) => [
@@ -111,7 +118,7 @@ export function createPercyServer(percy, port) {
         }, { snake: true }))
       ].join('');
 
-      return res.json(200, Object.assign({ success: true }, req.body ? (
+      return res.json(200, Object.assign({ success: true, data: response }, req.body ? (
         Array.isArray(req.body) ? { links: req.body.map(link) } : { link: link(req.body) }
       ) : {}));
     })
@@ -121,8 +128,12 @@ export function createPercyServer(percy, port) {
     }))
     .route('post', '/percy/automateScreenshot', async (req, res) => {
       percyAutomateRequestHandler(req, percy);
-      percy.upload(await WebdriverUtils.automateScreenshot(req.body));
-      res.json(200, { success: true });
+      let comparisonData = await WebdriverUtils.automateScreenshot(req.body);
+      let screenshotInfo = req.body.enableSync
+        ? await promiseWrapper(percy.upload, comparisonData)
+        : percy.upload(comparisonData);
+
+      res.json(200, { success: true, data: screenshotInfo });
     })
   // Recieves events from sdk's.
     .route('post', '/percy/events', async (req, res) => {

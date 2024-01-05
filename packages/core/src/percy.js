@@ -324,7 +324,7 @@ export class Percy {
   }
 
   // Uploads one or more snapshots directly to the current Percy build
-  upload(options) {
+  upload(options, callback = null) {
     if (this.readyState !== 1) {
       throw new Error('Not running');
     } else if (Array.isArray(options)) {
@@ -351,6 +351,9 @@ export class Percy {
     // add client & environment info
     this.client.addClientInfo(options.clientInfo);
     this.client.addEnvironmentInfo(options.environmentInfo);
+
+    // Sync CLI support, attached resolve, reject promise
+    Object.assign(options, { ...callback });
 
     // return an async generator to allow cancelation
     return (async function*() {
