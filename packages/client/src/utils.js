@@ -114,6 +114,7 @@ export async function request(url, options = {}, callback) {
   // accept `request(url, callback)`
   if (typeof options === 'function') [options, callback] = [{}, options];
 
+  console.log(`BATMAN  -----URL ${url}`);
   // gather request options
   let { body, headers, retries, retryNotFound, interval, noProxy, buffer, ...requestOptions } = options;
   let { protocol, hostname, port, pathname, search, hash } = new URL(url);
