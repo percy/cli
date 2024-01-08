@@ -181,6 +181,16 @@ export class PercyClient {
     return this.get(`builds/${buildId}`);
   }
 
+  async getSnapshotDetails(snapshotId) {
+    return this.get(`snapshots/${snapshotId}`);
+  }
+
+  // Retrieves snapshot/comparison data by id. Requires a read access token.
+  async getStatus(type, ids) {
+    this.log.debug(`Get ${type} Status for ids ${ids}`);
+    return this.get(`job_status?sync=true&type=${type}&id=${ids.join()}`);
+  }
+
   // Retrieves project builds optionally filtered. Requires a read access token.
   async getBuilds(project, filters = {}) {
     validateProjectPath(project);
@@ -330,6 +340,7 @@ export class PercyClient {
           name: name || null,
           widths: widths || null,
           scope: scope || null,
+          sync: true,
           'scope-options': scopeOptions || {},
           'minimum-height': minHeight || null,
           'enable-javascript': enableJavaScript || null,
@@ -393,6 +404,7 @@ export class PercyClient {
     return this.post(`snapshots/${snapshotId}/comparisons`, {
       data: {
         type: 'comparisons',
+        sync: true,
         attributes: {
           'external-debug-url': externalDebugUrl || null,
           'ignore-elements-data': ignoredElementsData || null,

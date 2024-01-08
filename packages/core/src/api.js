@@ -95,12 +95,20 @@ export function createPercyServer(percy, port) {
     })
   // post one or more snapshots, optionally async
     .route('post', '/percy/snapshot', async (req, res) => {
-      let snapshot = req.body.enableSync
-        ? await promiseWrapper(percy.snapshot, req.body)
-        : percy.snapshot(req.body);
+      let data;
+      if (req.body.sync) {
+        try {
+          const id = await promiseWrapper(percy.snapshot, req.body);
+          data = await percy.client.getSnapshotDetails(id);
+        } catch (e) {
+          data = { message: e.message };
+        }
+      } else {
+        const snapshot = percy.snapshot(req.body);
+        if (!req.url.searchParams.has('async')) await snapshot;
+      }
 
-      if (!req.url.searchParams.has('async')) await snapshot;
-      return res.json(200, { success: true, data: snapshot });
+      return res.json(200, { success: true, data: data });
     })
   // post one or more comparisons, optionally waiting
     .route('post', '/percy/comparison', async (req, res) => {
@@ -129,11 +137,18 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/automateScreenshot', async (req, res) => {
       percyAutomateRequestHandler(req, percy);
       let comparisonData = await WebdriverUtils.automateScreenshot(req.body);
-      let screenshotInfo = req.body.enableSync
-        ? await promiseWrapper(percy.upload, comparisonData)
-        : percy.upload(comparisonData);
+      let data;
+      if (req.body.options.sync) {
+        try {
+          data = await promiseWrapper(percy.upload, comparisonData);
+        } catch (e) {
+          data = { message: e.message };
+        }
+      } else {
+        percy.upload(comparisonData);
+      }
 
-      res.json(200, { success: true, data: screenshotInfo });
+      res.json(200, { success: true, data: data });
     })
   // Recieves events from sdk's.
     .route('post', '/percy/events', async (req, res) => {

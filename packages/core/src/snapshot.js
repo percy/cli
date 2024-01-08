@@ -8,6 +8,7 @@ import {
   hostnameMatches,
   yieldTo
 } from './utils.js';
+import { SnapshotData } from './wait-for-snapshot.js';
 
 // Throw a better error message for missing or invalid urls
 function validURL(url, base) {
@@ -358,15 +359,9 @@ export function createSnapshotsQueue(percy) {
       // Synchronous cli support
       // Pushing to syncQueue, that will check for
       // snapshot processing status, and will resolve afterwards
-      if (snapshot.sync) {
-        // TODO/NOTE: syncQueue refered here is not created yet, just referenced here
-        // this comment will be removed before final PR.
-        percy.syncQueue.push({
-          id: response.data.id,
-          name: snapshot.name,
-          resolve: snapshot.resolve,
-          reject: snapshot.reject
-        });
+      if (snapshot.resolve && snapshot.reject) {
+        const data = new SnapshotData(response.data.id, null, snapshot.resolve, snapshot.reject);
+        percy.syncQueue.push(data);
       }
 
       return { ...snapshot, response };
@@ -401,6 +396,7 @@ export function createSnapshotsQueue(percy) {
 
       percy.log.error(`Encountered an error uploading snapshot: ${name}`, meta);
       percy.log.error(error, meta);
+      if (snapshot.reject) snapshot.reject(result);
       return result;
     });
 }
