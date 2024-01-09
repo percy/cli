@@ -5,6 +5,7 @@ import logger from '@percy/logger';
 import { normalize } from '@percy/config/utils';
 import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHandler } from './utils.js';
 import WebdriverUtils from '@percy/webdriver-utils';
+import { handleSyncSnapshot } from './snapshot.js';
 // need require.resolve until import.meta.resolve can be transpiled
 export const PERCY_DOM = createRequire(import.meta.url).resolve('@percy/dom');
 
@@ -13,10 +14,6 @@ function encodeURLSearchParams(subj, prefix) {
   return typeof subj === 'object' ? Object.entries(subj).map(([key, value]) => (
     encodeURLSearchParams(value, prefix ? `${prefix}[${key}]` : key)
   )).join('&') : `${prefix}=${encodeURIComponent(subj)}`;
-}
-
-function promiseWrapper(fn, ...params) {
-  return new Promise((resolve, reject) => fn(...params, { resolve, reject }));
 }
 
 // Create a Percy CLI API server instance
@@ -96,31 +93,20 @@ export function createPercyServer(percy, port) {
   // post one or more snapshots, optionally async
     .route('post', '/percy/snapshot', async (req, res) => {
       let data;
-      if (req.body.sync) percy.syncMode = true;
-      if (percy.syncMode) {
-        try {
-          const id = await promiseWrapper(percy.snapshot, req.body);
-          data = await percy.client.getSnapshotDetails(id);
-        } catch (e) {
-          data = { message: e.message };
-        }
-      } else {
-        const snapshot = percy.snapshot(req.body);
-        if (!req.url.searchParams.has('async')) await snapshot;
-      }
+      const snapshotPromise = {};
+      const snapshot = percy.snapshot(req.body, snapshotPromise);
+      if (!req.url.searchParams.has('async')) await snapshot;
+
+      if (percy.syncMode(req.body)) data = await handleSyncSnapshot(snapshotPromise[req.body.name], percy);
 
       return res.json(200, { success: true, data: data });
     })
   // post one or more comparisons, optionally waiting
     .route('post', '/percy/comparison', async (req, res) => {
-      if (req.body.sync) percy.syncMode = true;
       let data;
-      if (percy.syncMode) {
-        try {
-          data = await promiseWrapper(percy.upload, req.body);
-        } catch (e) {
-          data = { message: e.message };
-        }
+      if (percy.syncMode(req.body)) {
+        const snapshotPromise = new Promise((resolve, reject) => percy.upload(req.body, { resolve, reject }));
+        data = await handleSyncSnapshot(snapshotPromise, percy);
       } else {
         let upload = percy.upload(req.body);
         if (req.url.searchParams.has('await')) await upload;
@@ -143,16 +129,12 @@ export function createPercyServer(percy, port) {
       success: await percy.flush(req.body).then(() => true)
     }))
     .route('post', '/percy/automateScreenshot', async (req, res) => {
+      let data;
       percyAutomateRequestHandler(req, percy);
       let comparisonData = await WebdriverUtils.automateScreenshot(req.body);
-      let data;
-      if (req.body.options.sync) percy.syncMode = true;
-      if (percy.syncMode) {
-        try {
-          data = await promiseWrapper(percy.upload, comparisonData);
-        } catch (e) {
-          data = { message: e.message };
-        }
+      if (percy.syncMode(comparisonData)) {
+        const snapshotPromise = new Promise((resolve, reject) => percy.upload(comparisonData, { resolve, reject }));
+        data = await handleSyncSnapshot(snapshotPromise, percy);
       } else {
         percy.upload(comparisonData);
       }

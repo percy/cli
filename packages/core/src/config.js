@@ -544,6 +544,7 @@ export const comparisonSchema = {
     name: { type: 'string' },
     externalDebugUrl: { type: 'string' },
     domInfoSha: { type: 'string' },
+    sync: { type: 'boolean' },
     metadata: {
       type: 'object',
       additionalProperties: false,

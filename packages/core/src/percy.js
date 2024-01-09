@@ -87,7 +87,6 @@ export class Percy {
     this.skipDiscovery = this.dryRun || !!skipDiscovery;
     this.delayUploads = this.skipUploads || !!delayUploads;
     this.deferUploads = this.skipUploads || !!deferUploads;
-    this.syncMode = !!config?.snapshot?.sync;
 
     this.client = new PercyClient({ token, clientInfo, environmentInfo, config });
     if (server) this.server = createPercyServer(this, port);
@@ -267,13 +266,13 @@ export class Percy {
   // Takes one or more snapshots of a page while discovering resources to upload with the resulting
   // snapshots. Once asset discovery has completed for the provided snapshots, the queued task will
   // resolve and an upload task will be queued separately.
-  snapshot(options, callback = null) {
+  snapshot(options, snapshotPromise = {}) {
     if (this.readyState !== 1) {
       throw new Error('Not running');
     } else if (this.build?.error) {
       throw new Error(this.build.error);
     } else if (Array.isArray(options)) {
-      return yieldAll(options.map(o => this.yield.snapshot(o)));
+      return yieldAll(options.map(o => this.yield.snapshot(o, snapshotPromise)));
     }
 
     // accept a url for a sitemap or snapshot
@@ -316,8 +315,10 @@ export class Percy {
             config: this.config
           })
         }, snapshot => {
-          // In case callback is null, nothing changes
-          Object.assign(snapshot, { ...callback });
+          // attaching promise resolve reject so to wait for snapshot to complete
+          snapshotPromise[snapshot.name] = new Promise((resolve, reject) => {
+            Object.assign(snapshot, { resolve, reject });
+          });
           // push each finished snapshot to the snapshots queue
           this.#snapshots.push(snapshot);
         });
@@ -374,6 +375,13 @@ export class Percy {
   shouldSkipAssetDiscovery(tokenType) {
     if (this.testing && JSON.stringify(this.testing) === JSON.stringify({})) { return true; }
     return tokenType !== 'web';
+  }
+
+  syncMode(options) {
+    if (this.config?.snapshot?.sync) return true;
+    if (options?.sync) return true;
+
+    return false;
   }
 }
 

@@ -83,9 +83,11 @@ export const snapshot = command('snapshot', {
       let config = { sitemap, include, exclude };
       options = merge(percy.config.sitemap, config);
     }
+    const snapshotPromise = {};
 
     yield* percy.yield.start();
-    yield* percy.yield.snapshot(options);
+    yield* percy.yield.snapshot(options, snapshotPromise);
+    yield* await handleSyncSnapshot(options, snapshotPromise, percy);
     yield* percy.yield.stop();
   } catch (error) {
     await percy.stop(true);
@@ -105,6 +107,21 @@ function parseBaseUrl(baseUrl, pathOnly) {
       ? 'start with a forward slash (/) when providing a static directory'
       : 'include a protocol and hostname when providing a list of snapshots'
     ));
+  }
+}
+
+async function* handleSyncSnapshot(options, snapshotPromise, percy) {
+  const promiseToWait = [];
+  options.snapshots.forEach((snapshot) => {
+    if (percy.syncMode(snapshot)) {
+      promiseToWait.push(snapshotPromise[snapshot.name]);
+    }
+  });
+
+  if (promiseToWait.length > 0) {
+    yield* percy.yield.flush();
+    const snapshotsIds = await Promise.all(promiseToWait);
+    console.log(`----------OUTPUT ${JSON.stringify(snapshotsIds)}`);
   }
 }
 

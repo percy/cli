@@ -206,6 +206,17 @@ export function validateSnapshotOptions(options) {
   return { clientInfo, environmentInfo, ...migrated };
 }
 
+export async function handleSyncSnapshot(snapshotPromise, percy) {
+  let data;
+  try {
+    const snapshotId = await snapshotPromise;
+    data = await percy.client.getSnapshotDetails(snapshotId);
+  } catch (e) {
+    data = { message: e.message };
+  }
+  return data;
+}
+
 // Fetches a sitemap and parses it into a list of URLs for taking snapshots. Duplicate URLs,
 // including a trailing slash, are removed from the resulting list.
 async function getSitemapSnapshots(options) {
@@ -359,7 +370,7 @@ export function createSnapshotsQueue(percy) {
       // Synchronous cli support
       // Pushing to syncQueue, that will check for
       // snapshot processing status, and will resolve afterwards
-      if (percy.syncMode) {
+      if (snapshot.sync) {
         const data = new SnapshotData(response.data.id, null, snapshot.resolve, snapshot.reject);
         percy.syncQueue.push(data);
       }
