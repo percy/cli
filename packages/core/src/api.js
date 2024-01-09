@@ -96,7 +96,8 @@ export function createPercyServer(percy, port) {
   // post one or more snapshots, optionally async
     .route('post', '/percy/snapshot', async (req, res) => {
       let data;
-      if (req.body.sync) {
+      if (req.body.sync) percy.syncMode = true;
+      if (percy.syncMode) {
         try {
           const id = await promiseWrapper(percy.snapshot, req.body);
           data = await percy.client.getSnapshotDetails(id);
@@ -112,11 +113,18 @@ export function createPercyServer(percy, port) {
     })
   // post one or more comparisons, optionally waiting
     .route('post', '/percy/comparison', async (req, res) => {
-      let response = req.body.enableSync
-        ? await promiseWrapper(percy.upload, req.body)
-        : percy.upload(req.body);
-
-      if (req.url.searchParams.has('await')) await response;
+      if (req.body.sync) percy.syncMode = true;
+      let data;
+      if (percy.syncMode) {
+        try {
+          data = await promiseWrapper(percy.upload, req.body);
+        } catch (e) {
+          data = { message: e.message };
+        }
+      } else {
+        let upload = percy.upload(req.body);
+        if (req.url.searchParams.has('await')) await upload;
+      }
 
       // generate and include one or more redirect links to comparisons
       let link = ({ name, tag }) => [
@@ -126,7 +134,7 @@ export function createPercyServer(percy, port) {
         }, { snake: true }))
       ].join('');
 
-      return res.json(200, Object.assign({ success: true, data: response }, req.body ? (
+      return res.json(200, Object.assign({ success: true, data: data }, req.body ? (
         Array.isArray(req.body) ? { links: req.body.map(link) } : { link: link(req.body) }
       ) : {}));
     })
@@ -138,7 +146,8 @@ export function createPercyServer(percy, port) {
       percyAutomateRequestHandler(req, percy);
       let comparisonData = await WebdriverUtils.automateScreenshot(req.body);
       let data;
-      if (req.body.options.sync) {
+      if (req.body.options.sync) percy.syncMode = true;
+      if (percy.syncMode) {
         try {
           data = await promiseWrapper(percy.upload, comparisonData);
         } catch (e) {

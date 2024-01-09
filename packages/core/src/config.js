@@ -68,6 +68,9 @@ export const configSchema = {
           }
         }
       },
+      sync: {
+        type: 'boolean'
+      },
       fullPage: {
         type: 'boolean',
         onlyAutomate: true
@@ -256,6 +259,7 @@ export const snapshotSchema = {
         disableShadowDOM: { $ref: '/config/snapshot#/properties/disableShadowDOM' },
         domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
         enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
+        sync: { $ref: '/config/snapshot#/properties/sync' },
         reshuffleInvalidTags: { $ref: '/config/snapshot#/properties/reshuffleInvalidTags' },
         scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
         discovery: {

@@ -87,6 +87,7 @@ export class Percy {
     this.skipDiscovery = this.dryRun || !!skipDiscovery;
     this.delayUploads = this.skipUploads || !!delayUploads;
     this.deferUploads = this.skipUploads || !!deferUploads;
+    this.syncMode = !!config?.snapshot?.sync;
 
     this.client = new PercyClient({ token, clientInfo, environmentInfo, config });
     if (server) this.server = createPercyServer(this, port);

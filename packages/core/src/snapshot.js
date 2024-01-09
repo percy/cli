@@ -359,7 +359,7 @@ export function createSnapshotsQueue(percy) {
       // Synchronous cli support
       // Pushing to syncQueue, that will check for
       // snapshot processing status, and will resolve afterwards
-      if (snapshot.resolve && snapshot.reject) {
+      if (percy.syncMode) {
         const data = new SnapshotData(response.data.id, null, snapshot.resolve, snapshot.reject);
         percy.syncQueue.push(data);
       }
