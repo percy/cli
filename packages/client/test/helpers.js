@@ -128,6 +128,17 @@ export const api = {
         attributes: body.attributes,
         relationships: body.relationships
       }
+    }],
+    '/job_status?sync=true&type=snapshot&id=4567': () => [201, {
+      4567: {
+        status: true,
+        nextPoll: 1234,
+        error: null
+      }
+    }],
+    '/snapshots/4567': () => [201, {
+      name: 'test snapshot',
+      diff_ratio: 0
     }]
   },
 

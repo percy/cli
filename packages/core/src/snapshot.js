@@ -367,10 +367,10 @@ export function createSnapshotsQueue(percy) {
       let response = yield percy.client[send](build.id, snapshot);
       if (percy.deferUploads) percy.log.info(`Snapshot uploaded: ${name}`, meta);
 
-      // Synchronous cli support
       // Pushing to syncQueue, that will check for
-      // snapshot processing status, and will resolve afterwards
+      // snapshot processing status, and will resolve once done
       if (snapshot.sync) {
+        percy.log.info(`Waiting for snapshot ${name} to be completed`);
         const data = new SnapshotData(response.data.id, null, snapshot.resolve, snapshot.reject);
         percy.syncQueue.push(data);
       }
@@ -407,7 +407,7 @@ export function createSnapshotsQueue(percy) {
 
       percy.log.error(`Encountered an error uploading snapshot: ${name}`, meta);
       percy.log.error(error, meta);
-      if (snapshot.reject) snapshot.reject(result);
+      if (snapshot.sync) snapshot.reject(error);
       return result;
     });
 }

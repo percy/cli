@@ -316,9 +316,11 @@ export class Percy {
           })
         }, snapshot => {
           // attaching promise resolve reject so to wait for snapshot to complete
-          snapshotPromise[snapshot.name] = new Promise((resolve, reject) => {
-            Object.assign(snapshot, { resolve, reject });
-          });
+          if (this.syncMode(snapshot)) {
+            snapshotPromise[snapshot.name] = new Promise((resolve, reject) => {
+              Object.assign(snapshot, { resolve, reject });
+            });
+          }
           // push each finished snapshot to the snapshots queue
           this.#snapshots.push(snapshot);
         });
@@ -378,10 +380,20 @@ export class Percy {
   }
 
   syncMode(options) {
-    if (this.config?.snapshot?.sync) return true;
-    if (options?.sync) return true;
+    let syncMode = false;
+    if (this.config?.snapshot?.sync) syncMode = true;
+    if (options?.sync) syncMode = true;
 
-    return false;
+    if ((this.skipUploads || this.deferUploads) && syncMode) {
+      syncMode = false;
+      if (options?.sync) {
+        options.sync = false;
+      } else if (this.config?.snapshot?.sync) {
+        this.config.snapshot.sync = false;
+      }
+      this.log.warn('sync does not work with skipUploads and deferUploads');
+    }
+    return syncMode;
   }
 }
 
