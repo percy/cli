@@ -6,6 +6,7 @@ import WebdriverUtils from '@percy/webdriver-utils';
 
 describe('API Server', () => {
   let percy;
+  const getSnapshotDetailsResponse = { name: 'test', 'diff-ratio': 0 };
 
   async function request(path, ...args) {
     let { request } = await import('./helpers/request.js');
@@ -155,6 +156,28 @@ describe('API Server', () => {
     );
   });
 
+  it('has a /snapshot endpoint that calls #snapshot() with provided options', async () => {
+    spyOn(percy.client, 'getSnapshotDetails').and.returnValue(getSnapshotDetailsResponse);
+    spyOn(percy, 'snapshot').and.callFake((_, promise) => promise.test = new Promise((resolve, reject) => setTimeout(() => resolve(), 100)));
+    await percy.start();
+
+    const req = request('/percy/snapshot', {
+      method: 'POST',
+      body: { name: 'test', me_too: true, sync: true }
+    });
+
+    await expectAsync(req).toBeResolvedTo({
+      success: true,
+      data: getSnapshotDetailsResponse
+    });
+
+    expect(percy.client.getSnapshotDetails).toHaveBeenCalled();
+    expect(percy.snapshot).toHaveBeenCalledOnceWith(
+      { name: 'test', me_too: true, sync: true },
+      jasmine.objectContaining({})
+    );
+  });
+
   it('can handle snapshots async with a parameter', async () => {
     let resolve, test = new Promise(r => (resolve = r));
     spyOn(percy, 'snapshot').and.returnValue(test);
@@ -188,6 +211,42 @@ describe('API Server', () => {
 
     await expectAsync(test).toBePending();
     resolve(); // no hanging promises
+  });
+
+  it('has a /comparison endpoint that calls #upload() with sync mode', async () => {
+    spyOn(percy.client, 'getSnapshotDetails').and.returnValue(getSnapshotDetailsResponse);
+    spyOn(percy, 'upload').and.callFake((_, callback) => callback.resolve());
+    await percy.start();
+
+    await expectAsync(request('/percy/comparison', {
+      method: 'POST',
+      body: {
+        name: 'Snapshot name',
+        sync: true,
+        tag: {
+          name: 'Tag name',
+          osName: 'OS name',
+          osVersion: 'OS version',
+          width: 800,
+          height: 1280,
+          orientation: 'landscape'
+        }
+      }
+    })).toBeResolvedTo(jasmine.objectContaining({
+      data: getSnapshotDetailsResponse,
+      link: `${percy.client.apiUrl}/comparisons/redirect?${[
+        'build_id=123',
+        'snapshot[name]=Snapshot%20name',
+        'tag[name]=Tag%20name',
+        'tag[os_name]=OS%20name',
+        'tag[os_version]=OS%20version',
+        'tag[width]=800',
+        'tag[height]=1280',
+        'tag[orientation]=landscape'
+      ].join('&')}`
+    }));
+
+    expect(percy.client.getSnapshotDetails).toHaveBeenCalled();
   });
 
   it('includes links in the /comparison endpoint response', async () => {
@@ -318,6 +377,61 @@ describe('API Server', () => {
     expect(percy.upload).toHaveBeenCalledOnceWith(mockWebdriverUtilResponse);
     await expectAsync(test).toBePending();
     resolve(); // no hanging promises
+  });
+
+  it('has a /automateScreenshot endpoint that calls #upload() async with provided options', async () => {
+    spyOn(percy.client, 'getSnapshotDetails').and.returnValue(getSnapshotDetailsResponse);
+    spyOn(percy, 'upload').and.callFake((_, callback) => callback.resolve());
+    let automateScreenshotSpy = spyOn(WebdriverUtils, 'automateScreenshot').and.returnValue({ sync: true });
+
+    await percy.start();
+
+    percy.config.snapshot.fullPage = false;
+
+    percy.config.snapshot.percyCSS = '.global { color: blue }';
+    percy.config.snapshot.freezeAnimatedImage = false;
+    percy.config.snapshot.freezeAnimatedImageOptions = { freezeImageByXpaths: ['/xpath-global'] };
+    percy.config.snapshot.ignoreRegions = { ignoreRegionSelectors: ['.selector-global'] };
+    percy.config.snapshot.considerRegions = { considerRegionXpaths: ['/xpath-global'] };
+
+    await expectAsync(request('/percy/automateScreenshot', {
+      body: {
+        name: 'Snapshot name',
+        client_info: 'client',
+        environment_info: 'environment',
+        options: {
+          sync: true,
+          fullPage: true,
+          percyCSS: '.percy-screenshot: { color: red }',
+          freeze_animated_image: true,
+          freezeImageBySelectors: ['.selector-per-screenshot'],
+          ignore_region_xpaths: ['/xpath-per-screenshot'],
+          consider_region_xpaths: ['/xpath-per-screenshot']
+        }
+      },
+      method: 'post'
+    })).toBeResolvedTo({ success: true, data: getSnapshotDetailsResponse });
+
+    expect(automateScreenshotSpy).toHaveBeenCalledOnceWith(jasmine.objectContaining({
+      clientInfo: 'client',
+      environmentInfo: 'environment',
+      buildInfo: { id: '123', url: 'https://percy.io/test/test/123', number: 1 },
+      options: {
+        sync: true,
+        fullPage: true,
+        freezeAnimatedImage: true,
+        freezeImageBySelectors: ['.selector-per-screenshot'],
+        freezeImageByXpaths: ['/xpath-global'],
+        percyCSS: '.global { color: blue }\n.percy-screenshot: { color: red }',
+        ignoreRegionSelectors: ['.selector-global'],
+        ignoreRegionXpaths: ['/xpath-per-screenshot'],
+        considerRegionXpaths: ['/xpath-global', '/xpath-per-screenshot'],
+        version: 'v2'
+      }
+    }));
+
+    expect(percy.client.getSnapshotDetails).toHaveBeenCalled();
+    expect(percy.upload).toHaveBeenCalledOnceWith({ sync: true }, jasmine.objectContaining({}));
   });
 
   it('has a /events endpoint that calls #sendBuildEvents() async with provided options with clientInfo present', async () => {
