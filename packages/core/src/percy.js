@@ -157,8 +157,8 @@ export class Percy {
       if (!this.skipDiscovery) yield this.#discovery.start();
       // start a local API server for SDK communication
       if (this.server) yield this.server.listen();
-      const projectType = this.client.tokenType() === 'web' ? 'snapshot' : 'comparison';
-      this.syncQueue = new WaitForSnapshot(projectType, this);
+      const snapshotType = this.client.tokenType() === 'web' ? 'snapshot' : 'comparison';
+      this.syncQueue = new WaitForSnapshot(snapshotType, this);
       // log and mark this instance as started
       this.log.info('Percy has started!');
       this.readyState = 1;
@@ -388,9 +388,7 @@ export class Percy {
 
     if ((this.skipUploads || this.deferUploads || this.delayUploads) && syncMode) {
       syncMode = false;
-      if (options?.sync) {
-        options.sync = false;
-      }
+      options.sync = false;
       this.log.warn('sync does not work with snapshot, upload command and skipUploads, deferUploads options');
     }
     return syncMode;

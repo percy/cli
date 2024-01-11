@@ -314,6 +314,29 @@ describe('Percy', () => {
       expect(percy.projectType).toEqual('web');
     });
 
+    it('syncQueue is created', async () => {
+      percy = new Percy({ token: 'PERCY_TOKEN', projectType: 'web' });
+
+      // abort when the browser is launched
+      let ctrl = new AbortController();
+      spyOn(percy.browser, 'launch');
+
+      await generatePromise(percy.yield.start(), ctrl.signal);
+      expect(percy.syncQueue).toBeDefined();
+      expect(percy.syncQueue.type).toEqual('snapshot');
+    });
+
+    it('has snapshotType comparison in syncQueue', async () => {
+      percy = new Percy({ token: 'app_token' });
+
+      // abort when the browser is launched
+      let ctrl = new AbortController();
+      spyOn(percy.browser, 'launch');
+
+      await generatePromise(percy.yield.start(), ctrl.signal);
+      expect(percy.syncQueue.type).toEqual('comparison');
+    });
+
     it('does not create an empty build when uploads are deferred', async () => {
       percy = new Percy({ token: 'PERCY_TOKEN', deferUploads: true });
       await expectAsync(percy.start()).toBeResolved();
