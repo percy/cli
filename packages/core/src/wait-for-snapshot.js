@@ -84,7 +84,7 @@ export class WaitForSnapshot {
     this.exit = true;
     if (this.timer) clearTimeout(this.timer);
     this.snapshots.forEach((snapshot) => {
-      snapshot.reject(new Error('CLI exited'));
+      snapshot.reject(new Error('Unable to process synchronous results as the CLI was exited while awaiting completion of the snapshot.'));
     });
   }
 }

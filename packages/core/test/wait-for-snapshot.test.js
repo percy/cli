@@ -136,6 +136,6 @@ describe('WaitForSnapshot', () => {
     waitForSnapshot.stop();
     await jasmine.clock().tick(5000);
     expect(getStatusMock).not.toHaveBeenCalled();
-    expect(mockReject).toHaveBeenCalledOnceWith(new Error('CLI exited'));
+    expect(mockReject).toHaveBeenCalledOnceWith(new Error('Unable to process synchronous results as the CLI was exited while awaiting completion of the snapshot.'));
   });
 });

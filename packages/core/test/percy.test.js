@@ -838,6 +838,38 @@ describe('Percy', () => {
       ]);
     });
 
+    it('should raise warning in case of upload command with sync', async () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info',
+        deferUploads: true,
+        skipDiscovery: true
+      });
+      await percy.start();
+
+      percy.upload({
+        name: 'Snapshot',
+        tag: { name: 'device' },
+        tiles: [{ content: 'foo' }, { content: 'bar' }],
+        sync: true
+      });
+
+      await percy.flush();
+      expect(api.requests['/builds/123/snapshots']).toHaveSize(1);
+      expect(api.requests['/snapshots/4567/comparisons']).toHaveSize(1);
+      expect(api.requests['/comparisons/891011/tiles']).toHaveSize(2);
+      expect(api.requests['/comparisons/891011/finalize']).toHaveSize(1);
+      expect(api.requests['/snapshots/4567/finalize']).toBeUndefined();
+
+      expect(logger.stderr).toEqual([
+        '[percy] The Synchronous CLI functionality is not compatible with upload command.'
+      ]);
+      expect(percy.syncQueue.snapshots).toHaveSize(0);
+    });
+
     it('errors when missing any required properties', async () => {
       await percy.start();
 

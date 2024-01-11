@@ -6,7 +6,6 @@ import { handleSyncSnapshot } from '../src/snapshot.js';
 
 describe('Snapshot', () => {
   let percy, server, testDOM;
-  const syncWarnMessage = '[percy] sync does not work with snapshot, upload command and skipUploads, deferUploads options';
 
   beforeEach(async () => {
     testDOM = '<p>Test</p>';
@@ -248,7 +247,8 @@ describe('Snapshot', () => {
     // all snapshots uploaded, build finalized
     expect(api.requests['/builds/123/snapshots']).toHaveSize(2);
     expect(api.requests['/builds/123/finalize']).toBeDefined();
-    expect(logger.stderr).toEqual([syncWarnMessage, syncWarnMessage]);
+    const snapshotWarnMessage = '[percy] Synchronous CLI functionality is not compatible with the snapshot command. Kindly consider taking screenshots via SDKs to achieve synchronous results instead.';
+    expect(logger.stderr).toEqual([snapshotWarnMessage, snapshotWarnMessage]);
   });
 
   it('does not upload delayed snapshots when skipping', async () => {
@@ -285,7 +285,9 @@ describe('Snapshot', () => {
     await percy.snapshot({ url: 'http://localhost:8000/one', widths: [375], sync: true });
     await percy.idle();
 
-    expect(logger.stderr).toEqual([syncWarnMessage]);
+    expect(logger.stderr).toEqual([
+      '[percy] The Synchronous CLI functionality is not compatible with skipUploads option.'
+    ]);
     expect(api.requests['/builds']).toBeUndefined();
     expect(api.requests['/builds/123/snapshots']).toBeUndefined();
   });
@@ -440,8 +442,9 @@ describe('Snapshot', () => {
     snap('lg widths', 1200);
     await percy.idle();
 
+    const warnMessage = '[percy] The Synchronous CLI functionality is not compatible with deferUploads option.';
     expect(logger.stderr).toEqual([
-      syncWarnMessage, syncWarnMessage, syncWarnMessage, syncWarnMessage
+      warnMessage, warnMessage, warnMessage, warnMessage
     ]);
 
     // deferred still works as expected
