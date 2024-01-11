@@ -390,8 +390,6 @@ export class Percy {
       syncMode = false;
       if (options?.sync) {
         options.sync = false;
-      } else if (this.config?.snapshot?.sync) {
-        this.config.snapshot.sync = false;
       }
       this.log.warn('sync does not work with snapshot, upload command and skipUploads, deferUploads options');
     }
