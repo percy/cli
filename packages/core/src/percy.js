@@ -216,7 +216,7 @@ export class Percy {
       await this.browser.close();
     }
 
-    this.syncQueue.stop();
+    if (this.syncQueue) this.syncQueue.stop();
     // not started or already stopped
     if (!this.readyState || this.readyState > 2) return;
 
