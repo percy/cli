@@ -181,13 +181,16 @@ export class PercyClient {
     return this.get(`builds/${buildId}`);
   }
 
-  async getSnapshotDetails(snapshotId) {
-    return this.get(`snapshots/${snapshotId}`);
+  async getSnapshotDetails(snapshotId, type = 'snapshot') {
+    if (!['snapshot', 'comparison'].includes(type)) throw new Error('Invalid type passed');
+    validateId(type, snapshotId);
+    return this.get(`${type}s/${snapshotId}`);
   }
 
   // Retrieves snapshot/comparison data by id. Requires a read access token.
   async getStatus(type, ids) {
-    this.log.debug(`Get ${type} Status for ids ${ids}`);
+    if (!['snapshot', 'comparison'].includes(type)) throw new Error('Invalid type passed');
+    this.log.debug(`Getting ${type} Status for ids ${ids}`);
     return this.get(`job_status?sync=true&type=${type}&id=${ids.join()}`);
   }
 
@@ -316,6 +319,7 @@ export class PercyClient {
     enableLayout,
     clientInfo,
     environmentInfo,
+    sync,
     resources = []
   } = {}) {
     validateId('build', buildId);
@@ -340,7 +344,7 @@ export class PercyClient {
           name: name || null,
           widths: widths || null,
           scope: scope || null,
-          sync: true,
+          sync: !!sync,
           'scope-options': scopeOptions || {},
           'minimum-height': minHeight || null,
           'enable-javascript': enableJavaScript || null,
@@ -386,7 +390,7 @@ export class PercyClient {
     return snapshot;
   }
 
-  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domInfoSha, consideredElementsData, metadata } = {}) {
+  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domInfoSha, consideredElementsData, metadata, sync } = {}) {
     validateId('snapshot', snapshotId);
     // Remove post percy api deploy
     this.log.debug(`Creating comparision: ${tag.name}...`);
@@ -404,12 +408,12 @@ export class PercyClient {
     return this.post(`snapshots/${snapshotId}/comparisons`, {
       data: {
         type: 'comparisons',
-        sync: true,
         attributes: {
           'external-debug-url': externalDebugUrl || null,
           'ignore-elements-data': ignoredElementsData || null,
           'consider-elements-data': consideredElementsData || null,
           'dom-info-sha': domInfoSha || null,
+          sync: !!sync,
           metadata: metadata || null
         },
         relationships: {

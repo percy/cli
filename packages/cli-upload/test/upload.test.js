@@ -86,6 +86,7 @@ describe('percy upload', () => {
           name: 'test-1.png',
           widths: [10],
           scope: null,
+          sync: false,
           'scope-options': {},
           'minimum-height': 10,
           'enable-javascript': null,
@@ -222,7 +223,8 @@ describe('percy upload', () => {
         type: 'comparisons',
         attributes: jasmine.objectContaining({
           'external-debug-url': null,
-          'ignore-elements-data': null
+          'ignore-elements-data': null,
+          sync: false
         }),
         relationships: {
           tag: {

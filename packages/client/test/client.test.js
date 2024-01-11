@@ -293,6 +293,39 @@ describe('PercyClient', () => {
     });
   });
 
+  describe('#getSnapshotDetails()', () => {
+    it('throws when missing a snapshot id', async () => {
+      await expectAsync(client.getSnapshotDetails())
+        .toBeRejectedWithError('Missing snapshot ID');
+    });
+
+    it('throws when invalid type passed', async () => {
+      await expectAsync(client.getSnapshotDetails(1, 'snap'))
+        .toBeRejectedWithError('Invalid type passed');
+    });
+
+    it('gets snapshot data', async () => {
+      api.reply('/snapshots/100', () => [200, { data: '<<snapshot-data>>' }]);
+      api.reply('/comparisons/100', () => [200, { data: '<<comparison-data>>' }]);
+      await expectAsync(client.getSnapshotDetails(100, 'snapshot')).toBeResolvedTo({ data: '<<snapshot-data>>' });
+      await expectAsync(client.getSnapshotDetails(100, 'comparison')).toBeResolvedTo({ data: '<<comparison-data>>' });
+    });
+  });
+
+  describe('#getStatus()', () => {
+    it('throws when invalid type passed', async () => {
+      await expectAsync(client.getStatus('snap', [1]))
+        .toBeRejectedWithError('Invalid type passed');
+    });
+
+    it('gets snapshot data', async () => {
+      api.reply('/job_status?sync=true&type=snapshot&id=1,2', () => [200, { data: '<<status-data-snapshot>>' }]);
+      api.reply('/job_status?sync=true&type=comparison&id=1,2', () => [200, { data: '<<status-data-comparison>>' }]);
+      await expectAsync(client.getStatus('snapshot', [1, 2])).toBeResolvedTo({ data: '<<status-data-snapshot>>' });
+      await expectAsync(client.getStatus('comparison', [1, 2])).toBeResolvedTo({ data: '<<status-data-comparison>>' });
+    });
+  });
+
   describe('#getBuilds()', () => {
     it('throws when missing a project path', async () => {
       await expectAsync(client.getBuilds())
@@ -578,6 +611,7 @@ describe('PercyClient', () => {
         name: 'snapfoo',
         widths: [1000],
         scope: '#main',
+        sync: true,
         scopeOptions: { scroll: true },
         minHeight: 1000,
         enableJavaScript: true,
@@ -612,6 +646,7 @@ describe('PercyClient', () => {
             name: 'snapfoo',
             widths: [1000],
             scope: '#main',
+            sync: true,
             'minimum-height': 1000,
             'scope-options': { scroll: true },
             'enable-javascript': true,
@@ -656,6 +691,7 @@ describe('PercyClient', () => {
             name: null,
             widths: null,
             scope: null,
+            sync: false,
             'scope-options': {},
             'minimum-height': null,
             'enable-javascript': null,
@@ -705,6 +741,7 @@ describe('PercyClient', () => {
       await expectAsync(
         client.sendSnapshot(123, {
           name: 'test snapshot name',
+          sync: true,
           resources: [{
             sha: sha256hash(testDOM),
             mimetype: 'text/html',
@@ -721,6 +758,7 @@ describe('PercyClient', () => {
           attributes: {
             name: 'test snapshot name',
             scope: null,
+            sync: true,
             'scope-options': {},
             'enable-javascript': null,
             'minimum-height': null,
@@ -857,6 +895,7 @@ describe('PercyClient', () => {
           sha: sha256hash('somesha')
         }],
         externalDebugUrl: 'http://debug.localhost',
+        sync: true,
         ignoredElementsData: ignoredElementsData,
         consideredElementsData: consideredElementsData,
         domInfoSha: 'abcd=',
@@ -874,6 +913,7 @@ describe('PercyClient', () => {
             'ignore-elements-data': ignoredElementsData,
             'consider-elements-data': consideredElementsData,
             'dom-info-sha': 'abcd=',
+            sync: true,
             metadata: {
               windowHeight: 1947,
               screenshotType: 'singlepage'
@@ -947,6 +987,7 @@ describe('PercyClient', () => {
             'ignore-elements-data': null,
             'consider-elements-data': null,
             'dom-info-sha': null,
+            sync: false,
             metadata: null
           },
           relationships: {
@@ -1226,6 +1267,7 @@ describe('PercyClient', () => {
             'enable-javascript': null,
             'minimum-height': null,
             widths: null,
+            sync: false,
             'enable-layout': false
           },
           relationships: {
@@ -1246,6 +1288,7 @@ describe('PercyClient', () => {
             'ignore-elements-data': null,
             'consider-elements-data': null,
             'dom-info-sha': null,
+            sync: false,
             metadata: null
           },
           relationships: {
