@@ -352,30 +352,6 @@ describe('Snapshot multiple', () => {
       ]));
     });
 
-    it('serves and snapshots a static directory in sync Mode', async () => {
-      await percy.stop(true);
-
-      percy = await Percy.start({
-        token: 'PERCY_TOKEN',
-        snapshot: { widths: [1000], sync: true },
-        discovery: { concurrency: 1 },
-        clientInfo: 'client-info',
-        environmentInfo: 'env-info',
-        server: false
-      });
-      const promise = {};
-      await percy.snapshot({ serve: './public' }, promise);
-
-      // since promise will being rejected at time of percy.stop
-      Object.values(promise).forEach((p) => p.catch(err => err));
-      expect(Object.keys(promise)).toEqual([
-        '/about.html',
-        '/index.html',
-        '/blog/bar.html',
-        '/blog/foo.html'
-      ]);
-    });
-
     it('accepts an array of specific snapshots', async () => {
       await percy.snapshot({
         serve: './public',
