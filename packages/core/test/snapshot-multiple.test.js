@@ -69,8 +69,19 @@ describe('Snapshot multiple', () => {
 
     it('snapshots an array of snapshots or urls with sync mode', async () => {
       const promise = {};
+      const snapshotList = [
+        { url: '/', name: 'home' },
+        '/about',
+        {
+          url: '/blog',
+          additionalSnapshots: [{
+            suffix: ' (page 2)',
+            execute: () => window.location += '?page=2'
+          }]
+        }
+      ];
       // suppliment the base url for each snapshot
-      await percy.snapshot(snapshots.map(s => {
+      await percy.snapshot(snapshotList.map(s => {
         if (typeof s === 'string') s = { url: baseUrl + s };
         else s.url = baseUrl + s.url;
         s.sync = true;
@@ -78,6 +89,8 @@ describe('Snapshot multiple', () => {
       }), promise);
 
       expect(logger.stderr).toEqual([]);
+      // since promise will being rejected at time of percy.stop
+      Object.values(promise).forEach((p) => p.catch(err => err));
       expect(Object.keys(promise)).toEqual([
         'home',
         '/about',
@@ -137,6 +150,8 @@ describe('Snapshot multiple', () => {
         }
       }, promise);
 
+      // since promise will being rejected at time of percy.stop
+      Object.values(promise).forEach((p) => p.catch(err => err));
       expect(Object.keys(promise)).toEqual(jasmine.arrayContaining([
         'home',
         '/about',
@@ -236,6 +251,8 @@ describe('Snapshot multiple', () => {
       const promise = {};
       await percy.snapshot('http://localhost:8000/sitemap.xml', promise);
 
+      // since promise will being rejected at time of percy.stop
+      Object.values(promise).forEach((p) => p.catch(err => err));
       expect(Object.keys(promise)).toEqual([
         '/',
         '/one',
@@ -349,6 +366,8 @@ describe('Snapshot multiple', () => {
       const promise = {};
       await percy.snapshot({ serve: './public' }, promise);
 
+      // since promise will being rejected at time of percy.stop
+      Object.values(promise).forEach((p) => p.catch(err => err));
       expect(Object.keys(promise)).toEqual([
         '/about.html',
         '/index.html',

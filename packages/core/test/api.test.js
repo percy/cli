@@ -152,11 +152,11 @@ describe('API Server', () => {
     });
 
     expect(percy.snapshot).toHaveBeenCalledOnceWith(
-      { 'test-me': true, me_too: true }
+      { 'test-me': true, me_too: true }, {}
     );
   });
 
-  it('has a /snapshot endpoint that calls #snapshot() with provided options', async () => {
+  it('has a /snapshot endpoint that calls #snapshot() with provided options in sync mode', async () => {
     spyOn(percy.client, 'getSnapshotDetails').and.returnValue(getSnapshotDetailsResponse);
     spyOn(percy, 'snapshot').and.callFake((_, promise) => promise.test = new Promise((resolve, reject) => setTimeout(() => resolve(), 100)));
     await percy.start();

@@ -787,6 +787,34 @@ describe('Percy', () => {
       ]);
     });
 
+    it('should push snapshot comparisons to the wait for snapshot queue', async () => {
+      const mockResolve = jasmine.createSpy('resolve');
+      const mockReject = jasmine.createSpy('reject');
+      await percy.start();
+
+      await percy.upload({
+        name: 'Snapshot',
+        tag: { name: 'device' },
+        tiles: [{ content: 'foo' }, { content: 'bar' }],
+        sync: true
+      }, { resolve: mockResolve, reject: mockReject });
+
+      await percy.idle();
+      expect(api.requests['/builds/123/snapshots']).toHaveSize(1);
+      expect(api.requests['/snapshots/4567/comparisons']).toHaveSize(1);
+      expect(api.requests['/comparisons/891011/tiles']).toHaveSize(2);
+      expect(api.requests['/comparisons/891011/finalize']).toHaveSize(1);
+      expect(api.requests['/snapshots/4567/finalize']).toBeUndefined();
+
+      expect(logger.stderr).toEqual([]);
+      expect(percy.syncQueue.snapshots).toHaveSize(1);
+      expect(logger.stdout).toEqual([
+        '[percy] Percy has started!',
+        '[percy] Snapshot taken: Snapshot',
+        '[percy] Waiting for snapshot Snapshot to be completed'
+      ]);
+    });
+
     it('errors when missing any required properties', async () => {
       await percy.start();
 

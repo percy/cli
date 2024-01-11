@@ -206,11 +206,11 @@ export function validateSnapshotOptions(options) {
   return { clientInfo, environmentInfo, ...migrated };
 }
 
-export async function handleSyncSnapshot(snapshotPromise, percy) {
+export async function handleSyncSnapshot(snapshotPromise, percy, type) {
   let data;
   try {
     const snapshotId = await snapshotPromise;
-    data = await percy.client.getSnapshotDetails(snapshotId);
+    data = await percy.client.getSnapshotDetails(snapshotId, type);
   } catch (e) {
     data = { message: e.message };
   }

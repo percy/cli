@@ -6,6 +6,7 @@ import { handleSyncSnapshot } from '../src/snapshot.js';
 
 describe('Snapshot', () => {
   let percy, server, testDOM;
+  const syncWarnMessage = '[percy] sync does not work with snapshot, upload command and skipUploads, deferUploads options';
 
   beforeEach(async () => {
     testDOM = '<p>Test</p>';
@@ -213,6 +214,43 @@ describe('Snapshot', () => {
     expect(root(1)).toHaveProperty('attributes.resource-url', 'http://localhost:8000/two');
   });
 
+  it('sync with delayUploads should raise warn', async () => {
+    // stop and recreate a percy instance with the desired option
+    await percy.stop(true);
+    await api.mock();
+
+    percy = await Percy.start({
+      token: 'PERCY_TOKEN',
+      delayUploads: true,
+      clientInfo: 'client-info',
+      environmentInfo: 'env-info',
+      snapshot: { sync: true }
+    });
+
+    // not requested on start
+    expect(api.requests['/builds']).toBeUndefined();
+    expect(api.requests['/builds/123/snapshots']).toBeUndefined();
+
+    await percy.snapshot('http://localhost:8000/one');
+    await percy.idle();
+
+    // build created, not yet uploaded
+    expect(api.requests['/builds']).toBeDefined();
+    expect(api.requests['/builds/123/snapshots']).toBeUndefined();
+
+    await percy.snapshot('http://localhost:8000/two');
+    await percy.idle();
+
+    // one snapshot uploaded, second one queued
+    expect(api.requests['/builds/123/snapshots']).toHaveSize(1);
+    await percy.stop();
+
+    // all snapshots uploaded, build finalized
+    expect(api.requests['/builds/123/snapshots']).toHaveSize(2);
+    expect(api.requests['/builds/123/finalize']).toBeDefined();
+    expect(logger.stderr).toEqual([syncWarnMessage, syncWarnMessage]);
+  });
+
   it('does not upload delayed snapshots when skipping', async () => {
     // stop and recreate a percy instance with the desired option
     await percy.stop(true);
@@ -247,9 +285,7 @@ describe('Snapshot', () => {
     await percy.snapshot({ url: 'http://localhost:8000/one', widths: [375], sync: true });
     await percy.idle();
 
-    expect(logger.stderr).toEqual([
-      '[percy] sync does not work with skipUploads and deferUploads'
-    ]);
+    expect(logger.stderr).toEqual([syncWarnMessage]);
     expect(api.requests['/builds']).toBeUndefined();
     expect(api.requests['/builds/123/snapshots']).toBeUndefined();
   });
@@ -404,9 +440,8 @@ describe('Snapshot', () => {
     snap('lg widths', 1200);
     await percy.idle();
 
-    const warnMessage = '[percy] sync does not work with skipUploads and deferUploads';
     expect(logger.stderr).toEqual([
-      warnMessage, warnMessage, warnMessage, warnMessage
+      syncWarnMessage, syncWarnMessage, syncWarnMessage, syncWarnMessage
     ]);
 
     // deferred still works as expected
@@ -538,7 +573,7 @@ describe('Snapshot', () => {
       sync: true
     }, promise);
     await percy.idle();
-    const data = await handleSyncSnapshot(promise['test snapshot'], percy);
+    const data = await handleSyncSnapshot(promise['test snapshot'], percy, 'snapshot');
     expect(data).toEqual(api.DEFAULT_REPLIES['/snapshots/4567']()[1]);
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
@@ -651,7 +686,7 @@ describe('Snapshot', () => {
       domSnapshot: testDOM,
       sync: true
     }, promise);
-    const data = await handleSyncSnapshot(promise['test snapshot'], percy);
+    const data = await handleSyncSnapshot(promise['test snapshot'], percy, 'snapshot');
     expect(data).toEqual({ message: 'unexpected upload error' });
     await expectAsync(promise['test snapshot']).toBeRejectedWithError('unexpected upload error');
     await percy.idle();

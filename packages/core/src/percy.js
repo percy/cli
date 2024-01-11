@@ -361,7 +361,9 @@ export class Percy {
     this.client.addEnvironmentInfo(options.environmentInfo);
 
     // Sync CLI support, attached resolve, reject promise
-    Object.assign(options, { ...callback });
+    if (this.syncMode(options)) {
+      Object.assign(options, { ...callback });
+    }
 
     // return an async generator to allow cancelation
     return (async function*() {
@@ -384,14 +386,14 @@ export class Percy {
     if (this.config?.snapshot?.sync) syncMode = true;
     if (options?.sync) syncMode = true;
 
-    if ((this.skipUploads || this.deferUploads) && syncMode) {
+    if ((this.skipUploads || this.deferUploads || this.delayUploads) && syncMode) {
       syncMode = false;
       if (options?.sync) {
         options.sync = false;
       } else if (this.config?.snapshot?.sync) {
         this.config.snapshot.sync = false;
       }
-      this.log.warn('sync does not work with skipUploads and deferUploads');
+      this.log.warn('sync does not work with snapshot, upload command and skipUploads, deferUploads options');
     }
     return syncMode;
   }
