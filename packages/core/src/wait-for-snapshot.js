@@ -83,6 +83,9 @@ export class WaitForSnapshot {
   stop() {
     this.exit = true;
     if (this.timer) clearTimeout(this.timer);
+    this.snapshots.forEach((snapshot) => {
+      snapshot.reject(new Error('CLI exited'));
+    });
   }
 }
 
