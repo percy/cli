@@ -392,8 +392,7 @@ export class Percy {
       if (this.delayUploads && !this.skipUploads) {
         this.log.warn('Synchronous CLI functionality is not compatible with the snapshot command. Kindly consider taking screenshots via SDKs to achieve synchronous results instead.');
       } else {
-        let type;
-        if (this.deferUploads) type = 'deferUploads option';
+        let type = 'deferUploads option';
         if (this.skipDiscovery && this.deferUploads) type = 'upload command';
         if (this.skipUploads) type = 'skipUploads option';
         this.log.warn(`The Synchronous CLI functionality is not compatible with ${type}.`);
