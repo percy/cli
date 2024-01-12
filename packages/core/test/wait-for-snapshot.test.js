@@ -88,8 +88,7 @@ describe('WaitForSnapshot', () => {
   it('should handle nextPoll time for multiple snapshots', async () => {
     const mockResolve2 = jasmine.createSpy('resolve');
     const snapshot2 = new SnapshotData(2, null, mockResolve2, mockReject);
-    const now = Math.floor(Date.now() / 1000);
-    getStatusMock.and.returnValue({ 1: { status: false, error: null, next_poll: now + 15 }, 2: { status: false, error: null, next_poll: now + 12 } });
+    getStatusMock.and.returnValue({ 1: { status: false, error: null, next_poll: 15 }, 2: { status: false, error: null, next_poll: 12 } });
     waitForSnapshot.push(snapshot);
     waitForSnapshot.push(snapshot2);
     await jasmine.clock().tick(5000);
@@ -106,10 +105,9 @@ describe('WaitForSnapshot', () => {
   });
 
   it('should handle nextPoll time for multiple snapshots if optimal time not in threshold', async () => {
-    const now = Math.floor(Date.now() / 1000);
     const mockResolve2 = jasmine.createSpy('resolve');
-    const snapshot2 = new SnapshotData(2, now + 15, mockResolve2, mockReject);
-    getStatusMock.and.returnValue({ 1: { status: false, error: null, next_poll: now + 20 }, 2: { status: false, error: null, next_poll: now + 12 } });
+    const snapshot2 = new SnapshotData(2, 15, mockResolve2, mockReject);
+    getStatusMock.and.returnValue({ 1: { status: false, error: null, next_poll: 20 }, 2: { status: false, error: null, next_poll: 12 } });
     waitForSnapshot.push(snapshot);
     waitForSnapshot.push(snapshot2);
     await jasmine.clock().tick(5000);

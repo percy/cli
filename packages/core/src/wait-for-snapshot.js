@@ -35,11 +35,9 @@ export class WaitForSnapshot {
 
     this.log.debug(`Polling for snapshot status in ${interval}ms`);
     this.timer = setTimeout(async () => {
+      let nextPoll = MAX_POLLING_INTERVAL;
       const snapshotIds = this.snapshots.map(snap => snap.id);
       const response = await this.percy.client.getStatus(this.type, snapshotIds);
-
-      let nextPoll = MAX_POLLING_INTERVAL;
-      const now = Math.floor(Date.now() / 1000);
 
       this.snapshots = this.snapshots.filter((snapshot) => {
         if (response[snapshot.id]) {
@@ -54,7 +52,7 @@ export class WaitForSnapshot {
             snapshot.nextPoll = snapshotStatus.next_poll;
           }
         }
-        nextPoll = Math.min(nextPoll, snapshot.nextPoll - now);
+        nextPoll = Math.min(nextPoll, snapshot.nextPoll);
         return true;
       });
 
@@ -62,17 +60,17 @@ export class WaitForSnapshot {
         this.running = false;
         return;
       }
-      const optimalNextPollTime = this.getOptimalPollTime(nextPoll, now);
+      const optimalNextPollTime = this.getOptimalPollTime(nextPoll);
       this.run(optimalNextPollTime * 1000);
     }, interval);
   }
 
   // If there are other snapshots which can be completed in next
   // 5 seconds, calling after x seconds will reduce network call
-  getOptimalPollTime(lowestPollTime, now) {
+  getOptimalPollTime(lowestPollTime) {
     let pollTime = lowestPollTime;
     this.snapshots.forEach((snapshot) => {
-      const snaphotPollTime = snapshot.nextPoll - now;
+      const snaphotPollTime = snapshot.nextPoll;
       if (snaphotPollTime - lowestPollTime <= THRESHOLD_OPTIMAL_POLL_TIME) {
         pollTime = Math.max(pollTime, snaphotPollTime);
       }
@@ -91,9 +89,8 @@ export class WaitForSnapshot {
 
 export class SnapshotData {
   constructor(id, nextPoll, resolve, reject) {
-    if (!nextPoll) nextPoll = Math.floor(Date.now() / 1000) + 60;
     this.id = id;
-    this.nextPoll = nextPoll;
+    this.nextPoll = nextPoll || 60;
     this.resolve = resolve;
     this.reject = reject;
   }
