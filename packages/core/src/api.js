@@ -97,8 +97,14 @@ export function createPercyServer(percy, port) {
     })
   // post one or more comparisons, optionally waiting
     .route('post', '/percy/comparison', async (req, res) => {
-      let upload = percy.upload(req.body);
-      if (req.url.searchParams.has('await')) await upload;
+      if (percy.syncMode(req.body)) {
+        const snapshotPromise = new Promise((resolve, reject) => percy.upload(req.body, { resolve, reject }));
+        await snapshotPromise;
+      } else {
+        let upload = percy.upload(req.body);
+        if (req.url.searchParams.has('await')) await upload;
+      }
+
 
       // generate and include one or more redirect links to comparisons
       let link = ({ name, tag }) => [
