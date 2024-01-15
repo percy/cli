@@ -108,9 +108,15 @@ export function createPercyServer(percy, port) {
         }, { snake: true }))
       ].join('');
 
-      return res.json(200, Object.assign({ success: true }, req.body ? (
-        Array.isArray(req.body) ? { links: req.body.map(link) } : { link: link(req.body) }
-      ) : {}));
+      const response = { success: true };
+      if (req.body) {
+        if (Array.isArray(req.body)) {
+          response.links = req.body.map(link);
+        } else {
+          response.link = link(req.body);
+        }
+      }
+      return res.json(200, response);
     })
   // flushes one or more snapshots from the internal queue
     .route('post', '/percy/flush', async (req, res) => res.json(200, {
