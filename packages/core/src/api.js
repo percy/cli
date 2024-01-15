@@ -105,7 +105,6 @@ export function createPercyServer(percy, port) {
         if (req.url.searchParams.has('await')) await upload;
       }
 
-
       // generate and include one or more redirect links to comparisons
       let link = ({ name, tag }) => [
         percy.client.apiUrl, '/comparisons/redirect?',
@@ -114,6 +113,7 @@ export function createPercyServer(percy, port) {
         }, { snake: true }))
       ].join('');
 
+      console.log('temp change');
       return res.json(200, Object.assign({ success: true }, req.body ? (
         Array.isArray(req.body) ? { links: req.body.map(link) } : { link: link(req.body) }
       ) : {}));
