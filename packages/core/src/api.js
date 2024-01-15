@@ -113,8 +113,7 @@ export function createPercyServer(percy, port) {
         }, { snake: true }))
       ].join('');
 
-      console.log('temp change');
-      return res.json(200, Object.assign({ success: true }, req.body ? (
+      return res.json(200, Object.assign({ success: false }, req.body ? (
         Array.isArray(req.body) ? { links: req.body.map(link) } : { link: link(req.body) }
       ) : {}));
     })
