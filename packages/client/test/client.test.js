@@ -305,8 +305,8 @@ describe('PercyClient', () => {
     });
 
     it('gets snapshot data', async () => {
-      api.reply('/snapshots/100', () => [200, { data: '<<snapshot-data>>' }]);
-      api.reply('/comparisons/100', () => [200, { data: '<<comparison-data>>' }]);
+      api.reply('/snapshots/100?sync=true', () => [200, { data: '<<snapshot-data>>' }]);
+      api.reply('/comparisons/100?sync=true', () => [200, { data: '<<comparison-data>>' }]);
       await expectAsync(client.getSnapshotDetails(100, 'snapshot')).toBeResolvedTo({ data: '<<snapshot-data>>' });
       await expectAsync(client.getSnapshotDetails(100, 'comparison')).toBeResolvedTo({ data: '<<comparison-data>>' });
     });

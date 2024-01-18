@@ -577,7 +577,7 @@ describe('Snapshot', () => {
     }, promise);
     await percy.idle();
     const data = await handleSyncSnapshot(promise['test snapshot'], percy, 'snapshot');
-    expect(data).toEqual(api.DEFAULT_REPLIES['/snapshots/4567']()[1]);
+    expect(data).toEqual(api.DEFAULT_REPLIES['/snapshots/4567?sync=true']()[1]);
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Snapshot taken: test snapshot',
