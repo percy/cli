@@ -185,7 +185,7 @@ export class PercyClient {
   async getSnapshotDetails(snapshotId, type = 'snapshot') {
     if (!['snapshot', 'comparison'].includes(type)) throw new Error('Invalid type passed');
     validateId(type, snapshotId);
-    return this.get(`${type}s/${snapshotId}`);
+    return this.get(`${type}s/${snapshotId}?sync=true`);
   }
 
   // Retrieves snapshot/comparison data by id. Requires a read access token.

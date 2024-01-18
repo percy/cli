@@ -136,7 +136,7 @@ export const api = {
         error: null
       }
     }],
-    '/snapshots/4567': () => [201, {
+    '/snapshots/4567?sync=true': () => [201, {
       name: 'test snapshot',
       diff_ratio: 0
     }]
