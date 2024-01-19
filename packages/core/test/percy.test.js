@@ -830,7 +830,7 @@ describe('Percy', () => {
       expect(api.requests['/snapshots/4567/finalize']).toBeUndefined();
 
       expect(logger.stderr).toEqual([]);
-      expect(percy.syncQueue.snapshots).toHaveSize(1);
+      expect(percy.syncQueue.jobs).toHaveSize(1);
       expect(logger.stdout).toEqual([
         '[percy] Percy has started!',
         '[percy] Snapshot taken: Snapshot',
@@ -867,7 +867,7 @@ describe('Percy', () => {
       expect(logger.stderr).toEqual([
         '[percy] The Synchronous CLI functionality is not compatible with upload command.'
       ]);
-      expect(percy.syncQueue.snapshots).toHaveSize(0);
+      expect(percy.syncQueue.jobs).toHaveSize(0);
     });
 
     it('errors when missing any required properties', async () => {
