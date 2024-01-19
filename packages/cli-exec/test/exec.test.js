@@ -289,7 +289,7 @@ describe('percy exec', () => {
     )]);
 
     // wait until the process starts
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 1000));
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       jasmine.stringContaining('[percy] Running "node --eval ')
     ]));
