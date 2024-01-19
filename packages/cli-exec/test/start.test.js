@@ -18,6 +18,8 @@ describe('percy exec:start', () => {
 
     started = start(['--quiet']);
     started.then(() => (started = null));
+    // wait until the process starts
+    await new Promise(r => setTimeout(r, 1000));
     await ping();
   });
 
