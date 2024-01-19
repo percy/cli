@@ -5,7 +5,7 @@ import logger from '@percy/logger';
 import { normalize } from '@percy/config/utils';
 import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHandler } from './utils.js';
 import WebdriverUtils from '@percy/webdriver-utils';
-import { handleSyncSnapshot } from './snapshot.js';
+import { handleSyncJob } from './snapshot.js';
 // need require.resolve until import.meta.resolve can be transpiled
 export const PERCY_DOM = createRequire(import.meta.url).resolve('@percy/dom');
 
@@ -97,7 +97,7 @@ export function createPercyServer(percy, port) {
       const snapshot = percy.snapshot(req.body, snapshotPromise);
       if (!req.url.searchParams.has('async')) await snapshot;
 
-      if (percy.syncMode(req.body)) data = await handleSyncSnapshot(snapshotPromise[req.body.name], percy, 'snapshot');
+      if (percy.syncMode(req.body)) data = await handleSyncJob(snapshotPromise[req.body.name], percy, 'snapshot');
 
       return res.json(200, { success: true, data: data });
     })
@@ -106,7 +106,7 @@ export function createPercyServer(percy, port) {
       let data;
       if (percy.syncMode(req.body)) {
         const snapshotPromise = new Promise((resolve, reject) => percy.upload(req.body, { resolve, reject }));
-        data = await handleSyncSnapshot(snapshotPromise, percy, 'comparison');
+        data = await handleSyncJob(snapshotPromise, percy, 'comparison');
       } else {
         let upload = percy.upload(req.body);
         if (req.url.searchParams.has('await')) await upload;
@@ -120,7 +120,7 @@ export function createPercyServer(percy, port) {
         }, { snake: true }))
       ].join('');
 
-      const response = { success: true, data };
+      const response = { success: true, data: data };
       if (req.body) {
         if (Array.isArray(req.body)) {
           response.links = req.body.map(link);
@@ -140,7 +140,7 @@ export function createPercyServer(percy, port) {
       let comparisonData = await WebdriverUtils.automateScreenshot(req.body);
       if (percy.syncMode(comparisonData)) {
         const snapshotPromise = new Promise((resolve, reject) => percy.upload(comparisonData, { resolve, reject }));
-        data = await handleSyncSnapshot(snapshotPromise, percy, 'comparison');
+        data = await handleSyncJob(snapshotPromise, percy, 'comparison');
       } else {
         percy.upload(comparisonData);
       }

@@ -182,10 +182,14 @@ export class PercyClient {
     return this.get(`builds/${buildId}`);
   }
 
-  async getSnapshotDetails(snapshotId, type = 'snapshot') {
-    if (!['snapshot', 'comparison'].includes(type)) throw new Error('Invalid type passed');
-    validateId(type, snapshotId);
-    return this.get(`${type}s/${snapshotId}?sync=true`);
+  async getComparisonDetails(comparisonId) {
+    validateId('comparison', comparisonId);
+    return this.get(`comparisons/${comparisonId}?sync=true`);
+  }
+
+  async getSnapshotDetails(snapshotId) {
+    validateId('snapshot', snapshotId);
+    return this.get(`snapshots/${snapshotId}?sync=true`);
   }
 
   // Retrieves snapshot/comparison data by id. Requires a read access token.

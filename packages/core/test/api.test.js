@@ -141,6 +141,7 @@ describe('API Server', () => {
   });
 
   it('has a /snapshot endpoint that calls #snapshot() with provided options', async () => {
+    spyOn(percy.client, 'getSnapshotDetails');
     spyOn(percy, 'snapshot').and.resolveTo();
     await percy.start();
 
@@ -151,6 +152,7 @@ describe('API Server', () => {
       success: true
     });
 
+    expect(percy.client.getSnapshotDetails).not.toHaveBeenCalled();
     expect(percy.snapshot).toHaveBeenCalledOnceWith(
       { 'test-me': true, me_too: true }, {}
     );
@@ -214,7 +216,7 @@ describe('API Server', () => {
   });
 
   it('has a /comparison endpoint that calls #upload() with sync mode', async () => {
-    spyOn(percy.client, 'getSnapshotDetails').and.returnValue(getSnapshotDetailsResponse);
+    spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
     spyOn(percy, 'upload').and.callFake((_, callback) => callback.resolve());
     await percy.start();
 
@@ -246,7 +248,7 @@ describe('API Server', () => {
       ].join('&')}`
     }));
 
-    expect(percy.client.getSnapshotDetails).toHaveBeenCalled();
+    expect(percy.client.getComparisonDetails).toHaveBeenCalled();
   });
 
   it('includes links in the /comparison endpoint response', async () => {
@@ -380,7 +382,7 @@ describe('API Server', () => {
   });
 
   it('has a /automateScreenshot endpoint that calls #upload() async with provided options', async () => {
-    spyOn(percy.client, 'getSnapshotDetails').and.returnValue(getSnapshotDetailsResponse);
+    spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
     spyOn(percy, 'upload').and.callFake((_, callback) => callback.resolve());
     let automateScreenshotSpy = spyOn(WebdriverUtils, 'automateScreenshot').and.returnValue({ sync: true });
 
@@ -430,7 +432,7 @@ describe('API Server', () => {
       }
     }));
 
-    expect(percy.client.getSnapshotDetails).toHaveBeenCalled();
+    expect(percy.client.getComparisonDetails).toHaveBeenCalled();
     expect(percy.upload).toHaveBeenCalledOnceWith({ sync: true }, jasmine.objectContaining({}));
   });
 

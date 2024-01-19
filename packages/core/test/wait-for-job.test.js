@@ -1,8 +1,8 @@
 import logger from '@percy/logger/test/helpers';
 import PercyClient from '@percy/client';
-import { SnapshotData, WaitForSnapshot } from '../src/wait-for-snapshot.js';
+import { JobData, WaitForJob } from '../src/wait-for-job.js';
 
-describe('WaitForSnapshot', () => {
+describe('WaitForJob', () => {
   let client;
   let getStatusMock;
   let waitForSnapshot;
@@ -15,10 +15,10 @@ describe('WaitForSnapshot', () => {
       token: 'PERCY_TOKEN'
     });
     getStatusMock = spyOn(client, 'getStatus');
-    waitForSnapshot = new WaitForSnapshot('snapshot', { client });
+    waitForSnapshot = new WaitForJob('snapshot', { client });
     mockResolve = jasmine.createSpy('resolve');
     mockReject = jasmine.createSpy('reject');
-    snapshot = new SnapshotData(1, null, mockResolve, mockReject);
+    snapshot = new JobData(1, null, mockResolve, mockReject);
     jasmine.clock().install();
   });
 
@@ -28,19 +28,19 @@ describe('WaitForSnapshot', () => {
   });
 
   it('throws when intialized with invalid type', () => {
-    expect(() => new WaitForSnapshot('dummy', { client: client }))
+    expect(() => new WaitForJob('dummy', { client: client }))
       .toThrowError('Type should be either comparison or snapshot');
   });
 
   it('throws when snapshotData is not used', () => {
     expect(() => waitForSnapshot.push('dummy'))
-      .toThrowError('Invalid snapshot passed, use SnapshotData');
+      .toThrowError('Invalid job passed, use JobData');
   });
 
   it('adding first snapshot should trigger run', async () => {
     waitForSnapshot.push(snapshot);
     expect(waitForSnapshot.running).toBeTruthy();
-    expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:core:wait-for-snapshot] Polling for snapshot status in 5000ms']));
+    expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:core:wait-for-job] Polling for snapshot status in 5000ms']));
     expect(waitForSnapshot.timer).not.toEqual(null);
   });
 
@@ -62,7 +62,7 @@ describe('WaitForSnapshot', () => {
     expect(getStatusMock).toHaveBeenCalled();
     expect(mockReject).toHaveBeenCalledOnceWith('some dummy error');
     expect(mockResolve).not.toHaveBeenCalled();
-    expect(waitForSnapshot.snapshots).toEqual([]);
+    expect(waitForSnapshot.jobs).toEqual([]);
   });
 
   it('should resolve snapshot', async () => {
@@ -72,22 +72,22 @@ describe('WaitForSnapshot', () => {
     expect(getStatusMock).toHaveBeenCalled();
     expect(mockReject).not.toHaveBeenCalled();
     expect(mockResolve).toHaveBeenCalledOnceWith(snapshot.id);
-    expect(waitForSnapshot.snapshots).toEqual([]);
+    expect(waitForSnapshot.jobs).toEqual([]);
   });
 
   it('should handle case when snapshot was pushed when run is in progress', async () => {
-    const snapshot2 = new SnapshotData(2, null, null, null);
+    const snapshot2 = new JobData(2, null, null, null);
     // This situation will happen when we made network call and in between a snapshot is pushed
     getStatusMock.and.returnValue({ 1: { status: true } });
     waitForSnapshot.push(snapshot);
     waitForSnapshot.push(snapshot2);
     await jasmine.clock().tick(5000);
-    expect(waitForSnapshot.snapshots).toEqual([snapshot2]);
+    expect(waitForSnapshot.jobs).toEqual([snapshot2]);
   });
 
   it('should handle nextPoll time for multiple snapshots', async () => {
     const mockResolve2 = jasmine.createSpy('resolve');
-    const snapshot2 = new SnapshotData(2, null, mockResolve2, mockReject);
+    const snapshot2 = new JobData(2, null, mockResolve2, mockReject);
     getStatusMock.and.returnValue({ 1: { status: false, error: null, next_poll: 15 }, 2: { status: false, error: null, next_poll: 12 } });
     waitForSnapshot.push(snapshot);
     waitForSnapshot.push(snapshot2);
@@ -98,7 +98,7 @@ describe('WaitForSnapshot', () => {
     expect(waitForSnapshot.running).toBeTruthy();
     getStatusMock.and.returnValue({ 1: { status: true }, 2: { status: true } });
     await jasmine.clock().tick(15000);
-    expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:core:wait-for-snapshot] Polling for snapshot status in 15000ms']));
+    expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:core:wait-for-job] Polling for snapshot status in 15000ms']));
     expect(waitForSnapshot.running).toBeFalse();
     expect(mockResolve2).toHaveBeenCalledOnceWith(snapshot2.id);
     expect(mockResolve).toHaveBeenCalledOnceWith(snapshot.id);
@@ -106,7 +106,7 @@ describe('WaitForSnapshot', () => {
 
   it('should handle nextPoll time for multiple snapshots if optimal time not in threshold', async () => {
     const mockResolve2 = jasmine.createSpy('resolve');
-    const snapshot2 = new SnapshotData(2, 15, mockResolve2, mockReject);
+    const snapshot2 = new JobData(2, 15, mockResolve2, mockReject);
     getStatusMock.and.returnValue({ 1: { status: false, error: null, next_poll: 20 }, 2: { status: false, error: null, next_poll: 12 } });
     waitForSnapshot.push(snapshot);
     waitForSnapshot.push(snapshot2);
@@ -117,7 +117,7 @@ describe('WaitForSnapshot', () => {
     expect(waitForSnapshot.running).toBeTruthy();
     getStatusMock.and.returnValue({ 1: { status: false }, 2: { status: true } });
     await jasmine.clock().tick(12000);
-    expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:core:wait-for-snapshot] Polling for snapshot status in 12000ms']));
+    expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:core:wait-for-job] Polling for snapshot status in 12000ms']));
     expect(mockResolve2).toHaveBeenCalledOnceWith(snapshot2.id);
     expect(mockResolve).not.toHaveBeenCalled();
   });

@@ -21,7 +21,7 @@ import {
   yieldAll,
   yieldTo
 } from './utils.js';
-import { WaitForSnapshot } from './wait-for-snapshot.js';
+import { WaitForJob } from './wait-for-job.js';
 
 // A Percy instance will create a new build when started, handle snapshot creation, asset discovery,
 // and resource uploads, and will finalize the build when stopped. Snapshots are processed
@@ -158,7 +158,7 @@ export class Percy {
       // start a local API server for SDK communication
       if (this.server) yield this.server.listen();
       const snapshotType = this.client.tokenType() === 'web' ? 'snapshot' : 'comparison';
-      this.syncQueue = new WaitForSnapshot(snapshotType, this);
+      this.syncQueue = new WaitForJob(snapshotType, this);
       // log and mark this instance as started
       this.log.info('Percy has started!');
       this.readyState = 1;
@@ -385,6 +385,7 @@ export class Percy {
     let syncMode = false;
     if (this.config?.snapshot?.sync) syncMode = true;
     if (options?.sync) syncMode = true;
+    if (options?.sync === false) syncMode = false;
 
     if ((this.skipUploads || this.deferUploads || this.delayUploads) && syncMode) {
       syncMode = false;

@@ -2,15 +2,15 @@ import logger from '@percy/logger';
 
 const MIN_POLLING_INTERVAL = 5_000;
 // Poll atleast once in 2 min
-const MAX_POLLING_INTERVAL = 120; // in seconds
+const MAX_POLLING_INTERVAL_SECONDS = 120;
 const THRESHOLD_OPTIMAL_POLL_TIME = 5;
 
-export class WaitForSnapshot {
-  log = logger('core:wait-for-snapshot');
+export class WaitForJob {
+  log = logger('core:wait-for-job');
 
   constructor(type, percy) {
     this.percy = percy;
-    this.snapshots = [];
+    this.jobs = [];
     if (type !== 'comparison' && type !== 'snapshot') throw new Error('Type should be either comparison or snapshot');
     this.type = type;
     this.timer = null;
@@ -18,10 +18,10 @@ export class WaitForSnapshot {
     this.running = false;
   }
 
-  push(snapshot) {
-    if (!(snapshot instanceof SnapshotData)) throw new Error('Invalid snapshot passed, use SnapshotData');
+  push(job) {
+    if (!(job instanceof JobData)) throw new Error('Invalid job passed, use JobData');
 
-    this.snapshots.push(snapshot);
+    this.jobs.push(job);
     if (!this.running) this.run();
   }
 
@@ -33,30 +33,30 @@ export class WaitForSnapshot {
       interval = MIN_POLLING_INTERVAL;
     }
 
-    this.log.debug(`Polling for snapshot status in ${interval}ms`);
+    this.log.debug(`Polling for ${this.type} status in ${interval}ms`);
     this.timer = setTimeout(async () => {
-      let nextPoll = MAX_POLLING_INTERVAL;
-      const snapshotIds = this.snapshots.map(snap => snap.id);
-      const response = await this.percy.client.getStatus(this.type, snapshotIds);
+      let nextPoll = MAX_POLLING_INTERVAL_SECONDS;
+      const jobIds = this.jobs.map(job => job.id);
+      const response = await this.percy.client.getStatus(this.type, jobIds);
 
-      this.snapshots = this.snapshots.filter((snapshot) => {
-        if (response[snapshot.id]) {
-          const snapshotStatus = response[snapshot.id];
-          if (snapshotStatus.status) {
-            snapshot.resolve(snapshot.id);
+      this.jobs = this.jobs.filter((job) => {
+        if (response[job.id]) {
+          const jobStatus = response[job.id];
+          if (jobStatus.status) {
+            job.resolve(job.id);
             return false;
-          } else if (snapshotStatus.error != null) {
-            snapshot.reject(snapshotStatus.error);
+          } else if (jobStatus.error != null) {
+            job.reject(jobStatus.error);
             return false;
           } else {
-            snapshot.nextPoll = snapshotStatus.next_poll;
+            job.nextPoll = jobStatus.next_poll;
           }
         }
-        nextPoll = Math.min(nextPoll, snapshot.nextPoll);
+        nextPoll = Math.min(nextPoll, job.nextPoll);
         return true;
       });
 
-      if (this.snapshots.length === 0) {
+      if (this.jobs.length === 0) {
         this.running = false;
         return;
       }
@@ -69,10 +69,10 @@ export class WaitForSnapshot {
   // 5 seconds, calling after x seconds will reduce network call
   getOptimalPollTime(lowestPollTime) {
     let pollTime = lowestPollTime;
-    this.snapshots.forEach((snapshot) => {
-      const snaphotPollTime = snapshot.nextPoll;
-      if (snaphotPollTime - lowestPollTime <= THRESHOLD_OPTIMAL_POLL_TIME) {
-        pollTime = Math.max(pollTime, snaphotPollTime);
+    this.jobs.forEach((job) => {
+      const jobPollTime = job.nextPoll;
+      if (jobPollTime - lowestPollTime <= THRESHOLD_OPTIMAL_POLL_TIME) {
+        pollTime = Math.max(pollTime, jobPollTime);
       }
     });
     return pollTime;
@@ -81,13 +81,13 @@ export class WaitForSnapshot {
   stop() {
     this.exit = true;
     if (this.timer) clearTimeout(this.timer);
-    this.snapshots.forEach((snapshot) => {
-      snapshot.reject(new Error('Unable to process synchronous results as the CLI was exited while awaiting completion of the snapshot.'));
+    this.jobs.forEach((job) => {
+      job.reject(new Error('Unable to process synchronous results as the CLI was exited while awaiting completion of the snapshot.'));
     });
   }
 }
 
-export class SnapshotData {
+export class JobData {
   constructor(id, nextPoll, resolve, reject) {
     this.id = id;
     this.nextPoll = nextPoll || 60;

@@ -834,7 +834,7 @@ describe('Percy', () => {
       expect(logger.stdout).toEqual([
         '[percy] Percy has started!',
         '[percy] Snapshot taken: Snapshot',
-        '[percy] Waiting for snapshot Snapshot to be completed'
+        '[percy] Waiting for snapshot \'Snapshot\' to be completed'
       ]);
     });
 

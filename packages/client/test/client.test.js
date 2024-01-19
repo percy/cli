@@ -293,22 +293,27 @@ describe('PercyClient', () => {
     });
   });
 
+  describe('#getComparisonDetails()', () => {
+    it('throws when missing a comparison id', async () => {
+      await expectAsync(client.getComparisonDetails())
+        .toBeRejectedWithError('Missing comparison ID');
+    });
+
+    it('gets comparison data', async () => {
+      api.reply('/comparisons/101?sync=true', () => [200, { data: '<<comparison-data>>' }]);
+      await expectAsync(client.getComparisonDetails(101)).toBeResolvedTo({ data: '<<comparison-data>>' });
+    });
+  });
+
   describe('#getSnapshotDetails()', () => {
     it('throws when missing a snapshot id', async () => {
       await expectAsync(client.getSnapshotDetails())
         .toBeRejectedWithError('Missing snapshot ID');
     });
 
-    it('throws when invalid type passed', async () => {
-      await expectAsync(client.getSnapshotDetails(1, 'snap'))
-        .toBeRejectedWithError('Invalid type passed');
-    });
-
     it('gets snapshot data', async () => {
       api.reply('/snapshots/100?sync=true', () => [200, { data: '<<snapshot-data>>' }]);
-      api.reply('/comparisons/100?sync=true', () => [200, { data: '<<comparison-data>>' }]);
-      await expectAsync(client.getSnapshotDetails(100, 'snapshot')).toBeResolvedTo({ data: '<<snapshot-data>>' });
-      await expectAsync(client.getSnapshotDetails(100, 'comparison')).toBeResolvedTo({ data: '<<comparison-data>>' });
+      await expectAsync(client.getSnapshotDetails(100)).toBeResolvedTo({ data: '<<snapshot-data>>' });
     });
   });
 
@@ -320,9 +325,11 @@ describe('PercyClient', () => {
 
     it('gets snapshot data', async () => {
       api.reply('/job_status?sync=true&type=snapshot&id=1,2', () => [200, { data: '<<status-data-snapshot>>' }]);
-      api.reply('/job_status?sync=true&type=comparison&id=1,2', () => [200, { data: '<<status-data-comparison>>' }]);
+      api.reply('/job_status?sync=true&type=comparison&id=3,4', () => [200, { data: '<<status-data-comparison>>' }]);
+      api.reply('/job_status?sync=true&type=comparison&id=5', () => [200, { data: '<<status-data-comparison-2>>' }]);
       await expectAsync(client.getStatus('snapshot', [1, 2])).toBeResolvedTo({ data: '<<status-data-snapshot>>' });
-      await expectAsync(client.getStatus('comparison', [1, 2])).toBeResolvedTo({ data: '<<status-data-comparison>>' });
+      await expectAsync(client.getStatus('comparison', [3, 4])).toBeResolvedTo({ data: '<<status-data-comparison>>' });
+      await expectAsync(client.getStatus('comparison', [5])).toBeResolvedTo({ data: '<<status-data-comparison-2>>' });
     });
   });
 

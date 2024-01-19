@@ -8,7 +8,7 @@ import {
   hostnameMatches,
   yieldTo
 } from './utils.js';
-import { SnapshotData } from './wait-for-snapshot.js';
+import { JobData } from './wait-for-job.js';
 
 // Throw a better error message for missing or invalid urls
 function validURL(url, base) {
@@ -206,13 +206,17 @@ export function validateSnapshotOptions(options) {
   return { clientInfo, environmentInfo, ...migrated };
 }
 
-export async function handleSyncSnapshot(snapshotPromise, percy, type) {
+export async function handleSyncJob(jobPromise, percy, type) {
   let data;
   try {
-    const snapshotId = await snapshotPromise;
-    data = await percy.client.getSnapshotDetails(snapshotId, type);
+    const id = await jobPromise;
+    if (type === 'snapshot') {
+      data = await percy.client.getSnapshotDetails(id);
+    } else {
+      data = await percy.client.getComparisonDetails(id);
+    }
   } catch (e) {
-    data = { message: e.message };
+    data = { error: e.message };
   }
   return data;
 }
@@ -370,8 +374,8 @@ export function createSnapshotsQueue(percy) {
       // Pushing to syncQueue, that will check for
       // snapshot processing status, and will resolve once done
       if (snapshot.sync) {
-        percy.log.info(`Waiting for snapshot ${name} to be completed`);
-        const data = new SnapshotData(response.data.id, null, snapshot.resolve, snapshot.reject);
+        percy.log.info(`Waiting for snapshot '${name}' to be completed`);
+        const data = new JobData(response.data.id, null, snapshot.resolve, snapshot.reject);
         percy.syncQueue.push(data);
       }
 

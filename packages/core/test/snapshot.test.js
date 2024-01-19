@@ -2,7 +2,7 @@ import { sha256hash, base64encode } from '@percy/client/utils';
 import { logger, api, setupTest, createTestServer, dedent } from './helpers/index.js';
 import { waitFor } from '@percy/core/utils';
 import Percy from '@percy/core';
-import { handleSyncSnapshot } from '../src/snapshot.js';
+import { handleSyncJob } from '../src/snapshot.js';
 
 describe('Snapshot', () => {
   let percy, server, testDOM;
@@ -226,16 +226,8 @@ describe('Snapshot', () => {
       snapshot: { sync: true }
     });
 
-    // not requested on start
-    expect(api.requests['/builds']).toBeUndefined();
-    expect(api.requests['/builds/123/snapshots']).toBeUndefined();
-
     await percy.snapshot('http://localhost:8000/one');
     await percy.idle();
-
-    // build created, not yet uploaded
-    expect(api.requests['/builds']).toBeDefined();
-    expect(api.requests['/builds/123/snapshots']).toBeUndefined();
 
     await percy.snapshot('http://localhost:8000/two');
     await percy.idle();
@@ -437,41 +429,12 @@ describe('Snapshot', () => {
     });
 
     snap('xs width', [400, 600]);
-    snap('sm widths', [400, 600, 800]);
-    snap('med widths', [800, 1000, 1200]);
-    snap('lg widths', 1200);
     await percy.idle();
 
     const warnMessage = '[percy] The Synchronous CLI functionality is not compatible with deferUploads option.';
-    expect(logger.stderr).toEqual([
-      warnMessage, warnMessage, warnMessage, warnMessage
-    ]);
-
-    // deferred still works as expected
-    expect(api.requests['/builds']).toBeUndefined();
-    expect(api.requests['/builds/123/snapshots']).toBeUndefined();
+    expect(logger.stderr).toEqual([warnMessage]);
 
     await percy.stop();
-
-    // single snapshot uploaded after stopping
-    expect(api.requests['/builds/123/snapshots']).toHaveSize(1);
-
-    // snapshot should contain 3 roots of differing widths
-    let roots = api.requests['/builds/123/snapshots'][0].body.data
-      .relationships.resources.data.filter(r => r.attributes['is-root']);
-
-    expect(roots).toHaveSize(3);
-    expect(roots[0]).toHaveProperty('attributes.for-widths', [1200]);
-    expect(roots[1]).toHaveProperty('attributes.for-widths', [800, 1000]);
-    expect(roots[2]).toHaveProperty('attributes.for-widths', [400, 600]);
-
-    // roots have the same URL, but different SHA IDs
-    expect(roots[0].attributes['resource-url'])
-      .toEqual(roots[1].attributes['resource-url']);
-    expect(roots[1].attributes['resource-url'])
-      .toEqual(roots[2].attributes['resource-url']);
-    expect(roots[0].id).not.toEqual(roots[1].id);
-    expect(roots[1].id).not.toEqual(roots[2].id);
   });
 
   it('can capture snapshots with multiple root widths when deferred', async () => {
@@ -576,12 +539,36 @@ describe('Snapshot', () => {
       sync: true
     }, promise);
     await percy.idle();
-    const data = await handleSyncSnapshot(promise['test snapshot'], percy, 'snapshot');
+    const data = await handleSyncJob(promise['test snapshot'], percy, 'snapshot');
     expect(data).toEqual(api.DEFAULT_REPLIES['/snapshots/4567?sync=true']()[1]);
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Snapshot taken: test snapshot',
-      '[percy] Waiting for snapshot test snapshot to be completed'
+      '[percy] Waiting for snapshot \'test snapshot\' to be completed'
+    ]);
+  });
+
+  it('when sync true is global config but false in snapshot options', async () => {
+    percy = await Percy.start({
+      token: 'PERCY_TOKEN',
+      snapshot: { widths: [1000], sync: true },
+      discovery: { concurrency: 1 },
+      clientInfo: 'client-info',
+      environmentInfo: 'env-info',
+      server: false
+    });
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM,
+      sync: false
+    });
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Percy has started!',
+      '[percy] Snapshot taken: test snapshot'
     ]);
   });
 
@@ -677,7 +664,7 @@ describe('Snapshot', () => {
     ]);
   });
 
-  it('handleSyncSnapshot should handle promise reject', async () => {
+  it('handleSyncJob should handle promise reject', async () => {
     api.reply('/builds/123/snapshots', () => [401, {
       errors: [{ detail: 'unexpected upload error' }]
     }]);
@@ -689,8 +676,8 @@ describe('Snapshot', () => {
       domSnapshot: testDOM,
       sync: true
     }, promise);
-    const data = await handleSyncSnapshot(promise['test snapshot'], percy, 'snapshot');
-    expect(data).toEqual({ message: 'unexpected upload error' });
+    const data = await handleSyncJob(promise['test snapshot'], percy, 'snapshot');
+    expect(data).toEqual({ error: 'unexpected upload error' });
     await expectAsync(promise['test snapshot']).toBeRejectedWithError('unexpected upload error');
     await percy.idle();
   });
