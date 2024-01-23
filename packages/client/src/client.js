@@ -18,6 +18,7 @@ const { PERCY_CLIENT_API_URL = 'https://percy.io/api/v1' } = process.env;
 const pkg = getPackageJSON(import.meta.url);
 // minimum polling interval milliseconds
 const MIN_POLLING_INTERVAL = 1_000;
+const INVALID_TOKEN_ERROR_MESSAGE = 'Unable to retrieve snapshot details with write access token. Kindly use a full access token for retrieving snapshot details with Synchronous CLI.';
 
 // Validate ID arguments
 function validateId(type, id) {
@@ -184,18 +185,32 @@ export class PercyClient {
 
   async getComparisonDetails(comparisonId) {
     validateId('comparison', comparisonId);
-    return this.get(`comparisons/${comparisonId}?sync=true`);
+    try {
+      return await this.get(`comparisons/${comparisonId}?sync=true&response_format=sync-cli`);
+    } catch (error) {
+      if (error.response.statusCode === 403) {
+        throw new Error(INVALID_TOKEN_ERROR_MESSAGE);
+      }
+      throw error;
+    }
   }
 
   async getSnapshotDetails(snapshotId) {
     validateId('snapshot', snapshotId);
-    return this.get(`snapshots/${snapshotId}?sync=true`);
+    try {
+      return await this.get(`snapshots/${snapshotId}?sync=true&response_format=sync-cli`);
+    } catch (error) {
+      if (error.response.statusCode === 403) {
+        throw new Error(INVALID_TOKEN_ERROR_MESSAGE);
+      }
+      throw error;
+    }
   }
 
   // Retrieves snapshot/comparison data by id. Requires a read access token.
   async getStatus(type, ids) {
     if (!['snapshot', 'comparison'].includes(type)) throw new Error('Invalid type passed');
-    this.log.debug(`Getting ${type} Status for ids ${ids}`);
+    this.log.debug(`Getting ${type} status for ids ${ids}`);
     return this.get(`job_status?sync=true&type=${type}&id=${ids.join()}`);
   }
 

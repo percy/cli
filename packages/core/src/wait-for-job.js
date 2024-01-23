@@ -5,6 +5,7 @@ const MIN_POLLING_INTERVAL = 5_000;
 const MAX_POLLING_INTERVAL_SECONDS = 120;
 const THRESHOLD_OPTIMAL_POLL_TIME = 5;
 
+// Job is either for snapshot or comparison only
 export class WaitForJob {
   log = logger('core:wait-for-job');
 
