@@ -132,6 +132,7 @@ describe('WaitForJob', () => {
   it('should handle stop when run is in progress', async () => {
     waitForSnapshot.push(snapshot);
     waitForSnapshot.stop();
+    expect(waitForSnapshot.timer).toEqual(null);
     await jasmine.clock().tick(5000);
     expect(getStatusMock).not.toHaveBeenCalled();
     expect(mockReject).toHaveBeenCalledOnceWith(new Error('Unable to process synchronous results as the CLI was exited while awaiting completion of the snapshot.'));

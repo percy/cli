@@ -5,6 +5,7 @@ const MIN_POLLING_INTERVAL = 5_000;
 const MAX_POLLING_INTERVAL_SECONDS = 120;
 const THRESHOLD_OPTIMAL_POLL_TIME = 5;
 
+// Job is either for snapshot or comparison only
 export class WaitForJob {
   log = logger('core:wait-for-job');
 
@@ -80,7 +81,10 @@ export class WaitForJob {
 
   stop() {
     this.exit = true;
-    if (this.timer) clearTimeout(this.timer);
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
     this.jobs.forEach((job) => {
       job.reject(new Error('Unable to process synchronous results as the CLI was exited while awaiting completion of the snapshot.'));
     });

@@ -300,8 +300,18 @@ describe('PercyClient', () => {
     });
 
     it('gets comparison data', async () => {
-      api.reply('/comparisons/101?sync=true', () => [200, { data: '<<comparison-data>>' }]);
+      api.reply('/comparisons/101?sync=true&response_format=sync-cli', () => [200, { data: '<<comparison-data>>' }]);
       await expectAsync(client.getComparisonDetails(101)).toBeResolvedTo({ data: '<<comparison-data>>' });
+    });
+
+    it('gets comparison data throw 403', async () => {
+      api.reply('/comparisons/102?sync=true&response_format=sync-cli', () => [403, { data: '<<comparison-data>>' }]);
+      await expectAsync(client.getComparisonDetails(102)).toBeRejectedWithError('Unable to retrieve snapshot details with write access token. Kindly use a full access token for retrieving snapshot details with Synchronous CLI.');
+    });
+
+    it('gets comparison data throw 500', async () => {
+      api.reply('/comparisons/104?sync=true&response_format=sync-cli', () => [500, { error: '<<comparison-data-failure>>' }]);
+      await expectAsync(client.getComparisonDetails(104)).toBeRejectedWithError('500 {"error":"<<comparison-data-failure>>"}');
     });
   });
 
@@ -312,8 +322,18 @@ describe('PercyClient', () => {
     });
 
     it('gets snapshot data', async () => {
-      api.reply('/snapshots/100?sync=true', () => [200, { data: '<<snapshot-data>>' }]);
+      api.reply('/snapshots/100?sync=true&response_format=sync-cli', () => [200, { data: '<<snapshot-data>>' }]);
       await expectAsync(client.getSnapshotDetails(100)).toBeResolvedTo({ data: '<<snapshot-data>>' });
+    });
+
+    it('gets snapshot data throw 403', async () => {
+      api.reply('/snapshots/102?sync=true&response_format=sync-cli', () => [403, { data: '<<comparison-data>>' }]);
+      await expectAsync(client.getSnapshotDetails(102)).toBeRejectedWithError('Unable to retrieve snapshot details with write access token. Kindly use a full access token for retrieving snapshot details with Synchronous CLI.');
+    });
+
+    it('gets snapshot data throw 500', async () => {
+      api.reply('/snapshots/104?sync=true&response_format=sync-cli', () => [500, { error: '<<snapshot-data-failure>>' }]);
+      await expectAsync(client.getSnapshotDetails(104)).toBeRejectedWithError('500 {"error":"<<snapshot-data-failure>>"}');
     });
   });
 
