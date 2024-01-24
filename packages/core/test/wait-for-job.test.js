@@ -7,6 +7,7 @@ describe('WaitForJob', () => {
   let getStatusMock;
   let waitForSnapshot;
   let snapshot, mockResolve, mockReject;
+  let baseDate = Date.now();
 
   beforeEach(async () => {
     await logger.mock({ level: 'debug' });
@@ -18,8 +19,9 @@ describe('WaitForJob', () => {
     waitForSnapshot = new WaitForJob('snapshot', { client });
     mockResolve = jasmine.createSpy('resolve');
     mockReject = jasmine.createSpy('reject');
-    snapshot = new JobData(1, null, mockResolve, mockReject);
     jasmine.clock().install();
+    spyOn(Date, 'now').and.callFake(() => baseDate);
+    snapshot = new JobData(1, null, mockResolve, mockReject);
   });
 
   afterEach(() => {
@@ -35,6 +37,15 @@ describe('WaitForJob', () => {
   it('throws when snapshotData is not used', () => {
     expect(() => waitForSnapshot.push('dummy'))
       .toThrowError('Invalid job passed, use JobData');
+  });
+
+  it('should have correct timeout based on type', () => {
+    const comparison = new JobData(1, null, mockResolve, mockReject);
+    const waitForComparison = new WaitForJob('comparison', { client });
+    waitForComparison.push(comparison);
+    expect(comparison.timeout).toEqual(baseDate + 90000);
+    waitForSnapshot.push(snapshot);
+    expect(snapshot.timeout).toEqual(baseDate + 420000 + 90000);
   });
 
   it('adding first snapshot should trigger run', async () => {
@@ -72,6 +83,17 @@ describe('WaitForJob', () => {
     expect(getStatusMock).toHaveBeenCalled();
     expect(mockReject).not.toHaveBeenCalled();
     expect(mockResolve).toHaveBeenCalledOnceWith(snapshot.id);
+    expect(waitForSnapshot.jobs).toEqual([]);
+  });
+
+  it('should reject snapshot after timeout', async () => {
+    getStatusMock.and.returnValue({ 1: { status: false, error: null, next_poll: 520000 } });
+    waitForSnapshot.push(snapshot);
+    spyOn(Date, 'now').and.callFake(() => baseDate + 520000);
+    await jasmine.clock().tick(420000 + 90000);
+    expect(getStatusMock).toHaveBeenCalled();
+    expect(mockReject).toHaveBeenCalledOnceWith(new Error('Timeout waiting for snapshot with id 1'));
+    expect(mockResolve).not.toHaveBeenCalled();
     expect(waitForSnapshot.jobs).toEqual([]);
   });
 
