@@ -4,6 +4,7 @@ const MIN_POLLING_INTERVAL = 5_000;
 // Poll atleast once in 2 min
 const MAX_POLLING_INTERVAL_SECONDS = 120;
 const THRESHOLD_OPTIMAL_POLL_TIME = 5;
+const JOB_TIMEOUT = Number(process.env.SYNC_TIMEOUT) || 90_000;
 
 // Job is either for snapshot or comparison only
 export class WaitForJob {
@@ -21,6 +22,7 @@ export class WaitForJob {
 
   push(job) {
     if (!(job instanceof JobData)) throw new Error('Invalid job passed, use JobData');
+    if (this.type === 'snapshot') job.timeout += 420_000; // For snapshot timeout after 08:30 min
 
     this.jobs.push(job);
     if (!this.running) this.run();
@@ -48,6 +50,9 @@ export class WaitForJob {
             return false;
           } else if (jobStatus.error != null) {
             job.reject(jobStatus.error);
+            return false;
+          } else if (Date.now() - job.timeout >= 0) {
+            job.reject(new Error(`Timeout waiting for ${this.type} with id ${job.id}`));
             return false;
           } else {
             job.nextPoll = jobStatus.next_poll;
@@ -95,6 +100,7 @@ export class JobData {
   constructor(id, nextPoll, resolve, reject) {
     this.id = id;
     this.nextPoll = nextPoll || 60;
+    this.timeout = Date.now() + JOB_TIMEOUT;
     this.resolve = resolve;
     this.reject = reject;
   }
