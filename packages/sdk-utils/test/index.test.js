@@ -163,7 +163,7 @@ describe('SDK Utils', () => {
       };
     });
 
-    fit('posts snapshot options to the CLI API snapshot endpoint', async () => {
+    it('posts snapshot options to the CLI API snapshot endpoint', async () => {
       await expectAsync(postSnapshot(options)).toBeResolvedTo(jasmine.objectContaining({ body: { success: true } }));
       await expectAsync(helpers.get('requests')).toBeResolvedTo([{
         url: '/percy/snapshot',
