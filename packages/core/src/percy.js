@@ -399,7 +399,7 @@ export class Percy {
         this.log.warn(`The Synchronous CLI functionality is not compatible with ${type}.`);
       }
     }
-    options.sync = syncMode;
+    if (syncMode) options.sync = syncMode;
     return syncMode;
   }
 }
