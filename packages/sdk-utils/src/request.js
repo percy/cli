@@ -28,7 +28,7 @@ request.post = function post(url, json) {
   return request(url, {
     method: 'POST',
     body: JSON.stringify(json),
-    timeout: 60000
+    timeout: 600000
   });
 };
 
