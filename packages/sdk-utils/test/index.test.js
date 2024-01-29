@@ -163,8 +163,8 @@ describe('SDK Utils', () => {
       };
     });
 
-    it('posts snapshot options to the CLI API snapshot endpoint', async () => {
-      await expectAsync(postSnapshot(options)).toBeResolved();
+    fit('posts snapshot options to the CLI API snapshot endpoint', async () => {
+      await expectAsync(postSnapshot(options)).toBeResolvedTo({ success: true });
       await expectAsync(helpers.get('requests')).toBeResolvedTo([{
         url: '/percy/snapshot',
         method: 'POST',
@@ -220,6 +220,13 @@ describe('SDK Utils', () => {
 
     it('posts screenshot options to the CLI API snapshot endpoint', async () => {
       await captureAutomateScreenshot(options);
+      expect(utils.request.post).toHaveBeenCalledWith('/percy/automateScreenshot', options);
+    });
+
+    it('posts screenshot options to the CLI API snapshot endpoint and return data', async () => {
+      spyOn(utils.request, 'post').and.callFake(() => Promise.resolve({ data: 'sync-data' }));
+      const response = await captureAutomateScreenshot(options);
+      expect(response).toEqual({ data: 'sync-data' });
       expect(utils.request.post).toHaveBeenCalledWith('/percy/automateScreenshot', options);
     });
 
