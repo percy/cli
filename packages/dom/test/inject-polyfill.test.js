@@ -12,6 +12,10 @@ describe('injectDeclarativeShadowDOMPolyfill', () => {
                     <template shadowroot="open">
                     </template>
                 </div>
+                <div data-percy-shadow-host>
+                    <template shadowrootmode="open">
+                    </template>
+                </div>
         </template>
         </div>
         `, { withShadow: false });
