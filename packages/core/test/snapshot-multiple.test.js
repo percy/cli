@@ -67,6 +67,38 @@ describe('Snapshot multiple', () => {
       ]));
     });
 
+    it('snapshots an array of snapshots or urls with sync mode', async () => {
+      const promise = {};
+      const snapshotList = [
+        { url: '/', name: 'home' },
+        '/about',
+        {
+          url: '/blog',
+          additionalSnapshots: [{
+            suffix: ' (page 2)',
+            execute: () => window.location += '?page=2'
+          }]
+        }
+      ];
+      // suppliment the base url for each snapshot
+      await percy.snapshot(snapshotList.map(s => {
+        if (typeof s === 'string') s = { url: baseUrl + s };
+        else s.url = baseUrl + s.url;
+        s.sync = true;
+        return s;
+      }), promise);
+
+      expect(logger.stderr).toEqual([]);
+      // since promise will being rejected at time of percy.stop
+      Object.values(promise).forEach((p) => p.catch(err => err));
+      expect(Object.keys(promise)).toEqual([
+        'home',
+        '/about',
+        '/blog',
+        '/blog (page 2)'
+      ]);
+    });
+
     it('can supply a base-url for all snapshots', async () => {
       await percy.snapshot({ baseUrl, snapshots });
 
@@ -107,6 +139,27 @@ describe('Snapshot multiple', () => {
       ]));
     });
 
+    it('can apply sync option to snapshots', async () => {
+      const promise = {};
+      await percy.snapshot({
+        baseUrl,
+        snapshots,
+        options: {
+          enableJavaScript: true,
+          sync: true
+        }
+      }, promise);
+
+      // since promise will being rejected at time of percy.stop
+      Object.values(promise).forEach((p) => p.catch(err => err));
+      expect(Object.keys(promise)).toEqual(jasmine.arrayContaining([
+        'home',
+        '/about',
+        '/blog',
+        '/blog (page 2)'
+      ]));
+    });
+
     it('can supply a function that returns an array of snapshots', async () => {
       let getSnaps = () => [...snapshots, '/pricing'];
       await percy.snapshot({ baseUrl, snapshots: getSnaps });
@@ -119,6 +172,14 @@ describe('Snapshot multiple', () => {
         '[percy] Snapshot taken: /blog (page 2)',
         '[percy] Snapshot taken: /pricing'
       ]));
+    });
+
+    it('can supply a function that returns promise only for sync snapshot', async () => {
+      const promise = {};
+      let getSnaps = () => [...snapshots, { url: '/pricing', sync: true }];
+      await percy.snapshot({ baseUrl, snapshots: getSnaps }, promise);
+
+      expect(Object.keys(promise)).toEqual(['/pricing']);
     });
 
     it('throws with invalid or missing URLs', () => {
@@ -173,6 +234,30 @@ describe('Snapshot multiple', () => {
         '[percy] Snapshot taken: /one',
         '[percy] Snapshot taken: /two'
       ]));
+    });
+
+    it('snapshots urls from a sitemap url', async () => {
+      await percy.stop(true);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000], sync: true },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info',
+        server: false
+      });
+      sitemap.push('/one', '/two');
+      const promise = {};
+      await percy.snapshot('http://localhost:8000/sitemap.xml', promise);
+
+      // since promise will being rejected at time of percy.stop
+      Object.values(promise).forEach((p) => p.catch(err => err));
+      expect(Object.keys(promise)).toEqual([
+        '/',
+        '/one',
+        '/two'
+      ]);
     });
 
     it('optionally filters sitemap urls to snapshot', async () => {

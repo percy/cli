@@ -18,6 +18,7 @@ const { PERCY_CLIENT_API_URL = 'https://percy.io/api/v1' } = process.env;
 const pkg = getPackageJSON(import.meta.url);
 // minimum polling interval milliseconds
 const MIN_POLLING_INTERVAL = 1_000;
+const INVALID_TOKEN_ERROR_MESSAGE = 'Unable to retrieve snapshot details with write access token. Kindly use a full access token for retrieving snapshot details with Synchronous CLI.';
 
 // Validate ID arguments
 function validateId(type, id) {
@@ -182,6 +183,37 @@ export class PercyClient {
     return this.get(`builds/${buildId}`);
   }
 
+  async getComparisonDetails(comparisonId) {
+    validateId('comparison', comparisonId);
+    try {
+      return await this.get(`comparisons/${comparisonId}?sync=true&response_format=sync-cli`);
+    } catch (error) {
+      if (error.response.statusCode === 403) {
+        throw new Error(INVALID_TOKEN_ERROR_MESSAGE);
+      }
+      throw error;
+    }
+  }
+
+  async getSnapshotDetails(snapshotId) {
+    validateId('snapshot', snapshotId);
+    try {
+      return await this.get(`snapshots/${snapshotId}?sync=true&response_format=sync-cli`);
+    } catch (error) {
+      if (error.response.statusCode === 403) {
+        throw new Error(INVALID_TOKEN_ERROR_MESSAGE);
+      }
+      throw error;
+    }
+  }
+
+  // Retrieves snapshot/comparison data by id. Requires a read access token.
+  async getStatus(type, ids) {
+    if (!['snapshot', 'comparison'].includes(type)) throw new Error('Invalid type passed');
+    this.log.debug(`Getting ${type} status for ids ${ids}`);
+    return this.get(`job_status?sync=true&type=${type}&id=${ids.join()}`);
+  }
+
   // Retrieves project builds optionally filtered. Requires a read access token.
   async getBuilds(project, filters = {}) {
     validateProjectPath(project);
@@ -310,6 +342,7 @@ export class PercyClient {
     enableLayout,
     clientInfo,
     environmentInfo,
+    sync,
     resources = []
   } = {}) {
     validateId('build', buildId);
@@ -334,6 +367,7 @@ export class PercyClient {
           name: name || null,
           widths: widths || null,
           scope: scope || null,
+          sync: !!sync,
           'scope-options': scopeOptions || {},
           'minimum-height': minHeight || null,
           'enable-javascript': enableJavaScript || null,
@@ -379,7 +413,7 @@ export class PercyClient {
     return snapshot;
   }
 
-  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domInfoSha, consideredElementsData, metadata } = {}) {
+  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domInfoSha, consideredElementsData, metadata, sync } = {}) {
     validateId('snapshot', snapshotId);
     // Remove post percy api deploy
     this.log.debug(`Creating comparision: ${tag.name}...`);
@@ -402,6 +436,7 @@ export class PercyClient {
           'ignore-elements-data': ignoredElementsData || null,
           'consider-elements-data': consideredElementsData || null,
           'dom-info-sha': domInfoSha || null,
+          sync: !!sync,
           metadata: metadata || null
         },
         relationships: {

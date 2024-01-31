@@ -21,6 +21,7 @@ import {
   yieldAll,
   yieldTo
 } from './utils.js';
+import { WaitForJob } from './wait-for-job.js';
 
 // A Percy instance will create a new build when started, handle snapshot creation, asset discovery,
 // and resource uploads, and will finalize the build when stopped. Snapshots are processed
@@ -156,6 +157,8 @@ export class Percy {
       if (!this.skipDiscovery) yield this.#discovery.start();
       // start a local API server for SDK communication
       if (this.server) yield this.server.listen();
+      const snapshotType = this.client.tokenType() === 'web' ? 'snapshot' : 'comparison';
+      this.syncQueue = new WaitForJob(snapshotType, this);
       // log and mark this instance as started
       this.log.info('Percy has started!');
       this.readyState = 1;
@@ -213,6 +216,7 @@ export class Percy {
       await this.browser.close();
     }
 
+    if (this.syncQueue) this.syncQueue.stop();
     // not started or already stopped
     if (!this.readyState || this.readyState > 2) return;
 
@@ -262,13 +266,13 @@ export class Percy {
   // Takes one or more snapshots of a page while discovering resources to upload with the resulting
   // snapshots. Once asset discovery has completed for the provided snapshots, the queued task will
   // resolve and an upload task will be queued separately.
-  snapshot(options) {
+  snapshot(options, snapshotPromise = {}) {
     if (this.readyState !== 1) {
       throw new Error('Not running');
     } else if (this.build?.error) {
       throw new Error(this.build.error);
     } else if (Array.isArray(options)) {
-      return yieldAll(options.map(o => this.yield.snapshot(o)));
+      return yieldAll(options.map(o => this.yield.snapshot(o, snapshotPromise)));
     }
 
     // accept a url for a sitemap or snapshot
@@ -311,6 +315,12 @@ export class Percy {
             config: this.config
           })
         }, snapshot => {
+          // attaching promise resolve reject so to wait for snapshot to complete
+          if (this.syncMode(snapshot)) {
+            snapshotPromise[snapshot.name] = new Promise((resolve, reject) => {
+              Object.assign(snapshot, { resolve, reject });
+            });
+          }
           // push each finished snapshot to the snapshots queue
           this.#snapshots.push(snapshot);
         });
@@ -322,7 +332,7 @@ export class Percy {
   }
 
   // Uploads one or more snapshots directly to the current Percy build
-  upload(options) {
+  upload(options, callback = null) {
     if (this.readyState !== 1) {
       throw new Error('Not running');
     } else if (Array.isArray(options)) {
@@ -350,6 +360,11 @@ export class Percy {
     this.client.addClientInfo(options.clientInfo);
     this.client.addEnvironmentInfo(options.environmentInfo);
 
+    // Sync CLI support, attached resolve, reject promise
+    if (this.syncMode(options)) {
+      Object.assign(options, { ...callback });
+    }
+
     // return an async generator to allow cancelation
     return (async function*() {
       try {
@@ -364,6 +379,28 @@ export class Percy {
   shouldSkipAssetDiscovery(tokenType) {
     if (this.testing && JSON.stringify(this.testing) === JSON.stringify({})) { return true; }
     return tokenType !== 'web';
+  }
+
+  syncMode(options) {
+    let syncMode = false;
+    if (this.config?.snapshot?.sync) syncMode = true;
+    if (options?.sync) syncMode = true;
+    if (options?.sync === false) syncMode = false;
+
+    if ((this.skipUploads || this.deferUploads || this.delayUploads) && syncMode) {
+      syncMode = false;
+      options.sync = false;
+      if (this.delayUploads && !this.skipUploads) {
+        this.log.warn('Synchronous CLI functionality is not compatible with the snapshot command. Kindly consider taking screenshots via SDKs to achieve synchronous results instead.');
+      } else {
+        let type = 'deferUploads option';
+        if (this.skipDiscovery && this.deferUploads) type = 'upload command';
+        if (this.skipUploads) type = 'skipUploads option';
+        this.log.warn(`The Synchronous CLI functionality is not compatible with ${type}.`);
+      }
+    }
+    if (syncMode) options.sync = syncMode;
+    return syncMode;
   }
 }
 

@@ -8,6 +8,7 @@ import {
   hostnameMatches,
   yieldTo
 } from './utils.js';
+import { JobData } from './wait-for-job.js';
 
 // Throw a better error message for missing or invalid urls
 function validURL(url, base) {
@@ -205,6 +206,21 @@ export function validateSnapshotOptions(options) {
   return { clientInfo, environmentInfo, ...migrated };
 }
 
+export async function handleSyncJob(jobPromise, percy, type) {
+  let data;
+  try {
+    const id = await jobPromise;
+    if (type === 'snapshot') {
+      data = await percy.client.getSnapshotDetails(id);
+    } else {
+      data = await percy.client.getComparisonDetails(id);
+    }
+  } catch (e) {
+    data = { error: e.message };
+  }
+  return data;
+}
+
 // Fetches a sitemap and parses it into a list of URLs for taking snapshots. Duplicate URLs,
 // including a trailing slash, are removed from the resulting list.
 async function getSitemapSnapshots(options) {
@@ -355,6 +371,14 @@ export function createSnapshotsQueue(percy) {
       let response = yield percy.client[send](build.id, snapshot);
       if (percy.deferUploads) percy.log.info(`Snapshot uploaded: ${name}`, meta);
 
+      // Pushing to syncQueue, that will check for
+      // snapshot processing status, and will resolve once done
+      if (snapshot.sync) {
+        percy.log.info(`Waiting for snapshot '${name}' to be completed`);
+        const data = new JobData(response.data.id, null, snapshot.resolve, snapshot.reject);
+        percy.syncQueue.push(data);
+      }
+
       return { ...snapshot, response };
     })
   // handle possible build errors returned by the API
@@ -387,6 +411,7 @@ export function createSnapshotsQueue(percy) {
 
       percy.log.error(`Encountered an error uploading snapshot: ${name}`, meta);
       percy.log.error(error, meta);
+      if (snapshot.sync) snapshot.reject(error);
       return result;
     });
 }

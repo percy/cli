@@ -5,6 +5,7 @@ import logger from '@percy/logger';
 import { normalize } from '@percy/config/utils';
 import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHandler } from './utils.js';
 import WebdriverUtils from '@percy/webdriver-utils';
+import { handleSyncJob } from './snapshot.js';
 // need require.resolve until import.meta.resolve can be transpiled
 export const PERCY_DOM = createRequire(import.meta.url).resolve('@percy/dom');
 
@@ -91,14 +92,25 @@ export function createPercyServer(percy, port) {
     })
   // post one or more snapshots, optionally async
     .route('post', '/percy/snapshot', async (req, res) => {
-      let snapshot = percy.snapshot(req.body);
+      let data;
+      const snapshotPromise = {};
+      const snapshot = percy.snapshot(req.body, snapshotPromise);
       if (!req.url.searchParams.has('async')) await snapshot;
-      return res.json(200, { success: true });
+
+      if (percy.syncMode(req.body)) data = await handleSyncJob(snapshotPromise[req.body.name], percy, 'snapshot');
+
+      return res.json(200, { success: true, data: data });
     })
   // post one or more comparisons, optionally waiting
     .route('post', '/percy/comparison', async (req, res) => {
-      let upload = percy.upload(req.body);
-      if (req.url.searchParams.has('await')) await upload;
+      let data;
+      if (percy.syncMode(req.body)) {
+        const snapshotPromise = new Promise((resolve, reject) => percy.upload(req.body, { resolve, reject }));
+        data = await handleSyncJob(snapshotPromise, percy, 'comparison');
+      } else {
+        let upload = percy.upload(req.body);
+        if (req.url.searchParams.has('await')) await upload;
+      }
 
       // generate and include one or more redirect links to comparisons
       let link = ({ name, tag }) => [
@@ -108,7 +120,7 @@ export function createPercyServer(percy, port) {
         }, { snake: true }))
       ].join('');
 
-      const response = { success: true };
+      const response = { success: true, data: data };
       if (req.body) {
         if (Array.isArray(req.body)) {
           response.links = req.body.map(link);
@@ -123,9 +135,17 @@ export function createPercyServer(percy, port) {
       success: await percy.flush(req.body).then(() => true)
     }))
     .route('post', '/percy/automateScreenshot', async (req, res) => {
+      let data;
       percyAutomateRequestHandler(req, percy);
-      percy.upload(await WebdriverUtils.automateScreenshot(req.body));
-      res.json(200, { success: true });
+      let comparisonData = await WebdriverUtils.automateScreenshot(req.body);
+      if (percy.syncMode(comparisonData)) {
+        const snapshotPromise = new Promise((resolve, reject) => percy.upload(comparisonData, { resolve, reject }));
+        data = await handleSyncJob(snapshotPromise, percy, 'comparison');
+      } else {
+        percy.upload(comparisonData);
+      }
+
+      res.json(200, { success: true, data: data });
     })
   // Recieves events from sdk's.
     .route('post', '/percy/events', async (req, res) => {
