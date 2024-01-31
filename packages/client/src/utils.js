@@ -179,7 +179,7 @@ export async function request(url, options = {}, callback) {
         } else {
           let err = body?.errors?.find(e => e.detail)?.detail;
           let statusMessage = `${statusCode} ${(res.statusMessage || '')}`;
-          let bodyText = (raw?.length > 0) ? `\n${raw}` : '';
+          let bodyText = (raw?.length > 0 && res.statusMessage !== raw) ? `\n${raw}` : '';
           throw new Error(err || `${statusMessage}${bodyText}`);
         }
       } catch (error) {
