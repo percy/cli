@@ -311,7 +311,7 @@ describe('PercyClient', () => {
 
     it('gets comparison data throw 500', async () => {
       api.reply('/comparisons/104?sync=true&response_format=sync-cli', () => [500, { error: '<<comparison-data-failure>>' }]);
-      await expectAsync(client.getComparisonDetails(104)).toBeRejectedWithError('500 {"error":"<<comparison-data-failure>>"}');
+      await expectAsync(client.getComparisonDetails(104)).toBeRejectedWithError('500 \n{"error":"<<comparison-data-failure>>"}');
     });
   });
 
@@ -333,7 +333,7 @@ describe('PercyClient', () => {
 
     it('gets snapshot data throw 500', async () => {
       api.reply('/snapshots/104?sync=true&response_format=sync-cli', () => [500, { error: '<<snapshot-data-failure>>' }]);
-      await expectAsync(client.getSnapshotDetails(104)).toBeRejectedWithError('500 {"error":"<<snapshot-data-failure>>"}');
+      await expectAsync(client.getSnapshotDetails(104)).toBeRejectedWithError('500 \n{"error":"<<snapshot-data-failure>>"}');
     });
   });
 
