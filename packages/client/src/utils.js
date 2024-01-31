@@ -178,7 +178,9 @@ export async function request(url, options = {}, callback) {
           resolve(await callback?.(body, res) ?? body);
         } else {
           let err = body?.errors?.find(e => e.detail)?.detail;
-          throw new Error(err || `${statusCode} ${res.statusMessage || raw}`);
+          let statusMessage = `${statusCode} ${(res.statusMessage || '')}`;
+          let bodyText = (raw?.length > 0) ? `\n${raw}` : '';
+          throw new Error(err || `${statusMessage}${bodyText}`);
         }
       } catch (error) {
         let response = { statusCode, headers, body };
