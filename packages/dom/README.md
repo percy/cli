@@ -75,7 +75,7 @@ to ensure videos have a stable image to display when screenshots are captured.
 
 ### Shadow DOM
 
-Shadow dom  `#shadow-root (open)` is serialized into declarative shadow DOM (`<template shadowrootmode="open">`) form
+Shadow dom  `#shadow-root (open)` is serialized into declarative shadow DOM (`<template shadowroot="open">`) form
 Shadow host element is annotated with special identifier attribute named `data-percy-shadow-host`. This identifier 
 attribute may be used when passing `domTransformation`.
 
