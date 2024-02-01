@@ -327,7 +327,18 @@ describe('Percy', () => {
     });
 
     it('has snapshotType comparison in syncQueue', async () => {
-      percy = new Percy({ token: 'app_token' });
+      percy = new Percy({ token: 'auto_token' });
+
+      // abort when the browser is launched
+      let ctrl = new AbortController();
+      spyOn(percy.browser, 'launch');
+
+      await generatePromise(percy.yield.start(), ctrl.signal);
+      expect(percy.syncQueue.type).toEqual('comparison');
+    });
+
+    it('has snapshotType comparison in syncQueue with app percy', async () => {
+      percy = new Percy({ token: 'token', projectType: 'app' });
 
       // abort when the browser is launched
       let ctrl = new AbortController();
