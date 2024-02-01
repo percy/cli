@@ -190,7 +190,7 @@ describe('serializeDOM', () => {
       expect(html).toMatch(new RegExp(matchRegex));
     });
 
-    fit('renders many flat', () => {
+    it('renders many flat', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
