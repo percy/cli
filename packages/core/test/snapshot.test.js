@@ -23,7 +23,8 @@ describe('Snapshot', () => {
       discovery: { concurrency: 1 },
       clientInfo: 'client-info',
       environmentInfo: 'env-info',
-      server: false
+      server: false,
+      projectType: 'web'
     });
 
     logger.reset(true);
