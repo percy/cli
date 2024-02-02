@@ -237,6 +237,19 @@ describe('AutomateProvider', () => {
           args: []
         });
     });
+
+    it('passes sync options value to', async () => {
+      const automateProvider = new AutomateProvider('1234', 'https://localhost/command-executor', { platform: 'win' }, {}, 'client', 'environment', { sync: true }, percyBuildInfo);
+      await automateProvider.createDriver();
+      automateProvider.driver.executeScript = jasmine.createSpy().and.resolveTo('success');
+      await automateProvider.percyScreenshotEnd('abc', undefined);
+
+      expect(automateProvider.driver.executeScript).toHaveBeenCalledWith(
+        {
+          script: `browserstack_executor: {"action":"percyScreenshot","arguments":{"name":"abc","percyScreenshotUrl":"${percyBuildInfo.url}","status":"success","statusMessage":"","state":"end","sync":true}}`,
+          args: []
+        });
+    });
   });
 
   function tilesErrorResponseCheck(automateProvider) {
