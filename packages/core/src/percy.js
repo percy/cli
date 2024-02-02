@@ -157,7 +157,7 @@ export class Percy {
       if (!this.skipDiscovery) yield this.#discovery.start();
       // start a local API server for SDK communication
       if (this.server) yield this.server.listen();
-      const snapshotType = this.client.tokenType() === 'web' ? 'snapshot' : 'comparison';
+      const snapshotType = this.projectType === 'web' ? 'snapshot' : 'comparison';
       this.syncQueue = new WaitForJob(snapshotType, this);
       // log and mark this instance as started
       this.log.info('Percy has started!');
