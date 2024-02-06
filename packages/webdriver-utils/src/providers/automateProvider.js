@@ -114,7 +114,8 @@ export default class AutomateProvider extends GenericProvider {
           percyScreenshotUrl: this.buildInfo?.url,
           status: error ? 'failure' : 'success',
           statusMessage: error ? `${error}` : '',
-          state: 'end'
+          state: 'end',
+          sync: this.options?.sync
         });
       } catch (e) {
         log.debug(`[${name}] : Could not execute percyScreenshot command for Automate`);
