@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shadow DOM Example</title>
+</head>
+<body>
+
+    <div id="hostElement">
+        <!-- Shadow DOM will be attached to this div -->
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const hostElement = document.getElementById('hostElement');
+
+            // Create a shadow root with open mode
+            const shadowRoot = hostElement.attachShadow({mode: 'open'});
+
+            // Add content to the shadow root
+            const shadowContent = document.createElement('p');
+            shadowContent.textContent = 'This content is inside the Shadow DOM';
+            shadowRoot.appendChild(shadowContent);
+
+            // Style the shadow content
+            const style = document.createElement('style');
+            style.textContent = `
+                p {
+                    color: blue;
+                    font-family: Arial, sans-serif;
+                }
+            `;
+            shadowRoot.appendChild(style);
+
+            // 
+            // const secondHostElement = document.getElementById('secondHostElement');
+
+            // // Create a shadow root with open mode
+            // const secondShadowRoot = secondHostElement.attachShadow({mode: 'open'});
+
+            // // Add content to the shadow root
+            // const secondShadowContent = document.createElement('p');
+            // secondShadowContent.textContent = 'This content another content is inside the Shadow DOM';
+            // secondShadowRoot.appendChild(secondShadowContent);
+        });
+    </script>
+
+</body>
+</html>
