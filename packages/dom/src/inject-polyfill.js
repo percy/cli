@@ -8,12 +8,21 @@ export function injectDeclarativeShadowDOMPolyfill(ctx) {
   scriptEl.setAttribute('data-percy-injected', true);
 
   scriptEl.innerHTML = `
+    function attachShadow(template, mode){
+      const shadowRoot = template.parentNode.attachShadow({ mode });
+      shadowRoot.appendChild(template.content);
+      template.remove();
+    }
+
     function reversePolyFill(root=document){
       root.querySelectorAll('template[shadowroot]').forEach(template => {
         const mode = template.getAttribute('shadowroot');
-        const shadowRoot = template.parentNode.attachShadow({ mode });
-        shadowRoot.appendChild(template.content);
-        template.remove();
+        attachShadow(template, mode);
+      });
+
+      root.querySelectorAll('template[shadowrootmode]').forEach(template => {
+        const mode = template.getAttribute('shadowrootmode');
+        attachShadow(template, mode);
       });
 
       root.querySelectorAll('[data-percy-shadow-host]').forEach(shadowHost => reversePolyFill(shadowHost.shadowRoot));

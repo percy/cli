@@ -7,7 +7,23 @@ describe('injectDeclarativeShadowDOMPolyfill', () => {
   beforeEach(() => {
     dom = withExample(`
         <div data-percy-shadow-host>
+        <template shadowrootmode="open">
+                <div data-percy-shadow-host>
+                    <template shadowrootmode="open">
+                    </template>
+                </div>
+                <div data-percy-shadow-host>
+                    <template shadowrootmode="open">
+                    </template>
+                </div>
+        </template>
+        </div>
+        <div data-percy-shadow-host>
         <template shadowroot="open">
+                <div data-percy-shadow-host>
+                    <template shadowroot="open">
+                    </template>
+                </div>
                 <div data-percy-shadow-host>
                     <template shadowroot="open">
                     </template>
