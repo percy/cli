@@ -18,6 +18,18 @@ describe('injectDeclarativeShadowDOMPolyfill', () => {
                 </div>
         </template>
         </div>
+        <div data-percy-shadow-host>
+        <template shadowroot="open">
+                <div data-percy-shadow-host>
+                    <template shadowroot="open">
+                    </template>
+                </div>
+                <div data-percy-shadow-host>
+                    <template shadowroot="open">
+                    </template>
+                </div>
+        </template>
+        </div>
         `, { withShadow: false });
 
     let ctx = { clone: dom };
