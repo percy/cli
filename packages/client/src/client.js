@@ -58,6 +58,8 @@ export class PercyClient {
     Object.assign(this, { token, config: config || {}, apiUrl });
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
+    this.buildType = null;
+    this.screenshotFlow = null;
   }
 
   // Adds additional unique client info.

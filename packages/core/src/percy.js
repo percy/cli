@@ -332,7 +332,7 @@ export class Percy {
   }
 
   // Uploads one or more snapshots directly to the current Percy build
-  upload(options, callback = null) {
+  upload(options, callback = null, screenshotFlow = null) {
     if (this.readyState !== 1) {
       throw new Error('Not running');
     } else if (Array.isArray(options)) {
@@ -359,6 +359,7 @@ export class Percy {
     // add client & environment info
     this.client.addClientInfo(options.clientInfo);
     this.client.addEnvironmentInfo(options.environmentInfo);
+    this.client.screenshotFlow = screenshotFlow;
 
     // Sync CLI support, attached resolve, reject promise
     if (this.syncMode(options)) {
