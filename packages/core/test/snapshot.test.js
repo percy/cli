@@ -1384,7 +1384,7 @@ describe('Snapshot', () => {
         tiles: [{ content: 'foo' }, { content: 'vbv' }]
       }, null, 'automate');
 
-      expect(logger.stderr).toEqual(jasmine.arrayContaining([jasmine.stringContaining('[percy:core] Error: Cannot run automate screenshots in app project. Please use automate project token')]));
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([jasmine.stringContaining('[percy] Error: Cannot run automate screenshots in app project. Please use automate project token')]));
     });
 
     it('should throw error if automate build is ran using app percy SDK', async () => {
@@ -1405,7 +1405,7 @@ describe('Snapshot', () => {
         tiles: [{ content: 'foo' }, { content: 'vbv' }]
       }, null, 'app');
 
-      expect(logger.stderr).toEqual(jasmine.arrayContaining([jasmine.stringContaining('[percy:core] Error: Cannot run App Percy screenshots in automate project. Please use App Percy project token')]));
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([jasmine.stringContaining('[percy] Error: Cannot run App Percy screenshots in automate project. Please use App Percy project token')]));
     });
   });
 
