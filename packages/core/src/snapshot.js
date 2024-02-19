@@ -362,9 +362,10 @@ export function createSnapshotsQueue(percy) {
     .handle('task', async function*({ resources, ...snapshot }) {
       let { name, meta } = snapshot;
 
-      const errorMessage = percy.client.screenshotFlow === 'automate' ? 'automate' : 'App Percy';
-      if (percy.client.buildType !== percy.client.screenshotFlow) {
-        throw new Error(`Cannot run ${errorMessage} screenshots in ${percy.client.buildType} project. Please use ${errorMessage} project token`);
+      if (percy.client.screenshotFlow === 'automate' && percy.client.buildType !== 'automate') {
+        throw new Error(`Cannot run automate screenshots in ${percy.client.buildType} project. Please use automate project token`);
+      } else if (percy.client.screenshotFlow === 'app' && percy.client.buildType !== 'app') {
+        throw new Error(`Cannot run App Percy screenshots in ${percy.client.buildType} project. Please use App Percy project token`);
       }
       // yield to evaluated snapshot resources
       snapshot.resources = typeof resources === 'function'
