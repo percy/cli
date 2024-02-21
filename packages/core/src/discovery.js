@@ -317,7 +317,7 @@ export function createDiscoveryQueue(percy) {
     .handle('error', ({ name, meta }, error) => {
       if (error.name === 'AbortError' && queue.readyState < 3) {
         // only error about aborted snapshots when not closed
-        percy.log.error('Received a duplicate snapshot, ' + (
+        percy.log.error('Received a duplicate snapshot within same test case, ' + (
           `the previous snapshot was aborted: ${name}`), meta);
       } else {
         // log all other encountered errors
