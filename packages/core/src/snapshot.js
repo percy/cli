@@ -338,9 +338,9 @@ export function createSnapshotsQueue(percy) {
         percy.log.warn('Build not created', { build });
       }
     })
-  // snapshots are unique by name alone
-    .handle('find', ({ name }, snapshot) => (
-      snapshot.name === name
+  // snapshots are unique by name and testCase both
+    .handle('find', ({ name, testCase }, snapshot) => (
+      snapshot.testCase === testCase && snapshot.name === name
     ))
   // when pushed, maybe flush old snapshots or possibly merge with existing snapshots
     .handle('push', (snapshot, existing) => {

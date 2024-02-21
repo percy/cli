@@ -264,9 +264,9 @@ export function createDiscoveryQueue(percy) {
     .handle('end', async () => {
       await percy.browser.close();
     })
-  // snapshots are unique by name; when deferred also by widths
-    .handle('find', ({ name, widths }, snapshot) => (
-      snapshot.name === name && (!percy.deferUploads || (
+  // snapshots are unique by name and testCase; when deferred also by widths
+    .handle('find', ({ name, testCase, widths }, snapshot) => (
+      snapshot.testCase === testCase && snapshot.name === name && (!percy.deferUploads || (
         !widths || widths.join() === snapshot.widths.join()))
     ))
   // initialize the resources for DOM snapshots

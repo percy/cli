@@ -845,6 +845,34 @@ describe('Snapshot', () => {
     ]);
   });
 
+  it('handles duplicate snapshots with different test cases', async () => {
+    await percy.snapshot([{
+      url: 'http://localhost:8000/one',
+      testCase: 'test-case-1',
+      domSnapshot: testDOM
+    }, {
+      url: 'http://localhost:8000/one',
+      testCase: 'test-case-2',
+      dom_snapshot: testDOM
+    }, {
+      url: 'http://localhost:8000/one',
+      testCase: 'test-case-3',
+      'dom-snapshot': testDOM
+    }, {
+      url: 'http://localhost:8000/one',
+      testCase: 'test-case-4',
+      domSnapshot: JSON.stringify({ html: testDOM })
+    }]);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Snapshot taken: /one',
+      '[percy] Snapshot taken: /one',
+      '[percy] Snapshot taken: /one',
+      '[percy] Snapshot taken: /one'
+    ]);
+  });
+
   it('handles the browser closing early', async () => {
     // close the browser after a page target is created
     spyOn(percy.browser, 'send').and.callFake((...args) => {
