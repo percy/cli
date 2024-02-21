@@ -208,7 +208,9 @@ describe('API Server', () => {
     }));
 
     expect(percy.upload).toHaveBeenCalledOnceWith(
-      { 'test-me': true, me_too: true }
+      { 'test-me': true, me_too: true },
+      null,
+      'app'
     );
 
     await expectAsync(test).toBePending();
@@ -376,7 +378,7 @@ describe('API Server', () => {
       }
     }));
 
-    expect(percy.upload).toHaveBeenCalledOnceWith(mockWebdriverUtilResponse);
+    expect(percy.upload).toHaveBeenCalledOnceWith(mockWebdriverUtilResponse, null, 'automate');
     await expectAsync(test).toBePending();
     resolve(); // no hanging promises
   });
@@ -433,7 +435,7 @@ describe('API Server', () => {
     }));
 
     expect(percy.client.getComparisonDetails).toHaveBeenCalled();
-    expect(percy.upload).toHaveBeenCalledOnceWith({ sync: true }, jasmine.objectContaining({}));
+    expect(percy.upload).toHaveBeenCalledOnceWith({ sync: true }, jasmine.objectContaining({}), 'automate');
   });
 
   it('has a /events endpoint that calls #sendBuildEvents() async with provided options with clientInfo present', async () => {

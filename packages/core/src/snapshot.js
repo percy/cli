@@ -313,6 +313,7 @@ export function createSnapshotsQueue(percy) {
         let { data } = await percy.client.createBuild({ projectType: percy.projectType });
         let url = data.attributes['web-url'];
         let number = data.attributes['build-number'];
+        percy.client.buildType = data.attributes?.type;
         Object.assign(build, { id: data.id, url, number });
         // immediately run the queue if not delayed or deferred
         if (!percy.delayUploads && !percy.deferUploads) queue.run();
@@ -361,6 +362,11 @@ export function createSnapshotsQueue(percy) {
     .handle('task', async function*({ resources, ...snapshot }) {
       let { name, meta } = snapshot;
 
+      if (percy.client.screenshotFlow === 'automate' && percy.client.buildType !== 'automate') {
+        throw new Error(`Cannot run automate screenshots in ${percy.client.buildType} project. Please use automate project token`);
+      } else if (percy.client.screenshotFlow === 'app' && percy.client.buildType !== 'app') {
+        throw new Error(`Cannot run App Percy screenshots in ${percy.client.buildType} project. Please use App Percy project token`);
+      }
       // yield to evaluated snapshot resources
       snapshot.resources = typeof resources === 'function'
         ? yield* yieldTo(resources())

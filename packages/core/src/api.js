@@ -105,10 +105,10 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/comparison', async (req, res) => {
       let data;
       if (percy.syncMode(req.body)) {
-        const snapshotPromise = new Promise((resolve, reject) => percy.upload(req.body, { resolve, reject }));
+        const snapshotPromise = new Promise((resolve, reject) => percy.upload(req.body, { resolve, reject }, 'app'));
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');
       } else {
-        let upload = percy.upload(req.body);
+        let upload = percy.upload(req.body, null, 'app');
         if (req.url.searchParams.has('await')) await upload;
       }
 
@@ -139,10 +139,10 @@ export function createPercyServer(percy, port) {
       percyAutomateRequestHandler(req, percy);
       let comparisonData = await WebdriverUtils.automateScreenshot(req.body);
       if (percy.syncMode(comparisonData)) {
-        const snapshotPromise = new Promise((resolve, reject) => percy.upload(comparisonData, { resolve, reject }));
+        const snapshotPromise = new Promise((resolve, reject) => percy.upload(comparisonData, { resolve, reject }, 'automate'));
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');
       } else {
-        percy.upload(comparisonData);
+        percy.upload(comparisonData, null, 'automate');
       }
 
       res.json(200, { success: true, data: data });

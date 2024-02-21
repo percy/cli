@@ -1282,100 +1282,111 @@ describe('PercyClient', () => {
   });
 
   describe('#sendComparison()', () => {
-    beforeEach(async () => {
-      await client.sendComparison(123, {
-        name: 'test snapshot name',
-        tag: { name: 'test tag' },
-        tiles: [{ content: base64encode('tile') }]
+    describe('when correct comparison data is sent', () => {
+      beforeEach(async () => {
+        await client.sendComparison(123, {
+          name: 'test snapshot name',
+          tag: { name: 'test tag' },
+          tiles: [{ content: base64encode('tile') }]
+        });
       });
-    });
 
-    it('creates a snapshot', async () => {
-      expect(api.requests['/builds/123/snapshots'][0].body).toEqual({
-        data: {
-          type: 'snapshots',
-          attributes: {
-            name: 'test snapshot name',
-            scope: null,
-            'test-case': null,
-            'scope-options': {},
-            'enable-javascript': null,
-            'minimum-height': null,
-            widths: null,
-            sync: false,
-            'enable-layout': false
-          },
-          relationships: {
-            resources: {
-              data: []
-            }
-          }
-        }
-      });
-    });
-
-    it('creates a comparison', async () => {
-      expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
-        data: {
-          type: 'comparisons',
-          attributes: {
-            'external-debug-url': null,
-            'ignore-elements-data': null,
-            'consider-elements-data': null,
-            'dom-info-sha': null,
-            sync: false,
-            metadata: null
-          },
-          relationships: {
-            tag: {
-              data: {
-                type: 'tag',
-                attributes: {
-                  name: 'test tag',
-                  width: null,
-                  height: null,
-                  'os-name': null,
-                  'os-version': null,
-                  orientation: null,
-                  'browser-name': null,
-                  'browser-version': null,
-                  resolution: null
-                }
-              }
+      it('creates a snapshot', async () => {
+        expect(api.requests['/builds/123/snapshots'][0].body).toEqual({
+          data: {
+            type: 'snapshots',
+            attributes: {
+              name: 'test snapshot name',
+              scope: null,
+              'scope-options': {},
+              'enable-javascript': null,
+              'minimum-height': null,
+              widths: null,
+              sync: false,
+              'enable-layout': false
             },
-            tiles: {
-              data: [{
-                type: 'tiles',
-                attributes: {
-                  sha: jasmine.any(String),
-                  'status-bar-height': null,
-                  'nav-bar-height': null,
-                  'header-height': null,
-                  'footer-height': null,
-                  fullscreen: null
-                }
-              }]
+            relationships: {
+              resources: {
+                data: []
+              }
             }
           }
-        }
+        });
       });
-    });
 
-    it('uploads comparison tiles', async () => {
-      expect(api.requests['/comparisons/891011/tiles'][0].body).toEqual({
-        data: {
-          type: 'tiles',
-          attributes: {
-            'base64-content': base64encode(Buffer.from('tile')),
-            index: 0
+      it('creates a comparison', async () => {
+        expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
+          data: {
+            type: 'comparisons',
+            attributes: {
+              'external-debug-url': null,
+              'ignore-elements-data': null,
+              'consider-elements-data': null,
+              'dom-info-sha': null,
+              sync: false,
+              metadata: null
+            },
+            relationships: {
+              tag: {
+                data: {
+                  type: 'tag',
+                  attributes: {
+                    name: 'test tag',
+                    width: null,
+                    height: null,
+                    'os-name': null,
+                    'os-version': null,
+                    orientation: null,
+                    'browser-name': null,
+                    'browser-version': null,
+                    resolution: null
+                  }
+                }
+              },
+              tiles: {
+                data: [{
+                  type: 'tiles',
+                  attributes: {
+                    sha: jasmine.any(String),
+                    'status-bar-height': null,
+                    'nav-bar-height': null,
+                    'header-height': null,
+                    'footer-height': null,
+                    fullscreen: null
+                  }
+                }]
+              }
+            }
           }
-        }
+        });
+      });
+
+      it('uploads comparison tiles', async () => {
+        expect(api.requests['/comparisons/891011/tiles'][0].body).toEqual({
+          data: {
+            type: 'tiles',
+            attributes: {
+              'base64-content': base64encode(Buffer.from('tile')),
+              index: 0
+            }
+          }
+        });
+      });
+
+      it('finalizes a comparison', async () => {
+        expect(api.requests['/snapshots/4567/finalize']).not.toBeDefined();
+        expect(api.requests['/comparisons/891011/finalize']).toBeDefined();
       });
     });
 
-    it('finalizes a comparison', async () => {
-      expect(api.requests['/snapshots/4567/finalize']).not.toBeDefined();
-      expect(api.requests['/comparisons/891011/finalize']).toBeDefined();
+    describe('when incorrect comparison data is sent', () => {
+      it('throws error when tiles object does not contain sha, filepath or content', async () => {
+        await expectAsync(client.sendComparison(123, {
+          name: 'test snapshot name',
+          tag: { name: 'test tag' },
+          tiles: [{}]
+        })).toBeRejectedWithError('sha, filepath or content should be present in tiles object');
+      });
     });
   });
 
