@@ -202,6 +202,15 @@ export async function request(url, options = {}, callback) {
   }, { retries, interval });
 }
 
+export function validateTiles(tiles) {
+  for (const tile of tiles) {
+    if (!tile.filepath && !tile.content && !tile.sha) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export {
   hostnameMatches,
   ProxyHttpAgent,
