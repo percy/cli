@@ -1298,6 +1298,7 @@ describe('PercyClient', () => {
             attributes: {
               name: 'test snapshot name',
               scope: null,
+              'test-case': null,
               'scope-options': {},
               'enable-javascript': null,
               'minimum-height': null,
