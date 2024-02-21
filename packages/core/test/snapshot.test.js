@@ -1365,6 +1365,50 @@ describe('Snapshot', () => {
     });
   });
 
+  describe('invalid screenshot flow', () => {
+    it('should throw error if app percy build is ran using automate SDK', async () => {
+      await percy.stop(true);
+      await api.mock();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        projectType: 'app'
+      });
+
+      percy.client.buildType = 'app';
+      await percy.upload({
+        name: 'Snapshot',
+        external_debug_url: 'localhost',
+        some_other_rand_prop: 'random value',
+        tag: { name: 'device', foobar: 'baz' },
+        tiles: [{ content: 'foo' }, { content: 'vbv' }]
+      }, null, 'automate');
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([jasmine.stringContaining('[percy] Error: Cannot run automate screenshots in app project. Please use automate project token')]));
+    });
+
+    it('should throw error if automate build is ran using app percy SDK', async () => {
+      await percy.stop(true);
+      await api.mock();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        projectType: 'automate'
+      });
+
+      percy.client.buildType = 'automate';
+      await percy.upload({
+        name: 'Snapshot',
+        external_debug_url: 'localhost',
+        some_other_rand_prop: 'random value',
+        tag: { name: 'device', foobar: 'baz' },
+        tiles: [{ content: 'foo' }, { content: 'vbv' }]
+      }, null, 'app');
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([jasmine.stringContaining('[percy] Error: Cannot run App Percy screenshots in automate project. Please use App Percy project token')]));
+    });
+  });
+
   describe('with percy-css', () => {
     let getResourceData = () => (
       api.requests['/builds/123/snapshots'][0].body.data.relationships.resources.data
