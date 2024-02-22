@@ -837,7 +837,7 @@ describe('Snapshot', () => {
     }]);
 
     expect(logger.stderr).toEqual([
-      '[percy] Received a duplicate snapshot within same test case, ' +
+      '[percy] Received a duplicate snapshot, ' +
         'the previous snapshot was aborted: /foobar'
     ]);
     expect(logger.stdout).toEqual([
@@ -857,11 +857,11 @@ describe('Snapshot', () => {
     }]);
 
     expect(logger.stderr).toEqual([
-      '[percy] Received a duplicate snapshot within same test case, ' +
-        'the previous snapshot was aborted: /foobar'
+      '[percy] Received a duplicate snapshot, ' +
+        'the previous snapshot was aborted: testCase: test-case-1, /foobar'
     ]);
     expect(logger.stdout).toEqual([
-      '[percy] Snapshot taken: /foobar'
+      '[percy] Snapshot taken: testCase: test-case-1, /foobar'
     ]);
   });
 
@@ -886,10 +886,10 @@ describe('Snapshot', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Snapshot taken: /one',
-      '[percy] Snapshot taken: /one',
-      '[percy] Snapshot taken: /one',
-      '[percy] Snapshot taken: /one'
+      '[percy] Snapshot taken: testCase: test-case-1, /one',
+      '[percy] Snapshot taken: testCase: test-case-2, /one',
+      '[percy] Snapshot taken: testCase: test-case-3, /one',
+      '[percy] Snapshot taken: testCase: test-case-4, /one'
     ]);
   });
 
