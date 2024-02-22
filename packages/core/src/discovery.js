@@ -7,8 +7,10 @@ import {
   createRootResource,
   createPercyCSSResource,
   createLogResource,
-  yieldAll
+  yieldAll,
+  detectMimeType
 } from './utils.js';
+import { request as makeRequest } from '@percy/client/utils';
 
 // Logs verbose debug logs detailing various snapshot options.
 function debugSnapshotOptions(snapshot) {
@@ -54,6 +56,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'discovery.authorization', JSON.stringify);
   debugProp(snapshot, 'discovery.disableCache');
   debugProp(snapshot, 'discovery.captureMockedServiceWorker');
+  debugProp(snapshot, 'discovery.catureImageSrcSet');
   debugProp(snapshot, 'discovery.userAgent');
   debugProp(snapshot, 'clientInfo');
   debugProp(snapshot, 'environmentInfo');
@@ -92,6 +95,41 @@ function parseDomResources({ url, domSnapshot }) {
     return map.set(resource.url, resource);
     // the initial map is created with at least a root resource
   }, new Map([[rootResource.url, rootResource]]));
+}
+
+async function parseImageSrcset({ imageLinks }, resources, { allowedHostnames }) {
+  let log = logger('core:snapshot');
+  const promiseList = [];
+
+  imageLinks = imageLinks.filter((link) => hostnameMatches(allowedHostnames, link));
+
+  log.debug(`Capturing image src set: ${JSON.stringify(imageLinks)}`);
+  for (const link of imageLinks) {
+    const promise = makeRequest(link, { buffer: true, retries: 0 }, (body, response) => {
+      const mimeType = response.headers['content-type'] || detectMimeType(link);
+
+      const resource = createResource(link, body, mimeType, {
+        status: response.statusCode,
+        headers: Object.entries(response.headers).reduce((norm, [key, value]) => (
+          Object.assign(norm, { [key]: value.split('\n') })
+        ), {})
+      });
+      return { link, resource };
+    });
+    promiseList.push(promise);
+  }
+  const results = await Promise.allSettled(promiseList);
+  for (let result of results) {
+    if (result.status === 'rejected') {
+      log.debug(`Request failed with reason: ${result.reason.message}`);
+      continue;
+    };
+    result = result.value;
+    const resource = result.resource;
+    log.debug(`- sha: ${resource.sha}`);
+    log.debug(`- mimetype: ${resource.mimetype}`);
+    resources.set(result.link, resource);
+  }
 }
 
 // Calls the provided callback with additional resources
@@ -147,6 +185,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
     if (captureWidths) options = { ...options, width };
     let captured = await page.snapshot(options);
     captured.resources.delete(normalizeURL(captured.url));
+    if (discovery.catureImageSrcSet) await parseImageSrcset(captured.domSnapshot, captured.resources, snapshot.discovery);
     capture(processSnapshotResources(captured));
     return captured;
   };
@@ -214,6 +253,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
   // wait for final network idle when not capturing DOM
   if (capture && snapshot.domSnapshot) {
     yield waitForDiscoveryNetworkIdle(page, discovery);
+    if (discovery.catureImageSrcSet) await parseImageSrcset(snapshot.domSnapshot, snapshot.resources, snapshot.discovery);
     capture(processSnapshotResources(snapshot));
   }
 }

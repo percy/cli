@@ -1,6 +1,7 @@
 import EventEmitter from 'events';
 import { sha256hash } from '@percy/client/utils';
 import { camelcase, merge } from '@percy/config/utils';
+import mime from 'mime-types';
 
 export {
   request,
@@ -16,6 +17,14 @@ export {
 // Returns the hostname portion of a URL.
 export function hostname(url) {
   return new URL(url).hostname;
+}
+
+// Return mime-type from a URL.
+export function detectMimeType(link) {
+  // mime package does not handle query params
+  let urlObj = new URL(link);
+  let urlWithoutSearchParams = urlObj.origin + urlObj.pathname;
+  return mime.lookup(urlWithoutSearchParams);
 }
 
 // Normalizes a URL by stripping hashes to ensure unique resources.
