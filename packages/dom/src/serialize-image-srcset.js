@@ -25,14 +25,9 @@ function handleSrcSet(srcSet, links) {
 }
 
 function getFormattedLink(src) {
-  if (src.startsWith('//')) {
-    src = document.location.protocol + src;
-  } else if (src.startsWith('/')) {
-    src = document.location.origin + src;
-  } else if (!src.startsWith('http')) {
-    src = document.location.href + src;
-  }
-  return src;
+  const anchor = document.createElement('a');
+  anchor.href = src;
+  return anchor.href;
 }
 
 export default serializeImageSrcSet;

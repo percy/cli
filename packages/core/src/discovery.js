@@ -56,7 +56,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'discovery.authorization', JSON.stringify);
   debugProp(snapshot, 'discovery.disableCache');
   debugProp(snapshot, 'discovery.captureMockedServiceWorker');
-  debugProp(snapshot, 'discovery.catureImageSrcSet');
+  debugProp(snapshot, 'discovery.captureAllSrcsetURLs');
   debugProp(snapshot, 'discovery.userAgent');
   debugProp(snapshot, 'clientInfo');
   debugProp(snapshot, 'environmentInfo');
@@ -97,13 +97,14 @@ function parseDomResources({ url, domSnapshot }) {
   }, new Map([[rootResource.url, rootResource]]));
 }
 
-async function parseImageSrcset({ imageLinks }, resources, { allowedHostnames }) {
+async function parseImageSrcset({ imageLinks }, { resources, meta }, { allowedHostnames }) {
   let log = logger('core:snapshot');
   const promiseList = [];
 
   imageLinks = imageLinks.filter((link) => hostnameMatches(allowedHostnames, link));
+  imageLinks = imageLinks.filter((link) => !resources.get(link));
 
-  log.debug(`Capturing image src set: ${JSON.stringify(imageLinks)}`);
+  log.debug(`Capturing image src set: ${JSON.stringify(imageLinks)}`, meta);
   for (const link of imageLinks) {
     const promise = makeRequest(link, { buffer: true, retries: 0 }, (body, response) => {
       const mimeType = response.headers['content-type'] || detectMimeType(link);
@@ -121,13 +122,13 @@ async function parseImageSrcset({ imageLinks }, resources, { allowedHostnames })
   const results = await Promise.allSettled(promiseList);
   for (let result of results) {
     if (result.status === 'rejected') {
-      log.debug(`Request failed with reason: ${result.reason.message}`);
+      log.debug(`Request failed with reason: ${result.reason.message}`, meta);
       continue;
     };
     result = result.value;
     const resource = result.resource;
-    log.debug(`- sha: ${resource.sha}`);
-    log.debug(`- mimetype: ${resource.mimetype}`);
+    log.debug(`- sha: ${resource.sha}`, meta);
+    log.debug(`- mimetype: ${resource.mimetype}`, meta);
     resources.set(result.link, resource);
   }
 }
@@ -185,7 +186,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
     if (captureWidths) options = { ...options, width };
     let captured = await page.snapshot(options);
     captured.resources.delete(normalizeURL(captured.url));
-    if (discovery.catureImageSrcSet) await parseImageSrcset(captured.domSnapshot, captured.resources, snapshot.discovery);
+    if (discovery.captureAllSrcsetURLs) await parseImageSrcset(captured.domSnapshot, captured, snapshot.discovery);
     capture(processSnapshotResources(captured));
     return captured;
   };
@@ -253,7 +254,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
   // wait for final network idle when not capturing DOM
   if (capture && snapshot.domSnapshot) {
     yield waitForDiscoveryNetworkIdle(page, discovery);
-    if (discovery.catureImageSrcSet) await parseImageSrcset(snapshot.domSnapshot, snapshot.resources, snapshot.discovery);
+    if (discovery.captureAllSrcsetURLs) await parseImageSrcset(snapshot.domSnapshot, snapshot, snapshot.discovery);
     capture(processSnapshotResources(snapshot));
   }
 }
