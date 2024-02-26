@@ -2090,5 +2090,55 @@ describe('Discovery', () => {
         resource('/img-withoutcontenttype.gif')
       ]));
     });
+
+    it('using snapshot command capture srcset', async () => {
+      percy.loglevel('debug');
+      let responsiveDOM = dedent`
+        <html>
+        <head></head>
+        <body>
+          <p>Hello Percy!<p>
+          <img srcset="/img-fromsrcset.png 2x, /img-throwserror.jpeg 3x, /img-withoutcontenttype.gif 4x, https://remote.resource.com/img-shouldnotcaptured.png 5x"
+              sizes="(max-width: 600px) 400px, (max-width: 800px) 600px, 800px"
+              src="/img-already-captured.png">
+        </body>
+        </html>
+      `;
+
+      server.reply('/', () => [200, 'text/html', responsiveDOM]);
+      server.reply('/img-fromsrcset.png', () => [200, 'image/png', pixel]);
+      server.reply('/img-already-captured.png', () => [200, 'image/png', pixel]);
+      server.reply('/img-throwserror.jpeg', () => [404]);
+      server.reply('/img-withoutcontenttype.gif', () => [200, pixel]);
+
+      await percy.snapshot({
+        name: 'image srcset',
+        url: 'http://localhost:8000',
+        widths: [1024],
+        discovery: {
+          captureAllSrcsetUrls: true
+        }
+      });
+
+      await percy.idle();
+
+      let resource = path => jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': `http://localhost:8000${path}`
+        })
+      });
+
+      expect(logger.stderr).toContain(
+        '[percy:core:snapshot] Capturing image src set: ["http://localhost:8000/img-fromsrcset.png","http://localhost:8000/img-throwserror.jpeg","http://localhost:8000/img-withoutcontenttype.gif"]', // removed remote and already captured resource
+        '[percy:core:snapshot] Request failed with reason: 404 Not Found', // img-throwserror
+        '[percy:core:snapshot] - mimetype: image/gif' // image without content-type
+      );
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        resource('/img-fromsrcset.png'),
+        resource('/img-withoutcontenttype.gif'),
+        resource('/img-already-captured.png')
+      ]));
+    });
   });
 });
