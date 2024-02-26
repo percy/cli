@@ -2042,6 +2042,7 @@ describe('Discovery', () => {
 
   describe('Capture image srcset =>', () => {
     it('make request call to capture resource', async () => {
+      percy.loglevel('debug');
       server.reply('/img-fromsrcset.png', () => [200, 'image/png', pixel]);
       server.reply('/img-already-captured.png', () => [200, 'image/png', pixel]);
       server.reply('/img-throwserror.gif', () => [404]);
@@ -2078,7 +2079,6 @@ describe('Discovery', () => {
         })
       });
 
-      console.log(`-----------> ${JSON.stringify(logger.stderr)} <-------------`);
       expect(logger.stderr).toContain(
         '[percy:core:snapshot] Capturing image src set: ["http://localhost:8000/img-fromsrcset.png","http://localhost:8000/img-throwserror.gif","http://localhost:8000/img-withoutcontenttype.gif"]', // removed remote and already captured resource
         '[percy:core:snapshot] Request failed with reason: 404 Not Found', // img-throwserror
