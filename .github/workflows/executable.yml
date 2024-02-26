@@ -23,7 +23,7 @@ jobs:
       - name: Verify executable
         run: ./percy --version
       - name: Upload assets
-        uses: softprops/action-gh-release@c9b46fe7aad9f02afd89b12450b780f52dacfb2d
+        uses: softprops/action-gh-release@975c1b265e11dd76618af1c374e7981f9a6ff44a
         with:
           files: |
             percy-osx.zip
