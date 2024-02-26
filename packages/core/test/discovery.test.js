@@ -2039,4 +2039,55 @@ describe('Discovery', () => {
       ]));
     });
   });
+
+  describe('Capture image srcset =>', () => {
+    it('make request call to capture resource', async () => {
+      server.reply('/img-fromsrcset.png', () => [200, 'image/png', pixel]);
+      server.reply('/img-already-captured.png', () => [200, 'image/png', pixel]);
+      server.reply('/img-throwserror.gif', () => [404]);
+      server.reply('/img-withoutcontenttype.gif', () => [200, pixel]);
+
+      let capturedResource = {
+        url: 'http://localhost:8000/img-already-captured.png',
+        content: 'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
+        mimetype: 'image/png'
+      };
+      await percy.snapshot({
+        name: 'test responsive',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM,
+          imageLinks: ['http://localhost:8000/img-fromsrcset.png',
+            'http://localhost:8000/img-already-captured.png',
+            'https://remote.resource.com/img-shouldnotcaptured.png',
+            'http://localhost:8000/img-throwserror.gif',
+            'http://localhost:8000/img-withoutcontenttype.gif'
+          ],
+          resources: [capturedResource]
+        },
+        discovery: {
+          captureAllSrcsetUrls: true
+        }
+      });
+
+      await percy.idle();
+
+      let resource = path => jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': `http://localhost:8000${path}`
+        })
+      });
+
+      expect(logger.stderr).toContain(
+        '[percy:core:snapshot] Capturing image src set: ["http://localhost:8000/img-fromsrcset.png","http://localhost:8000/img-throwserror.gif","http://localhost:8000/img-withoutcontenttype.gif"]', // removed remote and already captured resource
+        '[percy:core:snapshot] Request failed with reason: 404 Not Found', // img-throwserror
+        '[percy:core:snapshot] - mimetype: image/gif' // image without content-type
+      );
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        resource('/img-fromsrcset.png'),
+        resource('/img-withoutcontenttype.gif')
+      ]));
+    });
+  });
 });
