@@ -5,6 +5,7 @@ describe('serializeDOM', () => {
   it('returns serialied html, warnings, and resources', () => {
     expect(serializeDOM()).toEqual({
       html: jasmine.any(String),
+      imageLinks: jasmine.any(Array),
       warnings: jasmine.any(Array),
       resources: jasmine.any(Array),
       hints: jasmine.any(Array)
@@ -28,7 +29,7 @@ describe('serializeDOM', () => {
 
   it('optionally returns a stringified response', () => {
     expect(serializeDOM({ stringifyResponse: true }))
-      .toMatch('{"html":".*","warnings":\\[\\],"resources":\\[\\],"hints":\\[\\]}');
+      .toMatch('{"html":".*","imageLinks":\\[\\],"warnings":\\[\\],"resources":\\[\\],"hints":\\[\\]}');
   });
 
   it('always has a doctype', () => {
