@@ -827,7 +827,7 @@ describe('Snapshot', () => {
     expect(uploads[2]).toEqual(Buffer.from(textResource.content).toString('base64'));
   });
 
-  it('handles duplicate snapshots', async () => {
+  it('handles duplicate snapshots when testCase is not passed', async () => {
     await percy.snapshot([{
       url: 'http://localhost:8000/foobar',
       domSnapshot: '<p>Test 1</p>'
@@ -842,6 +842,54 @@ describe('Snapshot', () => {
     ]);
     expect(logger.stdout).toEqual([
       '[percy] Snapshot taken: /foobar'
+    ]);
+  });
+
+  it('handles duplicate snapshots when same testCase is passed', async () => {
+    await percy.snapshot([{
+      url: 'http://localhost:8000/foobar',
+      testCase: 'test-case-1',
+      domSnapshot: '<p>Test 1</p>'
+    }, {
+      url: 'http://localhost:8000/foobar',
+      testCase: 'test-case-1',
+      domSnapshot: '<p>Test 2</p>'
+    }]);
+
+    expect(logger.stderr).toEqual([
+      '[percy] Received a duplicate snapshot, ' +
+        'the previous snapshot was aborted: testCase: test-case-1, /foobar'
+    ]);
+    expect(logger.stdout).toEqual([
+      '[percy] Snapshot taken: testCase: test-case-1, /foobar'
+    ]);
+  });
+
+  it('handles duplicate snapshots with different test cases', async () => {
+    await percy.snapshot([{
+      url: 'http://localhost:8000/one',
+      testCase: 'test-case-1',
+      domSnapshot: testDOM
+    }, {
+      url: 'http://localhost:8000/one',
+      testCase: 'test-case-2',
+      dom_snapshot: testDOM
+    }, {
+      url: 'http://localhost:8000/one',
+      testCase: 'test-case-3',
+      'dom-snapshot': testDOM
+    }, {
+      url: 'http://localhost:8000/one',
+      testCase: 'test-case-4',
+      domSnapshot: JSON.stringify({ html: testDOM })
+    }]);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Snapshot taken: testCase: test-case-1, /one',
+      '[percy] Snapshot taken: testCase: test-case-2, /one',
+      '[percy] Snapshot taken: testCase: test-case-3, /one',
+      '[percy] Snapshot taken: testCase: test-case-4, /one'
     ]);
   });
 
@@ -1362,6 +1410,50 @@ describe('Snapshot', () => {
         '<p>3/5 \\(3000\\)</p>',
         '<p>4/5 \\(4000\\)</p>'
       ].join(''));
+    });
+  });
+
+  describe('invalid screenshot flow', () => {
+    it('should throw error if app percy build is ran using automate SDK', async () => {
+      await percy.stop(true);
+      await api.mock();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        projectType: 'app'
+      });
+
+      percy.client.buildType = 'app';
+      await percy.upload({
+        name: 'Snapshot',
+        external_debug_url: 'localhost',
+        some_other_rand_prop: 'random value',
+        tag: { name: 'device', foobar: 'baz' },
+        tiles: [{ content: 'foo' }, { content: 'vbv' }]
+      }, null, 'automate');
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([jasmine.stringContaining('[percy] Error: Cannot run automate screenshots in app project. Please use automate project token')]));
+    });
+
+    it('should throw error if automate build is ran using app percy SDK', async () => {
+      await percy.stop(true);
+      await api.mock();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        projectType: 'automate'
+      });
+
+      percy.client.buildType = 'automate';
+      await percy.upload({
+        name: 'Snapshot',
+        external_debug_url: 'localhost',
+        some_other_rand_prop: 'random value',
+        tag: { name: 'device', foobar: 'baz' },
+        tiles: [{ content: 'foo' }, { content: 'vbv' }]
+      }, null, 'app');
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([jasmine.stringContaining('[percy] Error: Cannot run App Percy screenshots in automate project. Please use App Percy project token')]));
     });
   });
 

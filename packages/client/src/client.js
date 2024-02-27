@@ -10,7 +10,8 @@ import {
   sha256hash,
   base64encode,
   getPackageJSON,
-  waitForTimeout
+  waitForTimeout,
+  validateTiles
 } from './utils.js';
 
 // Default client API URL can be set with an env var for API development
@@ -58,6 +59,8 @@ export class PercyClient {
     Object.assign(this, { token, config: config || {}, apiUrl });
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
+    this.buildType = null;
+    this.screenshotFlow = null;
   }
 
   // Adds additional unique client info.
@@ -343,6 +346,7 @@ export class PercyClient {
     clientInfo,
     environmentInfo,
     sync,
+    testCase,
     resources = []
   } = {}) {
     validateId('build', buildId);
@@ -368,6 +372,7 @@ export class PercyClient {
           widths: widths || null,
           scope: scope || null,
           sync: !!sync,
+          'test-case': testCase || null,
           'scope-options': scopeOptions || {},
           'minimum-height': minHeight || null,
           'enable-javascript': enableJavaScript || null,
@@ -555,6 +560,9 @@ export class PercyClient {
   }
 
   async sendComparison(buildId, options) {
+    if (!validateTiles(options.tiles)) {
+      throw new Error('sha, filepath or content should be present in tiles object');
+    }
     let snapshot = await this.createSnapshot(buildId, options);
     let comparison = await this.createComparison(snapshot.data.id, options);
     await this.uploadComparisonTiles(comparison.data.id, options.tiles);
