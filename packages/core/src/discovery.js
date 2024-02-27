@@ -141,7 +141,7 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
 // the page and calling any provided execute options.
 async function* captureSnapshotResources(page, snapshot, options) {
   let { discovery, additionalSnapshots = [], ...baseSnapshot } = snapshot;
-  let { capture, captureWidths, deviceScaleFactor, mobile } = options;
+  let { capture, captureWidths, deviceScaleFactor, mobile, flag } = options;
 
   // used to take snapshots and remove any discovered root resource
   let takeSnapshot = async (options, width) => {
@@ -203,13 +203,26 @@ async function* captureSnapshotResources(page, snapshot, options) {
   }
 
   // recursively trigger resource requests for any alternate device pixel ratio
-  if (deviceScaleFactor !== discovery.devicePixelRatio) {
+  if (deviceScaleFactor !== discovery.devicePixelRatio && flag) {
     yield waitForDiscoveryNetworkIdle(page, discovery);
 
     yield* captureSnapshotResources(page, snapshot, {
       deviceScaleFactor: discovery.devicePixelRatio,
       mobile: true
     });
+  }
+
+  if (flag) {
+    const devices = [{ width: 390, deviceScaleFactor: 3, mobile: true }, { width: 375, deviceScaleFactor: 3, mobile: true }, { width: 384, deviceScaleFactor: 2.8125, mobile: true }, { width: 360, deviceScaleFactor: 3, mobile: true }];
+    yield waitForDiscoveryNetworkIdle(page, discovery);
+
+    for (let device of devices) {
+      yield* captureSnapshotResources(page, { ...snapshot, widths: [device.width] }, {
+        flag: false,
+        deviceScaleFactor: device.deviceScaleFactor,
+        mobile: device.mobile
+      });
+    }
   }
 
   // wait for final network idle when not capturing DOM
@@ -308,7 +321,8 @@ export function createDiscoveryQueue(percy) {
       try {
         yield* captureSnapshotResources(page, snapshot, {
           captureWidths: !snapshot.domSnapshot && percy.deferUploads,
-          capture: callback
+          capture: callback,
+          flag: true
         });
       } finally {
         // always close the page when done
