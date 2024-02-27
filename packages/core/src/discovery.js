@@ -7,7 +7,8 @@ import {
   createRootResource,
   createPercyCSSResource,
   createLogResource,
-  yieldAll
+  yieldAll,
+  snapshotLogName
 } from './utils.js';
 
 // Logs verbose debug logs detailing various snapshot options.
@@ -130,7 +131,7 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
 
   // include associated snapshot logs matched by meta information
   resources.push(createLogResource(logger.query(log => (
-    log.meta.snapshot?.name === snapshot.meta.snapshot.name
+    log.meta.snapshot?.testCase === snapshot.meta.snapshot.testCase && log.meta.snapshot?.name === snapshot.meta.snapshot.name
   ))));
 
   return { ...snapshot, resources };
@@ -264,9 +265,9 @@ export function createDiscoveryQueue(percy) {
     .handle('end', async () => {
       await percy.browser.close();
     })
-  // snapshots are unique by name; when deferred also by widths
-    .handle('find', ({ name, widths }, snapshot) => (
-      snapshot.name === name && (!percy.deferUploads || (
+  // snapshots are unique by name and testCase; when deferred also by widths
+    .handle('find', ({ name, testCase, widths }, snapshot) => (
+      snapshot.testCase === testCase && snapshot.name === name && (!percy.deferUploads || (
         !widths || widths.join() === snapshot.widths.join()))
     ))
   // initialize the resources for DOM snapshots
@@ -318,7 +319,7 @@ export function createDiscoveryQueue(percy) {
       if (error.name === 'AbortError' && queue.readyState < 3) {
         // only error about aborted snapshots when not closed
         percy.log.error('Received a duplicate snapshot, ' + (
-          `the previous snapshot was aborted: ${name}`), meta);
+          `the previous snapshot was aborted: ${snapshotLogName(name, meta)}`), meta);
       } else {
         // log all other encountered errors
         percy.log.error(`Encountered an error taking snapshot: ${name}`, meta);

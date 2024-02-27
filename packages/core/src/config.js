@@ -71,6 +71,9 @@ export const configSchema = {
       sync: {
         type: 'boolean'
       },
+      testCase: {
+        type: 'string'
+      },
       fullPage: {
         type: 'boolean',
         onlyAutomate: true
@@ -260,6 +263,7 @@ export const snapshotSchema = {
         domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
         enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
         sync: { $ref: '/config/snapshot#/properties/sync' },
+        testCase: { $ref: '/config/snapshot#/properties/testCase' },
         reshuffleInvalidTags: { $ref: '/config/snapshot#/properties/reshuffleInvalidTags' },
         scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
         discovery: {

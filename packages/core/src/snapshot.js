@@ -6,7 +6,8 @@ import Queue from './queue.js';
 import {
   request,
   hostnameMatches,
-  yieldTo
+  yieldTo,
+  snapshotLogName
 } from './utils.js';
 import { JobData } from './wait-for-job.js';
 
@@ -104,7 +105,7 @@ function getSnapshotOptions(options, { config, meta }) {
   return PercyConfig.merge([{
     widths: configSchema.snapshot.properties.widths.default,
     discovery: { allowedHostnames: [validURL(options.url).hostname] },
-    meta: { ...meta, snapshot: { name: options.name } }
+    meta: { ...meta, snapshot: { name: options.name, testCase: options.testCase } }
   }, config.snapshot, {
     // only specific discovery options are used per-snapshot
     discovery: {
@@ -339,17 +340,17 @@ export function createSnapshotsQueue(percy) {
         percy.log.warn('Build not created', { build });
       }
     })
-  // snapshots are unique by name alone
-    .handle('find', ({ name }, snapshot) => (
-      snapshot.name === name
+  // snapshots are unique by name and testCase both
+    .handle('find', ({ name, testCase }, snapshot) => (
+      snapshot.testCase === testCase && snapshot.name === name
     ))
   // when pushed, maybe flush old snapshots or possibly merge with existing snapshots
     .handle('push', (snapshot, existing) => {
       let { name, meta } = snapshot;
 
       // log immediately when not deferred or dry-running
-      if (!percy.deferUploads) percy.log.info(`Snapshot taken: ${name}`, meta);
-      if (percy.dryRun) percy.log.info(`Snapshot found: ${name}`, meta);
+      if (!percy.deferUploads) percy.log.info(`Snapshot taken: ${snapshotLogName(name, meta)}`, meta);
+      if (percy.dryRun) percy.log.info(`Snapshot found: ${snapshotLogName(name, meta)}`, meta);
 
       // immediately flush when uploads are delayed but not skipped
       if (percy.delayUploads && !percy.deferUploads) queue.flush();
