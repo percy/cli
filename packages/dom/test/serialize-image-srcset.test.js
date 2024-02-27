@@ -24,7 +24,6 @@ describe('serializeImageSrcSet', () => {
     `);
 
       serialized = serializeDOM();
-      console.log(serialized.imageLinks);
 
       expect(serialized.imageLinks).toEqual([
         'http://locahost:9876/base/test/assets/example.webp',
@@ -40,7 +39,6 @@ describe('serializeImageSrcSet', () => {
     `, { withShadow: true });
 
       serialized = serializeDOM();
-      console.log(serialized);
       expect(serialized.imageLinks).toEqual([
         'http://localhost:9876/base/test/assets/example.webp',
         'http://localhost:9876/base/test/assets/example.png',

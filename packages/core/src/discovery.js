@@ -97,9 +97,12 @@ function parseDomResources({ url, domSnapshot }) {
   }, new Map([[rootResource.url, rootResource]]));
 }
 
-async function parseImageSrcset({ imageLinks }, { resources, meta }, { allowedHostnames }) {
+async function parseImageSrcset(snapshot, discovery) {
   let log = logger('core:snapshot');
   const promiseList = [];
+  const { resources, meta, domSnapshot } = snapshot;
+  const { allowedHostnames } = discovery;
+  let { imageLinks } = domSnapshot;
 
   imageLinks = imageLinks.filter((link) => hostnameMatches(allowedHostnames, link));
   imageLinks = imageLinks.filter((link) => !resources.get(link));
@@ -186,7 +189,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
     if (captureWidths) options = { ...options, width };
     let captured = await page.snapshot(options);
     captured.resources.delete(normalizeURL(captured.url));
-    if (discovery.captureAllSrcsetUrls) await parseImageSrcset(captured.domSnapshot, captured, snapshot.discovery);
+    if (discovery.captureAllSrcsetUrls) await parseImageSrcset(captured, snapshot.discovery);
     capture(processSnapshotResources(captured));
     return captured;
   };
@@ -254,7 +257,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
   // wait for final network idle when not capturing DOM
   if (capture && snapshot.domSnapshot) {
     yield waitForDiscoveryNetworkIdle(page, discovery);
-    if (discovery.captureAllSrcsetUrls) await parseImageSrcset(snapshot.domSnapshot, snapshot, snapshot.discovery);
+    if (discovery.captureAllSrcsetUrls) await parseImageSrcset(snapshot, snapshot.discovery);
     capture(processSnapshotResources(snapshot));
   }
 }
