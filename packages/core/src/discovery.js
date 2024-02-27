@@ -214,6 +214,11 @@ async function* captureSnapshotResources(page, snapshot, options) {
 
   if (flag) {
     const devices = [{ width: 390, deviceScaleFactor: 3, mobile: true }, { width: 375, deviceScaleFactor: 3, mobile: true }, { width: 384, deviceScaleFactor: 2.8125, mobile: true }, { width: 360, deviceScaleFactor: 3, mobile: true }];
+    if (snapshot.widths.length > 1) {
+      for (let i = 1; i < snapshot.widths.length; i++) {
+        devices.push({ width: snapshot.widths[i], deviceScaleFactor: 1, mobile: false });
+      }
+    }
     yield waitForDiscoveryNetworkIdle(page, discovery);
 
     for (let device of devices) {
