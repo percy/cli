@@ -1,17 +1,8 @@
-// Return list of link of all srcset images to be captured
-export function serializeImageSrcSet({ dom }) {
-  const links = new Set();
+// Handle nodes with srcset
+export function serializeImageSrcSet(node, links) {
+  if (!node.srcset) return;
 
-  for (let img of dom.querySelectorAll('img[srcset]')) {
-    handleSrcSet(img.srcset, links);
-  }
-
-  for (let picture of dom.querySelectorAll('picture')) {
-    for (let source of picture.querySelectorAll('source')) {
-      handleSrcSet(source.srcset, links);
-    }
-  }
-  return Array.from(links);
+  handleSrcSet(node.srcset, links);
 }
 
 function handleSrcSet(srcSet, links) {

@@ -3,7 +3,6 @@ import serializeFrames from './serialize-frames';
 import serializeCSSOM from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
-import serializeImageSrcSet from './serialize-image-srcset';
 import { cloneNodeAndShadow, getOuterHTML } from './clone-dom';
 import injectDeclarativeShadowDOMPolyfill from './inject-polyfill';
 
@@ -80,7 +79,8 @@ export function serializeDOM(options) {
   };
 
   ctx.dom = dom;
-  ctx.clone = cloneNodeAndShadow(ctx);
+  const { fragment, imageLinks } = cloneNodeAndShadow(ctx);
+  ctx.clone = fragment;
 
   serializeElements(ctx);
 
@@ -109,7 +109,7 @@ export function serializeDOM(options) {
 
   let result = {
     html: serializeHTML(ctx),
-    imageLinks: serializeImageSrcSet(ctx),
+    imageLinks: imageLinks,
     warnings: Array.from(ctx.warnings),
     resources: Array.from(ctx.resources),
     hints: Array.from(ctx.hints)

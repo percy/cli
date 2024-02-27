@@ -2067,7 +2067,7 @@ describe('Discovery', () => {
           resources: [capturedResource]
         },
         discovery: {
-          captureAllSrcsetUrls: true
+          captureSrcset: true
         }
       });
 
@@ -2116,7 +2116,7 @@ describe('Discovery', () => {
         url: 'http://localhost:8000',
         widths: [1024],
         discovery: {
-          captureAllSrcsetUrls: true
+          captureSrcset: true
         }
       });
 

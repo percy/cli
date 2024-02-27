@@ -190,7 +190,7 @@ export const configSchema = {
         type: 'boolean',
         default: false
       },
-      captureAllSrcsetUrls: {
+      captureSrcset: {
         type: 'boolean',
         default: false
       },
@@ -280,7 +280,7 @@ export const snapshotSchema = {
             authorization: { $ref: '/config/discovery#/properties/authorization' },
             disableCache: { $ref: '/config/discovery#/properties/disableCache' },
             captureMockedServiceWorker: { $ref: '/config/discovery#/properties/captureMockedServiceWorker' },
-            captureAllSrcsetUrls: { $ref: '/config/discovery#/properties/captureAllSrcsetUrls' },
+            captureSrcset: { $ref: '/config/discovery#/properties/captureSrcset' },
             userAgent: { $ref: '/config/discovery#/properties/userAgent' },
             devicePixelRatio: { $ref: '/config/discovery#/properties/devicePixelRatio' }
           }

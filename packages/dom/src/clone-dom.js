@@ -4,6 +4,7 @@
  * https://developer.mozilla.org/en-US/docs/Web/API/Element/attachShadow#parameters
  */
 import markElement from './prepare-dom';
+import serializeImageSrcSet from './serialize-image-srcset';
 import applyElementTransformations from './transform-dom';
 
 /**
@@ -12,14 +13,19 @@ import applyElementTransformations from './transform-dom';
  */
 
 const ignoreTags = ['NOSCRIPT'];
+const srcsetTags = ['IMG', 'SOURCE'];
 
 export function cloneNodeAndShadow({ dom, disableShadowDOM }) {
+  const links = new Set();
   // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
     let walkTree = (nextn, nextp) => {
       while (nextn) {
         if (!ignoreTags.includes(nextn.nodeName)) {
           cloneNode(nextn, nextp);
+        }
+        if (srcsetTags.includes(nextn.nodeName)) {
+          serializeImageSrcSet(nextn, links);
         }
         nextn = nextn.nextSibling;
       }
@@ -64,7 +70,7 @@ export function cloneNodeAndShadow({ dom, disableShadowDOM }) {
   fragment.documentElement = fragment.firstChild;
   fragment.head = fragment.querySelector('head');
   fragment.body = fragment.querySelector('body');
-  return fragment;
+  return { fragment, imageLinks: Array.from(links) };
 };
 
 /**

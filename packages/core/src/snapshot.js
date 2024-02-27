@@ -117,7 +117,7 @@ function getSnapshotOptions(options, { config, meta }) {
       authorization: config.discovery.authorization,
       disableCache: config.discovery.disableCache,
       captureMockedServiceWorker: config.discovery.captureMockedServiceWorker,
-      captureAllSrcsetUrls: config.discovery.captureAllSrcsetUrls,
+      captureSrcset: config.discovery.captureSrcset,
       userAgent: config.discovery.userAgent
     }
   }, options], (path, prev, next) => {

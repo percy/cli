@@ -57,7 +57,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'discovery.authorization', JSON.stringify);
   debugProp(snapshot, 'discovery.disableCache');
   debugProp(snapshot, 'discovery.captureMockedServiceWorker');
-  debugProp(snapshot, 'discovery.captureAllSrcsetUrls');
+  debugProp(snapshot, 'discovery.captureSrcset');
   debugProp(snapshot, 'discovery.userAgent');
   debugProp(snapshot, 'clientInfo');
   debugProp(snapshot, 'environmentInfo');
@@ -98,7 +98,7 @@ function parseDomResources({ url, domSnapshot }) {
   }, new Map([[rootResource.url, rootResource]]));
 }
 
-async function parseImageSrcset(snapshot, discovery) {
+async function gatherSrcsetResources(snapshot, discovery) {
   let log = logger('core:snapshot');
   const promiseList = [];
   const { resources, meta, domSnapshot } = snapshot;
@@ -190,7 +190,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
     if (captureWidths) options = { ...options, width };
     let captured = await page.snapshot(options);
     captured.resources.delete(normalizeURL(captured.url));
-    if (discovery.captureAllSrcsetUrls) await parseImageSrcset(captured, snapshot.discovery);
+    if (discovery.captureSrcset) await gatherSrcsetResources(captured, snapshot.discovery);
     capture(processSnapshotResources(captured));
     return captured;
   };
@@ -258,7 +258,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
   // wait for final network idle when not capturing DOM
   if (capture && snapshot.domSnapshot) {
     yield waitForDiscoveryNetworkIdle(page, discovery);
-    if (discovery.captureAllSrcsetUrls) await parseImageSrcset(snapshot, snapshot.discovery);
+    if (discovery.captureSrcset) await gatherSrcsetResources(snapshot, snapshot.discovery);
     capture(processSnapshotResources(snapshot));
   }
 }
