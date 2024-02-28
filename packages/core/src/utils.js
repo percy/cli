@@ -324,6 +324,23 @@ export function serializeFunction(fn) {
   return fnbody;
 }
 
+export async function withRetries(fn, { count, onRetry }) {
+  count ||= 1; // default a single try
+  let run = 0;
+  while (true) {
+    run += 1;
+    try {
+      return await generatePromise(fn);
+    } catch (e) {
+      if (run < count) {
+        await onRetry?.();
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
 // DefaultMap, which returns a default value for an uninitialized key
 // Similar to defaultDict in python
 export class DefaultMap extends Map {

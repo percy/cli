@@ -228,6 +228,10 @@ export const configSchema = {
         type: 'integer',
         minimum: 1
       },
+      retry: {
+        type: 'boolean',
+        default: false
+      },
       launchOptions: {
         type: 'object',
         additionalProperties: false,
