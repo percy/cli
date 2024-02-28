@@ -55,6 +55,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'discovery.authorization', JSON.stringify);
   debugProp(snapshot, 'discovery.disableCache');
   debugProp(snapshot, 'discovery.captureMockedServiceWorker');
+  debugProp(snapshot, 'discovery.captureSrcset');
   debugProp(snapshot, 'discovery.userAgent');
   debugProp(snapshot, 'clientInfo');
   debugProp(snapshot, 'environmentInfo');
@@ -169,6 +170,11 @@ async function* captureSnapshotResources(page, snapshot, options) {
     /* istanbul ignore next: cannot detect coverage of injected code */
     yield page.eval((_, s) => (window.__PERCY__.snapshot = s), snapshot);
     yield page.evaluate(snapshot.execute.afterNavigation);
+  }
+
+  if (discovery.captureSrcset) {
+    await page.insertPercyDom();
+    yield page.eval('window.PercyDOM.serializeImageSrcSet()');
   }
 
   // iterate over additional snapshots for proper DOM capturing
