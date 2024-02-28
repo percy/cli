@@ -3,6 +3,7 @@ import start from './start.js';
 import stop from './stop.js';
 import ping from './ping.js';
 import { getPackageJSON } from '@percy/cli-command/utils';
+import { waitForTimeout } from '@percy/client/utils';
 
 const pkg = getPackageJSON(import.meta.url);
 
@@ -92,14 +93,11 @@ export const exec = command('exec', {
   await percy?.stop(!!error);
 
   // forward any returned status code
-  if (status) {
-    exit(status, error);
-  } else {
-    // force exit post timeout
-    setTimeout(function() {
-      process.exit(0);
-    }, 10000);
-  }
+  if (status) exit(status, error);
+
+  // force exit post timeout
+  await waitForTimeout(10000);
+  process.exit(status);
 });
 
 // Spawn a command with cross-spawn and return an array containing the resulting status code along
