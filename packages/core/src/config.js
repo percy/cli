@@ -190,6 +190,10 @@ export const configSchema = {
         type: 'boolean',
         default: false
       },
+      captureSrcset: {
+        type: 'boolean',
+        default: false
+      },
       requestHeaders: {
         type: 'object',
         normalize: false,
@@ -276,6 +280,7 @@ export const snapshotSchema = {
             authorization: { $ref: '/config/discovery#/properties/authorization' },
             disableCache: { $ref: '/config/discovery#/properties/disableCache' },
             captureMockedServiceWorker: { $ref: '/config/discovery#/properties/captureMockedServiceWorker' },
+            captureSrcset: { $ref: '/config/discovery#/properties/captureSrcset' },
             userAgent: { $ref: '/config/discovery#/properties/userAgent' },
             devicePixelRatio: { $ref: '/config/discovery#/properties/devicePixelRatio' }
           }

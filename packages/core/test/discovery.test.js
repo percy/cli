@@ -2039,4 +2039,107 @@ describe('Discovery', () => {
       ]));
     });
   });
+
+  describe('Capture image srcset =>', () => {
+    it('make request call to capture resource', async () => {
+      let responsiveDOM = dedent`
+        <html>
+        <head><link href="style.css" rel="stylesheet"/></head>
+        <body>
+          <p>Hello Percy!<p>
+          <img srcset="/img-fromsrcset.png 400w, /img-throwserror.gif 600w, /img-withdifferentcontenttype.gif 800w"
+              sizes="(max-width: 600px) 400px, (max-width: 800px) 600px, 800px"
+              src="/img-already-captured.png">
+        </body>
+        </html>
+      `;
+      server.reply('/img-fromsrcset.png', () => [200, 'image/png', pixel]);
+      server.reply('/img-already-captured.png', () => [200, 'image/png', pixel]);
+      server.reply('/img-throwserror.gif', () => [404]);
+      server.reply('/img-withdifferentcontenttype.gif', () => [200, 'image/gif', pixel]);
+
+      let capturedResource = {
+        url: 'http://localhost:8000/img-already-captured.png',
+        content: 'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
+        mimetype: 'image/png'
+      };
+      await percy.snapshot({
+        name: 'test responsive',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: responsiveDOM,
+          resources: [capturedResource]
+        },
+        discovery: {
+          captureSrcset: true
+        }
+      });
+
+      await percy.idle();
+
+      let resource = path => jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': `http://localhost:8000${path}`
+        })
+      });
+
+      let paths = server.requests.map(r => r[0]);
+      expect(paths).toContain('/img-fromsrcset.png');
+      expect(paths).toContain('/img-withdifferentcontenttype.gif');
+      expect(paths).toContain('/img-throwserror.gif');
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        resource('/img-fromsrcset.png'),
+        resource('/img-withdifferentcontenttype.gif')
+      ]));
+    });
+
+    it('using snapshot command capture srcset', async () => {
+      let responsiveDOM = dedent`
+        <html>
+        <head></head>
+        <body>
+          <p>Hello Percy!<p>
+          <img srcset="/img-fromsrcset.png 2x, /img-throwserror.jpeg 3x, /img-withdifferentcontenttype.gif 4x, https://remote.resource.com/img-shouldnotcaptured.png 5x"
+              sizes="(max-width: 600px) 400px, (max-width: 800px) 600px, 800px"
+              src="/img-already-captured.png">
+        </body>
+        </html>
+      `;
+
+      server.reply('/', () => [200, 'text/html', responsiveDOM]);
+      server.reply('/img-fromsrcset.png', () => [200, 'image/png', pixel]);
+      server.reply('/img-already-captured.png', () => [200, 'image/png', pixel]);
+      server.reply('/img-throwserror.jpeg', () => [404]);
+      server.reply('/img-withdifferentcontenttype.gif', () => [200, 'image/gif', pixel]);
+
+      await percy.snapshot({
+        name: 'image srcset',
+        url: 'http://localhost:8000',
+        widths: [1024],
+        discovery: {
+          captureSrcset: true
+        }
+      });
+
+      await percy.idle();
+
+      let resource = path => jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': `http://localhost:8000${path}`
+        })
+      });
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        resource('/img-fromsrcset.png'),
+        resource('/img-withdifferentcontenttype.gif'),
+        resource('/img-already-captured.png')
+      ]));
+
+      expect(captured[0]).not.toContain(jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'https://remote.resource.com/img-shouldnotcaptured.png'
+        })
+      }));
+    });
+  });
 });
