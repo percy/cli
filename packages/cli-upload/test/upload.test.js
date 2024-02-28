@@ -87,6 +87,7 @@ describe('percy upload', () => {
           widths: [10],
           scope: null,
           sync: false,
+          'test-case': null,
           'scope-options': {},
           'minimum-height': 10,
           'enable-javascript': null,
