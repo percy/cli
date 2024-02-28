@@ -341,6 +341,13 @@ export async function withRetries(fn, { count, onRetry }) {
   }
 }
 
+export function snapshotLogName(name, meta) {
+  if (meta?.snapshot?.testCase) {
+    return `testCase: ${meta.snapshot.testCase}, ${name}`;
+  }
+  return name;
+}
+
 // DefaultMap, which returns a default value for an uninitialized key
 // Similar to defaultDict in python
 export class DefaultMap extends Map {
