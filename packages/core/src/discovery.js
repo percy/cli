@@ -56,6 +56,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'discovery.disableCache');
   debugProp(snapshot, 'discovery.captureMockedServiceWorker');
   debugProp(snapshot, 'discovery.captureSrcset');
+  debugProp(snapshot, 'discovery.captureResponsiveAssets');
   debugProp(snapshot, 'discovery.userAgent');
   debugProp(snapshot, 'clientInfo');
   debugProp(snapshot, 'environmentInfo');
@@ -138,11 +139,24 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   return { ...snapshot, resources };
 }
 
+async function responsiveDomParams(snapshot, client) {
+  const { discovery, widths } = snapshot;
+  if (!discovery.captureResponsiveAssets) return false;
+
+  const devices = await client.getDeviceDetails();
+  if (widths.length > 1) {
+    for (let i = 1; i < widths.length; i++) {
+      devices.push({ width: widths[i], deviceScaleFactor: 1, mobile: false });
+    }
+  }
+  return devices;
+}
+
 // Triggers the capture of resource requests for a page by iterating over snapshot widths to resize
 // the page and calling any provided execute options.
 async function* captureSnapshotResources(page, snapshot, options) {
   let { discovery, additionalSnapshots = [], ...baseSnapshot } = snapshot;
-  let { capture, captureWidths, deviceScaleFactor, mobile, flag } = options;
+  let { capture, captureWidths, deviceScaleFactor, mobile, captureResponsiveDom } = options;
 
   // used to take snapshots and remove any discovered root resource
   let takeSnapshot = async (options, width) => {
@@ -180,6 +194,16 @@ async function* captureSnapshotResources(page, snapshot, options) {
     yield page.eval('window.PercyDOM.loadAllSrcsetLinks()');
   }
 
+  if (discovery.captureResponsiveAssets && captureResponsiveDom) {
+    for (const device of captureResponsiveDom) {
+      yield waitForDiscoveryNetworkIdle(page, discovery);
+      yield* captureSnapshotResources(page, { ...snapshot, widths: [device.width] }, {
+        deviceScaleFactor: device.deviceScaleFactor,
+        mobile: device.mobile
+      });
+    }
+  }
+
   // iterate over additional snapshots for proper DOM capturing
   for (let additionalSnapshot of [baseSnapshot, ...additionalSnapshots]) {
     let isBaseSnapshot = additionalSnapshot === baseSnapshot;
@@ -212,31 +236,13 @@ async function* captureSnapshotResources(page, snapshot, options) {
   }
 
   // recursively trigger resource requests for any alternate device pixel ratio
-  if (deviceScaleFactor !== discovery.devicePixelRatio && flag) {
+  if (!discovery.captureResponsiveAssets && deviceScaleFactor !== discovery.devicePixelRatio) {
     yield waitForDiscoveryNetworkIdle(page, discovery);
 
     yield* captureSnapshotResources(page, snapshot, {
       deviceScaleFactor: discovery.devicePixelRatio,
       mobile: true
     });
-  }
-
-  if (flag) {
-    const devices = [{ width: 390, deviceScaleFactor: 3, mobile: true }, { width: 375, deviceScaleFactor: 3, mobile: true }, { width: 384, deviceScaleFactor: 2.8125, mobile: true }, { width: 360, deviceScaleFactor: 3, mobile: true }];
-    if (snapshot.widths.length > 1) {
-      for (let i = 1; i < snapshot.widths.length; i++) {
-        devices.push({ width: snapshot.widths[i], deviceScaleFactor: 1, mobile: false });
-      }
-    }
-    yield waitForDiscoveryNetworkIdle(page, discovery);
-
-    for (let device of devices) {
-      yield* captureSnapshotResources(page, { ...snapshot, widths: [device.width] }, {
-        flag: false,
-        deviceScaleFactor: device.deviceScaleFactor,
-        mobile: device.mobile
-      });
-    }
   }
 
   // wait for final network idle when not capturing DOM
@@ -336,7 +342,7 @@ export function createDiscoveryQueue(percy) {
         yield* captureSnapshotResources(page, snapshot, {
           captureWidths: !snapshot.domSnapshot && percy.deferUploads,
           capture: callback,
-          flag: true
+          captureResponsiveDom: await responsiveDomParams(snapshot, percy.client)
         });
       } finally {
         // always close the page when done

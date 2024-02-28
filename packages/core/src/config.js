@@ -194,6 +194,10 @@ export const configSchema = {
         type: 'boolean',
         default: false
       },
+      captureResponsiveAssets: {
+        type: 'boolean',
+        default: false
+      },
       requestHeaders: {
         type: 'object',
         normalize: false,
@@ -281,6 +285,7 @@ export const snapshotSchema = {
             disableCache: { $ref: '/config/discovery#/properties/disableCache' },
             captureMockedServiceWorker: { $ref: '/config/discovery#/properties/captureMockedServiceWorker' },
             captureSrcset: { $ref: '/config/discovery#/properties/captureSrcset' },
+            captureResponsiveAssets: { $ref: '/config/discovery#/properties/captureResponsiveAssets' },
             userAgent: { $ref: '/config/discovery#/properties/userAgent' },
             devicePixelRatio: { $ref: '/config/discovery#/properties/devicePixelRatio' }
           }

@@ -118,6 +118,7 @@ function getSnapshotOptions(options, { config, meta }) {
       disableCache: config.discovery.disableCache,
       captureMockedServiceWorker: config.discovery.captureMockedServiceWorker,
       captureSrcset: config.discovery.captureSrcset,
+      captureResponsiveAssets: config.discovery.captureResponsiveAssets,
       userAgent: config.discovery.userAgent
     }
   }, options], (path, prev, next) => {
