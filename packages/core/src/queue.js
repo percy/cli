@@ -82,7 +82,10 @@ export class Queue {
     task.ctrl = new AbortController();
     // duplicate abortion controller on task, so it can can be used in further
     // generators and can be cancelled internally
-    item._ctrl = task.ctrl;
+    // TODO fix this for non object item usecase
+    if (typeof item === 'object' && !Array.isArray(item) && item !== null) {
+      item._ctrl = task.ctrl;
+    }
     task.item = item = this.#handlers.push
       ? this.#handlers.push(item, exists) : item;
     task.handler = () => this.#handlers.task
