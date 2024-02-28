@@ -139,19 +139,6 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   return { ...snapshot, resources };
 }
 
-async function responsiveDomParams(snapshot, client) {
-  const { discovery, widths } = snapshot;
-  if (!discovery.captureResponsiveAssets) return false;
-
-  const devices = await client.getDeviceDetails();
-  if (widths.length > 1) {
-    for (let i = 1; i < widths.length; i++) {
-      devices.push({ width: widths[i], deviceScaleFactor: 1, mobile: false });
-    }
-  }
-  return devices;
-}
-
 // Triggers the capture of resource requests for a page by iterating over snapshot widths to resize
 // the page and calling any provided execute options.
 async function* captureSnapshotResources(page, snapshot, options) {
@@ -194,16 +181,6 @@ async function* captureSnapshotResources(page, snapshot, options) {
     yield page.eval('window.PercyDOM.loadAllSrcsetLinks()');
   }
 
-  if (discovery.captureResponsiveAssets && captureResponsiveDom) {
-    for (const device of captureResponsiveDom) {
-      yield waitForDiscoveryNetworkIdle(page, discovery);
-      yield* captureSnapshotResources(page, { ...snapshot, widths: [device.width] }, {
-        deviceScaleFactor: device.deviceScaleFactor,
-        mobile: device.mobile
-      });
-    }
-  }
-
   // iterate over additional snapshots for proper DOM capturing
   for (let additionalSnapshot of [baseSnapshot, ...additionalSnapshots]) {
     let isBaseSnapshot = additionalSnapshot === baseSnapshot;
@@ -219,6 +196,16 @@ async function* captureSnapshotResources(page, snapshot, options) {
         yield waitForDiscoveryNetworkIdle(page, discovery);
         yield resizePage(width = widths[i + 1]);
         yield page.evaluate(execute?.afterResize);
+      }
+    }
+
+    if (discovery.captureResponsiveAssets && captureResponsiveDom) {
+      for (const device of captureResponsiveDom) {
+        yield waitForDiscoveryNetworkIdle(page, discovery);
+        yield* captureSnapshotResources(page, { ...snapshot, widths: [device.width] }, {
+          deviceScaleFactor: device.deviceScaleFactor,
+          mobile: device.mobile
+        });
       }
     }
 
@@ -339,10 +326,11 @@ export function createDiscoveryQueue(percy) {
       });
 
       try {
+        const captureResponsiveDom = snapshot.discovery.captureResponsiveAssets && await percy.client.getDeviceDetails();
         yield* captureSnapshotResources(page, snapshot, {
           captureWidths: !snapshot.domSnapshot && percy.deferUploads,
           capture: callback,
-          captureResponsiveDom: await responsiveDomParams(snapshot, percy.client)
+          captureResponsiveDom
         });
       } finally {
         // always close the page when done
