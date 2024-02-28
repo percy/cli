@@ -3,7 +3,7 @@ import start from './start.js';
 import stop from './stop.js';
 import ping from './ping.js';
 import { getPackageJSON } from '@percy/cli-command/utils';
-const running = require('why-is-node-running')
+const running = require('why-is-node-running');
 
 const pkg = getPackageJSON(import.meta.url);
 
@@ -96,10 +96,10 @@ export const exec = command('exec', {
   if (status) exit(status, error);
 
   // force exit post timeout
-  setTimeout(function () {
-    log.debug(`Stuck handles: ${running()}`)
-    process.exit(status)
-  }, 10000)
+  setTimeout(function() {
+    log.debug(`Stuck handles: ${running()}`);
+    process.exit(status);
+  }, 10000);
 });
 
 // Spawn a command with cross-spawn and return an array containing the resulting status code along
