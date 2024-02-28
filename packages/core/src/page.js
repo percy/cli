@@ -176,7 +176,7 @@ export class Page {
     // wait for any final network activity before capturing the dom snapshot
     await this.network.idle();
 
-    this.insertPercyDom();
+    await this.insertPercyDom();
 
     // serialize and capture a DOM snapshot
     this.log.debug('Serialize DOM', this.meta);
