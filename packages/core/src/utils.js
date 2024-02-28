@@ -324,15 +324,17 @@ export function serializeFunction(fn) {
   return fnbody;
 }
 
-export async function withRetries(fn, { count, onRetry }) {
+export async function withRetries(fn, { count, onRetry, signal, throwOn }) {
   count ||= 1; // default a single try
   let run = 0;
   while (true) {
     run += 1;
     try {
-      return await generatePromise(fn);
+      return await generatePromise(fn, signal);
     } catch (e) {
-      if (run < count) {
+      // if this error should not be retried on, we want to skip errors
+      let throwError = throwOn?.includes(e.name);
+      if (!throwError && run < count) {
         await onRetry?.();
         continue;
       }

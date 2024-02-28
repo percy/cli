@@ -320,8 +320,10 @@ export function createDiscoveryQueue(percy) {
       }, {
         count: retry ? 3 : 1,
         onRetry: () => {
-          percy.log.debug(`Retrying snapshot: ${snapshotLogName(snapshot.name, snapshot.meta)}`, snapshot.meta);
-        }
+          percy.log.info(`Retrying snapshot: ${snapshotLogName(snapshot.name, snapshot.meta)}`, snapshot.meta);
+        },
+        signal: snapshot._ctrl.signal,
+        throwOn: ['AbortError']
       });
     })
     .handle('error', ({ name, meta }, error) => {
