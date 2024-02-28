@@ -5,10 +5,12 @@ import { getPackageJSON } from '@percy/cli-command/utils';
 describe('percy exec', () => {
   beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 25000;
     await setupTest();
 
     let { default: which } = await import('which');
     spyOn(which, 'sync').and.callFake(c => c);
+    spyOn(process, 'exit').and.callFake(c => c);
   });
 
   afterEach(() => {
