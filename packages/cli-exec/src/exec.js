@@ -92,12 +92,14 @@ export const exec = command('exec', {
   await percy?.stop(!!error);
 
   // forward any returned status code
-  if (status) exit(status, error);
-
-  // force exit post timeout
-  setTimeout(function() {
-    process.exit(status);
-  }, 10000);
+  if (status) {
+    exit(status, error);
+  } else {
+    // force exit post timeout
+    setTimeout(function() {
+      process.exit(0);
+    }, 10000);
+  }
 });
 
 // Spawn a command with cross-spawn and return an array containing the resulting status code along
