@@ -172,9 +172,12 @@ async function* captureSnapshotResources(page, snapshot, options) {
     yield page.evaluate(snapshot.execute.afterNavigation);
   }
 
+  // Running before page idle since this will trigger many network calls
+  // so need to run as early as possible. plus it is just reading urls from dom srcset
+  // which will be already loaded after navigation complete
   if (discovery.captureSrcset) {
     await page.insertPercyDom();
-    yield page.eval('window.PercyDOM.serializeImageSrcSet()');
+    yield page.eval('window.PercyDOM.loadAllSrcsetLinks()');
   }
 
   // iterate over additional snapshots for proper DOM capturing

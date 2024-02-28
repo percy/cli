@@ -27,7 +27,7 @@ function getFormattedLink(src) {
   return anchor.href;
 }
 
-export function serializeImageSrcSet() {
+export function loadAllSrcsetLinks() {
   const allImgTags = [];
   const links = getSrcsets(document);
   for (const link of links) {
@@ -37,5 +37,6 @@ export function serializeImageSrcSet() {
   }
   // Adding to window so GC won't abort request
   window.allImgTags = allImgTags;
+  return allImgTags;
 }
-export default serializeImageSrcSet;
+export default loadAllSrcsetLinks;

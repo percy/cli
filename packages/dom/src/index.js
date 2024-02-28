@@ -5,4 +5,4 @@ export {
   serializeDOM as serialize
 } from './serialize-dom';
 
-export { serializeImageSrcSet } from './serialize-image-srcset';
+export { loadAllSrcsetLinks } from './serialize-image-srcset';
