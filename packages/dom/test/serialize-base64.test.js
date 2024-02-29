@@ -7,7 +7,7 @@ describe('serializeBase64', () => {
   platforms.forEach((platform) => {
     it(`${platform}: serializes base64 elements`, async () => {
       withExample(`
-      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEU">
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEU" id="img">
       `);
 
       serialized = serializeDOM();
@@ -24,7 +24,7 @@ describe('serializeBase64', () => {
 
     it(`${platform}: does not serialize elements without any src`, async () => {
       withExample(`
-      <a href="https://www.browserstack.com/">
+      <a href="https://www.browserstack.com/" id="a">
     `);
 
       serialized = serializeDOM();
@@ -36,7 +36,7 @@ describe('serializeBase64', () => {
 
     it(`${platform}: does not serialize elements without base64 src`, async () => {
       withExample(`
-      <img src="image.png">
+      <img src="image.png" id="img">
     `);
 
       serialized = serializeDOM();
@@ -54,7 +54,7 @@ describe('serializeBase64', () => {
       const dom = platformDOM(platform);
       const imageContainer = dom.querySelector('#image-container');
       const shadowRoot = imageContainer.attachShadow({ mode: 'open' });
-      shadowRoot.innerHTML = '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEU">';
+      shadowRoot.innerHTML = '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEU" id="img">';
 
       serialized = serializeDOM();
       $ = parseDOM(serialized.html, platform);
