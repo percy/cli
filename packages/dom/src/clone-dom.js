@@ -5,6 +5,7 @@
  */
 import markElement from './prepare-dom';
 import applyElementTransformations from './transform-dom';
+import serializeBase64Images from './serialize-base64-images';
 
 /**
  * Deep clone a document while also preserving shadow roots
@@ -13,7 +14,8 @@ import applyElementTransformations from './transform-dom';
 
 const ignoreTags = ['NOSCRIPT'];
 
-export function cloneNodeAndShadow({ dom, disableShadowDOM }) {
+export function cloneNodeAndShadow({ dom, disableShadowDOM, resources }) {
+  serializeBase64Images(dom, resources);
   // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
     let walkTree = (nextn, nextp) => {
