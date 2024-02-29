@@ -172,6 +172,14 @@ async function* captureSnapshotResources(page, snapshot, options) {
     yield page.evaluate(snapshot.execute.afterNavigation);
   }
 
+  // Running before page idle since this will trigger many network calls
+  // so need to run as early as possible. plus it is just reading urls from dom srcset
+  // which will be already loaded after navigation complete
+  if (discovery.captureSrcset) {
+    await page.insertPercyDom();
+    yield page.eval('window.PercyDOM.loadAllSrcsetLinks()');
+  }
+
   // iterate over additional snapshots for proper DOM capturing
   for (let additionalSnapshot of [baseSnapshot, ...additionalSnapshots]) {
     let isBaseSnapshot = additionalSnapshot === baseSnapshot;
@@ -190,20 +198,12 @@ async function* captureSnapshotResources(page, snapshot, options) {
       }
     }
 
-    if (captureResponsiveDom) {
-      for (const device of captureResponsiveDom) {
-        yield waitForDiscoveryNetworkIdle(page, discovery);
-        yield* captureSnapshotResources(page, { ...snapshot, widths: [device.width] }, {
-          deviceScaleFactor: device.deviceScaleFactor,
-          mobile: device.mobile
-        });
-      }
-    } else if (discovery.captureSrcset) {
-      // Running before page idle since this will trigger many network calls
-      // so need to run as early as possible. plus it is just reading urls from dom srcset
-      // which will be already loaded after navigation complete
-      await page.insertPercyDom();
-      yield page.eval('window.PercyDOM.loadAllSrcsetLinks()');
+    for (const device of captureResponsiveDom) {
+      yield waitForDiscoveryNetworkIdle(page, discovery);
+      yield* captureSnapshotResources(page, { ...snapshot, widths: [device.width] }, {
+        deviceScaleFactor: device.deviceScaleFactor,
+        mobile: device.mobile
+      });
     }
 
     if (capture && !snapshot.domSnapshot) {
@@ -220,13 +220,9 @@ async function* captureSnapshotResources(page, snapshot, options) {
   }
 
   // recursively trigger resource requests for any alternate device pixel ratio
-  if (!captureResponsiveDom && deviceScaleFactor !== discovery.devicePixelRatio) {
-    yield waitForDiscoveryNetworkIdle(page, discovery);
-
-    yield* captureSnapshotResources(page, snapshot, {
-      deviceScaleFactor: discovery.devicePixelRatio,
-      mobile: true
-    });
+  if (discovery.devicePixelRatio !== 1) {
+    const log = logger('core:discovery');
+    log.warn('discovery.devicePixelRatio is deprecated percy will now auto capture resource in all devicePixelRatio, Ignoring configuration');
   }
 
   // wait for final network idle when not capturing DOM
@@ -323,12 +319,10 @@ export function createDiscoveryQueue(percy) {
       });
 
       try {
-        const captureSrcsetJs = snapshot.discovery.captureSrcset && snapshot.enableJavaScript;
-        const captureResponsiveDom = captureSrcsetJs && await percy.client.getDeviceDetails();
         yield* captureSnapshotResources(page, snapshot, {
           captureWidths: !snapshot.domSnapshot && percy.deferUploads,
           capture: callback,
-          captureResponsiveDom
+          captureResponsiveDom: percy.deviceDetails || []
         });
       } finally {
         // always close the page when done

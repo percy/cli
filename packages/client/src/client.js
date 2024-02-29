@@ -218,9 +218,11 @@ export class PercyClient {
   }
 
   // Returns device details enabled on project associated with given token
-  async getDeviceDetails() {
-    // ToDo: Add endpoint call
-    return [{ width: 390, deviceScaleFactor: 3, mobile: true }, { width: 375, deviceScaleFactor: 3, mobile: true }, { width: 384, deviceScaleFactor: 2.8125, mobile: true }, { width: 360, deviceScaleFactor: 3, mobile: true }];
+  async getDeviceDetails(buildId) {
+    let url = 'device-details';
+    if (buildId) url += `?build_id=${buildId}`;
+    const { data } = await this.get(url);
+    return data;
   }
 
   // Retrieves project builds optionally filtered. Requires a read access token.
