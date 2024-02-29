@@ -1,11 +1,11 @@
 import { parseDOM, withExample, platforms, platformDOM } from './helpers';
 import serializeDOM from '@percy/dom';
 
-describe('serializeBase64Images', () => {
+describe('serializeBase64', () => {
   let $, serialized;
 
   platforms.forEach((platform) => {
-    it(`${platform}: serializes base64 image elements`, async () => {
+    it(`${platform}: serializes base64 elements`, async () => {
       withExample(`
       <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEU">
       `);
@@ -16,13 +16,25 @@ describe('serializeBase64Images', () => {
       expect($('#img')[0].getAttribute('src'))
         .toMatch('/__serialized__/\\w+\\.png');
       expect(serialized.resources).toContain(jasmine.objectContaining({
-        url: $('#src')[0].getAttribute('src'),
+        url: $('#img')[0].getAttribute('src'),
         content: 'iVBORw0KGgoAAAANSUhEU',
         mimetype: 'image/png'
       }));
     });
 
-    it(`${platform}: does not serialize image elements without base64 src`, async () => {
+    it(`${platform}: does not serialize elements without any src`, async () => {
+      withExample(`
+      <a href="https://www.browserstack.com/">
+    `);
+
+      serialized = serializeDOM();
+      $ = parseDOM(serialized.html);
+
+      expect($('#a')[0].getAttribute('href')).toBe('https://www.browserstack.com/');
+      expect(serialized.resources).toEqual([]);
+    });
+
+    it(`${platform}: does not serialize elements without base64 src`, async () => {
       withExample(`
       <img src="image.png">
     `);
@@ -34,19 +46,7 @@ describe('serializeBase64Images', () => {
       expect(serialized.resources).toEqual([]);
     });
 
-    it(`${platform}: does not serialize image elements without invalid base64 src`, async () => {
-      withExample(`
-      <img src="data:image/png;base64,xyzabcd">
-    `);
-
-      serialized = serializeDOM();
-      $ = parseDOM(serialized.html);
-
-      expect($('#img')[0].getAttribute('src')).toBe('data:image/png;base64,xyzabcd');
-      expect(serialized.resources).toEqual([]);
-    });
-
-    it(`${platform}: serializes base64 image elements inside nested dom`, async () => {
+    it(`${platform}: serializes base64 elements inside nested dom`, async () => {
       if (platform === 'plain') {
         return;
       }
