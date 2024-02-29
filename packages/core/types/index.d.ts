@@ -20,7 +20,6 @@ interface DiscoveryOptions {
   disableCache?: boolean;
   captureMockedServiceWorker?: boolean;
   captureSrcset?: boolean;
-  captureResponsiveAssets?: boolean;
 }
 
 interface ScopeOptions {

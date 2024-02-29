@@ -56,7 +56,6 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'discovery.disableCache');
   debugProp(snapshot, 'discovery.captureMockedServiceWorker');
   debugProp(snapshot, 'discovery.captureSrcset');
-  debugProp(snapshot, 'discovery.captureResponsiveAssets');
   debugProp(snapshot, 'discovery.userAgent');
   debugProp(snapshot, 'clientInfo');
   debugProp(snapshot, 'environmentInfo');
@@ -173,14 +172,6 @@ async function* captureSnapshotResources(page, snapshot, options) {
     yield page.evaluate(snapshot.execute.afterNavigation);
   }
 
-  // Running before page idle since this will trigger many network calls
-  // so need to run as early as possible. plus it is just reading urls from dom srcset
-  // which will be already loaded after navigation complete
-  if (discovery.captureSrcset) {
-    await page.insertPercyDom();
-    yield page.eval('window.PercyDOM.loadAllSrcsetLinks()');
-  }
-
   // iterate over additional snapshots for proper DOM capturing
   for (let additionalSnapshot of [baseSnapshot, ...additionalSnapshots]) {
     let isBaseSnapshot = additionalSnapshot === baseSnapshot;
@@ -199,7 +190,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
       }
     }
 
-    if (discovery.captureResponsiveAssets && captureResponsiveDom) {
+    if (captureResponsiveDom) {
       for (const device of captureResponsiveDom) {
         yield waitForDiscoveryNetworkIdle(page, discovery);
         yield* captureSnapshotResources(page, { ...snapshot, widths: [device.width] }, {
@@ -207,6 +198,12 @@ async function* captureSnapshotResources(page, snapshot, options) {
           mobile: device.mobile
         });
       }
+    } else if (discovery.captureSrcset) {
+      // Running before page idle since this will trigger many network calls
+      // so need to run as early as possible. plus it is just reading urls from dom srcset
+      // which will be already loaded after navigation complete
+      await page.insertPercyDom();
+      yield page.eval('window.PercyDOM.loadAllSrcsetLinks()');
     }
 
     if (capture && !snapshot.domSnapshot) {
@@ -223,7 +220,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
   }
 
   // recursively trigger resource requests for any alternate device pixel ratio
-  if (!discovery.captureResponsiveAssets && deviceScaleFactor !== discovery.devicePixelRatio) {
+  if (!captureResponsiveDom && deviceScaleFactor !== discovery.devicePixelRatio) {
     yield waitForDiscoveryNetworkIdle(page, discovery);
 
     yield* captureSnapshotResources(page, snapshot, {
@@ -326,7 +323,8 @@ export function createDiscoveryQueue(percy) {
       });
 
       try {
-        const captureResponsiveDom = snapshot.discovery.captureResponsiveAssets && await percy.client.getDeviceDetails();
+        const captureSrcsetJs = snapshot.discovery.captureSrcset && snapshot.enableJavaScript;
+        const captureResponsiveDom = captureSrcsetJs && await percy.client.getDeviceDetails();
         yield* captureSnapshotResources(page, snapshot, {
           captureWidths: !snapshot.domSnapshot && percy.deferUploads,
           capture: callback,
