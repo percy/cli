@@ -191,8 +191,7 @@ export const configSchema = {
         default: false
       },
       captureSrcset: {
-        type: 'boolean',
-        default: false
+        type: 'boolean'
       },
       requestHeaders: {
         type: 'object',
