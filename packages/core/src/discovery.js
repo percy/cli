@@ -220,7 +220,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
   }
 
   // recursively trigger resource requests for any alternate device pixel ratio
-  if (discovery.devicePixelRatio !== 1) {
+  if (discovery.devicePixelRatio) {
     const log = logger('core:discovery');
     log.warn('discovery.devicePixelRatio is deprecated percy will now auto capture resource in all devicePixelRatio, Ignoring configuration');
   }
