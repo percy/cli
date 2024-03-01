@@ -676,7 +676,7 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      expect(logger.stderr).toContain('[percy:core:discovery] discovery.devicePixelRatio is deprecated percy will now auto capture resource in all devicePixelRatio, Ignoring configuration');
+      expect(logger.stderr).toContain('[percy] discovery.devicePixelRatio is deprecated percy will now auto capture resource in all devicePixelRatio, Ignoring configuration');
     });
   });
 
