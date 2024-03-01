@@ -665,72 +665,18 @@ describe('Discovery', () => {
     ]));
   });
 
-  describe('higher pixel densities', () => {
-    let responsiveDOM;
-    beforeEach(() => {
-      responsiveDOM = dedent`
-      <html>
-      <head></head>
-      <body>
-        <p>Hello Percy!<p>
-        <img srcset="/img-normal.png, /img-2x.png 2x"
-             src="img-normal.png">
-      </body>
-      </html>
-    `;
-
-      server.reply('/', () => [200, 'text/html', responsiveDOM]);
-      server.reply('/img-normal.png', () => [200, 'image/png', pixel]);
-      server.reply('/img-2x.png', () => new Promise(r => (
-        setTimeout(r, 200, [200, 'image/png', pixel]))));
-    });
-
-    it('when domSnapshot present', async () => {
+  describe('devicePixelRatio', () => {
+    it('should warn about depreacted option', async () => {
       await percy.snapshot({
         name: 'test responsive',
         url: 'http://localhost:8000',
-        domSnapshot: responsiveDOM,
         discovery: { devicePixelRatio: 2 },
         widths: [400, 800]
       });
 
       await percy.idle();
 
-      let resource = path => jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': `http://localhost:8000${path}`
-        })
-      });
-
-      expect(captured[0]).toEqual(jasmine.arrayContaining([
-        resource('/img-normal.png'),
-        resource('/img-2x.png')
-      ]));
-    });
-
-    it('when option in config', async () => {
-      percy.config.discovery.devicePixelRatio = 2;
-      await percy.snapshot({
-        name: 'test responsive',
-        url: 'http://localhost:8000',
-        domSnapshot: responsiveDOM,
-        widths: [400, 800]
-      });
-
-      await percy.idle();
-
-      let resource = path => jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': `http://localhost:8000${path}`
-        })
-      });
-
-      expect(captured[0]).toEqual(jasmine.arrayContaining([
-        resource('/img-normal.png'),
-        resource('/img-2x.png')
-      ]));
-
-      delete percy.config.discovery.devicePixelRatio;
+      expect(logger.stderr).toContain('[percy:core:discovery] discovery.devicePixelRatio is deprecated percy will now auto capture resource in all devicePixelRatio, Ignoring configuration');
     });
   });
 

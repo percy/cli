@@ -225,6 +225,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
   if (discovery.devicePixelRatio) {
     const log = logger('core:discovery');
     log.warn('discovery.devicePixelRatio is deprecated percy will now auto capture resource in all devicePixelRatio, Ignoring configuration');
+    discovery.devicePixelRatio = null;
   }
 
   // wait for final network idle when not capturing DOM
