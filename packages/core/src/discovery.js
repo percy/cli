@@ -198,12 +198,14 @@ async function* captureSnapshotResources(page, snapshot, options) {
       }
     }
 
-    for (const device of captureResponsiveDom) {
-      yield waitForDiscoveryNetworkIdle(page, discovery);
-      yield* captureSnapshotResources(page, { ...snapshot, widths: [device.width] }, {
-        deviceScaleFactor: device.deviceScaleFactor,
-        mobile: device.mobile
-      });
+    if (captureResponsiveDom) {
+      for (const device of captureResponsiveDom) {
+        yield waitForDiscoveryNetworkIdle(page, discovery);
+        yield* captureSnapshotResources(page, { ...snapshot, widths: [device.width] }, {
+          deviceScaleFactor: device.deviceScaleFactor,
+          mobile: true
+        });
+      }
     }
 
     if (capture && !snapshot.domSnapshot) {

@@ -142,6 +142,9 @@ export const api = {
     }],
     '/device-details?build_id=123': () => [201, {
       data: []
+    }],
+    '/device-details': () => [201, {
+      data: []
     }]
   },
 

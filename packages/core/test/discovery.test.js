@@ -2142,4 +2142,149 @@ describe('Discovery', () => {
       }));
     });
   });
+
+  describe('Capture responsive assets =>', () => {
+    it('should capture js based assets', async () => {
+      api.reply('/device-details?build_id=123', () => [200, { data: [{ width: 375, deviceScaleFactor: 2 }, { width: 390, deviceScaleFactor: 3 }] }]);
+      // stop current instance to create a new one
+      await percy.stop();
+      percy = await Percy.start({
+        projectType: 'web',
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+      let responsiveDOM = dedent`
+        <html><head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body>
+        <h1>Responsive Images Example</h1>
+        <img id="responsive-image" src="default.jpg" alt="Responsive Image">
+        <script>
+            var image = document.getElementById('responsive-image');
+            function updateImage() {
+              var width = window.innerWidth;
+              var dpr = window.devicePixelRatio;
+              if (width <= 375 || dpr == 2) {
+                image.src = '/small.jpg';
+              } else if (width < 1200 || dpr == 3) {
+                image.src = '/medium.jpg';
+              } else {
+                image.src = '/large.jpg';
+              }
+            }
+            window.addEventListener('resize', updateImage);
+            window.addEventListener('load', updateImage);
+        </script>
+        </body>
+        </html>
+      `;
+
+      server.reply('/', () => [200, 'text/html', responsiveDOM]);
+      server.reply('/default.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/small.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/medium.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/large.jpg', () => [200, 'image/jpg', pixel]);
+
+      await percy.snapshot({
+        name: 'image srcset',
+        url: 'http://localhost:8000',
+        widths: [1024]
+      });
+
+      await percy.idle();
+
+      let resource = path => jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': `http://localhost:8000${path}`
+        })
+      });
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        resource('/default.jpg'),
+        resource('/small.jpg'),
+        resource('/medium.jpg')
+      ]));
+
+      expect(captured[0]).not.toContain(jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/large.jpg'
+        })
+      }));
+    });
+
+    it('captures responsive assets srcset + mediaquery', async () => {
+      api.reply('/device-details?build_id=123', () => [200,
+        {
+          data: [
+            { width: 280, deviceScaleFactor: 2 }, { width: 600, deviceScaleFactor: 4 },
+            { width: 450, deviceScaleFactor: 3 }, { width: 500, deviceScaleFactor: 5 }
+          ]
+        }]);
+      // stop current instance to create a new one
+      await percy.stop();
+      percy = await Percy.start({
+        projectType: 'web',
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+      let responsiveDOM = dedent`
+        <html>
+        <head><link href="style.css" rel="stylesheet"/></head>
+        <body>
+          <p>Hello Percy!<p>
+          <img srcset="/img-fromsrcset.png 2x, /img-throwserror.jpeg 3x, /img-withdifferentcontenttype.gif 4x, https://remote.resource.com/img-shouldnotcaptured.png 5x"
+              sizes="(max-width: 600px) 400px, (max-width: 800px) 600px, 800px"
+              src="/img-already-captured.png">
+        </body>
+        </html>
+      `;
+
+      let responsiveCSS = dedent`
+        body { background: url('/img-bg-1.gif'); }
+        @media (max-width: 600px) {
+          body { background: url('/img-bg-2.gif'); }
+        }
+      `;
+
+      server.reply('/', () => [200, 'text/html', responsiveDOM]);
+      server.reply('/style.css', () => [200, 'text/css', responsiveCSS]);
+      server.reply('/img-fromsrcset.png', () => [200, 'image/png', pixel]);
+      server.reply('/img-already-captured.png', () => [200, 'image/png', pixel]);
+      server.reply('/img-throwserror.jpeg', () => [404]);
+      server.reply('/img-withdifferentcontenttype.gif', () => [200, 'image/gif', pixel]);
+      server.reply('/img-bg-1.gif', () => [200, 'image/gif', pixel]);
+      server.reply('/img-bg-2.gif', () => [200, 'image/gif', pixel]);
+
+      await percy.snapshot({
+        name: 'test responsive',
+        url: 'http://localhost:8000',
+        domSnapshot: responsiveDOM,
+        widths: [590]
+      });
+
+      await percy.idle();
+
+      let resource = path => jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': `http://localhost:8000${path}`
+        })
+      });
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        resource('/img-already-captured.png'),
+        resource('/img-fromsrcset.png'),
+        resource('/img-withdifferentcontenttype.gif'),
+        resource('/img-bg-1.gif'),
+        resource('/img-bg-2.gif')
+      ]));
+
+      expect(captured[0]).not.toContain(jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'https://remote.resource.com/img-shouldnotcaptured.png'
+        })
+      }));
+    });
+  });
 });
