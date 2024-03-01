@@ -19,7 +19,6 @@ export function cloneNodeAndShadow({ dom, disableShadowDOM, resources }) {
   let cloneNode = (node, parent) => {
     let walkTree = (nextn, nextp) => {
       while (nextn) {
-        serializeBase64(nextn, resources);
         if (!ignoreTags.includes(nextn.nodeName)) {
           cloneNode(nextn, nextp);
         }
@@ -34,6 +33,8 @@ export function cloneNodeAndShadow({ dom, disableShadowDOM, resources }) {
 
     // We apply any element transformations here to avoid another treeWalk
     applyElementTransformations(clone);
+
+    serializeBase64(clone, resources);
 
     parent.appendChild(clone);
 
