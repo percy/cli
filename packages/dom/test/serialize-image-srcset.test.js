@@ -16,6 +16,16 @@ describe('loadAllSrcsetLinks', () => {
       expect(imgTags.map(s => s.src)).toEqual(['http://localhost:9876/base/test/assets/example.webp', 'http://localhost:9876/base/test/assets/example.png']);
     });
 
+    it(`${platform}: capture url from img srcset where there is no space after ,`, async () => {
+      withExample(`
+        <img srcset="base/test/assets/example.webp 200px,base/test/assets/example.png 100px" />
+      `);
+
+      imgTags = loadAllSrcsetLinks();
+
+      expect(imgTags.map(s => s.src)).toEqual(['http://localhost:9876/base/test/assets/example.webp', 'http://localhost:9876/base/test/assets/example.png']);
+    });
+
     it(`${platform}: capture url from source of picture`, async () => {
       withExample(`
       <picture>

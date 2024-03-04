@@ -14,7 +14,15 @@ function getSrcsets(dom) {
 }
 
 function handleSrcSet(srcSet, links) {
-  srcSet = srcSet.split(/,\s+/);
+  let pattern = /,\s+/;
+
+  // We found couple of combination of srcset which needs different regex.
+  // example - https://url.com?param=a,b <--- here only separeting with , will cause incorrect capture.
+  // srcset = https://abc.com 320w,https://abc.com/a 400 <--- here srcset doesnot have space after comm.
+  if (!srcSet.match(pattern)) {
+    pattern = /,/;
+  }
+  srcSet = srcSet.split(pattern);
   for (let src of srcSet) {
     src = src.trim();
     src = src.split(' ')[0];
