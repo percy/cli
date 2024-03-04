@@ -355,15 +355,15 @@ describe('PercyClient', () => {
 
   describe('#getDeviceDetails()', () => {
     it('in case of error return []', async () => {
-      api.reply('/device-details', () => [500]);
+      api.reply('/discovery/device-details', () => [500]);
       await expectAsync(client.getDeviceDetails()).toBeResolvedTo([]);
     });
 
     it('gets device details', async () => {
-      api.reply('/device-details', () => [200, { data: '<<device-data-without-build-id>>' }]);
-      api.reply('/device-details?build_id=123', () => [200, { data: '<<device-data-with-build-id>>' }]);
-      await expectAsync(client.getDeviceDetails()).toBeResolvedTo('<<device-data-without-build-id>>');
-      await expectAsync(client.getDeviceDetails(123)).toBeResolvedTo('<<device-data-with-build-id>>');
+      api.reply('/discovery/device-details', () => [200, { data: ['<<device-data-without-build-id>>'] }]);
+      api.reply('/discovery/device-details?build_id=123', () => [200, { data: ['<<device-data-with-build-id>>'] }]);
+      await expectAsync(client.getDeviceDetails()).toBeResolvedTo(['<<device-data-without-build-id>>']);
+      await expectAsync(client.getDeviceDetails(123)).toBeResolvedTo(['<<device-data-with-build-id>>']);
     });
   });
 

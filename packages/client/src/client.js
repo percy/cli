@@ -220,7 +220,7 @@ export class PercyClient {
   // Returns device details enabled on project associated with given token
   async getDeviceDetails(buildId) {
     try {
-      let url = 'device-details';
+      let url = 'discovery/device-details';
       if (buildId) url += `?build_id=${buildId}`;
       const { data } = await this.get(url);
       return data;

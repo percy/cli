@@ -140,10 +140,10 @@ export const api = {
       name: 'test snapshot',
       diff_ratio: 0
     }],
-    '/device-details?build_id=123': () => [201, {
+    '/discovery/device-details?build_id=123': () => [201, {
       data: []
     }],
-    '/device-details': () => [201, {
+    '/discovery/device-details': () => [201, {
       data: []
     }]
   },

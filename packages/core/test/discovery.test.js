@@ -676,7 +676,7 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      expect(logger.stderr).toContain('[percy] discovery.devicePixelRatio is deprecated percy will now auto capture resource in all devicePixelRatio, Ignoring configuration');
+      expect(logger.stderr).toContain('[percy] Warning: discovery.devicePixelRatio is deprecated percy will now auto capture resource in all devicePixelRatio, Ignoring configuration');
     });
   });
 
@@ -2091,7 +2091,7 @@ describe('Discovery', () => {
 
   describe('Capture responsive assets =>', () => {
     it('should capture js based assets', async () => {
-      api.reply('/device-details?build_id=123', () => [200, { data: [{ width: 375, deviceScaleFactor: 2 }, { width: 390, deviceScaleFactor: 3 }] }]);
+      api.reply('/discovery/device-details?build_id=123', () => [200, { data: [{ width: 375, deviceScaleFactor: 2 }, { width: 390, deviceScaleFactor: 3 }] }]);
       // stop current instance to create a new one
       await percy.stop();
       percy = await Percy.start({
@@ -2161,7 +2161,7 @@ describe('Discovery', () => {
     });
 
     it('captures responsive assets srcset + mediaquery', async () => {
-      api.reply('/device-details?build_id=123', () => [200,
+      api.reply('/discovery/device-details?build_id=123', () => [200,
         {
           data: [
             { width: 280, deviceScaleFactor: 2 }, { width: 600, deviceScaleFactor: 4 },

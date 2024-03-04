@@ -126,7 +126,7 @@ describe('Snapshot', () => {
     expect(logger.stderr).toEqual([
       '[percy] Warning: The snapshot option `devicePixelRatio` ' +
         'will be removed in 2.0.0. Use `discovery.devicePixelRatio` instead.',
-      '[percy] discovery.devicePixelRatio is deprecated percy will now auto capture resource in all devicePixelRatio, Ignoring configuration'
+      '[percy] Warning: discovery.devicePixelRatio is deprecated percy will now auto capture resource in all devicePixelRatio, Ignoring configuration'
     ]);
   });
 
