@@ -2160,6 +2160,71 @@ describe('Discovery', () => {
       }));
     });
 
+    it('handle cases when asset was changed on load', async () => {
+      api.reply('/discovery/device-details?build_id=123', () => [200, { data: [{ width: 390, deviceScaleFactor: 3 }] }]);
+      // stop current instance to create a new one
+      await percy.stop();
+      percy = await Percy.start({
+        projectType: 'web',
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+      let responsiveDOM = dedent`
+        <html><head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body>
+        <h1>Responsive Images Example</h1>
+        <img id="responsive-image" src="default.jpg" alt="Responsive Image">
+        <script>
+            var image = document.getElementById('responsive-image');
+            function updateImage() {
+              var width = window.innerWidth;
+              var dpr = window.devicePixelRatio;
+              if (dpr == 2) {
+                image.src = '/small.jpg';
+              } else if (dpr == 3) {
+                image.src = '/medium.jpg';
+              }
+            }
+            window.addEventListener('load', updateImage);
+        </script>
+        </body>
+        </html>
+      `;
+
+      server.reply('/', () => [200, 'text/html', responsiveDOM]);
+      server.reply('/default.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/small.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/medium.jpg', () => [200, 'image/jpg', pixel]);
+
+      await percy.snapshot({
+        name: 'image srcset',
+        url: 'http://localhost:8000',
+        widths: [1024]
+      });
+
+      await percy.idle();
+
+      let resource = path => jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': `http://localhost:8000${path}`
+        })
+      });
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        resource('/default.jpg'),
+        resource('/medium.jpg')
+      ]));
+
+      expect(captured[0]).not.toContain(jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/small.jpg'
+        })
+      }));
+    });
+
     it('captures responsive assets srcset + mediaquery', async () => {
       api.reply('/discovery/device-details?build_id=123', () => [200,
         {
