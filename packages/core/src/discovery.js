@@ -141,8 +141,9 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
 // Triggers the capture of resource requests for a page by iterating over snapshot widths to resize
 // the page and calling any provided execute options.
 async function* captureSnapshotResources(page, snapshot, options) {
+  const log = logger('core:discovery');
   let { discovery, additionalSnapshots = [], ...baseSnapshot } = snapshot;
-  let { capture, captureWidths, deviceScaleFactor, mobile } = options;
+  let { capture, captureWidths, deviceScaleFactor, mobile, captureForDevices } = options;
 
   // used to take snapshots and remove any discovered root resource
   let takeSnapshot = async (options, width) => {
@@ -187,6 +188,18 @@ async function* captureSnapshotResources(page, snapshot, options) {
     let { widths, execute } = snap;
     let [width] = widths;
 
+    // iterate over device to trigger reqeusts and capture other dpr width
+    if (captureForDevices) {
+      for (const device of captureForDevices) {
+        yield waitForDiscoveryNetworkIdle(page, discovery);
+        // We are not adding these widths and pixels ratios in loop below because we want to explicitly reload the page after resize which we dont do below
+        yield* captureSnapshotResources(page, { ...snapshot, widths: [device.width] }, {
+          deviceScaleFactor: device.deviceScaleFactor,
+          mobile: true
+        });
+      }
+    }
+
     // iterate over widths to trigger reqeusts and capture other widths
     if (isBaseSnapshot || captureWidths) {
       for (let i = 0; i < widths.length - 1; i++) {
@@ -212,13 +225,8 @@ async function* captureSnapshotResources(page, snapshot, options) {
   }
 
   // recursively trigger resource requests for any alternate device pixel ratio
-  if (deviceScaleFactor !== discovery.devicePixelRatio) {
-    yield waitForDiscoveryNetworkIdle(page, discovery);
-
-    yield* captureSnapshotResources(page, snapshot, {
-      deviceScaleFactor: discovery.devicePixelRatio,
-      mobile: true
-    });
+  if (discovery.devicePixelRatio) {
+    log.deprecated('discovery.devicePixelRatio is deprecated percy will now auto capture resource in all devicePixelRatio, Ignoring configuration');
   }
 
   // wait for final network idle when not capturing DOM
@@ -317,7 +325,8 @@ export function createDiscoveryQueue(percy) {
       try {
         yield* captureSnapshotResources(page, snapshot, {
           captureWidths: !snapshot.domSnapshot && percy.deferUploads,
-          capture: callback
+          capture: callback,
+          captureForDevices: percy.deviceDetails || []
         });
       } finally {
         // always close the page when done
