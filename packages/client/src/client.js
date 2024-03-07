@@ -217,6 +217,18 @@ export class PercyClient {
     return this.get(`job_status?sync=true&type=${type}&id=${ids.join()}`);
   }
 
+  // Returns device details enabled on project associated with given token
+  async getDeviceDetails(buildId) {
+    try {
+      let url = 'discovery/device-details';
+      if (buildId) url += `?build_id=${buildId}`;
+      const { data } = await this.get(url);
+      return data;
+    } catch (e) {
+      return [];
+    }
+  }
+
   // Retrieves project builds optionally filtered. Requires a read access token.
   async getBuilds(project, filters = {}) {
     validateProjectPath(project);

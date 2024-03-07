@@ -48,7 +48,8 @@ export const snapshot = command('snapshot', {
   ],
 
   percy: {
-    delayUploads: true
+    delayUploads: true,
+    projectType: 'web'
   },
 
   config: {
