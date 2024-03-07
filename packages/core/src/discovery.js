@@ -267,7 +267,7 @@ export const RESOURCE_CACHE_KEY = Symbol('resource-cache');
 // Creates an asset discovery queue that uses the percy browser instance to create a page for each
 // snapshot which is used to intercept and capture snapshot resource requests.
 export function createDiscoveryQueue(percy) {
-  let { concurrency, retry } = percy.config.discovery;
+  let { concurrency } = percy.config.discovery;
   let queue = new Queue('discovery');
   let cache;
 
@@ -336,7 +336,7 @@ export function createDiscoveryQueue(percy) {
           await page.close();
         }
       }, {
-        count: retry ? 3 : 1,
+        count: snapshot.discovery.retry ? 3 : 1,
         onRetry: () => {
           percy.log.info(`Retrying snapshot: ${snapshotLogName(snapshot.name, snapshot.meta)}`, snapshot.meta);
         },

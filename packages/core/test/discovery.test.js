@@ -912,6 +912,74 @@ describe('Discovery', () => {
     });
   });
 
+  describe('discovery retry', () => {
+    let Page;
+    let fastCount;
+
+    beforeEach(async () => {
+      // reset page timeout so that it gets read from env again
+      ({ Page } = await import('../src/page.js'));
+      Page.TIMEOUT = undefined;
+      process.env.PERCY_PAGE_LOAD_TIMEOUT = 500;
+
+      // some async request that takes a while and only resolves 4th time
+      let counter = 0;
+      server.reply('/', () => new Promise(r => (
+        (counter += 1) &&
+        setTimeout(r, counter === fastCount ? 0 : 2000, [200, 'text/html', '<html></html>']))));
+    });
+
+    afterAll(() => {
+      delete process.env.PERCY_PAGE_LOAD_TIMEOUT;
+    });
+
+    it('should retry the snapshot discovery upto 3 times', async () => {
+      // 3rd request will resolve instantly
+      fastCount = 3;
+
+      await percy.snapshot({
+        name: 'test navigation timeout',
+        url: 'http://localhost:8000',
+        discovery: { retry: true },
+        widths: [400, 800]
+      });
+
+      await percy.idle();
+
+      expect(logger.stdout).toEqual([
+        '[percy] Percy has started!',
+        '[percy] Retrying snapshot: test navigation timeout',
+        '[percy] Retrying snapshot: test navigation timeout',
+        '[percy] Snapshot taken: test navigation timeout'
+      ]);
+    });
+
+    it('throws exception after last retry', async () => {
+      // 3rd request will also resolve in delayed fashion
+      fastCount = 4;
+
+      await percy.snapshot({
+        name: 'test navigation timeout',
+        url: 'http://localhost:8000',
+        discovery: { retry: true },
+        widths: [400, 800]
+      });
+
+      await percy.idle();
+
+      expect(logger.stdout).toEqual([
+        '[percy] Percy has started!',
+        '[percy] Retrying snapshot: test navigation timeout',
+        '[percy] Retrying snapshot: test navigation timeout'
+      ]);
+
+      expect(logger.stderr).toEqual([
+        '[percy] Encountered an error taking snapshot: test navigation timeout',
+        '[percy] Error: Navigation failed: Timed out waiting for the page load event'
+      ]);
+    });
+  });
+
   describe('navigation timeout', () => {
     let Page;
 

@@ -285,7 +285,8 @@ export const snapshotSchema = {
             captureMockedServiceWorker: { $ref: '/config/discovery#/properties/captureMockedServiceWorker' },
             captureSrcset: { $ref: '/config/discovery#/properties/captureSrcset' },
             userAgent: { $ref: '/config/discovery#/properties/userAgent' },
-            devicePixelRatio: { $ref: '/config/discovery#/properties/devicePixelRatio' }
+            devicePixelRatio: { $ref: '/config/discovery#/properties/devicePixelRatio' },
+            retry: { $ref: '/config/discovery#/properties/retry' }
           }
         }
       },
