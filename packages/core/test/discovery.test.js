@@ -910,6 +910,53 @@ describe('Discovery', () => {
         '^\\[percy:core:discovery] Setting PERCY_NETWORK_IDLE_WAIT_TIMEOUT over 60000ms is not'
       ));
     });
+
+    describe('with multiple network requests with same url', () => {
+      beforeEach(async () => {
+        // a custom page where we make 2 requests to same url where only one of them will
+        // finish before network idle wait timeout, in such cases we expect to ignore another
+        // request stuck in loading state
+        server.reply('/', () => [200, 'text/html', dedent`
+          <html>
+          <body>
+            <P>Hello Percy!<p>
+            <script>
+              // allow page load to fire and then execute this script
+              setTimeout(async () => {
+                var p1 = fetch('./img.gif');
+                var p2 = fetch('./img.gif');
+                await p2; // we will resolve second request instantly
+                await p1; // we will delay first request by 800ms
+              }, 10);
+            </script>
+          </body>
+          </html>`
+        ]);
+        // trigger responses in expected time
+        let counter = 0;
+        // we have idle timeout at 500 ms so we are resolving other request at 1 sec
+        server.reply('/img.gif', () => new Promise(r => (
+          (counter += 1) && setTimeout(r, counter === 2 ? 0 : 1000, [200, 'image/gif', pixel]))));
+      });
+
+      it('shows debug info when navigation fails within the timeout', async () => {
+        percy.loglevel('debug');
+
+        await percy.snapshot({
+          name: 'navigation idle',
+          url: 'http://localhost:8000'
+        });
+
+        expect(logger.stderr).not.toContain(jasmine.stringMatching([
+          '^\\[percy:core] Error: Timed out waiting for network requests to idle.',
+          '',
+          '  Active requests:',
+          '  - http://localhost:8000/img.gif',
+          '',
+          '(?<stack>(.|\n)*)$'
+        ].join('\n')));
+      });
+    });
   });
 
   describe('discovery retry', () => {
