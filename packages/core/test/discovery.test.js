@@ -910,6 +910,121 @@ describe('Discovery', () => {
         '^\\[percy:core:discovery] Setting PERCY_NETWORK_IDLE_WAIT_TIMEOUT over 60000ms is not'
       ));
     });
+
+    describe('with multiple network requests with same url', () => {
+      beforeEach(async () => {
+        // a custom page where we make 2 requests to same url where only one of them will
+        // finish before network idle wait timeout, in such cases we expect to ignore another
+        // request stuck in loading state
+        server.reply('/', () => [200, 'text/html', dedent`
+          <html>
+          <body>
+            <P>Hello Percy!<p>
+            <script>
+              // allow page load to fire and then execute this script
+              setTimeout(async () => {
+                var p1 = fetch('./img.gif');
+                var p2 = fetch('./img.gif');
+                await p2; // we will resolve second request instantly
+                await p1; // we will delay first request by 800ms
+              }, 10);
+            </script>
+          </body>
+          </html>`
+        ]);
+        // trigger responses in expected time
+        let counter = 0;
+        // we have idle timeout at 500 ms so we are resolving other request at 1 sec
+        server.reply('/img.gif', () => new Promise(r => (
+          (counter += 1) && setTimeout(r, counter === 2 ? 0 : 1000, [200, 'image/gif', pixel]))));
+      });
+
+      it('shows debug info when navigation fails within the timeout', async () => {
+        percy.loglevel('debug');
+
+        await percy.snapshot({
+          name: 'navigation idle',
+          url: 'http://localhost:8000'
+        });
+
+        expect(logger.stderr).not.toContain(jasmine.stringMatching([
+          '^\\[percy:core] Error: Timed out waiting for network requests to idle.',
+          '',
+          '  Active requests:',
+          '  - http://localhost:8000/img.gif',
+          '',
+          '(?<stack>(.|\n)*)$'
+        ].join('\n')));
+      });
+    });
+  });
+
+  describe('discovery retry', () => {
+    let Page;
+    let fastCount;
+
+    beforeEach(async () => {
+      // reset page timeout so that it gets read from env again
+      ({ Page } = await import('../src/page.js'));
+      Page.TIMEOUT = undefined;
+      process.env.PERCY_PAGE_LOAD_TIMEOUT = 500;
+
+      // some async request that takes a while and only resolves 4th time
+      let counter = 0;
+      server.reply('/', () => new Promise(r => (
+        (counter += 1) &&
+        setTimeout(r, counter === fastCount ? 0 : 2000, [200, 'text/html', '<html></html>']))));
+    });
+
+    afterAll(() => {
+      delete process.env.PERCY_PAGE_LOAD_TIMEOUT;
+    });
+
+    it('should retry the snapshot discovery upto 3 times', async () => {
+      // 3rd request will resolve instantly
+      fastCount = 3;
+
+      await percy.snapshot({
+        name: 'test navigation timeout',
+        url: 'http://localhost:8000',
+        discovery: { retry: true },
+        widths: [400, 800]
+      });
+
+      await percy.idle();
+
+      expect(logger.stdout).toEqual([
+        '[percy] Percy has started!',
+        '[percy] Retrying snapshot: test navigation timeout',
+        '[percy] Retrying snapshot: test navigation timeout',
+        '[percy] Snapshot taken: test navigation timeout'
+      ]);
+    });
+
+    it('throws exception after last retry', async () => {
+      // 3rd request will also resolve in delayed fashion
+      fastCount = 4;
+
+      await percy.snapshot({
+        name: 'test navigation timeout',
+        url: 'http://localhost:8000',
+        discovery: { retry: true },
+        widths: [400, 800]
+      });
+
+      await percy.idle();
+
+      expect(logger.stdout).toEqual([
+        '[percy] Percy has started!',
+        '[percy] Retrying snapshot: test navigation timeout',
+        '[percy] Retrying snapshot: test navigation timeout'
+      ]);
+
+      expect(logger.stderr).toEqual([
+        '[percy] Encountered an error taking snapshot: test navigation timeout',
+        '[percy] Error: Navigation failed: Timed out waiting for the page load event'
+      ]);
+    });
   });
 
   describe('navigation timeout', () => {

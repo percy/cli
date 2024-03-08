@@ -8,7 +8,8 @@ import {
   createPercyCSSResource,
   createLogResource,
   yieldAll,
-  snapshotLogName
+  snapshotLogName,
+  withRetries
 } from './utils.js';
 
 // Logs verbose debug logs detailing various snapshot options.
@@ -301,37 +302,47 @@ export function createDiscoveryQueue(percy) {
       let assetDiscoveryPageEnableJS = (snapshot.cliEnableJavaScript && !snapshot.domSnapshot) || (snapshot.enableJavaScript ?? !snapshot.domSnapshot);
 
       percy.log.debug(`Asset discovery Browser Page enable JS: ${assetDiscoveryPageEnableJS}`);
-      // create a new browser page
-      let page = yield percy.browser.page({
-        enableJavaScript: assetDiscoveryPageEnableJS,
-        networkIdleTimeout: snapshot.discovery.networkIdleTimeout,
-        requestHeaders: snapshot.discovery.requestHeaders,
-        authorization: snapshot.discovery.authorization,
-        userAgent: snapshot.discovery.userAgent,
-        captureMockedServiceWorker: snapshot.discovery.captureMockedServiceWorker,
-        meta: snapshot.meta,
 
-        // enable network inteception
-        intercept: {
-          enableJavaScript: snapshot.enableJavaScript,
-          disableCache: snapshot.discovery.disableCache,
-          allowedHostnames: snapshot.discovery.allowedHostnames,
-          disallowedHostnames: snapshot.discovery.disallowedHostnames,
-          getResource: u => snapshot.resources.get(u) || cache.get(u),
-          saveResource: r => { snapshot.resources.set(r.url, r); if (!r.root) { cache.set(r.url, r); } }
-        }
-      });
+      await withRetries(async function*() {
+        // create a new browser page
+        let page = yield percy.browser.page({
+          enableJavaScript: assetDiscoveryPageEnableJS,
+          networkIdleTimeout: snapshot.discovery.networkIdleTimeout,
+          requestHeaders: snapshot.discovery.requestHeaders,
+          authorization: snapshot.discovery.authorization,
+          userAgent: snapshot.discovery.userAgent,
+          captureMockedServiceWorker: snapshot.discovery.captureMockedServiceWorker,
+          meta: snapshot.meta,
 
-      try {
-        yield* captureSnapshotResources(page, snapshot, {
-          captureWidths: !snapshot.domSnapshot && percy.deferUploads,
-          capture: callback,
-          captureForDevices: percy.deviceDetails || []
+          // enable network inteception
+          intercept: {
+            enableJavaScript: snapshot.enableJavaScript,
+            disableCache: snapshot.discovery.disableCache,
+            allowedHostnames: snapshot.discovery.allowedHostnames,
+            disallowedHostnames: snapshot.discovery.disallowedHostnames,
+            getResource: u => snapshot.resources.get(u) || cache.get(u),
+            saveResource: r => { snapshot.resources.set(r.url, r); if (!r.root) { cache.set(r.url, r); } }
+          }
         });
-      } finally {
-        // always close the page when done
-        await page.close();
-      }
+
+        try {
+          yield* captureSnapshotResources(page, snapshot, {
+            captureWidths: !snapshot.domSnapshot && percy.deferUploads,
+            capture: callback,
+            captureForDevices: percy.deviceDetails || []
+          });
+        } finally {
+          // always close the page when done
+          await page.close();
+        }
+      }, {
+        count: snapshot.discovery.retry ? 3 : 1,
+        onRetry: () => {
+          percy.log.info(`Retrying snapshot: ${snapshotLogName(snapshot.name, snapshot.meta)}`, snapshot.meta);
+        },
+        signal: snapshot._ctrl.signal,
+        throwOn: ['AbortError']
+      });
     })
     .handle('error', ({ name, meta }, error) => {
       if (error.name === 'AbortError' && queue.readyState < 3) {

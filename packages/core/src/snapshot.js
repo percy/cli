@@ -118,7 +118,8 @@ function getSnapshotOptions(options, { config, meta }) {
       disableCache: config.discovery.disableCache,
       captureMockedServiceWorker: config.discovery.captureMockedServiceWorker,
       captureSrcset: config.discovery.captureSrcset,
-      userAgent: config.discovery.userAgent
+      userAgent: config.discovery.userAgent,
+      retry: config.discovery.retry
     }
   }, options], (path, prev, next) => {
     switch (path.map(k => k.toString()).join('.')) {

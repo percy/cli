@@ -234,6 +234,10 @@ export const configSchema = {
         type: 'integer',
         minimum: 1
       },
+      retry: {
+        type: 'boolean',
+        default: false
+      },
       launchOptions: {
         type: 'object',
         additionalProperties: false,
@@ -281,7 +285,8 @@ export const snapshotSchema = {
             captureMockedServiceWorker: { $ref: '/config/discovery#/properties/captureMockedServiceWorker' },
             captureSrcset: { $ref: '/config/discovery#/properties/captureSrcset' },
             userAgent: { $ref: '/config/discovery#/properties/userAgent' },
-            devicePixelRatio: { $ref: '/config/discovery#/properties/devicePixelRatio' }
+            devicePixelRatio: { $ref: '/config/discovery#/properties/devicePixelRatio' },
+            retry: { $ref: '/config/discovery#/properties/retry' }
           }
         }
       },
