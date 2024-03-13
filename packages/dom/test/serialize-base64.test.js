@@ -22,6 +22,23 @@ describe('serializeBase64', () => {
       }));
     });
 
+    it(`${platform}: serializes base64 elements having href tag`, async () => {
+      withExample(`
+      <img href="data:image/png;base64,iVBORw0KGgoAAAANSUhEU" id="img">
+      `);
+
+      serialized = serializeDOM();
+      $ = parseDOM(serialized.html, platform);
+
+      expect($('#img')[0].getAttribute('href'))
+        .toMatch('/__serialized__/\\w+\\.png');
+      expect(serialized.resources).toContain(jasmine.objectContaining({
+        url: $('#img')[0].getAttribute('href'),
+        content: 'iVBORw0KGgoAAAANSUhEU',
+        mimetype: 'image/png'
+      }));
+    });
+
     it(`${platform}: does not serialize elements without any src`, async () => {
       withExample(`
       <a href="https://www.browserstack.com/" id="a">
