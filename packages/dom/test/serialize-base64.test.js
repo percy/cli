@@ -22,6 +22,26 @@ describe('serializeBase64', () => {
       }));
     });
 
+    it(`${platform}: serializes SVGAnimatedString having base64`, async () => {
+      withExample(`
+      <svg width="100" height="100">
+        <circle cx="50" cy="50" r="40" stroke="green" stroke-width="4" fill="yellow" />
+        <image href="data:image/png;base64,iVBORw0KGgoAAAANSUhEU" id="image"></image>
+      </svg>
+      `);
+
+      serialized = serializeDOM();
+      $ = parseDOM(serialized.html, platform);
+
+      expect($('#image')[0].getAttribute('href'))
+        .toMatch('/__serialized__/\\w+\\.png');
+      expect(serialized.resources).toContain(jasmine.objectContaining({
+        url: $('#image')[0].getAttribute('href'),
+        content: 'iVBORw0KGgoAAAANSUhEU',
+        mimetype: 'image/png'
+      }));
+    });
+
     it(`${platform}: does not serialize elements without any src`, async () => {
       withExample(`
       <a href="https://www.browserstack.com/" id="a">
