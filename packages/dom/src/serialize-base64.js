@@ -32,9 +32,10 @@ export function serializeBase64(node, resources) {
   let resource = resourceFromText(uid(), mimetype, base64String);
   resources.add(resource);
 
-  node.src = resource.url;
   if (isHrefUsed === true) {
     node.href.baseVal = resource.url;
+  } else {
+    node.src = resource.url;
   }
 }
 
