@@ -15,6 +15,8 @@ function getBase64Substring(src) {
 export function serializeBase64(node, resources) {
   let src = node.src;
   let isHrefUsed = false;
+
+  // case for SVGAnimatedString
   if (src == null && node.href) {
     isHrefUsed = true;
     src = node.href.baseVal;
