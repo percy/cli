@@ -355,7 +355,9 @@ describe('API Server', () => {
           freeze_animated_image: true,
           freezeImageBySelectors: ['.selector-per-screenshot'],
           ignore_region_xpaths: ['/xpath-per-screenshot'],
-          consider_region_xpaths: ['/xpath-per-screenshot']
+          consider_region_xpaths: ['/xpath-per-screenshot'],
+          testCase: 'random test case',
+          thTestCaseExecutionId: 'random uuid'
         }
       },
       method: 'post'
@@ -374,7 +376,9 @@ describe('API Server', () => {
         ignoreRegionSelectors: ['.selector-global'],
         ignoreRegionXpaths: ['/xpath-per-screenshot'],
         considerRegionXpaths: ['/xpath-global', '/xpath-per-screenshot'],
-        version: 'v2'
+        version: 'v2',
+        testCase: 'random test case',
+        thTestCaseExecutionId: 'random uuid'
       }
     }));
 
