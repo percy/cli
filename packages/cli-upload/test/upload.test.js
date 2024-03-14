@@ -91,7 +91,8 @@ describe('percy upload', () => {
           'scope-options': {},
           'minimum-height': 10,
           'enable-javascript': null,
-          'enable-layout': false
+          'enable-layout': false,
+          'th-test-case-execution-id': null
         },
         relationships: {
           resources: {
