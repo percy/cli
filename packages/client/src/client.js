@@ -359,6 +359,7 @@ export class PercyClient {
     environmentInfo,
     sync,
     testCase,
+    thTestCaseExecutionId,
     resources = []
   } = {}) {
     validateId('build', buildId);
@@ -388,7 +389,8 @@ export class PercyClient {
           'scope-options': scopeOptions || {},
           'minimum-height': minHeight || null,
           'enable-javascript': enableJavaScript || null,
-          'enable-layout': enableLayout || false
+          'enable-layout': enableLayout || false,
+          'th-test-case-execution-id': thTestCaseExecutionId || null
         },
         relationships: {
           resources: {

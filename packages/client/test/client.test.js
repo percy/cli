@@ -661,6 +661,7 @@ describe('PercyClient', () => {
         enableLayout: true,
         clientInfo: 'sdk/info',
         environmentInfo: 'sdk/env',
+        thTestCaseExecutionId: 'random-uuid',
         resources: [{
           url: '/foo',
           content: 'foo',
@@ -694,7 +695,8 @@ describe('PercyClient', () => {
             'minimum-height': 1000,
             'scope-options': { scroll: true },
             'enable-javascript': true,
-            'enable-layout': true
+            'enable-layout': true,
+            'th-test-case-execution-id': 'random-uuid'
           },
           relationships: {
             resources: {
@@ -740,7 +742,8 @@ describe('PercyClient', () => {
             'scope-options': {},
             'minimum-height': null,
             'enable-javascript': null,
-            'enable-layout': false
+            'enable-layout': false,
+            'th-test-case-execution-id': null
           },
           relationships: {
             resources: {
@@ -809,7 +812,8 @@ describe('PercyClient', () => {
             'enable-javascript': null,
             'minimum-height': null,
             widths: null,
-            'enable-layout': false
+            'enable-layout': false,
+            'th-test-case-execution-id': null
           },
           relationships: {
             resources: {
@@ -1318,7 +1322,8 @@ describe('PercyClient', () => {
               'minimum-height': null,
               widths: null,
               sync: false,
-              'enable-layout': false
+              'enable-layout': false,
+              'th-test-case-execution-id': null
             },
             relationships: {
               resources: {

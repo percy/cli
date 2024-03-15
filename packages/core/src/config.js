@@ -74,6 +74,9 @@ export const configSchema = {
       testCase: {
         type: 'string'
       },
+      thTestCaseExecutionId: {
+        type: 'string'
+      },
       fullPage: {
         type: 'boolean',
         onlyAutomate: true
@@ -271,6 +274,7 @@ export const snapshotSchema = {
         enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
         sync: { $ref: '/config/snapshot#/properties/sync' },
         testCase: { $ref: '/config/snapshot#/properties/testCase' },
+        thTestCaseExecutionId: { $ref: '/config/snapshot#/properties/thTestCaseExecutionId' },
         reshuffleInvalidTags: { $ref: '/config/snapshot#/properties/reshuffleInvalidTags' },
         scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
         discovery: {
@@ -558,6 +562,12 @@ export const comparisonSchema = {
     externalDebugUrl: { type: 'string' },
     domInfoSha: { type: 'string' },
     sync: { type: 'boolean' },
+    testCase: {
+      type: 'string'
+    },
+    thTestCaseExecutionId: {
+      type: 'string'
+    },
     metadata: {
       type: 'object',
       additionalProperties: false,
