@@ -14,10 +14,17 @@ function getBase64Substring(src) {
 
 export function serializeBase64(node, resources) {
   let src = node.src;
+  let isHrefUsed = false;
+
+  // case for SVGAnimatedString
+  if (src == null && node.href) {
+    isHrefUsed = true;
+    src = node.href.baseVal;
+  }
   // skip if src is null
   if (src == null) return;
 
-  let base64String = getBase64Substring(src);
+  let base64String = getBase64Substring(src.toString());
   // skip if src is not base64
   if (base64String == null) return;
 
@@ -25,7 +32,11 @@ export function serializeBase64(node, resources) {
   let resource = resourceFromText(uid(), mimetype, base64String);
   resources.add(resource);
 
-  node.src = resource.url;
+  if (isHrefUsed === true) {
+    node.href.baseVal = resource.url;
+  } else {
+    node.src = resource.url;
+  }
 }
 
 export default serializeBase64;
