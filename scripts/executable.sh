@@ -53,7 +53,7 @@ mv run-macos percy-osx && chmod +x percy-osx
 mv run-win.exe percy.exe && chmod +x percy.exe
 
 # Sign & Notrize mac app
-#echo "$APPLE_DEV_CERT" | base64 -d > AppleDevIDApp.p12
+echo "$APPLE_DEV_CERT" | base64 -d > AppleDevIDApp.p12
 
 security create-keychain -p percy percy.keychain
 security import AppleDevIDApp.p12 -t agg -k percy.keychain -P ChaiTime -A
