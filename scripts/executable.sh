@@ -4,7 +4,6 @@ set -e -o pipefail
 function cleanup {
   rm -rf build
   rm AppleDevIDApp.p12
-  rm notarize_config.json
   security delete-keychain percy.keychain
 }
 
@@ -72,7 +71,6 @@ mv percy-osx percy
 zip percy-osx.zip percy
 zip percy-win.zip percy.exe
 
-cat scripts/files/notarize_config.json.tmpl | sed -e "s/{{APPLE_ID_USERNAME}}/$APPLE_ID_USERNAME/" | sed -e "s/{{APPLE_ID_KEY}}/$APPLE_ID_KEY/" > notarize_config.json
-gon -log-level=error -log-json notarize_config.json
+xcrun notarytool submit --apple-id "$APPLE_ID_USERNAME" --password $APPLE_ID_KEY --team-id 763K6K6H44 percy-osx.zip --wait
 
 cleanup
