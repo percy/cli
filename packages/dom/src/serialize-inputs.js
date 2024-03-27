@@ -7,6 +7,7 @@ export function serializeInputElements({ dom, clone, warnings }) {
     switch (elem.type) {
       case 'checkbox':
       case 'radio':
+        elem.removeAttribute("checked");
         if (elem.checked) {
           cloneEl.setAttribute('checked', '');
         }
