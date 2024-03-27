@@ -7,7 +7,16 @@ export function serializeInputElements({ dom, clone, warnings }) {
     switch (elem.type) {
       case 'checkbox':
       case 'radio':
+        /*
+          here we are removing the checked attr if present by default,
+          so that only the selected radio-button will have the checked attr present in the dom
+
+          we need to removed `checked` from both cloneEl & elem as if it is only removed from cloneEl,
+          then if any radio-button has `checked` attr present by default,
+          then it will be shown as checked even though it was not explicitly selected before taking snapshot
+        */
         elem.removeAttribute('checked');
+        cloneEl.removeAttribute('checked');
         if (elem.checked) {
           cloneEl.setAttribute('checked', '');
         }

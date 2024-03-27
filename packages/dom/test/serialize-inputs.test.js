@@ -22,6 +22,9 @@ describe('serializeInputs', () => {
         <input id="nevercheckedradio" type="radio" />
         <label for="nevercheckedradio">Never checked</label>
 
+        <input id="radio-checked-default" type="radio" checked="" />
+        <label for="radio-checked-default">checked present default</label>
+
         <label for="singleSelect">Does this work?</label>
         <select id="singleSelect">
           <option value="yes">Yes</option>
@@ -85,6 +88,11 @@ describe('serializeInputs', () => {
 
     it(`${platform}: serializes checked radio buttons`, () => {
       expect($('#radio')[0].checked).toBe(true);
+    });
+
+    it(`${platform}: removes checked attr from radio-buttons if present by default`, () => {
+      expect($('#radio-checked-default')[0]).not.toContain('checked=""');
+      expect($('#radio-checked-default')[0].checked).toBe(false);
     });
 
     it(`${platform}: serializes textareas`, () => {
