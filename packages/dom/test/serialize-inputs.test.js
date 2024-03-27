@@ -91,7 +91,10 @@ describe('serializeInputs', () => {
     });
 
     it(`${platform}: removes checked attr from radio-buttons if present by default`, () => {
-      expect($('#radio-checked-default')[0]).not.toContain('checked=""');
+      // validate `checked=""` is removed from the dom
+      expect($('#radio-checked-default')[0].outerHTML).not.toContain('checked=""');
+
+      // validate `checked` property is set to false
       expect($('#radio-checked-default')[0].checked).toBe(false);
     });
 
@@ -132,7 +135,7 @@ describe('serializeInputs', () => {
 
     it(`${platform}: adds a guid data-attribute to the original DOM`, () => {
       // plain platform has extra element #test-shadow
-      expect(dom.querySelectorAll('[data-percy-element-id]')).toHaveSize(platform === 'plain' ? 10 : 9);
+      expect(dom.querySelectorAll('[data-percy-element-id]')).toHaveSize(platform === 'plain' ? 11 : 10);
     });
 
     it(`${platform}: adds matching guids to the orignal DOM and cloned DOM`, () => {
