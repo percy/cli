@@ -95,6 +95,14 @@ describe('serializeInputs', () => {
       expect($('#radio')[0].checked).toBe(true);
     });
 
+    it(`${platform}: removes checked attr from radio-button option1 when option1 is not explictly selected`, () => {
+      expect($('#option1')[0].outerHTML).not.toContain('checked=""');
+      expect($('#option1')[0].checked).toBe(false);
+
+      expect($('#option2')[0].outerHTML).toContain('checked=""');
+      expect($('#option2')[0].checked).toBe(true);
+    });
+
     it(`${platform}: removes checked attr from radio-button option2 when option1 is explictly selected`, () => {
       dom.querySelector('#option1').checked = true;
       $ = parseDOM(serializeDOM(), platform);
@@ -104,14 +112,6 @@ describe('serializeInputs', () => {
 
       expect($('#option2')[0].outerHTML).not.toContain('checked=""');
       expect($('#option2')[0].checked).toBe(false);
-    });
-
-    it(`${platform}: removes checked attr from radio-button option1 when option1 is not explictly selected`, () => {
-      expect($('#option1')[0].outerHTML).not.toContain('checked=""');
-      expect($('#option1')[0].checked).toBe(false);
-
-      expect($('#option2')[0].outerHTML).toContain('checked=""');
-      expect($('#option2')[0].checked).toBe(true);
     });
 
     it(`${platform}: serializes textareas`, () => {
