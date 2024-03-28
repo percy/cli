@@ -82,7 +82,7 @@ jobs:
               state,
               target_url
             });
-      - uses: jungwinter/split@v2
+      - uses: winterjung/split@v2
         id: split
         with:
           msg: ${{ matrix.repo }}
