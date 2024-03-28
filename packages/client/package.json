@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@percy/env": "1.28.2",
-    "@percy/logger": "1.28.2"
+    "@percy/logger": "1.28.2",
+    "pako": "^2.1.0"
   }
 }
