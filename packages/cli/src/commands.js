@@ -100,6 +100,23 @@ function formatFilepath(filepath) {
   return filepath;
 }
 
+function getSiblings(root) {
+  const siblings = [path.join(root, '..')];
+
+  // if we're in a pnpm package, add the root of the workspace node_modules to the list of siblings
+  if (root.includes('.pnpm')) {
+    // Find the index of the first occurrence of '.pnpm'
+    const nodeModulesIndex = root.indexOf('.pnpm');
+
+    // If 'node_modules' is found, extract the substring up to that point
+    if (nodeModulesIndex !== -1) {
+      siblings.push(path.join(root.substring(0, nodeModulesIndex), '@percy'));
+    }
+  }
+
+  return siblings;
+}
+
 // Imports and returns compatibile CLI commands from various sources
 export async function importCommands() {
   let root = path.resolve(url.fileURLToPath(import.meta.url), '../..');
@@ -109,7 +126,7 @@ export async function importCommands() {
     // find included dependencies
     root,
     // find potential sibling packages
-    path.join(root, '..'),
+    ...getSiblings(root),
     // find any current project dependencies
     process.cwd()
   ]), async (roots, dir) => {
