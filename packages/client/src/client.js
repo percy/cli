@@ -17,6 +17,7 @@ import {
 
 // Default client API URL can be set with an env var for API development
 const { PERCY_CLIENT_API_URL = 'https://percy.io/api/v1' } = process.env;
+const { PERCY_GZIP = false } = process.env;
 const pkg = getPackageJSON(import.meta.url);
 // minimum polling interval milliseconds
 const MIN_POLLING_INTERVAL = 1_000;
@@ -320,7 +321,9 @@ export class PercyClient {
     validateId('build', buildId);
     if (filepath) {
       content = await fs.promises.readFile(filepath);
-      content = Pako.gzip(content);
+      if (PERCY_GZIP) {
+        content = Pako.gzip(content);
+      }
     }
     let encodedContent = base64encode(content);
 
