@@ -2,7 +2,7 @@ import command from '@percy/cli-command';
 import start from './start.js';
 import stop from './stop.js';
 import ping from './ping.js';
-import { getPackageJSON } from '@percy/cli-command/utils';
+import { getPackageJSON, redactSecrets } from '@percy/cli-command/utils';
 import { waitForTimeout } from '@percy/client/utils';
 
 const pkg = getPackageJSON(import.meta.url);
@@ -85,6 +85,7 @@ export const exec = command('exec', {
   env.PERCY_BUILD_URL = percy?.build?.url;
   env.PERCY_LOGLEVEL = log.loglevel();
 
+  log.debug('Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false');
   // run the provided command
   log.info(`Running "${[command, ...args].join(' ')}"`);
   let [status, error] = yield* spawn(command, args, percy);
@@ -120,7 +121,7 @@ async function* spawn(cmd, args, percy) {
 
     if (proc.stderr) {
       proc.stderr.on('data', (data) => {
-        errorMessage += data.toString();
+        errorMessage += redactSecrets(data.toString());
         process.stderr.write(`${data}`);
       });
     }

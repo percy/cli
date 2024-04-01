@@ -343,6 +343,32 @@ export async function withRetries(fn, { count, onRetry, signal, throwOn }) {
   }
 }
 
+export function redactSecrets(message) {
+  const redactSecretPattern = [
+    /((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}/, // IP V4 Address
+    /((([0-9A-Fa-f]{1,4}:){1,6}:)|(([0-9A-Fa-f]{1,4}:){7}))([0-9A-Fa-f]{1,4})/, // IP V6 Address
+    /xapp-[0-9]+-[A-Za-z0-9_]+-[0-9]+-[a-f0-9]+/, // Slack App Token
+    /(AKIA|A3T|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{12,}/, // AWS Access ID
+    /((([a-zA-z0-9]{2}[-:]){5}([a-zA-z0-9]{2}))|(([a-zA-z0-9]{2}:){5}([a-zA-z0-9]{2})))/, // MAC Address
+    /AIza[0-9A-Za-z-_]{35}/, // Google API Key
+    /[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com/, // Google OAuth ID
+    /ghp_[A-Za-z0-9_]{36}/, // Github Classic Personal Access Token
+    /github_pat_[A-Za-z0-9_]{82}/, // Github Fine Grained Personal Access Token
+    /gho_[A-Za-z0-9_]{36}/, // Github OAuth Access Token
+    /ghu_[A-Za-z0-9_]{36}/, // Github User to Server Token
+    /ghs_[A-Za-z0-9_]{36}/, // Github Server to Server Token
+    /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/, // Heroku API Key
+    /(?:r|s)k_(test|live)_[0-9a-zA-Z]{24}/, // Stripe Key
+    /([a-z0-9-]){1,30}(\.firebaseapp\.com)/ // Firebase Auth Domain
+  ];
+
+  for (const pattern of redactSecretPattern) {
+    message = message.replace(new RegExp(pattern, 'g'), '******');
+  }
+
+  return message;
+}
+
 export function snapshotLogName(name, meta) {
   if (meta?.snapshot?.testCase) {
     return `testCase: ${meta.snapshot.testCase}, ${name}`;

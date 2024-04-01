@@ -168,7 +168,7 @@ describe('percy exec', () => {
       data: {
         errorKind: 'cli',
         cliVersion: pkg.version,
-        message: jasmine.stringMatching(/Some error/)
+        message: jasmine.stringMatching(/Some error with secret: \*\*\*\*\*\*/)
       }
     });
   });
@@ -239,7 +239,7 @@ describe('percy exec', () => {
       data: {
         errorKind: 'cli',
         cliVersion: pkg.version,
-        message: jasmine.stringMatching(/Some error/)
+        message: jasmine.stringMatching(/Some error with secret: \*\*\*\*\*\*/)
       }
     });
   });
