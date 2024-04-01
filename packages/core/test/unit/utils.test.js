@@ -3,7 +3,8 @@ import {
   AbortController,
   yieldTo,
   yieldAll,
-  DefaultMap
+  DefaultMap,
+  redactSecrets
 } from '../../src/utils.js';
 
 describe('Unit / Utils', () => {
@@ -181,6 +182,12 @@ describe('Unit / Utils', () => {
       const map = new DefaultMap((key) => `default value for ${key}`);
       map.set('testKey', 'testValue');
       expect(map.get('testKey')).toEqual('testValue');
+    });
+  });
+
+  describe('redactSecrets', () => {
+    it('should redact aws keys', () => {
+      expect(redactSecrets('This is a secret: AKIAIOSFODNN7EXAMPLE')).toBe('This is a secret: ******');
     });
   });
 });
