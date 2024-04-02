@@ -6,6 +6,7 @@ import PercyClient from '@percy/client';
 import api from './helpers.js';
 import * as CoreConfig from '@percy/core/config';
 import PercyConfig from '@percy/config';
+import Pako from 'pako';
 
 describe('PercyClient', () => {
   let client;
@@ -605,7 +606,7 @@ describe('PercyClient', () => {
           type: 'resources',
           id: 'foo-sha',
           attributes: {
-            'base64-content': 'H4sIAAAAAAAAA0vOzytJzSspVshPU0jLz9dPSiwCAF0JoC4TAAAA'
+            'base64-content': base64encode(Pako.gzip('contents of foo/bar'))
           }
         }
       });
