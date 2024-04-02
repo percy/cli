@@ -14,6 +14,7 @@ describe('PercyClient', () => {
   beforeEach(async () => {
     await logger.mock({ level: 'debug' });
     await api.mock();
+    delete process.env.PERCY_GZIP;
 
     client = new PercyClient({
       token: 'PERCY_TOKEN'
