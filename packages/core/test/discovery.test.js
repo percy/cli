@@ -56,7 +56,6 @@ describe('Discovery', () => {
   afterEach(async () => {
     await percy?.stop(true);
     await server.close();
-    process.env.PERCY_GZIP = false;
   });
 
   it('gathers resources for a snapshot', async () => {
@@ -143,6 +142,8 @@ describe('Discovery', () => {
         })
       })
     ]);
+
+    process.env.PERCY_GZIP = false;
   });
 
   it('waits for discovery network idle timeout', async () => {
