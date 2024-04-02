@@ -3,6 +3,7 @@ import { logger, api, setupTest, createTestServer, dedent } from './helpers/inde
 import Percy from '@percy/core';
 import { RESOURCE_CACHE_KEY } from '../src/discovery.js';
 import Session from '../src/session.js';
+import Pako from 'pako';
 
 describe('Discovery', () => {
   let percy, server, captured;
@@ -28,6 +29,7 @@ describe('Discovery', () => {
     captured = [];
     await setupTest();
     delete process.env.PERCY_BROWSER_EXECUTABLE;
+    delete process.env.PERCY_GZIP;
 
     api.reply('/builds/123/snapshots', ({ body }) => {
       // resource order is not important, stabilize it for testing
@@ -55,6 +57,50 @@ describe('Discovery', () => {
   afterEach(async () => {
     await percy?.stop(true);
     await server.close();
+  });
+
+  it('gathers resources for a snapshot in GZIP format', async () => {
+    process.env.PERCY_GZIP = true;
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    });
+
+    await percy.idle();
+
+    let paths = server.requests.map(r => r[0]);
+    // does not request the root url (serves domSnapshot instead)
+    expect(paths).not.toContain('/');
+    expect(paths).toContain('/style.css');
+    expect(paths).toContain('/img.gif');
+
+    expect(captured[0]).toEqual([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
+        })
+      }),
+      jasmine.objectContaining({
+        id: sha256hash(Pako.gzip(testDOM)),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/'
+        })
+      }),
+      jasmine.objectContaining({
+        id: sha256hash(Pako.gzip(pixel)),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      }),
+      jasmine.objectContaining({
+        id: sha256hash(Pako.gzip(testCSS)),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/style.css'
+        })
+      })
+    ]);
   });
 
   it('gathers resources for a snapshot', async () => {

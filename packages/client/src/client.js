@@ -2,6 +2,7 @@ import fs from 'fs';
 import PercyEnv from '@percy/env';
 import { git } from '@percy/env/utils';
 import logger from '@percy/logger';
+import Pako from 'pako';
 
 import {
   pool,
@@ -317,7 +318,12 @@ export class PercyClient {
   // created from `content` if one is not provided.
   async uploadResource(buildId, { url, sha, filepath, content } = {}) {
     validateId('build', buildId);
-    if (filepath) content = await fs.promises.readFile(filepath);
+    if (filepath) {
+      content = await fs.promises.readFile(filepath);
+      if (process.env.PERCY_GZIP) {
+        content = Pako.gzip(content);
+      }
+    }
     let encodedContent = base64encode(content);
 
     this.log.debug(`Uploading ${formatBytes(encodedContent.length)} resource: ${url}...`);

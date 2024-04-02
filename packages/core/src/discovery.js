@@ -11,6 +11,10 @@ import {
   snapshotLogName,
   withRetries
 } from './utils.js';
+import {
+  sha256hash
+} from '@percy/client/utils';
+import Pako from 'pako';
 
 // Logs verbose debug logs detailing various snapshot options.
 function debugSnapshotOptions(snapshot) {
@@ -135,6 +139,13 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   resources.push(createLogResource(logger.query(log => (
     log.meta.snapshot?.testCase === snapshot.meta.snapshot.testCase && log.meta.snapshot?.name === snapshot.meta.snapshot.name
   ))));
+
+  if (process.env.PERCY_GZIP) {
+    for (let index = 0; index < resources.length; index++) {
+      resources[index].content = Pako.gzip(resources[index].content);
+      resources[index].sha = sha256hash(resources[index].content);
+    }
+  }
 
   return { ...snapshot, resources };
 }

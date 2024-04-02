@@ -6,6 +6,7 @@ import PercyClient from '@percy/client';
 import api from './helpers.js';
 import * as CoreConfig from '@percy/core/config';
 import PercyConfig from '@percy/config';
+import Pako from 'pako';
 
 describe('PercyClient', () => {
   let client;
@@ -13,6 +14,7 @@ describe('PercyClient', () => {
   beforeEach(async () => {
     await logger.mock({ level: 'debug' });
     await api.mock();
+    delete process.env.PERCY_GZIP;
 
     client = new PercyClient({
       token: 'PERCY_TOKEN'
@@ -585,6 +587,27 @@ describe('PercyClient', () => {
           id: 'foo-sha',
           attributes: {
             'base64-content': base64encode('contents of foo/bar')
+          }
+        }
+      });
+    });
+
+    it('can upload a resource from a local path in GZIP format', async () => {
+      process.env.PERCY_GZIP = true;
+
+      spyOn(fs.promises, 'readFile').and.callFake(async p => `contents of ${p}`);
+
+      await expectAsync(client.uploadResource(123, {
+        sha: 'foo-sha',
+        filepath: 'foo/bar'
+      })).toBeResolved();
+
+      expect(api.requests['/builds/123/resources'][0].body).toEqual({
+        data: {
+          type: 'resources',
+          id: 'foo-sha',
+          attributes: {
+            'base64-content': base64encode(Pako.gzip('contents of foo/bar'))
           }
         }
       });
