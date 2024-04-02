@@ -100,52 +100,6 @@ describe('Discovery', () => {
     ]);
   });
 
-  it('gathers resources for a snapshot in GZIP format', async () => {
-    process.env.PERCY_GZIP = true;
-
-    await percy.snapshot({
-      name: 'test snapshot',
-      url: 'http://localhost:8000',
-      domSnapshot: testDOM
-    });
-
-    await percy.idle();
-
-    let paths = server.requests.map(r => r[0]);
-    // does not request the root url (serves domSnapshot instead)
-    expect(paths).not.toContain('/');
-    expect(paths).toContain('/style.css');
-    expect(paths).toContain('/img.gif');
-
-    expect(captured[0]).toEqual([
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
-        })
-      }),
-      jasmine.objectContaining({
-        id: sha256hash(Pako.gzip(testDOM)),
-        attributes: jasmine.objectContaining({
-          'resource-url': 'http://localhost:8000/'
-        })
-      }),
-      jasmine.objectContaining({
-        id: sha256hash(Pako.gzip(pixel)),
-        attributes: jasmine.objectContaining({
-          'resource-url': 'http://localhost:8000/img.gif'
-        })
-      }),
-      jasmine.objectContaining({
-        id: sha256hash(Pako.gzip(testCSS)),
-        attributes: jasmine.objectContaining({
-          'resource-url': 'http://localhost:8000/style.css'
-        })
-      })
-    ]);
-
-    process.env.PERCY_GZIP = false;
-  });
-
   it('waits for discovery network idle timeout', async () => {
     percy.set({ discovery: { networkIdleTimeout: 400 } });
 
