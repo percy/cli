@@ -3,6 +3,7 @@ import { logger, api, setupTest, createTestServer, dedent } from './helpers/inde
 import Percy from '@percy/core';
 import { RESOURCE_CACHE_KEY } from '../src/discovery.js';
 import Session from '../src/session.js';
+import Pako from 'pako';
 
 describe('Discovery', () => {
   let percy, server, captured;
@@ -123,19 +124,19 @@ describe('Discovery', () => {
         })
       }),
       jasmine.objectContaining({
-        id: sha256hash(testDOM),
+        id: sha256hash(Pako.gzip(testDOM)),
         attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/'
         })
       }),
       jasmine.objectContaining({
-        id: sha256hash(pixel),
+        id: sha256hash(Pako.gzip(pixel)),
         attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/img.gif'
         })
       }),
       jasmine.objectContaining({
-        id: sha256hash(testCSS),
+        id: sha256hash(Pako.gzip(testCSS)),
         attributes: jasmine.objectContaining({
           'resource-url': 'http://localhost:8000/style.css'
         })
