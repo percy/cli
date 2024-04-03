@@ -46,6 +46,15 @@ export class PercyLogger {
     return this.level;
   }
 
+  // get all log messages stored for the session
+  messageDetail(message) {
+    if(message) {
+      this.messages.add(message)
+      return;
+    }
+    return this.messages;
+  }
+
   // Change namespaces by generating an array of namespace regular expressions from a
   // comma separated debug string
   debug(namespaces) {
@@ -84,6 +93,7 @@ export class PercyLogger {
         progress: this.progress.bind(this, name),
         format: this.format.bind(this, name),
         loglevel: this.loglevel.bind(this),
+        messageDetail: this.messageDetail.bind(this),
         stdout: this.constructor.stdout,
         stderr: this.constructor.stderr
       });

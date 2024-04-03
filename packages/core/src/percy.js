@@ -2,6 +2,10 @@ import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
 import Browser from './browser.js';
+import Pako from 'pako';
+import {
+  base64encode
+} from './utils.js';
 
 import {
   createPercyServer,
@@ -213,55 +217,62 @@ export class Percy {
   // completed. Does nothing if not running. When `force` is true, any queued snapshots are cleared.
   async *stop(force) {
     // not started, but the browser was launched
-    if (!this.readyState && this.browser.isConnected()) {
-      await this.browser.close();
-    }
-
-    if (this.syncQueue) this.syncQueue.stop();
-    // not started or already stopped
-    if (!this.readyState || this.readyState > 2) return;
-
-    // close queues asap
-    if (force) {
-      this.#discovery.close(true);
-      this.#snapshots.close(true);
-    }
-
-    // already stopping
-    if (this.readyState === 2) return;
-    this.readyState = 2;
-
-    // log when force stopping
-    if (force) this.log.info('Stopping percy...');
-
-    // used to log snapshot count information
-    let info = (state, size) => `${state} ` +
-      `${size} snapshot${size !== 1 ? 's' : ''}`;
-
     try {
-      // flush discovery and snapshot queues
-      yield* this.yield.flush((state, size) => {
-        this.log.progress(`${info(state, size)}...`, !!size);
-      });
-    } catch (error) {
-      // reset ready state when aborted
-      /* istanbul ignore else: all errors bubble */
-      if (error.name === 'AbortError') this.readyState = 1;
-      throw error;
+      if (!this.readyState && this.browser.isConnected()) {
+        await this.browser.close();
+      }
+  
+      if (this.syncQueue) this.syncQueue.stop();
+      // not started or already stopped
+      if (!this.readyState || this.readyState > 2) return;
+  
+      // close queues asap
+      if (force) {
+        this.#discovery.close(true);
+        this.#snapshots.close(true);
+      }
+  
+      // already stopping
+      if (this.readyState === 2) return;
+      this.readyState = 2;
+  
+      // log when force stopping
+      if (force) this.log.info('Stopping percy...');
+  
+      // used to log snapshot count information
+      let info = (state, size) => `${state} ` +
+        `${size} snapshot${size !== 1 ? 's' : ''}`;
+  
+      try {
+        // flush discovery and snapshot queues
+        yield* this.yield.flush((state, size) => {
+          this.log.progress(`${info(state, size)}...`, !!size);
+        });
+      } catch (error) {
+        // reset ready state when aborted
+        /* istanbul ignore else: all errors bubble */
+        if (error.name === 'AbortError') this.readyState = 1;
+        throw error;
+      }
+  
+      // if dry-running, log the total number of snapshots
+      if (this.dryRun && this.#snapshots.size) {
+        this.log.info(info('Found', this.#snapshots.size));
+      }
+  
+      // close server and end queues
+      await this.server?.close();
+      await this.#discovery.end();
+      await this.#snapshots.end();
+  
+      // mark instance as stopped
+      this.readyState = 3;
+    } catch(err) {
+      this.log.error(err)
+      throw err
+    } finally {
+      this.sendBuildEvents()
     }
-
-    // if dry-running, log the total number of snapshots
-    if (this.dryRun && this.#snapshots.size) {
-      this.log.info(info('Found', this.#snapshots.size));
-    }
-
-    // close server and end queues
-    await this.server?.close();
-    await this.#discovery.end();
-    await this.#snapshots.end();
-
-    // mark instance as stopped
-    this.readyState = 3;
   }
 
   // Takes one or more snapshots of a page while discovering resources to upload with the resulting
@@ -403,6 +414,22 @@ export class Percy {
     }
     if (syncMode) options.sync = syncMode;
     return syncMode;
+  }
+
+  sendBuildEvents() {
+    // Only send cli error when PERCY_CLIENT_ERROR_LOGS is set to true
+    if (process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {
+      // percy token is present
+      if (process.env.PERCY_TOKEN) {
+        const logs = [...this.log.messageDetail()].map((item) => {return JSON.stringify(item)}).join('\n')
+        const content = base64encode(Pako.gzip(logs))
+        const eventObject = {
+          content: content
+        };
+        // console.log(content)
+        this.client.sendBuildEvents(this.build?.id, eventObject);
+      }
+    }
   }
 }
 

@@ -106,7 +106,6 @@ export const exec = command('exec', {
 async function* spawn(cmd, args, percy) {
   let { default: crossSpawn } = await import('cross-spawn');
   let proc, closed, error;
-  let errorMessage = '';
 
   try {
     proc = crossSpawn(cmd, args, { stdio: 'pipe' });
@@ -121,7 +120,9 @@ async function* spawn(cmd, args, percy) {
 
     if (proc.stderr) {
       proc.stderr.on('data', (data) => {
-        errorMessage += redactSecrets(data.toString());
+        const message = redactSecrets(data.toString())
+        let entry = { message, timestamp: Date.now(), type: 'ci'};
+        percy.log.messageDetail(entry);
         process.stderr.write(`${data}`);
       });
     }
@@ -130,22 +131,6 @@ async function* spawn(cmd, args, percy) {
 
     proc.on('close', code => {
       closed = code;
-      if (code !== 0) {
-        // Only send cli error when PERCY_CLIENT_ERROR_LOGS is set to true
-        if (process.env.PERCY_CLIENT_ERROR_LOGS === 'false') {
-          errorMessage = 'Log sharing is disabled';
-        }
-        // Only send event when there is a global error code and
-        // percy token is present
-        if (process.env.PERCY_TOKEN) {
-          const myObject = {
-            errorKind: 'cli',
-            cliVersion: pkg.version,
-            message: errorMessage
-          };
-          percy?.client?.sendBuildEvents(percy?.build?.id, myObject);
-        }
-      }
     });
 
     // run until an event is triggered

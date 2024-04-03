@@ -89,6 +89,7 @@ export const snapshot = command('snapshot', {
     yield* percy.yield.snapshot(options);
     yield* percy.yield.stop();
   } catch (error) {
+    log.error(error)
     await percy.stop(true);
     throw error;
   }
