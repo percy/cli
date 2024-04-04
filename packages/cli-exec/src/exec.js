@@ -85,7 +85,6 @@ export const exec = command('exec', {
   env.PERCY_BUILD_URL = percy?.build?.url;
   env.PERCY_LOGLEVEL = log.loglevel();
 
-  log.debug('Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false');
   // run the provided command
   log.info(`Running "${[command, ...args].join(' ')}"`);
   let [status, error] = yield* spawn(command, args, percy);
@@ -120,9 +119,9 @@ async function* spawn(cmd, args, percy) {
 
     if (proc.stderr) {
       proc.stderr.on('data', (data) => {
-        const message = redactSecrets(data.toString())
+        const message = data.toString()
         let entry = { message, timestamp: Date.now(), type: 'ci'};
-        percy.log.messageDetail(entry);
+        percy.log.error(entry, null, true);
         process.stderr.write(`${data}`);
       });
     }

@@ -306,6 +306,7 @@ export function createDiscoveryQueue(percy) {
     })
   // discovery resources for snapshots and call the callback for each discovered snapshot
     .handle('task', async function*(snapshot, callback) {
+      performance.mark('asset-discovery-start')
       percy.log.debug(`Discovering resources: ${snapshot.name}`, snapshot.meta);
 
       // expectation explained in tests
@@ -345,6 +346,8 @@ export function createDiscoveryQueue(percy) {
         } finally {
           // always close the page when done
           await page.close();
+          performance.mark('asset-discovery-end')
+          performance.measure('asset-discovery', 'asset-discovery-start', 'asset-discovery-end')
         }
       }, {
         count: snapshot.discovery.retry ? 3 : 1,

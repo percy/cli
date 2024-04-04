@@ -6,6 +6,7 @@ import Pako from 'pako';
 import {
   base64encode
 } from './utils.js';
+import { redactSecrets } from '@percy/cli-command/utils';
 
 import {
   createPercyServer,
@@ -155,6 +156,7 @@ export class Percy {
     this.readyState = 0;
 
     try {
+      this.log.warn('Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false');
       // start the snapshots queue immediately when not delayed or deferred
       if (!this.delayUploads && !this.deferUploads) yield this.#snapshots.start();
       // do not start the discovery queue when not needed
@@ -271,7 +273,7 @@ export class Percy {
       this.log.error(err)
       throw err
     } finally {
-      this.sendBuildEvents()
+      await this.sendBuildLogs()
     }
   }
 
@@ -416,19 +418,27 @@ export class Percy {
     return syncMode;
   }
 
-  sendBuildEvents() {
-    // Only send cli error when PERCY_CLIENT_ERROR_LOGS is set to true
-    if (process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {
-      // percy token is present
-      if (process.env.PERCY_TOKEN) {
-        const logs = [...this.log.messageDetail()].map((item) => {return JSON.stringify(item)}).join('\n')
-        const content = base64encode(Pako.gzip(logs))
-        const eventObject = {
-          content: content
-        };
-        // console.log(content)
-        this.client.sendBuildEvents(this.build?.id, eventObject);
+  async sendBuildLogs() {
+    if (!process.env.PERCY_TOKEN) return;
+    try {
+      const logsObject = {
+        performance: performance.getEntriesByType('measure'),
+        clilogs: logger.query(() => true)
       }
+      // Only add CI logs if not disabled voluntarily.
+      if(process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {
+        const redactedContent = redactSecrets(logger.query(() => true, true))
+        logsObject['cilogs'] = redactedContent
+      }
+      const content = base64encode(Pako.gzip(JSON.stringify(logsObject)))
+      const eventObject = {
+        content: content
+      };
+      // Ignore this will update once I implement logs controller.
+      // await this.client.sendBuildEvents(this.build?.id, eventObject);
+    } catch(err) {
+      this.log.error(err)
+      this.log.error("Could not send the builds logs")
     }
   }
 }
