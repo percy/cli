@@ -432,13 +432,18 @@ export class Percy {
       }
       const content = base64encode(Pako.gzip(JSON.stringify(logsObject)))
       const eventObject = {
-        content: content
+        content: content,
+        build_id: this.build?.id,
+        reference_id: this.build?.id,
+        service_name: 'cli',
+        gzip: true,
+        base64encoded: true
       };
       // Ignore this will update once I implement logs controller.
-      // await this.client.sendBuildEvents(this.build?.id, eventObject);
+      const logsSHA = await this.client.sendBuildLogs(eventObject);
+      this.log.info(`Build logs sent successfully. Please share this log ID with Percy team in case of any issues - ${logsSHA}`)
     } catch(err) {
-      this.log.error(err)
-      this.log.error("Could not send the builds logs")
+      this.log.warn("Could not send the builds logs")
     }
   }
 }

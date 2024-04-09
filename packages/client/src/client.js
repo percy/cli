@@ -601,6 +601,13 @@ export class PercyClient {
     });
   }
 
+  async sendBuildLogs(body) {
+    this.log.debug('Sending Build Logs');
+    return this.post(`logs/upload`, {
+      data: body
+    });
+  }
+
   mayBeLogUploadSize(contentSize) {
     if (contentSize >= 25 * 1024 * 1024) {
       this.log.error('Uploading resource above 25MB might fail the build...');
