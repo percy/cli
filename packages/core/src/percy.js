@@ -436,7 +436,6 @@ export class Percy {
         build_id: this.build?.id,
         reference_id: this.build?.id,
         service_name: 'cli',
-        gzip: true,
         base64encoded: true
       };
       // Ignore this will update once I implement logs controller.

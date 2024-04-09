@@ -2,10 +2,7 @@ import command from '@percy/cli-command';
 import start from './start.js';
 import stop from './stop.js';
 import ping from './ping.js';
-import { getPackageJSON, redactSecrets } from '@percy/cli-command/utils';
 import { waitForTimeout } from '@percy/client/utils';
-
-const pkg = getPackageJSON(import.meta.url);
 
 export const exec = command('exec', {
   description: 'Start and stop Percy around a supplied command',
@@ -119,8 +116,8 @@ async function* spawn(cmd, args, percy) {
 
     if (proc.stderr) {
       proc.stderr.on('data', (data) => {
-        const message = data.toString()
-        let entry = { message, timestamp: Date.now(), type: 'ci'};
+        const message = data.toString();
+        let entry = { message, timestamp: Date.now(), type: 'ci' };
         percy.log.error(entry, null, true);
         process.stderr.write(`${data}`);
       });

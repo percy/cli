@@ -603,7 +603,7 @@ export class PercyClient {
 
   async sendBuildLogs(body) {
     this.log.debug('Sending Build Logs');
-    return this.post(`logs/upload`, {
+    return this.post(`logs`, {
       data: body
     });
   }
