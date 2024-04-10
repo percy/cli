@@ -7,7 +7,6 @@ import Pako from 'pako';
 
 describe('Discovery', () => {
   let percy, server, captured, originalTimeout;
-;
 
   const testDOM = dedent`
     <html>
