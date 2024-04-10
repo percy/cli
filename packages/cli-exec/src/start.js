@@ -26,7 +26,7 @@ export const start = command('start', {
     // run until stopped or terminated
     yield* yieldFor(() => percy.readyState >= 3);
   } catch (error) {
-    log.error(error)
+    log.error(error);
     await percy.stop(true);
     throw error;
   }

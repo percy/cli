@@ -23,7 +23,7 @@ async function main({ node, bundle } = argv) {
   if (buildNode) {
     console.log(colors.magenta('Building node modules...'));
     let { default: babel } = await import('@babel/cli/lib/babel/dir.js');
-    let cliOptions = { filenames: ['src'], outDir: 'dist', copyFiles: true};
+    let cliOptions = { filenames: ['src'], outDir: 'dist', copyFiles: true };
     let babelOptions = { rootMode: 'upward' };
 
     // $ babel <cwd>/src --out-dir <cwd>/dist --root-mode upward

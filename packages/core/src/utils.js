@@ -348,7 +348,7 @@ export async function withRetries(fn, { count, onRetry, signal, throwOn }) {
 }
 
 export function redactSecrets(data) {
-  const filepath = path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml')
+  const filepath = path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml');
   const secretPatterns = YAML.parse(readFileSync(filepath, 'utf-8'));
 
   if (Array.isArray(data)) {
@@ -356,14 +356,14 @@ export function redactSecrets(data) {
     return data.map(item => redactSecrets(item));
   } else if (typeof data === 'object' && data !== null) {
     // Process each key-value pair in the object
-    data['message'] = redactSecrets(data['message']);
+    data.message = redactSecrets(data.message);
   }
   if (typeof data === 'string') {
     for (const pattern of secretPatterns.patterns) {
       data = data.replace(new RegExp(pattern.pattern.regex, 'g'), '[REDACTED]');
-   }
+    }
   }
-  return data
+  return data;
 }
 
 // Returns a base64 encoding of a string or buffer.

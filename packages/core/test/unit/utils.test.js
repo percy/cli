@@ -188,18 +188,18 @@ describe('Unit / Utils', () => {
 
   describe('redactSecrets', () => {
     it('should redact sensitive keys from string', () => {
-      expect(redactSecrets('This is a secret: ASIAY34FZKBOKMUTVV7A')).toBe('This is a secret: [REDACTED]');
+      expect(redactSecrets('This is a secret: ASIAY34FZKBOKMUTVV7A')).toEqual('This is a secret: [REDACTED]');
     });
 
     it('should redact sensitive keys from object', () => {
-      expect(redactSecrets({message: 'This is a secret: ASIAY34FZKBOKMUTVV7A'})).toEqual({message: 'This is a secret: [REDACTED]'});
+      expect(redactSecrets({ message: 'This is a secret: ASIAY34FZKBOKMUTVV7A' })).toEqual({ message: 'This is a secret: [REDACTED]' });
     });
 
     it('should redact sensitive keys from array of object', () => {
-      expect(redactSecrets([{message: 'This is a secret: ASIAY34FZKBOKMUTVV7A'}])).toEqual([{message: 'This is a secret: [REDACTED]'}]);
+      expect(redactSecrets([{ message: 'This is a secret: ASIAY34FZKBOKMUTVV7A' }])).toEqual([{ message: 'This is a secret: [REDACTED]' }]);
     });
   });
-  
+
   describe('base64encode', () => {
     it('should return base64 string', () => {
       expect(base64encode('abcd')).toEqual('YWJjZA==');

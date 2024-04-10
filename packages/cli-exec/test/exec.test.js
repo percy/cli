@@ -169,7 +169,7 @@ describe('percy exec', () => {
 
     expect(Array.from(logger.instance.ciMessages)[0].message).toContain([
       'Some error with secret: [REDACTED]'
-    ])
+    ]);
     expect(stderrSpy).toHaveBeenCalled();
   });
 

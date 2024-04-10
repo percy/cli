@@ -5,6 +5,10 @@ import Browser from './browser.js';
 import Pako from 'pako';
 import {
   base64encode
+  ,
+  generatePromise,
+  yieldAll,
+  yieldTo
 } from './utils.js';
 import { redactSecrets } from '@percy/cli-command/utils';
 
@@ -21,12 +25,8 @@ import {
   discoverSnapshotResources,
   createDiscoveryQueue
 } from './discovery.js';
-import {
-  generatePromise,
-  yieldAll,
-  yieldTo
-} from './utils.js';
 import { WaitForJob } from './wait-for-job.js';
+import { performance } from 'perf_hooks';
 
 // A Percy instance will create a new build when started, handle snapshot creation, asset discovery,
 // and resource uploads, and will finalize the build when stopped. Snapshots are processed
@@ -223,28 +223,28 @@ export class Percy {
       if (!this.readyState && this.browser.isConnected()) {
         await this.browser.close();
       }
-  
+
       if (this.syncQueue) this.syncQueue.stop();
       // not started or already stopped
       if (!this.readyState || this.readyState > 2) return;
-  
+
       // close queues asap
       if (force) {
         this.#discovery.close(true);
         this.#snapshots.close(true);
       }
-  
+
       // already stopping
       if (this.readyState === 2) return;
       this.readyState = 2;
-  
+
       // log when force stopping
       if (force) this.log.info('Stopping percy...');
-  
+
       // used to log snapshot count information
       let info = (state, size) => `${state} ` +
         `${size} snapshot${size !== 1 ? 's' : ''}`;
-  
+
       try {
         // flush discovery and snapshot queues
         yield* this.yield.flush((state, size) => {
@@ -256,24 +256,24 @@ export class Percy {
         if (error.name === 'AbortError') this.readyState = 1;
         throw error;
       }
-  
+
       // if dry-running, log the total number of snapshots
       if (this.dryRun && this.#snapshots.size) {
         this.log.info(info('Found', this.#snapshots.size));
       }
-  
+
       // close server and end queues
       await this.server?.close();
       await this.#discovery.end();
       await this.#snapshots.end();
-  
+
       // mark instance as stopped
       this.readyState = 3;
-    } catch(err) {
-      this.log.error(err)
-      throw err
+    } catch (err) {
+      this.log.error(err);
+      throw err;
     } finally {
-      await this.sendBuildLogs()
+      await this.sendBuildLogs();
     }
   }
 
@@ -424,13 +424,13 @@ export class Percy {
       const logsObject = {
         performance: performance.getEntriesByType('measure'),
         clilogs: logger.query(() => true)
-      }
+      };
       // Only add CI logs if not disabled voluntarily.
-      if(process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {
-        const redactedContent = redactSecrets(logger.query(() => true, true))
-        logsObject['cilogs'] = redactedContent
+      if (process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {
+        const redactedContent = redactSecrets(logger.query(() => true, true));
+        logsObject.cilogs = redactedContent;
       }
-      const content = base64encode(Pako.gzip(JSON.stringify(logsObject)))
+      const content = base64encode(Pako.gzip(JSON.stringify(logsObject)));
       const eventObject = {
         content: content,
         build_id: this.build?.id,
@@ -440,9 +440,9 @@ export class Percy {
       };
       // Ignore this will update once I implement logs controller.
       const logsSHA = await this.client.sendBuildLogs(eventObject);
-      this.log.info(`Build logs sent successfully. Please share this log ID with Percy team in case of any issues - ${logsSHA}`)
-    } catch(err) {
-      this.log.warn("Could not send the builds logs")
+      this.log.info(`Build logs sent successfully. Please share this log ID with Percy team in case of any issues - ${logsSHA}`);
+    } catch (err) {
+      this.log.warn('Could not send the builds logs');
     }
   }
 }

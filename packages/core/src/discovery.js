@@ -307,7 +307,7 @@ export function createDiscoveryQueue(percy) {
     })
   // discovery resources for snapshots and call the callback for each discovered snapshot
     .handle('task', async function*(snapshot, callback) {
-      performance.mark('asset-discovery-start', {detail: snapshot.name});
+      performance.mark('asset-discovery-start', { detail: snapshot.name });
       percy.log.debug(`Discovering resources: ${snapshot.name}`, snapshot.meta);
 
       // expectation explained in tests

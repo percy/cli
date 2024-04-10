@@ -160,7 +160,6 @@ describe('logger', () => {
     expect(helpers.stdout).toEqual([]);
   });
 
-
   it('exposes a message formatting method', () => {
     expect(log.format('grouped')).toEqual(
       `[${colors.magenta('percy')}] grouped`);

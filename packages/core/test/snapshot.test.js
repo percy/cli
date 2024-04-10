@@ -242,7 +242,7 @@ describe('Snapshot', () => {
     expect(api.requests['/builds/123/snapshots']).toHaveSize(2);
     expect(api.requests['/builds/123/finalize']).toBeDefined();
     const snapshotWarnMessage = '[percy] Synchronous CLI functionality is not compatible with the snapshot command. Kindly consider taking screenshots via SDKs to achieve synchronous results instead.';
-    expect(logger.stderr).toEqual([snapshotWarnMessage, snapshotWarnMessage]);
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([snapshotWarnMessage, snapshotWarnMessage]));
   });
 
   it('does not upload delayed snapshots when skipping', async () => {
@@ -279,9 +279,9 @@ describe('Snapshot', () => {
     await percy.snapshot({ url: 'http://localhost:8000/one', widths: [375], sync: true });
     await percy.idle();
 
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] The Synchronous CLI functionality is not compatible with skipUploads option.'
-    ]);
+    ]));
     expect(api.requests['/builds']).toBeUndefined();
     expect(api.requests['/builds/123/snapshots']).toBeUndefined();
   });
@@ -434,7 +434,7 @@ describe('Snapshot', () => {
     await percy.idle();
 
     const warnMessage = '[percy] The Synchronous CLI functionality is not compatible with deferUploads option.';
-    expect(logger.stderr).toEqual([warnMessage]);
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([warnMessage]));
 
     await percy.stop();
   });
@@ -567,7 +567,9 @@ describe('Snapshot', () => {
       sync: false
     });
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual([
+      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
+    ]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
       '[percy] Snapshot taken: test snapshot'

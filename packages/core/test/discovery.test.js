@@ -887,9 +887,7 @@ describe('Discovery', () => {
       'http://localhost:8000/'
     ]);
 
-    expect(logger.stderr).toEqual([
-      'Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Snapshot taken: Snapshot with DOM'
     ]);

@@ -92,7 +92,7 @@ export class PercyLogger {
 
   // Query for a set of logs by filtering the in-memory store
   query(filter, ciLogs = false) {
-    if(ciLogs) {
+    if (ciLogs) {
       return Array.from(this.ciMessages).filter(filter);
     }
     return Array.from(this.messages).filter(filter);
@@ -190,7 +190,7 @@ export class PercyLogger {
     let timestamp = Date.now();
     message = err ? (message.stack || err) : message.toString();
     let entry = { debug, level, message, meta, timestamp, error: !!err };
-    if(ciLogs) {
+    if (ciLogs) {
       this.ciMessages.add(entry);
       return;
     } else {
