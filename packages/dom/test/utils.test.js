@@ -27,6 +27,18 @@ describe('utils', () => {
         mimetype: 'image/png'
       });
     });
+    it('If URL is 127.0.0.1, replace it to render.percy.local', () => {
+      Object.defineProperty(window.document, 'URL', {
+        writable: true,
+        value: 'http://127.0.0.1'
+      });
+      const result = resourceFromDataURL(uid, dataURL);
+      expect(result).toEqual({
+        url: `http://render.percy.local/__serialized__/${uid}.png`,
+        content: 'iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAAAXNSR0IArs4c6QAACbVJREFUeF7tXAWoFVEQnW+',
+        mimetype: 'image/png'
+      });
+    });
     it('If URL is not localhost, return as is', () => {
       Object.defineProperty(window.document, 'URL', {
         writable: true,
