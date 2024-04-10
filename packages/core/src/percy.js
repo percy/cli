@@ -442,6 +442,8 @@ export class Percy {
       const logsSHA = await this.client.sendBuildLogs(eventObject);
       this.log.info(`Build logs sent successfully. Please share this log ID with Percy team in case of any issues - ${logsSHA}`);
     } catch (err) {
+      this.log.warn(err);
+      this.log.warn(err.stack);
       this.log.warn('Could not send the builds logs');
     }
   }
