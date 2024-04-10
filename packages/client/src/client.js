@@ -205,7 +205,7 @@ export class PercyClient {
     try {
       return await this.get(`snapshots/${snapshotId}?sync=true&response_format=sync-cli`);
     } catch (error) {
-      this.log.error(error)
+      this.log.error(error);
       if (error.response.statusCode === 403) {
         throw new Error(INVALID_TOKEN_ERROR_MESSAGE);
       }
@@ -555,7 +555,7 @@ export class PercyClient {
         }
       });
     } catch (error) {
-      this.log.error(error)
+      this.log.error(error);
       if (error.response.statusCode === 400) {
         return false;
       }
@@ -603,7 +603,7 @@ export class PercyClient {
 
   async sendBuildLogs(body) {
     this.log.debug('Sending Build Logs');
-    return this.post(`logs`, {
+    return this.post('logs', {
       data: body
     });
   }

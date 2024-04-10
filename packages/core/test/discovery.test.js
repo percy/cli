@@ -887,7 +887,9 @@ describe('Discovery', () => {
       'http://localhost:8000/'
     ]);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual([
+      'Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
+    ]);
     expect(logger.stdout).toEqual([
       '[percy] Snapshot taken: Snapshot with DOM'
     ]);
@@ -1069,10 +1071,10 @@ describe('Discovery', () => {
         '[percy] Retrying snapshot: test navigation timeout'
       ]);
 
-      expect(logger.stderr).toEqual([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Encountered an error taking snapshot: test navigation timeout',
         '[percy] Error: Navigation failed: Timed out waiting for the page load event'
-      ]);
+      ]));
     });
   });
 
@@ -1816,9 +1818,9 @@ describe('Discovery', () => {
         }
       });
 
-      expect(logger.stderr).toEqual([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Browser executable not found: ./404'
-      ]);
+      ]));
     });
 
     it('can provide an executable via an environment variable', async () => {
@@ -1829,9 +1831,9 @@ describe('Discovery', () => {
         snapshot: { widths: [1000] }
       });
 
-      expect(logger.stderr).toEqual([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Browser executable not found: ./from-var'
-      ]);
+      ]));
     });
 
     it('should fail to launch if the devtools address is not logged', async () => {

@@ -15,6 +15,7 @@ import {
   sha256hash
 } from '@percy/client/utils';
 import Pako from 'pako';
+import { performance } from 'perf_hooks';
 
 // Logs verbose debug logs detailing various snapshot options.
 function debugSnapshotOptions(snapshot) {
@@ -306,7 +307,7 @@ export function createDiscoveryQueue(percy) {
     })
   // discovery resources for snapshots and call the callback for each discovered snapshot
     .handle('task', async function*(snapshot, callback) {
-      performance.mark('asset-discovery-start')
+      performance.mark('asset-discovery-start', {detail: snapshot.name});
       percy.log.debug(`Discovering resources: ${snapshot.name}`, snapshot.meta);
 
       // expectation explained in tests
@@ -346,8 +347,8 @@ export function createDiscoveryQueue(percy) {
         } finally {
           // always close the page when done
           await page.close();
-          performance.mark('asset-discovery-end')
-          performance.measure('asset-discovery', 'asset-discovery-start', 'asset-discovery-end')
+          performance.mark('asset-discovery-end');
+          performance.measure('asset-discovery', 'asset-discovery-start', 'asset-discovery-end');
         }
       }, {
         count: snapshot.discovery.retry ? 3 : 1,

@@ -4,7 +4,8 @@ import {
   yieldTo,
   yieldAll,
   DefaultMap,
-  redactSecrets
+  redactSecrets,
+  base64encode
 } from '../../src/utils.js';
 
 describe('Unit / Utils', () => {
@@ -186,8 +187,22 @@ describe('Unit / Utils', () => {
   });
 
   describe('redactSecrets', () => {
-    it('should redact aws keys', () => {
-      expect(redactSecrets('This is a secret: AKIAIOSFODNN7EXAMPLE')).toBe('This is a secret: ******');
+    it('should redact sensitive keys from string', () => {
+      expect(redactSecrets('This is a secret: ASIAY34FZKBOKMUTVV7A')).toBe('This is a secret: [REDACTED]');
+    });
+
+    it('should redact sensitive keys from object', () => {
+      expect(redactSecrets({message: 'This is a secret: ASIAY34FZKBOKMUTVV7A'})).toEqual({message: 'This is a secret: [REDACTED]'});
+    });
+
+    it('should redact sensitive keys from array of object', () => {
+      expect(redactSecrets([{message: 'This is a secret: ASIAY34FZKBOKMUTVV7A'}])).toEqual([{message: 'This is a secret: [REDACTED]'}]);
+    });
+  });
+  
+  describe('base64encode', () => {
+    it('should return base64 string', () => {
+      expect(base64encode('abcd')).toEqual('YWJjZA==');
     });
   });
 });

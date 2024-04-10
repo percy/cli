@@ -351,22 +351,19 @@ export function redactSecrets(data) {
   const filepath = path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml')
   const secretPatterns = YAML.parse(readFileSync(filepath, 'utf-8'));
 
-  for (const pattern of secretPatterns.patterns) {
-    if (Array.isArray(data)) {
-      // Process each item in the array
-      return data.map(item => redactSecrets(item, pattern));
-    } else if (typeof data === 'object' && data !== null) {
-      // Process each key-value pair in the object
-      data['message'] = redactSecrets(data['message'], pattern);
-      return data;
-    } else if (typeof data === 'string') {
-      // Replace the string if it matches the pattern
-      return data.replace(new RegExp(pattern.pattern.regex, 'g'), '[REDACTED]');
-    } else {
-      // Return the data unchanged if it is not an object, array, or string
-      return data;
-    }
+  if (Array.isArray(data)) {
+    // Process each item in the array
+    return data.map(item => redactSecrets(item));
+  } else if (typeof data === 'object' && data !== null) {
+    // Process each key-value pair in the object
+    data['message'] = redactSecrets(data['message']);
   }
+  if (typeof data === 'string') {
+    for (const pattern of secretPatterns.patterns) {
+      data = data.replace(new RegExp(pattern.pattern.regex, 'g'), '[REDACTED]');
+   }
+  }
+  return data
 }
 
 // Returns a base64 encoding of a string or buffer.

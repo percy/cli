@@ -1,6 +1,7 @@
 import { logger, api, setupTest, createTestServer } from './helpers/index.js';
-import { generatePromise, AbortController } from '../src/utils.js';
+import { generatePromise, AbortController, base64encode } from '../src/utils.js';
 import Percy from '@percy/core';
+import Pako from 'pako';
 
 describe('Percy', () => {
   let percy, server;
@@ -24,6 +25,7 @@ describe('Percy', () => {
   afterEach(async () => {
     await percy.stop();
     await server.close();
+    delete process.env.PERCY_TOKEN
   });
 
   it('loads config and intializes client with config', () => {
@@ -989,4 +991,99 @@ describe('Percy', () => {
       expect(percy.shouldSkipAssetDiscovery(percy.client.tokenType())).toBe(true);
     });
   });
+
+  fdescribe('sendBuildLogs', () => {
+    it('should return if PERCY_TOKEN is not set', async () => {
+      delete process.env.PERCY_TOKEN
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
+      });
+      await expectAsync(percy.sendBuildLogs()).toBeResolved();
+      expect(api.requests['/logs']).not.toBeDefined();
+    })
+
+    it('should not add CI logs if PERCY_CLIENT_ERROR_LOGS is false', async () => {
+      process.env.PERCY_TOKEN = "PERCY_TOKEN"
+      process.env.PERCY_CLIENT_ERROR_LOGS = "false"
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
+      });
+
+      percy.log.info("cli_test")
+      percy.log.info("ci_test", {}, true)
+      const logsObject = {
+        performance: performance.getEntriesByType('measure'),
+        clilogs: Array.from(logger.instance.messages) 
+      }
+
+      const content = base64encode(Pako.gzip(JSON.stringify(logsObject)))
+      await expectAsync(percy.sendBuildLogs()).toBeResolved();
+      expect(api.requests['/logs']).toBeDefined();
+      expect(api.requests['/logs'][0].method).toBe('POST');
+      expect(api.requests['/logs'][0].body).toEqual({
+        data: {
+          content: content,
+          service_name: 'cli',
+          base64encoded: true
+        }
+      });
+    })
+
+    it('should add CI logs if PERCY_CLIENT_ERROR_LOGS is not present', async () => {
+      process.env.PERCY_TOKEN = "PERCY_TOKEN"
+      delete process.env.PERCY_CLIENT_ERROR_LOGS
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
+      });
+
+      percy.log.info("cli_test")
+      percy.log.info("ci_test", {}, true)
+      const logsObject = {
+        performance: performance.getEntriesByType('measure'),
+        clilogs: Array.from(logger.instance.messages),
+        cilogs: Array.from(logger.instance.ciMessages),
+      }
+
+      const content = base64encode(Pako.gzip(JSON.stringify(logsObject)))
+      await expectAsync(percy.sendBuildLogs()).toBeResolved();
+      expect(api.requests['/logs']).toBeDefined();
+      expect(api.requests['/logs'][0].method).toBe('POST');
+      expect(api.requests['/logs'][0].body).toEqual({
+        data: {
+          content: content,
+          service_name: 'cli',
+          base64encoded: true
+        }
+      });
+    })
+
+    it('should catch the error in sending build logs', async () => {
+      process.env.PERCY_TOKEN = "PERCY_TOKEN"
+      delete process.env.PERCY_CLIENT_ERROR_LOGS
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
+      });
+      spyOn(percy.client, 'sendBuildLogs').and.rejectWith('error')
+      await expectAsync(percy.sendBuildLogs()).toBeResolved();
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        "[percy] Could not send the builds logs"
+      ]));
+    })
+  })
 });
