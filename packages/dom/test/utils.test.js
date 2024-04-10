@@ -67,6 +67,18 @@ describe('utils', () => {
         mimetype: 'image/png'
       });
     });
+    it('Replace 127.0.0.1 to render.percy.local', () => {
+      Object.defineProperty(window.document, 'URL', {
+        writable: true,
+        value: 'http://127.0.0.1'
+      });
+      const result = resourceFromText(uid, 'image/png', dataURL);
+      expect(result).toEqual({
+        url: `http://render.percy.local/__serialized__/${uid}.png`,
+        content: dataURL,
+        mimetype: 'image/png'
+      });
+    });
     it('If URL is not localhost, return as is', () => {
       Object.defineProperty(window.document, 'URL', {
         writable: true,
