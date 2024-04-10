@@ -142,7 +142,7 @@ async function* spawn(cmd, args, percy) {
             cliVersion: pkg.version,
             message: errorMessage
           };
-          percy.client.sendBuildEvents(percy.build.id, myObject);
+          percy?.client?.sendBuildEvents(percy?.build?.id, myObject);
         }
       }
     });
