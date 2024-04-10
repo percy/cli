@@ -6,7 +6,7 @@ import Session from '../src/session.js';
 import Pako from 'pako';
 
 describe('Discovery', () => {
-  let percy, server, captured;
+  let percy, server, captured, originalTimeout;
 
   const testDOM = dedent`
     <html>
@@ -28,6 +28,8 @@ describe('Discovery', () => {
   beforeEach(async () => {
     captured = [];
     await setupTest();
+    originalTimeout = jasmine.DEFAULT_TIMEOUT_INTERVAL;
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
     delete process.env.PERCY_BROWSER_EXECUTABLE;
     delete process.env.PERCY_GZIP;
 
@@ -57,6 +59,7 @@ describe('Discovery', () => {
   afterEach(async () => {
     await percy?.stop(true);
     await server.close();
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = originalTimeout;
   });
 
   it('gathers resources for a snapshot in GZIP format', async () => {

@@ -173,6 +173,25 @@ describe('percy exec', () => {
     });
   });
 
+  it('tests process.stderr percy is disabled', async () => {
+    delete process.env.PERCY_CLIENT_ERROR_LOGS;
+    process.env.PERCY_ENABLE = '0';
+    let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo(jasmine.stringMatching(/Some error/));
+    await expectAsync(
+      exec(['--', 'node', './test/test-data/test_prog.js', 'error']) // Throws Error
+    ).toBeRejectedWithError('EEXIT: 1');
+
+    expect(logger.stderr).toEqual([
+      '[percy] Percy is disabled'
+    ]);
+    expect(logger.stdout).toEqual([
+      '[percy] Running "node ./test/test-data/test_prog.js error"'
+    ]);
+
+    expect(stderrSpy).toHaveBeenCalled();
+    expect(api.requests['/builds/123/send-events']).not.toBeDefined();
+  });
+
   it('tests process.stderr when token is present and PERCY_CLIENT_ERROR_LOGS is present and set to false', async () => {
     process.env.PERCY_CLIENT_ERROR_LOGS = 'false';
     const pkg = getPackageJSON(import.meta.url);
