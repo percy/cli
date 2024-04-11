@@ -1058,7 +1058,7 @@ describe('Percy', () => {
         clientInfo: 'client-info',
         environmentInfo: 'env-info'
       });
-
+      percy.build = { id: 1 };
       percy.log.info('cli_test');
       percy.log.info('ci_test', {}, true);
       const logsObject = {
@@ -1074,6 +1074,8 @@ describe('Percy', () => {
         data: {
           content: content,
           service_name: 'cli',
+          build_id: 1,
+          reference_id: 'build_1',
           base64encoded: true
         }
       });

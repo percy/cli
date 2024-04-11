@@ -429,10 +429,11 @@ export class Percy {
         logsObject.cilogs = redactedContent;
       }
       const content = base64encode(Pako.gzip(JSON.stringify(logsObject)));
+      const referenceId = this.build?.id ? `build_${this.build?.id}` : this.build?.id;
       const eventObject = {
         content: content,
         build_id: this.build?.id,
-        reference_id: this.build?.id,
+        reference_id: referenceId,
         service_name: 'cli',
         base64encoded: true
       };
