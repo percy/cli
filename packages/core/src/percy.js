@@ -9,8 +9,8 @@ import {
   generatePromise,
   yieldAll,
   yieldTo
+  , redactSecrets
 } from './utils.js';
-import { redactSecrets } from '@percy/cli-command/utils';
 
 import {
   createPercyServer,
@@ -26,7 +26,6 @@ import {
   createDiscoveryQueue
 } from './discovery.js';
 import { WaitForJob } from './wait-for-job.js';
-import { performance } from 'perf_hooks';
 
 // A Percy instance will create a new build when started, handle snapshot creation, asset discovery,
 // and resource uploads, and will finalize the build when stopped. Snapshots are processed
@@ -422,7 +421,6 @@ export class Percy {
     if (!process.env.PERCY_TOKEN) return;
     try {
       const logsObject = {
-        performance: performance.getEntriesByType('measure'),
         clilogs: logger.query(() => true)
       };
       // Only add CI logs if not disabled voluntarily.
@@ -442,8 +440,6 @@ export class Percy {
       const logsSHA = await this.client.sendBuildLogs(eventObject);
       this.log.info(`Build logs sent successfully. Please share this log ID with Percy team in case of any issues - ${logsSHA}`);
     } catch (err) {
-      this.log.warn(err);
-      this.log.warn(err.stack);
       this.log.warn('Could not send the builds logs');
     }
   }

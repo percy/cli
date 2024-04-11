@@ -1,3 +1,4 @@
+import { setupTest } from '../helpers/index.js';
 import {
   generatePromise,
   AbortController,
@@ -187,6 +188,9 @@ describe('Unit / Utils', () => {
   });
 
   describe('redactSecrets', () => {
+    beforeEach(async () => {
+      await setupTest();
+    });
     it('should redact sensitive keys from string', () => {
       expect(redactSecrets('This is a secret: ASIAY34FZKBOKMUTVV7A')).toEqual('This is a secret: [REDACTED]');
     });

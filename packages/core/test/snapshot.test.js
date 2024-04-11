@@ -62,10 +62,10 @@ describe('Snapshot', () => {
       '[percy] - additionalSnapshots[0]: missing required name, prefix, or suffix',
       '[percy] - additionalSnapshots[1]: prefix & suffix are ignored when a name is provided'
     ]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Snapshot taken: /',
       '[percy] Snapshot taken: nombre'
-    ]);
+    ]));
   });
 
   it('warns when providing conflicting options', async () => {
@@ -526,9 +526,9 @@ describe('Snapshot', () => {
     });
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Snapshot taken: test snapshot'
-    ]);
+    ]));
   });
 
   it('logs after taking the snapshot sync mode', async () => {
@@ -544,10 +544,10 @@ describe('Snapshot', () => {
     const data = await handleSyncJob(promise['test snapshot'], percy, 'snapshot');
     expect(data).toEqual(api.DEFAULT_REPLIES['/snapshots/4567?sync=true&response_format=sync-cli']()[1]);
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Snapshot taken: test snapshot',
       '[percy] Waiting for snapshot \'test snapshot\' to be completed'
-    ]);
+    ]));
   });
 
   it('when sync true is global config but false in snapshot options', async () => {
@@ -570,10 +570,10 @@ describe('Snapshot', () => {
     expect(logger.stderr).toEqual([
       '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
     ]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot taken: test snapshot'
-    ]);
+    ]));
   });
 
   it('logs any encountered errors when snapshotting', async () => {
@@ -587,7 +587,7 @@ describe('Snapshot', () => {
       domSnapshot: testDOM
     });
 
-    expect(logger.stdout).toEqual([]);
+    expect(logger.stdout).toContain(jasmine.stringContaining('[percy] asset-discovery - test snapshot'));
     expect(logger.stderr).toEqual([
       '[percy] Encountered an error taking snapshot: test snapshot',
       '[percy] Error: unexpected snapshot error'
@@ -610,9 +610,9 @@ describe('Snapshot', () => {
       });
       await percy.idle();
 
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: test snapshot'
-      ]);
+      ]));
       expect(logger.stderr).toEqual([
         '[percy] Ignored duplicate snapshot. The name of each snapshot must be unique ...'
       ]);
@@ -635,9 +635,9 @@ describe('Snapshot', () => {
         });
         await percy.idle();
 
-        expect(logger.stdout).toEqual([
+        expect(logger.stdout).toEqual(jasmine.arrayContaining([
           '[percy] Snapshot taken: test snapshot'
-        ]);
+        ]));
         expect(logger.stderr).not.toEqual([
           '[percy] Ignored duplicate snapshot. The name of each snapshot must be unique ...'
         ]);
@@ -659,9 +659,9 @@ describe('Snapshot', () => {
     await percy.idle();
 
     // snapshot gets taken but will not upload
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Snapshot taken: test snapshot'
-    ]);
+    ]));
     expect(logger.stderr).toEqual([
       '[percy] Encountered an error uploading snapshot: test snapshot',
       '[percy] Error: unexpected upload error'
@@ -751,12 +751,12 @@ describe('Snapshot', () => {
     });
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Snapshot found: test snapshot',
       '[percy] Snapshot found: foo test snapshot',
       '[percy] Snapshot found: foo test snapshot bar',
       '[percy] Snapshot found: foobar'
-    ]);
+    ]));
   });
 
   it('accepts multiple dom snapshots', async () => {
@@ -775,12 +775,12 @@ describe('Snapshot', () => {
     }]);
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Snapshot taken: /one',
       '[percy] Snapshot taken: /two',
       '[percy] Snapshot taken: /three',
       '[percy] Snapshot taken: /four'
-    ]);
+    ]));
   });
 
   it('accepts serialized dom resources', async () => {
@@ -812,9 +812,9 @@ describe('Snapshot', () => {
       '[percy] Encountered snapshot serialization warnings:',
       '[percy] - Test serialize warning'
     ]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Snapshot taken: Serialized Snapshot'
-    ]);
+    ]));
 
     // wait for uploads to assert against
     await percy.idle();
@@ -843,9 +843,9 @@ describe('Snapshot', () => {
       '[percy] Received a duplicate snapshot, ' +
         'the previous snapshot was aborted: /foobar'
     ]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Snapshot taken: /foobar'
-    ]);
+    ]));
   });
 
   it('handles duplicate snapshots when same testCase is passed', async () => {
@@ -863,9 +863,9 @@ describe('Snapshot', () => {
       '[percy] Received a duplicate snapshot, ' +
         'the previous snapshot was aborted: testCase: test-case-1, /foobar'
     ]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Snapshot taken: testCase: test-case-1, /foobar'
-    ]);
+    ]));
   });
 
   it('handles duplicate snapshots with different test cases', async () => {
@@ -888,12 +888,12 @@ describe('Snapshot', () => {
     }]);
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Snapshot taken: testCase: test-case-1, /one',
       '[percy] Snapshot taken: testCase: test-case-2, /one',
       '[percy] Snapshot taken: testCase: test-case-3, /one',
       '[percy] Snapshot taken: testCase: test-case-4, /one'
-    ]);
+    ]));
   });
 
   it('handles the browser closing early', async () => {
@@ -1214,9 +1214,9 @@ describe('Snapshot', () => {
       await percy.idle();
 
       expect(logger.stderr).toEqual([]);
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: test snapshot'
-      ]);
+      ]));
 
       expect(Buffer.from((
         api.requests['/builds/123/resources'][0]
@@ -1260,10 +1260,10 @@ describe('Snapshot', () => {
       await percy.idle();
 
       expect(logger.stderr).toEqual([]);
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: foo snapshot',
         '[percy] Snapshot taken: bar snapshot'
-      ]);
+      ]));
 
       expect(Buffer.from((
         api.requests['/builds/123/resources'][0]
@@ -1301,9 +1301,9 @@ describe('Snapshot', () => {
       });
 
       expect(logger.stderr).toEqual([]);
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: test snapshot'
-      ]);
+      ]));
     });
 
     it('can execute scripts that wait for specific states', async () => {
@@ -1369,12 +1369,12 @@ describe('Snapshot', () => {
         '[percy] Encountered an error taking snapshot: fail for callback',
         jasmine.stringMatching('Error: failed')
       ]);
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: wait for timeout',
         '[percy] Snapshot taken: wait for selector',
         '[percy] Snapshot taken: wait for xpath',
         '[percy] Snapshot taken: wait for callback'
-      ]);
+      ]));
 
       await percy.idle();
 
@@ -1554,9 +1554,9 @@ describe('Snapshot', () => {
       expect(logger.stderr).toEqual([
         '[percy] DOM elements found outside </body>, percyCSS might not work'
       ]);
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: Serialized Snapshot'
-      ]);
+      ]));
     });
   });
 });

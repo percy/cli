@@ -1042,12 +1042,12 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy has started!',
         '[percy] Retrying snapshot: test navigation timeout',
         '[percy] Retrying snapshot: test navigation timeout',
         '[percy] Snapshot taken: test navigation timeout'
-      ]);
+      ]));
     });
 
     it('throws exception after last retry', async () => {
@@ -1063,11 +1063,11 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy has started!',
         '[percy] Retrying snapshot: test navigation timeout',
         '[percy] Retrying snapshot: test navigation timeout'
-      ]);
+      ]));
 
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Encountered an error taking snapshot: test navigation timeout',

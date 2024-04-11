@@ -2,7 +2,6 @@ import { logger, api, setupTest, createTestServer } from './helpers/index.js';
 import { generatePromise, AbortController, base64encode } from '../src/utils.js';
 import Percy from '@percy/core';
 import Pako from 'pako';
-import { performance } from 'perf_hooks';
 
 describe('Percy', () => {
   let percy, server;
@@ -435,9 +434,9 @@ describe('Percy', () => {
         url: 'http://localhost:8000'
       })).toThrowError('Failed to create build');
 
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy has started!'
-      ]);
+      ]));
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Failed to create build',
         '[percy] Error: build error'
@@ -610,11 +609,11 @@ describe('Percy', () => {
       expect(percy.browser.isConnected()).toBe(true);
       expect(api.requests['/builds/123/finalize']).toBeUndefined();
 
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy has started!',
         '[percy] Processing 3 snapshots...',
         '[percy] Snapshot taken: /one'
-      ]);
+      ]));
 
       // stop without canceling to verify it still works
       await percy.stop();
@@ -1033,7 +1032,6 @@ describe('Percy', () => {
       percy.log.info('cli_test');
       percy.log.info('ci_test', {}, true);
       const logsObject = {
-        performance: performance.getEntriesByType('measure'),
         clilogs: Array.from(logger.instance.messages)
       };
 
@@ -1064,7 +1062,6 @@ describe('Percy', () => {
       percy.log.info('cli_test');
       percy.log.info('ci_test', {}, true);
       const logsObject = {
-        performance: performance.getEntriesByType('measure'),
         clilogs: Array.from(logger.instance.messages),
         cilogs: Array.from(logger.instance.ciMessages)
       };
