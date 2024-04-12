@@ -118,7 +118,7 @@ async function* spawn(cmd, args, percy) {
       proc.stderr.on('data', (data) => {
         const message = data.toString();
         let entry = { message, timestamp: Date.now(), type: 'ci' };
-        percy.log.error(entry, null, true);
+        percy?.log?.error(entry, null, true);
         process.stderr.write(`${data}`);
       });
     }

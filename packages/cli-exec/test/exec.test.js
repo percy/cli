@@ -173,6 +173,24 @@ describe('percy exec', () => {
     expect(stderrSpy).toHaveBeenCalled();
   });
 
+  it('does not adds process.stderr logs if percy is disabled', async () => {
+    process.env.PERCY_ENABLE = '0';
+    let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo(jasmine.stringMatching(/Some error/));
+    await expectAsync(
+      exec(['--', 'node', './test/test-data/test_prog.js', 'error']) // Throws Error
+    ).toBeRejectedWithError('EEXIT: 1');
+
+    expect(logger.stderr).toEqual([
+      '[percy] Percy is disabled'
+    ]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Running "node ./test/test-data/test_prog.js error"'
+    ]));
+
+    expect(Array.from(logger.instance.ciMessages)).toEqual([]);
+    expect(stderrSpy).toHaveBeenCalled();
+  });
+
   it('does not run the command if canceled beforehand', async () => {
     // delay build creation to give time to cancel
     api.reply('/builds', () => new Promise(resolve => {
