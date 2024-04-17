@@ -192,6 +192,7 @@ export class PercyClient {
     try {
       return await this.get(`comparisons/${comparisonId}?sync=true&response_format=sync-cli`);
     } catch (error) {
+      this.log.error(error);
       if (error.response.statusCode === 403) {
         throw new Error(INVALID_TOKEN_ERROR_MESSAGE);
       }
@@ -204,6 +205,7 @@ export class PercyClient {
     try {
       return await this.get(`snapshots/${snapshotId}?sync=true&response_format=sync-cli`);
     } catch (error) {
+      this.log.error(error);
       if (error.response.statusCode === 403) {
         throw new Error(INVALID_TOKEN_ERROR_MESSAGE);
       }
@@ -553,6 +555,7 @@ export class PercyClient {
         }
       });
     } catch (error) {
+      this.log.error(error);
       if (error.response.statusCode === 400) {
         return false;
       }
@@ -594,6 +597,13 @@ export class PercyClient {
     validateId('build', buildId);
     this.log.debug('Sending Build Events');
     return this.post(`builds/${buildId}/send-events`, {
+      data: body
+    });
+  }
+
+  async sendBuildLogs(body) {
+    this.log.debug('Sending Build Logs');
+    return this.post('logs', {
       data: body
     });
   }

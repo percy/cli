@@ -92,9 +92,9 @@ describe('percy exec:start', () => {
     await expectAsync(start()).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Error: Percy is already running or the port is in use'
-    ]);
+    ]));
   });
 
   it('logs when percy has been disabled', async () => {

@@ -18,6 +18,7 @@ export class PercyLogger {
 
   // in-memory store for logs and meta info
   messages = new Set();
+  ciMessages = new Set();
 
   // track deprecations to limit noisy logging
   deprecations = new Set();
@@ -90,7 +91,10 @@ export class PercyLogger {
   }
 
   // Query for a set of logs by filtering the in-memory store
-  query(filter) {
+  query(filter, ciLogs = false) {
+    if (ciLogs) {
+      return Array.from(this.ciMessages).filter(filter);
+    }
     return Array.from(this.messages).filter(filter);
   }
 
@@ -177,7 +181,7 @@ export class PercyLogger {
 
   // Generic log method accepts a debug group, log level, log message, and optional meta
   // information to store with the message and other info
-  log(debug, level, message, meta = {}) {
+  log(debug, level, message, meta = {}, ciLogs = false) {
     // message might be an error-like object
     let err = typeof message !== 'string' && (level === 'debug' || level === 'error');
     err &&= message.message ? Error.prototype.toString.call(message) : message.toString();
@@ -186,7 +190,12 @@ export class PercyLogger {
     let timestamp = Date.now();
     message = err ? (message.stack || err) : message.toString();
     let entry = { debug, level, message, meta, timestamp, error: !!err };
-    this.messages.add(entry);
+    if (ciLogs) {
+      this.ciMessages.add(entry);
+      return;
+    } else {
+      this.messages.add(entry);
+    }
 
     // maybe write the message to stdio
     if (this.shouldLog(debug, level)) {

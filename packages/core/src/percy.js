@@ -2,6 +2,15 @@ import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
 import Browser from './browser.js';
+import Pako from 'pako';
+import {
+  base64encode
+  ,
+  generatePromise,
+  yieldAll,
+  yieldTo
+  , redactSecrets
+} from './utils.js';
 
 import {
   createPercyServer,
@@ -16,11 +25,6 @@ import {
   discoverSnapshotResources,
   createDiscoveryQueue
 } from './discovery.js';
-import {
-  generatePromise,
-  yieldAll,
-  yieldTo
-} from './utils.js';
 import { WaitForJob } from './wait-for-job.js';
 
 // A Percy instance will create a new build when started, handle snapshot creation, asset discovery,
@@ -151,6 +155,7 @@ export class Percy {
     this.readyState = 0;
 
     try {
+      this.log.warn('Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false');
       // start the snapshots queue immediately when not delayed or deferred
       if (!this.delayUploads && !this.deferUploads) yield this.#snapshots.start();
       // do not start the discovery queue when not needed
@@ -213,55 +218,62 @@ export class Percy {
   // completed. Does nothing if not running. When `force` is true, any queued snapshots are cleared.
   async *stop(force) {
     // not started, but the browser was launched
-    if (!this.readyState && this.browser.isConnected()) {
-      await this.browser.close();
-    }
-
-    if (this.syncQueue) this.syncQueue.stop();
-    // not started or already stopped
-    if (!this.readyState || this.readyState > 2) return;
-
-    // close queues asap
-    if (force) {
-      this.#discovery.close(true);
-      this.#snapshots.close(true);
-    }
-
-    // already stopping
-    if (this.readyState === 2) return;
-    this.readyState = 2;
-
-    // log when force stopping
-    if (force) this.log.info('Stopping percy...');
-
-    // used to log snapshot count information
-    let info = (state, size) => `${state} ` +
-      `${size} snapshot${size !== 1 ? 's' : ''}`;
-
     try {
-      // flush discovery and snapshot queues
-      yield* this.yield.flush((state, size) => {
-        this.log.progress(`${info(state, size)}...`, !!size);
-      });
-    } catch (error) {
-      // reset ready state when aborted
-      /* istanbul ignore else: all errors bubble */
-      if (error.name === 'AbortError') this.readyState = 1;
-      throw error;
+      if (!this.readyState && this.browser.isConnected()) {
+        await this.browser.close();
+      }
+
+      if (this.syncQueue) this.syncQueue.stop();
+      // not started or already stopped
+      if (!this.readyState || this.readyState > 2) return;
+
+      // close queues asap
+      if (force) {
+        this.#discovery.close(true);
+        this.#snapshots.close(true);
+      }
+
+      // already stopping
+      if (this.readyState === 2) return;
+      this.readyState = 2;
+
+      // log when force stopping
+      if (force) this.log.info('Stopping percy...');
+
+      // used to log snapshot count information
+      let info = (state, size) => `${state} ` +
+        `${size} snapshot${size !== 1 ? 's' : ''}`;
+
+      try {
+        // flush discovery and snapshot queues
+        yield* this.yield.flush((state, size) => {
+          this.log.progress(`${info(state, size)}...`, !!size);
+        });
+      } catch (error) {
+        // reset ready state when aborted
+        /* istanbul ignore else: all errors bubble */
+        if (error.name === 'AbortError') this.readyState = 1;
+        throw error;
+      }
+
+      // if dry-running, log the total number of snapshots
+      if (this.dryRun && this.#snapshots.size) {
+        this.log.info(info('Found', this.#snapshots.size));
+      }
+
+      // close server and end queues
+      await this.server?.close();
+      await this.#discovery.end();
+      await this.#snapshots.end();
+
+      // mark instance as stopped
+      this.readyState = 3;
+    } catch (err) {
+      this.log.error(err);
+      throw err;
+    } finally {
+      await this.sendBuildLogs();
     }
-
-    // if dry-running, log the total number of snapshots
-    if (this.dryRun && this.#snapshots.size) {
-      this.log.info(info('Found', this.#snapshots.size));
-    }
-
-    // close server and end queues
-    await this.server?.close();
-    await this.#discovery.end();
-    await this.#snapshots.end();
-
-    // mark instance as stopped
-    this.readyState = 3;
   }
 
   // Takes one or more snapshots of a page while discovering resources to upload with the resulting
@@ -403,6 +415,34 @@ export class Percy {
     }
     if (syncMode) options.sync = syncMode;
     return syncMode;
+  }
+
+  async sendBuildLogs() {
+    if (!process.env.PERCY_TOKEN) return;
+    try {
+      const logsObject = {
+        clilogs: logger.query(() => true)
+      };
+      // Only add CI logs if not disabled voluntarily.
+      if (process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {
+        const redactedContent = redactSecrets(logger.query(() => true, true));
+        logsObject.cilogs = redactedContent;
+      }
+      const content = base64encode(Pako.gzip(JSON.stringify(logsObject)));
+      const referenceId = this.build?.id ? `build_${this.build?.id}` : this.build?.id;
+      const eventObject = {
+        content: content,
+        build_id: this.build?.id,
+        reference_id: referenceId,
+        service_name: 'cli',
+        base64encoded: true
+      };
+      // Ignore this will update once I implement logs controller.
+      const logsSHA = await this.client.sendBuildLogs(eventObject);
+      this.log.info(`Build logs sent successfully. Please share this log ID with Percy team in case of any issues - ${logsSHA}`);
+    } catch (err) {
+      this.log.warn('Could not send the builds logs');
+    }
   }
 }
 

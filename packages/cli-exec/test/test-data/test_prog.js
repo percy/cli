@@ -1,6 +1,6 @@
 // Error
 function throwError() {
-  throw new Error('Some error');
+  throw new Error('Some error with secret: AKIAIOSFODNN7EXAMPLE');
 }
 const args = process.argv.slice(2); // Extract command-line arguments, excluding the first two (node and script path)
 

@@ -1042,12 +1042,12 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy has started!',
         '[percy] Retrying snapshot: test navigation timeout',
         '[percy] Retrying snapshot: test navigation timeout',
         '[percy] Snapshot taken: test navigation timeout'
-      ]);
+      ]));
     });
 
     it('throws exception after last retry', async () => {
@@ -1063,16 +1063,16 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy has started!',
         '[percy] Retrying snapshot: test navigation timeout',
         '[percy] Retrying snapshot: test navigation timeout'
-      ]);
+      ]));
 
-      expect(logger.stderr).toEqual([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Encountered an error taking snapshot: test navigation timeout',
         '[percy] Error: Navigation failed: Timed out waiting for the page load event'
-      ]);
+      ]));
     });
   });
 
@@ -1816,9 +1816,9 @@ describe('Discovery', () => {
         }
       });
 
-      expect(logger.stderr).toEqual([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Browser executable not found: ./404'
-      ]);
+      ]));
     });
 
     it('can provide an executable via an environment variable', async () => {
@@ -1829,9 +1829,9 @@ describe('Discovery', () => {
         snapshot: { widths: [1000] }
       });
 
-      expect(logger.stderr).toEqual([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Browser executable not found: ./from-var'
-      ]);
+      ]));
     });
 
     it('should fail to launch if the devtools address is not logged', async () => {

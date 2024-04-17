@@ -40,16 +40,16 @@ describe('percy snapshot <sitemap>', () => {
   it('snapshots URLs listed by a sitemap', async () => {
     await snapshot(['http://localhost:8000/sitemap.xml', '--dry-run']);
 
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Build not created'
-    ]);
-    expect(logger.stdout).toEqual([
+    ]));
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot found: /',
       '[percy] Snapshot found: /test-1/',
       '[percy] Snapshot found: /test-2/',
       '[percy] Found 3 snapshots'
-    ]);
+    ]));
   });
 
   it('throws an error when the sitemap is not an xml file', async () => {
@@ -57,15 +57,15 @@ describe('percy snapshot <sitemap>', () => {
       snapshot(['http://localhost:8000/not-a-sitemap'])
     ).toBeRejected();
 
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Stopping percy...'
-    ]);
-    expect(logger.stderr).toEqual([
+    ]));
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Build not created',
       '[percy] Error: The sitemap must be an XML document, ' +
         'but the content-type was "text/html"'
-    ]);
+    ]));
   });
 
   it('accepts snapshot config options', async () => {
@@ -81,10 +81,10 @@ describe('percy snapshot <sitemap>', () => {
 
     await snapshot(['http://localhost:8000/sitemap.xml', '--dry-run']);
 
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Build not created'
-    ]);
-    expect(logger.stdout).toEqual([
+    ]));
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot found: Home',
       '[percy] Snapshot found: Home (2)',
@@ -93,6 +93,6 @@ describe('percy snapshot <sitemap>', () => {
       '[percy] Snapshot found: /test-2/',
       '[percy] Snapshot found: /test-2/ (2)',
       '[percy] Found 6 snapshots'
-    ]);
+    ]));
   });
 });

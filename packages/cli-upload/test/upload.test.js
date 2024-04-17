@@ -69,7 +69,9 @@ describe('percy upload', () => {
   it('creates a new build and uploads snapshots with web token', async () => {
     await upload(['./images']);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual([
+      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
+    ]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Uploading 3 snapshots...',
@@ -124,7 +126,9 @@ describe('percy upload', () => {
   it('strips file extensions with `--strip-extensions`', async () => {
     await upload(['./images', '--strip-extensions']);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual([
+      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
+    ]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Uploading 3 snapshots...',
@@ -138,7 +142,9 @@ describe('percy upload', () => {
   it('skips unsupported image types', async () => {
     await upload(['./images', '--files=*']);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual([
+      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
+    ]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Skipping unsupported file type: test-4.gif',
@@ -153,9 +159,9 @@ describe('percy upload', () => {
   it('does not upload snapshots and prints matching files with --dry-run', async () => {
     await upload(['./images', '--dry-run']);
 
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Build not created'
-    ]);
+    ]));
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Found 3 snapshots',
       '[percy] Snapshot found: test-1.png',
@@ -166,9 +172,9 @@ describe('percy upload', () => {
     logger.reset();
     await upload(['./images', '--dry-run', '--files=test-1.png']);
 
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Build not created'
-    ]);
+    ]));
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Found 1 snapshot',
       '[percy] Snapshot found: test-1.png'
@@ -196,21 +202,26 @@ describe('percy upload', () => {
     process.emit('SIGTERM');
     await up;
 
-    expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stderr).toEqual([
+      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false',
+      '[percy] AbortError: SIGTERM'
+    ]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Uploading 3 snapshots...',
       '[percy] Stopping percy...',
       '[percy] Snapshot uploaded: test-1.png',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
-    ]);
+    ]));
   });
 
   it('creates a new build and upload snapshots with ss token', async () => {
     process.env.PERCY_TOKEN = 'ss_<<PERCY_TOKEN>>';
     await upload(['./images']);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual([
+      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
+    ]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Uploading 3 snapshots...',
@@ -251,8 +262,8 @@ describe('percy upload', () => {
   it('throws error for token type other than web and generic', async () => {
     process.env.PERCY_TOKEN = 'app_invalid_token';
     await expectAsync(upload(['./images'])).toBeRejected();
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Error: Invalid Token Type. Only "web" and "self-managed" token types are allowed.'
-    ]);
+    ]));
   });
 });

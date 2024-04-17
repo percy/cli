@@ -1502,6 +1502,30 @@ describe('PercyClient', () => {
     });
   });
 
+  describe('#sendBuildLogs', () => {
+    it('should send build logs to API', async () => {
+      await expectAsync(client.sendBuildLogs({
+        content: 'abcd',
+        build_id: 1234,
+        reference_id: 1234,
+        service_name: 'cli',
+        base64encoded: true
+      })).toBeResolved();
+
+      expect(api.requests['/logs']).toBeDefined();
+      expect(api.requests['/logs'][0].method).toBe('POST');
+      expect(api.requests['/logs'][0].body).toEqual({
+        data: {
+          content: 'abcd',
+          build_id: 1234,
+          reference_id: 1234,
+          service_name: 'cli',
+          base64encoded: true
+        }
+      });
+    });
+  });
+
   describe('#mayBeLogUploadSize', () => {
     it('does not warns when upload size less 20MB/25MB', () => {
       client.mayBeLogUploadSize(1000);

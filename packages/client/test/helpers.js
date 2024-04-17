@@ -145,7 +145,8 @@ export const api = {
     }],
     '/discovery/device-details': () => [201, {
       data: []
-    }]
+    }],
+    '/logs': () => [200, 'random_sha']
   },
 
   async mock({ delay = 10 } = {}) {

@@ -137,6 +137,29 @@ describe('logger', () => {
     }]);
   });
 
+  it('can query for ci logs from the in-memory store', () => {
+    log.info('Not me', { match: false }, true);
+    log.info('Not me', { match: false }, true);
+    log.info('Yes me', { match: true }, true);
+    log.info('Not me', { match: false }, true);
+    log.info('Not me', { match: false }, true);
+
+    expect(logger.query(m => m.meta.match, true)).toEqual([{
+      debug: 'test',
+      level: 'info',
+      message: 'Yes me',
+      timestamp: jasmine.any(Number),
+      meta: { match: true },
+      error: false
+    }]);
+  });
+
+  it('does not write to stdout if CI log', () => {
+    log.info('Not me', { match: false }, true);
+
+    expect(helpers.stdout).toEqual([]);
+  });
+
   it('exposes a message formatting method', () => {
     expect(log.format('grouped')).toEqual(
       `[${colors.magenta('percy')}] grouped`);
