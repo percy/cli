@@ -28,9 +28,11 @@ describe('Snapshot', () => {
     });
 
     logger.reset(true);
+    process.env.PERCY_CLIENT_ERROR_LOGS = false;
   });
 
   afterEach(async () => {
+    delete process.env.PERCY_CLIENT_ERROR_LOGS;
     await percy.stop(true);
     await server?.close();
   });
@@ -567,9 +569,7 @@ describe('Snapshot', () => {
       sync: false
     });
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot taken: test snapshot'

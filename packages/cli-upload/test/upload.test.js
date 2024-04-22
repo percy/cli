@@ -11,7 +11,7 @@ describe('percy upload', () => {
   beforeEach(async () => {
     upload.packageInformation = { name: '@percy/cli-upload' };
     process.env.PERCY_TOKEN = 'web_<<PERCY_TOKEN>>';
-
+    process.env.PERCY_CLIENT_ERROR_LOGS = false;
     await setupTest({
       filesystem: {
         'images/test-1.png': pixel,
@@ -26,6 +26,7 @@ describe('percy upload', () => {
   afterEach(() => {
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
+    delete process.env.PERCY_CLIENT_ERROR_LOGS;
     delete upload.packageInformation;
   });
 
@@ -69,9 +70,7 @@ describe('percy upload', () => {
   it('creates a new build and uploads snapshots with web token', async () => {
     await upload(['./images']);
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Uploading 3 snapshots...',
@@ -126,9 +125,7 @@ describe('percy upload', () => {
   it('strips file extensions with `--strip-extensions`', async () => {
     await upload(['./images', '--strip-extensions']);
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Uploading 3 snapshots...',
@@ -142,9 +139,7 @@ describe('percy upload', () => {
   it('skips unsupported image types', async () => {
     await upload(['./images', '--files=*']);
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Skipping unsupported file type: test-4.gif',
@@ -203,7 +198,6 @@ describe('percy upload', () => {
     await up;
 
     expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false',
       '[percy] AbortError: SIGTERM'
     ]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -219,9 +213,7 @@ describe('percy upload', () => {
     process.env.PERCY_TOKEN = 'ss_<<PERCY_TOKEN>>';
     await upload(['./images']);
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Uploading 3 snapshots...',
