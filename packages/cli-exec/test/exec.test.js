@@ -148,12 +148,15 @@ describe('percy exec', () => {
   });
 
   it('adds process.stderr logs in CI logs', async () => {
+    process.env.PERCY_CLIENT_ERROR_LOGS = true;
     let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo(jasmine.stringMatching(/Some error/));
     await expectAsync(
       exec(['--', 'node', './test/test-data/test_prog.js', 'error']) // Throws Error
     ).toBeRejectedWithError('EEXIT: 1');
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual([
+      '[percy] Notice: Percy collects CI logs for service improvement, stored for 30 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
+    ]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Running "node ./test/test-data/test_prog.js error"',
