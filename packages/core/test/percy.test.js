@@ -20,12 +20,14 @@ describe('Percy', () => {
       clientInfo: 'client-info',
       environmentInfo: 'env-info'
     });
+    process.env.PERCY_CLIENT_ERROR_LOGS = false;
   });
 
   afterEach(async () => {
     await percy.stop();
     await server.close();
     delete process.env.PERCY_TOKEN;
+    delete process.env.PERCY_CLIENT_ERROR_LOGS;
   });
 
   it('loads config and intializes client with config', () => {
@@ -222,11 +224,21 @@ describe('Percy', () => {
     });
 
     it('logs once started', async () => {
+      process.env.PERCY_CLIENT_ERROR_LOGS = true;
       await expectAsync(percy.start()).toBeResolved();
 
       expect(logger.stderr).toEqual([
-        '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
+        '[percy] Notice: Percy collects CI logs for service improvement, stored for 30 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
       ]);
+      expect(logger.stdout).toEqual([
+        '[percy] Percy has started!'
+      ]);
+    });
+
+    it('should not log CI log collection warning if PERCY_CLIENT_ERROR_LOGS is set false', async () => {
+      await expectAsync(percy.start()).toBeResolved();
+
+      expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
         '[percy] Percy has started!'
       ]);
@@ -244,9 +256,7 @@ describe('Percy', () => {
       expect(percy.browser.launch).toHaveBeenCalledTimes(1);
       expect(percy.server.listen).toHaveBeenCalledTimes(1);
 
-      expect(logger.stderr).toEqual([
-        '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-      ]);
+      expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
         '[percy] Percy has started!'
       ]);
@@ -501,9 +511,7 @@ describe('Percy', () => {
       await expectAsync(percy.stop()).toBeResolved();
       expect(api.requests['/builds/123/finalize']).toBeDefined();
 
-      expect(logger.stderr).toEqual([
-        '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-      ]);
+      expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toContain(
         '[percy] Finalized build #1: https://percy.io/test/test/123'
       );
@@ -548,9 +556,7 @@ describe('Percy', () => {
 
       await expectAsync(percy.stop()).toBeResolved();
 
-      expect(logger.stderr).toEqual([
-        '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-      ]);
+      expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Processing 1 snapshot...',
         '[percy] Snapshot taken: test snapshot',
@@ -824,9 +830,7 @@ describe('Percy', () => {
       expect(api.requests['/comparisons/891011/finalize']).toHaveSize(1);
       expect(api.requests['/snapshots/4567/finalize']).toBeUndefined();
 
-      expect(logger.stderr).toEqual([
-        '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-      ]);
+      expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual([
         '[percy] Percy has started!',
         '[percy] Snapshot taken: Snapshot'
@@ -852,9 +856,7 @@ describe('Percy', () => {
       expect(api.requests['/comparisons/891011/finalize']).toHaveSize(1);
       expect(api.requests['/snapshots/4567/finalize']).toBeUndefined();
 
-      expect(logger.stderr).toEqual([
-        '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-      ]);
+      expect(logger.stderr).toEqual([]);
       expect(percy.syncQueue.jobs).toHaveSize(1);
       expect(logger.stdout).toEqual([
         '[percy] Percy has started!',
@@ -1046,6 +1048,9 @@ describe('Percy', () => {
           base64encoded: true
         }
       });
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        "[percy] Build's CLI logs sent successfully. Please share this log ID with Percy team in case of any issues - random_sha"
+      ]));
     });
 
     it('should add CI logs if PERCY_CLIENT_ERROR_LOGS is not present', async () => {
@@ -1079,6 +1084,9 @@ describe('Percy', () => {
           base64encoded: true
         }
       });
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        "[percy] Build's CLI and CI logs sent successfully. Please share this log ID with Percy team in case of any issues - random_sha"
+      ]));
     });
 
     it('should catch the error in sending build logs', async () => {

@@ -16,12 +16,14 @@ describe('percy snapshot <directory>', () => {
         'test-index/index.html': '<p>Test Index</p>'
       }
     });
+    process.env.PERCY_CLIENT_ERROR_LOGS = false;
   });
 
   afterEach(() => {
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
     delete snapshot.packageInformation;
+    delete process.env.PERCY_CLIENT_ERROR_LOGS;
   });
 
   it('errors when the base-url is invalid', async () => {
@@ -39,9 +41,7 @@ describe('percy snapshot <directory>', () => {
   it('starts a static server and snapshots matching files', async () => {
     await snapshot(['./', '--include=/test-*.html']);
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot taken: /test-1.html',
@@ -55,9 +55,7 @@ describe('percy snapshot <directory>', () => {
   it('snapshots matching files hosted with a base-url', async () => {
     await snapshot(['./', '--base-url=/base']);
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot taken: /base/test-1.html',

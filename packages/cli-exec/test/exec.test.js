@@ -9,6 +9,7 @@ describe('percy exec', () => {
     let { default: which } = await import('which');
     spyOn(which, 'sync').and.callFake(c => c);
     spyOn(process, 'exit').and.callFake(c => c);
+    process.env.PERCY_CLIENT_ERROR_LOGS = false;
   });
 
   afterEach(() => {
@@ -74,14 +75,12 @@ describe('percy exec', () => {
   it('starts and stops the percy process around the command', async () => {
     await exec(['--', 'node', '--eval', '']);
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
       '[percy] Running "node --eval "',
       '[percy] Finalized build #1: https://percy.io/test/test/123',
-      '[percy] Build logs sent successfully. Please share this log ID with Percy team in case of any issues - random_sha'
+      "[percy] Build's CLI logs sent successfully. Please share this log ID with Percy team in case of any issues - random_sha"
     ]);
   });
 
@@ -127,9 +126,7 @@ describe('percy exec', () => {
       exec(['--', 'node', '--eval', 'process.exit(3)'])
     ).toBeRejectedWithError('EEXIT: 3');
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Running "node --eval process.exit(3)"',
@@ -142,9 +139,7 @@ describe('percy exec', () => {
     await exec(['--', 'echo', 'Hi!']);
 
     expect(stdoutSpy).toHaveBeenCalled();
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Running "echo Hi!"',
@@ -153,13 +148,14 @@ describe('percy exec', () => {
   });
 
   it('adds process.stderr logs in CI logs', async () => {
+    process.env.PERCY_CLIENT_ERROR_LOGS = true;
     let stderrSpy = spyOn(process.stderr, 'write').and.resolveTo(jasmine.stringMatching(/Some error/));
     await expectAsync(
       exec(['--', 'node', './test/test-data/test_prog.js', 'error']) // Throws Error
     ).toBeRejectedWithError('EEXIT: 1');
 
     expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
+      '[percy] Notice: Percy collects CI logs for service improvement, stored for 30 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
     ]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
@@ -206,9 +202,7 @@ describe('percy exec', () => {
     // user termination is not considered an error
     await expectAsync(test).toBeResolved();
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).not.toContain(
       '[percy] Running "node --eval "');
   });
@@ -223,7 +217,6 @@ describe('percy exec', () => {
     await expectAsync(exec(['--', 'foobar'])).toBeRejected();
     expect(stdinSpy).toHaveBeenCalled();
     expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false',
       '[percy] Error: spawn error'
     ]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
@@ -251,9 +244,7 @@ describe('percy exec', () => {
     // user termination is not considered an error
     await expectAsync(test).toBeResolved();
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toContain(
       '[percy] Stopping percy...'
     );
@@ -268,9 +259,7 @@ describe('percy exec', () => {
       'await request(url).catch(e => (console.error(e), process.exit(2)));'
     ].join('')]);
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       jasmine.stringMatching('\\[percy] Running "node '),
@@ -283,9 +272,7 @@ describe('percy exec', () => {
       'process.env.PERCY_BUILD_ID === "123" || process.exit(2)'
     )]);
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       jasmine.stringMatching('\\[percy] Running "node '),
@@ -298,9 +285,7 @@ describe('percy exec', () => {
       'process.env.PERCY_BUILD_URL === "https://percy.io/test/test/123" || process.exit(2)'
     )]);
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       jasmine.stringMatching('\\[percy] Running "node '),

@@ -155,7 +155,9 @@ export class Percy {
     this.readyState = 0;
 
     try {
-      this.log.warn('Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false');
+      if (process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {
+        this.log.warn('Notice: Percy collects CI logs for service improvement, stored for 30 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false');
+      }
       // start the snapshots queue immediately when not delayed or deferred
       if (!this.delayUploads && !this.deferUploads) yield this.#snapshots.start();
       // do not start the discovery queue when not needed
@@ -424,7 +426,8 @@ export class Percy {
         clilogs: logger.query(() => true)
       };
       // Only add CI logs if not disabled voluntarily.
-      if (process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {
+      const sendCILogs = process.env.PERCY_CLIENT_ERROR_LOGS !== 'false';
+      if (sendCILogs) {
         const redactedContent = redactSecrets(logger.query(() => true, true));
         logsObject.cilogs = redactedContent;
       }
@@ -439,7 +442,7 @@ export class Percy {
       };
       // Ignore this will update once I implement logs controller.
       const logsSHA = await this.client.sendBuildLogs(eventObject);
-      this.log.info(`Build logs sent successfully. Please share this log ID with Percy team in case of any issues - ${logsSHA}`);
+      this.log.info(`Build's CLI${sendCILogs ? ' and CI' : ''} logs sent successfully. Please share this log ID with Percy team in case of any issues - ${logsSHA}`);
     } catch (err) {
       this.log.warn('Could not send the builds logs');
     }

@@ -39,10 +39,12 @@ describe('percy snapshot <file>', () => {
         ].join('\n')
       }
     });
+    process.env.PERCY_CLIENT_ERROR_LOGS = false;
   });
 
   afterEach(async () => {
     delete process.env.PERCY_TOKEN;
+    delete process.env.PERCY_CLIENT_ERROR_LOGS;
     delete snapshot.packageInformation;
     await server.close();
   });
@@ -64,7 +66,7 @@ describe('percy snapshot <file>', () => {
     await expectAsync(snapshot(['./nope'])).toBeRejected();
 
     expect(logger.stdout).toEqual([
-      '[percy] Build logs sent successfully. Please share this log ID with Percy team in case of any issues - random_sha'
+      "[percy] Build's CLI logs sent successfully. Please share this log ID with Percy team in case of any issues - random_sha"
     ]);
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Error: Unsupported filetype: ./nope'
@@ -87,9 +89,7 @@ describe('percy snapshot <file>', () => {
   it('snapshots pages from .yaml files', async () => {
     await snapshot(['./pages.yml']);
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot taken: YAML Snapshot',
@@ -106,9 +106,7 @@ describe('percy snapshot <file>', () => {
 
     await snapshot(['./pages.json']);
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot taken: JSON Snapshot',
@@ -120,9 +118,7 @@ describe('percy snapshot <file>', () => {
   it('snapshots pages from .js files', async () => {
     await snapshot(['./pages.js']);
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot taken: JS Snapshot',
@@ -136,9 +132,7 @@ describe('percy snapshot <file>', () => {
   it('snapshots pages from .js files that export a function', async () => {
     await snapshot(['./pages-fn.cjs']); // .(c|m)?js
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot taken: JS Function Snapshot',
@@ -150,9 +144,7 @@ describe('percy snapshot <file>', () => {
   it('snapshots pages from a list of URLs', async () => {
     await snapshot(['./urls.yml', '--base-url=http://localhost:8000']);
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot taken: /',
@@ -175,9 +167,7 @@ describe('percy snapshot <file>', () => {
 
     await snapshot(['./lengthy.js', '--include=*2', '--exclude=/[13579]/']);
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot taken: Snapshot #2',
@@ -250,9 +240,7 @@ describe('percy snapshot <file>', () => {
 
     await snapshot(['./references.yaml']);
 
-    expect(logger.stderr).toEqual([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 14 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot taken: Reference Snapshot',
