@@ -9,7 +9,7 @@ function setBaseURI(dom) {
   let $base = document.createElement('base');
   $base.href = dom.baseURI;
 
-  dom.querySelector('head').prepend($base);
+  dom.querySelector('head')?.prepend($base);
 }
 
 // Recursively serializes iframe documents into srcdoc attributes.
