@@ -54,7 +54,7 @@ export function serializeCSSOM({ dom, clone, resources, cache, warnings }) {
       /* istanbul ignore next: tested, but coverage is stripped */
       if (clone.constructor.name === 'HTMLDocument' || clone.constructor.name === 'DocumentFragment') {
         // handle document and iframe
-        clone.body?.prepend(styleLink);
+        clone.body.prepend(styleLink);
       } else if (clone.constructor.name === 'ShadowRoot') {
         clone.prepend(styleLink);
       }
@@ -80,7 +80,7 @@ export function serializeCSSOM({ dom, clone, resources, cache, warnings }) {
       /* istanbul ignore next: tested, but coverage is stripped */
       if (clone.constructor.name === 'HTMLDocument' || clone.constructor.name === 'DocumentFragment') {
         // handle document and iframe
-        clone.body?.prepend(styleLink);
+        clone.body.prepend(styleLink);
       } else if (clone.constructor.name === 'ShadowRoot') {
         clone.prepend(styleLink);
       }
