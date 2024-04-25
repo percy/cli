@@ -20,6 +20,8 @@ interface DiscoveryOptions {
   disableCache?: boolean;
   captureMockedServiceWorker?: boolean;
   captureSrcset?: boolean;
+  retry?: boolean;
+  userAgent?: string;
 }
 
 interface ScopeOptions {
