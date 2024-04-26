@@ -1,7 +1,9 @@
 name: Build Executables
 on:
-  release:
-    types: [published]
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
 jobs:
   lint:
     name: Build Executables
@@ -18,12 +20,12 @@ jobs:
           APPLE_ID_KEY: ${{secrets.APPLE_ID_KEY}}
       - name: Verify executable
         run: ./percy --version
-      - name: Upload assets
-        uses: softprops/action-gh-release@d99959edae48b5ffffd7b00da66dcdb0a33a52ee
-        with:
-          files: |
-            percy-osx.zip
-            percy-linux.zip
-            percy-win.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Upload assets
+      #   uses: softprops/action-gh-release@d99959edae48b5ffffd7b00da66dcdb0a33a52ee
+      #   with:
+      #     files: |
+      #       percy-osx.zip
+      #       percy-linux.zip
+      #       percy-win.zip
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
