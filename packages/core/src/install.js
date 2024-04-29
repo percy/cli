@@ -180,15 +180,19 @@ export function chromium({
 function installDependencies(exec){
   let { platform } = process;
   let log = logger('core:install');
+  log.info(`Installing dependencies ${platform}`);
   try{
     if(platform == 'linux'){
-      const type = cp.execSync("awk -F= '/^ID=/ {print $2}' /etc/os-release | tr -d '\"'") 
+      const type = cp.execSync("awk -F= '/^ID=/ {print $2}' /etc/os-release | tr -d '\"'").toString().trim()
       if(type == 'ubuntu' || type == 'debian' || type == 'fedora') {
         const directory = path.resolve(url.fileURLToPath(import.meta.url), `./dependency.sh`)
-        cp.execSync(`${directory} ${exec}`)
-      } else if(type == 'alpine' ){
-        const directory = path.resolve(url.fileURLToPath(import.meta.url), `./dependency_alpine.sh`)
-        cp.execSync(`${directory} ${exec}`)
+        cp.execSync(`${directory} ${exec}`, { stdio: 'inherit' })
+      } else if(type == 'alpine'){
+        const directory = path.resolve(url.fileURLToPath(import.meta.url), `../dependency_alpine.sh`)
+        cp.execSync(`apk add sudo bash`, { stdio: 'inherit' })
+        cp.execSync(`bash ${directory} ${exec}`, { stdio: 'inherit' })
+      } else {
+        log.info(`Cannot install dependencies for this linux platform ${type}`);
       }
     }
   } catch(err){

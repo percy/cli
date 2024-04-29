@@ -24,7 +24,7 @@ parse_dependencies() {
 convert_library_name() {
   local library_name="$1"
   local short_name="$(echo $library_name | cut -d'-' -f1 | cut -d'.' -f1)"
-  echo "$(apk search $short_name | grep -E "^$short_name-[0-9]" | head -n 1 | cut -d'-' -f1 | cut -d'.' -f1)"
+  echo "$(apk search $short_name | head -n 1 | cut -d'-' -f1 | cut -d'.' -f1)"
 }
 
 # Function to install dependency using the appropriate package manager
