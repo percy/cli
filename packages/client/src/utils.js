@@ -3,6 +3,7 @@ import fs from 'fs';
 import url from 'url';
 import path from 'path';
 import crypto from 'crypto';
+import logger from '@percy/logger';
 
 // Formats a raw byte integer as a string
 export function formatBytes(int) {
@@ -76,6 +77,7 @@ export function pool(generator, context, concurrency) {
         }).catch(error => {
           queue--;
           err = error;
+          logger('client:utils').error(`[${generator.name}] Failed with reason: ${error}`);
           proceed();
         });
       }
