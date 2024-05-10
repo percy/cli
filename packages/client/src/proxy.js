@@ -168,6 +168,7 @@ export class ProxyHttpsAgent extends https.Agent {
 
     let handleError = err => {
       socket.destroy(err);
+      logger('client:proxy').error(`Proxying request failed: ${err}`);
       callback(err);
     };
 
