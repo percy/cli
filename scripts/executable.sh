@@ -3,8 +3,8 @@ set -e -o pipefail
 
 function cleanup {
   rm -rf build
-  rm AppleDevIDApp.p12
-  security delete-keychain percy.keychain
+  # rm AppleDevIDApp.p12
+  # security delete-keychain percy.keychain
 }
 
 brew install gnu-sed
