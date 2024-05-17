@@ -42,10 +42,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: win-exe
-      - run: ./scripts/executable_win.bat
-        env:
-          WINDOWS_CERT: ${{secrets.WINDOWS_CERT}}
-          WINDOWS_CERT_KEY: ${{secrets.WINDOWS_CERT_KEY}}
+      - run: |
+          echo ${{ secrets.WINDOWS_CERT }} | base64.exe -d > CodeSigning.p12
+          signtool.exe sign /fd SHA256 /f CodeSigning.p12 /p "${{ secrets.WINDOWS_CERT_KEY }}" percy.exe
+          powershell Compress-Archive -Path percy.exe -DestinationPath percy-win.zip
       - name: Verify executable
         run: ./percy.exe --version
       # - name: Upload assets
