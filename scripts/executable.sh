@@ -69,7 +69,6 @@ codesign  --force --verbose=4 -s "Developer ID Application: BrowserStack Inc (76
 zip percy-linux.zip percy
 mv percy-osx percy
 zip percy-osx.zip percy
-zip percy-win.zip percy.exe
 
 xcrun notarytool submit --apple-id "$APPLE_ID_USERNAME" --password $APPLE_ID_KEY --team-id 763K6K6H44 percy-osx.zip --wait
 
