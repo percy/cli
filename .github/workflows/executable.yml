@@ -42,10 +42,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: win-exe
-      # - run: |
-      #     echo ${{ secrets.WINDOWS_CERT }} | base64.exe -d > CodeSigning.p12
-      #     signtool.exe sign /fd SHA256 /f CodeSigning.p12 /p "${{ secrets.WINDOWS_CERT_KEY }}" percy.exe
-      #     powershell Compress-Archive -Path percy.exe -DestinationPath percy-win.zip
       - name: Sign binary
         uses: lando/code-sign-action@v2
         with:
@@ -54,6 +50,8 @@ jobs:
           certificate-password: ${{ secrets.WINDOWS_CERT_KEY }}
       - name: Verify executable
         run: ./percy.exe --version
+      - run: |
+          powershell Compress-Archive -Path percy.exe -DestinationPath percy-win.zip
       # - name: Upload assets
       #   uses: softprops/action-gh-release@d99959edae48b5ffffd7b00da66dcdb0a33a52ee
       #   with:
