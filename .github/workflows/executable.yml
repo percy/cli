@@ -1,8 +1,7 @@
 name: Build Executables
 on:
-  push:
-  pull_request:
-  workflow_dispatch:
+  release:
+    types: [published]
 jobs:
   build:
     name: Build Executables
@@ -25,14 +24,14 @@ jobs:
         with:
           name: win-exe
           path: percy.exe
-      # - name: Upload assets
-      #   uses: softprops/action-gh-release@d99959edae48b5ffffd7b00da66dcdb0a33a52ee
-      #   with:
-      #     files: |
-      #       percy-osx.zip
-      #       percy-linux.zip
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload assets
+        uses: softprops/action-gh-release@d99959edae48b5ffffd7b00da66dcdb0a33a52ee
+        with:
+          files: |
+            percy-osx.zip
+            percy-linux.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   notify:
     needs: build
     name: Sign Win Executable
@@ -51,11 +50,11 @@ jobs:
       - name: Verify executable
         run: ./percy.exe --version
       - run: |
-          powershell Compress-Archive -Path percy.exe -DestinationPath percy-win.zip
-      # - name: Upload assets
-      #   uses: softprops/action-gh-release@d99959edae48b5ffffd7b00da66dcdb0a33a52ee
-      #   with:
-      #     files: |
-      #       percy-win.zip
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          powershell -Command "Compress-Archive -Path 'percy.exe' -DestinationPath 'percy-win.zip'"
+      - name: Upload assets
+        uses: softprops/action-gh-release@d99959edae48b5ffffd7b00da66dcdb0a33a52ee
+        with:
+          files: |
+            percy-win.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
