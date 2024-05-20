@@ -1,36 +1,22 @@
 import utils from '@percy/sdk-utils';
-
-import MetaDataResolver from '../metadata/metaDataResolver.js';
+import TimeIt from '../util/timing.js';
 import Tile from '../util/tile.js';
-import Driver from '../driver.js';
+
 
 const log = utils.logger('webdriver-utils:genericProvider');
 
 export default class GenericProvider {
-  clientInfo = new Set();
-  environmentInfo = new Set();
-  options = {};
-  constructor(
-    sessionId,
-    commandExecutorUrl,
-    capabilities,
-    sessionCapabilites,
-    clientInfo,
-    environmentInfo,
-    options,
-    buildInfo
-  ) {
-    this.sessionId = sessionId;
-    this.commandExecutorUrl = commandExecutorUrl;
-    this.capabilities = capabilities;
-    this.sessionCapabilites = sessionCapabilites;
-    this.addClientInfo(clientInfo);
-    this.addEnvironmentInfo(environmentInfo);
-    this.options = options;
-    this.buildInfo = buildInfo;
-    this.driver = null;
+  clientInfoDetails = new Set();
+  environmentInfoDetails = new Set();
+  constructor(args) {
+    Object.assign(this, args);
+    console.log(JSON.stringify(args))
+    this.addClientInfo(this.clientInfo);
+    this.addEnvironmentInfo(this.environmentInfo);
+    this._markedPercy = false;
     this.metaData = null;
     this.debugUrl = null;
+    this.driver = null
     this.header = 0;
     this.footer = 0;
     this.statusBarHeight = 0;
@@ -45,27 +31,19 @@ export default class GenericProvider {
     this.options.freezeAnimation = this.options.freezeAnimatedImage || this.options.freezeAnimation || false;
   }
 
-  async createDriver() {
-    this.driver = new Driver(this.sessionId, this.commandExecutorUrl, this.capabilities);
-    log.debug(`Passed capabilities -> ${JSON.stringify(this.capabilities)}`);
-    const caps = await this.driver.getCapabilites();
-    log.debug(`Fetched capabilities -> ${JSON.stringify(caps)}`);
-    this.metaData = await MetaDataResolver.resolve(this.driver, caps, this.capabilities);
-  }
-
   static supports(_commandExecutorUrl) {
     return true;
   }
 
   addClientInfo(info) {
     for (let i of [].concat(info)) {
-      if (i) this.clientInfo.add(i);
+      if (i) this.clientInfoDetails.add(i);
     }
   }
 
   addEnvironmentInfo(info) {
     for (let i of [].concat(info)) {
-      if (i) this.environmentInfo.add(i);
+      if (i) this.environmentInfoDetails.add(i);
     }
   }
 
@@ -87,6 +65,72 @@ export default class GenericProvider {
 
   async scrollToPosition(x, y) {
     await this.driver.executeScript({ script: `window.scrollTo(${x}, ${y})`, args: [] });
+  }
+
+  async browserstackExecutor(action, args) {
+    if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
+    let options = args ? { action, arguments: args } : { action };
+    let res = await this.driver.executeScript({ script: `browserstack_executor: ${JSON.stringify(options)}`, args: [] });
+    return res;
+  }
+
+  async percyScreenshotBegin(name) {
+    return await TimeIt.run("percyScreenshotBegin", async () => {
+      try {
+        let result = await this.browserstackExecutor("percyScreenshot", {
+          name,
+          percyBuildId: this.buildInfo.id,
+          percyBuildUrl: this.buildInfo.url,
+          projectId: 'percy-dev',
+          state: "begin",
+        });
+        // Selenium Hub, set status error Code to 13 if an error is thrown
+        // Handling error with Selenium dialect is != W3C
+        if (result?.status === 13)
+          throw new Error(result?.value || "Got invalid error response");
+        this._markedPercy = result.success;
+        return result;
+      } catch (e) {
+        log.debug(`[${name}] : Could not mark Automate session as percy`);
+        log.error(`[${name}] : error: ${e.toString()}`);
+        /**
+         * - Handling Error when dialect is W3C
+         * ERROR response format from SeleniumHUB `{
+         * sessionId: ...,
+         * status: 13,
+         * value: { error: '', message: ''}
+         * }
+         */
+        const errResponse =
+          (e?.response?.body && JSON.parse(e?.response?.body)?.value) || {};
+        const errMessage =
+          errResponse?.message ||
+          errResponse?.error ||
+          e?.message ||
+          e?.error ||
+          e?.value ||
+          e.toString();
+        throw new Error(errMessage);
+      }
+    });
+  }
+
+  async percyScreenshotEnd(name, error) {
+    return await TimeIt.run('percyScreenshotEnd', async () => {
+      try {
+        await this.browserstackExecutor('percyScreenshot', {
+          name,
+          percyScreenshotUrl: this.buildInfo?.url,
+          status: error ? 'failure' : 'success',
+          statusMessage: error ? `${error}` : '',
+          state: 'end',
+          sync: this.options?.sync
+        });
+      } catch (e) {
+        log.debug(`[${name}] : Could not execute percyScreenshot command for Automate`);
+        log.error(e);
+      }
+    });
   }
 
   async screenshot(name, {
@@ -136,8 +180,8 @@ export default class GenericProvider {
       consideredElementsData: {
         considerElementsData: considerRegions
       },
-      environmentInfo: [...this.environmentInfo].join('; '),
-      clientInfo: [...this.clientInfo].join(' '),
+      environmentInfo: [...this.environmentInfoDetails].join('; '),
+      clientInfo: [...this.clientInfoDetails].join(' '),
       domInfoSha: tiles.domInfoSha,
       metadata: tiles.metadata || null
     };

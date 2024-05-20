@@ -4,6 +4,8 @@ import Cache from '../util/cache.js';
 import Tile from '../util/tile.js';
 import NormalizeData from '../metadata/normalizeData.js';
 import TimeIt from '../util/timing.js';
+import MetaDataResolver from '../metadata/metaDataResolver.js';
+import Driver from '../driver.js';
 
 const log = utils.logger('webdriver-utils:automateProvider');
 
@@ -19,6 +21,7 @@ export default class AutomateProvider extends GenericProvider {
     buildInfo
   ) {
     super(
+     {
       sessionId,
       commandExecutorUrl,
       capabilities,
@@ -27,13 +30,20 @@ export default class AutomateProvider extends GenericProvider {
       environmentInfo,
       options,
       buildInfo
+     }
     );
-    this._markedPercy = false;
-    this.automateResults = null;
   }
 
   static supports(commandExecutorUrl) {
-    return commandExecutorUrl.includes(process.env.AA_DOMAIN || 'browserstack');
+    return true || commandExecutorUrl.includes(process.env.AA_DOMAIN || 'browserstack');
+  }
+
+  async createDriver() {
+    this.driver = new Driver(this.sessionId, this.commandExecutorUrl, this.capabilities);
+    log.debug(`Passed capabilities -> ${JSON.stringify(this.capabilities)}`);
+    const caps = await this.driver.getCapabilites();
+    log.debug(`Fetched capabilities -> ${JSON.stringify(caps)}`);
+    this.metaData = await MetaDataResolver.resolve(this.driver, caps, this.capabilities);
   }
 
   async screenshot(name, {
@@ -74,67 +84,18 @@ export default class AutomateProvider extends GenericProvider {
     return response;
   }
 
-  async percyScreenshotBegin(name) {
-    return await TimeIt.run('percyScreenshotBegin', async () => {
-      try {
-        let result = await this.browserstackExecutor('percyScreenshot', {
-          name,
-          percyBuildId: this.buildInfo.id,
-          percyBuildUrl: this.buildInfo.url,
-          state: 'begin'
-        });
-        // Selenium Hub, set status error Code to 13 if an error is thrown
-        // Handling error with Selenium dialect is != W3C
-        if (result?.status === 13) throw new Error(result?.value || 'Got invalid error response');
-        this._markedPercy = result.success;
-        return result;
-      } catch (e) {
-        log.debug(`[${name}] : Could not mark Automate session as percy`);
-        log.error(`[${name}] : error: ${e.toString()}`);
-        /**
-         * - Handling Error when dialect is W3C
-         * ERROR response format from SeleniumHUB `{
-         * sessionId: ...,
-         * status: 13,
-         * value: { error: '', message: ''}
-         * }
-         */
-        const errResponse = (e?.response?.body && JSON.parse(e?.response?.body)?.value) || {};
-        const errMessage = errResponse?.message || errResponse?.error || e?.message || e?.error || e?.value || e.toString();
-        throw new Error(errMessage);
-      }
-    });
-  }
-
-  async percyScreenshotEnd(name, error) {
-    return await TimeIt.run('percyScreenshotEnd', async () => {
-      try {
-        await this.browserstackExecutor('percyScreenshot', {
-          name,
-          percyScreenshotUrl: this.buildInfo?.url,
-          status: error ? 'failure' : 'success',
-          statusMessage: error ? `${error}` : '',
-          state: 'end',
-          sync: this.options?.sync
-        });
-      } catch (e) {
-        log.debug(`[${name}] : Could not execute percyScreenshot command for Automate`);
-        log.error(e);
-      }
-    });
-  }
-
   async getTiles(fullscreen) {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     log.debug('Starting actual screenshotting phase');
     const dpr = await this.metaData.devicePixelRatio();
-    const screenshotType = this.options?.fullPage ? 'fullpage' : 'singlepage';
+    const screenshotType = 'fullpage';
     const response = await TimeIt.run('percyScreenshot:screenshot', async () => {
       return await this.browserstackExecutor('percyScreenshot', {
         state: 'screenshot',
         percyBuildId: this.buildInfo.id,
         screenshotType: screenshotType,
         scaleFactor: dpr,
+        projectId: 'percy-dev',
         options: this.options
       });
     });
@@ -162,13 +123,6 @@ export default class AutomateProvider extends GenericProvider {
       screenshotType: screenshotType
     };
     return { tiles: tiles, domInfoSha: tileResponse.dom_sha, metadata: metadata };
-  }
-
-  async browserstackExecutor(action, args) {
-    if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
-    let options = args ? { action, arguments: args } : { action };
-    let res = await this.driver.executeScript({ script: `browserstack_executor: ${JSON.stringify(options)}`, args: [] });
-    return res;
   }
 
   async setDebugUrl() {

@@ -136,8 +136,14 @@ export function createPercyServer(percy, port) {
     }))
     .route('post', '/percy/automateScreenshot', async (req, res) => {
       let data;
+      let comparisonData;
       percyAutomateRequestHandler(req, percy);
-      let comparisonData = await WebdriverUtils.automateScreenshot(req.body);
+      if(req.body.framework == 'playwright') {
+        comparisonData = await WebdriverUtils.playwrightScreenshot(req.body);
+      } else {
+        comparisonData = await WebdriverUtils.automateScreenshot(req.body);
+      }
+      
       if (percy.syncMode(comparisonData)) {
         const snapshotPromise = new Promise((resolve, reject) => percy.upload(comparisonData, { resolve, reject }, 'automate'));
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');
