@@ -3,7 +3,7 @@ on:
   release:
     types: [published]
 jobs:
-  lint:
+  build:
     name: Build Executables
     runs-on: macos-latest
     steps:
@@ -19,12 +19,42 @@ jobs:
           APPLE_ID_KEY: ${{secrets.APPLE_ID_KEY}}
       - name: Verify executable
         run: ./percy --version
+      - name: Upload win artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: win-exe
+          path: percy.exe
       - name: Upload assets
         uses: softprops/action-gh-release@d99959edae48b5ffffd7b00da66dcdb0a33a52ee
         with:
           files: |
             percy-osx.zip
             percy-linux.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  notify:
+    needs: build
+    name: Sign Win Executable
+    runs-on: windows-latest
+    steps:
+      - name: Download a single artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: win-exe
+      - name: Sign binary
+        uses: lando/code-sign-action@v2
+        with:
+          file: ./percy.exe
+          certificate-data: ${{ secrets.WINDOWS_CERT }}
+          certificate-password: ${{ secrets.WINDOWS_CERT_KEY }}
+      - name: Verify executable
+        run: ./percy.exe --version
+      - run: |
+          powershell -Command "Compress-Archive -Path 'percy.exe' -DestinationPath 'percy-win.zip'"
+      - name: Upload assets
+        uses: softprops/action-gh-release@d99959edae48b5ffffd7b00da66dcdb0a33a52ee
+        with:
+          files: |
             percy-win.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
