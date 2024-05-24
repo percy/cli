@@ -210,5 +210,20 @@ describe('serializeCSSOM', () => {
       URL.revokeObjectURL(blobUrl1);
       URL.revokeObjectURL(blobUrl2);
     });
+
+    it('adds warning when serializing DocumentFragment', () => {
+      if (platform !== 'plain') {
+        return;
+      }
+      withExample('<div>DocumentFragment</div>', { withShadow: false });
+      const fragment = document.createDocumentFragment();
+      const div = document.createElement('div');
+      div.textContent = 'Hello World';
+      fragment.appendChild(div);
+      document.body.appendChild(fragment);
+      const capture = serializeDOM();
+      expect(capture.warnings).toContain('Skipping `styleSheets` as it is not supported.');
+      dom.body.removeChild(fragment);
+    });
   });
 });
