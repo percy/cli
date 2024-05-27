@@ -27,36 +27,45 @@ function createStyleResource(styleSheet) {
 
 export function serializeCSSOM({ dom, clone, resources, cache, warnings }) {
   // in-memory CSSOM into their respective DOM nodes.
-  for (let styleSheet of dom.styleSheets) {
-    if (isCSSOM(styleSheet)) {
-      let styleId = styleSheet.ownerNode.getAttribute('data-percy-element-id');
-      let cloneOwnerNode = clone.querySelector(`[data-percy-element-id="${styleId}"]`);
-      if (styleSheetsMatch(styleSheet, styleSheetFromNode(cloneOwnerNode))) continue;
-      let style = document.createElement('style');
+  let styleSheets = null;
+  // catch error in case styleSheets property is not available (overwritten to throw error)
+  try {
+    styleSheets = dom.styleSheets;
+  } catch {
+    warnings.add('Skipping `styleSheets` as it is not supported.');
+  }
+  if (styleSheets) {
+    for (let styleSheet of styleSheets) {
+      if (isCSSOM(styleSheet)) {
+        let styleId = styleSheet.ownerNode.getAttribute('data-percy-element-id');
+        let cloneOwnerNode = clone.querySelector(`[data-percy-element-id="${styleId}"]`);
+        if (styleSheetsMatch(styleSheet, styleSheetFromNode(cloneOwnerNode))) continue;
+        let style = document.createElement('style');
 
-      style.type = 'text/css';
-      style.setAttribute('data-percy-element-id', styleId);
-      style.setAttribute('data-percy-cssom-serialized', 'true');
-      style.innerHTML = Array.from(styleSheet.cssRules)
-        .map(cssRule => cssRule.cssText).join('\n');
+        style.type = 'text/css';
+        style.setAttribute('data-percy-element-id', styleId);
+        style.setAttribute('data-percy-cssom-serialized', 'true');
+        style.innerHTML = Array.from(styleSheet.cssRules)
+          .map(cssRule => cssRule.cssText).join('\n');
 
-      cloneOwnerNode.parentNode.insertBefore(style, cloneOwnerNode.nextSibling);
-      cloneOwnerNode.remove();
-    } else if (styleSheet.href?.startsWith('blob:')) {
-      const styleLink = document.createElement('link');
-      styleLink.setAttribute('rel', 'stylesheet');
-      let resource = createStyleResource(styleSheet);
-      resources.add(resource);
+        cloneOwnerNode.parentNode.insertBefore(style, cloneOwnerNode.nextSibling);
+        cloneOwnerNode.remove();
+      } else if (styleSheet.href?.startsWith('blob:')) {
+        const styleLink = document.createElement('link');
+        styleLink.setAttribute('rel', 'stylesheet');
+        let resource = createStyleResource(styleSheet);
+        resources.add(resource);
 
-      styleLink.setAttribute('data-percy-blob-stylesheets-serialized', 'true');
-      styleLink.setAttribute('data-percy-serialized-attribute-href', resource.url);
+        styleLink.setAttribute('data-percy-blob-stylesheets-serialized', 'true');
+        styleLink.setAttribute('data-percy-serialized-attribute-href', resource.url);
 
-      /* istanbul ignore next: tested, but coverage is stripped */
-      if (clone.constructor.name === 'HTMLDocument' || clone.constructor.name === 'DocumentFragment') {
-        // handle document and iframe
-        clone.body.prepend(styleLink);
-      } else if (clone.constructor.name === 'ShadowRoot') {
-        clone.prepend(styleLink);
+        /* istanbul ignore next: tested, but coverage is stripped */
+        if (clone.constructor.name === 'HTMLDocument' || clone.constructor.name === 'DocumentFragment') {
+          // handle document and iframe
+          clone.body.prepend(styleLink);
+        } else if (clone.constructor.name === 'ShadowRoot') {
+          clone.prepend(styleLink);
+        }
       }
     }
   }

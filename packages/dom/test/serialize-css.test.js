@@ -210,5 +210,13 @@ describe('serializeCSSOM', () => {
       URL.revokeObjectURL(blobUrl1);
       URL.revokeObjectURL(blobUrl2);
     });
+
+    it('warns if styleSheets property is producing an error on shadow root', () => {
+      withExample('<div id="content"></div>', { withRestrictedShadow: true });
+      const baseContent = document.querySelector('#content');
+      baseContent.innerHTML = '<input type="text>';
+      const serialized = serializeDOM();
+      expect(serialized.warnings).toEqual(['Skipping `styleSheets` as it is not supported.']);
+    });
   });
 });
