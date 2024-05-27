@@ -28,7 +28,7 @@ function createStyleResource(styleSheet) {
 export function serializeCSSOM({ dom, clone, resources, cache, warnings }) {
   // in-memory CSSOM into their respective DOM nodes.
   let styleSheets = null;
-  // catch error in case styleSheets property is not available (e.g. DocumentFragment)
+  // catch error in case styleSheets property is not available (overwritten to throw error)
   try {
     styleSheets = dom.styleSheets;
   } catch {

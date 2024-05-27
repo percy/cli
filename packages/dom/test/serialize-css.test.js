@@ -211,19 +211,12 @@ describe('serializeCSSOM', () => {
       URL.revokeObjectURL(blobUrl2);
     });
 
-    it('adds warning when serializing DocumentFragment', () => {
-      if (platform !== 'plain') {
-        return;
-      }
-      withExample('<div>DocumentFragment</div>', { withShadow: false });
-      const fragment = document.createDocumentFragment();
-      const div = document.createElement('div');
-      div.textContent = 'Hello World';
-      fragment.appendChild(div);
-      document.body.appendChild(fragment);
-      const capture = serializeDOM();
-      expect(capture.warnings).toContain('Skipping `styleSheets` as it is not supported.');
-      dom.body.removeChild(fragment);
+    it('warns if styleSheets property is producing an error on shadow root', () => {
+      withExample('<div id="content"></div>', { withRestrictedShadow: true });
+      const baseContent = document.querySelector('#content');
+      baseContent.innerHTML = '<input type="text>';
+      const serialized = serializeDOM();
+      expect(serialized.warnings).toEqual(['Skipping `styleSheets` as it is not supported.']);
     });
   });
 });
