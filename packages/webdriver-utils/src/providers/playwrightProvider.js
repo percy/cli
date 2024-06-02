@@ -62,10 +62,10 @@ export default class PlaywrightProvider extends GenericProvider{
         // TODO: Fetch this one for bs automate, check appium sdk
         externalDebugUrl: this.debugUrl,
         ignoredElementsData: {
-          ignoreElementsData: []
+          ignoreElementsData: tiles.ignoreRegionsData
         },
         consideredElementsData: {
-          considerElementsData: []
+          considerElementsData: tiles.considerRegionsData
         },
         environmentInfo: [...this.environmentInfo].join('; '),
         clientInfo: [...this.clientInfo].join(' '),
@@ -122,14 +122,24 @@ export default class PlaywrightProvider extends GenericProvider{
       }));
     }
     const tagData = {
-      width: tileResponse.tag_data.width,
-      height: tileResponse.tag_data.height,
-      resolution: tileResponse.tag_data.resolution,
+      width: tileResponse.comparison_tag_data.width,
+      height: tileResponse.comparison_tag_data.height,
+      resolution: tileResponse.comparison_tag_data.resolution,
     }
+
+    const ignoreRegionsData = tileResponse.ignore_regions_data || []
+    const considerRegionsData = tileResponse.consider_regions_data || []
     const metadata = {
       screenshotType: screenshotType
     };
-    return { tiles: tiles, domInfoSha: tileResponse.dom_sha, metadata: metadata, tagData: tagData };
+    return { 
+      tiles: tiles, 
+      domInfoSha: tileResponse.dom_sha, 
+      metadata: metadata, 
+      tagData: tagData,
+      ignoreRegionsData: ignoreRegionsData,
+      considerRegionsData: considerRegionsData
+    };
   }
 
   async getTag(tagData) {
