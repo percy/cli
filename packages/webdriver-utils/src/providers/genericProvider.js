@@ -9,7 +9,6 @@ export default class GenericProvider {
   environmentInfoDetails = new Set();
   constructor(args) {
     Object.assign(this, args);
-    console.log(JSON.stringify(args));
     this.addClientInfo(this.clientInfo);
     this.addEnvironmentInfo(this.environmentInfo);
     this._markedPercy = false;

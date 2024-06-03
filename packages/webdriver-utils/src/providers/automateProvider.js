@@ -35,7 +35,7 @@ export default class AutomateProvider extends GenericProvider {
   }
 
   static supports(commandExecutorUrl) {
-    return true || commandExecutorUrl.includes(process.env.AA_DOMAIN || 'browserstack');
+    return commandExecutorUrl.includes(process.env.AA_DOMAIN || 'browserstack');
   }
 
   async createDriver() {
