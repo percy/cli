@@ -17,6 +17,8 @@ jobs:
           APPLE_DEV_CERT: ${{secrets.APPLE_DEV_CERT}}
           APPLE_ID_USERNAME: ${{secrets.APPLE_ID_USERNAME}}
           APPLE_ID_KEY: ${{secrets.APPLE_ID_KEY}}
+          APPLE_CERT_KEY: ${{secrets.APPLE_CERT_KEY}}
+          APPLE_TEAM_ID: ${{secrets.APPLE_TEAM_ID}}
       - name: Verify executable
         run: ./percy --version
       - name: Upload win artifact
