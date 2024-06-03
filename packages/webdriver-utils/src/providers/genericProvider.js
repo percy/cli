@@ -2,7 +2,6 @@ import utils from '@percy/sdk-utils';
 import TimeIt from '../util/timing.js';
 import Tile from '../util/tile.js';
 
-
 const log = utils.logger('webdriver-utils:genericProvider');
 
 export default class GenericProvider {
@@ -10,13 +9,13 @@ export default class GenericProvider {
   environmentInfoDetails = new Set();
   constructor(args) {
     Object.assign(this, args);
-    console.log(JSON.stringify(args))
+    console.log(JSON.stringify(args));
     this.addClientInfo(this.clientInfo);
     this.addEnvironmentInfo(this.environmentInfo);
     this._markedPercy = false;
     this.metaData = null;
     this.debugUrl = null;
-    this.driver = null
+    this.driver = null;
     this.header = 0;
     this.footer = 0;
     this.statusBarHeight = 0;
@@ -75,19 +74,17 @@ export default class GenericProvider {
   }
 
   async percyScreenshotBegin(name) {
-    return await TimeIt.run("percyScreenshotBegin", async () => {
+    return await TimeIt.run('percyScreenshotBegin', async () => {
       try {
-        let result = await this.browserstackExecutor("percyScreenshot", {
+        let result = await this.browserstackExecutor('percyScreenshot', {
           name,
           percyBuildId: this.buildInfo.id,
           percyBuildUrl: this.buildInfo.url,
-          projectId: 'percy-dev',
-          state: "begin",
+          state: 'begin'
         });
         // Selenium Hub, set status error Code to 13 if an error is thrown
         // Handling error with Selenium dialect is != W3C
-        if (result?.status === 13)
-          throw new Error(result?.value || "Got invalid error response");
+        if (result?.status === 13) { throw new Error(result?.value || 'Got invalid error response'); }
         this._markedPercy = result.success;
         return result;
       } catch (e) {

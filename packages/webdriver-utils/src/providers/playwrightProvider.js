@@ -1,13 +1,13 @@
 import utils from '@percy/sdk-utils';
-import TimeIt from "../util/timing.js";
+import TimeIt from '../util/timing.js';
 import NormalizeData from '../metadata/normalizeData.js';
 import Tile from '../util/tile.js';
 import GenericProvider from './genericProvider.js';
 import PlaywrightDriver from '../playwrightDriver.js';
 
-const log = utils.logger("webdriver-utils:genericProvider");
+const log = utils.logger('webdriver-utils:genericProvider');
 
-export default class PlaywrightProvider extends GenericProvider{
+export default class PlaywrightProvider extends GenericProvider {
   constructor(
     sessionId,
     frameGuid,
@@ -19,27 +19,26 @@ export default class PlaywrightProvider extends GenericProvider{
   ) {
     super(
       {
-      sessionId,
-      frameGuid,
-      pageGuid,
-      clientInfo,
-      environmentInfo,
-      options,
-      buildInfo,
-    }
+        sessionId,
+        frameGuid,
+        pageGuid,
+        clientInfo,
+        environmentInfo,
+        options,
+        buildInfo
+      }
     );
   }
 
   async createDriver() {
-    this.driver = new PlaywrightDriver(this.sessionId)
+    this.driver = new PlaywrightDriver(this.sessionId);
   }
 
   async setDebugUrl() {
     this.debugUrl = `https://automate.browserstack.com/builds/${this.automateResults.buildHash}/sessions/${this.automateResults.sessionHash}`;
   }
 
-  async screenshot(name, {
-  }) {
+  async screenshot(name, options) {
     let response = null;
     let error;
     log.debug(`[${name}] : Preparing to capture screenshots on playwrght with automate ...`);
@@ -73,7 +72,7 @@ export default class PlaywrightProvider extends GenericProvider{
         metadata: tiles.metadata || null
       };
     } catch (e) {
-      console.trace(e)
+      console.trace(e);
       error = e;
       throw e;
     } finally {
@@ -84,7 +83,7 @@ export default class PlaywrightProvider extends GenericProvider{
 
   async getTiles(fullscreen = true) {
     log.debug('Starting actual screenshotting phase');
-    const screenshotType = 'fullpage';
+    const screenshotType = this.options?.fullPage ? 'fullpage' : 'singlepage';
     const response = await TimeIt.run('percyScreenshot:screenshot', async () => {
       return await this.browserstackExecutor('percyScreenshot', {
         state: 'screenshot',
@@ -92,10 +91,9 @@ export default class PlaywrightProvider extends GenericProvider{
         screenshotType: screenshotType,
         scaleFactor: 1,
         options: this.options,
-        projectId: 'percy-dev',
         frameworkData: {
           frameGuid: this.frameGuid,
-          pageGuid: this.pageGuid,
+          pageGuid: this.pageGuid
         },
         framework: 'playwright'
       });
@@ -124,18 +122,18 @@ export default class PlaywrightProvider extends GenericProvider{
     const tagData = {
       width: tileResponse.comparison_tag_data.width,
       height: tileResponse.comparison_tag_data.height,
-      resolution: tileResponse.comparison_tag_data.resolution,
-    }
+      resolution: tileResponse.comparison_tag_data.resolution
+    };
 
-    const ignoreRegionsData = tileResponse.ignore_regions_data || []
-    const considerRegionsData = tileResponse.consider_regions_data || []
+    const ignoreRegionsData = tileResponse.ignore_regions_data || [];
+    const considerRegionsData = tileResponse.consider_regions_data || [];
     const metadata = {
       screenshotType: screenshotType
     };
-    return { 
-      tiles: tiles, 
-      domInfoSha: tileResponse.dom_sha, 
-      metadata: metadata, 
+    return {
+      tiles: tiles,
+      domInfoSha: tileResponse.dom_sha,
+      metadata: metadata,
       tagData: tagData,
       ignoreRegionsData: ignoreRegionsData,
       considerRegionsData: considerRegionsData
@@ -154,10 +152,10 @@ export default class PlaywrightProvider extends GenericProvider{
     const browserName = normalizeTags.browserRollUp(automateCaps.browserName, false);
     const browserVersion = normalizeTags.browserVersionOrDeviceNameRollup(automateCaps.browserVersion, deviceName, false);
 
-    let { width, height } = {width: tagData.width, height: tagData.height}
+    let { width, height } = { width: tagData.width, height: tagData.height };
     const resolution = tagData.resolution;
     log.debug(`orientation ${automateCaps.deviceOrientation}`);
-    const orientation = automateCaps.deviceOrientation || 'landscape'
+    const orientation = automateCaps.deviceOrientation || 'landscape';
 
     return {
       name: deviceName,

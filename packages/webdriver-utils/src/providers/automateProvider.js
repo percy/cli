@@ -21,16 +21,16 @@ export default class AutomateProvider extends GenericProvider {
     buildInfo
   ) {
     super(
-     {
-      sessionId,
-      commandExecutorUrl,
-      capabilities,
-      sessionCapabilites,
-      clientInfo,
-      environmentInfo,
-      options,
-      buildInfo
-     }
+      {
+        sessionId,
+        commandExecutorUrl,
+        capabilities,
+        sessionCapabilites,
+        clientInfo,
+        environmentInfo,
+        options,
+        buildInfo
+      }
     );
   }
 
@@ -43,7 +43,7 @@ export default class AutomateProvider extends GenericProvider {
     log.debug(`Passed capabilities -> ${JSON.stringify(this.capabilities)}`);
     const caps = await this.driver.getCapabilites();
     log.debug(`Fetched capabilities -> ${JSON.stringify(caps)}`);
-    this.metaData = await MetaDataResolver.resolve(this.driver, caps, this.capabilities);
+    this.metaData = MetaDataResolver.resolve(this.driver, caps, this.capabilities);
   }
 
   async screenshot(name, {
@@ -88,14 +88,13 @@ export default class AutomateProvider extends GenericProvider {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
     log.debug('Starting actual screenshotting phase');
     const dpr = await this.metaData.devicePixelRatio();
-    const screenshotType = 'fullpage';
+    const screenshotType = this.options?.fullPage ? 'fullpage' : 'singlepage';
     const response = await TimeIt.run('percyScreenshot:screenshot', async () => {
       return await this.browserstackExecutor('percyScreenshot', {
         state: 'screenshot',
         percyBuildId: this.buildInfo.id,
         screenshotType: screenshotType,
         scaleFactor: dpr,
-        projectId: 'percy-dev',
         options: this.options
       });
     });
