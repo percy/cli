@@ -10,30 +10,6 @@ import Driver from '../driver.js';
 const log = utils.logger('webdriver-utils:automateProvider');
 
 export default class AutomateProvider extends GenericProvider {
-  constructor(
-    sessionId,
-    commandExecutorUrl,
-    capabilities,
-    sessionCapabilites,
-    clientInfo,
-    environmentInfo,
-    options,
-    buildInfo
-  ) {
-    super(
-      {
-        sessionId,
-        commandExecutorUrl,
-        capabilities,
-        sessionCapabilites,
-        clientInfo,
-        environmentInfo,
-        options,
-        buildInfo
-      }
-    );
-  }
-
   static supports(commandExecutorUrl) {
     return commandExecutorUrl.includes(process.env.AA_DOMAIN || 'browserstack');
   }

@@ -333,7 +333,7 @@ describe('API Server', () => {
     let resolve, test = new Promise(r => (resolve = r));
     spyOn(percy, 'upload').and.returnValue(test);
     let mockWebdriverUtilResponse = 'TODO: mocked response';
-    let automateScreenshotSpy = spyOn(WebdriverUtils, 'automateScreenshot').and.resolveTo(mockWebdriverUtilResponse);
+    let captureScreenshotSpy = spyOn(WebdriverUtils, 'captureScreenshot').and.resolveTo(mockWebdriverUtilResponse);
 
     await percy.start();
 
@@ -363,7 +363,7 @@ describe('API Server', () => {
       method: 'post'
     })).toBeResolvedTo({ success: true });
 
-    expect(automateScreenshotSpy).toHaveBeenCalledOnceWith(jasmine.objectContaining({
+    expect(captureScreenshotSpy).toHaveBeenCalledOnceWith(jasmine.objectContaining({
       clientInfo: 'client',
       environmentInfo: 'environment',
       buildInfo: { id: '123', url: 'https://percy.io/test/test/123', number: 1 },
@@ -390,7 +390,7 @@ describe('API Server', () => {
   it('has a /automateScreenshot endpoint that calls #upload() async with provided options', async () => {
     spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
     spyOn(percy, 'upload').and.callFake((_, callback) => callback.resolve());
-    let automateScreenshotSpy = spyOn(WebdriverUtils, 'automateScreenshot').and.returnValue({ sync: true });
+    let captureScreenshotSpy = spyOn(WebdriverUtils, 'captureScreenshot').and.returnValue({ sync: true });
 
     await percy.start();
 
@@ -420,7 +420,7 @@ describe('API Server', () => {
       method: 'post'
     })).toBeResolvedTo({ success: true, data: getSnapshotDetailsResponse });
 
-    expect(automateScreenshotSpy).toHaveBeenCalledOnceWith(jasmine.objectContaining({
+    expect(captureScreenshotSpy).toHaveBeenCalledOnceWith(jasmine.objectContaining({
       clientInfo: 'client',
       environmentInfo: 'environment',
       buildInfo: { id: '123', url: 'https://percy.io/test/test/123', number: 1 },

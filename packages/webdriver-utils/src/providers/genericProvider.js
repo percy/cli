@@ -1,6 +1,8 @@
 import utils from '@percy/sdk-utils';
 import TimeIt from '../util/timing.js';
 import Tile from '../util/tile.js';
+import Driver from '../../src/driver.js';
+import MetaDataResolver from '../metadata/metaDataResolver.js';
 
 const log = utils.logger('webdriver-utils:genericProvider');
 
@@ -27,6 +29,14 @@ export default class GenericProvider {
 
   addDefaultOptions() {
     this.options.freezeAnimation = this.options.freezeAnimatedImage || this.options.freezeAnimation || false;
+  }
+
+  async createDriver() {
+    this.driver = new Driver(this.sessionId, this.commandExecutorUrl, this.capabilities);
+    log.debug(`Passed capabilities -> ${JSON.stringify(this.capabilities)}`);
+    const caps = await this.driver.getCapabilites();
+    log.debug(`Fetched capabilities -> ${JSON.stringify(caps)}`);
+    this.metaData = MetaDataResolver.resolve(this.driver, caps, this.capabilities);
   }
 
   static supports(_commandExecutorUrl) {
@@ -176,11 +186,21 @@ export default class GenericProvider {
       consideredElementsData: {
         considerElementsData: considerRegions
       },
-      environmentInfo: [...this.environmentInfoDetails].join('; '),
-      clientInfo: [...this.clientInfoDetails].join(' '),
+      environmentInfo: this.getUserAgentString(this.environmentInfoDetails),
+      clientInfo: this.getUserAgentString(this.clientInfoDetails),
       domInfoSha: tiles.domInfoSha,
       metadata: tiles.metadata || null
     };
+  }
+
+  getUserAgentString(data) {
+    let result = '';
+    if (data instanceof Set) {
+      result = [...data].join('; ');
+    } else if (typeof data === 'string') {
+      result = data;
+    }
+    return result;
   }
 
   // TODO: get dom sha for non-automate
