@@ -165,7 +165,7 @@ export class Percy {
       // start a local API server for SDK communication
       if (this.server) yield this.server.listen();
       if (this.projectType === 'web') {
-        if (!process.env.PERCY_DON0T_CAPTURE_RESPONSIVE_ASSETS || process.env.PERCY_DON0T_CAPTURE_RESPONSIVE_ASSETS !== 'true') {
+        if (!process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS || process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS !== 'true') {
           this.deviceDetails = yield this.client.getDeviceDetails(this.build?.id);
         }
       }
