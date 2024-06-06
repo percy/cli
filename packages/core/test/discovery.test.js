@@ -2255,7 +2255,7 @@ describe('Discovery', () => {
 
   describe('Capture responsive assets =>', () => {
     afterEach(() => {
-      delete process.env.PERCY_DISABLE_DEVICE_DETAIL_FETCH;
+      delete process.env.PERCY_DON0T_CAPTURE_RESPONSIVE_ASSETS;
     });
     it('should capture js based assets', async () => {
       api.reply('/discovery/device-details?build_id=123', () => [200, { data: [{ width: 375, deviceScaleFactor: 2 }, { width: 390, deviceScaleFactor: 3 }] }]);
@@ -2328,7 +2328,7 @@ describe('Discovery', () => {
     });
 
     it('should not capture js based assets and returns default', async () => {
-      process.env.PERCY_DISABLE_DEVICE_DETAIL_FETCH = 'true';
+      process.env.PERCY_DON0T_CAPTURE_RESPONSIVE_ASSETS = 'true';
       api.reply('/discovery/device-details?build_id=123', () => [200, { data: [{ width: 375, deviceScaleFactor: 2 }, { width: 390, deviceScaleFactor: 3 }] }]);
       // stop current instance to create a new one
       await percy.stop();
