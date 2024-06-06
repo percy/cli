@@ -2092,12 +2092,12 @@ describe('Discovery', () => {
       const fetchUpstream = async(request) => {
         return await fetch(request.clone());
       }
-      
+
       self.addEventListener('fetch', (event) => {
         const { request } = event
         event.respondWith(fetchUpstream(request));
       });
-      
+
       self.addEventListener("activate", (event) => {
         event.waitUntil(clients.claim());
       });
@@ -2107,9 +2107,9 @@ describe('Discovery', () => {
       const registerServiceWorker = async () => {
         await navigator.serviceWorker.register('sw.js',{ scope: './', });
       };
-      
+
       await registerServiceWorker();
-      
+
       // create and insert image element which will be intercepted and resolved by service worker
       // adding a sleep of 1s for service worker to get activated
       await new Promise(r => setTimeout(r, 1000));
@@ -2254,6 +2254,9 @@ describe('Discovery', () => {
   });
 
   describe('Capture responsive assets =>', () => {
+    afterEach(() => {
+      delete process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS;
+    });
     it('should capture js based assets', async () => {
       api.reply('/discovery/device-details?build_id=123', () => [200, { data: [{ width: 375, deviceScaleFactor: 2 }, { width: 390, deviceScaleFactor: 3 }] }]);
       // stop current instance to create a new one
@@ -2315,6 +2318,75 @@ describe('Discovery', () => {
         resource('/default.jpg'),
         resource('/small.jpg'),
         resource('/medium.jpg')
+      ]));
+
+      expect(captured[0]).not.toContain(jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/large.jpg'
+        })
+      }));
+    });
+
+    it('should not capture js based assets and returns default', async () => {
+      process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS = 'true';
+      api.reply('/discovery/device-details?build_id=123', () => [200, { data: [{ width: 375, deviceScaleFactor: 2 }, { width: 390, deviceScaleFactor: 3 }] }]);
+      // stop current instance to create a new one
+      await percy.stop();
+      percy = await Percy.start({
+        projectType: 'web',
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+      let responsiveDOM = dedent`
+        <html><head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body>
+        <h1>Responsive Images Example</h1>
+        <img id="responsive-image" src="default.jpg" alt="Responsive Image">
+        <script>
+            var image = document.getElementById('responsive-image');
+            function updateImage() {
+              var width = window.innerWidth;
+              var dpr = window.devicePixelRatio;
+              if (width <= 375 || dpr == 2) {
+                image.src = '/small.jpg';
+              } else if (width < 1200 || dpr == 3) {
+                image.src = '/medium.jpg';
+              } else {
+                image.src = '/large.jpg';
+              }
+            }
+            window.addEventListener('resize', updateImage);
+            window.addEventListener('load', updateImage);
+        </script>
+        </body>
+        </html>
+      `;
+
+      server.reply('/', () => [200, 'text/html', responsiveDOM]);
+      server.reply('/default.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/small.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/medium.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/large.jpg', () => [200, 'image/jpg', pixel]);
+
+      await percy.snapshot({
+        name: 'image srcset',
+        url: 'http://localhost:8000',
+        widths: [1024]
+      });
+
+      await percy.idle();
+
+      let resource = path => jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': `http://localhost:8000${path}`
+        })
+      });
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        resource('/default.jpg')
       ]));
 
       expect(captured[0]).not.toContain(jasmine.objectContaining({
