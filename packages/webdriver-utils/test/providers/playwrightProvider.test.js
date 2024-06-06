@@ -353,6 +353,42 @@ describe('PlaywrightProvider', () => {
       });
     });
 
+    it('should return the correct tag details for android', async () => {
+      spyOn(NormalizeData.prototype, 'osRollUp').and.returnValue('ANDROID');
+      spyOn(NormalizeData.prototype, 'browserRollUp').and.returnValue('Chrome');
+      spyOn(
+        NormalizeData.prototype,
+        'browserVersionOrDeviceNameRollup'
+      ).and.returnValue('90.0');
+      provider.automateResults = {
+        capabilities: {
+          deviceName: 'deviceName',
+          os: 'os',
+          os_version: '11.0',
+          browserName: 'browserName',
+          browserVersion: 'browserVersion',
+          deviceOrientation: 'orientation'
+        }
+      };
+      const response = await provider.getTag({
+        width: 100,
+        height: 100,
+        resolution: 'resolution'
+      });
+
+      expect(NormalizeData.prototype.browserRollUp).toHaveBeenCalledWith('browserName', true);
+      expect(response).toEqual({
+        name: undefined,
+        osName: 'ANDROID',
+        osVersion: '11',
+        width: 100,
+        height: 100,
+        orientation: 'orientation',
+        browserName: 'Chrome',
+        browserVersion: '90.0',
+        resolution: 'resolution'
+      });
+    });
     it('should throw an error if automateResults is not available', async () => {
       provider.automateResults = null;
       const error = new Error('Comparison tag details not available');
