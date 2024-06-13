@@ -974,4 +974,30 @@ describe('GenericProvider', () => {
       expect(getScrollDetailsSpy).toHaveBeenCalled();
     });
   });
+
+  describe('getUserAgentString', () => {
+    let provider = new GenericProvider(args);
+    it('should return empty string if input is not a Set or string', () => {
+      expect(provider.getUserAgentString(123)).toEqual('');
+      expect(provider.getUserAgentString(null)).toEqual('');
+      expect(provider.getUserAgentString(undefined)).toEqual('');
+      expect(provider.getUserAgentString([])).toEqual('');
+      expect(provider.getUserAgentString({})).toEqual('');
+    });
+
+    it('should return stringified Set elements separated by semicolon', () => {
+      const data = new Set(['Mozilla/5.0', 'AppleWebKit/537.36', 'Chrome/64.0.3282.140']);
+      expect(provider.getUserAgentString(data)).toEqual('Mozilla/5.0; AppleWebKit/537.36; Chrome/64.0.3282.140');
+    });
+
+    it('should return the same string if input is a string', () => {
+      const data = 'Mozilla/5.0; AppleWebKit/537.36; Chrome/64.0.3282.140';
+      expect(provider.getUserAgentString(data)).toEqual(data);
+    });
+
+    it('should return empty string for empty Set', () => {
+      const data = new Set();
+      expect(provider.getUserAgentString(data)).toEqual('');
+    });
+  });
 });

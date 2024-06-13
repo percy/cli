@@ -211,6 +211,60 @@ describe('PlaywrightProvider', () => {
       });
     });
 
+    it('should capture tiles successfully with default values for singlepage screenshot', async () => {
+      provider.browserstackExecutor = jasmine
+        .createSpy('browserstackExecutor')
+        .and.resolveTo({
+          value: JSON.stringify({
+            success: true,
+            result: JSON.stringify({
+              tiles: [
+                {
+                  sha: 'tile1'
+                }
+              ],
+              comparison_tag_data: {
+                width: 100,
+                height: 100,
+                resolution: 'resolution'
+              },
+              dom_sha: 'domSHA'
+            })
+          })
+        });
+
+      const response = await provider.getTiles(false);
+      expect(provider.browserstackExecutor).toHaveBeenCalledWith(
+        'percyScreenshot',
+        {
+          state: 'screenshot',
+          percyBuildId: 1,
+          screenshotType: 'singlepage',
+          scaleFactor: 1,
+          options: 'options',
+          frameworkData: { frameGuid: 'frameGuid', pageGuid: 'pageGuid' },
+          framework: 'playwright'
+        }
+      );
+      expect(response).toEqual({
+        tiles: [
+          new Tile({
+            statusBarHeight: 0,
+            navBarHeight: 0,
+            headerHeight: 0,
+            footerHeight: 0,
+            fullscreen: false,
+            sha: 'tile1'
+          })
+        ],
+        domInfoSha: 'domSHA',
+        tagData: { width: 100, height: 100, resolution: 'resolution' },
+        ignoreRegionsData: [],
+        considerRegionsData: [],
+        metadata: { screenshotType: 'singlepage' }
+      });
+    });
+
     it('should capture tiles successfully for fullscreen screenshot', async () => {
       provider = new PlaywrightProvider(
         'sessionId',
