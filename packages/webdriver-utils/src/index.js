@@ -23,7 +23,7 @@ export default class WebdriverUtils {
       log.info(`[${snapshotName}] : Starting automate screenshot capture ...`);
 
       let provider;
-      switch (framework) {
+      switch (framework ? framework.toLowerCase() : null) {
         case 'playwright':
           provider = new PlaywrightProvider(sessionId, frameGuid, pageGuid, clientInfo, environmentInfo, options, buildInfo);
           break;
