@@ -420,8 +420,7 @@ describe('PlaywrightProvider', () => {
           os: 'os',
           os_version: '11.0',
           browserName: 'browserName',
-          browserVersion: 'browserVersion',
-          deviceOrientation: 'orientation'
+          browserVersion: 'browserVersion'
         }
       };
       const response = await provider.getTag({
@@ -437,7 +436,7 @@ describe('PlaywrightProvider', () => {
         osVersion: '11',
         width: 100,
         height: 100,
-        orientation: 'orientation',
+        orientation: 'landscape',
         browserName: 'Chrome',
         browserVersion: '90.0',
         resolution: 'resolution'

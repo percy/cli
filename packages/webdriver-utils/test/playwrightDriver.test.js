@@ -64,6 +64,28 @@ describe('PlaywrightDriver', () => {
       expect(response).toEqual({ value: 'mockVal' });
     });
 
+    it('should execute script without percy_automate_script', async () => {
+      const command = { script: 'browserstack_executor: console.log("Hello, World!")', args: [] };
+
+      const response = await driver.executeScript(command);
+
+      const expectedCommand = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json;charset=utf-8'
+        },
+        body: JSON.stringify({
+          script: 'browserstack_executor: console.log("Hello, World!")',
+          args: []
+        })
+      };
+
+      const baseUrl = `https://cdp.browserstack.com/wd/hub/session/${sessionId}/execute`;
+
+      expect(requestSpy).toHaveBeenCalledWith(baseUrl, expectedCommand);
+      expect(response).toEqual({ value: 'mockVal' });
+    });
+
     it('should handle request error and re-throw', async () => {
       requestSpy.and.returnValue(Promise.reject(new Error('Request failed')));
       const command = { script: 'console.log("Hello, World!")', args: [] };

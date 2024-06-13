@@ -1000,4 +1000,34 @@ describe('GenericProvider', () => {
       expect(provider.getUserAgentString(data)).toEqual('');
     });
   });
+
+  describe('browserstackExecutor', () => {
+    let executeScriptSpy;
+
+    beforeEach(async () => {
+      executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
+    });
+
+    it('throws Error when called without initializing driver', async () => {
+      let provider = new GenericProvider(args);
+      await expectAsync(provider.browserstackExecutor('getSessionDetails'))
+        .toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
+    });
+
+    it('calls browserstackExecutor with correct arguemnts for actions only', async () => {
+      let provider = new GenericProvider(args);
+      await provider.createDriver();
+      await provider.browserstackExecutor('getSessionDetails');
+      expect(executeScriptSpy)
+        .toHaveBeenCalledWith({ script: 'browserstack_executor: {"action":"getSessionDetails"}', args: [] });
+    });
+
+    it('calls browserstackExecutor with correct arguemnts for actions + args', async () => {
+      let provider = new GenericProvider(args);
+      await provider.createDriver();
+      await provider.browserstackExecutor('getSessionDetails', 'new');
+      expect(executeScriptSpy)
+        .toHaveBeenCalledWith({ script: 'browserstack_executor: {"action":"getSessionDetails","arguments":"new"}', args: [] });
+    });
+  });
 });
