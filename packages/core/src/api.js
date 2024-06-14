@@ -137,7 +137,8 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/automateScreenshot', async (req, res) => {
       let data;
       percyAutomateRequestHandler(req, percy);
-      let comparisonData = await WebdriverUtils.automateScreenshot(req.body);
+      let comparisonData = await WebdriverUtils.captureScreenshot(req.body);
+
       if (percy.syncMode(comparisonData)) {
         const snapshotPromise = new Promise((resolve, reject) => percy.upload(comparisonData, { resolve, reject }, 'automate'));
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');

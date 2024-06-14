@@ -1,36 +1,23 @@
 import utils from '@percy/sdk-utils';
-
-import MetaDataResolver from '../metadata/metaDataResolver.js';
+import TimeIt from '../util/timing.js';
 import Tile from '../util/tile.js';
-import Driver from '../driver.js';
+import Driver from '../../src/driver.js';
+import MetaDataResolver from '../metadata/metaDataResolver.js';
+import NormalizeData from '../metadata/normalizeData.js';
 
 const log = utils.logger('webdriver-utils:genericProvider');
 
 export default class GenericProvider {
-  clientInfo = new Set();
-  environmentInfo = new Set();
-  options = {};
-  constructor(
-    sessionId,
-    commandExecutorUrl,
-    capabilities,
-    sessionCapabilites,
-    clientInfo,
-    environmentInfo,
-    options,
-    buildInfo
-  ) {
-    this.sessionId = sessionId;
-    this.commandExecutorUrl = commandExecutorUrl;
-    this.capabilities = capabilities;
-    this.sessionCapabilites = sessionCapabilites;
-    this.addClientInfo(clientInfo);
-    this.addEnvironmentInfo(environmentInfo);
-    this.options = options;
-    this.buildInfo = buildInfo;
-    this.driver = null;
+  clientInfoDetails = new Set();
+  environmentInfoDetails = new Set();
+  constructor(args) {
+    Object.assign(this, args);
+    this.addClientInfo(this.clientInfo);
+    this.addEnvironmentInfo(this.environmentInfo);
+    this._markedPercy = false;
     this.metaData = null;
     this.debugUrl = null;
+    this.driver = null;
     this.header = 0;
     this.footer = 0;
     this.statusBarHeight = 0;
@@ -50,7 +37,7 @@ export default class GenericProvider {
     log.debug(`Passed capabilities -> ${JSON.stringify(this.capabilities)}`);
     const caps = await this.driver.getCapabilites();
     log.debug(`Fetched capabilities -> ${JSON.stringify(caps)}`);
-    this.metaData = await MetaDataResolver.resolve(this.driver, caps, this.capabilities);
+    this.metaData = MetaDataResolver.resolve(this.driver, caps, this.capabilities);
   }
 
   static supports(_commandExecutorUrl) {
@@ -59,13 +46,13 @@ export default class GenericProvider {
 
   addClientInfo(info) {
     for (let i of [].concat(info)) {
-      if (i) this.clientInfo.add(i);
+      if (i) this.clientInfoDetails.add(i);
     }
   }
 
   addEnvironmentInfo(info) {
     for (let i of [].concat(info)) {
-      if (i) this.environmentInfo.add(i);
+      if (i) this.environmentInfoDetails.add(i);
     }
   }
 
@@ -87,6 +74,70 @@ export default class GenericProvider {
 
   async scrollToPosition(x, y) {
     await this.driver.executeScript({ script: `window.scrollTo(${x}, ${y})`, args: [] });
+  }
+
+  async browserstackExecutor(action, args) {
+    if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
+    let options = args ? { action, arguments: args } : { action };
+    let res = await this.driver.executeScript({ script: `browserstack_executor: ${JSON.stringify(options)}`, args: [] });
+    return res;
+  }
+
+  async percyScreenshotBegin(name) {
+    return await TimeIt.run('percyScreenshotBegin', async () => {
+      try {
+        let result = await this.browserstackExecutor('percyScreenshot', {
+          name,
+          percyBuildId: this.buildInfo.id,
+          percyBuildUrl: this.buildInfo.url,
+          state: 'begin'
+        });
+        // Selenium Hub, set status error Code to 13 if an error is thrown
+        // Handling error with Selenium dialect is != W3C
+        if (result?.status === 13) { throw new Error(result?.value || 'Got invalid error response'); }
+        this._markedPercy = result.success;
+        return result;
+      } catch (e) {
+        log.debug(`[${name}] : Could not mark Automate session as percy`);
+        log.error(`[${name}] : error: ${e.toString()}`);
+        /**
+         * - Handling Error when dialect is W3C
+         * ERROR response format from SeleniumHUB `{
+         * sessionId: ...,
+         * status: 13,
+         * value: { error: '', message: ''}
+         * }
+         */
+        const errResponse =
+          (e?.response?.body && JSON.parse(e?.response?.body)?.value) || {};
+        const errMessage =
+          errResponse?.message ||
+          errResponse?.error ||
+          e?.message ||
+          e?.error ||
+          e?.value ||
+          e.toString();
+        throw new Error(errMessage);
+      }
+    });
+  }
+
+  async percyScreenshotEnd(name, error) {
+    return await TimeIt.run('percyScreenshotEnd', async () => {
+      try {
+        await this.browserstackExecutor('percyScreenshot', {
+          name,
+          percyScreenshotUrl: this.buildInfo?.url,
+          status: error ? 'failure' : 'success',
+          statusMessage: error ? `${error}` : '',
+          state: 'end',
+          sync: this.options?.sync
+        });
+      } catch (e) {
+        log.debug(`[${name}] : Could not execute percyScreenshot command for Automate`);
+        log.error(e);
+      }
+    });
   }
 
   async screenshot(name, {
@@ -136,11 +187,21 @@ export default class GenericProvider {
       consideredElementsData: {
         considerElementsData: considerRegions
       },
-      environmentInfo: [...this.environmentInfo].join('; '),
-      clientInfo: [...this.clientInfo].join(' '),
+      environmentInfo: this.getUserAgentString(this.environmentInfoDetails),
+      clientInfo: this.getUserAgentString(this.clientInfoDetails),
       domInfoSha: tiles.domInfoSha,
       metadata: tiles.metadata || null
     };
+  }
+
+  getUserAgentString(data) {
+    let result = '';
+    if (data instanceof Set) {
+      result = [...data].join('; ');
+    } else if (typeof data === 'string') {
+      result = data;
+    }
+    return result;
   }
 
   // TODO: get dom sha for non-automate
@@ -174,25 +235,6 @@ export default class GenericProvider {
       metadata: {
         windowHeight: await this.getWindowHeight()
       }
-    };
-  }
-
-  async getTag() {
-    if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
-    let { width, height } = await this.metaData.windowSize();
-    const resolution = await this.metaData.screenResolution();
-    const orientation = this.metaData.orientation();
-
-    return {
-      name: this.metaData.deviceName(),
-      osName: this.metaData.osName(),
-      osVersion: this.metaData.osVersion(),
-      width,
-      height,
-      orientation: orientation,
-      browserName: this.metaData.browserName(),
-      browserVersion: this.metaData.browserVersion(),
-      resolution: resolution
     };
   }
 
@@ -389,5 +431,37 @@ export default class GenericProvider {
       }
     }
     return elementsArray;
+  }
+
+  async getTag(tagData) {
+    if (!this.automateResults) throw new Error('Comparison tag details not available');
+    const automateCaps = this.automateResults.capabilities;
+    const normalizeTags = new NormalizeData();
+
+    let deviceName = this.automateResults.deviceName;
+    const osName = normalizeTags.osRollUp(automateCaps.os);
+    const osVersion = automateCaps.os_version?.split('.')[0];
+    const browserName = normalizeTags.browserRollUp(automateCaps.browserName, tagData.device);
+    const browserVersion = normalizeTags.browserVersionOrDeviceNameRollup(automateCaps.browserVersion, deviceName, tagData.device);
+
+    if (!tagData.device) {
+      deviceName = `${osName}_${osVersion}_${browserName}_${browserVersion}`;
+    }
+
+    let { width, height } = { width: tagData.width, height: tagData.height };
+    const resolution = tagData.resolution;
+    const orientation = tagData.orientation || automateCaps.deviceOrientation || 'landscape';
+
+    return {
+      name: deviceName,
+      osName,
+      osVersion,
+      width,
+      height,
+      orientation,
+      browserName,
+      browserVersion,
+      resolution
+    };
   }
 }
