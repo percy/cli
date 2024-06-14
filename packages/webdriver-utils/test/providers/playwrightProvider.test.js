@@ -395,7 +395,7 @@ describe('PlaywrightProvider', () => {
         resolution: 'resolution'
       });
       expect(response).toEqual({
-        name: undefined,
+        name: 'Windows_11_Chrome_90.0',
         osName: 'Windows',
         osVersion: '11',
         width: 100,
@@ -415,8 +415,8 @@ describe('PlaywrightProvider', () => {
         'browserVersionOrDeviceNameRollup'
       ).and.returnValue('90.0');
       provider.automateResults = {
+        deviceName: 'deviceName',
         capabilities: {
-          deviceName: 'deviceName',
           os: 'os',
           os_version: '11.0',
           browserName: 'browserName',
@@ -431,7 +431,7 @@ describe('PlaywrightProvider', () => {
 
       expect(NormalizeData.prototype.browserRollUp).toHaveBeenCalledWith('browserName', true);
       expect(response).toEqual({
-        name: undefined,
+        name: 'deviceName',
         osName: 'ANDROID',
         osVersion: '11',
         width: 100,

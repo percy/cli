@@ -13,8 +13,8 @@ export default class ProviderResolver {
     buildInfo
   ) {
     // We can safely do [0] because GenericProvider is catch all
-    const Klass = [AutomateProvider, GenericProvider].filter((x) =>
-      x.supports(commandExecutorUrl)
+    const Klass = [AutomateProvider, GenericProvider].filter((provider) =>
+      provider.supports(commandExecutorUrl)
     )[0];
     const args = {
       sessionId,

@@ -3,6 +3,7 @@ import TimeIt from '../util/timing.js';
 import Tile from '../util/tile.js';
 import Driver from '../../src/driver.js';
 import MetaDataResolver from '../metadata/metaDataResolver.js';
+import NormalizeData from '../metadata/normalizeData.js';
 
 const log = utils.logger('webdriver-utils:genericProvider');
 
@@ -237,25 +238,6 @@ export default class GenericProvider {
     };
   }
 
-  async getTag() {
-    if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
-    let { width, height } = await this.metaData.windowSize();
-    const resolution = await this.metaData.screenResolution();
-    const orientation = this.metaData.orientation();
-
-    return {
-      name: this.metaData.deviceName(),
-      osName: this.metaData.osName(),
-      osVersion: this.metaData.osVersion(),
-      width,
-      height,
-      orientation: orientation,
-      browserName: this.metaData.browserName(),
-      browserVersion: this.metaData.browserVersion(),
-      resolution: resolution
-    };
-  }
-
   // TODO: Add Debugging Url for non-automate
   async setDebugUrl() {
     this.debugUrl = 'https://localhost/v1';
@@ -449,5 +431,37 @@ export default class GenericProvider {
       }
     }
     return elementsArray;
+  }
+
+  async getTag(tagData) {
+    if (!this.automateResults) throw new Error('Comparison tag details not available');
+    const automateCaps = this.automateResults.capabilities;
+    const normalizeTags = new NormalizeData();
+
+    let deviceName = this.automateResults.deviceName;
+    const osName = normalizeTags.osRollUp(automateCaps.os);
+    const osVersion = automateCaps.os_version?.split('.')[0];
+    const browserName = normalizeTags.browserRollUp(automateCaps.browserName, tagData.device);
+    const browserVersion = normalizeTags.browserVersionOrDeviceNameRollup(automateCaps.browserVersion, deviceName, tagData.device);
+
+    if (!tagData.device) {
+      deviceName = `${osName}_${osVersion}_${browserName}_${browserVersion}`;
+    }
+
+    let { width, height } = { width: tagData.width, height: tagData.height };
+    const resolution = tagData.resolution;
+    const orientation = tagData.orientation || automateCaps.deviceOrientation || 'landscape';
+
+    return {
+      name: deviceName,
+      osName,
+      osVersion,
+      width,
+      height,
+      orientation,
+      browserName,
+      browserVersion,
+      resolution
+    };
   }
 }

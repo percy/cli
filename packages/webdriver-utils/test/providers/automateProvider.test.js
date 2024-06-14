@@ -455,14 +455,5 @@ describe('AutomateProvider', () => {
           .toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
       });
     });
-
-    describe('automateResults is null', () => {
-      it('throws Error automateResults are not available', async () => {
-        let automateProvider = new AutomateProvider(args);
-        await automateProvider.createDriver();
-        await expectAsync(automateProvider.getTag())
-          .toBeRejectedWithError('Comparison tag details not available');
-      });
-    });
   });
 });

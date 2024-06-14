@@ -82,7 +82,7 @@ export default class PlaywrightProvider extends GenericProvider {
   }
 
   async getTiles(fullscreen = true) {
-    log.debug('Starting actual screenshotting phase');
+    log.debug(`Starting actual screenshotting phase with Page GUID: ${this.pageGuid}, Frame GUID: ${this.frameGuid}`);
     const screenshotType = this.options?.fullPage ? 'fullpage' : 'singlepage';
     const response = await TimeIt.run('percyScreenshot:screenshot', async () => {
       return await this.browserstackExecutor('percyScreenshot', {
@@ -143,31 +143,12 @@ export default class PlaywrightProvider extends GenericProvider {
   async getTag(tagData) {
     if (!this.automateResults) throw new Error('Comparison tag details not available');
     const mobileOS = ['ANDROID'];
-    const automateCaps = this.automateResults.capabilities;
     const normalizeTags = new NormalizeData();
-
-    let deviceName = this.automateResults.deviceName;
+    const automateCaps = this.automateResults.capabilities;
     const osName = normalizeTags.osRollUp(automateCaps.os);
-    const osVersion = automateCaps.os_version?.split('.')[0];
     const device = mobileOS.includes(osName.toUpperCase());
-    const browserName = normalizeTags.browserRollUp(automateCaps.browserName, device);
-    const browserVersion = normalizeTags.browserVersionOrDeviceNameRollup(automateCaps.browserVersion, deviceName, device);
-
-    let { width, height } = { width: tagData.width, height: tagData.height };
-    const resolution = tagData.resolution;
-    log.debug(`orientation ${automateCaps.deviceOrientation}`);
-    const orientation = automateCaps.deviceOrientation || 'landscape';
-
-    return {
-      name: deviceName,
-      osName,
-      osVersion,
-      width,
-      height,
-      orientation,
-      browserName,
-      browserVersion,
-      resolution
-    };
+    tagData.device = device;
+    console.log(`Device: ${device}`);
+    return await super.getTag(tagData);
   }
 }

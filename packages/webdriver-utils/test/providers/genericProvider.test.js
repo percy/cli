@@ -2,7 +2,6 @@ import GenericProvider from '../../src/providers/genericProvider.js';
 import Driver from '../../src/driver.js';
 import MetaDataResolver from '../../src/metadata/metaDataResolver.js';
 import DesktopMetaData from '../../src/metadata/desktopMetaData.js';
-import MobileMetaData from '../../src/metadata/mobileMetaData.js';
 
 describe('GenericProvider', () => {
   let genericProvider;
@@ -63,83 +62,6 @@ describe('GenericProvider', () => {
     it('throws error if driver not initailized', async () => {
       genericProvider = new GenericProvider(args);
       await expectAsync(genericProvider.getTiles(false)).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
-    });
-  });
-
-  describe('getTag', () => {
-    beforeEach(() => {
-      spyOn(DesktopMetaData.prototype, 'windowSize')
-        .and.returnValue(Promise.resolve({ width: 1000, height: 1000 }));
-      spyOn(DesktopMetaData.prototype, 'orientation')
-        .and.returnValue('landscape');
-      spyOn(DesktopMetaData.prototype, 'deviceName')
-        .and.returnValue('mockDeviceName');
-      spyOn(DesktopMetaData.prototype, 'osName')
-        .and.returnValue('mockOsName');
-      spyOn(DesktopMetaData.prototype, 'osVersion')
-        .and.returnValue('mockOsVersion');
-      spyOn(DesktopMetaData.prototype, 'browserName')
-        .and.returnValue('mockBrowserName');
-      spyOn(DesktopMetaData.prototype, 'browserVersion')
-        .and.returnValue('111');
-      spyOn(DesktopMetaData.prototype, 'screenResolution')
-        .and.returnValue('1980 x 1080');
-      spyOn(MobileMetaData.prototype, 'windowSize')
-        .and.returnValue(Promise.resolve({ width: 1000, height: 1000 }));
-      spyOn(MobileMetaData.prototype, 'orientation')
-        .and.returnValue('landscape');
-      spyOn(MobileMetaData.prototype, 'deviceName')
-        .and.returnValue('mockDeviceName');
-      spyOn(MobileMetaData.prototype, 'osVersion')
-        .and.returnValue('mockOsVersion');
-      spyOn(MobileMetaData.prototype, 'browserName')
-        .and.returnValue('mockBrowserName');
-      spyOn(MobileMetaData.prototype, 'browserVersion')
-        .and.returnValue('111');
-      spyOn(MobileMetaData.prototype, 'screenResolution')
-        .and.returnValue('1980 x 1080');
-    });
-
-    it('returns correct tag for android', async () => {
-      args.capabilities = { platform: 'android', platformName: 'android' };
-      genericProvider = new GenericProvider(args);
-      spyOn(MobileMetaData.prototype, 'osName').and.returnValue('android');
-      await genericProvider.createDriver();
-      const tag = await genericProvider.getTag();
-      expect(tag).toEqual({
-        name: 'mockDeviceName',
-        osName: 'android',
-        osVersion: 'mockOsVersion',
-        width: 1000,
-        height: 1000,
-        orientation: 'landscape',
-        browserName: 'mockBrowserName',
-        browserVersion: '111',
-        resolution: '1980 x 1080'
-      });
-    });
-
-    it('returns correct tag for others', async () => {
-      genericProvider = new GenericProvider(args);
-      spyOn(MobileMetaData.prototype, 'osName').and.returnValue('mockOsName');
-      await genericProvider.createDriver();
-      const tag = await genericProvider.getTag();
-      expect(tag).toEqual({
-        name: 'mockDeviceName',
-        osName: 'mockOsName',
-        osVersion: 'mockOsVersion',
-        width: 1000,
-        height: 1000,
-        orientation: 'landscape',
-        browserName: 'mockBrowserName',
-        browserVersion: '111',
-        resolution: '1980 x 1080'
-      });
-    });
-
-    it('throws error if driver not initailized', async () => {
-      genericProvider = new GenericProvider(args);
-      await expectAsync(genericProvider.getTag()).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
     });
   });
 

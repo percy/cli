@@ -2,7 +2,6 @@ import utils from '@percy/sdk-utils';
 import GenericProvider from './genericProvider.js';
 import Cache from '../util/cache.js';
 import Tile from '../util/tile.js';
-import NormalizeData from '../metadata/normalizeData.js';
 import TimeIt from '../util/timing.js';
 import MetaDataResolver from '../metadata/metaDataResolver.js';
 import Driver from '../driver.js';
@@ -110,35 +109,17 @@ export default class AutomateProvider extends GenericProvider {
 
   async getTag() {
     if (!this.driver) throw new Error('Driver is null, please initialize driver with createDriver().');
-    if (!this.automateResults) throw new Error('Comparison tag details not available');
-
-    const automateCaps = this.automateResults.capabilities;
-    const normalizeTags = new NormalizeData();
-
-    let deviceName = this.automateResults.deviceName;
-    const osName = normalizeTags.osRollUp(automateCaps.os);
-    const osVersion = automateCaps.os_version?.split('.')[0];
-    const browserName = normalizeTags.browserRollUp(automateCaps.browserName, this.metaData.device());
-    const browserVersion = normalizeTags.browserVersionOrDeviceNameRollup(automateCaps.browserVersion, deviceName, this.metaData.device());
-
-    if (!this.metaData.device()) {
-      deviceName = `${osName}_${osVersion}_${browserName}_${browserVersion}`;
-    }
-
     let { width, height } = await this.metaData.windowSize();
     const resolution = await this.metaData.screenResolution();
-    const orientation = (this.metaData.orientation() || automateCaps.deviceOrientation)?.toLowerCase();
-
-    return {
-      name: deviceName,
-      osName,
-      osVersion,
+    const orientation = (this.metaData.orientation())?.toLowerCase();
+    const device = this.metaData.device();
+    const tagData = {
       width,
       height,
+      resolution,
       orientation,
-      browserName,
-      browserVersion,
-      resolution
+      device
     };
+    return await super.getTag(tagData);
   }
 }
