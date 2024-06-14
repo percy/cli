@@ -114,7 +114,7 @@ describe('API Server', () => {
     expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy] Warning: ' + [
       'It looks like you’re using @percy/cli with an older SDK.',
       'Please upgrade to the latest version to fix this warning.',
-      'See these docs for more info: https:docs.percy.io/docs/migrating-to-percy-cli'
+      'See these docs for more info: https://www.browserstack.com/docs/percy/migration/migrate-to-cli'
     ].join(' ')]));
   });
 

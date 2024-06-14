@@ -83,7 +83,7 @@ export function createPercyServer(percy, port) {
       logger('core:server').deprecated([
         'It looks like you’re using @percy/cli with an older SDK.',
         'Please upgrade to the latest version to fix this warning.',
-        'See these docs for more info: https:docs.percy.io/docs/migrating-to-percy-cli'
+        'See these docs for more info: https://www.browserstack.com/docs/percy/migration/migrate-to-cli'
       ].join(' '));
 
       let content = await fs.promises.readFile(PERCY_DOM, 'utf-8');
