@@ -952,4 +952,15 @@ describe('GenericProvider', () => {
         .toHaveBeenCalledWith({ script: 'browserstack_executor: {"action":"getSessionDetails","arguments":"new"}', args: [] });
     });
   });
+
+  describe('getTag', () => {
+    it('throws Error when automate results is null', async () => {
+      let provider = new GenericProvider(args);
+      provider.automateResults = null;
+      const error = new Error('Comparison tag details not available');
+      await expectAsync(
+        provider.getTag({ width: 100, height: 100, resolution: 'resolution' })
+      ).toBeRejectedWith(error);
+    });
+  });
 });
