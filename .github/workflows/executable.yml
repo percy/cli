@@ -1,14 +1,13 @@
 name: Build Executables
 on:
-  push:
-  pull_request:
-  workflow_dispatch:
+  release:
+      types: [published]
 jobs:
   build:
     name: Build Executables
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - uses: actions/setup-node@v4
         with:
           node-version: 14
@@ -27,37 +26,32 @@ jobs:
         with:
           name: win-exe
           path: percy.exe
-      # - name: Upload assets
-      #   uses: softprops/action-gh-release@d99959edae48b5ffffd7b00da66dcdb0a33a52ee
-      #   with:
-      #     files: |
-      #       percy-osx.zip
-      #       percy-linux.zip
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload assets
+        uses: softprops/action-gh-release@d99959edae48b5ffffd7b00da66dcdb0a33a52ee
+        with:
+          files: |
+            percy-osx.zip
+            percy-linux.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   notify:
     needs: build
     name: Sign Win Executable
     runs-on: windows-latest
     steps:
-      - name: Download a single artifact
+      - uses: actions/checkout@v3
+      - name: Download win artifact
         uses: actions/download-artifact@v4
         with:
           name: win-exe
-      - name: Download rcedit
-        run: |
-          Invoke-WebRequest -Uri https://github.com/electron/rcedit/releases/download/v1.1.1/rcedit-x64.exe -OutFile rcedit.exe
-      - name: Edit metadata
-        run: |
-          ./rcedit.exe "./percy.exe" \
-          --set-version-string CompanyName "BrowserStack Inc." \
-          --set-version-string FileDescription "Percy CLI Binary" \
-          --set-version-string FileVersion "1.28.8" \
-          --set-version-string InternalName "PercyCLI" \
-          --set-version-string LegalCopyright "Copyright BrowserStack Limited" \
-          --set-version-string OriginalFilename "PercyCLI" \
-          --set-version-string ProductName "PercyCLI" \
-          --set-version-string ProductVersion "1.28.8"
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 14
+      - name: Install resedit
+        run: npm install resedit
+      - name: Update exe metadata
+        run: node ./scripts/win-metadata-update.js
       - name: Sign binary
         uses: lando/code-sign-action@v2
         with:
@@ -68,10 +62,10 @@ jobs:
         run: ./percy.exe --version
       - run: |
           powershell -Command "Compress-Archive -Path 'percy.exe' -DestinationPath 'percy-win.zip'"
-      # - name: Upload assets
-      #   uses: softprops/action-gh-release@d99959edae48b5ffffd7b00da66dcdb0a33a52ee
-      #   with:
-      #     files: |
-      #       percy-win.zip
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload assets
+        uses: softprops/action-gh-release@d99959edae48b5ffffd7b00da66dcdb0a33a52ee
+        with:
+          files: |
+            percy-win.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
