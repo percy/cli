@@ -18,12 +18,12 @@ function windowsPostBuild(output) {
   vi.setStringValues(
     { lang: 1033, codepage: 1200 },
     {
-      ProductName: 'TEST  ',
-      FileDescription: 'TEST ',
-      CompanyName: 'My company',
-      LegalCopyright: 'Copyright Me. MIT .',
-      OriginalFilename: 'test',
-      InternalName: 'test'
+      ProductName: 'PercyCLI',
+      FileDescription: 'Percy CLI Binary',
+      CompanyName: 'BrowserStack Inc.',
+      LegalCopyright: 'Copyright BrowserStack Limited',
+      OriginalFilename: 'PercyCLI',
+      InternalName: 'PercyCLI'
     }
   );
   vi.setFileVersion(1, 28, 8);

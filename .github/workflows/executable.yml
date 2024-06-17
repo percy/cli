@@ -1,7 +1,7 @@
 name: Build Executables
 on:
   release:
-      types: [published]
+    types: [published]
 jobs:
   build:
     name: Build Executables
