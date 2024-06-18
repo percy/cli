@@ -539,7 +539,7 @@ export class PercyClient {
 
       // Detecting error and printing Fix for the same
       this.log.error(errMsg);
-      await formatAndSendErrorLog(errMsg);
+      await this.formatAndSendErrorLog(errMsg);
       return false;
     }
     return true;
@@ -613,8 +613,8 @@ export class PercyClient {
   }
 
   async formatAndSendErrorLog(errorMsg, _options) {
-    let errors = []
-    if(typeof errorMsg == 'string') {
+    let errors = [];
+    if (typeof errorMsg === 'string') {
       errors.push(errorMsg);
     } else if (Array.isArray(errorMsg)) {
       errors = errorMsg;
@@ -622,14 +622,15 @@ export class PercyClient {
       errors.push(JSON.stringify(errorMsg));
     }
 
-    await this.sendErrorLogForSuggestion(errors)
+    await this.sendErrorLogForSuggestion(errors);
   }
 
   async sendErrorLogForSuggestion(errorLogs) {
-    this.log.debug('Sending error logs for analysis')
+    this.log.debug('Sending error logs for analysis');
+
     return this.post('suggestions/from_logs', {
       data: errorLogs
-    })
+    });
   }
 
   mayBeLogUploadSize(contentSize) {

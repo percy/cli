@@ -414,20 +414,21 @@ export function createSnapshotsQueue(percy) {
       let duplicate = errors?.length > 1 && errors[1].detail.includes('must be unique');
       if (duplicate) {
         if (process.env.PERCY_IGNORE_DUPLICATES !== 'true') {
-          let errMsg = `Ignored duplicate snapshot. ${errors[1].detail}`
+          let errMsg = `Ignored duplicate snapshot. ${errors[1].detail}`;
           percy.log.warn(errMsg);
 
-          // This will hit API, and print possible fix for the error
-          percy.suggestionsForFix(errMsg, meta);
+          // For Snapshot level errors, suggestions will be async to not block
+          // execution for taking snapshot for other snapshot
+          percy.suggestionsForFix(errMsg, { snapshotLevel: true, snapshotName: name });
         }
         return result;
       }
 
-      let errMsg = `Encountered an error uploading snapshot: ${name}`
+      let errMsg = `Encountered an error uploading snapshot: ${name}`;
       percy.log.error(errMsg, meta);
       percy.log.error(error, meta);
 
-      percy.suggestionsForFix(errMsg);
+      percy.suggestionsForFix(errMsg, { snapshotLevel: true, snapshotName: name });
       if (snapshot.sync) snapshot.reject(error);
       return result;
     });

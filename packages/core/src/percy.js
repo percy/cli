@@ -185,11 +185,11 @@ export class Percy {
 
       // throw an easier-to-understand error when the port is in use
       if (error.code === 'EADDRINUSE') {
-        let errMsg = 'Percy is already running or the port is in use'
-        // await this.suggestionsForFix(`Error: ` + errMsg);
+        let errMsg = 'Percy is already running or the port is in use';
+        await this.suggestionsForFix(errMsg);
         throw new Error(errMsg);
       } else {
-        // await this.suggestionsForFix(error)
+        await this.suggestionsForFix(error);
         throw error;
       }
     }
@@ -281,6 +281,9 @@ export class Percy {
       this.log.error(err);
       throw err;
     } finally {
+      // This issue doesn't comes under regular error logs,
+      // it's detected if we just and stop percy server
+      await this.checkForNoSnapshotCommandError();
       await this.sendBuildLogs();
     }
   }
@@ -428,15 +431,35 @@ export class Percy {
     return syncMode;
   }
 
+  async checkForNoSnapshotCommandError() {
+    // Max log line to check, ideally we get only 12 pecy:core
+    // log line for safety keeping it 16
+    const MAX_LOG_LINES = 16;
+
+    let cliLogs = logger.query((item) => {
+      // We only needs percy:core logs to check for this
+      return item.debug.includes('core');
+    });
+
+    if (cliLogs.length < MAX_LOG_LINES) {
+      await this.suggestionsForFix(cliLogs);
+    }
+  }
+
   formatErrorLog(errorLogs) {
-    let errors = []
-    if (typeof errorLogs == 'string') {
+    let errors = [];
+    if (typeof errorLogs === 'string') {
       errors.push({
         message: errorLogs
-      })
+      });
     } else if (Array.isArray(errorLogs)) {
-      errors = errorLogs.map(x => {
-        return { message: x }
+      errors = errorLogs;
+    } else {
+      errors.push({
+        message: errorLogs
+      });
+      errors.push({
+        message: errorLogs?.message || ''
       });
     }
 
@@ -445,34 +468,38 @@ export class Percy {
 
   async suggestionsForFix(error, options) {
     let errors = this.formatErrorLog(error);
-
     try {
       // TODO: validate suggestions
       const suggestionResponse = await this.client.sendErrorLogForSuggestion(errors);
 
-
       if (suggestionResponse.length > 0) {
         suggestionResponse.forEach(item => {
-          const failureReason = item?.failure_reason
-          const suggestion = item?.suggestion || []
-          const referenceDocLinks = item?.reference_doc_link
+          const failureReason = item?.failure_reason;
+          const suggestion = item?.suggestion || [];
+          const referenceDocLinks = item?.reference_doc_link;
 
-          this.log.warn('Detected Error...')
+          if (options.snapshotLevel) {
+            this.log.warn('Detected error for percy build');
+          } else {
+            this.log.warn(`Detected erorr for Snapshot: ${options?.snapshotName}`);
+          }
+
           this.log.warn(`Failure Reason: ${failureReason}`);
-    
-          this.log.warn(`Try following suggestions to tackle the issue:`);
-          this.log.warn(suggestion);
+          this.log.warn(`Suggestion: ${suggestion}`);
+          this.log.warn('Refer below Doc Links for the same');
 
-          this.log.info(`Refer below Doc Links for the same`);
-
-          referenceDocLinks?.map(_docLink => {
-            this.log.info(`* ${_docLink}`)
+          referenceDocLinks?.forEach(_docLink => {
+            this.log.warn(`* ${_docLink}`);
           });
+
+          // TODO: Remove it before releasing CLI, unwanted change
+          this.log.warn('* https://docs.percy.io/docs/cli-configuration#per-snapshot-configuration');
         });
       }
     } catch (e) {
-      this.log.error('Unable to analyzing error logs')
-      this.log.error(e)
+      this.log.error('Unable to analyzing error logs');
+      this.log.error('Please check in case you are behind a proxy enabled envirnment please whitelist "percy.io"');
+      this.log.error(e);
     }
   }
 

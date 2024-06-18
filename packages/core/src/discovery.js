@@ -290,14 +290,9 @@ export function createDiscoveryQueue(percy) {
     .handle('start', async () => {
       cache = percy[RESOURCE_CACHE_KEY] = new Map();
 
-      try {
-        await percy.browser.launch();
-      } catch (error) {
-        // This is to catch browser lauch failure issues
-        await percy.suggestionsForFix(error);
-        throw error;
-      }
-
+      // If browser.launch() fails it will get captured in
+      // *percy.start()
+      await percy.browser.launch();
       queue.run();
     })
   // on end, close the browser
@@ -371,8 +366,8 @@ export function createDiscoveryQueue(percy) {
       if (error.name === 'AbortError' && queue.readyState < 3) {
         // only error about aborted snapshots when not closed
         let errMsg = 'Received a duplicate snapshot, ' + (
-          `the previous snapshot was aborted: ${snapshotLogName(name, meta)}`)
-        percy.log.error(errMsg, meta);
+          `the previous snapshot was aborted: ${snapshotLogName(name, meta)}`);
+        percy.log.error(errMsg, { snapshotLevel: true, snapshotName: name });
 
         percy.suggestionsForFix(errMsg, meta);
       } else {
@@ -381,13 +376,15 @@ export function createDiscoveryQueue(percy) {
         percy.log.error(errMsg, meta);
         percy.log.error(error, meta);
 
-        console.log("---> discovery error", errMsg + (
-          ` Error: ${error}`
-        ));
+        let assetDiscoveryErrors = [
+          { message: errMsg },
+          { message: error }
+        ];
 
-        percy.suggestionsForFix(errMsg + (
-          ` Error: ${error}`
-        ), meta);
+        percy.suggestionsForFix(
+          assetDiscoveryErrors,
+          { snapshotLevel: true, snapshotName: name }
+        );
       }
     });
 }
