@@ -83,7 +83,6 @@ export class Page {
     });
 
     try {
-      throw new Error('GOJO some error')
       // trigger navigation and poll for handlers to have finished
       await Promise.all([navigate(), waitFor(() => {
         if (this.session.closedReason) throw new Error(this.session.closedReason);

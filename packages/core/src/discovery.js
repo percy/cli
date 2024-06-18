@@ -289,7 +289,15 @@ export function createDiscoveryQueue(percy) {
   // on start, launch the browser and run the queue
     .handle('start', async () => {
       cache = percy[RESOURCE_CACHE_KEY] = new Map();
-      await percy.browser.launch();
+
+      try {
+        await percy.browser.launch();
+      } catch (error) {
+        // This is to catch browser lauch failure issues
+        await percy.suggestionsForFix(error);
+        throw error;
+      }
+
       queue.run();
     })
   // on end, close the browser
