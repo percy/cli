@@ -1268,6 +1268,16 @@ describe('PercyClient', () => {
       ])).toBeResolvedTo([
         false
       ]);
+
+      // Should call this endpoint to analyze logs
+      expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
+      expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
+        data: {
+          logs: [
+            { message: 'Uploading comparison tile failed' }
+          ]
+        }
+      });
     });
 
     it('throws any errors from verifying', async () => {
@@ -1521,6 +1531,44 @@ describe('PercyClient', () => {
           reference_id: 1234,
           service_name: 'cli',
           base64encoded: true
+        }
+      });
+    });
+  });
+
+  describe('#sendErrorForAnalysis', () => {
+    it('should send error logs to API', async () => {
+      await expectAsync(client.sendErrorForAnalysis({
+        logs: [
+          { message: 'Some Error Log' },
+          { message: 'Some Error logs 2' }
+        ]
+      })).toBeResolved();
+
+      expect(api.requests['/suggestions/from_logs']).toBeDefined();
+      expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
+      expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
+        data: {
+          logs: [
+            { message: 'Some Error Log' },
+            { message: 'Some Error logs 2' }
+          ]
+        }
+      });
+    });
+  });
+
+  describe('#formatAndSendForAnalysis', () => {
+    it('should format error and call sendErrorForAnalysis function', async () => {
+      await expectAsync(client.formatAndSendForAnalysis('Some Error Log')).toBeResolved();
+
+      expect(api.requests['/suggestions/from_logs']).toBeDefined();
+      expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
+      expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
+        data: {
+          logs: [
+            { message: 'Some Error Log' }
+          ]
         }
       });
     });

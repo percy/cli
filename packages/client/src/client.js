@@ -537,7 +537,7 @@ export class PercyClient {
     if (!success) {
       let errMsg = 'Uploading comparison tile failed';
 
-      // Detecting error and printing Fix for the same
+      // Detecting error and logging fix for the same
       this.log.error(errMsg);
       await this.formatAndSendForAnalysis(errMsg);
       return false;
