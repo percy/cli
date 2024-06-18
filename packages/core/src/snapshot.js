@@ -219,6 +219,7 @@ export async function handleSyncJob(jobPromise, percy, type) {
       data = await percy.client.getComparisonDetails(id);
     }
   } catch (e) {
+    await percy.suggestionsForFix(e.message);
     data = { error: e.message };
   }
   return data;
@@ -413,13 +414,20 @@ export function createSnapshotsQueue(percy) {
       let duplicate = errors?.length > 1 && errors[1].detail.includes('must be unique');
       if (duplicate) {
         if (process.env.PERCY_IGNORE_DUPLICATES !== 'true') {
-          percy.log.warn(`Ignored duplicate snapshot. ${errors[1].detail}`);
+          let errMsg = `Ignored duplicate snapshot. ${errors[1].detail}`
+          percy.log.warn(errMsg);
+
+          // This will hit API, and print possible fix for the error
+          percy.suggestionsForFix(errMsg, meta);
         }
         return result;
       }
 
-      percy.log.error(`Encountered an error uploading snapshot: ${name}`, meta);
+      let errMsg = `Encountered an error uploading snapshot: ${name}`
+      percy.log.error(errMsg, meta);
       percy.log.error(error, meta);
+
+      percy.suggestionsForFix(errMsg);
       if (snapshot.sync) snapshot.reject(error);
       return result;
     });

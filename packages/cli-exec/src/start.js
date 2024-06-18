@@ -19,10 +19,9 @@ export const start = command('start', {
     log.debug('Skipping percy project attribute calculation');
   }
 
-  // start percy
-  yield* percy.yield.start();
-
   try {
+    // start percy
+    yield* percy.yield.start();
     // run until stopped or terminated
     yield* yieldFor(() => percy.readyState >= 3);
   } catch (error) {

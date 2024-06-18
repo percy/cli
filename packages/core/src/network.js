@@ -129,7 +129,7 @@ export class Network {
   }
 
   // Throw a better network timeout error
-  _throwTimeoutError(msg, filter = () => true) {
+  async _throwTimeoutError(msg, filter = () => true) {
     if (this.log.shouldLog('debug')) {
       let reqs = Array.from(this.#requests.values()).filter(filter).map(r => r.url);
       msg += `\n\n  ${['Active requests:', ...reqs].join('\n  - ')}\n`;

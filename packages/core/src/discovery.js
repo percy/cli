@@ -362,12 +362,20 @@ export function createDiscoveryQueue(percy) {
     .handle('error', ({ name, meta }, error) => {
       if (error.name === 'AbortError' && queue.readyState < 3) {
         // only error about aborted snapshots when not closed
-        percy.log.error('Received a duplicate snapshot, ' + (
-          `the previous snapshot was aborted: ${snapshotLogName(name, meta)}`), meta);
+        let errMsg = 'Received a duplicate snapshot, ' + (
+          `the previous snapshot was aborted: ${snapshotLogName(name, meta)}`)
+        percy.log.error(errMsg, meta);
+
+        percy.suggestionsForFix(errMsg, meta);
       } else {
         // log all other encountered errors
-        percy.log.error(`Encountered an error taking snapshot: ${name}`, meta);
+        let errMsg = `Encountered an error taking snapshot: ${name}`;
+        percy.log.error(errMsg, meta);
         percy.log.error(error, meta);
+
+        percy.suggestionsForFix(errMsg + (
+          ` Error: ${error}`
+        ), meta);
       }
     });
 }

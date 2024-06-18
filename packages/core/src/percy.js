@@ -185,8 +185,11 @@ export class Percy {
 
       // throw an easier-to-understand error when the port is in use
       if (error.code === 'EADDRINUSE') {
-        throw new Error('Percy is already running or the port is in use');
+        let errMsg = 'Percy is already running or the port is in use'
+        await suggestionsForFix(errMsg)
+        throw new Error(errMsg);
       } else {
+        await suggestionsForFix(error)
         throw error;
       }
     }
@@ -391,6 +394,8 @@ export class Percy {
         return yield* yieldTo(this.#snapshots.push(options));
       } catch (error) {
         this.#snapshots.cancel(options);
+        // Detecting and suggesting fix for errors;
+        await suggestionsForFix(error);
         throw error;
       }
     }.call(this));
@@ -423,12 +428,39 @@ export class Percy {
     return syncMode;
   }
 
+  async suggestionsForFix(error) {
+    try {
+      // TODO: validate suggestions
+      const suggestionResponse = await this.client.sendErrorLogForSuggestion(errorLogs);
+      const failureReason = suggestionResponse?.failureReason
+      const suggestions = suggestionResponse?.suggestion || []
+      const referenceDocLinks = suggestionResponse?.reference_doc_link
+      this.log.warn('Detected Error...')
+      this.log.warn(`Failure Reason: ${failureReason}`);
+
+      this.log.warn(`Try following suggestions to tackle the issue:`)
+      suggestions.forEach(_suggestion => {
+        this.log.info(`* ${_suggestion}`);
+      });
+
+      this.log.info(`Refer below Doc Links for the same`)
+      referenceDocLinks.forEach(_docLink => {
+        this.log.info(`* ${_docLink}`)
+      });
+    } catch (e) {
+      this.log.error('Unable to analyzing error logs')
+      this.log.error(e)
+    }
+  }
+
   async sendBuildLogs() {
     if (!process.env.PERCY_TOKEN) return;
     try {
       const logsObject = {
         clilogs: logger.query(() => true)
       };
+
+      console.log(logsObject.cliLogs)
       // Only add CI logs if not disabled voluntarily.
       const sendCILogs = process.env.PERCY_CLIENT_ERROR_LOGS !== 'false';
       if (sendCILogs) {
