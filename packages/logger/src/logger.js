@@ -13,12 +13,11 @@ export class PercyLogger {
   // namespace regular expressions used to determine which debug logs to write
   namespaces = {
     include: [/^.*?$/],
-    exclude: []
+    exclude: [/^ci$/, /^sdk$/]
   };
 
   // in-memory store for logs and meta info
   messages = new Set();
-  ciMessages = new Set();
 
   // track deprecations to limit noisy logging
   deprecations = new Set();
@@ -91,10 +90,7 @@ export class PercyLogger {
   }
 
   // Query for a set of logs by filtering the in-memory store
-  query(filter, ciLogs = false) {
-    if (ciLogs) {
-      return Array.from(this.ciMessages).filter(filter);
-    }
+  query(filter) {
     return Array.from(this.messages).filter(filter);
   }
 
@@ -190,12 +186,7 @@ export class PercyLogger {
     let timestamp = Date.now();
     message = err ? (message.stack || err) : message.toString();
     let entry = { debug, level, message, meta, timestamp, error: !!err };
-    if (ciLogs) {
-      this.ciMessages.add(entry);
-      return;
-    } else {
-      this.messages.add(entry);
-    }
+    this.messages.add(entry);
 
     // maybe write the message to stdio
     if (this.shouldLog(debug, level)) {
