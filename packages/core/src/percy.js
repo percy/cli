@@ -446,31 +446,10 @@ export class Percy {
     }
   }
 
-  formatErrorLog(errorLogs) {
-    let errors = [];
-    if (typeof errorLogs === 'string') {
-      errors.push({
-        message: errorLogs
-      });
-    } else if (Array.isArray(errorLogs)) {
-      errors = errorLogs;
-    } else {
-      errors.push({
-        message: errorLogs
-      });
-      errors.push({
-        message: errorLogs?.message || ''
-      });
-    }
-
-    return { logs: errors };
-  }
-
-  async suggestionsForFix(error, options) {
-    let errors = this.formatErrorLog(error);
+  async suggestionsForFix(errors, options) {
     try {
       // TODO: validate suggestions
-      const suggestionResponse = await this.client.sendErrorLogForSuggestion(errors);
+      const suggestionResponse = await this.client.formatAndSendForAnalysis(errors);
 
       if (suggestionResponse.length > 0) {
         suggestionResponse.forEach(item => {
