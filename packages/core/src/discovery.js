@@ -373,6 +373,10 @@ export function createDiscoveryQueue(percy) {
         percy.log.error(errMsg, meta);
         percy.log.error(error, meta);
 
+        console.log("---> discovery error", errMsg + (
+          ` Error: ${error}`
+        ));
+
         percy.suggestionsForFix(errMsg + (
           ` Error: ${error}`
         ), meta);

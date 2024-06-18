@@ -26,6 +26,7 @@ export const start = command('start', {
     yield* yieldFor(() => percy.readyState >= 3);
   } catch (error) {
     log.error(error);
+    await percy.suggestionsForFix(`Error: ${error}`);
     await percy.stop(true);
     throw error;
   }

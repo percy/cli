@@ -186,10 +186,10 @@ export class Percy {
       // throw an easier-to-understand error when the port is in use
       if (error.code === 'EADDRINUSE') {
         let errMsg = 'Percy is already running or the port is in use'
-        await suggestionsForFix(errMsg)
+        // await this.suggestionsForFix(`Error: ` + errMsg);
         throw new Error(errMsg);
       } else {
-        await suggestionsForFix(error)
+        // await this.suggestionsForFix(error)
         throw error;
       }
     }
@@ -395,7 +395,7 @@ export class Percy {
       } catch (error) {
         this.#snapshots.cancel(options);
         // Detecting and suggesting fix for errors;
-        await suggestionsForFix(error);
+        await this.suggestionsForFix(error);
         throw error;
       }
     }.call(this));
@@ -428,25 +428,48 @@ export class Percy {
     return syncMode;
   }
 
-  async suggestionsForFix(error) {
+  formatErrorLog(errorLogs) {
+    let errors = []
+    if (typeof errorLogs == 'string') {
+      errors.push({
+        message: errorLogs
+      })
+    } else if (Array.isArray(errorLogs)) {
+      errors = errorLogs.map(x => {
+        return { message: x }
+      });
+    }
+
+    return { logs: errors };
+  }
+
+  async suggestionsForFix(error, options) {
+    let errors = this.formatErrorLog(error);
+
     try {
       // TODO: validate suggestions
-      const suggestionResponse = await this.client.sendErrorLogForSuggestion(errorLogs);
-      const failureReason = suggestionResponse?.failureReason
-      const suggestions = suggestionResponse?.suggestion || []
-      const referenceDocLinks = suggestionResponse?.reference_doc_link
-      this.log.warn('Detected Error...')
-      this.log.warn(`Failure Reason: ${failureReason}`);
+      const suggestionResponse = await this.client.sendErrorLogForSuggestion(errors);
 
-      this.log.warn(`Try following suggestions to tackle the issue:`)
-      suggestions.forEach(_suggestion => {
-        this.log.info(`* ${_suggestion}`);
-      });
 
-      this.log.info(`Refer below Doc Links for the same`)
-      referenceDocLinks.forEach(_docLink => {
-        this.log.info(`* ${_docLink}`)
-      });
+      if (suggestionResponse.length > 0) {
+        suggestionResponse.forEach(item => {
+          const failureReason = item?.failure_reason
+          const suggestion = item?.suggestion || []
+          const referenceDocLinks = item?.reference_doc_link
+
+          this.log.warn('Detected Error...')
+          this.log.warn(`Failure Reason: ${failureReason}`);
+    
+          this.log.warn(`Try following suggestions to tackle the issue:`);
+          this.log.warn(suggestion);
+
+          this.log.info(`Refer below Doc Links for the same`);
+
+          referenceDocLinks?.map(_docLink => {
+            this.log.info(`* ${_docLink}`)
+          });
+        });
+      }
     } catch (e) {
       this.log.error('Unable to analyzing error logs')
       this.log.error(e)
@@ -460,7 +483,6 @@ export class Percy {
         clilogs: logger.query(() => true)
       };
 
-      console.log(logsObject.cliLogs)
       // Only add CI logs if not disabled voluntarily.
       const sendCILogs = process.env.PERCY_CLIENT_ERROR_LOGS !== 'false';
       if (sendCILogs) {

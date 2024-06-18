@@ -628,7 +628,7 @@ export class PercyClient {
   async sendErrorLogForSuggestion(errorLogs) {
     this.log.debug('Sending error logs for analysis')
     return this.post('suggestions/from_logs', {
-      data: body
+      data: errorLogs
     })
   }
 
