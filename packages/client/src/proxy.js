@@ -169,6 +169,7 @@ export class ProxyHttpsAgent extends https.Agent {
     let handleError = err => {
       socket.destroy(err);
       logger('client:proxy').error(`Proxying request failed: ${err}`);
+      logger('client:proxy').error('When using a proxy, please configure the following environment variables: HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.');
       callback(err);
     };
 

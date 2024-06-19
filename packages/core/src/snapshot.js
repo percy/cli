@@ -428,7 +428,7 @@ export function createSnapshotsQueue(percy) {
 
       let snapshotErrors = [
         { message: errMsg },
-        { message: error?.message || error }
+        { message: error?.message }
       ];
       await percy.suggestionsForFix(snapshotErrors, { snapshotLevel: true, snapshotName: name });
       if (snapshot.sync) snapshot.reject(error);

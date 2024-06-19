@@ -1106,4 +1106,81 @@ describe('Percy', () => {
       ]));
     });
   });
+
+  describe('#suggestionsForFix', () => {
+    beforeEach(() => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
+      });
+      percy.build = { id: 1 };
+    });
+
+    describe('when suggestionResponse.length > 0', () => {
+      describe('for build level error', () => {
+        it('should log failureReason, suggestion, and doc links', async () => {
+          spyOn(percy.client, 'formatAndSendForAnalysis').and.returnValue([{
+            suggestion: 'some suggestion',
+            failure_reason: 'some failure reason',
+            reference_doc_link: ['Doc Link 1', 'Doc Link 2']
+          }]);
+
+          await expectAsync(percy.suggestionsForFix('some_error')).toBeResolved();
+          console.log(logger.stderr);
+          expect(logger.stderr).toEqual(jasmine.arrayContaining([
+            '[percy] Detected error for percy build',
+            '[percy] Failure Reason: some failure reason',
+            '[percy] Suggestion: some suggestion',
+            '[percy] Refer below Doc Links for the same',
+            '[percy] * Doc Link 1',
+            '[percy] * Doc Link 2'
+          ]));
+        });
+      });
+
+      describe('for snapshotLevel error', () => {
+        it('should log failureReason, suggestion, and doc links with snapshotName', async () => {
+          spyOn(percy.client, 'formatAndSendForAnalysis').and.returnValue([{
+            suggestion: 'some suggestion',
+            failure_reason: 'some failure reason',
+            reference_doc_link: ['Doc Link 1', 'Doc Link 2']
+          }]);
+
+          await expectAsync(percy.suggestionsForFix('some_error', {
+            snapshotLevel: true,
+            snapshotName: 'Snapshot 1'
+          })).toBeResolved();
+          console.log(logger.stderr);
+          expect(logger.stderr).toEqual(jasmine.arrayContaining([
+            '[percy] Detected erorr for Snapshot: Snapshot 1',
+            '[percy] Failure Reason: some failure reason',
+            '[percy] Suggestion: some suggestion',
+            '[percy] Refer below Doc Links for the same',
+            '[percy] * Doc Link 1',
+            '[percy] * Doc Link 2'
+          ]));
+        });
+      });
+    });
+
+    describe('when response throw error', () => {
+      it('should catch and logs expected error', async () => {
+        spyOn(percy.client, 'formatAndSendForAnalysis').and.rejectWith({ statusCode: 403, message: 'some error' });
+
+        await expectAsync(percy.suggestionsForFix('some_error', {
+          snapshotLevel: true,
+          snapshotName: 'Snapshot 1'
+        })).toBeResolved();
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy] percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted. View link for details.',
+          '[percy] When using a proxy, please configure the following environment variables: HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.',
+          '[percy] Unable to analyzing error logs'
+        ]));
+      });
+    });
+  });
 });

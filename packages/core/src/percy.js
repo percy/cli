@@ -449,7 +449,7 @@ export class Percy {
     }
   }
 
-  async suggestionsForFix(errors, options) {
+  async suggestionsForFix(errors, options = {}) {
     try {
       // TODO: validate suggestions
       const suggestionResponse = await this.client.formatAndSendForAnalysis(errors);
@@ -460,28 +460,35 @@ export class Percy {
           const suggestion = item?.suggestion || [];
           const referenceDocLinks = item?.reference_doc_link;
 
-          if (options.snapshotLevel) {
-            this.log.warn('Detected error for percy build');
-          } else {
+          if (options?.snapshotLevel) {
             this.log.warn(`Detected erorr for Snapshot: ${options?.snapshotName}`);
+          } else {
+            this.log.warn('Detected error for percy build');
           }
 
           this.log.warn(`Failure Reason: ${failureReason}`);
           this.log.warn(`Suggestion: ${suggestion}`);
-          this.log.warn('Refer below Doc Links for the same');
 
-          referenceDocLinks?.forEach(_docLink => {
-            this.log.warn(`* ${_docLink}`);
-          });
+          if (referenceDocLinks?.length > 0) {
+            this.log.warn('Refer below Doc Links for the same');
 
+            referenceDocLinks?.forEach(_docLink => {
+              this.log.warn(`* ${_docLink}`);
+            });
+          }
           // TODO: Remove it before releasing CLI, unwanted change
-          this.log.warn('* https://docs.percy.io/docs/cli-configuration#per-snapshot-configuration');
+          // this.log.warn('* https://docs.percy.io/docs/cli-configuration#per-snapshot-configuration');
         });
       }
     } catch (e) {
+      if (e.statusCode === 403) {
+        // Request Forbidden
+        // This can be due to proxy issue
+        this.log.error('percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted. View link for details.');
+        this.log.error('When using a proxy, please configure the following environment variables: HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.');
+      }
       this.log.error('Unable to analyzing error logs');
-      this.log.error('Please check in case you are behind a proxy enabled envirnment please whitelist "percy.io"');
-      this.log.error(e);
+      this.log.debug(e);
     }
   }
 
