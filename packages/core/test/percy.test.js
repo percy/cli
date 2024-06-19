@@ -1139,6 +1139,24 @@ describe('Percy', () => {
             '[percy] * Doc Link 2'
           ]));
         });
+
+        describe('when no reference doc links is provided', () => {
+          it('should log failureReason and suggestion', async () => {
+            spyOn(percy.client, 'formatAndSendForAnalysis').and.returnValue([{
+              suggestion: 'some suggestion',
+              failure_reason: 'some failure reason',
+              reference_doc_link: null
+            }]);
+
+            await expectAsync(percy.suggestionsForFix('some_error')).toBeResolved();
+            console.log(logger.stderr);
+            expect(logger.stderr).toEqual(jasmine.arrayContaining([
+              '[percy] Detected error for percy build',
+              '[percy] Failure Reason: some failure reason',
+              '[percy] Suggestion: some suggestion'
+            ]));
+          });
+        });
       });
 
       describe('for snapshotLevel error', () => {
@@ -1167,19 +1185,37 @@ describe('Percy', () => {
     });
 
     describe('when response throw error', () => {
-      it('should catch and logs expected error', async () => {
-        spyOn(percy.client, 'formatAndSendForAnalysis').and.rejectWith({ statusCode: 403, message: 'some error' });
+      describe('when Request when statusCode 403(Forbidden)', () => {
+        it('should catch and logs expected error', async () => {
+          spyOn(percy.client, 'formatAndSendForAnalysis').and.rejectWith({ statusCode: 403, message: 'some error' });
 
-        await expectAsync(percy.suggestionsForFix('some_error', {
-          snapshotLevel: true,
-          snapshotName: 'Snapshot 1'
-        })).toBeResolved();
+          await expectAsync(percy.suggestionsForFix('some_error', {
+            snapshotLevel: true,
+            snapshotName: 'Snapshot 1'
+          })).toBeResolved();
 
-        expect(logger.stderr).toEqual(jasmine.arrayContaining([
-          '[percy] percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted. View link for details.',
-          '[percy] When using a proxy, please configure the following environment variables: HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.',
-          '[percy] Unable to analyzing error logs'
-        ]));
+          expect(logger.stderr).toEqual(jasmine.arrayContaining([
+            '[percy] percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted. View link for details.',
+            '[percy] When using a proxy, please configure the following environment variables: HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.',
+            '[percy] Unable to analyzing error logs'
+          ]));
+        });
+      });
+
+      describe('when request failed due to some unexpected issue', () => {
+        it('should catch and logs expected error', async () => {
+          spyOn(percy.client, 'formatAndSendForAnalysis').and.rejectWith('some_error');
+
+          await expectAsync(percy.suggestionsForFix('some_error', {
+            snapshotLevel: true,
+            snapshotName: 'Snapshot 1'
+          })).toBeResolved();
+
+          console.log(logger.stderr);
+          expect(logger.stderr).toEqual(jasmine.arrayContaining([
+            '[percy] Unable to analyzing error logs'
+          ]));
+        });
       });
     });
   });

@@ -457,7 +457,7 @@ export class Percy {
       if (suggestionResponse.length > 0) {
         suggestionResponse.forEach(item => {
           const failureReason = item?.failure_reason;
-          const suggestion = item?.suggestion || [];
+          const suggestion = item?.suggestion;
           const referenceDocLinks = item?.reference_doc_link;
 
           if (options?.snapshotLevel) {
@@ -476,8 +476,6 @@ export class Percy {
               this.log.warn(`* ${_docLink}`);
             });
           }
-          // TODO: Remove it before releasing CLI, unwanted change
-          // this.log.warn('* https://docs.percy.io/docs/cli-configuration#per-snapshot-configuration');
         });
       }
     } catch (e) {
