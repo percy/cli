@@ -1572,6 +1572,39 @@ describe('PercyClient', () => {
         }
       });
     });
+
+    describe('when error logs are of type array', () => {
+      it('should format error and call send error log for analysis', async () => {
+        await expectAsync(client.formatAndSendForAnalysis([{ message: 'some error' }])).toBeResolved();
+
+        expect(api.requests['/suggestions/from_logs']).toBeDefined();
+        expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
+        expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
+          data: {
+            logs: [
+              { message: 'some error' }
+            ]
+          }
+        });
+      });
+    });
+
+    describe('when error logs are of type object', () => {
+      it('should format error and call send error log for analysis', async () => {
+        await expectAsync(client.formatAndSendForAnalysis({ message: 'some error' })).toBeResolved();
+
+        expect(api.requests['/suggestions/from_logs']).toBeDefined();
+        expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
+        expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
+          data: {
+            logs: [
+              { message: { message: 'some error' } },
+              { message: 'some error' }
+            ]
+          }
+        });
+      });
+    });
   });
 
   describe('#mayBeLogUploadSize', () => {
