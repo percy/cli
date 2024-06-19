@@ -380,7 +380,7 @@ export class PercyClient {
     }
 
     var tagsArr = [];
-    if (tags !== null) {
+    if (typeof tags !== 'undefined' && tags !== null && typeof tags === 'string') {
       var tagNamesArray = tags.split(',');
       tagsArr = tagNamesArray.map(name => ({ id: null, name: name.trim() }));
     }
