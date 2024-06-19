@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@percy/cli-command": "1.28.8-beta.1",
+    "@percy/logger": "1.28.8-beta.1",
     "cross-spawn": "^7.0.3",
     "which": "^2.0.2"
   }

@@ -427,12 +427,12 @@ export class Percy {
     if (!process.env.PERCY_TOKEN) return;
     try {
       const logsObject = {
-        clilogs: logger.query(() => true)
+        clilogs: logger.query(log => !['ci'].includes(log.debug))
       };
       // Only add CI logs if not disabled voluntarily.
       const sendCILogs = process.env.PERCY_CLIENT_ERROR_LOGS !== 'false';
       if (sendCILogs) {
-        const redactedContent = redactSecrets(logger.query(() => true, true));
+        const redactedContent = redactSecrets(logger.query(log => ['ci'].includes(log.debug)));
         logsObject.cilogs = redactedContent;
       }
       const content = base64encode(Pako.gzip(JSON.stringify(logsObject)));
