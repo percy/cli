@@ -367,6 +367,7 @@ export class PercyClient {
     environmentInfo,
     sync,
     testCase,
+    tags,
     thTestCaseExecutionId,
     resources = []
   } = {}) {
@@ -376,6 +377,12 @@ export class PercyClient {
 
     if (!this.clientInfo.size || !this.environmentInfo.size) {
       this.log.warn('Warning: Missing `clientInfo` and/or `environmentInfo` properties');
+    }
+
+    var tagsArr = [];
+    if (tags !== null) {
+      var tagNamesArray = namesString.split(',');
+      tagsArr = tagNamesArray.map(name => ({ id: null, name: name.trim() }));
     }
 
     this.log.debug(`Creating snapshot: ${name}...`);
@@ -394,6 +401,7 @@ export class PercyClient {
           scope: scope || null,
           sync: !!sync,
           'test-case': testCase || null,
+          'tags': tagsArr,
           'scope-options': scopeOptions || {},
           'minimum-height': minHeight || null,
           'enable-javascript': enableJavaScript || null,

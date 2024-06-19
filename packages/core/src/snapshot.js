@@ -105,7 +105,7 @@ function getSnapshotOptions(options, { config, meta }) {
   return PercyConfig.merge([{
     widths: configSchema.snapshot.properties.widths.default,
     discovery: { allowedHostnames: [validURL(options.url).hostname] },
-    meta: { ...meta, snapshot: { name: options.name, testCase: options.testCase } }
+    meta: { ...meta, snapshot: { name: options.name, testCase: options.testCase, tags: options.tags } }
   }, config.snapshot, {
     // only specific discovery options are used per-snapshot
     discovery: {

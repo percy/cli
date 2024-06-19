@@ -74,6 +74,9 @@ export const configSchema = {
       testCase: {
         type: 'string'
       },
+      tags: {
+        type: 'string'
+      },
       thTestCaseExecutionId: {
         type: 'string'
       },
@@ -274,6 +277,7 @@ export const snapshotSchema = {
         enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
         sync: { $ref: '/config/snapshot#/properties/sync' },
         testCase: { $ref: '/config/snapshot#/properties/testCase' },
+        tags: { $ref: '/config/snapshot#/properties/tags' },
         thTestCaseExecutionId: { $ref: '/config/snapshot#/properties/thTestCaseExecutionId' },
         reshuffleInvalidTags: { $ref: '/config/snapshot#/properties/reshuffleInvalidTags' },
         scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
