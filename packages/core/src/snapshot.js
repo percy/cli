@@ -392,7 +392,7 @@ export function createSnapshotsQueue(percy) {
       return { ...snapshot, response };
     })
   // handle possible build errors returned by the API
-    .handle('error', (snapshot, error) => {
+    .handle('error', async (snapshot, error) => {
       let result = { ...snapshot, error };
       let { name, meta } = snapshot;
 
@@ -417,9 +417,7 @@ export function createSnapshotsQueue(percy) {
           let errMsg = `Ignored duplicate snapshot. ${errors[1].detail}`;
           percy.log.warn(errMsg);
 
-          // For Snapshot level errors, suggestions will be async to not block
-          // execution for taking snapshot for other snapshot
-          percy.suggestionsForFix(errMsg, { snapshotLevel: true, snapshotName: name });
+          await percy.suggestionsForFix(errMsg, { snapshotLevel: true, snapshotName: name });
         }
         return result;
       }
@@ -428,7 +426,11 @@ export function createSnapshotsQueue(percy) {
       percy.log.error(errMsg, meta);
       percy.log.error(error, meta);
 
-      percy.suggestionsForFix(errMsg, { snapshotLevel: true, snapshotName: name });
+      let snapshotErrors = [
+        { message: errMsg },
+        { message: error?.message || error }
+      ];
+      await percy.suggestionsForFix(snapshotErrors, { snapshotLevel: true, snapshotName: name });
       if (snapshot.sync) snapshot.reject(error);
       return result;
     });

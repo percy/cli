@@ -189,7 +189,7 @@ export class Percy {
         await this.suggestionsForFix(errMsg);
         throw new Error(errMsg);
       } else {
-        await this.suggestionsForFix(error);
+        await this.suggestionsForFix(error.message);
         throw error;
       }
     }
@@ -398,7 +398,7 @@ export class Percy {
       } catch (error) {
         this.#snapshots.cancel(options);
         // Detecting and suggesting fix for errors;
-        await this.suggestionsForFix(error);
+        await this.suggestionsForFix(error.message);
         throw error;
       }
     }.call(this));
@@ -436,12 +436,15 @@ export class Percy {
     // log line for safety keeping it 16
     const MAX_LOG_LINES = 16;
 
+    let isPercyStarted = false;
     let cliLogs = logger.query((item) => {
-      // We only needs percy:core logs to check for this
+      // We only needs percy:core logs to check for this &&
+      // Percy has started! message
+      isPercyStarted ||= item.message.includes('Percy has started');
       return item.debug.includes('core');
     });
 
-    if (cliLogs.length < MAX_LOG_LINES) {
+    if (isPercyStarted && cliLogs.length < MAX_LOG_LINES) {
       await this.suggestionsForFix(cliLogs);
     }
   }

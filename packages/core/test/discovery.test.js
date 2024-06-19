@@ -25,6 +25,12 @@ describe('Discovery', () => {
   // http://png-pixel.com/
   const pixel = Buffer.from('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', 'base64');
 
+  const sharedExpectBlock = (expectedBody) => {
+    let lastReq = api.requests['/suggestions/from_logs'].length - 1;
+    expect(api.requests['/suggestions/from_logs'][lastReq].body)
+      .toEqual(expectedBody);
+  };
+
   beforeEach(async () => {
     captured = [];
     await setupTest();
@@ -923,6 +929,16 @@ describe('Discovery', () => {
       expect(logger.stderr).toContain(
         '[percy] Error: Timed out waiting for network requests to idle.'
       );
+
+      let expectedRequestBody = {
+        data: {
+          logs: [
+            { message: 'Encountered an error taking snapshot: test idle' },
+            { message: 'Timed out waiting for network requests to idle.' }
+          ]
+        }
+      };
+      sharedExpectBlock(expectedRequestBody);
     });
 
     it('shows debug info when requests fail to idle in time', async () => {
@@ -941,6 +957,15 @@ describe('Discovery', () => {
         '',
         '(?<stack>(.|\n)*)$'
       ].join('\n')));
+
+      sharedExpectBlock({
+        data: {
+          logs: [
+            { message: 'Encountered an error taking snapshot: test idle' },
+            { message: 'Timed out waiting for network requests to idle.\n\n  Active requests:\n  - http://localhost:8000/img.gif\n' }
+          ]
+        }
+      });
     });
 
     it('shows a warning when idle wait timeout is set over 60000ms', async () => {
@@ -1073,6 +1098,15 @@ describe('Discovery', () => {
         '[percy] Encountered an error taking snapshot: test navigation timeout',
         '[percy] Error: Navigation failed: Timed out waiting for the page load event'
       ]));
+
+      sharedExpectBlock({
+        data: {
+          logs: [
+            { message: 'Encountered an error taking snapshot: test navigation timeout' },
+            { message: 'Navigation failed: Timed out waiting for the page load event' }
+          ]
+        }
+      });
     });
   });
 
@@ -1111,6 +1145,16 @@ describe('Discovery', () => {
         '',
         '(?<stack>(.|\n)*)$'
       ].join('\n')));
+
+      let lastReq = api.requests['/suggestions/from_logs'].length - 1;
+      expect(api.requests['/suggestions/from_logs'][lastReq].body).toEqual({
+        data: {
+          logs: [
+            { message: 'Encountered an error taking snapshot: navigation idle' },
+            { message: 'Navigation failed: Timed out waiting for the page load event\n\n  Active requests:\n  - http://localhost:8000/img.gif\n' }
+          ]
+        }
+      });
     });
 
     it('shows a warning when page load timeout is set over 60000ms', async () => {
@@ -1846,6 +1890,13 @@ describe('Discovery', () => {
       })).toBeRejectedWithError(
         /Failed to launch browser/
       );
+
+      // We are checking here like this, to avoid flaky test as
+      // the error message contains some number
+      // eg: `Failed to launch browser. \n[0619/152313.736334:ERROR:command_line_handler.cc(67)`
+      let lastRequest = api.requests['/suggestions/from_logs'].length - 1;
+      expect(api.requests['/suggestions/from_logs'][lastRequest].body.data.logs[0].message.includes('Failed to launch browser'))
+        .toEqual(true);
     });
 
     it('should fail to launch after the timeout', async () => {
@@ -1860,6 +1911,16 @@ describe('Discovery', () => {
       })).toBeRejectedWithError(
         /Failed to launch browser\. Timed out after 10ms/
       );
+
+      let expectedBody = {
+        data: {
+          logs: [
+            { message: "Failed to launch browser. Timed out after 10ms\n'\n\n" }
+          ]
+        }
+      };
+
+      sharedExpectBlock(expectedBody);
     });
   });
 

@@ -362,14 +362,14 @@ export function createDiscoveryQueue(percy) {
         });
       });
     })
-    .handle('error', ({ name, meta }, error) => {
+    .handle('error', async ({ name, meta }, error) => {
       if (error.name === 'AbortError' && queue.readyState < 3) {
         // only error about aborted snapshots when not closed
         let errMsg = 'Received a duplicate snapshot, ' + (
           `the previous snapshot was aborted: ${snapshotLogName(name, meta)}`);
         percy.log.error(errMsg, { snapshotLevel: true, snapshotName: name });
 
-        percy.suggestionsForFix(errMsg, meta);
+        await percy.suggestionsForFix(errMsg, meta);
       } else {
         // log all other encountered errors
         let errMsg = `Encountered an error taking snapshot: ${name}`;
@@ -378,10 +378,10 @@ export function createDiscoveryQueue(percy) {
 
         let assetDiscoveryErrors = [
           { message: errMsg },
-          { message: error }
+          { message: error?.message || error }
         ];
 
-        percy.suggestionsForFix(
+        await percy.suggestionsForFix(
           assetDiscoveryErrors,
           { snapshotLevel: true, snapshotName: name }
         );
