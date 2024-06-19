@@ -381,7 +381,7 @@ export class PercyClient {
 
     var tagsArr = [];
     if (tags !== null) {
-      var tagNamesArray = namesString.split(',');
+      var tagNamesArray = tags.split(',');
       tagsArr = tagNamesArray.map(name => ({ id: null, name: name.trim() }));
     }
 
