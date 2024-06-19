@@ -1129,7 +1129,6 @@ describe('Percy', () => {
           }]);
 
           await expectAsync(percy.suggestionsForFix('some_error')).toBeResolved();
-          console.log(logger.stderr);
           expect(logger.stderr).toEqual(jasmine.arrayContaining([
             '[percy] Detected error for percy build',
             '[percy] Failure Reason: some failure reason',
@@ -1149,7 +1148,6 @@ describe('Percy', () => {
             }]);
 
             await expectAsync(percy.suggestionsForFix('some_error')).toBeResolved();
-            console.log(logger.stderr);
             expect(logger.stderr).toEqual(jasmine.arrayContaining([
               '[percy] Detected error for percy build',
               '[percy] Failure Reason: some failure reason',
@@ -1171,7 +1169,6 @@ describe('Percy', () => {
             snapshotLevel: true,
             snapshotName: 'Snapshot 1'
           })).toBeResolved();
-          console.log(logger.stderr);
           expect(logger.stderr).toEqual(jasmine.arrayContaining([
             '[percy] Detected erorr for Snapshot: Snapshot 1',
             '[percy] Failure Reason: some failure reason',
@@ -1211,7 +1208,6 @@ describe('Percy', () => {
             snapshotName: 'Snapshot 1'
           })).toBeResolved();
 
-          console.log(logger.stderr);
           expect(logger.stderr).toEqual(jasmine.arrayContaining([
             '[percy] Unable to analyzing error logs'
           ]));

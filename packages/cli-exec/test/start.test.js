@@ -1,5 +1,5 @@
 import { request } from '@percy/cli-command/utils';
-import { logger, setupTest } from '@percy/cli-command/test/helpers';
+import { logger, setupTest, api } from '@percy/cli-command/test/helpers';
 import { start, ping } from '@percy/cli-exec';
 
 describe('percy exec:start', () => {
@@ -91,7 +91,20 @@ describe('percy exec:start', () => {
 
     await expectAsync(start()).toBeRejected();
 
-    expect(logger.stdout).toEqual([]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      "[percy] Build's CLI and CI logs sent successfully. Please share this log ID with Percy team in case of any issues - random_sha"
+    ]));
+
+    let lastReq = api.requests['/suggestions/from_logs'].length - 1;
+
+    expect(api.requests['/suggestions/from_logs'][lastReq].body).toEqual({
+      data: {
+        logs: [
+          { message: 'Percy is already running or the port is in use' }
+        ]
+      }
+    });
+
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Error: Percy is already running or the port is in use'
     ]));
