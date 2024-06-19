@@ -177,7 +177,7 @@ export class PercyLogger {
 
   // Generic log method accepts a debug group, log level, log message, and optional meta
   // information to store with the message and other info
-  log(debug, level, message, meta = {}, ciLogs = false) {
+  log(debug, level, message, meta = {}) {
     // message might be an error-like object
     let err = typeof message !== 'string' && (level === 'debug' || level === 'error');
     err &&= message.message ? Error.prototype.toString.call(message) : message.toString();

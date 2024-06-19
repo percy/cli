@@ -154,6 +154,20 @@ export function createPercyServer(percy, port) {
       await percy.client.sendBuildEvents(percy.build?.id, body);
       res.json(200, { success: true });
     })
+    .route('post', '/percy/log', async (req, res) => {
+      const log = logger('sdk');
+      if (!req.body) {
+        log.error('No request body for /percy/log endpoint');
+        return res.json(400, { error: 'No body passed' });
+      }
+      const level = req.body.level;
+      const message = req.body.message;
+      const meta = req.body.meta || {};
+
+      log[level](message, meta);
+
+      res.json(200, { success: true });
+    })
   // stops percy at the end of the current event loop
     .route('/percy/stop', (req, res) => {
       setImmediate(() => percy.stop());
