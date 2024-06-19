@@ -1605,6 +1605,23 @@ describe('PercyClient', () => {
         });
       });
     });
+
+    describe('when error logs are of type object and error.message key is not present', () => {
+      it('should format error and call send error log for analysis', async () => {
+        await expectAsync(client.formatAndSendForAnalysis({ some_key: 'some error' })).toBeResolved();
+
+        expect(api.requests['/suggestions/from_logs']).toBeDefined();
+        expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
+        expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
+          data: {
+            logs: [
+              { message: { some_key: 'some error' } },
+              { message: '' }
+            ]
+          }
+        });
+      });
+    });
   });
 
   describe('#mayBeLogUploadSize', () => {
