@@ -551,6 +551,7 @@ describe('API Server', () => {
       meta: { snapshot: 'Snapshot name 2', testCase: 'testCase name' }
     };
 
+    // works with standard messages
     await expectAsync(request('/percy/log', {
       body: message1,
       method: 'post'
@@ -561,7 +562,25 @@ describe('API Server', () => {
       method: 'post'
     })).toBeResolvedTo({ success: true });
 
+    // works without meta
+    await expectAsync(request('/percy/log', {
+      body: {
+        level: 'info',
+        message: 'some other info'
+      },
+      method: 'post'
+    })).toBeResolvedTo({ success: true });
+
+    // throws error on invalid data
+    await expectAsync(request('/percy/log', {
+      body: null,
+      method: 'post'
+    })).toBeRejected();
+
     const sdkLogs = logger.instance.query(log => log.debug === 'sdk');
+
+    expect(sdkLogs.length).toEqual(4);
+
     expect(sdkLogs[0].level).toEqual(message1.level);
     expect(sdkLogs[0].message).toEqual(message1.message);
     expect(sdkLogs[0].meta).toEqual(message1.meta);
