@@ -7,7 +7,7 @@ jobs:
     name: Build Executables
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - uses: actions/setup-node@v4
         with:
           node-version: 14
@@ -39,10 +39,19 @@ jobs:
     name: Sign Win Executable
     runs-on: windows-latest
     steps:
-      - name: Download a single artifact
+      - uses: actions/checkout@v3
+      - name: Download win artifact
         uses: actions/download-artifact@v4
         with:
           name: win-exe
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 14
+      - name: Install resedit
+        run: npm install resedit
+      - name: Update exe metadata
+        run: node ./scripts/win-metadata-update.js
       - name: Sign binary
         uses: lando/code-sign-action@v2
         with:
