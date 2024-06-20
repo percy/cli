@@ -933,8 +933,14 @@ describe('Discovery', () => {
       let expectedRequestBody = {
         data: {
           logs: [
-            { message: 'Encountered an error taking snapshot: test idle' },
-            { message: 'Timed out waiting for network requests to idle.' }
+            {
+              message: 'Encountered an error taking snapshot: test idle',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
+            },
+            {
+              message: 'Timed out waiting for network requests to idle.',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
+            }
           ]
         }
       };
@@ -961,8 +967,14 @@ describe('Discovery', () => {
       sharedExpectBlock({
         data: {
           logs: [
-            { message: 'Encountered an error taking snapshot: test idle' },
-            { message: 'Timed out waiting for network requests to idle.\n\n  Active requests:\n  - http://localhost:8000/img.gif\n' }
+            {
+              message: 'Encountered an error taking snapshot: test idle',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
+            },
+            {
+              message: 'Timed out waiting for network requests to idle.\n\n  Active requests:\n  - http://localhost:8000/img.gif\n',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
+            }
           ]
         }
       });
@@ -1102,8 +1114,14 @@ describe('Discovery', () => {
       sharedExpectBlock({
         data: {
           logs: [
-            { message: 'Encountered an error taking snapshot: test navigation timeout' },
-            { message: 'Navigation failed: Timed out waiting for the page load event' }
+            {
+              message: 'Encountered an error taking snapshot: test navigation timeout',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test navigation timeout' } }
+            },
+            {
+              message: 'Navigation failed: Timed out waiting for the page load event',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test navigation timeout' } }
+            }
           ]
         }
       });
@@ -1150,8 +1168,14 @@ describe('Discovery', () => {
       expect(api.requests['/suggestions/from_logs'][lastReq].body).toEqual({
         data: {
           logs: [
-            { message: 'Encountered an error taking snapshot: navigation idle' },
-            { message: 'Navigation failed: Timed out waiting for the page load event\n\n  Active requests:\n  - http://localhost:8000/img.gif\n' }
+            {
+              message: 'Encountered an error taking snapshot: navigation idle',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'navigation idle' } }
+            },
+            {
+              message: 'Navigation failed: Timed out waiting for the page load event\n\n  Active requests:\n  - http://localhost:8000/img.gif\n',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'navigation idle' } }
+            }
           ]
         }
       });

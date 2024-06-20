@@ -377,8 +377,8 @@ export function createDiscoveryQueue(percy) {
         percy.log.error(error, meta);
 
         let assetDiscoveryErrors = [
-          { message: errMsg },
-          { message: error?.message }
+          { message: errMsg, meta },
+          { message: error?.message, meta }
         ];
 
         await percy.suggestionsForFix(

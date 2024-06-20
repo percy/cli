@@ -1258,26 +1258,14 @@ describe('PercyClient', () => {
       ]);
     });
 
-    it('returns false if tile is not verified', async () => {
+    it('throws error if tile is not verified', async () => {
       api.reply('/comparisons/891011/tiles/verify', async () => {
         return [400, 'failure'];
       });
 
       await expectAsync(client.uploadComparisonTiles(891011, [
         { sha: sha256hash('foo') }
-      ])).toBeResolvedTo([
-        false
-      ]);
-
-      // Should call this endpoint to analyze logs
-      expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
-      expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
-        data: {
-          logs: [
-            { message: 'Uploading comparison tile failed' }
-          ]
-        }
-      });
+      ])).toBeRejectedWithError('Uploading comparison tile failed');
     });
 
     it('throws any errors from verifying', async () => {
@@ -1313,6 +1301,10 @@ describe('PercyClient', () => {
     });
 
     it('verify a comparison tile', async () => {
+      api.reply('/comparisons/123/tiles/verify', async () => {
+        return [200, 'success'];
+      });
+
       await expectAsync(client.verify(123, 'sha')).toBeResolved();
 
       expect(api.requests['/comparisons/123/tiles/verify']).toBeDefined();
@@ -1536,14 +1528,12 @@ describe('PercyClient', () => {
     });
   });
 
-  describe('#sendErrorForAnalysis', () => {
+  describe('#getErrorAnalysis', () => {
     it('should send error logs to API', async () => {
-      await expectAsync(client.sendErrorForAnalysis({
-        logs: [
-          { message: 'Some Error Log' },
-          { message: 'Some Error logs 2' }
-        ]
-      })).toBeResolved();
+      await expectAsync(client.getErrorAnalysis([
+        { message: 'Some Error Log' },
+        { message: 'Some Error logs 2' }
+      ])).toBeResolved();
 
       expect(api.requests['/suggestions/from_logs']).toBeDefined();
       expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
@@ -1558,71 +1548,71 @@ describe('PercyClient', () => {
     });
   });
 
-  describe('#formatAndSendForAnalysis', () => {
-    it('should format error and call sendErrorForAnalysis function', async () => {
-      await expectAsync(client.formatAndSendForAnalysis('Some Error Log')).toBeResolved();
+  // describe('#formatAndSendForAnalysis', () => {
+  //   it('should format error and call getErrorAnalysis function', async () => {
+  //     await expectAsync(client.formatAndSendForAnalysis('Some Error Log')).toBeResolved();
 
-      expect(api.requests['/suggestions/from_logs']).toBeDefined();
-      expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
-      expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
-        data: {
-          logs: [
-            { message: 'Some Error Log' }
-          ]
-        }
-      });
-    });
+  //     expect(api.requests['/suggestions/from_logs']).toBeDefined();
+  //     expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
+  //     expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
+  //       data: {
+  //         logs: [
+  //           { message: 'Some Error Log' }
+  //         ]
+  //       }
+  //     });
+  //   });
 
-    describe('when error logs are of type array', () => {
-      it('should format error and call send error log for analysis', async () => {
-        await expectAsync(client.formatAndSendForAnalysis([{ message: 'some error' }])).toBeResolved();
+  //   describe('when error logs are of type array', () => {
+  //     it('should format error and call send error log for analysis', async () => {
+  //       await expectAsync(client.formatAndSendForAnalysis([{ message: 'some error' }])).toBeResolved();
 
-        expect(api.requests['/suggestions/from_logs']).toBeDefined();
-        expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
-        expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
-          data: {
-            logs: [
-              { message: 'some error' }
-            ]
-          }
-        });
-      });
-    });
+  //       expect(api.requests['/suggestions/from_logs']).toBeDefined();
+  //       expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
+  //       expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
+  //         data: {
+  //           logs: [
+  //             { message: 'some error' }
+  //           ]
+  //         }
+  //       });
+  //     });
+  //   });
 
-    describe('when error logs are of type object', () => {
-      it('should format error and call send error log for analysis', async () => {
-        await expectAsync(client.formatAndSendForAnalysis({ message: 'some error' })).toBeResolved();
+  //   describe('when error logs are of type object', () => {
+  //     it('should format error and call send error log for analysis', async () => {
+  //       await expectAsync(client.formatAndSendForAnalysis({ message: 'some error' })).toBeResolved();
 
-        expect(api.requests['/suggestions/from_logs']).toBeDefined();
-        expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
-        expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
-          data: {
-            logs: [
-              { message: { message: 'some error' } },
-              { message: 'some error' }
-            ]
-          }
-        });
-      });
-    });
+  //       expect(api.requests['/suggestions/from_logs']).toBeDefined();
+  //       expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
+  //       expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
+  //         data: {
+  //           logs: [
+  //             { message: { message: 'some error' } },
+  //             { message: 'some error' }
+  //           ]
+  //         }
+  //       });
+  //     });
+  //   });
 
-    describe('when error logs are of type object and error.message key is not present', () => {
-      it('should format error and call send error log for analysis', async () => {
-        await expectAsync(client.formatAndSendForAnalysis({ some_key: 'some error' })).toBeResolved();
+  //   describe('when error logs are of type object and error.message key is not present', () => {
+  //     it('should format error and call send error log for analysis', async () => {
+  //       await expectAsync(client.formatAndSendForAnalysis({ some_key: 'some error' })).toBeResolved();
 
-        expect(api.requests['/suggestions/from_logs']).toBeDefined();
-        expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
-        expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
-          data: {
-            logs: [
-              { message: { some_key: 'some error' } },
-              { message: '' }
-            ]
-          }
-        });
-      });
-    });
-  });
+  //       expect(api.requests['/suggestions/from_logs']).toBeDefined();
+  //       expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
+  //       expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
+  //         data: {
+  //           logs: [
+  //             { message: { some_key: 'some error' } },
+  //             { message: '' }
+  //           ]
+  //         }
+  //       });
+  //     });
+  //   });
+  // });
 
   describe('#mayBeLogUploadSize', () => {
     it('does not warns when upload size less 20MB/25MB', () => {

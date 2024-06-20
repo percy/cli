@@ -30,6 +30,12 @@ describe('Percy', () => {
     delete process.env.PERCY_CLIENT_ERROR_LOGS;
   });
 
+  const sharedExpectBlockForSuggestion = (expectedBody) => {
+    let lastReq = api.requests['/suggestions/from_logs'].length - 1;
+    expect(api.requests['/suggestions/from_logs'][lastReq].body)
+      .toEqual(expectedBody);
+  };
+
   it('loads config and intializes client with config', () => {
     expect(percy.client.config).toEqual(percy.config);
   });
@@ -287,7 +293,17 @@ describe('Percy', () => {
     it('throws when the port is in use', async () => {
       await expectAsync(percy.start()).toBeResolved();
       await expectAsync(Percy.start({ token: 'PERCY_TOKEN' }))
-        .toBeRejectedWithError('Percy is already running or the port is in use');
+        .toBeRejectedWithError('Percy is already running or the port 5338 is in use');
+
+      sharedExpectBlockForSuggestion({
+        data: {
+          logs: [
+            {
+              message: 'Percy is already running or the port 5338 is in use'
+            }
+          ]
+        }
+      });
     });
 
     it('queues build creation when uploads are deferred', async () => {
@@ -317,6 +333,13 @@ describe('Percy', () => {
       // processing deferred uploads should not result in a new build
       await percy.flush();
       expect(api.requests['/builds']).toBeUndefined();
+      sharedExpectBlockForSuggestion({
+        data: {
+          logs: [
+            { message: 'This operation was aborted' }
+          ]
+        }
+      });
     });
 
     it('has projectType', async () => {
@@ -511,7 +534,16 @@ describe('Percy', () => {
       await expectAsync(percy.stop()).toBeResolved();
       expect(api.requests['/builds/123/finalize']).toBeDefined();
 
-      expect(logger.stderr).toEqual([]);
+      // This is the condition for no snapshot command was called
+      expect(logger.stderr).toEqual([
+        '[percy] Detected error for percy build',
+        '[percy] Failure: Snapshot command was not called',
+        '[percy] Failure Reason: Snapshot Command was not called. please check your CI for errors',
+        '[percy] Suggestion: Try using percy snapshot command to take snapshots',
+        '[percy] Refer to the below Doc Links for the same',
+        '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
+      ]);
+
       expect(logger.stdout).toContain(
         '[percy] Finalized build #1: https://percy.io/test/test/123'
       );
@@ -1122,18 +1154,20 @@ describe('Percy', () => {
     describe('when suggestionResponse.length > 0', () => {
       describe('for build level error', () => {
         it('should log failureReason, suggestion, and doc links', async () => {
-          spyOn(percy.client, 'formatAndSendForAnalysis').and.returnValue([{
+          spyOn(percy.client, 'getErrorAnalysis').and.returnValue([{
             suggestion: 'some suggestion',
-            failure_reason: 'some failure reason',
+            reason_message: 'some failure reason',
+            failure_reason: 'some failure title',
             reference_doc_link: ['Doc Link 1', 'Doc Link 2']
           }]);
 
           await expectAsync(percy.suggestionsForFix('some_error')).toBeResolved();
           expect(logger.stderr).toEqual(jasmine.arrayContaining([
             '[percy] Detected error for percy build',
+            '[percy] Failure: some failure title',
             '[percy] Failure Reason: some failure reason',
             '[percy] Suggestion: some suggestion',
-            '[percy] Refer below Doc Links for the same',
+            '[percy] Refer to the below Doc Links for the same',
             '[percy] * Doc Link 1',
             '[percy] * Doc Link 2'
           ]));
@@ -1141,7 +1175,7 @@ describe('Percy', () => {
 
         describe('when no reference doc links is provided', () => {
           it('should log failureReason and suggestion', async () => {
-            spyOn(percy.client, 'formatAndSendForAnalysis').and.returnValue([{
+            spyOn(percy.client, 'getErrorAnalysis').and.returnValue([{
               suggestion: 'some suggestion',
               failure_reason: 'some failure reason',
               reference_doc_link: null
@@ -1150,7 +1184,8 @@ describe('Percy', () => {
             await expectAsync(percy.suggestionsForFix('some_error')).toBeResolved();
             expect(logger.stderr).toEqual(jasmine.arrayContaining([
               '[percy] Detected error for percy build',
-              '[percy] Failure Reason: some failure reason',
+              '[percy] Failure: some failure reason',
+              '[percy] Failure Reason: undefined',
               '[percy] Suggestion: some suggestion'
             ]));
           });
@@ -1159,7 +1194,7 @@ describe('Percy', () => {
 
       describe('for snapshotLevel error', () => {
         it('should log failureReason, suggestion, and doc links with snapshotName', async () => {
-          spyOn(percy.client, 'formatAndSendForAnalysis').and.returnValue([{
+          spyOn(percy.client, 'getErrorAnalysis').and.returnValue([{
             suggestion: 'some suggestion',
             failure_reason: 'some failure reason',
             reference_doc_link: ['Doc Link 1', 'Doc Link 2']
@@ -1169,11 +1204,13 @@ describe('Percy', () => {
             snapshotLevel: true,
             snapshotName: 'Snapshot 1'
           })).toBeResolved();
+
           expect(logger.stderr).toEqual(jasmine.arrayContaining([
             '[percy] Detected erorr for Snapshot: Snapshot 1',
-            '[percy] Failure Reason: some failure reason',
+            '[percy] Failure: some failure reason',
+            '[percy] Failure Reason: undefined',
             '[percy] Suggestion: some suggestion',
-            '[percy] Refer below Doc Links for the same',
+            '[percy] Refer to the below Doc Links for the same',
             '[percy] * Doc Link 1',
             '[percy] * Doc Link 2'
           ]));
@@ -1182,9 +1219,9 @@ describe('Percy', () => {
     });
 
     describe('when response throw error', () => {
-      describe('when Request when statusCode 403(Forbidden)', () => {
+      describe('when Request failed with error code of EHOSTUNREACH', () => {
         it('should catch and logs expected error', async () => {
-          spyOn(percy.client, 'formatAndSendForAnalysis').and.rejectWith({ statusCode: 403, message: 'some error' });
+          spyOn(percy.client, 'getErrorAnalysis').and.rejectWith({ code: 'EHOSTUNREACH', message: 'some error' });
 
           await expectAsync(percy.suggestionsForFix('some_error', {
             snapshotLevel: true,
@@ -1192,16 +1229,32 @@ describe('Percy', () => {
           })).toBeResolved();
 
           expect(logger.stderr).toEqual(jasmine.arrayContaining([
-            '[percy] percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted. View link for details.',
-            '[percy] When using a proxy, please configure the following environment variables: HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.',
-            '[percy] Unable to analyzing error logs'
+            '[percy] percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted.',
+            '[percy] If inside a proxied envirnment, please configure the following environment variables: HTTPS_PROXY, HTTP_PROXY. Refer to our documentation for more details',
+            '[percy] Unable to analyze error logs'
+          ]));
+        });
+      });
+
+      describe('when Request failed with error code ECONNREFUSED and HTTPS_PROXY env is enabled', () => {
+        it('should catch and logs expected error', async () => {
+          spyOn(percy.client, 'getErrorAnalysis').and.rejectWith({ code: 'ECONNREFUSED', message: 'some error' });
+
+          await expectAsync(percy.suggestionsForFix('some_error', {
+            snapshotLevel: true,
+            snapshotName: 'Snapshot 1'
+          })).toBeResolved();
+
+          expect(logger.stderr).toEqual(jasmine.arrayContaining([
+            '[percy] percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted.',
+            '[percy] Unable to analyze error logs'
           ]));
         });
       });
 
       describe('when request failed due to some unexpected issue', () => {
         it('should catch and logs expected error', async () => {
-          spyOn(percy.client, 'formatAndSendForAnalysis').and.rejectWith('some_error');
+          spyOn(percy.client, 'getErrorAnalysis').and.rejectWith('some_error');
 
           await expectAsync(percy.suggestionsForFix('some_error', {
             snapshotLevel: true,
@@ -1209,10 +1262,43 @@ describe('Percy', () => {
           })).toBeResolved();
 
           expect(logger.stderr).toEqual(jasmine.arrayContaining([
-            '[percy] Unable to analyzing error logs'
+            '[percy] Unable to analyze error logs'
           ]));
         });
       });
+    });
+  });
+
+  describe('#checkForNoSnapshotCommandError', () => {
+    it('should log No snapshot command was called', async () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      await percy.start();
+      await percy.stop(true);
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy] Detected error for percy build',
+        '[percy] Failure: Snapshot command was not called',
+        '[percy] Failure Reason: Snapshot Command was not called. please check your CI for errors',
+        '[percy] Suggestion: Try using percy snapshot command to take snapshots',
+        '[percy] Refer to the below Doc Links for the same',
+        '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
+      ]));
+    });
+
+    it('should not log No snapshot command was called', async () => {
+      await percy.start();
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>'
+      });
+      await percy.stop(true);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([]));
     });
   });
 });

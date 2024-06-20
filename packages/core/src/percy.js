@@ -84,6 +84,7 @@ export class Percy {
     if (testing) loglevel = 'silent';
     if (loglevel) this.loglevel(loglevel);
 
+    this.port = port;
     this.projectType = projectType;
     this.testing = testing ? {} : null;
     this.dryRun = !!testing || !!dryRun;
@@ -185,7 +186,7 @@ export class Percy {
 
       // throw an easier-to-understand error when the port is in use
       if (error.code === 'EADDRINUSE') {
-        let errMsg = 'Percy is already running or the port is in use';
+        let errMsg = `Percy is already running or the port ${this.port} is in use`;
         await this.suggestionsForFix(errMsg);
         throw new Error(errMsg);
       } else {
@@ -431,61 +432,75 @@ export class Percy {
     return syncMode;
   }
 
+  // This specific error will be hard coded
   async checkForNoSnapshotCommandError() {
-    // Max log line to check, ideally we get only 12 pecy:core
-    // log line for safety keeping it 16
-    const MAX_LOG_LINES = 16;
-
     let isPercyStarted = false;
-    let cliLogs = logger.query((item) => {
-      // We only needs percy:core logs to check for this &&
-      // Percy has started! message
-      isPercyStarted ||= item.message.includes('Percy has started');
-      return item.debug.includes('core');
+    let containsSnapshotTaken = false;
+    logger.query((item) => {
+      isPercyStarted ||= item?.message?.includes('Percy has started');
+      containsSnapshotTaken ||= item?.message?.includes('Snapshot taken');
+      return item;
     });
 
-    if (isPercyStarted && cliLogs.length < MAX_LOG_LINES) {
-      await this.suggestionsForFix(cliLogs);
+    if (isPercyStarted && !containsSnapshotTaken) {
+      // This is the case for No snapshot command called
+      this.#displaySuggestionLogs([{
+        failure_reason: 'Snapshot command was not called',
+        reason_message: 'Snapshot Command was not called. please check your CI for errors',
+        suggestion: 'Try using percy snapshot command to take snapshots',
+        reference_doc_link: ['https://www.browserstack.com/docs/percy/take-percy-snapshots/']
+      }]);
     }
+  }
+
+  #displaySuggestionLogs(suggestions, options = {}) {
+    if (!suggestions?.length) return;
+
+    suggestions.forEach(item => {
+      const failure = item?.failure_reason;
+      const failureReason = item?.reason_message;
+      const suggestion = item?.suggestion;
+      const referenceDocLinks = item?.reference_doc_link;
+
+      if (options?.snapshotLevel) {
+        this.log.warn(`Detected erorr for Snapshot: ${options?.snapshotName}`);
+      } else {
+        this.log.warn('Detected error for percy build');
+      }
+
+      this.log.warn(`Failure: ${failure}`);
+      this.log.warn(`Failure Reason: ${failureReason}`);
+      this.log.warn(`Suggestion: ${suggestion}`);
+
+      if (referenceDocLinks?.length > 0) {
+        this.log.warn('Refer to the below Doc Links for the same');
+
+        referenceDocLinks?.forEach(_docLink => {
+          this.log.warn(`* ${_docLink}`);
+        });
+      }
+    });
+  }
+
+  #proxyEnabled() {
+    return !!(process.env.HTTP_PROXY || process.env.HTTPS_PROXY);
   }
 
   async suggestionsForFix(errors, options = {}) {
     try {
-      // TODO: validate suggestions
-      const suggestionResponse = await this.client.formatAndSendForAnalysis(errors);
-
-      if (suggestionResponse.length > 0) {
-        suggestionResponse.forEach(item => {
-          const failureReason = item?.failure_reason;
-          const suggestion = item?.suggestion;
-          const referenceDocLinks = item?.reference_doc_link;
-
-          if (options?.snapshotLevel) {
-            this.log.warn(`Detected erorr for Snapshot: ${options?.snapshotName}`);
-          } else {
-            this.log.warn('Detected error for percy build');
-          }
-
-          this.log.warn(`Failure Reason: ${failureReason}`);
-          this.log.warn(`Suggestion: ${suggestion}`);
-
-          if (referenceDocLinks?.length > 0) {
-            this.log.warn('Refer below Doc Links for the same');
-
-            referenceDocLinks?.forEach(_docLink => {
-              this.log.warn(`* ${_docLink}`);
-            });
-          }
-        });
-      }
+      const suggestionResponse = await this.client.getErrorAnalysis(errors);
+      this.#displaySuggestionLogs(suggestionResponse, options);
     } catch (e) {
-      if (e.statusCode === 403) {
-        // Request Forbidden
+      // Common error code for Proxy issues
+      const PROXY_CODES = ['ECONNREFUSED', 'ECONNRESET', 'EHOSTUNREACH'];
+      if (!!e.code && PROXY_CODES.includes(e.code)) {
         // This can be due to proxy issue
-        this.log.error('percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted. View link for details.');
-        this.log.error('When using a proxy, please configure the following environment variables: HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.');
+        this.log.error('percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted.');
+        if (!this.#proxyEnabled()) {
+          this.log.error('If inside a proxied envirnment, please configure the following environment variables: HTTPS_PROXY, HTTP_PROXY. Refer to our documentation for more details');
+        }
       }
-      this.log.error('Unable to analyzing error logs');
+      this.log.error('Unable to analyze error logs');
       this.log.debug(e);
     }
   }

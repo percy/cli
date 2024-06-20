@@ -538,9 +538,9 @@ export class PercyClient {
       let errMsg = 'Uploading comparison tile failed';
 
       // Detecting error and logging fix for the same
-      this.log.error(errMsg);
-      await this.formatAndSendForAnalysis(errMsg);
-      return false;
+      // We are throwing this error as the comparison will be failed
+      // even if 1 tile gets failed
+      throw new Error(errMsg);
     }
     return true;
   }
@@ -612,7 +612,8 @@ export class PercyClient {
     });
   }
 
-  async formatAndSendForAnalysis(errorLogs) {
+  // private function
+  #formatLogErrors(errorLogs) {
     let errors = [];
     if (typeof errorLogs === 'string') {
       errors.push({
@@ -629,10 +630,11 @@ export class PercyClient {
       });
     }
 
-    return await this.sendErrorForAnalysis({ logs: errors });
+    return { logs: errors };
   }
 
-  async sendErrorForAnalysis(errorLogs) {
+  async getErrorAnalysis(errors) {
+    const errorLogs = this.#formatLogErrors(errors);
     this.log.debug('Sending error logs for analysis');
 
     return this.post('suggestions/from_logs', {
