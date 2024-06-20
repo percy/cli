@@ -54,11 +54,11 @@ export class PercyClient {
     clientInfo,
     environmentInfo,
     config,
-    buildTags,
+    labels,
     // versioned api url
     apiUrl = PERCY_CLIENT_API_URL
   } = {}) {
-    Object.assign(this, { token, config: config || {}, apiUrl, buildTags: buildTags });
+    Object.assign(this, { token, config: config || {}, apiUrl, labels: labels });
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
     this.buildType = null;
@@ -135,7 +135,7 @@ export class PercyClient {
   async createBuild({ resources = [], projectType } = {}) {
     this.log.debug('Creating a new build...');
 
-    let tagsArr = tagsList(this.buildTags);
+    let tagsArr = tagsList(this.labels);
 
     return this.post('builds', {
       data: {
@@ -371,7 +371,7 @@ export class PercyClient {
     environmentInfo,
     sync,
     testCase,
-    tags,
+    labels,
     thTestCaseExecutionId,
     resources = []
   } = {}) {
@@ -383,7 +383,7 @@ export class PercyClient {
       this.log.warn('Warning: Missing `clientInfo` and/or `environmentInfo` properties');
     }
 
-    let tagsArr = tagsList(tags);
+    let tagsArr = tagsList(labels);
 
     this.log.debug(`Creating snapshot: ${name}...`);
 

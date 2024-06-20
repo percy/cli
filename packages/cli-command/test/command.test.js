@@ -65,18 +65,18 @@ describe('Command', () => {
     await test(['--help']);
 
     expect(logger.stdout).toEqual([dedent`
-      Usage:
-        $ test [options]
+    Usage:
+      $ test [options]
 
-      Options:
-        --verbose [level]           Replaces common flag (default: "debug")
-        -q, --qux                   Replaces common short flag
+    Options:
+      --verbose [level]      Replaces common flag (default: "debug")
+      -q, --qux              Replaces common short flag
 
-      Global options:
-        --quiet                     Log errors only
-        -s, --silent                Log nothing
-        -bt, --build-tags <string>  Associates tags to the build (ex: --build-tag=dev,prod )
-        -h, --help                  Display command help
+    Global options:
+      --quiet                Log errors only
+      -s, --silent           Log nothing
+      -l, --labels <string>  Associates labels to the build (ex: --build-tag=dev,prod )
+      -h, --help             Display command help
     ` + '\n']);
   });
 

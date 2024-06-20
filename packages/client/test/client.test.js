@@ -288,7 +288,7 @@ describe('PercyClient', () => {
     it('creates a new build with tags', async () => {
       client = new PercyClient({
         token: 'PERCY_TOKEN',
-        buildTags: 'tag1,tag2'
+        labels: 'tag1,tag2'
       });
       await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolvedTo({
         data: {
@@ -719,7 +719,7 @@ describe('PercyClient', () => {
         scope: '#main',
         sync: true,
         testCase: 'foo test case',
-        tags: 'tag 1,tag 2',
+        labels: 'tag 1,tag 2',
         scopeOptions: { scroll: true },
         minHeight: 1000,
         enableJavaScript: true,

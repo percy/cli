@@ -102,14 +102,14 @@ export const debug = {
   group: 'Percy'
 };
 
-export const buildTags = {
-  name: 'build-tags',
-  description: 'Associates tags to the build (ex: --build-tag=dev,prod )',
+export const labels = {
+  name: 'labels',
+  description: 'Associates labels to the build (ex: --build-tag=dev,prod )',
   group: 'Global',
   type: 'string',
   parse: String,
-  percyrc: 'buildTags',
-  short: 'bt'
+  percyrc: 'labels',
+  short: 'l'
 };
 
 // Group constants
@@ -117,7 +117,7 @@ export const GLOBAL = [
   verbose,
   quiet,
   silent,
-  buildTags
+  labels
 ];
 
 export const PERCY = [

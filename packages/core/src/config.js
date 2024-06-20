@@ -10,7 +10,7 @@ export const configSchema = {
       token: {
         type: 'string'
       },
-      buildTags: {
+      labels: {
         type: 'string'
       }
     }
@@ -77,7 +77,7 @@ export const configSchema = {
       testCase: {
         type: 'string'
       },
-      tags: {
+      labels: {
         type: 'string'
       },
       thTestCaseExecutionId: {
@@ -280,7 +280,7 @@ export const snapshotSchema = {
         enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
         sync: { $ref: '/config/snapshot#/properties/sync' },
         testCase: { $ref: '/config/snapshot#/properties/testCase' },
-        tags: { $ref: '/config/snapshot#/properties/tags' },
+        labels: { $ref: '/config/snapshot#/properties/labels' },
         thTestCaseExecutionId: { $ref: '/config/snapshot#/properties/thTestCaseExecutionId' },
         reshuffleInvalidTags: { $ref: '/config/snapshot#/properties/reshuffleInvalidTags' },
         scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
