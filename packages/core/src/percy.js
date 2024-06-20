@@ -439,6 +439,9 @@ export class Percy {
     logger.query((item) => {
       isPercyStarted ||= item?.message?.includes('Percy has started');
       containsSnapshotTaken ||= item?.message?.includes('Snapshot taken');
+
+      // This case happens when you directly upload it using cli-upload
+      containsSnapshotTaken ||= item?.message?.includes('Snapshot uploaded');
       return item;
     });
 

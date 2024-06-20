@@ -100,13 +100,15 @@ describe('percy exec:start', () => {
     expect(api.requests['/suggestions/from_logs'][lastReq].body).toEqual({
       data: {
         logs: [
-          { message: 'Percy is already running or the port is in use' }
+          { message: 'Percy is already running or the port 5338 is in use' }
         ]
       }
     });
 
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
-      '[percy] Error: Percy is already running or the port is in use'
+      '[percy] Notice: Percy collects CI logs for service improvement, stored for 30 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false',
+      '[percy] Error: Percy is already running or the port 5338 is in use',
+      '[percy] Error: Percy is already running or the port 5338 is in use'
     ]));
   });
 
