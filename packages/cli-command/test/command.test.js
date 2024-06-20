@@ -69,13 +69,14 @@ describe('Command', () => {
         $ test [options]
 
       Options:
-        --verbose [level]  Replaces common flag (default: "debug")
-        -q, --qux          Replaces common short flag
+        --verbose [level]           Replaces common flag (default: "debug")
+        -q, --qux                   Replaces common short flag
 
       Global options:
-        --quiet            Log errors only
-        -s, --silent       Log nothing
-        -h, --help         Display command help
+        --quiet                     Log errors only
+        -s, --silent                Log nothing
+        -bt, --build-tags <string>  Associates tags to the build (ex: --build-tag=dev,prod )
+        -h, --help                  Display command help
     ` + '\n']);
   });
 

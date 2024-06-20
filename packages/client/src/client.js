@@ -135,7 +135,7 @@ export class PercyClient {
   async createBuild({ resources = [], projectType } = {}) {
     this.log.debug('Creating a new build...');
 
-    let tagsArr = tagsList(this.buildTags)
+    let tagsArr = tagsList(this.buildTags);
 
     return this.post('builds', {
       data: {
@@ -156,7 +156,7 @@ export class PercyClient {
           'parallel-nonce': this.env.parallel.nonce,
           'parallel-total-shards': this.env.parallel.total,
           partial: this.env.partial,
-          'tags': tagsArr,
+          tags: tagsArr
         },
         relationships: {
           resources: {
@@ -401,7 +401,7 @@ export class PercyClient {
           scope: scope || null,
           sync: !!sync,
           'test-case': testCase || null,
-          'tags': tagsArr,
+          tags: tagsArr,
           'scope-options': scopeOptions || {},
           'minimum-height': minHeight || null,
           'enable-javascript': enableJavaScript || null,

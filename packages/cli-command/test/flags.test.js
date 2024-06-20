@@ -52,9 +52,33 @@ describe('Built-in flags:', () => {
   });
 
   describe('--build-tags', () => {
-    it('sets buildTags to the given tag names', async () => {
+    it('sets buildTags to the given flag tags', async () => {
       test = command('percy', {
         percy: {}
+      }, ({ percy }) => {
+        test.percy = percy;
+      });
+
+      await test(['--build-tags=tag1,tag2']);
+
+      expect(test.percy.buildTags).toBe('tag1,tag2');
+    });
+
+    it('sets buildTags to the given config tags', async () => {
+      test = command('percy', {
+        percy: { buildTags: 'tag3,tag4' }
+      }, ({ percy }) => {
+        test.percy = percy;
+      });
+
+      await test();
+
+      expect(test.percy.buildTags).toBe('tag3,tag4');
+    });
+
+    it('sets buildTags to the given flag tags when both are present', async () => {
+      test = command('percy', {
+        percy: { buildTags: 'tag3,tag4' }
       }, ({ percy }) => {
         test.percy = percy;
       });
@@ -68,8 +92,8 @@ describe('Built-in flags:', () => {
   describe('Percy flags:', () => {
     const expectedMinPercyFlags = jasmine.stringContaining(dedent`
       Percy options:
-        -c, --config <file>  Config file path
-        -d, --dry-run        Print snapshot names only
+        -c, --config <file>         Config file path
+        -d, --dry-run               Print snapshot names only
     `);
 
     const expectedAllPercyFlags = jasmine.stringContaining(dedent`
@@ -113,7 +137,7 @@ describe('Built-in flags:', () => {
       expect(logger.stdout).not.toEqual([expectedAllPercyFlags]);
       expect(logger.stdout).toEqual([expectedMinPercyFlags]);
       expect(logger.stdout).toEqual([jasmine.stringContaining(
-        '  -P, --port [number]  Local CLI server port (default: 5338)'
+        '  -P, --port [number]         Local CLI server port (default: 5338)'
       )]);
     });
 

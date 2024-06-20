@@ -22,14 +22,15 @@ describe('Help output', () => {
         $ foo <command>
 
       Commands:
-        bar:baz [options]  Foo bar baz
-        help [command]     Display command help
+        bar:baz [options]           Foo bar baz
+        help [command]              Display command help
 
       Global options:
-        -v, --verbose      Log everything
-        -q, --quiet        Log errors only
-        -s, --silent       Log nothing
-        -h, --help         Display command help
+        -v, --verbose               Log everything
+        -q, --quiet                 Log errors only
+        -s, --silent                Log nothing
+        -bt, --build-tags <string>  Associates tags to the build (ex: --build-tag=dev,prod )
+        -h, --help                  Display command help
     ` + '\n']);
   });
 
@@ -102,24 +103,25 @@ describe('Help output', () => {
         $ test [options] <first> [second]
 
       Arguments:
-        first                 First command argument
-        second                Second command argument (default: "2")
+        first                       First command argument
+        second                      Second command argument (default: "2")
 
       Commands:
         sub [options]
-        sub:nested [options]  Nested description
-        help [command]        Display command help
+        sub:nested [options]        Nested description
+        help [command]              Display command help
 
       Options:
-        -o, --one             Command flag 1
-        --two <value>         Command flag 2
+        -o, --one                   Command flag 1
+        --two <value>               Command flag 2
         --other-flag
 
       Global options:
-        -v, --verbose         Log everything
-        -q, --quiet           Log errors only
-        -s, --silent          Log nothing
-        -h, --help            Display command help
+        -v, --verbose               Log everything
+        -q, --quiet                 Log errors only
+        -s, --silent                Log nothing
+        -bt, --build-tags <string>  Associates tags to the build (ex: --build-tag=dev,prod )
+        -h, --help                  Display command help
 
       Examples:
         $ test --one
@@ -136,22 +138,23 @@ describe('Help output', () => {
         $ test sub [options]
 
       Subcommands:
-        sub:nested [options]       Nested description
-        sub:nested:deep [options]  Deeply nested description
-        help [command]             Display command help
+        sub:nested [options]        Nested description
+        sub:nested:deep [options]   Deeply nested description
+        help [command]              Display command help
 
       Options:
-        --really-long              This is a really long description that should overflow the default
-                                   description length and cause it to wrap to the right of flag usage.
+        --really-long               This is a really long description that should overflow the default
+                                    description length and cause it to wrap to the right of flag usage.
 
-                                   It even includes a couple newlines in an attempt to trip up the string
-                                   wrapping helper function.
+                                    It even includes a couple newlines in an attempt to trip up the
+                                    string wrapping helper function.
 
       Global options:
-        -v, --verbose              Log everything
-        -q, --quiet                Log errors only
-        -s, --silent               Log nothing
-        -h, --help                 Display command help
+        -v, --verbose               Log everything
+        -q, --quiet                 Log errors only
+        -s, --silent                Log nothing
+        -bt, --build-tags <string>  Associates tags to the build (ex: --build-tag=dev,prod )
+        -h, --help                  Display command help
     ` + '\n']);
 
     logger.reset();
@@ -166,14 +169,15 @@ describe('Help output', () => {
         $ test sub:nested [options]
 
       Subcommands:
-        sub:nested:deep [options]  Deeply nested description
-        help [command]             Display command help
+        sub:nested:deep [options]   Deeply nested description
+        help [command]              Display command help
 
       Global options:
-        -v, --verbose              Log everything
-        -q, --quiet                Log errors only
-        -s, --silent               Log nothing
-        -h, --help                 Display command help
+        -v, --verbose               Log everything
+        -q, --quiet                 Log errors only
+        -s, --silent                Log nothing
+        -bt, --build-tags <string>  Associates tags to the build (ex: --build-tag=dev,prod )
+        -h, --help                  Display command help
 
       Examples:
         $ test sub:nested
@@ -191,10 +195,11 @@ describe('Help output', () => {
         $ test sub:nested:deep [options]
 
       Global options:
-        -v, --verbose  Log everything
-        -q, --quiet    Log errors only
-        -s, --silent   Log nothing
-        -h, --help     Display command help
+        -v, --verbose               Log everything
+        -q, --quiet                 Log errors only
+        -s, --silent                Log nothing
+        -bt, --build-tags <string>  Associates tags to the build (ex: --build-tag=dev,prod )
+        -h, --help                  Display command help
     ` + '\n']);
   });
 
@@ -311,20 +316,21 @@ describe('Help output', () => {
         $ test <command>
 
       Arguments:
-        arg                (default: "foo")
+        arg                         (default: "foo")
 
       Commands:
         command [options]
-        help [command]     Display command help
+        help [command]              Display command help
 
       Options:
         --flag
 
       Global options:
-        -v, --verbose      Log everything
-        -q, --quiet        Log errors only
-        -s, --silent       Log nothing
-        -h, --help         Display command help
+        -v, --verbose               Log everything
+        -q, --quiet                 Log errors only
+        -s, --silent                Log nothing
+        -bt, --build-tags <string>  Associates tags to the build (ex: --build-tag=dev,prod )
+        -h, --help                  Display command help
     ` + '\n']);
   });
 
@@ -349,15 +355,16 @@ describe('Help output', () => {
         $ test [options]
 
       Options:
-        --help         Custom help
-        --version      Custom version
+        --help                      Custom help
+        --version                   Custom version
 
       Global options:
-        -v, --verbose  Log everything
-        -q, --quiet    Log errors only
-        -s, --silent   Log nothing
-        -h             Display command help
-        -V             Display version
+        -v, --verbose               Log everything
+        -q, --quiet                 Log errors only
+        -s, --silent                Log nothing
+        -bt, --build-tags <string>  Associates tags to the build (ex: --build-tag=dev,prod )
+        -h                          Display command help
+        -V                          Display version
     ` + '\n']);
 
     logger.reset();
@@ -367,15 +374,16 @@ describe('Help output', () => {
         $ test [options]
 
       Options:
-        -h             Custom help
-        -V             Custom version
+        -h                          Custom help
+        -V                          Custom version
 
       Global options:
-        -v, --verbose  Log everything
-        -q, --quiet    Log errors only
-        -s, --silent   Log nothing
-        --help         Display command help
-        --version      Display version
+        -v, --verbose               Log everything
+        -q, --quiet                 Log errors only
+        -s, --silent                Log nothing
+        -bt, --build-tags <string>  Associates tags to the build (ex: --build-tag=dev,prod )
+        --help                      Display command help
+        --version                   Display version
     ` + '\n']);
 
     logger.reset();
@@ -385,13 +393,14 @@ describe('Help output', () => {
         $ test [options]
 
       Options:
-        -h, --help     Custom help
-        -V, --version  Custom version
+        -h, --help                  Custom help
+        -V, --version               Custom version
 
       Global options:
-        -v, --verbose  Log everything
-        -q, --quiet    Log errors only
-        -s, --silent   Log nothing
+        -v, --verbose               Log everything
+        -q, --quiet                 Log errors only
+        -s, --silent                Log nothing
+        -bt, --build-tags <string>  Associates tags to the build (ex: --build-tag=dev,prod )
     ` + '\n']);
   });
 

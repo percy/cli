@@ -94,7 +94,7 @@ export class Percy {
     this.deferUploads = this.skipUploads || !!deferUploads;
     this.buildTags = buildTags;
 
-    this.client = new PercyClient({ token, clientInfo, environmentInfo, config });
+    this.client = new PercyClient({ token, clientInfo, environmentInfo, config, buildTags });
     if (server) this.server = createPercyServer(this, port);
     this.browser = new Browser(this);
 
@@ -361,6 +361,12 @@ export class Percy {
     }
 
     // validate comparison uploads and warn about any errors
+
+    // we are having two similar attrs in options: tags & tag
+    // tags: is used as labels and is string comma-separated like "tag1,tag"
+    // tag: is comparison-tag used by app-percy & poa and this is used to create a comparison-tag in BE
+    // its format is object like {name: "", os:"", os_version:"", device:""}
+    // DO NOT GET CONFUSED!!! :)
     if ('tag' in options || 'tiles' in options) {
       // throw when missing required snapshot or tag name
       if (!options.name) throw new Error('Missing required snapshot name');

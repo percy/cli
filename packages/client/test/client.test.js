@@ -280,7 +280,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             partial: client.env.partial,
-            'tags': []
+            tags: []
           }
         }));
     });
@@ -295,7 +295,7 @@ describe('PercyClient', () => {
           id: '123',
           attributes: {
             'build-number': 1,
-            'web-url': 'https://percy.io/test/test/123',
+            'web-url': 'https://percy.io/test/test/123'
           }
         }
       });
@@ -318,7 +318,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             partial: client.env.partial,
-            'tags': [{id: null, name: 'tag1'}, {id: null, name: 'tag2'}]
+            tags: [{ id: null, name: 'tag1' }, { id: null, name: 'tag2' }]
           }
         }));
     });
@@ -757,7 +757,7 @@ describe('PercyClient', () => {
             scope: '#main',
             sync: true,
             'test-case': 'foo test case',
-            'tags': [{id: null, name: "tag 1"}, {id: null, name: "tag 2"}],
+            tags: [{ id: null, name: 'tag 1' }, { id: null, name: 'tag 2' }],
             'minimum-height': 1000,
             'scope-options': { scroll: true },
             'enable-javascript': true,
@@ -805,7 +805,7 @@ describe('PercyClient', () => {
             scope: null,
             sync: false,
             'test-case': null,
-            'tags': [],
+            tags: [],
             'scope-options': {},
             'minimum-height': null,
             'enable-javascript': null,
@@ -875,7 +875,7 @@ describe('PercyClient', () => {
             scope: null,
             sync: true,
             'test-case': null,
-            'tags': [],
+            tags: [],
             'scope-options': {},
             'enable-javascript': null,
             'minimum-height': null,
@@ -1385,7 +1385,7 @@ describe('PercyClient', () => {
               name: 'test snapshot name',
               scope: null,
               'test-case': null,
-              'tags': [],
+              tags: [],
               'scope-options': {},
               'enable-javascript': null,
               'minimum-height': null,
