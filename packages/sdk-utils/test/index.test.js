@@ -434,5 +434,45 @@ describe('SDK Utils', () => {
         '[percy:test] Error stack'
       ]);
     });
+
+    it('sends logs to cli if log level is error', async () => {
+      // we never want to await in real sdk but we await in test for validation
+      await log.error('Some error', { name: 'abcd' });
+
+      await expectAsync(helpers.get('requests')).toBeResolvedTo([{
+        url: '/percy/log',
+        method: 'POST',
+        body: {
+          level: 'error',
+          message: jasmine.stringContaining('Some error'),
+          meta: { name: 'abcd' }
+        }
+      }]);
+    });
+
+    it('sends all logs to cli if log level is debug', async () => {
+      logger.loglevel('debug');
+      // we never want to await in real sdk but we await in test for validation
+      await log.error('Some error', { name: 'abcd' });
+      await log.info('Some info', { name: 'abcd' });
+
+      await expectAsync(helpers.get('requests')).toBeResolvedTo([{
+        url: '/percy/log',
+        method: 'POST',
+        body: {
+          level: 'error',
+          message: jasmine.stringContaining('Some error'),
+          meta: { name: 'abcd' }
+        }
+      }, {
+        url: '/percy/log',
+        method: 'POST',
+        body: {
+          level: 'info',
+          message: jasmine.stringContaining('Some info'),
+          meta: { name: 'abcd' }
+        }
+      }]);
+    });
   });
 });

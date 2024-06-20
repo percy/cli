@@ -1,3 +1,5 @@
+import request from './request.js';
+
 // Used when determining if a message should be logged
 const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 
@@ -33,6 +35,9 @@ Object.assign(logger, {
       } else {
         // use process[stdout|stderr].write in node
         process[lvl === 'info' ? 'stdout' : 'stderr'].write(msg + '\n');
+      }
+      if (lvl === 'error' || debug) {
+        return request.post('/percy/log', { level: lvl, message: msg, meta });
       }
     }
   }
