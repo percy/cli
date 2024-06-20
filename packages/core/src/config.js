@@ -9,6 +9,9 @@ export const configSchema = {
       },
       token: {
         type: 'string'
+      },
+      buildTags: {
+        type: 'string'
       }
     }
   },

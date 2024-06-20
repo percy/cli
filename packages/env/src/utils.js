@@ -74,3 +74,14 @@ export function stripQuotesAndSpaces(line) {
     return strippedLine;
   } else { return null; };
 }
+
+// convert tags comma-separated-names to array of objects for POST request
+export function tagsList(tags) {
+  var tagsArr = [];
+  if (typeof tags !== 'undefined' && tags !== null && typeof tags === 'string') {
+    let tagNamesArray = tags.split(',');
+    tagsArr = tagNamesArray.map(name => ({ id: null, name: name.trim() }));
+  }
+
+  return tagsArr;
+}

@@ -58,6 +58,7 @@ export class Percy {
     // implies `skipUploads` and `skipDiscovery`
     dryRun,
     // implies `dryRun`, silent logs, and adds extra api endpoints
+    buildTags,
     testing,
     // configuration filepath
     config: configFile,
@@ -91,6 +92,7 @@ export class Percy {
     this.skipDiscovery = this.dryRun || !!skipDiscovery;
     this.delayUploads = this.skipUploads || !!delayUploads;
     this.deferUploads = this.skipUploads || !!deferUploads;
+    this.buildTags = buildTags;
 
     this.client = new PercyClient({ token, clientInfo, environmentInfo, config });
     if (server) this.server = createPercyServer(this, port);

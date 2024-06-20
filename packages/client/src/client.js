@@ -1,6 +1,6 @@
 import fs from 'fs';
 import PercyEnv from '@percy/env';
-import { git } from '@percy/env/utils';
+import { git, tagsList } from '@percy/env/utils';
 import logger from '@percy/logger';
 import Pako from 'pako';
 
@@ -54,10 +54,11 @@ export class PercyClient {
     clientInfo,
     environmentInfo,
     config,
+    buildTags,
     // versioned api url
     apiUrl = PERCY_CLIENT_API_URL
   } = {}) {
-    Object.assign(this, { token, config: config || {}, apiUrl });
+    Object.assign(this, { token, config: config || {}, apiUrl, buildTags: buildTags });
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
     this.buildType = null;
@@ -134,6 +135,8 @@ export class PercyClient {
   async createBuild({ resources = [], projectType } = {}) {
     this.log.debug('Creating a new build...');
 
+    let tagsArr = tagsList(this.buildTags)
+
     return this.post('builds', {
       data: {
         type: 'builds',
@@ -152,7 +155,8 @@ export class PercyClient {
           'pull-request-number': this.env.pullRequest,
           'parallel-nonce': this.env.parallel.nonce,
           'parallel-total-shards': this.env.parallel.total,
-          partial: this.env.partial
+          partial: this.env.partial,
+          'tags': tagsArr,
         },
         relationships: {
           resources: {
@@ -379,11 +383,7 @@ export class PercyClient {
       this.log.warn('Warning: Missing `clientInfo` and/or `environmentInfo` properties');
     }
 
-    var tagsArr = [];
-    if (typeof tags !== 'undefined' && tags !== null && typeof tags === 'string') {
-      var tagNamesArray = tags.split(',');
-      tagsArr = tagNamesArray.map(name => ({ id: null, name: name.trim() }));
-    }
+    let tagsArr = tagsList(tags);
 
     this.log.debug(`Creating snapshot: ${name}...`);
 

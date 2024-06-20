@@ -51,6 +51,20 @@ describe('Built-in flags:', () => {
     });
   });
 
+  describe('--build-tags', () => {
+    it('sets buildTags to the given tag names', async () => {
+      test = command('percy', {
+        percy: {}
+      }, ({ percy }) => {
+        test.percy = percy;
+      });
+
+      await test(['--build-tags=tag1,tag2']);
+
+      expect(test.percy.buildTags).toBe('tag1,tag2');
+    });
+  });
+
   describe('Percy flags:', () => {
     const expectedMinPercyFlags = jasmine.stringContaining(dedent`
       Percy options:
