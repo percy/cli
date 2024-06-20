@@ -75,7 +75,7 @@ describe('Command', () => {
     Global options:
       --quiet                Log errors only
       -s, --silent           Log nothing
-      -l, --labels <string>  Associates labels to the build (ex: --build-tag=dev,prod )
+      -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
       -h, --help             Display command help
     ` + '\n']);
   });

@@ -29,7 +29,7 @@ describe('Help output', () => {
         -v, --verbose          Log everything
         -q, --quiet            Log errors only
         -s, --silent           Log nothing
-        -l, --labels <string>  Associates labels to the build (ex: --build-tag=dev,prod )
+        -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
         -h, --help             Display command help
     ` + '\n']);
   });
@@ -120,7 +120,7 @@ describe('Help output', () => {
       -v, --verbose          Log everything
       -q, --quiet            Log errors only
       -s, --silent           Log nothing
-      -l, --labels <string>  Associates labels to the build (ex: --build-tag=dev,prod )
+      -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
       -h, --help             Display command help
 
     Examples:
@@ -153,7 +153,7 @@ describe('Help output', () => {
         -v, --verbose              Log everything
         -q, --quiet                Log errors only
         -s, --silent               Log nothing
-        -l, --labels <string>      Associates labels to the build (ex: --build-tag=dev,prod )
+        -l, --labels <string>      Associates labels to the build (ex: --labels=dev,prod )
         -h, --help                 Display command help
     ` + '\n']);
 
@@ -176,7 +176,7 @@ describe('Help output', () => {
         -v, --verbose              Log everything
         -q, --quiet                Log errors only
         -s, --silent               Log nothing
-        -l, --labels <string>      Associates labels to the build (ex: --build-tag=dev,prod )
+        -l, --labels <string>      Associates labels to the build (ex: --labels=dev,prod )
         -h, --help                 Display command help
 
       Examples:
@@ -198,7 +198,7 @@ describe('Help output', () => {
         -v, --verbose          Log everything
         -q, --quiet            Log errors only
         -s, --silent           Log nothing
-        -l, --labels <string>  Associates labels to the build (ex: --build-tag=dev,prod )
+        -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
         -h, --help             Display command help
     ` + '\n']);
   });
@@ -329,7 +329,7 @@ describe('Help output', () => {
         -v, --verbose          Log everything
         -q, --quiet            Log errors only
         -s, --silent           Log nothing
-        -l, --labels <string>  Associates labels to the build (ex: --build-tag=dev,prod )
+        -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
         -h, --help             Display command help
     ` + '\n']);
   });
@@ -362,7 +362,7 @@ describe('Help output', () => {
         -v, --verbose          Log everything
         -q, --quiet            Log errors only
         -s, --silent           Log nothing
-        -l, --labels <string>  Associates labels to the build (ex: --build-tag=dev,prod )
+        -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
         -h                     Display command help
         -V                     Display version
     ` + '\n']);
@@ -381,7 +381,7 @@ describe('Help output', () => {
       -v, --verbose          Log everything
       -q, --quiet            Log errors only
       -s, --silent           Log nothing
-      -l, --labels <string>  Associates labels to the build (ex: --build-tag=dev,prod )
+      -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
       --help                 Display command help
       --version              Display version
     ` + '\n']);
@@ -400,7 +400,7 @@ describe('Help output', () => {
       -v, --verbose          Log everything
       -q, --quiet            Log errors only
       -s, --silent           Log nothing
-      -l, --labels <string>  Associates labels to the build (ex: --build-tag=dev,prod )
+      -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
     ` + '\n']);
   });
 

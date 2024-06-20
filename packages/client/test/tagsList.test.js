@@ -1,4 +1,4 @@
-import { tagsList } from '@percy/env/utils';
+import { tagsList } from '@percy/client/utils';
 
 describe('tagsList', () => {
   it('should return empty array when tags is undefined', () => {

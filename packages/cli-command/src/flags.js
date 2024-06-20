@@ -104,7 +104,7 @@ export const debug = {
 
 export const labels = {
   name: 'labels',
-  description: 'Associates labels to the build (ex: --build-tag=dev,prod )',
+  description: 'Associates labels to the build (ex: --labels=dev,prod )',
   group: 'Global',
   type: 'string',
   parse: String,

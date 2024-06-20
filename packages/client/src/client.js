@@ -1,6 +1,6 @@
 import fs from 'fs';
 import PercyEnv from '@percy/env';
-import { git, tagsList } from '@percy/env/utils';
+import { git } from '@percy/env/utils';
 import logger from '@percy/logger';
 import Pako from 'pako';
 
@@ -12,7 +12,8 @@ import {
   base64encode,
   getPackageJSON,
   waitForTimeout,
-  validateTiles
+  validateTiles,
+  tagsList
 } from './utils.js';
 
 // Default client API URL can be set with an env var for API development
