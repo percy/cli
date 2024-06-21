@@ -148,7 +148,6 @@ export default class PlaywrightProvider extends GenericProvider {
     const osName = normalizeTags.osRollUp(automateCaps.os);
     const device = mobileOS.includes(osName.toUpperCase());
     tagData.device = device;
-    console.log(`Device: ${device}`);
     return await super.getTag(tagData);
   }
 }
