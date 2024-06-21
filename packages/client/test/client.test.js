@@ -1529,90 +1529,42 @@ describe('PercyClient', () => {
   });
 
   describe('#getErrorAnalysis', () => {
-    it('should send error logs to API', async () => {
-      await expectAsync(client.getErrorAnalysis([
+    const sharedTest = (reqBody, expectedBody) => {
+      it('should send error logs to API', async () => {
+        await expectAsync(client.getErrorAnalysis(reqBody)).toBeResolved();
+
+        expect(api.requests['/suggestions/from_logs']).toBeDefined();
+        expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
+        expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
+          data: {
+            logs: expectedBody
+          }
+        });
+      });
+    };
+    describe('when error is of type array', () => {
+      let body = [
         { message: 'Some Error Log' },
         { message: 'Some Error logs 2' }
-      ])).toBeResolved();
+      ];
 
-      expect(api.requests['/suggestions/from_logs']).toBeDefined();
-      expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
-      expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
-        data: {
-          logs: [
-            { message: 'Some Error Log' },
-            { message: 'Some Error logs 2' }
-          ]
-        }
-      });
+      // Here requestedBody and expectedBody should be same
+      sharedTest(body, body);
+    });
+
+    describe('when error is of type string', () => {
+      sharedTest('some error', [{ message: 'some error' }]);
+    });
+
+    describe('when error is of type object', () => {
+      sharedTest({
+        some_key: 'some_error'
+      }, [
+        { message: { some_key: 'some_error' } },
+        { message: '' }
+      ]);
     });
   });
-
-  // describe('#formatAndSendForAnalysis', () => {
-  //   it('should format error and call getErrorAnalysis function', async () => {
-  //     await expectAsync(client.formatAndSendForAnalysis('Some Error Log')).toBeResolved();
-
-  //     expect(api.requests['/suggestions/from_logs']).toBeDefined();
-  //     expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
-  //     expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
-  //       data: {
-  //         logs: [
-  //           { message: 'Some Error Log' }
-  //         ]
-  //       }
-  //     });
-  //   });
-
-  //   describe('when error logs are of type array', () => {
-  //     it('should format error and call send error log for analysis', async () => {
-  //       await expectAsync(client.formatAndSendForAnalysis([{ message: 'some error' }])).toBeResolved();
-
-  //       expect(api.requests['/suggestions/from_logs']).toBeDefined();
-  //       expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
-  //       expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
-  //         data: {
-  //           logs: [
-  //             { message: 'some error' }
-  //           ]
-  //         }
-  //       });
-  //     });
-  //   });
-
-  //   describe('when error logs are of type object', () => {
-  //     it('should format error and call send error log for analysis', async () => {
-  //       await expectAsync(client.formatAndSendForAnalysis({ message: 'some error' })).toBeResolved();
-
-  //       expect(api.requests['/suggestions/from_logs']).toBeDefined();
-  //       expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
-  //       expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
-  //         data: {
-  //           logs: [
-  //             { message: { message: 'some error' } },
-  //             { message: 'some error' }
-  //           ]
-  //         }
-  //       });
-  //     });
-  //   });
-
-  //   describe('when error logs are of type object and error.message key is not present', () => {
-  //     it('should format error and call send error log for analysis', async () => {
-  //       await expectAsync(client.formatAndSendForAnalysis({ some_key: 'some error' })).toBeResolved();
-
-  //       expect(api.requests['/suggestions/from_logs']).toBeDefined();
-  //       expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
-  //       expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
-  //         data: {
-  //           logs: [
-  //             { message: { some_key: 'some error' } },
-  //             { message: '' }
-  //           ]
-  //         }
-  //       });
-  //     });
-  //   });
-  // });
 
   describe('#mayBeLogUploadSize', () => {
     it('does not warns when upload size less 20MB/25MB', () => {

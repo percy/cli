@@ -1223,10 +1223,7 @@ describe('Percy', () => {
         it('should catch and logs expected error', async () => {
           spyOn(percy.client, 'getErrorAnalysis').and.rejectWith({ code: 'EHOSTUNREACH', message: 'some error' });
 
-          await expectAsync(percy.suggestionsForFix('some_error', {
-            snapshotLevel: true,
-            snapshotName: 'Snapshot 1'
-          })).toBeResolved();
+          await expectAsync(percy.suggestionsForFix('some_error')).toBeResolved();
 
           expect(logger.stderr).toEqual(jasmine.arrayContaining([
             '[percy] percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted.',
@@ -1237,13 +1234,18 @@ describe('Percy', () => {
       });
 
       describe('when Request failed with error code ECONNREFUSED and HTTPS_PROXY env is enabled', () => {
-        it('should catch and logs expected error', async () => {
+        beforeEach(() => {
+          process.env.HTTPS_PROXY = 'https://abc.com';
+        });
+
+        afterEach(() => {
+          delete process.env.HTTPS_PROXY;
+        });
+
+        fit('should catch and logs expected error', async () => {
           spyOn(percy.client, 'getErrorAnalysis').and.rejectWith({ code: 'ECONNREFUSED', message: 'some error' });
 
-          await expectAsync(percy.suggestionsForFix('some_error', {
-            snapshotLevel: true,
-            snapshotName: 'Snapshot 1'
-          })).toBeResolved();
+          await expectAsync(percy.suggestionsForFix('some_error')).toBeResolved();
 
           expect(logger.stderr).toEqual(jasmine.arrayContaining([
             '[percy] percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted.',
