@@ -1099,8 +1099,8 @@ describe('Percy', () => {
       percy.log.info('cli_test');
       percy.log.info('ci_test', {}, true);
       const logsObject = {
-        clilogs: Array.from(logger.instance.messages),
-        cilogs: Array.from(logger.instance.ciMessages)
+        clilogs: logger.instance.query(log => log.debug !== 'ci'),
+        cilogs: logger.instance.query(log => log.debug === 'ci')
       };
 
       const content = base64encode(Pako.gzip(JSON.stringify(logsObject)));

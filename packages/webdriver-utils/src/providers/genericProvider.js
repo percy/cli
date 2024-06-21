@@ -1,7 +1,7 @@
 import utils from '@percy/sdk-utils';
 import TimeIt from '../util/timing.js';
 import Tile from '../util/tile.js';
-import Driver from '../../src/driver.js';
+import Driver from '../driver.js';
 import MetaDataResolver from '../metadata/metaDataResolver.js';
 import NormalizeData from '../metadata/normalizeData.js';
 

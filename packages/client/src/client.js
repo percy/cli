@@ -13,7 +13,8 @@ import {
   getPackageJSON,
   waitForTimeout,
   validateTiles,
-  formatLogErrors
+  formatLogErrors,
+  tagsList
 } from './utils.js';
 
 // Default client API URL can be set with an env var for API development
@@ -55,10 +56,11 @@ export class PercyClient {
     clientInfo,
     environmentInfo,
     config,
+    labels,
     // versioned api url
     apiUrl = PERCY_CLIENT_API_URL
   } = {}) {
-    Object.assign(this, { token, config: config || {}, apiUrl });
+    Object.assign(this, { token, config: config || {}, apiUrl, labels: labels });
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
     this.buildType = null;
@@ -135,6 +137,8 @@ export class PercyClient {
   async createBuild({ resources = [], projectType } = {}) {
     this.log.debug('Creating a new build...');
 
+    let tagsArr = tagsList(this.labels);
+
     return this.post('builds', {
       data: {
         type: 'builds',
@@ -153,7 +157,8 @@ export class PercyClient {
           'pull-request-number': this.env.pullRequest,
           'parallel-nonce': this.env.parallel.nonce,
           'parallel-total-shards': this.env.parallel.total,
-          partial: this.env.partial
+          partial: this.env.partial,
+          tags: tagsArr
         },
         relationships: {
           resources: {
@@ -368,6 +373,7 @@ export class PercyClient {
     environmentInfo,
     sync,
     testCase,
+    labels,
     thTestCaseExecutionId,
     resources = []
   } = {}) {
@@ -378,6 +384,8 @@ export class PercyClient {
     if (!this.clientInfo.size || !this.environmentInfo.size) {
       this.log.warn('Warning: Missing `clientInfo` and/or `environmentInfo` properties');
     }
+
+    let tagsArr = tagsList(labels);
 
     this.log.debug(`Creating snapshot: ${name}...`);
 
@@ -395,6 +403,7 @@ export class PercyClient {
           scope: scope || null,
           sync: !!sync,
           'test-case': testCase || null,
+          tags: tagsArr,
           'scope-options': scopeOptions || {},
           'minimum-height': minHeight || null,
           'enable-javascript': enableJavaScript || null,

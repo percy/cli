@@ -192,7 +192,7 @@ describe('percy exec', () => {
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]));
 
-    expect(Array.from(logger.instance.ciMessages)[0].message).toContain([
+    expect(logger.instance.query(log => log.debug === 'ci')[0].message).toContain([
       'Some error with secret: [REDACTED]'
     ]);
     expect(stderrSpy).toHaveBeenCalled();
@@ -212,7 +212,7 @@ describe('percy exec', () => {
       '[percy] Running "node ./test/test-data/test_prog.js error"'
     ]));
 
-    expect(Array.from(logger.instance.ciMessages)).toEqual([]);
+    expect(logger.instance.query(log => log.debug === 'ci')).toEqual([]);
     expect(stderrSpy).toHaveBeenCalled();
   });
 

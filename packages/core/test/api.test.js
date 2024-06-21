@@ -536,6 +536,60 @@ describe('API Server', () => {
     resolve(); // no hanging promises
   });
 
+  it('has a /log endpoint that adds sdk log to logger', async () => {
+    await percy.start();
+
+    const message1 = {
+      level: 'info',
+      message: 'some info',
+      meta: { snapshot: 'Snapshot name', testCase: 'testCase name' }
+    };
+
+    const message2 = {
+      level: 'error',
+      message: 'some error',
+      meta: { snapshot: 'Snapshot name 2', testCase: 'testCase name' }
+    };
+
+    // works with standard messages
+    await expectAsync(request('/percy/log', {
+      body: message1,
+      method: 'post'
+    })).toBeResolvedTo({ success: true });
+
+    await expectAsync(request('/percy/log', {
+      body: message2,
+      method: 'post'
+    })).toBeResolvedTo({ success: true });
+
+    // works without meta
+    await expectAsync(request('/percy/log', {
+      body: {
+        level: 'info',
+        message: 'some other info'
+      },
+      method: 'post'
+    })).toBeResolvedTo({ success: true });
+
+    // throws error on invalid data
+    await expectAsync(request('/percy/log', {
+      body: null,
+      method: 'post'
+    })).toBeRejected();
+
+    const sdkLogs = logger.instance.query(log => log.debug === 'sdk');
+
+    expect(sdkLogs.length).toEqual(4);
+
+    expect(sdkLogs[0].level).toEqual(message1.level);
+    expect(sdkLogs[0].message).toEqual(message1.message);
+    expect(sdkLogs[0].meta).toEqual(message1.meta);
+
+    expect(sdkLogs[1].level).toEqual(message2.level);
+    expect(sdkLogs[1].message).toEqual(message2.message);
+    expect(sdkLogs[1].meta).toEqual(message2.meta);
+  });
+
   it('returns a 500 error when an endpoint throws', async () => {
     spyOn(percy, 'snapshot').and.rejectWith(new Error('test error'));
     await percy.start();

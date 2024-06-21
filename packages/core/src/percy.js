@@ -59,6 +59,7 @@ export class Percy {
     // implies `skipUploads` and `skipDiscovery`
     dryRun,
     // implies `dryRun`, silent logs, and adds extra api endpoints
+    labels,
     testing,
     // configuration filepath
     config: configFile,
@@ -93,8 +94,9 @@ export class Percy {
     this.skipDiscovery = this.dryRun || !!skipDiscovery;
     this.delayUploads = this.skipUploads || !!delayUploads;
     this.deferUploads = this.skipUploads || !!deferUploads;
+    this.labels = labels;
 
-    this.client = new PercyClient({ token, clientInfo, environmentInfo, config });
+    this.client = new PercyClient({ token, clientInfo, environmentInfo, config, labels });
     if (server) this.server = createPercyServer(this, port);
     this.browser = new Browser(this);
 
@@ -367,6 +369,12 @@ export class Percy {
     }
 
     // validate comparison uploads and warn about any errors
+
+    // we are having two similar attrs in options: tags & tag
+    // tags: is used as labels and is string comma-separated like "tag1,tag"
+    // tag: is comparison-tag used by app-percy & poa and this is used to create a comparison-tag in BE
+    // its format is object like {name: "", os:"", os_version:"", device:""}
+    // DO NOT GET CONFUSED!!! :)
     if ('tag' in options || 'tiles' in options) {
       // throw when missing required snapshot or tag name
       if (!options.name) throw new Error('Missing required snapshot name');
@@ -513,13 +521,13 @@ export class Percy {
     if (!process.env.PERCY_TOKEN) return;
     try {
       const logsObject = {
-        clilogs: logger.query(() => true)
+        clilogs: logger.query(log => !['ci'].includes(log.debug))
       };
 
       // Only add CI logs if not disabled voluntarily.
       const sendCILogs = process.env.PERCY_CLIENT_ERROR_LOGS !== 'false';
       if (sendCILogs) {
-        const redactedContent = redactSecrets(logger.query(() => true, true));
+        const redactedContent = redactSecrets(logger.query(log => ['ci'].includes(log.debug)));
         logsObject.cilogs = redactedContent;
       }
       const content = base64encode(Pako.gzip(JSON.stringify(logsObject)));

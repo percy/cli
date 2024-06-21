@@ -1,4 +1,5 @@
 import command from '@percy/cli-command';
+import logger from '@percy/logger';
 import start from './start.js';
 import stop from './stop.js';
 import ping from './ping.js';
@@ -102,6 +103,7 @@ export const exec = command('exec', {
 async function* spawn(cmd, args, percy) {
   let { default: crossSpawn } = await import('cross-spawn');
   let proc, closed, error;
+  const cilog = logger('ci');
 
   try {
     proc = crossSpawn(cmd, args, { stdio: 'pipe' });
@@ -118,7 +120,8 @@ async function* spawn(cmd, args, percy) {
       proc.stderr.on('data', (data) => {
         const message = data.toString();
         let entry = { message, timestamp: Date.now(), type: 'ci' };
-        percy?.log?.error(entry, null, true);
+        // only collect logs if percy was enabled
+        if (percy) cilog.error(entry);
         process.stderr.write(`${data}`);
       });
     }

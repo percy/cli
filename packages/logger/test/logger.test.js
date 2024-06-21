@@ -137,25 +137,16 @@ describe('logger', () => {
     }]);
   });
 
-  it('can query for ci logs from the in-memory store', () => {
-    log.info('Not me', { match: false }, true);
-    log.info('Not me', { match: false }, true);
-    log.info('Yes me', { match: true }, true);
-    log.info('Not me', { match: false }, true);
-    log.info('Not me', { match: false }, true);
+  it('does not write to stdout if CI log', () => {
+    log = logger('ci');
+    log.info('Dont print me');
 
-    expect(logger.query(m => m.meta.match, true)).toEqual([{
-      debug: 'test',
-      level: 'info',
-      message: 'Yes me',
-      timestamp: jasmine.any(Number),
-      meta: { match: true },
-      error: false
-    }]);
+    expect(helpers.stdout).toEqual([]);
   });
 
-  it('does not write to stdout if CI log', () => {
-    log.info('Not me', { match: false }, true);
+  it('does not write to stdout if SDK log', () => {
+    log = logger('sdk');
+    log.info('Dont print me');
 
     expect(helpers.stdout).toEqual([]);
   });
