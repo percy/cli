@@ -302,6 +302,16 @@ describe('Percy', () => {
       expect(api.requests['/builds']).toBeDefined();
     });
 
+    it('validates labels is getting assigned to percy client', async () => {
+      percy = new Percy({ token: 'PERCY_TOKEN', labels: 'dev,prod', percy: { labels: 'dev,prod,canary' } });
+      expect(percy.client.labels).toEqual('dev,prod');
+    });
+
+    it('validates config-labels is getting assigned to percy client', async () => {
+      percy = new Percy({ token: 'PERCY_TOKEN', percy: { labels: 'dev,prod,canary' } });
+      expect(percy.client.labels).toEqual('dev,prod,canary');
+    });
+
     it('cancels deferred build creation when interupted', async () => {
       percy = new Percy({ token: 'PERCY_TOKEN', deferUploads: true });
 

@@ -79,6 +79,7 @@ export class Percy {
       path: configFile
     });
 
+    labels ??= config.percy?.labels;
     deferUploads ??= config.percy?.deferUploads;
     this.config = config;
 
