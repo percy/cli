@@ -1,3 +1,5 @@
+import request from './request.js';
+
 // Used when determining if a message should be logged
 const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 
@@ -15,7 +17,8 @@ Object.assign(logger, {
   },
 
   // Track and send/write logs for the specified namespace and log level
-  log: (ns, lvl, msg, meta) => {
+  // remote should only be false in case of sensitive/self call for errors
+  log: (ns, lvl, msg, meta, remote = true) => {
     let err = typeof msg !== 'string' && (lvl === 'error' || lvl === 'debug');
 
     // check if the specific level is within the local loglevel range
@@ -33,6 +36,13 @@ Object.assign(logger, {
       } else {
         // use process[stdout|stderr].write in node
         process[lvl === 'info' ? 'stdout' : 'stderr'].write(msg + '\n');
+      }
+      if (remote && (lvl === 'error' || debug)) {
+        return request.post('/percy/log', {
+          level: lvl, message: msg, meta
+        }).catch(_ => {
+          logger.log(ns, 'error', 'Could not send logs to cli', meta, false);
+        });
       }
     }
   }
