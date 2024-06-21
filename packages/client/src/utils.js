@@ -213,6 +213,17 @@ export function validateTiles(tiles) {
   return true;
 }
 
+// convert tags comma-separated-names to array of objects for POST request
+export function tagsList(tags) {
+  let tagsArr = [];
+  if (typeof tags !== 'undefined' && tags !== null && typeof tags === 'string') {
+    let tagNamesArray = tags.split(',');
+    tagsArr = tagNamesArray.map(name => ({ id: null, name: name.trim() }));
+  }
+
+  return tagsArr;
+}
+
 export {
   hostnameMatches,
   ProxyHttpAgent,
