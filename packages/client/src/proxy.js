@@ -176,7 +176,7 @@ export class ProxyHttpsAgent extends https.Agent {
         logger('client:proxy').warn('Please check if your proxy is set correctly and reachable');
       }
 
-      logger('client:proxy').warn('Please check network connection, proxy and ensure that following domains are whitelisted: github.com, percy.io, storage.google.com. In case you are an enterprise customer make sure to whitelist "percy-enterprise.browserstack.com" as well.');
+      logger('client:proxy').warn('Please check network connection, proxy and ensure that following domains are whitelisted: github.com, percy.io, storage.googleapis.com. In case you are an enterprise customer make sure to whitelist "percy-enterprise.browserstack.com" as well.');
       callback(err);
     };
 

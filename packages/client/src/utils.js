@@ -213,8 +213,29 @@ export function validateTiles(tiles) {
   return true;
 }
 
+export function formatLogErrors(errorLogs) {
+  let errors = [];
+  if (typeof errorLogs === 'string') {
+    errors.push({
+      message: errorLogs
+    });
+  } else if (Array.isArray(errorLogs)) {
+    errors = errorLogs;
+  } else {
+    errors.push({
+      message: errorLogs
+    });
+    errors.push({
+      message: errorLogs?.message || ''
+    });
+  }
+
+  return { logs: errors };
+}
+
 export {
   hostnameMatches,
+  getProxy,
   ProxyHttpAgent,
   ProxyHttpsAgent,
   proxyAgentFor

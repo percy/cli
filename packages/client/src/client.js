@@ -12,7 +12,8 @@ import {
   base64encode,
   getPackageJSON,
   waitForTimeout,
-  validateTiles
+  validateTiles,
+  formatLogErrors
 } from './utils.js';
 
 // Default client API URL can be set with an env var for API development
@@ -612,29 +613,8 @@ export class PercyClient {
     });
   }
 
-  // private function
-  #formatLogErrors(errorLogs) {
-    let errors = [];
-    if (typeof errorLogs === 'string') {
-      errors.push({
-        message: errorLogs
-      });
-    } else if (Array.isArray(errorLogs)) {
-      errors = errorLogs;
-    } else {
-      errors.push({
-        message: errorLogs
-      });
-      errors.push({
-        message: errorLogs?.message || ''
-      });
-    }
-
-    return { logs: errors };
-  }
-
   async getErrorAnalysis(errors) {
-    const errorLogs = this.#formatLogErrors(errors);
+    const errorLogs = formatLogErrors(errors);
     this.log.debug('Sending error logs for analysis');
 
     return this.post('suggestions/from_logs', {

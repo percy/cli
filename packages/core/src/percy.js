@@ -1,6 +1,7 @@
 import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
+import { getProxy } from '@percy/client/utils';
 import Browser from './browser.js';
 import Pako from 'pako';
 import {
@@ -486,7 +487,7 @@ export class Percy {
   }
 
   #proxyEnabled() {
-    return !!(process.env.HTTP_PROXY || process.env.HTTPS_PROXY);
+    return !!(getProxy({ protocol: 'https:' }) || getProxy({}));
   }
 
   async suggestionsForFix(errors, options = {}) {
@@ -500,7 +501,7 @@ export class Percy {
         // This can be due to proxy issue
         this.log.error('percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted.');
         if (!this.#proxyEnabled()) {
-          this.log.error('If inside a proxied envirnment, please configure the following environment variables: HTTPS_PROXY, HTTP_PROXY. Refer to our documentation for more details');
+          this.log.error('If inside a proxied envirnment, please configure the following environment variables: HTTP_PROXY, [ and optionally HTTPS_PROXY if you need it ]. Refer to our documentation for more details');
         }
       }
       this.log.error('Unable to analyze error logs');
