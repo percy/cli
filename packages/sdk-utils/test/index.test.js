@@ -474,5 +474,16 @@ describe('SDK Utils', () => {
         }
       }]);
     });
+
+    it('sends logs error if sending to cli fails', async () => {
+      await helpers.test('error', '/percy/log');
+      // we never want to await in real sdk but we await in test for validation
+      await log.error('Some error', { name: 'abcd' });
+
+      expect(stderr).toEqual([
+        '[percy] Some error',
+        '[percy] Could not send logs to cli'
+      ]);
+    });
   });
 });
