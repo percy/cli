@@ -1242,7 +1242,7 @@ describe('Percy', () => {
           delete process.env.HTTPS_PROXY;
         });
 
-        fit('should catch and logs expected error', async () => {
+        it('should catch and logs expected error', async () => {
           spyOn(percy.client, 'getErrorAnalysis').and.rejectWith({ code: 'ECONNREFUSED', message: 'some error' });
 
           await expectAsync(percy.suggestionsForFix('some_error')).toBeResolved();
