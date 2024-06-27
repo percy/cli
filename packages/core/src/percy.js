@@ -1,6 +1,7 @@
 import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
+import { getProxy } from '@percy/client/utils';
 import Browser from './browser.js';
 import Pako from 'pako';
 import {
@@ -86,6 +87,7 @@ export class Percy {
     if (testing) loglevel = 'silent';
     if (loglevel) this.loglevel(loglevel);
 
+    this.port = port;
     this.projectType = projectType;
     this.testing = testing ? {} : null;
     this.dryRun = !!testing || !!dryRun;
@@ -188,8 +190,11 @@ export class Percy {
 
       // throw an easier-to-understand error when the port is in use
       if (error.code === 'EADDRINUSE') {
-        throw new Error('Percy is already running or the port is in use');
+        let errMsg = `Percy is already running or the port ${this.port} is in use`;
+        await this.suggestionsForFix(errMsg);
+        throw new Error(errMsg);
       } else {
+        await this.suggestionsForFix(error.message);
         throw error;
       }
     }
@@ -281,6 +286,9 @@ export class Percy {
       this.log.error(err);
       throw err;
     } finally {
+      // This issue doesn't comes under regular error logs,
+      // it's detected if we just and stop percy server
+      await this.checkForNoSnapshotCommandError();
       await this.sendBuildLogs();
     }
   }
@@ -400,6 +408,8 @@ export class Percy {
         return yield* yieldTo(this.#snapshots.push(options));
       } catch (error) {
         this.#snapshots.cancel(options);
+        // Detecting and suggesting fix for errors;
+        await this.suggestionsForFix(error.message);
         throw error;
       }
     }.call(this));
@@ -432,12 +442,89 @@ export class Percy {
     return syncMode;
   }
 
+  // This specific error will be hard coded
+  async checkForNoSnapshotCommandError() {
+    let isPercyStarted = false;
+    let containsSnapshotTaken = false;
+    logger.query((item) => {
+      isPercyStarted ||= item?.message?.includes('Percy has started');
+      containsSnapshotTaken ||= item?.message?.includes('Snapshot taken');
+
+      // This case happens when you directly upload it using cli-upload
+      containsSnapshotTaken ||= item?.message?.includes('Snapshot uploaded');
+      return item;
+    });
+
+    if (isPercyStarted && !containsSnapshotTaken) {
+      // This is the case for No snapshot command called
+      this.#displaySuggestionLogs([{
+        failure_reason: 'Snapshot command was not called',
+        reason_message: 'Snapshot Command was not called. please check your CI for errors',
+        suggestion: 'Try using percy snapshot command to take snapshots',
+        reference_doc_link: ['https://www.browserstack.com/docs/percy/take-percy-snapshots/']
+      }]);
+    }
+  }
+
+  #displaySuggestionLogs(suggestions, options = {}) {
+    if (!suggestions?.length) return;
+
+    suggestions.forEach(item => {
+      const failure = item?.failure_reason;
+      const failureReason = item?.reason_message;
+      const suggestion = item?.suggestion;
+      const referenceDocLinks = item?.reference_doc_link;
+
+      if (options?.snapshotLevel) {
+        this.log.warn(`Detected erorr for Snapshot: ${options?.snapshotName}`);
+      } else {
+        this.log.warn('Detected error for percy build');
+      }
+
+      this.log.warn(`Failure: ${failure}`);
+      this.log.warn(`Failure Reason: ${failureReason}`);
+      this.log.warn(`Suggestion: ${suggestion}`);
+
+      if (referenceDocLinks?.length > 0) {
+        this.log.warn('Refer to the below Doc Links for the same');
+
+        referenceDocLinks?.forEach(_docLink => {
+          this.log.warn(`* ${_docLink}`);
+        });
+      }
+    });
+  }
+
+  #proxyEnabled() {
+    return !!(getProxy({ protocol: 'https:' }) || getProxy({}));
+  }
+
+  async suggestionsForFix(errors, options = {}) {
+    try {
+      const suggestionResponse = await this.client.getErrorAnalysis(errors);
+      this.#displaySuggestionLogs(suggestionResponse, options);
+    } catch (e) {
+      // Common error code for Proxy issues
+      const PROXY_CODES = ['ECONNREFUSED', 'ECONNRESET', 'EHOSTUNREACH'];
+      if (!!e.code && PROXY_CODES.includes(e.code)) {
+        // This can be due to proxy issue
+        this.log.error('percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted.');
+        if (!this.#proxyEnabled()) {
+          this.log.error('If inside a proxied envirnment, please configure the following environment variables: HTTP_PROXY, [ and optionally HTTPS_PROXY if you need it ]. Refer to our documentation for more details');
+        }
+      }
+      this.log.error('Unable to analyze error logs');
+      this.log.debug(e);
+    }
+  }
+
   async sendBuildLogs() {
     if (!process.env.PERCY_TOKEN) return;
     try {
       const logsObject = {
         clilogs: logger.query(log => !['ci'].includes(log.debug))
       };
+
       // Only add CI logs if not disabled voluntarily.
       const sendCILogs = process.env.PERCY_CLIENT_ERROR_LOGS !== 'false';
       if (sendCILogs) {

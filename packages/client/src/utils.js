@@ -213,6 +213,26 @@ export function validateTiles(tiles) {
   return true;
 }
 
+export function formatLogErrors(errorLogs) {
+  let errors = [];
+  if (typeof errorLogs === 'string') {
+    errors.push({
+      message: errorLogs
+    });
+  } else if (Array.isArray(errorLogs)) {
+    errors = errorLogs;
+  } else {
+    errors.push({
+      message: errorLogs
+    });
+    errors.push({
+      message: errorLogs?.message || ''
+    });
+  }
+
+  return { logs: errors };
+}
+
 // convert tags comma-separated-names to array of objects for POST request
 export function tagsList(tags) {
   let tagsArr = [];
@@ -226,6 +246,7 @@ export function tagsList(tags) {
 
 export {
   hostnameMatches,
+  getProxy,
   ProxyHttpAgent,
   ProxyHttpsAgent,
   proxyAgentFor

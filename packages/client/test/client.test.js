@@ -1303,16 +1303,14 @@ describe('PercyClient', () => {
       ]);
     });
 
-    it('returns false if tile is not verified', async () => {
+    it('throws error if tile is not verified', async () => {
       api.reply('/comparisons/891011/tiles/verify', async () => {
         return [400, 'failure'];
       });
 
       await expectAsync(client.uploadComparisonTiles(891011, [
         { sha: sha256hash('foo') }
-      ])).toBeResolvedTo([
-        false
-      ]);
+      ])).toBeRejectedWithError('Uploading comparison tile failed');
     });
 
     it('throws any errors from verifying', async () => {
@@ -1348,6 +1346,10 @@ describe('PercyClient', () => {
     });
 
     it('verify a comparison tile', async () => {
+      api.reply('/comparisons/123/tiles/verify', async () => {
+        return [200, 'success'];
+      });
+
       await expectAsync(client.verify(123, 'sha')).toBeResolved();
 
       expect(api.requests['/comparisons/123/tiles/verify']).toBeDefined();
@@ -1569,6 +1571,44 @@ describe('PercyClient', () => {
           base64encoded: true
         }
       });
+    });
+  });
+
+  describe('#getErrorAnalysis', () => {
+    const sharedTest = (reqBody, expectedBody) => {
+      it('should send error logs to API', async () => {
+        await expectAsync(client.getErrorAnalysis(reqBody)).toBeResolved();
+
+        expect(api.requests['/suggestions/from_logs']).toBeDefined();
+        expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
+        expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
+          data: {
+            logs: expectedBody
+          }
+        });
+      });
+    };
+    describe('when error is of type array', () => {
+      let body = [
+        { message: 'Some Error Log' },
+        { message: 'Some Error logs 2' }
+      ];
+
+      // Here requestedBody and expectedBody should be same
+      sharedTest(body, body);
+    });
+
+    describe('when error is of type string', () => {
+      sharedTest('some error', [{ message: 'some error' }]);
+    });
+
+    describe('when error is of type object', () => {
+      sharedTest({
+        some_key: 'some_error'
+      }, [
+        { message: { some_key: 'some_error' } },
+        { message: '' }
+      ]);
     });
   });
 

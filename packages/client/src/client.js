@@ -13,6 +13,7 @@ import {
   getPackageJSON,
   waitForTimeout,
   validateTiles,
+  formatLogErrors,
   tagsList
 } from './utils.js';
 
@@ -544,8 +545,12 @@ export class PercyClient {
     while (retries > 0 && !success);
 
     if (!success) {
-      this.log.error('Uploading comparison tile failed');
-      return false;
+      let errMsg = 'Uploading comparison tile failed';
+
+      // Detecting error and logging fix for the same
+      // We are throwing this error as the comparison will be failed
+      // even if 1 tile gets failed
+      throw new Error(errMsg);
     }
     return true;
   }
@@ -614,6 +619,15 @@ export class PercyClient {
     this.log.debug('Sending Build Logs');
     return this.post('logs', {
       data: body
+    });
+  }
+
+  async getErrorAnalysis(errors) {
+    const errorLogs = formatLogErrors(errors);
+    this.log.debug('Sending error logs for analysis');
+
+    return this.post('suggestions/from_logs', {
+      data: errorLogs
     });
   }
 
