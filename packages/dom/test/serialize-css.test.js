@@ -103,7 +103,7 @@ describe('serializeCSSOM', () => {
       }]));
 
       expect(resultShadowEl.innerHTML).toEqual([
-        '<template shadowroot="open">',
+        '<template shadowrootmode="open">',
         `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`,
         '<p>Percy-0</p>',
         '</template>'
@@ -142,14 +142,14 @@ describe('serializeCSSOM', () => {
       const resultShadowElChild = $('#Percy-1')[0];
 
       expect(resultShadowEl.innerHTML).toMatch([
-        '<template shadowroot="open">',
+        '<template shadowrootmode="open">',
         `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`,
         '<p>Percy-0</p>',
         '</template>'
       ].join(''));
 
       expect(resultShadowElChild.innerHTML).toMatch([
-        '<template shadowroot="open">',
+        '<template shadowrootmode="open">',
         `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[1].url}">`,
         `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`,
         '<p>Percy-1</p>',
@@ -209,6 +209,14 @@ describe('serializeCSSOM', () => {
       dom.head.removeChild(linkElement3);
       URL.revokeObjectURL(blobUrl1);
       URL.revokeObjectURL(blobUrl2);
+    });
+
+    it('warns if styleSheets property is producing an error on shadow root', () => {
+      withExample('<div id="content"></div>', { withRestrictedShadow: true });
+      const baseContent = document.querySelector('#content');
+      baseContent.innerHTML = '<input type="text>';
+      const serialized = serializeDOM();
+      expect(serialized.warnings).toEqual(['Skipping `styleSheets` as it is not supported.']);
     });
   });
 });

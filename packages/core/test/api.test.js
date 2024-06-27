@@ -6,6 +6,7 @@ import WebdriverUtils from '@percy/webdriver-utils';
 
 describe('API Server', () => {
   let percy;
+  const getSnapshotDetailsResponse = { name: 'test', 'diff-ratio': 0 };
 
   async function request(path, ...args) {
     let { request } = await import('./helpers/request.js');
@@ -110,11 +111,11 @@ describe('API Server', () => {
       )
     );
 
-    expect(logger.stderr).toEqual(['[percy] Warning: ' + [
+    expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy] Warning: ' + [
       'It looks like you’re using @percy/cli with an older SDK.',
       'Please upgrade to the latest version to fix this warning.',
-      'See these docs for more info: https:docs.percy.io/docs/migrating-to-percy-cli'
-    ].join(' ')]);
+      'See these docs for more info: https://www.browserstack.com/docs/percy/migration/migrate-to-cli'
+    ].join(' ')]));
   });
 
   it('has a /flush endpoint that calls #flush()', async () => {
@@ -140,6 +141,7 @@ describe('API Server', () => {
   });
 
   it('has a /snapshot endpoint that calls #snapshot() with provided options', async () => {
+    spyOn(percy.client, 'getSnapshotDetails');
     spyOn(percy, 'snapshot').and.resolveTo();
     await percy.start();
 
@@ -150,8 +152,31 @@ describe('API Server', () => {
       success: true
     });
 
+    expect(percy.client.getSnapshotDetails).not.toHaveBeenCalled();
     expect(percy.snapshot).toHaveBeenCalledOnceWith(
-      { 'test-me': true, me_too: true }
+      { 'test-me': true, me_too: true }, {}
+    );
+  });
+
+  it('has a /snapshot endpoint that calls #snapshot() with provided options in sync mode', async () => {
+    spyOn(percy.client, 'getSnapshotDetails').and.returnValue(getSnapshotDetailsResponse);
+    spyOn(percy, 'snapshot').and.callFake((_, promise) => promise.test = new Promise((resolve, reject) => setTimeout(() => resolve(), 100)));
+    await percy.start();
+
+    const req = request('/percy/snapshot', {
+      method: 'POST',
+      body: { name: 'test', me_too: true, sync: true }
+    });
+
+    await expectAsync(req).toBeResolvedTo({
+      success: true,
+      data: getSnapshotDetailsResponse
+    });
+
+    expect(percy.client.getSnapshotDetails).toHaveBeenCalled();
+    expect(percy.snapshot).toHaveBeenCalledOnceWith(
+      { name: 'test', me_too: true, sync: true },
+      jasmine.objectContaining({})
     );
   });
 
@@ -183,11 +208,49 @@ describe('API Server', () => {
     }));
 
     expect(percy.upload).toHaveBeenCalledOnceWith(
-      { 'test-me': true, me_too: true }
+      { 'test-me': true, me_too: true },
+      null,
+      'app'
     );
 
     await expectAsync(test).toBePending();
     resolve(); // no hanging promises
+  });
+
+  it('has a /comparison endpoint that calls #upload() with sync mode', async () => {
+    spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
+    spyOn(percy, 'upload').and.callFake((_, callback) => callback.resolve());
+    await percy.start();
+
+    await expectAsync(request('/percy/comparison', {
+      method: 'POST',
+      body: {
+        name: 'Snapshot name',
+        sync: true,
+        tag: {
+          name: 'Tag name',
+          osName: 'OS name',
+          osVersion: 'OS version',
+          width: 800,
+          height: 1280,
+          orientation: 'landscape'
+        }
+      }
+    })).toBeResolvedTo(jasmine.objectContaining({
+      data: getSnapshotDetailsResponse,
+      link: `${percy.client.apiUrl}/comparisons/redirect?${[
+        'build_id=123',
+        'snapshot[name]=Snapshot%20name',
+        'tag[name]=Tag%20name',
+        'tag[os_name]=OS%20name',
+        'tag[os_version]=OS%20version',
+        'tag[width]=800',
+        'tag[height]=1280',
+        'tag[orientation]=landscape'
+      ].join('&')}`
+    }));
+
+    expect(percy.client.getComparisonDetails).toHaveBeenCalled();
   });
 
   it('includes links in the /comparison endpoint response', async () => {
@@ -270,7 +333,7 @@ describe('API Server', () => {
     let resolve, test = new Promise(r => (resolve = r));
     spyOn(percy, 'upload').and.returnValue(test);
     let mockWebdriverUtilResponse = 'TODO: mocked response';
-    let automateScreenshotSpy = spyOn(WebdriverUtils, 'automateScreenshot').and.resolveTo(mockWebdriverUtilResponse);
+    let captureScreenshotSpy = spyOn(WebdriverUtils, 'captureScreenshot').and.resolveTo(mockWebdriverUtilResponse);
 
     await percy.start();
 
@@ -292,13 +355,15 @@ describe('API Server', () => {
           freeze_animated_image: true,
           freezeImageBySelectors: ['.selector-per-screenshot'],
           ignore_region_xpaths: ['/xpath-per-screenshot'],
-          consider_region_xpaths: ['/xpath-per-screenshot']
+          consider_region_xpaths: ['/xpath-per-screenshot'],
+          testCase: 'random test case',
+          thTestCaseExecutionId: 'random uuid'
         }
       },
       method: 'post'
     })).toBeResolvedTo({ success: true });
 
-    expect(automateScreenshotSpy).toHaveBeenCalledOnceWith(jasmine.objectContaining({
+    expect(captureScreenshotSpy).toHaveBeenCalledOnceWith(jasmine.objectContaining({
       clientInfo: 'client',
       environmentInfo: 'environment',
       buildInfo: { id: '123', url: 'https://percy.io/test/test/123', number: 1 },
@@ -311,13 +376,70 @@ describe('API Server', () => {
         ignoreRegionSelectors: ['.selector-global'],
         ignoreRegionXpaths: ['/xpath-per-screenshot'],
         considerRegionXpaths: ['/xpath-global', '/xpath-per-screenshot'],
+        version: 'v2',
+        testCase: 'random test case',
+        thTestCaseExecutionId: 'random uuid'
+      }
+    }));
+
+    expect(percy.upload).toHaveBeenCalledOnceWith(mockWebdriverUtilResponse, null, 'automate');
+    await expectAsync(test).toBePending();
+    resolve(); // no hanging promises
+  });
+
+  it('has a /automateScreenshot endpoint that calls #upload() async with provided options', async () => {
+    spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
+    spyOn(percy, 'upload').and.callFake((_, callback) => callback.resolve());
+    let captureScreenshotSpy = spyOn(WebdriverUtils, 'captureScreenshot').and.returnValue({ sync: true });
+
+    await percy.start();
+
+    percy.config.snapshot.fullPage = false;
+
+    percy.config.snapshot.percyCSS = '.global { color: blue }';
+    percy.config.snapshot.freezeAnimatedImage = false;
+    percy.config.snapshot.freezeAnimatedImageOptions = { freezeImageByXpaths: ['/xpath-global'] };
+    percy.config.snapshot.ignoreRegions = { ignoreRegionSelectors: ['.selector-global'] };
+    percy.config.snapshot.considerRegions = { considerRegionXpaths: ['/xpath-global'] };
+
+    await expectAsync(request('/percy/automateScreenshot', {
+      body: {
+        name: 'Snapshot name',
+        client_info: 'client',
+        environment_info: 'environment',
+        options: {
+          sync: true,
+          fullPage: true,
+          percyCSS: '.percy-screenshot: { color: red }',
+          freeze_animated_image: true,
+          freezeImageBySelectors: ['.selector-per-screenshot'],
+          ignore_region_xpaths: ['/xpath-per-screenshot'],
+          consider_region_xpaths: ['/xpath-per-screenshot']
+        }
+      },
+      method: 'post'
+    })).toBeResolvedTo({ success: true, data: getSnapshotDetailsResponse });
+
+    expect(captureScreenshotSpy).toHaveBeenCalledOnceWith(jasmine.objectContaining({
+      clientInfo: 'client',
+      environmentInfo: 'environment',
+      buildInfo: { id: '123', url: 'https://percy.io/test/test/123', number: 1 },
+      options: {
+        sync: true,
+        fullPage: true,
+        freezeAnimatedImage: true,
+        freezeImageBySelectors: ['.selector-per-screenshot'],
+        freezeImageByXpaths: ['/xpath-global'],
+        percyCSS: '.global { color: blue }\n.percy-screenshot: { color: red }',
+        ignoreRegionSelectors: ['.selector-global'],
+        ignoreRegionXpaths: ['/xpath-per-screenshot'],
+        considerRegionXpaths: ['/xpath-global', '/xpath-per-screenshot'],
         version: 'v2'
       }
     }));
 
-    expect(percy.upload).toHaveBeenCalledOnceWith(mockWebdriverUtilResponse);
-    await expectAsync(test).toBePending();
-    resolve(); // no hanging promises
+    expect(percy.client.getComparisonDetails).toHaveBeenCalled();
+    expect(percy.upload).toHaveBeenCalledOnceWith({ sync: true }, jasmine.objectContaining({}), 'automate');
   });
 
   it('has a /events endpoint that calls #sendBuildEvents() async with provided options with clientInfo present', async () => {
@@ -412,6 +534,60 @@ describe('API Server', () => {
 
     await expectAsync(test).toBePending();
     resolve(); // no hanging promises
+  });
+
+  it('has a /log endpoint that adds sdk log to logger', async () => {
+    await percy.start();
+
+    const message1 = {
+      level: 'info',
+      message: 'some info',
+      meta: { snapshot: 'Snapshot name', testCase: 'testCase name' }
+    };
+
+    const message2 = {
+      level: 'error',
+      message: 'some error',
+      meta: { snapshot: 'Snapshot name 2', testCase: 'testCase name' }
+    };
+
+    // works with standard messages
+    await expectAsync(request('/percy/log', {
+      body: message1,
+      method: 'post'
+    })).toBeResolvedTo({ success: true });
+
+    await expectAsync(request('/percy/log', {
+      body: message2,
+      method: 'post'
+    })).toBeResolvedTo({ success: true });
+
+    // works without meta
+    await expectAsync(request('/percy/log', {
+      body: {
+        level: 'info',
+        message: 'some other info'
+      },
+      method: 'post'
+    })).toBeResolvedTo({ success: true });
+
+    // throws error on invalid data
+    await expectAsync(request('/percy/log', {
+      body: null,
+      method: 'post'
+    })).toBeRejected();
+
+    const sdkLogs = logger.instance.query(log => log.debug === 'sdk');
+
+    expect(sdkLogs.length).toEqual(4);
+
+    expect(sdkLogs[0].level).toEqual(message1.level);
+    expect(sdkLogs[0].message).toEqual(message1.message);
+    expect(sdkLogs[0].meta).toEqual(message1.meta);
+
+    expect(sdkLogs[1].level).toEqual(message2.level);
+    expect(sdkLogs[1].message).toEqual(message2.message);
+    expect(sdkLogs[1].meta).toEqual(message2.meta);
   });
 
   it('returns a 500 error when an endpoint throws', async () => {

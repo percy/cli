@@ -113,7 +113,7 @@ describe('serializeDOM', () => {
       shadow.appendChild(paragraphEl);
 
       const html = serializeDOM().html;
-      expect(html).toMatch('<template shadowroot="open">');
+      expect(html).toMatch('<template shadowrootmode="open">');
       expect(html).toMatch('Hey Percy!');
     });
 
@@ -150,10 +150,10 @@ describe('serializeDOM', () => {
       const html = serializeDOM().html;
 
       expect(html).toMatch(new RegExp([
-        '<template shadowroot="open">',
+        '<template shadowrootmode="open">',
         '<p>Percy-1</p>',
         '<div id="Percy-2" .*>',
-        '<template shadowroot="open">',
+        '<template shadowrootmode="open">',
         '<p>Percy-2</p>',
         '</template>'
       ].join('')));
@@ -181,7 +181,7 @@ describe('serializeDOM', () => {
         el = newEl;
         matchRegex += [
           `<div id="Percy-${j}" .*>`,
-          '<template shadowroot="open">',
+          '<template shadowrootmode="open">',
           `<p>Percy-${j}</p>`
         ].join('');
       }
@@ -206,7 +206,7 @@ describe('serializeDOM', () => {
         baseContent.appendChild(newEl);
         matchRegex += [
           `<div id="Percy-${j}" .*>`,
-          '<template shadowroot="open">',
+          '<template shadowrootmode="open">',
           `<p>Percy-${j}</p>`,
           '</template>',
           '</div>'

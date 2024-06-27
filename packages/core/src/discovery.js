@@ -7,8 +7,15 @@ import {
   createRootResource,
   createPercyCSSResource,
   createLogResource,
-  yieldAll
+  yieldAll,
+  snapshotLogName,
+  withRetries
 } from './utils.js';
+import {
+  sha256hash
+} from '@percy/client/utils';
+import Pako from 'pako';
+import TimeIt from './timing.js';
 
 // Logs verbose debug logs detailing various snapshot options.
 function debugSnapshotOptions(snapshot) {
@@ -54,6 +61,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'discovery.authorization', JSON.stringify);
   debugProp(snapshot, 'discovery.disableCache');
   debugProp(snapshot, 'discovery.captureMockedServiceWorker');
+  debugProp(snapshot, 'discovery.captureSrcset');
   debugProp(snapshot, 'discovery.userAgent');
   debugProp(snapshot, 'clientInfo');
   debugProp(snapshot, 'environmentInfo');
@@ -130,8 +138,15 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
 
   // include associated snapshot logs matched by meta information
   resources.push(createLogResource(logger.query(log => (
-    log.meta.snapshot?.name === snapshot.meta.snapshot.name
+    log.meta.snapshot?.testCase === snapshot.meta.snapshot.testCase && log.meta.snapshot?.name === snapshot.meta.snapshot.name
   ))));
+
+  if (process.env.PERCY_GZIP) {
+    for (let index = 0; index < resources.length; index++) {
+      resources[index].content = Pako.gzip(resources[index].content);
+      resources[index].sha = sha256hash(resources[index].content);
+    }
+  }
 
   return { ...snapshot, resources };
 }
@@ -139,8 +154,9 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
 // Triggers the capture of resource requests for a page by iterating over snapshot widths to resize
 // the page and calling any provided execute options.
 async function* captureSnapshotResources(page, snapshot, options) {
+  const log = logger('core:discovery');
   let { discovery, additionalSnapshots = [], ...baseSnapshot } = snapshot;
-  let { capture, captureWidths, deviceScaleFactor, mobile } = options;
+  let { capture, captureWidths, deviceScaleFactor, mobile, captureForDevices } = options;
 
   // used to take snapshots and remove any discovered root resource
   let takeSnapshot = async (options, width) => {
@@ -170,12 +186,32 @@ async function* captureSnapshotResources(page, snapshot, options) {
     yield page.evaluate(snapshot.execute.afterNavigation);
   }
 
+  // Running before page idle since this will trigger many network calls
+  // so need to run as early as possible. plus it is just reading urls from dom srcset
+  // which will be already loaded after navigation complete
+  if (discovery.captureSrcset) {
+    await page.insertPercyDom();
+    yield page.eval('window.PercyDOM.loadAllSrcsetLinks()');
+  }
+
   // iterate over additional snapshots for proper DOM capturing
   for (let additionalSnapshot of [baseSnapshot, ...additionalSnapshots]) {
     let isBaseSnapshot = additionalSnapshot === baseSnapshot;
     let snap = { ...baseSnapshot, ...additionalSnapshot };
     let { widths, execute } = snap;
     let [width] = widths;
+
+    // iterate over device to trigger reqeusts and capture other dpr width
+    if (captureForDevices) {
+      for (const device of captureForDevices) {
+        yield waitForDiscoveryNetworkIdle(page, discovery);
+        // We are not adding these widths and pixels ratios in loop below because we want to explicitly reload the page after resize which we dont do below
+        yield* captureSnapshotResources(page, { ...snapshot, widths: [device.width] }, {
+          deviceScaleFactor: device.deviceScaleFactor,
+          mobile: true
+        });
+      }
+    }
 
     // iterate over widths to trigger reqeusts and capture other widths
     if (isBaseSnapshot || captureWidths) {
@@ -202,13 +238,8 @@ async function* captureSnapshotResources(page, snapshot, options) {
   }
 
   // recursively trigger resource requests for any alternate device pixel ratio
-  if (deviceScaleFactor !== discovery.devicePixelRatio) {
-    yield waitForDiscoveryNetworkIdle(page, discovery);
-
-    yield* captureSnapshotResources(page, snapshot, {
-      deviceScaleFactor: discovery.devicePixelRatio,
-      mobile: true
-    });
+  if (discovery.devicePixelRatio) {
+    log.deprecated('discovery.devicePixelRatio is deprecated percy will now auto capture resource in all devicePixelRatio, Ignoring configuration');
   }
 
   // wait for final network idle when not capturing DOM
@@ -250,6 +281,7 @@ export const RESOURCE_CACHE_KEY = Symbol('resource-cache');
 export function createDiscoveryQueue(percy) {
   let { concurrency } = percy.config.discovery;
   let queue = new Queue('discovery');
+  let timeit = new TimeIt();
   let cache;
 
   return queue
@@ -257,6 +289,9 @@ export function createDiscoveryQueue(percy) {
   // on start, launch the browser and run the queue
     .handle('start', async () => {
       cache = percy[RESOURCE_CACHE_KEY] = new Map();
+
+      // If browser.launch() fails it will get captured in
+      // *percy.start()
       await percy.browser.launch();
       queue.run();
     })
@@ -264,9 +299,9 @@ export function createDiscoveryQueue(percy) {
     .handle('end', async () => {
       await percy.browser.close();
     })
-  // snapshots are unique by name; when deferred also by widths
-    .handle('find', ({ name, widths }, snapshot) => (
-      snapshot.name === name && (!percy.deferUploads || (
+  // snapshots are unique by name and testCase; when deferred also by widths
+    .handle('find', ({ name, testCase, widths }, snapshot) => (
+      snapshot.testCase === testCase && snapshot.name === name && (!percy.deferUploads || (
         !widths || widths.join() === snapshot.widths.join()))
     ))
   // initialize the resources for DOM snapshots
@@ -276,53 +311,80 @@ export function createDiscoveryQueue(percy) {
     })
   // discovery resources for snapshots and call the callback for each discovered snapshot
     .handle('task', async function*(snapshot, callback) {
-      percy.log.debug(`Discovering resources: ${snapshot.name}`, snapshot.meta);
+      await timeit.measure('asset-discovery', snapshot.name, async () => {
+        percy.log.debug(`Discovering resources: ${snapshot.name}`, snapshot.meta);
 
-      // expectation explained in tests
-      /* istanbul ignore next: tested, but coverage is stripped */
-      let assetDiscoveryPageEnableJS = (snapshot.cliEnableJavaScript && !snapshot.domSnapshot) || (snapshot.enableJavaScript ?? !snapshot.domSnapshot);
+        // expectation explained in tests
+        /* istanbul ignore next: tested, but coverage is stripped */
+        let assetDiscoveryPageEnableJS = (snapshot.cliEnableJavaScript && !snapshot.domSnapshot) || (snapshot.enableJavaScript ?? !snapshot.domSnapshot);
 
-      percy.log.debug(`Asset discovery Browser Page enable JS: ${assetDiscoveryPageEnableJS}`);
-      // create a new browser page
-      let page = yield percy.browser.page({
-        enableJavaScript: assetDiscoveryPageEnableJS,
-        networkIdleTimeout: snapshot.discovery.networkIdleTimeout,
-        requestHeaders: snapshot.discovery.requestHeaders,
-        authorization: snapshot.discovery.authorization,
-        userAgent: snapshot.discovery.userAgent,
-        captureMockedServiceWorker: snapshot.discovery.captureMockedServiceWorker,
-        meta: snapshot.meta,
+        percy.log.debug(`Asset discovery Browser Page enable JS: ${assetDiscoveryPageEnableJS}`);
 
-        // enable network inteception
-        intercept: {
-          enableJavaScript: snapshot.enableJavaScript,
-          disableCache: snapshot.discovery.disableCache,
-          allowedHostnames: snapshot.discovery.allowedHostnames,
-          disallowedHostnames: snapshot.discovery.disallowedHostnames,
-          getResource: u => snapshot.resources.get(u) || cache.get(u),
-          saveResource: r => { snapshot.resources.set(r.url, r); if (!r.root) { cache.set(r.url, r); } }
-        }
-      });
+        await withRetries(async function*() {
+          // create a new browser page
+          let page = yield percy.browser.page({
+            enableJavaScript: assetDiscoveryPageEnableJS,
+            networkIdleTimeout: snapshot.discovery.networkIdleTimeout,
+            requestHeaders: snapshot.discovery.requestHeaders,
+            authorization: snapshot.discovery.authorization,
+            userAgent: snapshot.discovery.userAgent,
+            captureMockedServiceWorker: snapshot.discovery.captureMockedServiceWorker,
+            meta: snapshot.meta,
 
-      try {
-        yield* captureSnapshotResources(page, snapshot, {
-          captureWidths: !snapshot.domSnapshot && percy.deferUploads,
-          capture: callback
+            // enable network inteception
+            intercept: {
+              enableJavaScript: snapshot.enableJavaScript,
+              disableCache: snapshot.discovery.disableCache,
+              allowedHostnames: snapshot.discovery.allowedHostnames,
+              disallowedHostnames: snapshot.discovery.disallowedHostnames,
+              getResource: u => snapshot.resources.get(u) || cache.get(u),
+              saveResource: r => { snapshot.resources.set(r.url, r); if (!r.root) { cache.set(r.url, r); } }
+            }
+          });
+
+          try {
+            yield* captureSnapshotResources(page, snapshot, {
+              captureWidths: !snapshot.domSnapshot && percy.deferUploads,
+              capture: callback,
+              captureForDevices: percy.deviceDetails || []
+            });
+          } finally {
+            // always close the page when done
+            await page.close();
+          }
+        }, {
+          count: snapshot.discovery.retry ? 3 : 1,
+          onRetry: () => {
+            percy.log.info(`Retrying snapshot: ${snapshotLogName(snapshot.name, snapshot.meta)}`, snapshot.meta);
+          },
+          signal: snapshot._ctrl.signal,
+          throwOn: ['AbortError']
         });
-      } finally {
-        // always close the page when done
-        await page.close();
-      }
+      });
     })
-    .handle('error', ({ name, meta }, error) => {
+    .handle('error', async ({ name, meta }, error) => {
       if (error.name === 'AbortError' && queue.readyState < 3) {
         // only error about aborted snapshots when not closed
-        percy.log.error('Received a duplicate snapshot, ' + (
-          `the previous snapshot was aborted: ${name}`), meta);
+        let errMsg = 'Received a duplicate snapshot, ' + (
+          `the previous snapshot was aborted: ${snapshotLogName(name, meta)}`);
+        percy.log.error(errMsg, { snapshotLevel: true, snapshotName: name });
+
+        await percy.suggestionsForFix(errMsg, meta);
       } else {
         // log all other encountered errors
-        percy.log.error(`Encountered an error taking snapshot: ${name}`, meta);
+        let errMsg = `Encountered an error taking snapshot: ${name}`;
+        percy.log.error(errMsg, meta);
         percy.log.error(error, meta);
+
+        let assetDiscoveryErrors = [
+          { message: errMsg, meta },
+          { message: error?.message, meta }
+        ];
+
+        await percy.suggestionsForFix(
+          assetDiscoveryErrors,
+          { snapshotLevel: true, snapshotName: name }
+        );
       }
     });
 }

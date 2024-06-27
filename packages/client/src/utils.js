@@ -3,6 +3,18 @@ import fs from 'fs';
 import url from 'url';
 import path from 'path';
 import crypto from 'crypto';
+import logger from '@percy/logger';
+
+// Formats a raw byte integer as a string
+export function formatBytes(int) {
+  let units = ['kB', 'MB', 'GB'];
+  let base = 1024;
+  let u = -1;
+
+  if (Math.abs(int) < base) return `${int}B`;
+  while (Math.abs(int) >= base && u++ < 2) int /= base;
+  return `${int.toFixed(1)}${units[u]}`;
+}
 
 // Returns a sha256 hash of a string.
 export function sha256hash(content) {
@@ -65,6 +77,7 @@ export function pool(generator, context, concurrency) {
         }).catch(error => {
           queue--;
           err = error;
+          logger('client:utils').error(`[${generator.name}] Failed with reason: ${error}`);
           proceed();
         });
       }
@@ -167,7 +180,9 @@ export async function request(url, options = {}, callback) {
           resolve(await callback?.(body, res) ?? body);
         } else {
           let err = body?.errors?.find(e => e.detail)?.detail;
-          throw new Error(err || `${statusCode} ${res.statusMessage || raw}`);
+          let statusMessage = `${statusCode} ${(res.statusMessage || '')}`;
+          let bodyText = (raw?.length > 0 && res.statusMessage !== raw) ? `\n${raw}` : '';
+          throw new Error(err || `${statusMessage}${bodyText}`);
         }
       } catch (error) {
         let response = { statusCode, headers, body };
@@ -189,8 +204,49 @@ export async function request(url, options = {}, callback) {
   }, { retries, interval });
 }
 
+export function validateTiles(tiles) {
+  for (const tile of tiles) {
+    if (!tile.filepath && !tile.content && !tile.sha) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function formatLogErrors(errorLogs) {
+  let errors = [];
+  if (typeof errorLogs === 'string') {
+    errors.push({
+      message: errorLogs
+    });
+  } else if (Array.isArray(errorLogs)) {
+    errors = errorLogs;
+  } else {
+    errors.push({
+      message: errorLogs
+    });
+    errors.push({
+      message: errorLogs?.message || ''
+    });
+  }
+
+  return { logs: errors };
+}
+
+// convert tags comma-separated-names to array of objects for POST request
+export function tagsList(tags) {
+  let tagsArr = [];
+  if (typeof tags !== 'undefined' && tags !== null && typeof tags === 'string') {
+    let tagNamesArray = tags.split(',');
+    tagsArr = tagNamesArray.map(name => ({ id: null, name: name.trim() }));
+  }
+
+  return tagsArr;
+}
+
 export {
   hostnameMatches,
+  getProxy,
   ProxyHttpAgent,
   ProxyHttpsAgent,
   proxyAgentFor

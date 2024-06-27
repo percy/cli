@@ -2,8 +2,9 @@ import fs from 'fs';
 import net from 'net';
 import http from 'http';
 import https from 'https';
-import { request, ProxyHttpAgent } from '@percy/client/utils';
+import { request, ProxyHttpAgent, formatBytes } from '@percy/client/utils';
 import { port, href, proxyAgentFor } from '../../src/proxy.js';
+import logger from '@percy/logger/test/helpers';
 
 const ssl = {
   cert: fs.readFileSync('./test/certs/test.crt'),
@@ -192,7 +193,7 @@ describe('Unit / Request', () => {
     server.reply('/status', () => [403]);
 
     await expectAsync(server.request('/status'))
-      .toBeRejectedWithError('403 Forbidden');
+      .toBeRejectedWithError('403 Forbidden\ntest');
 
     // empty status message
     server.reply('/raw', (req, res) => {
@@ -200,7 +201,7 @@ describe('Unit / Request', () => {
     });
 
     await expectAsync(server.request('/raw'))
-      .toBeRejectedWithError('403 STOP');
+      .toBeRejectedWithError('403 \nSTOP');
   });
 
   describe('retries', () => {
@@ -235,7 +236,7 @@ describe('Unit / Request', () => {
       server.reply('/test', () => responses.splice(0, 1)[0]);
 
       await expectAsync(server.request('/test'))
-        .toBeRejectedWithError('404 Not Found');
+        .toBeRejectedWithError('404 Not Found\ntest');
 
       expect(responses).toEqual([[500], [404], [200]]);
       expect(server.received.length).toBe(2);
@@ -261,7 +262,7 @@ describe('Unit / Request', () => {
     it('fails after 5 additional retries', async () => {
       server.reply('/fail', () => [502]);
       await expectAsync(server.request('/fail'))
-        .toBeRejectedWithError('502 Bad Gateway');
+        .toBeRejectedWithError('502 Bad Gateway\ntest');
       expect(server.received.length).toBe(6);
     });
   });
@@ -272,7 +273,7 @@ describe('Unit / Request', () => {
 
       beforeEach(async () => {
         await server?.close();
-
+        await logger.mock({ level: 'debug' });
         server = await createTestServer({
           type: serverType,
           port: 8080
@@ -473,6 +474,26 @@ describe('Unit / Request', () => {
               await expectAsync(server.request('/test'))
                 .toBeRejectedWith(error);
             });
+
+            if (proxyType === 'https') {
+              it('throws EHOSTUNREACH error', async () => {
+                let error = new Error('EHOSTUNREACH');
+
+                // sabotage the underlying socket.write method to emit an error
+                spyOn(net.Socket.prototype, 'write')
+                  .and.callFake(function() {
+                    this.emit('error', error);
+                  });
+
+                await expectAsync(server.request('/test'))
+                  .toBeRejectedWith(error);
+
+                expect(logger.stderr).toEqual(jasmine.arrayContaining([
+                  '[percy:client:proxy] If needed, Please verify if your proxy credentials are correct',
+                  '[percy:client:proxy] Please check if your proxy is set correctly and reachable'
+                ]));
+              });
+            }
           }
 
           it('throws an error when unable to connect', async () => {
@@ -506,4 +527,13 @@ describe('Unit / Request', () => {
       });
     });
   }
+});
+
+describe('Unit / formatBytes', () => {
+  it('returns correct format', () => {
+    expect(formatBytes(500)).toBe('500B');
+    expect(formatBytes(1024)).toBe('1.0kB');
+    expect(formatBytes(750 * 1024)).toBe('750.0kB');
+    expect(formatBytes(500 * 1024 * 1024)).toBe('500.0MB');
+  });
 });

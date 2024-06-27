@@ -266,7 +266,7 @@ describe('Unit / Server', () => {
     it('handles server errors', async () => {
       server.route('/e/foo', () => { throw new Error('foo'); });
       server.route('/e/bar', () => { throw new Server.Error(418); });
-      await expectAsync(request('/e/foo')).toBeRejectedWithError('500 Internal Server Error');
+      await expectAsync(request('/e/foo')).toBeRejectedWithError('500 Internal Server Error\nfoo');
       await expectAsync(request('/e/bar')).toBeRejectedWithError('418 I\'m a Teapot');
     });
 

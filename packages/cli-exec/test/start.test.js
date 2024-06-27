@@ -1,5 +1,5 @@
 import { request } from '@percy/cli-command/utils';
-import { logger, setupTest } from '@percy/cli-command/test/helpers';
+import { logger, setupTest, api } from '@percy/cli-command/test/helpers';
 import { start, ping } from '@percy/cli-exec';
 
 describe('percy exec:start', () => {
@@ -18,6 +18,8 @@ describe('percy exec:start', () => {
 
     started = start(['--quiet']);
     started.then(() => (started = null));
+    // wait until the process starts
+    await new Promise(r => setTimeout(r, 1000));
     await ping();
   });
 
@@ -89,10 +91,25 @@ describe('percy exec:start', () => {
 
     await expectAsync(start()).toBeRejected();
 
-    expect(logger.stdout).toEqual([]);
-    expect(logger.stderr).toEqual([
-      '[percy] Error: Percy is already running or the port is in use'
-    ]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      "[percy] Build's CLI and CI logs sent successfully. Please share this log ID with Percy team in case of any issues - random_sha"
+    ]));
+
+    let lastReq = api.requests['/suggestions/from_logs'].length - 1;
+
+    expect(api.requests['/suggestions/from_logs'][lastReq].body).toEqual({
+      data: {
+        logs: [
+          { message: 'Percy is already running or the port 5338 is in use' }
+        ]
+      }
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Notice: Percy collects CI logs for service improvement, stored for 30 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false',
+      '[percy] Error: Percy is already running or the port 5338 is in use',
+      '[percy] Error: Percy is already running or the port 5338 is in use'
+    ]));
   });
 
   it('logs when percy has been disabled', async () => {

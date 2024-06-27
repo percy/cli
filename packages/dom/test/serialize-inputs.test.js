@@ -16,11 +16,18 @@ describe('serializeInputs', () => {
         <input id="mailing" type="checkbox" />
         <label for="mailing">Subscribe?</label>
 
-        <input id="radio" type="radio" />
+        <input id="radio" type="radio" checked=""/>
         <label for="radio">Radio</label>
 
         <input id="nevercheckedradio" type="radio" />
         <label for="nevercheckedradio">Never checked</label>
+
+        <form>
+          <input type="radio" id="option1" name="option" value="option1" checked>
+          <label for="option1">Option 1</label><br>
+          <input type="radio" id="option2" name="option" value="option2" checked>
+          <label for="option2">Option 2</label><br>
+        </form>
 
         <label for="singleSelect">Does this work?</label>
         <select id="singleSelect">
@@ -84,7 +91,27 @@ describe('serializeInputs', () => {
     });
 
     it(`${platform}: serializes checked radio buttons`, () => {
+      expect($('#radio')[0].outerHTML).toContain('checked=""');
       expect($('#radio')[0].checked).toBe(true);
+    });
+
+    it(`${platform}: removes checked attr from radio-button option1 when option1 is not explictly selected`, () => {
+      expect($('#option1')[0].outerHTML).not.toContain('checked=""');
+      expect($('#option1')[0].checked).toBe(false);
+
+      expect($('#option2')[0].outerHTML).toContain('checked=""');
+      expect($('#option2')[0].checked).toBe(true);
+    });
+
+    it(`${platform}: removes checked attr from radio-button option2 when option1 is explictly selected`, () => {
+      dom.querySelector('#option1').checked = true;
+      $ = parseDOM(serializeDOM(), platform);
+
+      expect($('#option1')[0].outerHTML).toContain('checked=""');
+      expect($('#option1')[0].checked).toBe(true);
+
+      expect($('#option2')[0].outerHTML).not.toContain('checked=""');
+      expect($('#option2')[0].checked).toBe(false);
     });
 
     it(`${platform}: serializes textareas`, () => {
@@ -124,7 +151,7 @@ describe('serializeInputs', () => {
 
     it(`${platform}: adds a guid data-attribute to the original DOM`, () => {
       // plain platform has extra element #test-shadow
-      expect(dom.querySelectorAll('[data-percy-element-id]')).toHaveSize(platform === 'plain' ? 10 : 9);
+      expect(dom.querySelectorAll('[data-percy-element-id]')).toHaveSize(platform === 'plain' ? 12 : 11);
     });
 
     it(`${platform}: adds matching guids to the orignal DOM and cloned DOM`, () => {

@@ -31,6 +31,7 @@ export class Network {
   #requests = new Map();
   #authentications = new Set();
   #aborted = new Set();
+  #finishedUrls = new Set();
 
   constructor(page, options) {
     this.page = page;
@@ -86,6 +87,13 @@ export class Network {
       }
 
       requests = Array.from(this.#requests.values()).filter(filter);
+      // remove requests which are finished at least once
+      // this happens when same request is made multiple times by browser in parallel and one of
+      // them gets stuck in pending state in browser [ need to debug why ]. So we dont receive
+      // loadingFinished event, causing it to show up in Active requests, but we can only store one
+      // response per url so as long as we have captured one, we dont care about other such requests
+      requests = requests.filter((req) => !this.#finishedUrls.has(req.url));
+
       return requests.length === 0;
     }, {
       timeout: Network.TIMEOUT,
@@ -131,9 +139,10 @@ export class Network {
   }
 
   // Called when a request should be removed from various trackers
-  _forgetRequest({ requestId, interceptId }, keepPending) {
+  _forgetRequest({ requestId, interceptId, url }, keepPending) {
     this.#requests.delete(requestId);
     this.#authentications.delete(interceptId);
+    this.#finishedUrls.add(url);
 
     if (!keepPending) {
       this.#pending.delete(requestId);

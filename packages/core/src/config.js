@@ -9,6 +9,9 @@ export const configSchema = {
       },
       token: {
         type: 'string'
+      },
+      labels: {
+        type: 'string'
       }
     }
   },
@@ -67,6 +70,18 @@ export const configSchema = {
             type: 'boolean'
           }
         }
+      },
+      sync: {
+        type: 'boolean'
+      },
+      testCase: {
+        type: 'string'
+      },
+      labels: {
+        type: 'string'
+      },
+      thTestCaseExecutionId: {
+        type: 'string'
       },
       fullPage: {
         type: 'boolean',
@@ -184,6 +199,9 @@ export const configSchema = {
         type: 'boolean',
         default: false
       },
+      captureSrcset: {
+        type: 'boolean'
+      },
       requestHeaders: {
         type: 'object',
         normalize: false,
@@ -225,6 +243,10 @@ export const configSchema = {
         type: 'integer',
         minimum: 1
       },
+      retry: {
+        type: 'boolean',
+        default: false
+      },
       launchOptions: {
         type: 'object',
         additionalProperties: false,
@@ -256,6 +278,10 @@ export const snapshotSchema = {
         disableShadowDOM: { $ref: '/config/snapshot#/properties/disableShadowDOM' },
         domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
         enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
+        sync: { $ref: '/config/snapshot#/properties/sync' },
+        testCase: { $ref: '/config/snapshot#/properties/testCase' },
+        labels: { $ref: '/config/snapshot#/properties/labels' },
+        thTestCaseExecutionId: { $ref: '/config/snapshot#/properties/thTestCaseExecutionId' },
         reshuffleInvalidTags: { $ref: '/config/snapshot#/properties/reshuffleInvalidTags' },
         scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
         discovery: {
@@ -268,8 +294,10 @@ export const snapshotSchema = {
             authorization: { $ref: '/config/discovery#/properties/authorization' },
             disableCache: { $ref: '/config/discovery#/properties/disableCache' },
             captureMockedServiceWorker: { $ref: '/config/discovery#/properties/captureMockedServiceWorker' },
+            captureSrcset: { $ref: '/config/discovery#/properties/captureSrcset' },
             userAgent: { $ref: '/config/discovery#/properties/userAgent' },
-            devicePixelRatio: { $ref: '/config/discovery#/properties/devicePixelRatio' }
+            devicePixelRatio: { $ref: '/config/discovery#/properties/devicePixelRatio' },
+            retry: { $ref: '/config/discovery#/properties/retry' }
           }
         }
       },
@@ -540,6 +568,13 @@ export const comparisonSchema = {
     name: { type: 'string' },
     externalDebugUrl: { type: 'string' },
     domInfoSha: { type: 'string' },
+    sync: { type: 'boolean' },
+    testCase: {
+      type: 'string'
+    },
+    thTestCaseExecutionId: {
+      type: 'string'
+    },
     metadata: {
       type: 'object',
       additionalProperties: false,

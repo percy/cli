@@ -6,6 +6,7 @@ import PercyClient from '@percy/client';
 import api from './helpers.js';
 import * as CoreConfig from '@percy/core/config';
 import PercyConfig from '@percy/config';
+import Pako from 'pako';
 
 describe('PercyClient', () => {
   let client;
@@ -13,6 +14,7 @@ describe('PercyClient', () => {
   beforeEach(async () => {
     await logger.mock({ level: 'debug' });
     await api.mock();
+    delete process.env.PERCY_GZIP;
 
     client = new PercyClient({
       token: 'PERCY_TOKEN'
@@ -162,7 +164,8 @@ describe('PercyClient', () => {
             'pull-request-number': client.env.pullRequest,
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
-            partial: client.env.partial
+            partial: client.env.partial,
+            tags: []
           }
         }));
     });
@@ -195,7 +198,8 @@ describe('PercyClient', () => {
             'pull-request-number': client.env.pullRequest,
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
-            partial: client.env.partial
+            partial: client.env.partial,
+            tags: []
           }
         }));
     });
@@ -275,7 +279,46 @@ describe('PercyClient', () => {
             'pull-request-number': client.env.pullRequest,
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
-            partial: client.env.partial
+            partial: client.env.partial,
+            tags: []
+          }
+        }));
+    });
+
+    it('creates a new build with tags', async () => {
+      client = new PercyClient({
+        token: 'PERCY_TOKEN',
+        labels: 'tag1,tag2'
+      });
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolvedTo({
+        data: {
+          id: '123',
+          attributes: {
+            'build-number': 1,
+            'web-url': 'https://percy.io/test/test/123'
+          }
+        }
+      });
+
+      expect(api.requests['/builds'][0].body.data)
+        .toEqual(jasmine.objectContaining({
+          attributes: {
+            branch: client.env.git.branch,
+            type: 'web',
+            'target-branch': client.env.target.branch,
+            'target-commit-sha': client.env.target.commit,
+            'commit-sha': client.env.git.sha,
+            'commit-committed-at': client.env.git.committedAt,
+            'commit-author-name': client.env.git.authorName,
+            'commit-author-email': client.env.git.authorEmail,
+            'commit-committer-name': client.env.git.committerName,
+            'commit-committer-email': client.env.git.committerEmail,
+            'commit-message': client.env.git.message,
+            'pull-request-number': client.env.pullRequest,
+            'parallel-nonce': client.env.parallel.nonce,
+            'parallel-total-shards': client.env.parallel.total,
+            partial: client.env.partial,
+            tags: [{ id: null, name: 'tag1' }, { id: null, name: 'tag2' }]
           }
         }));
     });
@@ -290,6 +333,80 @@ describe('PercyClient', () => {
     it('gets build data', async () => {
       api.reply('/builds/100', () => [200, { data: '<<build-data>>' }]);
       await expectAsync(client.getBuild(100)).toBeResolvedTo({ data: '<<build-data>>' });
+    });
+  });
+
+  describe('#getComparisonDetails()', () => {
+    it('throws when missing a comparison id', async () => {
+      await expectAsync(client.getComparisonDetails())
+        .toBeRejectedWithError('Missing comparison ID');
+    });
+
+    it('gets comparison data', async () => {
+      api.reply('/comparisons/101?sync=true&response_format=sync-cli', () => [200, { data: '<<comparison-data>>' }]);
+      await expectAsync(client.getComparisonDetails(101)).toBeResolvedTo({ data: '<<comparison-data>>' });
+    });
+
+    it('gets comparison data throw 403', async () => {
+      api.reply('/comparisons/102?sync=true&response_format=sync-cli', () => [403, { data: '<<comparison-data>>' }]);
+      await expectAsync(client.getComparisonDetails(102)).toBeRejectedWithError('Unable to retrieve snapshot details with write access token. Kindly use a full access token for retrieving snapshot details with Synchronous CLI.');
+    });
+
+    it('gets comparison data throw 500', async () => {
+      api.reply('/comparisons/104?sync=true&response_format=sync-cli', () => [500, { error: '<<comparison-data-failure>>' }]);
+      await expectAsync(client.getComparisonDetails(104)).toBeRejectedWithError('500 \n{"error":"<<comparison-data-failure>>"}');
+    });
+  });
+
+  describe('#getSnapshotDetails()', () => {
+    it('throws when missing a snapshot id', async () => {
+      await expectAsync(client.getSnapshotDetails())
+        .toBeRejectedWithError('Missing snapshot ID');
+    });
+
+    it('gets snapshot data', async () => {
+      api.reply('/snapshots/100?sync=true&response_format=sync-cli', () => [200, { data: '<<snapshot-data>>' }]);
+      await expectAsync(client.getSnapshotDetails(100)).toBeResolvedTo({ data: '<<snapshot-data>>' });
+    });
+
+    it('gets snapshot data throw 403', async () => {
+      api.reply('/snapshots/102?sync=true&response_format=sync-cli', () => [403, { data: '<<comparison-data>>' }]);
+      await expectAsync(client.getSnapshotDetails(102)).toBeRejectedWithError('Unable to retrieve snapshot details with write access token. Kindly use a full access token for retrieving snapshot details with Synchronous CLI.');
+    });
+
+    it('gets snapshot data throw 500', async () => {
+      api.reply('/snapshots/104?sync=true&response_format=sync-cli', () => [500, { error: '<<snapshot-data-failure>>' }]);
+      await expectAsync(client.getSnapshotDetails(104)).toBeRejectedWithError('500 \n{"error":"<<snapshot-data-failure>>"}');
+    });
+  });
+
+  describe('#getStatus()', () => {
+    it('throws when invalid type passed', async () => {
+      await expectAsync(client.getStatus('snap', [1]))
+        .toBeRejectedWithError('Invalid type passed');
+    });
+
+    it('gets snapshot data', async () => {
+      api.reply('/job_status?sync=true&type=snapshot&id=1,2', () => [200, { data: '<<status-data-snapshot>>' }]);
+      api.reply('/job_status?sync=true&type=comparison&id=3,4', () => [200, { data: '<<status-data-comparison>>' }]);
+      api.reply('/job_status?sync=true&type=comparison&id=5', () => [200, { data: '<<status-data-comparison-2>>' }]);
+      await expectAsync(client.getStatus('snapshot', [1, 2])).toBeResolvedTo({ data: '<<status-data-snapshot>>' });
+      await expectAsync(client.getStatus('comparison', [3, 4])).toBeResolvedTo({ data: '<<status-data-comparison>>' });
+      await expectAsync(client.getStatus('comparison', [5])).toBeResolvedTo({ data: '<<status-data-comparison-2>>' });
+    });
+  });
+
+  describe('#getDeviceDetails()', () => {
+    it('in case of error return []', async () => {
+      api.reply('/discovery/device-details', () => [500]);
+      await expectAsync(client.getDeviceDetails()).toBeResolvedTo([]);
+    });
+
+    it('gets device details', async () => {
+      api.reply('/discovery/device-details', () => [200, { data: ['<<device-data-without-build-id>>'] }]);
+      api.reply('/discovery/device-details?build_id=123', () => [200, { data: ['<<device-data-with-build-id>>'] }]);
+      await expectAsync(client.getDeviceDetails()).toBeResolvedTo(['<<device-data-without-build-id>>']);
+      await expectAsync(client.getDeviceDetails(123)).toBeResolvedTo(['<<device-data-with-build-id>>']);
     });
   });
 
@@ -483,7 +600,8 @@ describe('PercyClient', () => {
     });
 
     it('uploads a resource for a build', async () => {
-      await expectAsync(client.uploadResource(123, { content: 'foo' })).toBeResolved();
+      await expectAsync(client.uploadResource(123, { content: 'foo', url: 'foo/bar' })).toBeResolved();
+      expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Uploading 4B resource: foo/bar...']));
 
       expect(api.requests['/builds/123/resources'][0].body).toEqual({
         data: {
@@ -510,6 +628,27 @@ describe('PercyClient', () => {
           id: 'foo-sha',
           attributes: {
             'base64-content': base64encode('contents of foo/bar')
+          }
+        }
+      });
+    });
+
+    it('can upload a resource from a local path in GZIP format', async () => {
+      process.env.PERCY_GZIP = true;
+
+      spyOn(fs.promises, 'readFile').and.callFake(async p => `contents of ${p}`);
+
+      await expectAsync(client.uploadResource(123, {
+        sha: 'foo-sha',
+        filepath: 'foo/bar'
+      })).toBeResolved();
+
+      expect(api.requests['/builds/123/resources'][0].body).toEqual({
+        data: {
+          type: 'resources',
+          id: 'foo-sha',
+          attributes: {
+            'base64-content': base64encode(Pako.gzip('contents of foo/bar'))
           }
         }
       });
@@ -578,12 +717,16 @@ describe('PercyClient', () => {
         name: 'snapfoo',
         widths: [1000],
         scope: '#main',
+        sync: true,
+        testCase: 'foo test case',
+        labels: 'tag 1,tag 2',
         scopeOptions: { scroll: true },
         minHeight: 1000,
         enableJavaScript: true,
         enableLayout: true,
         clientInfo: 'sdk/info',
         environmentInfo: 'sdk/env',
+        thTestCaseExecutionId: 'random-uuid',
         resources: [{
           url: '/foo',
           content: 'foo',
@@ -612,10 +755,14 @@ describe('PercyClient', () => {
             name: 'snapfoo',
             widths: [1000],
             scope: '#main',
+            sync: true,
+            'test-case': 'foo test case',
+            tags: [{ id: null, name: 'tag 1' }, { id: null, name: 'tag 2' }],
             'minimum-height': 1000,
             'scope-options': { scroll: true },
             'enable-javascript': true,
-            'enable-layout': true
+            'enable-layout': true,
+            'th-test-case-execution-id': 'random-uuid'
           },
           relationships: {
             resources: {
@@ -656,10 +803,14 @@ describe('PercyClient', () => {
             name: null,
             widths: null,
             scope: null,
+            sync: false,
+            'test-case': null,
+            tags: [],
             'scope-options': {},
             'minimum-height': null,
             'enable-javascript': null,
-            'enable-layout': false
+            'enable-layout': false,
+            'th-test-case-execution-id': null
           },
           relationships: {
             resources: {
@@ -705,6 +856,7 @@ describe('PercyClient', () => {
       await expectAsync(
         client.sendSnapshot(123, {
           name: 'test snapshot name',
+          sync: true,
           resources: [{
             sha: sha256hash(testDOM),
             mimetype: 'text/html',
@@ -721,11 +873,15 @@ describe('PercyClient', () => {
           attributes: {
             name: 'test snapshot name',
             scope: null,
+            sync: true,
+            'test-case': null,
+            tags: [],
             'scope-options': {},
             'enable-javascript': null,
             'minimum-height': null,
             widths: null,
-            'enable-layout': false
+            'enable-layout': false,
+            'th-test-case-execution-id': null
           },
           relationships: {
             resources: {
@@ -857,6 +1013,7 @@ describe('PercyClient', () => {
           sha: sha256hash('somesha')
         }],
         externalDebugUrl: 'http://debug.localhost',
+        sync: true,
         ignoredElementsData: ignoredElementsData,
         consideredElementsData: consideredElementsData,
         domInfoSha: 'abcd=',
@@ -874,6 +1031,7 @@ describe('PercyClient', () => {
             'ignore-elements-data': ignoredElementsData,
             'consider-elements-data': consideredElementsData,
             'dom-info-sha': 'abcd=',
+            sync: true,
             metadata: {
               windowHeight: 1947,
               screenshotType: 'singlepage'
@@ -947,6 +1105,7 @@ describe('PercyClient', () => {
             'ignore-elements-data': null,
             'consider-elements-data': null,
             'dom-info-sha': null,
+            sync: false,
             metadata: null
           },
           relationships: {
@@ -1036,6 +1195,8 @@ describe('PercyClient', () => {
       await expectAsync(
         client.uploadComparisonTile(891011, { content: 'foo', index: 3 })
       ).toBeResolved();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Uploading 4B comparison tile: 4/1 (891011)...']));
 
       expect(api.requests['/comparisons/891011/tiles'][0].body).toEqual({
         data: {
@@ -1142,16 +1303,14 @@ describe('PercyClient', () => {
       ]);
     });
 
-    it('returns false if tile is not verified', async () => {
+    it('throws error if tile is not verified', async () => {
       api.reply('/comparisons/891011/tiles/verify', async () => {
         return [400, 'failure'];
       });
 
       await expectAsync(client.uploadComparisonTiles(891011, [
         { sha: sha256hash('foo') }
-      ])).toBeResolvedTo([
-        false
-      ]);
+      ])).toBeRejectedWithError('Uploading comparison tile failed');
     });
 
     it('throws any errors from verifying', async () => {
@@ -1187,6 +1346,10 @@ describe('PercyClient', () => {
     });
 
     it('verify a comparison tile', async () => {
+      api.reply('/comparisons/123/tiles/verify', async () => {
+        return [200, 'success'];
+      });
+
       await expectAsync(client.verify(123, 'sha')).toBeResolved();
 
       expect(api.requests['/comparisons/123/tiles/verify']).toBeDefined();
@@ -1207,97 +1370,114 @@ describe('PercyClient', () => {
   });
 
   describe('#sendComparison()', () => {
-    beforeEach(async () => {
-      await client.sendComparison(123, {
-        name: 'test snapshot name',
-        tag: { name: 'test tag' },
-        tiles: [{ content: base64encode('tile') }]
+    describe('when correct comparison data is sent', () => {
+      beforeEach(async () => {
+        await client.sendComparison(123, {
+          name: 'test snapshot name',
+          tag: { name: 'test tag' },
+          tiles: [{ content: base64encode('tile') }]
+        });
       });
-    });
 
-    it('creates a snapshot', async () => {
-      expect(api.requests['/builds/123/snapshots'][0].body).toEqual({
-        data: {
-          type: 'snapshots',
-          attributes: {
-            name: 'test snapshot name',
-            scope: null,
-            'scope-options': {},
-            'enable-javascript': null,
-            'minimum-height': null,
-            widths: null,
-            'enable-layout': false
-          },
-          relationships: {
-            resources: {
-              data: []
-            }
-          }
-        }
-      });
-    });
-
-    it('creates a comparison', async () => {
-      expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
-        data: {
-          type: 'comparisons',
-          attributes: {
-            'external-debug-url': null,
-            'ignore-elements-data': null,
-            'consider-elements-data': null,
-            'dom-info-sha': null,
-            metadata: null
-          },
-          relationships: {
-            tag: {
-              data: {
-                type: 'tag',
-                attributes: {
-                  name: 'test tag',
-                  width: null,
-                  height: null,
-                  'os-name': null,
-                  'os-version': null,
-                  orientation: null,
-                  'browser-name': null,
-                  'browser-version': null,
-                  resolution: null
-                }
-              }
+      it('creates a snapshot', async () => {
+        expect(api.requests['/builds/123/snapshots'][0].body).toEqual({
+          data: {
+            type: 'snapshots',
+            attributes: {
+              name: 'test snapshot name',
+              scope: null,
+              'test-case': null,
+              tags: [],
+              'scope-options': {},
+              'enable-javascript': null,
+              'minimum-height': null,
+              widths: null,
+              sync: false,
+              'enable-layout': false,
+              'th-test-case-execution-id': null
             },
-            tiles: {
-              data: [{
-                type: 'tiles',
-                attributes: {
-                  sha: jasmine.any(String),
-                  'status-bar-height': null,
-                  'nav-bar-height': null,
-                  'header-height': null,
-                  'footer-height': null,
-                  fullscreen: null
-                }
-              }]
+            relationships: {
+              resources: {
+                data: []
+              }
             }
           }
-        }
+        });
       });
-    });
 
-    it('uploads comparison tiles', async () => {
-      expect(api.requests['/comparisons/891011/tiles'][0].body).toEqual({
-        data: {
-          type: 'tiles',
-          attributes: {
-            'base64-content': base64encode(Buffer.from('tile')),
-            index: 0
+      it('creates a comparison', async () => {
+        expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
+          data: {
+            type: 'comparisons',
+            attributes: {
+              'external-debug-url': null,
+              'ignore-elements-data': null,
+              'consider-elements-data': null,
+              'dom-info-sha': null,
+              sync: false,
+              metadata: null
+            },
+            relationships: {
+              tag: {
+                data: {
+                  type: 'tag',
+                  attributes: {
+                    name: 'test tag',
+                    width: null,
+                    height: null,
+                    'os-name': null,
+                    'os-version': null,
+                    orientation: null,
+                    'browser-name': null,
+                    'browser-version': null,
+                    resolution: null
+                  }
+                }
+              },
+              tiles: {
+                data: [{
+                  type: 'tiles',
+                  attributes: {
+                    sha: jasmine.any(String),
+                    'status-bar-height': null,
+                    'nav-bar-height': null,
+                    'header-height': null,
+                    'footer-height': null,
+                    fullscreen: null
+                  }
+                }]
+              }
+            }
           }
-        }
+        });
+      });
+
+      it('uploads comparison tiles', async () => {
+        expect(api.requests['/comparisons/891011/tiles'][0].body).toEqual({
+          data: {
+            type: 'tiles',
+            attributes: {
+              'base64-content': base64encode(Buffer.from('tile')),
+              index: 0
+            }
+          }
+        });
+      });
+
+      it('finalizes a comparison', async () => {
+        expect(api.requests['/snapshots/4567/finalize']).not.toBeDefined();
+        expect(api.requests['/comparisons/891011/finalize']).toBeDefined();
       });
     });
 
-    it('finalizes a comparison', async () => {
-      expect(api.requests['/snapshots/4567/finalize']).not.toBeDefined();
-      expect(api.requests['/comparisons/891011/finalize']).toBeDefined();
+    describe('when incorrect comparison data is sent', () => {
+      it('throws error when tiles object does not contain sha, filepath or content', async () => {
+        await expectAsync(client.sendComparison(123, {
+          name: 'test snapshot name',
+          tag: { name: 'test tag' },
+          tiles: [{}]
+        })).toBeRejectedWithError('sha, filepath or content should be present in tiles object');
+      });
     });
   });
 
@@ -1346,7 +1526,7 @@ describe('PercyClient', () => {
     });
   });
 
-  describe('sendBuildEvents', () => {
+  describe('#sendBuildEvents', () => {
     it('should send build event with default values', async () => {
       await expectAsync(client.sendBuildEvents(123, {
         errorKind: 'cli',
@@ -1367,6 +1547,85 @@ describe('PercyClient', () => {
           message: 'some error'
         }
       });
+    });
+  });
+
+  describe('#sendBuildLogs', () => {
+    it('should send build logs to API', async () => {
+      await expectAsync(client.sendBuildLogs({
+        content: 'abcd',
+        build_id: 1234,
+        reference_id: 1234,
+        service_name: 'cli',
+        base64encoded: true
+      })).toBeResolved();
+
+      expect(api.requests['/logs']).toBeDefined();
+      expect(api.requests['/logs'][0].method).toBe('POST');
+      expect(api.requests['/logs'][0].body).toEqual({
+        data: {
+          content: 'abcd',
+          build_id: 1234,
+          reference_id: 1234,
+          service_name: 'cli',
+          base64encoded: true
+        }
+      });
+    });
+  });
+
+  describe('#getErrorAnalysis', () => {
+    const sharedTest = (reqBody, expectedBody) => {
+      it('should send error logs to API', async () => {
+        await expectAsync(client.getErrorAnalysis(reqBody)).toBeResolved();
+
+        expect(api.requests['/suggestions/from_logs']).toBeDefined();
+        expect(api.requests['/suggestions/from_logs'][0].method).toBe('POST');
+        expect(api.requests['/suggestions/from_logs'][0].body).toEqual({
+          data: {
+            logs: expectedBody
+          }
+        });
+      });
+    };
+    describe('when error is of type array', () => {
+      let body = [
+        { message: 'Some Error Log' },
+        { message: 'Some Error logs 2' }
+      ];
+
+      // Here requestedBody and expectedBody should be same
+      sharedTest(body, body);
+    });
+
+    describe('when error is of type string', () => {
+      sharedTest('some error', [{ message: 'some error' }]);
+    });
+
+    describe('when error is of type object', () => {
+      sharedTest({
+        some_key: 'some_error'
+      }, [
+        { message: { some_key: 'some_error' } },
+        { message: '' }
+      ]);
+    });
+  });
+
+  describe('#mayBeLogUploadSize', () => {
+    it('does not warns when upload size less 20MB/25MB', () => {
+      client.mayBeLogUploadSize(1000);
+      expect(logger.stderr).toEqual([]);
+    });
+
+    it('warns when upload size above 20MB', () => {
+      client.mayBeLogUploadSize(20 * 1024 * 1024);
+      expect(logger.stderr).toEqual(['[percy:client] Uploading resource above 20MB might slow the build...']);
+    });
+
+    it('log error when upload size above 25MB', () => {
+      client.mayBeLogUploadSize(25 * 1024 * 1024);
+      expect(logger.stderr).toEqual(['[percy:client] Uploading resource above 25MB might fail the build...']);
     });
   });
 

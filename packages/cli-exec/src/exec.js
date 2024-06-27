@@ -1,10 +1,9 @@
 import command from '@percy/cli-command';
+import logger from '@percy/logger';
 import start from './start.js';
 import stop from './stop.js';
 import ping from './ping.js';
-import { getPackageJSON } from '@percy/cli-command/utils';
-
-const pkg = getPackageJSON(import.meta.url);
+import { waitForTimeout } from '@percy/client/utils';
 
 export const exec = command('exec', {
   description: 'Start and stop Percy around a supplied command',
@@ -93,6 +92,10 @@ export const exec = command('exec', {
 
   // forward any returned status code
   if (status) exit(status, error);
+
+  // force exit post timeout
+  await waitForTimeout(10000);
+  process.exit(status);
 });
 
 // Spawn a command with cross-spawn and return an array containing the resulting status code along
@@ -100,6 +103,7 @@ export const exec = command('exec', {
 async function* spawn(cmd, args, percy) {
   let { default: crossSpawn } = await import('cross-spawn');
   let proc, closed, error;
+  const cilog = logger('ci');
 
   try {
     proc = crossSpawn(cmd, args, { stdio: 'pipe' });
@@ -109,9 +113,15 @@ async function* spawn(cmd, args, percy) {
         process.stdout.write(`${data}`);
       });
     }
+    // Piping proc sdtin to process
+    process.stdin.pipe(proc.stdin);
 
     if (proc.stderr) {
       proc.stderr.on('data', (data) => {
+        const message = data.toString();
+        let entry = { message, timestamp: Date.now(), type: 'ci' };
+        // only collect logs if percy was enabled
+        if (percy) cilog.error(entry);
         process.stderr.write(`${data}`);
       });
     }
@@ -120,18 +130,6 @@ async function* spawn(cmd, args, percy) {
 
     proc.on('close', code => {
       closed = code;
-      if (code !== 0) {
-        // Only send event when there is a global error code and
-        // percy token is present
-        if (process.env.PERCY_TOKEN) {
-          const myObject = {
-            errorKind: 'cli',
-            cliVersion: pkg.version,
-            message: '1'
-          };
-          percy.client.sendBuildEvents(percy.build.id, myObject);
-        }
-      }
     });
 
     // run until an event is triggered

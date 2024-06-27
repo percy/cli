@@ -3,7 +3,7 @@ export const chromeBrowser = 'CHROME';
 export const firefoxBrowser = 'FIREFOX';
 
 // create and cleanup testing DOM
-export function withExample(html, options = { withShadow: true, invalidTagsOutsideBody: false }) {
+export function withExample(html, options = { withShadow: true, withRestrictedShadow: false, invalidTagsOutsideBody: false }) {
   let $test = document.getElementById('test');
   if ($test) $test.remove();
 
@@ -20,6 +20,20 @@ export function withExample(html, options = { withShadow: true, invalidTagsOutsi
     $testShadow = document.createElement('div');
     $testShadow.id = 'test-shadow';
     let $shadow = $testShadow.attachShadow({ mode: 'open' });
+    $shadow.innerHTML = `<h1>Hello DOM testing</h1>${html}`;
+
+    document.body.appendChild($testShadow);
+  }
+
+  if (options.withRestrictedShadow) {
+    $testShadow = document.createElement('div');
+    $testShadow.id = 'test-shadow';
+    let $shadow = $testShadow.attachShadow({ mode: 'open' });
+    Object.defineProperty($shadow, 'styleSheets', {
+      get: function() {
+        throw new Error();
+      }
+    });
     $shadow.innerHTML = `<h1>Hello DOM testing</h1>${html}`;
 
     document.body.appendChild($testShadow);

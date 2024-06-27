@@ -164,7 +164,7 @@ describe('SDK Utils', () => {
     });
 
     it('posts snapshot options to the CLI API snapshot endpoint', async () => {
-      await expectAsync(postSnapshot(options)).toBeResolved();
+      await expectAsync(postSnapshot(options)).toBeResolvedTo(jasmine.objectContaining({ body: { success: true } }));
       await expectAsync(helpers.get('requests')).toBeResolvedTo([{
         url: '/percy/snapshot',
         method: 'POST',
@@ -220,6 +220,13 @@ describe('SDK Utils', () => {
 
     it('posts screenshot options to the CLI API snapshot endpoint', async () => {
       await captureAutomateScreenshot(options);
+      expect(utils.request.post).toHaveBeenCalledWith('/percy/automateScreenshot', options);
+    });
+
+    it('posts screenshot options to the CLI API snapshot endpoint and return data', async () => {
+      spyOn(utils.request, 'post').and.callFake(() => Promise.resolve({ data: 'sync-data' }));
+      const response = await captureAutomateScreenshot(options);
+      expect(response).toEqual({ data: 'sync-data' });
       expect(utils.request.post).toHaveBeenCalledWith('/percy/automateScreenshot', options);
     });
 
@@ -425,6 +432,57 @@ describe('SDK Utils', () => {
           '[percy:test] Error like'
         ] : []),
         '[percy:test] Error stack'
+      ]);
+    });
+
+    it('sends logs to cli if log level is error', async () => {
+      // we never want to await in real sdk but we await in test for validation
+      await log.error('Some error', { name: 'abcd' });
+
+      await expectAsync(helpers.get('requests')).toBeResolvedTo([{
+        url: '/percy/log',
+        method: 'POST',
+        body: {
+          level: 'error',
+          message: jasmine.stringContaining('Some error'),
+          meta: { name: 'abcd' }
+        }
+      }]);
+    });
+
+    it('sends all logs to cli if log level is debug', async () => {
+      logger.loglevel('debug');
+      // we never want to await in real sdk but we await in test for validation
+      await log.error('Some error', { name: 'abcd' });
+      await log.info('Some info', { name: 'abcd' });
+
+      await expectAsync(helpers.get('requests')).toBeResolvedTo([{
+        url: '/percy/log',
+        method: 'POST',
+        body: {
+          level: 'error',
+          message: jasmine.stringContaining('Some error'),
+          meta: { name: 'abcd' }
+        }
+      }, {
+        url: '/percy/log',
+        method: 'POST',
+        body: {
+          level: 'info',
+          message: jasmine.stringContaining('Some info'),
+          meta: { name: 'abcd' }
+        }
+      }]);
+    });
+
+    it('sends logs error if sending to cli fails', async () => {
+      await helpers.test('error', '/percy/log');
+      // we never want to await in real sdk but we await in test for validation
+      await log.error('Some error', { name: 'abcd' });
+
+      expect(stderr).toEqual([
+        '[percy] Some error',
+        '[percy] Could not send logs to cli'
       ]);
     });
   });

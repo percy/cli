@@ -2,14 +2,19 @@ import fs from 'fs';
 import PercyEnv from '@percy/env';
 import { git } from '@percy/env/utils';
 import logger from '@percy/logger';
+import Pako from 'pako';
 
 import {
   pool,
   request,
+  formatBytes,
   sha256hash,
   base64encode,
   getPackageJSON,
-  waitForTimeout
+  waitForTimeout,
+  validateTiles,
+  formatLogErrors,
+  tagsList
 } from './utils.js';
 
 // Default client API URL can be set with an env var for API development
@@ -17,6 +22,7 @@ const { PERCY_CLIENT_API_URL = 'https://percy.io/api/v1' } = process.env;
 const pkg = getPackageJSON(import.meta.url);
 // minimum polling interval milliseconds
 const MIN_POLLING_INTERVAL = 1_000;
+const INVALID_TOKEN_ERROR_MESSAGE = 'Unable to retrieve snapshot details with write access token. Kindly use a full access token for retrieving snapshot details with Synchronous CLI.';
 
 // Validate ID arguments
 function validateId(type, id) {
@@ -50,12 +56,15 @@ export class PercyClient {
     clientInfo,
     environmentInfo,
     config,
+    labels,
     // versioned api url
     apiUrl = PERCY_CLIENT_API_URL
   } = {}) {
-    Object.assign(this, { token, config: config || {}, apiUrl });
+    Object.assign(this, { token, config: config || {}, apiUrl, labels: labels });
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
+    this.buildType = null;
+    this.screenshotFlow = null;
   }
 
   // Adds additional unique client info.
@@ -128,6 +137,8 @@ export class PercyClient {
   async createBuild({ resources = [], projectType } = {}) {
     this.log.debug('Creating a new build...');
 
+    let tagsArr = tagsList(this.labels);
+
     return this.post('builds', {
       data: {
         type: 'builds',
@@ -146,7 +157,8 @@ export class PercyClient {
           'pull-request-number': this.env.pullRequest,
           'parallel-nonce': this.env.parallel.nonce,
           'parallel-total-shards': this.env.parallel.total,
-          partial: this.env.partial
+          partial: this.env.partial,
+          tags: tagsArr
         },
         relationships: {
           resources: {
@@ -179,6 +191,51 @@ export class PercyClient {
     validateId('build', buildId);
     this.log.debug(`Get build ${buildId}`);
     return this.get(`builds/${buildId}`);
+  }
+
+  async getComparisonDetails(comparisonId) {
+    validateId('comparison', comparisonId);
+    try {
+      return await this.get(`comparisons/${comparisonId}?sync=true&response_format=sync-cli`);
+    } catch (error) {
+      this.log.error(error);
+      if (error.response.statusCode === 403) {
+        throw new Error(INVALID_TOKEN_ERROR_MESSAGE);
+      }
+      throw error;
+    }
+  }
+
+  async getSnapshotDetails(snapshotId) {
+    validateId('snapshot', snapshotId);
+    try {
+      return await this.get(`snapshots/${snapshotId}?sync=true&response_format=sync-cli`);
+    } catch (error) {
+      this.log.error(error);
+      if (error.response.statusCode === 403) {
+        throw new Error(INVALID_TOKEN_ERROR_MESSAGE);
+      }
+      throw error;
+    }
+  }
+
+  // Retrieves snapshot/comparison data by id. Requires a read access token.
+  async getStatus(type, ids) {
+    if (!['snapshot', 'comparison'].includes(type)) throw new Error('Invalid type passed');
+    this.log.debug(`Getting ${type} status for ids ${ids}`);
+    return this.get(`job_status?sync=true&type=${type}&id=${ids.join()}`);
+  }
+
+  // Returns device details enabled on project associated with given token
+  async getDeviceDetails(buildId) {
+    try {
+      let url = 'discovery/device-details';
+      if (buildId) url += `?build_id=${buildId}`;
+      const { data } = await this.get(url);
+      return data;
+    } catch (e) {
+      return [];
+    }
   }
 
   // Retrieves project builds optionally filtered. Requires a read access token.
@@ -269,15 +326,23 @@ export class PercyClient {
   // created from `content` if one is not provided.
   async uploadResource(buildId, { url, sha, filepath, content } = {}) {
     validateId('build', buildId);
-    this.log.debug(`Uploading resource: ${url}...`);
-    if (filepath) content = await fs.promises.readFile(filepath);
+    if (filepath) {
+      content = await fs.promises.readFile(filepath);
+      if (process.env.PERCY_GZIP) {
+        content = Pako.gzip(content);
+      }
+    }
+    let encodedContent = base64encode(content);
+
+    this.log.debug(`Uploading ${formatBytes(encodedContent.length)} resource: ${url}...`);
+    this.mayBeLogUploadSize(encodedContent.length);
 
     return this.post(`builds/${buildId}/resources`, {
       data: {
         type: 'resources',
         id: sha || sha256hash(content),
         attributes: {
-          'base64-content': base64encode(content)
+          'base64-content': encodedContent
         }
       }
     });
@@ -306,6 +371,10 @@ export class PercyClient {
     enableLayout,
     clientInfo,
     environmentInfo,
+    sync,
+    testCase,
+    labels,
+    thTestCaseExecutionId,
     resources = []
   } = {}) {
     validateId('build', buildId);
@@ -315,6 +384,8 @@ export class PercyClient {
     if (!this.clientInfo.size || !this.environmentInfo.size) {
       this.log.warn('Warning: Missing `clientInfo` and/or `environmentInfo` properties');
     }
+
+    let tagsArr = tagsList(labels);
 
     this.log.debug(`Creating snapshot: ${name}...`);
 
@@ -330,10 +401,14 @@ export class PercyClient {
           name: name || null,
           widths: widths || null,
           scope: scope || null,
+          sync: !!sync,
+          'test-case': testCase || null,
+          tags: tagsArr,
           'scope-options': scopeOptions || {},
           'minimum-height': minHeight || null,
           'enable-javascript': enableJavaScript || null,
-          'enable-layout': enableLayout || false
+          'enable-layout': enableLayout || false,
+          'th-test-case-execution-id': thTestCaseExecutionId || null
         },
         relationships: {
           resources: {
@@ -375,7 +450,7 @@ export class PercyClient {
     return snapshot;
   }
 
-  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domInfoSha, consideredElementsData, metadata } = {}) {
+  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domInfoSha, consideredElementsData, metadata, sync } = {}) {
     validateId('snapshot', snapshotId);
     // Remove post percy api deploy
     this.log.debug(`Creating comparision: ${tag.name}...`);
@@ -398,6 +473,7 @@ export class PercyClient {
           'ignore-elements-data': ignoredElementsData || null,
           'consider-elements-data': consideredElementsData || null,
           'dom-info-sha': domInfoSha || null,
+          sync: !!sync,
           metadata: metadata || null
         },
         relationships: {
@@ -437,17 +513,20 @@ export class PercyClient {
 
   async uploadComparisonTile(comparisonId, { index = 0, total = 1, filepath, content, sha } = {}) {
     validateId('comparison', comparisonId);
-    this.log.debug(`Uploading comparison tile: ${index + 1}/${total} (${comparisonId})...`);
-    if (filepath && !content) content = await fs.promises.readFile(filepath);
     if (sha) {
       return await this.verify(comparisonId, sha);
     }
+    if (filepath && !content) content = await fs.promises.readFile(filepath);
+    let encodedContent = base64encode(content);
+
+    this.log.debug(`Uploading ${formatBytes(encodedContent.length)} comparison tile: ${index + 1}/${total} (${comparisonId})...`);
+    this.mayBeLogUploadSize(encodedContent.length);
 
     return this.post(`comparisons/${comparisonId}/tiles`, {
       data: {
         type: 'tiles',
         attributes: {
-          'base64-content': base64encode(content),
+          'base64-content': encodedContent,
           index
         }
       }
@@ -466,8 +545,12 @@ export class PercyClient {
     while (retries > 0 && !success);
 
     if (!success) {
-      this.log.error('Uploading comparison tile failed');
-      return false;
+      let errMsg = 'Uploading comparison tile failed';
+
+      // Detecting error and logging fix for the same
+      // We are throwing this error as the comparison will be failed
+      // even if 1 tile gets failed
+      throw new Error(errMsg);
     }
     return true;
   }
@@ -486,6 +569,7 @@ export class PercyClient {
         }
       });
     } catch (error) {
+      this.log.error(error);
       if (error.response.statusCode === 400) {
         return false;
       }
@@ -513,6 +597,9 @@ export class PercyClient {
   }
 
   async sendComparison(buildId, options) {
+    if (!validateTiles(options.tiles)) {
+      throw new Error('sha, filepath or content should be present in tiles object');
+    }
     let snapshot = await this.createSnapshot(buildId, options);
     let comparison = await this.createComparison(snapshot.data.id, options);
     await this.uploadComparisonTiles(comparison.data.id, options.tiles);
@@ -526,6 +613,30 @@ export class PercyClient {
     return this.post(`builds/${buildId}/send-events`, {
       data: body
     });
+  }
+
+  async sendBuildLogs(body) {
+    this.log.debug('Sending Build Logs');
+    return this.post('logs', {
+      data: body
+    });
+  }
+
+  async getErrorAnalysis(errors) {
+    const errorLogs = formatLogErrors(errors);
+    this.log.debug('Sending error logs for analysis');
+
+    return this.post('suggestions/from_logs', {
+      data: errorLogs
+    });
+  }
+
+  mayBeLogUploadSize(contentSize) {
+    if (contentSize >= 25 * 1024 * 1024) {
+      this.log.error('Uploading resource above 25MB might fail the build...');
+    } else if (contentSize >= 20 * 1024 * 1024) {
+      this.log.warn('Uploading resource above 20MB might slow the build...');
+    }
   }
 
   // decides project type

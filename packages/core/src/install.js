@@ -4,18 +4,7 @@ import path from 'path';
 import https from 'https';
 import logger from '@percy/logger';
 import cp from 'child_process';
-import { ProxyHttpsAgent } from '@percy/client/utils';
-
-// Formats a raw byte integer as a string
-function formatBytes(int) {
-  let units = ['kB', 'MB', 'GB'];
-  let base = 1024;
-  let u = -1;
-
-  if (Math.abs(int) < base) return `${int}B`;
-  while (Math.abs(int) >= base && u++ < 2) int /= base;
-  return `${int.toFixed(1)}${units[u]}`;
-}
+import { ProxyHttpsAgent, formatBytes } from '@percy/client/utils';
 
 // Formats milleseconds as "MM:SS"
 function formatTime(ms) {
@@ -186,13 +175,13 @@ export function chromium({
   });
 }
 
-// default chromium revisions corresponds to v96.0.4664.0
+// default chromium revisions corresponds to v123.0.6312.58
 chromium.revisions = {
-  linux: '929511',
-  win64: '929483',
-  win32: '929483',
-  darwin: '929475',
-  darwinArm: '929475'
+  linux: '1262506',
+  win64: '1262500',
+  win32: '1262500',
+  darwin: '1262506',
+  darwinArm: '1262509'
 };
 
 // export the namespace by default

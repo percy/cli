@@ -11,7 +11,7 @@ describe('percy upload', () => {
   beforeEach(async () => {
     upload.packageInformation = { name: '@percy/cli-upload' };
     process.env.PERCY_TOKEN = 'web_<<PERCY_TOKEN>>';
-
+    process.env.PERCY_CLIENT_ERROR_LOGS = false;
     await setupTest({
       filesystem: {
         'images/test-1.png': pixel,
@@ -26,6 +26,7 @@ describe('percy upload', () => {
   afterEach(() => {
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
+    delete process.env.PERCY_CLIENT_ERROR_LOGS;
     delete upload.packageInformation;
   });
 
@@ -86,10 +87,14 @@ describe('percy upload', () => {
           name: 'test-1.png',
           widths: [10],
           scope: null,
+          sync: false,
+          'test-case': null,
+          tags: [],
           'scope-options': {},
           'minimum-height': 10,
           'enable-javascript': null,
-          'enable-layout': false
+          'enable-layout': false,
+          'th-test-case-execution-id': null
         },
         relationships: {
           resources: {
@@ -150,9 +155,9 @@ describe('percy upload', () => {
   it('does not upload snapshots and prints matching files with --dry-run', async () => {
     await upload(['./images', '--dry-run']);
 
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Build not created'
-    ]);
+    ]));
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Found 3 snapshots',
       '[percy] Snapshot found: test-1.png',
@@ -163,9 +168,9 @@ describe('percy upload', () => {
     logger.reset();
     await upload(['./images', '--dry-run', '--files=test-1.png']);
 
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Build not created'
-    ]);
+    ]));
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Found 1 snapshot',
       '[percy] Snapshot found: test-1.png'
@@ -193,14 +198,23 @@ describe('percy upload', () => {
     process.emit('SIGTERM');
     await up;
 
-    expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stderr).toEqual([
+      '[percy] AbortError: SIGTERM',
+      '[percy] Detected error for percy build',
+      '[percy] Failure: Snapshot command was not called',
+      '[percy] Failure Reason: Snapshot Command was not called. please check your CI for errors',
+      '[percy] Suggestion: Try using percy snapshot command to take snapshots',
+      '[percy] Refer to the below Doc Links for the same',
+      '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
+    ]);
+
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Uploading 3 snapshots...',
       '[percy] Stopping percy...',
       '[percy] Snapshot uploaded: test-1.png',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
-    ]);
+    ]));
   });
 
   it('creates a new build and upload snapshots with ss token', async () => {
@@ -222,7 +236,8 @@ describe('percy upload', () => {
         type: 'comparisons',
         attributes: jasmine.objectContaining({
           'external-debug-url': null,
-          'ignore-elements-data': null
+          'ignore-elements-data': null,
+          sync: false
         }),
         relationships: {
           tag: {
@@ -247,8 +262,8 @@ describe('percy upload', () => {
   it('throws error for token type other than web and generic', async () => {
     process.env.PERCY_TOKEN = 'app_invalid_token';
     await expectAsync(upload(['./images'])).toBeRejected();
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Error: Invalid Token Type. Only "web" and "self-managed" token types are allowed.'
-    ]);
+    ]));
   });
 });

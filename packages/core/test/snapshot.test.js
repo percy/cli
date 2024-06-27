@@ -2,6 +2,7 @@ import { sha256hash, base64encode } from '@percy/client/utils';
 import { logger, api, setupTest, createTestServer, dedent } from './helpers/index.js';
 import { waitFor } from '@percy/core/utils';
 import Percy from '@percy/core';
+import { handleSyncJob } from '../src/snapshot.js';
 
 describe('Snapshot', () => {
   let percy, server, testDOM;
@@ -22,13 +23,16 @@ describe('Snapshot', () => {
       discovery: { concurrency: 1 },
       clientInfo: 'client-info',
       environmentInfo: 'env-info',
-      server: false
+      server: false,
+      projectType: 'web'
     });
 
     logger.reset(true);
+    process.env.PERCY_CLIENT_ERROR_LOGS = false;
   });
 
   afterEach(async () => {
+    delete process.env.PERCY_CLIENT_ERROR_LOGS;
     await percy.stop(true);
     await server?.close();
   });
@@ -60,10 +64,10 @@ describe('Snapshot', () => {
       '[percy] - additionalSnapshots[0]: missing required name, prefix, or suffix',
       '[percy] - additionalSnapshots[1]: prefix & suffix are ignored when a name is provided'
     ]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Snapshot taken: /',
       '[percy] Snapshot taken: nombre'
-    ]);
+    ]));
   });
 
   it('warns when providing conflicting options', async () => {
@@ -123,7 +127,8 @@ describe('Snapshot', () => {
 
     expect(logger.stderr).toEqual([
       '[percy] Warning: The snapshot option `devicePixelRatio` ' +
-        'will be removed in 2.0.0. Use `discovery.devicePixelRatio` instead.'
+        'will be removed in 2.0.0. Use `discovery.devicePixelRatio` instead.',
+      '[percy] Warning: discovery.devicePixelRatio is deprecated percy will now auto capture resource in all devicePixelRatio, Ignoring configuration'
     ]);
   });
 
@@ -212,6 +217,36 @@ describe('Snapshot', () => {
     expect(root(1)).toHaveProperty('attributes.resource-url', 'http://localhost:8000/two');
   });
 
+  it('sync with delayUploads should raise warn', async () => {
+    // stop and recreate a percy instance with the desired option
+    await percy.stop(true);
+    await api.mock();
+
+    percy = await Percy.start({
+      token: 'PERCY_TOKEN',
+      delayUploads: true,
+      clientInfo: 'client-info',
+      environmentInfo: 'env-info',
+      snapshot: { sync: true }
+    });
+
+    await percy.snapshot('http://localhost:8000/one');
+    await percy.idle();
+
+    await percy.snapshot('http://localhost:8000/two');
+    await percy.idle();
+
+    // one snapshot uploaded, second one queued
+    expect(api.requests['/builds/123/snapshots']).toHaveSize(1);
+    await percy.stop();
+
+    // all snapshots uploaded, build finalized
+    expect(api.requests['/builds/123/snapshots']).toHaveSize(2);
+    expect(api.requests['/builds/123/finalize']).toBeDefined();
+    const snapshotWarnMessage = '[percy] Synchronous CLI functionality is not compatible with the snapshot command. Kindly consider taking screenshots via SDKs to achieve synchronous results instead.';
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([snapshotWarnMessage, snapshotWarnMessage]));
+  });
+
   it('does not upload delayed snapshots when skipping', async () => {
     // stop and recreate a percy instance with the desired option
     await percy.stop(true);
@@ -229,6 +264,26 @@ describe('Snapshot', () => {
     await percy.idle();
 
     // not requested, ever
+    expect(api.requests['/builds']).toBeUndefined();
+    expect(api.requests['/builds/123/snapshots']).toBeUndefined();
+  });
+
+  it('should warn in case of sync with skipUploads', async () => {
+    // stop and recreate a percy instance with the desired option
+    await percy.stop(true);
+    await api.mock();
+
+    percy = await Percy.start({
+      token: 'PERCY_TOKEN',
+      skipUploads: true
+    });
+
+    await percy.snapshot({ url: 'http://localhost:8000/one', widths: [375], sync: true });
+    await percy.idle();
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] The Synchronous CLI functionality is not compatible with skipUploads option.'
+    ]));
     expect(api.requests['/builds']).toBeUndefined();
     expect(api.requests['/builds/123/snapshots']).toBeUndefined();
   });
@@ -359,6 +414,33 @@ describe('Snapshot', () => {
     expect(roots[1].id).not.toEqual(roots[2].id);
   });
 
+  it('should warn in case of sync with deferUploads', async () => {
+    // stop and recreate a percy instance with the desired option
+    await percy.stop(true);
+    await api.mock({ delay: 50 });
+
+    percy = await Percy.start({
+      token: 'PERCY_TOKEN',
+      deferUploads: true,
+      discovery: { concurrency: 1 },
+      snapshot: { sync: true }
+    });
+
+    let snap = (domSnapshot, widths) => percy.snapshot({
+      [Array.isArray(widths) ? 'widths' : 'width']: widths,
+      url: 'http://localhost:8000/',
+      domSnapshot
+    });
+
+    snap('xs width', [400, 600]);
+    await percy.idle();
+
+    const warnMessage = '[percy] The Synchronous CLI functionality is not compatible with deferUploads option.';
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([warnMessage]));
+
+    await percy.stop();
+  });
+
   it('can capture snapshots with multiple root widths when deferred', async () => {
     server.reply('/styles.css', () => [200, 'text/css', '@import "/coverage.css"']);
     server.reply('/coverage.css', () => [200, 'text/css', 'p { color: purple; }']);
@@ -446,9 +528,52 @@ describe('Snapshot', () => {
     });
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Snapshot taken: test snapshot'
-    ]);
+    ]));
+  });
+
+  it('logs after taking the snapshot sync mode', async () => {
+    await api.mock();
+    const promise = {};
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM,
+      sync: true
+    }, promise);
+    await percy.idle();
+    const data = await handleSyncJob(promise['test snapshot'], percy, 'snapshot');
+    expect(data).toEqual(api.DEFAULT_REPLIES['/snapshots/4567?sync=true&response_format=sync-cli']()[1]);
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Snapshot taken: test snapshot',
+      '[percy] Waiting for snapshot \'test snapshot\' to be completed'
+    ]));
+  });
+
+  it('when sync true is global config but false in snapshot options', async () => {
+    percy = await Percy.start({
+      token: 'PERCY_TOKEN',
+      snapshot: { widths: [1000], sync: true },
+      discovery: { concurrency: 1 },
+      clientInfo: 'client-info',
+      environmentInfo: 'env-info',
+      server: false
+    });
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM,
+      sync: false
+    });
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Percy has started!',
+      '[percy] Snapshot taken: test snapshot'
+    ]));
   });
 
   it('logs any encountered errors when snapshotting', async () => {
@@ -462,7 +587,7 @@ describe('Snapshot', () => {
       domSnapshot: testDOM
     });
 
-    expect(logger.stdout).toEqual([]);
+    expect(logger.stdout).toContain(jasmine.stringContaining('[percy] asset-discovery - test snapshot'));
     expect(logger.stderr).toEqual([
       '[percy] Encountered an error taking snapshot: test snapshot',
       '[percy] Error: unexpected snapshot error'
@@ -485,9 +610,9 @@ describe('Snapshot', () => {
       });
       await percy.idle();
 
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: test snapshot'
-      ]);
+      ]));
       expect(logger.stderr).toEqual([
         '[percy] Ignored duplicate snapshot. The name of each snapshot must be unique ...'
       ]);
@@ -510,9 +635,9 @@ describe('Snapshot', () => {
         });
         await percy.idle();
 
-        expect(logger.stdout).toEqual([
+        expect(logger.stdout).toEqual(jasmine.arrayContaining([
           '[percy] Snapshot taken: test snapshot'
-        ]);
+        ]));
         expect(logger.stderr).not.toEqual([
           '[percy] Ignored duplicate snapshot. The name of each snapshot must be unique ...'
         ]);
@@ -534,13 +659,31 @@ describe('Snapshot', () => {
     await percy.idle();
 
     // snapshot gets taken but will not upload
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Snapshot taken: test snapshot'
-    ]);
+    ]));
     expect(logger.stderr).toEqual([
       '[percy] Encountered an error uploading snapshot: test snapshot',
       '[percy] Error: unexpected upload error'
     ]);
+  });
+
+  it('handleSyncJob should handle promise reject', async () => {
+    api.reply('/builds/123/snapshots', () => [401, {
+      errors: [{ detail: 'unexpected upload error' }]
+    }]);
+
+    const promise = {};
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM,
+      sync: true
+    }, promise);
+    const data = await handleSyncJob(promise['test snapshot'], percy, 'snapshot');
+    expect(data).toEqual({ error: 'unexpected upload error' });
+    await expectAsync(promise['test snapshot']).toBeRejectedWithError('unexpected upload error');
+    await percy.idle();
   });
 
   it('logs detailed debug logs', async () => {
@@ -608,12 +751,12 @@ describe('Snapshot', () => {
     });
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Snapshot found: test snapshot',
       '[percy] Snapshot found: foo test snapshot',
       '[percy] Snapshot found: foo test snapshot bar',
       '[percy] Snapshot found: foobar'
-    ]);
+    ]));
   });
 
   it('accepts multiple dom snapshots', async () => {
@@ -632,12 +775,12 @@ describe('Snapshot', () => {
     }]);
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Snapshot taken: /one',
       '[percy] Snapshot taken: /two',
       '[percy] Snapshot taken: /three',
       '[percy] Snapshot taken: /four'
-    ]);
+    ]));
   });
 
   it('accepts serialized dom resources', async () => {
@@ -669,9 +812,9 @@ describe('Snapshot', () => {
       '[percy] Encountered snapshot serialization warnings:',
       '[percy] - Test serialize warning'
     ]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Snapshot taken: Serialized Snapshot'
-    ]);
+    ]));
 
     // wait for uploads to assert against
     await percy.idle();
@@ -687,7 +830,7 @@ describe('Snapshot', () => {
     expect(uploads[2]).toEqual(Buffer.from(textResource.content).toString('base64'));
   });
 
-  it('handles duplicate snapshots', async () => {
+  it('handles duplicate snapshots when testCase is not passed', async () => {
     await percy.snapshot([{
       url: 'http://localhost:8000/foobar',
       domSnapshot: '<p>Test 1</p>'
@@ -700,9 +843,57 @@ describe('Snapshot', () => {
       '[percy] Received a duplicate snapshot, ' +
         'the previous snapshot was aborted: /foobar'
     ]);
-    expect(logger.stdout).toEqual([
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Snapshot taken: /foobar'
+    ]));
+  });
+
+  it('handles duplicate snapshots when same testCase is passed', async () => {
+    await percy.snapshot([{
+      url: 'http://localhost:8000/foobar',
+      testCase: 'test-case-1',
+      domSnapshot: '<p>Test 1</p>'
+    }, {
+      url: 'http://localhost:8000/foobar',
+      testCase: 'test-case-1',
+      domSnapshot: '<p>Test 2</p>'
+    }]);
+
+    expect(logger.stderr).toEqual([
+      '[percy] Received a duplicate snapshot, ' +
+        'the previous snapshot was aborted: testCase: test-case-1, /foobar'
     ]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Snapshot taken: testCase: test-case-1, /foobar'
+    ]));
+  });
+
+  it('handles duplicate snapshots with different test cases', async () => {
+    await percy.snapshot([{
+      url: 'http://localhost:8000/one',
+      testCase: 'test-case-1',
+      domSnapshot: testDOM
+    }, {
+      url: 'http://localhost:8000/one',
+      testCase: 'test-case-2',
+      dom_snapshot: testDOM
+    }, {
+      url: 'http://localhost:8000/one',
+      testCase: 'test-case-3',
+      'dom-snapshot': testDOM
+    }, {
+      url: 'http://localhost:8000/one',
+      testCase: 'test-case-4',
+      domSnapshot: JSON.stringify({ html: testDOM })
+    }]);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Snapshot taken: testCase: test-case-1, /one',
+      '[percy] Snapshot taken: testCase: test-case-2, /one',
+      '[percy] Snapshot taken: testCase: test-case-3, /one',
+      '[percy] Snapshot taken: testCase: test-case-4, /one'
+    ]));
   });
 
   it('handles the browser closing early', async () => {
@@ -1023,9 +1214,9 @@ describe('Snapshot', () => {
       await percy.idle();
 
       expect(logger.stderr).toEqual([]);
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: test snapshot'
-      ]);
+      ]));
 
       expect(Buffer.from((
         api.requests['/builds/123/resources'][0]
@@ -1069,10 +1260,10 @@ describe('Snapshot', () => {
       await percy.idle();
 
       expect(logger.stderr).toEqual([]);
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: foo snapshot',
         '[percy] Snapshot taken: bar snapshot'
-      ]);
+      ]));
 
       expect(Buffer.from((
         api.requests['/builds/123/resources'][0]
@@ -1110,9 +1301,9 @@ describe('Snapshot', () => {
       });
 
       expect(logger.stderr).toEqual([]);
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: test snapshot'
-      ]);
+      ]));
     });
 
     it('can execute scripts that wait for specific states', async () => {
@@ -1178,12 +1369,12 @@ describe('Snapshot', () => {
         '[percy] Encountered an error taking snapshot: fail for callback',
         jasmine.stringMatching('Error: failed')
       ]);
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: wait for timeout',
         '[percy] Snapshot taken: wait for selector',
         '[percy] Snapshot taken: wait for xpath',
         '[percy] Snapshot taken: wait for callback'
-      ]);
+      ]));
 
       await percy.idle();
 
@@ -1222,6 +1413,50 @@ describe('Snapshot', () => {
         '<p>3/5 \\(3000\\)</p>',
         '<p>4/5 \\(4000\\)</p>'
       ].join(''));
+    });
+  });
+
+  describe('invalid screenshot flow', () => {
+    it('should throw error if app percy build is ran using automate SDK', async () => {
+      await percy.stop(true);
+      await api.mock();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        projectType: 'app'
+      });
+
+      percy.client.buildType = 'app';
+      await percy.upload({
+        name: 'Snapshot',
+        external_debug_url: 'localhost',
+        some_other_rand_prop: 'random value',
+        tag: { name: 'device', foobar: 'baz' },
+        tiles: [{ content: 'foo' }, { content: 'vbv' }]
+      }, null, 'automate');
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([jasmine.stringContaining('[percy] Error: Cannot run automate screenshots in app project. Please use automate project token')]));
+    });
+
+    it('should throw error if automate build is ran using app percy SDK', async () => {
+      await percy.stop(true);
+      await api.mock();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        projectType: 'automate'
+      });
+
+      percy.client.buildType = 'automate';
+      await percy.upload({
+        name: 'Snapshot',
+        external_debug_url: 'localhost',
+        some_other_rand_prop: 'random value',
+        tag: { name: 'device', foobar: 'baz' },
+        tiles: [{ content: 'foo' }, { content: 'vbv' }]
+      }, null, 'app');
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([jasmine.stringContaining('[percy] Error: Cannot run App Percy screenshots in automate project. Please use App Percy project token')]));
     });
   });
 
@@ -1319,9 +1554,9 @@ describe('Snapshot', () => {
       expect(logger.stderr).toEqual([
         '[percy] DOM elements found outside </body>, percyCSS might not work'
       ]);
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: Serialized Snapshot'
-      ]);
+      ]));
     });
   });
 });

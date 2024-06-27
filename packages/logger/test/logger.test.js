@@ -137,6 +137,20 @@ describe('logger', () => {
     }]);
   });
 
+  it('does not write to stdout if CI log', () => {
+    log = logger('ci');
+    log.info('Dont print me');
+
+    expect(helpers.stdout).toEqual([]);
+  });
+
+  it('does not write to stdout if SDK log', () => {
+    log = logger('sdk');
+    log.info('Dont print me');
+
+    expect(helpers.stdout).toEqual([]);
+  });
+
   it('exposes a message formatting method', () => {
     expect(log.format('grouped')).toEqual(
       `[${colors.magenta('percy')}] grouped`);

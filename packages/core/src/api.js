@@ -5,6 +5,7 @@ import logger from '@percy/logger';
 import { normalize } from '@percy/config/utils';
 import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHandler } from './utils.js';
 import WebdriverUtils from '@percy/webdriver-utils';
+import { handleSyncJob } from './snapshot.js';
 // need require.resolve until import.meta.resolve can be transpiled
 export const PERCY_DOM = createRequire(import.meta.url).resolve('@percy/dom');
 
@@ -82,7 +83,7 @@ export function createPercyServer(percy, port) {
       logger('core:server').deprecated([
         'It looks like you’re using @percy/cli with an older SDK.',
         'Please upgrade to the latest version to fix this warning.',
-        'See these docs for more info: https:docs.percy.io/docs/migrating-to-percy-cli'
+        'See these docs for more info: https://www.browserstack.com/docs/percy/migration/migrate-to-cli'
       ].join(' '));
 
       let content = await fs.promises.readFile(PERCY_DOM, 'utf-8');
@@ -91,14 +92,25 @@ export function createPercyServer(percy, port) {
     })
   // post one or more snapshots, optionally async
     .route('post', '/percy/snapshot', async (req, res) => {
-      let snapshot = percy.snapshot(req.body);
+      let data;
+      const snapshotPromise = {};
+      const snapshot = percy.snapshot(req.body, snapshotPromise);
       if (!req.url.searchParams.has('async')) await snapshot;
-      return res.json(200, { success: true });
+
+      if (percy.syncMode(req.body)) data = await handleSyncJob(snapshotPromise[req.body.name], percy, 'snapshot');
+
+      return res.json(200, { success: true, data: data });
     })
   // post one or more comparisons, optionally waiting
     .route('post', '/percy/comparison', async (req, res) => {
-      let upload = percy.upload(req.body);
-      if (req.url.searchParams.has('await')) await upload;
+      let data;
+      if (percy.syncMode(req.body)) {
+        const snapshotPromise = new Promise((resolve, reject) => percy.upload(req.body, { resolve, reject }, 'app'));
+        data = await handleSyncJob(snapshotPromise, percy, 'comparison');
+      } else {
+        let upload = percy.upload(req.body, null, 'app');
+        if (req.url.searchParams.has('await')) await upload;
+      }
 
       // generate and include one or more redirect links to comparisons
       let link = ({ name, tag }) => [
@@ -108,23 +120,52 @@ export function createPercyServer(percy, port) {
         }, { snake: true }))
       ].join('');
 
-      return res.json(200, Object.assign({ success: true }, req.body ? (
-        Array.isArray(req.body) ? { links: req.body.map(link) } : { link: link(req.body) }
-      ) : {}));
+      const response = { success: true, data: data };
+      if (req.body) {
+        if (Array.isArray(req.body)) {
+          response.links = req.body.map(link);
+        } else {
+          response.link = link(req.body);
+        }
+      }
+      return res.json(200, response);
     })
   // flushes one or more snapshots from the internal queue
     .route('post', '/percy/flush', async (req, res) => res.json(200, {
       success: await percy.flush(req.body).then(() => true)
     }))
     .route('post', '/percy/automateScreenshot', async (req, res) => {
+      let data;
       percyAutomateRequestHandler(req, percy);
-      percy.upload(await WebdriverUtils.automateScreenshot(req.body));
-      res.json(200, { success: true });
+      let comparisonData = await WebdriverUtils.captureScreenshot(req.body);
+
+      if (percy.syncMode(comparisonData)) {
+        const snapshotPromise = new Promise((resolve, reject) => percy.upload(comparisonData, { resolve, reject }, 'automate'));
+        data = await handleSyncJob(snapshotPromise, percy, 'comparison');
+      } else {
+        percy.upload(comparisonData, null, 'automate');
+      }
+
+      res.json(200, { success: true, data: data });
     })
   // Recieves events from sdk's.
     .route('post', '/percy/events', async (req, res) => {
       const body = percyBuildEventHandler(req, pkg.version);
       await percy.client.sendBuildEvents(percy.build?.id, body);
+      res.json(200, { success: true });
+    })
+    .route('post', '/percy/log', async (req, res) => {
+      const log = logger('sdk');
+      if (!req.body) {
+        log.error('No request body for /percy/log endpoint');
+        return res.json(400, { error: 'No body passed' });
+      }
+      const level = req.body.level;
+      const message = req.body.message;
+      const meta = req.body.meta || {};
+
+      log[level](message, meta);
+
       res.json(200, { success: true });
     })
   // stops percy at the end of the current event loop

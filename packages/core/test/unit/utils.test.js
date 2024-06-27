@@ -1,9 +1,12 @@
+import { setupTest } from '../helpers/index.js';
 import {
   generatePromise,
   AbortController,
   yieldTo,
   yieldAll,
-  DefaultMap
+  DefaultMap,
+  redactSecrets,
+  base64encode
 } from '../../src/utils.js';
 
 describe('Unit / Utils', () => {
@@ -181,6 +184,29 @@ describe('Unit / Utils', () => {
       const map = new DefaultMap((key) => `default value for ${key}`);
       map.set('testKey', 'testValue');
       expect(map.get('testKey')).toEqual('testValue');
+    });
+  });
+
+  describe('redactSecrets', () => {
+    beforeEach(async () => {
+      await setupTest();
+    });
+    it('should redact sensitive keys from string', () => {
+      expect(redactSecrets('This is a secret: ASIAY34FZKBOKMUTVV7A')).toEqual('This is a secret: [REDACTED]');
+    });
+
+    it('should redact sensitive keys from object', () => {
+      expect(redactSecrets({ message: 'This is a secret: ASIAY34FZKBOKMUTVV7A' })).toEqual({ message: 'This is a secret: [REDACTED]' });
+    });
+
+    it('should redact sensitive keys from array of object', () => {
+      expect(redactSecrets([{ message: 'This is a secret: ASIAY34FZKBOKMUTVV7A' }])).toEqual([{ message: 'This is a secret: [REDACTED]' }]);
+    });
+  });
+
+  describe('base64encode', () => {
+    it('should return base64 string', () => {
+      expect(base64encode('abcd')).toEqual('YWJjZA==');
     });
   });
 });

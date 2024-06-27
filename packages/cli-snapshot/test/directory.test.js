@@ -16,12 +16,14 @@ describe('percy snapshot <directory>', () => {
         'test-index/index.html': '<p>Test Index</p>'
       }
     });
+    process.env.PERCY_CLIENT_ERROR_LOGS = false;
   });
 
   afterEach(() => {
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
     delete snapshot.packageInformation;
+    delete process.env.PERCY_CLIENT_ERROR_LOGS;
   });
 
   it('errors when the base-url is invalid', async () => {
@@ -30,10 +32,10 @@ describe('percy snapshot <directory>', () => {
     ).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Error: The \'--base-url\' flag must start with a ' +
         'forward slash (/) when providing a static directory'
-    ]);
+    ]));
   });
 
   it('starts a static server and snapshots matching files', async () => {
@@ -68,17 +70,17 @@ describe('percy snapshot <directory>', () => {
   it('does not take snapshots and prints a list with --dry-run', async () => {
     await snapshot(['./', '--dry-run']);
 
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Build not created'
-    ]);
-    expect(logger.stdout).toEqual([
+    ]));
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot found: /test-1.html',
       '[percy] Snapshot found: /test-2.html',
       '[percy] Snapshot found: /test-3.html',
       '[percy] Snapshot found: /test-index/index.html',
       '[percy] Found 4 snapshots'
-    ]);
+    ]));
   });
 
   it('accepts snapshot config overrides', async () => {
@@ -94,10 +96,10 @@ describe('percy snapshot <directory>', () => {
 
     await snapshot(['./', '--dry-run']);
 
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Build not created'
-    ]);
-    expect(logger.stdout).toEqual([
+    ]));
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot found: First',
       '[percy] Snapshot found: First (2)',
@@ -108,23 +110,23 @@ describe('percy snapshot <directory>', () => {
       '[percy] Snapshot found: /test-index/index.html',
       '[percy] Snapshot found: /test-index/index.html (2)',
       '[percy] Found 8 snapshots'
-    ]);
+    ]));
   });
 
   it('rewrites file and index URLs with --clean-urls', async () => {
     await snapshot(['./', '--dry-run', '--clean-urls']);
 
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Build not created'
-    ]);
-    expect(logger.stdout).toEqual([
+    ]));
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot found: /test-1',
       '[percy] Snapshot found: /test-2',
       '[percy] Snapshot found: /test-3',
       '[percy] Snapshot found: /test-index',
       '[percy] Found 4 snapshots'
-    ]);
+    ]));
   });
 
   it('rewrites URLs based on the provided rewrites config option', async () => {
@@ -138,17 +140,17 @@ describe('percy snapshot <directory>', () => {
 
     await snapshot(['./', '--dry-run']);
 
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Build not created'
-    ]);
-    expect(logger.stdout).toEqual([
+    ]));
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot found: /test/1',
       '[percy] Snapshot found: /test/2',
       '[percy] Snapshot found: /test/3',
       '[percy] Snapshot found: /test-index',
       '[percy] Found 4 snapshots'
-    ]);
+    ]));
   });
 
   it('filters snapshots with include and exclude config options', async () => {
@@ -165,14 +167,14 @@ describe('percy snapshot <directory>', () => {
 
     await snapshot(['./', '--dry-run']);
 
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Build not created'
-    ]);
-    expect(logger.stdout).toEqual([
+    ]));
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot found: /test-1',
       '[percy] Snapshot found: /test-3',
       '[percy] Found 2 snapshots'
-    ]);
+    ]));
   });
 });

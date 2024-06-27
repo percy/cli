@@ -1,6 +1,10 @@
 import EventEmitter from 'events';
 import { sha256hash } from '@percy/client/utils';
 import { camelcase, merge } from '@percy/config/utils';
+import YAML from 'yaml';
+import path from 'path';
+import url from 'url';
+import { readFileSync } from 'fs';
 
 export {
   request,
@@ -50,6 +54,7 @@ export function percyAutomateRequestHandler(req, percy) {
     ignoreRegionXpaths: percy.config.snapshot.ignoreRegions?.ignoreRegionXpaths,
     considerRegionSelectors: percy.config.snapshot.considerRegions?.considerRegionSelectors,
     considerRegionXpaths: percy.config.snapshot.considerRegions?.considerRegionXpaths,
+    sync: percy.config.snapshot.sync,
     version: 'v2'
   },
   camelCasedOptions
@@ -321,6 +326,58 @@ export function serializeFunction(fn) {
   }
 
   return fnbody;
+}
+
+export async function withRetries(fn, { count, onRetry, signal, throwOn }) {
+  count ||= 1; // default a single try
+  let run = 0;
+  while (true) {
+    run += 1;
+    try {
+      return await generatePromise(fn, signal);
+    } catch (e) {
+      // if this error should not be retried on, we want to skip errors
+      let throwError = throwOn?.includes(e.name);
+      if (!throwError && run < count) {
+        await onRetry?.();
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
+export function redactSecrets(data) {
+  const filepath = path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml');
+  const secretPatterns = YAML.parse(readFileSync(filepath, 'utf-8'));
+
+  if (Array.isArray(data)) {
+    // Process each item in the array
+    return data.map(item => redactSecrets(item));
+  } else if (typeof data === 'object' && data !== null) {
+    // Process each key-value pair in the object
+    data.message = redactSecrets(data.message);
+  }
+  if (typeof data === 'string') {
+    for (const pattern of secretPatterns.patterns) {
+      data = data.replace(new RegExp(pattern.pattern.regex, 'g'), '[REDACTED]');
+    }
+  }
+  return data;
+}
+
+// Returns a base64 encoding of a string or buffer.
+export function base64encode(content) {
+  return Buffer
+    .from(content)
+    .toString('base64');
+}
+
+export function snapshotLogName(name, meta) {
+  if (meta?.snapshot?.testCase) {
+    return `testCase: ${meta.snapshot.testCase}, ${name}`;
+  }
+  return name;
 }
 
 // DefaultMap, which returns a default value for an uninitialized key

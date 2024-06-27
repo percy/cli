@@ -3,9 +3,10 @@ import { logger, api, setupTest, createTestServer, dedent } from './helpers/inde
 import Percy from '@percy/core';
 import { RESOURCE_CACHE_KEY } from '../src/discovery.js';
 import Session from '../src/session.js';
+import Pako from 'pako';
 
 describe('Discovery', () => {
-  let percy, server, captured;
+  let percy, server, captured, originalTimeout;
 
   const testDOM = dedent`
     <html>
@@ -24,10 +25,19 @@ describe('Discovery', () => {
   // http://png-pixel.com/
   const pixel = Buffer.from('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', 'base64');
 
+  const sharedExpectBlock = (expectedBody) => {
+    let lastReq = api.requests['/suggestions/from_logs'].length - 1;
+    expect(api.requests['/suggestions/from_logs'][lastReq].body)
+      .toEqual(expectedBody);
+  };
+
   beforeEach(async () => {
     captured = [];
     await setupTest();
+    originalTimeout = jasmine.DEFAULT_TIMEOUT_INTERVAL;
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
     delete process.env.PERCY_BROWSER_EXECUTABLE;
+    delete process.env.PERCY_GZIP;
 
     api.reply('/builds/123/snapshots', ({ body }) => {
       // resource order is not important, stabilize it for testing
@@ -55,6 +65,51 @@ describe('Discovery', () => {
   afterEach(async () => {
     await percy?.stop(true);
     await server.close();
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = originalTimeout;
+  });
+
+  it('gathers resources for a snapshot in GZIP format', async () => {
+    process.env.PERCY_GZIP = true;
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    });
+
+    await percy.idle();
+
+    let paths = server.requests.map(r => r[0]);
+    // does not request the root url (serves domSnapshot instead)
+    expect(paths).not.toContain('/');
+    expect(paths).toContain('/style.css');
+    expect(paths).toContain('/img.gif');
+
+    expect(captured[0]).toEqual([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
+        })
+      }),
+      jasmine.objectContaining({
+        id: sha256hash(Pako.gzip(testDOM)),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/'
+        })
+      }),
+      jasmine.objectContaining({
+        id: sha256hash(Pako.gzip(pixel)),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      }),
+      jasmine.objectContaining({
+        id: sha256hash(Pako.gzip(testCSS)),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/style.css'
+        })
+      })
+    ]);
   });
 
   it('gathers resources for a snapshot', async () => {
@@ -665,72 +720,18 @@ describe('Discovery', () => {
     ]));
   });
 
-  describe('higher pixel densities', () => {
-    let responsiveDOM;
-    beforeEach(() => {
-      responsiveDOM = dedent`
-      <html>
-      <head></head>
-      <body>
-        <p>Hello Percy!<p>
-        <img srcset="/img-normal.png, /img-2x.png 2x"
-             src="img-normal.png">
-      </body>
-      </html>
-    `;
-
-      server.reply('/', () => [200, 'text/html', responsiveDOM]);
-      server.reply('/img-normal.png', () => [200, 'image/png', pixel]);
-      server.reply('/img-2x.png', () => new Promise(r => (
-        setTimeout(r, 200, [200, 'image/png', pixel]))));
-    });
-
-    it('when domSnapshot present', async () => {
+  describe('devicePixelRatio', () => {
+    it('should warn about depreacted option', async () => {
       await percy.snapshot({
         name: 'test responsive',
         url: 'http://localhost:8000',
-        domSnapshot: responsiveDOM,
         discovery: { devicePixelRatio: 2 },
         widths: [400, 800]
       });
 
       await percy.idle();
 
-      let resource = path => jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': `http://localhost:8000${path}`
-        })
-      });
-
-      expect(captured[0]).toEqual(jasmine.arrayContaining([
-        resource('/img-normal.png'),
-        resource('/img-2x.png')
-      ]));
-    });
-
-    it('when option in config', async () => {
-      percy.config.discovery.devicePixelRatio = 2;
-      await percy.snapshot({
-        name: 'test responsive',
-        url: 'http://localhost:8000',
-        domSnapshot: responsiveDOM,
-        widths: [400, 800]
-      });
-
-      await percy.idle();
-
-      let resource = path => jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': `http://localhost:8000${path}`
-        })
-      });
-
-      expect(captured[0]).toEqual(jasmine.arrayContaining([
-        resource('/img-normal.png'),
-        resource('/img-2x.png')
-      ]));
-
-      delete percy.config.discovery.devicePixelRatio;
+      expect(logger.stderr).toContain('[percy] Warning: discovery.devicePixelRatio is deprecated percy will now auto capture resource in all devicePixelRatio, Ignoring configuration');
     });
   });
 
@@ -928,6 +929,22 @@ describe('Discovery', () => {
       expect(logger.stderr).toContain(
         '[percy] Error: Timed out waiting for network requests to idle.'
       );
+
+      let expectedRequestBody = {
+        data: {
+          logs: [
+            {
+              message: 'Encountered an error taking snapshot: test idle',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
+            },
+            {
+              message: 'Timed out waiting for network requests to idle.',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
+            }
+          ]
+        }
+      };
+      sharedExpectBlock(expectedRequestBody);
     });
 
     it('shows debug info when requests fail to idle in time', async () => {
@@ -946,6 +963,21 @@ describe('Discovery', () => {
         '',
         '(?<stack>(.|\n)*)$'
       ].join('\n')));
+
+      sharedExpectBlock({
+        data: {
+          logs: [
+            {
+              message: 'Encountered an error taking snapshot: test idle',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
+            },
+            {
+              message: 'Timed out waiting for network requests to idle.\n\n  Active requests:\n  - http://localhost:8000/img.gif\n',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
+            }
+          ]
+        }
+      });
     });
 
     it('shows a warning when idle wait timeout is set over 60000ms', async () => {
@@ -963,6 +995,136 @@ describe('Discovery', () => {
       expect(logger.stderr).toContain(jasmine.stringMatching(
         '^\\[percy:core:discovery] Setting PERCY_NETWORK_IDLE_WAIT_TIMEOUT over 60000ms is not'
       ));
+    });
+
+    describe('with multiple network requests with same url', () => {
+      beforeEach(async () => {
+        // a custom page where we make 2 requests to same url where only one of them will
+        // finish before network idle wait timeout, in such cases we expect to ignore another
+        // request stuck in loading state
+        server.reply('/', () => [200, 'text/html', dedent`
+          <html>
+          <body>
+            <P>Hello Percy!<p>
+            <script>
+              // allow page load to fire and then execute this script
+              setTimeout(async () => {
+                var p1 = fetch('./img.gif');
+                var p2 = fetch('./img.gif');
+                await p2; // we will resolve second request instantly
+                await p1; // we will delay first request by 800ms
+              }, 10);
+            </script>
+          </body>
+          </html>`
+        ]);
+        // trigger responses in expected time
+        let counter = 0;
+        // we have idle timeout at 500 ms so we are resolving other request at 1 sec
+        server.reply('/img.gif', () => new Promise(r => (
+          (counter += 1) && setTimeout(r, counter === 2 ? 0 : 1000, [200, 'image/gif', pixel]))));
+      });
+
+      it('shows debug info when navigation fails within the timeout', async () => {
+        percy.loglevel('debug');
+
+        await percy.snapshot({
+          name: 'navigation idle',
+          url: 'http://localhost:8000'
+        });
+
+        expect(logger.stderr).not.toContain(jasmine.stringMatching([
+          '^\\[percy:core] Error: Timed out waiting for network requests to idle.',
+          '',
+          '  Active requests:',
+          '  - http://localhost:8000/img.gif',
+          '',
+          '(?<stack>(.|\n)*)$'
+        ].join('\n')));
+      });
+    });
+  });
+
+  describe('discovery retry', () => {
+    let Page;
+    let fastCount;
+
+    beforeEach(async () => {
+      // reset page timeout so that it gets read from env again
+      ({ Page } = await import('../src/page.js'));
+      Page.TIMEOUT = undefined;
+      process.env.PERCY_PAGE_LOAD_TIMEOUT = 500;
+
+      // some async request that takes a while and only resolves 4th time
+      let counter = 0;
+      server.reply('/', () => new Promise(r => (
+        (counter += 1) &&
+        setTimeout(r, counter === fastCount ? 0 : 2000, [200, 'text/html', '<html></html>']))));
+    });
+
+    afterAll(() => {
+      delete process.env.PERCY_PAGE_LOAD_TIMEOUT;
+    });
+
+    it('should retry the snapshot discovery upto 3 times', async () => {
+      // 3rd request will resolve instantly
+      fastCount = 3;
+
+      await percy.snapshot({
+        name: 'test navigation timeout',
+        url: 'http://localhost:8000',
+        discovery: { retry: true },
+        widths: [400, 800]
+      });
+
+      await percy.idle();
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Percy has started!',
+        '[percy] Retrying snapshot: test navigation timeout',
+        '[percy] Retrying snapshot: test navigation timeout',
+        '[percy] Snapshot taken: test navigation timeout'
+      ]));
+    });
+
+    it('throws exception after last retry', async () => {
+      // 3rd request will also resolve in delayed fashion
+      fastCount = 4;
+
+      await percy.snapshot({
+        name: 'test navigation timeout',
+        url: 'http://localhost:8000',
+        discovery: { retry: true },
+        widths: [400, 800]
+      });
+
+      await percy.idle();
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Percy has started!',
+        '[percy] Retrying snapshot: test navigation timeout',
+        '[percy] Retrying snapshot: test navigation timeout'
+      ]));
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy] Encountered an error taking snapshot: test navigation timeout',
+        '[percy] Error: Navigation failed: Timed out waiting for the page load event'
+      ]));
+
+      sharedExpectBlock({
+        data: {
+          logs: [
+            {
+              message: 'Encountered an error taking snapshot: test navigation timeout',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test navigation timeout' } }
+            },
+            {
+              message: 'Navigation failed: Timed out waiting for the page load event',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test navigation timeout' } }
+            }
+          ]
+        }
+      });
     });
   });
 
@@ -1001,6 +1163,22 @@ describe('Discovery', () => {
         '',
         '(?<stack>(.|\n)*)$'
       ].join('\n')));
+
+      let lastReq = api.requests['/suggestions/from_logs'].length - 1;
+      expect(api.requests['/suggestions/from_logs'][lastReq].body).toEqual({
+        data: {
+          logs: [
+            {
+              message: 'Encountered an error taking snapshot: navigation idle',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'navigation idle' } }
+            },
+            {
+              message: 'Navigation failed: Timed out waiting for the page load event\n\n  Active requests:\n  - http://localhost:8000/img.gif\n',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'navigation idle' } }
+            }
+          ]
+        }
+      });
     });
 
     it('shows a warning when page load timeout is set over 60000ms', async () => {
@@ -1706,9 +1884,9 @@ describe('Discovery', () => {
         }
       });
 
-      expect(logger.stderr).toEqual([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Browser executable not found: ./404'
-      ]);
+      ]));
     });
 
     it('can provide an executable via an environment variable', async () => {
@@ -1719,9 +1897,9 @@ describe('Discovery', () => {
         snapshot: { widths: [1000] }
       });
 
-      expect(logger.stderr).toEqual([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Browser executable not found: ./from-var'
-      ]);
+      ]));
     });
 
     it('should fail to launch if the devtools address is not logged', async () => {
@@ -1736,6 +1914,13 @@ describe('Discovery', () => {
       })).toBeRejectedWithError(
         /Failed to launch browser/
       );
+
+      // We are checking here like this, to avoid flaky test as
+      // the error message contains some number
+      // eg: `Failed to launch browser. \n[0619/152313.736334:ERROR:command_line_handler.cc(67)`
+      let lastRequest = api.requests['/suggestions/from_logs'].length - 1;
+      expect(api.requests['/suggestions/from_logs'][lastRequest].body.data.logs[0].message.includes('Failed to launch browser'))
+        .toEqual(true);
     });
 
     it('should fail to launch after the timeout', async () => {
@@ -1750,6 +1935,16 @@ describe('Discovery', () => {
       })).toBeRejectedWithError(
         /Failed to launch browser\. Timed out after 10ms/
       );
+
+      let expectedBody = {
+        data: {
+          logs: [
+            { message: "Failed to launch browser. Timed out after 10ms\n'\n\n" }
+          ]
+        }
+      };
+
+      sharedExpectBlock(expectedBody);
     });
   });
 
@@ -1982,12 +2177,12 @@ describe('Discovery', () => {
       const fetchUpstream = async(request) => {
         return await fetch(request.clone());
       }
-      
+
       self.addEventListener('fetch', (event) => {
         const { request } = event
         event.respondWith(fetchUpstream(request));
       });
-      
+
       self.addEventListener("activate", (event) => {
         event.waitUntil(clients.claim());
       });
@@ -1997,9 +2192,9 @@ describe('Discovery', () => {
       const registerServiceWorker = async () => {
         await navigator.serviceWorker.register('sw.js',{ scope: './', });
       };
-      
+
       await registerServiceWorker();
-      
+
       // create and insert image element which will be intercepted and resolved by service worker
       // adding a sleep of 1s for service worker to get activated
       await new Promise(r => setTimeout(r, 1000));
@@ -2037,6 +2232,391 @@ describe('Discovery', () => {
           })
         })
       ]));
+    });
+  });
+
+  describe('Capture image srcset =>', () => {
+    it('make request call to capture resource', async () => {
+      let responsiveDOM = dedent`
+        <html>
+        <head><link href="style.css" rel="stylesheet"/></head>
+        <body>
+          <p>Hello Percy!<p>
+          <img srcset="/img-fromsrcset.png 400w, /img-throwserror.gif 600w, /img-withdifferentcontenttype.gif 800w"
+              sizes="(max-width: 600px) 400px, (max-width: 800px) 600px, 800px"
+              src="/img-already-captured.png">
+        </body>
+        </html>
+      `;
+      server.reply('/img-fromsrcset.png', () => [200, 'image/png', pixel]);
+      server.reply('/img-already-captured.png', () => [200, 'image/png', pixel]);
+      server.reply('/img-throwserror.gif', () => [404]);
+      server.reply('/img-withdifferentcontenttype.gif', () => [200, 'image/gif', pixel]);
+
+      let capturedResource = {
+        url: 'http://localhost:8000/img-already-captured.png',
+        content: 'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
+        mimetype: 'image/png'
+      };
+      await percy.snapshot({
+        name: 'test responsive',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: responsiveDOM,
+          resources: [capturedResource]
+        },
+        discovery: {
+          captureSrcset: true
+        }
+      });
+
+      await percy.idle();
+
+      let resource = path => jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': `http://localhost:8000${path}`
+        })
+      });
+
+      let paths = server.requests.map(r => r[0]);
+      expect(paths).toContain('/img-fromsrcset.png');
+      expect(paths).toContain('/img-withdifferentcontenttype.gif');
+      expect(paths).toContain('/img-throwserror.gif');
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        resource('/img-fromsrcset.png'),
+        resource('/img-withdifferentcontenttype.gif')
+      ]));
+    });
+
+    it('using snapshot command capture srcset', async () => {
+      let responsiveDOM = dedent`
+        <html>
+        <head></head>
+        <body>
+          <p>Hello Percy!<p>
+          <img srcset="/img-fromsrcset.png 2x, /img-throwserror.jpeg 3x, /img-withdifferentcontenttype.gif 4x, https://remote.resource.com/img-shouldnotcaptured.png 5x"
+              sizes="(max-width: 600px) 400px, (max-width: 800px) 600px, 800px"
+              src="/img-already-captured.png">
+        </body>
+        </html>
+      `;
+
+      server.reply('/', () => [200, 'text/html', responsiveDOM]);
+      server.reply('/img-fromsrcset.png', () => [200, 'image/png', pixel]);
+      server.reply('/img-already-captured.png', () => [200, 'image/png', pixel]);
+      server.reply('/img-throwserror.jpeg', () => [404]);
+      server.reply('/img-withdifferentcontenttype.gif', () => [200, 'image/gif', pixel]);
+
+      await percy.snapshot({
+        name: 'image srcset',
+        url: 'http://localhost:8000',
+        widths: [1024],
+        discovery: {
+          captureSrcset: true
+        }
+      });
+
+      await percy.idle();
+
+      let resource = path => jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': `http://localhost:8000${path}`
+        })
+      });
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        resource('/img-fromsrcset.png'),
+        resource('/img-withdifferentcontenttype.gif'),
+        resource('/img-already-captured.png')
+      ]));
+
+      expect(captured[0]).not.toContain(jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'https://remote.resource.com/img-shouldnotcaptured.png'
+        })
+      }));
+    });
+  });
+
+  describe('Capture responsive assets =>', () => {
+    afterEach(() => {
+      delete process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS;
+    });
+    it('should capture js based assets', async () => {
+      api.reply('/discovery/device-details?build_id=123', () => [200, { data: [{ width: 375, deviceScaleFactor: 2 }, { width: 390, deviceScaleFactor: 3 }] }]);
+      // stop current instance to create a new one
+      await percy.stop();
+      percy = await Percy.start({
+        projectType: 'web',
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+      let responsiveDOM = dedent`
+        <html><head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body>
+        <h1>Responsive Images Example</h1>
+        <img id="responsive-image" src="default.jpg" alt="Responsive Image">
+        <script>
+            var image = document.getElementById('responsive-image');
+            function updateImage() {
+              var width = window.innerWidth;
+              var dpr = window.devicePixelRatio;
+              if (width <= 375 || dpr == 2) {
+                image.src = '/small.jpg';
+              } else if (width < 1200 || dpr == 3) {
+                image.src = '/medium.jpg';
+              } else {
+                image.src = '/large.jpg';
+              }
+            }
+            window.addEventListener('resize', updateImage);
+            window.addEventListener('load', updateImage);
+        </script>
+        </body>
+        </html>
+      `;
+
+      server.reply('/', () => [200, 'text/html', responsiveDOM]);
+      server.reply('/default.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/small.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/medium.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/large.jpg', () => [200, 'image/jpg', pixel]);
+
+      await percy.snapshot({
+        name: 'image srcset',
+        url: 'http://localhost:8000',
+        widths: [1024]
+      });
+
+      await percy.idle();
+
+      let resource = path => jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': `http://localhost:8000${path}`
+        })
+      });
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        resource('/default.jpg'),
+        resource('/small.jpg'),
+        resource('/medium.jpg')
+      ]));
+
+      expect(captured[0]).not.toContain(jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/large.jpg'
+        })
+      }));
+    });
+
+    it('should not capture js based assets and returns default', async () => {
+      process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS = 'true';
+      api.reply('/discovery/device-details?build_id=123', () => [200, { data: [{ width: 375, deviceScaleFactor: 2 }, { width: 390, deviceScaleFactor: 3 }] }]);
+      // stop current instance to create a new one
+      await percy.stop();
+      percy = await Percy.start({
+        projectType: 'web',
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+      let responsiveDOM = dedent`
+        <html><head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body>
+        <h1>Responsive Images Example</h1>
+        <img id="responsive-image" src="default.jpg" alt="Responsive Image">
+        <script>
+            var image = document.getElementById('responsive-image');
+            function updateImage() {
+              var width = window.innerWidth;
+              var dpr = window.devicePixelRatio;
+              if (width <= 375 || dpr == 2) {
+                image.src = '/small.jpg';
+              } else if (width < 1200 || dpr == 3) {
+                image.src = '/medium.jpg';
+              } else {
+                image.src = '/large.jpg';
+              }
+            }
+            window.addEventListener('resize', updateImage);
+            window.addEventListener('load', updateImage);
+        </script>
+        </body>
+        </html>
+      `;
+
+      server.reply('/', () => [200, 'text/html', responsiveDOM]);
+      server.reply('/default.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/small.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/medium.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/large.jpg', () => [200, 'image/jpg', pixel]);
+
+      await percy.snapshot({
+        name: 'image srcset',
+        url: 'http://localhost:8000',
+        widths: [1024]
+      });
+
+      await percy.idle();
+
+      let resource = path => jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': `http://localhost:8000${path}`
+        })
+      });
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        resource('/default.jpg')
+      ]));
+
+      expect(captured[0]).not.toContain(jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/large.jpg'
+        })
+      }));
+    });
+
+    it('handle cases when asset was changed on load', async () => {
+      api.reply('/discovery/device-details?build_id=123', () => [200, { data: [{ width: 390, deviceScaleFactor: 3 }] }]);
+      // stop current instance to create a new one
+      await percy.stop();
+      percy = await Percy.start({
+        projectType: 'web',
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+      let responsiveDOM = dedent`
+        <html><head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body>
+        <h1>Responsive Images Example</h1>
+        <img id="responsive-image" src="default.jpg" alt="Responsive Image">
+        <script>
+            var image = document.getElementById('responsive-image');
+            function updateImage() {
+              var width = window.innerWidth;
+              var dpr = window.devicePixelRatio;
+              if (dpr == 2) {
+                image.src = '/small.jpg';
+              } else if (dpr == 3) {
+                image.src = '/medium.jpg';
+              }
+            }
+            window.addEventListener('load', updateImage);
+        </script>
+        </body>
+        </html>
+      `;
+
+      server.reply('/', () => [200, 'text/html', responsiveDOM]);
+      server.reply('/default.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/small.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/medium.jpg', () => [200, 'image/jpg', pixel]);
+
+      await percy.snapshot({
+        name: 'image srcset',
+        url: 'http://localhost:8000',
+        widths: [1024]
+      });
+
+      await percy.idle();
+
+      let resource = path => jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': `http://localhost:8000${path}`
+        })
+      });
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        resource('/default.jpg'),
+        resource('/medium.jpg')
+      ]));
+
+      expect(captured[0]).not.toContain(jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/small.jpg'
+        })
+      }));
+    });
+
+    it('captures responsive assets srcset + mediaquery', async () => {
+      api.reply('/discovery/device-details?build_id=123', () => [200,
+        {
+          data: [
+            { width: 280, deviceScaleFactor: 2 }, { width: 600, deviceScaleFactor: 4 },
+            { width: 450, deviceScaleFactor: 3 }, { width: 500, deviceScaleFactor: 5 }
+          ]
+        }]);
+      // stop current instance to create a new one
+      await percy.stop();
+      percy = await Percy.start({
+        projectType: 'web',
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+      let responsiveDOM = dedent`
+        <html>
+        <head><link href="style.css" rel="stylesheet"/></head>
+        <body>
+          <p>Hello Percy!<p>
+          <img srcset="/img-fromsrcset.png 2x, /img-throwserror.jpeg 3x, /img-withdifferentcontenttype.gif 4x, https://remote.resource.com/img-shouldnotcaptured.png 5x"
+              sizes="(max-width: 600px) 400px, (max-width: 800px) 600px, 800px"
+              src="/img-already-captured.png">
+        </body>
+        </html>
+      `;
+
+      let responsiveCSS = dedent`
+        body { background: url('/img-bg-1.gif'); }
+        @media (max-width: 600px) {
+          body { background: url('/img-bg-2.gif'); }
+        }
+      `;
+
+      server.reply('/', () => [200, 'text/html', responsiveDOM]);
+      server.reply('/style.css', () => [200, 'text/css', responsiveCSS]);
+      server.reply('/img-fromsrcset.png', () => [200, 'image/png', pixel]);
+      server.reply('/img-already-captured.png', () => [200, 'image/png', pixel]);
+      server.reply('/img-throwserror.jpeg', () => [404]);
+      server.reply('/img-withdifferentcontenttype.gif', () => [200, 'image/gif', pixel]);
+      server.reply('/img-bg-1.gif', () => [200, 'image/gif', pixel]);
+      server.reply('/img-bg-2.gif', () => [200, 'image/gif', pixel]);
+
+      await percy.snapshot({
+        name: 'test responsive',
+        url: 'http://localhost:8000',
+        domSnapshot: responsiveDOM,
+        widths: [590]
+      });
+
+      await percy.idle();
+
+      let resource = path => jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': `http://localhost:8000${path}`
+        })
+      });
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        resource('/img-already-captured.png'),
+        resource('/img-fromsrcset.png'),
+        resource('/img-withdifferentcontenttype.gif'),
+        resource('/img-bg-1.gif'),
+        resource('/img-bg-2.gif')
+      ]));
+
+      expect(captured[0]).not.toContain(jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'https://remote.resource.com/img-shouldnotcaptured.png'
+        })
+      }));
     });
   });
 });

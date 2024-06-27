@@ -1,6 +1,7 @@
 import { logger, api, setupTest, createTestServer } from './helpers/index.js';
-import { generatePromise, AbortController } from '../src/utils.js';
+import { generatePromise, AbortController, base64encode } from '../src/utils.js';
 import Percy from '@percy/core';
+import Pako from 'pako';
 
 describe('Percy', () => {
   let percy, server;
@@ -19,12 +20,21 @@ describe('Percy', () => {
       clientInfo: 'client-info',
       environmentInfo: 'env-info'
     });
+    process.env.PERCY_CLIENT_ERROR_LOGS = false;
   });
 
   afterEach(async () => {
     await percy.stop();
     await server.close();
+    delete process.env.PERCY_TOKEN;
+    delete process.env.PERCY_CLIENT_ERROR_LOGS;
   });
+
+  const sharedExpectBlockForSuggestion = (expectedBody) => {
+    let lastReq = api.requests['/suggestions/from_logs'].length - 1;
+    expect(api.requests['/suggestions/from_logs'][lastReq].body)
+      .toEqual(expectedBody);
+  };
 
   it('loads config and intializes client with config', () => {
     expect(percy.client.config).toEqual(percy.config);
@@ -45,9 +55,9 @@ describe('Percy', () => {
     });
 
     await expectAsync(percy.stop()).toBeResolved();
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Warning: Missing `clientInfo` and/or `environmentInfo` properties'
-    ]);
+    ]));
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Snapshot taken: test snapshot'
@@ -220,6 +230,18 @@ describe('Percy', () => {
     });
 
     it('logs once started', async () => {
+      process.env.PERCY_CLIENT_ERROR_LOGS = true;
+      await expectAsync(percy.start()).toBeResolved();
+
+      expect(logger.stderr).toEqual([
+        '[percy] Notice: Percy collects CI logs for service improvement, stored for 30 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
+      ]);
+      expect(logger.stdout).toEqual([
+        '[percy] Percy has started!'
+      ]);
+    });
+
+    it('should not log CI log collection warning if PERCY_CLIENT_ERROR_LOGS is set false', async () => {
       await expectAsync(percy.start()).toBeResolved();
 
       expect(logger.stderr).toEqual([]);
@@ -271,7 +293,17 @@ describe('Percy', () => {
     it('throws when the port is in use', async () => {
       await expectAsync(percy.start()).toBeResolved();
       await expectAsync(Percy.start({ token: 'PERCY_TOKEN' }))
-        .toBeRejectedWithError('Percy is already running or the port is in use');
+        .toBeRejectedWithError('Percy is already running or the port 5338 is in use');
+
+      sharedExpectBlockForSuggestion({
+        data: {
+          logs: [
+            {
+              message: 'Percy is already running or the port 5338 is in use'
+            }
+          ]
+        }
+      });
     });
 
     it('queues build creation when uploads are deferred', async () => {
@@ -284,6 +316,16 @@ describe('Percy', () => {
       await percy.flush();
 
       expect(api.requests['/builds']).toBeDefined();
+    });
+
+    it('validates labels is getting assigned to percy client', async () => {
+      percy = new Percy({ token: 'PERCY_TOKEN', labels: 'dev,prod', percy: { labels: 'dev,prod,canary' } });
+      expect(percy.client.labels).toEqual('dev,prod');
+    });
+
+    it('validates config-labels is getting assigned to percy client', async () => {
+      percy = new Percy({ token: 'PERCY_TOKEN', percy: { labels: 'dev,prod,canary' } });
+      expect(percy.client.labels).toEqual('dev,prod,canary');
     });
 
     it('cancels deferred build creation when interupted', async () => {
@@ -301,6 +343,13 @@ describe('Percy', () => {
       // processing deferred uploads should not result in a new build
       await percy.flush();
       expect(api.requests['/builds']).toBeUndefined();
+      sharedExpectBlockForSuggestion({
+        data: {
+          logs: [
+            { message: 'This operation was aborted' }
+          ]
+        }
+      });
     });
 
     it('has projectType', async () => {
@@ -312,6 +361,40 @@ describe('Percy', () => {
 
       await generatePromise(percy.yield.start(), ctrl.signal);
       expect(percy.projectType).toEqual('web');
+    });
+
+    it('syncQueue is created', async () => {
+      percy = new Percy({ token: 'PERCY_TOKEN', projectType: 'web' });
+
+      // abort when the browser is launched
+      let ctrl = new AbortController();
+      spyOn(percy.browser, 'launch');
+
+      await generatePromise(percy.yield.start(), ctrl.signal);
+      expect(percy.syncQueue).toBeDefined();
+      expect(percy.syncQueue.type).toEqual('snapshot');
+    });
+
+    it('has snapshotType comparison in syncQueue', async () => {
+      percy = new Percy({ token: 'auto_token' });
+
+      // abort when the browser is launched
+      let ctrl = new AbortController();
+      spyOn(percy.browser, 'launch');
+
+      await generatePromise(percy.yield.start(), ctrl.signal);
+      expect(percy.syncQueue.type).toEqual('comparison');
+    });
+
+    it('has snapshotType comparison in syncQueue with app percy', async () => {
+      percy = new Percy({ token: 'token', projectType: 'app' });
+
+      // abort when the browser is launched
+      let ctrl = new AbortController();
+      spyOn(percy.browser, 'launch');
+
+      await generatePromise(percy.yield.start(), ctrl.signal);
+      expect(percy.syncQueue.type).toEqual('comparison');
     });
 
     it('does not create an empty build when uploads are deferred', async () => {
@@ -346,9 +429,9 @@ describe('Percy', () => {
 
       expect(api.requests['/builds']).toBeUndefined();
 
-      expect(logger.stderr).toEqual([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Build not created'
-      ]);
+      ]));
     });
 
     it('does not launch the browser and skips uploads when dry-running', async () => {
@@ -361,9 +444,9 @@ describe('Percy', () => {
 
       expect(api.requests['/builds']).toBeUndefined();
 
-      expect(logger.stderr).toEqual([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Build not created'
-      ]);
+      ]));
     });
 
     it('stops accepting snapshots when a queued build fails to be created', async () => {
@@ -394,13 +477,13 @@ describe('Percy', () => {
         url: 'http://localhost:8000'
       })).toThrowError('Failed to create build');
 
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy has started!'
-      ]);
-      expect(logger.stderr).toEqual([
+      ]));
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Failed to create build',
         '[percy] Error: build error'
-      ]);
+      ]));
     });
 
     it('stops accepting snapshots when an in-progress build fails', async () => {
@@ -461,7 +544,16 @@ describe('Percy', () => {
       await expectAsync(percy.stop()).toBeResolved();
       expect(api.requests['/builds/123/finalize']).toBeDefined();
 
-      expect(logger.stderr).toEqual([]);
+      // This is the condition for no snapshot command was called
+      expect(logger.stderr).toEqual([
+        '[percy] Detected error for percy build',
+        '[percy] Failure: Snapshot command was not called',
+        '[percy] Failure Reason: Snapshot Command was not called. please check your CI for errors',
+        '[percy] Suggestion: Try using percy snapshot command to take snapshots',
+        '[percy] Refer to the below Doc Links for the same',
+        '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
+      ]);
+
       expect(logger.stdout).toContain(
         '[percy] Finalized build #1: https://percy.io/test/test/123'
       );
@@ -491,9 +583,9 @@ describe('Percy', () => {
       expect(logger.stdout).toContain(
         '[percy] Stopping percy...'
       );
-      expect(logger.stderr).toEqual([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Build not created'
-      ]);
+      ]));
     });
 
     it('logs when stopping with pending snapshots', async () => {
@@ -529,9 +621,9 @@ describe('Percy', () => {
         '[percy] Snapshot found: /three',
         '[percy] Found 3 snapshots'
       ]));
-      expect(logger.stderr).toEqual([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Build not created'
-      ]);
+      ]));
     });
 
     it('cleans up the server and browser before finalizing', async () => {
@@ -565,11 +657,11 @@ describe('Percy', () => {
       expect(percy.browser.isConnected()).toBe(true);
       expect(api.requests['/builds/123/finalize']).toBeUndefined();
 
-      expect(logger.stdout).toEqual([
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Percy has started!',
         '[percy] Processing 3 snapshots...',
         '[percy] Snapshot taken: /one'
-      ]);
+      ]));
 
       // stop without canceling to verify it still works
       await percy.stop();
@@ -597,9 +689,9 @@ describe('Percy', () => {
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Found 1 snapshot'
       ]));
-      expect(logger.stderr).toEqual([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Build not created'
-      ]);
+      ]));
     });
 
     it('logs when the build has failed upstream', async () => {
@@ -622,11 +714,11 @@ describe('Percy', () => {
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: test snapshot'
       ]));
-      expect(logger.stderr).toEqual([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Encountered an error uploading snapshot: test snapshot',
         '[percy] Error: Build has failed',
         '[percy] Build #1 failed: https://percy.io/test/test/123'
-      ]);
+      ]));
     });
   });
 
@@ -787,6 +879,66 @@ describe('Percy', () => {
       ]);
     });
 
+    it('should push snapshot comparisons to the wait for snapshot queue', async () => {
+      const mockResolve = jasmine.createSpy('resolve');
+      const mockReject = jasmine.createSpy('reject');
+      await percy.start();
+
+      await percy.upload({
+        name: 'Snapshot',
+        tag: { name: 'device' },
+        tiles: [{ content: 'foo' }, { content: 'bar' }],
+        sync: true
+      }, { resolve: mockResolve, reject: mockReject });
+
+      await percy.idle();
+      expect(api.requests['/builds/123/snapshots']).toHaveSize(1);
+      expect(api.requests['/snapshots/4567/comparisons']).toHaveSize(1);
+      expect(api.requests['/comparisons/891011/tiles']).toHaveSize(2);
+      expect(api.requests['/comparisons/891011/finalize']).toHaveSize(1);
+      expect(api.requests['/snapshots/4567/finalize']).toBeUndefined();
+
+      expect(logger.stderr).toEqual([]);
+      expect(percy.syncQueue.jobs).toHaveSize(1);
+      expect(logger.stdout).toEqual([
+        '[percy] Percy has started!',
+        '[percy] Snapshot taken: Snapshot',
+        '[percy] Waiting for snapshot \'Snapshot\' to be completed'
+      ]);
+    });
+
+    it('should raise warning in case of upload command with sync', async () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info',
+        deferUploads: true,
+        skipDiscovery: true
+      });
+      await percy.start();
+
+      percy.upload({
+        name: 'Snapshot',
+        tag: { name: 'device' },
+        tiles: [{ content: 'foo' }, { content: 'bar' }],
+        sync: true
+      });
+
+      await percy.flush();
+      expect(api.requests['/builds/123/snapshots']).toHaveSize(1);
+      expect(api.requests['/snapshots/4567/comparisons']).toHaveSize(1);
+      expect(api.requests['/comparisons/891011/tiles']).toHaveSize(2);
+      expect(api.requests['/comparisons/891011/finalize']).toHaveSize(1);
+      expect(api.requests['/snapshots/4567/finalize']).toBeUndefined();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy] The Synchronous CLI functionality is not compatible with upload command.'
+      ]));
+      expect(percy.syncQueue.jobs).toHaveSize(0);
+    });
+
     it('errors when missing any required properties', async () => {
       await percy.start();
 
@@ -815,12 +967,12 @@ describe('Percy', () => {
       expect(api.requests['/snapshots/4567/comparisons']).toHaveSize(1);
       expect(api.requests['/comparisons/891011/tiles']).toHaveSize(1);
 
-      expect(logger.stderr).toEqual([
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Invalid upload options:',
         '[percy] - someOtherRandProp: unknown property',
         '[percy] - tag.foobar: unknown property',
         '[percy] - tiles[1].content: must be a string, received an array'
-      ]);
+      ]));
       expect(logger.stdout).toEqual([
         '[percy] Percy has started!',
         '[percy] Snapshot taken: Snapshot'
@@ -893,6 +1045,272 @@ describe('Percy', () => {
         environmentInfo: 'env-info'
       });
       expect(percy.shouldSkipAssetDiscovery(percy.client.tokenType())).toBe(true);
+    });
+  });
+
+  describe('sendBuildLogs', () => {
+    it('should return if PERCY_TOKEN is not set', async () => {
+      delete process.env.PERCY_TOKEN;
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
+      });
+      await expectAsync(percy.sendBuildLogs()).toBeResolved();
+      expect(api.requests['/logs']).not.toBeDefined();
+    });
+
+    it('should not add CI logs if PERCY_CLIENT_ERROR_LOGS is false', async () => {
+      process.env.PERCY_TOKEN = 'PERCY_TOKEN';
+      process.env.PERCY_CLIENT_ERROR_LOGS = 'false';
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
+      });
+
+      percy.log.info('cli_test');
+      percy.log.info('ci_test', {}, true);
+      const logsObject = {
+        clilogs: Array.from(logger.instance.messages)
+      };
+
+      const content = base64encode(Pako.gzip(JSON.stringify(logsObject)));
+      await expectAsync(percy.sendBuildLogs()).toBeResolved();
+      expect(api.requests['/logs']).toBeDefined();
+      expect(api.requests['/logs'][0].method).toBe('POST');
+      expect(api.requests['/logs'][0].body).toEqual({
+        data: {
+          content: content,
+          service_name: 'cli',
+          base64encoded: true
+        }
+      });
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        "[percy] Build's CLI logs sent successfully. Please share this log ID with Percy team in case of any issues - random_sha"
+      ]));
+    });
+
+    it('should add CI logs if PERCY_CLIENT_ERROR_LOGS is not present', async () => {
+      process.env.PERCY_TOKEN = 'PERCY_TOKEN';
+      delete process.env.PERCY_CLIENT_ERROR_LOGS;
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
+      });
+      percy.build = { id: 1 };
+      percy.log.info('cli_test');
+      percy.log.info('ci_test', {}, true);
+      const logsObject = {
+        clilogs: logger.instance.query(log => log.debug !== 'ci'),
+        cilogs: logger.instance.query(log => log.debug === 'ci')
+      };
+
+      const content = base64encode(Pako.gzip(JSON.stringify(logsObject)));
+      await expectAsync(percy.sendBuildLogs()).toBeResolved();
+      expect(api.requests['/logs']).toBeDefined();
+      expect(api.requests['/logs'][0].method).toBe('POST');
+      expect(api.requests['/logs'][0].body).toEqual({
+        data: {
+          content: content,
+          service_name: 'cli',
+          build_id: 1,
+          reference_id: 'build_1',
+          base64encoded: true
+        }
+      });
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        "[percy] Build's CLI and CI logs sent successfully. Please share this log ID with Percy team in case of any issues - random_sha"
+      ]));
+    });
+
+    it('should catch the error in sending build logs', async () => {
+      process.env.PERCY_TOKEN = 'PERCY_TOKEN';
+      delete process.env.PERCY_CLIENT_ERROR_LOGS;
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
+      });
+      spyOn(percy.client, 'sendBuildLogs').and.rejectWith('error');
+      await expectAsync(percy.sendBuildLogs()).toBeResolved();
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy] Could not send the builds logs'
+      ]));
+    });
+  });
+
+  describe('#suggestionsForFix', () => {
+    beforeEach(() => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
+      });
+      percy.build = { id: 1 };
+    });
+
+    describe('when suggestionResponse.length > 0', () => {
+      describe('for build level error', () => {
+        it('should log failureReason, suggestion, and doc links', async () => {
+          spyOn(percy.client, 'getErrorAnalysis').and.returnValue([{
+            suggestion: 'some suggestion',
+            reason_message: 'some failure reason',
+            failure_reason: 'some failure title',
+            reference_doc_link: ['Doc Link 1', 'Doc Link 2']
+          }]);
+
+          await expectAsync(percy.suggestionsForFix('some_error')).toBeResolved();
+          expect(logger.stderr).toEqual(jasmine.arrayContaining([
+            '[percy] Detected error for percy build',
+            '[percy] Failure: some failure title',
+            '[percy] Failure Reason: some failure reason',
+            '[percy] Suggestion: some suggestion',
+            '[percy] Refer to the below Doc Links for the same',
+            '[percy] * Doc Link 1',
+            '[percy] * Doc Link 2'
+          ]));
+        });
+
+        describe('when no reference doc links is provided', () => {
+          it('should log failureReason and suggestion', async () => {
+            spyOn(percy.client, 'getErrorAnalysis').and.returnValue([{
+              suggestion: 'some suggestion',
+              failure_reason: 'some failure reason',
+              reference_doc_link: null
+            }]);
+
+            await expectAsync(percy.suggestionsForFix('some_error')).toBeResolved();
+            expect(logger.stderr).toEqual(jasmine.arrayContaining([
+              '[percy] Detected error for percy build',
+              '[percy] Failure: some failure reason',
+              '[percy] Failure Reason: undefined',
+              '[percy] Suggestion: some suggestion'
+            ]));
+          });
+        });
+      });
+
+      describe('for snapshotLevel error', () => {
+        it('should log failureReason, suggestion, and doc links with snapshotName', async () => {
+          spyOn(percy.client, 'getErrorAnalysis').and.returnValue([{
+            suggestion: 'some suggestion',
+            failure_reason: 'some failure reason',
+            reference_doc_link: ['Doc Link 1', 'Doc Link 2']
+          }]);
+
+          await expectAsync(percy.suggestionsForFix('some_error', {
+            snapshotLevel: true,
+            snapshotName: 'Snapshot 1'
+          })).toBeResolved();
+
+          expect(logger.stderr).toEqual(jasmine.arrayContaining([
+            '[percy] Detected erorr for Snapshot: Snapshot 1',
+            '[percy] Failure: some failure reason',
+            '[percy] Failure Reason: undefined',
+            '[percy] Suggestion: some suggestion',
+            '[percy] Refer to the below Doc Links for the same',
+            '[percy] * Doc Link 1',
+            '[percy] * Doc Link 2'
+          ]));
+        });
+      });
+    });
+
+    describe('when response throw error', () => {
+      describe('when Request failed with error code of EHOSTUNREACH', () => {
+        it('should catch and logs expected error', async () => {
+          spyOn(percy.client, 'getErrorAnalysis').and.rejectWith({ code: 'EHOSTUNREACH', message: 'some error' });
+
+          await expectAsync(percy.suggestionsForFix('some_error')).toBeResolved();
+
+          expect(logger.stderr).toEqual(jasmine.arrayContaining([
+            '[percy] percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted.',
+            '[percy] If inside a proxied envirnment, please configure the following environment variables: HTTP_PROXY, [ and optionally HTTPS_PROXY if you need it ]. Refer to our documentation for more details',
+            '[percy] Unable to analyze error logs'
+          ]));
+        });
+      });
+
+      describe('when Request failed with error code ECONNREFUSED and HTTPS_PROXY env is enabled', () => {
+        beforeEach(() => {
+          process.env.HTTPS_PROXY = 'https://abc.com';
+        });
+
+        afterEach(() => {
+          delete process.env.HTTPS_PROXY;
+        });
+
+        it('should catch and logs expected error', async () => {
+          spyOn(percy.client, 'getErrorAnalysis').and.rejectWith({ code: 'ECONNREFUSED', message: 'some error' });
+
+          await expectAsync(percy.suggestionsForFix('some_error')).toBeResolved();
+
+          expect(logger.stderr).toEqual(jasmine.arrayContaining([
+            '[percy] percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted.',
+            '[percy] Unable to analyze error logs'
+          ]));
+        });
+      });
+
+      describe('when request failed due to some unexpected issue', () => {
+        it('should catch and logs expected error', async () => {
+          spyOn(percy.client, 'getErrorAnalysis').and.rejectWith('some_error');
+
+          await expectAsync(percy.suggestionsForFix('some_error', {
+            snapshotLevel: true,
+            snapshotName: 'Snapshot 1'
+          })).toBeResolved();
+
+          expect(logger.stderr).toEqual(jasmine.arrayContaining([
+            '[percy] Unable to analyze error logs'
+          ]));
+        });
+      });
+    });
+  });
+
+  describe('#checkForNoSnapshotCommandError', () => {
+    it('should log No snapshot command was called', async () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      await percy.start();
+      await percy.stop(true);
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy] Detected error for percy build',
+        '[percy] Failure: Snapshot command was not called',
+        '[percy] Failure Reason: Snapshot Command was not called. please check your CI for errors',
+        '[percy] Suggestion: Try using percy snapshot command to take snapshots',
+        '[percy] Refer to the below Doc Links for the same',
+        '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
+      ]));
+    });
+
+    it('should not log No snapshot command was called', async () => {
+      await percy.start();
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>'
+      });
+      await percy.stop(true);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([]));
     });
   });
 });

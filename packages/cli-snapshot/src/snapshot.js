@@ -48,7 +48,8 @@ export const snapshot = command('snapshot', {
   ],
 
   percy: {
-    delayUploads: true
+    delayUploads: true,
+    projectType: 'web'
   },
 
   config: {
@@ -88,6 +89,7 @@ export const snapshot = command('snapshot', {
     yield* percy.yield.snapshot(options);
     yield* percy.yield.stop();
   } catch (error) {
+    log.error(error);
     await percy.stop(true);
     throw error;
   }
