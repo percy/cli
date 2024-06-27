@@ -100,7 +100,7 @@ function formatFilepath(filepath) {
   return filepath;
 }
 
-function getSiblings(root) {
+export function getSiblings(root) {
   const siblings = [path.join(root, '..')];
 
   // if we're in a pnpm package, add the root of the workspace node_modules to the list of siblings

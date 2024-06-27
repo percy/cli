@@ -1,7 +1,7 @@
 import path from 'path';
 import { logger, mockfs, fs } from '@percy/cli-command/test/helpers';
 import { mockModuleCommands, mockPnpCommands, mockLegacyCommands } from './helpers.js';
-import { importCommands } from '../src/commands.js';
+import { importCommands, getSiblings } from '../src/commands.js';
 
 describe('CLI commands', () => {
   beforeEach(async () => {
@@ -211,5 +211,32 @@ describe('CLI commands', () => {
       await expectAsync(importCommands()).toBeResolvedTo([]);
       expect(init).toHaveBeenCalled();
     });
+  });
+});
+
+describe('getSiblings', () => {
+  it('returns the parent directory for a path without .pnpm', () => {
+    const root = '/path/to/project';
+    const expected = [path.join(root, '..')];
+    expect(getSiblings(root)).toEqual(expected);
+  });
+
+  it('returns the parent directory and @percy path for a path with .pnpm', () => {
+    const root = '/path/to/.pnpm/project';
+    const expected = [
+      path.join(root, '..'),
+      path.join('/path/to', '@percy')
+    ];
+    expect(getSiblings(root)).toEqual(expected);
+  });
+
+  it('handles paths with .pnpm but no node_modules correctly', () => {
+    // This test ensures that the function's logic for manipulating the path works even without a direct node_modules relationship.
+    const root = '/path/with/.pnpm/and/no/node_modules';
+    const expected = [
+      path.join(root, '..'),
+      path.join('/path/with', '@percy')
+    ];
+    expect(getSiblings(root)).toEqual(expected);
   });
 });
