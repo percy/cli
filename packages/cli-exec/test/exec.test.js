@@ -88,7 +88,8 @@ describe('percy exec', () => {
       '[percy] Percy has started!',
       '[percy] Running "node --eval "',
       '[percy] Finalized build #1: https://percy.io/test/test/123',
-      "[percy] Build's CLI logs sent successfully. Please share this log ID with Percy team in case of any issues - random_sha"
+      "[percy] Build's CLI logs sent successfully. Please share this log ID with Percy team in case of any issues - random_sha",
+      '[percy] Command "node --eval " exited with status: 0'
     ]);
   });
 
@@ -112,7 +113,8 @@ describe('percy exec', () => {
       '[percy] Percy is disabled'
     ]);
     expect(logger.stdout).toEqual([
-      '[percy] Running "node --eval "'
+      '[percy] Running "node --eval "',
+      '[percy] Command "node --eval " exited with status: 0'
     ]);
   });
 
