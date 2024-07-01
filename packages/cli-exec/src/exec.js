@@ -90,6 +90,7 @@ export const exec = command('exec', {
   // stop percy if running (force stop if there is an error);
   await percy?.stop(!!error);
 
+  log.info(`Command "${[command, ...args].join(' ')}" exited with status: ${status}`);
   // forward any returned status code
   if (status) exit(status, error, false);
 
