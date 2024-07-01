@@ -290,13 +290,6 @@ describe('Command', () => {
 
     logger.reset();
     delete process.env.PERCY_EXIT_WITH_ZERO_ON_ERROR;
-
-    // await test(['0', 'Warning']);
-
-    // expect(test).not.toHaveProperty('never');
-    // expect(logger.stderr).toEqual([
-    //   '[percy] Warning'
-    // ]);
   });
 
   it('handles interrupting generator actions', async () => {
