@@ -46,14 +46,14 @@ export const exec = command('exec', {
     log.error("You must supply a command to run after '--'");
     log.info('Example:');
     log.info('  $ percy exec -- npm test');
-    exit(1);
+    exit(1, '', false);
   }
 
   // verify the provided command exists
   let { default: which } = await import('which');
 
   if (!which.sync(command, { nothrow: true })) {
-    exit(127, `Command not found "${command}"`);
+    exit(127, `Command not found "${command}"`, false);
   }
 
   // attempt to start percy if enabled
@@ -91,7 +91,7 @@ export const exec = command('exec', {
   await percy?.stop(!!error);
 
   // forward any returned status code
-  if (status) exit(status, error);
+  if (status) exit(status, error, false);
 
   // force exit post timeout
   await waitForTimeout(10000);
