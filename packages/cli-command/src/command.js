@@ -7,8 +7,6 @@ import * as builtInFlags from './flags.js';
 import formatHelp from './help.js';
 import parse from './parse.js';
 
-const percyExitWithZeroOnError = process.env.PERCY_EXIT_WITH_ZERO_ON_ERROR === 'true';
-
 // Copies a command definition and adds built-in flags and config options.
 function withBuiltIns(definition) {
   let def = { ...definition };
@@ -56,6 +54,7 @@ function withBuiltIns(definition) {
 
 // Helper to throw an error with an exit code and optional reason message
 function exit(exitCode, reason = '', shouldOverrideExitCode = true) {
+  let percyExitWithZeroOnError = process.env.PERCY_EXIT_WITH_ZERO_ON_ERROR === 'true';
   exitCode = percyExitWithZeroOnError && shouldOverrideExitCode ? 0 : exitCode;
   let err = reason instanceof Error ? reason : new Error(reason);
   // Adding additional object so that it can be used in runner function below.
@@ -161,6 +160,7 @@ export function command(name, definition, callback) {
 
         if (definition.exitOnError) {
           let shouldOverrideExitCode = err.shouldOverrideExitCode !== false;
+          let percyExitWithZeroOnError = process.env.PERCY_EXIT_WITH_ZERO_ON_ERROR === 'true';
           let exitCode = percyExitWithZeroOnError && shouldOverrideExitCode ? 0 : err.exitCode;
           process.exit(exitCode);
         }
