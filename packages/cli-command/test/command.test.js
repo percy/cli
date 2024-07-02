@@ -160,7 +160,22 @@ describe('Command', () => {
     });
 
     await expectAsync(test()).toBeRejected();
-    expect(spy).toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledWith(1);
+  });
+
+  it('handles maybe exiting on unhandled errors and exits with status 0 when PERCY_EXIT_WITH_ZERO_ON_ERROR is set to true', async () => {
+    process.env.PERCY_EXIT_WITH_ZERO_ON_ERROR = 'true';
+    let spy = spyOn(process, 'exit');
+
+    let test = command('test', {
+      exitOnError: true
+    }, () => {
+      throw new Error();
+    });
+
+    await expectAsync(test()).toBeRejected();
+    expect(spy).toHaveBeenCalledWith(0);
+    delete process.env.PERCY_EXIT_WITH_ZERO_ON_ERROR;
   });
 
   it('handles graceful exit errors', async () => {
@@ -180,8 +195,13 @@ describe('Command', () => {
         message = new Error(message);
       }
 
-      exit(code, message);
-      test.never = true;
+      if (code > 400) {
+        exit(code, message, false);
+        test.never = true;
+      } else {
+        exit(code, message);
+        test.never = true;
+      }
     });
 
     await test(['123']).catch(e => {
@@ -197,6 +217,7 @@ describe('Command', () => {
     await test(['456', 'Reason']).catch(e => {
       expect(e).toHaveProperty('message', 'Reason');
       expect(e).toHaveProperty('exitCode', 456);
+      expect(e).toHaveProperty('shouldOverrideExitCode', false);
     });
 
     expect(test).not.toHaveProperty('never');
@@ -212,6 +233,63 @@ describe('Command', () => {
     expect(logger.stderr).toEqual([
       '[percy] Warning'
     ]);
+  });
+
+  it('exits with status 0 when PERCY_EXIT_WITH_ZERO_ON_ERROR is set to true', async () => {
+    process.env.PERCY_EXIT_WITH_ZERO_ON_ERROR = 'true';
+    let test = command('test', {
+      args: [{
+        name: 'code',
+        parse: Number,
+        required: true
+      }, {
+        name: 'message'
+      }, {
+        shouldOverrideExitCode: 'shouldOverrideExitCode'
+      }]
+    }, ({ args, exit }) => {
+      let { code, message } = args;
+
+      // exercise coverage
+      if (message && code >= 1) {
+        message = new Error(message);
+      }
+
+      if (code > 400) {
+        exit(code, message, false);
+        test.never = true;
+      } else {
+        exit(code, message);
+        test.never = true;
+      }
+    });
+
+    await test(['123']).catch(e => {
+      expect(e).toHaveProperty('exitCode', 0);
+      expect(e).toHaveProperty('shouldOverrideExitCode', true);
+    });
+
+    expect(test).not.toHaveProperty('never');
+    expect(logger.stderr).toEqual([]);
+
+    logger.reset();
+
+    await test(['123', 'Reason']).catch(e => {
+      expect(e).toHaveProperty('message', 'Reason');
+      expect(e).toHaveProperty('exitCode', 0);
+      expect(e).toHaveProperty('shouldOverrideExitCode', true);
+    });
+
+    await test(['401', 'some reason']).catch(e => {
+      expect(e).toHaveProperty('message', 'some reason');
+      expect(e).toHaveProperty('exitCode', 401);
+      expect(e).toHaveProperty('shouldOverrideExitCode', false);
+    });
+
+    expect(test).not.toHaveProperty('never');
+
+    logger.reset();
+    delete process.env.PERCY_EXIT_WITH_ZERO_ON_ERROR;
   });
 
   it('handles interrupting generator actions', async () => {
