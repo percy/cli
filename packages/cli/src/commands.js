@@ -103,15 +103,12 @@ function formatFilepath(filepath) {
 export function getSiblings(root) {
   const siblings = [path.join(root, '..')];
 
-  // if we're in a pnpm package, add the root of the workspace node_modules to the list of siblings
-  if (root.includes('.pnpm')) {
-    // Find the index of the first occurrence of '.pnpm'
-    const nodeModulesIndex = root.indexOf('.pnpm');
-
-    // If 'node_modules' is found, extract the substring up to that point
-    if (nodeModulesIndex !== -1) {
-      siblings.push(path.join(root.substring(0, nodeModulesIndex), '@percy'));
-    }
+  // Check if Percy CLI is installed using '.pnpm' by searching
+  // ffor the .pnpm folder in the root path
+  const nodeModulesIndex = root.indexOf('.pnpm');
+  if (nodeModulesIndex !== -1) {
+    // add the parent directory of the .pnpm and append /@percy
+    siblings.push(path.join(root.substring(0, nodeModulesIndex), '@percy'));
   }
 
   return siblings;
