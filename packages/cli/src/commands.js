@@ -100,6 +100,20 @@ function formatFilepath(filepath) {
   return filepath;
 }
 
+export function getSiblings(root) {
+  const siblings = [path.join(root, '..')];
+
+  // Check if Percy CLI is installed using '.pnpm' by searching
+  // ffor the .pnpm folder in the root path
+  const nodeModulesIndex = root.indexOf('.pnpm');
+  if (nodeModulesIndex !== -1) {
+    // add the parent directory of the .pnpm and append /@percy
+    siblings.push(path.join(root.substring(0, nodeModulesIndex), '@percy'));
+  }
+
+  return siblings;
+}
+
 // Imports and returns compatibile CLI commands from various sources
 export async function importCommands() {
   let root = path.resolve(url.fileURLToPath(import.meta.url), '../..');
@@ -109,7 +123,7 @@ export async function importCommands() {
     // find included dependencies
     root,
     // find potential sibling packages
-    path.join(root, '..'),
+    ...getSiblings(root),
     // find any current project dependencies
     process.cwd()
   ]), async (roots, dir) => {
