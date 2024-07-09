@@ -109,6 +109,12 @@ export class Network {
     });
   }
 
+  getActiveRequests(filter = () => true) {
+    let requests = Array.from(this.#requests.values()).filter(filter);
+    requests = requests.filter((req) => !this.#finishedUrls.has(req.url));
+    return requests;
+  }
+
   // Validates that requestId is still valid as sometimes request gets cancelled and we have already executed
   // _forgetRequest for the same, but we still attempt to make a call for it and it fails
   // with Protocol error (Fetch.failRequest): Invalid InterceptionId.

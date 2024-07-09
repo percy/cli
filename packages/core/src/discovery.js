@@ -247,6 +247,12 @@ async function* captureSnapshotResources(page, snapshot, options) {
     yield waitForDiscoveryNetworkIdle(page, discovery);
     capture(processSnapshotResources(snapshot));
   }
+
+  const activeRequests = page.network.getActiveRequests((r) => hostnameMatches(discovery.allowedHostnames, r.url));
+  /* istanbul ignore if: race condition, very hard to mock this */
+  if (activeRequests.length > 0) {
+    log.debug(`There are some active requests while asset discovery try increasing networkIdleTimeout. \n ${activeRequests}`);
+  }
 }
 
 // Pushes all provided snapshots to a discovery queue with the provided callback, yielding to each
