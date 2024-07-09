@@ -116,7 +116,7 @@ export class Network {
     }
   }
 
-  getActiveRequests(filter = () => true) {
+  getActiveRequests(filter) {
     let requests = Array.from(this.#requests.values()).filter(filter);
     requests = requests.filter((req) => !this.#finishedUrls.has(req.url));
     return requests;
