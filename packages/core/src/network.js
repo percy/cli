@@ -112,7 +112,7 @@ export class Network {
     const activeRequests = this.getActiveRequests(filter);
     /* istanbul ignore if: race condition, very hard to mock this */
     if (activeRequests.length > 0) {
-      this.log.info(`There are some active requests while asset discovery try increasing networkIdleTimeout. \n ${activeRequests}`);
+      this.log.debug(`There are some active requests while asset discovery try increasing networkIdleTimeout. \n ${activeRequests}`);
     }
   }
 
