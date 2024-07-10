@@ -49,17 +49,18 @@ export class Page {
   }
 
   // Go to a URL and wait for navigation to occur
-  async goto(url, { waitUntil = 'load' } = {}) {
+  async goto(url, cookies, { waitUntil = 'load' } = {}) {
     this.log.debug(`Navigate to: ${url}`, this.meta);
 
     let navigate = async () => {
       // set cookies before navigation so we can default the domain to this hostname
-      if (this.session.browser.cookies.length) {
+      if (this.session.browser.cookies.length || cookies) {
         let defaultDomain = hostname(url);
 
+        cookies = this.session.browser.cookies.length > 0 ? this.session.browser.cookies : cookies;
         await this.session.send('Network.setCookies', {
           // spread is used to make a shallow copy of the cookie
-          cookies: this.session.browser.cookies.map(({ ...cookie }) => {
+          cookies: cookies.map(({ ...cookie }) => {
             if (!cookie.url) cookie.domain ||= defaultDomain;
             return cookie;
           })
