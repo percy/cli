@@ -25,11 +25,14 @@ describe('TimeIt', () => {
       // response for it as well.
       spyOn(Date, 'now').and.returnValues(date1, date1, date2, date1);
       const timeit = new TimeIt();
+      timeit.log.loglevel('debug');
       const callback = async () => { log.info('abcd'); };
       await timeit.measure('step', 'test', callback);
       expect(mockLogger.stdout).toEqual([
-        '[percy] abcd',
-        '[percy] step - test - 60s'
+        '[percy] abcd'
+      ]);
+      expect(mockLogger.stderr).toEqual([
+        '[percy:timer] step - test - 60s'
       ]);
     });
   });
