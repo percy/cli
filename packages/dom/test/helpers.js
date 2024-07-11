@@ -47,6 +47,7 @@ export function withExample(html, options = { withShadow: true, withRestrictedSh
     p.innerText = 'P tag outside body';
     document.documentElement.append(p);
   }
+  document.cookie = 'test-cokkie=test-value';
   return document;
 }
 
