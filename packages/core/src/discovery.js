@@ -158,7 +158,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
   let { discovery, additionalSnapshots = [], ...baseSnapshot } = snapshot;
   let { capture, captureWidths, deviceScaleFactor, mobile, captureForDevices } = options;
   let cookies = snapshot?.domSnapshot?.cookies;
-  if (!process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES || process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES !== 'true') {
+  if (process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES || process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES === 'true') {
     cookies = null;
   }
   if (typeof cookies === 'string') {
