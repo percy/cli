@@ -49,15 +49,36 @@ export class Page {
   }
 
   // Go to a URL and wait for navigation to occur
-  async goto(url, cookies, { waitUntil = 'load' } = {}) {
+  async goto(url, { waitUntil = 'load', cookies } = {}) {
     this.log.debug(`Navigate to: ${url}`, this.meta);
 
     let navigate = async () => {
+      const mergeCookies = (userPassedCookie, autoCapturedCookie) => {
+        const mergedCookies = [...userPassedCookie, ...autoCapturedCookie];
+        const uniqueCookies = [];
+        const names = new Set();
+
+        for (const cookie of mergedCookies) {
+          if (!names.has(cookie.name)) {
+            uniqueCookies.push(cookie);
+            names.add(cookie.name);
+          }
+        }
+
+        return uniqueCookies;
+      };
+
+      const userPassedCookie = this.session.browser.cookies;
       // set cookies before navigation so we can default the domain to this hostname
-      if (this.session.browser.cookies.length || cookies) {
+      if (userPassedCookie.length || cookies) {
         let defaultDomain = hostname(url);
 
-        cookies = this.session.browser.cookies.length > 0 ? this.session.browser.cookies : cookies;
+        if (userPassedCookie.length > 0 && cookies) {
+          cookies = mergeCookies(userPassedCookie, cookies);
+        } else if (userPassedCookie.length) {
+          cookies = userPassedCookie;
+        }
+
         await this.session.send('Network.setCookies', {
           // spread is used to make a shallow copy of the cookie
           cookies: cookies.map(({ ...cookie }) => {

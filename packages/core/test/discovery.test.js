@@ -1266,16 +1266,14 @@ describe('Discovery', () => {
       expect(cookie).toEqual('chocolate=654321');
     });
 
-    it('should priotize cookie passed by user', async () => {
+    it('should merge cookie passed by user', async () => {
       // test cookie array
       await startWithCookies([{
-        name: 'chocolate',
+        name: 'test-cookie',
         value: '654321'
       }, {
         name: 'shortbread',
-        value: '987654',
-        // not the snapshot url
-        url: 'http://example.com/'
+        value: '987654'
       }]);
 
       await percy.snapshot({
@@ -1283,7 +1281,7 @@ describe('Discovery', () => {
         url: 'http://localhost:8000',
         domSnapshot: {
           html: testDOM,
-          cookies: 'test-cookie=value'
+          cookies: 'test-cookie=value; cookie-name=cookie-value'
         }
       });
 
@@ -1291,7 +1289,7 @@ describe('Discovery', () => {
         '[percy] Snapshot taken: mmm cookies'
       ]));
 
-      expect(cookie).toEqual('chocolate=654321');
+      expect(cookie).toEqual('test-cookie=654321; shortbread=987654; cookie-name=cookie-value');
     });
 
     it('can send default collected cookies from serialization', async () => {

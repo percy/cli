@@ -157,9 +157,9 @@ async function* captureSnapshotResources(page, snapshot, options) {
   const log = logger('core:discovery');
   let { discovery, additionalSnapshots = [], ...baseSnapshot } = snapshot;
   let { capture, captureWidths, deviceScaleFactor, mobile, captureForDevices } = options;
-  let cookies = snapshot?.domSnapshot?.cookies;
-  if (process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES === 'true') {
-    cookies = null;
+  let cookies;
+  if (process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES !== 'true') {
+    cookies = snapshot?.domSnapshot?.cookies;
   }
   if (typeof cookies === 'string') {
     cookies = cookies.split('; ').map(c => c.split('='));
@@ -185,7 +185,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
 
   // navigate to the url
   yield resizePage(snapshot.widths[0]);
-  yield page.goto(snapshot.url, cookies);
+  yield page.goto(snapshot.url, { cookies });
 
   if (snapshot.execute) {
     // when any execute options are provided, inject snapshot options
