@@ -1317,6 +1317,31 @@ describe('Discovery', () => {
       expect(cookie).toEqual('test-cookie=value');
     });
 
+    it('does not use cookie if empty cookies is passed (in case of httponly)', async () => {
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      await percy.snapshot({
+        name: 'mmm cookies',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM,
+          cookies: ''
+        }
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: mmm cookies'
+      ]));
+
+      expect(cookie).toEqual(undefined);
+    });
+
     it('should not use captured cookie when PERCY_DO_NOT_USE_CAPTURED_COOKIES is set', async () => {
       process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES = true;
       await percy.stop();

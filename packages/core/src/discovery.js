@@ -161,7 +161,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
   if (process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES !== 'true') {
     cookies = snapshot?.domSnapshot?.cookies;
   }
-  if (typeof cookies === 'string') {
+  if (typeof cookies === 'string' && cookies !== '') {
     cookies = cookies.split('; ').map(c => c.split('='));
     cookies = cookies.map(([key, value]) => { return { name: key, value: value }; });
   }
