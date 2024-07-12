@@ -52,6 +52,7 @@ export class Page {
     if (!autoCapturedCookie) return userPassedCookie;
     if (userPassedCookie.length === 0) return autoCapturedCookie;
 
+    // User passed cookie will be prioritized over auto captured cookie
     const mergedCookies = [...userPassedCookie, ...autoCapturedCookie];
     const uniqueCookies = [];
     const names = new Set();
