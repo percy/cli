@@ -76,7 +76,7 @@ export class Network {
   }
 
   // Resolves after the timeout when there are no more in-flight requests.
-  async idle(filter = () => true, timeout = this.timeout) {
+  async idle(filter = () => true, timeout = this.timeout, captureResponsiveAssetsEnabled = false) {
     let requests = [];
 
     this.log.debug(`Wait for ${timeout}ms idle`, this.meta);
@@ -101,7 +101,7 @@ export class Network {
     }).catch(error => {
       if (error.message.startsWith('Timeout')) {
         this._throwTimeoutError((
-          'Timed out waiting for network requests to idle.'
+          `Timed out waiting for network requests to idle.\nCapturing responsive asset: ${captureResponsiveAssetsEnabled}`
         ), filter);
       } else {
         throw error;
