@@ -927,7 +927,7 @@ describe('Discovery', () => {
       });
 
       expect(logger.stderr).toContain(
-        '[percy] Error: Timed out waiting for network requests to idle.'
+        '[percy] Error: Timed out waiting for network requests to idle.\nCapturing responsive asset: false'
       );
 
       let expectedRequestBody = {
@@ -938,7 +938,7 @@ describe('Discovery', () => {
               meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             },
             {
-              message: 'Timed out waiting for network requests to idle.',
+              message: 'Timed out waiting for network requests to idle.\nCapturing responsive asset: false',
               meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             }
           ]
@@ -948,6 +948,14 @@ describe('Discovery', () => {
     });
 
     it('shows debug info when requests fail to idle in time', async () => {
+      api.reply('/discovery/device-details?build_id=123', () => [200, { data: [{ width: 375, deviceScaleFactor: 2 }, { width: 390, deviceScaleFactor: 3 }] }]);
+      await percy.stop();
+      percy = await Percy.start({
+        projectType: 'web',
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
       percy.loglevel('debug');
 
       await percy.snapshot({
@@ -956,7 +964,7 @@ describe('Discovery', () => {
       });
 
       expect(logger.stderr).toContain(jasmine.stringMatching([
-        '^\\[percy:core] Error: Timed out waiting for network requests to idle.',
+        '^\\[percy:core] Error: Timed out waiting for network requests to idle.\nCapturing responsive asset: true',
         '',
         '  Active requests:',
         '  - http://localhost:8000/img.gif',
@@ -972,7 +980,7 @@ describe('Discovery', () => {
               meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             },
             {
-              message: 'Timed out waiting for network requests to idle.\n\n  Active requests:\n  - http://localhost:8000/img.gif\n',
+              message: 'Timed out waiting for network requests to idle.\nCapturing responsive asset: true\n\n  Active requests:\n  - http://localhost:8000/img.gif\n',
               meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             }
           ]
