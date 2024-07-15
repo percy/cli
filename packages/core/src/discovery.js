@@ -160,8 +160,6 @@ async function* captureSnapshotResources(page, snapshot, options) {
 
   // iterate over device to trigger reqeusts and capture other dpr width
   async function* captureResponsiveAssets() {
-    if (!captureForDevices) return;
-
     for (const device of captureForDevices) {
       // We are not adding these widths and pixels ratios in loop below because we want to explicitly reload the page after resize which we dont do below
       yield* captureSnapshotResources(page, { ...snapshot, widths: [device.width] }, {
