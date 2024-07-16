@@ -42,7 +42,7 @@ export function serializeInputElements(ctx) {
           cloneEl.setAttribute('value', elem.value);
       }
     } catch (err) {
-      handleErrors(ctx, err, 'Error serializing input element: ', elem);
+      handleErrors(err, 'Error serializing input element: ', elem);
     }
   }
 }

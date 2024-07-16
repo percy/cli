@@ -44,7 +44,7 @@ export function serializeCanvas(ctx) {
       }
       cloneEl.remove();
     } catch (err) {
-      handleErrors(ctx, err, 'Error serializing canvas element: ', canvas);
+      handleErrors(err, 'Error serializing canvas element: ', canvas);
     }
   }
 }

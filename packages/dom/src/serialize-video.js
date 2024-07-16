@@ -28,7 +28,7 @@ export function serializeVideos(ctx) {
       // use a data attribute to avoid making a real request
       cloneEl.setAttribute('data-percy-serialized-attribute-poster', resource.url);
     } catch (err) {
-      handleErrors(ctx, err, 'Error serializing video element: ', video);
+      handleErrors(err, 'Error serializing video element: ', video);
     }
   }
 }

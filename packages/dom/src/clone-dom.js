@@ -64,7 +64,11 @@ export function cloneNodeAndShadow(ctx) {
       // clone light DOM
       walkTree(node.firstChild, clone);
     } catch (err) {
-      handleErrors(ctx, err, 'Error cloning node: ', node);
+      if (!err.handled) {
+        handleErrors(err, 'Error cloning node: ', node);
+      } else {
+        throw err;
+      }
     }
   };
 

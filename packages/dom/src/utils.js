@@ -46,7 +46,7 @@ export function rewriteLocalhostURL(url) {
 }
 
 // Utility function to handle errors
-export function handleErrors(ctx, error, prefixMessage, element = null, additionalData = {}) {
+export function handleErrors(error, prefixMessage, element = null, additionalData = {}) {
   let elementData = {};
   if (element) {
     elementData = {
@@ -56,12 +56,8 @@ export function handleErrors(ctx, error, prefixMessage, element = null, addition
     };
   }
   additionalData = { ...additionalData, ...elementData };
-  const errorDetails = {
-    message: `${prefixMessage || ''}: ${error.message}`,
-    stack: error.stack,
-    additionalData
-  };
 
-  ctx.errors.add(JSON.stringify(errorDetails));
+  error.message += `\n${prefixMessage || ''} \n${JSON.stringify(additionalData)}`;
+  error.handled = true;
   throw error;
 }

@@ -193,14 +193,6 @@ export function validateSnapshotOptions(options) {
     for (let w of domWarnings) log.warn(`- ${w}`);
   }
 
-  // log errors encountered during dom serialization
-  let domSerializationErrors = migrated.domSnapshot?.errors || [];
-
-  if (domSerializationErrors.length) {
-    log.warn('Encountered snapshot serialization errors:');
-    for (let e of domSerializationErrors) log.error(`- ${e}`);
-  }
-
   // warn on validation errors
   let errors = PercyConfig.validate(migrated, schema);
 

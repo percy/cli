@@ -55,7 +55,7 @@ export function serializeCSSOM(ctx) {
           cloneOwnerNode.parentNode.insertBefore(style, cloneOwnerNode.nextSibling);
           cloneOwnerNode.remove();
         } catch (err) {
-          handleErrors(ctx, err, 'Error serializing stylesheet: ', cloneOwnerNode, {
+          handleErrors(err, 'Error serializing stylesheet: ', cloneOwnerNode, {
             styleId: styleId
           });
         }
@@ -77,7 +77,7 @@ export function serializeCSSOM(ctx) {
             clone.prepend(styleLink);
           }
         } catch (err) {
-          handleErrors(ctx, err, 'Error serializing stylesheet from blob: ', null, {
+          handleErrors(err, 'Error serializing stylesheet from blob: ', null, {
             styleshhetHref: styleSheet.href
           });
         }
