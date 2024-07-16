@@ -44,3 +44,24 @@ export function styleSheetFromNode(node) {
 export function rewriteLocalhostURL(url) {
   return url.replace(/(http[s]{0,1}:\/\/)(localhost|127.0.0.1)[:\d+]*/, '$1render.percy.local');
 }
+
+// Utility function to handle errors
+export function handleErrors(ctx, error, prefixMessage, element = null, additionalData = {}) {
+  let elementData = {};
+  if (element) {
+    elementData = {
+      nodeName: element.nodeName,
+      classNames: element.className,
+      id: element.id
+    };
+  }
+  additionalData = { ...additionalData, ...elementData };
+  const errorDetails = {
+    message: `${prefixMessage || ''}: ${error.message}`,
+    stack: error.stack,
+    additionalData
+  };
+
+  ctx.errors.add(JSON.stringify(errorDetails));
+  throw error;
+}

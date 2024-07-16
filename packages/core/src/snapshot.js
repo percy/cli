@@ -45,7 +45,7 @@ function snapshotMatches(snapshot, include, exclude) {
         try {
           let [, parsed, flags] = RE_REGEXP.exec(predicate) || [];
           result = !!parsed && new RegExp(parsed, flags).test(snapshot.name);
-        } catch {}
+        } catch { }
       }
 
       return result;
@@ -181,7 +181,7 @@ export function validateSnapshotOptions(options) {
 
   // parse json dom snapshots
   if (schema === '/snapshot/dom' && typeof migrated.domSnapshot === 'string' &&
-      migrated.domSnapshot.startsWith('{') && migrated.domSnapshot.endsWith('}')) {
+    migrated.domSnapshot.startsWith('{') && migrated.domSnapshot.endsWith('}')) {
     migrated.domSnapshot = JSON.parse(migrated.domSnapshot);
   }
 
@@ -191,6 +191,14 @@ export function validateSnapshotOptions(options) {
   if (domWarnings.length) {
     log.warn('Encountered snapshot serialization warnings:');
     for (let w of domWarnings) log.warn(`- ${w}`);
+  }
+
+  // log errors encountered during dom serialization
+  let domSerializationErrors = migrated.domSnapshot?.errors || [];
+
+  if (domSerializationErrors.length) {
+    log.warn('Encountered snapshot serialization errors:');
+    for (let e of domSerializationErrors) log.error(`- ${e}`);
   }
 
   // warn on validation errors
@@ -310,7 +318,7 @@ export function createSnapshotsQueue(percy) {
 
   return queue
     .set({ concurrency })
-  // on start, create a new Percy build
+    // on start, create a new Percy build
     .handle('start', async () => {
       try {
         build = percy.build = {};
@@ -330,7 +338,7 @@ export function createSnapshotsQueue(percy) {
         queue.close(true);
       }
     })
-  // on end, maybe finalize the build and log about build info
+    // on end, maybe finalize the build and log about build info
     .handle('end', async () => {
       if (!percy.readyState) return;
 
@@ -343,11 +351,11 @@ export function createSnapshotsQueue(percy) {
         percy.log.warn('Build not created', { build });
       }
     })
-  // snapshots are unique by name and testCase both
+    // snapshots are unique by name and testCase both
     .handle('find', ({ name, testCase }, snapshot) => (
       snapshot.testCase === testCase && snapshot.name === name
     ))
-  // when pushed, maybe flush old snapshots or possibly merge with existing snapshots
+    // when pushed, maybe flush old snapshots or possibly merge with existing snapshots
     .handle('push', (snapshot, existing) => {
       let { name, meta } = snapshot;
 
@@ -362,8 +370,8 @@ export function createSnapshotsQueue(percy) {
       // merge snapshot options when uploads are deferred
       return mergeSnapshotOptions(existing, snapshot);
     })
-  // send snapshots to be uploaded to the build
-    .handle('task', async function*({ resources, ...snapshot }) {
+    // send snapshots to be uploaded to the build
+    .handle('task', async function* ({ resources, ...snapshot }) {
       let { name, meta } = snapshot;
 
       if (percy.client.screenshotFlow === 'automate' && percy.client.buildType !== 'automate') {
@@ -391,7 +399,7 @@ export function createSnapshotsQueue(percy) {
 
       return { ...snapshot, response };
     })
-  // handle possible build errors returned by the API
+    // handle possible build errors returned by the API
     .handle('error', async (snapshot, error) => {
       let result = { ...snapshot, error };
       let { name, meta } = snapshot;

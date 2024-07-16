@@ -6,6 +6,7 @@
 import markElement from './prepare-dom';
 import applyElementTransformations from './transform-dom';
 import serializeBase64 from './serialize-base64';
+import { handleErrors } from './utils';
 
 /**
  * Deep clone a document while also preserving shadow roots
@@ -14,52 +15,57 @@ import serializeBase64 from './serialize-base64';
 
 const ignoreTags = ['NOSCRIPT'];
 
-export function cloneNodeAndShadow({ dom, disableShadowDOM, resources }) {
+export function cloneNodeAndShadow(ctx) {
+  let { dom, disableShadowDOM, resources } = ctx;
   // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
-    let walkTree = (nextn, nextp) => {
-      while (nextn) {
-        if (!ignoreTags.includes(nextn.nodeName)) {
-          cloneNode(nextn, nextp);
+    try {
+      let walkTree = (nextn, nextp) => {
+        while (nextn) {
+          if (!ignoreTags.includes(nextn.nodeName)) {
+            cloneNode(nextn, nextp);
+          }
+          nextn = nextn.nextSibling;
         }
-        nextn = nextn.nextSibling;
+      };
+
+      // mark the node before cloning
+      markElement(node, disableShadowDOM);
+
+      let clone = node.cloneNode();
+
+      // We apply any element transformations here to avoid another treeWalk
+      applyElementTransformations(clone);
+
+      serializeBase64(clone, resources);
+
+      parent.appendChild(clone);
+
+      // shallow clone should not contain children
+      if (clone.children) {
+        Array.from(clone.children).forEach(child => clone.removeChild(child));
       }
-    };
 
-    // mark the node before cloning
-    markElement(node, disableShadowDOM);
-
-    let clone = node.cloneNode();
-
-    // We apply any element transformations here to avoid another treeWalk
-    applyElementTransformations(clone);
-
-    serializeBase64(clone, resources);
-
-    parent.appendChild(clone);
-
-    // shallow clone should not contain children
-    if (clone.children) {
-      Array.from(clone.children).forEach(child => clone.removeChild(child));
-    }
-
-    // clone shadow DOM
-    if (node.shadowRoot && !disableShadowDOM) {
-      // create shadowRoot
-      if (clone.shadowRoot) {
-        // it may be set up in a custom element's constructor
-        clone.shadowRoot.innerHTML = '';
-      } else {
-        clone.attachShadow({
-          mode: 'open'
-        });
+      // clone shadow DOM
+      if (node.shadowRoot && !disableShadowDOM) {
+        // create shadowRoot
+        if (clone.shadowRoot) {
+          // it may be set up in a custom element's constructor
+          clone.shadowRoot.innerHTML = '';
+        } else {
+          clone.attachShadow({
+            mode: 'open'
+          });
+        }
+        // clone dom elements
+        walkTree(node.shadowRoot.firstChild, clone.shadowRoot);
       }
-      // clone dom elements
-      walkTree(node.shadowRoot.firstChild, clone.shadowRoot);
-    }
 
-    // clone light DOM
-    walkTree(node.firstChild, clone);
+      // clone light DOM
+      walkTree(node.firstChild, clone);
+    } catch (err) {
+      handleErrors(ctx, err, 'Error cloning node: ', node);
+    }
   };
 
   let fragment = dom.createDocumentFragment();

@@ -71,6 +71,7 @@ export function serializeDOM(options) {
   let ctx = {
     resources: new Set(),
     warnings: new Set(),
+    errors: new Set(),
     hints: new Set(),
     cache: new Map(),
     enableJavaScript,
@@ -108,7 +109,8 @@ export function serializeDOM(options) {
     html: serializeHTML(ctx),
     warnings: Array.from(ctx.warnings),
     resources: Array.from(ctx.resources),
-    hints: Array.from(ctx.hints)
+    hints: Array.from(ctx.hints),
+    errors: Array.from(ctx.errors)
   };
 
   return stringifyResponse

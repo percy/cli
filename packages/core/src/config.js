@@ -440,6 +440,10 @@ export const snapshotSchema = {
                 type: 'array',
                 items: { type: 'string' }
               },
+              errors: {
+                type: 'array',
+                items: { type: 'string' }
+              },
               resources: {
                 type: 'array',
                 items: {

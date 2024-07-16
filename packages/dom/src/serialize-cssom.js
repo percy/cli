@@ -1,4 +1,4 @@
-import { resourceFromText, styleSheetFromNode } from './utils';
+import { resourceFromText, styleSheetFromNode, handleErrors } from './utils';
 import { uid } from './prepare-dom';
 
 // Returns true if a stylesheet is a CSSOM-based stylesheet.
@@ -25,7 +25,8 @@ function createStyleResource(styleSheet) {
   return resource;
 }
 
-export function serializeCSSOM({ dom, clone, resources, cache, warnings }) {
+export function serializeCSSOM(ctx) {
+  let { dom, clone, resources, cache, warnings } = ctx;
   // in-memory CSSOM into their respective DOM nodes.
   let styleSheets = null;
   // catch error in case styleSheets property is not available (overwritten to throw error)
@@ -37,34 +38,48 @@ export function serializeCSSOM({ dom, clone, resources, cache, warnings }) {
   if (styleSheets) {
     for (let styleSheet of styleSheets) {
       if (isCSSOM(styleSheet)) {
-        let styleId = styleSheet.ownerNode.getAttribute('data-percy-element-id');
-        let cloneOwnerNode = clone.querySelector(`[data-percy-element-id="${styleId}"]`);
-        if (styleSheetsMatch(styleSheet, styleSheetFromNode(cloneOwnerNode))) continue;
-        let style = document.createElement('style');
+        let styleId;
+        let cloneOwnerNode;
+        try {
+          styleId = styleSheet.ownerNode.getAttribute('data-percy-element-id');
+          cloneOwnerNode = clone.querySelector(`[data-percy-element-id="${styleId}"]`);
+          if (styleSheetsMatch(styleSheet, styleSheetFromNode(cloneOwnerNode))) continue;
+          let style = document.createElement('style');
 
-        style.type = 'text/css';
-        style.setAttribute('data-percy-element-id', styleId);
-        style.setAttribute('data-percy-cssom-serialized', 'true');
-        style.innerHTML = Array.from(styleSheet.cssRules)
-          .map(cssRule => cssRule.cssText).join('\n');
+          style.type = 'text/css';
+          style.setAttribute('data-percy-element-id', styleId);
+          style.setAttribute('data-percy-cssom-serialized', 'true');
+          style.innerHTML = Array.from(styleSheet.cssRules)
+            .map(cssRule => cssRule.cssText).join('\n');
 
-        cloneOwnerNode.parentNode.insertBefore(style, cloneOwnerNode.nextSibling);
-        cloneOwnerNode.remove();
+          cloneOwnerNode.parentNode.insertBefore(style, cloneOwnerNode.nextSibling);
+          cloneOwnerNode.remove();
+        } catch (err) {
+          handleErrors(ctx, err, 'Error serializing stylesheet: ', cloneOwnerNode, {
+            styleId: styleId
+          });
+        }
       } else if (styleSheet.href?.startsWith('blob:')) {
-        const styleLink = document.createElement('link');
-        styleLink.setAttribute('rel', 'stylesheet');
-        let resource = createStyleResource(styleSheet);
-        resources.add(resource);
+        try {
+          const styleLink = document.createElement('link');
+          styleLink.setAttribute('rel', 'stylesheet');
+          let resource = createStyleResource(styleSheet);
+          resources.add(resource);
 
-        styleLink.setAttribute('data-percy-blob-stylesheets-serialized', 'true');
-        styleLink.setAttribute('data-percy-serialized-attribute-href', resource.url);
+          styleLink.setAttribute('data-percy-blob-stylesheets-serialized', 'true');
+          styleLink.setAttribute('data-percy-serialized-attribute-href', resource.url);
 
-        /* istanbul ignore next: tested, but coverage is stripped */
-        if (clone.constructor.name === 'HTMLDocument' || clone.constructor.name === 'DocumentFragment') {
-          // handle document and iframe
-          clone.body.prepend(styleLink);
-        } else if (clone.constructor.name === 'ShadowRoot') {
-          clone.prepend(styleLink);
+          /* istanbul ignore next: tested, but coverage is stripped */
+          if (clone.constructor.name === 'HTMLDocument' || clone.constructor.name === 'DocumentFragment') {
+            // handle document and iframe
+            clone.body.prepend(styleLink);
+          } else if (clone.constructor.name === 'ShadowRoot') {
+            clone.prepend(styleLink);
+          }
+        } catch (err) {
+          handleErrors(ctx, err, 'Error serializing stylesheet from blob: ', null, {
+            styleshhetHref: styleSheet.href
+          });
         }
       }
     }
