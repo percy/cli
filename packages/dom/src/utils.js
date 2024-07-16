@@ -57,7 +57,7 @@ export function handleErrors(error, prefixMessage, element = null, additionalDat
   }
   additionalData = { ...additionalData, ...elementData };
 
-  error.message += `\n${prefixMessage || ''} \n${JSON.stringify(additionalData)}`;
+  error.message += `\n${prefixMessage} \n${JSON.stringify(additionalData)}`;
   error.handled = true;
   throw error;
 }

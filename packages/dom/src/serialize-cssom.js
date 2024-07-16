@@ -78,7 +78,7 @@ export function serializeCSSOM(ctx) {
           }
         } catch (err) {
           handleErrors(err, 'Error serializing stylesheet from blob: ', null, {
-            styleshhetHref: styleSheet.href
+            stylesheetHref: styleSheet.href
           });
         }
       }

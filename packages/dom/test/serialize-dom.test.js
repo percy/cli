@@ -337,4 +337,20 @@ describe('serializeDOM', () => {
       expect(result.hints).toEqual([]);
     });
   });
+
+  describe('error handling', () => {
+    it('adds node details in error message and rethrow it', () => {
+      let oldURL = window.URL;
+      window.URL = undefined;
+      withExample(`
+        <img id="test" class="test1 test2" src="data:image/png;base64,iVBORw0KGgo" alt="Example Image">
+        `);
+
+      expect(() => serializeDOM()).toThrowMatching((error) => {
+        return error.message.includes('Error cloning node:') &&
+          error.message.includes('{"nodeName":"IMG","classNames":"test1 test2","id":"test"}');
+      });
+      window.URL = oldURL;
+    });
+  });
 });
