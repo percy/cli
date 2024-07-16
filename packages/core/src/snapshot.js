@@ -363,7 +363,7 @@ export function createSnapshotsQueue(percy) {
       return mergeSnapshotOptions(existing, snapshot);
     })
     // send snapshots to be uploaded to the build
-    .handle('task', async function* ({ resources, ...snapshot }) {
+    .handle('task', async function*({ resources, ...snapshot }) {
       let { name, meta } = snapshot;
 
       if (percy.client.screenshotFlow === 'automate' && percy.client.buildType !== 'automate') {
