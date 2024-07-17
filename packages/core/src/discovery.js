@@ -76,8 +76,8 @@ function debugSnapshotOptions(snapshot) {
 }
 
 // Wait for a page's asset discovery network to idle
-function waitForDiscoveryNetworkIdle(page, options, captureResponsiveAssetsEnabled) {
-  let { allowedHostnames, networkIdleTimeout } = options;
+function waitForDiscoveryNetworkIdle(page, options) {
+  let { allowedHostnames, networkIdleTimeout, captureResponsiveAssetsEnabled } = options;
   let filter = r => hostnameMatches(allowedHostnames, r.url);
 
   return page.network.idle(filter, networkIdleTimeout, captureResponsiveAssetsEnabled);
@@ -156,25 +156,25 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
 async function* captureSnapshotResources(page, snapshot, options) {
   const log = logger('core:discovery');
   let { discovery, additionalSnapshots = [], ...baseSnapshot } = snapshot;
-  let { capture, captureWidths, deviceScaleFactor, mobile, captureForDevices, captureResponsiveAssetsEnabled } = options;
+  let { capture, captureWidths, deviceScaleFactor, mobile, captureForDevices } = options;
 
   // iterate over device to trigger reqeusts and capture other dpr width
   async function* captureResponsiveAssets() {
     for (const device of captureForDevices) {
+      discovery = { ...discovery, captureResponsiveAssetsEnabled: true };
+
       // We are not adding these widths and pixels ratios in loop below because we want to explicitly reload the page after resize which we dont do below
-      yield* captureSnapshotResources(page, { ...snapshot, widths: [device.width] }, {
-        captureResponsiveAssetsEnabled,
+      yield* captureSnapshotResources(page, { ...snapshot, discovery, widths: [device.width] }, {
         deviceScaleFactor: device.deviceScaleFactor,
         mobile: true
       });
-      yield waitForDiscoveryNetworkIdle(page, discovery, captureResponsiveAssetsEnabled);
+      yield waitForDiscoveryNetworkIdle(page, discovery);
     }
   }
 
   // used to take snapshots and remove any discovered root resource
   async function* takeSnapshot(options, width) {
     if (captureWidths) options = { ...options, width };
-    options = { ...options, captureResponsiveAssetsEnabled };
     let captured = await page.snapshot(options);
     yield* captureResponsiveAssets();
 
@@ -222,7 +222,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
       for (let i = 0; i < widths.length - 1; i++) {
         if (captureWidths) yield* takeSnapshot(snap, width);
         yield page.evaluate(execute?.beforeResize);
-        yield waitForDiscoveryNetworkIdle(page, discovery, captureResponsiveAssetsEnabled);
+        yield waitForDiscoveryNetworkIdle(page, discovery);
         yield resizePage(width = widths[i + 1]);
         yield page.evaluate(execute?.afterResize);
       }
@@ -248,7 +248,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
 
   // wait for final network idle when not capturing DOM
   if (capture && snapshot.domSnapshot) {
-    yield waitForDiscoveryNetworkIdle(page, discovery, captureResponsiveAssetsEnabled);
+    yield waitForDiscoveryNetworkIdle(page, discovery);
     yield* captureResponsiveAssets();
     capture(processSnapshotResources(snapshot));
   }
@@ -351,8 +351,7 @@ export function createDiscoveryQueue(percy) {
             yield* captureSnapshotResources(page, snapshot, {
               captureWidths: !snapshot.domSnapshot && percy.deferUploads,
               capture: callback,
-              captureForDevices: percy.deviceDetails || [],
-              captureResponsiveAssetsEnabled: !!percy.deviceDetails
+              captureForDevices: percy.deviceDetails || []
             });
           } finally {
             // always close the page when done

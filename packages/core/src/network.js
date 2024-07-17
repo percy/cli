@@ -100,9 +100,9 @@ export class Network {
       idle: timeout
     }).catch(error => {
       if (error.message.startsWith('Timeout')) {
-        this._throwTimeoutError((
-          `Timed out waiting for network requests to idle.\nCapturing responsive asset: ${captureResponsiveAssetsEnabled}`
-        ), filter);
+        let message = 'Timed out waiting for network requests to idle.';
+        if (captureResponsiveAssetsEnabled) message += '\nWhile capturing responsive assets try setting PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS to true.';
+        this._throwTimeoutError(message, filter);
       } else {
         throw error;
       }

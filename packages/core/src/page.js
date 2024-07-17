@@ -150,7 +150,6 @@ export class Page {
     waitForTimeout,
     waitForSelector,
     execute,
-    captureResponsiveAssetsEnabled,
     ...snapshot
   }) {
     let { name, width, enableJavaScript, disableShadowDOM, domTransformation, reshuffleInvalidTags } = snapshot;
@@ -175,7 +174,7 @@ export class Page {
     }
 
     // wait for any final network activity before capturing the dom snapshot
-    await this.network.idle(undefined, undefined, captureResponsiveAssetsEnabled);
+    await this.network.idle();
 
     await this.insertPercyDom();
 
