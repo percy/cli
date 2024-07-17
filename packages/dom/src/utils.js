@@ -58,6 +58,7 @@ export function handleErrors(error, prefixMessage, element = null, additionalDat
   additionalData = { ...additionalData, ...elementData };
 
   error.message += `\n${prefixMessage} \n${JSON.stringify(additionalData)}`;
+  error.message += '\n Please validate that your DOM is as per W3C standards using any online tool';
   error.handled = true;
   throw error;
 }
