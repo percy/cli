@@ -645,6 +645,32 @@ describe('Discovery', () => {
     ]));
   });
 
+  it('debug error log only for invalid network url', async () => {
+    let err = new Error('Some Invalid Error');
+    spyOn(global, 'decodeURI').and.callFake((url) => {
+      if (url === 'http://localhost:8000/style.css') {
+        throw err;
+      }
+      return url;
+    });
+
+    percy.loglevel('debug');
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy:core:page] Navigate to: http://localhost:8000/',
+      '[percy:core:discovery] Handling request: http://localhost:8000/',
+      '[percy:core:discovery] - Serving root resource',
+      `[percy:core:discovery] ${err.stack}`,
+      '[percy:core:discovery] Handling request: http://localhost:8000/style.css',
+      '[percy:core:discovery] Handling request: http://localhost:8000/img.gif'
+    ]));
+  });
+
   it('detect invalid network url', async () => {
     percy.loglevel('debug');
     await percy.snapshot({

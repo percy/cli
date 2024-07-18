@@ -187,6 +187,21 @@ describe('Snapshot', () => {
           `[percy] Detected invalid network URL: ${givenURL}`
         ]));
       });
+
+      it('debug logs and does not warn if error other than URIError', async () => {
+        spyOn(global, 'decodeURI').and.callFake(() => {
+          throw new Error('Some Invalid Error');
+        });
+
+        let givenURL = 'http://localhost:8000/';
+        await percy.snapshot([
+          { url: givenURL }
+        ]);
+
+        expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+          `[percy] Invalid URL detected for url: ${givenURL}`
+        ]));
+      });
     });
 
     describe('with valid snpashot url', () => {
