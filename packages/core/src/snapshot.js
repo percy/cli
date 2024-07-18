@@ -96,6 +96,7 @@ function mapSnapshotOptions(snapshots, context) {
         snapshot.url = modifiedURL;
       }
     } catch (error) {
+      log.debug(error);
       if (error.name === 'URIError') {
         log.warn(`Invalid URL detected for url: ${snapshot.url}`);
       }

@@ -203,6 +203,7 @@ export class Network {
         this.log.debug(`Inconsistent network URL detected for url: ${request.url}.`);
       }
     } catch (error) {
+      this.log.debug(error);
       if (error.name === 'URIError') {
         this.log.warn(`Detected invalid network URL: ${request.url}`);
       }
