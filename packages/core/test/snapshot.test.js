@@ -177,14 +177,15 @@ describe('Snapshot', () => {
       });
 
       it('warns for invalid characters that can not get encoded properly', async () => {
-        let givenURL = 'http://localhost:8000/advanced-search/cf1a5848%-f658-4939-be11-dctwo-{ abc [dbd] }/2253';
+        let givenURL = 'http://localhost:8000/advanced-search/cf1a5848%-f658-4939-be11-dct';
         await percy.snapshot([
           { url: givenURL }
         ]);
 
-        expect(logger.stderr).toEqual(jasmine.arrayContaining[
-          '[percy] Invalid URL detected for url: http://localhost:8000/advanced-search/cf1a5848%-f658-4939-be11-dctwo-{ abc [dbd] }/2253'
-        ]);
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          `[percy] Invalid URL detected for url: ${givenURL}`,
+          `[percy] Detected invalid network URL: ${givenURL}`
+        ]));
       });
     });
 
