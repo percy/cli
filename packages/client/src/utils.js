@@ -4,6 +4,7 @@ import url from 'url';
 import path from 'path';
 import crypto from 'crypto';
 import logger from '@percy/logger';
+import { getSystemProxy } from './detect-proxy.js';
 
 // Formats a raw byte integer as a string
 export function formatBytes(int) {
@@ -242,6 +243,34 @@ export function tagsList(tags) {
   }
 
   return tagsArr;
+}
+
+export async function detectSystemProxyAndLog(applyProxy = false) {
+  // if proxy is already set no need to check again
+  if (process.env.HTTPS_PROXY || process.env.HTTP_PROXY) return;
+
+  let proxyPresent = false;
+  const log = logger('client:utils');
+  // Checking proxy shouldn't cause failure
+  try {
+    const proxies = await getSystemProxy();
+    proxyPresent = proxies.length !== 0;
+    if (proxyPresent && applyProxy) {
+      proxies.forEach((proxy) => {
+        if (proxy.type === 'HTTPS') {
+          process.env.HTTPS_PROXY = 'https://' + proxy.host + ':' + proxy.port;
+        } else if (proxy.type === 'HTTP') {
+          process.env.HTTP_PROXY = 'http://' + proxy.host + ':' + proxy.port;
+        }
+      });
+    }
+    if (proxyPresent && !applyProxy) {
+      log.warn('We have detected a system level proxy in your system. use HTTP_PROXY or HTTPS_PROXY env vars or To auto apply proxy set useSystemProxy: true under percy in config file');
+    }
+  } catch (e) {
+    log.debug(`Failed to detect system proxy ${e}`);
+  }
+  return proxyPresent;
 }
 
 export {

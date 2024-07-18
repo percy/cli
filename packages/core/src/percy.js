@@ -27,6 +27,7 @@ import {
   createDiscoveryQueue
 } from './discovery.js';
 import { WaitForJob } from './wait-for-job.js';
+import { detectSystemProxyAndLog } from '../../client/src/utils.js';
 
 // A Percy instance will create a new build when started, handle snapshot creation, asset discovery,
 // and resource uploads, and will finalize the build when stopped. Snapshots are processed
@@ -163,6 +164,9 @@ export class Percy {
       if (process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {
         this.log.warn('Notice: Percy collects CI logs for service improvement, stored for 30 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false');
       }
+      // Not awaiting proxy check as this can be asyncronous when not enabled
+      const detectProxy = detectSystemProxyAndLog(this.config.percy.useSystemProxy);
+      if (this.config.percy.useSystemProxy) await detectProxy;
       // start the snapshots queue immediately when not delayed or deferred
       if (!this.delayUploads && !this.deferUploads) yield this.#snapshots.start();
       // do not start the discovery queue when not needed
