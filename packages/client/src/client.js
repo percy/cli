@@ -324,7 +324,7 @@ export class PercyClient {
   // Uploads a single resource to the active build. If `filepath` is provided,
   // `content` is read from the filesystem. The sha is optional and will be
   // created from `content` if one is not provided.
-  async uploadResource(buildId, { url, sha, filepath, content } = {}) {
+  async uploadResource(buildId, snapshotId, { url, sha, filepath, content } = {}) {
     validateId('build', buildId);
     if (filepath) {
       content = await fs.promises.readFile(filepath);
@@ -334,7 +334,7 @@ export class PercyClient {
     }
     let encodedContent = base64encode(content);
 
-    this.log.debug(`Uploading ${formatBytes(encodedContent.length)} resource: ${url}...`);
+    this.log.debug(`Uploading ${formatBytes(encodedContent.length)} resource for snapshotId: ${snapshotId}: ${url}...`);
     this.mayBeLogUploadSize(encodedContent.length);
 
     return this.post(`builds/${buildId}/resources`, {
@@ -349,13 +349,13 @@ export class PercyClient {
   }
 
   // Uploads resources to the active build concurrently, two at a time.
-  async uploadResources(buildId, resources) {
+  async uploadResources(buildId, snapshotId, resources) {
     validateId('build', buildId);
-    this.log.debug(`Uploading resources for ${buildId}...`);
+    this.log.debug(`Uploading resources for BuildId: ${buildId} and SnapshotId: ${snapshotId}...`);
 
     return pool(function*() {
       for (let resource of resources) {
-        yield this.uploadResource(buildId, resource);
+        yield this.uploadResource(buildId, snapshotId, resource);
       }
     }, this, 2);
   }
@@ -439,11 +439,14 @@ export class PercyClient {
   // missing resources for the snapshot, and finalizing the snapshot.
   async sendSnapshot(buildId, options) {
     let snapshot = await this.createSnapshot(buildId, options);
+    let snapshotId = snapshot.data.id;
+    this.log.debug(`Created snapshot with Id: ${snapshotId}...`);
     let missing = snapshot.data.relationships?.['missing-resources']?.data;
 
+    this.log.debug(`Found ${missing?.length} missing resources for snapshotId: ${snapshotId}...`);
     if (missing?.length) {
       let resources = options.resources.reduce((acc, r) => Object.assign(acc, { [r.sha]: r }), {});
-      await this.uploadResources(buildId, missing.map(({ id }) => resources[id]));
+      await this.uploadResources(buildId, snapshotId, missing.map(({ id }) => resources[id]));
     }
 
     await this.finalizeSnapshot(snapshot.data.id);
