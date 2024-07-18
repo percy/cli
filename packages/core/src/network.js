@@ -204,7 +204,7 @@ export class Network {
       }
     } catch (error) {
       if (error.name === 'URIError') {
-        this.log.debug(`Invalid network URL: ${request.url}`);
+        this.log.warn(`Detected invalid network URL: ${request.url}`);
       }
     }
 
