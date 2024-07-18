@@ -1,7 +1,7 @@
 import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
-import { getProxy } from '@percy/client/utils';
+import { getProxy, detectSystemProxyAndLog } from '@percy/client/utils';
 import Browser from './browser.js';
 import Pako from 'pako';
 import {
@@ -27,7 +27,6 @@ import {
   createDiscoveryQueue
 } from './discovery.js';
 import { WaitForJob } from './wait-for-job.js';
-import { detectSystemProxyAndLog } from '../../client/src/utils.js';
 
 // A Percy instance will create a new build when started, handle snapshot creation, asset discovery,
 // and resource uploads, and will finalize the build when stopped. Snapshots are processed
