@@ -373,6 +373,22 @@ export function base64encode(content) {
     .toString('base64');
 }
 
+// This function replaces invalid character that are not the
+// part of valid URI syntax with there correct encoded value.
+// Also, if a character is a part of valid URI syntax, those characters
+// are not encoded
+// Eg: [abc] -> gets encoded to %5Babc%5D
+// ab c -> ab%20c
+export function modifyURL(url) {
+  // In case the url is partially encoded, then directly using encodeURI()
+  // will encode those characters again. Therefore decodeURI once helps is decoding
+  // partially encoded URL and then after encoding it again, full URL get encoded
+  // correctly.
+  let decodeURL = decodeURI(url); // This can throw error, so handle it will trycatch
+  let modifiedURL = encodeURI(decodeURL);
+  return modifiedURL;
+}
+
 export function snapshotLogName(name, meta) {
   if (meta?.snapshot?.testCase) {
     return `testCase: ${meta.snapshot.testCase}, ${name}`;

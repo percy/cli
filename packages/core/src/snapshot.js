@@ -7,7 +7,8 @@ import {
   request,
   hostnameMatches,
   yieldTo,
-  snapshotLogName
+  snapshotLogName,
+  modifyURL
 } from './utils.js';
 import { JobData } from './wait-for-job.js';
 
@@ -72,6 +73,7 @@ function snapshotMatches(snapshot, include, exclude) {
 
 // Accepts an array of snapshots to filter and map with matching options.
 function mapSnapshotOptions(snapshots, context) {
+  let log = logger('core:snapshot');
   if (!snapshots?.length) return [];
 
   // reduce options into a single function
@@ -86,8 +88,21 @@ function mapSnapshotOptions(snapshots, context) {
     // transform snapshot URL shorthand into an object
     if (typeof snapshot === 'string') snapshot = { url: snapshot };
 
-    // normalize the snapshot url and use it for the default name
+    try {
+      // encoding snapshot url, if contians invalid URI characters/syntax
+      let modifiedURL = modifyURL(snapshot.url);
+      if (modifiedURL !== snapshot.url) {
+        log.info(`Snapshot URL modified to: ${modifiedURL}`);
+        snapshot.url = modifiedURL;
+      }
+    } catch (error) {
+      if (error.name === 'URIError') {
+        log.warn(`Invalid URL detected for url: ${snapshot.url}`);
+      }
+    }
+
     let url = validURL(snapshot.url, context?.baseUrl);
+    // normalize the snapshot url and use it for the default name
     snapshot.name ||= `${url.pathname}${url.search}${url.hash}`;
     snapshot.url = url.href;
 
