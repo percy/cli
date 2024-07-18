@@ -662,7 +662,7 @@ describe('Discovery', () => {
     ]));
   });
 
-  fit('detect inconsistent network url', async () => {
+  it('detect inconsistent network url', async () => {
     percy.loglevel('debug');
 
     let testCSS = dedent`
