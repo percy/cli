@@ -528,6 +528,19 @@ describe('Percy', () => {
       })).toThrowError('Build has failed');
     });
 
+    it('skips system check if proxy already present', async () => {
+      process.env.HTTP_PROXY = 'some-proxy';
+      spyOn(DetectProxy.prototype, 'getSystemProxy').and.returnValue([{ type: 'HTTP', host: 'proxy.example.com', port: 8080 }]);
+      await expectAsync(percy.start()).toBeResolved();
+
+      expect(logger.stderr).toEqual([
+      ]);
+      expect(logger.stdout).toEqual([
+        '[percy] Percy has started!'
+      ]);
+      delete process.env.HTTP_PROXY;
+    });
+
     it('checks for system level proxy and print warning', async () => {
       spyOn(DetectProxy.prototype, 'getSystemProxy').and.returnValue([{ type: 'HTTP', host: 'proxy.example.com', port: 8080 }]);
       await expectAsync(percy.start()).toBeResolved();
