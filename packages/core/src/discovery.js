@@ -77,10 +77,10 @@ function debugSnapshotOptions(snapshot) {
 
 // Wait for a page's asset discovery network to idle
 function waitForDiscoveryNetworkIdle(page, options) {
-  let { allowedHostnames, networkIdleTimeout } = options;
+  let { allowedHostnames, networkIdleTimeout, captureResponsiveAssetsEnabled } = options;
   let filter = r => hostnameMatches(allowedHostnames, r.url);
 
-  return page.network.idle(filter, networkIdleTimeout);
+  return page.network.idle(filter, networkIdleTimeout, captureResponsiveAssetsEnabled);
 }
 
 // Creates an initial resource map for a snapshot containing serialized DOM
@@ -166,10 +166,26 @@ async function* captureSnapshotResources(page, snapshot, options) {
     cookies = cookies.map(([key, value]) => { return { name: key, value: value }; });
   }
 
+  // iterate over device to trigger reqeusts and capture other dpr width
+  async function* captureResponsiveAssets() {
+    for (const device of captureForDevices) {
+      discovery = { ...discovery, captureResponsiveAssetsEnabled: true };
+
+      // We are not adding these widths and pixels ratios in loop below because we want to explicitly reload the page after resize which we dont do below
+      yield* captureSnapshotResources(page, { ...snapshot, discovery, widths: [device.width] }, {
+        deviceScaleFactor: device.deviceScaleFactor,
+        mobile: true
+      });
+      yield waitForDiscoveryNetworkIdle(page, discovery);
+    }
+  }
+
   // used to take snapshots and remove any discovered root resource
-  let takeSnapshot = async (options, width) => {
+  async function* takeSnapshot(options, width) {
     if (captureWidths) options = { ...options, width };
     let captured = await page.snapshot(options);
+    yield* captureResponsiveAssets();
+
     captured.resources.delete(normalizeURL(captured.url));
     capture(processSnapshotResources(captured));
     return captured;
@@ -209,22 +225,10 @@ async function* captureSnapshotResources(page, snapshot, options) {
     let { widths, execute } = snap;
     let [width] = widths;
 
-    // iterate over device to trigger reqeusts and capture other dpr width
-    if (captureForDevices) {
-      for (const device of captureForDevices) {
-        yield waitForDiscoveryNetworkIdle(page, discovery);
-        // We are not adding these widths and pixels ratios in loop below because we want to explicitly reload the page after resize which we dont do below
-        yield* captureSnapshotResources(page, { ...snapshot, widths: [device.width] }, {
-          deviceScaleFactor: device.deviceScaleFactor,
-          mobile: true
-        });
-      }
-    }
-
     // iterate over widths to trigger reqeusts and capture other widths
     if (isBaseSnapshot || captureWidths) {
       for (let i = 0; i < widths.length - 1; i++) {
-        if (captureWidths) yield takeSnapshot(snap, width);
+        if (captureWidths) yield* takeSnapshot(snap, width);
         yield page.evaluate(execute?.beforeResize);
         yield waitForDiscoveryNetworkIdle(page, discovery);
         yield resizePage(width = widths[i + 1]);
@@ -234,7 +238,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
 
     if (capture && !snapshot.domSnapshot) {
       // capture this snapshot and update the base snapshot after capture
-      let captured = yield takeSnapshot(snap, width);
+      let captured = yield* takeSnapshot(snap, width);
       if (isBaseSnapshot) baseSnapshot = captured;
 
       // resize back to the initial width when capturing additional snapshot widths
@@ -253,6 +257,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
   // wait for final network idle when not capturing DOM
   if (capture && snapshot.domSnapshot) {
     yield waitForDiscoveryNetworkIdle(page, discovery);
+    yield* captureResponsiveAssets();
     capture(processSnapshotResources(snapshot));
   }
 }

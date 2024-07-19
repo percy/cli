@@ -947,7 +947,22 @@ describe('Discovery', () => {
       sharedExpectBlock(expectedRequestBody);
     });
 
-    it('shows debug info when requests fail to idle in time', async () => {
+    it('shows debug info when requests fail to idle in time for responsive assets', async () => {
+      api.reply('/discovery/device-details?build_id=123', () => [200, { data: [{ width: 375, deviceScaleFactor: 2 }, { width: 390, deviceScaleFactor: 3 }] }]);
+      server.reply('/', () => [200, 'text/html', (
+        testDOM.replace('<img', ('<img loading="lazy" srcset="/img-fromsrcset.png 2x"'))
+      )]);
+      server.reply('/img-fromsrcset.png', () => new Promise(r => (
+        setTimeout(r, 3000, [200, 'image/gif', pixel]))));
+      server.reply('/img.gif', () => new Promise(r => (
+        setTimeout(r, 200, [200, 'image/gif', pixel]))));
+      await percy.stop();
+      percy = await Percy.start({
+        projectType: 'web',
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
       percy.loglevel('debug');
 
       await percy.snapshot({
@@ -957,9 +972,10 @@ describe('Discovery', () => {
 
       expect(logger.stderr).toContain(jasmine.stringMatching([
         '^\\[percy:core] Error: Timed out waiting for network requests to idle.',
+        'While capturing responsive assets try setting PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS to true.',
         '',
         '  Active requests:',
-        '  - http://localhost:8000/img.gif',
+        '  - http://localhost:8000/img-fromsrcset.png',
         '',
         '(?<stack>(.|\n)*)$'
       ].join('\n')));
@@ -972,7 +988,7 @@ describe('Discovery', () => {
               meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             },
             {
-              message: 'Timed out waiting for network requests to idle.\n\n  Active requests:\n  - http://localhost:8000/img.gif\n',
+              message: 'Timed out waiting for network requests to idle.\nWhile capturing responsive assets try setting PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS to true.\n\n  Active requests:\n  - http://localhost:8000/img-fromsrcset.png\n',
               meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             }
           ]
