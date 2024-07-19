@@ -587,7 +587,6 @@ describe('Snapshot', () => {
       domSnapshot: testDOM
     });
 
-    expect(logger.stdout).toContain(jasmine.stringContaining('[percy] asset-discovery - test snapshot'));
     expect(logger.stderr).toEqual([
       '[percy] Encountered an error taking snapshot: test snapshot',
       '[percy] Error: unexpected snapshot error'

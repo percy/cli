@@ -107,6 +107,19 @@ export class Network {
         throw error;
       }
     });
+
+    // After waiting for network to idle check if there are still some request
+    const activeRequests = this.getActiveRequests(filter);
+    /* istanbul ignore if: race condition, very hard to mock this */
+    if (activeRequests.length > 0) {
+      this.log.debug(`There are ${activeRequests.length} active requests pending during asset discovery. Try increasing the networkIdleTimeout to resolve this issue. \n ${activeRequests}`);
+    }
+  }
+
+  getActiveRequests(filter) {
+    let requests = Array.from(this.#requests.values()).filter(filter);
+    requests = requests.filter((req) => !this.#finishedUrls.has(req.url));
+    return requests;
   }
 
   // Validates that requestId is still valid as sometimes request gets cancelled and we have already executed
