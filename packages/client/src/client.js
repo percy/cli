@@ -535,7 +535,7 @@ export class PercyClient {
 
   // Convenience method for verifying if tile is present
   async verify(comparisonId, sha) {
-    let retries = 10;
+    let retries = 20;
     let success = null;
     do {
       await waitForTimeout(500);
