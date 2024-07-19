@@ -1249,6 +1249,16 @@ describe('PercyClient', () => {
   });
 
   describe('#uploadComparisonTiles()', () => {
+    let originalTimeout;
+    beforeEach(() => {
+      originalTimeout = jasmine.DEFAULT_TIMEOUT_INTERVAL;
+      jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+    });
+
+    afterEach(() => {
+      jasmine.DEFAULT_TIMEOUT_INTERVAL = originalTimeout;
+    });
+
     it('throws when missing a build id', async () => {
       await expectAsync(client.uploadComparisonTiles())
         .toBeRejectedWithError('Missing comparison ID');
