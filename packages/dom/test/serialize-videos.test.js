@@ -1,5 +1,6 @@
 import { parseDOM, withExample, platforms, platformDOM } from './helpers';
 import serializeDOM from '@percy/dom';
+import serializeVideos from '../src/serialize-video';
 
 let canPlay = $video => new Promise(resolve => {
   if ($video.readyState > 2) resolve();
@@ -85,6 +86,18 @@ describe('serializeVideos', () => {
         content: jasmine.any(String),
         mimetype: 'image/png'
       }));
+    });
+
+    it(`${platform}: add node details in error message and rethrow it`, async () => {
+      withExample(`
+        <video class="test1 test2" src="base/test/assets/example.webm" id="video" controls/>
+      `);
+
+      await canPlay(platform === 'shadow' ? platformDOM(platform).querySelector('video') : window.video);
+      expect(() => serializeVideos({ dom: document })).toThrowMatching((error) => {
+        return error.message.includes('Error serializing video element:') &&
+          error.message.includes('{"nodeName":"VIDEO","classNames":"test1 test2","id":"video"}');
+      });
     });
   });
 });
