@@ -543,7 +543,8 @@ describe('Percy', () => {
     it('checks for system level proxy and auto apply', async () => {
       spyOn(DetectProxy.prototype, 'getSystemProxy').and.returnValue([
         { type: 'HTTP', host: 'proxy.example.com', port: 8080 },
-        { type: 'HTTPS', host: 'secureproxy.example.com', port: 8443 }
+        { type: 'HTTPS', host: 'secureproxy.example.com', port: 8443 },
+        { type: 'SOCK', host: 'sockproxy.example.com', port: 8081 }
       ]);
 
       percy = new Percy({ token: 'PERCY_TOKEN', percy: { useSystemProxy: true } });

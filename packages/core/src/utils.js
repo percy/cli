@@ -382,7 +382,7 @@ export function snapshotLogName(name, meta) {
   return name;
 }
 
-export async function detectSystemProxyAndLog(applyProxy = false) {
+export async function detectSystemProxyAndLog(applyProxy) {
   // if proxy is already set no need to check again
   if (process.env.HTTPS_PROXY || process.env.HTTP_PROXY) return;
 
