@@ -1265,6 +1265,109 @@ describe('Discovery', () => {
 
       expect(cookie).toEqual('chocolate=654321');
     });
+
+    it('should merge cookie passed by user', async () => {
+      // test cookie array
+      await startWithCookies([{
+        name: 'test-cookie',
+        value: '654321'
+      }, {
+        name: 'shortbread',
+        value: '987654'
+      }]);
+
+      await percy.snapshot({
+        name: 'mmm cookies',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM,
+          cookies: 'test-cookie=value; cookie-name=cookie-value'
+        }
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: mmm cookies'
+      ]));
+
+      expect(cookie).toEqual('test-cookie=654321; shortbread=987654; cookie-name=cookie-value');
+    });
+
+    it('can send default collected cookies from serialization', async () => {
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      await percy.snapshot({
+        name: 'mmm cookies',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM,
+          cookies: 'test-cookie=value'
+        }
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: mmm cookies'
+      ]));
+
+      expect(cookie).toEqual('test-cookie=value');
+    });
+
+    it('does not use cookie if empty cookies is passed (in case of httponly)', async () => {
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      await percy.snapshot({
+        name: 'mmm cookies',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM,
+          cookies: ''
+        }
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: mmm cookies'
+      ]));
+
+      expect(cookie).toEqual(undefined);
+    });
+
+    it('should not use captured cookie when PERCY_DO_NOT_USE_CAPTURED_COOKIES is set', async () => {
+      process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES = true;
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      await percy.snapshot({
+        name: 'mmm cookies',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM,
+          cookies: 'test-cookie=value'
+        }
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: mmm cookies'
+      ]));
+
+      expect(cookie).toEqual(undefined);
+      delete process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES;
+    });
   });
 
   describe('protected resources', () => {
