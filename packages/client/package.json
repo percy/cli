@@ -23,6 +23,7 @@
   "exports": {
     ".": "./dist/index.js",
     "./utils": "./dist/utils.js",
+    "./detect-proxy": "./dist/detect-proxy.js",
     "./test/helpers": "./test/helpers.js"
   },
   "scripts": {

@@ -2,6 +2,7 @@ import { logger, api, setupTest, createTestServer } from './helpers/index.js';
 import { generatePromise, AbortController, base64encode } from '../src/utils.js';
 import Percy from '@percy/core';
 import Pako from 'pako';
+import DetectProxy from '@percy/client/detect-proxy';
 
 describe('Percy', () => {
   let percy, server;
@@ -525,6 +526,38 @@ describe('Percy', () => {
         name: 'Snapshot 2',
         url: 'http://localhost:8000'
       })).toThrowError('Build has failed');
+    });
+
+    it('checks for system level proxy and print warning', async () => {
+      spyOn(DetectProxy.prototype, 'getSystemProxy').and.returnValue([{ type: 'HTTP', host: 'proxy.example.com', port: 8080 }]);
+      await expectAsync(percy.start()).toBeResolved();
+
+      expect(logger.stderr).toEqual([
+        '[percy] We have detected a system level proxy in your system. use HTTP_PROXY or HTTPS_PROXY env vars or To auto apply proxy set useSystemProxy: true under percy in config file'
+      ]);
+      expect(logger.stdout).toEqual([
+        '[percy] Percy has started!'
+      ]);
+    });
+
+    it('checks for system level proxy and auto apply', async () => {
+      spyOn(DetectProxy.prototype, 'getSystemProxy').and.returnValue([
+        { type: 'HTTP', host: 'proxy.example.com', port: 8080 },
+        { type: 'HTTPS', host: 'secureproxy.example.com', port: 8443 }
+      ]);
+
+      percy = new Percy({ token: 'PERCY_TOKEN', percy: { useSystemProxy: true } });
+      await percy.start();
+
+      expect(process.env.HTTPS_PROXY).toEqual('https://secureproxy.example.com:8443');
+      expect(process.env.HTTP_PROXY).toEqual('http://proxy.example.com:8080');
+      delete process.env.HTTPS_PROXY;
+      delete process.env.HTTP_PROXY;
+    });
+
+    it('should not cause error when failed to detect system level proxy', async () => {
+      spyOn(DetectProxy.prototype, 'getSystemProxy').and.rejectWith('some error');
+      await expectAsync(percy.start()).toBeResolved();
     });
   });
 

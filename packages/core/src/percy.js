@@ -1,7 +1,7 @@
 import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
-import { getProxy, detectSystemProxyAndLog } from '@percy/client/utils';
+import { getProxy } from '@percy/client/utils';
 import Browser from './browser.js';
 import Pako from 'pako';
 import {
@@ -10,7 +10,8 @@ import {
   generatePromise,
   yieldAll,
   yieldTo
-  , redactSecrets
+  , redactSecrets,
+  detectSystemProxyAndLog
 } from './utils.js';
 
 import {
