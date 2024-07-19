@@ -530,15 +530,23 @@ describe('Percy', () => {
 
     it('skips system check if proxy already present', async () => {
       process.env.HTTP_PROXY = 'some-proxy';
-      spyOn(DetectProxy.prototype, 'getSystemProxy').and.returnValue([{ type: 'HTTP', host: 'proxy.example.com', port: 8080 }]);
+      const mockDetectProxy = spyOn(DetectProxy.prototype, 'getSystemProxy').and.returnValue([{ type: 'HTTP', host: 'proxy.example.com', port: 8080 }]);
       await expectAsync(percy.start()).toBeResolved();
 
-      expect(logger.stderr).toEqual([
-      ]);
+      expect(mockDetectProxy).not.toHaveBeenCalled();
       expect(logger.stdout).toEqual([
         '[percy] Percy has started!'
       ]);
       delete process.env.HTTP_PROXY;
+    });
+
+    it('takes no action when no proxt is detected', async () => {
+      spyOn(DetectProxy.prototype, 'getSystemProxy').and.returnValue([]);
+      await expectAsync(percy.start()).toBeResolved();
+
+      expect(logger.stdout).toEqual([
+        '[percy] Percy has started!'
+      ]);
     });
 
     it('checks for system level proxy and print warning', async () => {
