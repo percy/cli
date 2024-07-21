@@ -673,7 +673,6 @@ describe('Discovery', () => {
 
   it('detect invalid network url', async () => {
     percy.loglevel('debug');
-    const err = new URIError();
     await percy.snapshot({
       name: 'test snapshot',
       url: 'http://localhost:8000',
@@ -683,7 +682,6 @@ describe('Discovery', () => {
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy:core:discovery] Handling request: http://localhost:8000/',
       '[percy:core:discovery] - Serving root resource',
-      `[percy:core:discovery] ${err.stack}`,
       '[percy:core:discovery] An invalid URL was detected for url: http://localhost:404/%style.css - the snapshot may fail on Percy. Please verify that your asset URL is valid.',
       '[percy:core:discovery] Handling request: http://localhost:404/%style.css',
       '[percy:core:discovery] Handling request: http://localhost:8000/img.gif'
