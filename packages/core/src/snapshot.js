@@ -25,6 +25,21 @@ function validURL(url, base) {
   }
 }
 
+function validateAndFixSnapshotUrl(snapshot) {
+  let log = logger('core:snapshot');
+  // encoding snapshot url, if contians invalid URI characters/syntax
+  let modifiedURL = decodeAndEncodeURLWithLogging(snapshot.url, log, {
+    meta: { snapshot: { name: snapshot.name || snapshot.url } },
+    shouldLogWarning: true,
+    warningMessage: `Invalid URL detected for url: ${snapshot.url} - the snapshot may fail on Percy. Please confirm that your website URL is valid.`
+  });
+
+  if (modifiedURL !== snapshot.url) {
+    log.debug(`Snapshot URL modified to: ${modifiedURL}`);
+    snapshot.url = modifiedURL;
+  }
+}
+
 // used to deserialize regular expression strings
 const RE_REGEXP = /^\/(.+)\/(\w+)?$/;
 
@@ -73,7 +88,6 @@ function snapshotMatches(snapshot, include, exclude) {
 
 // Accepts an array of snapshots to filter and map with matching options.
 function mapSnapshotOptions(snapshots, context) {
-  let log = logger('core:snapshot');
   if (!snapshots?.length) return [];
 
   // reduce options into a single function
@@ -88,17 +102,7 @@ function mapSnapshotOptions(snapshots, context) {
     // transform snapshot URL shorthand into an object
     if (typeof snapshot === 'string') snapshot = { url: snapshot };
 
-    // encoding snapshot url, if contians invalid URI characters/syntax
-    let modifiedURL = decodeAndEncodeURLWithLogging(snapshot.url, log, {
-      meta: { snapshot: { name: snapshot.name || snapshot.url } },
-      shouldLogWarning: true,
-      warningMessage: `Invalid URL detected for url: ${snapshot.url} - the snapshot may fail on Percy. Please confirm that your website URL is valid.`
-    });
-
-    if (modifiedURL !== snapshot.url) {
-      log.debug(`Snapshot URL modified to: ${modifiedURL}`);
-      snapshot.url = modifiedURL;
-    }
+    validateAndFixSnapshotUrl(snapshot)
 
     let url = validURL(snapshot.url, context?.baseUrl);
     // normalize the snapshot url and use it for the default name
