@@ -1,7 +1,7 @@
 import { request as makeRequest } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
-import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, modifyURL } from './utils.js';
+import { DefaultMap, createResource, decodeAndEncodeURLWithLogging, hostnameMatches, normalizeURL, waitFor } from './utils.js';
 
 const MAX_RESOURCE_SIZE = 25 * (1024 ** 2); // 25MB
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
@@ -194,20 +194,13 @@ export class Network {
     // do not handle data urls
     if (request.url.startsWith('data:')) return;
 
-    // Network requests are handled by the browser, which is lenient about URL encoding.
-    // Invalid characters in the URL won't cause snapshot/build failures.
-    // Therefore, this code only checks for invalid characters in the network request URL.
-    try {
-      let modifiedURL = modifyURL(request.url);
-      if (modifiedURL !== request.url) {
-        this.log.debug(`Inconsistent network URL detected for url: ${request.url}.`);
-      }
-    } catch (error) {
-      this.log.debug(error);
-      if (error.name === 'URIError') {
-        this.log.warn(`Detected invalid network URL: ${request.url}`);
-      }
-    }
+    // Browsers handle URL encoding leniently, but invalid characters can break tools like Jackproxy.
+    // This code checks for issues such as `%` and leading spaces and warns the user accordingly.
+    decodeAndEncodeURLWithLogging(request.url, this.log, {
+      meta: { ...this.meta, url: request.url },
+      shouldLogWarning: true,
+      warningMessage: `An invalid URL was detected for url: ${request.url} - the snapshot may fail on Percy. Please verify that your asset URL is valid.`
+    });
 
     if (this.intercept) {
       this.#pending.set(requestId, event);

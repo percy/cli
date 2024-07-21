@@ -133,10 +133,14 @@ describe('Snapshot', () => {
   });
 
   describe('snapshot urls', () => {
+    beforeEach(() => {
+      percy.loglevel('debug');
+    });
+
     describe('with invalid snapshot URL', () => {
       const sharedExpectModifiedSnapshotURL = (expectedURL) => {
-        expect(logger.stdout).toEqual(jasmine.arrayContaining([
-          `[percy] Snapshot URL modified to: ${expectedURL}`
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          `[percy:core:snapshot] Snapshot URL modified to: ${expectedURL}`
         ]));
       };
 
@@ -183,8 +187,8 @@ describe('Snapshot', () => {
         ]);
 
         expect(logger.stderr).toEqual(jasmine.arrayContaining([
-          `[percy] Invalid URL detected for url: ${givenURL}`,
-          `[percy] Detected invalid network URL: ${givenURL}`
+          `[percy:core:snapshot] Invalid URL detected for url: ${givenURL} - the snapshot may fail on Percy. Please confirm that your website URL is valid.`,
+          `[percy:core:discovery] An invalid URL was detected for url: ${givenURL} - the snapshot may fail on Percy. Please verify that your asset URL is valid.`
         ]));
       });
 

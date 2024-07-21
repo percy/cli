@@ -379,14 +379,23 @@ export function base64encode(content) {
 // are not encoded
 // Eg: [abc] -> gets encoded to %5Babc%5D
 // ab c -> ab%20c
-export function modifyURL(url) {
+export function decodeAndEncodeURLWithLogging(url, logger, options = {}) {
   // In case the url is partially encoded, then directly using encodeURI()
   // will encode those characters again. Therefore decodeURI once helps is decoding
   // partially encoded URL and then after encoding it again, full URL get encoded
   // correctly.
-  let decodeURL = decodeURI(url); // This can throw error, so handle it will trycatch
-  let modifiedURL = encodeURI(decodeURL);
-  return modifiedURL;
+  const { meta, shouldLogWarning, warningMessage } = options;
+  try {
+    let decodedURL = decodeURI(url); // This can throw error, so handle it will trycatch
+    let encodedURL = encodeURI(decodedURL);
+    return encodedURL;
+  } catch (error) {
+    logger.debug(error, meta);
+    if (error.name === 'URIError' && shouldLogWarning) {
+      logger.warn(warningMessage);
+    }
+    return url;
+  }
 }
 
 export function snapshotLogName(name, meta) {

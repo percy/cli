@@ -8,7 +8,7 @@ import {
   hostnameMatches,
   yieldTo,
   snapshotLogName,
-  modifyURL
+  decodeAndEncodeURLWithLogging
 } from './utils.js';
 import { JobData } from './wait-for-job.js';
 
@@ -88,18 +88,16 @@ function mapSnapshotOptions(snapshots, context) {
     // transform snapshot URL shorthand into an object
     if (typeof snapshot === 'string') snapshot = { url: snapshot };
 
-    try {
-      // encoding snapshot url, if contians invalid URI characters/syntax
-      let modifiedURL = modifyURL(snapshot.url);
-      if (modifiedURL !== snapshot.url) {
-        log.info(`Snapshot URL modified to: ${modifiedURL}`);
-        snapshot.url = modifiedURL;
-      }
-    } catch (error) {
-      log.debug(error);
-      if (error.name === 'URIError') {
-        log.warn(`Invalid URL detected for url: ${snapshot.url}`);
-      }
+    // encoding snapshot url, if contians invalid URI characters/syntax
+    let modifiedURL = decodeAndEncodeURLWithLogging(snapshot.url, log, {
+      meta: { snapshot: { name: snapshot.name || snapshot.url } },
+      shouldLogWarning: true,
+      warningMessage: `Invalid URL detected for url: ${snapshot.url} - the snapshot may fail on Percy. Please confirm that your website URL is valid.`
+    });
+
+    if (modifiedURL !== snapshot.url) {
+      log.debug(`Snapshot URL modified to: ${modifiedURL}`);
+      snapshot.url = modifiedURL;
     }
 
     let url = validURL(snapshot.url, context?.baseUrl);

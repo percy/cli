@@ -673,6 +673,7 @@ describe('Discovery', () => {
 
   it('detect invalid network url', async () => {
     percy.loglevel('debug');
+    const err = new URIError();
     await percy.snapshot({
       name: 'test snapshot',
       url: 'http://localhost:8000',
@@ -682,34 +683,10 @@ describe('Discovery', () => {
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy:core:discovery] Handling request: http://localhost:8000/',
       '[percy:core:discovery] - Serving root resource',
-      '[percy:core:discovery] Detected invalid network URL: http://localhost:404/%style.css',
+      `[percy:core:discovery] ${err.stack}`,
+      '[percy:core:discovery] An invalid URL was detected for url: http://localhost:404/%style.css - the snapshot may fail on Percy. Please verify that your asset URL is valid.',
       '[percy:core:discovery] Handling request: http://localhost:404/%style.css',
       '[percy:core:discovery] Handling request: http://localhost:8000/img.gif'
-    ]));
-  });
-
-  it('detect inconsistent network url', async () => {
-    percy.loglevel('debug');
-
-    let testCSS = dedent`
-      p { color: blue };
-    `;
-    server.reply('/[abc]style.css', () => [200, 'text/css', testCSS]);
-
-    await percy.snapshot({
-      name: 'test snapshot',
-      url: 'http://localhost:8000',
-      domSnapshot: testDOM.replace('style.css', '[abc]style.css')
-    });
-
-    expect(logger.stderr).toEqual(jasmine.arrayContaining([
-      '[percy:core:discovery] Inconsistent network URL detected for url: http://localhost:8000/[abc]style.css.',
-      '[percy:core:discovery] Handling request: http://localhost:8000/[abc]style.css',
-      '[percy:core:discovery] Handling request: http://localhost:8000/img.gif',
-      '[percy:core:discovery] Processing resource: http://localhost:8000/[abc]style.css',
-      '[percy:core:discovery] Processing resource: http://localhost:8000/img.gif',
-      '[percy:core:discovery] - sha: d76766f422ca8b5d0ea5edf2e4d34a0388143f225a15305c366c760ec6a525d8',
-      '[percy:core:discovery] - mimetype: text/css'
     ]));
   });
 
