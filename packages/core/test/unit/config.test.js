@@ -85,6 +85,21 @@ describe('SnapshotSchema', () => {
     expect(snapshotSchema.$defs.common.properties).toEqual(jasmine.objectContaining({ domTransformation: jasmine.anything() }));
   });
 
+  it('should contain valid dom serialization values', () => {
+    const dom = {
+      url: 'some_url',
+      width: 1000,
+      domSnapshot: {
+        html: '<html><head><title>Document</title></head><body></body></html>',
+        cookies: 'some_cookies'
+      }
+    };
+
+    PercyConfig.addSchema(CoreConfig.schemas);
+    const errors = PercyConfig.validate(dom, '/snapshot/dom');
+    expect(errors).toBe(undefined);
+  });
+
   it('scopeOptions should work with scope', () => {
     const comparison = {
       name: 'snapfoo',
