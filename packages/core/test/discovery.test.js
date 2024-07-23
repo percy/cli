@@ -4,6 +4,8 @@ import Percy from '@percy/core';
 import { RESOURCE_CACHE_KEY } from '../src/discovery.js';
 import Session from '../src/session.js';
 import Pako from 'pako';
+import * as CoreConfig from '@percy/core/config';
+import PercyConfig from '@percy/config';
 
 describe('Discovery', () => {
   let percy, server, captured, originalTimeout;
@@ -1383,6 +1385,37 @@ describe('Discovery', () => {
 
       expect(cookie).toEqual(undefined);
       delete process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES;
+    });
+  });
+
+  describe('Dom serialisation', () => {
+    it('should contain valid dom serialization values', async () => {
+      const page = await percy.browser.page();
+      await page.goto('http://localhost:8000');
+      await page.insertPercyDom();
+      let capture = await page.eval((_) => ({
+        /* eslint-disable-next-line no-undef */
+        domSnapshot: PercyDOM.serialize(),
+        url: document.URL
+      }));
+
+      PercyConfig.addSchema(CoreConfig.schemas);
+      const errors = PercyConfig.validate(capture, '/snapshot/dom');
+      expect(errors).toBe(undefined);
+    });
+
+    it('should not fail dom collection if cookie can not be collected', async () => {
+      const page = await percy.browser.page();
+      await page.goto('about:blank');
+      await page.insertPercyDom();
+      let capture = await page.eval((_) => ({
+        /* eslint-disable-next-line no-undef */
+        domSnapshot: PercyDOM.serialize(),
+        url: document.URL
+      }));
+
+      expect(capture.domSnapshot.html).toBeDefined();
+      expect(capture.domSnapshot.warnings).toEqual(["Could not capture cookies: Failed to read the 'cookie' property from 'Document': Access is denied for this document."]);
     });
   });
 
