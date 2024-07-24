@@ -440,6 +440,7 @@ export const snapshotSchema = {
                 type: 'array',
                 items: { type: 'string' }
               },
+              cookies: { type: 'string' },
               resources: {
                 type: 'array',
                 items: {
