@@ -7,6 +7,10 @@ export const configSchema = {
       deferUploads: {
         type: 'boolean'
       },
+      useSystemProxy: {
+        type: 'boolean',
+        default: false
+      },
       token: {
         type: 'string'
       },

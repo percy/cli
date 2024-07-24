@@ -5,6 +5,8 @@ import YAML from 'yaml';
 import path from 'path';
 import url from 'url';
 import { readFileSync } from 'fs';
+import logger from '@percy/logger';
+import DetectProxy from '@percy/client/detect-proxy';
 
 export {
   request,
@@ -378,6 +380,36 @@ export function snapshotLogName(name, meta) {
     return `testCase: ${meta.snapshot.testCase}, ${name}`;
   }
   return name;
+}
+
+export async function detectSystemProxyAndLog(applyProxy) {
+  // if proxy is already set no need to check again
+  if (process.env.HTTPS_PROXY || process.env.HTTP_PROXY) return;
+
+  let proxyPresent = false;
+  const log = logger('core:utils');
+  // Checking proxy shouldn't cause failure
+  try {
+    const detectProxy = new DetectProxy();
+    const proxies = await detectProxy.getSystemProxy();
+    proxyPresent = proxies.length !== 0;
+    if (proxyPresent) {
+      if (applyProxy) {
+        proxies.forEach((proxy) => {
+          if (proxy.type === 'HTTPS') {
+            process.env.HTTPS_PROXY = 'https://' + proxy.host + ':' + proxy.port;
+          } else if (proxy.type === 'HTTP') {
+            process.env.HTTP_PROXY = 'http://' + proxy.host + ':' + proxy.port;
+          }
+        });
+      } else {
+        log.warn('We have detected a system level proxy in your system. use HTTP_PROXY or HTTPS_PROXY env vars or To auto apply proxy set useSystemProxy: true under percy in config file');
+      }
+    }
+  } catch (e) {
+    log.debug(`Failed to detect system proxy ${e}`);
+  }
+  return proxyPresent;
 }
 
 // DefaultMap, which returns a default value for an uninitialized key
