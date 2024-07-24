@@ -12,15 +12,25 @@ export default class DetectProxy {
 
   async getSystemProxy() {
     if (this.platform === 'darwin') {
-      return this.getProxyFromMac();
+      return await this.getProxyFromMac();
     } else if (this.platform === 'win32') {
-      return this.getProxyFromWindows();
+      return await this.getProxyFromWindows();
     } else if (this.platform !== 'linux') {
       logger('client:detect-proxy').debug(`Not able to auto detect system proxy for ${this.platform} platform`);
     }
+    return [];
   }
 
   async getProxyFromMac() {
+    // Sample output
+    /*
+        HTTPEnable : 1
+        HTTPProxy : proxy.example.com
+        HTTPPort : 8080
+        HTTPSEnable : 1
+        HTTPSProxy : secureproxy.example.com
+        HTTPSPort : 8443
+    */
     const { stdout } = await this.execPromise('scutil --proxy');
     const dictionary = {};
     const lines = stdout.split('\n');
@@ -48,6 +58,28 @@ export default class DetectProxy {
   }
 
   async getProxyFromWindows() {
+    // Sample output
+    /*
+        HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings
+        User Agent    REG_SZ    Mozilla/4.0 (compatible; MSIE 8.0; Win32)
+        IE5_UA_Backup_Flag    REG_SZ    5.0
+        ZonesSecurityUpgrade    REG_BINARY    ABCD
+        EmailName    REG_SZ    User@
+        AutoConfigProxy    REG_SZ    wininet.dll
+        MimeExclusionListForCache    REG_SZ    multipart/mixed multipart/x-mixed-replace multipart/x-byteranges
+        WarnOnPost    REG_BINARY    01000000
+        UseSchannelDirectly    REG_BINARY    01000000
+        EnableHttp1_1    REG_DWORD    0x1
+        UrlEncoding    REG_DWORD    0x0
+        SecureProtocols    REG_DWORD    0xa0
+        PrivacyAdvanced    REG_DWORD    0x0
+        DisableCachingOfSSLPages    REG_DWORD    0x1
+        WarnonZoneCrossing    REG_DWORD    0x1
+        CertificateRevocation    REG_DWORD    0x1
+        EnableNegotiate    REG_DWORD    0x1
+        MigrateProxy    REG_DWORD    0x1
+        ProxyEnable    REG_DWORD    0x0
+    */
     const { stdout } = await this.execPromise(
       'reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings"'
     );
@@ -65,7 +97,8 @@ export default class DetectProxy {
     });
     if (this.filter.includes('HTTP') && dictionary.ProxyEnable && dictionary.ProxyServer) {
       const [host, port] = dictionary.ProxyServer.split(':');
-      return { type: 'HTTP', host, port: parseInt(port) };
+      return [{ type: 'HTTP', host, port: parseInt(port) }];
     }
+    return [];
   }
 }

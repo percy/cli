@@ -69,11 +69,11 @@ describe('getSystemProxy', () => {
       mockExecPromise.and.returnValue(Promise.resolve({ stdout: mockOutput }));
 
       const proxy = await detectProxy.getSystemProxy();
-      expect(proxy).toEqual({
+      expect(proxy).toEqual([{
         type: 'HTTP',
         host: 'proxy.example.com',
         port: 8080
-      });
+      }]);
     });
 
     it('should return undefined if proxy is not enabled', async () => {
@@ -101,7 +101,7 @@ describe('getSystemProxy', () => {
       mockExecPromise.and.returnValue(Promise.resolve({ stdout: mockOutput }));
 
       const proxy = await detectProxy.getSystemProxy();
-      expect(proxy).toBeUndefined();
+      expect(proxy).toEqual([]);
     });
   });
 
@@ -110,9 +110,9 @@ describe('getSystemProxy', () => {
       detectProxy.platform = 'linux';
     });
 
-    it('should log a debug message and return undefined', async () => {
+    it('should log a debug message and return empty array', async () => {
       const proxy = await detectProxy.getSystemProxy();
-      expect(proxy).toBeUndefined();
+      expect(proxy).toEqual([]);
       expect(logger.stderr).toEqual([]);
     });
   });
@@ -122,9 +122,9 @@ describe('getSystemProxy', () => {
       detectProxy.platform = 'aix';
     });
 
-    it('should log a debug message and return undefined', async () => {
+    it('should log a debug message and return empty array', async () => {
       const proxy = await detectProxy.getSystemProxy();
-      expect(proxy).toBeUndefined();
+      expect(proxy).toEqual([]);
       expect(logger.stderr).toEqual([
         '[percy:client:detect-proxy] Not able to auto detect system proxy for aix platform'
       ]);
