@@ -168,7 +168,7 @@ export class ProxyHttpsAgent extends https.Agent {
 
     let handleError = err => {
       socket.destroy(err);
-      logger('client:proxy').error(`Proxying request failed: ${err}`);
+      logger('client:proxy').error(`Proxying request ${href(options)} failed: ${err}`);
 
       // We don't get statusCode here, relying on checking error message only
       if (!!err.message && (err.message?.includes('ECONNREFUSED') || err.message?.includes('EHOSTUNREACH'))) {
