@@ -489,6 +489,7 @@ describe('Unit / Request', () => {
                   .toBeRejectedWith(error);
 
                 expect(logger.stderr).toEqual(jasmine.arrayContaining([
+                  `[percy:client:proxy] Proxying request https://localhost:8080 failed: ${error}`,
                   '[percy:client:proxy] If needed, Please verify if your proxy credentials are correct',
                   '[percy:client:proxy] Please check if your proxy is set correctly and reachable'
                 ]));
