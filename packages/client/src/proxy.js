@@ -168,6 +168,15 @@ export class ProxyHttpsAgent extends https.Agent {
 
     let handleError = err => {
       socket.destroy(err);
+      logger('client:proxy').error(`Proxying request failed: ${err}`);
+
+      // We don't get statusCode here, relying on checking error message only
+      if (!!err.message && (err.message?.includes('ECONNREFUSED') || err.message?.includes('EHOSTUNREACH'))) {
+        logger('client:proxy').warn('If needed, Please verify if your proxy credentials are correct');
+        logger('client:proxy').warn('Please check if your proxy is set correctly and reachable');
+      }
+
+      logger('client:proxy').warn('Please check network connection, proxy and ensure that following domains are whitelisted: github.com, percy.io, storage.googleapis.com. In case you are an enterprise customer make sure to whitelist "percy-enterprise.browserstack.com" as well.');
       callback(err);
     };
 

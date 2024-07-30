@@ -1,4 +1,5 @@
 import command from '@percy/cli-command';
+import logger from '@percy/logger';
 import start from './start.js';
 import stop from './stop.js';
 import ping from './ping.js';
@@ -45,14 +46,14 @@ export const exec = command('exec', {
     log.error("You must supply a command to run after '--'");
     log.info('Example:');
     log.info('  $ percy exec -- npm test');
-    exit(1);
+    exit(1, '', false);
   }
 
   // verify the provided command exists
   let { default: which } = await import('which');
 
   if (!which.sync(command, { nothrow: true })) {
-    exit(127, `Command not found "${command}"`);
+    exit(127, `Command not found "${command}"`, false);
   }
 
   // attempt to start percy if enabled
@@ -89,8 +90,9 @@ export const exec = command('exec', {
   // stop percy if running (force stop if there is an error);
   await percy?.stop(!!error);
 
+  log.info(`Command "${[command, ...args].join(' ')}" exited with status: ${status}`);
   // forward any returned status code
-  if (status) exit(status, error);
+  if (status) exit(status, error, false);
 
   // force exit post timeout
   await waitForTimeout(10000);
@@ -102,6 +104,7 @@ export const exec = command('exec', {
 async function* spawn(cmd, args, percy) {
   let { default: crossSpawn } = await import('cross-spawn');
   let proc, closed, error;
+  const cilog = logger('ci');
 
   try {
     proc = crossSpawn(cmd, args, { stdio: 'pipe' });
@@ -118,7 +121,8 @@ async function* spawn(cmd, args, percy) {
       proc.stderr.on('data', (data) => {
         const message = data.toString();
         let entry = { message, timestamp: Date.now(), type: 'ci' };
-        percy?.log?.error(entry, null, true);
+        // only collect logs if percy was enabled
+        if (percy) cilog.error(entry);
         process.stderr.write(`${data}`);
       });
     }

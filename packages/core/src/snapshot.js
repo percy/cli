@@ -7,7 +7,8 @@ import {
   request,
   hostnameMatches,
   yieldTo,
-  snapshotLogName
+  snapshotLogName,
+  decodeAndEncodeURLWithLogging
 } from './utils.js';
 import { JobData } from './wait-for-job.js';
 
@@ -21,6 +22,21 @@ function validURL(url, base) {
     return new URL(url, base);
   } catch (e) {
     throw new Error(`Invalid snapshot URL: ${e.input}`);
+  }
+}
+
+function validateAndFixSnapshotUrl(snapshot) {
+  let log = logger('core:snapshot');
+  // encoding snapshot url, if contians invalid URI characters/syntax
+  let modifiedURL = decodeAndEncodeURLWithLogging(snapshot.url, log, {
+    meta: { snapshot: { name: snapshot.name || snapshot.url } },
+    shouldLogWarning: true,
+    warningMessage: `Invalid URL detected for url: ${snapshot.url} - the snapshot may fail on Percy. Please confirm that your website URL is valid.`
+  });
+
+  if (modifiedURL !== snapshot.url) {
+    log.debug(`Snapshot URL modified to: ${modifiedURL}`);
+    snapshot.url = modifiedURL;
   }
 }
 
@@ -45,7 +61,7 @@ function snapshotMatches(snapshot, include, exclude) {
         try {
           let [, parsed, flags] = RE_REGEXP.exec(predicate) || [];
           result = !!parsed && new RegExp(parsed, flags).test(snapshot.name);
-        } catch {}
+        } catch { }
       }
 
       return result;
@@ -86,8 +102,10 @@ function mapSnapshotOptions(snapshots, context) {
     // transform snapshot URL shorthand into an object
     if (typeof snapshot === 'string') snapshot = { url: snapshot };
 
-    // normalize the snapshot url and use it for the default name
+    validateAndFixSnapshotUrl(snapshot);
+
     let url = validURL(snapshot.url, context?.baseUrl);
+    // normalize the snapshot url and use it for the default name
     snapshot.name ||= `${url.pathname}${url.search}${url.hash}`;
     snapshot.url = url.href;
 
@@ -105,7 +123,7 @@ function getSnapshotOptions(options, { config, meta }) {
   return PercyConfig.merge([{
     widths: configSchema.snapshot.properties.widths.default,
     discovery: { allowedHostnames: [validURL(options.url).hostname] },
-    meta: { ...meta, snapshot: { name: options.name, testCase: options.testCase } }
+    meta: { ...meta, snapshot: { name: options.name, testCase: options.testCase, labels: options.labels } }
   }, config.snapshot, {
     // only specific discovery options are used per-snapshot
     discovery: {
@@ -181,7 +199,7 @@ export function validateSnapshotOptions(options) {
 
   // parse json dom snapshots
   if (schema === '/snapshot/dom' && typeof migrated.domSnapshot === 'string' &&
-      migrated.domSnapshot.startsWith('{') && migrated.domSnapshot.endsWith('}')) {
+    migrated.domSnapshot.startsWith('{') && migrated.domSnapshot.endsWith('}')) {
     migrated.domSnapshot = JSON.parse(migrated.domSnapshot);
   }
 
@@ -219,6 +237,7 @@ export async function handleSyncJob(jobPromise, percy, type) {
       data = await percy.client.getComparisonDetails(id);
     }
   } catch (e) {
+    await percy.suggestionsForFix(e.message);
     data = { error: e.message };
   }
   return data;
@@ -309,7 +328,7 @@ export function createSnapshotsQueue(percy) {
 
   return queue
     .set({ concurrency })
-  // on start, create a new Percy build
+    // on start, create a new Percy build
     .handle('start', async () => {
       try {
         build = percy.build = {};
@@ -329,7 +348,7 @@ export function createSnapshotsQueue(percy) {
         queue.close(true);
       }
     })
-  // on end, maybe finalize the build and log about build info
+    // on end, maybe finalize the build and log about build info
     .handle('end', async () => {
       if (!percy.readyState) return;
 
@@ -342,11 +361,11 @@ export function createSnapshotsQueue(percy) {
         percy.log.warn('Build not created', { build });
       }
     })
-  // snapshots are unique by name and testCase both
+    // snapshots are unique by name and testCase both
     .handle('find', ({ name, testCase }, snapshot) => (
       snapshot.testCase === testCase && snapshot.name === name
     ))
-  // when pushed, maybe flush old snapshots or possibly merge with existing snapshots
+    // when pushed, maybe flush old snapshots or possibly merge with existing snapshots
     .handle('push', (snapshot, existing) => {
       let { name, meta } = snapshot;
 
@@ -361,7 +380,7 @@ export function createSnapshotsQueue(percy) {
       // merge snapshot options when uploads are deferred
       return mergeSnapshotOptions(existing, snapshot);
     })
-  // send snapshots to be uploaded to the build
+    // send snapshots to be uploaded to the build
     .handle('task', async function*({ resources, ...snapshot }) {
       let { name, meta } = snapshot;
 
@@ -390,8 +409,8 @@ export function createSnapshotsQueue(percy) {
 
       return { ...snapshot, response };
     })
-  // handle possible build errors returned by the API
-    .handle('error', (snapshot, error) => {
+    // handle possible build errors returned by the API
+    .handle('error', async (snapshot, error) => {
       let result = { ...snapshot, error };
       let { name, meta } = snapshot;
 
@@ -413,13 +432,23 @@ export function createSnapshotsQueue(percy) {
       let duplicate = errors?.length > 1 && errors[1].detail.includes('must be unique');
       if (duplicate) {
         if (process.env.PERCY_IGNORE_DUPLICATES !== 'true') {
-          percy.log.warn(`Ignored duplicate snapshot. ${errors[1].detail}`);
+          let errMsg = `Ignored duplicate snapshot. ${errors[1].detail}`;
+          percy.log.warn(errMsg);
+
+          await percy.suggestionsForFix(errMsg, { snapshotLevel: true, snapshotName: name });
         }
         return result;
       }
 
-      percy.log.error(`Encountered an error uploading snapshot: ${name}`, meta);
+      let errMsg = `Encountered an error uploading snapshot: ${name}`;
+      percy.log.error(errMsg, meta);
       percy.log.error(error, meta);
+
+      let snapshotErrors = [
+        { message: errMsg, meta },
+        { message: error?.message, meta }
+      ];
+      await percy.suggestionsForFix(snapshotErrors, { snapshotLevel: true, snapshotName: name });
       if (snapshot.sync) snapshot.reject(error);
       return result;
     });

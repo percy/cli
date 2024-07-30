@@ -83,7 +83,7 @@ export function createPercyServer(percy, port) {
       logger('core:server').deprecated([
         'It looks like you’re using @percy/cli with an older SDK.',
         'Please upgrade to the latest version to fix this warning.',
-        'See these docs for more info: https:docs.percy.io/docs/migrating-to-percy-cli'
+        'See these docs for more info: https://www.browserstack.com/docs/percy/migration/migrate-to-cli'
       ].join(' '));
 
       let content = await fs.promises.readFile(PERCY_DOM, 'utf-8');
@@ -137,7 +137,8 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/automateScreenshot', async (req, res) => {
       let data;
       percyAutomateRequestHandler(req, percy);
-      let comparisonData = await WebdriverUtils.automateScreenshot(req.body);
+      let comparisonData = await WebdriverUtils.captureScreenshot(req.body);
+
       if (percy.syncMode(comparisonData)) {
         const snapshotPromise = new Promise((resolve, reject) => percy.upload(comparisonData, { resolve, reject }, 'automate'));
         data = await handleSyncJob(snapshotPromise, percy, 'comparison');
@@ -151,6 +152,20 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/events', async (req, res) => {
       const body = percyBuildEventHandler(req, pkg.version);
       await percy.client.sendBuildEvents(percy.build?.id, body);
+      res.json(200, { success: true });
+    })
+    .route('post', '/percy/log', async (req, res) => {
+      const log = logger('sdk');
+      if (!req.body) {
+        log.error('No request body for /percy/log endpoint');
+        return res.json(400, { error: 'No body passed' });
+      }
+      const level = req.body.level;
+      const message = req.body.message;
+      const meta = req.body.meta || {};
+
+      log[level](message, meta);
+
       res.json(200, { success: true });
     })
   // stops percy at the end of the current event loop

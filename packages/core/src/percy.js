@@ -1,6 +1,7 @@
 import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
+import { getProxy } from '@percy/client/utils';
 import Browser from './browser.js';
 import Pako from 'pako';
 import {
@@ -9,7 +10,8 @@ import {
   generatePromise,
   yieldAll,
   yieldTo
-  , redactSecrets
+  , redactSecrets,
+  detectSystemProxyAndLog
 } from './utils.js';
 
 import {
@@ -58,6 +60,7 @@ export class Percy {
     // implies `skipUploads` and `skipDiscovery`
     dryRun,
     // implies `dryRun`, silent logs, and adds extra api endpoints
+    labels,
     testing,
     // configuration filepath
     config: configFile,
@@ -78,12 +81,14 @@ export class Percy {
       path: configFile
     });
 
+    labels ??= config.percy?.labels;
     deferUploads ??= config.percy?.deferUploads;
     this.config = config;
 
     if (testing) loglevel = 'silent';
     if (loglevel) this.loglevel(loglevel);
 
+    this.port = port;
     this.projectType = projectType;
     this.testing = testing ? {} : null;
     this.dryRun = !!testing || !!dryRun;
@@ -91,8 +96,9 @@ export class Percy {
     this.skipDiscovery = this.dryRun || !!skipDiscovery;
     this.delayUploads = this.skipUploads || !!delayUploads;
     this.deferUploads = this.skipUploads || !!deferUploads;
+    this.labels = labels;
 
-    this.client = new PercyClient({ token, clientInfo, environmentInfo, config });
+    this.client = new PercyClient({ token, clientInfo, environmentInfo, config, labels });
     if (server) this.server = createPercyServer(this, port);
     this.browser = new Browser(this);
 
@@ -158,13 +164,20 @@ export class Percy {
       if (process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {
         this.log.warn('Notice: Percy collects CI logs for service improvement, stored for 30 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false');
       }
+      // Not awaiting proxy check as this can be asyncronous when not enabled
+      const detectProxy = detectSystemProxyAndLog(this.config.percy.useSystemProxy);
+      if (this.config.percy.useSystemProxy) await detectProxy;
       // start the snapshots queue immediately when not delayed or deferred
       if (!this.delayUploads && !this.deferUploads) yield this.#snapshots.start();
       // do not start the discovery queue when not needed
       if (!this.skipDiscovery) yield this.#discovery.start();
       // start a local API server for SDK communication
       if (this.server) yield this.server.listen();
-      if (this.projectType === 'web') this.deviceDetails = yield this.client.getDeviceDetails(this.build?.id);
+      if (this.projectType === 'web') {
+        if (!process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS || process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS !== 'true') {
+          this.deviceDetails = yield this.client.getDeviceDetails(this.build?.id);
+        }
+      }
       const snapshotType = this.projectType === 'web' ? 'snapshot' : 'comparison';
       this.syncQueue = new WaitForJob(snapshotType, this);
       // log and mark this instance as started
@@ -181,8 +194,11 @@ export class Percy {
 
       // throw an easier-to-understand error when the port is in use
       if (error.code === 'EADDRINUSE') {
-        throw new Error('Percy is already running or the port is in use');
+        let errMsg = `Percy is already running or the port ${this.port} is in use`;
+        await this.suggestionsForFix(errMsg);
+        throw new Error(errMsg);
       } else {
+        await this.suggestionsForFix(error.message);
         throw error;
       }
     }
@@ -274,6 +290,9 @@ export class Percy {
       this.log.error(err);
       throw err;
     } finally {
+      // This issue doesn't comes under regular error logs,
+      // it's detected if we just and stop percy server
+      await this.checkForNoSnapshotCommandError();
       await this.sendBuildLogs();
     }
   }
@@ -355,6 +374,12 @@ export class Percy {
     }
 
     // validate comparison uploads and warn about any errors
+
+    // we are having two similar attrs in options: tags & tag
+    // tags: is used as labels and is string comma-separated like "tag1,tag"
+    // tag: is comparison-tag used by app-percy & poa and this is used to create a comparison-tag in BE
+    // its format is object like {name: "", os:"", os_version:"", device:""}
+    // DO NOT GET CONFUSED!!! :)
     if ('tag' in options || 'tiles' in options) {
       // throw when missing required snapshot or tag name
       if (!options.name) throw new Error('Missing required snapshot name');
@@ -387,6 +412,8 @@ export class Percy {
         return yield* yieldTo(this.#snapshots.push(options));
       } catch (error) {
         this.#snapshots.cancel(options);
+        // Detecting and suggesting fix for errors;
+        await this.suggestionsForFix(error.message);
         throw error;
       }
     }.call(this));
@@ -419,16 +446,93 @@ export class Percy {
     return syncMode;
   }
 
+  // This specific error will be hard coded
+  async checkForNoSnapshotCommandError() {
+    let isPercyStarted = false;
+    let containsSnapshotTaken = false;
+    logger.query((item) => {
+      isPercyStarted ||= item?.message?.includes('Percy has started');
+      containsSnapshotTaken ||= item?.message?.includes('Snapshot taken');
+
+      // This case happens when you directly upload it using cli-upload
+      containsSnapshotTaken ||= item?.message?.includes('Snapshot uploaded');
+      return item;
+    });
+
+    if (isPercyStarted && !containsSnapshotTaken) {
+      // This is the case for No snapshot command called
+      this.#displaySuggestionLogs([{
+        failure_reason: 'Snapshot command was not called',
+        reason_message: 'Snapshot Command was not called. please check your CI for errors',
+        suggestion: 'Try using percy snapshot command to take snapshots',
+        reference_doc_link: ['https://www.browserstack.com/docs/percy/take-percy-snapshots/']
+      }]);
+    }
+  }
+
+  #displaySuggestionLogs(suggestions, options = {}) {
+    if (!suggestions?.length) return;
+
+    suggestions.forEach(item => {
+      const failure = item?.failure_reason;
+      const failureReason = item?.reason_message;
+      const suggestion = item?.suggestion;
+      const referenceDocLinks = item?.reference_doc_link;
+
+      if (options?.snapshotLevel) {
+        this.log.warn(`Detected erorr for Snapshot: ${options?.snapshotName}`);
+      } else {
+        this.log.warn('Detected error for percy build');
+      }
+
+      this.log.warn(`Failure: ${failure}`);
+      this.log.warn(`Failure Reason: ${failureReason}`);
+      this.log.warn(`Suggestion: ${suggestion}`);
+
+      if (referenceDocLinks?.length > 0) {
+        this.log.warn('Refer to the below Doc Links for the same');
+
+        referenceDocLinks?.forEach(_docLink => {
+          this.log.warn(`* ${_docLink}`);
+        });
+      }
+    });
+  }
+
+  #proxyEnabled() {
+    return !!(getProxy({ protocol: 'https:' }) || getProxy({}));
+  }
+
+  async suggestionsForFix(errors, options = {}) {
+    try {
+      const suggestionResponse = await this.client.getErrorAnalysis(errors);
+      this.#displaySuggestionLogs(suggestionResponse, options);
+    } catch (e) {
+      // Common error code for Proxy issues
+      const PROXY_CODES = ['ECONNREFUSED', 'ECONNRESET', 'EHOSTUNREACH'];
+      if (!!e.code && PROXY_CODES.includes(e.code)) {
+        // This can be due to proxy issue
+        this.log.error('percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted.');
+        if (!this.#proxyEnabled()) {
+          this.log.error('If inside a proxied envirnment, please configure the following environment variables: HTTP_PROXY, [ and optionally HTTPS_PROXY if you need it ]. Refer to our documentation for more details');
+        }
+      }
+      this.log.error('Unable to analyze error logs');
+      this.log.debug(e);
+    }
+  }
+
   async sendBuildLogs() {
     if (!process.env.PERCY_TOKEN) return;
     try {
       const logsObject = {
-        clilogs: logger.query(() => true)
+        clilogs: logger.query(log => !['ci'].includes(log.debug))
       };
+
       // Only add CI logs if not disabled voluntarily.
       const sendCILogs = process.env.PERCY_CLIENT_ERROR_LOGS !== 'false';
       if (sendCILogs) {
-        const redactedContent = redactSecrets(logger.query(() => true, true));
+        const redactedContent = redactSecrets(logger.query(log => ['ci'].includes(log.debug)));
         logsObject.cilogs = redactedContent;
       }
       const content = base64encode(Pako.gzip(JSON.stringify(logsObject)));

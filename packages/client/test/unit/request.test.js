@@ -4,6 +4,7 @@ import http from 'http';
 import https from 'https';
 import { request, ProxyHttpAgent, formatBytes } from '@percy/client/utils';
 import { port, href, proxyAgentFor } from '../../src/proxy.js';
+import logger from '@percy/logger/test/helpers';
 
 const ssl = {
   cert: fs.readFileSync('./test/certs/test.crt'),
@@ -272,7 +273,7 @@ describe('Unit / Request', () => {
 
       beforeEach(async () => {
         await server?.close();
-
+        await logger.mock({ level: 'debug' });
         server = await createTestServer({
           type: serverType,
           port: 8080
@@ -473,6 +474,26 @@ describe('Unit / Request', () => {
               await expectAsync(server.request('/test'))
                 .toBeRejectedWith(error);
             });
+
+            if (proxyType === 'https') {
+              it('throws EHOSTUNREACH error', async () => {
+                let error = new Error('EHOSTUNREACH');
+
+                // sabotage the underlying socket.write method to emit an error
+                spyOn(net.Socket.prototype, 'write')
+                  .and.callFake(function() {
+                    this.emit('error', error);
+                  });
+
+                await expectAsync(server.request('/test'))
+                  .toBeRejectedWith(error);
+
+                expect(logger.stderr).toEqual(jasmine.arrayContaining([
+                  '[percy:client:proxy] If needed, Please verify if your proxy credentials are correct',
+                  '[percy:client:proxy] Please check if your proxy is set correctly and reachable'
+                ]));
+              });
+            }
           }
 
           it('throws an error when unable to connect', async () => {

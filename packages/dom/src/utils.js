@@ -44,3 +44,21 @@ export function styleSheetFromNode(node) {
 export function rewriteLocalhostURL(url) {
   return url.replace(/(http[s]{0,1}:\/\/)(localhost|127.0.0.1)[:\d+]*/, '$1render.percy.local');
 }
+
+// Utility function to handle errors
+export function handleErrors(error, prefixMessage, element = null, additionalData = {}) {
+  let elementData = {};
+  if (element) {
+    elementData = {
+      nodeName: element.nodeName,
+      classNames: element.className,
+      id: element.id
+    };
+  }
+  additionalData = { ...additionalData, ...elementData };
+
+  error.message += `\n${prefixMessage} \n${JSON.stringify(additionalData)}`;
+  error.message += '\n Please validate that your DOM is as per W3C standards using any online tool';
+  error.handled = true;
+  throw error;
+}

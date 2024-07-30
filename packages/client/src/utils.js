@@ -3,6 +3,7 @@ import fs from 'fs';
 import url from 'url';
 import path from 'path';
 import crypto from 'crypto';
+import logger from '@percy/logger';
 
 // Formats a raw byte integer as a string
 export function formatBytes(int) {
@@ -76,6 +77,7 @@ export function pool(generator, context, concurrency) {
         }).catch(error => {
           queue--;
           err = error;
+          logger('client:utils').error(`[${generator.name}] Failed with reason: ${error}`);
           proceed();
         });
       }
@@ -211,8 +213,40 @@ export function validateTiles(tiles) {
   return true;
 }
 
+export function formatLogErrors(errorLogs) {
+  let errors = [];
+  if (typeof errorLogs === 'string') {
+    errors.push({
+      message: errorLogs
+    });
+  } else if (Array.isArray(errorLogs)) {
+    errors = errorLogs;
+  } else {
+    errors.push({
+      message: errorLogs
+    });
+    errors.push({
+      message: errorLogs?.message || ''
+    });
+  }
+
+  return { logs: errors };
+}
+
+// convert tags comma-separated-names to array of objects for POST request
+export function tagsList(tags) {
+  let tagsArr = [];
+  if (typeof tags !== 'undefined' && tags !== null && typeof tags === 'string') {
+    let tagNamesArray = tags.split(',');
+    tagsArr = tagNamesArray.map(name => ({ id: null, name: name.trim() }));
+  }
+
+  return tagsArr;
+}
+
 export {
   hostnameMatches,
+  getProxy,
   ProxyHttpAgent,
   ProxyHttpsAgent,
   proxyAgentFor

@@ -104,8 +104,19 @@ export function serializeDOM(options) {
     ctx.hints.add('DOM elements found outside </body>');
   }
 
+  let cookies = '';
+  // Collecting cookies fail for about://blank page
+  try {
+    cookies = dom.cookie;
+  } catch (err) /* istanbul ignore next */ /* Tested this part in discovery.test.js with about:blank page */ {
+    const errorMessage = `Could not capture cookies: ${err.message}`;
+    ctx.warnings.add(errorMessage);
+    console.error(errorMessage);
+  }
+
   let result = {
     html: serializeHTML(ctx),
+    cookies: cookies,
     warnings: Array.from(ctx.warnings),
     resources: Array.from(ctx.resources),
     hints: Array.from(ctx.hints)

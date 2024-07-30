@@ -16,7 +16,7 @@ export default class TimeIt {
       return await callback();
     } finally {
       const duration = Date.now() - startTime;
-      this.log.info(`${name} - ${identifier} - ${duration / 1000}s`);
+      this.log.debug(`${name} - ${identifier} - ${duration / 1000}s`);
     }
   }
 }

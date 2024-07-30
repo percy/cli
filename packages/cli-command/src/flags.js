@@ -102,11 +102,22 @@ export const debug = {
   group: 'Percy'
 };
 
+export const labels = {
+  name: 'labels',
+  description: 'Associates labels to the build (ex: --labels=dev,prod )',
+  group: 'Global',
+  type: 'string',
+  parse: String,
+  percyrc: 'labels',
+  short: 'l'
+};
+
 // Group constants
 export const GLOBAL = [
   verbose,
   quiet,
-  silent
+  silent,
+  labels
 ];
 
 export const PERCY = [

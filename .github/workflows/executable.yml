@@ -3,11 +3,11 @@ on:
   release:
     types: [published]
 jobs:
-  lint:
+  build:
     name: Build Executables
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - uses: actions/setup-node@v4
         with:
           node-version: 14
@@ -17,14 +17,55 @@ jobs:
           APPLE_DEV_CERT: ${{secrets.APPLE_DEV_CERT}}
           APPLE_ID_USERNAME: ${{secrets.APPLE_ID_USERNAME}}
           APPLE_ID_KEY: ${{secrets.APPLE_ID_KEY}}
+          APPLE_CERT_KEY: ${{secrets.APPLE_CERT_KEY}}
+          APPLE_TEAM_ID: ${{secrets.APPLE_TEAM_ID}}
       - name: Verify executable
         run: ./percy --version
+      - name: Upload win artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: win-exe
+          path: percy.exe
       - name: Upload assets
-        uses: softprops/action-gh-release@d99959edae48b5ffffd7b00da66dcdb0a33a52ee
+        uses: softprops/action-gh-release@a74c6b72af54cfa997e81df42d94703d6313a2d0
         with:
           files: |
             percy-osx.zip
             percy-linux.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  notify:
+    needs: build
+    name: Sign Win Executable
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Download win artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: win-exe
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 14
+      - name: Install resedit
+        run: npm install resedit
+      - name: Update exe metadata
+        run: node ./scripts/win-metadata-update.js
+      - name: Sign binary
+        uses: lando/code-sign-action@v2
+        with:
+          file: ./percy.exe
+          certificate-data: ${{ secrets.WINDOWS_CERT }}
+          certificate-password: ${{ secrets.WINDOWS_CERT_KEY }}
+      - name: Verify executable
+        run: ./percy.exe --version
+      - run: |
+          powershell -Command "Compress-Archive -Path 'percy.exe' -DestinationPath 'percy-win.zip'"
+      - name: Upload assets
+        uses: softprops/action-gh-release@a74c6b72af54cfa997e81df42d94703d6313a2d0
+        with:
+          files: |
             percy-win.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

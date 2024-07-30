@@ -12,7 +12,9 @@ import {
   base64encode,
   getPackageJSON,
   waitForTimeout,
-  validateTiles
+  validateTiles,
+  formatLogErrors,
+  tagsList
 } from './utils.js';
 
 // Default client API URL can be set with an env var for API development
@@ -54,10 +56,11 @@ export class PercyClient {
     clientInfo,
     environmentInfo,
     config,
+    labels,
     // versioned api url
     apiUrl = PERCY_CLIENT_API_URL
   } = {}) {
-    Object.assign(this, { token, config: config || {}, apiUrl });
+    Object.assign(this, { token, config: config || {}, apiUrl, labels: labels });
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
     this.buildType = null;
@@ -134,6 +137,8 @@ export class PercyClient {
   async createBuild({ resources = [], projectType } = {}) {
     this.log.debug('Creating a new build...');
 
+    let tagsArr = tagsList(this.labels);
+
     return this.post('builds', {
       data: {
         type: 'builds',
@@ -152,7 +157,8 @@ export class PercyClient {
           'pull-request-number': this.env.pullRequest,
           'parallel-nonce': this.env.parallel.nonce,
           'parallel-total-shards': this.env.parallel.total,
-          partial: this.env.partial
+          partial: this.env.partial,
+          tags: tagsArr
         },
         relationships: {
           resources: {
@@ -367,6 +373,7 @@ export class PercyClient {
     environmentInfo,
     sync,
     testCase,
+    labels,
     thTestCaseExecutionId,
     resources = []
   } = {}) {
@@ -377,6 +384,8 @@ export class PercyClient {
     if (!this.clientInfo.size || !this.environmentInfo.size) {
       this.log.warn('Warning: Missing `clientInfo` and/or `environmentInfo` properties');
     }
+
+    let tagsArr = tagsList(labels);
 
     this.log.debug(`Creating snapshot: ${name}...`);
 
@@ -394,6 +403,7 @@ export class PercyClient {
           scope: scope || null,
           sync: !!sync,
           'test-case': testCase || null,
+          tags: tagsArr,
           'scope-options': scopeOptions || {},
           'minimum-height': minHeight || null,
           'enable-javascript': enableJavaScript || null,
@@ -525,7 +535,7 @@ export class PercyClient {
 
   // Convenience method for verifying if tile is present
   async verify(comparisonId, sha) {
-    let retries = 10;
+    let retries = 20;
     let success = null;
     do {
       await waitForTimeout(500);
@@ -535,8 +545,12 @@ export class PercyClient {
     while (retries > 0 && !success);
 
     if (!success) {
-      this.log.error('Uploading comparison tile failed');
-      return false;
+      let errMsg = 'Uploading comparison tile failed';
+
+      // Detecting error and logging fix for the same
+      // We are throwing this error as the comparison will be failed
+      // even if 1 tile gets failed
+      throw new Error(errMsg);
     }
     return true;
   }
@@ -605,6 +619,15 @@ export class PercyClient {
     this.log.debug('Sending Build Logs');
     return this.post('logs', {
       data: body
+    });
+  }
+
+  async getErrorAnalysis(errors) {
+    const errorLogs = formatLogErrors(errors);
+    this.log.debug('Sending error logs for analysis');
+
+    return this.post('suggestions/from_logs', {
+      data: errorLogs
     });
   }
 

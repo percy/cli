@@ -75,12 +75,21 @@ describe('percy exec', () => {
   it('starts and stops the percy process around the command', async () => {
     await exec(['--', 'node', '--eval', '']);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Detected error for percy build',
+      '[percy] Failure: Snapshot command was not called',
+      '[percy] Failure Reason: Snapshot Command was not called. please check your CI for errors',
+      '[percy] Suggestion: Try using percy snapshot command to take snapshots',
+      '[percy] Refer to the below Doc Links for the same',
+      '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
+    ]));
+
     expect(logger.stdout).toEqual([
       '[percy] Percy has started!',
       '[percy] Running "node --eval "',
       '[percy] Finalized build #1: https://percy.io/test/test/123',
-      "[percy] Build's CLI logs sent successfully. Please share this log ID with Percy team in case of any issues - random_sha"
+      "[percy] Build's CLI logs sent successfully. Please share this log ID with Percy team in case of any issues - random_sha",
+      '[percy] Command "node --eval " exited with status: 0'
     ]);
   });
 
@@ -104,7 +113,8 @@ describe('percy exec', () => {
       '[percy] Percy is disabled'
     ]);
     expect(logger.stdout).toEqual([
-      '[percy] Running "node --eval "'
+      '[percy] Running "node --eval "',
+      '[percy] Command "node --eval " exited with status: 0'
     ]);
   });
 
@@ -126,7 +136,14 @@ describe('percy exec', () => {
       exec(['--', 'node', '--eval', 'process.exit(3)'])
     ).toBeRejectedWithError('EEXIT: 3');
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Detected error for percy build',
+      '[percy] Failure: Snapshot command was not called',
+      '[percy] Failure Reason: Snapshot Command was not called. please check your CI for errors',
+      '[percy] Suggestion: Try using percy snapshot command to take snapshots',
+      '[percy] Refer to the below Doc Links for the same',
+      '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
+    ]));
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Running "node --eval process.exit(3)"',
@@ -139,7 +156,14 @@ describe('percy exec', () => {
     await exec(['--', 'echo', 'Hi!']);
 
     expect(stdoutSpy).toHaveBeenCalled();
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Detected error for percy build',
+      '[percy] Failure: Snapshot command was not called',
+      '[percy] Failure Reason: Snapshot Command was not called. please check your CI for errors',
+      '[percy] Suggestion: Try using percy snapshot command to take snapshots',
+      '[percy] Refer to the below Doc Links for the same',
+      '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
+    ]));
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Running "echo Hi!"',
@@ -154,16 +178,23 @@ describe('percy exec', () => {
       exec(['--', 'node', './test/test-data/test_prog.js', 'error']) // Throws Error
     ).toBeRejectedWithError('EEXIT: 1');
 
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Detected error for percy build',
+      '[percy] Failure: Snapshot command was not called',
+      '[percy] Failure Reason: Snapshot Command was not called. please check your CI for errors',
+      '[percy] Suggestion: Try using percy snapshot command to take snapshots',
+      '[percy] Refer to the below Doc Links for the same',
+      '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/',
       '[percy] Notice: Percy collects CI logs for service improvement, stored for 30 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
-    ]);
+    ]));
+
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Running "node ./test/test-data/test_prog.js error"',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]));
 
-    expect(Array.from(logger.instance.ciMessages)[0].message).toContain([
+    expect(logger.instance.query(log => log.debug === 'ci')[0].message).toContain([
       'Some error with secret: [REDACTED]'
     ]);
     expect(stderrSpy).toHaveBeenCalled();
@@ -183,7 +214,7 @@ describe('percy exec', () => {
       '[percy] Running "node ./test/test-data/test_prog.js error"'
     ]));
 
-    expect(Array.from(logger.instance.ciMessages)).toEqual([]);
+    expect(logger.instance.query(log => log.debug === 'ci')).toEqual([]);
     expect(stderrSpy).toHaveBeenCalled();
   });
 
@@ -216,9 +247,15 @@ describe('percy exec', () => {
 
     await expectAsync(exec(['--', 'foobar'])).toBeRejected();
     expect(stdinSpy).toHaveBeenCalled();
-    expect(logger.stderr).toEqual([
-      '[percy] Error: spawn error'
-    ]);
+    console.log(logger.stderr);
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Detected error for percy build',
+      '[percy] Failure: Snapshot command was not called',
+      '[percy] Failure Reason: Snapshot Command was not called. please check your CI for errors',
+      '[percy] Suggestion: Try using percy snapshot command to take snapshots',
+      '[percy] Refer to the below Doc Links for the same',
+      '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
+    ]));
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Running "foobar"',
@@ -244,7 +281,15 @@ describe('percy exec', () => {
     // user termination is not considered an error
     await expectAsync(test).toBeResolved();
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Detected error for percy build',
+      '[percy] Failure: Snapshot command was not called',
+      '[percy] Failure Reason: Snapshot Command was not called. please check your CI for errors',
+      '[percy] Suggestion: Try using percy snapshot command to take snapshots',
+      '[percy] Refer to the below Doc Links for the same',
+      '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
+    ]));
+
     expect(logger.stdout).toContain(
       '[percy] Stopping percy...'
     );
@@ -259,7 +304,15 @@ describe('percy exec', () => {
       'await request(url).catch(e => (console.error(e), process.exit(2)));'
     ].join('')]);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Detected error for percy build',
+      '[percy] Failure: Snapshot command was not called',
+      '[percy] Failure Reason: Snapshot Command was not called. please check your CI for errors',
+      '[percy] Suggestion: Try using percy snapshot command to take snapshots',
+      '[percy] Refer to the below Doc Links for the same',
+      '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
+    ]));
+
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       jasmine.stringMatching('\\[percy] Running "node '),
@@ -272,7 +325,14 @@ describe('percy exec', () => {
       'process.env.PERCY_BUILD_ID === "123" || process.exit(2)'
     )]);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Detected error for percy build',
+      '[percy] Failure: Snapshot command was not called',
+      '[percy] Failure Reason: Snapshot Command was not called. please check your CI for errors',
+      '[percy] Suggestion: Try using percy snapshot command to take snapshots',
+      '[percy] Refer to the below Doc Links for the same',
+      '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
+    ]));
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       jasmine.stringMatching('\\[percy] Running "node '),
@@ -285,7 +345,14 @@ describe('percy exec', () => {
       'process.env.PERCY_BUILD_URL === "https://percy.io/test/test/123" || process.exit(2)'
     )]);
 
-    expect(logger.stderr).toEqual([]);
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Detected error for percy build',
+      '[percy] Failure: Snapshot command was not called',
+      '[percy] Failure Reason: Snapshot Command was not called. please check your CI for errors',
+      '[percy] Suggestion: Try using percy snapshot command to take snapshots',
+      '[percy] Refer to the below Doc Links for the same',
+      '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
+    ]));
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       jasmine.stringMatching('\\[percy] Running "node '),

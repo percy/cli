@@ -1,7 +1,7 @@
 import { request as makeRequest } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
-import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor } from './utils.js';
+import { DefaultMap, createResource, decodeAndEncodeURLWithLogging, hostnameMatches, normalizeURL, waitFor } from './utils.js';
 
 const MAX_RESOURCE_SIZE = 25 * (1024 ** 2); // 25MB
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
@@ -76,7 +76,7 @@ export class Network {
   }
 
   // Resolves after the timeout when there are no more in-flight requests.
-  async idle(filter = () => true, timeout = this.timeout) {
+  async idle(filter = () => true, timeout = this.timeout, captureResponsiveAssetsEnabled = false) {
     let requests = [];
 
     this.log.debug(`Wait for ${timeout}ms idle`, this.meta);
@@ -100,13 +100,26 @@ export class Network {
       idle: timeout
     }).catch(error => {
       if (error.message.startsWith('Timeout')) {
-        this._throwTimeoutError((
-          'Timed out waiting for network requests to idle.'
-        ), filter);
+        let message = 'Timed out waiting for network requests to idle.';
+        if (captureResponsiveAssetsEnabled) message += '\nWhile capturing responsive assets try setting PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS to true.';
+        this._throwTimeoutError(message, filter);
       } else {
         throw error;
       }
     });
+
+    // After waiting for network to idle check if there are still some request
+    const activeRequests = this.getActiveRequests(filter);
+    /* istanbul ignore if: race condition, very hard to mock this */
+    if (activeRequests.length > 0) {
+      this.log.debug(`There are ${activeRequests.length} active requests pending during asset discovery. Try increasing the networkIdleTimeout to resolve this issue. \n ${activeRequests}`);
+    }
+  }
+
+  getActiveRequests(filter) {
+    let requests = Array.from(this.#requests.values()).filter(filter);
+    requests = requests.filter((req) => !this.#finishedUrls.has(req.url));
+    return requests;
   }
 
   // Validates that requestId is still valid as sometimes request gets cancelled and we have already executed
@@ -193,6 +206,14 @@ export class Network {
 
     // do not handle data urls
     if (request.url.startsWith('data:')) return;
+
+    // Browsers handle URL encoding leniently, but invalid characters can break tools like Jackproxy.
+    // This code checks for issues such as `%` and leading spaces and warns the user accordingly.
+    decodeAndEncodeURLWithLogging(request.url, this.log, {
+      meta: { ...this.meta, url: request.url },
+      shouldLogWarning: true,
+      warningMessage: `An invalid URL was detected for url: ${request.url} - the snapshot may fail on Percy. Please verify that your asset URL is valid.`
+    });
 
     if (this.intercept) {
       this.#pending.set(requestId, event);

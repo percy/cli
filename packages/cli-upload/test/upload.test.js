@@ -89,6 +89,7 @@ describe('percy upload', () => {
           scope: null,
           sync: false,
           'test-case': null,
+          tags: [],
           'scope-options': {},
           'minimum-height': 10,
           'enable-javascript': null,
@@ -198,8 +199,15 @@ describe('percy upload', () => {
     await up;
 
     expect(logger.stderr).toEqual([
-      '[percy] AbortError: SIGTERM'
+      '[percy] AbortError: SIGTERM',
+      '[percy] Detected error for percy build',
+      '[percy] Failure: Snapshot command was not called',
+      '[percy] Failure Reason: Snapshot Command was not called. please check your CI for errors',
+      '[percy] Suggestion: Try using percy snapshot command to take snapshots',
+      '[percy] Refer to the below Doc Links for the same',
+      '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
     ]);
+
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Uploading 3 snapshots...',

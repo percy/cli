@@ -5,6 +5,8 @@ import YAML from 'yaml';
 import path from 'path';
 import url from 'url';
 import { readFileSync } from 'fs';
+import logger from '@percy/logger';
+import DetectProxy from '@percy/client/detect-proxy';
 
 export {
   request,
@@ -373,11 +375,66 @@ export function base64encode(content) {
     .toString('base64');
 }
 
+// This function replaces invalid character that are not the
+// part of valid URI syntax with there correct encoded value.
+// Also, if a character is a part of valid URI syntax, those characters
+// are not encoded
+// Eg: [abc] -> gets encoded to %5Babc%5D
+// ab c -> ab%20c
+export function decodeAndEncodeURLWithLogging(url, logger, options = {}) {
+  // In case the url is partially encoded, then directly using encodeURI()
+  // will encode those characters again. Therefore decodeURI once helps is decoding
+  // partially encoded URL and then after encoding it again, full URL get encoded
+  // correctly.
+  const { meta, shouldLogWarning, warningMessage } = options;
+  try {
+    let decodedURL = decodeURI(url); // This can throw error, so handle it will trycatch
+    let encodedURL = encodeURI(decodedURL);
+    return encodedURL;
+  } catch (error) {
+    logger.debug(error, meta);
+    if (error.name === 'URIError' && shouldLogWarning) {
+      logger.warn(warningMessage);
+    }
+    return url;
+  }
+}
+
 export function snapshotLogName(name, meta) {
   if (meta?.snapshot?.testCase) {
     return `testCase: ${meta.snapshot.testCase}, ${name}`;
   }
   return name;
+}
+
+export async function detectSystemProxyAndLog(applyProxy) {
+  // if proxy is already set no need to check again
+  if (process.env.HTTPS_PROXY || process.env.HTTP_PROXY) return;
+
+  let proxyPresent = false;
+  const log = logger('core:utils');
+  // Checking proxy shouldn't cause failure
+  try {
+    const detectProxy = new DetectProxy();
+    const proxies = await detectProxy.getSystemProxy();
+    proxyPresent = proxies.length !== 0;
+    if (proxyPresent) {
+      if (applyProxy) {
+        proxies.forEach((proxy) => {
+          if (proxy.type === 'HTTPS') {
+            process.env.HTTPS_PROXY = 'https://' + proxy.host + ':' + proxy.port;
+          } else if (proxy.type === 'HTTP') {
+            process.env.HTTP_PROXY = 'http://' + proxy.host + ':' + proxy.port;
+          }
+        });
+      } else {
+        log.warn('We have detected a system level proxy in your system. use HTTP_PROXY or HTTPS_PROXY env vars or To auto apply proxy set useSystemProxy: true under percy in config file');
+      }
+    }
+  } catch (e) {
+    log.debug(`Failed to detect system proxy ${e}`);
+  }
+  return proxyPresent;
 }
 
 // DefaultMap, which returns a default value for an uninitialized key

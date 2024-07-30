@@ -2,13 +2,22 @@ import GenericProvider from '../../src/providers/genericProvider.js';
 import Driver from '../../src/driver.js';
 import MetaDataResolver from '../../src/metadata/metaDataResolver.js';
 import DesktopMetaData from '../../src/metadata/desktopMetaData.js';
-import MobileMetaData from '../../src/metadata/mobileMetaData.js';
 
 describe('GenericProvider', () => {
   let genericProvider;
   let capabilitiesSpy;
+  let args;
 
   beforeEach(() => {
+    args = {
+      sessionId: '123',
+      commandExecutorUrl: 'http:executorUrl',
+      capabilities: { platform: 'win' },
+      sessionCapabilities: {},
+      clientInfo: 'local-poc-poa',
+      environmentInfo: 'staging-poc-poa',
+      options: {}
+    };
     capabilitiesSpy = spyOn(Driver.prototype, 'getCapabilites')
       .and.returnValue(Promise.resolve({ browserName: 'Chrome' }));
   });
@@ -19,11 +28,12 @@ describe('GenericProvider', () => {
 
     beforeEach(() => {
       metaDataResolverSpy = spyOn(MetaDataResolver, 'resolve');
+      args.capabilities = {};
       expectedDriver = new Driver('123', 'http:executorUrl', {});
     });
 
     it('creates driver', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', {});
+      genericProvider = new GenericProvider(args);
       await genericProvider.createDriver();
       expect(genericProvider.driver).toEqual(expectedDriver);
       expect(capabilitiesSpy).toHaveBeenCalledTimes(1);
@@ -38,7 +48,7 @@ describe('GenericProvider', () => {
     });
 
     it('creates tiles from screenshot', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      genericProvider = new GenericProvider(args);
       genericProvider.createDriver();
       const tiles = await genericProvider.getTiles(false);
       expect(tiles.tiles.length).toEqual(1);
@@ -50,84 +60,8 @@ describe('GenericProvider', () => {
     });
 
     it('throws error if driver not initailized', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      genericProvider = new GenericProvider(args);
       await expectAsync(genericProvider.getTiles(false)).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
-    });
-  });
-
-  describe('getTag', () => {
-    beforeEach(() => {
-      spyOn(DesktopMetaData.prototype, 'windowSize')
-        .and.returnValue(Promise.resolve({ width: 1000, height: 1000 }));
-      spyOn(DesktopMetaData.prototype, 'orientation')
-        .and.returnValue('landscape');
-      spyOn(DesktopMetaData.prototype, 'deviceName')
-        .and.returnValue('mockDeviceName');
-      spyOn(DesktopMetaData.prototype, 'osName')
-        .and.returnValue('mockOsName');
-      spyOn(DesktopMetaData.prototype, 'osVersion')
-        .and.returnValue('mockOsVersion');
-      spyOn(DesktopMetaData.prototype, 'browserName')
-        .and.returnValue('mockBrowserName');
-      spyOn(DesktopMetaData.prototype, 'browserVersion')
-        .and.returnValue('111');
-      spyOn(DesktopMetaData.prototype, 'screenResolution')
-        .and.returnValue('1980 x 1080');
-      spyOn(MobileMetaData.prototype, 'windowSize')
-        .and.returnValue(Promise.resolve({ width: 1000, height: 1000 }));
-      spyOn(MobileMetaData.prototype, 'orientation')
-        .and.returnValue('landscape');
-      spyOn(MobileMetaData.prototype, 'deviceName')
-        .and.returnValue('mockDeviceName');
-      spyOn(MobileMetaData.prototype, 'osVersion')
-        .and.returnValue('mockOsVersion');
-      spyOn(MobileMetaData.prototype, 'browserName')
-        .and.returnValue('mockBrowserName');
-      spyOn(MobileMetaData.prototype, 'browserVersion')
-        .and.returnValue('111');
-      spyOn(MobileMetaData.prototype, 'screenResolution')
-        .and.returnValue('1980 x 1080');
-    });
-
-    it('returns correct tag for android', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'android', platformName: 'android' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
-      spyOn(MobileMetaData.prototype, 'osName').and.returnValue('android');
-      await genericProvider.createDriver();
-      const tag = await genericProvider.getTag();
-      expect(tag).toEqual({
-        name: 'mockDeviceName',
-        osName: 'android',
-        osVersion: 'mockOsVersion',
-        width: 1000,
-        height: 1000,
-        orientation: 'landscape',
-        browserName: 'mockBrowserName',
-        browserVersion: '111',
-        resolution: '1980 x 1080'
-      });
-    });
-
-    it('returns correct tag for others', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
-      spyOn(MobileMetaData.prototype, 'osName').and.returnValue('mockOsName');
-      await genericProvider.createDriver();
-      const tag = await genericProvider.getTag();
-      expect(tag).toEqual({
-        name: 'mockDeviceName',
-        osName: 'mockOsName',
-        osVersion: 'mockOsVersion',
-        width: 1000,
-        height: 1000,
-        orientation: 'landscape',
-        browserName: 'mockBrowserName',
-        browserVersion: '111',
-        resolution: '1980 x 1080'
-      });
-    });
-
-    it('throws error if driver not initailized', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
-      await expectAsync(genericProvider.getTag()).toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
     });
   });
 
@@ -170,7 +104,7 @@ describe('GenericProvider', () => {
       });
 
       it('calls correct funcs', async () => {
-        genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+        genericProvider = new GenericProvider(args);
         await genericProvider.createDriver();
         let res = await genericProvider.screenshot('mock-name', {});
         expect(getTagSpy).toHaveBeenCalledTimes(1);
@@ -228,7 +162,7 @@ describe('GenericProvider', () => {
       });
 
       it('calls correct funcs with iOS', async () => {
-        genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+        genericProvider = new GenericProvider(args);
         await genericProvider.createDriver();
         let res = await genericProvider.screenshot('mock-name', {});
         expect(iOSGetTagSpy).toHaveBeenCalledTimes(1);
@@ -256,7 +190,7 @@ describe('GenericProvider', () => {
     });
 
     it('should call executeScript to get windowHeight', async () => {
-      genericProvider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'local-poc-poa', 'staging-poc-poa', {});
+      genericProvider = new GenericProvider(args);
       await genericProvider.createDriver();
       await genericProvider.getWindowHeight();
       expect(genericProvider.driver.executeScript).toHaveBeenCalledTimes(1);
@@ -269,7 +203,7 @@ describe('GenericProvider', () => {
     let scrollFactors;
     describe('When iOS singlepage screenshot', () => {
       beforeEach(async () => {
-        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+        provider = new GenericProvider(args);
         await provider.createDriver();
         scrollFactors = { value: [0, 10] };
         provider.currentTag = { osName: 'iOS' };
@@ -311,8 +245,18 @@ describe('GenericProvider', () => {
     });
 
     describe('When iOS fullpage screenshot', () => {
+      let args = {
+        sessionId: '123',
+        commandExecutorUrl: 'http:executorUrl',
+        capabilities: { platform: 'win' },
+        sessionCapabilities: {},
+        clientInfo: 'local-poc-poa',
+        environmentInfo: 'staging-poc-poa',
+        options: {}
+      };
       beforeEach(async () => {
-        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'client', 'environment', { fullPage: true });
+        args.options = { fullPage: true };
+        provider = new GenericProvider(args);
         await provider.createDriver();
         scrollFactors = { value: [0, 10] };
         provider.currentTag = { osName: 'iOS' };
@@ -332,7 +276,8 @@ describe('GenericProvider', () => {
 
     describe('When OS X singlepage', () => {
       beforeEach(async () => {
-        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'OS X' }, {});
+        args.capabilities = { platform: 'OS X' };
+        provider = new GenericProvider(args);
         await provider.createDriver();
         scrollFactors = { value: [0, 10] };
         provider.currentTag = { osName: 'OS X' };
@@ -373,7 +318,9 @@ describe('GenericProvider', () => {
 
     describe('When OS X fullpage screenshot', () => {
       beforeEach(async () => {
-        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'OS X' }, {}, 'client', 'environment', { fullPage: true });
+        args.capabilities = { platform: 'OS X' };
+        args.options = { fullPage: true };
+        provider = new GenericProvider(args);
         await provider.createDriver();
         scrollFactors = { value: [0, 10] };
         provider.currentTag = { osName: 'OS X' };
@@ -414,7 +361,7 @@ describe('GenericProvider', () => {
 
     describe('When Other singlepage', () => {
       beforeEach(async () => {
-        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+        provider = new GenericProvider(args);
         await provider.createDriver();
         provider.currentTag = { osName: 'Android' };
         provider.pageYShiftFactor = 0;
@@ -435,7 +382,8 @@ describe('GenericProvider', () => {
 
     describe('When Other fullpage', () => {
       beforeEach(async () => {
-        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'client', 'environment', { fullPage: true });
+        args.options = { fullPage: true };
+        provider = new GenericProvider(args);
         await provider.createDriver();
         provider.currentTag = { osName: 'Android' };
         provider.pageYShiftFactor = 0;
@@ -474,7 +422,7 @@ describe('GenericProvider', () => {
     describe('When singlepage screenshot', () => {
       beforeEach(async () => {
         // mock metadata
-        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+        provider = new GenericProvider(args);
         provider.currentTag = { osName: 'Windows' };
         await provider.createDriver();
         spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
@@ -502,7 +450,8 @@ describe('GenericProvider', () => {
     describe('When fullpage screenshot', () => {
       beforeEach(async () => {
         // mock metadata
-        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'client', 'environment', { fullPage: true });
+        args.options = { fullPage: true };
+        provider = new GenericProvider(args);
         provider.currentTag = { osName: 'Windows' };
         await provider.createDriver();
         spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
@@ -536,7 +485,7 @@ describe('GenericProvider', () => {
     let mockLocation = { x: 10, y: 20, width: 100, height: 200 };
     beforeEach(async () => {
       // mock metadata
-      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      provider = new GenericProvider(args);
       provider.currentTag = { osName: 'Windows' };
       await provider.createDriver();
       spyOn(DesktopMetaData.prototype, 'devicePixelRatio')
@@ -580,7 +529,8 @@ describe('GenericProvider', () => {
       let scrollY = 20;
       beforeEach(async () => {
         // mock metadata
-        provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'client', 'environment', { fullPage: true });
+        args.options = { fullPage: true };
+        provider = new GenericProvider(args);
         provider.currentTag = { osName: 'Windows' };
         await provider.createDriver();
         provider.initialScrollLocation = { value: [scrollX, scrollY] };
@@ -606,7 +556,7 @@ describe('GenericProvider', () => {
     let xpathResponse = { top: 0, bottom: 500, right: 0, left: 300 };
 
     beforeEach(async () => {
-      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      provider = new GenericProvider(args);
       await provider.createDriver();
       getRegionObjectSpy = spyOn(GenericProvider.prototype, 'getRegionObjectFromBoundingBox').and.returnValue(xpathResponse);
     });
@@ -639,7 +589,7 @@ describe('GenericProvider', () => {
     let provider;
 
     beforeEach(async () => {
-      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      provider = new GenericProvider(args);
       await provider.createDriver();
       getRegionObjectSpy = spyOn(GenericProvider.prototype, 'getRegionObjectFromBoundingBox').and.returnValue({});
     });
@@ -671,7 +621,7 @@ describe('GenericProvider', () => {
     let provider;
     let executeScriptSpy;
     beforeEach(async () => {
-      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      provider = new GenericProvider(args);
       provider.currentTag = { osName: 'Windows' };
       await provider.createDriver();
       executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
@@ -686,7 +636,7 @@ describe('GenericProvider', () => {
   describe('isIOS', () => {
     let provider;
     beforeEach(async () => {
-      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      provider = new GenericProvider(args);
       provider.currentTag = { osName: 'Windows' };
     });
 
@@ -709,7 +659,7 @@ describe('GenericProvider', () => {
     const elements = ['mockElement_1', 'mockElement_2', 'mockElement_3'];
 
     beforeEach(async () => {
-      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      provider = new GenericProvider(args);
       await provider.createDriver();
       getRegionObjectSpy = spyOn(GenericProvider.prototype, 'getRegionObject').and.returnValue({});
       scrollToPositionSpy = spyOn(GenericProvider.prototype, 'scrollToPosition');
@@ -746,7 +696,7 @@ describe('GenericProvider', () => {
     let provider;
 
     beforeEach(async () => {
-      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      provider = new GenericProvider(args);
       await provider.createDriver();
       spyOn(DesktopMetaData.prototype, 'windowSize')
         .and.returnValue(Promise.resolve({ width: 1920, height: 1080 }));
@@ -796,7 +746,7 @@ describe('GenericProvider', () => {
     ];
 
     beforeEach(async () => {
-      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      provider = new GenericProvider(args);
       await provider.createDriver();
       doTransformationSpy = spyOn(GenericProvider.prototype, 'doTransformations');
       undoTransformationSpy = spyOn(GenericProvider.prototype, 'undoTransformations');
@@ -840,7 +790,7 @@ describe('GenericProvider', () => {
     let getInitialScrollLocationSpy;
 
     beforeEach(async () => {
-      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      provider = new GenericProvider(args);
       await provider.createDriver();
       executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
       getInitialScrollLocationSpy = spyOn(GenericProvider.prototype, 'getInitialScrollLocation');
@@ -880,7 +830,8 @@ describe('GenericProvider', () => {
     });
 
     it('should get initial scroll position for singlepage', async () => {
-      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {}, 'client', 'environment', { fullPage: true });
+      args.options = { fullPage: true };
+      provider = new GenericProvider(args);
       await provider.createDriver();
       await provider.doTransformations();
       expect(getInitialScrollLocationSpy).toHaveBeenCalled();
@@ -892,7 +843,7 @@ describe('GenericProvider', () => {
     let executeScriptSpy;
 
     beforeEach(async () => {
-      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      provider = new GenericProvider(args);
       await provider.createDriver();
       executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
     });
@@ -913,7 +864,7 @@ describe('GenericProvider', () => {
     let executeScriptSpy;
 
     beforeEach(async () => {
-      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      provider = new GenericProvider(args);
       await provider.createDriver();
       executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
     });
@@ -929,7 +880,7 @@ describe('GenericProvider', () => {
     let getScrollDetailsSpy;
 
     beforeEach(async () => {
-      provider = new GenericProvider('123', 'http:executorUrl', { platform: 'win' }, {});
+      provider = new GenericProvider(args);
       await provider.createDriver();
       getScrollDetailsSpy = spyOn(GenericProvider.prototype, 'getScrollDetails');
       provider.initialScrollLocation = { value: [1, 1] };
@@ -943,6 +894,73 @@ describe('GenericProvider', () => {
       provider.initialScrollLocation = null;
       provider.getInitialScrollLocation();
       expect(getScrollDetailsSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('getUserAgentString', () => {
+    let provider = new GenericProvider(args);
+    it('should return empty string if input is not a Set or string', () => {
+      expect(provider.getUserAgentString(123)).toEqual('');
+      expect(provider.getUserAgentString(null)).toEqual('');
+      expect(provider.getUserAgentString(undefined)).toEqual('');
+      expect(provider.getUserAgentString([])).toEqual('');
+      expect(provider.getUserAgentString({})).toEqual('');
+    });
+
+    it('should return stringified Set elements separated by semicolon', () => {
+      const data = new Set(['Mozilla/5.0', 'AppleWebKit/537.36', 'Chrome/64.0.3282.140']);
+      expect(provider.getUserAgentString(data)).toEqual('Mozilla/5.0; AppleWebKit/537.36; Chrome/64.0.3282.140');
+    });
+
+    it('should return the same string if input is a string', () => {
+      const data = 'Mozilla/5.0; AppleWebKit/537.36; Chrome/64.0.3282.140';
+      expect(provider.getUserAgentString(data)).toEqual(data);
+    });
+
+    it('should return empty string for empty Set', () => {
+      const data = new Set();
+      expect(provider.getUserAgentString(data)).toEqual('');
+    });
+  });
+
+  describe('browserstackExecutor', () => {
+    let executeScriptSpy;
+
+    beforeEach(async () => {
+      executeScriptSpy = spyOn(Driver.prototype, 'executeScript');
+    });
+
+    it('throws Error when called without initializing driver', async () => {
+      let provider = new GenericProvider(args);
+      await expectAsync(provider.browserstackExecutor('getSessionDetails'))
+        .toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
+    });
+
+    it('calls browserstackExecutor with correct arguemnts for actions only', async () => {
+      let provider = new GenericProvider(args);
+      await provider.createDriver();
+      await provider.browserstackExecutor('getSessionDetails');
+      expect(executeScriptSpy)
+        .toHaveBeenCalledWith({ script: 'browserstack_executor: {"action":"getSessionDetails"}', args: [] });
+    });
+
+    it('calls browserstackExecutor with correct arguemnts for actions + args', async () => {
+      let provider = new GenericProvider(args);
+      await provider.createDriver();
+      await provider.browserstackExecutor('getSessionDetails', 'new');
+      expect(executeScriptSpy)
+        .toHaveBeenCalledWith({ script: 'browserstack_executor: {"action":"getSessionDetails","arguments":"new"}', args: [] });
+    });
+  });
+
+  describe('getTag', () => {
+    it('throws Error when automate results is null', async () => {
+      let provider = new GenericProvider(args);
+      provider.automateResults = null;
+      const error = new Error('Comparison tag details not available');
+      await expectAsync(
+        provider.getTag({ width: 100, height: 100, resolution: 'resolution' })
+      ).toBeRejectedWith(error);
     });
   });
 });

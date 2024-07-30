@@ -4,6 +4,8 @@ import Percy from '@percy/core';
 import { RESOURCE_CACHE_KEY } from '../src/discovery.js';
 import Session from '../src/session.js';
 import Pako from 'pako';
+import * as CoreConfig from '@percy/core/config';
+import PercyConfig from '@percy/config';
 
 describe('Discovery', () => {
   let percy, server, captured, originalTimeout;
@@ -24,6 +26,12 @@ describe('Discovery', () => {
 
   // http://png-pixel.com/
   const pixel = Buffer.from('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', 'base64');
+
+  const sharedExpectBlock = (expectedBody) => {
+    let lastReq = api.requests['/suggestions/from_logs'].length - 1;
+    expect(api.requests['/suggestions/from_logs'][lastReq].body)
+      .toEqual(expectedBody);
+  };
 
   beforeEach(async () => {
     captured = [];
@@ -639,6 +647,49 @@ describe('Discovery', () => {
     ]));
   });
 
+  it('debug error log only for invalid network url', async () => {
+    let err = new Error('Some Invalid Error');
+    spyOn(global, 'decodeURI').and.callFake((url) => {
+      if (url === 'http://localhost:8000/style.css') {
+        throw err;
+      }
+      return url;
+    });
+
+    percy.loglevel('debug');
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy:core:page] Navigate to: http://localhost:8000/',
+      '[percy:core:discovery] Handling request: http://localhost:8000/',
+      '[percy:core:discovery] - Serving root resource',
+      `[percy:core:discovery] ${err.stack}`,
+      '[percy:core:discovery] Handling request: http://localhost:8000/style.css',
+      '[percy:core:discovery] Handling request: http://localhost:8000/img.gif'
+    ]));
+  });
+
+  it('detect invalid network url', async () => {
+    percy.loglevel('debug');
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'http://localhost:404/%style.css')
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy:core:discovery] Handling request: http://localhost:8000/',
+      '[percy:core:discovery] - Serving root resource',
+      '[percy:core:discovery] An invalid URL was detected for url: http://localhost:404/%style.css - the snapshot may fail on Percy. Please verify that your asset URL is valid.',
+      '[percy:core:discovery] Handling request: http://localhost:404/%style.css',
+      '[percy:core:discovery] Handling request: http://localhost:8000/img.gif'
+    ]));
+  });
+
   it('allows setting a custom discovery user-agent', async () => {
     let userAgent;
 
@@ -923,9 +974,40 @@ describe('Discovery', () => {
       expect(logger.stderr).toContain(
         '[percy] Error: Timed out waiting for network requests to idle.'
       );
+
+      let expectedRequestBody = {
+        data: {
+          logs: [
+            {
+              message: 'Encountered an error taking snapshot: test idle',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
+            },
+            {
+              message: 'Timed out waiting for network requests to idle.',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
+            }
+          ]
+        }
+      };
+      sharedExpectBlock(expectedRequestBody);
     });
 
-    it('shows debug info when requests fail to idle in time', async () => {
+    it('shows debug info when requests fail to idle in time for responsive assets', async () => {
+      api.reply('/discovery/device-details?build_id=123', () => [200, { data: [{ width: 375, deviceScaleFactor: 2 }, { width: 390, deviceScaleFactor: 3 }] }]);
+      server.reply('/', () => [200, 'text/html', (
+        testDOM.replace('<img', ('<img loading="lazy" srcset="/img-fromsrcset.png 2x"'))
+      )]);
+      server.reply('/img-fromsrcset.png', () => new Promise(r => (
+        setTimeout(r, 3000, [200, 'image/gif', pixel]))));
+      server.reply('/img.gif', () => new Promise(r => (
+        setTimeout(r, 200, [200, 'image/gif', pixel]))));
+      await percy.stop();
+      percy = await Percy.start({
+        projectType: 'web',
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
       percy.loglevel('debug');
 
       await percy.snapshot({
@@ -935,12 +1017,28 @@ describe('Discovery', () => {
 
       expect(logger.stderr).toContain(jasmine.stringMatching([
         '^\\[percy:core] Error: Timed out waiting for network requests to idle.',
+        'While capturing responsive assets try setting PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS to true.',
         '',
         '  Active requests:',
-        '  - http://localhost:8000/img.gif',
+        '  - http://localhost:8000/img-fromsrcset.png',
         '',
         '(?<stack>(.|\n)*)$'
       ].join('\n')));
+
+      sharedExpectBlock({
+        data: {
+          logs: [
+            {
+              message: 'Encountered an error taking snapshot: test idle',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
+            },
+            {
+              message: 'Timed out waiting for network requests to idle.\nWhile capturing responsive assets try setting PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS to true.\n\n  Active requests:\n  - http://localhost:8000/img-fromsrcset.png\n',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
+            }
+          ]
+        }
+      });
     });
 
     it('shows a warning when idle wait timeout is set over 60000ms', async () => {
@@ -1073,6 +1171,21 @@ describe('Discovery', () => {
         '[percy] Encountered an error taking snapshot: test navigation timeout',
         '[percy] Error: Navigation failed: Timed out waiting for the page load event'
       ]));
+
+      sharedExpectBlock({
+        data: {
+          logs: [
+            {
+              message: 'Encountered an error taking snapshot: test navigation timeout',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test navigation timeout' } }
+            },
+            {
+              message: 'Navigation failed: Timed out waiting for the page load event',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test navigation timeout' } }
+            }
+          ]
+        }
+      });
     });
   });
 
@@ -1111,6 +1224,22 @@ describe('Discovery', () => {
         '',
         '(?<stack>(.|\n)*)$'
       ].join('\n')));
+
+      let lastReq = api.requests['/suggestions/from_logs'].length - 1;
+      expect(api.requests['/suggestions/from_logs'][lastReq].body).toEqual({
+        data: {
+          logs: [
+            {
+              message: 'Encountered an error taking snapshot: navigation idle',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'navigation idle' } }
+            },
+            {
+              message: 'Navigation failed: Timed out waiting for the page load event\n\n  Active requests:\n  - http://localhost:8000/img.gif\n',
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'navigation idle' } }
+            }
+          ]
+        }
+      });
     });
 
     it('shows a warning when page load timeout is set over 60000ms', async () => {
@@ -1196,6 +1325,140 @@ describe('Discovery', () => {
       ]));
 
       expect(cookie).toEqual('chocolate=654321');
+    });
+
+    it('should merge cookie passed by user', async () => {
+      // test cookie array
+      await startWithCookies([{
+        name: 'test-cookie',
+        value: '654321'
+      }, {
+        name: 'shortbread',
+        value: '987654'
+      }]);
+
+      await percy.snapshot({
+        name: 'mmm cookies',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM,
+          cookies: 'test-cookie=value; cookie-name=cookie-value'
+        }
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: mmm cookies'
+      ]));
+
+      expect(cookie).toEqual('test-cookie=654321; shortbread=987654; cookie-name=cookie-value');
+    });
+
+    it('can send default collected cookies from serialization', async () => {
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      await percy.snapshot({
+        name: 'mmm cookies',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM,
+          cookies: 'test-cookie=value'
+        }
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: mmm cookies'
+      ]));
+
+      expect(cookie).toEqual('test-cookie=value');
+    });
+
+    it('does not use cookie if empty cookies is passed (in case of httponly)', async () => {
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      await percy.snapshot({
+        name: 'mmm cookies',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM,
+          cookies: ''
+        }
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: mmm cookies'
+      ]));
+
+      expect(cookie).toEqual(undefined);
+    });
+
+    it('should not use captured cookie when PERCY_DO_NOT_USE_CAPTURED_COOKIES is set', async () => {
+      process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES = true;
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      await percy.snapshot({
+        name: 'mmm cookies',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM,
+          cookies: 'test-cookie=value'
+        }
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: mmm cookies'
+      ]));
+
+      expect(cookie).toEqual(undefined);
+      delete process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES;
+    });
+  });
+
+  describe('Dom serialisation', () => {
+    it('should contain valid dom serialization values', async () => {
+      const page = await percy.browser.page();
+      await page.goto('http://localhost:8000');
+      await page.insertPercyDom();
+      let capture = await page.eval((_) => ({
+        /* eslint-disable-next-line no-undef */
+        domSnapshot: PercyDOM.serialize(),
+        url: document.URL
+      }));
+
+      PercyConfig.addSchema(CoreConfig.schemas);
+      const errors = PercyConfig.validate(capture, '/snapshot/dom');
+      expect(errors).toBe(undefined);
+    });
+
+    it('should not fail dom collection if cookie can not be collected', async () => {
+      const page = await percy.browser.page();
+      await page.goto('about:blank');
+      await page.insertPercyDom();
+      let capture = await page.eval((_) => ({
+        /* eslint-disable-next-line no-undef */
+        domSnapshot: PercyDOM.serialize(),
+        url: document.URL
+      }));
+
+      expect(capture.domSnapshot.html).toBeDefined();
+      expect(capture.domSnapshot.warnings).toEqual(["Could not capture cookies: Failed to read the 'cookie' property from 'Document': Access is denied for this document."]);
     });
   });
 
@@ -1846,6 +2109,13 @@ describe('Discovery', () => {
       })).toBeRejectedWithError(
         /Failed to launch browser/
       );
+
+      // We are checking here like this, to avoid flaky test as
+      // the error message contains some number
+      // eg: `Failed to launch browser. \n[0619/152313.736334:ERROR:command_line_handler.cc(67)`
+      let lastRequest = api.requests['/suggestions/from_logs'].length - 1;
+      expect(api.requests['/suggestions/from_logs'][lastRequest].body.data.logs[0].message.includes('Failed to launch browser'))
+        .toEqual(true);
     });
 
     it('should fail to launch after the timeout', async () => {
@@ -1860,6 +2130,16 @@ describe('Discovery', () => {
       })).toBeRejectedWithError(
         /Failed to launch browser\. Timed out after 10ms/
       );
+
+      let expectedBody = {
+        data: {
+          logs: [
+            { message: "Failed to launch browser. Timed out after 10ms\n'\n\n" }
+          ]
+        }
+      };
+
+      sharedExpectBlock(expectedBody);
     });
   });
 
@@ -2092,12 +2372,12 @@ describe('Discovery', () => {
       const fetchUpstream = async(request) => {
         return await fetch(request.clone());
       }
-      
+
       self.addEventListener('fetch', (event) => {
         const { request } = event
         event.respondWith(fetchUpstream(request));
       });
-      
+
       self.addEventListener("activate", (event) => {
         event.waitUntil(clients.claim());
       });
@@ -2107,9 +2387,9 @@ describe('Discovery', () => {
       const registerServiceWorker = async () => {
         await navigator.serviceWorker.register('sw.js',{ scope: './', });
       };
-      
+
       await registerServiceWorker();
-      
+
       // create and insert image element which will be intercepted and resolved by service worker
       // adding a sleep of 1s for service worker to get activated
       await new Promise(r => setTimeout(r, 1000));
@@ -2254,6 +2534,9 @@ describe('Discovery', () => {
   });
 
   describe('Capture responsive assets =>', () => {
+    afterEach(() => {
+      delete process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS;
+    });
     it('should capture js based assets', async () => {
       api.reply('/discovery/device-details?build_id=123', () => [200, { data: [{ width: 375, deviceScaleFactor: 2 }, { width: 390, deviceScaleFactor: 3 }] }]);
       // stop current instance to create a new one
@@ -2315,6 +2598,75 @@ describe('Discovery', () => {
         resource('/default.jpg'),
         resource('/small.jpg'),
         resource('/medium.jpg')
+      ]));
+
+      expect(captured[0]).not.toContain(jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/large.jpg'
+        })
+      }));
+    });
+
+    it('should not capture js based assets and returns default', async () => {
+      process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS = 'true';
+      api.reply('/discovery/device-details?build_id=123', () => [200, { data: [{ width: 375, deviceScaleFactor: 2 }, { width: 390, deviceScaleFactor: 3 }] }]);
+      // stop current instance to create a new one
+      await percy.stop();
+      percy = await Percy.start({
+        projectType: 'web',
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+      let responsiveDOM = dedent`
+        <html><head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body>
+        <h1>Responsive Images Example</h1>
+        <img id="responsive-image" src="default.jpg" alt="Responsive Image">
+        <script>
+            var image = document.getElementById('responsive-image');
+            function updateImage() {
+              var width = window.innerWidth;
+              var dpr = window.devicePixelRatio;
+              if (width <= 375 || dpr == 2) {
+                image.src = '/small.jpg';
+              } else if (width < 1200 || dpr == 3) {
+                image.src = '/medium.jpg';
+              } else {
+                image.src = '/large.jpg';
+              }
+            }
+            window.addEventListener('resize', updateImage);
+            window.addEventListener('load', updateImage);
+        </script>
+        </body>
+        </html>
+      `;
+
+      server.reply('/', () => [200, 'text/html', responsiveDOM]);
+      server.reply('/default.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/small.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/medium.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/large.jpg', () => [200, 'image/jpg', pixel]);
+
+      await percy.snapshot({
+        name: 'image srcset',
+        url: 'http://localhost:8000',
+        widths: [1024]
+      });
+
+      await percy.idle();
+
+      let resource = path => jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': `http://localhost:8000${path}`
+        })
+      });
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        resource('/default.jpg')
       ]));
 
       expect(captured[0]).not.toContain(jasmine.objectContaining({
