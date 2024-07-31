@@ -202,7 +202,7 @@ describe('Snapshot', () => {
           ]));
         };
 
-        fit('when modifySnapshotUrl set to false', async () => {
+        it('when modifySnapshotUrl set to false', async () => {
           await percy.snapshot([
             { url: partiallyEncodedURL, modifySnapshotUrl: false }
           ]);
