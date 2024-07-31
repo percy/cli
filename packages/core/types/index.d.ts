@@ -45,6 +45,7 @@ interface CommonSnapshotOptions {
   percyCSS?: string;
   enableJavaScript?: boolean;
   disableShadowDOM?: boolean;
+  modifySnapshotUrl?: boolean;
   enableLayout?: boolean;
   domTransformation?: string;
   reshuffleInvalidTags?: boolean;
