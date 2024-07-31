@@ -43,6 +43,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'enableJavaScript');
   debugProp(snapshot, 'cliEnableJavaScript');
   debugProp(snapshot, 'disableShadowDOM');
+  debugProp(snapshot, 'modifySnapshotUrl');
   debugProp(snapshot, 'enableLayout');
   debugProp(snapshot, 'domTransformation');
   debugProp(snapshot, 'reshuffleInvalidTags');

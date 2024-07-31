@@ -1,0 +1,3 @@
+name: 'some screenshot'
+url: http://localhost:9000/https%3A/abc[123].html
+waitForTimeout: 3000

@@ -102,7 +102,7 @@ function mapSnapshotOptions(snapshots, context) {
     // transform snapshot URL shorthand into an object
     if (typeof snapshot === 'string') snapshot = { url: snapshot };
 
-    validateAndFixSnapshotUrl(snapshot);
+    if (snapshot.modifySnapshotUrl !== false && process.env.PERCY_MODIFY_SNAPSHOT_URL !== 'false') validateAndFixSnapshotUrl(snapshot);
 
     let url = validURL(snapshot.url, context?.baseUrl);
     // normalize the snapshot url and use it for the default name
