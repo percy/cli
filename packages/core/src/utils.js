@@ -375,6 +375,29 @@ export function base64encode(content) {
     .toString('base64');
 }
 
+const RESERVED_CHARACTERS = {
+  '%3A': ':',
+  '%23': '#',
+  '%24': '$',
+  '%26': '&',
+  '%2B': '+',
+  '%2C': ',',
+  '%2F': '/',
+  '%3B': ';',
+  '%3D': '=',
+  '%3F': '?',
+  '%40': '@'
+};
+
+function _replaceReservedCharacters(url) {
+  let result = url;
+  for (let [key, value] of Object.entries(RESERVED_CHARACTERS)) {
+    let regex = new RegExp(key, 'g');
+    result = result.replace(regex, value);
+  }
+  return result;
+}
+
 // This function replaces invalid character that are not the
 // part of valid URI syntax with there correct encoded value.
 // Also, if a character is a part of valid URI syntax, those characters
@@ -388,7 +411,8 @@ export function decodeAndEncodeURLWithLogging(url, logger, options = {}) {
   // correctly.
   const { meta, shouldLogWarning, warningMessage } = options;
   try {
-    let decodedURL = decodeURI(url); // This can throw error, so handle it will trycatch
+    let decodedURL = _replaceReservedCharacters(url);
+    decodedURL = decodeURI(decodedURL);
     let encodedURL = encodeURI(decodedURL);
     return encodedURL;
   } catch (error) {
