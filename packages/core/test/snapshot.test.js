@@ -202,14 +202,6 @@ describe('Snapshot', () => {
           ]));
         };
 
-        it('when modifySnapshotUrl set to false', async () => {
-          await percy.snapshot([
-            { url: partiallyEncodedURL, modifySnapshotUrl: false }
-          ]);
-
-          sharedExpect();
-        });
-
         describe('with PERCY_MODIFY_SNAPSHOT_URL=false', () => {
           beforeEach(() => {
             process.env.PERCY_MODIFY_SNAPSHOT_URL = 'false';
@@ -222,14 +214,6 @@ describe('Snapshot', () => {
           it('uses original snapshot url', async () => {
             await percy.snapshot([
               { url: partiallyEncodedURL }
-            ]);
-
-            sharedExpect();
-          });
-
-          it('uses original snapshot url if modifySnapshotUrl = false ', async () => {
-            await percy.snapshot([
-              { url: partiallyEncodedURL, modifySnapshotUrl: false }
             ]);
 
             sharedExpect();

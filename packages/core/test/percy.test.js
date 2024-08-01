@@ -74,8 +74,7 @@ describe('Percy', () => {
       percyCSS: '',
       enableJavaScript: false,
       disableShadowDOM: false,
-      cliEnableJavaScript: true,
-      modifySnapshotUrl: true
+      cliEnableJavaScript: true
     });
   });
 

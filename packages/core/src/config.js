@@ -50,10 +50,6 @@ export const configSchema = {
         type: 'boolean',
         default: true
       },
-      modifySnapshotUrl: {
-        type: 'boolean',
-        default: true
-      },
       disableShadowDOM: {
         type: 'boolean',
         default: false
@@ -283,7 +279,6 @@ export const snapshotSchema = {
         percyCSS: { $ref: '/config/snapshot#/properties/percyCSS' },
         enableJavaScript: { $ref: '/config/snapshot#/properties/enableJavaScript' },
         cliEnableJavaScript: { $ref: '/config/snapshot#/properties/cliEnableJavaScript' },
-        modifySnapshotUrl: { $ref: '/config/snapshot#/properties/modifySnapshotUrl' },
         disableShadowDOM: { $ref: '/config/snapshot#/properties/disableShadowDOM' },
         domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
         enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
