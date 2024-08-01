@@ -189,6 +189,15 @@ describe('Snapshot', () => {
         sharedExpectModifiedSnapshotURL('http://localhost:8000/https//abc%5B123%5D.html');
       });
 
+      it('do not double encode if multiple reserved URI characters in snapshot url', async () => {
+        let partiallyEncodedURL = 'http://localhost:8000/https%2F/abc[123]%3A%3F_abc.html';
+        await percy.snapshot([
+          { url: partiallyEncodedURL }
+        ]);
+
+        sharedExpectModifiedSnapshotURL('http://localhost:8000/https//abc%5B123%5D:?_abc.html');
+      });
+
       describe('does not modifies snapshot url', () => {
         let partiallyEncodedURL = 'http://localhost:8000/https%2F/abc[123].html';
         const sharedExpect = () => {
