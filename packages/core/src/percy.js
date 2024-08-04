@@ -135,7 +135,7 @@ export class Percy {
     // validate provided config options
     let errors = PercyConfig.validate(config);
 
-    if (errors) {
+    if (errors?.length > 0) {
       this.log.warn('Invalid config:');
       for (let e of errors) this.log.warn(`- ${e.path}: ${e.message}`);
     }
@@ -390,7 +390,7 @@ export class Percy {
       let { clientInfo, environmentInfo, ...comparison } = options;
       let errors = PercyConfig.validate(comparison, '/comparison');
 
-      if (errors) {
+      if (errors?.length > 0) {
         this.log.warn('Invalid upload options:');
         for (let e of errors) this.log.warn(`- ${e.path}: ${e.message}`);
       }

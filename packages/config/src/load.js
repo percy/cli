@@ -95,7 +95,7 @@ export function load({
   config = normalize(config, { overrides, schema: '/config' });
   let errors = config && validate(config);
 
-  if (errors) {
+  if (errors?.length > 0) {
     log.warn('Invalid config:');
     for (let e of errors) log.warn(`- ${e.path}: ${e.message}`);
     if (bail) return;
