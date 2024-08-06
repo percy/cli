@@ -161,7 +161,6 @@ export class Percy {
     if (this.readyState != null) return;
     this.readyState = 0;
     this.cliStartTime = Date.now();
-    console.log('----->> start');
 
     try {
       if (process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {
