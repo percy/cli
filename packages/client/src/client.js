@@ -134,7 +134,7 @@ export class PercyClient {
   // Creates a build with optional build resources. Only one build can be
   // created at a time per instance so snapshots and build finalization can be
   // done more seemlessly without manually tracking build ids
-  async createBuild({ resources = [], projectType } = {}) {
+  async createBuild({ resources = [], projectType, cliStartTime = null } = {}) {
     this.log.debug('Creating a new build...');
 
     let tagsArr = tagsList(this.labels);
@@ -158,7 +158,8 @@ export class PercyClient {
           'parallel-nonce': this.env.parallel.nonce,
           'parallel-total-shards': this.env.parallel.total,
           partial: this.env.partial,
-          tags: tagsArr
+          tags: tagsArr,
+          'cli-start-time': cliStartTime
         },
         relationships: {
           resources: {
