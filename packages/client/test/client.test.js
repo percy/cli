@@ -172,7 +172,7 @@ describe('PercyClient', () => {
         }));
     });
 
-    fit('creates a new build with projectType passed as null', async () => {
+    it('creates a new build with projectType passed as null', async () => {
       await expectAsync(client.createBuild({ projectType: null })).toBeResolvedTo({
         data: {
           id: '123',
