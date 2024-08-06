@@ -364,6 +364,23 @@ describe('Percy', () => {
       expect(percy.projectType).toEqual('web');
     });
 
+    it('has cliStartTime', async () => {
+      let time = 1722952620595;
+      percy = new Percy({ token: 'PERCY_TOKEN' });
+      // abort when the browser is launched
+      let ctrl = new AbortController();
+      spyOn(percy.browser, 'launch');
+      spyOn(Date, 'now').and.returnValue(time);
+      spyOn(percy.client, 'createBuild').and.callThrough();
+
+      await generatePromise(percy.yield.start(), ctrl.signal);
+      expect(percy.cliStartTime).toEqual(time);
+      expect(percy.client.createBuild).toHaveBeenCalledWith(jasmine.objectContaining({
+        projectType: null,
+        cliStartTime: time
+      }));
+    });
+
     it('syncQueue is created', async () => {
       percy = new Percy({ token: 'PERCY_TOKEN', projectType: 'web' });
 
