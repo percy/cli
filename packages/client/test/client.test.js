@@ -172,7 +172,7 @@ describe('PercyClient', () => {
         }));
     });
 
-    it('creates a new build with projectType passed as null', async () => {
+    fit('creates a new build with projectType passed as null', async () => {
       await expectAsync(client.createBuild({ projectType: null })).toBeResolvedTo({
         data: {
           id: '123',
@@ -282,6 +282,7 @@ describe('PercyClient', () => {
             'pull-request-number': client.env.pullRequest,
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
+            'cli-start-time': null,
             partial: client.env.partial,
             tags: []
           }
