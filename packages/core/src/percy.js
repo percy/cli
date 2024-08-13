@@ -162,7 +162,7 @@ export class Percy {
 
     try {
       if (process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {
-        this.log.warn('Notice: Percy collects CI logs for service improvement, stored for 30 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false');
+        this.log.warn('Notice: Percy collects CI logs to improve service and enhance your experience. These logs help us debug issues and provide insights on your dashboards, making it easier to optimize the product experience. Logs are stored securely for 30 days. You can opt out anytime with export PERCY_CLIENT_ERROR_LOGS=false, but keeping this enabled helps us offer the best support and features.');
       }
       // Not awaiting proxy check as this can be asyncronous when not enabled
       const detectProxy = detectSystemProxyAndLog(this.config.percy.useSystemProxy);
