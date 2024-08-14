@@ -196,7 +196,7 @@ export function validateSnapshotOptions(options) {
   // warn on validation errors
   let errors = PercyConfig.validate(migrated, schema);
 
-  if (errors) {
+  if (errors?.length > 0) {
     log.warn('Invalid snapshot options:');
     for (let e of errors) log.warn(`- ${e.path}: ${e.message}`);
   }
