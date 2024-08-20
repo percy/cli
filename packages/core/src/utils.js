@@ -391,7 +391,23 @@ const RESERVED_CHARACTERS = {
 
 function _replaceReservedCharacters(url) {
   let result = url;
+  let matchedPattern = {};
+  let placeHolderCount = 0;
   for (let [key, value] of Object.entries(RESERVED_CHARACTERS)) {
+    let regex = new RegExp(key, 'g');
+    if (regex.test(result)) {
+      let placeholder = `__PERCY_PLACEHOLDER_${placeHolderCount}__`
+      result = result.replace(regex, placeholder);
+      matchedPattern[placeholder] = key;
+      placeHolderCount++;
+    }
+  }
+  return {result, matchedPattern};
+}
+
+function _decodeMatchedPattern(matchedPattern, url) {
+  let result = url;
+  for (let [key, value] of Object.entries(matchedPattern)) {
     let regex = new RegExp(key, 'g');
     result = result.replace(regex, value);
   }
@@ -409,11 +425,17 @@ export function decodeAndEncodeURLWithLogging(url, logger, options = {}) {
   // will encode those characters again. Therefore decodeURI once helps is decoding
   // partially encoded URL and then after encoding it again, full URL get encoded
   // correctly.
-  const { meta, shouldLogWarning, warningMessage } = options;
+  const {
+    meta,
+    shouldLogWarning,
+    warningMessage
+  } = options;
   try {
-    let decodedURL = _replaceReservedCharacters(url);
-    decodedURL = decodeURI(decodedURL);
+    let {result, matchedPattern} = _replaceReservedCharacters(url);
+    console.log("--> gojo matched ", matchedPattern, result);
+    let decodedURL = decodeURI(result);
     let encodedURL = encodeURI(decodedURL);
+    encodedURL = _decodeMatchedPattern(matchedPattern, encodedURL);
     return encodedURL;
   } catch (error) {
     logger.debug(error, meta);
