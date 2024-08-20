@@ -137,7 +137,7 @@ describe('PercyClient', () => {
   });
 
   describe('#createBuild()', () => {
-    let cliStartTime = 1722952062770;
+    let cliStartTime = new Date().toISOString();
     it('creates a new build', async () => {
       await expectAsync(client.createBuild()).toBeResolvedTo({
         data: {
