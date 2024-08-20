@@ -365,10 +365,11 @@ describe('Percy', () => {
     });
 
     it('has cliStartTime', async () => {
-      let time = 1722952620595;
+      let time = '2024-08-20T13:38:18.570Z';
       percy = new Percy({ token: 'PERCY_TOKEN' });
       // abort when the browser is launched
       let ctrl = new AbortController();
+      spyOn(Date.prototype, 'toISOString').and.returnValue(time);
       spyOn(percy.browser, 'launch');
       spyOn(Date, 'now').and.returnValue(time);
       spyOn(percy.client, 'createBuild').and.callThrough();
