@@ -185,7 +185,7 @@ describe('percy exec', () => {
       '[percy] Suggestion: Try using percy snapshot command to take snapshots',
       '[percy] Refer to the below Doc Links for the same',
       '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/',
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 30 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false'
+      '[percy] Notice: Percy collects CI logs to improve service and enhance your experience. These logs help us debug issues and provide insights on your dashboards, making it easier to optimize the product experience. Logs are stored securely for 30 days. You can opt out anytime with export PERCY_CLIENT_ERROR_LOGS=false, but keeping this enabled helps us offer the best support and features.'
     ]));
 
     expect(logger.stdout).toEqual(jasmine.arrayContaining([

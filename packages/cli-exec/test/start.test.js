@@ -106,7 +106,7 @@ describe('percy exec:start', () => {
     });
 
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
-      '[percy] Notice: Percy collects CI logs for service improvement, stored for 30 days. Opt-out anytime with export PERCY_CLIENT_ERROR_LOGS=false',
+      '[percy] Notice: Percy collects CI logs to improve service and enhance your experience. These logs help us debug issues and provide insights on your dashboards, making it easier to optimize the product experience. Logs are stored securely for 30 days. You can opt out anytime with export PERCY_CLIENT_ERROR_LOGS=false, but keeping this enabled helps us offer the best support and features.',
       '[percy] Error: Percy is already running or the port 5338 is in use',
       '[percy] Error: Percy is already running or the port 5338 is in use'
     ]));
