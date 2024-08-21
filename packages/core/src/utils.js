@@ -389,23 +389,23 @@ const RESERVED_CHARACTERS = {
   '%40': '@'
 };
 
-function _replaceReservedCharacters(url) {
+function _replaceReservedCharactersWithPlaceholder(url) {
   let result = url;
   let matchedPattern = {};
   let placeHolderCount = 0;
-  for (let [key, value] of Object.entries(RESERVED_CHARACTERS)) {
+  for (let key of Object.keys(RESERVED_CHARACTERS)) {
     let regex = new RegExp(key, 'g');
     if (regex.test(result)) {
-      let placeholder = `__PERCY_PLACEHOLDER_${placeHolderCount}__`
+      let placeholder = `__PERCY_PLACEHOLDER_${placeHolderCount}__`;
       result = result.replace(regex, placeholder);
       matchedPattern[placeholder] = key;
       placeHolderCount++;
     }
   }
-  return {result, matchedPattern};
+  return { url: result, matchedPattern };
 }
 
-function _decodeMatchedPattern(matchedPattern, url) {
+function _replacePlaceholdersWithReservedCharacters(matchedPattern, url) {
   let result = url;
   for (let [key, value] of Object.entries(matchedPattern)) {
     let regex = new RegExp(key, 'g');
@@ -431,11 +431,10 @@ export function decodeAndEncodeURLWithLogging(url, logger, options = {}) {
     warningMessage
   } = options;
   try {
-    let {result, matchedPattern} = _replaceReservedCharacters(url);
-    console.log("--> gojo matched ", matchedPattern, result);
-    let decodedURL = decodeURI(result);
+    let { url: placeholderURL, matchedPattern } = _replaceReservedCharactersWithPlaceholder(url);
+    let decodedURL = decodeURI(placeholderURL);
     let encodedURL = encodeURI(decodedURL);
-    encodedURL = _decodeMatchedPattern(matchedPattern, encodedURL);
+    encodedURL = _replacePlaceholdersWithReservedCharacters(matchedPattern, encodedURL);
     return encodedURL;
   } catch (error) {
     logger.debug(error, meta);

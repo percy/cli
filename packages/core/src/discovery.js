@@ -342,7 +342,7 @@ export function createDiscoveryQueue(percy) {
             authorization: snapshot.discovery.authorization,
             userAgent: snapshot.discovery.userAgent,
             captureMockedServiceWorker: snapshot.discovery.captureMockedServiceWorker,
-            meta: snapshot.meta,
+            meta: { ...snapshot.meta, snapshotURL: snapshot.url },
 
             // enable network inteception
             intercept: {

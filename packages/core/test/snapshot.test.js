@@ -180,13 +180,13 @@ describe('Snapshot', () => {
         sharedExpectModifiedSnapshotURL('http://localhost:8000/advanced-search/cf1a5848-f658-4939-be11-dctwo-%7B%20abc%20%5Bdbd%5D%20%7D/2253');
       });
 
-      it('do not double encode reserved URI character(%2F) in snapshot url', async () => {
+      it('do not encode reserved URI character(%2F) in snapshot url', async () => {
         let partiallyEncodedURL = 'http://localhost:8000/https%2F/abc[123].html';
         await percy.snapshot([
           { url: partiallyEncodedURL }
         ]);
 
-        sharedExpectModifiedSnapshotURL('http://localhost:8000/https//abc%5B123%5D.html');
+        sharedExpectModifiedSnapshotURL('http://localhost:8000/https%2F/abc%5B123%5D.html');
       });
 
       it('do not double encode if multiple reserved URI characters in snapshot url', async () => {
@@ -195,7 +195,7 @@ describe('Snapshot', () => {
           { url: partiallyEncodedURL }
         ]);
 
-        sharedExpectModifiedSnapshotURL('http://localhost:8000/https//abc%5B123%5D:?_abc.html');
+        sharedExpectModifiedSnapshotURL('http://localhost:8000/https%2F/abc%5B123%5D%3A%3F_abc.html');
       });
 
       describe('does not modifies snapshot url', () => {
@@ -237,8 +237,7 @@ describe('Snapshot', () => {
         ]);
 
         expect(logger.stderr).toEqual(jasmine.arrayContaining([
-          `[percy:core:snapshot] Invalid URL detected for url: ${givenURL} - the snapshot may fail on Percy. Please confirm that your website URL is valid.`,
-          `[percy:core:discovery] An invalid URL was detected for url: ${givenURL} - the snapshot may fail on Percy. Please verify that your asset URL is valid.`
+          `[percy:core:snapshot] Invalid URL detected for url: ${givenURL} - the snapshot may fail on Percy. Please confirm that your website URL is valid.`
         ]));
       });
 
