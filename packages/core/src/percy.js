@@ -84,6 +84,7 @@ export class Percy {
     labels ??= config.percy?.labels;
     deferUploads ??= config.percy?.deferUploads;
     this.config = config;
+    this.cliStartTime = null;
 
     if (testing) loglevel = 'silent';
     if (loglevel) this.loglevel(loglevel);
@@ -159,6 +160,7 @@ export class Percy {
     // already starting or started
     if (this.readyState != null) return;
     this.readyState = 0;
+    this.cliStartTime = new Date().toISOString();
 
     try {
       if (process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {

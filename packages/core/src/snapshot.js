@@ -314,7 +314,7 @@ export function createSnapshotsQueue(percy) {
     .handle('start', async () => {
       try {
         build = percy.build = {};
-        let { data } = await percy.client.createBuild({ projectType: percy.projectType });
+        let { data } = await percy.client.createBuild({ projectType: percy.projectType, cliStartTime: percy.cliStartTime });
         let url = data.attributes['web-url'];
         let number = data.attributes['build-number'];
         percy.client.buildType = data.attributes?.type;
