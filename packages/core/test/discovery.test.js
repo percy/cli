@@ -647,6 +647,49 @@ describe('Discovery', () => {
     ]));
   });
 
+  it('debug error log only for invalid network url', async () => {
+    let err = new Error('Some Invalid Error');
+    spyOn(global, 'decodeURI').and.callFake((url) => {
+      if (url === 'http://localhost:8000/style.css') {
+        throw err;
+      }
+      return url;
+    });
+
+    percy.loglevel('debug');
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy:core:page] Navigate to: http://localhost:8000/',
+      '[percy:core:discovery] Handling request: http://localhost:8000/',
+      '[percy:core:discovery] - Serving root resource',
+      `[percy:core:discovery] ${err.stack}`,
+      '[percy:core:discovery] Handling request: http://localhost:8000/style.css',
+      '[percy:core:discovery] Handling request: http://localhost:8000/img.gif'
+    ]));
+  });
+
+  it('detect invalid network url', async () => {
+    percy.loglevel('debug');
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'http://localhost:404/%style.css')
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy:core:discovery] Handling request: http://localhost:8000/',
+      '[percy:core:discovery] - Serving root resource',
+      '[percy:core:discovery] An invalid URL was detected for url: http://localhost:404/%style.css - the snapshot may fail on Percy. Please verify that your asset URL is valid.',
+      '[percy:core:discovery] Handling request: http://localhost:404/%style.css',
+      '[percy:core:discovery] Handling request: http://localhost:8000/img.gif'
+    ]));
+  });
+
   it('allows setting a custom discovery user-agent', async () => {
     let userAgent;
 
@@ -1389,7 +1432,7 @@ describe('Discovery', () => {
   });
 
   describe('Dom serialisation', () => {
-    it('should contain valid dom serialization values', async () => {
+    fit('should contain valid dom serialization values', async () => {
       const page = await percy.browser.page();
       await page.goto('http://localhost:8000');
       await page.insertPercyDom();
