@@ -211,7 +211,7 @@ export class Network {
     // This code checks for issues such as `%` and leading spaces and warns the user accordingly.
     decodeAndEncodeURLWithLogging(request.url, this.log, {
       meta: { ...this.meta, url: request.url },
-      shouldLogWarning: request.url !== this.meta.snapshotURL,
+      shouldLogWarning: request.url !== this.meta?.snapshotURL,
       warningMessage: `An invalid URL was detected for url: ${request.url} - the snapshot may fail on Percy. Please verify that your asset URL is valid.`
     });
 
