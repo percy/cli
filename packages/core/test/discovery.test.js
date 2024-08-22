@@ -1432,7 +1432,7 @@ describe('Discovery', () => {
   });
 
   describe('Dom serialisation', () => {
-    fit('should contain valid dom serialization values', async () => {
+    it('should contain valid dom serialization values', async () => {
       const page = await percy.browser.page();
       await page.goto('http://localhost:8000');
       await page.insertPercyDom();
