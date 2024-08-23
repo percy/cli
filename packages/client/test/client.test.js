@@ -166,6 +166,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             'cli-start-time': null,
+            source: 'user_created',
             partial: client.env.partial,
             tags: []
           }
@@ -201,6 +202,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             'cli-start-time': null,
+            source: 'user_created',
             partial: client.env.partial,
             tags: []
           }
@@ -283,6 +285,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             'cli-start-time': null,
+            source: 'user_created',
             partial: client.env.partial,
             tags: []
           }
@@ -322,6 +325,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             'cli-start-time': null,
+            source: 'user_created',
             partial: client.env.partial,
             tags: [{ id: null, name: 'tag1' }, { id: null, name: 'tag2' }]
           }
@@ -329,6 +333,7 @@ describe('PercyClient', () => {
     });
 
     it('creates a new build with cliStartTime', async () => {
+      process.env.PERCY_AUTO_ENABLED_GROUP_BUILD = 'true';
       client = new PercyClient({
         token: 'PERCY_TOKEN',
         labels: 'tag1,tag2'
@@ -361,6 +366,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             'cli-start-time': cliStartTime,
+            source: 'auto_enabled_group',
             partial: client.env.partial,
             tags: [{ id: null, name: 'tag1' }, { id: null, name: 'tag2' }]
           }
