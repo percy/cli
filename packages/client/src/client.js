@@ -136,7 +136,10 @@ export class PercyClient {
   // done more seemlessly without manually tracking build ids
   async createBuild({ resources = [], projectType, cliStartTime = null } = {}) {
     this.log.debug('Creating a new build...');
-    let autoEnabledGroupBuild = process.env.PERCY_AUTO_ENABLED_GROUP_BUILD === 'true';
+    let source = 'user_created';
+    if (process.env.PERCY_AUTO_ENABLED_GROUP_BUILD === 'true') {
+      source = 'auto_enabled_group';
+    }
 
     let tagsArr = tagsList(this.labels);
 
@@ -161,7 +164,7 @@ export class PercyClient {
           partial: this.env.partial,
           tags: tagsArr,
           'cli-start-time': cliStartTime,
-          'auto-enabled-group-build': autoEnabledGroupBuild
+          source: source
         },
         relationships: {
           resources: {

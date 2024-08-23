@@ -166,7 +166,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             'cli-start-time': null,
-            'auto-enabled-group-build': false,
+            source: 'user_created',
             partial: client.env.partial,
             tags: []
           }
@@ -202,7 +202,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             'cli-start-time': null,
-            'auto-enabled-group-build': false,
+            source: 'user_created',
             partial: client.env.partial,
             tags: []
           }
@@ -285,7 +285,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             'cli-start-time': null,
-            'auto-enabled-group-build': false,
+            source: 'user_created',
             partial: client.env.partial,
             tags: []
           }
@@ -325,7 +325,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             'cli-start-time': null,
-            'auto-enabled-group-build': false,
+            source: 'user_created',
             partial: client.env.partial,
             tags: [{ id: null, name: 'tag1' }, { id: null, name: 'tag2' }]
           }
@@ -366,7 +366,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             'cli-start-time': cliStartTime,
-            'auto-enabled-group-build': true,
+            source: 'auto_enabled_group',
             partial: client.env.partial,
             tags: [{ id: null, name: 'tag1' }, { id: null, name: 'tag2' }]
           }
