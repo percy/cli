@@ -119,6 +119,7 @@ describe('Unit / Install', () => {
 
   describe('Chromium', () => {
     let extractZip;
+    let baseUrl = 'https://storage.googleapis.com/chromium-browser-snapshots/';
 
     beforeEach(async () => {
       dl = await mockRequests('https://storage.googleapis.com');
@@ -152,31 +153,121 @@ describe('Unit / Install', () => {
     for (let [platform, expected] of Object.entries({
       linux: {
         revision: CHROMIUM_REVISIONS.linux,
-        url: jasmine.stringMatching(`Linux_x64/${CHROMIUM_REVISIONS.linux}/chrome-linux.zip`),
+        url: jasmine.stringMatching(`${baseUrl}Linux_x64/${CHROMIUM_REVISIONS.linux}/chrome-linux.zip`),
         return: path.join('chrome-linux', 'chrome'),
         process: { platform: 'linux', arch: 'x64' }
       },
       darwin: {
         revision: CHROMIUM_REVISIONS.darwin,
-        url: jasmine.stringMatching(`Mac/${CHROMIUM_REVISIONS.darwin}/chrome-mac.zip`),
+        url: jasmine.stringMatching(`${baseUrl}Mac/${CHROMIUM_REVISIONS.darwin}/chrome-mac.zip`),
         return: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
         process: { platform: 'darwin', arch: 'x64' }
       },
       darwinArm: {
         revision: CHROMIUM_REVISIONS.darwinArm,
-        url: jasmine.stringMatching(`Mac_Arm/${CHROMIUM_REVISIONS.darwinArm}/chrome-mac.zip`),
+        url: jasmine.stringMatching(`${baseUrl}Mac_Arm/${CHROMIUM_REVISIONS.darwinArm}/chrome-mac.zip`),
         return: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
         process: { platform: 'darwin', arch: 'arm64' }
       },
       win64: {
         revision: CHROMIUM_REVISIONS.win64,
-        url: jasmine.stringMatching(`Win_x64/${CHROMIUM_REVISIONS.win64}/chrome-win.zip`),
+        url: jasmine.stringMatching(`${baseUrl}Win_x64/${CHROMIUM_REVISIONS.win64}/chrome-win.zip`),
         return: path.join('chrome-win', 'chrome.exe'),
         process: { platform: 'win32', arch: 'x64' }
       },
       win32: {
         revision: CHROMIUM_REVISIONS.win32,
-        url: jasmine.stringMatching(`Win/${CHROMIUM_REVISIONS.win32}/chrome-win.zip`),
+        url: jasmine.stringMatching(`${baseUrl}Win/${CHROMIUM_REVISIONS.win32}/chrome-win.zip`),
+        return: path.join('chrome-win', 'chrome.exe'),
+        process: { platform: 'win32', arch: 'x32' }
+      }
+    })) {
+      it(`downloads the correct files for ${platform}`, async () => {
+        spyOnProperty(process, 'platform').and.returnValue(expected.process.platform);
+        spyOnProperty(process, 'arch').and.returnValue(expected.process.arch);
+
+        await expectAsync(install.chromium()).toBeResolvedTo(
+          jasmine.stringMatching(expected.return.replace(/[.\\]/g, '\\$&'))
+        );
+
+        expect(dl).toHaveBeenCalledOnceWith(
+          jasmine.objectContaining({ url: expected.url }));
+
+        expect(logger.stderr).toEqual([]);
+        expect(logger.stdout).toEqual(jasmine.arrayContaining([
+          `[percy] Downloading Chromium ${expected.revision}...`,
+          `[percy] Successfully downloaded Chromium ${expected.revision}`
+        ]));
+      });
+    }
+  });
+
+  describe('Chromium with custom URL', () => {
+    let extractZip;
+    let baseUrl = 'https://storage.test.com/';
+
+    beforeEach(async () => {
+      process.env.PERCY_CHROMIUM_BASE_URL = baseUrl;
+      dl = await mockRequests('https://storage.test.com');
+
+      // stub extract-zip using esm loader mocks
+      extractZip = jasmine.createSpy('exports').and.resolveTo();
+      global.__MOCK_IMPORTS__.set('extract-zip', { default: extractZip });
+
+      // make getters for jasmine property spy
+      let { platform, arch } = process;
+      Object.defineProperties(process, {
+        platform: { get: () => platform },
+        arch: { get: () => arch }
+      });
+    });
+
+    afterEach(() => {
+      delete process.env.PERCY_CHROMIUM_BASE_URL;
+    });
+
+    it('downloads from the google storage api', async () => {
+      await install.chromium();
+
+      expect(dl).toHaveBeenCalled();
+    });
+
+    it('extracts to a .local-chromium directory', async () => {
+      await install.chromium();
+
+      expect(extractZip).toHaveBeenCalledOnceWith(jasmine.any(String), {
+        dir: jasmine.stringMatching('(/|\\\\).local-chromium(/|\\\\)')
+      });
+    });
+
+    for (let [platform, expected] of Object.entries({
+      linux: {
+        revision: CHROMIUM_REVISIONS.linux,
+        url: jasmine.stringMatching(`${baseUrl}Linux_x64/${CHROMIUM_REVISIONS.linux}/chrome-linux.zip`),
+        return: path.join('chrome-linux', 'chrome'),
+        process: { platform: 'linux', arch: 'x64' }
+      },
+      darwin: {
+        revision: CHROMIUM_REVISIONS.darwin,
+        url: jasmine.stringMatching(`${baseUrl}Mac/${CHROMIUM_REVISIONS.darwin}/chrome-mac.zip`),
+        return: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
+        process: { platform: 'darwin', arch: 'x64' }
+      },
+      darwinArm: {
+        revision: CHROMIUM_REVISIONS.darwinArm,
+        url: jasmine.stringMatching(`${baseUrl}Mac_Arm/${CHROMIUM_REVISIONS.darwinArm}/chrome-mac.zip`),
+        return: path.join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
+        process: { platform: 'darwin', arch: 'arm64' }
+      },
+      win64: {
+        revision: CHROMIUM_REVISIONS.win64,
+        url: jasmine.stringMatching(`${baseUrl}Win_x64/${CHROMIUM_REVISIONS.win64}/chrome-win.zip`),
+        return: path.join('chrome-win', 'chrome.exe'),
+        process: { platform: 'win32', arch: 'x64' }
+      },
+      win32: {
+        revision: CHROMIUM_REVISIONS.win32,
+        url: jasmine.stringMatching(`${baseUrl}Win/${CHROMIUM_REVISIONS.win32}/chrome-win.zip`),
         return: path.join('chrome-win', 'chrome.exe'),
         process: { platform: 'win32', arch: 'x32' }
       }
