@@ -148,7 +148,7 @@ export function chromium({
 } = {}) {
   let extract = (i, o) => import('extract-zip').then(ex => ex.default(i, { dir: o }));
 
-  let url = 'https://storage.googleapis.com/chromium-browser-snapshots/' +
+  let url = (process.env.PERCY_CHROMIUM_BASE_URL || 'https://storage.googleapis.com/chromium-browser-snapshots/') +
     selectByPlatform({
       linux: `Linux_x64/${revision}/chrome-linux.zip`,
       darwin: `Mac/${revision}/chrome-mac.zip`,
