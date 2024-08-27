@@ -207,7 +207,7 @@ export class Network {
     // do not handle data urls
     if (request.url.startsWith('data:')) return;
 
-    // Browsers handle URL encoding leniently, but invalid characters can break tools like Jackproxy.
+    // Browsers handle URL encoding leniently.
     // This code checks for issues such as `%` and leading spaces and warns the user accordingly.
     decodeAndEncodeURLWithLogging(request.url, this.log, {
       meta: { ...this.meta, url: request.url },
