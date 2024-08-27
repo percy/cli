@@ -375,6 +375,76 @@ export function base64encode(content) {
     .toString('base64');
 }
 
+const RESERVED_CHARACTERS = {
+  '%3A': ':',
+  '%23': '#',
+  '%24': '$',
+  '%26': '&',
+  '%2B': '+',
+  '%2C': ',',
+  '%2F': '/',
+  '%3B': ';',
+  '%3D': '=',
+  '%3F': '?',
+  '%40': '@'
+};
+
+function _replaceReservedCharactersWithPlaceholder(url) {
+  let result = url;
+  let matchedPattern = {};
+  let placeHolderCount = 0;
+  for (let key of Object.keys(RESERVED_CHARACTERS)) {
+    let regex = new RegExp(key, 'g');
+    if (regex.test(result)) {
+      let placeholder = `__PERCY_PLACEHOLDER_${placeHolderCount}__`;
+      result = result.replace(regex, placeholder);
+      matchedPattern[placeholder] = key;
+      placeHolderCount++;
+    }
+  }
+  return { url: result, matchedPattern };
+}
+
+function _replacePlaceholdersWithReservedCharacters(matchedPattern, url) {
+  let result = url;
+  for (let [key, value] of Object.entries(matchedPattern)) {
+    let regex = new RegExp(key, 'g');
+    result = result.replace(regex, value);
+  }
+  return result;
+}
+
+// This function replaces invalid character that are not the
+// part of valid URI syntax with there correct encoded value.
+// Also, if a character is a part of valid URI syntax, those characters
+// are not encoded
+// Eg: [abc] -> gets encoded to %5Babc%5D
+// ab c -> ab%20c
+export function decodeAndEncodeURLWithLogging(url, logger, options = {}) {
+  // In case the url is partially encoded, then directly using encodeURI()
+  // will encode those characters again. Therefore decodeURI once helps is decoding
+  // partially encoded URL and then after encoding it again, full URL get encoded
+  // correctly.
+  const {
+    meta,
+    shouldLogWarning,
+    warningMessage
+  } = options;
+  try {
+    let { url: placeholderURL, matchedPattern } = _replaceReservedCharactersWithPlaceholder(url);
+    let decodedURL = decodeURI(placeholderURL);
+    let encodedURL = encodeURI(decodedURL);
+    encodedURL = _replacePlaceholdersWithReservedCharacters(matchedPattern, encodedURL);
+    return encodedURL;
+  } catch (error) {
+    logger.debug(error, meta);
+    if (error.name === 'URIError' && shouldLogWarning) {
+      logger.warn(warningMessage);
+    }
+    return url;
+  }
+}
+
 export function snapshotLogName(name, meta) {
   if (meta?.snapshot?.testCase) {
     return `testCase: ${meta.snapshot.testCase}, ${name}`;

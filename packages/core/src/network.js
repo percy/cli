@@ -1,7 +1,7 @@
 import { request as makeRequest } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
-import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor } from './utils.js';
+import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging } from './utils.js';
 
 const MAX_RESOURCE_SIZE = 25 * (1024 ** 2); // 25MB
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
@@ -206,6 +206,14 @@ export class Network {
 
     // do not handle data urls
     if (request.url.startsWith('data:')) return;
+
+    // Browsers handle URL encoding leniently.
+    // This code checks for issues such as `%` and leading spaces and warns the user accordingly.
+    decodeAndEncodeURLWithLogging(request.url, this.log, {
+      meta: { ...this.meta, url: request.url },
+      shouldLogWarning: request.url !== this.meta?.snapshotURL,
+      warningMessage: `An invalid URL was detected for url: ${request.url} - the snapshot may fail on Percy. Please verify that your asset URL is valid.`
+    });
 
     if (this.intercept) {
       this.#pending.set(requestId, event);

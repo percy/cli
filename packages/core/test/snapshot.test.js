@@ -132,6 +132,149 @@ describe('Snapshot', () => {
     ]);
   });
 
+  describe('snapshot urls', () => {
+    beforeEach(() => {
+      percy.loglevel('debug');
+    });
+
+    describe('with invalid snapshot URL', () => {
+      const sharedExpectModifiedSnapshotURL = (expectedURL) => {
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          `[percy:core:snapshot] Snapshot URL modified to: ${expectedURL}`
+        ]));
+      };
+
+      it('modifies if url contains space', async () => {
+        await percy.snapshot([
+          { url: 'http://localhost:8000/ a' }
+        ]);
+
+        sharedExpectModifiedSnapshotURL('http://localhost:8000/%20a');
+      });
+
+      it('modifies if url contains [ ] to %5B and %5D', async () => {
+        let givenURL = 'http://localhost:8000/advanced-search/cf1a5848-f658-4939-be11-dcb7fd081043/results/[%229db14794-47f0-406a-a3b4-3f89280122b7%22]/structures/by-ccdc-number/123457';
+        await percy.snapshot([
+          { url: givenURL }
+        ]);
+
+        sharedExpectModifiedSnapshotURL('http://localhost:8000/advanced-search/cf1a5848-f658-4939-be11-dcb7fd081043/results/%5B%229db14794-47f0-406a-a3b4-3f89280122b7%22%5D/structures/by-ccdc-number/123457');
+      });
+
+      it('modifies if url contains {} to %7B and %7D', async () => {
+        let givenURL = 'http://localhost:8000/advanced-search/cf1a5848-f658-4939-be11-dctwo-{ abc [dbd] }/2253';
+        await percy.snapshot([
+          { url: givenURL }
+        ]);
+
+        sharedExpectModifiedSnapshotURL('http://localhost:8000/advanced-search/cf1a5848-f658-4939-be11-dctwo-%7B%20abc%20%5Bdbd%5D%20%7D/2253');
+      });
+
+      it('modifies if url is partially encoded', async () => {
+        // Here some character are encoded properly, this test ensure those encoed character should not gets encoded again
+        let partiallyEncodedURL = 'http://localhost:8000/advanced-search/cf1a5848-f658-4939-be11-dctwo-%7B%20abc%20[dbd]%20%7D/2253';
+        await percy.snapshot([
+          { url: partiallyEncodedURL }
+        ]);
+
+        sharedExpectModifiedSnapshotURL('http://localhost:8000/advanced-search/cf1a5848-f658-4939-be11-dctwo-%7B%20abc%20%5Bdbd%5D%20%7D/2253');
+      });
+
+      it('do not encode reserved URI character(%2F) in snapshot url', async () => {
+        let partiallyEncodedURL = 'http://localhost:8000/https%2F/abc[123].html';
+        await percy.snapshot([
+          { url: partiallyEncodedURL }
+        ]);
+
+        sharedExpectModifiedSnapshotURL('http://localhost:8000/https%2F/abc%5B123%5D.html');
+      });
+
+      it('do not double encode if multiple reserved URI characters in snapshot url', async () => {
+        let partiallyEncodedURL = 'http://localhost:8000/https%2F/abc[123]%3A%3F_abc.html';
+        await percy.snapshot([
+          { url: partiallyEncodedURL }
+        ]);
+
+        sharedExpectModifiedSnapshotURL('http://localhost:8000/https%2F/abc%5B123%5D%3A%3F_abc.html');
+      });
+
+      describe('does not modifies snapshot url', () => {
+        let partiallyEncodedURL = 'http://localhost:8000/https%2F/abc[123].html';
+        const sharedExpect = () => {
+          expect(logger.stderr).toEqual(jasmine.arrayContaining([
+            '[percy:core:snapshot] Received snapshot: /https%2F/abc[123].html',
+            '[percy:core:snapshot] - url: http://localhost:8000/https%2F/abc[123].html'
+          ]));
+
+          expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+            '[percy:core:snapshot] Snapshot URL modified to: http://localhost:8000/https//abc%5B123%5D.html'
+          ]));
+        };
+
+        describe('with PERCY_MODIFY_SNAPSHOT_URL=false', () => {
+          beforeEach(() => {
+            process.env.PERCY_MODIFY_SNAPSHOT_URL = 'false';
+          });
+
+          afterEach(() => {
+            process.env.PERCY_MODIFY_SNAPSHOT_URL = 'true';
+          });
+
+          it('uses original snapshot url', async () => {
+            await percy.snapshot([
+              { url: partiallyEncodedURL }
+            ]);
+
+            sharedExpect();
+          });
+        });
+      });
+
+      it('warns for invalid characters that can not get encoded properly', async () => {
+        let givenURL = 'http://localhost:8000/advanced-search/cf1a5848%-f658-4939-be11-dct';
+        await percy.snapshot([
+          { url: givenURL }
+        ]);
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          `[percy:core:snapshot] Invalid URL detected for url: ${givenURL} - the snapshot may fail on Percy. Please confirm that your website URL is valid.`
+        ]));
+      });
+
+      it('debug logs and does not warn if error other than URIError', async () => {
+        spyOn(global, 'decodeURI').and.callFake(() => {
+          throw new Error('Some Invalid Error');
+        });
+
+        let givenURL = 'http://localhost:8000/';
+        await percy.snapshot([
+          { url: givenURL }
+        ]);
+
+        expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+          `[percy] Invalid URL detected for url: ${givenURL}`
+        ]));
+      });
+    });
+
+    describe('with valid snpashot url', () => {
+      const sharedExpectNonModifiedSnapshotURL = (expectedURL) => {
+        expect(logger.stdout).not.toEqual(jasmine.arrayContaining([
+          `[percy] Snapshot URL modified to: ${expectedURL}`
+        ]));
+      };
+
+      it('not modifies if the url does not invalid characters', async () => {
+        let givenURL = 'http://localhost:8000/advanced-search/cf1a5848-f658-4939-be11-dx3';
+        await percy.snapshot([
+          { url: givenURL }
+        ]);
+
+        sharedExpectNonModifiedSnapshotURL(givenURL);
+      });
+    });
+  });
+
   it('errors if the url is invalid', async () => {
     await percy.snapshot({
       name: 'test snapshot',
