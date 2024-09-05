@@ -56,23 +56,6 @@ export function serializeExternalStyles(ctx) {
               stylesheetHref: styleSheet.href
             });
           }
-        } else {
-          try {
-            fetch(styleSheet.href)
-              .then(response => response.text())
-              .then(cssText => {
-                let styleTag = document.createElement('style');
-                styleTag.type = 'text/css';
-                styleTag.innerHTML = cssText;
-              })
-              .catch(error => {
-                console.error('Failed to fetch stylesheet:', error);
-              });
-          } catch (err) {
-            handleErrors(err, 'Error serializing external stylesheet: ', null, {
-              stylesheetHref: styleSheet.href
-            });
-          }
         }
       }
     }
