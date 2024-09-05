@@ -441,6 +441,7 @@ async function saveResponseResource(network, request) {
 
   if (!resource || (!resource.root && !resource.provided && disableCache)) {
     try {
+      log.debug(`Processing resource: ${url}`, meta);
       let shouldCapture = response && hostnameMatches(allowedHostnames, url);
       let body = shouldCapture && await response.buffer();
 
@@ -458,8 +459,6 @@ async function saveResponseResource(network, request) {
       } else if (!enableJavaScript && !ALLOWED_RESOURCES.includes(request.type)) {
         return log.debug(`- Skipping disallowed resource type [${request.type}]`, meta);
       }
-
-      log.debug(`Processing resource: ${url}`, meta);
 
       // mime package does not handle query params
       let urlObj = new URL(url);
