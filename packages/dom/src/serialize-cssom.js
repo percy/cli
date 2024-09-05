@@ -25,6 +25,35 @@ function createStyleResource(styleSheet) {
   return resource;
 }
 
+export function serializeExternalStyles(ctx) {
+  let { dom, clone, warnings } = ctx;
+  let styleSheets = null;
+  try {
+    styleSheets = dom.styleSheets;
+  } catch {
+    warnings.add('Skipping `styleSheets` as it is not supported.');
+  }
+  if (styleSheets) {
+    for (let styleSheet of styleSheets) {
+      if (isCSSOM(styleSheet) || styleSheet.href?.startsWith('blob:')) {
+        continue;
+      } else if (styleSheet.href && styleSheet.cssRules) {
+        try {
+          let styleTag = document.createElement('style');
+          styleTag.type = 'text/css';
+          styleTag.innerHTML = Array.from(styleSheet.cssRules)
+            .map(cssRule => cssRule.cssText).join('\n');
+          clone.head.appendChild(styleTag);
+        } catch (err) {
+          handleErrors(err, 'Error serializing external stylesheet: ', null, {
+            stylesheetHref: styleSheet.href
+          });
+        }
+      }
+    }
+  }
+}
+
 export function serializeCSSOM(ctx) {
   let { dom, clone, resources, cache, warnings } = ctx;
   // in-memory CSSOM into their respective DOM nodes.
