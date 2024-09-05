@@ -1,6 +1,6 @@
 import serializeInputs from './serialize-inputs';
 import serializeFrames from './serialize-frames';
-import serializeCSSOM from './serialize-cssom';
+import serializeCSSOM, { serializeExternalStyles } from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
 import { cloneNodeAndShadow, getOuterHTML } from './clone-dom';
@@ -36,6 +36,7 @@ function serializeElements(ctx) {
   serializeVideos(ctx);
 
   if (!ctx.enableJavaScript) {
+    if (ctx.serializeExternalStyles) serializeExternalStyles(ctx);
     serializeCSSOM(ctx);
     serializeCanvas(ctx);
   }
@@ -64,7 +65,8 @@ export function serializeDOM(options) {
     domTransformation = options?.dom_transformation,
     stringifyResponse = options?.stringify_response,
     disableShadowDOM = options?.disable_shadow_dom,
-    reshuffleInvalidTags = options?.reshuffle_invalid_tags
+    reshuffleInvalidTags = options?.reshuffle_invalid_tags,
+    serializeExternalStyles = options?.serialize_external_styles
   } = options || {};
 
   // keep certain records throughout serialization
@@ -74,7 +76,8 @@ export function serializeDOM(options) {
     hints: new Set(),
     cache: new Map(),
     enableJavaScript,
-    disableShadowDOM
+    disableShadowDOM,
+    serializeExternalStyles
   };
 
   ctx.dom = dom;
