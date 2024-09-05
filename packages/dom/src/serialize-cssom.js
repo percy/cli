@@ -37,17 +37,42 @@ export function serializeExternalStyles(ctx) {
     for (let styleSheet of styleSheets) {
       if (isCSSOM(styleSheet) || styleSheet.href?.startsWith('blob:')) {
         continue;
-      } else if (styleSheet.href && styleSheet.cssRules) {
+      } else if (styleSheet.href) {
+        let corsAccessible = false;
         try {
-          let styleTag = document.createElement('style');
-          styleTag.type = 'text/css';
-          styleTag.innerHTML = Array.from(styleSheet.cssRules)
-            .map(cssRule => cssRule.cssText).join('\n');
-          clone.head.appendChild(styleTag);
+          if (styleSheet.cssRules) corsAccessible = true;
         } catch (err) {
-          handleErrors(err, 'Error serializing external stylesheet: ', null, {
-            stylesheetHref: styleSheet.href
-          });
+          // Not CORS accessible
+        }
+        if (corsAccessible) {
+          try {
+            let styleTag = document.createElement('style');
+            styleTag.type = 'text/css';
+            styleTag.innerHTML = Array.from(styleSheet.cssRules)
+              .map(cssRule => cssRule.cssText).join('\n');
+            clone.head.appendChild(styleTag);
+          } catch (err) {
+            handleErrors(err, 'Error serializing external stylesheet: ', null, {
+              stylesheetHref: styleSheet.href
+            });
+          }
+        } else {
+          try {
+            fetch(styleSheet.href)
+              .then(response => response.text())
+              .then(cssText => {
+                let styleTag = document.createElement('style');
+                styleTag.type = 'text/css';
+                styleTag.innerHTML = cssText;
+              })
+              .catch(error => {
+                console.error('Failed to fetch stylesheet:', error);
+              });
+          } catch (err) {
+            handleErrors(err, 'Error serializing external stylesheet: ', null, {
+              stylesheetHref: styleSheet.href
+            });
+          }
         }
       }
     }
