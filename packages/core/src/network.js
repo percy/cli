@@ -432,7 +432,11 @@ async function saveResponseResource(network, request) {
   let log = network.log;
   let url = originURL(request);
   let response = request.response;
-  let meta = { ...network.meta, url };
+  let meta = {
+    ...network.meta,
+    url,
+    responseStatus: response?.status
+  };
   let resource = network.intercept.getResource(url);
 
   if (!resource || (!resource.root && !resource.provided && disableCache)) {
