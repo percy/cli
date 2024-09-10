@@ -2430,6 +2430,77 @@ describe('Discovery', () => {
     });
   });
 
+  describe('waitForSelector/waitForTimeout at the time of discovery when Js is enabled =>', () => {
+    it('calls waitForTimeout, waitForSelector and page.eval when their respective arguments are given', async () => {
+      const page = await percy.browser.page();
+      spyOn(percy.browser, 'page').and.returnValue(page);
+      spyOn(page, 'eval').and.callThrough();
+      percy.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test discovery',
+        url: 'http://localhost:8000',
+        enableJavaScript: true,
+        discovery: {
+          waitForTimeout: 100,
+          waitForSelector: 'body'
+        }
+      });
+      await percy.idle();
+
+      expect(page.eval).toHaveBeenCalledWith('await waitForSelector("body", 30000)');
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy:core:discovery] Wait for selector: body',
+        '[percy:core:discovery] Wait for 100ms timeout'
+      ]));
+    });
+  });
+  describe('waitForSelector/waitForTimeout at the time of discovery when Js is disabled =>', () => {
+    it('donot calls waitForTimeout, waitForSelector and page.eval', async () => {
+      const page2 = await percy.browser.page();
+      spyOn(page2, 'eval').and.callThrough();
+      percy.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test discovery 2',
+        url: 'http://localhost:8000',
+        cliEnableJavaScript: false,
+        discovery: {
+          waitForTimeout: 100,
+          waitForSelector: 'flex'
+        }
+      });
+
+      await percy.idle();
+
+      expect(page2.eval).not.toHaveBeenCalledWith('await waitForSelector("flex", 30000)');
+      expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+        '[percy:core:discovery] Wait for 100ms timeout',
+        '[percy:core:discovery] Wait for selector: flex'
+      ]));
+    });
+    it('when domSnapshot is present with default parameters waitForSelector/waitForTimeout are not called', async () => {
+      percy.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test discovery 3',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM,
+        discovery: {
+          waitForTimeout: 100,
+          waitForSelector: 'body'
+        }
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+        '[percy:core:discovery] Wait for 100ms timeout',
+        '[percy:core:discovery] Wait for selector: body'
+      ]));
+    });
+  });
+
   describe('Capture image srcset =>', () => {
     it('make request call to capture resource', async () => {
       let responsiveDOM = dedent`

@@ -1,5 +1,6 @@
 import logger from '@percy/logger';
 import Queue from './queue.js';
+import Page from './page.js';
 import {
   normalizeURL,
   hostnameMatches,
@@ -9,7 +10,9 @@ import {
   createLogResource,
   yieldAll,
   snapshotLogName,
-  withRetries
+  waitForTimeout,
+  withRetries,
+  waitForSelectorInsideBrowser
 } from './utils.js';
 import {
   sha256hash
@@ -202,6 +205,18 @@ async function* captureSnapshotResources(page, snapshot, options) {
   // navigate to the url
   yield resizePage(snapshot.widths[0]);
   yield page.goto(snapshot.url, { cookies });
+
+  // wait for any specified timeout
+  if (snapshot.discovery.waitForTimeout && page.enableJavaScript) {
+    log.debug(`Wait for ${snapshot.discovery.waitForTimeout}ms timeout`);
+    await waitForTimeout(snapshot.discovery.waitForTimeout);
+  }
+
+  // wait for any specified selector
+  if (snapshot.discovery.waitForSelector && page.enableJavaScript) {
+    log.debug(`Wait for selector: ${snapshot.discovery.waitForSelector}`);
+    await waitForSelectorInsideBrowser(page, snapshot.discovery.waitForSelector, Page.TIMEOUT);
+  }
 
   if (snapshot.execute) {
     // when any execute options are provided, inject snapshot options

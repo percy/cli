@@ -130,6 +130,8 @@ function getSnapshotOptions(options, { config, meta }) {
       allowedHostnames: config.discovery.allowedHostnames,
       disallowedHostnames: config.discovery.disallowedHostnames,
       networkIdleTimeout: config.discovery.networkIdleTimeout,
+      waitForTimeout: config.discovery.waitForTimeout,
+      waitForSelector: config.discovery.waitForSelector,
       devicePixelRatio: config.discovery.devicePixelRatio,
       requestHeaders: config.discovery.requestHeaders,
       authorization: config.discovery.authorization,
