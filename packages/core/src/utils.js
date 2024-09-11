@@ -123,12 +123,6 @@ export function createPercyCSSResource(url, css) {
   return createResource(href, css, 'text/css', { pathname });
 }
 
-// Creates a log resource object.
-export function createLogResource(logs) {
-  let [url, content] = [`/percy.${Date.now()}.log`, JSON.stringify(logs)];
-  return createResource(url, content, 'text/plain', { log: true });
-}
-
 // Returns true or false if the provided object is a generator or not
 export function isGenerator(subject) {
   return typeof subject?.next === 'function' && (

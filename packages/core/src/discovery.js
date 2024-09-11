@@ -6,7 +6,6 @@ import {
   createResource,
   createRootResource,
   createPercyCSSResource,
-  createLogResource,
   yieldAll,
   snapshotLogName,
   withRetries
@@ -135,11 +134,6 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
         `<link data-percy-specific-css rel="stylesheet" href="${css.pathname}"/>`
       ) + '$&'))));
   }
-
-  // include associated snapshot logs matched by meta information
-  resources.push(createLogResource(logger.query(log => (
-    log.meta.snapshot?.testCase === snapshot.meta.snapshot.testCase && log.meta.snapshot?.name === snapshot.meta.snapshot.name
-  ))));
 
   if (process.env.PERCY_GZIP) {
     for (let index = 0; index < resources.length; index++) {
