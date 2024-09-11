@@ -1231,14 +1231,13 @@ describe('Snapshot', () => {
       await percy.idle();
 
       let dom = i => Buffer.from((
-        api.requests['/builds/123/resources'][i * 2]
+        api.requests['/builds/123/resources'][i]
           .body.data.attributes['base64-content']
       ), 'base64').toString();
 
       expect(dom(0)).toMatch('<p class="eval-1">Test</p>');
       expect(dom(1)).toMatch('<p class="eval-1 eval-2">Test</p>');
       expect(dom(2)).toMatch('<p class="eval-1 eval-2 eval-3">Test</p>');
-      expect(dom(3)).toMatch('<p class="eval-1 eval-2 eval-3 eval-4">Test</p>');
       expect(dom(3)).toMatch('<p class="eval-1 eval-2 eval-3 eval-4">Test</p>');
     });
 
@@ -1417,7 +1416,7 @@ describe('Snapshot', () => {
       ].join(''));
 
       expect(Buffer.from((
-        api.requests['/builds/123/resources'][2]
+        api.requests['/builds/123/resources'][1]
           .body.data.attributes['base64-content']
       ), 'base64').toString()).toMatch([
         '<p>beforeResize - 400</p>',
