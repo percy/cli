@@ -201,6 +201,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
 
   // navigate to the url
   yield resizePage(snapshot.widths[0]);
+  yield page.goto('about:blank');
   yield page.goto(snapshot.url, { cookies });
 
   if (snapshot.execute) {
