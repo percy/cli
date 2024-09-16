@@ -196,6 +196,14 @@ export const configSchema = {
         maximum: 750,
         minimum: 1
       },
+      waitForSelector: {
+        type: 'string'
+      },
+      waitForTimeout: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 30000
+      },
       disableCache: {
         type: 'boolean'
       },
@@ -295,6 +303,8 @@ export const snapshotSchema = {
             allowedHostnames: { $ref: '/config/discovery#/properties/allowedHostnames' },
             disallowedHostnames: { $ref: '/config/discovery#/properties/disallowedHostnames' },
             requestHeaders: { $ref: '/config/discovery#/properties/requestHeaders' },
+            waitForSelector: { $ref: '/config/discovery#/properties/waitForSelector' },
+            waitForTimeout: { $ref: '/config/discovery#/properties/waitForTimeout' },
             authorization: { $ref: '/config/discovery#/properties/authorization' },
             disableCache: { $ref: '/config/discovery#/properties/disableCache' },
             captureMockedServiceWorker: { $ref: '/config/discovery#/properties/captureMockedServiceWorker' },

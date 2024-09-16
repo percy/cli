@@ -257,6 +257,15 @@ async function waitForSelector(selector, timeout) {
   }
 }
 
+// wait for a query selector to exist within an optional timeout inside browser
+export async function waitForSelectorInsideBrowser(page, selector, timeout) {
+  try {
+    return page.eval(`await waitForSelector(${JSON.stringify(selector)}, ${timeout})`);
+  } catch {
+    throw new Error(`Unable to find: ${selector}`);
+  }
+}
+
 // Browser-specific util to wait for an xpath selector to exist within an optional timeout.
 /* istanbul ignore next: tested, but coverage is stripped */
 async function waitForXPath(selector, timeout) {
