@@ -145,11 +145,7 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   if (roots.length === 0) {
     let domResources = parseDomResources({ ...snapshot, domSnapshot });
     resources = [...domResources.values(), ...resources];
-    if (Array.isArray(domSnapshot)) {
-      roots = resources.find(r => Array.isArray(r));
-    } else {
-      roots = [resources[0]];
-    }
+    roots = [resources[0]];
   }
 
   // inject Percy CSS

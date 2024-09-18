@@ -2895,11 +2895,12 @@ describe('Discovery', () => {
         name: 'test snapshot',
         url: 'http://localhost:8000',
         multiDOM: true,
+        widths: [365, 1280],
         domSnapshot: [{
           domSnapshot: testDOM,
           width: 1280
         }, {
-          domSnapshot: DOM1,
+          domSnapshot: { html: DOM1 },
           width: 370
         }, {
           domSnapshot: DOM2,
