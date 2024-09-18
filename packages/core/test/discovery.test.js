@@ -2942,5 +2942,60 @@ describe('Discovery', () => {
         })
       ]));
     });
+
+    it('injects the percy-css resource into all dom snapshots', async () => {
+      const simpleDOM = dedent`
+        <html>
+        <head></head>
+        <body>
+          <p>Hello Percy!<p>
+        </body>
+        </html>
+      `;
+      let DOM1 = simpleDOM.replace('Percy!', 'Percy! at 370');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        multiDOM: true,
+        percyCSS: 'body { color: purple; }',
+        domSnapshot: [{
+          domSnapshot: simpleDOM,
+          width: 1280
+        }, {
+          domSnapshot: DOM1,
+          width: 370
+        }]
+      });
+
+      await percy.idle();
+
+      let cssURL = new URL((api.requests['/builds/123/snapshots'][0].body.data.relationships.resources.data).find(r => r.attributes['resource-url'].endsWith('.css')).attributes['resource-url']);
+      let injectedDOM = simpleDOM.replace('</body>', (
+       `<link data-percy-specific-css rel="stylesheet" href="${cssURL.pathname}"/>`
+      ) + '</body>');
+      let injectedDOM1 = DOM1.replace('</body>', (
+        `<link data-percy-specific-css rel="stylesheet" href="${cssURL.pathname}"/>`
+      ) + '</body>');
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        jasmine.objectContaining({
+          id: sha256hash(injectedDOM),
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/',
+            'is-root': true,
+            'for-widths': [1280]
+          })
+        }),
+        jasmine.objectContaining({
+          id: sha256hash(injectedDOM1),
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/',
+            'is-root': true,
+            'for-widths': [370]
+          })
+        })
+      ]));
+    });
   });
 });
