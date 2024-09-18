@@ -2885,4 +2885,61 @@ describe('Discovery', () => {
       }));
     });
   });
+
+  describe('Handles multiple root resources', () => {
+    it('gathers resources for a snapshot', async () => {
+      let DOM1 = testDOM.replace('Percy!', 'Percy! at 370');
+      let DOM2 = testDOM.replace('Percy!', 'Percy! at 765');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: [{
+          domSnapshot: testDOM,
+          width: 1280
+        }, {
+          domSnapshot: DOM1,
+          width: 370
+        }, {
+          domSnapshot: DOM2,
+          width: 765
+        }]
+      });
+
+      await percy.idle();
+
+      let paths = server.requests.map(r => r[0]);
+      // does not request the root url (serves domSnapshot instead)
+      expect(paths).not.toContain('/');
+      expect(paths).toContain('/style.css');
+      expect(paths).toContain('/img.gif');
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        jasmine.objectContaining({
+          id: sha256hash(testDOM),
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/',
+            'is-root': true,
+            'for-widths': [1280]
+          })
+        }),
+        jasmine.objectContaining({
+          id: sha256hash(DOM1),
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/',
+            'is-root': true,
+            'for-widths': [370]
+          })
+        }),
+        jasmine.objectContaining({
+          id: sha256hash(DOM2),
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/',
+            'is-root': true,
+            'for-widths': [765]
+          })
+        })
+      ]));
+    });
+  });
 });

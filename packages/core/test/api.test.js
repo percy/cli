@@ -69,6 +69,26 @@ describe('API Server', () => {
     });
   });
 
+  it('has a /widths endpoint that returns widths present in config', async () => {
+    await percy.start();
+    percy.config = PercyConfig.getDefaults({ snapshot: { widths: [1000] } });
+
+    await expectAsync(request('/percy/widths')).toBeResolvedTo({
+      mobile: [],
+      config: [1000]
+    });
+  });
+
+  it('has a /widths endpoint that returns widths present in config and fetch widths for devices', async () => {
+    await percy.start();
+    percy.deviceDetails = [{ width: 390, devicePixelRatio: 2 }];
+
+    await expectAsync(request('/percy/widths')).toBeResolvedTo({
+      mobile: [390],
+      config: PercyConfig.getDefaults().snapshot.widths
+    });
+  });
+
   it('can set config options via the /config endpoint', async () => {
     let expected = PercyConfig.getDefaults({ snapshot: { widths: [1000] } });
     await percy.start();
