@@ -78,6 +78,10 @@ export const configSchema = {
       sync: {
         type: 'boolean'
       },
+      multiDOM: {
+        type: 'boolean',
+        default: false
+      },
       testCase: {
         type: 'string'
       },
@@ -291,6 +295,7 @@ export const snapshotSchema = {
         domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
         enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
         sync: { $ref: '/config/snapshot#/properties/sync' },
+        multiDOM: { $ref: '/config/snapshot#/properties/multiDOM' },
         testCase: { $ref: '/config/snapshot#/properties/testCase' },
         labels: { $ref: '/config/snapshot#/properties/labels' },
         thTestCaseExecutionId: { $ref: '/config/snapshot#/properties/thTestCaseExecutionId' },
@@ -471,6 +476,15 @@ export const snapshotSchema = {
               hints: {
                 type: 'array',
                 items: { type: 'string' }
+              }
+            }
+          }, {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                domSnapshot: { $ref: '/snapshot#/$defs/dom/properties/domSnapshot/oneOf/1' },
+                width: { $ref: '/config/snapshot#/properties/widths/items' }
               }
             }
           }]

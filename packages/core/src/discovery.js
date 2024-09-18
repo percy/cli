@@ -264,7 +264,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
   // Running before page idle since this will trigger many network calls
   // so need to run as early as possible. plus it is just reading urls from dom srcset
   // which will be already loaded after navigation complete
-  if (discovery.captureSrcset) {
+  if (!snapshot.multiDOM && discovery.captureSrcset) {
     await page.insertPercyDom();
     yield page.eval('window.PercyDOM.loadAllSrcsetLinks()');
   }
@@ -283,6 +283,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
         yield page.evaluate(execute?.beforeResize);
         yield waitForDiscoveryNetworkIdle(page, discovery);
         yield resizePage(width = widths[i + 1]);
+        if (snapshot.multiDOM) { yield page.goto(snapshot.url, { cookies }); }
         yield page.evaluate(execute?.afterResize);
       }
     }
