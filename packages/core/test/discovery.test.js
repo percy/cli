@@ -2894,6 +2894,7 @@ describe('Discovery', () => {
       await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
+        multiDOM: true,
         domSnapshot: [{
           domSnapshot: testDOM,
           width: 1280
