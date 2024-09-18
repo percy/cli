@@ -1367,7 +1367,7 @@ describe('Discovery', () => {
         url: 'http://localhost:8000',
         domSnapshot: {
           html: testDOM,
-          cookies: 'test-cookie=value'
+          cookies: '__Secure-test-cookie=value'
         }
       });
 
@@ -1375,7 +1375,7 @@ describe('Discovery', () => {
         '[percy] Snapshot taken: mmm cookies'
       ]));
 
-      expect(cookie).toEqual('test-cookie=value');
+      expect(cookie).toEqual('__Secure-test-cookie=value');
     });
 
     it('does not use cookie if empty cookies is passed (in case of httponly)', async () => {

@@ -93,7 +93,14 @@ function parseCookies(cookiesStr) {
 
   return cookiesStr.split('; ').map(c => {
     const eqIdx = c.indexOf('=');
-    return { name: c.substring(0, eqIdx), value: c.substring(eqIdx + 1) };
+    const name = c.substring(0, eqIdx);
+    const value = c.substring(eqIdx + 1);
+    const cookieObj = { name, value };
+
+    if (name.startsWith('__Secure')) {
+      cookieObj.secure = true;
+    }
+    return cookieObj;
   });
 }
 
