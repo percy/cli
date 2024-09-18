@@ -18,6 +18,7 @@ export class Page {
     this.session = session;
     this.browser = session.browser;
     this.enableJavaScript = options.enableJavaScript ?? true;
+    this.width = null;
     this.network = new Network(this, options);
     this.meta = options.meta;
     this._initializeLoadTimeout();
@@ -40,6 +41,7 @@ export class Page {
   async resize({ width, height, deviceScaleFactor = 1, mobile = false }) {
     this.log.debug(`Resize page to ${width}x${height} @${deviceScaleFactor}x`);
 
+    this.width = width;
     await this.session.send('Emulation.setDeviceMetricsOverride', {
       deviceScaleFactor,
       mobile,

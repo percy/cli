@@ -78,6 +78,13 @@ export function createPercyServer(percy, port) {
     .route('get', '/percy/dom.js', (req, res) => {
       return res.file(200, PERCY_DOM);
     })
+    // returns widths used in config and of devices enabled
+    .route('get', '/percy/widths', (req, res) => res.json(200, {
+      // This is always needed even if width is passed
+      mobile: percy.deviceDetails ? percy.deviceDetails.map((d) => d.width) : [],
+      // This will only be used if width is not passed in options
+      config: percy.config.snapshot.widths
+    }))
   // legacy agent wrapper for @percy/dom
     .route('get', '/percy-agent.js', async (req, res) => {
       logger('core:server').deprecated([

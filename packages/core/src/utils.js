@@ -113,8 +113,8 @@ export function createResource(url, content, mimetype, attrs) {
 
 // Creates a root resource object with an additional `root: true` property. The URL is normalized
 // here as a convenience since root resources are usually created outside of asset discovery.
-export function createRootResource(url, content) {
-  return createResource(normalizeURL(url), content, 'text/html', { root: true });
+export function createRootResource(url, content, attrs = {}) {
+  return createResource(normalizeURL(url), content, 'text/html', { ...attrs, root: true });
 }
 
 // Creates a Percy CSS resource object.

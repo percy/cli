@@ -88,13 +88,34 @@ function waitForDiscoveryNetworkIdle(page, options) {
 
 // Creates an initial resource map for a snapshot containing serialized DOM
 function parseDomResources({ url, domSnapshot }) {
-  if (!domSnapshot) return new Map();
-  let isHTML = typeof domSnapshot === 'string';
-  let { html, resources = [] } = isHTML ? { html: domSnapshot } : domSnapshot;
-  let rootResource = createRootResource(url, html);
+  const map = new Map();
+  if (!domSnapshot) return map;
+  let allResources = new Set();
+
+  if (Array.isArray(domSnapshot)) {
+    let allRootResources = new Set();
+    for (let snapshot of domSnapshot) {
+      const dom = snapshot.domSnapshot;
+      const width = snapshot.width;
+      let isHTML = typeof dom === 'string';
+      let { html, resources = [] } = isHTML ? { html: dom } : dom;
+      resources.forEach(r => allResources.add(r));
+      let rootResource = createRootResource(url, html, { widths: [width] });
+      allRootResources.add(rootResource);
+    }
+    allRootResources = Array.from(allRootResources);
+    map.set(allRootResources[0].url, allRootResources);
+    allResources = Array.from(allResources);
+  } else {
+    let isHTML = typeof domSnapshot === 'string';
+    let { html, resources = [] } = isHTML ? { html: domSnapshot } : domSnapshot;
+    allResources = resources;
+    let rootResource = createRootResource(url, html);
+    map.set(rootResource.url, rootResource);
+  }
 
   // reduce the array of resources into a keyed map
-  return resources.reduce((map, { url, content, mimetype }) => {
+  return allResources.reduce((map, { url, content, mimetype }) => {
     // serialized resource contents are base64 encoded
     content = Buffer.from(content, mimetype.includes('text') ? 'utf8' : 'base64');
     // specify the resource as provided to prevent overwriting during asset discovery
@@ -102,7 +123,7 @@ function parseDomResources({ url, domSnapshot }) {
     // key the resource by its url and return the map
     return map.set(resource.url, resource);
     // the initial map is created with at least a root resource
-  }, new Map([[rootResource.url, rootResource]]));
+  }, map);
 }
 
 // Calls the provided callback with additional resources
@@ -114,11 +135,21 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   let rootContent = domSnapshot?.html ?? domSnapshot;
   let root = resources.find(r => r.content === rootContent);
 
+  let roots = root ? [root] : [];
+  if (!root && Array.isArray(domSnapshot)) {
+    // Only root resources are stored as array
+    roots = resources.find(r => Array.isArray(r));
+  }
+
   // initialize root resources if needed
-  if (!root) {
+  if (roots.length === 0) {
     let domResources = parseDomResources({ ...snapshot, domSnapshot });
     resources = [...domResources.values(), ...resources];
-    root = resources[0];
+    if (Array.isArray(domSnapshot)) {
+      roots = resources.find(r => Array.isArray(r));
+    } else {
+      roots = [resources[0]];
+    }
   }
 
   // inject Percy CSS
@@ -129,15 +160,20 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
       log.warn('DOM elements found outside </body>, percyCSS might not work');
     }
 
-    let css = createPercyCSSResource(root.url, snapshot.percyCSS);
+    let css = createPercyCSSResource(roots[0].url, snapshot.percyCSS);
     resources.push(css);
 
     // replace root contents and associated properties
-    Object.assign(root, createRootResource(root.url, (
-      root.content.replace(/(<\/body>)(?!.*\1)/is, (
-        `<link data-percy-specific-css rel="stylesheet" href="${css.pathname}"/>`
-      ) + '$&'))));
+    roots.forEach(root => {
+      Object.assign(root, createRootResource(root.url, (
+        root.content.replace(/(<\/body>)(?!.*\1)/is, (
+          `<link data-percy-specific-css rel="stylesheet" href="${css.pathname}"/>`
+        ) + '$&'))));
+    });
   }
+
+  // For multi dom root resources are stored as array
+  resources = resources.flat();
 
   // include associated snapshot logs matched by meta information
   resources.push(createLogResource(logger.query(log => (
@@ -365,7 +401,14 @@ export function createDiscoveryQueue(percy) {
               disableCache: snapshot.discovery.disableCache,
               allowedHostnames: snapshot.discovery.allowedHostnames,
               disallowedHostnames: snapshot.discovery.disallowedHostnames,
-              getResource: u => snapshot.resources.get(u) || cache.get(u),
+              getResource: (u, width = null) => {
+                let resource = snapshot.resources.get(u) || cache.get(u);
+                if (resource && Array.isArray(resource) && resource[0].root) {
+                  const rootResource = resource.find(r => r.widths.includes(width));
+                  resource = rootResource || resource[0];
+                }
+                return resource;
+              },
               saveResource: r => { snapshot.resources.set(r.url, r); if (!r.root) { cache.set(r.url, r); } }
             }
           });
