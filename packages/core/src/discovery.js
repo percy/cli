@@ -78,6 +78,20 @@ function debugSnapshotOptions(snapshot) {
   }
 }
 
+// parse browser cookies in correct format if flag is enabled
+// it assumes that cookiesStr is string returned by document.cookie
+function parseCookies(cookiesStr) {
+  if (
+    process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES === 'true' ||
+    !(typeof cookiesStr === 'string' && cookiesStr !== '')
+  ) return null;
+
+  return cookiesStr.split('; ').map(c => {
+    const eqIdx = c.indexOf('=');
+    return { name: c.substring(0, eqIdx), value: c.substring(eqIdx + 1) };
+  });
+}
+
 // Wait for a page's asset discovery network to idle
 function waitForDiscoveryNetworkIdle(page, options) {
   let { allowedHostnames, networkIdleTimeout, captureResponsiveAssetsEnabled } = options;
@@ -160,14 +174,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
   const log = logger('core:discovery');
   let { discovery, additionalSnapshots = [], ...baseSnapshot } = snapshot;
   let { capture, captureWidths, deviceScaleFactor, mobile, captureForDevices } = options;
-  let cookies;
-  if (process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES !== 'true') {
-    cookies = snapshot?.domSnapshot?.cookies;
-  }
-  if (typeof cookies === 'string' && cookies !== '') {
-    cookies = cookies.split('; ').map(c => c.split('='));
-    cookies = cookies.map(([key, value]) => { return { name: key, value: value }; });
-  }
+  let cookies = parseCookies(snapshot?.domSnapshot?.cookies);
 
   // iterate over device to trigger reqeusts and capture other dpr width
   async function* captureResponsiveAssets() {
