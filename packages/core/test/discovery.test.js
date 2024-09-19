@@ -2890,6 +2890,11 @@ describe('Discovery', () => {
     it('gathers resources for a snapshot', async () => {
       let DOM1 = testDOM.replace('Percy!', 'Percy! at 370');
       let DOM2 = testDOM.replace('Percy!', 'Percy! at 765');
+      const capturedResource = {
+        url: 'http://localhost:8000/img-already-captured.png',
+        content: 'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
+        mimetype: 'image/png'
+      };
 
       await percy.snapshot({
         name: 'test snapshot',
@@ -2900,7 +2905,7 @@ describe('Discovery', () => {
           domSnapshot: testDOM,
           width: 1280
         }, {
-          domSnapshot: { html: DOM1 },
+          domSnapshot: { html: DOM1, resources: [capturedResource] },
           width: 370
         }, {
           domSnapshot: DOM2,
