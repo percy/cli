@@ -1301,6 +1301,42 @@ describe('Percy', () => {
       });
     });
 
+    describe('check for throttle logs endpoint from CLI', () => {
+      let maxSuggestionCalls = 10;
+      it('should increment suggestionsCallCounter and not call getErrorAnalysis after exceeding the rate limit', async () => {
+        spyOn(percy.client, 'getErrorAnalysis').and.returnValue([{
+          suggestion: 'some suggestion',
+          failure_reason: 'some failure reason'
+        }]);
+        percy.loglevel('debug');
+
+        for (let i = 0; i <= maxSuggestionCalls; i++) {
+          await expectAsync(percy.suggestionsForFix('some_error')).toBeResolved();
+        }
+
+        await expectAsync(percy.suggestionsForFix('some_error')).toBeResolved();
+
+        expect(percy.client.getErrorAnalysis.calls.count()).toBe(maxSuggestionCalls);
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy:core] Rate limit exceeded for Maximum allowed suggestions per build.'
+        ]));
+      });
+
+      it('should printed debug log for rate limiting only once, even after it exceeded multiple times', async () => {
+        spyOn(percy.log, 'debug').and.callThrough();
+        percy.loglevel('debug');
+
+        for (let i = 0; i <= maxSuggestionCalls + 5; i++) {
+          await expectAsync(percy.suggestionsForFix('some_error')).toBeResolved();
+        }
+
+        expect(percy.log.debug).toHaveBeenCalledWith(
+          'Rate limit exceeded for Maximum allowed suggestions per build.'
+        );
+        expect(percy.log.debug.calls.count()).toBe(1);
+      });
+    });
+
     describe('when response throw error', () => {
       describe('when Request failed with error code of EHOSTUNREACH', () => {
         it('should catch and logs expected error', async () => {
