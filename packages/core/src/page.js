@@ -18,7 +18,6 @@ export class Page {
     this.session = session;
     this.browser = session.browser;
     this.enableJavaScript = options.enableJavaScript ?? true;
-    this.width = null;
     this.network = new Network(this, options);
     this.meta = options.meta;
     this._initializeLoadTimeout();
@@ -41,7 +40,6 @@ export class Page {
   async resize({ width, height, deviceScaleFactor = 1, mobile = false }) {
     this.log.debug(`Resize page to ${width}x${height} @${deviceScaleFactor}x`);
 
-    this.width = width;
     await this.session.send('Emulation.setDeviceMetricsOverride', {
       deviceScaleFactor,
       mobile,
@@ -70,8 +68,13 @@ export class Page {
   }
 
   // Go to a URL and wait for navigation to occur
-  async goto(url, { waitUntil = 'load', cookies } = {}) {
+  async goto(url, { waitUntil = 'load', cookies, forceReload } = {}) {
     this.log.debug(`Navigate to: ${url}`, this.meta);
+
+    if (forceReload) {
+      this.log.debug('Navigating to blank page', this.meta);
+      await this.session.send('Page.navigate', { url: 'about:blank' });
+    }
 
     let navigate = async () => {
       const userPassedCookie = this.session.browser.cookies;

@@ -354,7 +354,7 @@ async function sendResponseResource(network, request, session) {
   let send = (method, params) => network.send(session, method, params);
 
   try {
-    let resource = network.intercept.getResource(url, network.page.width);
+    let resource = network.intercept.getResource(url, network.currentWidth);
     network.log.debug(`Handling request: ${url}`, meta);
 
     if (!resource?.root && hostnameMatches(disallowedHostnames, url)) {

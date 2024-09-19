@@ -51,6 +51,7 @@ describe('API Server', () => {
       success: true,
       loglevel: 'info',
       config: PercyConfig.getDefaults(),
+      widths: { mobile: [], config: PercyConfig.getDefaults().snapshot.widths },
       build: {
         id: '123',
         number: 1,
@@ -69,24 +70,17 @@ describe('API Server', () => {
     });
   });
 
-  it('has a /widths endpoint that returns widths present in config', async () => {
-    await percy.start();
-    percy.config = PercyConfig.getDefaults({ snapshot: { widths: [1000] } });
-
-    await expectAsync(request('/percy/widths')).toBeResolvedTo({
-      mobile: [],
-      config: [1000]
-    });
-  });
-
-  it('has a /widths endpoint that returns widths present in config and fetch widths for devices', async () => {
+  it('should return widths present in config and fetch widths for devices', async () => {
     await percy.start();
     percy.deviceDetails = [{ width: 390, devicePixelRatio: 2 }];
+    percy.config = PercyConfig.getDefaults({ snapshot: { widths: [1000] } });
 
-    await expectAsync(request('/percy/widths')).toBeResolvedTo({
-      mobile: [390],
-      config: PercyConfig.getDefaults().snapshot.widths
-    });
+    await expectAsync(request('/percy/healthcheck')).toBeResolvedTo(jasmine.objectContaining({
+      widths: {
+        mobile: [390],
+        config: [1000]
+      }
+    }));
   });
 
   it('can set config options via the /config endpoint', async () => {

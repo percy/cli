@@ -90,29 +90,25 @@ function waitForDiscoveryNetworkIdle(page, options) {
 function parseDomResources({ url, domSnapshot }) {
   const map = new Map();
   if (!domSnapshot) return map;
+  let allRootResources = new Set();
   let allResources = new Set();
 
-  if (Array.isArray(domSnapshot)) {
-    let allRootResources = new Set();
-    for (let snapshot of domSnapshot) {
-      const dom = snapshot.domSnapshot;
-      const width = snapshot.width;
-      let isHTML = typeof dom === 'string';
-      let { html, resources = [] } = isHTML ? { html: dom } : dom;
-      resources.forEach(r => allResources.add(r));
-      let rootResource = createRootResource(url, html, { widths: [width] });
-      allRootResources.add(rootResource);
-    }
-    allRootResources = Array.from(allRootResources);
-    map.set(allRootResources[0].url, allRootResources);
-    allResources = Array.from(allResources);
-  } else {
-    let isHTML = typeof domSnapshot === 'string';
-    let { html, resources = [] } = isHTML ? { html: domSnapshot } : domSnapshot;
-    allResources = resources;
-    let rootResource = createRootResource(url, html);
-    map.set(rootResource.url, rootResource);
+  if (!Array.isArray(domSnapshot)) {
+    domSnapshot = [{ domSnapshot }];
   }
+
+  for (let snapshot of domSnapshot) {
+    const dom = snapshot.domSnapshot;
+    let isHTML = typeof dom === 'string';
+    let { html, resources = [] } = isHTML ? { html: dom } : dom;
+    resources.forEach(r => allResources.add(r));
+    const attrs = snapshot.width ? { widths: [snapshot.width] } : {};
+    let rootResource = createRootResource(url, html, attrs);
+    allRootResources.add(rootResource);
+  }
+  allRootResources = Array.from(allRootResources);
+  map.set(allRootResources[0].url, allRootResources);
+  allResources = Array.from(allResources);
 
   // reduce the array of resources into a keyed map
   return allResources.reduce((map, { url, content, mimetype }) => {
@@ -126,26 +122,34 @@ function parseDomResources({ url, domSnapshot }) {
   }, map);
 }
 
+function createAndApplyPercyCSS({ percyCSS, roots }) {
+  let css = createPercyCSSResource(roots[0].url, percyCSS);
+
+  // replace root contents and associated properties
+  roots.forEach(root => {
+    Object.assign(root, createRootResource(root.url, (
+      root.content.replace(/(<\/body>)(?!.*\1)/is, (
+        `<link data-percy-specific-css rel="stylesheet" href="${css.pathname}"/>`
+      ) + '$&'))));
+  });
+
+  return css;
+}
+
 // Calls the provided callback with additional resources
 function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   let log = logger('core:snapshot');
   resources = [...(resources?.values() ?? [])];
 
   // find any root resource matching the provided dom snapshot
-  let rootContent = domSnapshot?.html ?? domSnapshot;
-  let root = resources.find(r => r.content === rootContent);
-
-  let roots = root ? [root] : [];
-  if (!root && Array.isArray(domSnapshot)) {
-    // Only root resources are stored as array
-    roots = resources.find(r => Array.isArray(r));
-  }
+  // since root resources are stored as array
+  let roots = resources.find(r => Array.isArray(r));
 
   // initialize root resources if needed
-  if (roots.length === 0) {
+  if (!roots) {
     let domResources = parseDomResources({ ...snapshot, domSnapshot });
     resources = [...domResources.values(), ...resources];
-    roots = [resources[0]];
+    roots = resources.find(r => Array.isArray(r));
   }
 
   // inject Percy CSS
@@ -156,16 +160,8 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
       log.warn('DOM elements found outside </body>, percyCSS might not work');
     }
 
-    let css = createPercyCSSResource(roots[0].url, snapshot.percyCSS);
-    resources.push(css);
-
-    // replace root contents and associated properties
-    roots.forEach(root => {
-      Object.assign(root, createRootResource(root.url, (
-        root.content.replace(/(<\/body>)(?!.*\1)/is, (
-          `<link data-percy-specific-css rel="stylesheet" href="${css.pathname}"/>`
-        ) + '$&'))));
-    });
+    const percyCSSReource = createAndApplyPercyCSS({ percyCSS: snapshot.percyCSS, roots });
+    resources.push(percyCSSReource);
   }
 
   // For multi dom root resources are stored as array
@@ -227,16 +223,21 @@ async function* captureSnapshotResources(page, snapshot, options) {
   };
 
   // used to resize the using capture options
-  let resizePage = width => page.resize({
-    height: snapshot.minHeight,
-    deviceScaleFactor,
-    mobile,
-    width
-  });
+  let resizePage = width => {
+    page.network.currentWidth = width;
+    return page.resize({
+      height: snapshot.minHeight,
+      deviceScaleFactor,
+      mobile,
+      width
+    });
+  };
 
   // navigate to the url
   yield resizePage(snapshot.widths[0]);
-  yield page.goto(snapshot.url, { cookies });
+  let forceReload = false;
+  if (discovery.captureResponsiveAssetsEnabled) { forceReload = true; }
+  yield page.goto(snapshot.url, { cookies, forceReload });
 
   // wait for any specified timeout
   if (snapshot.discovery.waitForTimeout && page.enableJavaScript) {
@@ -260,6 +261,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
   // Running before page idle since this will trigger many network calls
   // so need to run as early as possible. plus it is just reading urls from dom srcset
   // which will be already loaded after navigation complete
+  // Don't run incase of multiDOM since we are running discovery for all widths so images will get captured in all required widths
   if (!snapshot.multiDOM && discovery.captureSrcset) {
     await page.insertPercyDom();
     yield page.eval('window.PercyDOM.loadAllSrcsetLinks()');
@@ -279,7 +281,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
         yield page.evaluate(execute?.beforeResize);
         yield waitForDiscoveryNetworkIdle(page, discovery);
         yield resizePage(width = widths[i + 1]);
-        if (snapshot.multiDOM) { yield page.goto(snapshot.url, { cookies }); }
+        if (snapshot.multiDOM) { yield page.goto(snapshot.url, { cookies, forceReload: true }); }
         yield page.evaluate(execute?.afterResize);
       }
     }
@@ -401,7 +403,7 @@ export function createDiscoveryQueue(percy) {
               getResource: (u, width = null) => {
                 let resource = snapshot.resources.get(u) || cache.get(u);
                 if (resource && Array.isArray(resource) && resource[0].root) {
-                  const rootResource = resource.find(r => r.widths.includes(width));
+                  const rootResource = resource.find(r => r.widths?.includes(width));
                   resource = rootResource || resource[0];
                 }
                 return resource;
