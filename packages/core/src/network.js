@@ -365,6 +365,7 @@ async function sendResponseResource(network, request, session) {
         errorReason: 'Aborted'
       });
     } else if (resource && (resource.root || resource.provided || !disableCache)) {
+      // Don't rename the below log line as it is used in getting network logs in api
       log.debug(resource.root ? '- Serving root resource' : '- Resource cache hit', meta);
 
       await send('Fetch.fulfillRequest', {
@@ -441,10 +442,12 @@ async function saveResponseResource(network, request) {
 
   if (!resource || (!resource.root && !resource.provided && disableCache)) {
     try {
+      // Don't rename the below log line as it is used in getting network logs in api
       log.debug(`Processing resource: ${url}`, meta);
       let shouldCapture = response && hostnameMatches(allowedHostnames, url);
       let body = shouldCapture && await response.buffer();
 
+      // Don't rename the below log line as it is used in getting network logs in api
       /* istanbul ignore if: first check is a sanity check */
       if (!response) {
         return log.debug('- Skipping no response', meta);
@@ -490,6 +493,7 @@ async function saveResponseResource(network, request) {
       log.debug(`- sha: ${resource.sha}`, meta);
       log.debug(`- mimetype: ${resource.mimetype}`, meta);
     } catch (error) {
+      // Don't rename the below log line as it is used in getting network logs in api
       log.debug(`Encountered an error processing resource: ${url}`, meta);
       log.debug(error, meta);
     }
