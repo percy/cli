@@ -235,9 +235,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
 
   // navigate to the url
   yield resizePage(snapshot.widths[0]);
-  let forceReload = false;
-  if (discovery.captureResponsiveAssetsEnabled) { forceReload = true; }
-  yield page.goto(snapshot.url, { cookies, forceReload });
+  yield page.goto(snapshot.url, { cookies, forceReload: discovery.captureResponsiveAssetsEnabled });
 
   // wait for any specified timeout
   if (snapshot.discovery.waitForTimeout && page.enableJavaScript) {
