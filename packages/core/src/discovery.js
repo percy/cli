@@ -94,15 +94,14 @@ function parseDomResources({ url, domSnapshot }) {
   let allResources = new Set();
 
   if (!Array.isArray(domSnapshot)) {
-    domSnapshot = [{ domSnapshot }];
+    domSnapshot = [domSnapshot];
   }
 
-  for (let snapshot of domSnapshot) {
-    const dom = snapshot.domSnapshot;
+  for (let dom of domSnapshot) {
     let isHTML = typeof dom === 'string';
     let { html, resources = [] } = isHTML ? { html: dom } : dom;
     resources.forEach(r => allResources.add(r));
-    const attrs = snapshot.width ? { widths: [snapshot.width] } : {};
+    const attrs = dom.width ? { widths: [dom.width] } : {};
     let rootResource = createRootResource(url, html, attrs);
     allRootResources.add(rootResource);
   }
@@ -224,7 +223,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
 
   // used to resize the using capture options
   let resizePage = width => {
-    page.network.currentWidth = width;
+    page.network.intercept.currentWidth = width;
     return page.resize({
       height: snapshot.minHeight,
       deviceScaleFactor,
@@ -259,8 +258,8 @@ async function* captureSnapshotResources(page, snapshot, options) {
   // Running before page idle since this will trigger many network calls
   // so need to run as early as possible. plus it is just reading urls from dom srcset
   // which will be already loaded after navigation complete
-  // Don't run incase of multiDOM since we are running discovery for all widths so images will get captured in all required widths
-  if (!snapshot.multiDOM && discovery.captureSrcset) {
+  // Don't run incase of responsiveSnapshotCapture since we are running discovery for all widths so images will get captured in all required widths
+  if (!snapshot.responsiveSnapshotCapture && discovery.captureSrcset) {
     await page.insertPercyDom();
     yield page.eval('window.PercyDOM.loadAllSrcsetLinks()');
   }
@@ -279,7 +278,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
         yield page.evaluate(execute?.beforeResize);
         yield waitForDiscoveryNetworkIdle(page, discovery);
         yield resizePage(width = widths[i + 1]);
-        if (snapshot.multiDOM) { yield page.goto(snapshot.url, { cookies, forceReload: true }); }
+        if (snapshot.responsiveSnapshotCapture) { yield page.goto(snapshot.url, { cookies, forceReload: true }); }
         yield page.evaluate(execute?.afterResize);
       }
     }

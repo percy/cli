@@ -2432,7 +2432,7 @@ describe('Discovery', () => {
 
   describe('waitForSelector/waitForTimeout at the time of discovery when Js is enabled =>', () => {
     it('calls waitForTimeout, waitForSelector and page.eval when their respective arguments are given', async () => {
-      const page = await percy.browser.page();
+      const page = await percy.browser.page({ intercept: { getResource: () => {} } });
       spyOn(percy.browser, 'page').and.returnValue(page);
       spyOn(page, 'eval').and.callThrough();
       percy.loglevel('debug');
@@ -2899,16 +2899,17 @@ describe('Discovery', () => {
       await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
-        multiDOM: true,
+        responsiveSnapshotCapture: true,
         widths: [365, 1280],
         domSnapshot: [{
-          domSnapshot: testDOM,
+          html: testDOM,
           width: 1280
         }, {
-          domSnapshot: { html: DOM1, resources: [capturedResource] },
+          html: DOM1,
+          resources: [capturedResource],
           width: 370
         }, {
-          domSnapshot: DOM2,
+          html: DOM2,
           width: 765
         }]
       });
@@ -2963,13 +2964,13 @@ describe('Discovery', () => {
       await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
-        multiDOM: true,
+        responsiveSnapshotCapture: true,
         percyCSS: 'body { color: purple; }',
         domSnapshot: [{
-          domSnapshot: simpleDOM,
+          html: simpleDOM,
           width: 1280
         }, {
-          domSnapshot: DOM1,
+          html: DOM1,
           width: 370
         }]
       });

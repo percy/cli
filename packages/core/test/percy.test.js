@@ -75,7 +75,7 @@ describe('Percy', () => {
       enableJavaScript: false,
       disableShadowDOM: false,
       cliEnableJavaScript: true,
-      multiDOM: false
+      responsiveSnapshotCapture: false
     });
   });
 
