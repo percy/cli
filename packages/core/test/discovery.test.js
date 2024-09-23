@@ -2887,11 +2887,17 @@ describe('Discovery', () => {
   });
 
   describe('Handles multiple root resources', () => {
-    it('gathers resources for a snapshot', async () => {
+    it('gathers multiple resources for a snapshot', async () => {
       let DOM1 = testDOM.replace('Percy!', 'Percy! at 370');
       let DOM2 = testDOM.replace('Percy!', 'Percy! at 765');
       const capturedResource = {
         url: 'http://localhost:8000/img-already-captured.png',
+        content: 'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
+        mimetype: 'image/png'
+      };
+
+      const capturedResource1 = {
+        url: 'http://localhost:8000/img-captured.png',
         content: 'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
         mimetype: 'image/png'
       };
@@ -2910,6 +2916,7 @@ describe('Discovery', () => {
           width: 370
         }, {
           html: DOM2,
+          resources: [capturedResource1],
           width: 765
         }]
       });
@@ -2945,6 +2952,16 @@ describe('Discovery', () => {
             'resource-url': 'http://localhost:8000/',
             'is-root': true,
             'for-widths': [765]
+          })
+        }),
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/img-already-captured.png'
+          })
+        }),
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/img-captured.png'
           })
         })
       ]));
