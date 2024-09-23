@@ -68,18 +68,18 @@ export class Page {
   }
 
   // Go to a URL and wait for navigation to occur
-  async goto(url, { waitUntil = 'load', cookies, forceReload } = {}) {
+  async goto(url, { waitUntil = 'load', cookies, forceReload, skipCookies = false } = {}) {
     this.log.debug(`Navigate to: ${url}`, this.meta);
 
     if (forceReload) {
       this.log.debug('Navigating to blank page', this.meta);
-      await this.session.send('Page.navigate', { url: 'about:blank' });
+      await this.goto('about:blank', { skipCookies: true });
     }
 
     let navigate = async () => {
       const userPassedCookie = this.session.browser.cookies;
       // set cookies before navigation so we can default the domain to this hostname
-      if (userPassedCookie.length || cookies) {
+      if (!skipCookies && (userPassedCookie.length || cookies)) {
         let defaultDomain = hostname(url);
         cookies = this.mergeCookies(userPassedCookie, cookies);
 
