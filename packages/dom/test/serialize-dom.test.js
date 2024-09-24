@@ -6,6 +6,7 @@ describe('serializeDOM', () => {
     expect(serializeDOM()).toEqual({
       html: jasmine.any(String),
       cookies: jasmine.any(String),
+      userAgent: jasmine.any(String),
       warnings: jasmine.any(Array),
       resources: jasmine.any(Array),
       hints: jasmine.any(Array)
@@ -29,7 +30,7 @@ describe('serializeDOM', () => {
 
   it('optionally returns a stringified response', () => {
     expect(serializeDOM({ stringifyResponse: true }))
-      .toMatch('{"html":".*","cookies":".*","warnings":\\[\\],"resources":\\[\\],"hints":\\[\\]}');
+      .toMatch('{"html":".*","cookies":".*","userAgent":".*","warnings":\\[\\],"resources":\\[\\],"hints":\\[\\]}');
   });
 
   it('always has a doctype', () => {
@@ -80,6 +81,11 @@ describe('serializeDOM', () => {
   it('collects cookies', () => {
     const result = serializeDOM();
     expect(result.cookies).toContain('test-cokkie=test-value');
+  });
+
+  it('collects userAgent', () => {
+    const result = serializeDOM();
+    expect(result.userAgent).toContain(navigator.userAgent);
   });
 
   it('clone node is always shallow', () => {
