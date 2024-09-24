@@ -69,6 +69,11 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'clientInfo');
   debugProp(snapshot, 'environmentInfo');
   debugProp(snapshot, 'domSnapshot', Boolean);
+  if (snapshot.responsiveSnapshotCapture) {
+    debugProp(snapshot, 'domSnapshot.0.userAgent');
+  } else {
+    debugProp(snapshot, 'domSnapshot.userAgent');
+  }
 
   for (let added of (snapshot.additionalSnapshots || [])) {
     log.debug(`Additional snapshot: ${added.name}`, snapshot.meta);

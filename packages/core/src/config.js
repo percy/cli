@@ -459,7 +459,8 @@ export const snapshotSchema = {
                 type: 'array',
                 items: { type: 'string' }
               },
-              cookies: { type: 'string' },
+              cookies: { oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              userAgent: { type: 'string' },
               width: { $ref: '/config/snapshot#/properties/widths/items' },
               resources: {
                 type: 'array',

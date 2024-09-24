@@ -117,6 +117,7 @@ export function serializeDOM(options) {
   let result = {
     html: serializeHTML(ctx),
     cookies: cookies,
+    userAgent: navigator.userAgent,
     warnings: Array.from(ctx.warnings),
     resources: Array.from(ctx.resources),
     hints: Array.from(ctx.hints)
