@@ -69,7 +69,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'clientInfo');
   debugProp(snapshot, 'environmentInfo');
   debugProp(snapshot, 'domSnapshot', Boolean);
-  if (snapshot.responsiveSnapshotCapture) {
+  if (Array.isArray(snapshot.domSnapshot)) {
     debugProp(snapshot, 'domSnapshot.0.userAgent');
   } else {
     debugProp(snapshot, 'domSnapshot.userAgent');
