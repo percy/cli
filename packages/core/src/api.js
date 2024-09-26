@@ -193,6 +193,9 @@ export function createPercyServer(percy, port) {
       } else if (cmd === 'version') {
         // the version command will update the api version header for testing
         percy.testing.version = body;
+      } else if (cmd === 'widths') {
+        percy.config.snapshot.widths = body.config;
+        percy.deviceDetails = body.mobile?.map((w) => { return { width: w }; });
       } else if (cmd === 'error' || cmd === 'disconnect') {
         // the error or disconnect commands will cause specific endpoints to fail
         (percy.testing.api ||= {})[body] = cmd;
