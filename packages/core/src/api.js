@@ -196,6 +196,7 @@ export function createPercyServer(percy, port) {
       } else if (cmd === 'widths') {
         percy.config.snapshot.widths = body.config;
         percy.deviceDetails = body.mobile?.map((w) => { return { width: w }; });
+        percy.config.snapshot.responsiveSnapshotCapture = !!body.responsive;
       } else if (cmd === 'error' || cmd === 'disconnect') {
         // the error or disconnect commands will cause specific endpoints to fail
         (percy.testing.api ||= {})[body] = cmd;
