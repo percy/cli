@@ -55,6 +55,22 @@ function serializeElements(ctx) {
   }
 }
 
+// This is used by SDK's in captureResponsiveSnapshot
+export function waitForResize() {
+  // if window resizeCount present means event listener was already present
+  if (!window.resizeCount) {
+    let resizeTimeout = false;
+    window.addEventListener('resize', () => {
+      if (resizeTimeout !== false) {
+        clearTimeout(resizeTimeout);
+      }
+      resizeTimeout = setTimeout(() => window.resizeCount++, 100);
+    });
+  }
+  // always reset count 0
+  window.resizeCount = 0;
+}
+
 // Serializes a document and returns the resulting DOM string.
 export function serializeDOM(options) {
   let {
