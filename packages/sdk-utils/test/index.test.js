@@ -61,6 +61,11 @@ describe('SDK Utils', () => {
         expect(percy.build).toHaveProperty('id', '123');
         expect(percy.build).toHaveProperty('url', 'https://percy.io/test/test/123');
       });
+
+      it('contains percy width', () => {
+        expect(percy.widths).toHaveProperty('config', [375, 1280]);
+        expect(percy.widths).toHaveProperty('mobile', []);
+      });
     });
   });
 
