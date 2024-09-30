@@ -1378,6 +1378,56 @@ describe('Discovery', () => {
       expect(cookie).toEqual('__Secure-test-cookie=value');
     });
 
+    it('can send default collected cookies from sdk', async () => {
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      await percy.snapshot({
+        name: 'mmm cookies',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM,
+          cookies: [{ name: 'cookie-via-sdk', value: 'cookie-value' }]
+        }
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: mmm cookies'
+      ]));
+
+      expect(cookie).toEqual('cookie-via-sdk=cookie-value');
+    });
+
+    it('does not use cookies if wrong object is passed from sdk', async () => {
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      await percy.snapshot({
+        name: 'mmm cookies',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM,
+          cookies: [{ wrong_object_key: 'cookie-via-sdk', wrong_object_value: 'cookie-value' }]
+        }
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: mmm cookies'
+      ]));
+
+      expect(cookie).toEqual(undefined);
+    });
+
     it('does not use cookie if empty cookies is passed (in case of httponly)', async () => {
       await percy.stop();
 
@@ -2432,7 +2482,7 @@ describe('Discovery', () => {
 
   describe('waitForSelector/waitForTimeout at the time of discovery when Js is enabled =>', () => {
     it('calls waitForTimeout, waitForSelector and page.eval when their respective arguments are given', async () => {
-      const page = await percy.browser.page();
+      const page = await percy.browser.page({ intercept: { getResource: () => {} } });
       spyOn(percy.browser, 'page').and.returnValue(page);
       spyOn(page, 'eval').and.callThrough();
       percy.loglevel('debug');
@@ -2883,6 +2933,144 @@ describe('Discovery', () => {
           'resource-url': 'https://remote.resource.com/img-shouldnotcaptured.png'
         })
       }));
+    });
+  });
+
+  describe('Handles multiple root resources', () => {
+    it('gathers multiple resources for a snapshot', async () => {
+      let DOM1 = testDOM.replace('Percy!', 'Percy! at 370');
+      let DOM2 = testDOM.replace('Percy!', 'Percy! at 765');
+      const capturedResource = {
+        url: 'http://localhost:8000/img-already-captured.png',
+        content: 'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
+        mimetype: 'image/png'
+      };
+
+      const capturedResource1 = {
+        url: 'http://localhost:8000/img-captured.png',
+        content: 'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
+        mimetype: 'image/png'
+      };
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        responsiveSnapshotCapture: true,
+        widths: [365, 1280],
+        domSnapshot: [{
+          html: testDOM,
+          width: 1280,
+          cookies: [{ name: 'value' }]
+        }, {
+          html: DOM1,
+          resources: [capturedResource],
+          width: 370
+        }, {
+          html: DOM2,
+          resources: [capturedResource1],
+          width: 765
+        }]
+      });
+
+      await percy.idle();
+
+      let paths = server.requests.map(r => r[0]);
+      // does not request the root url (serves domSnapshot instead)
+      expect(paths).not.toContain('/');
+      expect(paths).toContain('/style.css');
+      expect(paths).toContain('/img.gif');
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        jasmine.objectContaining({
+          id: sha256hash(testDOM),
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/',
+            'is-root': true,
+            'for-widths': [1280]
+          })
+        }),
+        jasmine.objectContaining({
+          id: sha256hash(DOM1),
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/',
+            'is-root': true,
+            'for-widths': [370]
+          })
+        }),
+        jasmine.objectContaining({
+          id: sha256hash(DOM2),
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/',
+            'is-root': true,
+            'for-widths': [765]
+          })
+        }),
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/img-already-captured.png'
+          })
+        }),
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/img-captured.png'
+          })
+        })
+      ]));
+    });
+
+    it('injects the percy-css resource into all dom snapshots', async () => {
+      const simpleDOM = dedent`
+        <html>
+        <head></head>
+        <body>
+          <p>Hello Percy!<p>
+        </body>
+        </html>
+      `;
+      let DOM1 = simpleDOM.replace('Percy!', 'Percy! at 370');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        responsiveSnapshotCapture: true,
+        percyCSS: 'body { color: purple; }',
+        domSnapshot: [{
+          html: simpleDOM,
+          width: 1280
+        }, {
+          html: DOM1,
+          width: 370
+        }]
+      });
+
+      await percy.idle();
+
+      let cssURL = new URL((api.requests['/builds/123/snapshots'][0].body.data.relationships.resources.data).find(r => r.attributes['resource-url'].endsWith('.css')).attributes['resource-url']);
+      let injectedDOM = simpleDOM.replace('</body>', (
+       `<link data-percy-specific-css rel="stylesheet" href="${cssURL.pathname}"/>`
+      ) + '</body>');
+      let injectedDOM1 = DOM1.replace('</body>', (
+        `<link data-percy-specific-css rel="stylesheet" href="${cssURL.pathname}"/>`
+      ) + '</body>');
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        jasmine.objectContaining({
+          id: sha256hash(injectedDOM),
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/',
+            'is-root': true,
+            'for-widths': [1280]
+          })
+        }),
+        jasmine.objectContaining({
+          id: sha256hash(injectedDOM1),
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/',
+            'is-root': true,
+            'for-widths': [370]
+          })
+        })
+      ]));
     });
   });
 });

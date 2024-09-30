@@ -78,6 +78,10 @@ export const configSchema = {
       sync: {
         type: 'boolean'
       },
+      responsiveSnapshotCapture: {
+        type: 'boolean',
+        default: false
+      },
       testCase: {
         type: 'string'
       },
@@ -291,6 +295,7 @@ export const snapshotSchema = {
         domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
         enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
         sync: { $ref: '/config/snapshot#/properties/sync' },
+        responsiveSnapshotCapture: { $ref: '/config/snapshot#/properties/responsiveSnapshotCapture' },
         testCase: { $ref: '/config/snapshot#/properties/testCase' },
         labels: { $ref: '/config/snapshot#/properties/labels' },
         thTestCaseExecutionId: { $ref: '/config/snapshot#/properties/thTestCaseExecutionId' },
@@ -454,7 +459,9 @@ export const snapshotSchema = {
                 type: 'array',
                 items: { type: 'string' }
               },
-              cookies: { type: 'string' },
+              cookies: { oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              userAgent: { type: 'string' },
+              width: { $ref: '/config/snapshot#/properties/widths/items' },
               resources: {
                 type: 'array',
                 items: {
@@ -473,7 +480,9 @@ export const snapshotSchema = {
                 items: { type: 'string' }
               }
             }
-          }]
+          },
+          { type: 'array', items: { $ref: '/snapshot#/$defs/dom/properties/domSnapshot/oneOf/1' } }
+          ]
         }
       },
       errors: {
