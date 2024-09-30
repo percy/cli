@@ -84,12 +84,15 @@ function debugSnapshotOptions(snapshot) {
 }
 
 // parse browser cookies in correct format if flag is enabled
-// it assumes that cookiesStr is string returned by document.cookie
-function parseCookies(cookiesStr) {
-  if (
-    process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES === 'true' ||
-    !(typeof cookiesStr === 'string' && cookiesStr !== '')
-  ) return null;
+function parseCookies(cookies) {
+  if (process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES === 'true') return null;
+
+  // If cookies is collected via SDK
+  if (Array.isArray(cookies) && cookies.every(item => typeof item === 'object' && 'name' in item && 'value' in item)) return cookies;
+
+  if (!(typeof cookies === 'string' && cookies !== '')) return null;
+  // it assumes that cookiesStr is string returned by document.cookie
+  const cookiesStr = cookies;
 
   return cookiesStr.split('; ').map(c => {
     const eqIdx = c.indexOf('=');
@@ -213,7 +216,8 @@ async function* captureSnapshotResources(page, snapshot, options) {
   const log = logger('core:discovery');
   let { discovery, additionalSnapshots = [], ...baseSnapshot } = snapshot;
   let { capture, captureWidths, deviceScaleFactor, mobile, captureForDevices } = options;
-  let cookies = parseCookies(snapshot?.domSnapshot?.cookies);
+  let cookies = snapshot?.domSnapshot?.cookies || snapshot?.domSnapshot?.[0]?.cookies;
+  cookies = parseCookies(cookies);
 
   // iterate over device to trigger reqeusts and capture other dpr width
   async function* captureResponsiveAssets() {

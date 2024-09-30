@@ -1378,6 +1378,56 @@ describe('Discovery', () => {
       expect(cookie).toEqual('__Secure-test-cookie=value');
     });
 
+    it('can send default collected cookies from sdk', async () => {
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      await percy.snapshot({
+        name: 'mmm cookies',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM,
+          cookies: [{ name: 'cookie-via-sdk', value: 'cookie-value' }]
+        }
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: mmm cookies'
+      ]));
+
+      expect(cookie).toEqual('cookie-via-sdk=cookie-value');
+    });
+
+    it('does not use cookies if wrong object is passed from sdk', async () => {
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      await percy.snapshot({
+        name: 'mmm cookies',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM,
+          cookies: [{ wrong_object_key: 'cookie-via-sdk', wrong_object_value: 'cookie-value' }]
+        }
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: mmm cookies'
+      ]));
+
+      expect(cookie).toEqual(undefined);
+    });
+
     it('does not use cookie if empty cookies is passed (in case of httponly)', async () => {
       await percy.stop();
 
@@ -2909,7 +2959,8 @@ describe('Discovery', () => {
         widths: [365, 1280],
         domSnapshot: [{
           html: testDOM,
-          width: 1280
+          width: 1280,
+          cookies: [{ name: 'value' }]
         }, {
           html: DOM1,
           resources: [capturedResource],
