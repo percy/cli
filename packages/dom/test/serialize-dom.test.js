@@ -1,5 +1,5 @@
 import { withExample, replaceDoctype, createShadowEl, getTestBrowser, chromeBrowser, parseDOM } from './helpers';
-import serializeDOM from '@percy/dom';
+import serializeDOM, { waitForResize } from '@percy/dom';
 
 describe('serializeDOM', () => {
   it('returns serialied html, warnings, and resources', () => {
@@ -347,6 +347,28 @@ describe('serializeDOM', () => {
       const result = serializeDOM({ reshuffleInvalidTags: true });
       expect(result.html).toContain('P tag outside body');
       expect(result.hints).toEqual([]);
+    });
+  });
+
+  describe('waitForResize', () => {
+    it('updates window.resizeCount', async () => {
+      waitForResize();
+      expect(window.resizeCount).toEqual(0);
+      // trigger resize event
+      // eslint-disable-next-line no-undef
+      window.dispatchEvent(new Event('resize'));
+      // eslint-disable-next-line no-undef
+      window.dispatchEvent(new Event('resize'));
+      // should be only updated once in 100ms
+      await new Promise((r) => setTimeout(r, 150));
+      expect(window.resizeCount).toEqual(1);
+      waitForResize();
+      expect(window.resizeCount).toEqual(0);
+      // eslint-disable-next-line no-undef
+      window.dispatchEvent(new Event('resize'));
+      await new Promise((r) => setTimeout(r, 150));
+      // there should only one event listener added
+      expect(window.resizeCount).toEqual(1);
     });
   });
 
