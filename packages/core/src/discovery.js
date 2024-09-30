@@ -88,7 +88,10 @@ function parseCookies(cookies) {
   if (process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES === 'true') return null;
 
   // If cookies is collected via SDK
-  if (Array.isArray(cookies) && cookies.every(item => typeof item === 'object' && 'name' in item && 'value' in item)) return cookies;
+  if (Array.isArray(cookies) && cookies.every(item => typeof item === 'object' && 'name' in item && 'value' in item)) {
+    // omit other fields reason sometimes expiry comes as actual date where we expect it to be double
+    return cookies.map(c => ({ name: c.name, value: c.value, secure: c.secure }));
+  }
 
   if (!(typeof cookies === 'string' && cookies !== '')) return null;
   // it assumes that cookiesStr is string returned by document.cookie
