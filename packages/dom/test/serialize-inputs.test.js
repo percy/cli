@@ -151,22 +151,9 @@ describe('serializeInputs', () => {
         expect($('#valueAttr')[0].getAttribute('value')).toBe('Replacement Value!');
       });
 
-      it(`${platform}: adds a guid data-attribute to the original DOM`, () => {
+      it(`${platform}: do not adds a guid data-attribute to the original DOM`, () => {
         // plain platform has extra element #test-shadow
-        expect(dom.querySelectorAll('[data-percy-element-id]')).toHaveSize(platform === 'plain' ? 12 : 11);
-      });
-
-      it(`${platform}: adds matching guids to the orignal DOM and cloned DOM`, () => {
-        let og = dom.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
-        expect(og).toEqual($('[data-percy-element-id]')[0].getAttribute('data-percy-element-id'));
-      });
-
-      it(`${platform}: does not override previous guids when reserializing`, () => {
-        let getUid = () => dom.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
-        let first = getUid();
-
-        serializeDOM();
-        expect(getUid()).toEqual(first);
+        expect(dom.querySelectorAll('[data-percy-element-id]')).toHaveSize(platform === 'plain' ? 0 : 11);
       });
 
       it(`${platform}: does not mutate values in origial DOM`, () => {
