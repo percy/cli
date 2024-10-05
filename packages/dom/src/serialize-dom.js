@@ -56,6 +56,15 @@ function serializeElements(ctx) {
   }
 }
 
+function cleanOriginalDOM(ctx) {
+  const attributesToRemove = ['data-percy-element-id', 'data-percy-shadow-host'];
+  attributesToRemove.forEach(attribute => {
+    ctx.dom.querySelectorAll(`[${attribute}]`).forEach(element => {
+      element.removeAttribute(attribute);
+    });
+  });
+}
+
 // Serializes a document and returns the resulting DOM string.
 export function serializeDOM(options) {
   let {
@@ -84,6 +93,7 @@ export function serializeDOM(options) {
   ctx.clone = cloneNodeAndShadow(ctx);
 
   serializeElements(ctx);
+  cleanOriginalDOM(ctx);
 
   if (domTransformation) {
     try {

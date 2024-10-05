@@ -51,6 +51,10 @@ export function serializeExternalStyles(ctx) {
             styleTag.innerHTML = Array.from(styleSheet.cssRules)
               .map(cssRule => cssRule.cssText).join('\n');
             clone.head.appendChild(styleTag);
+
+            const styleLinkId = styleSheet.ownerNode.getAttribute('data-percy-element-id');
+            const clonedOldStyleLink = clone.querySelector(`[data-percy-element-id="${styleLinkId}"]`);
+            clonedOldStyleLink.remove();
           } catch (err) {
             handleErrors(err, 'Error serializing external stylesheet: ', null, {
               stylesheetHref: styleSheet.href
@@ -125,7 +129,7 @@ export function serializeCSSOM(ctx) {
   // clone Adopted Stylesheets
   // Regarding ordering of the adopted stylesheets - https://github.com/WICG/construct-stylesheets/issues/93
   /* istanbul ignore next: tested, but coverage is stripped */
-  if (dom.adoptedStyleSheets) {
+  if (dom.adoptedStyleSheets && dom.adoptedStyleSheets.length >= 0) {
     for (let sheet of dom.adoptedStyleSheets) {
       const styleLink = document.createElement('link');
       styleLink.setAttribute('rel', 'stylesheet');
