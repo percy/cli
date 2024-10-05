@@ -1,5 +1,6 @@
 import logger from '@percy/logger';
 import Queue from './queue.js';
+import Page from './page.js';
 import {
   normalizeURL,
   hostnameMatches,
@@ -9,7 +10,9 @@ import {
   createLogResource,
   yieldAll,
   snapshotLogName,
-  withRetries
+  waitForTimeout,
+  withRetries,
+  waitForSelectorInsideBrowser
 } from './utils.js';
 import {
   sha256hash
@@ -66,6 +69,11 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'clientInfo');
   debugProp(snapshot, 'environmentInfo');
   debugProp(snapshot, 'domSnapshot', Boolean);
+  if (Array.isArray(snapshot.domSnapshot)) {
+    debugProp(snapshot, 'domSnapshot.0.userAgent');
+  } else {
+    debugProp(snapshot, 'domSnapshot.userAgent');
+  }
 
   for (let added of (snapshot.additionalSnapshots || [])) {
     log.debug(`Additional snapshot: ${added.name}`, snapshot.meta);
@@ -73,6 +81,33 @@ function debugSnapshotOptions(snapshot) {
     debugProp(added, 'waitForSelector');
     debugProp(added, 'execute');
   }
+}
+
+// parse browser cookies in correct format if flag is enabled
+function parseCookies(cookies) {
+  if (process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES === 'true') return null;
+
+  // If cookies is collected via SDK
+  if (Array.isArray(cookies) && cookies.every(item => typeof item === 'object' && 'name' in item && 'value' in item)) {
+    // omit other fields reason sometimes expiry comes as actual date where we expect it to be double
+    return cookies.map(c => ({ name: c.name, value: c.value, secure: c.secure }));
+  }
+
+  if (!(typeof cookies === 'string' && cookies !== '')) return null;
+  // it assumes that cookiesStr is string returned by document.cookie
+  const cookiesStr = cookies;
+
+  return cookiesStr.split('; ').map(c => {
+    const eqIdx = c.indexOf('=');
+    const name = c.substring(0, eqIdx);
+    const value = c.substring(eqIdx + 1);
+    const cookieObj = { name, value };
+
+    if (name.startsWith('__Secure')) {
+      cookieObj.secure = true;
+    }
+    return cookieObj;
+  });
 }
 
 // Wait for a page's asset discovery network to idle
@@ -85,13 +120,29 @@ function waitForDiscoveryNetworkIdle(page, options) {
 
 // Creates an initial resource map for a snapshot containing serialized DOM
 function parseDomResources({ url, domSnapshot }) {
-  if (!domSnapshot) return new Map();
-  let isHTML = typeof domSnapshot === 'string';
-  let { html, resources = [] } = isHTML ? { html: domSnapshot } : domSnapshot;
-  let rootResource = createRootResource(url, html);
+  const map = new Map();
+  if (!domSnapshot) return map;
+  let allRootResources = new Set();
+  let allResources = new Set();
+
+  if (!Array.isArray(domSnapshot)) {
+    domSnapshot = [domSnapshot];
+  }
+
+  for (let dom of domSnapshot) {
+    let isHTML = typeof dom === 'string';
+    let { html, resources = [] } = isHTML ? { html: dom } : dom;
+    resources.forEach(r => allResources.add(r));
+    const attrs = dom.width ? { widths: [dom.width] } : {};
+    let rootResource = createRootResource(url, html, attrs);
+    allRootResources.add(rootResource);
+  }
+  allRootResources = Array.from(allRootResources);
+  map.set(allRootResources[0].url, allRootResources);
+  allResources = Array.from(allResources);
 
   // reduce the array of resources into a keyed map
-  return resources.reduce((map, { url, content, mimetype }) => {
+  return allResources.reduce((map, { url, content, mimetype }) => {
     // serialized resource contents are base64 encoded
     content = Buffer.from(content, mimetype.includes('text') ? 'utf8' : 'base64');
     // specify the resource as provided to prevent overwriting during asset discovery
@@ -99,7 +150,21 @@ function parseDomResources({ url, domSnapshot }) {
     // key the resource by its url and return the map
     return map.set(resource.url, resource);
     // the initial map is created with at least a root resource
-  }, new Map([[rootResource.url, rootResource]]));
+  }, map);
+}
+
+function createAndApplyPercyCSS({ percyCSS, roots }) {
+  let css = createPercyCSSResource(roots[0].url, percyCSS);
+
+  // replace root contents and associated properties
+  roots.forEach(root => {
+    Object.assign(root, createRootResource(root.url, (
+      root.content.replace(/(<\/body>)(?!.*\1)/is, (
+        `<link data-percy-specific-css rel="stylesheet" href="${css.pathname}"/>`
+      ) + '$&'))));
+  });
+
+  return css;
 }
 
 // Calls the provided callback with additional resources
@@ -108,14 +173,14 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   resources = [...(resources?.values() ?? [])];
 
   // find any root resource matching the provided dom snapshot
-  let rootContent = domSnapshot?.html ?? domSnapshot;
-  let root = resources.find(r => r.content === rootContent);
+  // since root resources are stored as array
+  let roots = resources.find(r => Array.isArray(r));
 
   // initialize root resources if needed
-  if (!root) {
+  if (!roots) {
     let domResources = parseDomResources({ ...snapshot, domSnapshot });
     resources = [...domResources.values(), ...resources];
-    root = resources[0];
+    roots = resources.find(r => Array.isArray(r));
   }
 
   // inject Percy CSS
@@ -126,15 +191,12 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
       log.warn('DOM elements found outside </body>, percyCSS might not work');
     }
 
-    let css = createPercyCSSResource(root.url, snapshot.percyCSS);
-    resources.push(css);
-
-    // replace root contents and associated properties
-    Object.assign(root, createRootResource(root.url, (
-      root.content.replace(/(<\/body>)(?!.*\1)/is, (
-        `<link data-percy-specific-css rel="stylesheet" href="${css.pathname}"/>`
-      ) + '$&'))));
+    const percyCSSReource = createAndApplyPercyCSS({ percyCSS: snapshot.percyCSS, roots });
+    resources.push(percyCSSReource);
   }
+
+  // For multi dom root resources are stored as array
+  resources = resources.flat();
 
   // include associated snapshot logs matched by meta information
   resources.push(createLogResource(logger.query(log => (
@@ -157,14 +219,8 @@ async function* captureSnapshotResources(page, snapshot, options) {
   const log = logger('core:discovery');
   let { discovery, additionalSnapshots = [], ...baseSnapshot } = snapshot;
   let { capture, captureWidths, deviceScaleFactor, mobile, captureForDevices } = options;
-  let cookies;
-  if (process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES !== 'true') {
-    cookies = snapshot?.domSnapshot?.cookies;
-  }
-  if (typeof cookies === 'string' && cookies !== '') {
-    cookies = cookies.split('; ').map(c => c.split('='));
-    cookies = cookies.map(([key, value]) => { return { name: key, value: value }; });
-  }
+  let cookies = snapshot?.domSnapshot?.cookies || snapshot?.domSnapshot?.[0]?.cookies;
+  cookies = parseCookies(cookies);
 
   // iterate over device to trigger reqeusts and capture other dpr width
   async function* captureResponsiveAssets() {
@@ -192,16 +248,31 @@ async function* captureSnapshotResources(page, snapshot, options) {
   };
 
   // used to resize the using capture options
-  let resizePage = width => page.resize({
-    height: snapshot.minHeight,
-    deviceScaleFactor,
-    mobile,
-    width
-  });
+  let resizePage = width => {
+    page.network.intercept.currentWidth = width;
+    return page.resize({
+      height: snapshot.minHeight,
+      deviceScaleFactor,
+      mobile,
+      width
+    });
+  };
 
   // navigate to the url
   yield resizePage(snapshot.widths[0]);
-  yield page.goto(snapshot.url, { cookies });
+  yield page.goto(snapshot.url, { cookies, forceReload: discovery.captureResponsiveAssetsEnabled });
+
+  // wait for any specified timeout
+  if (snapshot.discovery.waitForTimeout && page.enableJavaScript) {
+    log.debug(`Wait for ${snapshot.discovery.waitForTimeout}ms timeout`);
+    await waitForTimeout(snapshot.discovery.waitForTimeout);
+  }
+
+  // wait for any specified selector
+  if (snapshot.discovery.waitForSelector && page.enableJavaScript) {
+    log.debug(`Wait for selector: ${snapshot.discovery.waitForSelector}`);
+    await waitForSelectorInsideBrowser(page, snapshot.discovery.waitForSelector, Page.TIMEOUT);
+  }
 
   if (snapshot.execute) {
     // when any execute options are provided, inject snapshot options
@@ -213,7 +284,8 @@ async function* captureSnapshotResources(page, snapshot, options) {
   // Running before page idle since this will trigger many network calls
   // so need to run as early as possible. plus it is just reading urls from dom srcset
   // which will be already loaded after navigation complete
-  if (discovery.captureSrcset) {
+  // Don't run incase of responsiveSnapshotCapture since we are running discovery for all widths so images will get captured in all required widths
+  if (!snapshot.responsiveSnapshotCapture && discovery.captureSrcset) {
     await page.insertPercyDom();
     yield page.eval('window.PercyDOM.loadAllSrcsetLinks()');
   }
@@ -232,6 +304,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
         yield page.evaluate(execute?.beforeResize);
         yield waitForDiscoveryNetworkIdle(page, discovery);
         yield resizePage(width = widths[i + 1]);
+        if (snapshot.responsiveSnapshotCapture) { yield page.goto(snapshot.url, { cookies, forceReload: true }); }
         yield page.evaluate(execute?.afterResize);
       }
     }
@@ -350,8 +423,15 @@ export function createDiscoveryQueue(percy) {
               disableCache: snapshot.discovery.disableCache,
               allowedHostnames: snapshot.discovery.allowedHostnames,
               disallowedHostnames: snapshot.discovery.disallowedHostnames,
-              getResource: u => snapshot.resources.get(u) || cache.get(u),
-              saveResource: r => { snapshot.resources.set(r.url, r); if (!r.root) { cache.set(r.url, r); } }
+              getResource: (u, width = null) => {
+                let resource = snapshot.resources.get(u) || cache.get(u);
+                if (resource && Array.isArray(resource) && resource[0].root) {
+                  const rootResource = resource.find(r => r.widths?.includes(width));
+                  resource = rootResource || resource[0];
+                }
+                return resource;
+              },
+              saveResource: r => { snapshot.resources.set(r.url, r); cache.set(r.url, r); }
             }
           });
 

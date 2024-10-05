@@ -354,7 +354,7 @@ async function sendResponseResource(network, request, session) {
   let send = (method, params) => network.send(session, method, params);
 
   try {
-    let resource = network.intercept.getResource(url);
+    let resource = network.intercept.getResource(url, network.intercept.currentWidth);
     network.log.debug(`Handling request: ${url}`, meta);
 
     if (!resource?.root && hostnameMatches(disallowedHostnames, url)) {
@@ -365,6 +365,7 @@ async function sendResponseResource(network, request, session) {
         errorReason: 'Aborted'
       });
     } else if (resource && (resource.root || resource.provided || !disableCache)) {
+      // Don't rename the below log line as it is used in getting network logs in api
       log.debug(resource.root ? '- Serving root resource' : '- Resource cache hit', meta);
 
       await send('Fetch.fulfillRequest', {
@@ -432,15 +433,21 @@ async function saveResponseResource(network, request) {
   let log = network.log;
   let url = originURL(request);
   let response = request.response;
-  let meta = { ...network.meta, url };
+  let meta = {
+    ...network.meta,
+    url,
+    responseStatus: response?.status
+  };
   let resource = network.intercept.getResource(url);
 
   if (!resource || (!resource.root && !resource.provided && disableCache)) {
     try {
+      // Don't rename the below log line as it is used in getting network logs in api
       log.debug(`Processing resource: ${url}`, meta);
       let shouldCapture = response && hostnameMatches(allowedHostnames, url);
       let body = shouldCapture && await response.buffer();
 
+      // Don't rename the below log line as it is used in getting network logs in api
       /* istanbul ignore if: first check is a sanity check */
       if (!response) {
         return log.debug('- Skipping no response', meta);
@@ -470,7 +477,7 @@ async function saveResponseResource(network, request) {
       // font anyway as font responses from the browser may not be properly encoded,
       // so request them directly.
       if (mimeType?.includes('font') || (detectedMime && detectedMime.includes('font'))) {
-        log.debug('- Requesting asset directly');
+        log.debug('- Requesting asset directly', meta);
         body = await makeDirectRequest(network, request);
       }
 
@@ -486,12 +493,13 @@ async function saveResponseResource(network, request) {
       log.debug(`- sha: ${resource.sha}`, meta);
       log.debug(`- mimetype: ${resource.mimetype}`, meta);
     } catch (error) {
+      // Don't rename the below log line as it is used in getting network logs in api
       log.debug(`Encountered an error processing resource: ${url}`, meta);
-      log.debug(error);
+      log.debug(error, meta);
     }
   }
 
-  if (resource) {
+  if (resource && !resource.root) {
     network.intercept.saveResource(resource);
   }
 }

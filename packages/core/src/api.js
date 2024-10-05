@@ -62,6 +62,12 @@ export function createPercyServer(percy, port) {
       build: percy.testing?.build ?? percy.build,
       loglevel: percy.loglevel(),
       config: percy.config,
+      widths: {
+        // This is always needed even if width is passed
+        mobile: percy.deviceDetails ? percy.deviceDetails.map((d) => d.width) : [],
+        // This will only be used if width is not passed in options
+        config: percy.config.snapshot.widths
+      },
       success: true,
       type: percy.client.tokenType()
     }))
@@ -187,6 +193,11 @@ export function createPercyServer(percy, port) {
       } else if (cmd === 'version') {
         // the version command will update the api version header for testing
         percy.testing.version = body;
+      } else if (cmd === 'config') {
+        percy.config.snapshot.widths = body.config;
+        percy.deviceDetails = body.mobile?.map((w) => { return { width: w }; });
+        percy.config.snapshot.responsiveSnapshotCapture = !!body.responsive;
+        percy.config.percy.deferUploads = !!body.deferUploads;
       } else if (cmd === 'error' || cmd === 'disconnect') {
         // the error or disconnect commands will cause specific endpoints to fail
         (percy.testing.api ||= {})[body] = cmd;

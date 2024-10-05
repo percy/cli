@@ -113,8 +113,8 @@ export function createResource(url, content, mimetype, attrs) {
 
 // Creates a root resource object with an additional `root: true` property. The URL is normalized
 // here as a convenience since root resources are usually created outside of asset discovery.
-export function createRootResource(url, content) {
-  return createResource(normalizeURL(url), content, 'text/html', { root: true });
+export function createRootResource(url, content, attrs = {}) {
+  return createResource(normalizeURL(url), content, 'text/html', { ...attrs, root: true });
 }
 
 // Creates a Percy CSS resource object.
@@ -252,6 +252,15 @@ export function waitForTimeout() {
 async function waitForSelector(selector, timeout) {
   try {
     return await waitFor(() => document.querySelector(selector), timeout);
+  } catch {
+    throw new Error(`Unable to find: ${selector}`);
+  }
+}
+
+// wait for a query selector to exist within an optional timeout inside browser
+export async function waitForSelectorInsideBrowser(page, selector, timeout) {
+  try {
+    return page.eval(`await waitForSelector(${JSON.stringify(selector)}, ${timeout})`);
   } catch {
     throw new Error(`Unable to find: ${selector}`);
   }

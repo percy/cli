@@ -51,6 +51,7 @@ describe('API Server', () => {
       success: true,
       loglevel: 'info',
       config: PercyConfig.getDefaults(),
+      widths: { mobile: [], config: PercyConfig.getDefaults().snapshot.widths },
       build: {
         id: '123',
         number: 1,
@@ -67,6 +68,19 @@ describe('API Server', () => {
       success: true,
       config: PercyConfig.getDefaults()
     });
+  });
+
+  it('should return widths present in config and fetch widths for devices', async () => {
+    await percy.start();
+    percy.deviceDetails = [{ width: 390, devicePixelRatio: 2 }];
+    percy.config = PercyConfig.getDefaults({ snapshot: { widths: [1000] } });
+
+    await expectAsync(request('/percy/healthcheck')).toBeResolvedTo(jasmine.objectContaining({
+      widths: {
+        mobile: [390],
+        config: [1000]
+      }
+    }));
   });
 
   it('can set config options via the /config endpoint', async () => {
@@ -715,6 +729,24 @@ describe('API Server', () => {
       await post('/test/api/version', '0.0.1');
       ({ headers } = await req('/percy/healthcheck'));
       expect(headers['x-percy-core-version']).toEqual('0.0.1');
+    });
+
+    it('can manipulate the config widths via /test/api/config', async () => {
+      let { widths, config } = await get('/percy/healthcheck');
+      expect(widths.config).toEqual([375, 1280]);
+      expect(widths.mobile).toEqual([]);
+
+      await post('/test/api/config', { config: [390], deferUploads: true });
+      ({ widths, config } = await get('/percy/healthcheck'));
+      expect(widths.config).toEqual([390]);
+      expect(config.snapshot.responsiveSnapshotCapture).toEqual(false);
+      expect(config.percy.deferUploads).toEqual(true);
+
+      await post('/test/api/config', { config: [375, 1280], mobile: [456], responsive: true });
+      ({ widths, config } = await get('/percy/healthcheck'));
+      expect(widths.mobile).toEqual([456]);
+      expect(config.snapshot.responsiveSnapshotCapture).toEqual(true);
+      expect(config.percy.deferUploads).toEqual(false);
     });
 
     it('can make endpoints return server errors via /test/api/error', async () => {

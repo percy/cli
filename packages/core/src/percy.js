@@ -29,6 +29,8 @@ import {
 } from './discovery.js';
 import { WaitForJob } from './wait-for-job.js';
 
+const MAX_SUGGESTION_CALLS = 10;
+
 // A Percy instance will create a new build when started, handle snapshot creation, asset discovery,
 // and resource uploads, and will finalize the build when stopped. Snapshots are processed
 // concurrently and the build is not finalized until all snapshots have been handled.
@@ -72,6 +74,7 @@ export class Percy {
     server = true,
     port = 5338,
     projectType = null,
+    suggestionsCallCounter = 0,
     // options such as `snapshot` and `discovery` that are valid Percy config
     // options which will become accessible via the `.config` property
     ...options
@@ -98,6 +101,7 @@ export class Percy {
     this.delayUploads = this.skipUploads || !!delayUploads;
     this.deferUploads = this.skipUploads || !!deferUploads;
     this.labels = labels;
+    this.suggestionsCallCounter = suggestionsCallCounter;
 
     this.client = new PercyClient({ token, clientInfo, environmentInfo, config, labels });
     if (server) this.server = createPercyServer(this, port);
@@ -507,6 +511,13 @@ export class Percy {
 
   async suggestionsForFix(errors, options = {}) {
     try {
+      this.suggestionsCallCounter++;
+      if (this.suggestionsCallCounter > MAX_SUGGESTION_CALLS) {
+        if (this.suggestionsCallCounter === MAX_SUGGESTION_CALLS + 1) {
+          this.log.debug('Rate limit exceeded for Maximum allowed suggestions per build.');
+        }
+        return;
+      }
       const suggestionResponse = await this.client.getErrorAnalysis(errors);
       this.#displaySuggestionLogs(suggestionResponse, options);
     } catch (e) {
