@@ -27,7 +27,7 @@ export class Page {
     session.on('Runtime.executionContextsCleared', this._handleExecutionContextsCleared);
     session.send('Runtime.enable').catch(session._handleClosedError);
 
-    this.log.debug('Page created');
+    this.log.debug('Page created', this.meta);
   }
 
   // Close the page
@@ -38,7 +38,7 @@ export class Page {
 
   // Resize the page to the specified width and height
   async resize({ width, height, deviceScaleFactor = 1, mobile = false }) {
-    this.log.debug(`Resize page to ${width}x${height} @${deviceScaleFactor}x`);
+    this.log.debug(`Resize page to ${width}x${height} @${deviceScaleFactor}x`, this.meta);
 
     await this.session.send('Emulation.setDeviceMetricsOverride', {
       deviceScaleFactor,

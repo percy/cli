@@ -404,7 +404,7 @@ export function createSnapshotsQueue(percy) {
       // Pushing to syncQueue, that will check for
       // snapshot processing status, and will resolve once done
       if (snapshot.sync) {
-        percy.log.info(`Waiting for snapshot '${name}' to be completed`);
+        percy.log.info(`Waiting for snapshot '${name}' to be completed`, meta);
         const data = new JobData(response.data.id, null, snapshot.resolve, snapshot.reject);
         percy.syncQueue.push(data);
       }
@@ -435,7 +435,7 @@ export function createSnapshotsQueue(percy) {
       if (duplicate) {
         if (process.env.PERCY_IGNORE_DUPLICATES !== 'true') {
           let errMsg = `Ignored duplicate snapshot. ${errors[1].detail}`;
-          percy.log.warn(errMsg);
+          percy.log.warn(errMsg, meta);
 
           await percy.suggestionsForFix(errMsg, { snapshotLevel: true, snapshotName: name });
         }

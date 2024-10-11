@@ -397,14 +397,14 @@ export function createDiscoveryQueue(percy) {
     })
   // discovery resources for snapshots and call the callback for each discovered snapshot
     .handle('task', async function*(snapshot, callback) {
-      await timeit.measure('asset-discovery', snapshot.name, async () => {
+      await timeit.measure('asset-discovery', snapshot.name, snapshot.meta, async () => {
         percy.log.debug(`Discovering resources: ${snapshot.name}`, snapshot.meta);
 
         // expectation explained in tests
         /* istanbul ignore next: tested, but coverage is stripped */
         let assetDiscoveryPageEnableJS = (snapshot.cliEnableJavaScript && !snapshot.domSnapshot) || (snapshot.enableJavaScript ?? !snapshot.domSnapshot);
 
-        percy.log.debug(`Asset discovery Browser Page enable JS: ${assetDiscoveryPageEnableJS}`);
+        percy.log.debug(`Asset discovery Browser Page enable JS: ${assetDiscoveryPageEnableJS}`, snapshot.meta);
 
         await withRetries(async function*() {
           // create a new browser page

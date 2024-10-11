@@ -10,13 +10,13 @@ export default class TimeIt {
     return instance;
   }
 
-  async measure(name, identifier, callback) {
+  async measure(name, identifier, meta, callback) {
     const startTime = Date.now();
     try {
       return await callback();
     } finally {
       const duration = Date.now() - startTime;
-      this.log.debug(`${name} - ${identifier} - ${duration / 1000}s`);
+      this.log.debug(`${name} - ${identifier} - ${duration / 1000}s`, meta);
     }
   }
 }

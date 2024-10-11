@@ -21,13 +21,14 @@ describe('TimeIt', () => {
       const log = logger('test');
       const date1 = new Date(2024, 4, 11, 13, 30, 0);
       const date2 = new Date(2024, 4, 11, 13, 31, 0);
+      const meta = { abc: '123' };
       // Logger internall calls Date.now, so need to mock
       // response for it as well.
       spyOn(Date, 'now').and.returnValues(date1, date1, date2, date1);
       const timeit = new TimeIt();
       timeit.log.loglevel('debug');
       const callback = async () => { log.info('abcd'); };
-      await timeit.measure('step', 'test', callback);
+      await timeit.measure('step', 'test', meta, callback);
       expect(mockLogger.stdout).toEqual([
         '[percy] abcd'
       ]);

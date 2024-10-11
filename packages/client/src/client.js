@@ -330,7 +330,7 @@ export class PercyClient {
   // Uploads a single resource to the active build. If `filepath` is provided,
   // `content` is read from the filesystem. The sha is optional and will be
   // created from `content` if one is not provided.
-  async uploadResource(buildId, { url, sha, filepath, content } = {}) {
+  async uploadResource(buildId, { url, sha, filepath, content } = {}, meta = {}) {
     validateId('build', buildId);
     if (filepath) {
       content = await fs.promises.readFile(filepath);
@@ -340,8 +340,8 @@ export class PercyClient {
     }
     let encodedContent = base64encode(content);
 
-    this.log.debug(`Uploading ${formatBytes(encodedContent.length)} resource: ${url}...`);
-    this.mayBeLogUploadSize(encodedContent.length);
+    this.log.debug(`Uploading ${formatBytes(encodedContent.length)} resource: ${url}...`, meta);
+    this.mayBeLogUploadSize(encodedContent.length, { url, ...meta });
 
     return this.post(`builds/${buildId}/resources`, {
       data: {
@@ -355,13 +355,18 @@ export class PercyClient {
   }
 
   // Uploads resources to the active build concurrently, two at a time.
-  async uploadResources(buildId, resources) {
+  async uploadResources(buildId, resources, meta = {}) {
     validateId('build', buildId);
-    this.log.debug(`Uploading resources for ${buildId}...`);
+    this.log.debug(`Uploading resources for ${buildId}...`, meta);
 
     return pool(function*() {
       for (let resource of resources) {
-        yield this.uploadResource(buildId, resource);
+        yield this.uploadResource(buildId, resource, meta);
+        this.log.debug(`Uploaded resource ${resource.url}...`, {
+          url: resource.url,
+          sha: resource.sha,
+          ...meta
+        });
       }
     }, this, 2);
   }
@@ -381,24 +386,26 @@ export class PercyClient {
     testCase,
     labels,
     thTestCaseExecutionId,
-    resources = []
+    resources = [],
+    meta
   } = {}) {
     validateId('build', buildId);
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
 
     if (!this.clientInfo.size || !this.environmentInfo.size) {
-      this.log.warn('Warning: Missing `clientInfo` and/or `environmentInfo` properties');
+      this.log.warn('Warning: Missing `clientInfo` and/or `environmentInfo` properties', meta);
     }
 
     let tagsArr = tagsList(labels);
 
-    this.log.debug(`Creating snapshot: ${name}...`);
-
+    this.log.debug(`Validating resources: ${name}...`, meta);
     for (let resource of resources) {
       if (resource.sha || resource.content || !resource.filepath) continue;
       resource.content = await fs.promises.readFile(resource.filepath);
     }
+
+    this.log.debug(`Creating snapshot: ${name}...`, meta);
 
     return this.post(`builds/${buildId}/snapshots`, {
       data: {
@@ -435,31 +442,40 @@ export class PercyClient {
   }
 
   // Finalizes a snapshot.
-  async finalizeSnapshot(snapshotId) {
+  async finalizeSnapshot(snapshotId, meta = {}) {
     validateId('snapshot', snapshotId);
-    this.log.debug(`Finalizing snapshot ${snapshotId}...`);
+    this.log.debug(`Finalizing snapshot ${snapshotId}...`, meta);
     return this.post(`snapshots/${snapshotId}/finalize`);
   }
 
   // Convenience method for creating a snapshot for the active build, uploading
   // missing resources for the snapshot, and finalizing the snapshot.
   async sendSnapshot(buildId, options) {
+    let { meta } = options;
     let snapshot = await this.createSnapshot(buildId, options);
-    let missing = snapshot.data.relationships?.['missing-resources']?.data;
+    meta.snapshotId = snapshot.data.id;
 
+    let missing = snapshot.data.relationships?.['missing-resources']?.data;
+    this.log.debug(`${missing?.length || 0} Missing resources: ${options.name}...`, meta);
     if (missing?.length) {
       let resources = options.resources.reduce((acc, r) => Object.assign(acc, { [r.sha]: r }), {});
-      await this.uploadResources(buildId, missing.map(({ id }) => resources[id]));
+      await this.uploadResources(buildId, missing.map(({ id }) => resources[id]), meta);
     }
+    this.log.debug(`Resources uploaded: ${options.name}...`, meta);
 
-    await this.finalizeSnapshot(snapshot.data.id);
+    await this.finalizeSnapshot(snapshot.data.id, meta);
+
+    this.log.debug(`Finalized snapshot: ${options.name}...`, meta);
     return snapshot;
   }
 
-  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domInfoSha, consideredElementsData, metadata, sync } = {}) {
+  async createComparison(snapshotId, {
+    tag, tiles = [], externalDebugUrl, ignoredElementsData,
+    domInfoSha, consideredElementsData, metadata, sync, meta = {}
+  } = {}) {
     validateId('snapshot', snapshotId);
     // Remove post percy api deploy
-    this.log.debug(`Creating comparision: ${tag.name}...`);
+    this.log.debug(`Creating comparision: ${tag.name}...`, meta);
 
     for (let tile of tiles) {
       if (tile.sha) continue;
@@ -470,6 +486,7 @@ export class PercyClient {
         tile.content = await fs.promises.readFile(tile.filepath);
       }
     }
+    this.log.debug(`${tiles.length} tiles for comparision: ${tag.name}...`, meta);
 
     return this.post(`snapshots/${snapshotId}/comparisons`, {
       data: {
@@ -603,13 +620,16 @@ export class PercyClient {
   }
 
   async sendComparison(buildId, options) {
+    let { meta } = options;
     if (!validateTiles(options.tiles)) {
       throw new Error('sha, filepath or content should be present in tiles object');
     }
     let snapshot = await this.createSnapshot(buildId, options);
     let comparison = await this.createComparison(snapshot.data.id, options);
     await this.uploadComparisonTiles(comparison.data.id, options.tiles);
+    this.log.debug(`Created comparison: ${comparison.data.id} ${options.tag.name}`, meta);
     await this.finalizeComparison(comparison.data.id);
+    this.log.debug(`Finalized comparison: ${comparison.data.id} ${options.tag.name}`, meta);
     return comparison;
   }
 
@@ -637,11 +657,11 @@ export class PercyClient {
     });
   }
 
-  mayBeLogUploadSize(contentSize) {
+  mayBeLogUploadSize(contentSize, meta = {}) {
     if (contentSize >= 25 * 1024 * 1024) {
-      this.log.error('Uploading resource above 25MB might fail the build...');
+      this.log.error('Uploading resource above 25MB might fail the build...', meta);
     } else if (contentSize >= 20 * 1024 * 1024) {
-      this.log.warn('Uploading resource above 20MB might slow the build...');
+      this.log.warn('Uploading resource above 20MB might slow the build...', meta);
     }
   }
 
