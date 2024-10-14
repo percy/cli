@@ -115,19 +115,23 @@ export class PercyClient {
   }
 
   // Performs a GET request for an API endpoint with appropriate headers.
-  get(path) {
-    return request(`${this.apiUrl}/${path}`, {
-      headers: this.headers(),
-      method: 'GET'
+  get(path, meta) {
+    return logger.measure('client:get', meta.identifier, meta, () => {
+      return request(`${this.apiUrl}/${path}`, {
+        headers: this.headers(),
+        method: 'GET'
+      });
     });
   }
 
   // Performs a POST request to a JSON API endpoint with appropriate headers.
-  post(path, body = {}) {
-    return request(`${this.apiUrl}/${path}`, {
-      headers: this.headers({ 'Content-Type': 'application/vnd.api+json' }),
-      method: 'POST',
-      body
+  post(path, body = {}, meta = {}) {
+    return logger.measure('client:post', meta.identifier || 'Unknown', meta, () => {
+      return request(`${this.apiUrl}/${path}`, {
+        headers: this.headers({ 'Content-Type': 'application/vnd.api+json' }),
+        method: 'POST',
+        body
+      });
     });
   }
 
@@ -189,7 +193,7 @@ export class PercyClient {
     validateId('build', buildId);
     let qs = all ? 'all-shards=true' : '';
     this.log.debug(`Finalizing build ${buildId}...`);
-    return this.post(`builds/${buildId}/finalize?${qs}`);
+    return this.post(`builds/${buildId}/finalize?${qs}`, {}, { identifier: 'build.finalze' });
   }
 
   // Retrieves build data by id. Requires a read access token.
@@ -351,7 +355,7 @@ export class PercyClient {
           'base64-content': encodedContent
         }
       }
-    });
+    }, { identifier: 'resource.post', ...meta });
   }
 
   // Uploads resources to the active build concurrently, two at a time.
@@ -439,14 +443,14 @@ export class PercyClient {
           }
         }
       }
-    });
+    }, { identifier: 'snapshot.post', ...meta });
   }
 
   // Finalizes a snapshot.
   async finalizeSnapshot(snapshotId, meta = {}) {
     validateId('snapshot', snapshotId);
     this.log.debug(`Finalizing snapshot ${snapshotId}...`, meta);
-    return this.post(`snapshots/${snapshotId}/finalize`);
+    return this.post(`snapshots/${snapshotId}/finalize`, {}, { identifier: 'snapshot.finalze', ...meta });
   }
 
   // Convenience method for creating a snapshot for the active build, uploading
@@ -532,10 +536,10 @@ export class PercyClient {
           }
         }
       }
-    });
+    }, { identifier: 'comparison.post', ...meta });
   }
 
-  async uploadComparisonTile(comparisonId, { index = 0, total = 1, filepath, content, sha } = {}) {
+  async uploadComparisonTile(comparisonId, { index = 0, total = 1, filepath, content, sha } = {}, meta = {}) {
     validateId('comparison', comparisonId);
     if (sha) {
       return await this.verify(comparisonId, sha);
@@ -543,7 +547,7 @@ export class PercyClient {
     if (filepath && !content) content = await fs.promises.readFile(filepath);
     let encodedContent = base64encode(content);
 
-    this.log.debug(`Uploading ${formatBytes(encodedContent.length)} comparison tile: ${index + 1}/${total} (${comparisonId})...`);
+    this.log.debug(`Uploading ${formatBytes(encodedContent.length)} comparison tile: ${index + 1}/${total} (${comparisonId})...`, meta);
     this.mayBeLogUploadSize(encodedContent.length);
 
     return this.post(`comparisons/${comparisonId}/tiles`, {
@@ -554,7 +558,7 @@ export class PercyClient {
           index
         }
       }
-    });
+    }, { identifier: 'comparison.tile.post', ...meta });
   }
 
   // Convenience method for verifying if tile is present
@@ -579,9 +583,9 @@ export class PercyClient {
     return true;
   }
 
-  async verifyComparisonTile(comparisonId, sha) {
+  async verifyComparisonTile(comparisonId, sha, meta = {}) {
     validateId('comparison', comparisonId);
-    this.log.debug(`Verifying comparison tile with sha: ${sha}`);
+    this.log.debug(`Verifying comparison tile with sha: ${sha}`, meta);
 
     try {
       return await this.post(`comparisons/${comparisonId}/tiles/verify`, {
@@ -591,7 +595,7 @@ export class PercyClient {
             sha: sha
           }
         }
-      });
+      }, { identifier: 'comparison.tile.verify', ...meta });
     } catch (error) {
       this.log.error(error);
       if (error.response.statusCode === 400) {
@@ -614,10 +618,10 @@ export class PercyClient {
     }, this, 2);
   }
 
-  async finalizeComparison(comparisonId) {
+  async finalizeComparison(comparisonId, meta = {}) {
     validateId('comparison', comparisonId);
     this.log.debug(`Finalizing comparison ${comparisonId}...`);
-    return this.post(`comparisons/${comparisonId}/finalize`);
+    return this.post(`comparisons/${comparisonId}/finalize`, {}, { identifier: 'comparison.finalize', ...meta });
   }
 
   async sendComparison(buildId, options) {
@@ -634,28 +638,28 @@ export class PercyClient {
     return comparison;
   }
 
-  async sendBuildEvents(buildId, body) {
+  async sendBuildEvents(buildId, body, meta = {}) {
     validateId('build', buildId);
     this.log.debug('Sending Build Events');
     return this.post(`builds/${buildId}/send-events`, {
       data: body
-    });
+    }, { identifier: 'build.send_events', ...meta });
   }
 
-  async sendBuildLogs(body) {
-    this.log.debug('Sending Build Logs');
+  async sendBuildLogs(body, meta = {}) {
+    this.log.debug('Sending Build Logs', meta);
     return this.post('logs', {
       data: body
-    });
+    }, { identifier: 'build.send_logs', ...meta });
   }
 
-  async getErrorAnalysis(errors) {
+  async getErrorAnalysis(errors, meta = {}) {
     const errorLogs = formatLogErrors(errors);
-    this.log.debug('Sending error logs for analysis');
+    this.log.debug('Sending error logs for analysis', meta);
 
     return this.post('suggestions/from_logs', {
       data: errorLogs
-    });
+    }, { identifier: 'error.analysis.get', ...meta });
   }
 
   mayBeLogUploadSize(contentSize, meta = {}) {
