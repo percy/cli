@@ -115,7 +115,7 @@ export class PercyClient {
   }
 
   // Performs a GET request for an API endpoint with appropriate headers.
-  get(path, meta) {
+  get(path, meta = {}) {
     return logger.measure('client:get', meta.identifier, meta, () => {
       return request(`${this.apiUrl}/${path}`, {
         headers: this.headers(),
@@ -456,7 +456,7 @@ export class PercyClient {
   // Convenience method for creating a snapshot for the active build, uploading
   // missing resources for the snapshot, and finalizing the snapshot.
   async sendSnapshot(buildId, options) {
-    let { meta } = options;
+    let { meta = {} } = options;
     let snapshot = await this.createSnapshot(buildId, options);
     meta.snapshotId = snapshot.data.id;
 

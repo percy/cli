@@ -483,38 +483,82 @@ describe('logger', () => {
 
   describe('timeit', () => {
     describe('measure', () => {
-      it('should execute callback and log duration', async () => {
+      it('should execute async callback and log duration', async () => {
         const date1 = new Date(2024, 4, 11, 13, 30, 0);
         const date2 = new Date(2024, 4, 11, 13, 31, 0);
         const meta = { abc: '123' };
         // Logger internally calls Date.now, so need to mock
         // response for it as well.
         spyOn(Date, 'now').and.returnValues(date1, date1, date2, date1);
-        const callback = async () => { log.info('abcd'); };
+        const callback = async () => {
+          await new Promise((res, _) => setTimeout(res, 20));
+          log.info('abcd');
+          return 10;
+        };
 
-        logger.timeit.log.loglevel('debug');
-        await logger.measure('step', 'test', meta, callback);
+        logger.loglevel('debug');
+        const ret = await logger.measure('step', 'test', meta, callback);
+        expect(ret).toEqual(10);
         expect(helpers.stdout).toEqual([
-          `[${colors.magenta('percy:test')}] abcd`
+          jasmine.stringContaining(`[${colors.magenta('percy:test')}] abcd`)
         ]);
         expect(helpers.stderr).toEqual([
           `[${colors.magenta('percy:timer')}] step - test - 60s`
         ]);
       });
 
-      it('should capture error info', async () => {
+      it('should execute sync callback and log duration', () => {
+        const date1 = new Date(2024, 4, 11, 13, 30, 0);
+        const date2 = new Date(2024, 4, 11, 13, 31, 0);
+        const meta = { abc: '123' };
+        // Logger internally calls Date.now, so need to mock
+        // response for it as well.
+        spyOn(Date, 'now').and.returnValues(date1, date1, date2, date1);
+        const callback = () => { log.info('abcd'); return 10; };
+
+        logger.loglevel('debug');
+        const ret = logger.measure('step', 'test', meta, callback);
+        expect(ret).toEqual(10);
+        expect(helpers.stdout).toEqual([
+          jasmine.stringContaining(`[${colors.magenta('percy:test')}] abcd`)
+        ]);
+        expect(helpers.stderr).toEqual([
+          `[${colors.magenta('percy:timer')}] step - test - 60s`
+        ]);
+      });
+
+      it('should capture error info in async', async () => {
         const meta = { abc: '123' };
         const error = new Error('Error');
         const callback = async () => { log.info('abcd'); throw error; };
 
-        logger.timeit.log.loglevel('debug');
+        logger.loglevel('debug');
         try {
           await logger.measure('step', 'test1', meta, callback);
         } catch (e) {
           expect(e).toEqual(error);
         }
         expect(helpers.stdout).toEqual([
-          `[${colors.magenta('percy:test')}] abcd`
+          jasmine.stringContaining(`[${colors.magenta('percy:test')}] abcd`)
+        ]);
+        const mlog = logger.instance.query((msg => msg.debug === 'timer'))[0];
+        expect(mlog.meta.errorMsg).toEqual('Error');
+        expect(mlog.meta.errorStack).toEqual(jasmine.stringContaining('Error: Error'));
+      });
+
+      it('should capture error info in sync', () => {
+        const meta = { abc: '123' };
+        const error = new Error('Error');
+        const callback = () => { log.info('abcd'); throw error; };
+
+        logger.loglevel('debug');
+        try {
+          logger.measure('step', 'test1', meta, callback);
+        } catch (e) {
+          expect(e).toEqual(error);
+        }
+        expect(helpers.stdout).toEqual([
+          jasmine.stringContaining(`[${colors.magenta('percy:test')}] abcd`)
         ]);
         const mlog = logger.instance.query((msg => msg.debug === 'timer'))[0];
         expect(mlog.meta.errorMsg).toEqual('Error');
