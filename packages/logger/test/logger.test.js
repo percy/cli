@@ -495,11 +495,30 @@ describe('logger', () => {
         logger.timeit.log.loglevel('debug');
         await logger.measure('step', 'test', meta, callback);
         expect(helpers.stdout).toEqual([
-          `[${colors.magenta('percy')}] abcd`
+          `[${colors.magenta('percy:test')}] abcd`
         ]);
         expect(helpers.stderr).toEqual([
           `[${colors.magenta('percy:timer')}] step - test - 60s`
         ]);
+      });
+
+      it('should capture error info', async () => {
+        const meta = { abc: '123' };
+        const error = new Error('Error');
+        const callback = async () => { log.info('abcd'); throw error; };
+
+        logger.timeit.log.loglevel('debug');
+        try {
+          await logger.measure('step', 'test1', meta, callback);
+        } catch (e) {
+          expect(e).toEqual(error);
+        }
+        expect(helpers.stdout).toEqual([
+          `[${colors.magenta('percy:test')}] abcd`
+        ]);
+        const mlog = logger.instance.query((msg => msg.debug === 'timer'))[0];
+        expect(mlog.meta.errorMsg).toEqual('Error');
+        expect(mlog.meta.errorStack).toEqual(jasmine.stringContaining('Error: Error'));
       });
     });
   });

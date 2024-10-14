@@ -4,7 +4,6 @@ import TimeIt from './timing.js';
 export function logger(name) {
   return new Logger().group(name);
 }
-const timer = new TimeIt(logger('timer'));
 
 Object.defineProperties(logger, {
   stdout: { get: () => Logger.stdout },
@@ -14,8 +13,8 @@ Object.defineProperties(logger, {
   query: { value: (...args) => logger.instance.query(...args) },
   format: { value: (...args) => logger.instance.format(...args) },
   loglevel: { value: (...args) => logger.instance.loglevel(...args) },
-  timeit: { get: () => timer },
-  measure: { value: (...args) => timer.measure(...args) }
+  timeit: { get: () => new TimeIt(logger.instance.group('timer')) },
+  measure: { value: (...args) => logger.timeit.measure(...args) }
 });
 
 export default logger;
