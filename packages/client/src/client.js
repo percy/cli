@@ -340,8 +340,8 @@ export class PercyClient {
     }
     let encodedContent = base64encode(content);
 
-    this.log.debug(`Uploading ${formatBytes(encodedContent.length)} resource: ${url}...`, meta);
-    this.mayBeLogUploadSize(encodedContent.length, { url, ...meta });
+    this.log.debug(`Uploading ${formatBytes(encodedContent.length)} resource: ${url}`, meta);
+    this.mayBeLogUploadSize(encodedContent.length, meta);
 
     return this.post(`builds/${buildId}/resources`, {
       data: {
@@ -361,12 +361,13 @@ export class PercyClient {
 
     return pool(function*() {
       for (let resource of resources) {
-        yield this.uploadResource(buildId, resource, meta);
-        this.log.debug(`Uploaded resource ${resource.url}...`, {
+        let resourceMeta = {
           url: resource.url,
           sha: resource.sha,
           ...meta
-        });
+        };
+        yield this.uploadResource(buildId, resource, resourceMeta);
+        this.log.debug(`Uploaded resource ${resource.url}`, resourceMeta);
       }
     }, this, 2);
   }

@@ -480,4 +480,27 @@ describe('logger', () => {
       });
     });
   });
+
+  describe('timeit', () => {
+    describe('measure', () => {
+      it('should execute callback and log duration', async () => {
+        const date1 = new Date(2024, 4, 11, 13, 30, 0);
+        const date2 = new Date(2024, 4, 11, 13, 31, 0);
+        const meta = { abc: '123' };
+        // Logger internally calls Date.now, so need to mock
+        // response for it as well.
+        spyOn(Date, 'now').and.returnValues(date1, date1, date2, date1);
+        const callback = async () => { log.info('abcd'); };
+
+        logger.timeit.log.loglevel('debug');
+        await logger.measure('step', 'test', meta, callback);
+        expect(helpers.stdout).toEqual([
+          `[${colors.magenta('percy')}] abcd`
+        ]);
+        expect(helpers.stderr).toEqual([
+          `[${colors.magenta('percy:timer')}] step - test - 60s`
+        ]);
+      });
+    });
+  });
 });

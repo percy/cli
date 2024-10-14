@@ -1,11 +1,9 @@
 
-import logger from '@percy/logger';
-
 export default class TimeIt {
-  log = logger('timer');
   // returns a singleton instance
-  constructor() {
+  constructor(log) {
     let { instance = this } = this.constructor;
+    instance.log = log;
     this.constructor.instance = instance;
     return instance;
   }
