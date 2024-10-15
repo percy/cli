@@ -128,7 +128,10 @@ export async function request(url, options = {}, callback) {
   if (typeof options === 'function') [options, callback] = [{}, options];
 
   // gather request options
-  let { body, headers, retries, retryNotFound, interval, noProxy, buffer, ...requestOptions } = options;
+  let {
+    body, headers, retries, retryNotFound,
+    interval, noProxy, buffer, meta = {}, ...requestOptions
+  } = options;
   let { protocol, hostname, port, pathname, search, hash } = new URL(url);
 
   // reference the default export so tests can mock it
@@ -156,10 +159,19 @@ export async function request(url, options = {}, callback) {
       if (handleError.handled) return;
       handleError.handled = true;
 
+      const response = error.response;
+      meta.responseCode = error.code;
+      meta.errorCount = (meta.errorCount || 0) + 1;
+      if (response) {
+        meta.responseCode = response.statusCode;
+        meta.xRequestId = response.headers['x-request-id'];
+        meta.cfRay = response.headers['cf-ray'];
+      }
+
       // maybe retry 404s, always retry 500s, or retry specific errors
-      let shouldRetry = error.response
-        ? ((retryNotFound && error.response.statusCode === 404) ||
-           (error.response.statusCode >= 500 && error.response.statusCode < 600))
+      let shouldRetry = response
+        ? ((retryNotFound && response.statusCode === 404) ||
+           (response.statusCode >= 500 && response.statusCode < 600))
         : (!!error.code && RETRY_ERROR_CODES.includes(error.code));
 
       return shouldRetry ? retry(error) : reject(error);
@@ -171,6 +183,10 @@ export async function request(url, options = {}, callback) {
 
       // only return a buffer when requested
       if (buffer !== true) body = raw;
+
+      meta.responseCode = statusCode;
+      meta.xRequestId = headers['x-request-id'];
+      meta.cfRay = headers['cf-ray'];
 
       // attempt to parse the body as json
       try { body = JSON.parse(raw); } catch {}

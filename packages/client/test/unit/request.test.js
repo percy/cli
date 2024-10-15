@@ -165,6 +165,12 @@ describe('Unit / Request', () => {
     await expectAsync(request(server.address)).toBeResolvedTo('test');
   });
 
+  it('updates meta with status if passed', async () => {
+    const meta = { abc: 1 };
+    await expectAsync(request(server.address, { meta })).toBeResolvedTo('test');
+    expect(meta).toEqual({ abc: 1, responseCode: 200, xRequestId: undefined, cfRay: undefined });
+  });
+
   it('returns the successful response body as a buffer', async () => {
     await expectAsync(request(server.address, { buffer: true })).toBeResolvedTo(Buffer.from('test'));
   });
@@ -264,6 +270,21 @@ describe('Unit / Request', () => {
       await expectAsync(server.request('/fail'))
         .toBeRejectedWithError('502 Bad Gateway\ntest');
       expect(server.received.length).toBe(6);
+    });
+
+    it('updates meta on failure', async () => {
+      const meta = { abc: 1 };
+      server.reply('/fail', () => [502]);
+      await expectAsync(server.request('/fail', { meta }))
+        .toBeRejectedWithError('502 Bad Gateway\ntest');
+      expect(server.received.length).toBe(6);
+      expect(meta).toEqual({
+        abc: 1,
+        responseCode: 502,
+        xRequestId: undefined,
+        cfRay: undefined,
+        errorCount: 6
+      });
     });
   });
 

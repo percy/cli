@@ -115,22 +115,26 @@ export class PercyClient {
   }
 
   // Performs a GET request for an API endpoint with appropriate headers.
-  get(path, meta = {}) {
+  // we create a copy of meta as we update it in request and we wont want those updates
+  // to go back to caller - should be only limited to current function
+  get(path, { ...meta } = {}) {
     return logger.measure('client:get', meta.identifier, meta, () => {
       return request(`${this.apiUrl}/${path}`, {
         headers: this.headers(),
-        method: 'GET'
+        method: 'GET',
+        meta
       });
     });
   }
 
   // Performs a POST request to a JSON API endpoint with appropriate headers.
-  post(path, body = {}, meta = {}) {
+  post(path, body = {}, { ...meta } = {}) {
     return logger.measure('client:post', meta.identifier || 'Unknown', meta, () => {
       return request(`${this.apiUrl}/${path}`, {
         headers: this.headers({ 'Content-Type': 'application/vnd.api+json' }),
         method: 'POST',
-        body
+        body,
+        meta
       });
     });
   }
