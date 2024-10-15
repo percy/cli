@@ -1289,7 +1289,7 @@ describe('Percy', () => {
           })).toBeResolved();
 
           expect(logger.stderr).toEqual(jasmine.arrayContaining([
-            '[percy] Detected erorr for Snapshot: Snapshot 1',
+            '[percy] Detected error for Snapshot: Snapshot 1',
             '[percy] Failure: some failure reason',
             '[percy] Failure Reason: undefined',
             '[percy] Suggestion: some suggestion',
