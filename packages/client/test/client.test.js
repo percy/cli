@@ -130,6 +130,18 @@ describe('PercyClient', () => {
       );
     });
 
+    it('sends a POST request to the API without payload', async () => {
+      await expectAsync(client.post('foobar')).toBeResolved();
+      expect(api.requests['/foobar'][0].body).toEqual({});
+      expect(api.requests['/foobar'][0].method).toBe('POST');
+      expect(api.requests['/foobar'][0].headers).toEqual(
+        jasmine.objectContaining({
+          Authorization: 'Token token=PERCY_TOKEN',
+          'Content-Type': 'application/vnd.api+json'
+        })
+      );
+    });
+
     it('throws when missing a percy token', () => {
       expect(() => new PercyClient().post('foobar', {}))
         .toThrowError('Missing Percy token');
@@ -651,7 +663,7 @@ describe('PercyClient', () => {
 
     it('uploads a resource for a build', async () => {
       await expectAsync(client.uploadResource(123, { content: 'foo', url: 'foo/bar' })).toBeResolved();
-      expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Uploading 4B resource: foo/bar...']));
+      expect(logger.stderr).toEqual(jasmine.arrayContaining(['[percy:client] Uploading 4B resource: foo/bar']));
 
       expect(api.requests['/builds/123/resources'][0].body).toEqual({
         data: {

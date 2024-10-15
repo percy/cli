@@ -18,7 +18,6 @@ import {
   sha256hash
 } from '@percy/client/utils';
 import Pako from 'pako';
-import TimeIt from './timing.js';
 
 // Logs verbose debug logs detailing various snapshot options.
 function debugSnapshotOptions(snapshot) {
@@ -367,7 +366,6 @@ export const RESOURCE_CACHE_KEY = Symbol('resource-cache');
 export function createDiscoveryQueue(percy) {
   let { concurrency } = percy.config.discovery;
   let queue = new Queue('discovery');
-  let timeit = new TimeIt();
   let cache;
 
   return queue
@@ -397,14 +395,14 @@ export function createDiscoveryQueue(percy) {
     })
   // discovery resources for snapshots and call the callback for each discovered snapshot
     .handle('task', async function*(snapshot, callback) {
-      await timeit.measure('asset-discovery', snapshot.name, async () => {
+      await logger.measure('asset-discovery', snapshot.name, snapshot.meta, async () => {
         percy.log.debug(`Discovering resources: ${snapshot.name}`, snapshot.meta);
 
         // expectation explained in tests
         /* istanbul ignore next: tested, but coverage is stripped */
         let assetDiscoveryPageEnableJS = (snapshot.cliEnableJavaScript && !snapshot.domSnapshot) || (snapshot.enableJavaScript ?? !snapshot.domSnapshot);
 
-        percy.log.debug(`Asset discovery Browser Page enable JS: ${assetDiscoveryPageEnableJS}`);
+        percy.log.debug(`Asset discovery Browser Page enable JS: ${assetDiscoveryPageEnableJS}`, snapshot.meta);
 
         await withRetries(async function*() {
           // create a new browser page

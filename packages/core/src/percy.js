@@ -378,7 +378,6 @@ export class Percy {
     } else if (Array.isArray(options)) {
       return yieldAll(options.map(o => this.yield.upload(o)));
     }
-
     // validate comparison uploads and warn about any errors
 
     // we are having two similar attrs in options: tags & tag
@@ -401,6 +400,15 @@ export class Percy {
         for (let e of errors) this.log.warn(`- ${e.path}: ${e.message}`);
       }
     }
+
+    // set meta for logging
+    options.meta = {
+      snapshot: {
+        name: options.name,
+        testCase: options.testCase,
+        tag: options.tag?.name
+      }
+    };
 
     // add client & environment info
     this.client.addClientInfo(options.clientInfo);

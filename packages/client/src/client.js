@@ -115,19 +115,27 @@ export class PercyClient {
   }
 
   // Performs a GET request for an API endpoint with appropriate headers.
-  get(path) {
-    return request(`${this.apiUrl}/${path}`, {
-      headers: this.headers(),
-      method: 'GET'
+  // we create a copy of meta as we update it in request and we wont want those updates
+  // to go back to caller - should be only limited to current function
+  get(path, { ...meta } = {}) {
+    return logger.measure('client:get', meta.identifier, meta, () => {
+      return request(`${this.apiUrl}/${path}`, {
+        headers: this.headers(),
+        method: 'GET',
+        meta
+      });
     });
   }
 
   // Performs a POST request to a JSON API endpoint with appropriate headers.
-  post(path, body = {}) {
-    return request(`${this.apiUrl}/${path}`, {
-      headers: this.headers({ 'Content-Type': 'application/vnd.api+json' }),
-      method: 'POST',
-      body
+  post(path, body = {}, { ...meta } = {}) {
+    return logger.measure('client:post', meta.identifier || 'Unknown', meta, () => {
+      return request(`${this.apiUrl}/${path}`, {
+        headers: this.headers({ 'Content-Type': 'application/vnd.api+json' }),
+        method: 'POST',
+        body,
+        meta
+      });
     });
   }
 
@@ -189,7 +197,7 @@ export class PercyClient {
     validateId('build', buildId);
     let qs = all ? 'all-shards=true' : '';
     this.log.debug(`Finalizing build ${buildId}...`);
-    return this.post(`builds/${buildId}/finalize?${qs}`);
+    return this.post(`builds/${buildId}/finalize?${qs}`, {}, { identifier: 'build.finalze' });
   }
 
   // Retrieves build data by id. Requires a read access token.
@@ -330,7 +338,7 @@ export class PercyClient {
   // Uploads a single resource to the active build. If `filepath` is provided,
   // `content` is read from the filesystem. The sha is optional and will be
   // created from `content` if one is not provided.
-  async uploadResource(buildId, { url, sha, filepath, content } = {}) {
+  async uploadResource(buildId, { url, sha, filepath, content } = {}, meta = {}) {
     validateId('build', buildId);
     if (filepath) {
       content = await fs.promises.readFile(filepath);
@@ -340,8 +348,8 @@ export class PercyClient {
     }
     let encodedContent = base64encode(content);
 
-    this.log.debug(`Uploading ${formatBytes(encodedContent.length)} resource: ${url}...`);
-    this.mayBeLogUploadSize(encodedContent.length);
+    this.log.debug(`Uploading ${formatBytes(encodedContent.length)} resource: ${url}`, meta);
+    this.mayBeLogUploadSize(encodedContent.length, meta);
 
     return this.post(`builds/${buildId}/resources`, {
       data: {
@@ -351,17 +359,23 @@ export class PercyClient {
           'base64-content': encodedContent
         }
       }
-    });
+    }, { identifier: 'resource.post', ...meta });
   }
 
   // Uploads resources to the active build concurrently, two at a time.
-  async uploadResources(buildId, resources) {
+  async uploadResources(buildId, resources, meta = {}) {
     validateId('build', buildId);
-    this.log.debug(`Uploading resources for ${buildId}...`);
+    this.log.debug(`Uploading resources for ${buildId}...`, meta);
 
     return pool(function*() {
       for (let resource of resources) {
-        yield this.uploadResource(buildId, resource);
+        let resourceMeta = {
+          url: resource.url,
+          sha: resource.sha,
+          ...meta
+        };
+        yield this.uploadResource(buildId, resource, resourceMeta);
+        this.log.debug(`Uploaded resource ${resource.url}`, resourceMeta);
       }
     }, this, 2);
   }
@@ -381,24 +395,26 @@ export class PercyClient {
     testCase,
     labels,
     thTestCaseExecutionId,
-    resources = []
+    resources = [],
+    meta
   } = {}) {
     validateId('build', buildId);
     this.addClientInfo(clientInfo);
     this.addEnvironmentInfo(environmentInfo);
 
     if (!this.clientInfo.size || !this.environmentInfo.size) {
-      this.log.warn('Warning: Missing `clientInfo` and/or `environmentInfo` properties');
+      this.log.warn('Warning: Missing `clientInfo` and/or `environmentInfo` properties', meta);
     }
 
     let tagsArr = tagsList(labels);
 
-    this.log.debug(`Creating snapshot: ${name}...`);
-
+    this.log.debug(`Validating resources: ${name}...`, meta);
     for (let resource of resources) {
       if (resource.sha || resource.content || !resource.filepath) continue;
       resource.content = await fs.promises.readFile(resource.filepath);
     }
+
+    this.log.debug(`Creating snapshot: ${name}...`, meta);
 
     return this.post(`builds/${buildId}/snapshots`, {
       data: {
@@ -431,35 +447,44 @@ export class PercyClient {
           }
         }
       }
-    });
+    }, { identifier: 'snapshot.post', ...meta });
   }
 
   // Finalizes a snapshot.
-  async finalizeSnapshot(snapshotId) {
+  async finalizeSnapshot(snapshotId, meta = {}) {
     validateId('snapshot', snapshotId);
-    this.log.debug(`Finalizing snapshot ${snapshotId}...`);
-    return this.post(`snapshots/${snapshotId}/finalize`);
+    this.log.debug(`Finalizing snapshot ${snapshotId}...`, meta);
+    return this.post(`snapshots/${snapshotId}/finalize`, {}, { identifier: 'snapshot.finalze', ...meta });
   }
 
   // Convenience method for creating a snapshot for the active build, uploading
   // missing resources for the snapshot, and finalizing the snapshot.
   async sendSnapshot(buildId, options) {
+    let { meta = {} } = options;
     let snapshot = await this.createSnapshot(buildId, options);
-    let missing = snapshot.data.relationships?.['missing-resources']?.data;
+    meta.snapshotId = snapshot.data.id;
 
+    let missing = snapshot.data.relationships?.['missing-resources']?.data;
+    this.log.debug(`${missing?.length || 0} Missing resources: ${options.name}...`, meta);
     if (missing?.length) {
       let resources = options.resources.reduce((acc, r) => Object.assign(acc, { [r.sha]: r }), {});
-      await this.uploadResources(buildId, missing.map(({ id }) => resources[id]));
+      await this.uploadResources(buildId, missing.map(({ id }) => resources[id]), meta);
     }
+    this.log.debug(`Resources uploaded: ${options.name}...`, meta);
 
-    await this.finalizeSnapshot(snapshot.data.id);
+    await this.finalizeSnapshot(snapshot.data.id, meta);
+
+    this.log.debug(`Finalized snapshot: ${options.name}...`, meta);
     return snapshot;
   }
 
-  async createComparison(snapshotId, { tag, tiles = [], externalDebugUrl, ignoredElementsData, domInfoSha, consideredElementsData, metadata, sync } = {}) {
+  async createComparison(snapshotId, {
+    tag, tiles = [], externalDebugUrl, ignoredElementsData,
+    domInfoSha, consideredElementsData, metadata, sync, meta = {}
+  } = {}) {
     validateId('snapshot', snapshotId);
     // Remove post percy api deploy
-    this.log.debug(`Creating comparision: ${tag.name}...`);
+    this.log.debug(`Creating comparision: ${tag.name}...`, meta);
 
     for (let tile of tiles) {
       if (tile.sha) continue;
@@ -470,6 +495,7 @@ export class PercyClient {
         tile.content = await fs.promises.readFile(tile.filepath);
       }
     }
+    this.log.debug(`${tiles.length} tiles for comparision: ${tag.name}...`, meta);
 
     return this.post(`snapshots/${snapshotId}/comparisons`, {
       data: {
@@ -514,10 +540,10 @@ export class PercyClient {
           }
         }
       }
-    });
+    }, { identifier: 'comparison.post', ...meta });
   }
 
-  async uploadComparisonTile(comparisonId, { index = 0, total = 1, filepath, content, sha } = {}) {
+  async uploadComparisonTile(comparisonId, { index = 0, total = 1, filepath, content, sha } = {}, meta = {}) {
     validateId('comparison', comparisonId);
     if (sha) {
       return await this.verify(comparisonId, sha);
@@ -525,7 +551,7 @@ export class PercyClient {
     if (filepath && !content) content = await fs.promises.readFile(filepath);
     let encodedContent = base64encode(content);
 
-    this.log.debug(`Uploading ${formatBytes(encodedContent.length)} comparison tile: ${index + 1}/${total} (${comparisonId})...`);
+    this.log.debug(`Uploading ${formatBytes(encodedContent.length)} comparison tile: ${index + 1}/${total} (${comparisonId})...`, meta);
     this.mayBeLogUploadSize(encodedContent.length);
 
     return this.post(`comparisons/${comparisonId}/tiles`, {
@@ -536,7 +562,7 @@ export class PercyClient {
           index
         }
       }
-    });
+    }, { identifier: 'comparison.tile.post', ...meta });
   }
 
   // Convenience method for verifying if tile is present
@@ -561,9 +587,9 @@ export class PercyClient {
     return true;
   }
 
-  async verifyComparisonTile(comparisonId, sha) {
+  async verifyComparisonTile(comparisonId, sha, meta = {}) {
     validateId('comparison', comparisonId);
-    this.log.debug(`Verifying comparison tile with sha: ${sha}`);
+    this.log.debug(`Verifying comparison tile with sha: ${sha}`, meta);
 
     try {
       return await this.post(`comparisons/${comparisonId}/tiles/verify`, {
@@ -573,7 +599,7 @@ export class PercyClient {
             sha: sha
           }
         }
-      });
+      }, { identifier: 'comparison.tile.verify', ...meta });
     } catch (error) {
       this.log.error(error);
       if (error.response.statusCode === 400) {
@@ -596,52 +622,55 @@ export class PercyClient {
     }, this, 2);
   }
 
-  async finalizeComparison(comparisonId) {
+  async finalizeComparison(comparisonId, meta = {}) {
     validateId('comparison', comparisonId);
     this.log.debug(`Finalizing comparison ${comparisonId}...`);
-    return this.post(`comparisons/${comparisonId}/finalize`);
+    return this.post(`comparisons/${comparisonId}/finalize`, {}, { identifier: 'comparison.finalize', ...meta });
   }
 
   async sendComparison(buildId, options) {
+    let { meta } = options;
     if (!validateTiles(options.tiles)) {
       throw new Error('sha, filepath or content should be present in tiles object');
     }
     let snapshot = await this.createSnapshot(buildId, options);
     let comparison = await this.createComparison(snapshot.data.id, options);
     await this.uploadComparisonTiles(comparison.data.id, options.tiles);
+    this.log.debug(`Created comparison: ${comparison.data.id} ${options.tag.name}`, meta);
     await this.finalizeComparison(comparison.data.id);
+    this.log.debug(`Finalized comparison: ${comparison.data.id} ${options.tag.name}`, meta);
     return comparison;
   }
 
-  async sendBuildEvents(buildId, body) {
+  async sendBuildEvents(buildId, body, meta = {}) {
     validateId('build', buildId);
     this.log.debug('Sending Build Events');
     return this.post(`builds/${buildId}/send-events`, {
       data: body
-    });
+    }, { identifier: 'build.send_events', ...meta });
   }
 
-  async sendBuildLogs(body) {
-    this.log.debug('Sending Build Logs');
+  async sendBuildLogs(body, meta = {}) {
+    this.log.debug('Sending Build Logs', meta);
     return this.post('logs', {
       data: body
-    });
+    }, { identifier: 'build.send_logs', ...meta });
   }
 
-  async getErrorAnalysis(errors) {
+  async getErrorAnalysis(errors, meta = {}) {
     const errorLogs = formatLogErrors(errors);
-    this.log.debug('Sending error logs for analysis');
+    this.log.debug('Sending error logs for analysis', meta);
 
     return this.post('suggestions/from_logs', {
       data: errorLogs
-    });
+    }, { identifier: 'error.analysis.get', ...meta });
   }
 
-  mayBeLogUploadSize(contentSize) {
+  mayBeLogUploadSize(contentSize, meta = {}) {
     if (contentSize >= 25 * 1024 * 1024) {
-      this.log.error('Uploading resource above 25MB might fail the build...');
+      this.log.error('Uploading resource above 25MB might fail the build...', meta);
     } else if (contentSize >= 20 * 1024 * 1024) {
-      this.log.warn('Uploading resource above 20MB might slow the build...');
+      this.log.warn('Uploading resource above 20MB might slow the build...', meta);
     }
   }
 

@@ -479,6 +479,7 @@ async function saveResponseResource(network, request) {
       if (mimeType?.includes('font') || (detectedMime && detectedMime.includes('font'))) {
         log.debug('- Requesting asset directly', meta);
         body = await makeDirectRequest(network, request);
+        log.debug('- Got direct response', meta);
       }
 
       resource = createResource(url, body, mimeType, {
@@ -500,6 +501,7 @@ async function saveResponseResource(network, request) {
   }
 
   if (resource && !resource.root) {
+    log.debug('- Saving resource', meta);
     network.intercept.saveResource(resource);
   }
 }
