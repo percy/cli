@@ -175,13 +175,13 @@ export function chromium({
   });
 }
 
-// default chromium revisions corresponds to v123.0.6312.58
+// default chromium revisions corresponds to v129.0.6668.58
 chromium.revisions = {
-  linux: '1262506',
-  win64: '1262500',
-  win32: '1262500',
-  darwin: '1262506',
-  darwinArm: '1262509'
+  linux: '1343863',
+  win64: '1343849',
+  win32: '1343862',
+  darwin: '1343864',
+  darwinArm: '1343869'
 };
 
 // export the namespace by default
