@@ -494,7 +494,7 @@ export class Percy {
       const referenceDocLinks = item?.reference_doc_link;
 
       if (options?.snapshotLevel) {
-        this.log.warn(`Detected erorr for Snapshot: ${options?.snapshotName}`);
+        this.log.warn(`Detected error for Snapshot: ${options?.snapshotName}`);
       } else {
         this.log.warn('Detected error for percy build');
       }
