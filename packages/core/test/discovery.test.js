@@ -452,13 +452,23 @@ describe('Discovery', () => {
       await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
-        domSnapshot: testDOM
+        domSnapshot: {
+          html: testDOM,
+          cookies: [
+            { name: 'abc', value: '123', secure: false, domain: 'localhost' },
+            { name: 'abc2', value: '1234', secure: false, domain: 'localhost' },
+            { name: 'other', value: '1234', secure: false, domain: 'notlocalhost.com' }
+          ]
+        }
       });
 
       await percy.idle();
       // confirm that request was made 2 times, once via browser and once due to makeDirectRequest
-      let paths = server.requests.map(r => r[0]);
-      expect(paths.filter(x => x === '/font.woff?abc=1').length).toEqual(2);
+      let fontRequests = server.requests.filter(r => r[0] === '/font.woff?abc=1');
+      expect(fontRequests.length).toEqual(2);
+      // confirm that direct request [ 2nd ] cookies contain correct cookies
+      // order of cookies doesnt matter
+      expect(['abc=123; abc2=1234', 'abc2=1234; abc=123']).toContain(fontRequests[1][1].cookie);
 
       let requestData = captured[0].map((x) => x.attributes)
         .filter(x => x['resource-url'] === 'http://localhost:8000/font.woff?abc=1')[0];

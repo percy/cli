@@ -21,7 +21,7 @@ export function createTestServer({ default: defaultReply, ...replies }, port = 8
   server.route(async (req, res, next) => {
     let pathname = req.url.pathname;
     if (req.url.search) pathname += req.url.search;
-    server.requests.push(req.body ? [pathname, req.body] : [pathname]);
+    server.requests.push(req.body ? [pathname, req.body, req.headers] : [pathname, req.headers]);
     let reply = replies[pathname] || defaultReply;
     return reply ? await reply(req, res) : next();
   });

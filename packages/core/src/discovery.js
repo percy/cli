@@ -89,7 +89,7 @@ function parseCookies(cookies) {
   // If cookies is collected via SDK
   if (Array.isArray(cookies) && cookies.every(item => typeof item === 'object' && 'name' in item && 'value' in item)) {
     // omit other fields reason sometimes expiry comes as actual date where we expect it to be double
-    return cookies.map(c => ({ name: c.name, value: c.value, secure: c.secure }));
+    return cookies.map(c => ({ name: c.name, value: c.value, secure: c.secure, domain: c.domain }));
   }
 
   if (!(typeof cookies === 'string' && cookies !== '')) return null;
@@ -218,7 +218,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
   const log = logger('core:discovery');
   let { discovery, additionalSnapshots = [], ...baseSnapshot } = snapshot;
   let { capture, captureWidths, deviceScaleFactor, mobile, captureForDevices } = options;
-  let cookies = snapshot?.domSnapshot?.cookies || snapshot?.domSnapshot?.[0]?.cookies;
+  let cookies = snapshot.domSnapshot?.cookies || snapshot.domSnapshot?.[0]?.cookies;
   cookies = parseCookies(cookies);
 
   // iterate over device to trigger reqeusts and capture other dpr width
