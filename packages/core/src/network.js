@@ -414,7 +414,7 @@ async function sendResponseResource(network, request, session) {
 
 // Make a new request with Node based on a network request
 async function makeDirectRequest(network, request, session) {
-  const { cookies = [] } = await session.send('Network.getCookies', { urls: [request.url] });
+  const { cookies } = await session.send('Network.getCookies', { urls: [request.url] });
 
   let headers = {
     ...request.headers,

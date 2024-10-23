@@ -29,7 +29,8 @@ describe('percy build:id', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(['123']);
-    expect(percyServer.requests).toEqual([['/percy/healthcheck']]);
+    expect(percyServer.requests.length).toEqual(1);
+    expect(percyServer.requests[0][0]).toEqual('/percy/healthcheck');
   });
 
   it('can call the /percy/healthcheck endpoint at an alternate port', async () => {
@@ -40,7 +41,8 @@ describe('percy build:id', () => {
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(['456']);
-    expect(percyServer.requests).toEqual([['/percy/healthcheck']]);
+    expect(percyServer.requests.length).toEqual(1);
+    expect(percyServer.requests[0][0]).toEqual('/percy/healthcheck');
   });
 
   it('logs an error when the endpoint errors', async () => {
