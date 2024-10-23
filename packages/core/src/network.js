@@ -51,7 +51,7 @@ export class Network {
     session.on('Network.requestWillBeSent', this._handleRequestWillBeSent);
     session.on('Network.responseReceived', this._handleResponseReceived.bind(this, session));
     session.on('Network.eventSourceMessageReceived', this._handleEventSourceMessageReceived);
-    session.on('Network.loadingFinished', this._handleLoadingFinished);
+    session.on('Network.loadingFinished', this._handleLoadingFinished.bind(this, session));
     session.on('Network.loadingFailed', this._handleLoadingFailed);
 
     let commands = [
@@ -286,7 +286,7 @@ export class Network {
 
   // Called when a request has finished loading which triggers the this.onrequestfinished
   // callback. The request should have an associated response and be finished with any redirects.
-  _handleLoadingFinished = async event => {
+  _handleLoadingFinished = async (session, event) => {
     let { requestId } = event;
     // wait for upto 2 seconds or check if response has been sent
     await this.#requestsLifeCycleHandler.get(requestId).responseReceived;
@@ -294,7 +294,7 @@ export class Network {
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;
 
-    await saveResponseResource(this, request);
+    await saveResponseResource(this, request, session);
     this._forgetRequest(request);
   }
 
@@ -413,8 +413,13 @@ async function sendResponseResource(network, request, session) {
 }
 
 // Make a new request with Node based on a network request
-function makeDirectRequest(network, request) {
-  let headers = { ...request.headers };
+async function makeDirectRequest(network, request, session) {
+  const { cookies } = await session.send('Network.getCookies', { urls: [request.url] });
+
+  let headers = {
+    ...request.headers,
+    cookie: cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ')
+  };
 
   if (network.authorization?.username) {
     // include basic authorization username and password
@@ -427,7 +432,7 @@ function makeDirectRequest(network, request) {
 }
 
 // Save a resource from a request, skipping it if specific paramters are not met
-async function saveResponseResource(network, request) {
+async function saveResponseResource(network, request, session) {
   let { disableCache, allowedHostnames, enableJavaScript } = network.intercept;
 
   let log = network.log;
@@ -478,7 +483,7 @@ async function saveResponseResource(network, request) {
       // so request them directly.
       if (mimeType?.includes('font') || (detectedMime && detectedMime.includes('font'))) {
         log.debug('- Requesting asset directly', meta);
-        body = await makeDirectRequest(network, request);
+        body = await makeDirectRequest(network, request, session);
         log.debug('- Got direct response', meta);
       }
 

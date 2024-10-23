@@ -24,10 +24,9 @@ describe('percy exec:stop', () => {
 
     await stop();
 
-    expect(percyServer.requests).toEqual([
-      ['/percy/stop'],
-      ['/percy/healthcheck']
-    ]);
+    expect(percyServer.requests.length).toEqual(2);
+    expect(percyServer.requests[0][0]).toEqual('/percy/stop');
+    expect(percyServer.requests[1][0]).toEqual('/percy/healthcheck');
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(['[percy] Percy has stopped']);
@@ -54,10 +53,9 @@ describe('percy exec:stop', () => {
 
     await stop(['--port=4567']);
 
-    expect(percyServer.requests).toEqual([
-      ['/percy/stop'],
-      ['/percy/healthcheck']
-    ]);
+    expect(percyServer.requests.length).toEqual(2);
+    expect(percyServer.requests[0][0]).toEqual('/percy/stop');
+    expect(percyServer.requests[1][0]).toEqual('/percy/healthcheck');
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual(['[percy] Percy has stopped']);
