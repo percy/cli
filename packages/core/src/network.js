@@ -417,7 +417,18 @@ async function makeDirectRequest(network, request, session) {
   const { cookies } = await session.send('Network.getCookies', { urls: [request.url] });
 
   let headers = {
+    // add default browser
+    accept: '*/*',
+    'sec-fetch-site': 'same-origin',
+    'sec-fetch-mode': 'cors',
+    'sec-fetch-dest': 'font',
+    'sec-ch-ua': '"Chromium";v="123", "Google Chrome";v="123", "Not?A_Brand";v="99"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"macOS"',
+    'sec-fetch-user': '?1',
+    // add request fetched headers
     ...request.headers,
+    // add applicable cookies
     cookie: cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ')
   };
 
