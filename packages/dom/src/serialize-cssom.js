@@ -25,6 +25,47 @@ function createStyleResource(styleSheet) {
   return resource;
 }
 
+export function serializeExternalStyles(ctx) {
+  let { dom, clone, warnings } = ctx;
+  let styleSheets = null;
+  try {
+    styleSheets = dom.styleSheets;
+  } catch {
+    warnings.add('Skipping `styleSheets` as it is not supported.');
+  }
+  if (styleSheets) {
+    for (let styleSheet of styleSheets) {
+      if (isCSSOM(styleSheet) || styleSheet.href?.startsWith('blob:')) {
+        continue;
+      } else if (styleSheet.href) {
+        let corsAccessible = false;
+        try {
+          if (styleSheet.cssRules) corsAccessible = true;
+        } catch (err) {
+          // Not CORS accessible
+        }
+        if (corsAccessible) {
+          try {
+            let styleTag = document.createElement('style');
+            styleTag.type = 'text/css';
+            styleTag.innerHTML = Array.from(styleSheet.cssRules)
+              .map(cssRule => cssRule.cssText).join('\n');
+            clone.head.appendChild(styleTag);
+
+            const styleLinkId = styleSheet.ownerNode.getAttribute('data-percy-element-id');
+            const clonedOldStyleLink = clone.querySelector(`[data-percy-element-id="${styleLinkId}"]`);
+            clonedOldStyleLink.remove();
+          } catch (err) {
+            handleErrors(err, 'Error serializing external stylesheet: ', null, {
+              stylesheetHref: styleSheet.href
+            });
+          }
+        }
+      }
+    }
+  }
+}
+
 export function serializeCSSOM(ctx) {
   let { dom, clone, resources, cache, warnings } = ctx;
   // in-memory CSSOM into their respective DOM nodes.
@@ -88,7 +129,7 @@ export function serializeCSSOM(ctx) {
   // clone Adopted Stylesheets
   // Regarding ordering of the adopted stylesheets - https://github.com/WICG/construct-stylesheets/issues/93
   /* istanbul ignore next: tested, but coverage is stripped */
-  if (dom.adoptedStyleSheets) {
+  if (dom.adoptedStyleSheets && dom.adoptedStyleSheets.length >= 0) {
     for (let sheet of dom.adoptedStyleSheets) {
       const styleLink = document.createElement('link');
       styleLink.setAttribute('rel', 'stylesheet');
