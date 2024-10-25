@@ -601,10 +601,10 @@ export class PercyClient {
         }
       }, { identifier: 'comparison.tile.verify', ...meta });
     } catch (error) {
-      this.log.error(error);
       if (error.response.statusCode === 400) {
         return false;
       }
+      this.log.error(error);
       throw error;
     }
   }
