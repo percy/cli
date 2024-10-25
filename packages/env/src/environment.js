@@ -178,7 +178,7 @@ export class PercyEnv {
         case 'jenkins':
           return this.vars.CHANGE_ID;
         case 'circle':
-          return this.vars.CI_PULL_REQUESTS?.split('/').slice(-1)[0];
+          return this.vars.CIRCLE_PULL_REQUESTS?.split('/').slice(-1)[0];
         case 'drone':
           return this.vars.CI_PULL_REQUEST;
         case 'semaphore':
