@@ -392,7 +392,7 @@ export class Percy {
 
       // normalize, migrate, and remove certain properties from validating
       options = PercyConfig.migrate(options, '/comparison');
-      let { clientInfo, environmentInfo, ...comparison } = options;
+      let { clientInfo, environmentInfo, labels, ...comparison } = options;
       let errors = PercyConfig.validate(comparison, '/comparison');
 
       if (errors?.length > 0) {
