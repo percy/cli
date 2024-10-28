@@ -5,10 +5,10 @@ describe('CircleCI', () => {
 
   beforeEach(() => {
     env = new PercyEnv({
-      PERCY_PARALLEL_TOTAL: '-1',
+      CIRCLE_NODE_TOTAL: '-1',
       CIRCLE_BRANCH: 'circle-branch',
       CIRCLE_SHA1: 'circle-commit-sha',
-      CI_PULL_REQUESTS: 'https://github.com/owner/repo-name/pull/123',
+      CIRCLE_PULL_REQUESTS: 'https://github.com/owner/repo-name/pull/123',
       CIRCLE_BUILD_NUM: 'build-number',
       CIRCLECI: 'true'
     });
@@ -28,5 +28,10 @@ describe('CircleCI', () => {
   it('has the correct parallel nonce in 2.x', () => {
     env = new PercyEnv({ ...env.vars, CIRCLE_WORKFLOW_ID: 'workflow-id' });
     expect(env).toHaveProperty('parallel.nonce', 'workflow-id');
+  });
+
+  it('has the correct parallel total', () => {
+    env = new PercyEnv({ ...env.vars, CIRCLE_NODE_TOTAL: '2' });
+    expect(env).toHaveProperty('parallel.total', '2');
   });
 });
