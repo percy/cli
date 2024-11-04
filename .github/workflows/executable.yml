@@ -27,7 +27,7 @@ jobs:
           name: win-exe
           path: percy.exe
       - name: Upload assets
-        uses: softprops/action-gh-release@a74c6b72af54cfa997e81df42d94703d6313a2d0
+        uses: softprops/action-gh-release@e7a8f85e1c67a31e6ed99a94b41bd0b71bbee6b8
         with:
           files: |
             percy-osx.zip
@@ -63,7 +63,7 @@ jobs:
       - run: |
           powershell -Command "Compress-Archive -Path 'percy.exe' -DestinationPath 'percy-win.zip'"
       - name: Upload assets
-        uses: softprops/action-gh-release@a74c6b72af54cfa997e81df42d94703d6313a2d0
+        uses: softprops/action-gh-release@e7a8f85e1c67a31e6ed99a94b41bd0b71bbee6b8
         with:
           files: |
             percy-win.zip
