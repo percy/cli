@@ -688,6 +688,8 @@ export class PercyClient {
         return 'app';
       case 'ss':
         return 'generic';
+      case 'vmw':
+        return 'visual_scanner';
       default:
         return 'web';
     }
