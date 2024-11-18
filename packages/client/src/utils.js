@@ -135,6 +135,8 @@ export async function request(url, options = {}, callback) {
   let { protocol, hostname, port, pathname, search, hash } = new URL(url);
 
   // reference the default export so tests can mock it
+  // bundling cli insdie electron (LCNC) fails if we import it like 
+  // this: await import(protocol === 'https:' ? 'https' : 'http');
   let { default: http } = protocol === 'https:' ? await import('https') : await import('http');
   let { proxyAgentFor } = await import('./proxy.js');
 
