@@ -5,12 +5,11 @@ import { getProxy } from '@percy/client/utils';
 import Browser from './browser.js';
 import Pako from 'pako';
 import {
-  base64encode
-  ,
+  base64encode,
   generatePromise,
   yieldAll,
-  yieldTo
-  , redactSecrets,
+  yieldTo,
+  redactSecrets,
   detectSystemProxyAndLog
 } from './utils.js';
 
