@@ -127,6 +127,10 @@ export class Percy {
     return this.server?.address();
   }
 
+  renderingTypeProject() {
+    return this.projectType === 'web' || this.projectType === 'visual_scanner';
+  }
+
   // Set client & environment info, and override loaded config options
   set({ clientInfo, environmentInfo, ...config }) {
     this.client.addClientInfo(clientInfo);
@@ -178,12 +182,12 @@ export class Percy {
       if (!this.skipDiscovery) yield this.#discovery.start();
       // start a local API server for SDK communication
       if (this.server) yield this.server.listen();
-      if (this.projectType === 'web') {
+      if (this.renderingTypeProject()) {
         if (!process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS || process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS !== 'true') {
           this.deviceDetails = yield this.client.getDeviceDetails(this.build?.id);
         }
       }
-      const snapshotType = this.projectType === 'web' ? 'snapshot' : 'comparison';
+      const snapshotType = this.renderingTypeProject() ? 'snapshot' : 'comparison';
       this.syncQueue = new WaitForJob(snapshotType, this);
       // log and mark this instance as started
       this.log.info('Percy has started!');
@@ -434,7 +438,8 @@ export class Percy {
 
   shouldSkipAssetDiscovery(tokenType) {
     if (this.testing && JSON.stringify(this.testing) === JSON.stringify({})) { return true; }
-    return tokenType !== 'web';
+    const assetDiscoverySupportedTypes = ['web', 'visual_scanner'];
+    return !assetDiscoverySupportedTypes.includes(tokenType);
   }
 
   syncMode(options) {
