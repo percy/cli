@@ -11,11 +11,11 @@ const STATUS_REG = /^HTTP\/1.[01] (\d*)/;
 
 // function to create PAC proxy agent
 function createPacAgent(pacUrl, options = {}) {
+  pacUrl = stripQuotesAndSpaces(pacUrl);
   try {
     const agent = new PacProxyAgent(pacUrl, {
       keepAlive: true,
-      ...options,
-      rejectUnauthorized: false
+      ...options
     });
     
     logger('client:proxy').info(`Successfully loaded PAC file from: ${pacUrl}`);
@@ -244,12 +244,12 @@ export function proxyAgentFor(url, options) {
 
   try {
     let agent;
-    const pacUrl = process.env.PERCY_PAC_FILE_PATH;
+    const pacUrl = process.env.PERCY_PAC_FILE_URL;
 
     // If PAC URL is provided, use PAC proxy
     if (pacUrl) {
       logger('client:proxy').info(`Using PAC file from: ${pacUrl}`);
-      agent = createPacAgent(stripQuotesAndSpaces(pacUrl), options);
+      agent = createPacAgent(pacUrl, options);
     } else {
       // Fall back to other proxy configuration
       agent = protocol === 'https:'
