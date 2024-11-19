@@ -17,7 +17,7 @@ function createPacAgent(pacUrl, options = {}) {
       keepAlive: true,
       ...options
     });
-    
+
     logger('client:proxy').info(`Successfully loaded PAC file from: ${pacUrl}`);
     return agent;
   } catch (error) {
