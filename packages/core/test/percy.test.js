@@ -1120,6 +1120,17 @@ describe('Percy', () => {
       });
       expect(percy.shouldSkipAssetDiscovery(percy.client.tokenType())).toBe(true);
     });
+
+    it('should return false if visual scanner token is set', () => {
+      percy = new Percy({
+        token: 'vmw_PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info'
+      });
+      expect(percy.shouldSkipAssetDiscovery(percy.client.tokenType())).toBe(false);
+    });
   });
 
   describe('sendBuildLogs', () => {
@@ -1421,6 +1432,41 @@ describe('Percy', () => {
       });
       await percy.stop(true);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([]));
+    });
+  });
+
+  describe('#renderingTypeProject', () => {
+    it('should return true if project type is web', async () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        projectType: 'web',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      expect(percy.renderingTypeProject()).toEqual(true);
+    });
+
+    it('should return true if project type is web', async () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        projectType: 'visual_scanner',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      expect(percy.renderingTypeProject()).toEqual(true);
+    });
+
+    it('should return false if project type is app', async () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        projectType: 'app',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      expect(percy.renderingTypeProject()).toEqual(false);
     });
   });
 });

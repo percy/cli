@@ -4,9 +4,27 @@ import http from 'http';
 import https from 'https';
 import logger from '@percy/logger';
 import { stripQuotesAndSpaces } from '@percy/env/utils';
+import { PacProxyAgent } from 'pac-proxy-agent';
 
 const CRLF = '\r\n';
 const STATUS_REG = /^HTTP\/1.[01] (\d*)/;
+
+// function to create PAC proxy agent
+function createPacAgent(pacUrl, options = {}) {
+  pacUrl = stripQuotesAndSpaces(pacUrl);
+  try {
+    const agent = new PacProxyAgent(pacUrl, {
+      keepAlive: true,
+      ...options
+    });
+
+    logger('client:proxy').info(`Successfully loaded PAC file from: ${pacUrl}`);
+    return agent;
+  } catch (error) {
+    logger('client:proxy').error(`Failed to load PAC file, error message: ${error.message},  stack: ${error.stack}`);
+    throw new Error(`Failed to initialize PAC proxy: ${error.message}`);
+  }
+}
 
 // Returns true if the URL hostname matches any patterns
 export function hostnameMatches(patterns, url) {
@@ -219,11 +237,31 @@ export function proxyAgentFor(url, options) {
   let { protocol, hostname } = new URL(url);
   let cachekey = `${protocol}//${hostname}`;
 
-  if (!cache.has(cachekey)) {
-    cache.set(cachekey, protocol === 'https:'
-      ? new ProxyHttpsAgent(options)
-      : new ProxyHttpAgent(options));
+  // If we already have a cached agent, return it
+  if (cache.has(cachekey)) {
+    return cache.get(cachekey);
   }
 
-  return cache.get(cachekey);
+  try {
+    let agent;
+    const pacUrl = process.env.PERCY_PAC_FILE_URL;
+
+    // If PAC URL is provided, use PAC proxy
+    if (pacUrl) {
+      logger('client:proxy').info(`Using PAC file from: ${pacUrl}`);
+      agent = createPacAgent(pacUrl, options);
+    } else {
+      // Fall back to other proxy configuration
+      agent = protocol === 'https:'
+        ? new ProxyHttpsAgent(options)
+        : new ProxyHttpAgent(options);
+    }
+
+    // Cache the created agent
+    cache.set(cachekey, agent);
+    return agent;
+  } catch (error) {
+    logger('client:proxy').error(`Failed to create proxy agent: ${error.message}`);
+    throw error;
+  }
 }

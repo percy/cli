@@ -1592,6 +1592,11 @@ describe('PercyClient', () => {
       expect(client.tokenType()).toBe('web');
     });
 
+    it('should return visual_scanner for vmw token', () => {
+      client.token = 'vmw_abc';
+      expect(client.tokenType()).toBe('visual_scanner');
+    });
+
     it('should return web for no token', () => {
       client.token = '';
       expect(client.tokenType()).toBe('web');
