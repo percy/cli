@@ -2,11 +2,6 @@ import { ProxyHttpAgent, ProxyHttpsAgent, createPacAgent, getProxy, proxyAgentFo
 import { PacProxyAgent } from 'pac-proxy-agent';
 
 describe('proxy', () => {
-  // beforeEach(() => {
-  //   // Reset all mocks
-  //   process.env.http_proxy = undefined;
-  //   process.env.https_proxy = undefined;
-  // });
 
   describe('getProxy', () => {
     it('should return proxy object if proxy is set', () => {
@@ -45,9 +40,6 @@ describe('proxy', () => {
     beforeEach(async () => {
       proxyAgentFor.cache?.clear();
     });
-    // afterEach(() => {
-    //   process.env.PERCY_PAC_FILE_URL = '';
-    // });
 
     it('should return cached agent if available', () => {
       const url = 'http://example.com';
