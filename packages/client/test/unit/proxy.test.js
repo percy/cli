@@ -2,10 +2,14 @@ import { ProxyHttpAgent, ProxyHttpsAgent, createPacAgent, getProxy, proxyAgentFo
 import { PacProxyAgent } from 'pac-proxy-agent';
 
 describe('proxy', () => {
-
+  
   describe('getProxy', () => {
-    it('should return proxy object if proxy is set', () => {
+    
+    beforeEach(async () => {
       process.env.http_proxy = 'http://proxy.com:8080';
+    });
+    
+    it('should return proxy object if proxy is set', () => {
       const options = { protocol: 'http:', hostname: 'example.com' };
       const proxy = getProxy(options);
       expect(proxy).toBeInstanceOf(Object)
@@ -39,9 +43,15 @@ describe('proxy', () => {
     
     beforeEach(async () => {
       proxyAgentFor.cache?.clear();
+      process.env.PERCY_PAC_FILE_URL = 'http://example.com/proxy.pac';
+    });
+    
+    afterEach(async () => {
+      delete process.env.PERCY_PAC_FILE_URL;
     });
 
     it('should return cached agent if available', () => {
+      delete process.env.PERCY_PAC_FILE_URL;
       const url = 'http://example.com';
       const options = {};
       const agent = new ProxyHttpAgent(options);
@@ -50,6 +60,7 @@ describe('proxy', () => {
     });
 
     it('should create and cache new HTTP agent if not available', () => {
+      delete process.env.PERCY_PAC_FILE_URL;
       const url = 'http://example.com';
       const options = {};
       const agent = proxyAgentFor(url, options);
@@ -58,6 +69,7 @@ describe('proxy', () => {
     });
 
     it('should create and cache new HTTPS agent if not available', () => {
+      delete process.env.PERCY_PAC_FILE_URL;
       const url = 'https://example.com';
       const options = {};
       const agent = proxyAgentFor(url, options);
