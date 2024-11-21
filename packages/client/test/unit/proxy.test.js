@@ -2,17 +2,15 @@ import { ProxyHttpAgent, ProxyHttpsAgent, createPacAgent, getProxy, proxyAgentFo
 import { PacProxyAgent } from 'pac-proxy-agent';
 
 describe('proxy', () => {
-  
   describe('getProxy', () => {
-    
     beforeEach(async () => {
       process.env.http_proxy = 'http://proxy.com:8080';
     });
-    
+
     it('should return proxy object if proxy is set', () => {
       const options = { protocol: 'http:', hostname: 'example.com' };
       const proxy = getProxy(options);
-      expect(proxy).toBeInstanceOf(Object)
+      expect(proxy).toBeInstanceOf(Object);
     });
 
     it('should return undefined if no proxy is set', () => {
@@ -21,7 +19,7 @@ describe('proxy', () => {
       expect(getProxy(options)).toBeUndefined();
     });
   });
-  
+
   describe('createPacAgent', () => {
     it('should create a PAC proxy agent successfully', () => {
       const pacUrl = 'http://example.com/proxy.pac';
@@ -30,22 +28,20 @@ describe('proxy', () => {
       expect(agent).toBeInstanceOf(PacProxyAgent);
     });
 
-
     it('should throw an error if PAC proxy agent creation fails', () => {
       const pacUrl = 'http://invalid-url/proxy.pac';
       const options = { keepAlive: true };
-      const agent = createPacAgent(pacUrl, options);
+      createPacAgent(pacUrl, options);
       expect(createPacAgent).toThrow(new Error("Failed to initialize PAC proxy: Cannot read properties of null (reading 'href')"));
     });
   });
-  
+
   describe('proxyAgentFor', () => {
-    
     beforeEach(async () => {
       proxyAgentFor.cache?.clear();
       process.env.PERCY_PAC_FILE_URL = 'http://example.com/proxy.pac';
     });
-    
+
     afterEach(async () => {
       delete process.env.PERCY_PAC_FILE_URL;
     });
@@ -83,7 +79,5 @@ describe('proxy', () => {
       const agent = proxyAgentFor(url, options);
       expect(agent).toBeInstanceOf(PacProxyAgent);
     });
-
   });
-  
 });
