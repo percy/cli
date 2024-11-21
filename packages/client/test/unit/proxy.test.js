@@ -78,13 +78,10 @@ describe('proxy', () => {
     });
 
     it('should create PAC proxy agent if PAC URL is provided', () => {
-      process.env.PERCY_PAC_FILE_URL = 'http://example.com/proxy.pac';
       const url = 'http://example.com';
       const options = {};
       const agent = proxyAgentFor(url, options);
       expect(agent).toBeInstanceOf(PacProxyAgent);
-      
-      delete process.env.PERCY_PAC_FILE_URL;
     });
 
   });
