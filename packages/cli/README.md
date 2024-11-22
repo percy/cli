@@ -5,7 +5,7 @@
 The Percy CLI is used to interact with, and upload snapshots to, [percy.io](https://percy.io) via
 the command line.
 
-- [Installation](#installation)
+- [Installation](#installatio)
 - [Command Topics](#command-topics)
 - [Advanced](#advanced)
 - [Issues](#issues)
