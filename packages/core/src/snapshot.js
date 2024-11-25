@@ -8,7 +8,8 @@ import {
   hostnameMatches,
   yieldTo,
   snapshotLogName,
-  decodeAndEncodeURLWithLogging
+  decodeAndEncodeURLWithLogging,
+  compareObjectTypes
 } from './utils.js';
 import { JobData } from './wait-for-job.js';
 
@@ -364,9 +365,11 @@ export function createSnapshotsQueue(percy) {
       }
     })
     // snapshots are unique by name and testCase both
-    .handle('find', ({ name, testCase }, snapshot) => (
-      snapshot.testCase === testCase && snapshot.name === name
-    ))
+    .handle('find', ({ name, testCase, tag }, snapshot) => {
+      return snapshot.testCase === testCase &&
+        snapshot.name === name &&
+        compareObjectTypes(tag, snapshot.tag);
+    })
     // when pushed, maybe flush old snapshots or possibly merge with existing snapshots
     .handle('push', (snapshot, existing) => {
       let { name, meta } = snapshot;
