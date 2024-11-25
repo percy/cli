@@ -38,6 +38,9 @@ export function waitForTimeout() {
 // Returns the package.json content at the package path.
 export function getPackageJSON(rel) {
   /* istanbul ignore else: sanity check */
+  if (process.env.PERCY_FORCE_DIRNAME) rel = __dirname;
+
+  /* istanbul ignore else: sanity check */
   if (rel.startsWith('file:')) rel = url.fileURLToPath(rel);
 
   let pkg = path.join(rel, 'package.json');

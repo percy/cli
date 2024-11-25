@@ -1,5 +1,5 @@
 import fs from 'fs';
-import path from 'path';
+import path, { dirname, resolve } from 'path';
 import logger from '@percy/logger';
 import { normalize } from '@percy/config/utils';
 import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHandler } from './utils.js';
@@ -11,7 +11,6 @@ import { handleSyncJob } from './snapshot.js';
 // Now, we use `fileURLToPath` and `path.resolve` to determine the absolute path in a way that's more aligned with ESM conventions.
 // This change ensures better compatibility and avoids relying on Node.js-specific APIs that might cause issues in ESM environments.
 import { fileURLToPath } from 'url';
-import { dirname, resolve } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
