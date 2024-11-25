@@ -88,12 +88,7 @@ export function getOuterHTML(docElement) {
   // firefox doesn't serialize shadow DOM, we're awaiting API's by firefox to become ready and are not polyfilling it.
   if (!docElement.getHTML) { return docElement.outerHTML; }
   // chromium gives us declarative shadow DOM serialization API
-  let innerHTML = '';
-  if (docElement.getInnerHTML) {
-    innerHTML = docElement.getInnerHTML({ includeShadowRoots: true });
-  } else if (docElement.getHTML) {
-    innerHTML = docElement.getHTML({ serializableShadowRoots: true });
-  }
+  let innerHTML = docElement.getHTML({ serializableShadowRoots: true });
   docElement.textContent = '';
   // Note: Here we are specifically passing replacer function to avoid any replacements due to
   // special characters in client's dom like $&
