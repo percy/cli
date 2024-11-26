@@ -87,7 +87,7 @@ function logProgress({
     case undefined:
       return log.progress('Waiting for build...');
     case 'pending':
-      return log.progress('Recieving snapshots...');
+      return log.progress('Receiving snapshots...');
     case 'processing':
       return log.progress(`Processing ${count} snapshots - ` + (
         finished === total ? 'finishing up...' : (
