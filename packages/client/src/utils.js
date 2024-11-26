@@ -38,6 +38,9 @@ export function waitForTimeout() {
 // Returns the package.json content at the package path.
 export function getPackageJSON(rel) {
   /* istanbul ignore else: sanity check */
+  if (process.env.PERCY_FORCE_EXECUTABLE_DIRNAME) rel = __dirname;
+
+  /* istanbul ignore else: sanity check */
   if (rel.startsWith('file:')) rel = url.fileURLToPath(rel);
 
   let pkg = path.join(rel, 'package.json');
@@ -135,8 +138,8 @@ export async function request(url, options = {}, callback) {
   let { protocol, hostname, port, pathname, search, hash } = new URL(url);
 
   // reference the default export so tests can mock it
-  // bundling cli inside electron (LCNC) fails if we import it like
-  // this: await import(protocol === 'https:' ? 'https' : 'http');
+  // bundling cli inside electron or another package fails if we import it
+  // like this: await import(protocol === 'https:' ? 'https' : 'http');
   let { default: http } = protocol === 'https:' ? await import('https') : await import('http');
   let { proxyAgentFor } = await import('./proxy.js');
 
