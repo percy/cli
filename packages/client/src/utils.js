@@ -38,7 +38,7 @@ export function waitForTimeout() {
 // Returns the package.json content at the package path.
 export function getPackageJSON(rel) {
   /* istanbul ignore else: sanity check */
-  if (process.env.PERCY_FORCE_EXECUTABLE_DIRNAME) rel = __dirname;
+  if (process.env.PERCY_FORCE_PKG_VALUE) return JSON.parse(process.env.PERCY_FORCE_PKG_VALUE);
 
   /* istanbul ignore else: sanity check */
   if (rel.startsWith('file:')) rel = url.fileURLToPath(rel);
