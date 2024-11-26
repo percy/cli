@@ -44,7 +44,7 @@ jobs:
       - name: Check Access Level
         if: steps.check-access.outputs.result != 'write' && steps.check-access.outputs.result != 'admin'
         run: exit 1
-      - uses: xt0rted/pull-request-comment-branch@v2
+      - uses: xt0rted/pull-request-comment-branch@v3
         if: ${{ github.event.issue.pull_request }}
         id: comment-branch
       - uses: actions-ecosystem/action-regex-match@v2
