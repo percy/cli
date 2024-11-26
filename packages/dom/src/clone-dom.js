@@ -54,7 +54,8 @@ export function cloneNodeAndShadow(ctx) {
           clone.shadowRoot.innerHTML = '';
         } else {
           clone.attachShadow({
-            mode: 'open'
+            mode: 'open',
+            serializable: true
           });
         }
         // clone dom elements
@@ -84,10 +85,20 @@ export function cloneNodeAndShadow(ctx) {
  * Use `getInnerHTML()` to serialize shadow dom as <template> tags. `innerHTML` and `outerHTML` don't do this. Buzzword: "declarative shadow dom"
  */
 export function getOuterHTML(docElement) {
-  // firefox doesn't serialize shadow DOM, we're awaiting API's by firefox to become ready and are not polyfilling it.
-  if (!docElement.getInnerHTML) { return docElement.outerHTML; }
+  // All major browsers in latest versions supports getHTML API to get serialized DOM
+  // https://developer.mozilla.org/en-US/docs/Web/API/Element/getHTML
+  // old firefox doesn't serialize shadow DOM, we're awaiting API's by firefox to become ready and are not polyfilling it.
+  // new firefox from 128 onwards serializes it using getHTML
+  /* istanbul ignore if: Only triggered in firefox <= 128 and tests runs on latest */
+  if (!docElement.getHTML) { return docElement.outerHTML; }
   // chromium gives us declarative shadow DOM serialization API
-  let innerHTML = docElement.getInnerHTML({ includeShadowRoots: true });
+  let innerHTML = '';
+  /* istanbul ignore else if: Only triggered in chrome <= 128 and tests runs on latest */
+  if (docElement.getHTML) {
+    innerHTML = docElement.getHTML({ serializableShadowRoots: true });
+  } else if (docElement.getInnerHTML) {
+    innerHTML = docElement.getInnerHTML({ includeShadowRoots: true });
+  }
   docElement.textContent = '';
   // Note: Here we are specifically passing replacer function to avoid any replacements due to
   // special characters in client's dom like $&
