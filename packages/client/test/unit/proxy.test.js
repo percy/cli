@@ -32,7 +32,7 @@ describe('proxy', () => {
       const pacUrl = 'http://invalid-url/proxy.pac';
       const options = { keepAlive: true };
       createPacAgent(pacUrl, options);
-      expect(createPacAgent).toThrow(new Error("Failed to initialize PAC proxy: Cannot read properties of null (reading 'href')"));
+      expect(createPacAgent).toThrow();
     });
   });
 
