@@ -15,8 +15,7 @@ import { fileURLToPath } from 'url';
 const getPercyDomPath = () => {
   try {
     const { createRequire } = require('module');
-    const require = createRequire(import.meta.url);
-    return require.resolve('@percy/dom');
+    return createRequire(import.meta.url).resolve('@percy/dom');
   } catch (error) {
     logger('core:server').warn([
       'Failed to resolve @percy/dom path using createRequire.',
