@@ -12,10 +12,24 @@ import { handleSyncJob } from './snapshot.js';
 // This change ensures better compatibility and avoids relying on Node.js-specific APIs that might cause issues in ESM environments.
 import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const getPercyDomPath = () => {
+  try {
+    const { createRequire } = require('module');
+    const require = createRequire(import.meta.url);
+    return require.resolve('@percy/dom');
+  } catch (error) {
+    logger('core:server').warn([
+      'Failed to resolve @percy/dom path using createRequire.',
+      'Falling back to using fileURLToPath and path.resolve.'
+    ].join(' '));
+  }
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  return resolve(__dirname, 'node_modules/@percy/dom');
+};
 
-export const PERCY_DOM = resolve(__dirname, 'node_modules/@percy/dom');
+// Resolved path for PERCY_DOM
+export const PERCY_DOM = getPercyDomPath();
 
 // Returns a URL encoded string of nested query params
 function encodeURLSearchParams(subj, prefix) {
