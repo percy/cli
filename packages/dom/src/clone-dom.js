@@ -87,10 +87,13 @@ export function cloneNodeAndShadow(ctx) {
 export function getOuterHTML(docElement) {
   // All major browsers in latest versions supports getHTML API to get serialized DOM
   // https://developer.mozilla.org/en-US/docs/Web/API/Element/getHTML
-  // firefox doesn't serialize shadow DOM, we're awaiting API's by firefox to become ready and are not polyfilling it.
+  // old firefox doesn't serialize shadow DOM, we're awaiting API's by firefox to become ready and are not polyfilling it.
+  // new firefox from 128 onwards serializes it using getHTML
+  /* istanbul ignore if: Only triggered in firefox <= 128 and tests runs on latest */
   if (!docElement.getHTML) { return docElement.outerHTML; }
   // chromium gives us declarative shadow DOM serialization API
   let innerHTML = '';
+  /* istanbul ignore else if: Only triggered in chrome <= 128 and tests runs on latest */
   if (docElement.getHTML) {
     innerHTML = docElement.getHTML({ serializableShadowRoots: true });
   } else if (docElement.getInnerHTML) {
