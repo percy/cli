@@ -290,6 +290,13 @@ export class PercyEnv {
   get token() {
     return this.vars.PERCY_TOKEN || null;
   }
+
+  // PERCY_FORCE_PKG_VALUE for forcing package.json values
+  // to be used as the current environment values in client
+  get forcedPkgValue() {
+    let pkg = this.vars.PERCY_FORCE_PKG_VALUE;
+    return JSON.parse(pkg) || null;
+  }
 }
 
 // cache getters on initial call so subsequent calls are not re-computed
