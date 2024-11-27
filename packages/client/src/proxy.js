@@ -10,7 +10,7 @@ const CRLF = '\r\n';
 const STATUS_REG = /^HTTP\/1.[01] (\d*)/;
 
 // function to create PAC proxy agent
-function createPacAgent(pacUrl, options = {}) {
+export function createPacAgent(pacUrl, options = {}) {
   pacUrl = stripQuotesAndSpaces(pacUrl);
   try {
     const agent = new PacProxyAgent(pacUrl, {
