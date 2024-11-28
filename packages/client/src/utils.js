@@ -262,9 +262,6 @@ export function tagsList(tags) {
 }
 
 export function getEncodedContent(content) {
-  if (process.env.PERCY_GZIP) {
-    content = Pako.gzip(content);
-  }
   return base64encode(content);
 }
 
