@@ -53,7 +53,7 @@ jobs:
       - name: Update exe metadata
         run: node ./scripts/win-metadata-update.js
       - name: Sign binary
-        uses: lando/code-sign-action@v2
+        uses: lando/code-sign-action@v3
         with:
           file: ./percy.exe
           certificate-data: ${{ secrets.WINDOWS_CERT }}
