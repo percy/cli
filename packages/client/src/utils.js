@@ -4,6 +4,7 @@ import url from 'url';
 import path from 'path';
 import crypto from 'crypto';
 import logger from '@percy/logger';
+import Pako from 'pako';
 
 // Formats a raw byte integer as a string
 export function formatBytes(int) {
@@ -258,6 +259,13 @@ export function tagsList(tags) {
   }
 
   return tagsArr;
+}
+
+export function getEncodedContent(content) {
+  if (process.env.PERCY_GZIP) {
+    content = Pako.gzip(content);
+  }
+  return base64encode(content);
 }
 
 export {

@@ -1,4 +1,4 @@
-import { request as makeRequest } from '@percy/client/utils';
+import { request as makeRequest, getEncodedContent } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
 import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging } from './utils.js';
@@ -471,7 +471,7 @@ async function saveResponseResource(network, request, session) {
         return log.debug('- Skipping remote resource', meta);
       } else if (!body.length) {
         return log.debug('- Skipping empty response', meta);
-      } else if (body.length > MAX_RESOURCE_SIZE) {
+      } else if (getEncodedContent(body).length > MAX_RESOURCE_SIZE) {
         return log.debug('- Skipping resource larger than 25MB', meta);
       } else if (!ALLOWED_STATUSES.includes(response.status)) {
         return log.debug(`- Skipping disallowed status [${response.status}]`, meta);
