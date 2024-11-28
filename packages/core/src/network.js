@@ -1,9 +1,9 @@
-import { request as makeRequest, getEncodedContent } from '@percy/client/utils';
+import { request as makeRequest } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
 import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging } from './utils.js';
 
-const MAX_RESOURCE_SIZE = 25 * (1024 ** 2); // 25MB
+const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.67; // 25MB, 0.67 factor for accounting for base64 encoding
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
@@ -471,7 +471,7 @@ async function saveResponseResource(network, request, session) {
         return log.debug('- Skipping remote resource', meta);
       } else if (!body.length) {
         return log.debug('- Skipping empty response', meta);
-      } else if (getEncodedContent(body).length > MAX_RESOURCE_SIZE) {
+      } else if (body.length > MAX_RESOURCE_SIZE) {
         return log.debug('- Skipping resource larger than 25MB', meta);
       } else if (!ALLOWED_STATUSES.includes(response.status)) {
         return log.debug(`- Skipping disallowed status [${response.status}]`, meta);

@@ -2,6 +2,7 @@ import fs from 'fs';
 import PercyEnv from '@percy/env';
 import { git } from '@percy/env/utils';
 import logger from '@percy/logger';
+import Pako from 'pako';
 
 import {
   pool,
@@ -13,8 +14,7 @@ import {
   waitForTimeout,
   validateTiles,
   formatLogErrors,
-  tagsList,
-  getEncodedContent
+  tagsList
 } from './utils.js';
 
 // Default client API URL can be set with an env var for API development
@@ -342,8 +342,11 @@ export class PercyClient {
     validateId('build', buildId);
     if (filepath) {
       content = await fs.promises.readFile(filepath);
+      if (process.env.PERCY_GZIP) {
+        content = Pako.gzip(content);
+      }
     }
-    let encodedContent = getEncodedContent(content);
+    let encodedContent = base64encode(content);
 
     this.log.debug(`Uploading ${formatBytes(encodedContent.length)} resource: ${url}`, meta);
     this.mayBeLogUploadSize(encodedContent.length, meta);

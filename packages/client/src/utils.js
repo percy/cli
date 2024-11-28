@@ -260,10 +260,6 @@ export function tagsList(tags) {
   return tagsArr;
 }
 
-export function getEncodedContent(content) {
-  return base64encode(content);
-}
-
 export {
   hostnameMatches,
   getProxy,
