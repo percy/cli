@@ -141,11 +141,24 @@ export class Network {
     return this.#aborted.has(requestId);
   }
 
+  logNetworkRequests(filter) {
+    let msg = '';
+    let reqs = Array.from(this.#requests.values()).filter(filter).map(r => r.url);
+    msg += `\n\n  ${['Active requests:', ...reqs].join('\n  - ')}\n`;
+    return msg;
+  }
+
   // Throw a better network timeout error
   _throwTimeoutError(msg, filter = () => true) {
     if (this.log.shouldLog('debug')) {
-      let reqs = Array.from(this.#requests.values()).filter(filter).map(r => r.url);
-      msg += `\n\n  ${['Active requests:', ...reqs].join('\n  - ')}\n`;
+      msg += this.logNetworkRequests(filter);
+    }
+
+    if (process.env.IGNORE_TIMEOUT_ERROR === 'true') {
+      let warnMsg = 'Ignoring network timeout failures.';
+      warnMsg += this.logNetworkRequests(filter);
+      this.log.warn(warnMsg);
+      return;
     }
 
     throw new Error(msg);
