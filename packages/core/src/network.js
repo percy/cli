@@ -154,7 +154,7 @@ export class Network {
       msg += this.logNetworkRequests(filter);
     }
 
-    if (process.env.IGNORE_TIMEOUT_ERROR === 'true') {
+    if (process.env.PERCY_IGNORE_TIMEOUT_ERROR === 'true') {
       let warnMsg = 'Ignoring network timeout failures.';
       warnMsg += this.logNetworkRequests(filter);
       this.log.warn(warnMsg);

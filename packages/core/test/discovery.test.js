@@ -973,7 +973,7 @@ describe('Discovery', () => {
     afterEach(() => {
       Network.TIMEOUT = undefined;
       process.env.PERCY_NETWORK_IDLE_WAIT_TIMEOUT = undefined;
-      process.env.IGNORE_TIMEOUT_ERROR = undefined;
+      process.env.PERCY_IGNORE_TIMEOUT_ERROR = undefined;
     });
 
     it('throws an error when requests fail to idle in time', async () => {
@@ -1069,8 +1069,8 @@ describe('Discovery', () => {
       ));
     });
 
-    it('should not throw error when requests fail to idle in time when IGNORE_TIMEOUT_ERROR is true', async () => {
-      process.env.IGNORE_TIMEOUT_ERROR = 'true';
+    it('should not throw error when requests fail to idle in time when PERCY_IGNORE_TIMEOUT_ERROR is true', async () => {
+      process.env.PERCY_IGNORE_TIMEOUT_ERROR = 'true';
       await percy.snapshot({
         name: 'test idle',
         url: 'http://localhost:8000'
