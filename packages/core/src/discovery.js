@@ -117,6 +117,13 @@ function waitForDiscoveryNetworkIdle(page, options) {
   return page.network.idle(filter, networkIdleTimeout, captureResponsiveAssetsEnabled);
 }
 
+async function waitForFontLoading(page) {
+  await Promise.race([
+    page.eval('await document.fonts.ready;'),
+    new Promise((res) => setTimeout(res, 5000))
+  ]);
+}
+
 // Creates an initial resource map for a snapshot containing serialized DOM
 function parseDomResources({ url, domSnapshot }) {
   const map = new Map();
@@ -231,6 +238,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
         deviceScaleFactor: device.deviceScaleFactor,
         mobile: true
       });
+      yield waitForFontLoading(page);
       yield waitForDiscoveryNetworkIdle(page, discovery);
     }
   }
@@ -301,6 +309,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
       for (let i = 0; i < widths.length - 1; i++) {
         if (captureWidths) yield* takeSnapshot(snap, width);
         yield page.evaluate(execute?.beforeResize);
+        yield waitForFontLoading(page);
         yield waitForDiscoveryNetworkIdle(page, discovery);
         yield resizePage(width = widths[i + 1]);
         if (snapshot.responsiveSnapshotCapture) { yield page.goto(snapshot.url, { cookies, forceReload: true }); }
@@ -328,6 +337,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
 
   // wait for final network idle when not capturing DOM
   if (capture && snapshot.domSnapshot) {
+    yield waitForFontLoading(page);
     yield waitForDiscoveryNetworkIdle(page, discovery);
     yield* captureResponsiveAssets();
     capture(processSnapshotResources(snapshot));
