@@ -178,7 +178,7 @@ export class PercyEnv {
         case 'jenkins':
           return this.vars.CHANGE_ID;
         case 'circle':
-          return this.vars.CI_PULL_REQUESTS?.split('/').slice(-1)[0];
+          return this.vars.CIRCLE_PULL_REQUESTS?.split('/').slice(-1)[0];
         case 'drone':
           return this.vars.CI_PULL_REQUEST;
         case 'semaphore':
@@ -212,6 +212,11 @@ export class PercyEnv {
   // parallel total & nonce
   get parallel() {
     let total = parseInt(this.vars.PERCY_PARALLEL_TOTAL, 10);
+
+    if (this.ci === 'circle') {
+      total = parseInt(this.vars.CIRCLE_NODE_TOTAL, 10);
+    }
+
     if (!Number.isInteger(total)) total = null;
 
     // no nonce if no total
