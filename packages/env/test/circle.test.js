@@ -32,6 +32,6 @@ describe('CircleCI', () => {
 
   it('has the correct parallel total', () => {
     env = new PercyEnv({ ...env.vars, CIRCLE_NODE_TOTAL: '2' });
-    expect(env).toHaveProperty('parallel.total', '2');
+    expect(env).toHaveProperty('parallel.total', 2);
   });
 });
