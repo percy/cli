@@ -214,7 +214,7 @@ export class PercyEnv {
     let total = parseInt(this.vars.PERCY_PARALLEL_TOTAL, 10);
     if (!Number.isInteger(total)) total = null;
 
-    if(total === null) {
+    if (total === null) {
       switch (this.ci) {
         case 'circle':
           total = this.vars.CIRCLE_NODE_TOTAL;
