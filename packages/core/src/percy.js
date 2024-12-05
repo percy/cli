@@ -155,10 +155,7 @@ export class Percy {
       return Array.isArray(next) && [path, next];
     });
     const concurrency = this.config.discovery.concurrency;
-    var snapshotConcurrency = concurrency;
-    if (this.config.discovery.snapshotConcurrency) {
-      snapshotConcurrency = this.config.discovery.snapshotConcurrency;
-    }
+    const snapshotConcurrency = parseInt(process.env.PERCY_SNAPSHOT_UPLOAD_CONCURRENCY) || concurrency;
     this.#discovery.set({ concurrency });
     this.#snapshots.set({ snapshotConcurrency });
 
