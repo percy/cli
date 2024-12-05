@@ -429,7 +429,12 @@ export function createDiscoveryQueue(percy) {
                 }
                 return resource;
               },
-              saveResource: r => { snapshot.resources.set(r.url, r); cache.set(r.url, r); }
+              saveResource: r => {
+                snapshot.resources.set(r.url, r);
+                if (!snapshot.discovery.disableCache) {
+                  cache.set(r.url, r);
+                }
+              }
             }
           });
 
