@@ -259,6 +259,10 @@ export const configSchema = {
         type: 'integer',
         minimum: 1
       },
+      snapshotConcurrency: {
+        type: 'integer',
+        minimum: 1
+      },
       retry: {
         type: 'boolean',
         default: false
