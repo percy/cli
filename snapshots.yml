@@ -1,0 +1,42 @@
+- name: alcon
+  url:  https://example.com
+# - name: https://in.pinterest.com/
+#   url:  https://in.pinterest.com/
+# - name: https://in.jbl.com/
+#   url:  https://in.jbl.com/
+# - name: https://github.com/
+#   url:  https://github.com/
+# - name: https://www.apple.com/
+#   url:  https://www.apple.com/
+# - name: https://www.ibm.com/in-en
+#   url:  https://www.ibm.com/in-en
+
+# - name: lorem2
+#   url: https://percy.io
+# - name: lorem3
+#   url: https://browserstack.com
+  # execute: 
+  #   afterResize: | 
+  #    document.querySelector('.swan-listbox-popover').click()
+
+# version: 2
+# snapshot:
+#   name: Percy_POC
+#   url: https://cwc-dona.iv.apps.lilly.com/signUp/complete
+#   widths:
+#     - 375
+#     - 1280
+#   enableJavascript: false
+# discovery:
+#   networkIdleTimeout: 750
+#   # cookies:
+#   #   odin_unrestricted_access: "0e0be4bc-9298-4422-b790-25f3ffe6740c"
+#   # launch-options:
+#   #   args:
+#   #     - "--disable-web-security"
+#     # timeout: 30000
+#     # headless: false
+#   # allowed-hostnames:
+#   #   - "lucky8.stable-fe.nightking.dev"
+#   #   - "images.ctfassets.net"
+

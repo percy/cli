@@ -1,0 +1,22 @@
+version: 2
+percy:
+  useSystemProxy: false
+  skipBaseBuild: false
+snapshot:
+  widths:
+    - 1280
+  minHeight: 1024
+  percyCSS: ""
+  enableJavaScript: false
+  cliEnableJavaScript: true
+  disableShadowDOM: false
+  responsiveSnapshotCapture: false
+discovery:
+  # allowedHostnames: ["*"]
+  disallowedHostnames: []
+  networkIdleTimeout: 100
+  captureMockedServiceWorker: false
+  retry: false
+  launch-options:
+    args:
+      # - "--proxy-server=http://127.0.0.1:8228"
