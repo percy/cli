@@ -154,9 +154,8 @@ export class Percy {
       // replace arrays instead of merging
       return Array.isArray(next) && [path, next];
     });
-    
     const concurrency = this.config.discovery.concurrency;
-    const snapshotConcurrency = concurrency;
+    var snapshotConcurrency = concurrency;
     if (this.config.discovery.snapshotConcurrency) {
       snapshotConcurrency = this.config.discovery.snapshotConcurrency;
     }
