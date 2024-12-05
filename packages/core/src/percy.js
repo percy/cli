@@ -154,11 +154,14 @@ export class Percy {
       // replace arrays instead of merging
       return Array.isArray(next) && [path, next];
     });
-
-    // adjust queue concurrency
-    let { concurrency } = this.config.discovery;
+    
+    const concurrency = this.config.discovery.concurrency;
+    const snapshotConcurrency = concurrency;
+    if (this.config.discovery.snapshotConcurrency) {
+      snapshotConcurrency = this.config.discovery.snapshotConcurrency;
+    }
     this.#discovery.set({ concurrency });
-    this.#snapshots.set({ concurrency });
+    this.#snapshots.set({ snapshotConcurrency });
 
     return this.config;
   }
