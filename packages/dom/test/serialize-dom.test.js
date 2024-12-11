@@ -1,4 +1,4 @@
-import { withExample, replaceDoctype, createShadowEl, getTestBrowser, chromeBrowser, parseDOM } from './helpers';
+import { withExample, replaceDoctype, createShadowEl, getTestBrowser, chromeBrowser, parseDOM, createAndAttachSlotTemplate } from './helpers';
 import serializeDOM, { waitForResize } from '@percy/dom';
 
 describe('serializeDOM', () => {
@@ -274,6 +274,26 @@ describe('serializeDOM', () => {
       baseContent.innerHTML = '<input type="text>';
       const serialized = serializeDOM();
       expect(serialized.warnings).toEqual(['data-percy-shadow-host does not have shadowRoot']);
+    });
+
+    fit('renders slot template with shadowrootmode open', () => {
+      withExample('<div id="content"></div>', { withShadow: false });
+      const baseContent = document.querySelector('#content');
+      createAndAttachSlotTemplate(baseContent);
+
+      const html = serializeDOM().html;
+      expect(html).toMatch('<template shadowrootmode="open">');
+      expect(html).toMatch('<p slot="title">Hello from the title slot!</p>');
+      expect(html).toMatch('<p>This content is distributed into the default slot.</p>');
+
+      // match style pattern regex
+      const stylePattern = [
+        '<style data-percy-element-id=".*">',
+        ':host\\s*{[^}]*}',
+        '::slotted\\(\\[slot="title"\\]\\)\\s*{[^}]*}',
+        '::slotted\\(\\*\\)\\s*{[^}]*}'
+      ].join('\\s*');
+      expect(html).toMatch(new RegExp(stylePattern));
     });
   });
 
