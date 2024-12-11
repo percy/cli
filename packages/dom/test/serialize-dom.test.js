@@ -276,7 +276,7 @@ describe('serializeDOM', () => {
       expect(serialized.warnings).toEqual(['data-percy-shadow-host does not have shadowRoot']);
     });
 
-    fit('renders slot template with shadowrootmode open', () => {
+    it('renders slot template with shadowrootmode open', () => {
       withExample('<div id="content"></div>', { withShadow: false });
       const baseContent = document.querySelector('#content');
       createAndAttachSlotTemplate(baseContent);
