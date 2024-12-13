@@ -118,10 +118,12 @@ function waitForDiscoveryNetworkIdle(page, options) {
 }
 
 async function waitForFontLoading(page) {
-  await Promise.race([
-    page.eval('await document.fonts.ready;'),
-    new Promise((res) => setTimeout(res, 5000))
-  ]);
+  return await logger.measure('core:discovery', 'waitForFontLoading', undefined, async () => {
+    return await Promise.race([
+      page.eval('await document.fonts.ready;'),
+      new Promise((res) => setTimeout(res, 5000))
+    ]);
+  });
 }
 
 // Creates an initial resource map for a snapshot containing serialized DOM
