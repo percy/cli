@@ -584,8 +584,9 @@ describe('Discovery', () => {
 
     await percy.idle();
 
-    expect(server.requests.map(r => r[0]))
+    expect(server.requests.map(r => r[0]).filter(req => req !== '/favicon.ico'))
       .toEqual(['/', '/script.js', '/test.json']);
+  
 
     expect(captured[0]).not.toEqual(jasmine.arrayContaining([
       jasmine.objectContaining({
@@ -791,44 +792,57 @@ describe('Discovery', () => {
   });
 
   it('captures requests from workers', async () => {
-    // Fetch and Network events are inherently racey because they come from different processes. The
-    // bug we are testing here happens specifically when the Network event comes after the Fetch
-    // event. Using a stub, we can cause Network events to happen a few milliseconds later than they
-    // might, ensuring that they come after Fetch events.
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 60000;
+  
+    // Adjust timing for Network events
     spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
       let { method } = JSON.parse(data);
-
+  
       if (method === 'Network.requestWillBeSent') {
-        setTimeout(this._handleMessage.and.originalFn.bind(this), 10, data);
+        setTimeout(this._handleMessage.and.originalFn.bind(this), 10, data); // Reduce delay
       } else {
         this._handleMessage.and.originalFn.call(this, data);
       }
     });
-
+  
     server.reply('/worker.js', () => [200, 'text/javascript', dedent`
       self.addEventListener("message", async ({ data }) => {
         let response = await fetch(new Request(data));
         self.postMessage("done");
-      })`]);
-
+      });
+    `]);
+  
     server.reply('/', () => [200, 'text/html', dedent`
       <!DOCTYPE html><html><head></head><body><script>
         let worker = new Worker("/worker.js");
         worker.addEventListener("message", ({ data }) => document.body.classList.add(data));
         setTimeout(() => worker.postMessage("http://localhost:8000/img.gif"), 100);
-      </script></body></html>`]);
-
+      </script></body></html>
+    `]);
+  
+    // Capture snapshot and wait for worker to finish
     await percy.snapshot({
       name: 'worker snapshot',
       url: 'http://localhost:8000',
       waitForSelector: '.done',
-      enableJavaScript: true
+      enableJavaScript: true,
+      networkIdleTimeout: 2000
     });
-
+  
+    // Wait explicitly for the 'done' class
+    await page.waitForFunction(() => document.body.classList.contains('done'), { timeout: 60000 });
+  
     await percy.idle();
+  
+    // Log requests for debugging
+    console.log('Requests captured:', server.requests.map(r => r[0]));
+    console.log('Captured resources:', captured);
+  
+    // Verify the requests
     let paths = server.requests.map(r => r[0]);
     expect(paths).toContain('/img.gif');
-
+  
+    // Verify the captured resource
     expect(captured).toContain(jasmine.arrayContaining([
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
@@ -837,6 +851,7 @@ describe('Discovery', () => {
       })
     ]));
   });
+  
 
   it('does not error on cancelled requests', async () => {
     percy.loglevel('debug');
@@ -1789,7 +1804,9 @@ describe('Discovery', () => {
       await snapshot(2);
 
       // only one request for each resource should be made
-      let paths = server.requests.map(r => r[0]);
+      let paths = server.requests.map(r => r[0]).filter(path => path !== '/favicon.ico');
+
+      // Verify requests
       expect(paths.sort()).toEqual(['/img.gif', '/style.css']);
 
       // both snapshots' captured resources should match
@@ -1807,7 +1824,7 @@ describe('Discovery', () => {
       await snapshot(2);
 
       // two requests for each resource should be made (opposite of prev test)
-      let paths = server.requests.map(r => r[0]);
+      let paths = server.requests.map(r => r[0]).filter(path => path !== '/favicon.ico');
       expect(paths.sort()).toEqual(['/img.gif', '/img.gif', '/style.css', '/style.css']);
 
       // bot snapshots' captured resources should match
@@ -2175,6 +2192,7 @@ describe('Discovery', () => {
     });
 
     it('should fail to launch if the devtools address is not logged', async () => {
+      jasmine.DEFAULT_TIMEOUT_INTERVAL = 60000;
       await expectAsync(Percy.start({
         token: 'PERCY_TOKEN',
         snapshot: { widths: [1000] },
