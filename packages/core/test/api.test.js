@@ -14,6 +14,7 @@ describe('API Server', () => {
   }
 
   beforeEach(async () => {
+    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ "name": "@percy/client", "version": "1.0.0" });
     await setupTest();
 
     percy = new Percy({
@@ -25,6 +26,7 @@ describe('API Server', () => {
   afterEach(async () => {
     percy.stop.and?.callThrough();
     await percy.stop();
+    delete process.env.PERCY_FORCE_PKG_VALUE;
   });
 
   it('has a default port', () => {

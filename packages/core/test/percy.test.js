@@ -8,6 +8,7 @@ describe('Percy', () => {
   let percy, server;
 
   beforeEach(async () => {
+    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ "name": "@percy/client", "version": "1.0.0" });
     await setupTest();
 
     server = await createTestServer({
@@ -28,6 +29,7 @@ describe('Percy', () => {
     await percy.stop();
     await server.close();
     delete process.env.PERCY_TOKEN;
+    delete process.env.PERCY_FORCE_PKG_VALUE;
     delete process.env.PERCY_CLIENT_ERROR_LOGS;
     delete process.env.PERCY_IGNORE_TIMEOUT_ERROR;
   });

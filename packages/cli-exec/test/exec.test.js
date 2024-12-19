@@ -125,7 +125,6 @@ describe('percy exec', () => {
 
   it('runs the command even when PERCY_TOKEN is missing', async () => {
     delete process.env.PERCY_TOKEN;
-    delete process.env.PERCY_FORCE_PKG_VALUE;
     await exec(['--', 'node', '--eval', '']);
 
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
