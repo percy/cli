@@ -18,12 +18,14 @@ describe('percy build:wait', () => {
 
   beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ "name": "@percy/client", "version": "1.0.0" });
     await setupTest({ loggerTTY: true });
   });
 
   afterEach(() => {
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_ENABLE;
+    delete process.env.PERCY_FORCE_PKG_VALUE;
   });
 
   it('does nothing and logs when percy is not enabled', async () => {
@@ -232,7 +234,6 @@ describe('percy build:wait', () => {
       })]);
 
       await expectAsync(wait(['--build=123'])).toBeRejected();
-
       expect(logger.stdout).toEqual([]);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy] Build #10 failed! https://percy.io/test/test/123',
