@@ -151,3 +151,50 @@ export function platformDOM(plat) {
 export function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
+
+export function createAndAttachSlotTemplate(baseElement) {
+  baseElement.innerHTML = `
+  <custom-element>
+      <p slot="title">Hello from the title slot!</p>
+      <p>This content is distributed into the default slot.</p>
+    </custom-element>
+  `;
+  class CustomElement extends window.HTMLElement {
+    constructor() {
+      super();
+
+      // Attach shdow DOM
+      const shadowRoot = this.attachShadow({ mode: 'open' });
+
+      // Add template content to shadow DOM
+      shadowRoot.innerHTML = `
+        <style>
+          :host {
+            display: block;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            font-family: Arial, sans-serif;
+          }
+          ::slotted([slot="title"]) {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+          }
+          ::slotted(*) {
+            margin: 5px 0;
+          }
+        </style>
+        <div>
+          <slot name="title"></slot>
+          <slot></slot>
+        </div>
+      `;
+    }
+  }
+
+  // Register the custom element
+
+  window.customElements.define('custom-element', CustomElement);
+}

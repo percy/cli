@@ -23,7 +23,7 @@ function doctype(dom) {
 
 // Serializes and returns the cloned DOM as an HTML string
 function serializeHTML(ctx) {
-  let html = getOuterHTML(ctx.clone.documentElement);
+  let html = getOuterHTML(ctx.clone.documentElement, { shadowRootElements: ctx.shadowRootElements });
   // replace serialized data attributes with real attributes
   html = html.replace(/ data-percy-serialized-attribute-(\w+?)=/ig, ' $1=');
   // include the doctype with the html string
@@ -44,6 +44,9 @@ function serializeElements(ctx) {
     let percyElementId = shadowHost.getAttribute('data-percy-element-id');
     let cloneShadowHost = ctx.clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
     if (shadowHost.shadowRoot && cloneShadowHost.shadowRoot) {
+      // getHTML requires shadowRoot to be passed explicitly
+      // to serialize the shadow elements properly
+      ctx.shadowRootElements.push(cloneShadowHost.shadowRoot);
       serializeElements({
         ...ctx,
         dom: shadowHost.shadowRoot,
@@ -89,6 +92,7 @@ export function serializeDOM(options) {
     warnings: new Set(),
     hints: new Set(),
     cache: new Map(),
+    shadowRootElements: [],
     enableJavaScript,
     disableShadowDOM
   };
