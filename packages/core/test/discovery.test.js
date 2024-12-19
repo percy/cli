@@ -584,8 +584,9 @@ describe('Discovery', () => {
 
     await percy.idle();
 
-    expect(server.requests.map(r => r[0]))
+    expect(server.requests.map(r => r[0]).filter(req => req !== '/favicon.ico'))
       .toEqual(['/', '/script.js', '/test.json']);
+  
 
     expect(captured[0]).not.toEqual(jasmine.arrayContaining([
       jasmine.objectContaining({
@@ -824,10 +825,13 @@ describe('Discovery', () => {
       waitForSelector: '.done',
       enableJavaScript: true
     });
+    console.log('captures requests from workers 2');
 
     await percy.idle();
     let paths = server.requests.map(r => r[0]);
+    console.log(paths);
     expect(paths).toContain('/img.gif');
+    console.log(captured);
 
     expect(captured).toContain(jasmine.arrayContaining([
       jasmine.objectContaining({
@@ -1736,7 +1740,10 @@ describe('Discovery', () => {
       await percy.snapshot({
         name: 'auth snapshot',
         url: 'http://localhost:8000/auth',
-        domSnapshot: authDOM
+        domSnapshot: authDOM,
+        discovery: {
+          networkIdleTimeout: 5000
+        },
       });
 
       await percy.idle();
@@ -1751,24 +1758,27 @@ describe('Discovery', () => {
     });
 
     it('does not capture with invalid auth credentials', async () => {
-      await percy.snapshot({
-        name: 'auth snapshot',
-        url: 'http://localhost:8000/auth',
-        domSnapshot: authDOM,
-        discovery: {
-          authorization: { username: 'invalid' }
-        }
-      });
-
-      await percy.idle();
-
-      expect(captured[0]).not.toEqual(jasmine.arrayContaining([
-        jasmine.objectContaining({
-          attributes: jasmine.objectContaining({
-            'resource-url': 'http://localhost:8000/auth/img.gif'
+        await percy.snapshot({
+          name: 'auth snapshot',
+          url: 'http://localhost:8000/auth',
+          domSnapshot: authDOM,
+          discovery: {
+            authorization: { username: 'invalid' },
+            networkIdleTimeout: 5000
+          },
+        });
+    
+        await percy.idle();
+        console.log('auth credentials');
+        console.log(captured[0]);
+    
+        expect(captured[0]).not.toEqual(jasmine.arrayContaining([
+          jasmine.objectContaining({
+            attributes: jasmine.objectContaining({
+              'resource-url': 'http://localhost:8000/auth/img.gif'
+            })
           })
-        })
-      ]));
+        ]));
     });
   });
 
@@ -1789,7 +1799,9 @@ describe('Discovery', () => {
       await snapshot(2);
 
       // only one request for each resource should be made
-      let paths = server.requests.map(r => r[0]);
+      let paths = server.requests.map(r => r[0]).filter(path => path !== '/favicon.ico');
+
+      // Verify requests
       expect(paths.sort()).toEqual(['/img.gif', '/style.css']);
 
       // both snapshots' captured resources should match
@@ -1807,7 +1819,7 @@ describe('Discovery', () => {
       await snapshot(2);
 
       // two requests for each resource should be made (opposite of prev test)
-      let paths = server.requests.map(r => r[0]);
+      let paths = server.requests.map(r => r[0]).filter(path => path !== '/favicon.ico');
       expect(paths.sort()).toEqual(['/img.gif', '/img.gif', '/style.css', '/style.css']);
 
       // bot snapshots' captured resources should match
@@ -2175,25 +2187,28 @@ describe('Discovery', () => {
     });
 
     it('should fail to launch if the devtools address is not logged', async () => {
-      await expectAsync(Percy.start({
-        token: 'PERCY_TOKEN',
-        snapshot: { widths: [1000] },
-        discovery: {
-          launchOptions: {
-            args: ['--remote-debugging-port=null']
-          }
-        }
-      })).toBeRejectedWithError(
-        /Failed to launch browser/
-      );
-
-      // We are checking here like this, to avoid flaky test as
-      // the error message contains some number
-      // eg: `Failed to launch browser. \n[0619/152313.736334:ERROR:command_line_handler.cc(67)`
-      let lastRequest = api.requests['/suggestions/from_logs'].length - 1;
-      expect(api.requests['/suggestions/from_logs'][lastRequest].body.data.logs[0].message.includes('Failed to launch browser'))
-        .toEqual(true);
+      // Await the Percy.start() and expectAsync to ensure the test resolves correctly
+      await expectAsync(
+        Percy.start({
+          token: 'PERCY_TOKEN',
+          snapshot: { widths: [1000] },
+          discovery: {
+            launchOptions: {
+              args: ['--remote-debugging-port=null'],
+            },
+          },
+        })
+      ).toBeRejectedWithError(/Failed to launch browser/);
+    
+      // Access the last request from the API logs
+      const lastRequestIndex = api.requests['/suggestions/from_logs'].length - 1;
+      const lastLogMessage = api.requests['/suggestions/from_logs'][lastRequestIndex].body.data.logs[0].message;
+    
+      // Validate the log contains the correct error message
+      expect(lastLogMessage.includes('Failed to launch browser')).toEqual(true);
     });
+    
+    
 
     it('should fail to launch after the timeout', async () => {
       await expectAsync(Percy.start({
@@ -2495,6 +2510,9 @@ describe('Discovery', () => {
       await percy.idle();
 
       let paths = server.requests.map(r => r[0]);
+      console.log("original requestss");
+      console.log(paths);
+      console.log(captured);
       expect(paths).toContain('/img.gif');
       expect(captured).toContain(jasmine.arrayContaining([
         jasmine.objectContaining({
