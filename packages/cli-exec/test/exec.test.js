@@ -3,6 +3,7 @@ import exec from '@percy/cli-exec';
 describe('percy exec', () => {
   beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ "name": "@percy/client", "version": "1.0.0" });
     jasmine.DEFAULT_TIMEOUT_INTERVAL = 25000;
     await setupTest();
 
@@ -10,10 +11,14 @@ describe('percy exec', () => {
     spyOn(which, 'sync').and.callFake(c => c);
     spyOn(process, 'exit').and.callFake(c => c);
     process.env.PERCY_CLIENT_ERROR_LOGS = false;
+
+    // Ensure global.__MOCK_IMPORTS__ is defined
+    global.__MOCK_IMPORTS__ = global.__MOCK_IMPORTS__ || new Map();
   });
 
   afterEach(() => {
     delete process.env.PERCY_TOKEN;
+    delete process.env.PERCY_FORCE_PKG_VALUE;
     delete process.env.PERCY_ENABLE;
     delete process.env.PERCY_BUILD_ID;
     delete process.env.PERCY_PARALLEL_TOTAL;
@@ -120,6 +125,7 @@ describe('percy exec', () => {
 
   it('runs the command even when PERCY_TOKEN is missing', async () => {
     delete process.env.PERCY_TOKEN;
+    delete process.env.PERCY_FORCE_PKG_VALUE;
     await exec(['--', 'node', '--eval', '']);
 
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
@@ -243,11 +249,12 @@ describe('percy exec', () => {
     let [e, err] = [new EventEmitter(), new Error('spawn error')];
     let crossSpawn = () => (setImmediate(() => e.emit('error', err)), e);
     global.__MOCK_IMPORTS__.set('cross-spawn', { default: crossSpawn });
+
     let stdinSpy = spyOn(process.stdin, 'pipe').and.resolveTo('some response');
 
     await expectAsync(exec(['--', 'foobar'])).toBeRejected();
+
     expect(stdinSpy).toHaveBeenCalled();
-    console.log(logger.stderr);
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Detected error for percy build',
       '[percy] Failure: Snapshot command was not called',
