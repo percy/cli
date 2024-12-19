@@ -6,11 +6,13 @@ describe('percy exec:ping', () => {
 
   beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ "name": "@percy/client", "version": "1.0.0" });
     await setupTest();
   });
 
   afterEach(async () => {
     delete process.env.PERCY_TOKEN;
+    delete process.env.PERCY_FORCE_PKG_VALUE
     delete process.env.PERCY_ENABLE;
     delete process.env.PERCY_PARALLEL_TOTAL;
     delete process.env.PERCY_PARTIAL_BUILD;

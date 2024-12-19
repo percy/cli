@@ -11,11 +11,11 @@ import { handleSyncJob } from './snapshot.js';
 // Now, we use `fileURLToPath` and `path.resolve` to determine the absolute path in a way that's more aligned with ESM conventions.
 // This change ensures better compatibility and avoids relying on Node.js-specific APIs that might cause issues in ESM environments.
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 
 const getPercyDomPath = () => {
   try {
-    const { createRequire } = require('module');
-    return createRequire(import.meta.url).resolve('@percy/dom');
+    return createRequire(import.meta.url).resolve('@percy/dom');;
   } catch (error) {
     logger('core:server').warn([
       'Failed to resolve @percy/dom path using createRequire.',

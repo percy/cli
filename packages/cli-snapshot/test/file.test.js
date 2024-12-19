@@ -8,6 +8,7 @@ describe('percy snapshot <file>', () => {
   beforeEach(async () => {
     snapshot.packageInformation = { name: '@percy/cli-snapshot' };
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ "name": "@percy/client", "version": "1.0.0" });
 
     server = await createTestServer({
       default: () => [200, 'text/html', '<p>Test</p>']
@@ -44,6 +45,7 @@ describe('percy snapshot <file>', () => {
 
   afterEach(async () => {
     delete process.env.PERCY_TOKEN;
+    delete process.env.PERCY_FORCE_PKG_VALUE
     delete process.env.PERCY_CLIENT_ERROR_LOGS;
     delete snapshot.packageInformation;
     await server.close();
