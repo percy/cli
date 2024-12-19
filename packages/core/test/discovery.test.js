@@ -792,57 +792,47 @@ describe('Discovery', () => {
   });
 
   it('captures requests from workers', async () => {
-    jasmine.DEFAULT_TIMEOUT_INTERVAL = 60000;
-  
-    // Adjust timing for Network events
+    // Fetch and Network events are inherently racey because they come from different processes. The
+    // bug we are testing here happens specifically when the Network event comes after the Fetch
+    // event. Using a stub, we can cause Network events to happen a few milliseconds later than they
+    // might, ensuring that they come after Fetch events.
     spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
       let { method } = JSON.parse(data);
-  
+
       if (method === 'Network.requestWillBeSent') {
-        setTimeout(this._handleMessage.and.originalFn.bind(this), 10, data); // Reduce delay
+        setTimeout(this._handleMessage.and.originalFn.bind(this), 10, data);
       } else {
         this._handleMessage.and.originalFn.call(this, data);
       }
     });
-  
+
     server.reply('/worker.js', () => [200, 'text/javascript', dedent`
       self.addEventListener("message", async ({ data }) => {
         let response = await fetch(new Request(data));
         self.postMessage("done");
-      });
-    `]);
-  
+      })`]);
+
     server.reply('/', () => [200, 'text/html', dedent`
       <!DOCTYPE html><html><head></head><body><script>
         let worker = new Worker("/worker.js");
         worker.addEventListener("message", ({ data }) => document.body.classList.add(data));
         setTimeout(() => worker.postMessage("http://localhost:8000/img.gif"), 100);
-      </script></body></html>
-    `]);
-  
-    // Capture snapshot and wait for worker to finish
+      </script></body></html>`]);
+
     await percy.snapshot({
       name: 'worker snapshot',
       url: 'http://localhost:8000',
       waitForSelector: '.done',
-      enableJavaScript: true,
-      networkIdleTimeout: 2000
+      enableJavaScript: true
     });
-  
-    // Wait explicitly for the 'done' class
-    await page.waitForFunction(() => document.body.classList.contains('done'), { timeout: 60000 });
-  
+    console.log('captures requests from workers 2');
+
     await percy.idle();
-  
-    // Log requests for debugging
-    console.log('Requests captured:', server.requests.map(r => r[0]));
-    console.log('Captured resources:', captured);
-  
-    // Verify the requests
     let paths = server.requests.map(r => r[0]);
+    console.log(paths);
     expect(paths).toContain('/img.gif');
-  
-    // Verify the captured resource
+    console.log(captured);
+
     expect(captured).toContain(jasmine.arrayContaining([
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
@@ -851,7 +841,6 @@ describe('Discovery', () => {
       })
     ]));
   });
-  
 
   it('does not error on cancelled requests', async () => {
     percy.loglevel('debug');
@@ -1751,7 +1740,10 @@ describe('Discovery', () => {
       await percy.snapshot({
         name: 'auth snapshot',
         url: 'http://localhost:8000/auth',
-        domSnapshot: authDOM
+        domSnapshot: authDOM,
+        discovery: {
+          networkIdleTimeout: 5000
+        },
       });
 
       await percy.idle();
@@ -1766,24 +1758,27 @@ describe('Discovery', () => {
     });
 
     it('does not capture with invalid auth credentials', async () => {
-      await percy.snapshot({
-        name: 'auth snapshot',
-        url: 'http://localhost:8000/auth',
-        domSnapshot: authDOM,
-        discovery: {
-          authorization: { username: 'invalid' }
-        }
-      });
-
-      await percy.idle();
-
-      expect(captured[0]).not.toEqual(jasmine.arrayContaining([
-        jasmine.objectContaining({
-          attributes: jasmine.objectContaining({
-            'resource-url': 'http://localhost:8000/auth/img.gif'
+        await percy.snapshot({
+          name: 'auth snapshot',
+          url: 'http://localhost:8000/auth',
+          domSnapshot: authDOM,
+          discovery: {
+            authorization: { username: 'invalid' },
+            networkIdleTimeout: 5000
+          },
+        });
+    
+        await percy.idle();
+        console.log('auth credentials');
+        console.log(captured[0]);
+    
+        expect(captured[0]).not.toEqual(jasmine.arrayContaining([
+          jasmine.objectContaining({
+            attributes: jasmine.objectContaining({
+              'resource-url': 'http://localhost:8000/auth/img.gif'
+            })
           })
-        })
-      ]));
+        ]));
     });
   });
 
@@ -2192,26 +2187,28 @@ describe('Discovery', () => {
     });
 
     it('should fail to launch if the devtools address is not logged', async () => {
-      jasmine.DEFAULT_TIMEOUT_INTERVAL = 60000;
-      await expectAsync(Percy.start({
-        token: 'PERCY_TOKEN',
-        snapshot: { widths: [1000] },
-        discovery: {
-          launchOptions: {
-            args: ['--remote-debugging-port=null']
-          }
-        }
-      })).toBeRejectedWithError(
-        /Failed to launch browser/
-      );
-
-      // We are checking here like this, to avoid flaky test as
-      // the error message contains some number
-      // eg: `Failed to launch browser. \n[0619/152313.736334:ERROR:command_line_handler.cc(67)`
-      let lastRequest = api.requests['/suggestions/from_logs'].length - 1;
-      expect(api.requests['/suggestions/from_logs'][lastRequest].body.data.logs[0].message.includes('Failed to launch browser'))
-        .toEqual(true);
+      // Await the Percy.start() and expectAsync to ensure the test resolves correctly
+      await expectAsync(
+        Percy.start({
+          token: 'PERCY_TOKEN',
+          snapshot: { widths: [1000] },
+          discovery: {
+            launchOptions: {
+              args: ['--remote-debugging-port=null'],
+            },
+          },
+        })
+      ).toBeRejectedWithError(/Failed to launch browser/);
+    
+      // Access the last request from the API logs
+      const lastRequestIndex = api.requests['/suggestions/from_logs'].length - 1;
+      const lastLogMessage = api.requests['/suggestions/from_logs'][lastRequestIndex].body.data.logs[0].message;
+    
+      // Validate the log contains the correct error message
+      expect(lastLogMessage.includes('Failed to launch browser')).toEqual(true);
     });
+    
+    
 
     it('should fail to launch after the timeout', async () => {
       await expectAsync(Percy.start({
@@ -2513,6 +2510,9 @@ describe('Discovery', () => {
       await percy.idle();
 
       let paths = server.requests.map(r => r[0]);
+      console.log("original requestss");
+      console.log(paths);
+      console.log(captured);
       expect(paths).toContain('/img.gif');
       expect(captured).toContain(jasmine.arrayContaining([
         jasmine.objectContaining({
