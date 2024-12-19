@@ -175,7 +175,7 @@ export function createPercyServer(percy, port) {
 
       res.json(200, { success: true, data: data });
     })
-  // Recieves events from sdk's.
+  // Receives events from sdk's.
     .route('post', '/percy/events', async (req, res) => {
       const body = percyBuildEventHandler(req, pkg.version);
       await percy.client.sendBuildEvents(percy.build?.id, body);

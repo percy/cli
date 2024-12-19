@@ -11,7 +11,7 @@ const MOCK_REG = /^mock:\/\/|\?.+$/g;
 // global mocks can be added from tests
 export const MOCK_IMPORTS = global.__MOCK_IMPORTS__ = global.__MOCK_IMPORTS__ ||
   new Proxy(Object.assign(new Map(), { __uid__: 0 }), {
-    get(target, prop, reciever) {
+    get(target, prop, receiver) {
       if (typeof target[prop] !== 'function') return target[prop];
 
       return prop === 'set' ? (key, value) => {

@@ -29,6 +29,7 @@ describe('Percy', () => {
     await server.close();
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_CLIENT_ERROR_LOGS;
+    delete process.env.PERCY_IGNORE_TIMEOUT_ERROR;
   });
 
   const sharedExpectBlockForSuggestion = (expectedBody) => {

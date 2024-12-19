@@ -3,7 +3,7 @@ import logger from '@percy/logger';
 import mime from 'mime-types';
 import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging } from './utils.js';
 
-const MAX_RESOURCE_SIZE = 25 * (1024 ** 2); // 25MB
+const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
@@ -141,11 +141,24 @@ export class Network {
     return this.#aborted.has(requestId);
   }
 
+  logNetworkRequests(filter) {
+    let msg = '';
+    let reqs = Array.from(this.#requests.values()).filter(filter).map(r => r.url);
+    msg += `\n\n  ${['Active requests:', ...reqs].join('\n  - ')}\n`;
+    return msg;
+  }
+
   // Throw a better network timeout error
   _throwTimeoutError(msg, filter = () => true) {
     if (this.log.shouldLog('debug')) {
-      let reqs = Array.from(this.#requests.values()).filter(filter).map(r => r.url);
-      msg += `\n\n  ${['Active requests:', ...reqs].join('\n  - ')}\n`;
+      msg += this.logNetworkRequests(filter);
+    }
+
+    if (process.env.PERCY_IGNORE_TIMEOUT_ERROR === 'true') {
+      let warnMsg = 'Ignoring network timeout failures.';
+      warnMsg += this.logNetworkRequests(filter);
+      this.log.warn(warnMsg);
+      return;
     }
 
     throw new Error(msg);

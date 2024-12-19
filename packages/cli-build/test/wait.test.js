@@ -62,7 +62,7 @@ describe('percy build:wait', () => {
     ]));
   });
 
-  it('logs while recieving snapshots', async () => {
+  it('logs while receiving snapshots', async () => {
     api
       .reply('/builds/123', () => [200, build({
         state: 'pending'
@@ -76,7 +76,7 @@ describe('percy build:wait', () => {
 
     expect(logger.stderr).toEqual(['[percy] Ignoring interval since it cannot be less than 1000ms.']);
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
-      '[percy] Recieving snapshots...'
+      '[percy] Receiving snapshots...'
     ]));
   });
 

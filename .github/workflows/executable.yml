@@ -27,7 +27,7 @@ jobs:
           name: win-exe
           path: percy.exe
       - name: Upload assets
-        uses: softprops/action-gh-release@a74c6b72af54cfa997e81df42d94703d6313a2d0
+        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974
         with:
           files: |
             percy-osx.zip
@@ -53,7 +53,7 @@ jobs:
       - name: Update exe metadata
         run: node ./scripts/win-metadata-update.js
       - name: Sign binary
-        uses: lando/code-sign-action@v2
+        uses: lando/code-sign-action@v3
         with:
           file: ./percy.exe
           certificate-data: ${{ secrets.WINDOWS_CERT }}
@@ -63,7 +63,7 @@ jobs:
       - run: |
           powershell -Command "Compress-Archive -Path 'percy.exe' -DestinationPath 'percy-win.zip'"
       - name: Upload assets
-        uses: softprops/action-gh-release@a74c6b72af54cfa997e81df42d94703d6313a2d0
+        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974
         with:
           files: |
             percy-win.zip

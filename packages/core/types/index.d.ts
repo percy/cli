@@ -20,6 +20,7 @@ interface DiscoveryOptions {
   disableCache?: boolean;
   captureMockedServiceWorker?: boolean;
   captureSrcset?: boolean;
+  devicePixelRatio?: number; 
 }
 
 interface ScopeOptions {
@@ -41,15 +42,20 @@ interface AllDiscoveryOptions extends DiscoveryOptions {
 
 interface CommonSnapshotOptions {
   widths?: number[];
+  scope?: string;
   minHeight?: number;
   percyCSS?: string;
   enableJavaScript?: boolean;
+  cliEnableJavascript?: boolean;
   disableShadowDOM?: boolean;
-  enableLayout?: boolean;
   domTransformation?: string;
+  enableLayout?: boolean;
+  sync?: boolean;
+  responsiveSnapshotCapture?: boolean;
+  testCase?: string;
+  labels?: string;
   reshuffleInvalidTags?: boolean;
   devicePixelRatio?: number;
-  scope?: string;
   scopeOptions?: ScopeOptions;
 }
 
