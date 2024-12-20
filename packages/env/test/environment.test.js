@@ -16,5 +16,10 @@ describe('PercyEnv', () => {
       let env = new PercyEnv({ PERCY_FORCE_PKG_VALUE: 'invalid' });
       expect(env.forcedPkgValue).toBeNull();
     });
+
+    it('should return null if PERCY_FORCE_PKG_VALUE is null', () => {
+      let env = new PercyEnv({ PERCY_FORCE_PKG_VALUE: null });
+      expect(env.forcedPkgValue).toBeNull();
+    });
   });
 });
