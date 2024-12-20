@@ -172,7 +172,8 @@ export class PercyClient {
           partial: this.env.partial,
           tags: tagsArr,
           'cli-start-time': cliStartTime,
-          source: source
+          source: source,
+          'skip-base-build': this.config.percy?.skipBaseBuild
         },
         relationships: {
           resources: {
@@ -367,6 +368,7 @@ export class PercyClient {
     validateId('build', buildId);
     this.log.debug(`Uploading resources for ${buildId}...`, meta);
 
+    const uploadConcurrency = parseInt(process.env.PERCY_RESOURCE_UPLOAD_CONCURRENCY) || 2;
     return pool(function*() {
       for (let resource of resources) {
         let resourceMeta = {
@@ -377,7 +379,7 @@ export class PercyClient {
         yield this.uploadResource(buildId, resource, resourceMeta);
         this.log.debug(`Uploaded resource ${resource.url}`, resourceMeta);
       }
-    }, this, 2);
+    }, this, uploadConcurrency);
   }
 
   // Creates a snapshot for the active build using the provided attributes.

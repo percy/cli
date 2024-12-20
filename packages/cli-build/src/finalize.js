@@ -20,8 +20,11 @@ export const finalize = command('finalize', {
 
   // rely on the parallel nonce to cause the API to return the current running build for the nonce
   let { data: build } = await percy.client.createBuild({ cliStartTime: percy.cliStartTime });
-  await percy.client.finalizeBuild(build.id, { all: true });
-
+  try {
+    await percy.client.finalizeBuild(build.id, { all: true });
+  } catch (error) {
+    exit(1, 'Percy build failed during finalize', error.message);
+  }
   let { 'build-number': number, 'web-url': url } = build.attributes;
   log.info(`Finalized build #${number}: ${url}`);
 });

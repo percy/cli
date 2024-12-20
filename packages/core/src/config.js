@@ -16,6 +16,10 @@ export const configSchema = {
       },
       labels: {
         type: 'string'
+      },
+      skipBaseBuild: {
+        type: 'boolean',
+        default: false
       }
     }
   },
@@ -256,6 +260,10 @@ export const configSchema = {
         type: 'integer'
       },
       concurrency: {
+        type: 'integer',
+        minimum: 1
+      },
+      snapshotConcurrency: {
         type: 'integer',
         minimum: 1
       },
