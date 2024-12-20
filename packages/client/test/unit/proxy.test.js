@@ -1,5 +1,6 @@
 import { ProxyHttpAgent, ProxyHttpsAgent, createPacAgent, getProxy, proxyAgentFor } from '../../src/proxy.js';
 import { PacProxyAgent } from 'pac-proxy-agent';
+import logger from '@percy/logger/test/helpers';
 
 describe('proxy', () => {
   describe('getProxy', () => {
@@ -38,6 +39,7 @@ describe('proxy', () => {
 
   describe('proxyAgentFor', () => {
     beforeEach(async () => {
+      await logger.mock({ level: 'debug' });
       proxyAgentFor.cache?.clear();
       process.env.PERCY_PAC_FILE_URL = 'http://example.com/proxy.pac';
     });
@@ -51,7 +53,7 @@ describe('proxy', () => {
       const url = 'http://example.com';
       const options = {};
       const agent = new ProxyHttpAgent(options);
-      proxyAgentFor.cache.set('http://example.com', agent);
+      proxyAgentFor.cache?.set('http://example.com', agent);
       expect(proxyAgentFor(url, options)).toBe(agent);
     });
 
@@ -78,6 +80,13 @@ describe('proxy', () => {
       const options = {};
       const agent = proxyAgentFor(url, options);
       expect(agent).toBeInstanceOf(PacProxyAgent);
+    });
+
+    it('logs an error and throws when proxy agent creation fails', () => {
+      const url = 'http://example.com';
+      const options = {};
+      process.env.PERCY_PAC_FILE_URL = 'invalid-url';
+      expect(() => proxyAgentFor(url, options)).toThrowError('Failed to initialize PAC proxy: Invalid URL: invalid-url');
     });
   });
 });
