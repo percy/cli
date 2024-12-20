@@ -142,7 +142,6 @@ describe('percy upload', () => {
     await upload(['./images', '--files=*']);
 
     expect(logger.stderr).toEqual([]);
-    console.trace("## logger.stdout", logger.stdout)
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Skipping unsupported file type: test-4.gif',
