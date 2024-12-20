@@ -9,7 +9,7 @@ describe('Snapshot', () => {
 
   beforeEach(async () => {
     testDOM = '<p>Test</p>';
-    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ "name": "@percy/client", "version": "1.0.0" });
+    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     await setupTest();
 
     server = await createTestServer({

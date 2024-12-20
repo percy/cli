@@ -12,7 +12,7 @@ describe('percy upload', () => {
     upload.packageInformation = { name: '@percy/cli-upload' };
     process.env.PERCY_TOKEN = 'web_<<PERCY_TOKEN>>';
     process.env.PERCY_CLIENT_ERROR_LOGS = false;
-    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ "name": "@percy/client", "version": "1.0.0" });
+    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     await setupTest({
       filesystem: {
         'images/test-1.png': pixel,

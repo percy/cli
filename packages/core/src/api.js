@@ -15,7 +15,7 @@ import { createRequire } from 'module';
 
 const getPercyDomPath = () => {
   try {
-    return createRequire(import.meta.url).resolve('@percy/dom');;
+    return createRequire(import.meta.url).resolve('@percy/dom');
   } catch (error) {
     logger('core:server').warn([
       'Failed to resolve @percy/dom path using createRequire.',
