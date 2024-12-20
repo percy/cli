@@ -173,7 +173,7 @@ export class PercyClient {
           tags: tagsArr,
           'cli-start-time': cliStartTime,
           source: source,
-          'prod-build': this.config.percy?.prodBuild
+          'skip-base-build': this.config.percy?.skipBaseBuild
         },
         relationships: {
           resources: {

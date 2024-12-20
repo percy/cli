@@ -389,10 +389,10 @@ describe('PercyClient', () => {
         }));
     });
 
-    it('creates a new build with prodBuild config', async () => {
+    it('creates a new build with skipBaseBuild config', async () => {
       client = new PercyClient({
         token: 'PERCY_TOKEN',
-        config: { percy: { prodBuild: true } }
+        config: { percy: { skipBaseBuild: true } }
       });
       await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolvedTo({
         data: {
@@ -424,7 +424,7 @@ describe('PercyClient', () => {
             'cli-start-time': null,
             source: 'user_created',
             partial: client.env.partial,
-            'prod-build': true,
+            'skip-base-build': true,
             tags: []
           }
         }));

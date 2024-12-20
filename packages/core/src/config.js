@@ -17,7 +17,7 @@ export const configSchema = {
       labels: {
         type: 'string'
       },
-      prodBuild: {
+      skipBaseBuild: {
         type: 'boolean',
         default: false
       }
