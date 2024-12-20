@@ -254,6 +254,7 @@ describe('percy exec', () => {
     await expectAsync(exec(['--', 'foobar'])).toBeRejected();
 
     expect(stdinSpy).toHaveBeenCalled();
+    console.log(logger.stderr);
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Detected error for percy build',
       '[percy] Failure: Snapshot command was not called',
