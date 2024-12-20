@@ -39,8 +39,8 @@ describe('API Server', () => {
   });
 
   it('should log on createRequire failure', () => {
-    getPercyDomPath(undefined)
-    expect(logger.stderr.length).toBeGreaterThan(0)
+    getPercyDomPath(undefined);
+    expect(logger.stderr.length).toBeGreaterThan(0);
   });
 
   it('starts a server at the specified port', async () => {
