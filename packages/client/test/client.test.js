@@ -22,6 +22,14 @@ describe('PercyClient', () => {
   });
 
   describe('#userAgent()', () => {
+    it('uses default package value when env.forcedPkgValue is not set', () => {
+      delete process.env.PERCY_FORCE_PKG_VALUE;
+      client = new PercyClient({ token: 'PERCY_TOKEN' });
+
+      expect(client.userAgent()).toMatch(
+        /^Percy\/v1 @percy\/client\/\S+ \(node\/v[\d.]+.*\)$/
+      );
+    });
     it('contains client and environment information', () => {
       expect(client.userAgent()).toMatch(
         /^Percy\/v1 @percy\/client\/\S+ \(node\/v[\d.]+.*\)$/
@@ -96,6 +104,17 @@ describe('PercyClient', () => {
 
       expect(client.userAgent()).toMatch(
         /^Percy\/v1 @percy\/client\/\S+ client-info \(env-info; node\/v[\d.]+.*\)$/
+      );
+    });
+
+    it('uses forced package value when set', () => {
+      client.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
+      client = new PercyClient({
+        token: 'PERCY_TOKEN'
+      });
+      client.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
+      expect(client.userAgent()).toMatch(
+        /^Percy\/v1 @percy\/client\/1.0.0 \(node\/v[\d.]+.*\)$/
       );
     });
   });

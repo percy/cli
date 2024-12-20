@@ -40,9 +40,6 @@ export function getPackageJSON(rel) {
   /* istanbul ignore else: sanity check */
   if (rel.startsWith('file:')) rel = url.fileURLToPath(rel);
 
-  /* istanbul ignore else: sanity check */
-  if (rel.startsWith('file:')) rel = url.fileURLToPath(rel);
-
   let pkg = path.join(rel, 'package.json');
   if (fs.existsSync(pkg)) return JSON.parse(fs.readFileSync(pkg));
 
