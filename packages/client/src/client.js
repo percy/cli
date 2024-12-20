@@ -172,7 +172,8 @@ export class PercyClient {
           partial: this.env.partial,
           tags: tagsArr,
           'cli-start-time': cliStartTime,
-          source: source
+          source: source,
+          'skip-base-build': this.config.percy?.skipBaseBuild
         },
         relationships: {
           resources: {
