@@ -16,6 +16,10 @@ export const configSchema = {
       },
       labels: {
         type: 'string'
+      },
+      skipBaseBuild: {
+        type: 'boolean',
+        default: false
       }
     }
   },
