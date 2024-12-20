@@ -3,6 +3,7 @@ import PercyConfig from '@percy/config';
 import { logger, setupTest, fs } from './helpers/index.js';
 import Percy from '@percy/core';
 import WebdriverUtils from '@percy/webdriver-utils';
+import { getPercyDomPath } from '../src/api.js';
 
 describe('API Server', () => {
   let percy;
@@ -35,6 +36,11 @@ describe('API Server', () => {
 
   it('can specify a custom port', () => {
     expect(percy).toHaveProperty('server.port', 1337);
+  });
+
+  it('should log on createRequire failure', () => {
+    getPercyDomPath(undefined)
+    expect(logger.stderr.length).toBeGreaterThan(0)
   });
 
   it('starts a server at the specified port', async () => {

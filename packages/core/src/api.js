@@ -13,9 +13,9 @@ import { handleSyncJob } from './snapshot.js';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 
-const getPercyDomPath = () => {
+export const getPercyDomPath = (url) => {
   try {
-    return createRequire(import.meta.url).resolve('@percy/dom');
+    return createRequire(url).resolve('@percy/dom');
   } catch (error) {
     logger('core:server').warn([
       'Failed to resolve @percy/dom path using createRequire.',
@@ -28,7 +28,7 @@ const getPercyDomPath = () => {
 };
 
 // Resolved path for PERCY_DOM
-export const PERCY_DOM = getPercyDomPath();
+export const PERCY_DOM = getPercyDomPath(import.meta.url);
 
 // Returns a URL encoded string of nested query params
 function encodeURLSearchParams(subj, prefix) {
