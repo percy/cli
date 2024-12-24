@@ -1,4 +1,5 @@
 import { logger, setupTest } from '@percy/cli-command/test/helpers';
+import api from '@percy/client/test/helpers';
 import { finalize } from '@percy/cli-build';
 
 describe('percy build:finalize', () => {
@@ -50,5 +51,14 @@ describe('percy build:finalize', () => {
       '[percy] Finalizing parallel build...',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]);
+  });
+
+  it('should reject promise if finalize fails', async () => {
+    process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+    api.reply('/builds/123/finalize?all-shards=true', () => [500, new Error('Failed')]);
+
+    await expectAsync(finalize()).toBeRejected();
+
+    expect(logger.stderr).toEqual(['[percy] Error: Percy build failed during finalize']);
   });
 });
