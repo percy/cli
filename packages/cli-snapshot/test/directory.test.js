@@ -5,6 +5,7 @@ describe('percy snapshot <directory>', () => {
   beforeEach(async () => {
     snapshot.packageInformation = { name: '@percy/cli-snapshot' };
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
 
     await setupTest({
       filesystem: {
@@ -21,6 +22,7 @@ describe('percy snapshot <directory>', () => {
 
   afterEach(() => {
     delete process.env.PERCY_TOKEN;
+    delete process.env.PERCY_FORCE_PKG_VALUE;
     delete process.env.PERCY_ENABLE;
     delete snapshot.packageInformation;
     delete process.env.PERCY_CLIENT_ERROR_LOGS;
