@@ -83,6 +83,8 @@ export class PercyClient {
 
   // Stringifies client and environment info.
   userAgent() {
+    // forcedPkgValue has been added since when percy package is bundled inside Electron app (LCNC) 
+    // we can't read Percy's package json for package name and version, so we are passing it via env variables
     if (this.env.forcedPkgValue) pkg = this.env.forcedPkgValue;
 
     let client = new Set([`Percy/${/\w+$/.exec(this.apiUrl)}`]
