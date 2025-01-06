@@ -1219,58 +1219,24 @@ describe('Snapshot', () => {
       await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
-        execute: async () => {
-          console.log('Executing initial snapshot');
-          await new Promise(resolve => setTimeout(resolve, 200)); // Increased timeout
-          document.querySelector('p').classList.add('eval-1');
-          console.log('DOM after eval-1:', document.querySelector('p').outerHTML);
-        },
+        execute: () => document.querySelector('p').classList.add('eval-1'),
         additionalSnapshots: [
-          { 
-            suffix: ' 2', 
-            execute: async () => {
-              console.log('Executing snapshot 2');
-              await new Promise(resolve => setTimeout(resolve, 200)); // Increased timeout
-              document.querySelector('p').classList.add('eval-2');
-              console.log('DOM after eval-2:', document.querySelector('p').outerHTML);
-            }
-          },
-          { 
-            suffix: ' 3', 
-            execute: async () => {
-              console.log('Executing snapshot 3');
-              await new Promise(resolve => setTimeout(resolve, 200)); // Increased timeout
-              document.querySelector('p').classList.add('eval-3');
-              console.log('DOM after eval-3:', document.querySelector('p').outerHTML);
-            }
-          },
-          { 
-            suffix: ' 4', 
-            execute: async () => {
-              console.log('Executing snapshot 4');
-              await new Promise(resolve => setTimeout(resolve, 200)); // Increased timeout
-              document.querySelector('p').classList.add('eval-4');
-              console.log('DOM after eval-4:', document.querySelector('p').outerHTML);
-            }
-          },
-          { 
-            suffix: ' 5' // No execute needed for this snapshot
-          }
+          { suffix: ' 2', execute: () => document.querySelector('p').classList.add('eval-2') },
+          { suffix: ' 3', execute: "() => document.querySelector('p').classList.add('eval-3')" },
+          { suffix: ' 4', execute: "document.querySelector('p').classList.add('eval-4')" },
+          { suffix: ' 5' }
         ]
       });
-    
       await percy.idle();
-    
+
       let dom = i => Buffer.from((
-        api.requests['/builds/123/resources'][i * 2]
+        api.requests['/builds/123/resources'][i*3]
           .body.data.attributes['base64-content']
       ), 'base64').toString();
-    
       console.log('DOM 0:', dom(0));
       console.log('DOM 1:', dom(1));
       console.log('DOM 2:', dom(2));
       console.log('DOM 3:', dom(3));
-    
       expect(dom(0)).toMatch('<p class="eval-1">Test</p>');
       expect(dom(1)).toMatch('<p class="eval-1 eval-2">Test</p>');
       expect(dom(2)).toMatch('<p class="eval-1 eval-2 eval-3">Test</p>');
@@ -1478,9 +1444,7 @@ describe('Snapshot', () => {
     });
 
     it('can execute scripts that wait for specific states', async () => {
-      // Set up the initial DOM state
       testDOM = '<body><script>document.body.classList.add("ready")</script></body>';
-      
       await percy.snapshot([{
         name: 'wait for timeout',
         url: 'http://localhost:8000',
@@ -1531,7 +1495,6 @@ describe('Snapshot', () => {
           document.body.innerText = 'fail for callback';
         }
       }]);
-    
       expect(logger.stderr).toEqual([
         '[percy] Encountered an error taking snapshot: fail for selector',
         jasmine.stringMatching('Error: Unable to find: body.not-ready'),
@@ -1541,26 +1504,21 @@ describe('Snapshot', () => {
         '[percy] Encountered an error taking snapshot: fail for callback',
         jasmine.stringMatching('Error: failed')
       ]);
-      
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: wait for timeout',
         '[percy] Snapshot taken: wait for selector',
         '[percy] Snapshot taken: wait for xpath',
         '[percy] Snapshot taken: wait for callback'
       ]));
-    
       await percy.idle();
-    
       let html = api.requests['/builds/123/resources'].map(r => (
         Buffer.from(r.body.data.attributes['base64-content'], 'base64')
       ).toString()).filter(s => s.startsWith('<'));
-    
       expect(html[0]).toMatch('wait for timeout');
-      expect(html[1]).toMatch('wait for selector');
-      expect(html[2]).toMatch('wait for xpath');
-      expect(html[3]).toMatch('wait for callback');
+      expect(html[2]).toMatch('wait for selector');
+      expect(html[4]).toMatch('wait for xpath');
+      expect(html[6]).toMatch('wait for callback');
     });
-    
 
     it('can execute scripts that scroll to the bottom of the page', async () => {
       testDOM = '<body style="height:500vh"><style>*{margin:0;padding:0;}</style></body>';

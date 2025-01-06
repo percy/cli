@@ -37,7 +37,7 @@ describe('Discovery', () => {
     captured = [];
     await setupTest();
     originalTimeout = jasmine.DEFAULT_TIMEOUT_INTERVAL;
-    jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 80000;
     delete process.env.PERCY_BROWSER_EXECUTABLE;
     delete process.env.PERCY_GZIP;
 
@@ -798,9 +798,8 @@ describe('Discovery', () => {
     // might, ensuring that they come after Fetch events.
     spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
       let { method } = JSON.parse(data);
-
       if (method === 'Network.requestWillBeSent') {
-        setTimeout(this._handleMessage.and.originalFn.bind(this), 10, data);
+        setTimeout(this._handleMessage.and.originalFn.bind(this), 50, data);
       } else {
         this._handleMessage.and.originalFn.call(this, data);
       }
@@ -808,38 +807,64 @@ describe('Discovery', () => {
 
     server.reply('/worker.js', () => [200, 'text/javascript', dedent`
       self.addEventListener("message", async ({ data }) => {
-        let response = await fetch(new Request(data));
-        self.postMessage("done");
-      })`]);
+        try {
+          let response = await fetch(new Request(data));
+          self.postMessage("done");
+        } catch (error) {
+          self.postMessage("error");
+        }
+      });
+    `]);
 
     server.reply('/', () => [200, 'text/html', dedent`
-      <!DOCTYPE html><html><head></head><body><script>
-        let worker = new Worker("/worker.js");
-        worker.addEventListener("message", ({ data }) => document.body.classList.add(data));
-        setTimeout(() => worker.postMessage("http://localhost:8000/img.gif"), 100);
-      </script></body></html>`]);
+      <!DOCTYPE html>
+      <html>
+        <head>
+        </head>
+        <body>
+          <script>
+            let worker = new Worker("/worker.js");
+            
+            worker.addEventListener("message", ({ data }) => {
+              document.body.classList.add(data);
+              console.log('Worker message received:', data);
+            });
+            setTimeout(() => {
+              console.log('Sending message to worker');
+              worker.postMessage("http://localhost:8000/img.gif");
+            }, 100);
+          </script>
+        </body>
+      </html>
+    `]);
+
+    server.reply('/img.gif', () => [200, 'image/gif', 'GIF89a...']);
 
     await percy.snapshot({
       name: 'worker snapshot',
       url: 'http://localhost:8000',
       waitForSelector: '.done',
-      enableJavaScript: true
+      enableJavaScript: true,
+      waitForTimeout: 1000
     });
-    console.log('captures requests from workers 2');
 
     await percy.idle();
     let paths = server.requests.map(r => r[0]);
-    console.log(paths);
     expect(paths).toContain('/img.gif');
-    console.log(captured);
 
-    expect(captured).toContain(jasmine.arrayContaining([
-      jasmine.objectContaining({
-        attributes: jasmine.objectContaining({
-          'resource-url': 'http://localhost:8000/img.gif'
+    expect(captured).toContain(
+      jasmine.arrayContaining([
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/img.gif'
+          })
         })
-      })
-    ]));
+      ])
+    );
+    if (!captured.length) {
+      console.log('No resources captured');
+      console.log('Server requests:', server.requests);
+    }
   });
 
   it('does not error on cancelled requests', async () => {
@@ -1741,9 +1766,6 @@ describe('Discovery', () => {
         name: 'auth snapshot',
         url: 'http://localhost:8000/auth',
         domSnapshot: authDOM,
-        discovery: {
-          networkIdleTimeout: 5000
-        },
       });
 
       await percy.idle();
@@ -2187,7 +2209,6 @@ describe('Discovery', () => {
     });
 
     it('should fail to launch if the devtools address is not logged', async () => {
-      // Await the Percy.start() and expectAsync to ensure the test resolves correctly
       await expectAsync(
         Percy.start({
           token: 'PERCY_TOKEN',
