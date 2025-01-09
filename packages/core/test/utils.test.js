@@ -8,7 +8,6 @@ describe('utils', () => {
   beforeEach(async () => {
     log = percyLogger();
     logger.reset(true);
-    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     await logger.mock({ level: 'debug' });
   });
 
