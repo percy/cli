@@ -35,7 +35,7 @@ describe('percy build:finalize', () => {
 
   it('defaults PERCY_PARALLEL_TOTAL to -1', async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
+
     expect(process.env.PERCY_PARALLEL_TOTAL).toBeUndefined();
     await finalize();
     expect(process.env.PERCY_PARALLEL_TOTAL).toEqual('-1');
@@ -43,7 +43,6 @@ describe('percy build:finalize', () => {
 
   it('gets parallel build info and finalizes all parallel builds', async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
-    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     await finalize();
 
     expect(logger.stderr).toEqual([]);

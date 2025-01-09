@@ -35,7 +35,6 @@ describe('Discovery', () => {
 
   beforeEach(async () => {
     captured = [];
-    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     await setupTest();
     originalTimeout = jasmine.DEFAULT_TIMEOUT_INTERVAL;
     jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
@@ -68,7 +67,6 @@ describe('Discovery', () => {
   afterEach(async () => {
     await percy?.stop(true);
     await server.close();
-    delete process.env.PERCY_FORCE_PKG_VALUE;
     jasmine.DEFAULT_TIMEOUT_INTERVAL = originalTimeout;
   });
 
