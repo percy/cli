@@ -19,7 +19,7 @@ import {
 
 // Default client API URL can be set with an env var for API development
 const { PERCY_CLIENT_API_URL = 'https://percy.io/api/v1' } = process.env;
-const pkg = getPackageJSON(import.meta.url);
+let pkg = getPackageJSON(import.meta.url);
 // minimum polling interval milliseconds
 const MIN_POLLING_INTERVAL = 1_000;
 const INVALID_TOKEN_ERROR_MESSAGE = 'Unable to retrieve snapshot details with write access token. Kindly use a full access token for retrieving snapshot details with Synchronous CLI.';
@@ -83,6 +83,10 @@ export class PercyClient {
 
   // Stringifies client and environment info.
   userAgent() {
+    // forcedPkgValue has been added since when percy package is bundled inside Electron app (LCNC)
+    // we can't read Percy's package json for package name and version, so we are passing it via env variables
+    if (this.env.forcedPkgValue) pkg = this.env.forcedPkgValue;
+
     let client = new Set([`Percy/${/\w+$/.exec(this.apiUrl)}`]
       .concat(`${pkg.name}/${pkg.version}`, ...this.clientInfo)
       .filter(Boolean));
