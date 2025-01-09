@@ -1,34 +1,13 @@
 import fs from 'fs';
-import path, { dirname, resolve } from 'path';
+import path from 'path';
+import { createRequire } from 'module';
 import logger from '@percy/logger';
 import { normalize } from '@percy/config/utils';
 import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHandler } from './utils.js';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { handleSyncJob } from './snapshot.js';
-// Previously, we used `createRequire(import.meta.url).resolve` to resolve the path to the module.
-// This approach relied on `createRequire`, which is Node.js-specific and less compatible with modern ESM (ECMAScript Module) standards.
-// This was leading to hard coded paths when CLI is used as a dependency in another project.
-// Now, we use `fileURLToPath` and `path.resolve` to determine the absolute path in a way that's more aligned with ESM conventions.
-// This change ensures better compatibility and avoids relying on Node.js-specific APIs that might cause issues in ESM environments.
-import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
-
-export const getPercyDomPath = (url) => {
-  try {
-    return createRequire(url).resolve('@percy/dom');
-  } catch (error) {
-    logger('core:server').warn([
-      'Failed to resolve @percy/dom path using createRequire.',
-      'Falling back to using fileURLToPath and path.resolve.'
-    ].join(' '));
-  }
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-  return resolve(__dirname, 'node_modules/@percy/dom');
-};
-
-// Resolved path for PERCY_DOM
-export const PERCY_DOM = getPercyDomPath(import.meta.url);
+// need require.resolve until import.meta.resolve can be transpiled
+export const PERCY_DOM = createRequire(import.meta.url).resolve('@percy/dom');
 
 // Returns a URL encoded string of nested query params
 function encodeURLSearchParams(subj, prefix) {
