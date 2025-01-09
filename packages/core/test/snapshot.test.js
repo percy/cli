@@ -9,7 +9,6 @@ describe('Snapshot', () => {
 
   beforeEach(async () => {
     testDOM = '<p>Test</p>';
-    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     await setupTest();
 
     server = await createTestServer({
@@ -34,7 +33,6 @@ describe('Snapshot', () => {
 
   afterEach(async () => {
     delete process.env.PERCY_CLIENT_ERROR_LOGS;
-    delete process.env.PERCY_FORCE_PKG_VALUE;
     await percy.stop(true);
     await server?.close();
   });
