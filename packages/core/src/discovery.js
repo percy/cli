@@ -215,6 +215,7 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   if (process.env.PERCY_GZIP) {
     for (let index = 0; index < resources.length; index++) {
       const alreadyZipped = isGzipped(resources[index].content);
+      /* istanbul ignore next: very hard to mock true */
       if (!alreadyZipped) {
         resources[index].content = Pako.gzip(resources[index].content);
         resources[index].sha = sha256hash(resources[index].content);
