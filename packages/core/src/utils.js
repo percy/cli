@@ -384,6 +384,21 @@ export function base64encode(content) {
     .toString('base64');
 }
 
+// It checks if content is already gzipped or not.
+// We don't want to gzip already gzipped content.
+export function isGzipped(content) {
+  if (!(content instanceof Uint8Array || content instanceof ArrayBuffer)) {
+    return false;
+  }
+
+  // Ensure content is a Uint8Array
+  const data =
+    content instanceof ArrayBuffer ? new Uint8Array(content) : content;
+
+  // Gzip magic number: 0x1f8b
+  return data.length > 2 && data[0] === 0x1f && data[1] === 0x8b;
+}
+
 const RESERVED_CHARACTERS = {
   '%3A': ':',
   '%23': '#',

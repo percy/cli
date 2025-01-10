@@ -1,7 +1,8 @@
-import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes } from '../src/utils.js';
+import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped } from '../src/utils.js';
 import { logger, setupTest } from './helpers/index.js';
 import percyLogger from '@percy/logger';
 import Percy from '@percy/core';
+import Pako from 'pako';
 
 describe('utils', () => {
   let log;
@@ -177,6 +178,48 @@ describe('utils', () => {
         const obj2 = { a: 1, b: 2 };
         expect(compareObjectTypes(obj1, obj2)).toBe(false);
       });
+    });
+  });
+  describe('isGzipped', () => {
+    it('returns true for gzipped content', () => {
+      const compressed = Pako.gzip('Hello, world!');
+      expect(isGzipped(compressed)).toBe(true);
+    });
+
+    it('returns false for plain uncompressed content', () => {
+      const uncompressed = new TextEncoder().encode('Hello, world!');
+      expect(isGzipped(uncompressed)).toBe(false);
+    });
+
+    it('returns false for a plain string input', () => {
+      const invalidInput = 'Not a Uint8Array';
+      expect(isGzipped(invalidInput)).toBe(false);
+    });
+
+    it('returns false for an empty Uint8Array', () => {
+      const emptyArray = new Uint8Array([]);
+      expect(isGzipped(emptyArray)).toBe(false);
+    });
+
+    it('returns false for an undefined', () => {
+      const empty = undefined;
+      expect(isGzipped(empty)).toBe(false);
+    });
+
+    it('returns false for an ArrayBuffer without Gzip magic number', () => {
+      const buffer = new ArrayBuffer(10);
+      const view = new Uint8Array(buffer);
+      view[0] = 0x00;
+      view[1] = 0x01;
+      expect(isGzipped(buffer)).toBe(false);
+    });
+
+    it('returns true for an ArrayBuffer with Gzip magic number', () => {
+      const buffer = new ArrayBuffer(10);
+      const view = new Uint8Array(buffer);
+      view[0] = 0x1f; // Gzip magic number
+      view[1] = 0x8b; // Gzip magic number
+      expect(isGzipped(buffer)).toBe(true);
     });
   });
 });

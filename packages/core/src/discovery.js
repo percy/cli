@@ -12,7 +12,8 @@ import {
   snapshotLogName,
   waitForTimeout,
   withRetries,
-  waitForSelectorInsideBrowser
+  waitForSelectorInsideBrowser,
+  isGzipped
 } from './utils.js';
 import {
   sha256hash
@@ -222,21 +223,6 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   }
 
   return { ...snapshot, resources };
-}
-
-// It checks if content is already gzipped or not.
-// We don't want to gzip already gzipped content.
-function isGzipped(content) {
-  if (!(content instanceof Uint8Array || content instanceof ArrayBuffer)) {
-    return false;
-  }
-
-  // Ensure content is a Uint8Array
-  const data =
-    content instanceof ArrayBuffer ? new Uint8Array(content) : content;
-
-  // Gzip magic number: 0x1f8b
-  return data.length > 2 && data[0] === 0x1f && data[1] === 0x8b;
 }
 
 // Triggers the capture of resource requests for a page by iterating over snapshot widths to resize
