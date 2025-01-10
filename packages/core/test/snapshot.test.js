@@ -1230,7 +1230,7 @@ describe('Snapshot', () => {
       await percy.idle();
 
       let dom = i => Buffer.from((
-        api.requests['/builds/123/resources'][i*3]
+        api.requests['/builds/123/resources'][i * 3]
           .body.data.attributes['base64-content']
       ), 'base64').toString();
       console.log('DOM 0:', dom(0));
@@ -1242,7 +1242,7 @@ describe('Snapshot', () => {
       expect(dom(2)).toMatch('<p class="eval-1 eval-2 eval-3">Test</p>');
       expect(dom(3)).toMatch('<p class="eval-1 eval-2 eval-3 eval-4">Test</p>');
     });
-    
+
     it('can successfully snapshot a page after executing page navigation', async () => {
       testDOM += '<a href="/foo">Foo</a>';
 
@@ -1296,27 +1296,24 @@ describe('Snapshot', () => {
         execute() {
           let $p = document.querySelector('p');
           if ($p) $p.id = 'framed';
-    
+
           let $f = document.querySelector('iframe');
           if ($f) $f.src = '/foo';
         }
       });
-    
+
       expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toContain(
         '[percy] Snapshot taken: framed snapshot'
       );
-    
+
       await percy.idle();
-    
+
       const snapshotContent = Buffer.from((
         api.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
       ), 'base64').toString();
-    
-      // Log the full snapshot content for inspection
-      console.log('Snapshot Content:', snapshotContent);
-    
+
       // More flexible matching
       expect(snapshotContent).toMatch(/<iframe/);
       // Update the regex to match the HTML-encoded <p> tag
@@ -1384,19 +1381,19 @@ describe('Snapshot', () => {
           const p1 = document.createElement('p');
           p1.textContent = 'beforeResize - 400';
           document.body.appendChild(p1);
-    
+
           // Simulate a resize event
           await new Promise(resolve => setTimeout(resolve, 100)); // Allow time for changes
           const p2 = document.createElement('p');
           p2.textContent = 'afterResize - 800';
           document.body.appendChild(p2);
-    
+
           // Simulate another resize event
           await new Promise(resolve => setTimeout(resolve, 100)); // Allow time for changes
           const p3 = document.createElement('p');
           p3.textContent = 'beforeResize - 800';
           document.body.appendChild(p3);
-    
+
           // Simulate a final resize event
           await new Promise(resolve => setTimeout(resolve, 100)); // Allow time for changes
           const p4 = document.createElement('p');
@@ -1404,17 +1401,13 @@ describe('Snapshot', () => {
           document.body.appendChild(p4);
         }
       });
-    
       await percy.idle();
-    
       const snapshotContent = Buffer.from((
         api.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
       ), 'base64').toString();
-    
       // Log the full snapshot content for inspection
       console.log('Snapshot Content:', snapshotContent);
-    
       // More flexible matching
       expect(snapshotContent).toMatch(/<p>beforeResize - 400<\/p>/);
       expect(snapshotContent).toMatch(/<p>afterResize - 800<\/p>/);
