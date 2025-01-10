@@ -213,12 +213,32 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
 
   if (process.env.PERCY_GZIP) {
     for (let index = 0; index < resources.length; index++) {
-      resources[index].content = Pako.gzip(resources[index].content);
-      resources[index].sha = sha256hash(resources[index].content);
+      const alreadyZipped = isGzipped(resources[index].content);
+      if (alreadyZipped) {
+        log.debug('content already zipped');
+      } else {
+        resources[index].content = Pako.gzip(resources[index].content);
+        resources[index].sha = sha256hash(resources[index].content);
+      }
     }
   }
 
   return { ...snapshot, resources };
+}
+
+// It checks if content is already gzipped or not.
+// We don't want to gzip already gzipped content.
+function isGzipped(content) {
+  if (!(content instanceof Uint8Array || content instanceof ArrayBuffer)) {
+    return false;
+  }
+
+  // Ensure content is a Uint8Array
+  const data =
+    content instanceof ArrayBuffer ? new Uint8Array(content) : content;
+
+  // Gzip magic number: 0x1f8b
+  return data.length > 2 && data[0] === 0x1f && data[1] === 0x8b;
 }
 
 // Triggers the capture of resource requests for a page by iterating over snapshot widths to resize
