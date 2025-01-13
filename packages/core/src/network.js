@@ -17,7 +17,6 @@ class RequestLifeCycleHandler {
     this.resolveResponseReceived = null;
     this.requestWillBeSent = new Promise((resolve) => (this.resolveRequestWillBeSent = resolve));
     this.responseReceived = new Promise((resolve) => (this.resolveResponseReceived = resolve));
-    this.isWorker = false;
   }
 }
 // The Interceptor class creates common handlers for dealing with intercepting asset requests
@@ -217,16 +216,10 @@ export class Network {
   // otherwise set it to be pending until it is paused.
   _handleRequestWillBeSent = async event => {
     let { requestId, request, type } = event;
+
     // do not handle data urls
     if (request.url.startsWith('data:')) return;
 
-    const isWorker = type === 'Worker' || request.url.endsWith('.js');
-    // Mark in the lifecycle handler if this is a worker request
-    this.#requestsLifeCycleHandler.get(requestId).isWorker = isWorker;
-    if (isWorker) {
-      this.log.debug(`Auto-resolving responseReceived for worker request: ${request.url}`);
-      this.#requestsLifeCycleHandler.get(requestId).resolveResponseReceived();
-    }
     // Browsers handle URL encoding leniently.
     // This code checks for issues such as `%` and leading spaces and warns the user accordingly.
     decodeAndEncodeURLWithLogging(request.url, this.log, {
@@ -309,12 +302,7 @@ export class Network {
   _handleLoadingFinished = async (session, event) => {
     let { requestId } = event;
     // wait for upto 2 seconds or check if response has been sent
-    const handler = this.#requestsLifeCycleHandler.get(requestId);
-
-    // For worker requests, we don't need to wait for responseReceived
-    if (!handler.isWorker) {
-      await handler.responseReceived;
-    }
+    await this.#requestsLifeCycleHandler.get(requestId).responseReceived;
     let request = this.#requests.get(requestId);
     /* istanbul ignore if: race condition paranioa */
     if (!request) return;

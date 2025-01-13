@@ -37,7 +37,7 @@ describe('Discovery', () => {
     captured = [];
     await setupTest();
     originalTimeout = jasmine.DEFAULT_TIMEOUT_INTERVAL;
-    jasmine.DEFAULT_TIMEOUT_INTERVAL = 80000;
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 40000;
     delete process.env.PERCY_BROWSER_EXECUTABLE;
     delete process.env.PERCY_GZIP;
 
@@ -797,8 +797,9 @@ describe('Discovery', () => {
     // might, ensuring that they come after Fetch events.
     spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
       let { method } = JSON.parse(data);
+
       if (method === 'Network.requestWillBeSent') {
-        setTimeout(this._handleMessage.and.originalFn.bind(this), 50, data);
+        setTimeout(this._handleMessage.and.originalFn.bind(this), 10, data);
       } else {
         this._handleMessage.and.originalFn.call(this, data);
       }
@@ -808,49 +809,32 @@ describe('Discovery', () => {
       self.addEventListener("message", async ({ data }) => {
         let response = await fetch(new Request(data));
         self.postMessage("done");
-      });
-    `]);
+      })`]);
 
     server.reply('/', () => [200, 'text/html', dedent`
-      <!DOCTYPE html>
-      <html>
-        <head>
-        </head>
-        <body>
-          <script>
-            let worker = new Worker("/worker.js");
-            
-            worker.addEventListener("message", ({ data }) => {
-              document.body.classList.add(data);
-            });
-            setTimeout(() => {
-              worker.postMessage("http://localhost:8000/img.gif");
-            }, 100);
-          </script>
-        </body>
-      </html>
-    `]);
+      <!DOCTYPE html><html><head></head><body><script>
+        let worker = new Worker("/worker.js");
+        worker.addEventListener("message", ({ data }) => document.body.classList.add(data));
+        setTimeout(() => worker.postMessage("http://localhost:8000/img.gif"), 100);
+      </script></body></html>`]);
 
     await percy.snapshot({
       name: 'worker snapshot',
       url: 'http://localhost:8000',
-      enableJavaScript: true,
       waitForSelector: '.done',
-      waitForTimeout: 1000
+      enableJavaScript: true
     });
 
     let paths = server.requests.map(r => r[0]);
     expect(paths).toContain('/img.gif');
 
-    expect(captured).toContain(
-      jasmine.arrayContaining([
-        jasmine.objectContaining({
-          attributes: jasmine.objectContaining({
-            'resource-url': 'http://localhost:8000/img.gif'
-          })
+    expect(captured).toContain(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
         })
-      ])
-    );
+      })
+    ]));
   });
 
   it('does not error on cancelled requests', async () => {
@@ -1771,8 +1755,7 @@ describe('Discovery', () => {
         url: 'http://localhost:8000/auth',
         domSnapshot: authDOM,
         discovery: {
-          authorization: { username: 'invalid' },
-          networkIdleTimeout: 5000
+          authorization: { username: 'invalid' }
         }
       });
 
@@ -2192,25 +2175,28 @@ describe('Discovery', () => {
     });
 
     it('should fail to launch if the devtools address is not logged', async () => {
-      await expectAsync(
-        Percy.start({
+      try {
+        await Percy.start({
           token: 'PERCY_TOKEN',
           snapshot: { widths: [1000] },
           discovery: {
             launchOptions: {
-              args: ['--remote-debugging-port=null'],
-              timeout: 5000
+              args: ['--remote-debugging-port=null']
             }
           }
-        })
-      ).toBeRejectedWithError(/Failed to launch browser/);
+        });
+        // If no error is thrown, the test should fail
+        fail('Expected Percy.start to throw an error but it did not.');
+      } catch (error) {
+        expect(error.message).toMatch(/Failed to launch browser/);
+      }
 
-      // Access the last request from the API logs
-      const lastRequestIndex = api.requests['/suggestions/from_logs'].length - 1;
-      const lastLogMessage = api.requests['/suggestions/from_logs'][lastRequestIndex].body.data.logs[0].message;
-
-      // Validate the log contains the correct error message
-      expect(lastLogMessage.includes('Failed to launch browser')).toEqual(true);
+      // We are checking here like this, to avoid flaky test as
+      // the error message contains some number
+      // eg: `Failed to launch browser. \n[0619/152313.736334:ERROR:command_line_handler.cc(67)`
+      let lastRequest = api.requests['/suggestions/from_logs'].length - 1;
+      expect(api.requests['/suggestions/from_logs'][lastRequest].body.data.logs[0].message.includes('Failed to launch browser'))
+        .toEqual(true);
     });
 
     it('should fail to launch after the timeout', async () => {

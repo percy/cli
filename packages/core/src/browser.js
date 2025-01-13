@@ -235,6 +235,7 @@ export class Browser extends EventEmitter {
         if (match) cleanup(() => resolve(match[1]));
       };
 
+      // test launch failure
       let handleExitClose = () => handleError();
       let handleError = error => cleanup(() => reject(new Error(
         `Failed to launch browser. ${error?.message ?? ''}\n${stderr}'\n\n`

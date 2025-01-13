@@ -1233,10 +1233,7 @@ describe('Snapshot', () => {
         api.requests['/builds/123/resources'][i * 3]
           .body.data.attributes['base64-content']
       ), 'base64').toString();
-      console.log('DOM 0:', dom(0));
-      console.log('DOM 1:', dom(1));
-      console.log('DOM 2:', dom(2));
-      console.log('DOM 3:', dom(3));
+
       expect(dom(0)).toMatch('<p class="eval-1">Test</p>');
       expect(dom(1)).toMatch('<p class="eval-1 eval-2">Test</p>');
       expect(dom(2)).toMatch('<p class="eval-1 eval-2 eval-3">Test</p>');
@@ -1309,15 +1306,10 @@ describe('Snapshot', () => {
 
       await percy.idle();
 
-      const snapshotContent = Buffer.from((
+      expect(Buffer.from((
         api.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
-      ), 'base64').toString();
-
-      // More flexible matching
-      expect(snapshotContent).toMatch(/<iframe/);
-      // Update the regex to match the HTML-encoded <p> tag
-      expect(snapshotContent).toMatch(/srcdoc=".*&lt;p&gt;Foo&lt;\/p&gt;/);
+      ), 'base64').toString()).toMatch(/<iframe.*srcdoc=".*<p>Foo<\/p>/);
     });
 
     it('errors if execute cannot be serialized', async () => {
@@ -1493,14 +1485,14 @@ describe('Snapshot', () => {
       }, {
         name: 'wait for callback',
         url: 'http://localhost:8000',
-        async execute({ waitFor }) {
+        async execute({ waitForSelector }) {
           await waitFor(() => document.body.classList.contains('ready'), 1000);
           document.body.innerText = 'wait for callback';
         }
       }, {
         name: 'fail for callback',
         url: 'http://localhost:8000',
-        async execute({ waitFor }) {
+        async execute({ waitForSelector }) {
           await waitFor(() => Promise.reject(new Error('failed')), 100);
           document.body.innerText = 'fail for callback';
         }
