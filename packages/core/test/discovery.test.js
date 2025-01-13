@@ -38,7 +38,7 @@ describe('Discovery', () => {
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     await setupTest();
     originalTimeout = jasmine.DEFAULT_TIMEOUT_INTERVAL;
-    jasmine.DEFAULT_TIMEOUT_INTERVAL = 40000;
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
     delete process.env.PERCY_BROWSER_EXECUTABLE;
     delete process.env.PERCY_GZIP;
 
@@ -586,8 +586,8 @@ describe('Discovery', () => {
 
     await percy.idle();
 
-    expect(server.requests.map(r => r[0]).filter(req => req !== '/favicon.ico'))
-      .toEqual(['/', '/script.js', '/test.json']);
+    expect(server.requests.map(r => r[0]))
+      .toEqual(['/', '/script.js', '/test.json', '/favicon.ico']);
 
     expect(captured[0]).not.toEqual(jasmine.arrayContaining([
       jasmine.objectContaining({
@@ -827,6 +827,7 @@ describe('Discovery', () => {
       enableJavaScript: true
     });
 
+    await percy.idle();
     let paths = server.requests.map(r => r[0]);
     expect(paths).toContain('/img.gif');
 
@@ -1544,6 +1545,7 @@ describe('Discovery', () => {
     let authDOM = testDOM.replace('img.gif', 'auth/img.gif');
 
     beforeEach(() => {
+      jasmine.DEFAULT_TIMEOUT_INTERVAL = 40000;
       server.reply('/auth/img.gif', ({ headers: { authorization } }) => {
         if (authorization === 'Basic dGVzdDo=') {
           return [200, 'image/gif', pixel];
@@ -1762,6 +1764,7 @@ describe('Discovery', () => {
       });
 
       await percy.idle();
+
       expect(captured[0]).not.toEqual(jasmine.arrayContaining([
         jasmine.objectContaining({
           attributes: jasmine.objectContaining({
@@ -1789,10 +1792,8 @@ describe('Discovery', () => {
       await snapshot(2);
 
       // only one request for each resource should be made
-      let paths = server.requests.map(r => r[0]).filter(path => path !== '/favicon.ico');
-
-      // Verify requests
-      expect(paths.sort()).toEqual(['/img.gif', '/style.css']);
+      let paths = server.requests.map(r => r[0]);
+      expect(paths.sort()).toEqual(['/favicon.ico', '/img.gif', '/style.css']);
 
       // both snapshots' captured resources should match
       // the first captured resource is the log file which is dynamic
@@ -1809,8 +1810,8 @@ describe('Discovery', () => {
       await snapshot(2);
 
       // two requests for each resource should be made (opposite of prev test)
-      let paths = server.requests.map(r => r[0]).filter(path => path !== '/favicon.ico');
-      expect(paths.sort()).toEqual(['/img.gif', '/img.gif', '/style.css', '/style.css']);
+      let paths = server.requests.map(r => r[0]);
+      expect(paths.sort()).toEqual(['/favicon.ico', '/img.gif', '/img.gif', '/style.css', '/style.css']);
 
       // bot snapshots' captured resources should match
       // the first captured resource is the log file which is dynamic
@@ -2177,21 +2178,17 @@ describe('Discovery', () => {
     });
 
     it('should fail to launch if the devtools address is not logged', async () => {
-      try {
-        await Percy.start({
-          token: 'PERCY_TOKEN',
-          snapshot: { widths: [1000] },
-          discovery: {
-            launchOptions: {
-              args: ['--remote-debugging-port=null']
-            }
+      await expectAsync(Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: {
+          launchOptions: {
+            args: ['--remote-debugging-port=null']
           }
-        });
-        // If no error is thrown, the test should fail
-        fail('Expected Percy.start to throw an error but it did not.');
-      } catch (error) {
-        expect(error.message).toMatch(/Failed to launch browser/);
-      }
+        }
+      })).toBeRejectedWithError(
+        /Failed to launch browser/
+      );
 
       // We are checking here like this, to avoid flaky test as
       // the error message contains some number

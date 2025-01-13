@@ -1229,6 +1229,7 @@ describe('Snapshot', () => {
           { suffix: ' 5' }
         ]
       });
+
       await percy.idle();
 
       let dom = i => Buffer.from((
@@ -1239,6 +1240,7 @@ describe('Snapshot', () => {
       expect(dom(0)).toMatch('<p class="eval-1">Test</p>');
       expect(dom(1)).toMatch('<p class="eval-1 eval-2">Test</p>');
       expect(dom(2)).toMatch('<p class="eval-1 eval-2 eval-3">Test</p>');
+      expect(dom(3)).toMatch('<p class="eval-1 eval-2 eval-3 eval-4">Test</p>');
       expect(dom(3)).toMatch('<p class="eval-1 eval-2 eval-3 eval-4">Test</p>');
     });
 
@@ -1401,6 +1403,7 @@ describe('Snapshot', () => {
 
       await percy.idle();
 
+      expect(logger.stderr).toEqual([]);
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: foo snapshot',
         '[percy] Snapshot taken: bar snapshot'
@@ -1449,6 +1452,7 @@ describe('Snapshot', () => {
 
     it('can execute scripts that wait for specific states', async () => {
       testDOM = '<body><script>document.body.classList.add("ready")</script></body>';
+
       await percy.snapshot([{
         name: 'wait for timeout',
         url: 'http://localhost:8000',
@@ -1499,6 +1503,7 @@ describe('Snapshot', () => {
           document.body.innerText = 'fail for callback';
         }
       }]);
+
       expect(logger.stderr).toEqual([
         '[percy] Encountered an error taking snapshot: fail for selector',
         jasmine.stringMatching('Error: Unable to find: body.not-ready'),
@@ -1514,10 +1519,13 @@ describe('Snapshot', () => {
         '[percy] Snapshot taken: wait for xpath',
         '[percy] Snapshot taken: wait for callback'
       ]));
+
       await percy.idle();
+
       let html = api.requests['/builds/123/resources'].map(r => (
         Buffer.from(r.body.data.attributes['base64-content'], 'base64')
       ).toString()).filter(s => s.startsWith('<'));
+
       expect(html[0]).toMatch('wait for timeout');
       expect(html[2]).toMatch('wait for selector');
       expect(html[4]).toMatch('wait for xpath');
