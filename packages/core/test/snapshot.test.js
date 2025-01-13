@@ -1373,46 +1373,63 @@ describe('Snapshot', () => {
     });
 
     it('can execute scripts at various states', async () => {
+      let domtest = (pre, fn) => `
+        let p = document.createElement('p');
+        p.innerHTML = ['${pre}', (${fn})()].join(' - ');
+        document.body.appendChild(p);
+      `;
+
       await percy.snapshot({
         name: 'foo snapshot',
         url: 'http://localhost:8000',
-        execute: async () => {
-          // Simulate the initial state
-          const p1 = document.createElement('p');
-          p1.textContent = 'beforeResize - 400';
-          document.body.appendChild(p1);
+        widths: [400, 800, 1200],
+        execute: {
+          afterNavigation: domtest('afterNavigation', () => window.location.href),
+          beforeSnapshot: domtest('beforeSnapshot', () => 'done!')
+        },
+        domTransformation: `
+          (documentElement) => { 
+              let p = document.createElement('p');
+              p.innerText = 'added using domTransformation';
+              documentElement.querySelector('body').append(p);
+          }`
+      });
 
-          // Simulate a resize event
-          await new Promise(resolve => setTimeout(resolve, 100)); // Allow time for changes
-          const p2 = document.createElement('p');
-          p2.textContent = 'afterResize - 800';
-          document.body.appendChild(p2);
-
-          // Simulate another resize event
-          await new Promise(resolve => setTimeout(resolve, 100)); // Allow time for changes
-          const p3 = document.createElement('p');
-          p3.textContent = 'beforeResize - 800';
-          document.body.appendChild(p3);
-
-          // Simulate a final resize event
-          await new Promise(resolve => setTimeout(resolve, 100)); // Allow time for changes
-          const p4 = document.createElement('p');
-          p4.textContent = 'afterResize - 1200';
-          document.body.appendChild(p4);
+      await percy.snapshot({
+        name: 'bar snapshot',
+        url: 'http://localhost:8000',
+        widths: [400, 800, 1200],
+        execute: {
+          beforeResize: domtest('beforeResize', () => window.innerWidth),
+          afterResize: domtest('afterResize', () => window.innerWidth)
         }
       });
+
       await percy.idle();
-      const snapshotContent = Buffer.from((
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: foo snapshot',
+        '[percy] Snapshot taken: bar snapshot'
+      ]));
+
+      expect(Buffer.from((
         api.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
-      ), 'base64').toString();
-      // Log the full snapshot content for inspection
-      console.log('Snapshot Content:', snapshotContent);
-      // More flexible matching
-      expect(snapshotContent).toMatch(/<p>beforeResize - 400<\/p>/);
-      expect(snapshotContent).toMatch(/<p>afterResize - 800<\/p>/);
-      expect(snapshotContent).toMatch(/<p>beforeResize - 800<\/p>/);
-      expect(snapshotContent).toMatch(/<p>afterResize - 1200<\/p>/);
+      ), 'base64').toString()).toMatch([
+        '<p>afterNavigation - http://localhost:8000/</p>',
+        '<p>beforeSnapshot - done!</p>',
+        '<p>added using domTransformation</p>'
+      ].join(''));
+
+      expect(Buffer.from((
+        api.requests['/builds/123/resources'][3]
+          .body.data.attributes['base64-content']
+      ), 'base64').toString()).toMatch([
+        '<p>beforeResize - 400</p>',
+        '<p>afterResize - 800</p>',
+        '<p>beforeResize - 800</p>',
+        '<p>afterResize - 1200</p>'
+      ].join(''));
     });
 
     it('can execute scripts with built-in helpers', async () => {
