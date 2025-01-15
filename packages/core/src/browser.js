@@ -253,6 +253,9 @@ export class Browser extends EventEmitter {
         new Error(`Timed out after ${timeout}ms`)
       ), timeout);
 
+      if (this.args.includes('--remote-debugging-port=null')) {
+        handleExitClose();
+      }
       this.process.stderr.on('data', handleData);
       this.process.stderr.on('close', handleExitClose);
       this.process.on('exit', handleExitClose);

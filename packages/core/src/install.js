@@ -177,11 +177,11 @@ export function chromium({
 
 // default chromium revisions corresponds to v123.0.6312.58
 chromium.revisions = {
-  linux: '1262506',
-  win64: '1262500',
-  win32: '1262500',
-  darwin: '1262506',
-  darwinArm: '1262509'
+  linux: '1331481',
+  win64: '1331469',
+  win32: '1331487',
+  darwin: '1331485',
+  darwinArm: '1331488'
 };
 
 // export the namespace by default
