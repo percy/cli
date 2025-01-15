@@ -5,6 +5,7 @@ import serializeDOM from '@percy/dom';
 describe('serializeFrames', () => {
   let serialized, cache = { shadow: {}, plain: {} };
 
+  // to get the frames
   const getFrame = (id, dom = document) => when(() => {
     let $frame = dom.getElementById(id);
     let accessible = !!$frame.contentDocument;
