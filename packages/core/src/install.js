@@ -175,7 +175,7 @@ export function chromium({
   });
 }
 
-// default chromium revisions corresponds to v123.0.6312.58
+// default chromium revisions corresponds to v126.0.6478.184
 chromium.revisions = {
   linux: '1300309',
   win64: '1300297',

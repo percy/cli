@@ -587,7 +587,7 @@ describe('Discovery', () => {
     await percy.idle();
 
     expect(server.requests.map(r => r[0]))
-      .toEqual(['/', '/script.js', '/test.json', '/favicon.ico']);
+      .toEqual(['/', '/script.js', '/test.json']);
 
     expect(captured[0]).not.toEqual(jasmine.arrayContaining([
       jasmine.objectContaining({
@@ -1545,7 +1545,6 @@ describe('Discovery', () => {
     let authDOM = testDOM.replace('img.gif', 'auth/img.gif');
 
     beforeEach(() => {
-      jasmine.DEFAULT_TIMEOUT_INTERVAL = 40000;
       server.reply('/auth/img.gif', ({ headers: { authorization } }) => {
         if (authorization === 'Basic dGVzdDo=') {
           return [200, 'image/gif', pixel];
@@ -1793,7 +1792,7 @@ describe('Discovery', () => {
 
       // only one request for each resource should be made
       let paths = server.requests.map(r => r[0]);
-      expect(paths.sort()).toEqual(['/favicon.ico', '/img.gif', '/style.css']);
+      expect(paths.sort()).toEqual(['/img.gif', '/style.css']);
 
       // both snapshots' captured resources should match
       // the first captured resource is the log file which is dynamic
@@ -1811,7 +1810,7 @@ describe('Discovery', () => {
 
       // two requests for each resource should be made (opposite of prev test)
       let paths = server.requests.map(r => r[0]);
-      expect(paths.sort()).toEqual(['/favicon.ico', '/img.gif', '/img.gif', '/style.css', '/style.css']);
+      expect(paths.sort()).toEqual(['/img.gif', '/img.gif', '/style.css', '/style.css']);
 
       // bot snapshots' captured resources should match
       // the first captured resource is the log file which is dynamic

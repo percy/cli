@@ -1233,7 +1233,7 @@ describe('Snapshot', () => {
       await percy.idle();
 
       let dom = i => Buffer.from((
-        api.requests['/builds/123/resources'][i * 3]
+        api.requests['/builds/123/resources'][i * 2]
           .body.data.attributes['base64-content']
       ), 'base64').toString();
 
@@ -1419,7 +1419,7 @@ describe('Snapshot', () => {
       ].join(''));
 
       expect(Buffer.from((
-        api.requests['/builds/123/resources'][3]
+        api.requests['/builds/123/resources'][2]
           .body.data.attributes['base64-content']
       ), 'base64').toString()).toMatch([
         '<p>beforeResize - 400</p>',
@@ -1527,9 +1527,9 @@ describe('Snapshot', () => {
       ).toString()).filter(s => s.startsWith('<'));
 
       expect(html[0]).toMatch('wait for timeout');
-      expect(html[2]).toMatch('wait for selector');
-      expect(html[4]).toMatch('wait for xpath');
-      expect(html[6]).toMatch('wait for callback');
+      expect(html[1]).toMatch('wait for selector');
+      expect(html[2]).toMatch('wait for xpath');
+      expect(html[3]).toMatch('wait for callback');
     });
 
     it('can execute scripts that scroll to the bottom of the page', async () => {
