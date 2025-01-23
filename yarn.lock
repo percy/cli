@@ -2299,6 +2299,26 @@
     node-addon-api "^3.2.1"
     node-gyp-build "^4.3.0"
 
+"@percy/config@1.30.7-beta.1":
+  version "1.30.7-beta.1"
+  resolved "https://registry.yarnpkg.com/@percy/config/-/config-1.30.7-beta.1.tgz#a2ef881366ece87d60e371dd985b20ce4dadee93"
+  integrity sha512-jZr+q6a5vHbN8GLgr477DuyNCN44AqilOVftyXuOop/BXA/GWyY0tGpU+rdv50X2FcCAxhAh54AvrFlfx8v8Fg==
+  dependencies:
+    "@percy/logger" "1.30.7-beta.1"
+    ajv "^8.6.2"
+    cosmiconfig "^8.0.0"
+    yaml "^2.0.0"
+
+"@percy/logger@1.30.7-beta.1":
+  version "1.30.7-beta.1"
+  resolved "https://registry.yarnpkg.com/@percy/logger/-/logger-1.30.7-beta.1.tgz#0aef58374ddde26f72cbc5bea60c1942ed1842df"
+  integrity sha512-oOD8C5YqjXgLM0uFki3nmhkevzxuqKr2pukw9Y+GXtbrTbNiZ2WoDLvNyhVgvZe0EA295PKbJCi705jU6WPUxA==
+
+"@percy/sdk-utils@1.30.7-beta.1":
+  version "1.30.7-beta.1"
+  resolved "https://registry.yarnpkg.com/@percy/sdk-utils/-/sdk-utils-1.30.7-beta.1.tgz#296295bbb8b93309f3694c04e18011ed310e9727"
+  integrity sha512-LnaQwIP2093Msalja1L4SIrXQ0UitbkIFOxPV1W5VfObD2hK+V7vm26ZIaOBsQvBJDnUbFPk7wbAD8C2JfxjPQ==
+
 "@phenomnomnominal/tsquery@4.1.1":
   version "4.1.1"
   resolved "https://registry.yarnpkg.com/@phenomnomnominal/tsquery/-/tsquery-4.1.1.tgz#42971b83590e9d853d024ddb04a18085a36518df"
@@ -8180,6 +8200,11 @@ supports-preserve-symlinks-flag@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/supports-preserve-symlinks-flag/-/supports-preserve-symlinks-flag-1.0.0.tgz#6eda4bd344a3c94aea376d4cc31bc77311039e09"
   integrity sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==
+
+systeminformation@^5.25.11:
+  version "5.25.11"
+  resolved "https://registry.yarnpkg.com/systeminformation/-/systeminformation-5.25.11.tgz#7d47a14dafbc9cf6c21bc02d19a2121a8c770d88"
+  integrity sha512-jI01fn/t47rrLTQB0FTlMCC+5dYx8o0RRF+R4BPiUNsvg5OdY0s9DKMFmJGrx5SwMZQ4cag0Gl6v8oycso9b/g==
 
 table@^6.0.9:
   version "6.7.1"
