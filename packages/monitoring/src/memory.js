@@ -1,37 +1,51 @@
-import os from 'os'
-import fs from 'fs'
+import fs from 'fs';
+import si from 'systeminformation';
+import logger from '@percy/logger';
 
-const CGROUP_MEMORY_CURRENT = '/sys/fs/cgroup/memory.current'
-const CGROUP_MEMORY_MAX = '/sys/fs/cgroup/memory.max'
-const CGROUP_FILES = [CGROUP_MEMORY_CURRENT, CGROUP_MEMORY_MAX]
+const CGROUP_MEMORY_CURRENT = '/sys/fs/cgroup/memory.current';
+const CGROUP_MEMORY_MAX = '/sys/fs/cgroup/memory.max';
+const CGROUP_FILES = [CGROUP_MEMORY_CURRENT, CGROUP_MEMORY_MAX];
+const log = logger('monitoring:memory');
 
-async function getMemoryUsageInfo(os, { containerLevel, machineLevel=true}) {
-  if (os.includes('linux') && cgroupExists()) {
-    return await getLinuxMemoryUsage()
-  } else {
-    return await getMemoryUsage()
+async function getMemoryUsageInfo(os, { containerLevel, machineLevel = true }) {
+  try {
+    if (os.includes('linux') && cgroupExists()) {
+      // TODO: Try to handle the fallback method
+      // this throws error
+      return await getLinuxMemoryUsage();
+    } else {
+      return await getMemoryUsage();
+    }
+  } catch (error) {
+    // TODO: gojo error
+    log.debug('Error: ', error);
+    return null;
   }
 }
 
 function cgroupExists() {
   // Check if cgroup files are avaiable for not
-  let cgroupExists = true
-  for (file in CGROUP_FILES) {
-    cgroupExists &&= fs.existsSync(file)
+  let cgroupExists = true;
+  for (const file in CGROUP_FILES) {
+    cgroupExists &&= fs.existsSync(file);
   }
-  return cgroupExists
+  return cgroupExists;
 }
 
+/**
+ * get memory usage using linux c_group ( control group )
+ */
 async function getLinuxMemoryUsage() {
-  try {
-    const maxAllocatedMemory = fs.readFileSync(CGROUP_MEMORY_MAX)
-    const currentMemoryUsage = fs.readFileSync(CGROUP_MEMORY_CURRENT)
-    return (currentMemoryUsage/maxAllocatedMemory) * 100
-  } catch (error) {
-    // TOOD: LOG here gojo
-    console.log('--->> error gojo ', error)
-    return null
-  }
+  // TODO: if memory_max == max ( take system max value )
+  let maxAllocatedMemory = fs.readFileSync(CGROUP_MEMORY_MAX);
+
+  // When there is no limit set, it's the max value
+  if (maxAllocatedMemory === 'max') {
+    maxAllocatedMemory = await si.mem().total;
+  } else maxAllocatedMemory = parseInt(maxAllocatedMemory);
+
+  const currentMemoryUsage = parseInt(fs.readFileSync(CGROUP_MEMORY_CURRENT));
+  return (currentMemoryUsage / maxAllocatedMemory) * 100;
 }
 
 /**
@@ -41,18 +55,18 @@ async function getLinuxMemoryUsage() {
  */
 async function getMemoryUsage() {
   // Get total and free memory
-  const totalMemory = os.totalmem()
-  const freeMemory = os.freemem()
+  const memInfo = await si.mem();
+  const totalMemory = memInfo.total;
+  const freeMemory = memInfo.available;
+
   // Calculate memory usage percentage
   const usedMemory = totalMemory - freeMemory;
   const memoryUsagePercentage = (usedMemory / totalMemory) * 100;
 
-  //TODO: remove this gojo
-  console.log(`Total Memory: ${(totalMemory / (1024 ** 3)).toFixed(2)} GB`);
-  console.log(`Used Memory: ${(usedMemory / (1024 ** 3)).toFixed(2)} GB`);
-  console.log(`Memory Usage: ${memoryUsagePercentage.toFixed(2)}%`);
-  return memoryUsagePercentage
+  return {
+    usagePercent: memoryUsagePercentage.toFixed(2)
+  };
 }
 export {
   getMemoryUsageInfo
-}
+};

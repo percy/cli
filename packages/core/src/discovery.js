@@ -355,7 +355,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
 // one concurrently. When skipping asset discovery, the callback is called immediately for each
 // snapshot, also processing snapshot resources when not dry-running.
 export async function* discoverSnapshotResources(queue, options, callback) {
-  let { snapshots, skipDiscovery, dryRun } = options;
+  let { snapshots, skipDiscovery, dryRun, checkAndUpdateConcurrency } = options;
 
   yield* yieldAll(snapshots.reduce((all, snapshot) => {
     debugSnapshotOptions(snapshot);
@@ -368,6 +368,8 @@ export async function* discoverSnapshotResources(queue, options, callback) {
         callback(dryRun ? snap : processSnapshotResources(snap));
       }
     } else {
+      // update concurrency before pushing new job in discovery queue
+      checkAndUpdateConcurrency();
       all.push(queue.push(snapshot, callback));
     }
 

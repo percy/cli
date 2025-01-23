@@ -31,6 +31,10 @@ import { WaitForJob } from './wait-for-job.js';
 
 const MAX_SUGGESTION_CALLS = 10;
 
+// If no activity is done for 5 mins, we will stop monitoring
+// system metric eg: (cpu load && memory usage)
+const MONITOR_ACTIVITY_TIMEOUT = 300000;
+
 // A Percy instance will create a new build when started, handle snapshot creation, asset discovery,
 // and resource uploads, and will finalize the build when stopped. Snapshots are processed
 // concurrently and the build is not finalized until all snapshots have been handled.
@@ -108,16 +112,39 @@ export class Percy {
     this.browser = new Browser(this);
 
     this.#discovery = createDiscoveryQueue(this);
+    this.discoveryMaxConcurrency = this.#discovery.concurrency;
     this.#snapshots = createSnapshotsQueue(this);
 
-    // let monitoring = new Monitoring()
-    // console.log('---------->> percy gojo ', monitoring.startMonitoring())
+    this.monitoring = new Monitoring();
+    // used continue monitoring if there is activity going on
+    // if there is none, stop it
+    this.resetMonitoringId = null;
+
     // generator methods are wrapped to autorun and return promises
     for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot', 'upload']) {
       // the original generator can be referenced with percy.yield.<method>
       let method = (this.yield ||= {})[m] = this[m].bind(this);
       this[m] = (...args) => generatePromise(method(...args));
     }
+  }
+
+  async configureSystemMonitor() {
+    await this.monitoring.startMonitoring();
+    this.resetSystemMonitor();
+  }
+
+  // Debouncing logic to only stop Monitoring system
+  // if there is no any activity for 5 mins
+  // means, no job is pushed in queue from 5 mins
+  resetSystemMonitor() {
+    if (this.resetMonitoringId) {
+      clearTimeout(this.resetMonitoringId);
+      this.resetMonitoringId = null;
+    }
+
+    this.resetMonitoringId = setTimeout(() => {
+      this.monitoring.stopMonitoring();
+    }, MONITOR_ACTIVITY_TIMEOUT);
   }
 
   // Shortcut for controlling the global logger's log level.
@@ -170,6 +197,7 @@ export class Percy {
     if (this.readyState != null) return;
     this.readyState = 0;
     this.cliStartTime = new Date().toISOString();
+    await this.configureSystemMonitor();
 
     try {
       if (process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {
@@ -301,11 +329,46 @@ export class Percy {
       this.log.error(err);
       throw err;
     } finally {
+      // stop monitoring system metric, if not already stopped
+      this.monitoring.stopMonitoring();
+
       // This issue doesn't comes under regular error logs,
       // it's detected if we just and stop percy server
       await this.checkForNoSnapshotCommandError();
       await this.sendBuildLogs();
     }
+  }
+
+  checkAndUpdateConcurrency() {
+    // start system monitoring if not already doing...
+    // TODO: Check this once, this might cause problem with async
+    // for cpu load we need 1 sec wait to get % cpu load
+    if (!this.monitoring.running) this.monitoring.startMonitoring();
+
+    const { cpuInfo, memoryUsageInfo } = this.monitoring.getMonitoringInfo();
+    if (cpuInfo.usagePercent >= 80 || memoryUsageInfo.usagePercent >= 80) {
+      let currentConcurrent = this.#discovery.concurrency;
+
+      // concurrency must be betweeen [1, (default/user defined value)]
+      let newConcurrency = Math.max(1, parseInt(currentConcurrent / 2));
+      newConcurrency = Math.min(this.discoveryMaxConcurrency, newConcurrency);
+
+      this.log.debug(`Downscaling discovery browser concurrency from ${this.#discovery.concurrency} to ${newConcurrency}`);
+      this.#discovery.set({ concurrency: newConcurrency });
+    } else if (cpuInfo.usagePercent <= 50 && memoryUsageInfo.usagePercent <= 50) {
+      let currentConcurrent = this.#discovery.concurrency;
+      let newConcurrency = currentConcurrent + 2;
+
+      // concurrency must be betweeen [1, (default/user-defined value)]
+      newConcurrency = Math.min(this.discoveryMaxConcurrency, newConcurrency);
+      newConcurrency = Math.max(1, newConcurrency);
+
+      this.log.debug(`Upscaling discovery browser concurrency from ${this.#discovery.concurrency} to ${newConcurrency}`);
+      this.#discovery.set({ concurrency: newConcurrency });
+    }
+
+    // reset timeout to stop monitoring after no-activity of 5 mins
+    this.resetSystemMonitor();
   }
 
   // Takes one or more snapshots of a page while discovering resources to upload with the resulting
@@ -354,7 +417,7 @@ export class Percy {
         yield* discoverSnapshotResources(this.#discovery, {
           skipDiscovery: this.skipDiscovery,
           dryRun: this.dryRun,
-
+          checkAndUpdateConcurrency: this.checkAndUpdateConcurrency.bind(this),
           snapshots: yield* gatherSnapshots(options, {
             meta: { build: this.build },
             config: this.config
