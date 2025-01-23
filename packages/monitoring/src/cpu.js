@@ -122,7 +122,7 @@ async function getCPULoad() {
   const initialCpuUsage = await computeCpuUsageStats();
   // wait for 1 second, to connect cpu load for 10^6 micro-second
   // ie. 1 second
-  await new Promise((res) => setTimeout(res(), 1000));
+  await new Promise((res) => setTimeout(() => res(), 1000));
 
   const finalCpuUsage = await computeCpuUsageStats();
 
