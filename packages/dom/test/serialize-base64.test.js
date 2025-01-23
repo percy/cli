@@ -8,6 +8,8 @@ describe('serializeBase64', () => {
     it(`${platform}: serializes base64 elements`, async () => {
       withExample(`
       <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEU" id="img">
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEU" id="img2">
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhE2" id="diff_img">
       `);
 
       serialized = serializeDOM();
@@ -15,11 +17,28 @@ describe('serializeBase64', () => {
 
       expect($('#img')[0].getAttribute('src'))
         .toMatch('/__serialized__/\\w+\\.png');
+      expect($('#img2')[0].getAttribute('src'))
+        .toMatch('/__serialized__/\\w+\\.png');
+      expect($('#diff_img')[0].getAttribute('src'))
+        .toMatch('/__serialized__/\\w+\\.png');
+      // both img and img2 refer to same resource as its same content
+      expect($('#img')[0].getAttribute('src'))
+        .toMatch($('#img2')[0].getAttribute('src'));
+
       expect(serialized.resources).toContain(jasmine.objectContaining({
         url: $('#img')[0].getAttribute('src'),
         content: 'iVBORw0KGgoAAAANSUhEU',
         mimetype: 'image/png'
       }));
+
+      expect(serialized.resources).toContain(jasmine.objectContaining({
+        url: $('#diff_img')[0].getAttribute('src'),
+        content: 'iVBORw0KGgoAAAANSUhE2',
+        mimetype: 'image/png'
+      }));
+
+      // even though we have 3 images - we have 2 unique base64 sha's
+      expect(serialized.resources.length).toEqual(2);
     });
 
     it(`${platform}: serializes SVGAnimatedString having base64`, async () => {
