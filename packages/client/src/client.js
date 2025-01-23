@@ -380,8 +380,10 @@ export class PercyClient {
           sha: resource.sha,
           ...meta
         };
-        yield this.uploadResource(buildId, resource, resourceMeta);
-        this.log.debug(`Uploaded resource ${resource.url}`, resourceMeta);
+        yield this.uploadResource(buildId, resource, resourceMeta).then((result) => {
+          this.log.debug(`Uploaded resource ${resource.url}`, resourceMeta);
+          return result;
+        });
       }
     }, this, uploadConcurrency);
   }

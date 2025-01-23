@@ -16,7 +16,7 @@ import { handleErrors } from './utils';
 const ignoreTags = ['NOSCRIPT'];
 
 export function cloneNodeAndShadow(ctx) {
-  let { dom, disableShadowDOM, resources } = ctx;
+  let { dom, disableShadowDOM, resources, cache } = ctx;
   // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
     try {
@@ -37,7 +37,7 @@ export function cloneNodeAndShadow(ctx) {
       // We apply any element transformations here to avoid another treeWalk
       applyElementTransformations(clone);
 
-      serializeBase64(clone, resources);
+      serializeBase64(clone, resources, cache);
 
       parent.appendChild(clone);
 

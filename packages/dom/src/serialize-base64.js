@@ -12,7 +12,7 @@ function getBase64Substring(src) {
   return src.substring(base64Index);
 }
 
-export function serializeBase64(node, resources) {
+export function serializeBase64(node, resources, cache) {
   let src = node.src;
   let isHrefUsed = false;
 
@@ -27,15 +27,23 @@ export function serializeBase64(node, resources) {
   let base64String = getBase64Substring(src.toString());
   // skip if src is not base64
   if (base64String == null) return;
-
-  // create a resource from the serialized data url
-  let resource = resourceFromText(uid(), mimetype, base64String);
-  resources.add(resource);
+  if (!cache.has(base64String)) {
+    // create a resource from the serialized data url
+    let resource = resourceFromText(uid(), mimetype, base64String);
+    resources.add(resource);
+    cache.set(base64String, resource.url);
+  }
 
   if (isHrefUsed === true) {
-    node.href.baseVal = resource.url;
+    node.href.baseVal = cache.get(base64String);
   } else {
-    node.src = resource.url;
+    // we use data-percy-serialized-attribute-src here instead of `src`.
+    // As soon as src is used the browser will try to load the resource,
+    // thus making a network call which would fail as this is a
+    // dynamic cached resource and not a resource that backend can serve.
+    // we later post converting domtree to html replace this with src
+    node.removeAttribute('src');
+    node.setAttribute('data-percy-serialized-attribute-src', cache.get(base64String));
   }
 }
 
