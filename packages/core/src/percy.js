@@ -26,6 +26,7 @@ import {
   discoverSnapshotResources,
   createDiscoveryQueue
 } from './discovery.js';
+import Monitoring from '@percy/monitoring';
 import { WaitForJob } from './wait-for-job.js';
 
 const MAX_SUGGESTION_CALLS = 10;
@@ -109,6 +110,8 @@ export class Percy {
     this.#discovery = createDiscoveryQueue(this);
     this.#snapshots = createSnapshotsQueue(this);
 
+    // let monitoring = new Monitoring()
+    // console.log('---------->> percy gojo ', monitoring.startMonitoring())
     // generator methods are wrapped to autorun and return promises
     for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot', 'upload']) {
       // the original generator can be referenced with percy.yield.<method>
