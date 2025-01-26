@@ -254,6 +254,7 @@ describe('Percy', () => {
 
       await expectAsync(percy.start()).toBeResolved();
       expect(mockPercyMonitoring).not.toHaveBeenCalled();
+      delete process.env.PERCY_DISABLE_SYSTEM_MONITORING;
     });
 
     it('should not log CI log collection warning if PERCY_CLIENT_ERROR_LOGS is set false', async () => {
