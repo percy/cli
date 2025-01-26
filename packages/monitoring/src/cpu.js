@@ -167,7 +167,7 @@ async function getCPULoad() {
   // ideally it shouldn't happen
   if (deltaTick > 0) {
     cpuUsagePercent = (1 - deltaIdle / deltaTick) * 100;
-  }
+  } else cpuUsagePercent = 0;
 
   let cores = await getTotalCores();
   return {

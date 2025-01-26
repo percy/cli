@@ -10,10 +10,15 @@ describe('getCPULoadInfo: Linux', () => {
 
   describe('when c_group exists', () => {
     let cpuMax, cpuStatCount;
+
+    // test_key is given for a coverage
+    // condition either of key or value if not
+    // present then don't consider it
     let cpuStatsBefore = `usage_usec 330229677740
                   user_usec 206352296619
                   system_usec 122171004028
                   nr_periods 0
+                  test_key
                   nr_throttled 0
                   throttled_usec 0`;
     let cpuStatsAfter = `usage_usec 330229777740
@@ -42,9 +47,9 @@ describe('getCPULoadInfo: Linux', () => {
         if (path === '/sys/fs/cgroup/cpu.stat') {
           let res = (cpuStatCount === 0) ? cpuStatsBefore : cpuStatsAfter;
           cpuStatCount++;
-          return Promise.resolve(res); // Mocked cpu.stat content
+          return Promise.resolve(res);
         }
-        return Promise.reject(new Error(`File not readable: ${path}`)); // Default
+        return Promise.reject(new Error(`File not readable: ${path}`));
       });
 
       mockOs = spyOn(os, 'cpus').and.callThrough();
@@ -94,11 +99,35 @@ describe('getCPULoadInfo: Linux', () => {
       });
     });
 
+    describe('when cpu usage_usec do not changed', () => {
+      beforeEach(() => {
+        cpuMax = '3500000 1000000';
+        mockFsRead = spyOn(fs, 'readFile').and.callFake((path) => {
+          if (path === '/sys/fs/cgroup/cpu.max') {
+            return Promise.resolve(cpuMax);
+          }
+          if (path === '/sys/fs/cgroup/cpu.stat') {
+            return Promise.resolve(cpuStatsBefore);
+          }
+          return Promise.reject(new Error(`File not readable: ${path}`));
+        });
+      });
+
+      it('return cpu usage as 0%', async () => {
+        const cpuInfo = await getCPULoadInfo(platform);
+        expect(cpuInfo).toEqual({
+          cores: 3.5,
+          currentUsagePercent: 0,
+          cgroupExists: true
+        });
+      });
+    });
+
     describe('throws unexpected error', () => {
       beforeEach(() => {
         mockFsRead = spyOn(fs, 'readFile').and.callFake((path) => {
           if (path === '/sys/fs/cgroup/cpu.max') {
-            return Promise.resolve(cpuMax); // Mocked cpu.max content
+            return Promise.resolve(undefined);
           }
 
           if (path === '/sys/fs/cgroup/cpu.stat') {
