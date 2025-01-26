@@ -34,6 +34,7 @@ const MAX_SUGGESTION_CALLS = 10;
 // If no activity is done for 5 mins, we will stop monitoring
 // system metric eg: (cpu load && memory usage)
 const MONITOR_ACTIVITY_TIMEOUT = 300000;
+const MONITORING_INTERVAL_MS = 5000; // 5 sec
 
 // A Percy instance will create a new build when started, handle snapshot creation, asset discovery,
 // and resource uploads, and will finalize the build when stopped. Snapshots are processed
@@ -119,6 +120,7 @@ export class Percy {
     // used continue monitoring if there is activity going on
     // if there is none, stop it
     this.resetMonitoringId = null;
+    this.monitoringCheckLastExecutedAt = null;
 
     // generator methods are wrapped to autorun and return promises
     for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot', 'upload']) {
@@ -129,7 +131,7 @@ export class Percy {
   }
 
   async configureSystemMonitor() {
-    await this.monitoring.startMonitoring();
+    await this.monitoring.startMonitoring({ interval: MONITORING_INTERVAL_MS });
     this.resetSystemMonitor();
   }
 
@@ -197,9 +199,12 @@ export class Percy {
     if (this.readyState != null) return;
     this.readyState = 0;
     this.cliStartTime = new Date().toISOString();
-    await this.configureSystemMonitor();
 
     try {
+      // started monitoring system metrics
+      await this.configureSystemMonitor();
+      await this.monitoring.logSystemInfo();
+
       if (process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {
         this.log.warn('Notice: Percy collects CI logs to improve service and enhance your experience. These logs help us debug issues and provide insights on your dashboards, making it easier to optimize the product experience. Logs are stored securely for 30 days. You can opt out anytime with export PERCY_CLIENT_ERROR_LOGS=false, but keeping this enabled helps us offer the best support and features.');
       }
@@ -341,12 +346,20 @@ export class Percy {
 
   checkAndUpdateConcurrency() {
     // start system monitoring if not already doing...
-    // TODO: Check this once, this might cause problem with async
-    // for cpu load we need 1 sec wait to get % cpu load
-    if (!this.monitoring.running) this.monitoring.startMonitoring();
+    // this doesn't handle cases where there is suggest cpu spikes
+    // in less 1 sec range and if monitoring is not in running state
+    if (this.monitoringCheckLastExecutedAt && Date.now() - this.monitoringCheckLastExecutedAt < MONITORING_INTERVAL_MS) return;
 
+    if (!this.monitoring.running) this.configureSystemMonitor();
+    else this.resetSystemMonitor();
+
+    // early return if last executed was less than 5 seconds
+    // as we will get the same cpu/mem info under 5 sec interval
     const { cpuInfo, memoryUsageInfo } = this.monitoring.getMonitoringInfo();
-    if (cpuInfo.usagePercent >= 80 || memoryUsageInfo.usagePercent >= 80) {
+    this.log.debug(`cpuInfo: ${JSON.stringify(cpuInfo)}`);
+    this.log.debug(`memoryInfo: ${JSON.stringify(memoryUsageInfo)}`);
+
+    if (cpuInfo.currentUsagePercent >= 80 || memoryUsageInfo.currentUsagePercent >= 80) {
       let currentConcurrent = this.#discovery.concurrency;
 
       // concurrency must be betweeen [1, (default/user defined value)]
@@ -355,7 +368,7 @@ export class Percy {
 
       this.log.debug(`Downscaling discovery browser concurrency from ${this.#discovery.concurrency} to ${newConcurrency}`);
       this.#discovery.set({ concurrency: newConcurrency });
-    } else if (cpuInfo.usagePercent <= 50 && memoryUsageInfo.usagePercent <= 50) {
+    } else if (cpuInfo.currentUsagePercent <= 50 && memoryUsageInfo.currentUsagePercent <= 50) {
       let currentConcurrent = this.#discovery.concurrency;
       let newConcurrency = currentConcurrent + 2;
 
@@ -369,6 +382,7 @@ export class Percy {
 
     // reset timeout to stop monitoring after no-activity of 5 mins
     this.resetSystemMonitor();
+    this.monitoringCheckLastExecutedAt = Date.now();
   }
 
   // Takes one or more snapshots of a page while discovering resources to upload with the resulting

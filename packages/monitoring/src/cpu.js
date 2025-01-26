@@ -1,41 +1,40 @@
-
 import os from 'os';
-import fs from 'fs';
+import si from 'systeminformation';
+import { promises as fs } from 'fs';
 import logger from '@percy/logger';
+import { pathsExist } from './utils.js';
 
-const CGROUP_CPU_STATS = '/sys/fs/cgroup/cput.stats';
+const CGROUP_CPU_STATS = '/sys/fs/cgroup/cpu.stat';
 const CGROUP_CPU_MAX = '/sys/fs/cgroup/cpu.max';
 const CGROUP_FILES = [CGROUP_CPU_MAX, CGROUP_CPU_STATS];
 const log = logger('monitoring:cpu');
 
-async function getCPULoadInfo(os, { containerLevel, machineLevel = true }) {
+/**
+ * Retrieves CPU information.
+ * @param {*} os - The OS module (if needed, otherwise remove this parameter).
+ * @param {*} param1 - An object containing CPU details.
+ * @returns {{ currentUsagePercent: number, cores: number, cgroupExists: boolean }} CPU information.
+ */
+async function getCPULoadInfo(os) {
   try {
-    if (os.includes('linux') && cgroupExists()) {
+    if (os.includes('linux') && await pathsExist(CGROUP_FILES)) {
       return await getLinuxCPULoad();
     } else {
       return await getCPULoad();
     }
   } catch (error) {
     // Don't raise this error to avoid user build failure
+    // show error in debug mode only
     log.debug('Error: ', error);
-    return null;
+    return {};
   }
-}
-
-function cgroupExists() {
-  // Check if cgroup files are avaiable for not
-  let cgroupExists = true;
-  for (const file in CGROUP_FILES) {
-    cgroupExists &&= fs.existsSync(file);
-  }
-  return cgroupExists;
 }
 
 /**
  * reading cpu stats from cgroup files
  */
-function readCpuStatFromCgroup() {
-  const content = fs.readFileSync(CGROUP_CPU_STATS, 'utf8');
+async function readCpuStatFromCgroup() {
+  const content = await fs.readFile(CGROUP_CPU_STATS, 'utf8');
   const stats = {};
 
   // Parse the cpu.stat file
@@ -49,38 +48,54 @@ function readCpuStatFromCgroup() {
   return stats;
 }
 
-/**
- * linux cpu load is calculated is same for
- * containerLevel and machineLevel
- */
-async function getLinuxCPULoad() {
+async function getTotalCores() {
+  let availableCPUs = (await si.cpu()).cores;
+
   try {
     // Read cpu.max for quota and period
-    const cpuMaxContent = fs.readFileSync(CGROUP_CPU_MAX, 'utf8');
+    const cpuMaxContent = await fs.readFile(CGROUP_CPU_MAX, 'utf8');
     const [quotaStr, periodStr] = cpuMaxContent.trim().split(' ');
-    let quota, period, availableCPUs;
+    let quota, period;
 
-    if (quotaStr === 'max') {
-      // No quota set, use the number of physical CPUs
-      const physicalCPUs = os.cpus().length;
-      quota = null; // Indicate no quota
-      period = null; // Indicate no period
-      availableCPUs = physicalCPUs;
-    } else {
+    if (quotaStr !== 'max') {
       // Parse quota and period values
       quota = parseInt(quotaStr);
       period = parseInt(periodStr);
       availableCPUs = quota / period;
     }
+  } catch (error) {
+    // supressing this err, as we will use fallback system
+    // level cpu details
+  }
+  return availableCPUs;
+}
+
+async function getClientCPUDetails() {
+  const cores = await getTotalCores();
+
+  return {
+    arch: os.arch(),
+    cores
+  };
+}
+
+/**
+ * linux cpu load is calculated is same for
+ * containerLevel and machineLevel
+ * @returns {{ currentUsagePercent: number, cores: number }} CPU information.
+ */
+async function getLinuxCPULoad() {
+  try {
+    const availableCPUs = await getTotalCores();
 
     // Get first CPU usage reading
-    const startStats = readCpuStatFromCgroup();
+    const startStats = await readCpuStatFromCgroup();
 
     // Wait for 1 second, ie 10^6 microsecod
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Get second CPU usage reading
-    const endStats = readCpuStatFromCgroup();
+    const endStats = await readCpuStatFromCgroup();
 
     // Calculate CPU usage
     const usageDelta = endStats.usage_usec - startStats.usage_usec;
@@ -92,15 +107,28 @@ async function getLinuxCPULoad() {
     const cpuPercent = (usageDelta / (1_000_000 * availableCPUs)) * 100;
 
     return {
-      availableCPUs,
-      usagePercent: cpuPercent
+      cores: availableCPUs,
+      currentUsagePercent: cpuPercent,
+      cgroupExists: true
     };
   } catch (error) {
     // TODO: Log error here
-    return null;
+    log.debug('Linux c_group cpu usage error:', error);
+    // using fallback method to get details
+    return await getCPULoad();
   }
 }
 
+/**
+ * Each cpu.times has following 4 details
+ * {
+    user: time spent running user code
+    nice: time spent running user code at low priority
+    sys: time spent running system/kernel code
+    idle: time CPU was idle
+    irq: time spent handling interrupts
+  }
+ */
 async function computeCpuUsageStats() {
   let totalTickTime = 0;
   let totalIdleTime = 0;
@@ -117,12 +145,13 @@ async function computeCpuUsageStats() {
  * this is a fallback method, if
  * 1. For LINUX, we can't find cgroup details
  * 2. For Win/OSX operating system
+ * @returns {{ currentUsagePercent: number, cores: number, cgroupExists: boolean }}
  */
 async function getCPULoad() {
   const initialCpuUsage = await computeCpuUsageStats();
   // wait for 1 second, to connect cpu load for 10^6 micro-second
   // ie. 1 second
-  await new Promise((res) => setTimeout(() => res(), 1000));
+  await new Promise(res => setTimeout(res, 1000));
 
   const finalCpuUsage = await computeCpuUsageStats();
 
@@ -131,13 +160,24 @@ async function getCPULoad() {
   const deltaIdle = finalCpuUsage.totalIdleTime - initialCpuUsage.totalIdleTime;
 
   // Calculate % usage
-  const cpuUsagePercent = (1 - deltaIdle / deltaTick) * 100;
+  let cpuUsagePercent = null;
+
+  // Case: If no cpu usage is done from 1 sec, then delta will be 0
+  // raising error zero division error
+  // ideally it shouldn't happen
+  if (deltaTick > 0) {
+    cpuUsagePercent = (1 - deltaIdle / deltaTick) * 100;
+  }
+
+  let cores = await getTotalCores();
   return {
-    availableCPUs: os.cpus().length,
-    usagePercent: cpuUsagePercent
+    cores,
+    currentUsagePercent: cpuUsagePercent,
+    cgroupExists: false
   };
 }
 
 export {
-  getCPULoadInfo
+  getCPULoadInfo,
+  getClientCPUDetails
 };

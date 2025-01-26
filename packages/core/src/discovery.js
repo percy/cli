@@ -369,6 +369,8 @@ export async function* discoverSnapshotResources(queue, options, callback) {
       }
     } else {
       // update concurrency before pushing new job in discovery queue
+      // if case of monitoring is stopped due to in-activity,
+      // it can take upto 1 sec to execute this fun
       checkAndUpdateConcurrency();
       all.push(queue.push(snapshot, callback));
     }

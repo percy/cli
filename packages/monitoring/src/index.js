@@ -1,16 +1,19 @@
 
 import os from 'os';
 import fs from 'fs';
-import { getCPULoadInfo } from './cpu.js';
-import { getMemoryUsageInfo } from './memory.js';
 import logger from '@percy/logger';
+import { getCPULoadInfo, getClientCPUDetails } from './cpu.js';
+import { getMemoryUsageInfo, getClientMemoryDetails } from './memory.js';
+
 export default class Monitoring {
   constructor() {
     this.os = this.getOS();
     this.monitoringId = null;
     this.running = false;
     this.isContainer = this.isContainerLevel();
+    this.isPod = this.isPodLevel();
     this.isMachine = this.isMachineLevel();
+    this.lastExecutedAt = null;
     this.pod = this.isPodLevel();
     this.cpuInfo = {};
     this.memoryUsageInfo = {};
@@ -19,6 +22,13 @@ export default class Monitoring {
 
   getOS() {
     return os.platform();
+  }
+
+  getPercyEnv() {
+    const percyKeys = Object.keys(process.env).filter(env => env.toLowerCase().includes('percy'));
+    let envs = {};
+    percyKeys.forEach((env) => { envs[env] = process.env[env]; });
+    return envs;
   }
 
   isContainerLevel() {
@@ -33,17 +43,27 @@ export default class Monitoring {
     return !this.isContainerLevel();
   }
 
+  async logSystemInfo() {
+    const cpu = await getClientCPUDetails();
+    const mem = await getClientMemoryDetails();
+
+    this.log.debug(`[Operating System] Platform: ${this.os}, Type: ${os.type()}, Release: ${os.release()}`);
+    this.log.debug(`[CPU] Arch: ${cpu.arch}, cores: ${cpu.cores}`);
+    this.log.debug(`[Memory] Total: ${mem.total / (1024 ** 3)} gb, Swap Space: ${mem.swaptotal / (1024 ** 3)} gb`);
+    this.log.debug(`Container Level: ${this.isContainer}, Pod Level: ${this.isPod}, Machine Level: ${this.isMachine}`);
+  }
+
   /**
    * It will start monitoring at certain interval
    * by default every 5 seconds
    */
-  async startMonitoring(interval = 5000) {
+  async startMonitoring(options = {}) {
+    const { interval = 5000 } = options;
     // early return if already monitoring
     if (this.monitoringId) return;
 
     await this.executeMonitoring();
     this.monitoringId = setInterval(() => {
-      // Let it be async
       this.executeMonitoring();
     }, interval);
     this.log.debug('Started monitoring sytem metrics');
@@ -53,6 +73,7 @@ export default class Monitoring {
     this.running = true;
     await this.monitoringCPULoad();
     await this.monitorMemoryUsage();
+    this.lastExecutedAt = Date.now();
   }
 
   stopMonitoring() {
@@ -62,21 +83,18 @@ export default class Monitoring {
       this.cpuInfo = {};
       this.memoryUsageInfo = {};
       this.running = false;
+      this.lastExecutedAt = null;
       this.log.debug('Stopped monitoring sytem metrics');
     }
   }
 
   async monitoringCPULoad() {
     const cpuInfo = await getCPULoadInfo(this.os, { containerLevel: this.isContainer, machineLevel: this.isMachine });
-    // TODO: GOJO remove this
     this.cpuInfo = cpuInfo;
-    console.log('--->> cpu info', cpuInfo);
   }
 
   async monitorMemoryUsage() {
     const memoryInfo = await getMemoryUsageInfo(this.os, { containerLevel: this.isContainer, machineLevel: this.isMachine });
-    // TODO: GOJO remove this
-    console.log('mem info -->> ', memoryInfo);
     this.memoryUsageInfo = memoryInfo;
   }
 
