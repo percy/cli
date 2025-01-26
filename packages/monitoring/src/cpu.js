@@ -15,12 +15,12 @@ const log = logger('monitoring:cpu');
  * @param {*} param1 - An object containing CPU details.
  * @returns {{ currentUsagePercent: number, cores: number, cgroupExists: boolean }} CPU information.
  */
-async function getCPULoadInfo(os) {
+async function getCPUUsageInfo(os) {
   try {
     if (os.includes('linux') && await pathsExist(CGROUP_FILES)) {
-      return await getLinuxCPULoad();
+      return await getLinuxCPUUsage();
     } else {
-      return await getCPULoad();
+      return await getCPUUsage();
     }
   } catch (error) {
     // Don't raise this error to avoid user build failure
@@ -84,7 +84,7 @@ async function getClientCPUDetails() {
  * containerLevel and machineLevel
  * @returns {{ currentUsagePercent: number, cores: number }} CPU information.
  */
-async function getLinuxCPULoad() {
+async function getLinuxCPUUsage() {
   try {
     const availableCPUs = await getTotalCores();
 
@@ -115,7 +115,7 @@ async function getLinuxCPULoad() {
     // TODO: Log error here
     log.debug('Linux c_group cpu usage error:', error);
     // using fallback method to get details
-    return await getCPULoad();
+    return await getCPUUsage();
   }
 }
 
@@ -147,7 +147,7 @@ async function computeCpuUsageStats() {
  * 2. For Win/OSX operating system
  * @returns {{ currentUsagePercent: number, cores: number, cgroupExists: boolean }}
  */
-async function getCPULoad() {
+async function getCPUUsage() {
   const initialCpuUsage = await computeCpuUsageStats();
   // wait for 1 second, to connect cpu load for 10^6 micro-second
   // ie. 1 second
@@ -178,6 +178,6 @@ async function getCPULoad() {
 }
 
 export {
-  getCPULoadInfo,
+  getCPUUsageInfo,
   getClientCPUDetails
 };

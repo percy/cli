@@ -2,9 +2,9 @@ import { promises as fs } from 'fs';
 import os from 'os';
 import si from 'systeminformation';
 
-import { getCPULoadInfo, getClientCPUDetails } from '../src/cpu.js';
+import { getCPUUsageInfo, getClientCPUDetails } from '../src/cpu.js';
 
-describe('getCPULoadInfo: Linux', () => {
+describe('getCPUUsageInfo: Linux', () => {
   let platform = 'linux';
   let mockFsAccess, mockFsRead, mockOs, mockSi;
 
@@ -63,7 +63,7 @@ describe('getCPULoadInfo: Linux', () => {
       });
 
       it('returns cpu info from c group files', async () => {
-        const cpuInfo = await getCPULoadInfo(platform);
+        const cpuInfo = await getCPUUsageInfo(platform);
         expect(cpuInfo).toEqual({
           cores: 3.5,
           currentUsagePercent: 2.857142857142857,
@@ -91,7 +91,7 @@ describe('getCPULoadInfo: Linux', () => {
       });
 
       it('returns cpu info', async () => {
-        const cpuInfo = await getCPULoadInfo(platform);
+        const cpuInfo = await getCPUUsageInfo(platform);
         expect(cpuInfo).toEqual({ cores: 4, currentUsagePercent: 2.5, cgroupExists: true });
         expect(mockFsRead.calls.count()).toEqual(3);
         expect(mockFsAccess.calls.count()).toEqual(2);
@@ -118,7 +118,7 @@ describe('getCPULoadInfo: Linux', () => {
       });
 
       it('uses fallback method and returns cpu info', async () => {
-        const cpuInfo = await getCPULoadInfo(platform);
+        const cpuInfo = await getCPUUsageInfo(platform);
         expect(cpuInfo.cores).toEqual(5);
         expect(mockSi.calls.count()).toEqual(2);
 
@@ -139,7 +139,7 @@ describe('getCPULoadInfo: Linux', () => {
     });
 
     it('returns system cpu info', async () => {
-      const cpuInfo = await getCPULoadInfo(platform);
+      const cpuInfo = await getCPUUsageInfo(platform);
 
       // checking only types, as values can differ as we are
       // not mocking os.cpus on every call to give different values
@@ -159,14 +159,14 @@ describe('getCPULoadInfo: Linux', () => {
       });
 
       it('return empty object', async () => {
-        const cpuInfo = await getCPULoadInfo(platform);
+        const cpuInfo = await getCPUUsageInfo(platform);
         expect(cpuInfo).toEqual({});
       });
     });
   });
 });
 
-describe('getCPULoadInfo: OtherOS', () => {
+describe('getCPUUsageInfo: OtherOS', () => {
   let platform = 'win32';
   let mockFsAccess, mockFsRead, mockOs, mockSi;
 
@@ -178,7 +178,7 @@ describe('getCPULoadInfo: OtherOS', () => {
   });
 
   it('returns cpu useage info of system level', async () => {
-    const cpuInfo = await getCPULoadInfo(platform);
+    const cpuInfo = await getCPUUsageInfo(platform);
 
     // checking only types, as values can differ as we are
     // not mocking os.cpus on every call to give different values
@@ -217,7 +217,7 @@ describe('getCPULoadInfo: OtherOS', () => {
     });
 
     it('return cpu usage as 0%', async () => {
-      const cpuInfo = await getCPULoadInfo(platform);
+      const cpuInfo = await getCPUUsageInfo(platform);
       expect(cpuInfo).toEqual({
         cores: 5,
         currentUsagePercent: 0,

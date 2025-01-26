@@ -2,7 +2,7 @@
 import os from 'os';
 import fs from 'fs';
 import logger from '@percy/logger';
-import { getCPULoadInfo, getClientCPUDetails } from './cpu.js';
+import { getCPUUsageInfo, getClientCPUDetails } from './cpu.js';
 import { getMemoryUsageInfo, getClientMemoryDetails } from './memory.js';
 
 export default class Monitoring {
@@ -71,7 +71,7 @@ export default class Monitoring {
 
   async executeMonitoring() {
     this.running = true;
-    await this.monitoringCPULoad();
+    await this.monitoringCPUUsage();
     await this.monitorMemoryUsage();
     this.lastExecutedAt = Date.now();
   }
@@ -88,8 +88,8 @@ export default class Monitoring {
     }
   }
 
-  async monitoringCPULoad() {
-    const cpuInfo = await getCPULoadInfo(this.os, { containerLevel: this.isContainer, machineLevel: this.isMachine });
+  async monitoringCPUUsage() {
+    const cpuInfo = await getCPUUsageInfo(this.os, { containerLevel: this.isContainer, machineLevel: this.isMachine });
     this.cpuInfo = cpuInfo;
   }
 

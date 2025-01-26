@@ -97,10 +97,10 @@ describe('Monitoring', () => {
     let mockCpuUsage, mockMemUsage;
 
     beforeEach(() => {
-      mockCpuUsage = spyOn(monitoring, 'monitoringCPULoad').and.returnValue(Promise.resolve());
+      mockCpuUsage = spyOn(monitoring, 'monitoringCPUUsage').and.returnValue(Promise.resolve());
       mockMemUsage = spyOn(monitoring, 'monitorMemoryUsage').and.returnValue(Promise.resolve());
     });
-    it('calls monitoringCPULoad and monitoringMemoryUsage and update lastExecutedAt', async () => {
+    it('calls monitoringCPUUsage and monitoringMemoryUsage and update lastExecutedAt', async () => {
       monitoring.lastExecutedAt = null;
       monitoring.running = false;
       await monitoring.executeMonitoring();
@@ -112,10 +112,10 @@ describe('Monitoring', () => {
     });
   });
 
-  describe('monitoringCPULoad', () => {
+  describe('monitoringCPUUsage', () => {
     it('updates cpu info details', async () => {
       monitoring.cpuInfo = null;
-      await monitoring.monitoringCPULoad('win32');
+      await monitoring.monitoringCPUUsage('win32');
       expect(monitoring.cpuInfo).not.toEqual(null);
       expect(monitoring.cpuInfo.currentUsagePercent).not.toEqual(null);
     });
