@@ -130,6 +130,10 @@ export class Percy {
     }
   }
 
+  systemMonitoringEnabled() {
+    return (process.env.PERCY_DISABLE_SYSTEM_MONITORING !== 'true');
+  }
+
   async configureSystemMonitor() {
     await this.monitoring.startMonitoring({ interval: MONITORING_INTERVAL_MS });
     this.resetSystemMonitor();
@@ -202,8 +206,11 @@ export class Percy {
 
     try {
       // started monitoring system metrics
-      await this.configureSystemMonitor();
-      await this.monitoring.logSystemInfo();
+
+      if (this.systemMonitoringEnabled()) {
+        await this.configureSystemMonitor();
+        await this.monitoring.logSystemInfo();
+      }
 
       if (process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {
         this.log.warn('Notice: Percy collects CI logs to improve service and enhance your experience. These logs help us debug issues and provide insights on your dashboards, making it easier to optimize the product experience. Logs are stored securely for 30 days. You can opt out anytime with export PERCY_CLIENT_ERROR_LOGS=false, but keeping this enabled helps us offer the best support and features.');

@@ -20,7 +20,7 @@ describe('percy exec:start', () => {
     started = start(['--quiet']);
     started.then(() => (started = null));
     // wait until the process starts
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 3000));
     await ping();
   });
 
@@ -67,6 +67,7 @@ describe('percy exec:start', () => {
 
   it('can start on an alternate port', async () => {
     start(['--quiet', '--port=4567']);
+    await new Promise((res) => setTimeout(res, 3000));
     let response = await request('http://localhost:4567/percy/healthcheck');
     expect(response).toHaveProperty('success', true);
   });
