@@ -14,13 +14,16 @@ describe('percy exec:start', () => {
 
   beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+
+    // disabling as it increases spec time as we need to need
+    process.env.PERCY_DISABLE_SYSTEM_MONITORING='true'
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     await setupTest();
 
     started = start(['--quiet']);
     started.then(() => (started = null));
     // wait until the process starts
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise(r => setTimeout(r, 1000));
     await ping();
   });
 
@@ -29,6 +32,7 @@ describe('percy exec:start', () => {
     delete process.env.PERCY_ENABLE;
     delete process.env.PERCY_PARALLEL_TOTAL;
     delete process.env.PERCY_PARTIAL_BUILD;
+    delete process.env.PERCY_DISABLE_SYSTEM_MONITORING;
 
     // it's important that percy is still running or we terminate the test process
     if (started) process.emit('SIGTERM');
@@ -67,7 +71,6 @@ describe('percy exec:start', () => {
 
   it('can start on an alternate port', async () => {
     start(['--quiet', '--port=4567']);
-    await new Promise((res) => setTimeout(res, 3000));
     let response = await request('http://localhost:4567/percy/healthcheck');
     expect(response).toHaveProperty('success', true);
   });
