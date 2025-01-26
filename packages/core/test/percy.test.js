@@ -1561,6 +1561,7 @@ describe('Percy', () => {
 
       it('early exists', async () => {
         await percy.start();
+        percy.checkAndUpdateConcurrency();
         expect(mockConfigureSystem).not.toHaveBeenCalled();
         expect(mockRestSystemMonitor).not.toHaveBeenCalled();
       });
