@@ -6,8 +6,10 @@ import { promises as fs } from 'fs';
 
 describe('Monitoring', () => {
   let monitoring, mockExecuteMonitoring;
+  let platform = 'test_platform';
 
   beforeEach(async () => {
+    spyOn(os, 'platform').and.returnValue(platform);
     monitoring = new Monitoring();
     logger.loglevel('debug');
     process.env.PERCY_LOGLEVEL = 'debug';
@@ -83,7 +85,7 @@ describe('Monitoring', () => {
     it('logs os, cpu, memory info', async () => {
       await monitoring.logSystemInfo();
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        '[percy:monitoring] [Operating System] Platform: darwin, Type: test_type, Release: test_release',
+        '[percy:monitoring] [Operating System] Platform: test_platform, Type: test_type, Release: test_release',
         '[percy:monitoring] [CPU] Arch: test_arch, cores: 3',
         '[percy:monitoring] [Memory] Total: 9.633920457214117 gb, Swap Space: 228.49388815835118 gb',
         '[percy:monitoring] Container Level: false, Pod Level: false, Machine Level: true'
