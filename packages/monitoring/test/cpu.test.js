@@ -99,30 +99,6 @@ describe('getCPULoadInfo: Linux', () => {
       });
     });
 
-    describe('when cpu usage_usec do not changed', () => {
-      beforeEach(() => {
-        cpuMax = '3500000 1000000';
-        mockFsRead = spyOn(fs, 'readFile').and.callFake((path) => {
-          if (path === '/sys/fs/cgroup/cpu.max') {
-            return Promise.resolve(cpuMax);
-          }
-          if (path === '/sys/fs/cgroup/cpu.stat') {
-            return Promise.resolve(cpuStatsBefore);
-          }
-          return Promise.reject(new Error(`File not readable: ${path}`));
-        });
-      });
-
-      it('return cpu usage as 0%', async () => {
-        const cpuInfo = await getCPULoadInfo(platform);
-        expect(cpuInfo).toEqual({
-          cores: 3.5,
-          currentUsagePercent: 0,
-          cgroupExists: true
-        });
-      });
-    });
-
     describe('throws unexpected error', () => {
       beforeEach(() => {
         mockFsRead = spyOn(fs, 'readFile').and.callFake((path) => {
@@ -220,6 +196,34 @@ describe('getCPULoadInfo: OtherOS', () => {
     // 2 times by computeCpuUsage func
     expect(mockOs.calls.count()).toEqual(2);
     expect(mockSi.calls.count()).toEqual(1);
+  });
+
+  describe('when cpu usage do not changed', () => {
+    let mockOsCpuRespnose = [
+      {
+        model: 'test',
+        speed: 2400,
+        times: { user: 2404800, nice: 0, sys: 228740, idle: 15161730, irq: 0 }
+      },
+      {
+        model: 'test',
+        speed: 2400,
+        times: { user: 1674570, nice: 0, sys: 173760, idle: 15951820, irq: 0 }
+      }
+    ];
+
+    beforeEach(() => {
+      spyOn(os, 'cpus').and.returnValue(mockOsCpuRespnose);
+    });
+
+    it('return cpu usage as 0%', async () => {
+      const cpuInfo = await getCPULoadInfo(platform);
+      expect(cpuInfo).toEqual({
+        cores: 5,
+        currentUsagePercent: 0,
+        cgroupExists: false
+      });
+    });
   });
 });
 
