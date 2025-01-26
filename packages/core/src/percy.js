@@ -352,6 +352,9 @@ export class Percy {
   }
 
   checkAndUpdateConcurrency() {
+    // early exit if monitoring is disabled
+    if (!this.systemMonitoringEnabled()) return;
+
     // start system monitoring if not already doing...
     // this doesn't handle cases where there is suggest cpu spikes
     // in less 1 sec range and if monitoring is not in running state

@@ -236,14 +236,24 @@ describe('Percy', () => {
 
     it('logs once started', async () => {
       process.env.PERCY_CLIENT_ERROR_LOGS = true;
-      await expectAsync(percy.start()).toBeResolved();
+      let mockPercyMonitoring = spyOn(percy.monitoring, 'startMonitoring').and.callThrough();
 
+      await expectAsync(percy.start()).toBeResolved();
       expect(logger.stderr).toEqual([
         '[percy] Notice: Percy collects CI logs to improve service and enhance your experience. These logs help us debug issues and provide insights on your dashboards, making it easier to optimize the product experience. Logs are stored securely for 30 days. You can opt out anytime with export PERCY_CLIENT_ERROR_LOGS=false, but keeping this enabled helps us offer the best support and features.'
       ]);
       expect(logger.stdout).toEqual([
         '[percy] Percy has started!'
       ]);
+      expect(mockPercyMonitoring).toHaveBeenCalled();
+    });
+
+    it('should not startMonitoring when monitoring is disabled', async () => {
+      process.env.PERCY_DISABLE_SYSTEM_MONITORING = 'true';
+      let mockPercyMonitoring = spyOn(percy.monitoring, 'startMonitoring').and.callThrough();
+
+      await expectAsync(percy.start()).toBeResolved();
+      expect(mockPercyMonitoring).not.toHaveBeenCalled();
     });
 
     it('should not log CI log collection warning if PERCY_CLIENT_ERROR_LOGS is set false', async () => {
@@ -1470,6 +1480,184 @@ describe('Percy', () => {
       });
 
       expect(percy.renderingTypeProject()).toEqual(false);
+    });
+  });
+
+  describe('#checkAndUpdateConcurrency', () => {
+    let mockConfigureSystem, mockRestSystemMonitor;
+
+    beforeEach(() => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        loglevel: 'debug',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 5 }
+      });
+
+      mockConfigureSystem = spyOn(percy, 'configureSystemMonitor').and.callThrough();
+      mockRestSystemMonitor = spyOn(percy, 'resetSystemMonitor').and.callThrough();
+    });
+
+    afterEach(async () => {
+      await percy.stop(true);
+    });
+
+    describe('when monitoring is already started', () => {
+      it('should not configure system monitoring again', async () => {
+        await percy.start();
+        expect(percy.monitoring.running).toEqual(true);
+
+        mockConfigureSystem.calls.reset();
+        mockRestSystemMonitor.calls.reset();
+        percy.checkAndUpdateConcurrency();
+        await percy.stop(true);
+        expect(mockConfigureSystem).not.toHaveBeenCalled();
+        expect(mockRestSystemMonitor).toHaveBeenCalled();
+      });
+
+      it('early exist if called in interval < MONITORING_INTERVAL', async () => {
+        await percy.start();
+        expect(percy.monitoring.running).toEqual(true);
+        expect(mockRestSystemMonitor).toHaveBeenCalled();
+
+        mockRestSystemMonitor.calls.reset();
+        percy.checkAndUpdateConcurrency();
+        expect(mockRestSystemMonitor).toHaveBeenCalled();
+
+        // default interval is 5 sec, wait for 1 sec
+        await new Promise((res) => setTimeout(res, 1000));
+
+        mockRestSystemMonitor.calls.reset();
+        mockConfigureSystem.calls.reset();
+
+        percy.checkAndUpdateConcurrency();
+        expect(mockRestSystemMonitor).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('when monitoring is stopped', () => {
+      it('should configure system monitoring', async () => {
+        await percy.start();
+        expect(percy.monitoring.running).toEqual(true);
+
+        // stopping monitoring
+        await percy.monitoring.stopMonitoring();
+
+        mockConfigureSystem.calls.reset();
+        percy.checkAndUpdateConcurrency();
+        expect(mockConfigureSystem).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('when monitoring is disabled', () => {
+      beforeEach(() => {
+        process.env.PERCY_DISABLE_SYSTEM_MONITORING = 'true';
+      });
+
+      afterEach(() => {
+        delete process.env.PERCY_DISABLE_SYSTEM_MONITORING;
+      });
+
+      it('early exists', async () => {
+        await percy.start();
+        expect(mockConfigureSystem).not.toHaveBeenCalled();
+        expect(mockRestSystemMonitor).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('when cpu and memory useage is low', () => {
+      beforeEach(() => {
+        spyOn(percy.monitoring, 'getMonitoringInfo').and.returnValue({
+          cpuInfo: { currentUsagePercent: 20, cores: 3, cgroupExists: false },
+          memoryUsageInfo: { currentUsagePercent: 10.3, totalMemory: 121212112 }
+        });
+      });
+
+      it('should update concurrency to higher value', async () => {
+        await percy.start();
+        percy.checkAndUpdateConcurrency();
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy:core] cpuInfo: {"currentUsagePercent":20,"cores":3,"cgroupExists":false}',
+          '[percy:core] memoryInfo: {"currentUsagePercent":10.3,"totalMemory":121212112}',
+          '[percy:core] Upscaling discovery browser concurrency from 5 to 5'
+        ]));
+      });
+    });
+
+    describe('when cpu or memory usesage is high', () => {
+      let mockCpuInfo = { currentUsagePercent: 20, cores: 3, cgroupExists: false };
+      let mockMemInfo = { currentUsagePercent: 90.3, totalMemory: 121212112 };
+      beforeEach(() => {
+        spyOn(percy.monitoring, 'getMonitoringInfo').and.returnValue({
+          cpuInfo: mockCpuInfo,
+          memoryUsageInfo: mockMemInfo
+        });
+      });
+
+      it('update concurrency to lower value', async () => {
+        await percy.start();
+        percy.checkAndUpdateConcurrency();
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy:core] cpuInfo: {"currentUsagePercent":20,"cores":3,"cgroupExists":false}',
+          '[percy:core] memoryInfo: {"currentUsagePercent":90.3,"totalMemory":121212112}',
+          '[percy:core] Downscaling discovery browser concurrency from 5 to 2'
+        ]));
+      });
+
+      describe('and concurrency is at 1', () => {
+        beforeEach(() => {
+          percy = new Percy({
+            token: 'PERCY_TOKEN',
+            loglevel: 'debug',
+            snapshot: { widths: [1000] },
+            discovery: { concurrency: 1 }
+          });
+
+          spyOn(percy.monitoring, 'getMonitoringInfo').and.returnValue({
+            cpuInfo: mockCpuInfo,
+            memoryUsageInfo: mockMemInfo
+          });
+        });
+
+        it('should downscale new concurrency as 1', async () => {
+          await percy.start();
+          percy.checkAndUpdateConcurrency();
+          expect(logger.stderr).toEqual(jasmine.arrayContaining([
+            '[percy:core] cpuInfo: {"currentUsagePercent":20,"cores":3,"cgroupExists":false}',
+            '[percy:core] memoryInfo: {"currentUsagePercent":90.3,"totalMemory":121212112}',
+            '[percy:core] Downscaling discovery browser concurrency from 1 to 1'
+          ]));
+        });
+      });
+    });
+
+    describe('when cpu and memory usage is moderate', () => {
+      let mockCpuInfo = { currentUsagePercent: 66, cores: 3, cgroupExists: false };
+      let mockMemInfo = { currentUsagePercent: 77, totalMemory: 121212112 };
+
+      beforeEach(() => {
+        spyOn(percy.monitoring, 'getMonitoringInfo').and.returnValue({
+          cpuInfo: mockCpuInfo,
+          memoryUsageInfo: mockMemInfo
+        });
+      });
+
+      it('should not do anything', async () => {
+        await percy.start();
+        percy.checkAndUpdateConcurrency();
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+          '[percy:core] cpuInfo: {"currentUsagePercent":66,"cores":3,"cgroupExists":false}',
+          '[percy:core] memoryInfo: {"currentUsagePercent":77,"totalMemory":121212112}'
+        ]));
+        expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+          jasmine.stringContaining('[percy:core] Downscaling discovery')
+        ]));
+        expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+          jasmine.stringContaining('[percy:core] Upscaling discovery')
+        ]));
+      });
     });
   });
 });
