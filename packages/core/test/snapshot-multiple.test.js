@@ -8,7 +8,7 @@ describe('Snapshot multiple', () => {
   beforeEach(async () => {
     sitemap = ['/'];
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
-    process.env.PERCY_DISABLE_SYSTEM_MONITORING=true;
+    process.env.PERCY_DISABLE_SYSTEM_MONITORING = true;
     await setupTest();
 
     percy = await Percy.start({
