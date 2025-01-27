@@ -343,6 +343,7 @@ export class Percy {
     } finally {
       // stop monitoring system metric, if not already stopped
       this.monitoring.stopMonitoring();
+      clearTimeout(this.resetMonitoringId);
 
       // This issue doesn't comes under regular error logs,
       // it's detected if we just and stop percy server

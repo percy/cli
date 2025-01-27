@@ -281,10 +281,7 @@ describe('percy exec', () => {
       'setTimeout(() => process.exit(1), 5000)'
     )]);
 
-    // wait until the process starts
-    // monitoring system metrics take 1 sec to collect cpu
-    // stat at the beginning
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise(r => setTimeout(r, 1000));
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       jasmine.stringContaining('[percy] Running "node --eval ')
     ]));

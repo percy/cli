@@ -67,7 +67,7 @@ describe('Monitoring', () => {
     it('return percy envs keys', async () => {
       const keys = monitoring.getPercyEnv();
       expect(keys.PERCY_SKIP_UPDATE_CHECK).toEqual('false');
-      expect(keys.PERCY_TOKEN).toEqual('<web-token>');
+      expect(keys.PERCY_TOKEN).toEqual(undefined);
       expect(keys.MY_RUBY_HOME).toEqual(undefined);
     });
   });
