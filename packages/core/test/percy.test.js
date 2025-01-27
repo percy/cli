@@ -1496,7 +1496,7 @@ describe('Percy', () => {
       });
 
       spyOn(percy.monitoring, 'startMonitoring').and.callFake(() => Promise.resolve());
-      mockRestSystemMonitor = spyOn(percy, 'resetSystemMonitor').and.callFake(() => Promise.resolve());
+      mockRestSystemMonitor = spyOn(percy, 'resetSystemMonitor').and.callThrough();
       mockConfigureSystem = spyOn(percy, 'configureSystemMonitor').and.callThrough();
     });
 
