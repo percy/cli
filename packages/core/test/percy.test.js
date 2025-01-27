@@ -1484,6 +1484,26 @@ describe('Percy', () => {
     });
   });
 
+  describe("#resetSystemMonitor", () => {
+    let mockStopMonitoring;
+
+    beforeEach(() => {
+      jasmine.clock().install()
+      mockStopMonitoring = spyOn(percy.monitoring, 'stopMonitoring').and.returnValue(Promise.resolve())
+      percy.resetMonitoringId = '123'
+    })
+
+    afterEach(() => {
+      jasmine.clock().uninstall()
+    })
+
+    it('call stopMonitoring after X sec interval', async() => {
+      percy.resetSystemMonitor()
+      jasmine.clock().tick(300005)
+      expect(mockStopMonitoring.calls.count()).toEqual(1)
+    })
+  })
+
   describe('#checkAndUpdateConcurrency', () => {
     let mockConfigureSystem, mockRestSystemMonitor;
 
