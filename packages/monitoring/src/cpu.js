@@ -25,7 +25,7 @@ async function getCPUUsageInfo(os) {
   } catch (error) {
     // Don't raise this error to avoid user build failure
     // show error in debug mode only
-    log.debug('Error: ', error);
+    log.debug(`Error: ${error}`);
     return {};
   }
 }

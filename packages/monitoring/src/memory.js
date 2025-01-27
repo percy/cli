@@ -22,7 +22,7 @@ async function getMemoryUsageInfo(os) {
       return await getMemoryUsage();
     }
   } catch (error) {
-    log.debug('Error: ', error);
+    log.debug(`Error: ${error}`);
     return {};
   }
 }

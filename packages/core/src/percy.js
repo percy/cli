@@ -356,6 +356,11 @@ export class Percy {
     // early exit if monitoring is disabled
     if (!this.systemMonitoringEnabled()) return;
 
+    // early exit if asset discovery concurrency change is disabled
+    // NOTE: system monitoring will still be running as only concurrency
+    // change is disabled
+    if (process.env.PERCY_DISABLE_CONCURRENCY_CHANGE === 'true') return;
+
     // start system monitoring if not already doing...
     // this doesn't handle cases where there is suggest cpu spikes
     // in less 1 sec range and if monitoring is not in running state

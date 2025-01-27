@@ -1579,6 +1579,28 @@ describe('Percy', () => {
       });
     });
 
+    describe('when PERCY_DISABLE_CONCURRENCY_CHANGE is true', () => {
+      beforeEach(() => {
+        process.env.PERCY_DISABLE_CONCURRENCY_CHANGE = 'true';
+      });
+
+      afterEach(() => {
+        delete process.env.PERCY_DISABLE_CONCURRENCY_CHANGE;
+      });
+
+      it('early exists', async () => {
+        await percy.start();
+
+        // these calls are made on percy.start
+        // so reset it before use
+        mockRestSystemMonitor.calls.reset();
+        mockConfigureSystem.calls.reset();
+        percy.checkAndUpdateConcurrency();
+        expect(mockConfigureSystem).not.toHaveBeenCalled();
+        expect(mockRestSystemMonitor).not.toHaveBeenCalled();
+      });
+    });
+
     describe('when monitoring is disabled', () => {
       beforeEach(() => {
         process.env.PERCY_DISABLE_SYSTEM_MONITORING = 'true';

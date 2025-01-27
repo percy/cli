@@ -91,6 +91,14 @@ describe('Monitoring', () => {
         '[percy:monitoring] Container Level: false, Pod Level: false, Machine Level: true'
       ]));
     });
+
+    it('logs error when unexpected error occured', async () => {
+      spyOn(os, 'arch').and.throwError('err');
+      await monitoring.logSystemInfo();
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy:monitoring] Error logging system info: Error: err'
+      ]));
+    });
   });
 
   describe('executeMonitoring', () => {

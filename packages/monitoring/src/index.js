@@ -44,15 +44,20 @@ export default class Monitoring {
   }
 
   async logSystemInfo() {
-    const cpu = await getClientCPUDetails();
-    const mem = await getClientMemoryDetails();
-    const percyEnvs = this.getPercyEnv();
+    try {
+      const cpu = await getClientCPUDetails();
+      const mem = await getClientMemoryDetails();
+      const percyEnvs = this.getPercyEnv();
 
-    this.log.debug(`[Operating System] Platform: ${this.os}, Type: ${os.type()}, Release: ${os.release()}`);
-    this.log.debug(`[CPU] Arch: ${cpu.arch}, cores: ${cpu.cores}`);
-    this.log.debug(`[Memory] Total: ${mem.total / (1024 ** 3)} gb, Swap Space: ${mem.swaptotal / (1024 ** 3)} gb`);
-    this.log.debug(`Container Level: ${this.isContainer}, Pod Level: ${this.isPod}, Machine Level: ${this.isMachine}`);
-    this.log.debug(`Percy Envs: ${JSON.stringify(percyEnvs)}`);
+      this.log.debug(`[Operating System] Platform: ${this.os}, Type: ${os.type()}, Release: ${os.release()}`);
+      this.log.debug(`[CPU] Arch: ${cpu.arch}, cores: ${cpu.cores}`);
+      this.log.debug(`[Memory] Total: ${mem.total / (1024 ** 3)} gb, Swap Space: ${mem.swaptotal / (1024 ** 3)} gb`);
+      this.log.debug(`Container Level: ${this.isContainer}, Pod Level: ${this.isPod}, Machine Level: ${this.isMachine}`);
+      this.log.debug(`Percy Envs: ${JSON.stringify(percyEnvs)}`);
+    } catch (error) {
+      // suppress error
+      this.log.debug(`Error logging system info: ${error}`);
+    }
   }
 
   /**

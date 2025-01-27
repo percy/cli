@@ -15,7 +15,7 @@ describe('percy exec:start', () => {
   beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
 
-    // disabling as it increases spec time as we need to need
+    // disabling as it increases spec time and logs system info
     process.env.PERCY_DISABLE_SYSTEM_MONITORING = 'true';
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     await setupTest();
