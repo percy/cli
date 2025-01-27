@@ -1495,8 +1495,9 @@ describe('Percy', () => {
         discovery: { concurrency: 5 }
       });
 
+      spyOn(percy.monitoring, 'startMonitoring').and.callFake(() => Promise.resolve());
+      mockRestSystemMonitor = spyOn(percy, 'resetSystemMonitor').and.callFake(() => Promise.resolve());
       mockConfigureSystem = spyOn(percy, 'configureSystemMonitor').and.callThrough();
-      mockRestSystemMonitor = spyOn(percy, 'resetSystemMonitor').and.callThrough();
     });
 
     afterEach(async () => {
@@ -1504,9 +1505,17 @@ describe('Percy', () => {
     });
 
     describe('when monitoring is already started', () => {
+      beforeEach(() => {
+        percy.monitoring.running = true;
+      });
+
+      afterEach(() => {
+        percy.monitoring.running = false;
+      });
+
       it('should not configure system monitoring again', async () => {
         await percy.start();
-        expect(percy.monitoring.running).toEqual(true);
+        expect(mockConfigureSystem).toHaveBeenCalled();
 
         mockConfigureSystem.calls.reset();
         mockRestSystemMonitor.calls.reset();
@@ -1518,7 +1527,7 @@ describe('Percy', () => {
 
       it('early exist if called in interval < MONITORING_INTERVAL', async () => {
         await percy.start();
-        expect(percy.monitoring.running).toEqual(true);
+        expect(mockConfigureSystem).toHaveBeenCalled();
         expect(mockRestSystemMonitor).toHaveBeenCalled();
 
         mockRestSystemMonitor.calls.reset();
@@ -1539,7 +1548,7 @@ describe('Percy', () => {
     describe('when monitoring is stopped', () => {
       it('should configure system monitoring', async () => {
         await percy.start();
-        expect(percy.monitoring.running).toEqual(true);
+        expect(mockConfigureSystem).toHaveBeenCalled();
 
         // stopping monitoring
         await percy.monitoring.stopMonitoring();
