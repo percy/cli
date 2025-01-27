@@ -10,6 +10,9 @@ describe('Snapshot', () => {
   beforeEach(async () => {
     testDOM = '<p>Test</p>';
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
+    // to stop logging cpu/mem info as percy start
+    process.env.PERCY_DISABLE_SYSTEM_MONITORING=true;
+
     await setupTest();
 
     server = await createTestServer({
@@ -35,6 +38,7 @@ describe('Snapshot', () => {
   afterEach(async () => {
     delete process.env.PERCY_CLIENT_ERROR_LOGS;
     delete process.env.PERCY_FORCE_PKG_VALUE;
+    delete process.env.PERCY_DISABLE_SYSTEM_MONITORING;
     await percy.stop(true);
     await server?.close();
   });

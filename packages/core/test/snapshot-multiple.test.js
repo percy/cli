@@ -8,6 +8,7 @@ describe('Snapshot multiple', () => {
   beforeEach(async () => {
     sitemap = ['/'];
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
+    process.env.PERCY_DISABLE_SYSTEM_MONITORING=true;
     await setupTest();
 
     percy = await Percy.start({
@@ -34,6 +35,7 @@ describe('Snapshot multiple', () => {
 
   afterEach(async () => {
     delete process.env.PERCY_FORCE_PKG_VALUE;
+    delete process.env.PERCY_DISABLE_SYSTEM_MONITORING;
     await percy.stop(true);
     await server?.close();
   });
@@ -344,8 +346,8 @@ describe('Snapshot multiple', () => {
 
     it('serves and snapshots a static directory', async () => {
       await percy.snapshot({ serve: './public' });
-
       expect(logger.stderr).toEqual([]);
+
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
         '[percy] Snapshot taken: /index.html',
         '[percy] Snapshot taken: /about.html',
