@@ -3,7 +3,7 @@ export const chromeBrowser = 'CHROME';
 export const firefoxBrowser = 'FIREFOX';
 
 // create and cleanup testing DOM
-export function withExample(html, options = { withShadow: true, withRestrictedShadow: false, invalidTagsOutsideBody: false }) {
+export function withExample(html, options = { withShadow: true, withRestrictedShadow: false, invalidTagsOutsideBody: false, showLoader: false }) {
   let $test = document.getElementById('test');
   if ($test) $test.remove();
 
@@ -23,6 +23,22 @@ export function withExample(html, options = { withShadow: true, withRestrictedSh
     $shadow.innerHTML = `<h1>Hello DOM testing</h1>${html}`;
 
     document.body.appendChild($testShadow);
+  }
+
+  // Add loader if the option is true
+  if (options.showLoader) {
+    const parentElement = document.createElement('div');
+    document.body.appendChild(parentElement);
+    parentElement.style.width = '800px';
+    parentElement.style.height = '600px';
+    parentElement.classList.add('parent');
+    const loaderElement = document.createElement('div');
+    loaderElement.style.width = '600px';
+    loaderElement.style.height = '500px';
+    loaderElement.classList.add('loader');
+    parentElement.appendChild(loaderElement);
+    window.innerWidth = 1024;
+    window.innerHeight = 768;
   }
 
   if (options.withRestrictedShadow) {

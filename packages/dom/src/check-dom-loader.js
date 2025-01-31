@@ -17,7 +17,7 @@ export function isLoaderElement(el, maxDepth = 2, currentDepth = 0) {
   if (children.length === 0) return true;
 
   for (let i = 0; i < children.length; i++) {
-    if (isLoaderElement(children[i], maxDepth, currentDepth + 1)) return false;
+    if (!isLoaderElement(children[i], maxDepth, currentDepth + 1)) return false;
   }
 
   return true;
@@ -64,3 +64,5 @@ export function checkForLoader() {
     return false;
   });
 }
+
+export default { checkForLoader };
