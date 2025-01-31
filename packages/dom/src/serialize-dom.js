@@ -88,20 +88,6 @@ export function serializeDOM(options) {
   } = options || {};
 
   // keep certain records throughout serialization
-
-  // Check for loader and wait if present
-  try {
-    if (checkForLoader()) {
-      const startTime = performance.now();
-      const waitTime = 2000;
-      while (performance.now() - startTime < waitTime) {
-      }
-    }
-  } catch (err) {
-    const errorMessage = `Error while checking for loader: ${err.message}`;
-    ctx.warnings.add(errorMessage);
-    console.error(errorMessage);
-  }
   let ctx = {
     resources: new Set(),
     warnings: new Set(),
@@ -111,10 +97,22 @@ export function serializeDOM(options) {
     enableJavaScript,
     disableShadowDOM
   };
-
   ctx.dom = dom;
   ctx.clone = cloneNodeAndShadow(ctx);
 
+  try {
+    if (checkForLoader()) {
+      const startTime = Date.now();
+      const waitTime = 2000;
+      while (Date.now() - startTime < waitTime) {
+        // pass
+      }
+    }
+  } catch (err) {
+    const errorMessage = `Error while checking for loader: ${err.message}`;
+    ctx.warnings.add(errorMessage);
+    console.error(errorMessage);
+  }
   serializeElements(ctx);
 
   if (domTransformation) {
