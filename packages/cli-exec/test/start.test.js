@@ -14,6 +14,9 @@ describe('percy exec:start', () => {
 
   beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+
+    // disabling as it increases spec time and logs system info
+    process.env.PERCY_DISABLE_SYSTEM_MONITORING = 'true';
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     await setupTest();
 
@@ -29,6 +32,7 @@ describe('percy exec:start', () => {
     delete process.env.PERCY_ENABLE;
     delete process.env.PERCY_PARALLEL_TOTAL;
     delete process.env.PERCY_PARTIAL_BUILD;
+    delete process.env.PERCY_DISABLE_SYSTEM_MONITORING;
 
     // it's important that percy is still running or we terminate the test process
     if (started) process.emit('SIGTERM');

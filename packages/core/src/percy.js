@@ -26,9 +26,15 @@ import {
   discoverSnapshotResources,
   createDiscoveryQueue
 } from './discovery.js';
+import Monitoring from '@percy/monitoring';
 import { WaitForJob } from './wait-for-job.js';
 
 const MAX_SUGGESTION_CALLS = 10;
+
+// If no activity is done for 5 mins, we will stop monitoring
+// system metric eg: (cpu load && memory usage)
+const MONITOR_ACTIVITY_TIMEOUT = 300000;
+const MONITORING_INTERVAL_MS = 5000; // 5 sec
 
 // A Percy instance will create a new build when started, handle snapshot creation, asset discovery,
 // and resource uploads, and will finalize the build when stopped. Snapshots are processed
@@ -107,7 +113,14 @@ export class Percy {
     this.browser = new Browser(this);
 
     this.#discovery = createDiscoveryQueue(this);
+    this.discoveryMaxConcurrency = this.#discovery.concurrency;
     this.#snapshots = createSnapshotsQueue(this);
+
+    this.monitoring = new Monitoring();
+    // used continue monitoring if there is activity going on
+    // if there is none, stop it
+    this.resetMonitoringId = null;
+    this.monitoringCheckLastExecutedAt = null;
 
     // generator methods are wrapped to autorun and return promises
     for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot', 'upload']) {
@@ -115,6 +128,29 @@ export class Percy {
       let method = (this.yield ||= {})[m] = this[m].bind(this);
       this[m] = (...args) => generatePromise(method(...args));
     }
+  }
+
+  systemMonitoringEnabled() {
+    return (process.env.PERCY_DISABLE_SYSTEM_MONITORING !== 'true');
+  }
+
+  async configureSystemMonitor() {
+    await this.monitoring.startMonitoring({ interval: MONITORING_INTERVAL_MS });
+    this.resetSystemMonitor();
+  }
+
+  // Debouncing logic to only stop Monitoring system
+  // if there is no any activity for 5 mins
+  // means, no job is pushed in queue from 5 mins
+  resetSystemMonitor() {
+    if (this.resetMonitoringId) {
+      clearTimeout(this.resetMonitoringId);
+      this.resetMonitoringId = null;
+    }
+
+    this.resetMonitoringId = setTimeout(() => {
+      this.monitoring.stopMonitoring();
+    }, MONITOR_ACTIVITY_TIMEOUT);
   }
 
   // Shortcut for controlling the global logger's log level.
@@ -169,6 +205,13 @@ export class Percy {
     this.cliStartTime = new Date().toISOString();
 
     try {
+      // started monitoring system metrics
+
+      if (this.systemMonitoringEnabled()) {
+        await this.configureSystemMonitor();
+        await this.monitoring.logSystemInfo();
+      }
+
       if (process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {
         this.log.warn('Notice: Percy collects CI logs to improve service and enhance your experience. These logs help us debug issues and provide insights on your dashboards, making it easier to optimize the product experience. Logs are stored securely for 30 days. You can opt out anytime with export PERCY_CLIENT_ERROR_LOGS=false, but keeping this enabled helps us offer the best support and features.');
       }
@@ -298,11 +341,64 @@ export class Percy {
       this.log.error(err);
       throw err;
     } finally {
+      // stop monitoring system metric, if not already stopped
+      this.monitoring.stopMonitoring();
+      clearTimeout(this.resetMonitoringId);
+
       // This issue doesn't comes under regular error logs,
       // it's detected if we just and stop percy server
       await this.checkForNoSnapshotCommandError();
       await this.sendBuildLogs();
     }
+  }
+
+  checkAndUpdateConcurrency() {
+    // early exit if monitoring is disabled
+    if (!this.systemMonitoringEnabled()) return;
+
+    // early exit if asset discovery concurrency change is disabled
+    // NOTE: system monitoring will still be running as only concurrency
+    // change is disabled
+    if (process.env.PERCY_DISABLE_CONCURRENCY_CHANGE === 'true') return;
+
+    // start system monitoring if not already doing...
+    // this doesn't handle cases where there is suggest cpu spikes
+    // in less 1 sec range and if monitoring is not in running state
+    if (this.monitoringCheckLastExecutedAt && Date.now() - this.monitoringCheckLastExecutedAt < MONITORING_INTERVAL_MS) return;
+
+    if (!this.monitoring.running) this.configureSystemMonitor();
+    else this.resetSystemMonitor();
+
+    // early return if last executed was less than 5 seconds
+    // as we will get the same cpu/mem info under 5 sec interval
+    const { cpuInfo, memoryUsageInfo } = this.monitoring.getMonitoringInfo();
+    this.log.debug(`cpuInfo: ${JSON.stringify(cpuInfo)}`);
+    this.log.debug(`memoryInfo: ${JSON.stringify(memoryUsageInfo)}`);
+
+    if (cpuInfo.currentUsagePercent >= 80 || memoryUsageInfo.currentUsagePercent >= 80) {
+      let currentConcurrent = this.#discovery.concurrency;
+
+      // concurrency must be betweeen [1, (default/user defined value)]
+      let newConcurrency = Math.max(1, parseInt(currentConcurrent / 2));
+      newConcurrency = Math.min(this.discoveryMaxConcurrency, newConcurrency);
+
+      this.log.debug(`Downscaling discovery browser concurrency from ${this.#discovery.concurrency} to ${newConcurrency}`);
+      this.#discovery.set({ concurrency: newConcurrency });
+    } else if (cpuInfo.currentUsagePercent <= 50 && memoryUsageInfo.currentUsagePercent <= 50) {
+      let currentConcurrent = this.#discovery.concurrency;
+      let newConcurrency = currentConcurrent + 2;
+
+      // concurrency must be betweeen [1, (default/user-defined value)]
+      newConcurrency = Math.min(this.discoveryMaxConcurrency, newConcurrency);
+      newConcurrency = Math.max(1, newConcurrency);
+
+      this.log.debug(`Upscaling discovery browser concurrency from ${this.#discovery.concurrency} to ${newConcurrency}`);
+      this.#discovery.set({ concurrency: newConcurrency });
+    }
+
+    // reset timeout to stop monitoring after no-activity of 5 mins
+    this.resetSystemMonitor();
+    this.monitoringCheckLastExecutedAt = Date.now();
   }
 
   // Takes one or more snapshots of a page while discovering resources to upload with the resulting
@@ -351,7 +447,7 @@ export class Percy {
         yield* discoverSnapshotResources(this.#discovery, {
           skipDiscovery: this.skipDiscovery,
           dryRun: this.dryRun,
-
+          checkAndUpdateConcurrency: this.checkAndUpdateConcurrency.bind(this),
           snapshots: yield* gatherSnapshots(options, {
             meta: { build: this.build },
             config: this.config

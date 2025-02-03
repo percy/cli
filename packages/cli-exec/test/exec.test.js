@@ -3,6 +3,9 @@ import exec from '@percy/cli-exec';
 describe('percy exec', () => {
   beforeEach(async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
+    // due to lot of start calls, it slows spec to finish
+    // therefore disabling it
+    process.env.PERCY_DISABLE_SYSTEM_MONITORING = 'true';
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     jasmine.DEFAULT_TIMEOUT_INTERVAL = 25000;
     await setupTest();
@@ -24,6 +27,7 @@ describe('percy exec', () => {
     delete process.env.PERCY_PARALLEL_TOTAL;
     delete process.env.PERCY_PARTIAL_BUILD;
     delete process.env.PERCY_CLIENT_ERROR_LOGS;
+    delete process.env.PERCY_DISABLE_SYSTEM_MONITORING;
   });
 
   describe('projectType is app', () => {
@@ -277,7 +281,6 @@ describe('percy exec', () => {
       'setTimeout(() => process.exit(1), 5000)'
     )]);
 
-    // wait until the process starts
     await new Promise(r => setTimeout(r, 1000));
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       jasmine.stringContaining('[percy] Running "node --eval ')
