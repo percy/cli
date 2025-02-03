@@ -208,6 +208,24 @@ export class Page {
     this.log.debug('Serialize DOM', this.meta);
 
     /* istanbul ignore next: no instrumenting injected code */
+    await this.eval(async () => {
+      console.log('Executing pre-serialization command...');
+      try {
+        /* eslint-disable-next-line no-undef */
+        if (PercyDOM.checkForLoader()) {
+          const waitTime = 2000;
+          await new Promise(resolve => {
+            setTimeout(() => {
+              resolve();
+            }, waitTime);
+          });
+        }
+      } catch (err) {
+        const errorMessage = `Error while checking for loader: ${err.message}`;
+        console.error(errorMessage);
+      }
+    });
+
     let capture = await this.eval((_, options) => ({
       /* eslint-disable-next-line no-undef */
       domSnapshot: PercyDOM.serialize(options),

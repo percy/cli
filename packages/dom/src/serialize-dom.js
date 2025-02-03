@@ -4,7 +4,6 @@ import serializeCSSOM from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
 import { cloneNodeAndShadow, getOuterHTML } from './clone-dom';
-import { checkForLoader } from './check-dom-loader';
 
 // Returns a copy or new doctype for a document.
 function doctype(dom) {
@@ -97,22 +96,10 @@ export function serializeDOM(options) {
     enableJavaScript,
     disableShadowDOM
   };
+
   ctx.dom = dom;
   ctx.clone = cloneNodeAndShadow(ctx);
 
-  try {
-    if (checkForLoader()) {
-      const startTime = Date.now();
-      const waitTime = 2000;
-      while (Date.now() - startTime < waitTime) {
-        // pass
-      }
-    }
-  } catch (err) {
-    const errorMessage = `Error while checking for loader: ${err.message}`;
-    ctx.warnings.add(errorMessage);
-    console.error(errorMessage);
-  }
   serializeElements(ctx);
 
   if (domTransformation) {
