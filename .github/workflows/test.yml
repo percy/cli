@@ -81,7 +81,6 @@ jobs:
           name: dist
           path: packages
       - run: yarn
-      - run: sudo apt update
       - name: Install browser dependencies
         run: sudo apt-get install -y libgbm-dev
         if: ${{ matrix.os == 'ubuntu-latest' }}
