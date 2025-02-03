@@ -207,25 +207,20 @@ export class Page {
     // serialize and capture a DOM snapshot
     this.log.debug('Serialize DOM', this.meta);
 
-    /* istanbul ignore next: no instrumenting injected code */
-    await this.eval(async () => {
-      console.log('Executing pre-serialization command...');
-      try {
-        /* eslint-disable-next-line no-undef */
-        if (PercyDOM.checkForLoader()) {
-          const waitTime = 2000;
-          await new Promise(resolve => {
-            setTimeout(() => {
-              resolve();
-            }, waitTime);
-          });
-        }
-      } catch (err) {
-        const errorMessage = `Error while checking for loader: ${err.message}`;
-        console.error(errorMessage);
-      }
-    });
+    const waitTime = parseInt(process.env.LOADER_WAIT_TIMEOUT) || 2000;
 
+    /* istanbul ignore next */
+    const shouldWait = await this.eval(async () => {
+      /* eslint-disable-next-line no-undef */
+      return PercyDOM.checkForLoader();
+    });
+    if (shouldWait) {
+      await new Promise(resolve => {
+        setTimeout(resolve, waitTime);
+      });
+    }
+
+    /* istanbul ignore next: no instrumenting injected code */
     let capture = await this.eval((_, options) => ({
       /* eslint-disable-next-line no-undef */
       domSnapshot: PercyDOM.serialize(options),

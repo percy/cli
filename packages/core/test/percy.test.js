@@ -105,14 +105,56 @@ describe('Percy', () => {
     });
 
     // expect required arguments are passed to PercyDOM.serialize
-    expect(evalSpy.calls.allArgs()[3]).toEqual(jasmine.arrayContaining([jasmine.anything(), { enableJavaScript: undefined, disableShadowDOM: true, domTransformation: undefined, reshuffleInvalidTags: undefined }]));
-
+    expect(evalSpy.calls.allArgs()[3][0]).toEqual(jasmine.any(Function));
+    expect(evalSpy.calls.allArgs()[3][0].constructor.name).toBe('AsyncFunction');
+    expect(evalSpy.calls.allArgs()[4]).toEqual(jasmine.arrayContaining([jasmine.anything(), { enableJavaScript: undefined, disableShadowDOM: true, domTransformation: undefined, reshuffleInvalidTags: undefined }]));
     expect(snapshot.url).toEqual('http://localhost:8000/');
     expect(snapshot.domSnapshot).toEqual(jasmine.objectContaining({
       html: '<!DOCTYPE html><html><head></head><body>' + (
         `<p>Hello there, Percy!</p>${img}`
       ) + '</body></html>'
     }));
+  });
+
+  it('should wait for n seconds if a loader is detected and env variable is present', async () => {
+    server.reply('/', () => [
+      200,
+      'text/html',
+      `<!DOCTYPE html><html><head></head><body><div style="width: 800px; height: 600px; display: block; visibility: visible; opacity: 1;" class="parent">
+        <div style="width: 600px; height: 500px; display: block; visibility: visible; opacity: 1;" class="loader">
+          <div></div>
+        </div>
+      </div></body></html>`
+    ]);
+    process.env.LOADER_WAIT_TIMEOUT = 4000;
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    await page.goto('http://localhost:8000');
+
+    let startTime = Date.now();
+    await page.snapshot({ disableShadowDOM: true });
+    let endTime = Date.now();
+    expect(endTime - startTime).toBeGreaterThanOrEqual(4000);
+  });
+
+  it('should wait for 2 seconds if loader is present but no env variable', async () => {
+    server.reply('/', () => [
+      200,
+      'text/html',
+      `<!DOCTYPE html><html><head></head><body><div style="width: 800px; height: 600px; display: block; visibility: visible; opacity: 1;" class="parent">
+        <div style="width: 600px; height: 500px; display: block; visibility: visible; opacity: 1;" class="loader">
+          <div></div>
+        </div>
+      </div></body></html>`
+    ]);
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    await page.goto('http://localhost:8000');
+
+    let startTime = Date.now();
+    await page.snapshot({ disableShadowDOM: true });
+    let endTime = Date.now();
+    expect(endTime - startTime).toBeGreaterThanOrEqual(2000);
   });
 
   describe('.start()', () => {

@@ -1,6 +1,5 @@
 // Determines if an element is visible
 export function isElementVisible(el) {
-  if (!el) return false;
   const style = window.getComputedStyle(el);
   return (
     style.display !== 'none' &&
