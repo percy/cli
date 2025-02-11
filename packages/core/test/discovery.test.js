@@ -535,6 +535,41 @@ describe('Discovery', () => {
     );
   });
 
+  it('skips file greater than 100MB', async () => {
+    server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(100_000_000)]);
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'large.css')
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/'
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      })
+    ]);
+
+    expect(logger.stderr).toContain(
+      '[percy:core:discovery] - Skipping resource larger than 25MB'
+    );
+  });
+
   it('does not capture duplicate root resources', async () => {
     let reDOM = dedent`
       <html><head></head><body>

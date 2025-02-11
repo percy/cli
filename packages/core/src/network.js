@@ -467,6 +467,13 @@ async function saveResponseResource(network, request, session) {
     url,
     responseStatus: response?.status
   };
+  // Checing for content length more than 100MB, to prevent websocket error which is governed by
+  // maxPayload option of websocket defaulted to 100MB.
+  // If content-length is more than our allowed 25MB, no need to process that resouce we can return log.
+  let contentLength = parseInt(response.headers['Content-Length']);
+  if (contentLength > MAX_RESOURCE_SIZE) {
+    return log.debug('- Skipping resource larger than 25MB', meta);
+  }
   let resource = network.intercept.getResource(url);
 
   if (!resource || (!resource.root && !resource.provided && disableCache)) {
