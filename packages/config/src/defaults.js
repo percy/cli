@@ -16,6 +16,9 @@ function getDefaultsFromSchema(schema) {
   } else if (schema.type === 'object' && schema.properties) {
     // return an object of default properties
     return entries(schema.properties).reduce((acc, [prop, schema]) => {
+      if(!isSafeKey(prop)){
+        return acc;
+      }
       let def = getDefaultsFromSchema(schema);
       return def != null ? assign(acc || {}, { [prop]: def }) : acc;
     }, undefined);
@@ -24,8 +27,32 @@ function getDefaultsFromSchema(schema) {
   }
 }
 
+// Utility function to prevent prototype pollution
+function isSafeKey(key) {
+  const unsafeKeys = ['__proto__', 'constructor', 'prototype', 'toString', 'valueOf',
+                      '__defineGetter__', '__defineSetter__', '__lookupGetter__', '__lookupSetter__'];
+  return !unsafeKeys.includes(key);
+}
+
+
+function sanitizeObject(obj) {
+  if (!obj || typeof obj !== 'object' || isArray(obj)) {
+    return obj; 
+  }
+
+  const sanitized = {};
+  for (const key in obj) {
+    if (isSafeKey(key)) {
+      sanitized[key] = sanitizeObject(obj[key]);
+    }
+  }
+
+  return sanitized;
+}
+
 export function getDefaults(overrides = {}) {
-  return merge([getDefaultsFromSchema(), overrides], (path, prev, next) => {
+  const sanitizedOverrides = sanitizeObject(overrides);
+  return merge([getDefaultsFromSchema(), sanitizedOverrides], (path, prev, next) => {
     // override default array instead of merging
     return isArray(next) && [path, next];
   });

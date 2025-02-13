@@ -190,6 +190,20 @@ describe('PercyConfig', () => {
         test: { value: 'bar' }
       });
     });
+
+    it('does not allow prototype pollution via __proto__', () => {
+      const pollutedKey = 'pollutedKey';
+      const overrides = JSON.parse('{"__proto__":{"pollutedKey":123}}');
+      const result = PercyConfig.getDefaults(overrides);
+
+      expect(result).not.toHaveProperty(pollutedKey);
+      expect({}).not.toHaveProperty(pollutedKey);
+  
+      expect(result).toEqual({
+        version: 2,
+        test: { value: 'foo' }
+      });
+    });
   });
 
   describe('.validate()', () => {
