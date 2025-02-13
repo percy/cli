@@ -1,6 +1,8 @@
 import merge from './merge.js';
 import { getSchema } from '../validate.js';
 
+const { isArray } = Array;
+
 // Edge case camelizations
 const CAMELCASE_MAP = new Map([
   ['css', 'CSS'],
@@ -64,6 +66,27 @@ export function normalize(object, options) {
 
     return [mapped];
   });
+}
+
+// Utility function to prevent prototype pollution
+export function isSafeKey(key) {
+  const unsafeKeys = ['__proto__', 'constructor', 'prototype', 'toString', 'valueOf',
+    '__defineGetter__', '__defineSetter__', '__lookupGetter__', '__lookupSetter__'];
+  return !unsafeKeys.includes(key);
+}
+
+export function sanitizeObject(obj) {
+  if (!obj || typeof obj !== 'object' || isArray(obj)) {
+    return obj;
+  }
+  const sanitized = {};
+  for (const key in obj) {
+    if (isSafeKey(key)) {
+      sanitized[key] = sanitizeObject(obj[key]);
+    }
+  }
+
+  return sanitized;
 }
 
 export default normalize;

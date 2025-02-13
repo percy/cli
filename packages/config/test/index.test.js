@@ -195,13 +195,33 @@ describe('PercyConfig', () => {
       const pollutedKey = 'pollutedKey';
       const overrides = JSON.parse('{"__proto__":{"pollutedKey":123}}');
       const result = PercyConfig.getDefaults(overrides);
-
       expect(result).not.toHaveProperty(pollutedKey);
       expect({}).not.toHaveProperty(pollutedKey);
-  
       expect(result).toEqual({
         version: 2,
         test: { value: 'foo' }
+      });
+    });
+
+    it('does not allow prototype pollution via __proto__ for nested key', () => {
+      const pollutedKey = 'pollutedKey';
+      const overrides = JSON.parse('{"pollutedKey":{"__proto__":123}}');
+      const result = PercyConfig.getDefaults(overrides);
+      expect(result).not.toHaveProperty(pollutedKey);
+      expect({}).not.toHaveProperty(pollutedKey);
+      expect(result).toEqual({
+        version: 2,
+        test: { value: 'foo' }
+      });
+    });
+
+    it('does allow safe key', () => {
+      const overrides = JSON.parse('{"key":{"key1":123}}');
+      const result = PercyConfig.getDefaults(overrides);
+      expect(result).toEqual({
+        version: 2,
+        test: { value: 'foo' },
+        key: { key1: 123 }
       });
     });
   });
