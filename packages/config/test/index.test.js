@@ -226,8 +226,7 @@ describe('PercyConfig', () => {
     });
 
     it('does allow regex', () => {
-      // const overrides = JSON.parse('{"key":{"key1":/\d$/}}');
-      const overrides = {"key":{"key1":/\d$/}}
+      const overrides = { key: { key1: /\d$/ } };
       const result = PercyConfig.getDefaults(overrides);
       expect(result).toEqual({
         version: 2,
