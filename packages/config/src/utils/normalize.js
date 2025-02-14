@@ -79,6 +79,9 @@ export function sanitizeObject(obj) {
   if (!obj || typeof obj !== 'object' || isArray(obj)) {
     return obj;
   }
+  if (obj instanceof RegExp) {
+    return obj;
+  }
   const sanitized = {};
   for (const key in obj) {
     if (isSafeKey(key)) {
