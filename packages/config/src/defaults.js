@@ -25,6 +25,9 @@ function getDefaultsFromSchema(schema) {
 }
 
 export function getDefaults(overrides = {}) {
+  // We are sanitizing the overrides object to prevent prototype pollution.
+  // This ensures protection against attacks where a payload having Object.prototype setters
+  // to add or modify properties on the global prototype chain, which could lead to issues like denial of service (DoS) at a minimum.
   const sanitizedOverrides = sanitizeObject(overrides);
   return merge([getDefaultsFromSchema(), sanitizedOverrides], (path, prev, next) => {
     // override default array instead of merging
