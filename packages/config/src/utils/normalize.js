@@ -14,7 +14,7 @@ const CAMELCASE_MAP = new Map([
 const WORD_REG = /[a-z]{2,}|[A-Z]{2,}|[0-9]{2,}|[^-_\s]+?(?=[A-Z0-9-_\s]|$)/g;
 
 // Unsafe keys list
-const unsafeKeys = ['__proto__', 'constructor', 'prototype', 'toString', 'valueOf',
+const UNSAFE_KEYS = ['__proto__', 'constructor', 'prototype', 'toString', 'valueOf',
   '__defineGetter__', '__defineSetter__', '__lookupGetter__', '__lookupSetter__'];
 
 // Converts kebab-cased and snake_cased strings to camelCase.
@@ -74,7 +74,7 @@ export function normalize(object, options) {
 
 // Utility function to prevent prototype pollution
 export function isSafeKey(key) {
-  return !unsafeKeys.includes(key);
+  return !UNSAFE_KEYS.includes(key);
 }
 
 export function sanitizeObject(obj) {
