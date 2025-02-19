@@ -9,7 +9,8 @@ import {
   yieldTo,
   snapshotLogName,
   decodeAndEncodeURLWithLogging,
-  compareObjectTypes
+  compareObjectTypes,
+  normalizeOptions
 } from './utils.js';
 import { JobData } from './wait-for-job.js';
 
@@ -165,36 +166,7 @@ function getSnapshotOptions(options, { config, meta }) {
     }
   });
 }
-const OPTION_MAPPINGS = {
-  name: 'name',
-  widths: 'widths',
-  scope: 'scope',
-  scopeoptions: 'scopeOptions',
-  minheight: 'minHeight',
-  enablejavascript: 'enableJavaScript',
-  enablelayout: 'enableLayout',
-  clientinfo: 'clientInfo',
-  environmentinfo: 'environmentInfo',
-  sync: 'sync',
-  testcase: 'testCase',
-  labels: 'labels',
-  thtestcaseexecutionid: 'thTestCaseExecutionId',
-  resources: 'resources',
-  meta: 'meta',
-  snapshot: 'snapshot'
-};
 
-function normalizeOptions(options) {
-  const normalizedOptions = {};
-
-  for (const key in options) {
-    const lowerCaseKey = key.toLowerCase().replace(/[-_]/g, '');
-    const normalizedKey = OPTION_MAPPINGS[lowerCaseKey] ? OPTION_MAPPINGS[lowerCaseKey] : key;
-    normalizedOptions[normalizedKey] = options[key];
-  }
-
-  return normalizedOptions;
-}
 // Validates and migrates snapshot options against the correct schema based on provided
 // properties. Eagerly throws an error when missing a URL for any snapshot, and warns about all
 // other invalid options which are also scrubbed from the returned migrated options.
