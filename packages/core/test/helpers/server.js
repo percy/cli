@@ -1,18 +1,22 @@
 // aliased to src during tests
 import Server from '../../dist/server.js';
 
-export function createTestServer({ default: defaultReply, ...replies }, port = 8000) {
+export function createTestServer({ default: defaultReply, ...replies }, port = 8000, options = {}) {
   let server = new Server();
 
   // alternate route handling
-  let handleReply = reply => async (req, res) => {
+  let handleReply = (reply, options = {}) => async (req, res) => {
     let [status, headers, body] = typeof reply === 'function' ? await reply(req) : reply;
     if (!Buffer.isBuffer(body) && typeof body !== 'string') body = JSON.stringify(body);
+
+    if (options.contentLengthNaN) {
+      headers = { ...headers, 'Content-Length': NaN };
+    }
     return res.send(status, headers, body);
   };
 
   // map replies to alternate route handlers
-  server.reply = (p, reply) => (replies[p] = handleReply(reply), null);
+  server.reply = (p, reply, options = {}) => (replies[p] = handleReply(reply, options), null);
   for (let [p, reply] of Object.entries(replies)) server.reply(p, reply);
   if (defaultReply) defaultReply = handleReply(defaultReply);
 
