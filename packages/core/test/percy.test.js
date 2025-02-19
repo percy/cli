@@ -3,6 +3,7 @@ import { generatePromise, AbortController, base64encode } from '../src/utils.js'
 import Percy from '@percy/core';
 import Pako from 'pako';
 import DetectProxy from '@percy/client/detect-proxy';
+import { validateSnapshotOptions } from '../src/snapshot.js';
 
 describe('Percy', () => {
   let percy, server;
@@ -1710,6 +1711,108 @@ describe('Percy', () => {
         expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
           jasmine.stringContaining('[percy:core] Upscaling discovery')
         ]));
+      });
+    });
+  });
+  describe('#validateSnapshotOptions', () => {
+    it('normalizes snapshot options to camelCase and does not produce errors', async () => {
+      const options = {
+        name: 'Snapshot 1',
+        url: 'http://localhost:8000',
+        'scope-options': { scroll: true },
+        'min-height': 1024,
+        'enable-javascript': true,
+        'client-info': 'client-info',
+        'environment-info': 'env-info',
+        'test-case': 'testCase',
+        'th-test-case-execution-id': '12345',
+      };
+
+      const result = validateSnapshotOptions(options);
+      expect(result).toEqual({
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info',
+        name: 'Snapshot 1',
+        url: 'http://localhost:8000',
+        scopeOptions: { scroll: true },
+        minHeight: 1024,
+        enableJavaScript: true,
+        testCase: 'testCase',
+        thTestCaseExecutionId: '12345',
+      });
+    });
+
+    it('handles different casing formats and does not produce errors', async () => {
+      const options = {
+        Name: 'Snapshot 1',
+        url: 'http://localhost:8000',
+        WIDTHS: [375, 1280],
+        Scope: '#app',
+        ScopeOptions: { scroll: true },
+        MinHeight: 1024,
+        EnableJavaScript: true,
+        EnableLayout: false,
+        ClientInfo: 'client-info',
+        EnvironmentInfo: 'env-info',
+        Sync: true,
+        TestCase: 'testCase',
+        Labels: 'label1',
+        ThTestCaseExecutionId: '12345',
+      };
+
+      const result = validateSnapshotOptions(options);
+      expect(result).toEqual({
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info',
+        name: 'Snapshot 1',
+        url: 'http://localhost:8000',
+        widths: [375, 1280],
+        scope: '#app',
+        scopeOptions: { scroll: true },
+        minHeight: 1024,
+        enableJavaScript: true,
+        enableLayout: false,
+        sync: true,
+        testCase: 'testCase',
+        labels: 'label1',
+        thTestCaseExecutionId: '12345',
+      });
+    });
+
+    it('handles mixed casing and special characters and does not produce errors', async () => {
+      const options = {
+        nAmE: 'Snapshot 1',
+        url: 'http://localhost:8000',
+        WiDtHs: [375, 1280],
+        sCoPe: '#app',
+        sCoPeOpTiOnS: { scroll: true },
+        mInHeIgHt: 1024,
+        eNaBlEJaVaScRiPt: true,
+        eNaBlELaYoUt: false,
+        cLiEnTInFo: 'client-info',
+        eNvIrOnMeNtInFo: 'env-info',
+        sYnC: true,
+        tEsTcAsE: 'testCase',
+        lAbElS: 'label1',
+        tHtEsTcAsEeXeCuTiOnId: '12345',
+      };
+
+      const result = validateSnapshotOptions(options);
+      expect(result).toEqual({
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info',
+        name: 'Snapshot 1',
+        url: 'http://localhost:8000',
+        widths: [375, 1280],
+        scope: '#app',
+        scopeOptions: { scroll: true },
+        minHeight: 1024,
+        enableJavaScript: true,
+        enableLayout: false,
+        sync: true,
+        testCase: 'testCase',
+        labels: 'label1',
+        thTestCaseExecutionId: '12345',
       });
     });
   });
