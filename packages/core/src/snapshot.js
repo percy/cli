@@ -166,22 +166,22 @@ function getSnapshotOptions(options, { config, meta }) {
   });
 }
 const optionMappings = {
-    'name': 'name',
-    'widths': 'widths',
-    'scope': 'scope',
-    'scopeoptions': 'scopeOptions',
-    'minheight': 'minHeight',
-    'enablejavascript': 'enableJavaScript',
-    'enablelayout': 'enableLayout',
-    'clientinfo': 'clientInfo',
-    'environmentinfo': 'environmentInfo',
-    'sync': 'sync',
-    'testcase': 'testCase',
-    'labels': 'labels',
-    'thtestcaseexecutionid': 'thTestCaseExecutionId',
-    'resources': 'resources',
-    'meta': 'meta',
-    'snapshot': 'snapshot',
+  name: 'name',
+  widths: 'widths',
+  scope: 'scope',
+  scopeoptions: 'scopeOptions',
+  minheight: 'minHeight',
+  enablejavascript: 'enableJavaScript',
+  enablelayout: 'enableLayout',
+  clientinfo: 'clientInfo',
+  environmentinfo: 'environmentInfo',
+  sync: 'sync',
+  testcase: 'testCase',
+  labels: 'labels',
+  thtestcaseexecutionid: 'thTestCaseExecutionId',
+  resources: 'resources',
+  meta: 'meta',
+  snapshot: 'snapshot'
 };
 
 function normalizeOptions(options) {

@@ -1725,7 +1725,7 @@ describe('Percy', () => {
         'client-info': 'client-info',
         'environment-info': 'env-info',
         'test-case': 'testCase',
-        'th-test-case-execution-id': '12345',
+        'th-test-case-execution-id': '12345'
       };
 
       const result = validateSnapshotOptions(options);
@@ -1738,7 +1738,7 @@ describe('Percy', () => {
         minHeight: 1024,
         enableJavaScript: true,
         testCase: 'testCase',
-        thTestCaseExecutionId: '12345',
+        thTestCaseExecutionId: '12345'
       });
     });
 
@@ -1757,7 +1757,7 @@ describe('Percy', () => {
         Sync: true,
         TestCase: 'testCase',
         Labels: 'label1',
-        ThTestCaseExecutionId: '12345',
+        ThTestCaseExecutionId: '12345'
       };
 
       const result = validateSnapshotOptions(options);
@@ -1775,7 +1775,7 @@ describe('Percy', () => {
         sync: true,
         testCase: 'testCase',
         labels: 'label1',
-        thTestCaseExecutionId: '12345',
+        thTestCaseExecutionId: '12345'
       });
     });
 
@@ -1794,7 +1794,7 @@ describe('Percy', () => {
         sYnC: true,
         tEsTcAsE: 'testCase',
         lAbElS: 'label1',
-        tHtEsTcAsEeXeCuTiOnId: '12345',
+        tHtEsTcAsEeXeCuTiOnId: '12345'
       };
 
       const result = validateSnapshotOptions(options);
@@ -1812,7 +1812,7 @@ describe('Percy', () => {
         sync: true,
         testCase: 'testCase',
         labels: 'label1',
-        thTestCaseExecutionId: '12345',
+        thTestCaseExecutionId: '12345'
       });
     });
   });
