@@ -165,7 +165,7 @@ function getSnapshotOptions(options, { config, meta }) {
     }
   });
 }
-const optionMappings = {
+const OPTION_MAPPINGS = {
   name: 'name',
   widths: 'widths',
   scope: 'scope',
@@ -189,7 +189,7 @@ function normalizeOptions(options) {
 
   for (const key in options) {
     const lowerCaseKey = key.toLowerCase().replace(/[-_]/g, '');
-    const normalizedKey = optionMappings[lowerCaseKey] ? optionMappings[lowerCaseKey] : key;
+    const normalizedKey = OPTION_MAPPINGS[lowerCaseKey] ? OPTION_MAPPINGS[lowerCaseKey] : key;
     normalizedOptions[normalizedKey] = options[key];
   }
 
