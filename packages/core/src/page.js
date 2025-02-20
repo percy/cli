@@ -207,6 +207,19 @@ export class Page {
     // serialize and capture a DOM snapshot
     this.log.debug('Serialize DOM', this.meta);
 
+    const waitTime = parseInt(process.env.LOADER_WAIT_TIMEOUT) || 2000;
+
+    /* istanbul ignore next */
+    const shouldWait = await this.eval(async () => {
+      /* eslint-disable-next-line no-undef */
+      return PercyDOM.checkForLoader();
+    });
+    if (shouldWait) {
+      await new Promise(resolve => {
+        setTimeout(resolve, waitTime);
+      });
+    }
+
     /* istanbul ignore next: no instrumenting injected code */
     let capture = await this.eval((_, options) => ({
       /* eslint-disable-next-line no-undef */
