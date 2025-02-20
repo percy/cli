@@ -471,9 +471,6 @@ async function saveResponseResource(network, request, session) {
   // maxPayload option of websocket defaulted to 100MB.
   // If content-length is more than our allowed 25MB, no need to process that resouce we can return log.
   let contentLength = parseInt(response.headers['Content-Length']);
-  if (isNaN(contentLength)) {
-    log.debug('- Content length is NaN for the resource', meta);
-  }
   if (contentLength > MAX_RESOURCE_SIZE) {
     return log.debug('- Skipping resource larger than 25MB', meta);
   }
@@ -495,6 +492,7 @@ async function saveResponseResource(network, request, session) {
       } else if (!body.length) {
         return log.debug('- Skipping empty response', meta);
       } else if (body.length > MAX_RESOURCE_SIZE) {
+        log.debug('- Content length is NaN for the resource', meta);
         return log.debug('- Skipping resource larger than 25MB', meta);
       } else if (!ALLOWED_STATUSES.includes(response.status)) {
         return log.debug(`- Skipping disallowed status [${response.status}]`, meta);
