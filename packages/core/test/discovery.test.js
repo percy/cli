@@ -536,7 +536,7 @@ describe('Discovery', () => {
   });
 
   it('checks if no header is send from server', async () => {
-    server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(30_000_000)], { noHeader: true });
+    server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(30_000_000)], { noHeaders: true });
     percy.loglevel('debug');
 
     await percy.snapshot({
@@ -565,7 +565,7 @@ describe('Discovery', () => {
       })
     ]);
     expect(logger.stderr).toContain(
-      '[percy:core:discovery] - Content length is NaN for the resource'
+      '[percy:core:discovery] - Missing headers for the requested resource.'
     );
   });
 
