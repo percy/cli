@@ -9,8 +9,8 @@ export function createTestServer({ default: defaultReply, ...replies }, port = 8
     let [status, headers, body] = typeof reply === 'function' ? await reply(req) : reply;
     if (!Buffer.isBuffer(body) && typeof body !== 'string') body = JSON.stringify(body);
 
-    if (options.contentLengthNaN) {
-      headers = { ...headers, 'Content-Length': NaN };
+    if (options.noHeader) {
+      return res.writeHead(status).end(body);
     }
     return res.send(status, headers, body);
   };

@@ -535,8 +535,8 @@ describe('Discovery', () => {
     );
   });
 
-  it('checks if content-length is NaN', async () => {
-    server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(30_000_000)], { contentLengthNaN: true });
+  it('checks if no header is send from server', async () => {
+    server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(30_000_000)], { noHeader: true });
     percy.loglevel('debug');
 
     await percy.snapshot({
