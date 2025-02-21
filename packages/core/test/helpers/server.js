@@ -12,6 +12,9 @@ export function createTestServer({ default: defaultReply, ...replies }, port = 8
     if (options.noHeaders) {
       return res.writeHead(status).end(body);
     }
+    if (options.contentLength) {
+      headers = { ...headers, ...options.contentLength };
+    }
     return res.send(status, headers, body);
   };
 
