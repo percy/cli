@@ -570,7 +570,7 @@ describe('Discovery', () => {
   });
 
   it('does not capture remote files with content-length NAN greater than 25MB', async () => {
-    server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(30_000_000)], { contentLength: { 'content-length': NaN } });
+    server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(30_000_000)], { headersOverride: { 'content-length': NaN } });
     percy.loglevel('debug');
 
     await percy.snapshot({
@@ -605,7 +605,7 @@ describe('Discovery', () => {
 
   function testContentLengthCasing(description, contentLengthHeader) {
     it(description, async () => {
-      server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(30_000_000)], { contentLength: contentLengthHeader });
+      server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(30_000_000)], { headersOverride: contentLengthHeader });
       percy.loglevel('debug');
 
       await percy.snapshot({
