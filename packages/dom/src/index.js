@@ -7,3 +7,4 @@ export {
 } from './serialize-dom';
 
 export { loadAllSrcsetLinks } from './serialize-image-srcset';
+export { checkForLoader } from './check-dom-loader';
