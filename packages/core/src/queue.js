@@ -99,8 +99,17 @@ export class Queue {
     return task.deferred;
   }
 
+  logQueueSize() {
+    this.log.debug(`${this.name} queueInfo: ${JSON.stringify({
+      queued: this.#queued.size,
+      pending: this.#pending.size,
+      total: this.#pending.size + this.#queued.size,
+    })}`);
+  }
+
   // Maybe processes the next queued item task.
   #dequeue() {
+    this.logQueueSize();
     if (!this.#queued.size || this.readyState < 2) return;
     if (this.#pending.size >= this.concurrency) return;
     let [task] = this.#queued;
