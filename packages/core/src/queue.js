@@ -103,7 +103,7 @@ export class Queue {
     this.log.debug(`${this.name} queueInfo: ${JSON.stringify({
       queued: this.#queued.size,
       pending: this.#pending.size,
-      total: this.#pending.size + this.#queued.size,
+      total: this.#pending.size + this.#queued.size
     })}`);
   }
 
