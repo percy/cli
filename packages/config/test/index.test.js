@@ -637,6 +637,131 @@ describe('PercyConfig', () => {
         message: 'disallowed with condition enabled'
       }]);
     });
+    describe('.region validation', () => {
+      beforeEach(() => {
+        PercyConfig.addSchema({
+          regions: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                elementSelector: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    boundingBox: {
+                      type: 'object',
+                      additionalProperties: false,
+                      properties: {
+                        x: { type: 'integer' },
+                        y: { type: 'integer' },
+                        width: { type: 'integer' },
+                        height: { type: 'integer' }
+                      }
+                    },
+                    elementXpath: { type: 'string' },
+                    elementCSS: { type: 'string' }
+                  }
+                },
+                padding: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    top: { type: 'string', pattern: '^\\d+px$' },
+                    bottom: { type: 'string', pattern: '^\\d+px$' },
+                    left: { type: 'string', pattern: '^\\d+px$' },
+                    right: { type: 'string', pattern: '^\\d+px$' }
+                  }
+                },
+                algorithm: {
+                  type: 'string',
+                  enum: ['standard', 'layout', 'ignore', 'intelliignore']
+                },
+                configuration: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    diffSensitivity: { type: 'integer', minimum: 0 },
+                    imageIgnoreThreshold: { type: 'number', minimum: 0, maximum: 1 },
+                    carouselsEnabled: { type: 'boolean' },
+                    bannersEnabled: { type: 'boolean' },
+                    adsEnabled: { type: 'boolean' }
+                  }
+                },
+                assertion: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    diffIgnoreThreshold: { type: 'number', minimum: 0, maximum: 1 }
+                  }
+                }
+              },
+              required: ['algorithm', 'elementSelector']
+            }
+          }
+        });
+      });
+      it('validates regions with multiple selectors', () => {
+        expect(PercyConfig.validate({
+          regions: [{ elementSelector: { elementCSS: '#test', elementXpath: '//test' }, algorithm: 'ignore' }]
+        })).toEqual([
+          {
+            path: 'regions[0].elementSelector',
+            message: "Exactly one of 'elementCSS', 'elementXpath', or 'boundingBox' must be provided."
+          }
+        ]);
+      });
+
+      it('validates regions with 1 selector', () => {
+        expect(PercyConfig.validate({
+          regions: [{ elementSelector: { elementCSS: '#test' }, algorithm: 'ignore' }]
+        })).toEqual(undefined);
+      });
+
+      it('validates missing elementSelector', () => {
+        expect(PercyConfig.validate({
+          regions: [{ algorithm: 'standard' }]
+        })).toEqual([
+          {
+            path: 'regions[0].elementSelector',
+            message: 'missing required property'
+          }
+        ]);
+      });
+
+      it('validates configuration for layout algorithm', () => {
+        expect(PercyConfig.validate({
+          regions: [{ elementSelector: { elementCSS: '#test' }, algorithm: 'layout', configuration: {} }]
+        })).toEqual([
+          {
+            path: 'regions[0].configuration',
+            message: "Configuration is not applicable for 'layout' algorithm"
+          }
+        ]);
+      });
+
+      it('validates configuration for ignore algorithm', () => {
+        expect(PercyConfig.validate({
+          regions: [{ elementSelector: { elementCSS: '#test' }, algorithm: 'ignore', configuration: {} }]
+        })).toEqual([
+          {
+            path: 'regions[0].configuration',
+            message: "Configuration is not applicable for 'ignore' algorithm"
+          }
+        ]);
+      });
+
+      it('validates configuration for standard algorithm', () => {
+        expect(PercyConfig.validate({
+          regions: [{ elementSelector: { elementCSS: '#test' }, algorithm: 'standard' }]
+        })).toEqual([
+          {
+            path: 'regions[0]',
+            message: "Configuration is recommended for 'standard' algorithm"
+          }
+        ]);
+      });
+    });
   });
 
   describe('.migrate()', () => {

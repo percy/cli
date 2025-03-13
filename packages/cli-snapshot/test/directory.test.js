@@ -176,7 +176,8 @@ describe('percy snapshot <directory>', () => {
       '[percy] Percy has started!',
       '[percy] Snapshot found: /test-1',
       '[percy] Snapshot found: /test-3',
-      '[percy] Found 2 snapshots'
+      '[percy] Snapshot found: /test-index',
+      '[percy] Found 3 snapshots'
     ]));
   });
 });
