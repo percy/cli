@@ -9,7 +9,8 @@ import {
   yieldTo,
   snapshotLogName,
   decodeAndEncodeURLWithLogging,
-  compareObjectTypes
+  compareObjectTypes,
+  normalizeOptions
 } from './utils.js';
 import { JobData } from './wait-for-job.js';
 
@@ -171,7 +172,6 @@ function getSnapshotOptions(options, { config, meta }) {
 // other invalid options which are also scrubbed from the returned migrated options.
 export function validateSnapshotOptions(options) {
   let log = logger('core:snapshot');
-
   // decide which schema to validate against
   let schema = (
     (['domSnapshot', 'dom-snapshot', 'dom_snapshot']
@@ -181,6 +181,8 @@ export function validateSnapshotOptions(options) {
     ('serve' in options && '/snapshot/server') ||
     ('snapshots' in options && '/snapshot/list') ||
     ('/snapshot'));
+
+  options = normalizeOptions(options);
 
   let {
     // normalize, migrate, and remove certain properties from validating
@@ -213,10 +215,8 @@ export function validateSnapshotOptions(options) {
     log.warn('Encountered snapshot serialization warnings:');
     for (let w of domWarnings) log.warn(`- ${w}`);
   }
-
   // warn on validation errors
   let errors = PercyConfig.validate(migrated, schema);
-
   if (errors?.length > 0) {
     log.warn('Invalid snapshot options:');
     for (let e of errors) log.warn(`- ${e.path}: ${e.message}`);

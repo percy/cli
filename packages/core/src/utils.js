@@ -56,6 +56,7 @@ export function percyAutomateRequestHandler(req, percy) {
     ignoreRegionXpaths: percy.config.snapshot.ignoreRegions?.ignoreRegionXpaths,
     considerRegionSelectors: percy.config.snapshot.considerRegions?.considerRegionSelectors,
     considerRegionXpaths: percy.config.snapshot.considerRegions?.considerRegionXpaths,
+    regions: percy.config.snapshot.regions,
     sync: percy.config.snapshot.sync,
     version: 'v2'
   },
@@ -542,4 +543,35 @@ export function compareObjectTypes(obj1, obj2) {
   }
 
   return true;
+}
+
+const OPTION_MAPPINGS = {
+  name: 'name',
+  widths: 'widths',
+  scope: 'scope',
+  scopeoptions: 'scopeOptions',
+  minheight: 'minHeight',
+  enablejavascript: 'enableJavaScript',
+  enablelayout: 'enableLayout',
+  clientinfo: 'clientInfo',
+  environmentinfo: 'environmentInfo',
+  sync: 'sync',
+  testcase: 'testCase',
+  labels: 'labels',
+  thtestcaseexecutionid: 'thTestCaseExecutionId',
+  resources: 'resources',
+  meta: 'meta',
+  snapshot: 'snapshot'
+};
+
+export function normalizeOptions(options) {
+  const normalizedOptions = {};
+
+  for (const key in options) {
+    const lowerCaseKey = key.toLowerCase().replace(/[-_]/g, '');
+    const normalizedKey = OPTION_MAPPINGS[lowerCaseKey] ? OPTION_MAPPINGS[lowerCaseKey] : key;
+    normalizedOptions[normalizedKey] = options[key];
+  }
+
+  return normalizedOptions;
 }

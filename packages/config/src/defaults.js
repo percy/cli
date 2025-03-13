@@ -1,4 +1,4 @@
-import { merge } from './utils/index.js';
+import { merge, sanitizeObject } from './utils/index.js';
 import { getSchema } from './validate.js';
 
 const { isArray } = Array;
@@ -25,7 +25,11 @@ function getDefaultsFromSchema(schema) {
 }
 
 export function getDefaults(overrides = {}) {
-  return merge([getDefaultsFromSchema(), overrides], (path, prev, next) => {
+  // We are sanitizing the overrides object to prevent prototype pollution.
+  // This ensures protection against attacks where a payload having Object.prototype setters
+  // to add or modify properties on the global prototype chain, which could lead to issues like denial of service (DoS) at a minimum.
+  const sanitizedOverrides = sanitizeObject(overrides);
+  return merge([getDefaultsFromSchema(), sanitizedOverrides], (path, prev, next) => {
     // override default array instead of merging
     return isArray(next) && [path, next];
   });

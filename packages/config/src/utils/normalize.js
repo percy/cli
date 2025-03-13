@@ -1,6 +1,8 @@
 import merge from './merge.js';
 import { getSchema } from '../validate.js';
 
+const { isArray } = Array;
+
 // Edge case camelizations
 const CAMELCASE_MAP = new Map([
   ['css', 'CSS'],
@@ -10,6 +12,10 @@ const CAMELCASE_MAP = new Map([
 
 // Regular expression that matches words from boundaries or consecutive casing
 const WORD_REG = /[a-z]{2,}|[A-Z]{2,}|[0-9]{2,}|[^-_\s]+?(?=[A-Z0-9-_\s]|$)/g;
+
+// Unsafe keys list
+const UNSAFE_KEYS = ['__proto__', 'constructor', 'prototype', 'toString', 'valueOf',
+  '__defineGetter__', '__defineSetter__', '__lookupGetter__', '__lookupSetter__'];
 
 // Converts kebab-cased and snake_cased strings to camelCase.
 export function camelcase(str) {
@@ -64,6 +70,28 @@ export function normalize(object, options) {
 
     return [mapped];
   });
+}
+
+// Utility function to prevent prototype pollution
+export function isSafeKey(key) {
+  return !UNSAFE_KEYS.includes(key);
+}
+
+export function sanitizeObject(obj) {
+  if (!obj || typeof obj !== 'object' || isArray(obj)) {
+    return obj;
+  }
+  if (obj instanceof RegExp) {
+    return obj;
+  }
+  const sanitized = {};
+  for (const key in obj) {
+    if (isSafeKey(key)) {
+      sanitized[key] = sanitizeObject(obj[key]);
+    }
+  }
+
+  return sanitized;
 }
 
 export default normalize;

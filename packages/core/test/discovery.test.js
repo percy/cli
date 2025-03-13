@@ -535,6 +535,152 @@ describe('Discovery', () => {
     );
   });
 
+  it('checks if no header is send from server', async () => {
+    server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(30_000_000)], { noHeaders: true });
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'large.css')
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/'
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      })
+    ]);
+    expect(logger.stderr).toContain(
+      '[percy:core:discovery] - Missing headers for the requested resource.'
+    );
+  });
+
+  it('does not capture remote files with content-length NAN greater than 25MB', async () => {
+    server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(30_000_000)], { headersOverride: { 'content-length': NaN } });
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'large.css')
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/'
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      })
+    ]);
+    expect(logger.stderr).toContain(
+      '[percy:core:discovery] - Skipping resource larger than 25MB'
+    );
+  });
+
+  function testContentLengthCasing(description, contentLengthHeader) {
+    it(description, async () => {
+      server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(30_000_000)], { headersOverride: contentLengthHeader });
+      percy.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM.replace('style.css', 'large.css')
+      });
+
+      await percy.idle();
+
+      expect(captured[0]).toEqual([
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
+          })
+        }),
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/'
+          })
+        }),
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/img.gif'
+          })
+        })
+      ]);
+
+      expect(logger.stderr).toContain(
+        '[percy:core:discovery] - Skipping resource larger than 25MB'
+      );
+    });
+  }
+
+  describe('Content-Length casing tests', () => {
+    testContentLengthCasing('does not capture remote files with content-length casing', { 'content-length': '16515075' });
+    testContentLengthCasing('does not capture remote files with Content-Length casing', { 'Content-Length': '16515075' });
+    testContentLengthCasing('does not capture remote files with CONTENT-LENGTH casing', { 'CONTENT-LENGTH': '16515075' });
+  });
+
+  it('skips file greater than 100MB', async () => {
+    server.reply('/large.css', () => [200, 'text/css', 'A'.repeat(100_000_000)]);
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'test snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM.replace('style.css', 'large.css')
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': jasmine.stringMatching(/^\/percy\.\d+\.log$/)
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/'
+        })
+      }),
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/img.gif'
+        })
+      })
+    ]);
+
+    expect(logger.stderr).toContain(
+      '[percy:core:discovery] - Skipping resource larger than 25MB'
+    );
+  });
+
   it('does not capture duplicate root resources', async () => {
     let reDOM = dedent`
       <html><head></head><body>

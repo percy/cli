@@ -403,6 +403,7 @@ export class PercyClient {
     testCase,
     labels,
     thTestCaseExecutionId,
+    regions,
     resources = [],
     meta
   } = {}) {
@@ -435,6 +436,7 @@ export class PercyClient {
           'test-case': testCase || null,
           tags: tagsArr,
           'scope-options': scopeOptions || {},
+          'regions': regions || null,
           'minimum-height': minHeight || null,
           'enable-javascript': enableJavaScript || null,
           'enable-layout': enableLayout || false,
@@ -488,7 +490,7 @@ export class PercyClient {
 
   async createComparison(snapshotId, {
     tag, tiles = [], externalDebugUrl, ignoredElementsData,
-    domInfoSha, consideredElementsData, metadata, sync, meta = {}
+    domInfoSha, consideredElementsData, metadata, regions, sync, meta = {}
   } = {}) {
     validateId('snapshot', snapshotId);
     // Remove post percy api deploy
@@ -511,6 +513,7 @@ export class PercyClient {
         attributes: {
           'external-debug-url': externalDebugUrl || null,
           'ignore-elements-data': ignoredElementsData || null,
+          'regions': regions || null,
           'consider-elements-data': consideredElementsData || null,
           'dom-info-sha': domInfoSha || null,
           sync: !!sync,
