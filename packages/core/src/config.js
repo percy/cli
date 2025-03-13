@@ -164,67 +164,67 @@ export const configSchema = {
           }
         }
       },
-        regions: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              elementSelector: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  boundingBox: {
-                    type: 'object',
-                    additionalProperties: false,
-                    properties: {
-                      x: { type: 'integer' },
-                      y: { type: 'integer' },
-                      width: { type: 'integer' },
-                      height: { type: 'integer' }
-                    }
-                  },
-                  elementXpath: { type: 'string' },
-                  elementCSS: { type: 'string' }
-                }
-              },
-              padding: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  top: { type: 'string', pattern: '^\\d+px$' },
-                  bottom: { type: 'string', pattern: '^\\d+px$' },
-                  left: { type: 'string', pattern: '^\\d+px$' },
-                  right: { type: 'string', pattern: '^\\d+px$' }
-                }
-              },
-              algorithm: {
-                type: 'string',
-                enum: ['standard', 'layout', 'ignore', 'intelliignore']
-              },
-              configuration: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  diffSensitivity: { type: "integer", minimum: 0 }, 
-                  imageIgnoreThreshold: { type: "number", minimum: 0, maximum: 1 },
-                  carouselsEnabled: { type: "boolean" },
-                  bannersEnabled: { type: "boolean" },
-                  adsEnabled: { type: "boolean" }
-                }
-              },
-              assertion: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  diffIgnoreThreshold: { type: 'number', minimum: 0, maximum: 1 }
-                }
+      regions: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            elementSelector: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                boundingBox: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    x: { type: 'integer' },
+                    y: { type: 'integer' },
+                    width: { type: 'integer' },
+                    height: { type: 'integer' }
+                  }
+                },
+                elementXpath: { type: 'string' },
+                elementCSS: { type: 'string' }
               }
             },
-            required: ['algorithm', 'elementSelector']
-          }
+            padding: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                top: { type: 'string', pattern: '^\\d+px$' },
+                bottom: { type: 'string', pattern: '^\\d+px$' },
+                left: { type: 'string', pattern: '^\\d+px$' },
+                right: { type: 'string', pattern: '^\\d+px$' }
+              }
+            },
+            algorithm: {
+              type: 'string',
+              enum: ['standard', 'layout', 'ignore', 'intelliignore']
+            },
+            configuration: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                diffSensitivity: { type: 'integer', minimum: 0 },
+                imageIgnoreThreshold: { type: 'number', minimum: 0, maximum: 1 },
+                carouselsEnabled: { type: 'boolean' },
+                bannersEnabled: { type: 'boolean' },
+                adsEnabled: { type: 'boolean' }
+              }
+            },
+            assertion: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                diffIgnoreThreshold: { type: 'number', minimum: 0, maximum: 1 }
+              }
+            }
+          },
+          required: ['algorithm', 'elementSelector']
         }
       }
-    },
+    }
+  },
   discovery: {
     type: 'object',
     additionalProperties: false,
