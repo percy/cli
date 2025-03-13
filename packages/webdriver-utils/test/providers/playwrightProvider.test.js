@@ -136,6 +136,7 @@ describe('PlaywrightProvider', () => {
         environmentInfo: 'environmentInfo',
         clientInfo: 'clientInfo',
         domInfoSha: 'domInfoSha',
+        regions: null,
         metadata: null
       });
     });

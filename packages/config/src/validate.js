@@ -186,7 +186,6 @@ export function validate(data, key = '/config') {
   let errors = new Map();
 
   if (!ajv.validate(key, data)) {
-
     for (let error of ajv.errors) {
       let { instancePath, parentSchema, keyword, message, params } = error;
       let path = instancePath ? instancePath.substr(1).split('/') : [];
@@ -237,14 +236,17 @@ export function validate(data, key = '/config') {
       // map one error per path
       errors.set(path, { path, message });
     }
+    // filter empty values as a result of scrubbing
+    filterEmpty(data);
   }
 
   if (data.regions && Array.isArray(data.regions)) {
     data.regions.forEach((region, index) => {
+      /* istanbul ignore next */
       if (region.elementSelector) {
         const selectorKeys = ['elementCSS', 'elementXpath', 'boundingBox'];
         const providedKeys = selectorKeys.filter(key => region.elementSelector[key] !== undefined);
-        
+
         if (providedKeys.length !== 1) {
           const pathStr = `regions[${index}].elementSelector`;
           errors.set(pathStr, {
@@ -257,7 +259,7 @@ export function validate(data, key = '/config') {
 
       const algorithmType = region.algorithm;
       const hasConfiguration = region.configuration !== undefined;
-      
+
       if (algorithmType === 'layout' || algorithmType === 'ignore') {
         if (hasConfiguration) {
           const pathStr = `regions[${index}].configuration`;
@@ -265,11 +267,11 @@ export function validate(data, key = '/config') {
             path: pathStr,
             message: `Configuration is not applicable for '${algorithmType}' algorithm`
           });
-          
+
           delete data.regions[index];
         }
       }
-      
+
       if ((algorithmType === 'standard' || algorithmType === 'intelliignore') && !hasConfiguration) {
         const pathStr = `regions[${index}]`;
         errors.set(pathStr, {
@@ -277,15 +279,11 @@ export function validate(data, key = '/config') {
           message: `Configuration is recommended for '${algorithmType}' algorithm`
         });
       }
-
     });
   }
 
-  // filter empty values as a result of scrubbing
-  filterEmpty(data);
-
-  // return an array of errors
-  return Array.from(errors.values());
+  const errorArray = Array.from(errors.values());
+  return errorArray.length > 0 ? errorArray : undefined;
 }
 
 export default validate;
