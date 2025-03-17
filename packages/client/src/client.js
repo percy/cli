@@ -490,7 +490,7 @@ export class PercyClient {
 
   async createComparison(snapshotId, {
     tag, tiles = [], externalDebugUrl, ignoredElementsData,
-    domInfoSha, consideredElementsData, metadata, regions, sync, meta = {}
+    domInfoSha, consideredElementsData, metadata, sync, regions, meta = {}
   } = {}) {
     validateId('snapshot', snapshotId);
     // Remove post percy api deploy
