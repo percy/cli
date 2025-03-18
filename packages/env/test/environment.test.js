@@ -22,4 +22,21 @@ describe('PercyEnv', () => {
       expect(env.forcedPkgValue).toBeNull();
     });
   });
+
+  describe('thBuildUuid', () => {
+    it('should return parsed JSON from thBuildUuid', () => {
+      let env = new PercyEnv({ TH_BUILD_UUID: "test_id" });
+      expect(env.thBuildUuid).toEqual("test_id");
+    });
+
+    it('should return null if thBuildUuid is not set', () => {
+      let env = new PercyEnv({});
+      expect(env.thBuildUuid).toBeNull();
+    });
+
+    it('should return null if thBuildUuid is null', () => {
+      let env = new PercyEnv({ thBuildUuid: null });
+      expect(env.forcedPkgValue).toBeNull();
+    });
+  });
 });
