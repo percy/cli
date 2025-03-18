@@ -25,8 +25,8 @@ describe('PercyEnv', () => {
 
   describe('thBuildUuid', () => {
     it('should return parsed JSON from thBuildUuid', () => {
-      let env = new PercyEnv({ TH_BUILD_UUID: "test_id" });
-      expect(env.thBuildUuid).toEqual("test_id");
+      let env = new PercyEnv({ TH_BUILD_UUID: 'test_id' });
+      expect(env.thBuildUuid).toEqual('test_id');
     });
 
     it('should return null if thBuildUuid is not set', () => {
