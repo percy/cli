@@ -298,6 +298,11 @@ export class PercyEnv {
     return this.vars.PERCY_TOKEN || null;
   }
 
+  // th build uuid
+  get thBuildUuid() {
+    return this.vars.TH_BUILD_UUID || null;
+  }
+
   // PERCY_FORCE_PKG_VALUE for forcing package.json values
   // to be used as the current environment values in client
   get forcedPkgValue() {

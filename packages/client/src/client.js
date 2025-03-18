@@ -177,7 +177,8 @@ export class PercyClient {
           tags: tagsArr,
           'cli-start-time': cliStartTime,
           source: source,
-          'skip-base-build': this.config.percy?.skipBaseBuild
+          'skip-base-build': this.config.percy?.skipBaseBuild,
+          "th-build-uuid": this.env.thBuildUuid
         },
         relationships: {
           resources: {
