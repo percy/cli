@@ -201,6 +201,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             'cli-start-time': null,
+            'th-build-uuid': client.env.thBuildUuid,
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -237,6 +238,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             'cli-start-time': null,
+            'th-build-uuid': client.env.thBuildUuid,
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -320,6 +322,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             'cli-start-time': null,
+            'th-build-uuid': client.env.thBuildUuid,
             source: 'user_created',
             partial: client.env.partial,
             tags: []
@@ -360,6 +363,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             'cli-start-time': null,
+            'th-build-uuid': client.env.thBuildUuid,
             source: 'user_created',
             partial: client.env.partial,
             tags: [{ id: null, name: 'tag1' }, { id: null, name: 'tag2' }]
@@ -401,6 +405,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             'cli-start-time': cliStartTime,
+            'th-build-uuid': client.env.thBuildUuid,
             source: 'auto_enabled_group',
             partial: client.env.partial,
             tags: [{ id: null, name: 'tag1' }, { id: null, name: 'tag2' }]
@@ -441,9 +446,48 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             'cli-start-time': null,
+            'th-build-uuid': client.env.thBuildUuid,
             source: 'user_created',
             partial: client.env.partial,
             'skip-base-build': true,
+            tags: []
+          }
+        }));
+    });
+
+    it('creates a new build with th-build-uuid', async () => {
+      process.env.TH_BUILD_UUID = 'test-uuid-123';
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolvedTo({
+        data: {
+          id: '123',
+          attributes: {
+            'build-number': 1,
+            'web-url': 'https://percy.io/test/test/123'
+          }
+        }
+      });
+
+      expect(api.requests['/builds'][0].body.data)
+        .toEqual(jasmine.objectContaining({
+          attributes: {
+            branch: client.env.git.branch,
+            type: 'web',
+            'target-branch': client.env.target.branch,
+            'target-commit-sha': client.env.target.commit,
+            'commit-sha': client.env.git.sha,
+            'commit-committed-at': client.env.git.committedAt,
+            'commit-author-name': client.env.git.authorName,
+            'commit-author-email': client.env.git.authorEmail,
+            'commit-committer-name': client.env.git.committerName,
+            'commit-committer-email': client.env.git.committerEmail,
+            'commit-message': client.env.git.message,
+            'pull-request-number': client.env.pullRequest,
+            'parallel-nonce': client.env.parallel.nonce,
+            'parallel-total-shards': client.env.parallel.total,
+            'cli-start-time': null,
+            'th-build-uuid': 'test-uuid-123',
+            source: 'user_created',
+            partial: client.env.partial,
             tags: []
           }
         }));
