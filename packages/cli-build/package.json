@@ -34,5 +34,6 @@
   },
   "dependencies": {
     "@percy/cli-command": "1.30.9-alpha.0"
-  }
+  },
+  "gitHead": "435d4a850d806a72aee3f01b9f20690abb207d08"
 }
