@@ -106,14 +106,14 @@ export function serializeCSSOM(ctx) {
         // handle document and iframe
         // We are checking if we have multiple stylesheets present for the same clone or clone.body then we add
         // them in the same order in which we receive them.
-        const lastLink = [...clone.body.querySelectorAll('link[data-percy-adopted-stylesheets-serialized]')].pop();
+        const lastLink = clone.body.querySelector('link[data-percy-adopted-stylesheets-serialized]:last-of-type');
         if (lastLink) {
           lastLink.after(styleLink);
         } else {
           clone.body.prepend(styleLink);
         }
       } else if (clone.constructor.name === 'ShadowRoot') {
-        const lastLink = [...clone.querySelectorAll('link[data-percy-adopted-stylesheets-serialized]')].pop();
+        const lastLink = clone.querySelector('link[data-percy-adopted-stylesheets-serialized]:last-of-type');
         if (lastLink) {
           lastLink.after(styleLink);
         } else {
