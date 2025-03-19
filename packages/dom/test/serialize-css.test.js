@@ -140,16 +140,19 @@ describe('serializeCSSOM', () => {
         const sheet2 = new window.CSSStyleSheet();
         const style2 = 'div {border: 1px solid black;}';
         sheet2.replaceSync(style2);
+        const sheet3 = new window.CSSStyleSheet();
+        const style3 = 'div {border: 1px solid red;}';
+        sheet3.replaceSync(style3);
         const shadowEl = createShadowEl();
         const shadowElChild = createShadowEl(1);
         shadowEl.shadowRoot.adoptedStyleSheets = [sheet];
-        shadowElChild.shadowRoot.adoptedStyleSheets = [sheet, sheet2];
+        shadowElChild.shadowRoot.adoptedStyleSheets = [sheet, sheet2, sheet3];
 
         shadowEl.appendChild(shadowElChild);
         box.appendChild(shadowEl);
 
         const capture = serializeDOM();
-        expect(capture.resources.length).toEqual(2);
+        expect(capture.resources.length).toEqual(3);
 
         let $ = parseDOM(capture, 'plain');
 
@@ -165,8 +168,9 @@ describe('serializeCSSOM', () => {
 
         expect(resultShadowElChild.innerHTML).toMatch([
           '<template shadowrootmode="open" shadowrootserializable="">',
-          `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[1].url}">`,
           `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`,
+          `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[1].url}">`,
+          `<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[2].url}">`,
           '<p>Percy-1</p>',
           '</template>'
         ].join(''));
