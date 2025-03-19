@@ -24,19 +24,35 @@ describe('PercyEnv', () => {
   });
 
   describe('thBuildUuid', () => {
-    it('should return parsed JSON from thBuildUuid', () => {
+    it('should return TH_BUILD_UUID when it is set', () => {
       let env = new PercyEnv({ TH_BUILD_UUID: 'test_id' });
       expect(env.thBuildUuid).toEqual('test_id');
     });
-
-    it('should return null if thBuildUuid is not set', () => {
+  
+    it('should return BROWSERSTACK_TESTHUB_UUID when TH_BUILD_UUID is not set', () => {
+      let env = new PercyEnv({ BROWSERSTACK_TESTHUB_UUID: 'browserstack_id' });
+      expect(env.thBuildUuid).toEqual('browserstack_id');
+    });
+  
+    it('should prioritize TH_BUILD_UUID over BROWSERSTACK_TESTHUB_UUID when both are set', () => {
+      let env = new PercyEnv({ 
+        TH_BUILD_UUID: 'test_id', 
+        BROWSERSTACK_TESTHUB_UUID: 'browserstack_id' 
+      });
+      expect(env.thBuildUuid).toEqual('test_id');
+    });
+  
+    it('should return null if neither TH_BUILD_UUID nor BROWSERSTACK_TESTHUB_UUID are set', () => {
       let env = new PercyEnv({});
       expect(env.thBuildUuid).toBeNull();
     });
-
-    it('should return null if thBuildUuid is null', () => {
-      let env = new PercyEnv({ thBuildUuid: null });
-      expect(env.forcedPkgValue).toBeNull();
+  
+    it('should return null if both values are null', () => {
+      let env = new PercyEnv({ 
+        TH_BUILD_UUID: null, 
+        BROWSERSTACK_TESTHUB_UUID: null 
+      });
+      expect(env.thBuildUuid).toBeNull();
     });
   });
 });

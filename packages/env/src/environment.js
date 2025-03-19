@@ -300,7 +300,7 @@ export class PercyEnv {
 
   // th build uuid
   get thBuildUuid() {
-    return this.vars.TH_BUILD_UUID || null;
+    return this.vars.TH_BUILD_UUID || this.vars.BROWSERSTACK_TESTHUB_UUID || null;
   }
 
   // PERCY_FORCE_PKG_VALUE for forcing package.json values
