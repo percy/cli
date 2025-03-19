@@ -34,6 +34,22 @@ export function cloneNodeAndShadow(ctx) {
 
       let clone = node.cloneNode();
 
+      // Handle <style> tag specifically for media queries
+      if (node.nodeName === 'STYLE') {
+        if (node.textContent && node.textContent.trim() !== '') {
+          clone.textContent = node.textContent;
+        } else if (node.sheet && node.sheet.cssRules) {
+          try {
+            const cssText = Array.from(node.sheet.cssRules)
+              .map(rule => rule.cssText)
+              .join('\n');
+            clone.textContent = cssText;
+          } catch (err) {
+            console.warn('Could not read cssRules for', node, err);
+          }
+        }
+      }
+
       // We apply any element transformations here to avoid another treeWalk
       applyElementTransformations(clone);
 
