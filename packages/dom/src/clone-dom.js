@@ -16,7 +16,7 @@ import { handleErrors } from './utils';
 const ignoreTags = ['NOSCRIPT'];
 
 export function cloneNodeAndShadow(ctx) {
-  let { dom, disableShadowDOM, resources, cache } = ctx;
+  let { dom, disableShadowDOM, resources, cache, enableJavaScript } = ctx;
   // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
     try {
@@ -35,7 +35,7 @@ export function cloneNodeAndShadow(ctx) {
       let clone = node.cloneNode();
 
       // Handle <style> tag specifically for media queries
-      if (node.nodeName === 'STYLE') {
+      if (node.nodeName === 'STYLE' && !enableJavaScript) {
         if (node.textContent && node.textContent.trim() !== '') {
           clone.textContent = node.textContent;
           clone.setAttribute('data-percy-cssom-serialized', 'true');
