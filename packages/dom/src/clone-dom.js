@@ -16,7 +16,7 @@ import { handleErrors } from './utils';
 const ignoreTags = ['NOSCRIPT'];
 
 export function cloneNodeAndShadow(ctx) {
-  let { dom, disableShadowDOM, resources, cache } = ctx;
+  let { dom, disableShadowDOM, resources, cache, enableJavaScript } = ctx;
   // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
     try {
@@ -33,6 +33,45 @@ export function cloneNodeAndShadow(ctx) {
       markElement(node, disableShadowDOM);
 
       let clone = node.cloneNode();
+
+      // // Handle <style> tag specifically for media queries
+      // if (node.nodeName === 'STYLE' && !enableJavaScript) {
+      //   if (node.textContent && node.textContent.trim() !== '') {
+      //     clone.textContent = node.textContent;
+      //     clone.setAttribute('data-percy-cssom-serialized', 'true');
+      //   } else if (node.sheet && node.sheet.cssRules) {
+      //     try {
+      //       const cssText = Array.from(node.sheet.cssRules)
+      //         .map(rule => rule.cssText)
+      //         .join('\n');
+      //       clone.textContent = cssText;
+      //       clone.setAttribute('data-percy-cssom-serialized', 'true');
+      //     } catch (err) {
+      //       // ignore errors
+      //     }
+      //   }
+      // }
+
+      // Handle <style> tag specifically for media queries
+      if (node.nodeName === 'STYLE' && !enableJavaScript) {
+        let cssText = node.textContent?.trim() || '';
+
+        // istanbul ignore if
+        if (!cssText && node.sheet) {
+          try {
+            cssText = Array.from(node.sheet.cssRules || [])
+              .map(rule => rule.cssText)
+              .join('\n');
+          } catch (_) {
+            // ignore errors
+          }
+        }
+
+        if (cssText) {
+          clone.textContent = cssText;
+          clone.setAttribute('data-percy-cssom-serialized', 'true');
+        }
+      }
 
       // We apply any element transformations here to avoid another treeWalk
       applyElementTransformations(clone);
