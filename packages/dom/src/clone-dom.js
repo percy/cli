@@ -47,7 +47,7 @@ export function cloneNodeAndShadow(ctx) {
             clone.textContent = cssText;
             clone.setAttribute('data-percy-cssom-serialized', 'true');
           } catch (err) {
-            console.warn('Could not read cssRules for', node, err);
+            // ignore errors
           }
         }
       }
