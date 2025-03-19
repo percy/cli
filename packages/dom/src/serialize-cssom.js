@@ -99,14 +99,27 @@ export function serializeCSSOM(ctx) {
         cache.set(sheet, resource.url);
       }
       styleLink.setAttribute('data-percy-adopted-stylesheets-serialized', 'true');
+      styleLink.setAttribute('data-percy-adopted-stylesheets-shivanshu-test', 'true');
       styleLink.setAttribute('data-percy-serialized-attribute-href', cache.get(sheet));
 
       /* istanbul ignore next: tested, but coverage is stripped */
       if (clone.constructor.name === 'HTMLDocument' || clone.constructor.name === 'DocumentFragment') {
         // handle document and iframe
-        clone.body.prepend(styleLink);
+        // We are checking if we have multiple stylesheets present for the same clone or clone.body then we add
+        // them in the same order in which we receive them.
+        const lastLink = [...clone.body.querySelectorAll('link[data-percy-adopted-stylesheets-serialized]')].pop();
+        if (lastLink) {
+          lastLink.after(styleLink);
+        } else {
+          clone.body.prepend(styleLink);
+        }
       } else if (clone.constructor.name === 'ShadowRoot') {
-        clone.prepend(styleLink);
+        const lastLink = [...clone.querySelectorAll('link[data-percy-adopted-stylesheets-serialized]')].pop();
+        if (lastLink) {
+          lastLink.after(styleLink);
+        } else {
+          clone.prepend(styleLink);
+        }
       }
     }
   } else {
