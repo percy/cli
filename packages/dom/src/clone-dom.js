@@ -38,12 +38,14 @@ export function cloneNodeAndShadow(ctx) {
       if (node.nodeName === 'STYLE') {
         if (node.textContent && node.textContent.trim() !== '') {
           clone.textContent = node.textContent;
+          clone.setAttribute('data-percy-cssom-serialized', 'true');
         } else if (node.sheet && node.sheet.cssRules) {
           try {
             const cssText = Array.from(node.sheet.cssRules)
               .map(rule => rule.cssText)
               .join('\n');
             clone.textContent = cssText;
+            clone.setAttribute('data-percy-cssom-serialized', 'true');
           } catch (err) {
             console.warn('Could not read cssRules for', node, err);
           }

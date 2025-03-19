@@ -45,7 +45,7 @@ describe('serializeCSSOM', () => {
         let $cssom = parseDOM(serializeDOM(), platform)('[data-percy-cssom-serialized]');
 
         // linked and unmodified stylesheets are not included
-        expect($cssom).toHaveSize(2);
+        expect($cssom).toHaveSize(3);
         expect($cssom[0].innerHTML).toBe('.box { height: 500px; }');
         expect($cssom[1].innerHTML).toBe('.box { width: 1000px; }');
 
