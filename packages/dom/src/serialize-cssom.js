@@ -99,7 +99,6 @@ export function serializeCSSOM(ctx) {
         cache.set(sheet, resource.url);
       }
       styleLink.setAttribute('data-percy-adopted-stylesheets-serialized', 'true');
-      styleLink.setAttribute('data-percy-adopted-stylesheets-shivanshu-test', 'true');
       styleLink.setAttribute('data-percy-serialized-attribute-href', cache.get(sheet));
 
       /* istanbul ignore next: tested, but coverage is stripped */
