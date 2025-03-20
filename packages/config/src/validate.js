@@ -255,6 +255,16 @@ export function validate(data, key = '/config') {
           });
           delete data.regions[index];
         }
+      } else {
+        if (region.algorithm === 'ignore') {
+          const pathStr = `regions[${index}].elementSelector`;
+          errors.set(pathStr, {
+            path: pathStr,
+            message: "'elementSelector' is required when algorithm is 'ignore'."
+          });
+
+          delete data.regions[index];
+        }
       }
 
       const algorithmType = region.algorithm;

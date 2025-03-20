@@ -696,7 +696,7 @@ describe('PercyConfig', () => {
                   }
                 }
               },
-              required: ['algorithm', 'elementSelector']
+              required: ['algorithm']
             }
           }
         });
@@ -720,11 +720,17 @@ describe('PercyConfig', () => {
 
       it('validates missing elementSelector', () => {
         expect(PercyConfig.validate({
-          regions: [{ algorithm: 'standard' }]
+          regions: [{ algorithm: 'standard', configuration: { diffSensitivity: 2 } }]
+        })).toEqual(undefined);
+      });
+
+      it('validates algorithm missing elementSelector', () => {
+        expect(PercyConfig.validate({
+          regions: [{ algorithm: 'ignore' }]
         })).toEqual([
           {
             path: 'regions[0].elementSelector',
-            message: 'missing required property'
+            message: "'elementSelector' is required when algorithm is 'ignore'."
           }
         ]);
       });

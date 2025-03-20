@@ -849,7 +849,7 @@ describe('PercyClient', () => {
         scopeOptions: { scroll: true },
         minHeight: 1000,
         enableJavaScript: true,
-        regions: { elementSelector: { elementCSS: '#test' }, algorithm: 'ignore' },
+        regions: [{ elementSelector: { elementCSS: '#test' }, algorithm: 'ignore' }],
         enableLayout: true,
         clientInfo: 'sdk/info',
         environmentInfo: 'sdk/env',
@@ -882,7 +882,7 @@ describe('PercyClient', () => {
             name: 'snapfoo',
             widths: [1000],
             scope: '#main',
-            regions: { elementSelector: { elementCSS: '#test' }, algorithm: 'ignore' },
+            regions: [{ elementSelector: { elementCSS: '#test' }, algorithm: 'ignore' }],
             sync: true,
             'test-case': 'foo test case',
             tags: [{ id: null, name: 'tag 1' }, { id: null, name: 'tag 2' }],
@@ -1147,7 +1147,7 @@ describe('PercyClient', () => {
         ignoredElementsData: ignoredElementsData,
         consideredElementsData: consideredElementsData,
         domInfoSha: 'abcd=',
-        regions: { elementSelector: { elementCSS: '#test' }, algorithm: 'layout' },
+        regions: [{ algorithm: 'layout' }],
         metadata: {
           windowHeight: 1947,
           screenshotType: 'singlepage'
@@ -1162,7 +1162,7 @@ describe('PercyClient', () => {
             'ignore-elements-data': ignoredElementsData,
             'consider-elements-data': consideredElementsData,
             'dom-info-sha': 'abcd=',
-            regions: { elementSelector: { elementCSS: '#test' }, algorithm: 'layout' },
+            regions: [{ elementSelector: { fullPage: true }, algorithm: 'layout' }],
             sync: true,
             metadata: {
               windowHeight: 1947,

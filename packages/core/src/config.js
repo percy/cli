@@ -220,7 +220,7 @@ export const configSchema = {
               }
             }
           },
-          required: ['algorithm', 'elementSelector']
+          required: ['algorithm']
         }
       }
     }
