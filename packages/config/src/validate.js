@@ -183,9 +183,9 @@ function shouldHideError(key, path, error) {
 
 // Validates data according to the associated schema and returns a list of errors, if any.
 export function validate(data, key = '/config') {
-  if (!ajv.validate(key, data)) {
-    let errors = new Map();
+  let errors = new Map();
 
+  if (!ajv.validate(key, data)) {
     for (let error of ajv.errors) {
       let { instancePath, parentSchema, keyword, message, params } = error;
       let path = instancePath ? instancePath.substr(1).split('/') : [];
@@ -236,13 +236,64 @@ export function validate(data, key = '/config') {
       // map one error per path
       errors.set(path, { path, message });
     }
-
     // filter empty values as a result of scrubbing
     filterEmpty(data);
-
-    // return an array of errors
-    return Array.from(errors.values());
   }
+
+  if (data.regions && Array.isArray(data.regions)) {
+    data.regions.forEach((region, index) => {
+      /* istanbul ignore next */
+      if (region.elementSelector) {
+        const selectorKeys = ['elementCSS', 'elementXpath', 'boundingBox'];
+        const providedKeys = selectorKeys.filter(key => region.elementSelector[key] !== undefined);
+
+        if (providedKeys.length !== 1) {
+          const pathStr = `regions[${index}].elementSelector`;
+          errors.set(pathStr, {
+            path: pathStr,
+            message: "Exactly one of 'elementCSS', 'elementXpath', or 'boundingBox' must be provided."
+          });
+          delete data.regions[index];
+        }
+      } else {
+        if (region.algorithm === 'ignore') {
+          const pathStr = `regions[${index}].elementSelector`;
+          errors.set(pathStr, {
+            path: pathStr,
+            message: "'elementSelector' is required when algorithm is 'ignore'."
+          });
+
+          delete data.regions[index];
+        }
+      }
+
+      const algorithmType = region.algorithm;
+      const hasConfiguration = region.configuration !== undefined;
+
+      if (algorithmType === 'layout' || algorithmType === 'ignore') {
+        if (hasConfiguration) {
+          const pathStr = `regions[${index}].configuration`;
+          errors.set(pathStr, {
+            path: pathStr,
+            message: `Configuration is not applicable for '${algorithmType}' algorithm`
+          });
+
+          delete data.regions[index];
+        }
+      }
+
+      if ((algorithmType === 'standard' || algorithmType === 'intelliignore') && !hasConfiguration) {
+        const pathStr = `regions[${index}]`;
+        errors.set(pathStr, {
+          path: pathStr,
+          message: `Configuration is recommended for '${algorithmType}' algorithm`
+        });
+      }
+    });
+  }
+
+  const errorArray = Array.from(errors.values());
+  return errorArray.length > 0 ? errorArray : undefined;
 }
 
 export default validate;
