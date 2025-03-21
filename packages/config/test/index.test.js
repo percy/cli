@@ -667,10 +667,10 @@ describe('PercyConfig', () => {
                   type: 'object',
                   additionalProperties: false,
                   properties: {
-                    top: { type: 'string', pattern: '^\\d+px$' },
-                    bottom: { type: 'string', pattern: '^\\d+px$' },
-                    left: { type: 'string', pattern: '^\\d+px$' },
-                    right: { type: 'string', pattern: '^\\d+px$' }
+                    top: { type: 'integer' },
+                    bottom: { type: 'integer' },
+                    left: { type: 'integer' },
+                    right: { type: 'integer' }
                   }
                 },
                 algorithm: {
