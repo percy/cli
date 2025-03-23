@@ -299,7 +299,7 @@ export class PercyEnv {
   }
 
   // th build uuid
-  get thBuildUuid() {
+  get testhubBuildUuid() {
     return this.vars.TH_BUILD_UUID || this.vars.BROWSERSTACK_TESTHUB_UUID || null;
   }
 
