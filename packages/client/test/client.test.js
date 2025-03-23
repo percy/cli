@@ -485,7 +485,7 @@ describe('PercyClient', () => {
             'parallel-nonce': client.env.parallel.nonce,
             'parallel-total-shards': client.env.parallel.total,
             'cli-start-time': null,
-            'th-build-uuid': 'test-uuid-123',
+            'testhub-build-uuid': 'test-uuid-123',
             source: 'user_created',
             partial: client.env.partial,
             tags: []
