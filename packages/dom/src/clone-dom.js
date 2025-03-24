@@ -34,34 +34,15 @@ export function cloneNodeAndShadow(ctx) {
 
       let clone = node.cloneNode();
 
-      // // Handle <style> tag specifically for media queries
-      // if (node.nodeName === 'STYLE' && !enableJavaScript) {
-      //   if (node.textContent && node.textContent.trim() !== '') {
-      //     clone.textContent = node.textContent;
-      //     clone.setAttribute('data-percy-cssom-serialized', 'true');
-      //   } else if (node.sheet && node.sheet.cssRules) {
-      //     try {
-      //       const cssText = Array.from(node.sheet.cssRules)
-      //         .map(rule => rule.cssText)
-      //         .join('\n');
-      //       clone.textContent = cssText;
-      //       clone.setAttribute('data-percy-cssom-serialized', 'true');
-      //     } catch (err) {
-      //       // ignore errors
-      //     }
-      //   }
-      // }
-
       // Handle <style> tag specifically for media queries
       if (node.nodeName === 'STYLE' && !enableJavaScript) {
         let cssText = node.textContent?.trim() || '';
-
-        // istanbul ignore if
         if (!cssText && node.sheet) {
           try {
-            cssText = Array.from(node.sheet.cssRules || [])
-              .map(rule => rule.cssText)
-              .join('\n');
+            const cssRules = node.sheet.cssRules;
+            if (cssRules && cssRules.length > 0) {
+              cssText = Array.from(cssRules).map(rule => rule.cssText).join('\n');
+            }
           } catch (_) {
             // ignore errors
           }
