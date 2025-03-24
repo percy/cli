@@ -31,6 +31,5 @@
     "lint": "eslint --ignore-path ../../.gitignore .",
     "test": "node ../../scripts/test",
     "test:coverage": "yarn test --coverage"
-  },
-  "gitHead": "435d4a850d806a72aee3f01b9f20690abb207d08"
+  }
 }

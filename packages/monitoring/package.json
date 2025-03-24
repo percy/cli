@@ -33,6 +33,5 @@
     "@percy/logger": "1.30.9-beta.1",
     "@percy/sdk-utils": "1.30.9-beta.1",
     "systeminformation": "^5.25.11"
-  },
-  "gitHead": "435d4a850d806a72aee3f01b9f20690abb207d08"
+  }
 }

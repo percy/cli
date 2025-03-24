@@ -37,6 +37,5 @@
     "@percy/logger": "1.30.9-beta.1",
     "pac-proxy-agent": "^7.0.2",
     "pako": "^2.1.0"
-  },
-  "gitHead": "435d4a850d806a72aee3f01b9f20690abb207d08"
+  }
 }

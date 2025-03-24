@@ -36,6 +36,5 @@
     "@percy/cli-command": "1.30.9-beta.1",
     "fast-glob": "^3.2.11",
     "image-size": "^1.0.0"
-  },
-  "gitHead": "435d4a850d806a72aee3f01b9f20690abb207d08"
+  }
 }
