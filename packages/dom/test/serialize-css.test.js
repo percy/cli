@@ -45,7 +45,7 @@ describe('serializeCSSOM', () => {
         let $cssom = parseDOM(serializeDOM(), platform)('[data-percy-cssom-serialized]');
 
         // linked and unmodified stylesheets are not included
-        expect($cssom).toHaveSize(2);
+        expect($cssom).toHaveSize(3);
         expect($cssom[0].innerHTML).toBe('.box { height: 500px; }');
         expect($cssom[1].innerHTML).toBe('.box { width: 1000px; }');
 
@@ -76,6 +76,30 @@ describe('serializeCSSOM', () => {
         let $ = parseDOM(serializedDOM, platform);
         expect(dom.styleSheets[0]).toHaveProperty('ownerNode.innerText', '');
         expect($('[data-percy-cssom-serialized]')).toHaveSize(0);
+      });
+
+      it(`${platform}: skips empty CSSStyleSheets`, () => {
+        let cssomSheet = dom.styleSheets[0];
+        cssomSheet.deleteRule(0); // Remove all rules to make it empty
+        const serialized = serializeDOM();
+        let $cssom = parseDOM(serialized, platform)('[data-percy-cssom-serialized]');
+        expect($cssom).toHaveSize(2); // should skip the empty stylesheet
+      });
+
+      it(`${platform}: preserves media queries inside CSSOM`, () => {
+        let cssomSheet = dom.styleSheets[0];
+        cssomSheet.insertRule('@media screen and (min-width: 600px) { .box { display: none; } }');
+        const serialized = serializeDOM();
+        let $cssom = parseDOM(serialized, platform)('[data-percy-cssom-serialized]');
+        expect($cssom[0].innerHTML).toContain('@media screen and (min-width: 600px)');
+      });
+
+      it(`${platform}: maintains order of CSSOM serialization`, () => {
+        let cssomSheet = dom.styleSheets[0];
+        cssomSheet.insertRule('.box { padding: 20px; }', 0);
+        const serialized = serializeDOM();
+        let $cssom = parseDOM(serialized, platform)('[data-percy-cssom-serialized]');
+        expect($cssom[0].innerHTML.startsWith('.box { padding: 20px; }')).toBe(true);
       });
 
       it('captures adoptedStylesheets inside document', () => {

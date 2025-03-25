@@ -16,7 +16,7 @@ import { handleErrors } from './utils';
 const ignoreTags = ['NOSCRIPT'];
 
 export function cloneNodeAndShadow(ctx) {
-  let { dom, disableShadowDOM, resources, cache } = ctx;
+  let { dom, disableShadowDOM, resources, cache, enableJavaScript } = ctx;
   // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
     try {
@@ -33,6 +33,26 @@ export function cloneNodeAndShadow(ctx) {
       markElement(node, disableShadowDOM);
 
       let clone = node.cloneNode();
+
+      // Handle <style> tag specifically for media queries
+      if (node.nodeName === 'STYLE' && !enableJavaScript) {
+        let cssText = node.textContent?.trim() || '';
+        if (!cssText && node.sheet) {
+          try {
+            const cssRules = node.sheet.cssRules;
+            if (cssRules && cssRules.length > 0) {
+              cssText = Array.from(cssRules).map(rule => rule.cssText).join('\n');
+            }
+          } catch (_) {
+            // ignore errors
+          }
+        }
+
+        if (cssText) {
+          clone.textContent = cssText;
+          clone.setAttribute('data-percy-cssom-serialized', 'true');
+        }
+      }
 
       // We apply any element transformations here to avoid another treeWalk
       applyElementTransformations(clone);
