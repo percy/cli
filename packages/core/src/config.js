@@ -163,6 +163,65 @@ export const configSchema = {
             }
           }
         }
+      },
+      regions: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            elementSelector: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                boundingBox: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    x: { type: 'integer' },
+                    y: { type: 'integer' },
+                    width: { type: 'integer' },
+                    height: { type: 'integer' }
+                  }
+                },
+                elementXpath: { type: 'string' },
+                elementCSS: { type: 'string' }
+              }
+            },
+            padding: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                top: { type: 'integer' },
+                bottom: { type: 'integer' },
+                left: { type: 'integer' },
+                right: { type: 'integer' }
+              }
+            },
+            algorithm: {
+              type: 'string',
+              enum: ['standard', 'layout', 'ignore', 'intelliignore']
+            },
+            configuration: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                diffSensitivity: { type: 'integer', minimum: 0 },
+                imageIgnoreThreshold: { type: 'number', minimum: 0, maximum: 1 },
+                carouselsEnabled: { type: 'boolean' },
+                bannersEnabled: { type: 'boolean' },
+                adsEnabled: { type: 'boolean' }
+              }
+            },
+            assertion: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                diffIgnoreThreshold: { type: 'number', minimum: 0, maximum: 1 }
+              }
+            }
+          },
+          required: ['algorithm']
+        }
       }
     }
   },
@@ -308,6 +367,7 @@ export const snapshotSchema = {
         labels: { $ref: '/config/snapshot#/properties/labels' },
         thTestCaseExecutionId: { $ref: '/config/snapshot#/properties/thTestCaseExecutionId' },
         reshuffleInvalidTags: { $ref: '/config/snapshot#/properties/reshuffleInvalidTags' },
+        regions: { $ref: '/config/snapshot#/properties/regions' },
         scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
         discovery: {
           type: 'object',
@@ -692,6 +752,7 @@ export const comparisonSchema = {
         ignoreElementsData: regionsSchema
       }
     },
+    regions: { $ref: '/config/snapshot#/properties/regions' },
     consideredElementsData: {
       type: 'object',
       additionalProperties: false,

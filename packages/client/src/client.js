@@ -32,6 +32,15 @@ function validateId(type, id) {
   }
 }
 
+function ensureElementSelector(regions) {
+  if (!Array.isArray(regions)) return null;
+
+  return regions.map(region => ({
+    ...region,
+    elementSelector: region.elementSelector || { fullpage: true }
+  }));
+}
+
 // Validate project path arguments
 function validateProjectPath(path) {
   if (!path) throw new Error('Missing project path');
@@ -404,6 +413,7 @@ export class PercyClient {
     testCase,
     labels,
     thTestCaseExecutionId,
+    regions,
     resources = [],
     meta
   } = {}) {
@@ -416,6 +426,7 @@ export class PercyClient {
     }
 
     let tagsArr = tagsList(labels);
+    let regionsArr = ensureElementSelector(regions);
 
     this.log.debug(`Validating resources: ${name}...`, meta);
     for (let resource of resources) {
@@ -436,6 +447,7 @@ export class PercyClient {
           'test-case': testCase || null,
           tags: tagsArr,
           'scope-options': scopeOptions || {},
+          regions: regionsArr || null,
           'minimum-height': minHeight || null,
           'enable-javascript': enableJavaScript || null,
           'enable-layout': enableLayout || false,
@@ -489,7 +501,7 @@ export class PercyClient {
 
   async createComparison(snapshotId, {
     tag, tiles = [], externalDebugUrl, ignoredElementsData,
-    domInfoSha, consideredElementsData, metadata, sync, meta = {}
+    domInfoSha, consideredElementsData, metadata, sync, regions, meta = {}
   } = {}) {
     validateId('snapshot', snapshotId);
     // Remove post percy api deploy
@@ -504,6 +516,7 @@ export class PercyClient {
         tile.content = await fs.promises.readFile(tile.filepath);
       }
     }
+    let regionsArr = ensureElementSelector(regions);
     this.log.debug(`${tiles.length} tiles for comparision: ${tag.name}...`, meta);
 
     return this.post(`snapshots/${snapshotId}/comparisons`, {
@@ -512,6 +525,7 @@ export class PercyClient {
         attributes: {
           'external-debug-url': externalDebugUrl || null,
           'ignore-elements-data': ignoredElementsData || null,
+          regions: regionsArr || null,
           'consider-elements-data': consideredElementsData || null,
           'dom-info-sha': domInfoSha || null,
           sync: !!sync,
