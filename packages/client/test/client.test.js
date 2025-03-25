@@ -1162,7 +1162,7 @@ describe('PercyClient', () => {
             'ignore-elements-data': ignoredElementsData,
             'consider-elements-data': consideredElementsData,
             'dom-info-sha': 'abcd=',
-            regions: [{ elementSelector: { fullPage: true }, algorithm: 'layout' }],
+            regions: [{ elementSelector: { fullpage: true }, algorithm: 'layout' }],
             sync: true,
             metadata: {
               windowHeight: 1947,

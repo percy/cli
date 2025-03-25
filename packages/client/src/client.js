@@ -37,7 +37,7 @@ function ensureElementSelector(regions) {
 
   return regions.map(region => ({
     ...region,
-    elementSelector: region.elementSelector || { fullPage: true }
+    elementSelector: region.elementSelector || { fullpage: true }
   }));
 }
 
