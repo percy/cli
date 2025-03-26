@@ -894,6 +894,7 @@ describe('PercyClient', () => {
         minHeight: 1000,
         enableJavaScript: true,
         regions: [{ elementSelector: { elementCSS: '#test' }, algorithm: 'ignore' }],
+        algorithm: 'layout',
         enableLayout: true,
         clientInfo: 'sdk/info',
         environmentInfo: 'sdk/env',
@@ -919,6 +920,10 @@ describe('PercyClient', () => {
         })
       );
 
+      const expectedRegions = [
+        { elementSelector: { elementCSS: '#test' }, algorithm: 'ignore' },
+        { elementSelector: { fullpage: true }, algorithm: 'layout' }
+      ];
       expect(api.requests['/builds/123/snapshots'][0].body).toEqual({
         data: {
           type: 'snapshots',
@@ -926,7 +931,7 @@ describe('PercyClient', () => {
             name: 'snapfoo',
             widths: [1000],
             scope: '#main',
-            regions: [{ elementSelector: { elementCSS: '#test' }, algorithm: 'ignore' }],
+            regions: expectedRegions,
             sync: true,
             'test-case': 'foo test case',
             tags: [{ id: null, name: 'tag 1' }, { id: null, name: 'tag 2' }],
@@ -1191,13 +1196,23 @@ describe('PercyClient', () => {
         ignoredElementsData: ignoredElementsData,
         consideredElementsData: consideredElementsData,
         domInfoSha: 'abcd=',
-        regions: [{ algorithm: 'layout' }],
+        regions: [{ elementSelector: { elementCSS: '#test' }, algorithm: 'layout' }],
+        algorithm: 'intelliignore',
+        algorithmConfiguration: { diffSensitivity: 2 },
         metadata: {
           windowHeight: 1947,
           screenshotType: 'singlepage'
         }
       })).toBeResolved();
 
+      const expectedRegions = [
+        { elementSelector: { elementCSS: '#test' }, algorithm: 'layout' },
+        {
+          elementSelector: { fullpage: true },
+          algorithm: 'intelliignore',
+          configuration: { diffSensitivity: 2 }
+        }
+      ];
       expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
         data: {
           type: 'comparisons',
@@ -1206,7 +1221,7 @@ describe('PercyClient', () => {
             'ignore-elements-data': ignoredElementsData,
             'consider-elements-data': consideredElementsData,
             'dom-info-sha': 'abcd=',
-            regions: [{ elementSelector: { fullpage: true }, algorithm: 'layout' }],
+            regions: expectedRegions,
             sync: true,
             metadata: {
               windowHeight: 1947,

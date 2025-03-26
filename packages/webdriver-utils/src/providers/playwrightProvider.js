@@ -67,6 +67,8 @@ export default class PlaywrightProvider extends GenericProvider {
           considerElementsData: tiles.considerRegionsData
         },
         regions: options.regions || null,
+        algorithm: options.algorithm || null,
+        algorithmConfiguration: options.algorithmConfiguration || null,
         environmentInfo: this.environmentInfo,
         clientInfo: this.clientInfo,
         domInfoSha: tiles.domInfoSha,

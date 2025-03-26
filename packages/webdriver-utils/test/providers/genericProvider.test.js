@@ -121,6 +121,8 @@ describe('GenericProvider', () => {
           clientInfo: 'local-poc-poa',
           domInfoSha: 'mock-dom-sha',
           regions: null,
+          algorithm: null,
+          algorithmConfiguration: null,
           metadata: null
         });
       });
@@ -180,6 +182,8 @@ describe('GenericProvider', () => {
           clientInfo: 'local-poc-poa',
           domInfoSha: 'mock-dom-sha',
           regions: null,
+          algorithm: null,
+          algorithmConfiguration: null,
           metadata: null
         });
       });

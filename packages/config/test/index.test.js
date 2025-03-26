@@ -768,6 +768,68 @@ describe('PercyConfig', () => {
         ]);
       });
     });
+    describe('.algorithm validation', () => {
+      beforeEach(() => {
+        PercyConfig.addSchema({
+          algorithm: {
+            type: 'string',
+            enum: ['standard', 'layout', 'intelliignore']
+          },
+          algorithmConfiguration: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              diffSensitivity: { type: 'integer', minimum: 0 },
+              imageIgnoreThreshold: { type: 'number', minimum: 0, maximum: 1 },
+              carouselsEnabled: { type: 'boolean' },
+              bannersEnabled: { type: 'boolean' },
+              adsEnabled: { type: 'boolean' }
+            }
+          }
+        });
+      });
+
+      it('validates configuration for ignore algorithm', () => {
+        expect(PercyConfig.validate({
+          algorithm: 'ignore'
+        })).toEqual([
+          {
+            path: 'algorithm',
+            message: 'must be equal to one of the allowed values'
+          }
+        ]);
+      });
+
+      it('validates algorithm should be present for algorithmConfiguration', () => {
+        expect(PercyConfig.validate({
+          algorithmConfiguration: { diffSensitivity: 2 }
+        })).toEqual([
+          {
+            path: 'algorithmConfiguration',
+            message: 'algorithmConfiguration needs algorigthm to be passed'
+          }
+        ]);
+      });
+
+      it('validates algorithmConfiguration when layout algorigthm is passed', () => {
+        expect(PercyConfig.validate({
+          algorithm: 'layout',
+          algorithmConfiguration: { diffSensitivity: 2 }
+        })).toEqual([
+          {
+            path: 'algorithmConfiguration',
+            message: "algorithmConfiguration is not applicable for 'layout' algorithm"
+          }
+        ]);
+      });
+
+      it('validates algorithmConfiguration when standard algorigthm is passed', () => {
+        expect(PercyConfig.validate({
+          algorithm: 'standard',
+          algorithmConfiguration: { diffSensitivity: 2 }
+        })).toEqual(undefined);
+      });
+    });
   });
 
   describe('.migrate()', () => {

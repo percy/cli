@@ -188,6 +188,8 @@ export default class GenericProvider {
         considerElementsData: considerRegions
       },
       regions: this.options.regions || null,
+      algorithm: this.options.algorithm || null,
+      algorithmConfiguration: this.options.algorithmConfiguration || null,
       environmentInfo: this.getUserAgentString(this.environmentInfoDetails),
       clientInfo: this.getUserAgentString(this.clientInfoDetails),
       domInfoSha: tiles.domInfoSha,

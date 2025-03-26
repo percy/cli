@@ -292,6 +292,24 @@ export function validate(data, key = '/config') {
     });
   }
 
+  if (data.algorithmConfiguration) {
+    const pathStr = 'algorithmConfiguration';
+    const algorithmType = data.algorithm;
+    if (algorithmType) {
+      if (algorithmType === 'layout') {
+        errors.set(pathStr, {
+          path: pathStr,
+          message: `algorithmConfiguration is not applicable for '${algorithmType}' algorithm`
+        });
+      }
+    } else {
+      errors.set(pathStr, {
+        path: pathStr,
+        message: 'algorithmConfiguration needs algorigthm to be passed'
+      });
+    }
+  }
+
   const errorArray = Array.from(errors.values());
   return errorArray.length > 0 ? errorArray : undefined;
 }

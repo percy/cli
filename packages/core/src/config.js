@@ -222,6 +222,21 @@ export const configSchema = {
           },
           required: ['algorithm']
         }
+      },
+      algorithm: {
+        type: 'string',
+        enum: ['standard', 'layout', 'intelliignore']
+      },
+      algorithmConfiguration: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          diffSensitivity: { type: 'integer', minimum: 0 },
+          imageIgnoreThreshold: { type: 'number', minimum: 0, maximum: 1 },
+          carouselsEnabled: { type: 'boolean' },
+          bannersEnabled: { type: 'boolean' },
+          adsEnabled: { type: 'boolean' }
+        }
       }
     }
   },
@@ -368,6 +383,8 @@ export const snapshotSchema = {
         thTestCaseExecutionId: { $ref: '/config/snapshot#/properties/thTestCaseExecutionId' },
         reshuffleInvalidTags: { $ref: '/config/snapshot#/properties/reshuffleInvalidTags' },
         regions: { $ref: '/config/snapshot#/properties/regions' },
+        algorithm: { $ref: '/config/snapshot#/properties/algorithm' },
+        algorithmConfiguration: { $ref: '/config/snapshot#/properties/algorithmConfiguration' },
         scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
         discovery: {
           type: 'object',
@@ -753,6 +770,8 @@ export const comparisonSchema = {
       }
     },
     regions: { $ref: '/config/snapshot#/properties/regions' },
+    algorithm: { $ref: '/config/snapshot#/properties/algorithm' },
+    algorithmConfiguration: { $ref: '/config/snapshot#/properties/algorithmConfiguration' },
     consideredElementsData: {
       type: 'object',
       additionalProperties: false,
