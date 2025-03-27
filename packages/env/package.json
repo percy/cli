@@ -1,6 +1,6 @@
 {
   "name": "@percy/env",
-  "version": "1.30.9-beta.3",
+  "version": "1.30.9-beta.4",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -32,6 +32,6 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@percy/logger": "1.30.9-beta.3"
+    "@percy/logger": "1.30.9-beta.4"
   }
 }

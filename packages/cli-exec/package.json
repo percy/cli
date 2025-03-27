@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-exec",
-  "version": "1.30.9-beta.3",
+  "version": "1.30.9-beta.4",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -33,8 +33,8 @@
     ]
   },
   "dependencies": {
-    "@percy/cli-command": "1.30.9-beta.3",
-    "@percy/logger": "1.30.9-beta.3",
+    "@percy/cli-command": "1.30.9-beta.4",
+    "@percy/logger": "1.30.9-beta.4",
     "cross-spawn": "^7.0.3",
     "which": "^2.0.2"
   }
