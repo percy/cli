@@ -26,6 +26,19 @@ export const configSchema = {
   snapshot: {
     type: 'object',
     additionalProperties: false,
+    definitions: {
+      configurationProperties: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          diffSensitivity: { type: 'integer', minimum: 0, maximum: 5 },
+          imageIgnoreThreshold: { type: 'number', minimum: 0, maximum: 1 },
+          carouselsEnabled: { type: 'boolean' },
+          bannersEnabled: { type: 'boolean' },
+          adsEnabled: { type: 'boolean' }
+        }
+      }
+    },
     properties: {
       widths: {
         type: 'array',
@@ -201,17 +214,7 @@ export const configSchema = {
               type: 'string',
               enum: ['standard', 'layout', 'ignore', 'intelliignore']
             },
-            configuration: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                diffSensitivity: { type: 'integer', minimum: 0 },
-                imageIgnoreThreshold: { type: 'number', minimum: 0, maximum: 1 },
-                carouselsEnabled: { type: 'boolean' },
-                bannersEnabled: { type: 'boolean' },
-                adsEnabled: { type: 'boolean' }
-              }
-            },
+            configuration: { $ref: '#/definitions/configurationProperties' },
             assertion: {
               type: 'object',
               additionalProperties: false,
@@ -227,17 +230,7 @@ export const configSchema = {
         type: 'string',
         enum: ['standard', 'layout', 'intelliignore']
       },
-      algorithmConfiguration: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          diffSensitivity: { type: 'integer', minimum: 0 },
-          imageIgnoreThreshold: { type: 'number', minimum: 0, maximum: 1 },
-          carouselsEnabled: { type: 'boolean' },
-          bannersEnabled: { type: 'boolean' },
-          adsEnabled: { type: 'boolean' }
-        }
-      }
+      algorithmConfiguration: { $ref: '#/definitions/configurationProperties' }
     }
   },
   discovery: {
