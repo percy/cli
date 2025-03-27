@@ -26,6 +26,19 @@ export const configSchema = {
   snapshot: {
     type: 'object',
     additionalProperties: false,
+    definitions: {
+      configurationProperties: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          diffSensitivity: { type: 'integer', minimum: 0, maximum: 4 },
+          imageIgnoreThreshold: { type: 'number', minimum: 0, maximum: 1 },
+          carouselsEnabled: { type: 'boolean' },
+          bannersEnabled: { type: 'boolean' },
+          adsEnabled: { type: 'boolean' }
+        }
+      }
+    },
     properties: {
       widths: {
         type: 'array',
@@ -201,17 +214,7 @@ export const configSchema = {
               type: 'string',
               enum: ['standard', 'layout', 'ignore', 'intelliignore']
             },
-            configuration: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                diffSensitivity: { type: 'integer', minimum: 0 },
-                imageIgnoreThreshold: { type: 'number', minimum: 0, maximum: 1 },
-                carouselsEnabled: { type: 'boolean' },
-                bannersEnabled: { type: 'boolean' },
-                adsEnabled: { type: 'boolean' }
-              }
-            },
+            configuration: { $ref: '#/definitions/configurationProperties' },
             assertion: {
               type: 'object',
               additionalProperties: false,
@@ -222,7 +225,12 @@ export const configSchema = {
           },
           required: ['algorithm']
         }
-      }
+      },
+      algorithm: {
+        type: 'string',
+        enum: ['standard', 'layout', 'intelliignore']
+      },
+      algorithmConfiguration: { $ref: '#/definitions/configurationProperties' }
     }
   },
   discovery: {
@@ -368,6 +376,8 @@ export const snapshotSchema = {
         thTestCaseExecutionId: { $ref: '/config/snapshot#/properties/thTestCaseExecutionId' },
         reshuffleInvalidTags: { $ref: '/config/snapshot#/properties/reshuffleInvalidTags' },
         regions: { $ref: '/config/snapshot#/properties/regions' },
+        algorithm: { $ref: '/config/snapshot#/properties/algorithm' },
+        algorithmConfiguration: { $ref: '/config/snapshot#/properties/algorithmConfiguration' },
         scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
         discovery: {
           type: 'object',
@@ -753,6 +763,8 @@ export const comparisonSchema = {
       }
     },
     regions: { $ref: '/config/snapshot#/properties/regions' },
+    algorithm: { $ref: '/config/snapshot#/properties/algorithm' },
+    algorithmConfiguration: { $ref: '/config/snapshot#/properties/algorithmConfiguration' },
     consideredElementsData: {
       type: 'object',
       additionalProperties: false,

@@ -894,6 +894,7 @@ describe('PercyClient', () => {
         minHeight: 1000,
         enableJavaScript: true,
         regions: [{ elementSelector: { elementCSS: '#test' }, algorithm: 'ignore' }],
+        algorithm: 'layout',
         enableLayout: true,
         clientInfo: 'sdk/info',
         environmentInfo: 'sdk/env',
@@ -919,6 +920,10 @@ describe('PercyClient', () => {
         })
       );
 
+      const expectedRegions = [
+        { elementSelector: { elementCSS: '#test' }, algorithm: 'ignore' },
+        { elementSelector: { fullpage: true }, algorithm: 'layout' }
+      ];
       expect(api.requests['/builds/123/snapshots'][0].body).toEqual({
         data: {
           type: 'snapshots',
@@ -926,7 +931,7 @@ describe('PercyClient', () => {
             name: 'snapfoo',
             widths: [1000],
             scope: '#main',
-            regions: [{ elementSelector: { elementCSS: '#test' }, algorithm: 'ignore' }],
+            regions: expectedRegions,
             sync: true,
             'test-case': 'foo test case',
             tags: [{ id: null, name: 'tag 1' }, { id: null, name: 'tag 2' }],
@@ -1191,13 +1196,23 @@ describe('PercyClient', () => {
         ignoredElementsData: ignoredElementsData,
         consideredElementsData: consideredElementsData,
         domInfoSha: 'abcd=',
-        regions: [{ algorithm: 'layout' }],
+        regions: [{ elementSelector: { elementCSS: '#test' }, algorithm: 'layout' }],
+        algorithm: 'intelliignore',
+        algorithmConfiguration: { diffSensitivity: 2 },
         metadata: {
           windowHeight: 1947,
           screenshotType: 'singlepage'
         }
       })).toBeResolved();
 
+      const expectedRegions = [
+        { elementSelector: { elementCSS: '#test' }, algorithm: 'layout' },
+        {
+          elementSelector: { fullpage: true },
+          algorithm: 'intelliignore',
+          configuration: { diffSensitivity: 2 }
+        }
+      ];
       expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
         data: {
           type: 'comparisons',
@@ -1206,7 +1221,167 @@ describe('PercyClient', () => {
             'ignore-elements-data': ignoredElementsData,
             'consider-elements-data': consideredElementsData,
             'dom-info-sha': 'abcd=',
-            regions: [{ elementSelector: { fullpage: true }, algorithm: 'layout' }],
+            regions: expectedRegions,
+            sync: true,
+            metadata: {
+              windowHeight: 1947,
+              screenshotType: 'singlepage'
+            }
+          },
+          relationships: {
+            tag: {
+              data: {
+                type: 'tag',
+                attributes: {
+                  name: 'tagfoo',
+                  width: 748,
+                  height: 1024,
+                  'os-name': 'fooOS',
+                  'os-version': '0.1.0',
+                  orientation: 'portrait',
+                  'browser-name': 'chrome',
+                  'browser-version': '111.0.0',
+                  resolution: '1980 x 1080'
+                }
+              }
+            },
+            tiles: {
+              data: [{
+                type: 'tiles',
+                attributes: {
+                  sha: sha256hash(Buffer.from(tile1Content)),
+                  'status-bar-height': 40,
+                  'nav-bar-height': 30,
+                  'header-height': 20,
+                  'footer-height': 50,
+                  fullscreen: null
+                }
+              }, {
+                type: 'tiles',
+                attributes: {
+                  sha: sha256hash('bar'),
+                  'status-bar-height': 40,
+                  'nav-bar-height': 30,
+                  'header-height': 20,
+                  'footer-height': 50,
+                  fullscreen: true
+                }
+              }, {
+                type: 'tiles',
+                attributes: {
+                  sha: sha256hash('somesha'),
+                  'status-bar-height': 40,
+                  'nav-bar-height': 30,
+                  'header-height': 20,
+                  'footer-height': 50,
+                  fullscreen: true
+                }
+              }]
+            }
+          }
+        }
+      });
+    });
+
+    it('creates a comparison when algorithm is not passed', async () => {
+      spyOn(fs.promises, 'readFile')
+        .withArgs('foo/bar').and.resolveTo('bar');
+
+      let tile1Content = 'screenshot';
+      let ignoredElementsData = {
+        ignoreElementsData: [
+          {
+            selector: 'xpaths',
+            'co-ordinates': {
+              top: 1042,
+              bottom: 1147,
+              left: 108,
+              right: 972
+            }
+          },
+          {
+            selector: 'appiumWebElement',
+            'co-ordinates': {
+              top: 1199,
+              bottom: 1304,
+              left: 108,
+              right: 972
+            }
+          }
+        ]
+      };
+      let consideredElementsData = {
+        considerElementsData: [
+          {
+            selector: 'xpaths',
+            'co-ordinates': {
+              top: 300,
+              bottom: 480,
+              left: 108,
+              right: 220
+            }
+          }
+        ]
+      };
+
+      await expectAsync(client.createComparison(4567, {
+        tag: {
+          name: 'tagfoo',
+          width: 748,
+          height: 1024,
+          osName: 'fooOS',
+          osVersion: '0.1.0',
+          orientation: 'portrait',
+          browserName: 'chrome',
+          browserVersion: '111.0.0',
+          resolution: '1980 x 1080'
+        },
+        tiles: [{
+          statusBarHeight: 40,
+          navBarHeight: 30,
+          headerHeight: 20,
+          footerHeight: 50,
+          fullscreen: false,
+          content: Buffer.from(tile1Content).toString('base64')
+        }, {
+          statusBarHeight: 40,
+          navBarHeight: 30,
+          headerHeight: 20,
+          footerHeight: 50,
+          fullscreen: true,
+          filepath: 'foo/bar'
+        }, {
+          statusBarHeight: 40,
+          navBarHeight: 30,
+          headerHeight: 20,
+          footerHeight: 50,
+          fullscreen: true,
+          sha: sha256hash('somesha')
+        }],
+        externalDebugUrl: 'http://debug.localhost',
+        sync: true,
+        ignoredElementsData: ignoredElementsData,
+        consideredElementsData: consideredElementsData,
+        domInfoSha: 'abcd=',
+        regions: [{ elementSelector: { elementCSS: '#test' }, algorithm: 'layout' }],
+        metadata: {
+          windowHeight: 1947,
+          screenshotType: 'singlepage'
+        }
+      })).toBeResolved();
+
+      const expectedRegions = [
+        { elementSelector: { elementCSS: '#test' }, algorithm: 'layout' }
+      ];
+      expect(api.requests['/snapshots/4567/comparisons'][0].body).toEqual({
+        data: {
+          type: 'comparisons',
+          attributes: {
+            'external-debug-url': 'http://debug.localhost',
+            'ignore-elements-data': ignoredElementsData,
+            'consider-elements-data': consideredElementsData,
+            'dom-info-sha': 'abcd=',
+            regions: expectedRegions,
             sync: true,
             metadata: {
               windowHeight: 1947,

@@ -32,8 +32,20 @@ function validateId(type, id) {
   }
 }
 
-function ensureElementSelector(regions) {
-  if (!Array.isArray(regions)) return null;
+function makeRegions(regions, algorithm, algorithmConfiguration) {
+  let regionObj;
+
+  if (algorithm) {
+    regionObj = {};
+    regionObj.algorithm = algorithm;
+    regionObj.configuration = algorithmConfiguration;
+  }
+  if (!Array.isArray(regions) && !regionObj) return null;
+
+  if (regionObj) {
+    regions ||= [];
+    regions.push(regionObj);
+  }
 
   return regions.map(region => ({
     ...region,
@@ -414,6 +426,8 @@ export class PercyClient {
     labels,
     thTestCaseExecutionId,
     regions,
+    algorithm,
+    algorithmConfiguration,
     resources = [],
     meta
   } = {}) {
@@ -426,7 +440,7 @@ export class PercyClient {
     }
 
     let tagsArr = tagsList(labels);
-    let regionsArr = ensureElementSelector(regions);
+    let regionsArr = makeRegions(regions, algorithm, algorithmConfiguration);
 
     this.log.debug(`Validating resources: ${name}...`, meta);
     for (let resource of resources) {
@@ -501,7 +515,8 @@ export class PercyClient {
 
   async createComparison(snapshotId, {
     tag, tiles = [], externalDebugUrl, ignoredElementsData,
-    domInfoSha, consideredElementsData, metadata, sync, regions, meta = {}
+    domInfoSha, consideredElementsData, metadata, sync, regions, algorithm,
+    algorithmConfiguration, meta = {}
   } = {}) {
     validateId('snapshot', snapshotId);
     // Remove post percy api deploy
@@ -516,7 +531,7 @@ export class PercyClient {
         tile.content = await fs.promises.readFile(tile.filepath);
       }
     }
-    let regionsArr = ensureElementSelector(regions);
+    let regionsArr = makeRegions(regions, algorithm, algorithmConfiguration);
     this.log.debug(`${tiles.length} tiles for comparision: ${tag.name}...`, meta);
 
     return this.post(`snapshots/${snapshotId}/comparisons`, {

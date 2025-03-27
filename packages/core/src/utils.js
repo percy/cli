@@ -57,6 +57,8 @@ export function percyAutomateRequestHandler(req, percy) {
     considerRegionSelectors: percy.config.snapshot.considerRegions?.considerRegionSelectors,
     considerRegionXpaths: percy.config.snapshot.considerRegions?.considerRegionXpaths,
     regions: percy.config.snapshot.regions,
+    algorithm: percy.config.snapshot.algorithm,
+    algorithmConfiguration: percy.config.snapshot.algorithmConfiguration,
     sync: percy.config.snapshot.sync,
     version: 'v2'
   },
