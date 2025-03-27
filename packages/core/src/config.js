@@ -31,7 +31,7 @@ export const configSchema = {
         type: 'object',
         additionalProperties: false,
         properties: {
-          diffSensitivity: { type: 'integer', minimum: 0, maximum: 5 },
+          diffSensitivity: { type: 'integer', minimum: 0, maximum: 4 },
           imageIgnoreThreshold: { type: 'number', minimum: 0, maximum: 1 },
           carouselsEnabled: { type: 'boolean' },
           bannersEnabled: { type: 'boolean' },
