@@ -190,6 +190,48 @@ describe('Discovery', () => {
     );
   });
 
+  it('waits for discovery network idle timeout with custom element', async () => {
+    percy.set({ discovery: { networkIdleTimeout: 400 } });
+
+    // Mock server response with a custom element
+    server.reply('/', () => [200, 'text/html', dedent`
+      <html><body>
+        <custom-test-element data-test="initial"></custom-test-element>
+        <script>
+          class CustomElement extends HTMLElement {
+            static get observedAttributes() {
+              return ['data-test'];
+            }
+
+            attributeChangedCallback(name, oldValue, newValue) {
+              console.log(\`Attribute \${name} changed from \${oldValue} to \${newValue}\`);
+            }
+          }
+
+          customElements.define('custom-test-element', CustomElement);
+
+          setTimeout(() => {
+            document.querySelector('custom-test-element').setAttribute('data-test', 'updated');
+          }, 200);
+        </script>
+      </body></html>
+    `]);
+
+    // Take a Percy snapshot
+    await percy.snapshot({
+      widths: [500],
+      name: 'test snapshot',
+      url: 'http://localhost:8000'
+    });
+
+    // Wait for network idle
+    await percy.idle();
+
+    // Ensure the server saw the request
+    let paths = server.requests.map(r => r[0]);
+    expect(paths).toContain('/');
+  });
+
   it('captures stylesheet initiated fonts', async () => {
     server.reply('/style.css', () => [200, 'text/css', [
       '@font-face { font-family: "test"; src: url("/font.woff") format("woff"); }',

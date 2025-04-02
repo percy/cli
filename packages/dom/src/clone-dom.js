@@ -15,6 +15,26 @@ import { handleErrors } from './utils';
 
 const ignoreTags = ['NOSCRIPT'];
 
+function cloneCustomElementWithoutAttributeChanged(element) {
+  if (!(element.attributeChangedCallback) || !element.tagName.includes('-')) {
+    return element.cloneNode(); // Standard clone for non-custom elements
+  }
+
+  const cloned = document.createElement('data-percy-custom-element-' + element.tagName);
+
+  // Clone attributes without triggering attributeChangedCallback
+  for (const attr of element.attributes) {
+    // handle src separately
+    if (attr.name.toLowerCase() === 'src') {
+      cloned.setAttribute('data-percy-serialized-attribute-src', attr.value);
+    } else {
+      cloned.setAttribute(attr.name, attr.value);
+    }
+  }
+
+  return cloned;
+}
+
 export function cloneNodeAndShadow(ctx) {
   let { dom, disableShadowDOM, resources, cache, enableJavaScript } = ctx;
   // clones shadow DOM and light DOM for a given node
@@ -32,7 +52,11 @@ export function cloneNodeAndShadow(ctx) {
       // mark the node before cloning
       markElement(node, disableShadowDOM);
 
-      let clone = node.cloneNode();
+      if (node.attributeChangedCallback) {
+        console.log('there are attributeChangedCallback here');
+      }
+      let clone = cloneCustomElementWithoutAttributeChanged(node);
+      // let clone = node.cloneNode();
 
       // Handle <style> tag specifically for media queries
       if (node.nodeName === 'STYLE' && !enableJavaScript) {
