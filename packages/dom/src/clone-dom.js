@@ -52,9 +52,6 @@ export function cloneNodeAndShadow(ctx) {
       // mark the node before cloning
       markElement(node, disableShadowDOM);
 
-      if (node.attributeChangedCallback) {
-        console.log('there are attributeChangedCallback here');
-      }
       let clone = cloneCustomElementWithoutAttributeChanged(node);
       // let clone = node.cloneNode();
 
