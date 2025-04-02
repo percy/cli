@@ -1,6 +1,6 @@
 {
   "name": "@percy/core",
-  "version": "1.30.9-beta.4",
+  "version": "1.30.9",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -9,7 +9,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "beta"
+    "tag": "latest"
   },
   "engines": {
     "node": ">=14"
@@ -43,12 +43,12 @@
     "test:types": "tsd"
   },
   "dependencies": {
-    "@percy/client": "1.30.9-beta.4",
-    "@percy/config": "1.30.9-beta.4",
-    "@percy/dom": "1.30.9-beta.4",
-    "@percy/logger": "1.30.9-beta.4",
-    "@percy/monitoring": "1.30.9-beta.4",
-    "@percy/webdriver-utils": "1.30.9-beta.4",
+    "@percy/client": "1.30.9",
+    "@percy/config": "1.30.9",
+    "@percy/dom": "1.30.9",
+    "@percy/logger": "1.30.9",
+    "@percy/monitoring": "1.30.9",
+    "@percy/webdriver-utils": "1.30.9",
     "content-disposition": "^0.5.4",
     "cross-spawn": "^7.0.3",
     "extract-zip": "^2.0.1",
