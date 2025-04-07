@@ -297,6 +297,42 @@ describe('serializeDOM', () => {
     });
   });
 
+  it('renders custom image elements with src attribute properly', () => {
+    if (getTestBrowser() !== chromeBrowser) {
+      return;
+    }
+
+    class CustomImage extends window.HTMLElement {
+      static get observedAttributes() {
+        return ['src'];
+      }
+
+      constructor() {
+        super();
+        this.img = document.createElement('img');
+        this.appendChild(this.img);
+      }
+
+      attributeChangedCallback(name, oldValue, newValue) {
+        if (name === 'src') {
+          this.img.src = newValue || '';
+        }
+      }
+    }
+
+    window.customElements.define('custom-image', CustomImage);
+
+    withExample(`
+      <custom-image src="https://example.com/test.jpg"></custom-image>
+    `, { withShadow: false });
+
+    const html = serializeDOM().html;
+
+    expect(html).toMatch(
+      /<custom-image[^>]*><img src="https:\/\/example\.com\/test\.jpg"><\/custom-image>/
+    );
+  });
+
   describe('with `domTransformation`', () => {
     beforeEach(() => {
       withExample('<span class="delete-me">Delete me</span>', { withShadow: false });
