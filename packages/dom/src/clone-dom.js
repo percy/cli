@@ -15,7 +15,12 @@ import { handleErrors } from './utils';
 
 const ignoreTags = ['NOSCRIPT'];
 
-function cloneCustomElementWithoutAttributeChanged(element) {
+/**
+ * if a custom element has attribute callback then cloneNode calls a callback that can
+ * increase CPU load or some other change.
+ * So we want to make sure that it is not called when doing serialization.
+*/
+function cloneElementWithoutLifecycle(element) {
   if (!(element.attributeChangedCallback) || !element.tagName.includes('-')) {
     return element.cloneNode(); // Standard clone for non-custom elements
   }
@@ -52,7 +57,7 @@ export function cloneNodeAndShadow(ctx) {
       // mark the node before cloning
       markElement(node, disableShadowDOM);
 
-      let clone = cloneCustomElementWithoutAttributeChanged(node);
+      let clone = cloneElementWithoutLifecycle(node);
       // let clone = node.cloneNode();
 
       // Handle <style> tag specifically for media queries

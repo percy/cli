@@ -232,6 +232,60 @@ describe('Discovery', () => {
     expect(paths).toContain('/');
   });
 
+  it('captures custom element with src and waits for network idle', async () => {
+    percy.set({ discovery: { networkIdleTimeout: 400 } });
+
+    server.reply('/', () => [200, 'text/html', dedent`
+      <html>
+        <body>
+          <custom-image src="http://localhost:8000/img1.jpg"></custom-image>
+          <script>
+            class CustomImage extends HTMLElement {
+              static get observedAttributes() { return ['src']; }
+
+              constructor() {
+                super();
+                this.img = document.createElement('img');
+                this.attachShadow({ mode: 'open' }).appendChild(this.img);
+              }
+
+              attributeChangedCallback(name, oldValue, newValue) {
+                if (name === 'src' && newValue && newValue !== oldValue) {
+                  console.log('Setting src to:', newValue);
+                  if (this.img.src !== newValue) {
+                    this.img.src = newValue; // Prevents duplicate requests
+                  }
+                }
+              }
+            }
+
+            customElements.define('custom-image', CustomImage);
+
+            // Update src after 200ms
+            setTimeout(() => {
+              document.querySelector('custom-image').setAttribute('src', 'http://localhost:8000/img2.jpg');
+            }, 200);
+          </script>
+        </body>
+      </html>
+    `]);
+
+    // Take a Percy snapshot
+    await percy.snapshot({
+      widths: [500],
+      name: 'test snapshot',
+      url: 'http://localhost:8000'
+    });
+
+    // Wait for network idle
+    await percy.idle();
+
+    // Verify requests include images
+    let paths = server.requests.map(r => r[0]);
+    expect(paths).toContain('/img1.jpg');
+    expect(paths).toContain('/img2.jpg');
+  });
+
   it('captures stylesheet initiated fonts', async () => {
     server.reply('/style.css', () => [200, 'text/css', [
       '@font-face { font-family: "test"; src: url("/font.woff") format("woff"); }',
