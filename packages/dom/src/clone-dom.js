@@ -58,7 +58,6 @@ export function cloneNodeAndShadow(ctx) {
       markElement(node, disableShadowDOM);
 
       let clone = cloneElementWithoutLifecycle(node);
-      // let clone = node.cloneNode();
 
       // Handle <style> tag specifically for media queries
       if (node.nodeName === 'STYLE' && !enableJavaScript) {
