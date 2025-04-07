@@ -15,6 +15,31 @@ import { handleErrors } from './utils';
 
 const ignoreTags = ['NOSCRIPT'];
 
+/**
+ * if a custom element has attribute callback then cloneNode calls a callback that can
+ * increase CPU load or some other change.
+ * So we want to make sure that it is not called when doing serialization.
+*/
+function cloneElementWithoutLifecycle(element) {
+  if (!(element.attributeChangedCallback) || !element.tagName.includes('-')) {
+    return element.cloneNode(); // Standard clone for non-custom elements
+  }
+
+  const cloned = document.createElement('data-percy-custom-element-' + element.tagName);
+
+  // Clone attributes without triggering attributeChangedCallback
+  for (const attr of element.attributes) {
+    // handle src separately
+    if (attr.name.toLowerCase() === 'src') {
+      cloned.setAttribute('data-percy-serialized-attribute-src', attr.value);
+    } else {
+      cloned.setAttribute(attr.name, attr.value);
+    }
+  }
+
+  return cloned;
+}
+
 export function cloneNodeAndShadow(ctx) {
   let { dom, disableShadowDOM, resources, cache, enableJavaScript } = ctx;
   // clones shadow DOM and light DOM for a given node
@@ -32,7 +57,7 @@ export function cloneNodeAndShadow(ctx) {
       // mark the node before cloning
       markElement(node, disableShadowDOM);
 
-      let clone = node.cloneNode();
+      let clone = cloneElementWithoutLifecycle(node);
 
       // Handle <style> tag specifically for media queries
       if (node.nodeName === 'STYLE' && !enableJavaScript) {
@@ -63,7 +88,8 @@ export function cloneNodeAndShadow(ctx) {
 
       // shallow clone should not contain children
       if (clone.children) {
-        Array.from(clone.children).forEach(child => clone.removeChild(child));
+        /* istanbul ignore next */
+        Array.from(clone.children).forEach((child) => clone.removeChild(child));
       }
 
       // clone shadow DOM
