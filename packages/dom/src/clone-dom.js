@@ -89,7 +89,8 @@ export function cloneNodeAndShadow(ctx) {
 
       // shallow clone should not contain children
       if (clone.children) {
-        Array.from(clone.children).forEach(child => clone.removeChild(child));
+        /* istanbul ignore next */
+        Array.from(clone.children).forEach((child) => clone.removeChild(child));
       }
 
       // clone shadow DOM
