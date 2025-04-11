@@ -1405,6 +1405,31 @@ describe('Discovery', () => {
       expect(captured[0].length).toBeLessThanOrEqual(750);
     });
 
+    it('limits resources when the flag is set second check', async () => {
+      process.env.LIMIT_SNAPSHOT_RESOURCES = true;
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot:
+        [
+          {
+            html: testDOM1,
+            resources: Array.from({ length: 800 }, (_, i) => ({
+              url: `/fake${i + 1}.css`,
+              content: 'p { color: red; }',
+              mimetype: 'text/css'
+            }))
+          },
+          {
+            html: testDOM1,
+            resources: []
+          }]
+      });
+
+      await percy.idle();
+      expect(captured[0].length).toBeLessThanOrEqual(750);
+    });
+
     it('does not limit resources when the flag is not set', async () => {
       delete process.env.LIMIT_SNAPSHOT_RESOURCES;
       await percy.snapshot({
