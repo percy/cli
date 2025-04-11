@@ -133,15 +133,22 @@ function parseDomResources({ url, domSnapshot }) {
   if (!domSnapshot) return map;
   let allRootResources = new Set();
   let allResources = new Set();
+  let limitResources = process.env.LIMIT_SNAPSHOT_RESOURCES || false;
+  const MAX_RESOURCES = 750 - 2;
 
   if (!Array.isArray(domSnapshot)) {
     domSnapshot = [domSnapshot];
   }
 
   for (let dom of domSnapshot) {
+    if (limitResources && allResources.size + allRootResources.size >= MAX_RESOURCES) break;
     let isHTML = typeof dom === 'string';
     let { html, resources = [] } = isHTML ? { html: dom } : dom;
-    resources.forEach(r => allResources.add(r));
+    for (let r of resources) {
+      if (limitResources && allResources.size + allRootResources.size >= MAX_RESOURCES) break;
+      allResources.add(r);
+    }
+
     const attrs = dom.width ? { widths: [dom.width] } : {};
     let rootResource = createRootResource(url, html, attrs);
     allRootResources.add(rootResource);

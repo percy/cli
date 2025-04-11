@@ -1377,6 +1377,54 @@ describe('Discovery', () => {
     });
   });
 
+  describe('Discovery with resource limit flag', () => {
+    const testDOM1 = dedent`
+      <html>
+      <body>
+        <p>Hello Percy!<p>
+        ${' '.repeat(1000)}
+      </body>
+      </html>
+    `;
+    it('limits resources when the flag is set', async () => {
+      process.env.LIMIT_SNAPSHOT_RESOURCES = true;
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM1,
+          resources: Array.from({ length: 800 }, (_, i) => ({
+            url: `/fake${i + 1}.css`,
+            content: 'p { color: red; }',
+            mimetype: 'text/css'
+          }))
+        }
+      });
+
+      await percy.idle();
+      expect(captured[0].length).toBeLessThanOrEqual(750);
+    });
+
+    it('does not limit resources when the flag is not set', async () => {
+      delete process.env.LIMIT_SNAPSHOT_RESOURCES;
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM1,
+          resources: Array.from({ length: 800 }, (_, i) => ({
+            url: `/fake${i + 1}.css`,
+            content: 'p { color: red; }',
+            mimetype: 'text/css'
+          }))
+        }
+      });
+
+      await percy.idle();
+      expect(captured[0].length).toBeGreaterThanOrEqual(800);
+    });
+  });
+
   describe('discovery retry', () => {
     let Page;
     let fastCount;
