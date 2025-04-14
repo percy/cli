@@ -133,8 +133,8 @@ function parseDomResources({ url, domSnapshot }) {
   if (!domSnapshot) return map;
   let allRootResources = new Set();
   let allResources = new Set();
-  let limitResources = process.env.LIMIT_SNAPSHOT_RESOURCES || false;
-  const MAX_RESOURCES = 748; // 750 limit - 2 additional resources
+  const limitResources = process.env.LIMIT_SNAPSHOT_RESOURCES || false;
+  const MAX_RESOURCES = Number(process.env.MAX_SNAPSHOT_RESOURCES) || 748; // 750 limit - 2 additional resources
 
   if (!Array.isArray(domSnapshot)) {
     domSnapshot = [domSnapshot];

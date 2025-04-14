@@ -1448,6 +1448,29 @@ describe('Discovery', () => {
       await percy.idle();
       expect(captured[0].length).toBeGreaterThanOrEqual(800);
     });
+
+    it('respects MAX_SNAPSHOT_RESOURCES when set', async () => {
+      process.env.LIMIT_SNAPSHOT_RESOURCES = true;
+      process.env.MAX_SNAPSHOT_RESOURCES = 298;
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM1,
+          resources: Array.from({ length: 800 }, (_, i) => ({
+            url: `/fake${i + 1}.css`,
+            content: 'p { color: red; }',
+            mimetype: 'text/css'
+          }))
+        }
+      });
+
+      await percy.idle();
+      expect(captured[0].length).toBeLessThanOrEqual(300);
+
+      delete process.env.MAX_SNAPSHOT_RESOURCES;
+    });
   });
 
   describe('discovery retry', () => {
