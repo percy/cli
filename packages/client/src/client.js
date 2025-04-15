@@ -171,10 +171,9 @@ export class PercyClient {
     this.log.debug('Creating a new build...');
     let source = 'user_created';
 
-    if (this.env.PERCY_ORIGINATED_SOURCE) {
+    if (process.env.PERCY_ORIGINATED_SOURCE) {
       source = 'bstack_sdk_created';
-    }
-    else if (process.env.PERCY_AUTO_ENABLED_GROUP_BUILD === 'true') {
+    } else if (process.env.PERCY_AUTO_ENABLED_GROUP_BUILD === 'true') {
       source = 'auto_enabled_group';
     }
 
