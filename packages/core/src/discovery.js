@@ -133,22 +133,15 @@ function parseDomResources({ url, domSnapshot }) {
   if (!domSnapshot) return map;
   let allRootResources = new Set();
   let allResources = new Set();
-  const limitResources = process.env.LIMIT_SNAPSHOT_RESOURCES || false;
-  const MAX_RESOURCES = Number(process.env.MAX_SNAPSHOT_RESOURCES) || 748; // 750 limit - 2 additional resources
 
   if (!Array.isArray(domSnapshot)) {
     domSnapshot = [domSnapshot];
   }
 
   for (let dom of domSnapshot) {
-    if (limitResources && allResources.size + allRootResources.size >= MAX_RESOURCES) break;
     let isHTML = typeof dom === 'string';
     let { html, resources = [] } = isHTML ? { html: dom } : dom;
-    for (let r of resources) {
-      if (limitResources && allResources.size + allRootResources.size >= MAX_RESOURCES) break;
-      allResources.add(r);
-    }
-
+    resources.forEach(r => allResources.add(r));
     const attrs = dom.width ? { widths: [dom.width] } : {};
     let rootResource = createRootResource(url, html, attrs);
     allRootResources.add(rootResource);
@@ -458,6 +451,12 @@ export function createDiscoveryQueue(percy) {
                 return resource;
               },
               saveResource: r => {
+                const limitResources = process.env.LIMIT_SNAPSHOT_RESOURCES || false;
+                const MAX_RESOURCES = Number(process.env.MAX_SNAPSHOT_RESOURCES) || 749;
+                if (limitResources && snapshot.resources.size >= MAX_RESOURCES) {
+                  percy.log.debug(`Skipping resource ${r.url} — resource limit reached`);
+                  return;
+                }
                 snapshot.resources.set(r.url, r);
                 if (!snapshot.discovery.disableCache) {
                   cache.set(r.url, r);
