@@ -1,5 +1,5 @@
 {
-  "version": "1.30.10",
+  "version": "1.30.11-beta.0",
   "packages": [
     "packages/*"
   ],
