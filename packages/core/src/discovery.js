@@ -451,6 +451,12 @@ export function createDiscoveryQueue(percy) {
                 return resource;
               },
               saveResource: r => {
+                const limitResources = process.env.LIMIT_SNAPSHOT_RESOURCES || false;
+                const MAX_RESOURCES = Number(process.env.MAX_SNAPSHOT_RESOURCES) || 749;
+                if (limitResources && snapshot.resources.size >= MAX_RESOURCES) {
+                  percy.log.debug(`Skipping resource ${r.url} — resource limit reached`);
+                  return;
+                }
                 snapshot.resources.set(r.url, r);
                 if (!snapshot.discovery.disableCache) {
                   cache.set(r.url, r);

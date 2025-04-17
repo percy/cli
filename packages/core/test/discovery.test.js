@@ -51,11 +51,17 @@ describe('Discovery', () => {
       return [201, { data: { id: '4567' } }];
     });
 
+    const dynamicImageRoutes = {};
+    for (let i = 0; i < 800; i++) {
+      dynamicImageRoutes[`/dynamic/image-${i}.png`] = () => [200, 'image/png', pixel];
+    }
+
     server = await createTestServer({
       '/': () => [200, 'text/html', testDOM],
       '/style.css': () => [200, 'text/css', testCSS],
       '/img.gif': () => [200, 'image/gif', pixel],
-      '/font.woff': () => [200, 'font/woff', '<font>']
+      '/font.woff': () => [200, 'font/woff', '<font>'],
+      ...dynamicImageRoutes
     });
 
     percy = await Percy.start({
@@ -1374,6 +1380,63 @@ describe('Discovery', () => {
           '(?<stack>(.|\n)*)$'
         ].join('\n')));
       });
+    });
+  });
+
+  describe('Discovery with resource limit flag', () => {
+    const testDOM1 = dedent`
+      <html>
+        <head>
+          <link href="style.css" rel="stylesheet"/>
+        </head>
+        <body>
+          <p>Hello Percy!</p>
+          <img src="img.gif" decoding="async"/>
+          ${Array.from({ length: 800 }, (_, i) =>
+            `<img src="/dynamic/image-${i}.png" />`
+          ).join('\n')}
+        </body>
+      </html>
+    `;
+    it('limits resources when the flags are set', async () => {
+      percy.loglevel('debug');
+      process.env.LIMIT_SNAPSHOT_RESOURCES = true;
+      process.env.MAX_SNAPSHOT_RESOURCES = 1;
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM1
+      });
+
+      await percy.idle();
+      expect(captured[0].length).toBeLessThanOrEqual(2); // 1 root + 1 non root
+      expect(logger.stderr).toContain(jasmine.stringMatching(/resource limit reached/));
+    });
+
+    it('does not limit resources when the limit flag is not set', async () => {
+      delete process.env.LIMIT_SNAPSHOT_RESOURCES;
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM1
+      });
+      await percy.idle();
+      expect(captured[0].length).toBeGreaterThanOrEqual(1);
+      expect(logger.stderr).not.toContain(jasmine.stringMatching(/resource limit reached/));
+      delete process.env.MAX_SNAPSHOT_RESOURCES;
+    });
+
+    it('limit resources when flag is set but for default limit', async () => {
+      percy.loglevel('debug');
+      process.env.LIMIT_SNAPSHOT_RESOURCES = true;
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM1
+      });
+      await percy.idle();
+      expect(captured[0].length).toBeLessThanOrEqual(750);
+      expect(logger.stderr).toContain(jasmine.stringMatching(/resource limit reached/));
     });
   });
 
