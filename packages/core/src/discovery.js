@@ -182,9 +182,9 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   resources = [...(resources?.values() ?? [])];
   // Log all resources for the snapshot
   log.debug(`Processing resources for snapshot: ${snapshot.name}`, snapshot.meta);
-  log.debug(`Total resources: ${resources.length}`);
+  log.debug(`Total resources: ${resources.length}`, snapshot.meta);
   resources.forEach(resource => {
-    log.debug(`Resource URL for ${snapshot.name}: ${resource.url}, Size: ${resource.content?.length || 0}, MIME: ${resource.mimetype}`);
+    log.debug(`Resource URL for ${snapshot.name}: ${resource.url}, Size: ${resource.content?.length || 0}, MIME: ${resource.mimetype}`, snapshot.meta);
   });
   // find any root resource matching the provided dom snapshot
   // since root resources are stored as array
