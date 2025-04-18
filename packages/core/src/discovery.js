@@ -180,7 +180,12 @@ function createAndApplyPercyCSS({ percyCSS, roots }) {
 function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   let log = logger('core:snapshot');
   resources = [...(resources?.values() ?? [])];
-
+  // Log all resources for the snapshot
+  log.debug(`Processing resources for snapshot: ${snapshot.name}`, snapshot.meta);
+  log.debug(`Total resources: ${resources.length}`);
+  resources.forEach(resource => {
+    log.debug(`Resource URL: ${resource.url}, Size: ${resource.content?.length || 0}, MIME: ${resource.mimetype}`);
+  });
   // find any root resource matching the provided dom snapshot
   // since root resources are stored as array
   let roots = resources.find(r => Array.isArray(r));
@@ -412,6 +417,7 @@ export function createDiscoveryQueue(percy) {
   // initialize the resources for DOM snapshots
     .handle('push', snapshot => {
       let resources = parseDomResources(snapshot);
+      percy.log.debug(`Pushing snapshot: ${snapshot.name}, Resource size: ${resources.size}`, snapshot.meta);
       return { ...snapshot, resources };
     })
   // discovery resources for snapshots and call the callback for each discovered snapshot
