@@ -1,6 +1,6 @@
 {
   "name": "@percy/dom",
-  "version": "1.30.11-beta.0",
+  "version": "1.30.11-alpha.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -9,7 +9,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "beta"
+    "tag": "alpha"
   },
   "main": "dist/bundle.js",
   "browser": "dist/bundle.js",
