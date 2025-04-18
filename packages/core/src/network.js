@@ -468,7 +468,6 @@ async function saveResponseResource(network, request, session) {
     url,
     responseStatus: response?.status
   };
-  log.debug(`Response resource url: ${url}`, meta);
   // Checing for content length more than 100MB, to prevent websocket error which is governed by
   // maxPayload option of websocket defaulted to 100MB.
   // If content-length is more than our allowed 25MB, no need to process that resouce we can return log.
