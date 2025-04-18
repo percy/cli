@@ -220,6 +220,7 @@ export class Network {
     // do not handle data urls
     if (request.url.startsWith('data:')) return;
 
+    this.log.debug(`Request will be sent: ${request.url}`, { ...this.meta, url: request.url });
     // Browsers handle URL encoding leniently.
     // This code checks for issues such as `%` and leading spaces and warns the user accordingly.
     decodeAndEncodeURLWithLogging(request.url, this.log, {
