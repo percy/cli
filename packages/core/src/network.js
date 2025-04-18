@@ -462,6 +462,7 @@ async function saveResponseResource(network, request, session) {
 
   let log = network.log;
   let url = originURL(request);
+  log.debug(`Response resource url: ${url}`, meta);
   let response = request.response;
   let meta = {
     ...network.meta,
