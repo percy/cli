@@ -406,6 +406,19 @@ describe('serializeDOM', () => {
     });
   });
 
+  describe('when `ctx.clone.body` is null for about:blank pages', () => {
+    beforeEach(() => {
+      withExample('', { withoutBody: true });
+    });
+
+    it('does not add hints and does not throw an error', () => {
+      expect(() => {
+        const result = serializeDOM();
+        expect(result.hints).toEqual([]);
+      }).not.toThrow();
+    });
+  });
+
   describe('waitForResize', () => {
     it('updates window.resizeCount', async () => {
       waitForResize();

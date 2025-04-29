@@ -3,18 +3,23 @@ export const chromeBrowser = 'CHROME';
 export const firefoxBrowser = 'FIREFOX';
 
 // create and cleanup testing DOM
-export function withExample(html, options = { withShadow: true, withRestrictedShadow: false, invalidTagsOutsideBody: false }) {
+export function withExample(html, options = { withShadow: true, withRestrictedShadow: false, invalidTagsOutsideBody: false, withoutBody: false }) {
   let $test = document.getElementById('test');
   if ($test) $test.remove();
 
   let $testShadow = document.getElementById('test-shadow');
   if ($testShadow) $testShadow.remove();
 
-  $test = document.createElement('div');
-  $test.id = 'test';
-  $test.innerHTML = `<h1>Hello DOM testing</h1>${html}`;
-
-  document.body.appendChild($test);
+  if (options.withoutBody) {
+    // Create a DOM structure without a <body> tag
+    const $html = document.documentElement;
+    $html.innerHTML = `<title>Test</title>${html}`;
+  } else {
+    $test = document.createElement('div');
+    $test.id = 'test';
+    $test.innerHTML = `<h1>Hello DOM testing</h1>${html}`;
+    document.body.appendChild($test);
+  }
 
   if (options.withShadow) {
     $testShadow = document.createElement('div');
