@@ -122,7 +122,7 @@ export function serializeDOM(options) {
       let sibling = clonedBody.nextSibling;
       clonedBody.append(sibling);
     }
-  } else if (ctx.clone.body.nextSibling) {
+  } else if (ctx.clone.body?.nextSibling) {
     ctx.hints.add('DOM elements found outside </body>');
   }
 
