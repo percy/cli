@@ -114,7 +114,7 @@ export const configSchema = {
           type: 'string',
           minLength: 1
         },
-        onlyWeb: true,
+        onlyWeb: true
       },
       fullPage: {
         type: 'boolean',

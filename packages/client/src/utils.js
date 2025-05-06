@@ -265,7 +265,7 @@ export function tagsList(tags) {
 
 export function normalizeBrowsers(browserValues) {
   if (!browserValues) return null;
-  return browserValues.map(browser => snakecase(browser))
+  return browserValues.map(browser => snakecase(browser));
 }
 
 export {
@@ -273,5 +273,5 @@ export {
   getProxy,
   ProxyHttpAgent,
   ProxyHttpsAgent,
-  proxyAgentFor,
+  proxyAgentFor
 } from './proxy.js';

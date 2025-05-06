@@ -830,6 +830,51 @@ describe('PercyConfig', () => {
         })).toEqual(undefined);
       });
     });
+
+    describe('browsers validations', () => {
+      beforeEach(() => {
+        PercyConfig.addSchema({
+          browsers: {
+            type: 'array',
+            items: {
+              type: 'string',
+              minLength: 1
+            },
+            onlyWeb: true
+          }
+        });
+
+        delete process.env.PERCY_TOKEN;
+      });
+
+      it('can validate when browser is not an array', () => {
+        expect(PercyConfig.validate({
+          browsers: { chrome: 'latest' }
+        })).toEqual([{ path: 'browsers', message: 'must be an array, received an object' }]);
+      });
+
+      it('can validate when browser value is not a string', () => {
+        expect(PercyConfig.validate({
+          browsers: [{ chrome: 'latest' }]
+        })).toEqual([{ path: 'browsers[0]', message: 'must be a string, received an object' }]);
+      });
+
+      it('can validate when browser value is empty', () => {
+        expect(PercyConfig.validate({
+          browsers: ['chrome', '']
+        })).toEqual([{ path: 'browsers[1]', message: 'must NOT have fewer than 1 characters' }]);
+      });
+
+      it('can validate when project is not web', () => {
+        process.env.PERCY_TOKEN = 'auto_4567890';
+
+        expect(PercyConfig.validate({
+          browsers: ['chrome', 'firefox']
+        })).toEqual([{ path: 'browsers', message: 'property only valid with Web integration.' }]);
+
+        delete process.env.PERCY_TOKEN;
+      });
+    });
   });
 
   describe('.migrate()', () => {
