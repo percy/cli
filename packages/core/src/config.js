@@ -108,6 +108,14 @@ export const configSchema = {
       thTestCaseExecutionId: {
         type: 'string'
       },
+      browsers: {
+        type: 'array',
+        items: {
+          type: 'string',
+          minLength: 1
+        },
+        onlyWeb: true,
+      },
       fullPage: {
         type: 'boolean',
         onlyAutomate: true
@@ -374,6 +382,7 @@ export const snapshotSchema = {
         testCase: { $ref: '/config/snapshot#/properties/testCase' },
         labels: { $ref: '/config/snapshot#/properties/labels' },
         thTestCaseExecutionId: { $ref: '/config/snapshot#/properties/thTestCaseExecutionId' },
+        browsers: { $ref: '/config/snapshot#/properties/browsers' },
         reshuffleInvalidTags: { $ref: '/config/snapshot#/properties/reshuffleInvalidTags' },
         regions: { $ref: '/config/snapshot#/properties/regions' },
         algorithm: { $ref: '/config/snapshot#/properties/algorithm' },
