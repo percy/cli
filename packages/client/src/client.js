@@ -14,7 +14,8 @@ import {
   waitForTimeout,
   validateTiles,
   formatLogErrors,
-  tagsList
+  tagsList,
+  normalizeBrowsers
 } from './utils.js';
 
 // Default client API URL can be set with an env var for API development
@@ -428,6 +429,7 @@ export class PercyClient {
     testCase,
     labels,
     thTestCaseExecutionId,
+    browsers,
     regions,
     algorithm,
     algorithmConfiguration,
@@ -468,7 +470,8 @@ export class PercyClient {
           'minimum-height': minHeight || null,
           'enable-javascript': enableJavaScript || null,
           'enable-layout': enableLayout || false,
-          'th-test-case-execution-id': thTestCaseExecutionId || null
+          'th-test-case-execution-id': thTestCaseExecutionId || null,
+          browsers: normalizeBrowsers(browsers) || null
         },
         relationships: {
           resources: {
