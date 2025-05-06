@@ -70,9 +70,11 @@ const ajv = new AJV({
       message: 'property only valid with Web integration.'
     },
     code: cxt => {
-      let isWebProjectToken = (process.env.PERCY_TOKEN || '').split('_')[0] === 'web';
+      const tokenPrefix = (process.env.PERCY_TOKEN || '').split('_')[0];
+      const isNotWebProjectToken = tokenPrefix === 'auto' || tokenPrefix === 'app';
+
       // we do validation only when token is passed
-      if (!!process.env.PERCY_TOKEN && !isWebProjectToken) {
+      if (!!process.env.PERCY_TOKEN && isNotWebProjectToken) {
         cxt.error();
       }
     }

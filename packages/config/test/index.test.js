@@ -874,6 +874,17 @@ describe('PercyConfig', () => {
 
         delete process.env.PERCY_TOKEN;
       });
+
+      it('can validate when project is web', () => {
+        // Using a non-prefix token as they are mostly all non-prefix
+        // tokens are web projects
+        process.env.PERCY_TOKEN = '123456789';
+        expect(PercyConfig.validate({
+          browsers: ['chrome', 'firefox']
+        })).toEqual(undefined);
+
+        delete process.env.PERCY_TOKEN;
+      });
     });
   });
 
