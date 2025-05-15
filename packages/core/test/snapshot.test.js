@@ -1707,4 +1707,69 @@ describe('Snapshot', () => {
       ]));
     });
   });
+
+  describe('with browsers', () => {
+    describe('when browsers is passed in global config', () => {
+      beforeEach(async () => {
+        percy = await Percy.start({
+          token: 'PERCY_TOKEN',
+          snapshot: { browsers: ['chrome', 'firefox'] },
+          discovery: { concurrency: 1 },
+          clientInfo: 'client-info',
+          environmentInfo: 'env-info',
+          server: false
+        });
+      });
+
+      describe('when browsers is passed in snapshot config', () => {
+        fit('should override the global config', async () => {
+          await percy.snapshot({
+            name: 'test snapshot',
+            url: 'http://localhost:8000',
+            browsers: ['safari_on_iphone']
+          });
+
+          expect(logger.stderr).toEqual([]);
+          expect(logger.stdout).toEqual(jasmine.arrayContaining([
+            '[percy] Snapshot taken: test snapshot'
+          ]));
+          expect(api.requests['/builds/123/snapshots'][0].body.data.attributes.browsers).toEqual(['safari_on_iphone']);
+        });
+      }
+      );
+
+      describe('when browsers is not passed in snapshot config', () => {
+        fit('should use the global config', async () => {
+          await percy.snapshot({
+            name: 'test snapshot',
+            url: 'http://localhost:8000'
+          });
+
+          expect(logger.stderr).toEqual([]);
+          expect(logger.stdout).toEqual(jasmine.arrayContaining([
+            '[percy] Snapshot taken: test snapshot'
+          ]));
+          expect(api.requests['/builds/123/snapshots'][0].body.data.attributes.browsers).toEqual(['chrome', 'firefox']);
+        });
+      }
+      );
+    });
+
+    describe('when browsers are not passed in global config', () => {
+      fit('should use the default browsers', async () => {
+        await percy.snapshot({
+          name: 'test snapshot',
+          url: 'http://localhost:8000',
+          browsers: ['edge', 'chrome_on_android']
+        });
+
+        expect(logger.stderr).toEqual([]);
+        expect(logger.stdout).toEqual(jasmine.arrayContaining([
+          '[percy] Snapshot taken: test snapshot'
+        ]));
+        expect(api.requests['/builds/123/snapshots'][0].body.data.attributes.browsers).toEqual(['edge', 'chrome_on_android']);
+      }
+      );
+    });
+  });
 });
