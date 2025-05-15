@@ -1722,7 +1722,7 @@ describe('Snapshot', () => {
       });
 
       describe('when browsers is passed in snapshot config', () => {
-        fit('should override the global config', async () => {
+        it('should override the global config', async () => {
           await percy.snapshot({
             name: 'test snapshot',
             url: 'http://localhost:8000',
@@ -1739,7 +1739,7 @@ describe('Snapshot', () => {
       );
 
       describe('when browsers is not passed in snapshot config', () => {
-        fit('should use the global config', async () => {
+        it('should use the global config', async () => {
           await percy.snapshot({
             name: 'test snapshot',
             url: 'http://localhost:8000'
@@ -1756,7 +1756,7 @@ describe('Snapshot', () => {
     });
 
     describe('when browsers are not passed in global config', () => {
-      fit('should use the default browsers', async () => {
+      it('should use the default browsers', async () => {
         await percy.snapshot({
           name: 'test snapshot',
           url: 'http://localhost:8000',
