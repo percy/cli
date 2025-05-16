@@ -1784,6 +1784,20 @@ describe('Snapshot', () => {
         });
       }
       );
+
+      describe('when empty browsers are passed in global config', () => {
+        it('send browsers params as null', async () => {
+          percy.config.snapshot.browsers = [];
+
+          await percy.snapshot({
+            name: 'test snapshot',
+            url: 'http://localhost:8000'
+          });
+
+          expect(api.requests['/builds/123/snapshots'][0].body.data.attributes.browsers).toEqual(null);
+          percy.config.snapshot.browsers = ['chrome', 'firefox'];
+        });
+      });
     });
 
     describe('when browsers are not passed in global config', () => {
@@ -1818,6 +1832,20 @@ describe('Snapshot', () => {
         });
       }
       );
+
+      describe('when invalid value as browsers is passed', () => {
+        it('warns for invalid value', async () => {
+          await percy.snapshot({
+            name: 'test snapshot',
+            url: 'http://localhost:8000',
+            browsers: [0]
+          });
+
+          expect(logger.stderr).toEqual(jasmine.arrayContaining([
+            '[percy] Invalid snapshot options:', '[percy] - browsers[0]: must be a string, received a number'
+          ]));
+        });
+      });
     });
   });
 });
