@@ -1735,6 +1735,21 @@ describe('Snapshot', () => {
           ]));
           expect(api.requests['/builds/123/snapshots'][0].body.data.attributes.browsers).toEqual(['safari_on_iphone']);
         });
+
+        it('when empty browsers is passed in snapshot config, should use the global config', async () => {
+          await percy.snapshot({
+            name: 'test snapshot',
+            url: 'http://localhost:8000',
+            browsers: []
+          });
+
+          expect(logger.stderr).toEqual([]);
+          expect(logger.stdout).toEqual(jasmine.arrayContaining([
+            '[percy] Snapshot taken: test snapshot'
+          ]));
+          expect(api.requests['/builds/123/snapshots'][0].body.data.attributes.browsers).toEqual(['chrome', 'firefox']);
+        }
+        );
       }
       );
 
