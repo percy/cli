@@ -561,6 +561,7 @@ const OPTION_MAPPINGS = {
   testcase: 'testCase',
   labels: 'labels',
   thtestcaseexecutionid: 'thTestCaseExecutionId',
+  browsers: 'browsers',
   resources: 'resources',
   meta: 'meta',
   snapshot: 'snapshot'

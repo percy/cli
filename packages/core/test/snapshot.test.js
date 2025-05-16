@@ -1707,4 +1707,145 @@ describe('Snapshot', () => {
       ]));
     });
   });
+
+  describe('with browsers', () => {
+    describe('when browsers is passed in global config', () => {
+      beforeEach(async () => {
+        percy = await Percy.start({
+          token: 'PERCY_TOKEN',
+          snapshot: { browsers: ['chrome', 'firefox'] },
+          discovery: { concurrency: 1 },
+          clientInfo: 'client-info',
+          environmentInfo: 'env-info',
+          server: false
+        });
+      });
+
+      describe('when browsers is passed in snapshot config', () => {
+        it('should override the global config', async () => {
+          await percy.snapshot({
+            name: 'test snapshot',
+            url: 'http://localhost:8000',
+            browsers: ['safari_on_iphone']
+          });
+
+          expect(logger.stderr).toEqual([]);
+          expect(logger.stdout).toEqual(jasmine.arrayContaining([
+            '[percy] Snapshot taken: test snapshot'
+          ]));
+          expect(api.requests['/builds/123/snapshots'][0].body.data.attributes.browsers).toEqual(['safari_on_iphone']);
+        });
+
+        it('when empty browsers is passed in snapshot config, should use the global config', async () => {
+          await percy.snapshot({
+            name: 'test snapshot',
+            url: 'http://localhost:8000',
+            browsers: []
+          });
+
+          expect(logger.stderr).toEqual([]);
+          expect(logger.stdout).toEqual(jasmine.arrayContaining([
+            '[percy] Snapshot taken: test snapshot'
+          ]));
+          expect(api.requests['/builds/123/snapshots'][0].body.data.attributes.browsers).toEqual(['chrome', 'firefox']);
+        }
+        );
+      }
+      );
+
+      describe('when duplicate browsers are passed in snapshot config', () => {
+        it('should remove duplicates', async () => {
+          await percy.snapshot({
+            name: 'test snapshot',
+            url: 'http://localhost:8000',
+            browsers: ['chrome', 'firefox', 'safari']
+          });
+
+          expect(logger.stderr).toEqual([]);
+          expect(logger.stdout).toEqual(jasmine.arrayContaining([
+            '[percy] Snapshot taken: test snapshot'
+          ]));
+          expect(api.requests['/builds/123/snapshots'][0].body.data.attributes.browsers).toEqual(['chrome', 'firefox', 'safari']);
+        });
+      });
+
+      describe('when browsers is not passed in snapshot config', () => {
+        it('should use the global config', async () => {
+          await percy.snapshot({
+            name: 'test snapshot',
+            url: 'http://localhost:8000'
+          });
+
+          expect(logger.stderr).toEqual([]);
+          expect(logger.stdout).toEqual(jasmine.arrayContaining([
+            '[percy] Snapshot taken: test snapshot'
+          ]));
+          expect(api.requests['/builds/123/snapshots'][0].body.data.attributes.browsers).toEqual(['chrome', 'firefox']);
+        });
+      }
+      );
+
+      describe('when empty browsers are passed in global config', () => {
+        it('send browsers params as null', async () => {
+          percy.config.snapshot.browsers = [];
+
+          await percy.snapshot({
+            name: 'test snapshot',
+            url: 'http://localhost:8000'
+          });
+
+          expect(api.requests['/builds/123/snapshots'][0].body.data.attributes.browsers).toEqual(null);
+          percy.config.snapshot.browsers = ['chrome', 'firefox'];
+        });
+      });
+    });
+
+    describe('when browsers are not passed in global config', () => {
+      it('should use the default browsers', async () => {
+        await percy.snapshot({
+          name: 'test snapshot',
+          url: 'http://localhost:8000',
+          browsers: ['edge', 'chrome_on_android']
+        });
+
+        expect(logger.stderr).toEqual([]);
+        expect(logger.stdout).toEqual(jasmine.arrayContaining([
+          '[percy] Snapshot taken: test snapshot'
+        ]));
+        expect(api.requests['/builds/123/snapshots'][0].body.data.attributes.browsers).toEqual(['edge', 'chrome_on_android']);
+      }
+      );
+
+      describe('when duplicate browsers are passed in snapshot config', () => {
+        it('should remove duplicates', async () => {
+          await percy.snapshot({
+            name: 'test snapshot',
+            url: 'http://localhost:8000',
+            browsers: ['safari', 'safari', 'firefox']
+          });
+
+          expect(logger.stderr).toEqual([]);
+          expect(logger.stdout).toEqual(jasmine.arrayContaining([
+            '[percy] Snapshot taken: test snapshot'
+          ]));
+          expect(api.requests['/builds/123/snapshots'][0].body.data.attributes.browsers).toEqual(['safari', 'firefox']);
+        });
+      }
+      );
+
+      describe('when invalid value as browsers is passed', () => {
+        it('warns for invalid value', async () => {
+          await percy.snapshot({
+            name: 'test snapshot',
+            url: 'http://localhost:8000',
+            browsers: [0]
+          });
+
+          expect(logger.stderr).toEqual(jasmine.arrayContaining([
+            '[percy] Invalid snapshot options:', '[percy] - browsers[0]: must be a string, received a number'
+          ]));
+        });
+      });
+    });
+  });
 });

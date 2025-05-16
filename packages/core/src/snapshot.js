@@ -147,6 +147,8 @@ function getSnapshotOptions(options, { config, meta }) {
     switch (path.map(k => k.toString()).join('.')) {
       case 'widths': // dedup, sort, and override widths when not empty
         return [path, !next?.length ? prev : [...new Set(next)].sort((a, b) => a - b)];
+      case 'browsers':
+        return [path, !next?.length ? prev : [...new Set(next)]];
       case 'percyCSS': // concatenate percy css
         return [path, [prev, next].filter(Boolean).join('\n')];
       case 'execute': // shorthand for execute.beforeSnapshot
