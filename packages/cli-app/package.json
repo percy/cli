@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-app",
-  "version": "1.30.11-beta.1",
+  "version": "1.30.11-beta.2",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -33,7 +33,7 @@
     ]
   },
   "dependencies": {
-    "@percy/cli-command": "1.30.11-beta.1",
-    "@percy/cli-exec": "1.30.11-beta.1"
+    "@percy/cli-command": "1.30.11-beta.2",
+    "@percy/cli-exec": "1.30.11-beta.2"
   }
 }
