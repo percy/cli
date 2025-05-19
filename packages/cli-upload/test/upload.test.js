@@ -96,7 +96,8 @@ describe('percy upload', () => {
           'enable-javascript': null,
           regions: null,
           'enable-layout': false,
-          'th-test-case-execution-id': null
+          'th-test-case-execution-id': null,
+          browsers: null
         },
         relationships: {
           resources: {

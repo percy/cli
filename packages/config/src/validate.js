@@ -64,6 +64,20 @@ const ajv = new AJV({
         });
       }
     }
+  }, {
+    keyword: 'onlyWeb',
+    error: {
+      message: 'property only valid with Web integration.'
+    },
+    code: cxt => {
+      const tokenPrefix = (process.env.PERCY_TOKEN || '').split('_')[0];
+      const isNotWebProjectToken = tokenPrefix === 'auto' || tokenPrefix === 'app';
+
+      // we do validation only when token is passed
+      if (!!process.env.PERCY_TOKEN && isNotWebProjectToken) {
+        cxt.error();
+      }
+    }
   }]
 });
 

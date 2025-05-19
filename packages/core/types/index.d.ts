@@ -57,6 +57,7 @@ interface CommonSnapshotOptions {
   reshuffleInvalidTags?: boolean;
   devicePixelRatio?: number;
   scopeOptions?: ScopeOptions;
+  browsers?: string[];
 }
 
 export interface SnapshotOptions extends CommonSnapshotOptions {

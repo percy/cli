@@ -4,6 +4,7 @@ import url from 'url';
 import path from 'path';
 import crypto from 'crypto';
 import logger from '@percy/logger';
+import { snakecase } from '@percy/config/utils';
 
 // Formats a raw byte integer as a string
 export function formatBytes(int) {
@@ -260,6 +261,11 @@ export function tagsList(tags) {
   }
 
   return tagsArr;
+}
+
+export function normalizeBrowsers(browserValues) {
+  if (!browserValues) return null;
+  return browserValues.map(browser => snakecase(browser));
 }
 
 export {

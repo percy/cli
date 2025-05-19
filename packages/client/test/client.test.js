@@ -978,7 +978,8 @@ describe('PercyClient', () => {
             'scope-options': { scroll: true },
             'enable-javascript': true,
             'enable-layout': true,
-            'th-test-case-execution-id': 'random-uuid'
+            'th-test-case-execution-id': 'random-uuid',
+            browsers: null
           },
           relationships: {
             resources: {
@@ -1007,6 +1008,99 @@ describe('PercyClient', () => {
       });
     });
 
+    describe('with browsers', () => {
+      it('creates a snapshot', async () => {
+        spyOn(fs.promises, 'readFile')
+          .withArgs('foo/bar').and.resolveTo('bar');
+
+        await expectAsync(client.createSnapshot(123, {
+          name: 'snapfoo',
+          widths: [1000],
+          scope: '#main',
+          sync: true,
+          testCase: 'foo test case',
+          labels: 'tag 1,tag 2',
+          scopeOptions: { scroll: true },
+          minHeight: 1000,
+          enableJavaScript: true,
+          regions: [{ elementSelector: { elementCSS: '#test' }, algorithm: 'ignore' }],
+          algorithm: 'layout',
+          enableLayout: true,
+          clientInfo: 'sdk/info',
+          environmentInfo: 'sdk/env',
+          thTestCaseExecutionId: 'random-uuid',
+          browsers: ['chrome', 'firefox', 'safari-on-iphone'],
+          resources: [{
+            url: '/foo',
+            content: 'foo',
+            mimetype: 'text/html',
+            widths: [1000],
+            root: true
+          }, {
+            url: '/bar',
+            filepath: 'foo/bar',
+            mimetype: 'image/png'
+          }]
+        })).toBeResolved();
+
+        expect(api.requests['/builds/123/snapshots'][0].headers).toEqual(
+          jasmine.objectContaining({
+            'User-Agent': jasmine.stringMatching(
+              /^Percy\/v1 @percy\/client\/\S+ sdk\/info \(sdk\/env; node\/v[\d.]+.*\)$/
+            )
+          })
+        );
+
+        const expectedRegions = [
+          { elementSelector: { elementCSS: '#test' }, algorithm: 'ignore' },
+          { elementSelector: { fullpage: true }, algorithm: 'layout' }
+        ];
+        expect(api.requests['/builds/123/snapshots'][0].body).toEqual({
+          data: {
+            type: 'snapshots',
+            attributes: {
+              name: 'snapfoo',
+              widths: [1000],
+              scope: '#main',
+              regions: expectedRegions,
+              sync: true,
+              'test-case': 'foo test case',
+              tags: [{ id: null, name: 'tag 1' }, { id: null, name: 'tag 2' }],
+              'minimum-height': 1000,
+              'scope-options': { scroll: true },
+              'enable-javascript': true,
+              'enable-layout': true,
+              'th-test-case-execution-id': 'random-uuid',
+              browsers: ['chrome', 'firefox', 'safari_on_iphone']
+            },
+            relationships: {
+              resources: {
+                data: [{
+                  type: 'resources',
+                  id: sha256hash('foo'),
+                  attributes: {
+                    'resource-url': '/foo',
+                    mimetype: 'text/html',
+                    'for-widths': [1000],
+                    'is-root': true
+                  }
+                }, {
+                  type: 'resources',
+                  id: sha256hash('bar'),
+                  attributes: {
+                    'resource-url': '/bar',
+                    mimetype: 'image/png',
+                    'for-widths': null,
+                    'is-root': null
+                  }
+                }]
+              }
+            }
+          }
+        });
+      });
+    });
+
     it('falls back to null attributes for various properties', async () => {
       await expectAsync(
         client.createSnapshot(123, { resources: [{ sha: 'sha' }] })
@@ -1027,7 +1121,8 @@ describe('PercyClient', () => {
             'enable-javascript': null,
             'enable-layout': false,
             regions: null,
-            'th-test-case-execution-id': null
+            'th-test-case-execution-id': null,
+            browsers: null
           },
           relationships: {
             resources: {
@@ -1099,7 +1194,8 @@ describe('PercyClient', () => {
             widths: null,
             regions: null,
             'enable-layout': false,
-            'th-test-case-execution-id': null
+            'th-test-case-execution-id': null,
+            browsers: null
           },
           relationships: {
             resources: {
@@ -1796,7 +1892,8 @@ describe('PercyClient', () => {
               sync: false,
               regions: null,
               'enable-layout': false,
-              'th-test-case-execution-id': null
+              'th-test-case-execution-id': null,
+              browsers: null
             },
             relationships: {
               resources: {
