@@ -1,6 +1,6 @@
 {
   "name": "@percy/logger",
-  "version": "1.30.11-beta.2",
+  "version": "1.30.11",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -9,7 +9,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "beta"
+    "tag": "latest"
   },
   "engines": {
     "node": ">=14"
