@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-command",
-  "version": "1.30.11-beta.2",
+  "version": "1.30.11",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -9,7 +9,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "beta"
+    "tag": "latest"
   },
   "files": [
     "dist",
@@ -36,8 +36,8 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@percy/config": "1.30.11-beta.2",
-    "@percy/core": "1.30.11-beta.2",
-    "@percy/logger": "1.30.11-beta.2"
+    "@percy/config": "1.30.11",
+    "@percy/core": "1.30.11",
+    "@percy/logger": "1.30.11"
   }
 }
