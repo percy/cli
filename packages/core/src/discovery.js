@@ -300,7 +300,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
 
   log.debug('*** scrolling to bottom ***', { scrollToBottom: snapshot.discovery.scrollToBottom });
 
-  //scroll to bottom flag && clienablejs
+  // scroll to bottom flag && clienablejs
   if (discovery.scrollToBottom && page.enableJavaScript) {
     yield scrollPageToBottom(page, { meta: snapshot.meta });
   }

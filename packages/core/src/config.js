@@ -287,7 +287,7 @@ export const configSchema = {
         minimum: 1,
         maximum: 30000
       },
-      scrollToBottom: { 
+      scrollToBottom: {
         type: 'boolean',
         default: false
       },
@@ -407,8 +407,8 @@ export const snapshotSchema = {
             captureSrcset: { $ref: '/config/discovery#/properties/captureSrcset' },
             userAgent: { $ref: '/config/discovery#/properties/userAgent' },
             devicePixelRatio: { $ref: '/config/discovery#/properties/devicePixelRatio' },
-            retry: { $ref: '/config/discovery#/properties/retry' }, 
-            scrollToBottom: { $ref: '/config/discovery#/properties/scrollToBottom' },
+            retry: { $ref: '/config/discovery#/properties/retry' },
+            scrollToBottom: { $ref: '/config/discovery#/properties/scrollToBottom' }
           }
         }
       },

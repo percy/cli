@@ -142,7 +142,7 @@ function getSnapshotOptions(options, { config, meta }) {
       captureSrcset: config.discovery.captureSrcset,
       userAgent: config.discovery.userAgent,
       retry: config.discovery.retry,
-      scrollToBottom: config.discovery.scrollToBottom,
+      scrollToBottom: config.discovery.scrollToBottom
     }
   }, options], (path, prev, next) => {
     switch (path.map(k => k.toString()).join('.')) {
