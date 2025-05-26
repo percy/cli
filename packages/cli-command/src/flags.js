@@ -112,6 +112,13 @@ export const labels = {
   short: 'l'
 };
 
+export const scrollToBottom = {
+  name: 'scroll-to-bottom',
+  description: 'Scroll page to bottom during asset discovery',
+  percyrc: 'discovery.scrollToBottom',
+  group: 'Percy'
+};
+
 // Group constants
 export const GLOBAL = [
   verbose,
@@ -134,7 +141,8 @@ export const DISCOVERY = [
   disallowedHostnames,
   networkIdleTimeout,
   disableCache,
-  debug
+  debug,
+  scrollToBottom
 ];
 
 // export the namespace as the default

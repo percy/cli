@@ -578,3 +578,37 @@ export function normalizeOptions(options) {
 
   return normalizedOptions;
 }
+
+export async function scrollPageToBottom(page, options = {}) {
+  const log = logger('core:utils');
+  const { meta, timeout = 10000 } = options;
+  
+  log.debug('Scrolling page to bottom and back to top', meta);
+  
+  return page.evaluate(timeout => {
+    // First scroll to top to ensure consistent behavior
+    window.scrollTo(0, 0);
+    
+    const delay = 2000;
+    
+    const scrollStep = () => {
+      const viewportHeight = window.innerHeight;
+      const scrollY = window.scrollY;
+      const fullHeight = document.body.scrollHeight;
+      
+      if (scrollY + viewportHeight < fullHeight) {
+        window.scrollBy(0, viewportHeight);
+        setTimeout(scrollStep, delay);
+      } else {
+        // Scroll back to top when done
+        window.scrollTo(0, 0);
+      }
+    };
+    
+    return new Promise(resolve => {
+      scrollStep();
+      // Adding a timeout to ensure scrolling completes
+      setTimeout(resolve, timeout);
+    });
+  }, timeout);
+}
