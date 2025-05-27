@@ -1,6 +1,6 @@
 {
   "name": "@percy/logger",
-  "version": "1.30.11",
+  "version": "1.30.11-beta.3",
   "license": "MIT",
   "repository": {
     "type": "git",
