@@ -3407,4 +3407,209 @@ describe('Discovery', () => {
       ]));
     });
   });
+  describe('Scroll to bottom functionality', () => {
+    let percy, server, captured;
+
+    // Create test DOM with tall content that would require scrolling
+    const testDOM = dedent`
+      <html>
+      <head><link href="style.css" rel="stylesheet"/></head>
+      <body>
+        <div id="top-content">Top content</div>
+        <div style="height: 2000px;">Tall content</div>
+        <img id="lazy-image" loading="lazy" src="lazy-image.gif" />
+        <div id="bottom-content">Bottom content</div>
+      </body>
+      </html>
+    `;
+
+    const testCSS = dedent`
+      p { color: purple; }
+    `;
+
+    // http://png-pixel.com/
+    const pixel = Buffer.from('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', 'base64');
+
+    beforeEach(async () => {
+      captured = [];
+      await setupTest();
+
+      // Set up API response for snapshots
+      api.reply('/builds/123/snapshots', ({ body }) => {
+        captured.push(body.data.relationships.resources.data.sort((a, b) => (
+          a.attributes['resource-url'].localeCompare(b.attributes['resource-url'])
+        )));
+
+        return [201, { data: { id: '4567' } }];
+      });
+
+      // Create a new server for each test with test routes - use port 8080 explicitly
+      server = await createTestServer({
+        '/': () => [200, 'text/html', testDOM],
+        '/style.css': () => [200, 'text/css', testCSS],
+        '/lazy-image.gif': () => [200, 'image/gif', pixel]
+      }, 8080);
+
+      // Stop any running Percy instance
+      try {
+        await Percy.stop();
+      } catch (e) {
+        // Ignore if Percy wasn't running
+      }
+
+      // Create a fresh Percy instance for each test
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        port: 0
+      });
+    });
+
+    afterEach(async () => {
+      // Clean up after each test
+      await percy?.stop(true);
+      await server?.close();
+    });
+
+    it('captures lazy-loaded images when scrollToBottom option is enabled', async () => {
+      // Take a snapshot with scrollToBottom enabled
+      await percy.snapshot({
+        name: 'scroll to bottom test',
+        url: 'http://localhost:8080',
+        enableJavaScript: true,
+        discovery: {
+          scrollToBottom: true
+        }
+      });
+
+      await percy.idle();
+
+      // Check if the lazy image was loaded (indicating scrolling worked)
+      const lazyImageResource = captured[0].find(resource =>
+        resource.attributes['resource-url'] === 'http://localhost:8080/lazy-image.gif'
+      );
+
+      expect(lazyImageResource).toBeDefined();
+    });
+
+    it('does not capture lazy-loaded images when scrollToBottom option is disabled', async () => {
+      // Create a modified DOM where the image is truly lazy-loaded (will only load on scroll)
+      const lazyDOM = testDOM.replace('loading="lazy"', 'loading="lazy" data-src="lazy-image.gif" src=""');
+
+      server.reply('/', () => [200, 'text/html', lazyDOM]);
+
+      // Take a snapshot with scrollToBottom disabled
+      await percy.snapshot({
+        name: 'no scroll to bottom test',
+        url: 'http://localhost:8080',
+        enableJavaScript: true
+      });
+
+      await percy.idle();
+
+      // Check that the lazy image was NOT loaded (indicating no scrolling happened)
+      const lazyImageResource = captured[0].find(resource =>
+        resource.attributes['resource-url'] === 'http://localhost:8080/lazy-image.gif'
+      );
+
+      expect(lazyImageResource).toBeUndefined();
+    });
+
+    it('does not scroll to bottom when JavaScript is disabled', async () => {
+      const page = await percy.browser.page();
+      const evalSpy = spyOn(page.constructor.prototype, 'evaluate').and.callThrough();
+      await page.close();
+
+      // Take a snapshot with JavaScript disabled but scrollToBottom enabled
+      await percy.snapshot({
+        name: 'js disabled scroll test',
+        url: 'http://localhost:8080',
+        cliEnableJavaScript: false,
+        discovery: {
+          scrollToBottom: true
+        }
+      });
+
+      await percy.idle();
+
+      const scrollCalls = evalSpy.calls.all()
+        .filter(call => call.args[0] && call.args[0].toString().includes('scrollTo'));
+
+      expect(scrollCalls.length).toBe(0);
+    });
+
+    it('scrolls to bottom for each width when multiple widths are specified', async () => {
+      server.reply('/lazy-image-small.gif', () => [200, 'image/gif', pixel]);
+      server.reply('/lazy-image-large.gif', () => [200, 'image/gif', pixel]);
+
+      const responsiveDOM = dedent`
+        <html>
+        <head><link href="style.css" rel="stylesheet"/></head>
+        <body>
+          <div id="top-content">Top content</div>
+          <div style="height: 2000px;">Tall content</div>
+          <!-- Use a more reliable method to create the responsive images -->
+          <script>
+            // Create and add the appropriate image based on viewport width
+            function createAndAppendImage() {
+              // Remove any existing lazy-loaded images first
+              const existingImg = document.getElementById("lazy-image");
+              if (existingImg) existingImg.remove();
+              
+              const img = document.createElement('img');
+              img.id = "lazy-image";
+              img.loading = "lazy";
+              
+              // Set the source based on the viewport width
+              if (window.innerWidth <= 500) {
+                img.src = "lazy-image-small.gif";
+                img.setAttribute('data-size', 'small');
+              } else {
+                img.src = "lazy-image-large.gif";
+                img.setAttribute('data-size', 'large');
+              }
+              
+              // Add the image at the bottom of the page
+              document.getElementById("bottom-content").appendChild(img);
+            }
+            
+            // Run on initial load
+            window.addEventListener('load', createAndAppendImage);
+            
+            // Also run when the page is resized
+            window.addEventListener('resize', createAndAppendImage);
+          </script>
+          <div id="bottom-content"></div>
+        </body>
+        </html>
+      `;
+
+      server.reply('/', () => [200, 'text/html', responsiveDOM]);
+
+      await percy.snapshot({
+        name: 'multiple widths scroll test',
+        url: 'http://localhost:8080',
+        enableJavaScript: true,
+        widths: [400, 800],
+        discovery: {
+          scrollToBottom: true,
+          networkIdleTimeout: 500
+        }
+      });
+
+      await percy.idle();
+
+      const smallImageResource = captured[0].find(resource =>
+        resource.attributes['resource-url'] === 'http://localhost:8080/lazy-image-small.gif'
+      );
+
+      const largeImageResource = captured[0].find(resource =>
+        resource.attributes['resource-url'] === 'http://localhost:8080/lazy-image-large.gif'
+      );
+
+      expect(smallImageResource).toBeDefined('Small image resource should be captured');
+      expect(largeImageResource).toBeDefined('Large image resource should be captured');
+    });
+  });
 });

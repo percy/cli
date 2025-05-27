@@ -13,7 +13,8 @@ import {
   waitForTimeout,
   withRetries,
   waitForSelectorInsideBrowser,
-  isGzipped
+  isGzipped,
+  maybeScrollToBottom
 } from './utils.js';
 import {
   sha256hash
@@ -70,6 +71,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'clientInfo');
   debugProp(snapshot, 'environmentInfo');
   debugProp(snapshot, 'domSnapshot', Boolean);
+  debugProp(snapshot, 'discovery.scrollToBottom');
   if (Array.isArray(snapshot.domSnapshot)) {
     debugProp(snapshot, 'domSnapshot.0.userAgent');
   } else {
@@ -296,6 +298,8 @@ async function* captureSnapshotResources(page, snapshot, options) {
     yield page.evaluate(snapshot.execute.afterNavigation);
   }
 
+  yield* maybeScrollToBottom(page, discovery);
+
   // Running before page idle since this will trigger many network calls
   // so need to run as early as possible. plus it is just reading urls from dom srcset
   // which will be already loaded after navigation complete
@@ -322,6 +326,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
         yield resizePage(width = widths[i + 1]);
         if (snapshot.responsiveSnapshotCapture) { yield page.goto(snapshot.url, { cookies, forceReload: true }); }
         yield page.evaluate(execute?.afterResize);
+        yield* maybeScrollToBottom(page, discovery);
       }
     }
 

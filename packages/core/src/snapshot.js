@@ -141,7 +141,8 @@ function getSnapshotOptions(options, { config, meta }) {
       captureMockedServiceWorker: config.discovery.captureMockedServiceWorker,
       captureSrcset: config.discovery.captureSrcset,
       userAgent: config.discovery.userAgent,
-      retry: config.discovery.retry
+      retry: config.discovery.retry,
+      scrollToBottom: config.discovery.scrollToBottom
     }
   }, options], (path, prev, next) => {
     switch (path.map(k => k.toString()).join('.')) {
