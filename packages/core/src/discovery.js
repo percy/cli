@@ -13,7 +13,8 @@ import {
   waitForTimeout,
   withRetries,
   waitForSelectorInsideBrowser,
-  isGzipped
+  isGzipped,
+  maybeScrollToBottom
 } from './utils.js';
 import {
   sha256hash
@@ -297,10 +298,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
     yield page.evaluate(snapshot.execute.afterNavigation);
   }
 
-  // scroll to bottom flag && clienablejs
-  if (discovery.scrollToBottom && page.enableJavaScript) {
-    yield page.eval('await scrollToBottom()');
-  }
+  yield* maybeScrollToBottom(page, discovery);
 
   // Running before page idle since this will trigger many network calls
   // so need to run as early as possible. plus it is just reading urls from dom srcset
@@ -328,10 +326,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
         yield resizePage(width = widths[i + 1]);
         if (snapshot.responsiveSnapshotCapture) { yield page.goto(snapshot.url, { cookies, forceReload: true }); }
         yield page.evaluate(execute?.afterResize);
-
-        if (discovery.scrollToBottom && page.enableJavaScript) {
-          yield page.eval('await scrollToBottom()');
-        }
+        yield* maybeScrollToBottom(page, discovery);
       }
     }
 

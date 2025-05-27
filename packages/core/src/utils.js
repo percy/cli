@@ -578,3 +578,9 @@ export function normalizeOptions(options) {
 
   return normalizedOptions;
 }
+
+export async function* maybeScrollToBottom(page, discovery) {
+  if (discovery.scrollToBottom && page.enableJavaScript) {
+    yield page.eval('await scrollToBottom()');
+  }
+}
