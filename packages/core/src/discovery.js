@@ -13,8 +13,7 @@ import {
   waitForTimeout,
   withRetries,
   waitForSelectorInsideBrowser,
-  isGzipped,
-  scrollPageToBottom
+  isGzipped
 } from './utils.js';
 import {
   sha256hash
@@ -298,11 +297,9 @@ async function* captureSnapshotResources(page, snapshot, options) {
     yield page.evaluate(snapshot.execute.afterNavigation);
   }
 
-  log.debug('*** scrolling to bottom ***', { scrollToBottom: snapshot.discovery.scrollToBottom });
-
   // scroll to bottom flag && clienablejs
   if (discovery.scrollToBottom && page.enableJavaScript) {
-    yield scrollPageToBottom(page, { meta: snapshot.meta });
+    yield page.eval('await scrollToBottom()');
   }
 
   // Running before page idle since this will trigger many network calls
@@ -333,9 +330,8 @@ async function* captureSnapshotResources(page, snapshot, options) {
         yield page.evaluate(execute?.afterResize);
 
         if (discovery.scrollToBottom && page.enableJavaScript) {
-          yield scrollPageToBottom(page, { meta: snapshot.meta });
+          yield page.eval('await scrollToBottom()');
         }
-        // call scroll to bottom
       }
     }
 
