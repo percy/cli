@@ -39,7 +39,8 @@ export function serializeBase64(node, resources, cache) {
       node.removeAttribute('xlink:href');
       node.setAttribute('data-percy-serialized-attribute-xlink:href', cache.get(base64String));
     } else {
-      node.href.baseVal = cache.get(base64String);
+      node.removeAttribute('href');
+      node.setAttribute('data-percy-serialized-attribute-href', cache.get(base64String));
     }
   } else {
     // we use data-percy-serialized-attribute-src here instead of `src`.
