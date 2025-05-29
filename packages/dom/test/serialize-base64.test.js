@@ -52,9 +52,11 @@ describe('serializeBase64', () => {
       serialized = serializeDOM();
       $ = parseDOM(serialized.html, platform);
 
-      // The implementation sets the xlink:href attribute for SVG images
-      // rather than updating the href attribute directly
+      expect($('#image')[0].getAttribute('href'))
+        .toMatch('/__serialized__/\\w+\\.png');
+
       expect(serialized.resources).toContain(jasmine.objectContaining({
+        url: $('#image')[0].getAttribute('href'),
         content: 'iVBORw0KGgoAAAANSUhEU',
         mimetype: 'image/png'
       }));
@@ -94,7 +96,6 @@ describe('serializeBase64', () => {
       serialized = serializeDOM();
       $ = parseDOM(serialized.html, platform);
 
-      // Just verify that a resource was created
       expect(serialized.resources).toContain(jasmine.objectContaining({
         content: 'iVBORw0KGgoAAAANSUhEU',
         mimetype: 'image/png'
