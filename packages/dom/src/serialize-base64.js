@@ -35,7 +35,13 @@ export function serializeBase64(node, resources, cache) {
   }
 
   if (isHrefUsed === true) {
-    node.href.baseVal = cache.get(base64String);
+    if (node.hasAttribute('xlink:href')) {
+      node.removeAttribute('xlink:href');
+      node.setAttribute('data-percy-serialized-attribute-xlink:href', cache.get(base64String));
+    } else {
+      node.removeAttribute('href');
+      node.setAttribute('data-percy-serialized-attribute-href', cache.get(base64String));
+    }
   } else {
     // we use data-percy-serialized-attribute-src here instead of `src`.
     // As soon as src is used the browser will try to load the resource,
