@@ -22,6 +22,12 @@ export class Session extends EventEmitter {
   }
 
   async close() {
+    // Check for the new closeBrowser option
+    if (this.browser?.percy.config.discovery?.launchOptions?.closeBrowser === false) {
+      this.log.debug('Skipping session close due to closeBrowser:false option');
+      return true;
+    }
+
     if (!this.browser || this.closing) return;
     this.closing = true;
 

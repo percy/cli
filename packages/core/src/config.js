@@ -357,7 +357,8 @@ export const configSchema = {
           executable: { type: 'string' },
           timeout: { type: 'integer' },
           args: { type: 'array', items: { type: 'string' } },
-          headless: { type: 'boolean' }
+          headless: { type: 'boolean' },
+          closeBrowser: { type: 'boolean', default: true }
         }
       }
     }

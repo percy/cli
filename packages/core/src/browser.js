@@ -120,7 +120,13 @@ export class Browser extends EventEmitter {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
-  async close() {
+  async close(force = false) {
+    // Check for the new closeBrowser option
+    if (!force && this.percy.config.discovery?.launchOptions?.closeBrowser === false) {
+      this.log.debug('Skipping browser close due to closeBrowser:false option');
+      return true;
+    }
+
     // not running, already closed, or closing
     if (this._closed) return this._closed;
     this.readyState = 2;
