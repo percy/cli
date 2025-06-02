@@ -77,7 +77,7 @@ export class Browser extends EventEmitter {
     if (this.readyState != null) return;
     this.readyState = 0;
 
-    let { cookies = [], launchOptions = {} } = this.percy.config.discovery;
+    let { cookies = [], launchOptions } = this.percy.config.discovery;
     let { executable, headless = true, args = [], timeout } = launchOptions;
     executable ??= process.env.PERCY_BROWSER_EXECUTABLE;
 
