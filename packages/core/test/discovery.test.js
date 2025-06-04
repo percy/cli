@@ -2448,7 +2448,8 @@ describe('Discovery', () => {
 
   describe('with launch options', () => {
     beforeEach(async () => {
-      await percy.stop(true);
+      // ensure a new percy instance is used for each test
+      await percy?.stop(true);
     });
 
     it('should log an error if a provided executable cannot be found', async () => {
@@ -2524,6 +2525,81 @@ describe('Discovery', () => {
       };
 
       sharedExpectBlock(expectedBody);
+    });
+
+    it('does not close the browser when closeBrowser is false', async () => {
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: {
+          launchOptions: {
+            closeBrowser: false
+          }
+        }
+      });
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await percy.idle();
+      // Check if browser is still connected after snapshot and idle
+      expect(percy.browser.isConnected()).toBe(true);
+      // Explicitly stop percy to close the browser for subsequent tests
+      await percy.browser.close(true); // force close
+      expect(percy.browser.isConnected()).toBe(false);
+    });
+
+    it('closes the browser by default when closeBrowser is not set', async () => {
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: {
+          launchOptions: {} // closeBrowser is not set
+        }
+      });
+      const browserInstance = percy.browser;
+      spyOn(browserInstance, 'close').and.callThrough();
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await percy.idle();
+      // Percy stop is called internally, which should close the browser
+      await percy.stop(true);
+      expect(browserInstance.close).toHaveBeenCalled();
+      expect(browserInstance.isConnected()).toBe(false);
+    });
+
+    it('closes the browser when closeBrowser is true', async () => {
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: {
+          launchOptions: {
+            closeBrowser: true
+          }
+        }
+      });
+      const browserInstance = percy.browser;
+      spyOn(browserInstance, 'close').and.callThrough();
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await percy.idle();
+      // Percy stop is called internally, which should close the browser
+      await percy.stop(true);
+      expect(browserInstance.close).toHaveBeenCalled();
+      expect(browserInstance.isConnected()).toBe(false);
     });
   });
 
@@ -2893,8 +2969,8 @@ describe('Discovery', () => {
         <body>
           <p>Hello Percy!<p>
           <img srcset="/img-fromsrcset.png 400w, /img-throwserror.gif 600w, /img-withdifferentcontenttype.gif 800w"
-              sizes="(max-width: 600px) 400px, (max-width: 800px) 600px, 800px"
-              src="/img-already-captured.png">
+               sizes="(max-width: 600px) 400px, (max-width: 800px) 600px, 800px"
+               src="/img-already-captured.png">
         </body>
         </html>
       `;
@@ -3499,7 +3575,7 @@ describe('Discovery', () => {
 
       server.reply('/', () => [200, 'text/html', lazyDOM]);
 
-      // Take a snapshot with scrollToBottom disabled
+      // Take a Percy snapshot with scrollToBottom disabled
       await percy.snapshot({
         name: 'no scroll to bottom test',
         url: 'http://localhost:8080',
