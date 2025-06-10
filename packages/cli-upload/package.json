@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-upload",
-  "version": "1.30.11-beta.4",
+  "version": "1.30.11",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -9,7 +9,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "beta"
+    "tag": "latest"
   },
   "engines": {
     "node": ">=14"
@@ -33,7 +33,7 @@
     ]
   },
   "dependencies": {
-    "@percy/cli-command": "1.30.11-beta.4",
+    "@percy/cli-command": "1.30.11",
     "fast-glob": "^3.2.11",
     "image-size": "^1.0.0"
   }
