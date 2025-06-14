@@ -1473,6 +1473,17 @@ describe('Percy', () => {
       expect(percy.renderingTypeProject()).toEqual(true);
     });
 
+    it('should return true if project type is responsive_scanner', async () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        projectType: 'responsive_scanner',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      expect(percy.renderingTypeProject()).toEqual(true);
+    });
+
     it('should return false if project type is app', async () => {
       percy = new Percy({
         token: 'PERCY_TOKEN',

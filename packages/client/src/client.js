@@ -734,6 +734,8 @@ export class PercyClient {
         return 'generic';
       case 'vmw':
         return 'visual_scanner';
+      case 'res':
+        return 'responsive_scanner';
       default:
         return 'web';
     }
