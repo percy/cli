@@ -270,8 +270,8 @@ export function createStaticServer(options) {
 
   // include automatic sitemap route
   server.route('get', `${baseUrl}/sitemap.xml`, async (req, res) => {
-    let { default: glob } = await import('fast-glob');
-    let files = await glob('**/*.html', { cwd: dir, fs });
+    let { glob } = await import('tinyglobby');
+    let files = await glob('**/*.html', { cwd: dir, expandDirectories: false, fs });
 
     return res.send(200, 'application/xml', [
       '<?xml version="1.0" encoding="UTF-8"?>',
