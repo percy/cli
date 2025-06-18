@@ -164,7 +164,9 @@ export class Percy {
   }
 
   renderingTypeProject() {
-    return this.projectType === 'web' || this.projectType === 'visual_scanner';
+    return this.projectType === 'web' ||
+    this.projectType === 'visual_scanner' ||
+    this.projectType === 'responsive_scanner';
   }
 
   // Set client & environment info, and override loaded config options
@@ -533,7 +535,7 @@ export class Percy {
 
   shouldSkipAssetDiscovery(tokenType) {
     if (this.testing && JSON.stringify(this.testing) === JSON.stringify({})) { return true; }
-    const assetDiscoverySupportedTypes = ['web', 'visual_scanner'];
+    const assetDiscoverySupportedTypes = ['web', 'visual_scanner', 'responsive_scanner'];
     return !assetDiscoverySupportedTypes.includes(tokenType);
   }
 
