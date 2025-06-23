@@ -33,7 +33,7 @@
     "@babel/register": "^7.17.7",
     "@rollup/plugin-alias": "^5.1.1",
     "@rollup/plugin-babel": "^6.0.0",
-    "@rollup/plugin-commonjs": "^21.0.0",
+    "@rollup/plugin-commonjs": "^28.0.6",
     "@rollup/plugin-node-resolve": "^15.0.0",
     "babel-plugin-istanbul": "^7.0.0",
     "babel-plugin-module-resolver": "^5.0.2",
