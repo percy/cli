@@ -2,16 +2,16 @@ import command from '@percy/cli-command';
 import { validateCredentials } from './utils.js';
 
 /**
- * Approve command definition for Percy builds
- * Allows users to approve builds using build ID and authentication credentials
+ * Unapprove command definition for Percy builds
+ * Allows users to unapprove builds using build ID and authentication credentials
  */
-export const approve = command('approve', {
-  description: 'Approve Percy builds',
+export const unapprove = command('unapprove', {
+  description: 'Unapprove Percy builds',
 
   args: [
     {
       name: 'build-id',
-      description: 'Build ID to approve',
+      description: 'Build ID to unapprove',
       type: 'id',
       required: true
     }
@@ -46,29 +46,29 @@ export const approve = command('approve', {
   const { username, accessKey } = validateCredentials(flags);
   
   if (!username || !accessKey) {
-    exit(1, 'Username and access key are required to approve builds.');
+    exit(1, 'Username and access key are required to unapprove builds.');
   }
 
-  log.info('Approving build...');
+  log.info('Unapproving build...');
 
   try {
-    // Call the Percy API to approve the build
-    const buildApprovalResponse = await percy.client.approveBuild(
+    // Call the Percy API to unapprove the build
+    const buildUnapprovalResponse = await percy.client.unapproveBuild(
       args.buildId,
       username,
       accessKey
     );
     
-    log.debug(`Build approved successfully: ${JSON.stringify(buildApprovalResponse)}`);
-    // To add Approved by name here once that changes are deployed from API
-    log.info('Build approved successfully');
+    log.debug(`Build unapproved successfully: ${JSON.stringify(buildUnapprovalResponse)}`);
+    // To add unApproved by name here once that changes are deployed from API
+    log.info('Build unapproved successfully');
   } catch (error) {
     // Log detailed error information for debugging
-    log.debug(`Failed to approve build. Error: ${error.message || error}`);
+    log.debug(`Failed to unapprove build. Error: ${error.message || error}`);
     
     // Provide user-friendly error message
-    exit(1, 'Failed to approve the build');
+    exit(1, 'Failed to unapprove the build');
   }
 });
 
-export default approve;
+export default unapprove;

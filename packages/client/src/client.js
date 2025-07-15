@@ -133,9 +133,9 @@ export class PercyClient {
   // Returns common headers used for each request with additional
   // headers. Throws an error when the token is missing, which is a required
   // authorization header.
-  headers(headers) {
+  headers(headers, projectTokenRequired = true) {
     return Object.assign({
-      Authorization: `Token token=${this.getToken()}`,
+      Authorization: `Token token=${this.getToken(projectTokenRequired)}`,
       'User-Agent': this.userAgent()
     }, headers);
   }
@@ -154,13 +154,13 @@ export class PercyClient {
   }
 
   // Performs a POST request to a JSON API endpoint with appropriate headers.
-  post(path, body = {}, { ...meta } = {}, customHeaders = {}) {
+  post(path, body = {}, { ...meta } = {}, customHeaders = {}, projectTokenRequired = true) {
     return logger.measure('client:post', meta.identifier || 'Unknown', meta, () => {
       return request(`${this.apiUrl}/${path}`, {
         headers: this.headers({
           'Content-Type': 'application/vnd.api+json',
           ...customHeaders,
-        }),
+        }, projectTokenRequired),
         method: 'POST',
         body,
         meta
@@ -741,7 +741,9 @@ export class PercyClient {
       }
     };
 
-    return this.post(`reviews`, requestBody, { identifier: `build.${action}` }, customHeaders);
+    // For the review action, we use accessKey and username in custom headers
+    // and do not require a project token.
+    return this.post(`reviews`, requestBody, { identifier: `build.${action}` }, customHeaders, false);
   }
 
   async approveBuild(buildId, username, accessKey) {

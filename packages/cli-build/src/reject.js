@@ -2,16 +2,16 @@ import command from '@percy/cli-command';
 import { validateCredentials } from './utils.js';
 
 /**
- * Approve command definition for Percy builds
- * Allows users to approve builds using build ID and authentication credentials
+ * Reject command definition for Percy builds
+ * Allows users to reject builds using build ID and authentication credentials
  */
-export const approve = command('approve', {
-  description: 'Approve Percy builds',
+export const reject = command('reject', {
+  description: 'Reject Percy builds',
 
   args: [
     {
       name: 'build-id',
-      description: 'Build ID to approve',
+      description: 'Build ID to reject',
       type: 'id',
       required: true
     }
@@ -46,29 +46,29 @@ export const approve = command('approve', {
   const { username, accessKey } = validateCredentials(flags);
   
   if (!username || !accessKey) {
-    exit(1, 'Username and access key are required to approve builds.');
+    exit(1, 'Username and access key are required to reject builds.');
   }
 
-  log.info('Approving build...');
+  log.info('Rejecting build...');
 
   try {
-    // Call the Percy API to approve the build
-    const buildApprovalResponse = await percy.client.approveBuild(
+    // Call the Percy API to reject the build
+    const buildRejectionResponse = await percy.client.rejectBuild(
       args.buildId,
       username,
       accessKey
     );
     
-    log.debug(`Build approved successfully: ${JSON.stringify(buildApprovalResponse)}`);
-    // To add Approved by name here once that changes are deployed from API
-    log.info('Build approved successfully');
+    log.debug(`Build rejected successfully: ${JSON.stringify(buildRejectionResponse)}`);
+    // To add Rejected by name here once that changes are deployed from API
+    log.info('Build rejected successfully');
   } catch (error) {
     // Log detailed error information for debugging
-    log.debug(`Failed to approve build. Error: ${error.message || error}`);
+    log.debug(`Failed to reject build. Error: ${error.message || error}`);
     
     // Provide user-friendly error message
-    exit(1, 'Failed to approve the build');
+    exit(1, 'Failed to reject the build');
   }
 });
 
-export default approve;
+export default reject;
