@@ -1,8 +1,8 @@
 import { logger, setupTest } from '@percy/cli-command/test/helpers';
 import api from '@percy/client/test/helpers';
-import { approve } from '@percy/cli-build';
+import { unapprove } from '@percy/cli-build';
 
-describe('percy build:approve', () => {
+describe('percy build:unapprove', () => {
   beforeEach(async () => {
     await setupTest();
   });
@@ -17,7 +17,7 @@ describe('percy build:approve', () => {
 
   it('does nothing and logs when percy is not enabled', async () => {
     process.env.PERCY_ENABLE = '0';
-    await approve(['123']);
+    await unapprove(['123']);
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -28,7 +28,7 @@ describe('percy build:approve', () => {
   it('logs an error when build ID is not provided', async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
-    await expectAsync(approve([])).toBeRejected();
+    await expectAsync(unapprove([])).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
@@ -40,11 +40,11 @@ describe('percy build:approve', () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     process.env.PERCY_ACCESS_KEY = 'test-access-key';
-    await expectAsync(approve(['123'])).toBeRejected();
+    await expectAsync(unapprove(['123'])).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: Username and access key are required to approve builds.'
+      '[percy] Error: Username and access key are required to unapprove builds.'
     ]);
   });
 
@@ -52,22 +52,22 @@ describe('percy build:approve', () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     process.env.PERCY_USERNAME = 'test-username';
-    await expectAsync(approve(['123'])).toBeRejected();
+    await expectAsync(unapprove(['123'])).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: Username and access key are required to approve builds.'
+      '[percy] Error: Username and access key are required to unapprove builds.'
     ]);
   });
 
   it('logs an error when both username and access key are missing', async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
-    await expectAsync(approve(['123'])).toBeRejected();
+    await expectAsync(unapprove(['123'])).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
     expect(logger.stderr).toEqual([
-      '[percy] Error: Username and access key are required to approve builds.'
+      '[percy] Error: Username and access key are required to unapprove builds.'
     ]);
   });
 
@@ -82,7 +82,7 @@ describe('percy build:approve', () => {
         data: {
           type: 'reviews',
           attributes: {
-            action: 'approve'
+            action: 'unapprove'
           },
           relationships: {
             build: {
@@ -99,12 +99,12 @@ describe('percy build:approve', () => {
       return [200, { success: true }];
     });
 
-    await approve(['123']);
+    await unapprove(['123']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Approving build...',
-      '[percy] Build approved successfully'
+      '[percy] Unapproving build...',
+      '[percy] Build unapproved successfully'
     ]);
   });
 
@@ -115,12 +115,12 @@ describe('percy build:approve', () => {
 
     api.reply('/reviews', (req) => [200, { success: true }]);
 
-    await approve(['123']);
+    await unapprove(['123']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Approving build...',
-      '[percy] Build approved successfully'
+      '[percy] Unapproving build...',
+      '[percy] Build unapproved successfully'
     ]);
   });
 
@@ -136,12 +136,12 @@ describe('percy build:approve', () => {
       return [200, { success: true }];
     });
 
-    await approve(['123', '--username=flag-username', '--access-key=flag-access-key']);
+    await unapprove(['123', '--username=flag-username', '--access-key=flag-access-key']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Approving build...',
-      '[percy] Build approved successfully'
+      '[percy] Unapproving build...',
+      '[percy] Build unapproved successfully'
     ]);
   });
 
@@ -157,12 +157,12 @@ describe('percy build:approve', () => {
       return [200, { success: true }];
     });
 
-    await approve(['123', '--access-key=flag-access-key']);
+    await unapprove(['123', '--access-key=flag-access-key']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Approving build...',
-      '[percy] Build approved successfully'
+      '[percy] Unapproving build...',
+      '[percy] Build unapproved successfully'
     ]);
   });
 
@@ -177,7 +177,7 @@ describe('percy build:approve', () => {
         data: {
           type: 'reviews',
           attributes: {
-            action: 'approve'
+            action: 'unapprove'
           },
           relationships: {
             build: {
@@ -194,12 +194,12 @@ describe('percy build:approve', () => {
       return [200, { success: true }];
     });
 
-    await approve(['123', '--username=flag-username']);
+    await unapprove(['123', '--username=flag-username']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Approving build...',
-      '[percy] Build approved successfully'
+      '[percy] Unapproving build...',
+      '[percy] Build unapproved successfully'
     ]);
   });
 
@@ -214,7 +214,7 @@ describe('percy build:approve', () => {
         data: {
           type: 'reviews',
           attributes: {
-            action: 'approve'
+            action: 'unapprove'
           },
           relationships: {
             build: {
@@ -231,11 +231,11 @@ describe('percy build:approve', () => {
       return [401, { errors: [{ detail: 'Unauthorized' }] }];
     });
 
-    await expectAsync(approve(['123'])).toBeRejected();
+    await expectAsync(unapprove(['123'])).toBeRejected();
 
     expect(logger.stderr).toEqual([
       '[percy] Error: Unauthorized',
-      '[percy] Error: Failed to approve the build'
+      '[percy] Error: Failed to unapprove the build'
     ]);
   });
 
@@ -250,7 +250,7 @@ describe('percy build:approve', () => {
         data: {
           type: 'reviews',
           attributes: {
-            action: 'approve'
+            action: 'unapprove'
           },
           relationships: {
             build: {
@@ -265,11 +265,11 @@ describe('percy build:approve', () => {
       return [403, { errors: [{ detail: 'Forbidden' }] }];
     });
 
-    await expectAsync(approve(['123'])).toBeRejected();
+    await expectAsync(unapprove(['123'])).toBeRejected();
 
     expect(logger.stderr).toEqual([
       '[percy] Error: Forbidden',
-      '[percy] Error: Failed to approve the build'
+      '[percy] Error: Failed to unapprove the build'
     ]);
   });
 });
