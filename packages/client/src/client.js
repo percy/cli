@@ -154,10 +154,13 @@ export class PercyClient {
   }
 
   // Performs a POST request to a JSON API endpoint with appropriate headers.
-  post(path, body = {}, { ...meta } = {}) {
+  post(path, body = {}, { ...meta } = {}, customHeaders = {}) {
     return logger.measure('client:post', meta.identifier || 'Unknown', meta, () => {
       return request(`${this.apiUrl}/${path}`, {
-        headers: this.headers({ 'Content-Type': 'application/vnd.api+json' }),
+        headers: this.headers({
+          'Content-Type': 'application/vnd.api+json',
+          ...customHeaders,
+        }),
         method: 'POST',
         body,
         meta
@@ -708,6 +711,49 @@ export class PercyClient {
     return this.post('suggestions/from_logs', {
       data: errorLogs
     }, { identifier: 'error.analysis.get', ...meta });
+  }
+
+  // Performs a review action (approve, unapprove, reject) on a specific build.
+  // This function handles the common logic for sending review requests.
+  async reviewBuild(buildId, action, username, accessKey) {
+    validateId('build', buildId);
+    this.log.debug(`Sending ${action} action for build ${buildId}...`);
+
+    const customHeaders = {
+      'bstack-username': username,
+      'bstack-access-key': accessKey
+    };
+
+    const requestBody = {
+      data: {
+        attributes: {
+          action: action,
+        },
+        relationships: {
+          build: {
+            data: {
+              type: 'builds',
+              id: buildId
+            }
+          }
+        },
+        type: 'reviews'
+      }
+    };
+
+    return this.post(`reviews`, requestBody, { identifier: `build.${action}` }, customHeaders);
+  }
+
+  async approveBuild(buildId, username, accessKey) {
+    return this.reviewBuild(buildId, 'approve', username, accessKey);
+  }
+
+  async unapproveBuild(buildId, username, accessKey) {
+    return this.reviewBuild(buildId, 'unapprove', username, accessKey);
+  }
+
+  async rejectBuild(buildId, username, accessKey) {
+    return this.reviewBuild(buildId, 'reject', username, accessKey);
   }
 
   mayBeLogUploadSize(contentSize, meta = {}) {
