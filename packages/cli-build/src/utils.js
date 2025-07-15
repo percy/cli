@@ -15,6 +15,6 @@ export function validateCredentials(flags) {
   // Use flags if provided, otherwise fallback to environment variables
   const username = flags.username || process.env[ENV_VARS.PERCY_USERNAME];
   const accessKey = flags.accessKey || process.env[ENV_VARS.PERCY_ACCESS_KEY];
-  
+
   return { username, accessKey };
 }

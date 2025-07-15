@@ -44,7 +44,7 @@ export const unapprove = command('unapprove', {
 
   // Validate and get authentication credentials
   const { username, accessKey } = validateCredentials(flags);
-  
+
   if (!username || !accessKey) {
     exit(1, 'Username and access key are required to unapprove builds.');
   }
@@ -58,14 +58,14 @@ export const unapprove = command('unapprove', {
       username,
       accessKey
     );
-    
+
     log.debug(`Build unapproved successfully: ${JSON.stringify(buildUnapprovalResponse)}`);
     // To add unApproved by name here once that changes are deployed from API
     log.info('Build unapproved successfully');
   } catch (error) {
     // Log detailed error information for debugging
     log.debug(`Failed to unapprove build. Error: ${error.message || error}`);
-    
+
     // Provide user-friendly error message
     exit(1, 'Failed to unapprove the build');
   }

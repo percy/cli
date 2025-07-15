@@ -8,7 +8,7 @@ import unapprove from './unapprove.js';
 
 export const build = command('build', {
   description: 'Finalize and wait on Percy builds',
-  commands: [finalize, wait, id, approve, unapprove, reject],
+  commands: [finalize, wait, id, approve, unapprove, reject]
 });
 
 export default build;

@@ -44,7 +44,7 @@ export const reject = command('reject', {
 
   // Validate and get authentication credentials
   const { username, accessKey } = validateCredentials(flags);
-  
+
   if (!username || !accessKey) {
     exit(1, 'Username and access key are required to reject builds.');
   }
@@ -58,14 +58,14 @@ export const reject = command('reject', {
       username,
       accessKey
     );
-    
+
     log.debug(`Build rejected successfully: ${JSON.stringify(buildRejectionResponse)}`);
     // To add Rejected by name here once that changes are deployed from API
     log.info('Build rejected successfully');
   } catch (error) {
     // Log detailed error information for debugging
     log.debug(`Failed to reject build. Error: ${error.message || error}`);
-    
+
     // Provide user-friendly error message
     exit(1, 'Failed to reject the build');
   }

@@ -44,7 +44,7 @@ export const approve = command('approve', {
 
   // Validate and get authentication credentials
   const { username, accessKey } = validateCredentials(flags);
-  
+
   if (!username || !accessKey) {
     exit(1, 'Username and access key are required to approve builds.');
   }
@@ -58,14 +58,14 @@ export const approve = command('approve', {
       username,
       accessKey
     );
-    
+
     log.debug(`Build approved successfully: ${JSON.stringify(buildApprovalResponse)}`);
     // To add Approved by name here once that changes are deployed from API
     log.info('Build approved successfully');
   } catch (error) {
     // Log detailed error information for debugging
     log.debug(`Failed to approve build. Error: ${error.message || error}`);
-    
+
     // Provide user-friendly error message
     exit(1, 'Failed to approve the build');
   }
