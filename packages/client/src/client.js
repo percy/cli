@@ -159,7 +159,7 @@ export class PercyClient {
       return request(`${this.apiUrl}/${path}`, {
         headers: this.headers({
           'Content-Type': 'application/vnd.api+json',
-          ...customHeaders,
+          ...customHeaders
         }, projectTokenRequired),
         method: 'POST',
         body,
@@ -727,7 +727,7 @@ export class PercyClient {
     const requestBody = {
       data: {
         attributes: {
-          action: action,
+          action: action
         },
         relationships: {
           build: {
@@ -743,7 +743,7 @@ export class PercyClient {
 
     // For the review action, we use accessKey and username in custom headers
     // and do not require a project token.
-    return this.post(`reviews`, requestBody, { identifier: `build.${action}` }, customHeaders, false);
+    return this.post('reviews', requestBody, { identifier: `build.${action}` }, customHeaders, false);
   }
 
   async approveBuild(buildId, username, accessKey) {
