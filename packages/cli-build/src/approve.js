@@ -63,8 +63,7 @@ export const approve = command('approve', {
     // To add Approved by name here once that changes are deployed from API
     log.info('Build approved successfully');
   } catch (error) {
-    // Log detailed error information for debugging
-    log.debug(`Failed to approve build. Error: ${error.message || error}`);
+    log.error(error);
 
     // Provide user-friendly error message
     exit(1, 'Failed to approve the build');

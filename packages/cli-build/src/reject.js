@@ -63,8 +63,7 @@ export const reject = command('reject', {
     // To add Rejected by name here once that changes are deployed from API
     log.info('Build rejected successfully');
   } catch (error) {
-    // Log detailed error information for debugging
-    log.debug(`Failed to reject build. Error: ${error.message || error}`);
+    log.error(error);
 
     // Provide user-friendly error message
     exit(1, 'Failed to reject the build');

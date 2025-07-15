@@ -63,8 +63,7 @@ export const unapprove = command('unapprove', {
     // To add unApproved by name here once that changes are deployed from API
     log.info('Build unapproved successfully');
   } catch (error) {
-    // Log detailed error information for debugging
-    log.debug(`Failed to unapprove build. Error: ${error.message || error}`);
+    log.error(error);
 
     // Provide user-friendly error message
     exit(1, 'Failed to unapprove the build');
