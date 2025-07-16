@@ -90,8 +90,8 @@ Arguments:
 Options:
   --username <string>    Username for authentication (can also be set via BROWSERSTACK_USERNAME env
                          var)
-  --access-key <string>  Access key for authentication (can also be set via PERCY_ACCESS_KEY env
-                         var)
+  --access-key <string>  Access key for authentication (can also be set via BROWSERSTACK_ACCESS_KEY
+                         env var)
 
 Global options:
   -v, --verbose          Log everything
@@ -114,13 +114,13 @@ Usage:
   $ percy build:unapprove [options] <build-id>
 
 Arguments:
-  build-id               Build ID to unapprove
+  build-id               Build ID to approve
 
 Options:
   --username <string>    Username for authentication (can also be set via BROWSERSTACK_USERNAME env
                          var)
-  --access-key <string>  Access key for authentication (can also be set via PERCY_ACCESS_KEY env
-                         var)
+  --access-key <string>  Access key for authentication (can also be set via BROWSERSTACK_ACCESS_KEY
+                         env var)
 
 Global options:
   -v, --verbose          Log everything
@@ -143,13 +143,13 @@ Usage:
   $ percy build:reject [options] <build-id>
 
 Arguments:
-  build-id               Build ID to reject
+  build-id               Build ID to approve
 
 Options:
   --username <string>    Username for authentication (can also be set via BROWSERSTACK_USERNAME env
                          var)
-  --access-key <string>  Access key for authentication (can also be set via PERCY_ACCESS_KEY env
-                         var)
+  --access-key <string>  Access key for authentication (can also be set via BROWSERSTACK_ACCESS_KEY
+                         env var)
 
 Global options:
   -v, --verbose          Log everything
