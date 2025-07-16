@@ -9,8 +9,8 @@ describe('percy build:reject', () => {
 
   afterEach(() => {
     delete process.env.PERCY_ENABLE;
-    delete process.env.PERCY_USERNAME;
-    delete process.env.PERCY_ACCESS_KEY;
+    delete process.env.BROWSERSTACK_USERNAME;
+    delete process.env.BROWSERSTACK_ACCESS_KEY;
     delete process.env.PERCY_TOKEN;
     delete process.env.PERCY_FORCE_PKG_VALUE;
   });
@@ -39,7 +39,7 @@ describe('percy build:reject', () => {
   it('logs an error when username is missing', async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
-    process.env.PERCY_ACCESS_KEY = 'test-access-key';
+    process.env.BROWSERSTACK_ACCESS_KEY = 'test-access-key';
     await expectAsync(reject(['123'])).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
@@ -51,7 +51,7 @@ describe('percy build:reject', () => {
   it('logs an error when access key is missing', async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
-    process.env.PERCY_USERNAME = 'test-username';
+    process.env.BROWSERSTACK_USERNAME = 'test-username';
     await expectAsync(reject(['123'])).toBeRejected();
 
     expect(logger.stdout).toEqual([]);
@@ -74,8 +74,8 @@ describe('percy build:reject', () => {
   it('uses username and access key from environment variables', async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
-    process.env.PERCY_USERNAME = 'env-username';
-    process.env.PERCY_ACCESS_KEY = 'env-access-key';
+    process.env.BROWSERSTACK_USERNAME = 'env-username';
+    process.env.BROWSERSTACK_ACCESS_KEY = 'env-access-key';
 
     api.reply('/reviews', (req) => {
       expect(req.body).toEqual({
@@ -110,8 +110,8 @@ describe('percy build:reject', () => {
 
   it('doesnot require percy token', async () => {
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
-    process.env.PERCY_USERNAME = 'env-username';
-    process.env.PERCY_ACCESS_KEY = 'env-access-key';
+    process.env.BROWSERSTACK_USERNAME = 'env-username';
+    process.env.BROWSERSTACK_ACCESS_KEY = 'env-access-key';
 
     api.reply('/reviews', (req) => [200, { success: true }]);
 
@@ -127,8 +127,8 @@ describe('percy build:reject', () => {
   it('uses username and access key from flags over environment variables', async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
-    process.env.PERCY_USERNAME = 'env-username';
-    process.env.PERCY_ACCESS_KEY = 'env-access-key';
+    process.env.BROWSERSTACK_USERNAME = 'env-username';
+    process.env.BROWSERSTACK_ACCESS_KEY = 'env-access-key';
 
     api.reply('/reviews', (req) => {
       expect(req.headers['bstack-username']).toEqual('flag-username');
@@ -148,7 +148,7 @@ describe('percy build:reject', () => {
   it('handles mixed flag and environment variable usage', async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
-    process.env.PERCY_USERNAME = 'env-username';
+    process.env.BROWSERSTACK_USERNAME = 'env-username';
     // Only access key from flag
 
     api.reply('/reviews', (req) => {
@@ -169,7 +169,7 @@ describe('percy build:reject', () => {
   it('handles username from flag and access key from environment', async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
-    process.env.PERCY_ACCESS_KEY = 'env-access-key';
+    process.env.BROWSERSTACK_ACCESS_KEY = 'env-access-key';
     // Only username from flag
 
     api.reply('/reviews', (req) => {
@@ -206,8 +206,8 @@ describe('percy build:reject', () => {
   it('logs an error when build approval fails with 401 Unauthorized', async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
-    process.env.PERCY_USERNAME = 'invalid-username';
-    process.env.PERCY_ACCESS_KEY = 'invalid-access-key';
+    process.env.BROWSERSTACK_USERNAME = 'invalid-username';
+    process.env.BROWSERSTACK_ACCESS_KEY = 'invalid-access-key';
 
     api.reply('/reviews', (req) => {
       expect(req.body).toEqual({
@@ -242,8 +242,8 @@ describe('percy build:reject', () => {
   it('logs an error when build approval fails with 403 Forbidden', async () => {
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
-    process.env.PERCY_USERNAME = 'test-username';
-    process.env.PERCY_ACCESS_KEY = 'test-access-key';
+    process.env.BROWSERSTACK_USERNAME = 'test-username';
+    process.env.BROWSERSTACK_ACCESS_KEY = 'test-access-key';
 
     api.reply('/reviews', (req) => {
       expect(req.body).toEqual({

@@ -20,12 +20,12 @@ export const reject = command('reject', {
   flags: [
     {
       name: 'username',
-      description: 'Username for authentication (can also be set via PERCY_USERNAME env var)',
+      description: 'Username for authentication (can also be set via BROWSERSTACK_USERNAME env var)',
       type: 'string'
     },
     {
       name: 'access-key',
-      description: 'Access key for authentication (can also be set via PERCY_ACCESS_KEY env var)',
+      description: 'Access key for authentication (can also be set via BROWSERSTACK_ACCESS_KEY env var)',
       type: 'string'
     }
   ],

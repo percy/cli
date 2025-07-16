@@ -165,6 +165,32 @@ describe('PercyClient', () => {
       expect(() => new PercyClient().post('foobar', {}))
         .toThrowError('Missing Percy token');
     });
+
+    it('sends a POST request with both custom headers and projectTokenRequired=false', async () => {
+      const customHeaders = {
+        'X-Custom-Header': 'custom-value',
+        'Content-Type': 'application/json'
+      };
+
+      spyOn(client, 'headers').and.callThrough();
+
+      await expectAsync(client.post('foobar', { test: '123' }, {}, customHeaders, false)).toBeResolved();
+
+      expect(client.headers).toHaveBeenCalledWith(
+        jasmine.objectContaining({
+          'Content-Type': 'application/json',
+          'X-Custom-Header': 'custom-value'
+        }),
+        false
+      );
+
+      expect(api.requests['/foobar'][0].headers).toEqual(
+        jasmine.objectContaining({
+          'Content-Type': 'application/json',
+          'X-Custom-Header': 'custom-value'
+        })
+      );
+    });
   });
 
   describe('#createBuild()', () => {
@@ -2171,6 +2197,220 @@ describe('PercyClient', () => {
         config: { percy: { token: 'USE_THIS_TOKEN' } }
       });
       expect(client.getToken()).toBe('USE_THIS_TOKEN');
+    });
+  });
+
+  describe('#headers()', () => {
+    it('returns default headers with Authorization and User-Agent', () => {
+      const headers = client.headers();
+
+      expect(headers).toEqual({
+        Authorization: 'Token token=PERCY_TOKEN',
+        'User-Agent': jasmine.stringMatching(/^Percy\/v1 @percy\/client\/\S+ \(node\/v[\d.]+.*\)$/)
+      });
+    });
+
+    it('merges additional headers with default headers', () => {
+      const additionalHeaders = {
+        'Content-Type': 'application/json',
+        'X-Custom-Header': 'custom-value'
+      };
+
+      const headers = client.headers(additionalHeaders);
+
+      expect(headers).toEqual({
+        Authorization: 'Token token=PERCY_TOKEN',
+        'User-Agent': jasmine.stringMatching(/^Percy\/v1 @percy\/client\/\S+ \(node\/v[\d.]+.*\)$/),
+        'Content-Type': 'application/json',
+        'X-Custom-Header': 'custom-value'
+      });
+    });
+
+    it('calls getToken with projectTokenRequired=true by default', () => {
+      spyOn(client, 'getToken').and.returnValue('TEST_TOKEN');
+
+      client.headers();
+
+      expect(client.getToken).toHaveBeenCalledWith(true);
+    });
+
+    it('calls getToken with projectTokenRequired=false when specified', () => {
+      spyOn(client, 'getToken').and.returnValue('TEST_TOKEN');
+
+      client.headers({}, false);
+
+      expect(client.getToken).toHaveBeenCalledWith(false);
+    });
+  });
+
+  describe('#reviewBuild()', () => {
+    it('sends a review request with correct parameters', async () => {
+      await expectAsync(client.reviewBuild('123', 'approve', 'testuser', 'testkey')).toBeResolved();
+
+      expect(api.requests['/reviews'][0].method).toBe('POST');
+      expect(api.requests['/reviews'][0].headers).toEqual(
+        jasmine.objectContaining({
+          'bstack-username': 'testuser',
+          'bstack-access-key': 'testkey'
+        })
+      );
+      expect(api.requests['/reviews'][0].body).toEqual({
+        data: {
+          attributes: {
+            action: 'approve'
+          },
+          relationships: {
+            build: {
+              data: {
+                type: 'builds',
+                id: '123'
+              }
+            }
+          },
+          type: 'reviews'
+        }
+      });
+    });
+
+    it('calls post with projectTokenRequired=false', async () => {
+      spyOn(client, 'post').and.callThrough();
+
+      await expectAsync(client.reviewBuild('123', 'reject', 'testuser', 'testkey')).toBeResolved();
+
+      expect(client.post).toHaveBeenCalledWith(
+        'reviews',
+        jasmine.any(Object),
+        { identifier: 'build.reject' },
+        {
+          'bstack-username': 'testuser',
+          'bstack-access-key': 'testkey'
+        },
+        false
+      );
+    });
+
+    it('validates build ID', async () => {
+      await expectAsync(client.reviewBuild(null, 'approve', 'testuser', 'testkey'))
+        .toBeRejectedWithError('Missing build ID');
+
+      await expectAsync(client.reviewBuild('', 'approve', 'testuser', 'testkey'))
+        .toBeRejectedWithError('Missing build ID');
+
+      await expectAsync(client.reviewBuild({}, 'approve', 'testuser', 'testkey'))
+        .toBeRejectedWithError('Invalid build ID');
+    });
+
+    it('logs debug message with action and build ID', async () => {
+      spyOn(client.log, 'debug');
+
+      await expectAsync(client.reviewBuild('456', 'unapprove', 'testuser', 'testkey')).toBeResolved();
+
+      expect(client.log.debug).toHaveBeenCalledWith('Sending unapprove action for build 456...');
+    });
+
+    it('works with different action types', async () => {
+      spyOn(client, 'post').and.callThrough();
+
+      await expectAsync(client.reviewBuild('123', 'custom-action', 'testuser', 'testkey')).toBeResolved();
+
+      expect(api.requests['/reviews'][0].body.data.attributes.action).toBe('custom-action');
+      expect(client.post).toHaveBeenCalledWith(
+        'reviews',
+        jasmine.any(Object),
+        { identifier: 'build.custom-action' },
+        jasmine.any(Object),
+        false
+      );
+    });
+
+    it('accepts numeric build ID', async () => {
+      await expectAsync(client.reviewBuild(123, 'approve', 'testuser', 'testkey')).toBeResolved();
+
+      expect(api.requests['/reviews'][0].body.data.relationships.build.data.id).toBe(123);
+    });
+  });
+
+  describe('#approveBuild()', () => {
+    it('calls reviewBuild with approve action', async () => {
+      spyOn(client, 'reviewBuild').and.returnValue(Promise.resolve({ success: true }));
+
+      const result = await client.approveBuild('123', 'testuser', 'testkey');
+
+      expect(client.reviewBuild).toHaveBeenCalledWith('123', 'approve', 'testuser', 'testkey');
+      expect(result).toEqual({ success: true });
+    });
+
+    it('sends approve request to API', async () => {
+      await expectAsync(client.approveBuild('123', 'testuser', 'testkey')).toBeResolved();
+
+      expect(api.requests['/reviews'][0].body.data.attributes.action).toBe('approve');
+      expect(api.requests['/reviews'][0].headers).toEqual(
+        jasmine.objectContaining({
+          'bstack-username': 'testuser',
+          'bstack-access-key': 'testkey'
+        })
+      );
+    });
+
+    it('validates build ID', async () => {
+      await expectAsync(client.approveBuild(null, 'testuser', 'testkey'))
+        .toBeRejectedWithError('Missing build ID');
+    });
+  });
+
+  describe('#unapproveBuild()', () => {
+    it('calls reviewBuild with unapprove action', async () => {
+      spyOn(client, 'reviewBuild').and.returnValue(Promise.resolve({ success: true }));
+
+      const result = await client.unapproveBuild('456', 'testuser', 'testkey');
+
+      expect(client.reviewBuild).toHaveBeenCalledWith('456', 'unapprove', 'testuser', 'testkey');
+      expect(result).toEqual({ success: true });
+    });
+
+    it('sends unapprove request to API', async () => {
+      await expectAsync(client.unapproveBuild('456', 'testuser', 'testkey')).toBeResolved();
+
+      expect(api.requests['/reviews'][0].body.data.attributes.action).toBe('unapprove');
+      expect(api.requests['/reviews'][0].headers).toEqual(
+        jasmine.objectContaining({
+          'bstack-username': 'testuser',
+          'bstack-access-key': 'testkey'
+        })
+      );
+    });
+
+    it('validates build ID', async () => {
+      await expectAsync(client.unapproveBuild('', 'testuser', 'testkey'))
+        .toBeRejectedWithError('Missing build ID');
+    });
+  });
+
+  describe('#rejectBuild()', () => {
+    it('calls reviewBuild with reject action', async () => {
+      spyOn(client, 'reviewBuild').and.returnValue(Promise.resolve({ success: true }));
+
+      const result = await client.rejectBuild('789', 'testuser', 'testkey');
+
+      expect(client.reviewBuild).toHaveBeenCalledWith('789', 'reject', 'testuser', 'testkey');
+      expect(result).toEqual({ success: true });
+    });
+
+    it('sends reject request to API', async () => {
+      await expectAsync(client.rejectBuild('789', 'testuser', 'testkey')).toBeResolved();
+
+      expect(api.requests['/reviews'][0].body.data.attributes.action).toBe('reject');
+      expect(api.requests['/reviews'][0].headers).toEqual(
+        jasmine.objectContaining({
+          'bstack-username': 'testuser',
+          'bstack-access-key': 'testkey'
+        })
+      );
+    });
+
+    it('validates build ID', async () => {
+      await expectAsync(client.rejectBuild({}, 'testuser', 'testkey'))
+        .toBeRejectedWithError('Invalid build ID');
     });
   });
 });

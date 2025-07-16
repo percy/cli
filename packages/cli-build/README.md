@@ -88,7 +88,8 @@ Arguments:
   build-id               Build ID to approve
 
 Options:
-  --username <string>    Username for authentication (can also be set via PERCY_USERNAME env var)
+  --username <string>    Username for authentication (can also be set via BROWSERSTACK_USERNAME env
+                         var)
   --access-key <string>  Access key for authentication (can also be set via PERCY_ACCESS_KEY env
                          var)
 
@@ -116,7 +117,8 @@ Arguments:
   build-id               Build ID to unapprove
 
 Options:
-  --username <string>    Username for authentication (can also be set via PERCY_USERNAME env var)
+  --username <string>    Username for authentication (can also be set via BROWSERSTACK_USERNAME env
+                         var)
   --access-key <string>  Access key for authentication (can also be set via PERCY_ACCESS_KEY env
                          var)
 
@@ -144,7 +146,8 @@ Arguments:
   build-id               Build ID to reject
 
 Options:
-  --username <string>    Username for authentication (can also be set via PERCY_USERNAME env var)
+  --username <string>    Username for authentication (can also be set via BROWSERSTACK_USERNAME env
+                         var)
   --access-key <string>  Access key for authentication (can also be set via PERCY_ACCESS_KEY env
                          var)
 
