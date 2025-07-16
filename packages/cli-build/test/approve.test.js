@@ -1,4 +1,5 @@
 import { logger, setupTest } from '@percy/cli-command/test/helpers';
+import { base64encode } from '@percy/client/utils';
 import api from '@percy/client/test/helpers';
 import { approve } from '@percy/cli-build';
 
@@ -7,7 +8,7 @@ describe('percy build:approve', () => {
     data: {
       attributes: {
         action: 'approve',
-        'latest-action-performed-by': {
+        'action-performed-by': {
           user_email: 'test@test.com',
           user_name: 'testuser'
         }
@@ -106,8 +107,7 @@ describe('percy build:approve', () => {
           }
         }
       });
-      expect(req.headers['bstack-username']).toEqual('env-username');
-      expect(req.headers['bstack-access-key']).toEqual('env-access-key');
+      expect(req.headers.Authorization).toEqual(`Basic ${base64encode('env-username:env-access-key')}`);
       return [200, successResponse];
     });
 
@@ -145,8 +145,7 @@ describe('percy build:approve', () => {
     process.env.BROWSERSTACK_ACCESS_KEY = 'env-access-key';
 
     api.reply('/reviews', (req) => {
-      expect(req.headers['bstack-username']).toEqual('flag-username');
-      expect(req.headers['bstack-access-key']).toEqual('flag-access-key');
+      expect(req.headers.Authorization).toEqual(`Basic ${base64encode('flag-username:flag-access-key')}`);
       return [200, successResponse];
     });
 
@@ -167,8 +166,7 @@ describe('percy build:approve', () => {
     // Only access key from flag
 
     api.reply('/reviews', (req) => {
-      expect(req.headers['bstack-username']).toEqual('env-username');
-      expect(req.headers['bstack-access-key']).toEqual('flag-access-key');
+      expect(req.headers.Authorization).toEqual(`Basic ${base64encode('env-username:flag-access-key')}`);
       return [200, successResponse];
     });
 
@@ -205,8 +203,7 @@ describe('percy build:approve', () => {
           }
         }
       });
-      expect(req.headers['bstack-username']).toEqual('flag-username');
-      expect(req.headers['bstack-access-key']).toEqual('env-access-key');
+      expect(req.headers.Authorization).toEqual(`Basic ${base64encode('flag-username:env-access-key')}`);
       return [200, successResponse];
     });
 
@@ -243,8 +240,7 @@ describe('percy build:approve', () => {
           }
         }
       });
-      expect(req.headers['bstack-username']).toEqual('invalid-username');
-      expect(req.headers['bstack-access-key']).toEqual('invalid-access-key');
+      expect(req.headers.Authorization).toEqual(`Basic ${base64encode('invalid-username:invalid-access-key')}`);
       return [401, { errors: [{ detail: 'Unauthorized' }] }];
     });
 

@@ -2250,8 +2250,7 @@ describe('PercyClient', () => {
       expect(api.requests['/reviews'][0].method).toBe('POST');
       expect(api.requests['/reviews'][0].headers).toEqual(
         jasmine.objectContaining({
-          'bstack-username': 'testuser',
-          'bstack-access-key': 'testkey'
+          Authorization: `Basic ${base64encode('testuser:testkey')}`
         })
       );
       expect(api.requests['/reviews'][0].body).toEqual({
@@ -2281,10 +2280,7 @@ describe('PercyClient', () => {
         'reviews',
         jasmine.any(Object),
         { identifier: 'build.reject' },
-        {
-          'bstack-username': 'testuser',
-          'bstack-access-key': 'testkey'
-        },
+        { Authorization: `Basic ${base64encode('testuser:testkey')}` },
         false
       );
     });
@@ -2346,8 +2342,7 @@ describe('PercyClient', () => {
       expect(api.requests['/reviews'][0].body.data.attributes.action).toBe('approve');
       expect(api.requests['/reviews'][0].headers).toEqual(
         jasmine.objectContaining({
-          'bstack-username': 'testuser',
-          'bstack-access-key': 'testkey'
+          Authorization: `Basic ${base64encode('testuser:testkey')}`
         })
       );
     });
@@ -2374,8 +2369,7 @@ describe('PercyClient', () => {
       expect(api.requests['/reviews'][0].body.data.attributes.action).toBe('unapprove');
       expect(api.requests['/reviews'][0].headers).toEqual(
         jasmine.objectContaining({
-          'bstack-username': 'testuser',
-          'bstack-access-key': 'testkey'
+          Authorization: `Basic ${base64encode('testuser:testkey')}`
         })
       );
     });
@@ -2402,8 +2396,7 @@ describe('PercyClient', () => {
       expect(api.requests['/reviews'][0].body.data.attributes.action).toBe('reject');
       expect(api.requests['/reviews'][0].headers).toEqual(
         jasmine.objectContaining({
-          'bstack-username': 'testuser',
-          'bstack-access-key': 'testkey'
+          Authorization: `Basic ${base64encode('testuser:testkey')}`
         })
       );
     });
