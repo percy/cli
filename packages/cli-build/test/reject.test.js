@@ -292,7 +292,7 @@ describe('percy build:reject', () => {
     ]);
   });
 
-  it('temp test - adding it for covergae will remove it before merging', async () => {
+  it('uses fallback user info when latest-action-performed-by is not in response', async () => {
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
 
     api.reply('/reviews', (req) => [200, {
@@ -304,13 +304,13 @@ describe('percy build:reject', () => {
     }]
     );
 
-    await reject(['123', '--username=flag-username', '--access-key=flag-access-key']);
+    await reject(['123', '--username=temp-username', '--access-key=flag-access-key']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Rejecting build 123...',
       '[percy] Build 123 rejected successfully!',
-      '[percy] Rejected by: moin (moin@test.com)'
+      '[percy] Rejected by: temp-username (unknown@example.com)'
     ]);
   });
 });

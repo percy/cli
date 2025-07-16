@@ -59,15 +59,15 @@ export const reject = command('reject', {
       accessKey
     );
 
-    // Mocking the response for testing purposes
-    // The API changes are not implemented yet, so we simulate the response
-    // This will be removed before merging
-    if (!buildRejectionResponse.data.attributes['latest-action-performed-by']) {
-      buildRejectionResponse.data.attributes['latest-action-performed-by'] = {
-        user_email: 'moin@test.com',
-        user_name: 'moin'
-      };
-    }
+    // // Mocking the response for testing purposes
+    // // The API changes are not implemented yet, so we simulate the response
+    // // This will be removed before merging
+    // if (!buildRejectionResponse.data.attributes['latest-action-performed-by']) {
+    //   buildRejectionResponse.data.attributes['latest-action-performed-by'] = {
+    //     user_email: 'moin@test.com',
+    //     user_name: 'moin'
+    //   };
+    // }
 
     const rejectedBy = buildRejectionResponse.data.attributes['latest-action-performed-by'] || {
       user_email: 'unknown@example.com',
