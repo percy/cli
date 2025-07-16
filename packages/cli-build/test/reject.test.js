@@ -291,4 +291,26 @@ describe('percy build:reject', () => {
       '[percy] Error: Failed to reject the build'
     ]);
   });
+
+  it('temp test - adding it for covergae will remove it before merging', async () => {
+    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
+
+    api.reply('/reviews', (req) => [200, {
+      data: {
+        attributes: {
+          action: 'reject'
+        }
+      }
+    }]
+    );
+
+    await reject(['123', '--username=flag-username', '--access-key=flag-access-key']);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Rejecting build 123...',
+      '[percy] Build 123 rejected successfully!',
+      '[percy] Rejected by: moin (moin@test.com)'
+    ]);
+  });
 });

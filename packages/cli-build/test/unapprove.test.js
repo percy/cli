@@ -291,4 +291,26 @@ describe('percy build:unapprove', () => {
       '[percy] Error: Failed to unapprove the build'
     ]);
   });
+
+  it('temp test - adding it for covergae will remove it before merging', async () => {
+    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
+
+    api.reply('/reviews', (req) => [200, {
+      data: {
+        attributes: {
+          action: 'unapprove'
+        }
+      }
+    }]
+    );
+
+    await unapprove(['123', '--username=flag-username', '--access-key=flag-access-key']);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Unapproving build 123...',
+      '[percy] Build 123 unapproved successfully!',
+      '[percy] Unapproved by: moin (moin@test.com)'
+    ]);
+  });
 });

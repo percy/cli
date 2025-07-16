@@ -291,4 +291,26 @@ describe('percy build:approve', () => {
       '[percy] Error: Failed to approve the build'
     ]);
   });
+
+  it('temp test - adding it for covergae will remove it before merging', async () => {
+    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
+
+    api.reply('/reviews', (req) => [200, {
+      data: {
+        attributes: {
+          action: 'approve'
+        }
+      }
+    }]
+    );
+
+    await approve(['123', '--username=flag-username', '--access-key=flag-access-key']);
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Approving build 123...',
+      '[percy] Build 123 approved successfully!',
+      '[percy] Approved by: moin (moin@test.com)'
+    ]);
+  });
 });
