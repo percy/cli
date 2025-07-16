@@ -1,5 +1,5 @@
 import command from '@percy/cli-command';
-import { fetchCredentials } from './utils.js';
+import { fetchCredentials, reviewCommandConfig } from './utils.js';
 
 /**
  * Approve command definition for Percy builds
@@ -7,35 +7,7 @@ import { fetchCredentials } from './utils.js';
  */
 export const approve = command('approve', {
   description: 'Approve Percy builds',
-
-  args: [
-    {
-      name: 'build-id',
-      description: 'Build ID to approve',
-      type: 'id',
-      required: true
-    }
-  ],
-
-  flags: [
-    {
-      name: 'username',
-      description: 'Username for authentication (can also be set via BROWSERSTACK_USERNAME env var)',
-      type: 'string'
-    },
-    {
-      name: 'access-key',
-      description: 'Access key for authentication (can also be set via BROWSERSTACK_ACCESS_KEY env var)',
-      type: 'string'
-    }
-  ],
-
-  examples: [
-    '$0 <build-id>',
-    '$0 <build-id> --username username --access-key **key**'
-  ],
-
-  percy: true
+  ...reviewCommandConfig
 }, async ({ flags, args, percy, log, exit }) => {
   // Early return if Percy is disabled
   if (!percy) {
