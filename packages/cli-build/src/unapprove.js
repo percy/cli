@@ -59,17 +59,7 @@ export const unapprove = command('unapprove', {
       accessKey
     );
 
-    // // Mocking the response for testing purposes
-    // // The API changes are not implemented yet, so we simulate the response
-    // // This will be removed before merging
-    // if (!buildUnapprovalResponse.data.attributes['latest-action-performed-by']) {
-    //   buildUnapprovalResponse.data.attributes['latest-action-performed-by'] = {
-    //     user_email: 'moin@test.com',
-    //     user_name: 'moin'
-    //   };
-    // }
-
-    const unapprovedBy = buildUnapprovalResponse.data.attributes['latest-action-performed-by'] || {
+    const unapprovedBy = buildUnapprovalResponse.data.attributes['action-performed-by'] || {
       user_email: 'unknown@example.com',
       user_name: username
     };
