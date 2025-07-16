@@ -11,7 +11,7 @@ const ENV_VARS = {
  * @param {Object} flags - Command flags object
  * @returns {Object} Validated credentials object
  */
-export function validateCredentials(flags) {
+export function fetchCredentials(flags) {
   // Use flags if provided, otherwise fallback to environment variables
   const username = flags.username || process.env[ENV_VARS.BROWSERSTACK_USERNAME];
   const accessKey = flags.accessKey || process.env[ENV_VARS.BROWSERSTACK_ACCESS_KEY];

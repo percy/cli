@@ -1,5 +1,5 @@
 import command from '@percy/cli-command';
-import { validateCredentials } from './utils.js';
+import { fetchCredentials } from './utils.js';
 
 /**
  * Approve command definition for Percy builds
@@ -43,13 +43,13 @@ export const approve = command('approve', {
   }
 
   // Validate and get authentication credentials
-  const { username, accessKey } = validateCredentials(flags);
+  const { username, accessKey } = fetchCredentials(flags);
 
   if (!username || !accessKey) {
     exit(1, 'Username and access key are required to approve builds.');
   }
 
-  log.info('Approving build...');
+  log.info(`Approving build ${args.buildId}...`);
 
   try {
     // Call the Percy API to approve the build
@@ -59,10 +59,24 @@ export const approve = command('approve', {
       accessKey
     );
 
-    log.debug(`Build approved successfully: ${JSON.stringify(buildApprovalResponse)}`);
-    // To add Approved by name here once that changes are deployed from API
-    log.info('Build approved successfully');
+    // Mocking the response for testing purposes
+    // The API changes are not implemented yet, so we simulate the response
+    // This will be removed before merging
+    if (!buildApprovalResponse.data.attributes['latest-action-performed-by']) {
+      buildApprovalResponse.data.attributes['latest-action-performed-by'] = {
+        user_email: 'moin@test.com',
+        user_name: 'moin'
+      };
+    }
+
+    const approvedBy = buildApprovalResponse.data.attributes['latest-action-performed-by'] || {
+      user_email: 'unknown@example.com',
+      user_name: username
+    };
+    log.info(`Build ${args.buildId} approved successfully!`);
+    log.info(`Approved by: ${approvedBy.user_name} (${approvedBy.user_email})`);
   } catch (error) {
+    log.error(`Failed to approve build ${args.buildId}`);
     log.error(error);
 
     // Provide user-friendly error message

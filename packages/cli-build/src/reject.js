@@ -1,5 +1,5 @@
 import command from '@percy/cli-command';
-import { validateCredentials } from './utils.js';
+import { fetchCredentials } from './utils.js';
 
 /**
  * Reject command definition for Percy builds
@@ -43,13 +43,13 @@ export const reject = command('reject', {
   }
 
   // Validate and get authentication credentials
-  const { username, accessKey } = validateCredentials(flags);
+  const { username, accessKey } = fetchCredentials(flags);
 
   if (!username || !accessKey) {
     exit(1, 'Username and access key are required to reject builds.');
   }
 
-  log.info('Rejecting build...');
+  log.info(`Rejecting build ${args.buildId}...`);
 
   try {
     // Call the Percy API to reject the build
@@ -59,10 +59,24 @@ export const reject = command('reject', {
       accessKey
     );
 
-    log.debug(`Build rejected successfully: ${JSON.stringify(buildRejectionResponse)}`);
-    // To add Rejected by name here once that changes are deployed from API
-    log.info('Build rejected successfully');
+    // Mocking the response for testing purposes
+    // The API changes are not implemented yet, so we simulate the response
+    // This will be removed before merging
+    if (!buildRejectionResponse.data.attributes['latest-action-performed-by']) {
+      buildRejectionResponse.data.attributes['latest-action-performed-by'] = {
+        user_email: 'moin@test.com',
+        user_name: 'moin'
+      };
+    }
+
+    const rejectedBy = buildRejectionResponse.data.attributes['latest-action-performed-by'] || {
+      user_email: 'unknown@example.com',
+      user_name: username
+    };
+    log.info(`Build ${args.buildId} rejected successfully!`);
+    log.info(`Rejected by: ${rejectedBy.user_name} (${rejectedBy.user_email})`);
   } catch (error) {
+    log.error(`Failed to reject build ${args.buildId}`);
     log.error(error);
 
     // Provide user-friendly error message

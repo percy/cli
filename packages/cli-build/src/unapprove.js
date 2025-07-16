@@ -1,5 +1,5 @@
 import command from '@percy/cli-command';
-import { validateCredentials } from './utils.js';
+import { fetchCredentials } from './utils.js';
 
 /**
  * Unapprove command definition for Percy builds
@@ -43,13 +43,13 @@ export const unapprove = command('unapprove', {
   }
 
   // Validate and get authentication credentials
-  const { username, accessKey } = validateCredentials(flags);
+  const { username, accessKey } = fetchCredentials(flags);
 
   if (!username || !accessKey) {
     exit(1, 'Username and access key are required to unapprove builds.');
   }
 
-  log.info('Unapproving build...');
+  log.info(`Unapproving build ${args.buildId}...`);
 
   try {
     // Call the Percy API to unapprove the build
@@ -59,10 +59,24 @@ export const unapprove = command('unapprove', {
       accessKey
     );
 
-    log.debug(`Build unapproved successfully: ${JSON.stringify(buildUnapprovalResponse)}`);
-    // To add unApproved by name here once that changes are deployed from API
-    log.info('Build unapproved successfully');
+    // Mocking the response for testing purposes
+    // The API changes are not implemented yet, so we simulate the response
+    // This will be removed before merging
+    if (!buildUnapprovalResponse.data.attributes['latest-action-performed-by']) {
+      buildUnapprovalResponse.data.attributes['latest-action-performed-by'] = {
+        user_email: 'moin@test.com',
+        user_name: 'moin'
+      };
+    }
+
+    const unapprovedBy = buildUnapprovalResponse.data.attributes['latest-action-performed-by'] || {
+      user_email: 'unknown@example.com',
+      user_name: username
+    };
+    log.info(`Build ${args.buildId} unapproved successfully!`);
+    log.info(`Unapproved by: ${unapprovedBy.user_name} (${unapprovedBy.user_email})`);
   } catch (error) {
+    log.error(`Failed to unapprove build ${args.buildId}`);
     log.error(error);
 
     // Provide user-friendly error message

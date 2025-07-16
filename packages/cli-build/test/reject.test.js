@@ -3,6 +3,18 @@ import api from '@percy/client/test/helpers';
 import { reject } from '@percy/cli-build';
 
 describe('percy build:reject', () => {
+  let successResponse = {
+    data: {
+      attributes: {
+        action: 'approve',
+        'latest-action-performed-by': {
+          user_email: 'test@test.com',
+          user_name: 'testuser'
+        }
+      }
+    }
+  };
+
   beforeEach(async () => {
     await setupTest();
   });
@@ -96,15 +108,16 @@ describe('percy build:reject', () => {
       });
       expect(req.headers['bstack-username']).toEqual('env-username');
       expect(req.headers['bstack-access-key']).toEqual('env-access-key');
-      return [200, { success: true }];
+      return [200, successResponse];
     });
 
     await reject(['123']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Rejecting build...',
-      '[percy] Build rejected successfully'
+      '[percy] Rejecting build 123...',
+      '[percy] Build 123 rejected successfully!',
+      '[percy] Rejected by: testuser (test@test.com)'
     ]);
   });
 
@@ -113,14 +126,15 @@ describe('percy build:reject', () => {
     process.env.BROWSERSTACK_USERNAME = 'env-username';
     process.env.BROWSERSTACK_ACCESS_KEY = 'env-access-key';
 
-    api.reply('/reviews', (req) => [200, { success: true }]);
+    api.reply('/reviews', (req) => [200, successResponse]);
 
     await reject(['123']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Rejecting build...',
-      '[percy] Build rejected successfully'
+      '[percy] Rejecting build 123...',
+      '[percy] Build 123 rejected successfully!',
+      '[percy] Rejected by: testuser (test@test.com)'
     ]);
   });
 
@@ -133,15 +147,16 @@ describe('percy build:reject', () => {
     api.reply('/reviews', (req) => {
       expect(req.headers['bstack-username']).toEqual('flag-username');
       expect(req.headers['bstack-access-key']).toEqual('flag-access-key');
-      return [200, { success: true }];
+      return [200, successResponse];
     });
 
     await reject(['123', '--username=flag-username', '--access-key=flag-access-key']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Rejecting build...',
-      '[percy] Build rejected successfully'
+      '[percy] Rejecting build 123...',
+      '[percy] Build 123 rejected successfully!',
+      '[percy] Rejected by: testuser (test@test.com)'
     ]);
   });
 
@@ -154,15 +169,16 @@ describe('percy build:reject', () => {
     api.reply('/reviews', (req) => {
       expect(req.headers['bstack-username']).toEqual('env-username');
       expect(req.headers['bstack-access-key']).toEqual('flag-access-key');
-      return [200, { success: true }];
+      return [200, successResponse];
     });
 
     await reject(['123', '--access-key=flag-access-key']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Rejecting build...',
-      '[percy] Build rejected successfully'
+      '[percy] Rejecting build 123...',
+      '[percy] Build 123 rejected successfully!',
+      '[percy] Rejected by: testuser (test@test.com)'
     ]);
   });
 
@@ -191,15 +207,16 @@ describe('percy build:reject', () => {
       });
       expect(req.headers['bstack-username']).toEqual('flag-username');
       expect(req.headers['bstack-access-key']).toEqual('env-access-key');
-      return [200, { success: true }];
+      return [200, successResponse];
     });
 
     await reject(['123', '--username=flag-username']);
 
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
-      '[percy] Rejecting build...',
-      '[percy] Build rejected successfully'
+      '[percy] Rejecting build 123...',
+      '[percy] Build 123 rejected successfully!',
+      '[percy] Rejected by: testuser (test@test.com)'
     ]);
   });
 
@@ -234,6 +251,7 @@ describe('percy build:reject', () => {
     await expectAsync(reject(['123'])).toBeRejected();
 
     expect(logger.stderr).toEqual([
+      '[percy] Failed to reject build 123',
       '[percy] Error: Unauthorized',
       '[percy] Error: Failed to reject the build'
     ]);
@@ -268,6 +286,7 @@ describe('percy build:reject', () => {
     await expectAsync(reject(['123'])).toBeRejected();
 
     expect(logger.stderr).toEqual([
+      '[percy] Failed to reject build 123',
       '[percy] Error: Forbidden',
       '[percy] Error: Failed to reject the build'
     ]);
