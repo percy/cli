@@ -5,3 +5,4 @@ export { id } from './id.js';
 export { approve } from './approve.js';
 export { reject } from './reject.js';
 export { unapprove } from './unapprove.js';
+export { deleteBuild } from './delete.js';

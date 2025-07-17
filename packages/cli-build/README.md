@@ -10,6 +10,7 @@ Commands for interacting with Percy builds
 * [`percy build:approve`](#percy-buildapprove)
 * [`percy build:unapprove`](#percy-buildunapprove)
 * [`percy build:reject`](#percy-buildreject)
+* [`percy build:delete`](#percy-builddelete)
 
 ### `percy build:finalize`
 
@@ -161,5 +162,34 @@ Global options:
 Examples:
   $ percy build:reject <build-id>
   $ percy build:reject <build-id> --username username --access-key **key**
+```
+
+### `percy build:delete`
+
+Delete Percy builds
+
+```
+Usage:
+  $ percy build:delete [options] <build-id>
+
+Arguments:
+  build-id               Build ID to approve
+
+Options:
+  --username <string>    Username for authentication (can also be set via BROWSERSTACK_USERNAME env
+                         var)
+  --access-key <string>  Access key for authentication (can also be set via BROWSERSTACK_ACCESS_KEY
+                         env var)
+
+Global options:
+  -v, --verbose          Log everything
+  -q, --quiet            Log errors only
+  -s, --silent           Log nothing
+  -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
+  -h, --help             Display command help
+
+Examples:
+  $ percy build:delete <build-id>
+  $ percy build:delete <build-id> --username username --access-key **key**
 ```
 <!-- commandsstop -->

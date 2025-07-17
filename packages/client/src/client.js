@@ -759,6 +759,21 @@ export class PercyClient {
     return this.reviewBuild(buildId, 'reject', username, accessKey);
   }
 
+  async deleteBuild(buildId, username, accessKey) {
+    validateId('build', buildId);
+    this.log.debug(`Sending Delete action for build ${buildId}...`);
+
+    // For the delete action, we use accessKey and username in custom headers
+    // and do not require a project token.
+    return this.post(
+      `builds/${buildId}/delete`,
+      {},
+      { identifier: 'build.delete' },
+      { Authorization: `Basic ${base64encode(`${username}:${accessKey}`)}` },
+      false
+    );
+  }
+
   mayBeLogUploadSize(contentSize, meta = {}) {
     if (contentSize >= 25 * 1024 * 1024) {
       this.log.error('Uploading resource above 25MB might fail the build...', meta);

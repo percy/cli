@@ -2406,4 +2406,57 @@ describe('PercyClient', () => {
         .toBeRejectedWithError('Invalid build ID');
     });
   });
+
+  describe('#deleteBuild()', () => {
+    it('sends a delete request with correct parameters', async () => {
+      await expectAsync(client.deleteBuild('123', 'testuser', 'testkey')).toBeResolved();
+
+      expect(api.requests['/builds/123/delete'][0].method).toBe('POST');
+      expect(api.requests['/builds/123/delete'][0].headers).toEqual(
+        jasmine.objectContaining({
+          Authorization: `Basic ${base64encode('testuser:testkey')}`
+        })
+      );
+      expect(api.requests['/builds/123/delete'][0].body).toEqual({});
+    });
+
+    it('calls post with projectTokenRequired=false', async () => {
+      spyOn(client, 'post').and.callThrough();
+
+      await expectAsync(client.deleteBuild('123', 'testuser', 'testkey')).toBeResolved();
+
+      expect(client.post).toHaveBeenCalledWith(
+        'builds/123/delete',
+        {},
+        { identifier: 'build.delete' },
+        { Authorization: `Basic ${base64encode('testuser:testkey')}` },
+        false
+      );
+    });
+
+    it('validates build ID', async () => {
+      await expectAsync(client.deleteBuild(null, 'testuser', 'testkey'))
+        .toBeRejectedWithError('Missing build ID');
+
+      await expectAsync(client.deleteBuild('', 'testuser', 'testkey'))
+        .toBeRejectedWithError('Missing build ID');
+
+      await expectAsync(client.deleteBuild({}, 'testuser', 'testkey'))
+        .toBeRejectedWithError('Invalid build ID');
+    });
+
+    it('logs debug message with build ID', async () => {
+      spyOn(client.log, 'debug');
+
+      await expectAsync(client.deleteBuild('456', 'testuser', 'testkey')).toBeResolved();
+
+      expect(client.log.debug).toHaveBeenCalledWith('Sending Delete action for build 456...');
+    });
+
+    it('accepts numeric build ID', async () => {
+      await expectAsync(client.deleteBuild(123, 'testuser', 'testkey')).toBeResolved();
+
+      expect(api.requests['/builds/123/delete'][0].method).toBe('POST');
+    });
+  });
 });
