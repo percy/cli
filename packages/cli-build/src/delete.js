@@ -25,13 +25,18 @@ export const deleteBuild = command('delete', {
 
   try {
     // Call the Percy API to delete the build
-    await percy.client.deleteBuild(
+    const buildDeletionResponse = await percy.client.deleteBuild(
       args.buildId,
       username,
       accessKey
     );
+    const deletedBy = buildDeletionResponse['action-performed-by'] || {
+      user_email: 'unknown@example.com',
+      user_name: username
+    };
 
     log.info(`Build ${args.buildId} deleted successfully!`);
+    log.info(`Deleted by: ${deletedBy.user_name} (${deletedBy.user_email})`);
   } catch (error) {
     log.error(`Failed to delete build ${args.buildId}`);
     log.error(error);

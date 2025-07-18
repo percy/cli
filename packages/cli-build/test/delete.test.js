@@ -5,11 +5,8 @@ import { deleteBuild } from '@percy/cli-build';
 
 describe('percy build:delete', () => {
   let successResponse = {
-    data: {
-      attributes: {
-        action: 'delete'
-      }
-    }
+    success: true,
+    'action-performed-by': { user_email: 'test@test.com', user_name: 'testuser' }
   };
 
   beforeEach(async () => {
@@ -97,7 +94,8 @@ describe('percy build:delete', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Deleting build 123...',
-      '[percy] Build 123 deleted successfully!'
+      '[percy] Build 123 deleted successfully!',
+      '[percy] Deleted by: testuser (test@test.com)'
     ]);
   });
 
@@ -113,7 +111,8 @@ describe('percy build:delete', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Deleting build 123...',
-      '[percy] Build 123 deleted successfully!'
+      '[percy] Build 123 deleted successfully!',
+      '[percy] Deleted by: testuser (test@test.com)'
     ]);
   });
 
@@ -133,7 +132,8 @@ describe('percy build:delete', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Deleting build 123...',
-      '[percy] Build 123 deleted successfully!'
+      '[percy] Build 123 deleted successfully!',
+      '[percy] Deleted by: testuser (test@test.com)'
     ]);
   });
 
@@ -153,7 +153,8 @@ describe('percy build:delete', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Deleting build 123...',
-      '[percy] Build 123 deleted successfully!'
+      '[percy] Build 123 deleted successfully!',
+      '[percy] Deleted by: testuser (test@test.com)'
     ]);
   });
 
@@ -174,7 +175,8 @@ describe('percy build:delete', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Deleting build 123...',
-      '[percy] Build 123 deleted successfully!'
+      '[percy] Build 123 deleted successfully!',
+      '[percy] Deleted by: testuser (test@test.com)'
     ]);
   });
 
@@ -216,6 +218,24 @@ describe('percy build:delete', () => {
       '[percy] Failed to delete build 123',
       '[percy] Error: Forbidden',
       '[percy] Error: Failed to delete the build'
+    ]);
+  });
+
+  it('uses fallback user info when latest-action-performed-by is not in response', async () => {
+    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
+
+    api.reply('/builds/123/delete', (req) => {
+      expect(req.body).toEqual({});
+      return [200, { success: true }];
+    });
+
+    await expectAsync(deleteBuild(['123', '--username=temp-username', '--access-key=flag-access-key'])).toBeResolved();
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Deleting build 123...',
+      '[percy] Build 123 deleted successfully!',
+      '[percy] Deleted by: temp-username (unknown@example.com)'
     ]);
   });
 });
