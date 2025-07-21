@@ -41,6 +41,7 @@ Global options:
   -v, --verbose                      Log everything
   -q, --quiet                        Log errors only
   -s, --silent                       Log nothing
+  -l, --labels <string>              Associates labels to the build (ex: --labels=dev,prod )
   --help                             Display command help
 
 Examples:
@@ -70,6 +71,7 @@ Global options:
   -v, --verbose                      Log everything
   -q, --quiet                        Log errors only
   -s, --silent                       Log nothing
+  -l, --labels <string>              Associates labels to the build (ex: --labels=dev,prod )
   --help                             Display command help
 
 Examples:
@@ -85,13 +87,14 @@ Usage:
   $ percy exec:stop [options]
 
 Percy options:
-  -P, --port [number]  Local CLI server port (default: 5338)
+  -P, --port [number]    Local CLI server port (default: 5338)
 
 Global options:
-  -v, --verbose        Log everything
-  -q, --quiet          Log errors only
-  -s, --silent         Log nothing
-  -h, --help           Display command help
+  -v, --verbose          Log everything
+  -q, --quiet            Log errors only
+  -s, --silent           Log nothing
+  -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
+  -h, --help             Display command help
 ```
 
 ### `percy exec:ping`
@@ -103,12 +106,13 @@ Usage:
   $ percy exec:ping [options]
 
 Percy options:
-  -P, --port [number]  Local CLI server port (default: 5338)
+  -P, --port [number]    Local CLI server port (default: 5338)
 
 Global options:
-  -v, --verbose        Log everything
-  -q, --quiet          Log errors only
-  -s, --silent         Log nothing
-  -h, --help           Display command help
+  -v, --verbose          Log everything
+  -q, --quiet            Log errors only
+  -s, --silent           Log nothing
+  -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
+  -h, --help             Display command help
 ```
 <!-- commandsstop -->

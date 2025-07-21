@@ -18,20 +18,21 @@ Usage:
   $ percy config:create [options] [filepath]
 
 Arguments:
-  filepath       Optional config filepath
+  filepath               Optional config filepath
 
 Options:
-  --rc           Create a .percyrc file
-  --yaml         Create a .percy.yaml file
-  --yml          Create a .percy.yml file
-  --json         Create a .percy.json file
-  --js           Create a .percy.js file
+  --rc                   Create a .percyrc file
+  --yaml                 Create a .percy.yaml file
+  --yml                  Create a .percy.yml file
+  --json                 Create a .percy.json file
+  --js                   Create a .percy.js file
 
 Global options:
-  -v, --verbose  Log everything
-  -q, --quiet    Log errors only
-  -s, --silent   Log nothing
-  -h, --help     Display command help
+  -v, --verbose          Log everything
+  -q, --quiet            Log errors only
+  -s, --silent           Log nothing
+  -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
+  -h, --help             Display command help
 
 Examples:
   $ percy config:create
@@ -51,13 +52,14 @@ Usage:
   $ percy config:validate [options] [filepath]
 
 Arguments:
-  filepath       Config filepath, detected by default
+  filepath               Config filepath, detected by default
 
 Global options:
-  -v, --verbose  Log everything
-  -q, --quiet    Log errors only
-  -s, --silent   Log nothing
-  -h, --help     Display command help
+  -v, --verbose          Log everything
+  -q, --quiet            Log errors only
+  -s, --silent           Log nothing
+  -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
+  -h, --help             Display command help
 
 Examples:
   $ percy config:validate
@@ -73,17 +75,18 @@ Usage:
   $ percy config:migrate [options] [filepath] [output]
 
 Arguments:
-  filepath       Current config filepath, detected by default
-  output         New config filepath to write to, defaults to 'filepath'
+  filepath               Current config filepath, detected by default
+  output                 New config filepath to write to, defaults to 'filepath'
 
 Options:
-  -d, --dry-run  Print the new config without writing it
+  -d, --dry-run          Print the new config without writing it
 
 Global options:
-  -v, --verbose  Log everything
-  -q, --quiet    Log errors only
-  -s, --silent   Log nothing
-  -h, --help     Display command help
+  -v, --verbose          Log everything
+  -q, --quiet            Log errors only
+  -s, --silent           Log nothing
+  -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
+  -h, --help             Display command help
 
 Examples:
   $ percy config:migrate

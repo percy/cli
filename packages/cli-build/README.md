@@ -7,6 +7,10 @@ Commands for interacting with Percy builds
 * [`percy build:finalize`](#percy-buildfinalize)
 * [`percy build:wait`](#percy-buildwait)
 * [`percy build:id`](#percy-buildid)
+* [`percy build:approve`](#percy-buildapprove)
+* [`percy build:unapprove`](#percy-buildunapprove)
+* [`percy build:reject`](#percy-buildreject)
+* [`percy build:delete`](#percy-builddelete)
 
 ### `percy build:finalize`
 
@@ -17,10 +21,11 @@ Usage:
   $ percy build:finalize [options]
 
 Global options:
-  -v, --verbose  Log everything
-  -q, --quiet    Log errors only
-  -s, --silent   Log nothing
-  -h, --help     Display command help
+  -v, --verbose          Log everything
+  -q, --quiet            Log errors only
+  -s, --silent           Log nothing
+  -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
+  -h, --help             Display command help
 ```
 
 ### `percy build:wait`
@@ -38,12 +43,14 @@ Options:
   -t, --timeout <ms>     Timeout before exiting without updates, defaults to 10 minutes
   -i, --interval <ms>    Interval at which to poll for updates, defaults to 10 second
   -f, --fail-on-changes  Exit with an error when diffs are found
-  --pass-if-approved     Doesn't Exit with an error if the build is approved, requires '--fail-on-changes'
+  --pass-if-approved     Doesn't exit with an error if the build is approved, regardless of if
+                         diffs are found.
 
 Global options:
   -v, --verbose          Log everything
   -q, --quiet            Log errors only
   -s, --silent           Log nothing
+  -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
   -h, --help             Display command help
 
 Examples:
@@ -60,12 +67,129 @@ Usage:
   $ percy build:id [options]
 
 Percy options:
-  -P, --port [number]  Local CLI server port (default: 5338)
+  -P, --port [number]    Local CLI server port (default: 5338)
 
 Global options:
-  -v, --verbose        Log everything
-  -q, --quiet          Log errors only
-  -s, --silent         Log nothing
-  -h, --help           Display command help
+  -v, --verbose          Log everything
+  -q, --quiet            Log errors only
+  -s, --silent           Log nothing
+  -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
+  -h, --help             Display command help
+```
+
+### `percy build:approve`
+
+Approve Percy builds
+
+```
+Usage:
+  $ percy build:approve [options] <build-id>
+
+Arguments:
+  build-id               Build ID to approve
+
+Options:
+  --username <string>    Username for authentication (can also be set via BROWSERSTACK_USERNAME env
+                         var)
+  --access-key <string>  Access key for authentication (can also be set via BROWSERSTACK_ACCESS_KEY
+                         env var)
+
+Global options:
+  -v, --verbose          Log everything
+  -q, --quiet            Log errors only
+  -s, --silent           Log nothing
+  -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
+  -h, --help             Display command help
+
+Examples:
+  $ percy build:approve <build-id>
+  $ percy build:approve <build-id> --username username --access-key **key**
+```
+
+### `percy build:unapprove`
+
+Unapprove Percy builds
+
+```
+Usage:
+  $ percy build:unapprove [options] <build-id>
+
+Arguments:
+  build-id               Build ID to approve
+
+Options:
+  --username <string>    Username for authentication (can also be set via BROWSERSTACK_USERNAME env
+                         var)
+  --access-key <string>  Access key for authentication (can also be set via BROWSERSTACK_ACCESS_KEY
+                         env var)
+
+Global options:
+  -v, --verbose          Log everything
+  -q, --quiet            Log errors only
+  -s, --silent           Log nothing
+  -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
+  -h, --help             Display command help
+
+Examples:
+  $ percy build:unapprove <build-id>
+  $ percy build:unapprove <build-id> --username username --access-key **key**
+```
+
+### `percy build:reject`
+
+Reject Percy builds
+
+```
+Usage:
+  $ percy build:reject [options] <build-id>
+
+Arguments:
+  build-id               Build ID to approve
+
+Options:
+  --username <string>    Username for authentication (can also be set via BROWSERSTACK_USERNAME env
+                         var)
+  --access-key <string>  Access key for authentication (can also be set via BROWSERSTACK_ACCESS_KEY
+                         env var)
+
+Global options:
+  -v, --verbose          Log everything
+  -q, --quiet            Log errors only
+  -s, --silent           Log nothing
+  -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
+  -h, --help             Display command help
+
+Examples:
+  $ percy build:reject <build-id>
+  $ percy build:reject <build-id> --username username --access-key **key**
+```
+
+### `percy build:delete`
+
+Delete Percy builds
+
+```
+Usage:
+  $ percy build:delete [options] <build-id>
+
+Arguments:
+  build-id               Build ID to approve
+
+Options:
+  --username <string>    Username for authentication (can also be set via BROWSERSTACK_USERNAME env
+                         var)
+  --access-key <string>  Access key for authentication (can also be set via BROWSERSTACK_ACCESS_KEY
+                         env var)
+
+Global options:
+  -v, --verbose          Log everything
+  -q, --quiet            Log errors only
+  -s, --silent           Log nothing
+  -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
+  -h, --help             Display command help
+
+Examples:
+  $ percy build:delete <build-id>
+  $ percy build:delete <build-id> --username username --access-key **key**
 ```
 <!-- commandsstop -->

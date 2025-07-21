@@ -33,6 +33,7 @@ Global options:
   -v, --verbose             Log everything
   -q, --quiet               Log errors only
   -s, --silent              Log nothing
+  -l, --labels <string>     Associates labels to the build (ex: --labels=dev,prod )
   -h, --help                Display command help
 ```
 <!-- commandsstop -->
