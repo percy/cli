@@ -85,7 +85,8 @@ export function serializeDOM(options) {
     domTransformation = options?.dom_transformation,
     stringifyResponse = options?.stringify_response,
     disableShadowDOM = options?.disable_shadow_dom,
-    reshuffleInvalidTags = options?.reshuffle_invalid_tags
+    reshuffleInvalidTags = options?.reshuffle_invalid_tags,
+    ignoreCanvasSerializationErrors = options?.ignore_canvas_serialization_errors
   } = options || {};
 
   // keep certain records throughout serialization
@@ -96,7 +97,8 @@ export function serializeDOM(options) {
     cache: new Map(),
     shadowRootElements: [],
     enableJavaScript,
-    disableShadowDOM
+    disableShadowDOM,
+    ignoreCanvasSerializationErrors
   };
 
   ctx.dom = dom;
