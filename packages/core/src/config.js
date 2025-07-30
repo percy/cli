@@ -238,7 +238,11 @@ export const configSchema = {
         type: 'string',
         enum: ['standard', 'layout', 'intelliignore']
       },
-      algorithmConfiguration: { $ref: '#/definitions/configurationProperties' }
+      algorithmConfiguration: { $ref: '#/definitions/configurationProperties' },
+      ignoreCanvasSerializationErrors: {
+        type: 'boolean',
+        default: false
+      }
     }
   },
   discovery: {
@@ -360,10 +364,6 @@ export const configSchema = {
           headless: { type: 'boolean' },
           closeBrowser: { type: 'boolean', default: true }
         }
-      },
-      ignoreCanvasSerializationErrors: {
-        type: 'boolean',
-        default: false
       }
     }
   }
@@ -397,6 +397,7 @@ export const snapshotSchema = {
         algorithm: { $ref: '/config/snapshot#/properties/algorithm' },
         algorithmConfiguration: { $ref: '/config/snapshot#/properties/algorithmConfiguration' },
         scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
+        ignoreCanvasSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreCanvasSerializationErrors' },
         discovery: {
           type: 'object',
           additionalProperties: false,
@@ -413,8 +414,7 @@ export const snapshotSchema = {
             userAgent: { $ref: '/config/discovery#/properties/userAgent' },
             devicePixelRatio: { $ref: '/config/discovery#/properties/devicePixelRatio' },
             retry: { $ref: '/config/discovery#/properties/retry' },
-            scrollToBottom: { $ref: '/config/discovery#/properties/scrollToBottom' },
-            ignoreCanvasSerializationErrors: { $ref: '/config/discovery#/properties/ignoreCanvasSerializationErrors' }
+            scrollToBottom: { $ref: '/config/discovery#/properties/scrollToBottom' }
           }
         }
       },

@@ -72,7 +72,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'environmentInfo');
   debugProp(snapshot, 'domSnapshot', Boolean);
   debugProp(snapshot, 'discovery.scrollToBottom');
-  debugProp(snapshot, 'discovery.ignoreCanvasSerializationErrors');
+  debugProp(snapshot, 'ignoreCanvasSerializationErrors');
   if (Array.isArray(snapshot.domSnapshot)) {
     debugProp(snapshot, 'domSnapshot.0.userAgent');
   } else {
