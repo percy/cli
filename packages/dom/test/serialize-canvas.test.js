@@ -93,5 +93,68 @@ describe('serializeCanvas', () => {
           error.message.includes('{"nodeName":"CANVAS","classNames":"test1 test2","id":"canvas"}');
       });
     });
+
+    it('ignores canvas serialization errors when flag is enabled', () => {
+      withExample(`
+        <canvas id="canvas" width="150px" height="150px"/>
+      `);
+
+      spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('Canvas error'));
+
+      let ctx = {
+        dom: document,
+        clone: document.cloneNode(true),
+        resources: new Set(),
+        warnings: new Set(),
+        ignoreCanvasSerializationErrors: true
+      };
+
+      expect(() => serializeCanvas(ctx)).not.toThrow();
+      expect(Array.from(ctx.warnings)).toContain('Error in serializeCanvas: Canvas error');
+    });
+
+    it('creates fallback image element when ignoring canvas errors', () => {
+      withExample(`
+        <canvas id="canvas" width="150px" height="150px"/>
+      `);
+
+      // Use serializeDOM to properly set up the context like the real flow
+      spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('Canvas error'));
+
+      let result = serializeDOM({ ignoreCanvasSerializationErrors: true });
+
+      expect(Array.from(result.warnings)).toContain('Error in serializeCanvas: Canvas error');
+
+      // Parse the result to check for the fallback image
+      let $ = parseDOM(result.html);
+      let $img = $('img[data-percy-canvas-serialized]');
+
+      expect($img.length).toBe(1);
+      expect($img[0].getAttribute('src')).toBe('');
+      expect($img[0].getAttribute('width')).toBe('150px');
+      expect($img[0].getAttribute('height')).toBe('150px');
+    });
+
+    it('handles fallback image creation errors gracefully', () => {
+      withExample(`
+        <canvas id="canvas"/>
+      `);
+
+      spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('Canvas error'));
+
+      // Mock document.createElement to throw error during fallback
+      let originalCreateElement = document.createElement;
+      spyOn(document, 'createElement').and.callFake((tagName) => {
+        if (tagName === 'img') {
+          throw new Error('Element creation error');
+        }
+        return originalCreateElement.call(document, tagName);
+      });
+
+      let result = serializeDOM({ ignoreCanvasSerializationErrors: true });
+
+      expect(result.warnings).toContain('Error in serializeCanvas: Canvas error');
+      expect(result.warnings).toContain('Error creating fallback image element: Element creation error');
+    });
   });
 });
