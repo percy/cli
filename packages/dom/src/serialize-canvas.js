@@ -1,7 +1,7 @@
 import { resourceFromDataURL, handleErrors } from './utils.js';
 
 // Helper function to create and insert image element
-function createAndInsertImageElement(canvas, clone, percyElementId, srcAttribute = '') {
+function createAndInsertImageElement(canvas, clone, percyElementId, srcAttribute) {
   let img = document.createElement('img');
 
   // copy canvas element attributes to the image element
