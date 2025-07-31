@@ -33,6 +33,7 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
+    "@percy/config": "1.31.1",
     "@percy/env": "1.31.1",
     "@percy/logger": "1.31.1",
     "pac-proxy-agent": "^7.0.2",
