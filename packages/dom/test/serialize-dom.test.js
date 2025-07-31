@@ -464,7 +464,8 @@ describe('serializeDOM', () => {
       spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('Canvas error'));
 
       let result = serializeDOM({ ignoreCanvasSerializationErrors: true });
-      expect(result.warnings).toContain('Error in serializeCanvas: Canvas error');
+      expect(result.warnings).toContain('Canvas Serialization failed, Replaced canvas with empty Image');
+      expect(result.warnings).toContain('Error: Canvas error');
       expect(result.html).toContain('data-percy-canvas-serialized');
     });
 
@@ -476,8 +477,9 @@ describe('serializeDOM', () => {
       spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('Canvas error'));
 
       let result = serializeDOM({ ignoreCanvasSerializationErrors: true });
-      expect(result.warnings).toContain('Error in serializeCanvas: Canvas error');
       expect(result.html).toContain('data-percy-canvas-serialized');
+      expect(result.warnings).toContain('Canvas Serialization failed, Replaced canvas with empty Image');
+      expect(result.warnings).toContain('Error: Canvas error');
     });
   });
 });

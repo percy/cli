@@ -110,7 +110,8 @@ describe('serializeCanvas', () => {
       };
 
       expect(() => serializeCanvas(ctx)).not.toThrow();
-      expect(Array.from(ctx.warnings)).toContain('Error in serializeCanvas: Canvas error');
+      expect(Array.from(ctx.warnings)).toContain('Canvas Serialization failed, Replaced canvas with empty Image');
+      expect(Array.from(ctx.warnings)).toContain('Error: Canvas error');
     });
 
     it('creates fallback image element when ignoring canvas errors', () => {
@@ -123,7 +124,8 @@ describe('serializeCanvas', () => {
 
       let result = serializeDOM({ ignoreCanvasSerializationErrors: true });
 
-      expect(Array.from(result.warnings)).toContain('Error in serializeCanvas: Canvas error');
+      expect(Array.from(result.warnings)).toContain('Canvas Serialization failed, Replaced canvas with empty Image');
+      expect(Array.from(result.warnings)).toContain('Error: Canvas error');
 
       // Parse the result to check for the fallback image
       let $ = parseDOM(result.html);
@@ -153,7 +155,8 @@ describe('serializeCanvas', () => {
 
       let result = serializeDOM({ ignoreCanvasSerializationErrors: true });
 
-      expect(result.warnings).toContain('Error in serializeCanvas: Canvas error');
+      expect(result.warnings).toContain('Canvas Serialization failed, Replaced canvas with empty Image');
+      expect(result.warnings).toContain('Error: Canvas error');
       expect(result.warnings).toContain('Error creating fallback image element: Element creation error');
     });
   });

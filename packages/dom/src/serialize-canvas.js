@@ -1,7 +1,7 @@
 import { resourceFromDataURL, handleErrors } from './utils.js';
 
 // Helper function to create and insert image element
-function createAndInsertImageElement(canvas, clone, percyElementId, srcAttribute) {
+function createAndInsertImageElement(canvas, clone, percyElementId, imageUrl) {
   let img = document.createElement('img');
 
   // copy canvas element attributes to the image element
@@ -11,7 +11,7 @@ function createAndInsertImageElement(canvas, clone, percyElementId, srcAttribute
 
   // mark the image as serialized and set src attribute
   img.setAttribute('data-percy-canvas-serialized', '');
-  img.setAttribute('data-percy-serialized-attribute-src', srcAttribute);
+  img.setAttribute('data-percy-serialized-attribute-src', imageUrl);
 
   // set a default max width to account for canvases that might resize with JS
   img.style.maxWidth = img.style.maxWidth || '100%';
@@ -56,9 +56,10 @@ export function serializeCanvas(ctx) {
       createAndInsertImageElement(canvas, clone, percyElementId, resource.url);
     } catch (err) {
       if (ignoreCanvasSerializationErrors) {
-        ctx.warnings.add('Error in serializeCanvas: ' + err.message);
         try {
           // create and insert image element with empty src
+          ctx.warnings.add('Canvas Serialization failed, Replaced canvas with empty Image');
+          ctx.warnings.add('Error: ' + err.message);
           createAndInsertImageElement(canvas, clone, percyElementId, '');
         } catch (fallbackErr) {
           ctx.warnings.add('Error creating fallback image element: ' + fallbackErr.message);
