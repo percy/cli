@@ -1,3 +1,4 @@
+/* global performance */
 import serializeInputs from './serialize-inputs';
 import serializeFrames from './serialize-frames';
 import serializeCSSOM from './serialize-cssom';
@@ -78,6 +79,9 @@ export function waitForResize() {
 
 // Serializes a document and returns the resulting DOM string.
 export function serializeDOM(options) {
+  // Start timing
+  const serializationStartTime = performance.now();
+
   let {
     dom = document,
     // allow snake_case or camelCase
@@ -96,7 +100,8 @@ export function serializeDOM(options) {
     cache: new Map(),
     shadowRootElements: [],
     enableJavaScript,
-    disableShadowDOM
+    disableShadowDOM,
+    clonedNodeCount: 0 // Track number of cloned nodes
   };
 
   ctx.dom = dom;
@@ -136,13 +141,27 @@ export function serializeDOM(options) {
     console.error(errorMessage);
   }
 
+  // Generate final HTML and calculate metrics
+  const finalHtml = serializeHTML(ctx);
+  const resourcesArray = Array.from(ctx.resources);
+
+  // Calculate serialization time
+  const serializationEndTime = performance.now();
+  const serializationTime = serializationEndTime - serializationStartTime;
+
   let result = {
-    html: serializeHTML(ctx),
+    html: finalHtml,
     cookies: cookies,
     userAgent: navigator.userAgent,
     warnings: Array.from(ctx.warnings),
-    resources: Array.from(ctx.resources),
-    hints: Array.from(ctx.hints)
+    resources: resourcesArray,
+    hints: Array.from(ctx.hints),
+    perfInfo: {
+      serializationTime: serializationTime,
+      clonedNodeCount: ctx.clonedNodeCount,
+      finalHtmlLength: finalHtml.length,
+      resourceCount: resourcesArray.length
+    }
   };
 
   return stringifyResponse
