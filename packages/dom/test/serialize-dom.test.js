@@ -455,5 +455,31 @@ describe('serializeDOM', () => {
       });
       window.URL = oldURL;
     });
+
+    it('ignores canvas serialization errors when flag is enabled', () => {
+      withExample(`
+        <canvas id="canvas" width="150px" height="150px"/>
+      `);
+
+      spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('Canvas error'));
+
+      let result = serializeDOM({ ignoreCanvasSerializationErrors: true });
+      expect(result.warnings).toContain('Canvas Serialization failed, Replaced canvas with empty Image');
+      expect(result.warnings).toContain('Error: Canvas error');
+      expect(result.html).toContain('data-percy-canvas-serialized');
+    });
+
+    it('picks ignoreCanvasSerializationErrors flag from options', () => {
+      withExample(`
+        <canvas id="canvas" width="150px" height="150px"/>
+      `);
+
+      spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('Canvas error'));
+
+      let result = serializeDOM({ ignoreCanvasSerializationErrors: true });
+      expect(result.html).toContain('data-percy-canvas-serialized');
+      expect(result.warnings).toContain('Canvas Serialization failed, Replaced canvas with empty Image');
+      expect(result.warnings).toContain('Error: Canvas error');
+    });
   });
 });
