@@ -9,7 +9,8 @@ describe('serializeDOM', () => {
       userAgent: jasmine.any(String),
       warnings: jasmine.any(Array),
       resources: jasmine.any(Array),
-      hints: jasmine.any(Array)
+      hints: jasmine.any(Array),
+      perfInfo: jasmine.any(Object)
     });
   });
 
@@ -30,7 +31,7 @@ describe('serializeDOM', () => {
 
   it('optionally returns a stringified response', () => {
     expect(serializeDOM({ stringifyResponse: true }))
-      .toMatch('{"html":".*","cookies":".*","userAgent":".*","warnings":\\[\\],"resources":\\[\\],"hints":\\[\\]}');
+      .toMatch('{"html":".*","cookies":".*","userAgent":".*","warnings":\\[\\],"resources":\\[\\],"hints":\\[\\], "perfInfo":{.*}}');
   });
 
   it('always has a doctype', () => {
