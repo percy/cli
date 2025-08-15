@@ -199,7 +199,7 @@ describe('getCPUUsageInfo: OtherOS', () => {
   });
 
   describe('when cpu usage do not changed', () => {
-    let mockOsCpuRespnose = [
+    let mockOsCpuResponse = [
       {
         model: 'test',
         speed: 2400,
@@ -213,7 +213,7 @@ describe('getCPUUsageInfo: OtherOS', () => {
     ];
 
     beforeEach(() => {
-      spyOn(os, 'cpus').and.returnValue(mockOsCpuRespnose);
+      spyOn(os, 'cpus').and.returnValue(mockOsCpuResponse);
     });
 
     it('return cpu usage as 0%', async () => {
