@@ -254,7 +254,7 @@ export class Queue {
     return task;
   }
 
-  // returns a generator that yeilds until started and no longer pending, calling the
+  // returns a generator that yields until started and no longer pending, calling the
   // callback every 10ms during checks with the current number of pending tasks
   idle(callback) {
     return yieldFor(() => {

@@ -72,7 +72,7 @@ describe('getCPUUsageInfo: Linux', () => {
         expect(mockFsRead.calls.count()).toEqual(3);
         expect(mockFsAccess.calls.count()).toEqual(2);
 
-        // si module internall calls os module once
+        // si module internal calls os module once
         // if not mocked
         expect(mockOs.calls.count()).toEqual(0);
         expect(mockSi.calls.count()).toEqual(1);

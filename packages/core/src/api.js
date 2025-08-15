@@ -55,7 +55,7 @@ export function createPercyServer(percy, port) {
         res.setHeader('X-Percy-Core-Version', percy.testing?.version ?? pkg.version);
       }
 
-      // track all api reqeusts in testing mode
+      // track all api requests in testing mode
       if (percy.testing && !req.url.pathname.startsWith('/test/')) {
         (percy.testing.requests ||= []).push({
           url: `${req.url.pathname}${req.url.search}`,

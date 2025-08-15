@@ -16,7 +16,7 @@ describe('Unit / Server', () => {
 
   afterEach(async () => {
     await server.close();
-    // wait 2 ticks before reseting memfs too quickly
+    // wait 2 ticks before resetting memfs too quickly
     await new Promise(r => setImmediate(setImmediate, r));
   });
 

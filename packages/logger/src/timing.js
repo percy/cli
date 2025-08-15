@@ -7,7 +7,7 @@ export default class TimeIt {
     return instance;
   }
 
-  // this function has some code repeatition as it needs to handle both sync and async
+  // this function has some code repetition as it needs to handle both sync and async
   // callbacks. It handles both cases when function is marked async but there is no await
   // as well as functions which have async await and sync functions - including sync
   // functions which returns a promise instead.

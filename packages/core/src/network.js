@@ -271,10 +271,10 @@ export class Network {
   _handleResponseReceived = async (session, event) => {
     let { requestId, response } = event;
     // await on requestWillBeSent
-    // no explicitly wait on requestWillBePaused as we implictly wait on it, since it manipulates the lifeCycle of request using Fetch module
+    // no explicitly wait on requestWillBePaused as we implicitly wait on it, since it manipulates the lifeCycle of request using Fetch module
     await this.#requestsLifeCycleHandler.get(requestId).requestWillBeSent;
     let request = this.#requests.get(requestId);
-    /* istanbul ignore if: race condition paranioa */
+    /* istanbul ignore if: race condition paranoia */
     if (!request) return;
 
     request.response = response;
@@ -293,7 +293,7 @@ export class Network {
     // wait for request to be sent
     await this.#requestsLifeCycleHandler.get(requestId).requestWillBeSent;
     let request = this.#requests.get(requestId);
-    /* istanbul ignore else: race condition paranioa */
+    /* istanbul ignore else: race condition paranoia */
     if (request) this._forgetRequest(request);
   }
 
@@ -304,7 +304,7 @@ export class Network {
     // wait for upto 2 seconds or check if response has been sent
     await this.#requestsLifeCycleHandler.get(requestId).responseReceived;
     let request = this.#requests.get(requestId);
-    /* istanbul ignore if: race condition paranioa */
+    /* istanbul ignore if: race condition paranoia */
     if (!request) return;
 
     await saveResponseResource(this, request, session);
@@ -320,7 +320,7 @@ export class Network {
     // and in any case, order of processing for responseReceived and loadingFailed does not matter, as response capturing is done in loadingFinished
     await this.#requestsLifeCycleHandler.get(requestId).requestWillBeSent;
     let request = this.#requests.get(event.requestId);
-    /* istanbul ignore if: race condition paranioa */
+    /* istanbul ignore if: race condition paranoia */
     if (!request) return;
 
     // If request was aborted, keep track of it as we need to cancel any in process callbacks for
@@ -455,7 +455,7 @@ async function makeDirectRequest(network, request, session) {
   return makeRequest(request.url, { buffer: true, headers });
 }
 
-// Save a resource from a request, skipping it if specific paramters are not met
+// Save a resource from a request, skipping it if specific parameters are not met
 async function saveResponseResource(network, request, session) {
   let { disableCache, allowedHostnames, enableJavaScript } = network.intercept;
 
@@ -467,7 +467,7 @@ async function saveResponseResource(network, request, session) {
     url,
     responseStatus: response?.status
   };
-  // Checing for content length more than 100MB, to prevent websocket error which is governed by
+  // Checking for content length more than 100MB, to prevent websocket error which is governed by
   // maxPayload option of websocket defaulted to 100MB.
   // If content-length is more than our allowed 25MB, no need to process that resouce we can return log.
   let contentLength = response.headers?.[Object.keys(response.headers).find(key => key.toLowerCase() === 'content-length')];
