@@ -37,7 +37,7 @@ describe('Monitoring', () => {
       expect(mockExecuteMonitoring.calls.count()).toEqual(2);
       expect(logger.stderr).toEqual(
         jasmine.arrayContaining([
-          '[percy:monitoring] Started monitoring sytem metrics'
+          '[percy:monitoring] Started monitoring system metrics'
         ])
       );
     });

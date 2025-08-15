@@ -313,7 +313,7 @@ export function validate(data, key = '/config') {
     if (!algorithmType) {
       errors.set(pathStr, {
         path: pathStr,
-        message: 'algorithmConfiguration needs algorigthm to be passed'
+        message: 'algorithmConfiguration needs algorithm to be passed'
       });
     }
 

@@ -529,7 +529,7 @@ export class PercyClient {
   } = {}) {
     validateId('snapshot', snapshotId);
     // Remove post percy api deploy
-    this.log.debug(`Creating comparision: ${tag.name}...`, meta);
+    this.log.debug(`Creating comparison: ${tag.name}...`, meta);
 
     for (let tile of tiles) {
       if (tile.sha) continue;
@@ -541,7 +541,7 @@ export class PercyClient {
       }
     }
     let regionsArr = makeRegions(regions, algorithm, algorithmConfiguration);
-    this.log.debug(`${tiles.length} tiles for comparision: ${tag.name}...`, meta);
+    this.log.debug(`${tiles.length} tiles for comparison: ${tag.name}...`, meta);
 
     return this.post(`snapshots/${snapshotId}/comparisons`, {
       data: {

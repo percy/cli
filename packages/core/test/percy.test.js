@@ -1374,7 +1374,7 @@ describe('Percy', () => {
 
           expect(logger.stderr).toEqual(jasmine.arrayContaining([
             '[percy] percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted.',
-            '[percy] If inside a proxied envirnment, please configure the following environment variables: HTTP_PROXY, [ and optionally HTTPS_PROXY if you need it ]. Refer to our documentation for more details',
+            '[percy] If inside a proxied environment, please configure the following environment variables: HTTP_PROXY, [ and optionally HTTPS_PROXY if you need it ]. Refer to our documentation for more details',
             '[percy] Unable to analyze error logs'
           ]));
         });

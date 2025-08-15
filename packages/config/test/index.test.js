@@ -806,7 +806,7 @@ describe('PercyConfig', () => {
         })).toEqual([
           {
             path: 'algorithmConfiguration',
-            message: 'algorithmConfiguration needs algorigthm to be passed'
+            message: 'algorithmConfiguration needs algorithm to be passed'
           }
         ]);
       });

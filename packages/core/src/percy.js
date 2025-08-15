@@ -636,7 +636,7 @@ export class Percy {
         // This can be due to proxy issue
         this.log.error('percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted.');
         if (!this.#proxyEnabled()) {
-          this.log.error('If inside a proxied envirnment, please configure the following environment variables: HTTP_PROXY, [ and optionally HTTPS_PROXY if you need it ]. Refer to our documentation for more details');
+          this.log.error('If inside a proxied environment, please configure the following environment variables: HTTP_PROXY, [ and optionally HTTPS_PROXY if you need it ]. Refer to our documentation for more details');
         }
       }
       this.log.error('Unable to analyze error logs');
