@@ -10,9 +10,9 @@ configuration files.
 
 ## Loading config files
 
-The `.load()` method will load and validate a configuation file, optionally merging it with any
+The `.load()` method will load and validate a configuration file, optionally merging it with any
 provided `overrides`. If no `path` is provided, will search for the first supported config found
-from the current directory up to the home directoy. Configuration files are cached and reused unless
+from the current directory up to the home directory. Configuration files are cached and reused unless
 `reload` is `true`.
 
 ```js

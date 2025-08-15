@@ -59,7 +59,7 @@ await isPercyEnabled() === true
 ### `fetchPercyDOM()`
 
 Fetches and returns the `@percy/dom` serialization script hosted by the local Percy API server. The
-resulting string can be evaulated within a browser context to add the `PercyDOM.serialize` function
+resulting string can be evaluated within a browser context to add the `PercyDOM.serialize` function
 to the global scope. Subsequent calls return the first cached result.
 
 ``` js
