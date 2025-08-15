@@ -346,7 +346,7 @@ describe('Percy', () => {
       expect(percy.client.labels).toEqual('dev,prod,canary');
     });
 
-    it('cancels deferred build creation when interupted', async () => {
+    it('cancels deferred build creation when interrupted', async () => {
       percy = new Percy({ token: 'PERCY_TOKEN', deferUploads: true });
 
       // abort when the browser is launched
@@ -575,7 +575,7 @@ describe('Percy', () => {
       delete process.env.HTTP_PROXY;
     });
 
-    it('takes no action when no proxt is detected', async () => {
+    it('takes no action when no proxy is detected', async () => {
       spyOn(DetectProxy.prototype, 'getSystemProxy').and.returnValue([]);
       await expectAsync(percy.start()).toBeResolved();
 
@@ -1631,7 +1631,7 @@ describe('Percy', () => {
       });
     });
 
-    describe('when cpu and memory useage is low', () => {
+    describe('when cpu and memory usage is low', () => {
       beforeEach(() => {
         spyOn(percy.monitoring, 'getMonitoringInfo').and.returnValue({
           cpuInfo: { currentUsagePercent: 20, cores: 3, cgroupExists: false },
@@ -1651,7 +1651,7 @@ describe('Percy', () => {
       });
     });
 
-    describe('when cpu or memory usesage is high', () => {
+    describe('when cpu or memory usage is high', () => {
       let mockCpuInfo = { currentUsagePercent: 20, cores: 3, cgroupExists: false };
       let mockMemInfo = { currentUsagePercent: 90.3, totalMemory: 121212112 };
       beforeEach(() => {

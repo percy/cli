@@ -263,7 +263,7 @@ describe('Snapshot', () => {
       });
     });
 
-    describe('with valid snpashot url', () => {
+    describe('with valid snapshot url', () => {
       const sharedExpectNonModifiedSnapshotURL = (expectedURL) => {
         expect(logger.stdout).not.toEqual(jasmine.arrayContaining([
           `[percy] Snapshot URL modified to: ${expectedURL}`

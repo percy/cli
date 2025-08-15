@@ -177,7 +177,7 @@ describe('getCPUUsageInfo: OtherOS', () => {
     mockSi = spyOn(si, 'cpu').and.returnValue({ cores: 5 });
   });
 
-  it('returns cpu useage info of system level', async () => {
+  it('returns cpu usage info of system level', async () => {
     const cpuInfo = await getCPUUsageInfo(platform);
 
     // checking only types, as values can differ as we are
