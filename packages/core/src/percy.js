@@ -10,7 +10,8 @@ import {
   yieldAll,
   yieldTo,
   redactSecrets,
-  detectSystemProxyAndLog
+  detectSystemProxyAndLog,
+  checkSDKVersion
 } from './utils.js';
 
 import {
@@ -121,6 +122,7 @@ export class Percy {
     // if there is none, stop it
     this.resetMonitoringId = null;
     this.monitoringCheckLastExecutedAt = null;
+    this.sdkInfoDisplayed = false;
 
     // generator methods are wrapped to autorun and return promises
     for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot', 'upload']) {
@@ -426,6 +428,12 @@ export class Percy {
     options = validateSnapshotOptions(options);
     this.client.addClientInfo(options.clientInfo);
     this.client.addEnvironmentInfo(options.environmentInfo);
+
+    // Check SDK version
+    if (!this.sdkInfoDisplayed && options.clientInfo) {
+      checkSDKVersion(options.clientInfo);
+      this.sdkInfoDisplayed = true;
+    }
 
     // without a discovery browser, capture is not possible
     if (this.skipDiscovery && !this.dryRun && !options.domSnapshot) {

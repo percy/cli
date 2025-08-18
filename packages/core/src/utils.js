@@ -584,3 +584,27 @@ export async function* maybeScrollToBottom(page, discovery) {
     yield page.eval('await scrollToBottom()');
   }
 }
+
+// Utility function to check SDK version updates
+export async function checkSDKVersion(clientInfo) {
+  const log = logger('core:sdk-version');
+  
+  try {
+    const parts = clientInfo.split('/');
+    const packageName = `${parts[0]}/${parts[1]}`;
+    const currentVersion = parts[2];
+    
+    // Fetch latest version from npm registry
+    const { request } = await import('@percy/client/utils');
+    const npmData = await request(`https://registry.npmjs.org/${packageName}`, { retries: 0 });
+    const latestVersion = npmData['dist-tags'].latest;
+    
+    log.debug(`[SDK Version Check] Current: ${currentVersion}, Latest: ${latestVersion}`);
+    
+    if (currentVersion !== latestVersion) {
+      log.warn(`[SDK Update Available] ${packageName}: ${currentVersion} -> ${latestVersion}`);
+    }
+  } catch (error) {
+    log.debug('Could not check SDK version');
+  }
+}
