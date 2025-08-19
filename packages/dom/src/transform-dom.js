@@ -5,9 +5,16 @@ export function dropLoadingAttribute(domElement) {
   domElement.removeAttribute('loading');
 }
 
+export function serializeScrollState(clone, original) {
+  if (original.scrollTop == 0 && original.scrollLeft == 0) return;
+  clone.setAttribute('data-percy-scrollTop', original.scrollTop.toString())
+  clone.setAttribute('data-percy-scrollLeft', original.scrollLeft.toString())
+}
+
 // All transformations that we need to apply for a successful discovery and stable render
-function applyElementTransformations(domElement) {
+function applyElementTransformations(domElement, originalElement) {
   dropLoadingAttribute(domElement);
+  serializeScrollState(domElement, originalElement)
 }
 
 export default applyElementTransformations;
