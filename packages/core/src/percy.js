@@ -429,12 +429,6 @@ export class Percy {
     this.client.addClientInfo(options.clientInfo);
     this.client.addEnvironmentInfo(options.environmentInfo);
 
-    // Check SDK version
-    if (!this.sdkInfoDisplayed && options.clientInfo) {
-      checkSDKVersion(options.clientInfo);
-      this.sdkInfoDisplayed = true;
-    }
-
     // without a discovery browser, capture is not possible
     if (this.skipDiscovery && !this.dryRun && !options.domSnapshot) {
       throw new Error('Cannot capture DOM snapshots when asset discovery is disabled');
@@ -445,6 +439,11 @@ export class Percy {
       let server;
 
       try {
+        // Check SDK version
+        if (!this.sdkInfoDisplayed && options.clientInfo) {
+          await checkSDKVersion(options.clientInfo);
+          this.sdkInfoDisplayed = true;
+        }
         if ('serve' in options) {
           // create and start a static server
           let { baseUrl, snapshots } = options;
