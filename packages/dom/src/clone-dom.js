@@ -80,7 +80,7 @@ export function cloneNodeAndShadow(ctx) {
       }
 
       // We apply any element transformations here to avoid another treeWalk
-      applyElementTransformations(clone);
+      applyElementTransformations(clone, node);
 
       serializeBase64(clone, resources, cache);
 
