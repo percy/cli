@@ -14,7 +14,7 @@ describe('transformDOM', () => {
       original.style.width = '100px';
       original.innerHTML = '<div style="height: 200px; width: 200px;"></div>';
       document.body.appendChild(original);
-      
+
       clone = document.createElement('div');
     });
 
