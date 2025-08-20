@@ -7,7 +7,13 @@ import { fetchCredentials, reviewCommandConfig } from './utils.js';
  */
 export const approve = command('approve', {
   description: 'Approve Percy builds',
-  ...reviewCommandConfig
+  ...reviewCommandConfig,
+  ...{
+    flags: [{
+        name: 'pass-if-previously-approved',
+        description: 'Does not exit with an error if the build has already been approved',
+    }]
+  }
 }, async ({ flags, args, percy, log, exit }) => {
   // Early return if Percy is disabled
   if (!percy) {
@@ -38,6 +44,14 @@ export const approve = command('approve', {
     log.info(`Build ${args.buildId} approved successfully!`);
     log.info(`Approved by: ${approvedBy.user_name} (${approvedBy.user_email})`);
   } catch (error) {
+    if (flags.passIfPreviouslyApproved) {
+      const errors = error.response.body.errors;
+      if (errors.length === 1 && errors[0].detail === 'approve action is already performed on this build') {
+        log.info(`Build ${args.buildId} is already approved: skipping approval`);
+        exit(0);
+      };
+    }
+
     log.error(`Failed to approve build ${args.buildId}`);
     log.error(error);
 
