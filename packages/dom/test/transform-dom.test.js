@@ -9,19 +9,16 @@ describe('transformDOM', () => {
 
     beforeEach(() => {
       original = document.createElement('div');
-      original.style.overflow = 'scroll';
-      original.style.height = '100px';
-      original.style.width = '100px';
-      original.innerHTML = '<div style="height: 200px; width: 200px;"></div>';
-      document.body.appendChild(original);
+      Object.defineProperty(original, 'scrollTop', {
+        writable: true,
+        value: 0
+      });
+      Object.defineProperty(original, 'scrollLeft', {
+        writable: true,
+        value: 0
+      });
 
       clone = document.createElement('div');
-    });
-
-    afterEach(() => {
-      if (original && original.parentNode) {
-        original.parentNode.removeChild(original);
-      }
     });
 
     it('does not set attributes if scrollTop and scrollLeft are 0 or undefined', () => {
