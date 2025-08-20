@@ -585,24 +585,48 @@ export async function* maybeScrollToBottom(page, discovery) {
   }
 }
 
+// Package to GitHub repo mapping
+const PACKAGE_TO_REPO = {
+  'selenium-webdriver': 'percy-selenium-js',
+  'percy-java-selenium': 'percy-selenium-java',
+  'percy-selenium-dotnet': 'percy-selenium-dotnet'
+};
+
 // Utility function to check SDK version updates
 export async function checkSDKVersion(clientInfo) {
   const log = logger('core:sdk-version');
   
   try {
     const parts = clientInfo.split('/');
-    const packageName = `${parts[0]}/${parts[1]}`;
+    const packageName = parts[1];  // e.g., 'selenium-webdriver' from '@percy/selenium-webdriver'
     const currentVersion = parts[2];
     
-    // Fetch latest version from npm registry
+    // Get GitHub repo name from mapping
+    const repoName = PACKAGE_TO_REPO[packageName];
+    if (!repoName) {
+      log.debug(`No repo mapping found for package: ${packageName}`);
+      return;
+    }
+    
+    // Fetch latest version from GitHub releases
     const { request } = await import('@percy/client/utils');
-    const npmData = await request(`https://registry.npmjs.org/${packageName}`, { retries: 0 });
-    const latestVersion = npmData['dist-tags'].latest;
+    const githubData = await request(`https://api.github.com/repos/percy/${repoName}/releases`, { 
+      headers: { 'User-Agent': '@percy/cli' },
+      retries: 0 
+    });
+    
+    const latestRelease = githubData.find(r => !r.prerelease);
+    if (!latestRelease) {
+      log.debug('No stable release found');
+      return;
+    }
+    
+    const latestVersion = latestRelease.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
     
     log.debug(`[SDK Version Check] Current: ${currentVersion}, Latest: ${latestVersion}`);
     
     if (currentVersion !== latestVersion) {
-      log.warn(`[SDK Update Available] ${packageName}: ${currentVersion} -> ${latestVersion}`);
+      log.warn(`[SDK Update Available] ${parts[0]}/${packageName}: ${currentVersion} -> ${latestVersion}`);
     }
   } catch (error) {
     log.debug('Could not check SDK version');
