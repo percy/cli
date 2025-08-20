@@ -7,26 +7,21 @@ describe('transformDOM', () => {
   describe('serializeScrollState', () => {
     let original, clone;
 
-    function makeScrollableDiv() {
-      const el = document.createElement('div');
-      el.style.width = '100px';
-      el.style.height = '100px';
-      el.style.overflow = 'scroll';
-      el.innerHTML = '<div style="width:200px;height:200px;"></div>';
-      document.body.appendChild(el);
-      return el;
-    }
-
     beforeEach(() => {
-      // Remove any previous test divs
-      document.querySelectorAll('.test-scrollable').forEach(e => e.remove());
-      original = makeScrollableDiv();
-      original.classList.add('test-scrollable');
+      original = document.createElement('div');
+      original.style.overflow = 'scroll';
+      original.style.height = '100px';
+      original.style.width = '100px';
+      original.innerHTML = '<div style="height: 200px; width: 200px;"></div>';
+      document.body.appendChild(original);
+      
       clone = document.createElement('div');
     });
 
     afterEach(() => {
-      original.remove();
+      if (original && original.parentNode) {
+        original.parentNode.removeChild(original);
+      }
     });
 
     it('does not set attributes if scrollTop and scrollLeft are 0 or undefined', () => {
@@ -38,14 +33,14 @@ describe('transformDOM', () => {
     it('sets data-percy-scrolltop if scrollTop is non-zero', () => {
       original.scrollTop = 42;
       serializeScrollState(clone, original);
-      expect(clone.getAttribute('data-percy-scrolltop')).toBe(original.scrollTop.toString());
+      expect(clone.getAttribute('data-percy-scrolltop')).toBe('42');
       expect(clone.hasAttribute('data-percy-scrollleft')).toBe(false);
     });
 
     it('sets data-percy-scrollleft if scrollLeft is non-zero', () => {
       original.scrollLeft = 17;
       serializeScrollState(clone, original);
-      expect(clone.getAttribute('data-percy-scrollleft')).toBe(original.scrollLeft.toString());
+      expect(clone.getAttribute('data-percy-scrollleft')).toBe('17');
       expect(clone.hasAttribute('data-percy-scrolltop')).toBe(false);
     });
 
@@ -53,8 +48,8 @@ describe('transformDOM', () => {
       original.scrollTop = 5;
       original.scrollLeft = 10;
       serializeScrollState(clone, original);
-      expect(clone.getAttribute('data-percy-scrolltop')).toBe(original.scrollTop.toString());
-      expect(clone.getAttribute('data-percy-scrollleft')).toBe(original.scrollLeft.toString());
+      expect(clone.getAttribute('data-percy-scrolltop')).toBe('5');
+      expect(clone.getAttribute('data-percy-scrollleft')).toBe('10');
     });
 
     it('does nothing if original or clone is missing', () => {
