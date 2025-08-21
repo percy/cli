@@ -604,13 +604,13 @@ const PACKAGE_TO_REPO = {
   'percy-playwright-python': 'percy-playwright-python',
   'percy-selenium-python': 'percy-selenium-python',
   'percy-selenium-ruby': 'percy-selenium-ruby',
-  'percy-capybara': 'percy-capybara',
+  'percy-capybara': 'percy-capybara'
 };
 
 // Utility function to check SDK version updates
 export async function checkSDKVersion(clientInfo) {
   const log = logger('core:sdk-version');
-  
+
   try {
     // Split on the last '/' to get package name and version
     const lastSlashIndex = clientInfo.lastIndexOf('/');
@@ -618,32 +618,32 @@ export async function checkSDKVersion(clientInfo) {
       log.debug(`Invalid clientInfo format: ${clientInfo}`);
       return;
     }
-    
+
     const packageName = clientInfo.substring(0, lastSlashIndex);
     const currentVersion = clientInfo.substring(lastSlashIndex + 1);
-    
+
     // Get GitHub repo name from mapping
     const repoName = PACKAGE_TO_REPO[packageName];
     if (!repoName) {
       log.debug(`No repo mapping found for package: ${packageName}`);
       return;
     }
-    
+
     // Fetch latest version from GitHub releases
     const { request } = await import('@percy/client/utils');
-    const githubData = await request(`https://api.github.com/repos/percy/${repoName}/releases`, { 
+    const githubData = await request(`https://api.github.com/repos/percy/${repoName}/releases`, {
       headers: { 'User-Agent': '@percy/cli' },
-      retries: 0 
+      retries: 0
     });
-    
+
     const latestRelease = githubData.find(r => !r.prerelease);
     if (!latestRelease) {
       log.debug('No stable release found');
       return;
     }
-    
+
     const latestVersion = latestRelease.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
-    
+
     log.debug(`[SDK Version Check] Current: ${currentVersion}, Latest: ${latestVersion}`);
     
     if (currentVersion !== latestVersion) {
