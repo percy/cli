@@ -72,7 +72,7 @@ describe('getCPUUsageInfo: Linux', () => {
         expect(mockFsRead.calls.count()).toEqual(3);
         expect(mockFsAccess.calls.count()).toEqual(2);
 
-        // si module internall calls os module once
+        // si module internal calls os module once
         // if not mocked
         expect(mockOs.calls.count()).toEqual(0);
         expect(mockSi.calls.count()).toEqual(1);
@@ -177,7 +177,7 @@ describe('getCPUUsageInfo: OtherOS', () => {
     mockSi = spyOn(si, 'cpu').and.returnValue({ cores: 5 });
   });
 
-  it('returns cpu useage info of system level', async () => {
+  it('returns cpu usage info of system level', async () => {
     const cpuInfo = await getCPUUsageInfo(platform);
 
     // checking only types, as values can differ as we are
@@ -199,7 +199,7 @@ describe('getCPUUsageInfo: OtherOS', () => {
   });
 
   describe('when cpu usage do not changed', () => {
-    let mockOsCpuRespnose = [
+    let mockOsCpuResponse = [
       {
         model: 'test',
         speed: 2400,
@@ -213,7 +213,7 @@ describe('getCPUUsageInfo: OtherOS', () => {
     ];
 
     beforeEach(() => {
-      spyOn(os, 'cpus').and.returnValue(mockOsCpuRespnose);
+      spyOn(os, 'cpus').and.returnValue(mockOsCpuResponse);
     });
 
     it('return cpu usage as 0%', async () => {

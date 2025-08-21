@@ -58,7 +58,7 @@ describe('percy config:validate', () => {
     ]);
   });
 
-  it('errors with invalid or unkown config options', async () => {
+  it('errors with invalid or unknown config options', async () => {
     fs.writeFileSync('.invalid.yml', 'version: 2\ntest:\n  value: false\nbar: baz');
     await expectAsync(validate(['.invalid.yml'])).toBeRejected();
 

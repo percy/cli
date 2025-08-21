@@ -183,7 +183,7 @@ describe('percy upload', () => {
   it('stops uploads on process termination', async () => {
     await api.mock({ delay: 100 });
 
-    // specify a low concurrency to interupt the queue later
+    // specify a low concurrency to interrupt the queue later
     fs.writeFileSync('.percy.yml', [
       'version: 2',
       'upload:',

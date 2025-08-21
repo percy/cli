@@ -100,7 +100,7 @@ export const exec = command('exec', {
 });
 
 // Spawn a command with cross-spawn and return an array containing the resulting status code along
-// with any error encountered while running. Uses a generator pattern to handle interupt signals.
+// with any error encountered while running. Uses a generator pattern to handle interrupt signals.
 async function* spawn(cmd, args, percy) {
   let { default: crossSpawn } = await import('cross-spawn');
   let proc, closed, error;

@@ -424,7 +424,7 @@ describe('AutomateProvider', () => {
         automateProvider = new AutomateProvider(args);
       });
 
-      it('generates comparsion tag for mobile', async () => {
+      it('generates comparison tag for mobile', async () => {
         await automateProvider.createDriver();
         await automateProvider.screenshot('abc', { });
 

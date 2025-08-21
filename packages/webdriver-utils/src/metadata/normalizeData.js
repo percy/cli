@@ -25,7 +25,7 @@ export default class NormalizeData {
   }
 
   // Responses for browser version differ for devices and desktops from capabilities
-  // Differenences in selenium and appium responses causes inconsistency
+  // Differences in selenium and appium responses causes inconsistency
   // So to tackle for devices on UI we will show device names else browser versions
   browserVersionOrDeviceNameRollup(browserVersion, deviceName, device) {
     if (device) {

@@ -64,7 +64,7 @@ async function getTotalCores() {
       availableCPUs = quota / period;
     }
   } catch (error) {
-    // supressing this err, as we will use fallback system
+    // suppressing this err, as we will use fallback system
     // level cpu details
   }
   return availableCPUs;
@@ -91,7 +91,7 @@ async function getLinuxCPUUsage() {
     // Get first CPU usage reading
     const startStats = await readCpuStatFromCgroup();
 
-    // Wait for 1 second, ie 10^6 microsecod
+    // Wait for 1 second, ie 10^6 microsecond
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Get second CPU usage reading

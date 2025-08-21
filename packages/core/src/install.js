@@ -6,7 +6,7 @@ import logger from '@percy/logger';
 import cp from 'child_process';
 import { ProxyHttpsAgent, formatBytes } from '@percy/client/utils';
 
-// Formats milleseconds as "MM:SS"
+// Formats milliseconds as "MM:SS"
 function formatTime(ms) {
   let minutes = (ms / 1000 / 60).toString().split('.')[0].padStart(2, '0');
   let seconds = (ms / 1000 % 60).toFixed().padStart(2, '0');

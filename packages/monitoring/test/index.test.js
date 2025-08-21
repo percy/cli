@@ -30,14 +30,14 @@ describe('Monitoring', () => {
       jasmine.clock().uninstall();
     });
 
-    it('calls executeMontoring after some interval', async () => {
+    it('calls executeMonitoring after some interval', async () => {
       await monitoring.startMonitoring();
       expect(mockExecuteMonitoring.calls.count()).toEqual(1);
       jasmine.clock().tick(5002);
       expect(mockExecuteMonitoring.calls.count()).toEqual(2);
       expect(logger.stderr).toEqual(
         jasmine.arrayContaining([
-          '[percy:monitoring] Started monitoring sytem metrics'
+          '[percy:monitoring] Started monitoring system metrics'
         ])
       );
     });
@@ -92,7 +92,7 @@ describe('Monitoring', () => {
       ]));
     });
 
-    it('logs error when unexpected error occured', async () => {
+    it('logs error when unexpected error occurred', async () => {
       spyOn(os, 'arch').and.throwError('err');
       await monitoring.logSystemInfo();
       expect(logger.stderr).toEqual(jasmine.arrayContaining([

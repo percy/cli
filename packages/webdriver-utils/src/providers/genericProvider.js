@@ -156,7 +156,7 @@ export default class GenericProvider {
 
     this.options.percyCSS = (this.options.percyCSS || '').split('\n').join('');
 
-    log.debug('Fetching comparisong tag ...');
+    log.debug('Fetching comparison tag ...');
     const tag = await this.getTag();
     log.debug(`[${name}] : Tag ${JSON.stringify(tag)}`);
 

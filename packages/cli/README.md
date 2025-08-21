@@ -49,7 +49,7 @@ request](https://www.browserstack.com/contact?ref=percy#technical-support).
 
 ## Developing
 
-This project is built with [lerna](https://lerna.js.org/). The core libaries and CLI plugins are
+This project is built with [lerna](https://lerna.js.org/). The core libraries and CLI plugins are
 located in [./packages](./packages). Run `yarn` to install dependencies after cloning the repo and
 use the following scripts for various development tasks:
 

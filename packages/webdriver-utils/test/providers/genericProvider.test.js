@@ -942,7 +942,7 @@ describe('GenericProvider', () => {
         .toBeRejectedWithError('Driver is null, please initialize driver with createDriver().');
     });
 
-    it('calls browserstackExecutor with correct arguemnts for actions only', async () => {
+    it('calls browserstackExecutor with correct arguments for actions only', async () => {
       let provider = new GenericProvider(args);
       await provider.createDriver();
       await provider.browserstackExecutor('getSessionDetails');
@@ -950,7 +950,7 @@ describe('GenericProvider', () => {
         .toHaveBeenCalledWith({ script: 'browserstack_executor: {"action":"getSessionDetails"}', args: [] });
     });
 
-    it('calls browserstackExecutor with correct arguemnts for actions + args', async () => {
+    it('calls browserstackExecutor with correct arguments for actions + args', async () => {
       let provider = new GenericProvider(args);
       await provider.createDriver();
       await provider.browserstackExecutor('getSessionDetails', 'new');
