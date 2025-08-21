@@ -645,7 +645,7 @@ export async function checkSDKVersion(clientInfo) {
     const latestVersion = latestRelease.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
 
     log.debug(`[SDK Version Check] Current: ${currentVersion}, Latest: ${latestVersion}`);
-    
+
     if (currentVersion !== latestVersion) {
       log.warn(`[SDK Update Available] ${packageName}: ${currentVersion} -> ${latestVersion}`);
     }
