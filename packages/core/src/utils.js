@@ -587,9 +587,24 @@ export async function* maybeScrollToBottom(page, discovery) {
 
 // Package to GitHub repo mapping
 const PACKAGE_TO_REPO = {
-  'selenium-webdriver': 'percy-selenium-js',
+  '@percy/selenium-webdriver': 'percy-selenium-js',
+  '@percy/playwright': 'percy-playwright',
+  '@percy/appium-app': 'percy-appium-js',
+  '@percy/storybook': 'percy-storybook',
+  '@percy/ember': 'percy-ember',
+  '@percy/cypress': 'percy-cypress',
+  '@percy/puppeteer': 'percy-puppeteer',
+  '@percy/testcafe': 'percy-testcafe',
+  '@percy/nightwatch': 'percy-nightwatch',
   'percy-java-selenium': 'percy-selenium-java',
-  'percy-selenium-dotnet': 'percy-selenium-dotnet'
+  'percy-playwright-java': 'percy-playwright-java',
+  'percy-appium-dotnet': 'percy-appium-dotnet',
+  'percy-selenium-dotnet': 'percy-selenium-dotnet',
+  'percy-playwright-dotnet': 'percy-playwright-dotnet',
+  'percy-playwright-python': 'percy-playwright-python',
+  'percy-selenium-python': 'percy-selenium-python',
+  'percy-selenium-ruby': 'percy-selenium-ruby',
+  'percy-capybara': 'percy-capybara',
 };
 
 // Utility function to check SDK version updates
@@ -597,9 +612,15 @@ export async function checkSDKVersion(clientInfo) {
   const log = logger('core:sdk-version');
   
   try {
-    const parts = clientInfo.split('/');
-    const packageName = parts[1];  // e.g., 'selenium-webdriver' from '@percy/selenium-webdriver'
-    const currentVersion = parts[2];
+    // Split on the last '/' to get package name and version
+    const lastSlashIndex = clientInfo.lastIndexOf('/');
+    if (lastSlashIndex === -1) {
+      log.debug(`Invalid clientInfo format: ${clientInfo}`);
+      return;
+    }
+    
+    const packageName = clientInfo.substring(0, lastSlashIndex);
+    const currentVersion = clientInfo.substring(lastSlashIndex + 1);
     
     // Get GitHub repo name from mapping
     const repoName = PACKAGE_TO_REPO[packageName];
@@ -626,7 +647,7 @@ export async function checkSDKVersion(clientInfo) {
     log.debug(`[SDK Version Check] Current: ${currentVersion}, Latest: ${latestVersion}`);
     
     if (currentVersion !== latestVersion) {
-      log.warn(`[SDK Update Available] ${parts[0]}/${packageName}: ${currentVersion} -> ${latestVersion}`);
+      log.warn(`[SDK Update Available] ${packageName}: ${currentVersion} -> ${latestVersion}`);
     }
   } catch (error) {
     log.debug('Could not check SDK version');
