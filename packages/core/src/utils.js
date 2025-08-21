@@ -650,6 +650,6 @@ export async function checkSDKVersion(clientInfo) {
       log.warn(`[SDK Update Available] ${packageName}: ${currentVersion} -> ${latestVersion}`);
     }
   } catch (error) {
-    log.debug('Could not check SDK version');
+    log.debug('Could not check SDK version', error);
   }
 }
