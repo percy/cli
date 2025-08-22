@@ -622,7 +622,7 @@ export async function checkSDKVersion(clientInfo) {
     const packageName = clientInfo.substring(0, lastSlashIndex);
     const currentVersion = clientInfo.substring(lastSlashIndex + 1);
 
-    // Get GitHub repo name from mapping
+    // Get GitHub repo name from PACKAGE_TO_REPO mapping
     const repoName = PACKAGE_TO_REPO[packageName];
     if (!repoName) {
       log.debug(`No repo mapping found for package: ${packageName}`);
