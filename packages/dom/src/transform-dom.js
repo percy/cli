@@ -5,7 +5,7 @@ export function dropLoadingAttribute(domElement) {
   domElement.removeAttribute('loading');
 }
 
-export function serializeScrollState(clone, original) {
+export function serializeScrollState(original, clone) {
   if (!original || !clone) return;
 
   // Check and set scrollTop if it exists and has a value
@@ -20,9 +20,9 @@ export function serializeScrollState(clone, original) {
 }
 
 // All transformations that we need to apply for a successful discovery and stable render
-function applyElementTransformations(domElement, originalElement) {
+function applyElementTransformations(originalElement, domElement) {
   dropLoadingAttribute(domElement);
-  serializeScrollState(domElement, originalElement);
+  serializeScrollState(originalElement, domElement);
 }
 
 export default applyElementTransformations;

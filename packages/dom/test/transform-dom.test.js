@@ -22,21 +22,21 @@ describe('transformDOM', () => {
     });
 
     it('does not set attributes if scrollTop and scrollLeft are 0 or undefined', () => {
-      serializeScrollState(clone, original);
+      serializeScrollState(original, clone);
       expect(clone.hasAttribute('data-percy-scrolltop')).toBe(false);
       expect(clone.hasAttribute('data-percy-scrollleft')).toBe(false);
     });
 
     it('sets data-percy-scrolltop if scrollTop is non-zero', () => {
       original.scrollTop = 42;
-      serializeScrollState(clone, original);
+      serializeScrollState(original, clone);
       expect(clone.getAttribute('data-percy-scrolltop')).toBe('42');
       expect(clone.hasAttribute('data-percy-scrollleft')).toBe(false);
     });
 
     it('sets data-percy-scrollleft if scrollLeft is non-zero', () => {
       original.scrollLeft = 17;
-      serializeScrollState(clone, original);
+      serializeScrollState(original, clone);
       expect(clone.getAttribute('data-percy-scrollleft')).toBe('17');
       expect(clone.hasAttribute('data-percy-scrolltop')).toBe(false);
     });
@@ -44,14 +44,14 @@ describe('transformDOM', () => {
     it('sets both attributes if both scrollTop and scrollLeft are non-zero', () => {
       original.scrollTop = 5;
       original.scrollLeft = 10;
-      serializeScrollState(clone, original);
+      serializeScrollState(original, clone);
       expect(clone.getAttribute('data-percy-scrolltop')).toBe('5');
       expect(clone.getAttribute('data-percy-scrollleft')).toBe('10');
     });
 
     it('does nothing if original or clone is missing', () => {
-      expect(() => serializeScrollState(null, original)).not.toThrow();
-      expect(() => serializeScrollState(clone, null)).not.toThrow();
+      expect(() => serializeScrollState(original, null)).not.toThrow();
+      expect(() => serializeScrollState(null, clone)).not.toThrow();
     });
   });
 
