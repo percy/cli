@@ -1,5 +1,5 @@
-import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped } from '../src/utils.js';
-import { logger, setupTest } from './helpers/index.js';
+import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion } from '../src/utils.js';
+import { logger, setupTest, mockRequests } from './helpers/index.js';
 import percyLogger from '@percy/logger';
 import Percy from '@percy/core';
 import Pako from 'pako';
@@ -220,6 +220,64 @@ describe('utils', () => {
       view[0] = 0x1f; // Gzip magic number
       view[1] = 0x8b; // Gzip magic number
       expect(isGzipped(buffer)).toBe(true);
+    });
+  });
+
+  describe('checkSDKVersion', () => {
+    let ghAPI;
+
+    beforeEach(async () => {
+      ghAPI = await mockRequests('https://api.github.com');
+    });
+
+    it('handles invalid clientInfo format', async () => {
+      await checkSDKVersion('invalid-format');
+      expect(logger.stderr).toContain('[percy:core:sdk-version] Invalid clientInfo format: invalid-format');
+    });
+
+    it('handles missing repo mapping', async () => {
+      await checkSDKVersion('unknown-package/1.0.0');
+      expect(logger.stderr).toContain('[percy:core:sdk-version] No repo mapping found for package: unknown-package');
+    });
+
+    it('detects when update is available', async () => {
+      ghAPI.and.returnValue([200, [{ tag_name: 'v2.3.0', prerelease: false }]]);
+      await checkSDKVersion('@percy/selenium-webdriver/2.2.0');
+      expect(logger.stderr).toContain('[percy:core:sdk-version] [SDK Update Available] @percy/selenium-webdriver: 2.2.0 -> 2.3.0');
+    });
+
+    it('handles when no update needed', async () => {
+      ghAPI.and.returnValue([200, [{ tag_name: 'v2.2.0', prerelease: false }]]);
+      await checkSDKVersion('@percy/selenium-webdriver/2.2.0');
+      expect(logger.stderr).not.toContain('[SDK Update Available]');
+      expect(logger.stderr).toContain('[percy:core:sdk-version] [SDK Version Check] Current: 2.2.0, Latest: 2.2.0');
+    });
+
+    it('skips prerelease versions', async () => {
+      ghAPI.and.returnValue([200, [
+        { tag_name: 'v3.0.0-beta.1', prerelease: true },
+        { tag_name: 'v2.3.0', prerelease: false }
+      ]]);
+      await checkSDKVersion('@percy/selenium-webdriver/2.2.0');
+      expect(logger.stderr).toContain('[percy:core:sdk-version] [SDK Update Available] @percy/selenium-webdriver: 2.2.0 -> 2.3.0');
+    });
+
+    it('handles no stable releases found', async () => {
+      ghAPI.and.returnValue([200, [{ tag_name: 'v3.0.0-beta.1', prerelease: true }]]);
+      await checkSDKVersion('@percy/selenium-webdriver/2.2.0');
+      expect(logger.stderr).toContain('[percy:core:sdk-version] No stable release found');
+    });
+
+    it('handles request errors gracefully', async () => {
+      ghAPI.and.returnValue([500, 'Internal Server Error']);
+      await checkSDKVersion('@percy/selenium-webdriver/2.2.0');
+      expect(logger.stderr).toContain('[percy:core:sdk-version] Could not check SDK version');
+    });
+
+    it('handles empty releases array', async () => {
+      ghAPI.and.returnValue([200, []]);
+      await checkSDKVersion('@percy/selenium-webdriver/2.2.0');
+      expect(logger.stderr).toContain('[percy:core:sdk-version] No stable release found');
     });
   });
 });
