@@ -73,7 +73,7 @@ export default class Monitoring {
     this.monitoringId = setInterval(() => {
       this.executeMonitoring();
     }, interval);
-    this.log.debug('Started monitoring sytem metrics');
+    this.log.debug('Started monitoring system metrics');
   }
 
   async executeMonitoring() {
@@ -91,7 +91,7 @@ export default class Monitoring {
       this.memoryUsageInfo = {};
       this.running = false;
       this.lastExecutedAt = null;
-      this.log.debug('Stopped monitoring sytem metrics');
+      this.log.debug('Stopped monitoring system metrics');
     }
   }
 

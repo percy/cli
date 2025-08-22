@@ -104,7 +104,7 @@ describe('DesktopMetaData', () => {
       executeScriptSpy.and.returnValue(Promise.resolve({ value: ['1980', '1080'] }));
     });
 
-    it('calclulates the screen resolution', async () => {
+    it('calculates the screen resolution', async () => {
       screenInfo = await desktopMetaData.screenResolution();
       expect(screenInfo).toEqual('1980 x 1080');
       expect(executeScriptSpy)

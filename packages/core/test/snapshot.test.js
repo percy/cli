@@ -177,7 +177,7 @@ describe('Snapshot', () => {
       });
 
       it('modifies if url is partially encoded', async () => {
-        // Here some character are encoded properly, this test ensure those encoed character should not gets encoded again
+        // Here some character are encoded properly, this test ensure those encoded character should not gets encoded again
         let partiallyEncodedURL = 'http://localhost:8000/advanced-search/cf1a5848-f658-4939-be11-dctwo-%7B%20abc%20[dbd]%20%7D/2253';
         await percy.snapshot([
           { url: partiallyEncodedURL }
@@ -263,7 +263,7 @@ describe('Snapshot', () => {
       });
     });
 
-    describe('with valid snpashot url', () => {
+    describe('with valid snapshot url', () => {
       const sharedExpectNonModifiedSnapshotURL = (expectedURL) => {
         expect(logger.stdout).not.toEqual(jasmine.arrayContaining([
           `[percy] Snapshot URL modified to: ${expectedURL}`
@@ -726,7 +726,7 @@ describe('Snapshot', () => {
   });
 
   it('logs any encountered errors when snapshotting', async () => {
-    // sabatoge something to cause an unexpected error
+    // sabotage something to cause an unexpected error
     spyOn(percy.browser, 'page').and.rejectWith(
       new Error('unexpected snapshot error'));
 

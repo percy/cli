@@ -56,12 +56,12 @@ The following options can also be defined within a Percy config file
   - `userAgent` — Custom user-agent string used when requesting assets
   - `cookies` — Browser cookies to use when requesting assets
   - `networkIdleTimeout` — Milliseconds to wait for the network to idle (**default** `100`)
-  - `concurrency` — Asset discovery concerrency (**default** `5`)
+  - `concurrency` — Asset discovery concurrency (**default** `5`)
   - `launchOptions` — Asset discovery browser launch options
     - `executable` — Browser executable path (**default** `process.env.PERCY_BROWSER_EXECUTABLE`)
     - `timeout` — Discovery launch timeout, in milliseconds (**default** `30000`)
     - `args` — Additional browser process arguments
-    - `headless` — Runs the browser headlessy (**default** `true`)
+    - `headless` — Runs the browser headlessly (**default** `true`)
     
 Additional Percy config file options are also allowed and will override any options defined by a
 local config file. These config file options are also made available to SDKs via the local API
@@ -282,7 +282,7 @@ environment variable.
 
 - Vist https://chromiumdash.appspot.com/releases?platform=Mac and check for current version in use.
 - Get Branch Base Position for that release.
-- Visit https://commondatastorage.googleapis.com/chromium-browser-snapshots/index.html?prefix=Mac/ and search for exact/neareast Branch Base Position.
+- Visit https://commondatastorage.googleapis.com/chromium-browser-snapshots/index.html?prefix=Mac/ and search for exact/nearest Branch Base Position.
 
 ### Excerpt
 

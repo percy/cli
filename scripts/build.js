@@ -43,7 +43,7 @@ async function main({ node, bundle } = argv) {
       await bundle.write(config.output);
       await bundle.close();
 
-      // programatic rollup api doesn't log
+      // programmatic rollup api doesn't log
       console.log(`${
         colors.green(`${config.input} → ${config.output.file}`)
       } (${Date.now() - start}ms)`);

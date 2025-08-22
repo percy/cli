@@ -45,7 +45,7 @@ describe('Unit / Config Migration', () => {
       ['agent']
     ]);
 
-    // cacheResponse -> disabeCache map
+    // cacheResponse -> disableCache map
     expect(mocked.migrate.map[2][2](true)).toEqual(false);
     expect(mocked.migrate.map[2][2](false)).toEqual(true);
   });
