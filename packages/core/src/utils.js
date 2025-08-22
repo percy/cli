@@ -1,5 +1,5 @@
 import EventEmitter from 'events';
-import { sha256hash, request } from '@percy/client/utils';
+import { sha256hash } from '@percy/client/utils';
 import { camelcase, merge } from '@percy/config/utils';
 import YAML from 'yaml';
 import path from 'path';
@@ -630,6 +630,7 @@ export async function checkSDKVersion(clientInfo) {
     }
 
     // Fetch latest version from GitHub releases
+    const { request } = await import('@percy/client/utils');
     const githubData = await request(`https://api.github.com/repos/percy/${repoName}/releases`, {
       headers: { 'User-Agent': '@percy/cli' },
       retries: 0
