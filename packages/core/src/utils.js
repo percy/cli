@@ -630,14 +630,13 @@ export async function checkSDKVersion(clientInfo) {
     }
 
     // Fetch latest version from GitHub releases
-    const githubData = await request(`https://api.github.com/repos/percy/${repoName}/releases`, {
+    const githubData = await request(`https://api.github.com/repos/percy/${repoName}/releases?page=1`, {
       headers: { 'User-Agent': '@percy/cli' },
       retries: 0
     });
 
     const latestRelease = githubData.find(r => !r.prerelease);
     if (!latestRelease) {
-      log.debug('No stable release found');
       return;
     }
 

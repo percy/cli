@@ -262,22 +262,10 @@ describe('utils', () => {
       expect(logger.stderr).toContain('[percy:core:sdk-version] [SDK Update Available] @percy/selenium-webdriver: 2.2.0 -> 2.3.0');
     });
 
-    it('handles no stable releases found', async () => {
-      ghAPI.and.returnValue([200, [{ tag_name: 'v3.0.0-beta.1', prerelease: true }]]);
-      await checkSDKVersion('@percy/selenium-webdriver/2.2.0');
-      expect(logger.stderr).toContain('[percy:core:sdk-version] No stable release found');
-    });
-
     it('handles request errors gracefully', async () => {
       ghAPI.and.returnValue([500, 'Internal Server Error']);
       await checkSDKVersion('@percy/selenium-webdriver/2.2.0');
       expect(logger.stderr).toContain('[percy:core:sdk-version] Could not check SDK version');
-    });
-
-    it('handles empty releases array', async () => {
-      ghAPI.and.returnValue([200, []]);
-      await checkSDKVersion('@percy/selenium-webdriver/2.2.0');
-      expect(logger.stderr).toContain('[percy:core:sdk-version] No stable release found');
     });
   });
 });
