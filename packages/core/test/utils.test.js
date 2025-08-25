@@ -267,5 +267,21 @@ describe('utils', () => {
       await checkSDKVersion('@percy/selenium-webdriver/2.2.0');
       expect(logger.stderr).toContain('[percy:core:sdk-version] Could not check SDK version');
     });
+
+    it('handles empty releases array from GitHub API', async () => {
+      ghAPI.and.returnValue([200, []]);
+      await checkSDKVersion('@percy/selenium-webdriver/2.2.0');
+      expect(logger.stderr).toEqual([]);
+    });
+
+    it('handles releases missing tag_name gracefully', async () => {
+      ghAPI.and.returnValue([200, [
+        { prerelease: false }, // missing tag_name
+        { tag_name: 'v2.3.0', prerelease: true }
+      ]]);
+      await checkSDKVersion('@percy/selenium-webdriver/2.2.0');
+      // Should not log an update or version check, but may log an error
+      expect(logger.stderr).toContain('[percy:core:sdk-version] Could not check SDK version');
+    });
   });
 });
