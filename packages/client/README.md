@@ -51,7 +51,7 @@ await client.sendSnapshot(buildId, snapshotOptions)
 
 - `name` — Snapshot name
 - `widths` — Widths to take screenshots at
-- `minHeight` — Miniumum screenshot height
+- `minHeight` — Minimum screenshot height
 - `enableJavaScript` — Enable JavaScript for screenshots
 - `clientInfo` — Additional client info
 - `environmentInfo` — Additional environment info
@@ -164,4 +164,4 @@ await client.waitForBuild({
 - `commit` — Commit SHA (**required** when missing `build`)
 - `project` — Project slug (**required** when using `commit`)
 - `timeout` — Timeout in milliseconds to wait with no updates (**default** `10 * 60 * 1000`)
-- `interval` — Interval in miliseconds to check for updates (**default** `10000`)
+- `interval` — Interval in milliseconds to check for updates (**default** `10000`)

@@ -65,7 +65,7 @@ to a new stylesheet inserted into the document's head.
 Canvas elements' drawing buffers are serialized as data URIs and the canvas elements are replaced
 with image elements. The image elements reference the serialized data URI and have the same HTML
 attributes as their respective canvas elements. The image elements also have a max-width of 100% to
-accomidate responsive layouts in situations where canvases may be expected to resize with JS.
+accommodate responsive layouts in situations where canvases may be expected to resize with JS.
 
 ### Video elements
 

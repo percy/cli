@@ -239,7 +239,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
   let cookies = snapshot.domSnapshot?.cookies || snapshot.domSnapshot?.[0]?.cookies;
   cookies = parseCookies(cookies);
 
-  // iterate over device to trigger reqeusts and capture other dpr width
+  // iterate over device to trigger requests and capture other dpr width
   async function* captureResponsiveAssets() {
     for (const device of captureForDevices) {
       discovery = { ...discovery, captureResponsiveAssetsEnabled: true };
@@ -317,7 +317,7 @@ async function* captureSnapshotResources(page, snapshot, options) {
     let { widths, execute } = snap;
     let [width] = widths;
 
-    // iterate over widths to trigger reqeusts and capture other widths
+    // iterate over widths to trigger requests and capture other widths
     if (isBaseSnapshot || captureWidths) {
       for (let i = 0; i < widths.length - 1; i++) {
         if (captureWidths) yield* takeSnapshot(snap, width);

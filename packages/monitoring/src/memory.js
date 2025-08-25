@@ -51,7 +51,7 @@ async function getTotalMemory() {
       maxAllocatedMemory = parseInt(maxMemory);
     }
   } catch (error) {
-    // supressing this err, as we will use system level metric
+    // suppressing this err, as we will use system level metric
     // as fallback
   }
 

@@ -104,7 +104,7 @@ export function getSiblings(root) {
   const siblings = [path.join(root, '..')];
 
   // Check if Percy CLI is installed using '.pnpm' by searching
-  // ffor the .pnpm folder in the root path
+  // for the .pnpm folder in the root path
   const nodeModulesIndex = root.indexOf('.pnpm');
   if (nodeModulesIndex !== -1) {
     // add the parent directory of the .pnpm and append /@percy
@@ -114,7 +114,7 @@ export function getSiblings(root) {
   return siblings;
 }
 
-// Imports and returns compatibile CLI commands from various sources
+// Imports and returns compatible CLI commands from various sources
 export async function importCommands() {
   let root = path.resolve(url.fileURLToPath(import.meta.url), '../..');
 

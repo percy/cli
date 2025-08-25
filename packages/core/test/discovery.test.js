@@ -1026,7 +1026,7 @@ describe('Discovery', () => {
   });
 
   describe('devicePixelRatio', () => {
-    it('should warn about depreacted option', async () => {
+    it('should warn about deprecated option', async () => {
       await percy.snapshot({
         name: 'test responsive',
         url: 'http://localhost:8000',

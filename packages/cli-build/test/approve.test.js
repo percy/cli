@@ -121,7 +121,7 @@ describe('percy build:approve', () => {
     ]);
   });
 
-  it('doesnot require percy token', async () => {
+  it('does not require percy token', async () => {
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     process.env.BROWSERSTACK_USERNAME = 'env-username';
     process.env.BROWSERSTACK_ACCESS_KEY = 'env-access-key';

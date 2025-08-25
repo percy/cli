@@ -170,7 +170,7 @@ export class PercyClient {
 
   // Creates a build with optional build resources. Only one build can be
   // created at a time per instance so snapshots and build finalization can be
-  // done more seemlessly without manually tracking build ids
+  // done more seamlessly without manually tracking build ids
   async createBuild({ resources = [], projectType, cliStartTime = null } = {}) {
     this.log.debug('Creating a new build...');
     let source = 'user_created';
@@ -529,7 +529,7 @@ export class PercyClient {
   } = {}) {
     validateId('snapshot', snapshotId);
     // Remove post percy api deploy
-    this.log.debug(`Creating comparision: ${tag.name}...`, meta);
+    this.log.debug(`Creating comparison: ${tag.name}...`, meta);
 
     for (let tile of tiles) {
       if (tile.sha) continue;
@@ -541,7 +541,7 @@ export class PercyClient {
       }
     }
     let regionsArr = makeRegions(regions, algorithm, algorithmConfiguration);
-    this.log.debug(`${tiles.length} tiles for comparision: ${tag.name}...`, meta);
+    this.log.debug(`${tiles.length} tiles for comparison: ${tag.name}...`, meta);
 
     return this.post(`snapshots/${snapshotId}/comparisons`, {
       data: {
