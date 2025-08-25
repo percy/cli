@@ -1,3 +1,8 @@
+// Creates a unique identifier
+export function uid() {
+  return Math.random().toString(36).substr(2, 9);
+}
+
 // Creates a resource object from an element's unique ID and data URL
 export function resourceFromDataURL(uid, dataURL) {
   // split dataURL into desired parts
