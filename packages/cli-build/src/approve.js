@@ -9,10 +9,12 @@ export const approve = command('approve', {
   description: 'Approve Percy builds',
   ...reviewCommandConfig,
   ...{
-    flags: [{
+    flags: [
+      ...reviewCommandConfig.flags,
+      {
         name: 'pass-if-previously-approved',
-        description: 'Does not exit with an error if the build has already been approved',
-    }]
+        description: 'Does not exit with an error if the build has already been approved'
+      }]
   }
 }, async ({ flags, args, percy, log, exit }) => {
   // Early return if Percy is disabled

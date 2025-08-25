@@ -338,7 +338,7 @@ describe('percy build:approve', () => {
     expect(logger.stderr).toEqual([]);
     expect(logger.stdout).toEqual([
       '[percy] Approving build 123...',
-      '[percy] Build 123 is already approved: skipping approval',
+      '[percy] Build 123 is already approved: skipping approval'
     ]);
   });
 });
