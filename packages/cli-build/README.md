@@ -86,24 +86,26 @@ Usage:
   $ percy build:approve [options] <build-id>
 
 Arguments:
-  build-id               Build ID to approve
+  build-id                       Build ID to approve
 
 Options:
-  --username <string>    Username for authentication (can also be set via BROWSERSTACK_USERNAME env
-                         var)
-  --access-key <string>  Access key for authentication (can also be set via BROWSERSTACK_ACCESS_KEY
-                         env var)
+  --username <string>            Username for authentication (can also be set via
+                                 BROWSERSTACK_USERNAME env var)
+  --access-key <string>          Access key for authentication (can also be set via
+                                 BROWSERSTACK_ACCESS_KEY env var)
+  --pass-if-previously-approved  Doesn't exit with an error if there are previous approvals
 
 Global options:
-  -v, --verbose          Log everything
-  -q, --quiet            Log errors only
-  -s, --silent           Log nothing
-  -l, --labels <string>  Associates labels to the build (ex: --labels=dev,prod )
-  -h, --help             Display command help
+  -v, --verbose                  Log everything
+  -q, --quiet                    Log errors only
+  -s, --silent                   Log nothing
+  -l, --labels <string>          Associates labels to the build (ex: --labels=dev,prod )
+  -h, --help                     Display command help
 
 Examples:
   $ percy build:approve <build-id>
   $ percy build:approve <build-id> --username username --access-key **key**
+  $ percy build:approve <build-id> --pass-if-previously-approved
 ```
 
 ### `percy build:unapprove`
