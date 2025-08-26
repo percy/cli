@@ -46,12 +46,13 @@ export const approve = command('approve', {
     log.info(`Build ${args.buildId} approved successfully!`);
     log.info(`Approved by: ${approvedBy.user_name} (${approvedBy.user_email})`);
   } catch (error) {
-    const errors = error.response.body.errors;
-    if (errors && flags.passIfPreviouslyApproved) {
-      if (errors.some(error => error.detail === 'approve action is already performed on this build')) {
-        log.info(`Build ${args.buildId} is already approved: skipping approval`);
-        exit(0);
-      }
+    if (
+      flags.passIfPreviouslyApproved &&
+      Array.isArray(error?.response?.body?.errors) &&
+      error.response.body.errors.some(e => e.detail === 'approve action is already performed on this build')
+    ) {
+      log.info(`Build ${args.buildId} is already approved: skipping approval`);
+      exit(0);
     }
 
     log.error(`Failed to approve build ${args.buildId}`);
