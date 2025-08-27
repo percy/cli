@@ -54,7 +54,7 @@ export default class Monitoring {
       const mem = await getClientMemoryDetails();
       const percyEnvs = this.getPercyEnv();
       const cpuName = os.cpus()[0]?.model.trim() || 'N/A';
-      const diskSpace = await this.getDiskSpaceInfo();
+      const diskSpace = await this.getDiskSpaceInfo(this.os);
 
 
       this.log.debug(`[Operating System] Platform: ${this.os}, Type: ${os.type()}, Release: ${os.release()}`);
