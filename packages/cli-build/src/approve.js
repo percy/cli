@@ -54,7 +54,7 @@ export const approve = command('approve', {
     if (
       flags.passIfPreviouslyApproved &&
       Array.isArray(error?.response?.body?.errors) &&
-      error.response.body.errors.some(e => e.detail === 'approve action is already performed on this build')
+      error.response.body.errors.some(e => e.detail.toLowerCase().includes('approve action is already performed on this build'))
     ) {
       log.info(`Build ${args.buildId} is already approved: skipping approval`);
       exit(0);
