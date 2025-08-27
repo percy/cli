@@ -3,6 +3,7 @@ import si from 'systeminformation';
 import os from 'os';
 import logger from '@percy/logger/test/helpers';
 import { promises as fs } from 'fs';
+import * as disk from '../src/disk.js';
 
 describe('Monitoring', () => {
   let monitoring, mockExecuteMonitoring;
@@ -80,13 +81,17 @@ describe('Monitoring', () => {
       spyOn(os, 'type').and.returnValue('test_type');
       spyOn(os, 'release').and.returnValue('test_release');
       spyOn(si, 'cpu').and.returnValue(Promise.resolve({ cores: 3 }));
+      spyOn(os, 'cpus').and.returnValue([{ model: 'Test CPU' }]);
+      spyOn(disk, 'getDiskSpaceInfo').and.returnValue(Promise.resolve('123.45 gb'));
     });
 
     it('logs os, cpu, memory info', async () => {
       await monitoring.logSystemInfo();
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy:monitoring] [Operating System] Platform: test_platform, Type: test_type, Release: test_release',
+        '[percy:monitoring] [CPU] Name: Test CPU',
         '[percy:monitoring] [CPU] Arch: test_arch, cores: 3',
+        '[percy:monitoring] [Disk] Available Space: 123.45 gb',
         '[percy:monitoring] [Memory] Total: 9.633920457214117 gb, Swap Space: 228.49388815835118 gb',
         '[percy:monitoring] Container Level: false, Pod Level: false, Machine Level: true'
       ]));

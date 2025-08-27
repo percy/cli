@@ -3,6 +3,7 @@ import os from 'os';
 import logger from '@percy/logger';
 import { getCPUUsageInfo, getClientCPUDetails } from './cpu.js';
 import { getMemoryUsageInfo, getClientMemoryDetails } from './memory.js';
+import { getDiskSpaceInfo } from './disk.js'; 
 import { exec as callbackExec } from 'child_process';
 import { promisify } from 'util'
 
@@ -46,27 +47,6 @@ export default class Monitoring {
     return !this.isContainerLevel();
   }
 
-   async getDiskSpaceInfo() {
-    try {
-      if (this.os === 'win32') {
-        // For Windows, use wmic to get FreeSpace on the C: drive
-        const { stdout } = await exec('wmic logicaldisk where "DeviceID=\'C:\'" get FreeSpace /value');
-        const freeSpaceBytes = parseInt(stdout.trim().split('=')[1], 10);
-        if (isNaN(freeSpaceBytes)) return 'N/A';
-        return `${(freeSpaceBytes / (1024 ** 3)).toFixed(2)} gb`;
-      } else {
-        // For macOS and Linux, use 'df' to get available space on the root partition
-        const { stdout } = await exec('df -k /');
-        const lines = stdout.trim().split('\n');
-        const availableKB = parseInt(lines[1].split(/\s+/)[3], 10);
-        if (isNaN(availableKB)) return 'N/A';
-        return `${(availableKB / (1024 ** 2)).toFixed(2)} gb`;
-      }
-    } catch (error) {
-      this.log.debug(`Could not retrieve disk space info: ${error}`);
-      return 'N/A';
-    }
-  }
 
   async logSystemInfo() {
     try {
@@ -78,7 +58,7 @@ export default class Monitoring {
 
 
       this.log.debug(`[Operating System] Platform: ${this.os}, Type: ${os.type()}, Release: ${os.release()}`);
-      this.log.debug(`[CPU] Name: ${cpuName}, Arch: ${cpu.arch}, Cores: ${cpu.cores}`);
+      this.log.debug(`[CPU] Name: ${cpuName}`);
       this.log.debug(`[CPU] Arch: ${cpu.arch}, cores: ${cpu.cores}`);
       this.log.debug(`[Disk] Available Space: ${diskSpace}`);
       this.log.debug(`[Memory] Total: ${mem.total / (1024 ** 3)} gb, Swap Space: ${mem.swaptotal / (1024 ** 3)} gb`);
@@ -146,3 +126,4 @@ export default class Monitoring {
     };
   }
 }
+
