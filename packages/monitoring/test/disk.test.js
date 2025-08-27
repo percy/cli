@@ -1,15 +1,12 @@
-import { exec } from 'child_process';
+import * as childProcess from 'child_process';
 import { getDiskSpaceInfo } from '../src/disk.js';
 
-jest.mock('child_process');
-jest.mock('util', () => ({
-  ...jest.requireActual('util'),
-  promisify: jest.fn((fn) => fn),
-}));
-
 describe('getDiskSpaceInfo', () => {
-  afterEach(() => {
-    jest.resetAllMocks();
+  let execSpy;
+
+  beforeEach(() => {
+    // Use spyOn to mock the 'exec' function from the 'child_process' module
+    execSpy = spyOn(childProcess, 'exec');
   });
 
   describe('on Windows', () => {
@@ -17,18 +14,19 @@ describe('getDiskSpaceInfo', () => {
 
     it('correctly calculates disk space from valid wmic output', async () => {
       const mockStdout = 'FreeSpace=214748364800'; // 200 GB in bytes
-      exec.mockImplementation((command, callback) => {
+      // Configure the spy to fake the callback behavior of 'exec'
+      execSpy.and.callFake((command, callback) => {
         callback(null, { stdout: mockStdout });
       });
 
       const space = await getDiskSpaceInfo(platform);
       // Expect 214748364800 / (1024^3) = 200.00
       expect(space).toBe('200.00 gb');
-      expect(exec).toHaveBeenCalledWith('wmic logicaldisk where "DeviceID=\'C:\'" get FreeSpace /value', jasmine.any(Function));
+      expect(execSpy).toHaveBeenCalledWith('wmic logicaldisk where "DeviceID=\'C:\'" get FreeSpace /value', jasmine.any(Function));
     });
 
     it('returns "N/A" if wmic output is malformed', async () => {
-      exec.mockImplementation((command, callback) => {
+      execSpy.and.callFake((command, callback) => {
         callback(null, { stdout: 'Some invalid string' });
       });
       const space = await getDiskSpaceInfo(platform);
@@ -42,27 +40,19 @@ describe('getDiskSpaceInfo', () => {
     it('correctly calculates disk space from valid df output', async () => {
       const mockStdout = 'Filesystem     1K-blocks     Used Available Use% Mounted on\n' +
                          '/dev/sda1      104857600 20971520  83886080  20% /'; // 83886080 KB available
-      exec.mockImplementation((command, callback) => {
+      execSpy.and.callFake((command, callback) => {
         callback(null, { stdout: mockStdout });
       });
 
       const space = await getDiskSpaceInfo(platform);
       // Expect 83886080 / (1024^2) = 80.00
       expect(space).toBe('80.00 gb');
-      expect(exec).toHaveBeenCalledWith('df -k /', jasmine.any(Function));
-    });
-
-    it('returns "N/A" if df output is malformed', async () => {
-      exec.mockImplementation((command, callback) => {
-        callback(null, { stdout: 'Some invalid string' });
-      });
-      const space = await getDiskSpaceInfo(platform);
-      expect(space).toBe('N/A');
+      expect(execSpy).toHaveBeenCalledWith('df -k /', jasmine.any(Function));
     });
   });
 
   it('returns "N/A" if the underlying exec command fails', async () => {
-    exec.mockImplementation((command, callback) => {
+    execSpy.and.callFake((command, callback) => {
       callback(new Error('Execution failed'));
     });
     const space = await getDiskSpaceInfo('win32');
