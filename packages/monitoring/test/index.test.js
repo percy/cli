@@ -98,7 +98,7 @@ describe('Monitoring', () => {
     '[percy:monitoring] Percy Envs: {"npm_package_dependencies__percy_config":"1.31.2-beta.1","npm_package_dependencies__percy_logger":"1.31.2-beta.1","npm_package_dependencies__percy_sdk_utils":"1.31.2-beta.1","PERCY_LOGLEVEL":"debug"}'
   ]));
 });
-    });
+ 
 
     it('logs error when unexpected error occurred', async () => {
       spyOn(os, 'arch').and.throwError('err');
