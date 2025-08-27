@@ -93,7 +93,7 @@ Options:
                                  BROWSERSTACK_USERNAME env var)
   --access-key <string>          Access key for authentication (can also be set via
                                  BROWSERSTACK_ACCESS_KEY env var)
-  --pass-if-previously-approved  Does not exit with an error if the build has already been approved
+  --pass-if-previously-approved  Does not exit with an error if the build has previous approvals
 
 Global options:
   -v, --verbose                  Log everything
