@@ -86,20 +86,18 @@ describe('Monitoring', () => {
     });
 
     it('logs os, cpu, memory, and disk info', async () => {
-    await monitoring.logSystemInfo();
-    expect(logger.stderr).toEqual(jasmine.arrayContaining([
-      // These values are controlled by mocks, so they are static
-      '[percy:monitoring] [Operating System] Platform: test_platform, Type: test_type, Release: test_release',
-      '[percy:monitoring] [CPU] Name: Test CPU',
-      '[percy:monitoring] [CPU] Arch: test_arch, cores: 3',
-      '[percy:monitoring] Container Level: false, Pod Level: false, Machine Level: true',
-
-      
-      // Use jasmine.stringMatching for any value that might change
-      jasmine.stringMatching(/\[Disk\] Available Space: \d+\.\d{2} gb/),
-      jasmine.stringMatching(/\[Memory\] Total: [\d.]+ gb, Swap Space: [\d.]+ gb/),      // Use jasmine.stringMatching for the JSON blob, as its content can vary
-      jasmine.stringMatching(/\[Percy Envs\]: \{.*\}/)
-    ]));
+  await monitoring.logSystemInfo();
+  
+  expect(logger.stderr).toEqual(jasmine.arrayContaining([
+    '[percy:monitoring] [Operating System] Platform: test_platform, Type: test_type, Release: test_release',
+    '[percy:monitoring] [CPU] Name: Test CPU',
+    '[percy:monitoring] [CPU] Arch: test_arch, cores: 3',
+    '[percy:monitoring] [Disk] Available Space: 157.28 gb',
+    '[percy:monitoring] [Memory] Total: 9.633920457214117 gb, Swap Space: 228.49388815835118 gb',
+    '[percy:monitoring] Container Level: false, Pod Level: false, Machine Level: true',
+    '[percy:monitoring] Percy Envs: {"npm_package_dependencies__percy_config":"1.31.2-beta.1","npm_package_dependencies__percy_logger":"1.31.2-beta.1","npm_package_dependencies__percy_sdk_utils":"1.31.2-beta.1","PERCY_LOGLEVEL":"debug"}'
+  ]));
+});
     });
 
     it('logs error when unexpected error occurred', async () => {
