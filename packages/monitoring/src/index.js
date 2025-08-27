@@ -44,9 +44,9 @@ export default class Monitoring {
     return !this.isContainerLevel();
   }
 
-  async logSystemInfo({ getDiskSpaceInfo: getDiskSpaceInfoParam = getDiskSpaceInfo } = {}) {
+  async logSystemInfo({ getDiskSpaceInfo: getDiskSpaceInfoParam = getDiskSpaceInfo, getClientCPUDetails: getClientCPUDetailsParam = getClientCPUDetails } = {}) {
   try {
-    const cpu = await getClientCPUDetails();
+    const cpu = await getClientCPUDetailsParam();
     const mem = await getClientMemoryDetails();
     const percyEnvs = this.getPercyEnv();
     const cpuName = os.cpus()[0]?.model.trim() || 'N/A';

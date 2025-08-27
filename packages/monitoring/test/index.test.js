@@ -3,6 +3,7 @@ import si from 'systeminformation';
 import os from 'os';
 import logger from '@percy/logger/test/helpers';
 import { promises as fs } from 'fs';
+import * as cpu from '../src/cpu.js';
 
 
 describe('Monitoring', () => {
@@ -101,6 +102,14 @@ describe('Monitoring', () => {
       await monitoring.logSystemInfo();
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy:monitoring] Error logging system info: Error: err'
+      ]));
+    });
+
+    it('logs error when getClientCPUDetails fails', async () => {
+      const getClientCPUDetailsMock = jasmine.createSpy('getClientCPUDetails').and.throwError('Test Error');
+      await monitoring.logSystemInfo({ getClientCPUDetails: getClientCPUDetailsMock });
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy:monitoring] Error logging system info: Error: Test Error'
       ]));
     });
   });

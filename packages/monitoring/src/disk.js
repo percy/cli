@@ -1,14 +1,15 @@
 import { promisify } from 'util';
 import { exec as callbackExec } from 'child_process';
 
-const exec = promisify(callbackExec);
+const defaultExec = promisify(callbackExec);
 
 /**
  * Gets available disk space for the primary system partition.
  * @param {string} platform - The OS platform ('win32', 'linux', 'darwin').
+ * @param {function} exec - Optional exec function for testing.
  * @returns {Promise<string>} The available disk space (e.g., "123.45 gb") or 'N/A'.
  */
-export async function getDiskSpaceInfo(platform) {
+export async function getDiskSpaceInfo(platform, exec = defaultExec) {
   try {
     if (platform === 'win32') {
       // For Windows, use wmic to get FreeSpace on the C: drive. This is standard for PCs.
