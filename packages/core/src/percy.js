@@ -10,7 +10,8 @@ import {
   yieldAll,
   yieldTo,
   redactSecrets,
-  detectSystemProxyAndLog
+  detectSystemProxyAndLog,
+  checkSDKVersion
 } from './utils.js';
 
 import {
@@ -121,6 +122,7 @@ export class Percy {
     // if there is none, stop it
     this.resetMonitoringId = null;
     this.monitoringCheckLastExecutedAt = null;
+    this.sdkInfoDisplayed = false;
 
     // generator methods are wrapped to autorun and return promises
     for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot', 'upload']) {
@@ -437,6 +439,11 @@ export class Percy {
       let server;
 
       try {
+        // Check SDK version
+        if (!this.sdkInfoDisplayed && options.clientInfo) {
+          await checkSDKVersion(options.clientInfo);
+          this.sdkInfoDisplayed = true;
+        }
         if ('serve' in options) {
           // create and start a static server
           let { baseUrl, snapshots } = options;
