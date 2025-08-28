@@ -38,4 +38,12 @@ describe('getDiskSpaceInfo', () => {
     const diskSpace = await getDiskSpaceInfo('linux', exec);
     expect(diskSpace).toBe('N/A');
   });
+
+  it('returns "N/A" when df output is malformed for linux', async () => {
+    // This simulates a case where the "Available" column is missing,
+    // causing parseInt(undefined) which results in NaN.
+    exec = jasmine.createSpy('exec').and.resolveTo({ stdout: 'Filesystem     1K-blocks      Used Use% Mounted on\n/dev/sda1      1234567890 123456789  10% /' });
+    const diskSpace = await getDiskSpaceInfo('linux', exec);
+    expect(diskSpace).toBe('N/A');
+  });
 });

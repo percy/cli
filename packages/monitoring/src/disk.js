@@ -22,7 +22,8 @@ export async function getDiskSpaceInfo(platform, exec = defaultExec) {
       // For macOS and Linux, 'df' checks the root partition. This is the standard for Unix-based PCs.
       const { stdout } = await exec('df -k /');
       const lines = stdout.trim().split('\n');
-      const availableKB = parseInt(lines[1].split(/\s+/)[3], 10);
+      // disk.js - After Change
+      const availableKB = Number(lines[1].split(/\s+/)[3]);
       if (isNaN(availableKB)) return 'N/A';
       // Convert kilobytes to GB: KB / (1024^2)
       return `${(availableKB / (1024 ** 2)).toFixed(2)} gb`;
