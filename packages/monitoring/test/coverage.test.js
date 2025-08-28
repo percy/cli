@@ -39,7 +39,6 @@ describe('Coverage Fixes', () => {
 
       // Mock other async functions called within logSystemInfo
       const getClientCPUDetailsMock = jasmine.createSpy('getClientCPUDetails').and.resolveTo({ arch: 'test_arch', cores: 4 });
-      const getClientMemoryDetailsMock = jasmine.createSpy('getClientMemoryDetails').and.resolveTo({ total: 0, swaptotal: 0 });
       const getDiskSpaceInfoMock = jasmine.createSpy('getDiskSpaceInfo').and.resolveTo('100 gb');
 
       await monitoring.logSystemInfo({

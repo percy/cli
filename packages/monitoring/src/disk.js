@@ -1,7 +1,10 @@
 import { promisify } from 'util';
 import { exec as callbackExec } from 'child_process';
 
-const defaultExec = promisify(callbackExec);
+// We wrap the dependency in an object so we can easily mock it
+export const dependencies = {
+  defaultExec: promisify(callbackExec)
+};
 
 /**
  * Gets available disk space for the primary system partition.
@@ -9,28 +12,21 @@ const defaultExec = promisify(callbackExec);
  * @param {function} exec - Optional exec function for testing.
  * @returns {Promise<string>} The available disk space (e.g., "123.45 gb") or 'N/A'.
  */
-
-export async function getDiskSpaceInfo(platform, exec = defaultExec) {
+export async function getDiskSpaceInfo(platform, exec = dependencies.defaultExec) {
   try {
     if (platform === 'win32') {
-      // For Windows, use wmic to get FreeSpace on the C: drive. This is standard for PCs.
       const { stdout } = await exec('wmic logicaldisk where "DeviceID=\'C:\'" get FreeSpace /value');
-      const freeSpaceBytes = parseInt(stdout.trim().split('=')[1], 10);
+      const freeSpaceBytes = Number(stdout.trim().split('=')[1]);
       if (isNaN(freeSpaceBytes)) return 'N/A';
-      // Convert bytes to GB: bytes / (1024^3)
       return `${(freeSpaceBytes / (1024 ** 3)).toFixed(2)} gb`;
     } else {
-      // For macOS and Linux, 'df' checks the root partition. This is the standard for Unix-based PCs.
       const { stdout } = await exec('df -k /');
       const lines = stdout.trim().split('\n');
-      // disk.js - After Change
       const availableKB = Number(lines[1].split(/\s+/)[3]);
       if (isNaN(availableKB)) return 'N/A';
-      // Convert kilobytes to GB: KB / (1024^2)
       return `${(availableKB / (1024 ** 2)).toFixed(2)} gb`;
     }
   } catch (error) {
-    // If the command fails for any reason, gracefully return 'N/A'.
     return 'N/A';
   }
 }

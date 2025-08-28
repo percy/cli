@@ -1,5 +1,4 @@
-import { getDiskSpaceInfo } from '../src/disk.js';
-import child_process from 'child_process'; // Import the entire module
+import { getDiskSpaceInfo, dependencies } from '../src/disk.js';
 
 describe('getDiskSpaceInfo', () => {
   let exec;
@@ -46,21 +45,17 @@ describe('getDiskSpaceInfo', () => {
     expect(diskSpace).toBe('N/A');
   });
 
-  // This test now correctly mocks the default exec
+  // This test now reliably covers the default parameter
   it('uses the default exec when no exec function is provided', async () => {
     const mockStdout = 'Filesystem     1K-blocks      Used Available Use% Mounted on\n' +
                        '/dev/sda1      999999999 888888888 1234567890  10% /';
 
-    // Correctly spy on the 'exec' method of the imported child_process module
-    spyOn(child_process, 'exec').and.callFake((command, callback) => {
-      // The original exec callback is (error, stdout, stderr)
-      callback(null, mockStdout, '');
-    });
+    // Reliably spy on the exported dependency and mock its resolved value
+    spyOn(dependencies, 'defaultExec').and.resolveTo({ stdout: mockStdout });
 
-    // Call the function WITHOUT the second argument to test the default path
+    // Call the function WITHOUT the second argument
     const diskSpace = await getDiskSpaceInfo('linux');
 
-    // Assert that the function returns the value from our mocked stdout
     expect(diskSpace).toBe('1177.38 gb');
   });
 });
