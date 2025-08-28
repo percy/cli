@@ -1,6 +1,7 @@
 import { promisify } from 'util';
 import { exec as callbackExec } from 'child_process';
 
+
 const defaultExec = promisify(callbackExec);
 
 /**
@@ -9,6 +10,7 @@ const defaultExec = promisify(callbackExec);
  * @param {function} exec - Optional exec function for testing.
  * @returns {Promise<string>} The available disk space (e.g., "123.45 gb") or 'N/A'.
  */
+
 export async function getDiskSpaceInfo(platform, exec = defaultExec) {
   try {
     if (platform === 'win32') {
