@@ -28,24 +28,24 @@ describe('Coverage Fixes', () => {
       spyOn(os, 'release').and.returnValue('test_release');
       spyOn(os, 'arch').and.returnValue('test_arch');
     });
-    
+
     afterEach(() => {
-        delete process.env.PERCY_LOGLEVEL;
+      delete process.env.PERCY_LOGLEVEL;
     });
 
     it('logs "N/A" for CPU name when it cannot be determined', async () => {
       // This test covers the '|| "N/A"' fallback in index.js for the CPU name.
       spyOn(os, 'cpus').and.returnValue([]); // Return an empty array
-      
+
       // Mock other async functions called within logSystemInfo
       const getClientCPUDetailsMock = jasmine.createSpy('getClientCPUDetails').and.resolveTo({ arch: 'test_arch', cores: 4 });
       const getClientMemoryDetailsMock = jasmine.createSpy('getClientMemoryDetails').and.resolveTo({ total: 0, swaptotal: 0 });
       const getDiskSpaceInfoMock = jasmine.createSpy('getDiskSpaceInfo').and.resolveTo('100 gb');
 
       await monitoring.logSystemInfo({
-          getClientCPUDetails: getClientCPUDetailsMock,
-          getDiskSpaceInfo: getDiskSpaceInfoMock,
-          // getClientMemoryDetails is not a param but we mock it via si.mem if needed
+        getClientCPUDetails: getClientCPUDetailsMock,
+        getDiskSpaceInfo: getDiskSpaceInfoMock
+        // getClientMemoryDetails is not a param but we mock it via si.mem if needed
       });
 
       expect(logger.stderr).toEqual(

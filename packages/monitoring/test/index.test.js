@@ -5,7 +5,6 @@ import logger from '@percy/logger/test/helpers';
 import { promises as fs } from 'fs';
 import * as cpu from '../src/cpu.js';
 
-
 describe('Monitoring', () => {
   let monitoring, mockExecuteMonitoring;
   let platform = 'test_platform';

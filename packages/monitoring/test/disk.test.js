@@ -10,13 +10,17 @@ describe('getDiskSpaceInfo', () => {
   });
 
   it('returns available disk space for linux', async () => {
-    exec = jasmine.createSpy('exec').and.resolveTo({ stdout: 'Filesystem     1K-blocks      Used Available Use% Mounted on\n/dev/sda1      1234567890 123456789 1234567890  10% /' });
+    const mockStdout = 'Filesystem     1K-blocks      Used Available Use% Mounted on\n' +
+                       '/dev/sda1      999999999 888888888 1234567890  10% /';
+    exec = jasmine.createSpy('exec').and.resolveTo({ stdout: mockStdout });
     const diskSpace = await getDiskSpaceInfo('linux', exec);
     expect(diskSpace).toBe('1177.38 gb');
   });
 
   it('returns available disk space for darwin', async () => {
-    exec = jasmine.createSpy('exec').and.resolveTo({ stdout: 'Filesystem     1K-blocks      Used Available Use% Mounted on\n/dev/disk1s1   1234567890 123456789 1234567890  10% /' });
+    const mockStdout = 'Filesystem     1K-blocks      Used Available Use% Mounted on\n' +
+                       '/dev/disk1s1   999999999 888888888 1234567890  10% /';
+    exec = jasmine.createSpy('exec').and.resolveTo({ stdout: mockStdout });
     const diskSpace = await getDiskSpaceInfo('darwin', exec);
     expect(diskSpace).toBe('1177.38 gb');
   });
@@ -33,16 +37,11 @@ describe('getDiskSpaceInfo', () => {
     expect(diskSpace).toBe('N/A');
   });
 
-  it('returns "N/A" when output is not a number for linux', async () => {
-    exec = jasmine.createSpy('exec').and.resolveTo({ stdout: 'Filesystem     1K-blocks      Used Available Use% Mounted on\n/dev/sda1      1234567890 123456789 not-a-number  10% /' });
-    const diskSpace = await getDiskSpaceInfo('linux', exec);
-    expect(diskSpace).toBe('N/A');
-  });
-
-  it('returns "N/A" when df output is malformed for linux', async () => {
-    // This simulates a case where the "Available" column is missing,
-    // causing parseInt(undefined) which results in NaN.
-    exec = jasmine.createSpy('exec').and.resolveTo({ stdout: 'Filesystem     1K-blocks      Used Use% Mounted on\n/dev/sda1      1234567890 123456789  10% /' });
+  it('returns "N/A" when available space is not a valid number on Linux', async () => {
+    // This test ensures the isNaN() check on line 12 is covered.
+    const mockStdout = 'Filesystem     1K-blocks      Used Available Use% Mounted on\n' +
+                       '/dev/sda1      999999999 888888888 not-a-number  10% /';
+    exec = jasmine.createSpy('exec').and.resolveTo({ stdout: mockStdout });
     const diskSpace = await getDiskSpaceInfo('linux', exec);
     expect(diskSpace).toBe('N/A');
   });

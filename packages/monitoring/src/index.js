@@ -45,23 +45,23 @@ export default class Monitoring {
   }
 
   async logSystemInfo({ getDiskSpaceInfo: getDiskSpaceInfoParam = getDiskSpaceInfo, getClientCPUDetails: getClientCPUDetailsParam = getClientCPUDetails } = {}) {
-  try {
-    const cpu = await getClientCPUDetailsParam();
-    const mem = await getClientMemoryDetails();
-    const percyEnvs = this.getPercyEnv();
-    const cpuName = os.cpus()[0]?.model.trim() || 'N/A';
-    const diskSpace = await getDiskSpaceInfoParam(this.os);
+    try {
+      const cpu = await getClientCPUDetailsParam();
+      const mem = await getClientMemoryDetails();
+      const percyEnvs = this.getPercyEnv();
+      const cpuName = os.cpus()[0]?.model.trim() || 'N/A';
+      const diskSpace = await getDiskSpaceInfoParam(this.os);
 
-    this.log.debug(`[Operating System] Platform: ${this.os}, Type: ${os.type()}, Release: ${os.release()}`);
-    this.log.debug(`[CPU] Name: ${cpuName}, Arch: ${cpu.arch}, Cores: ${cpu.cores}`);
-    this.log.debug(`[Disk] Available Space: ${diskSpace}`);
-    this.log.debug(`[Memory] Total: ${mem.total / (1024 ** 3)} gb, Swap Space: ${mem.swaptotal / (1024 ** 3)} gb`);
-    this.log.debug(`Container Level: ${this.isContainer}, Pod Level: ${this.isPod}, Machine Level: ${this.isMachine}`);
-    this.log.debug(`Percy Envs: ${JSON.stringify(percyEnvs)}`);
-  } catch (error) {
-    this.log.debug(`Error logging system info: ${error}`);
+      this.log.debug(`[Operating System] Platform: ${this.os}, Type: ${os.type()}, Release: ${os.release()}`);
+      this.log.debug(`[CPU] Name: ${cpuName}, Arch: ${cpu.arch}, Cores: ${cpu.cores}`);
+      this.log.debug(`[Disk] Available Space: ${diskSpace}`);
+      this.log.debug(`[Memory] Total: ${mem.total / (1024 ** 3)} gb, Swap Space: ${mem.swaptotal / (1024 ** 3)} gb`);
+      this.log.debug(`Container Level: ${this.isContainer}, Pod Level: ${this.isPod}, Machine Level: ${this.isMachine}`);
+      this.log.debug(`Percy Envs: ${JSON.stringify(percyEnvs)}`);
+    } catch (error) {
+      this.log.debug(`Error logging system info: ${error}`);
+    }
   }
-}
 
   /**
    * It will start monitoring at certain interval
