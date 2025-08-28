@@ -1,5 +1,5 @@
 import { getDiskSpaceInfo } from '../src/disk.js';
-import { exec as callbackExec } from 'child_process'; // Import the original exec
+import child_process from 'child_process'; // Import the entire module
 
 describe('getDiskSpaceInfo', () => {
   let exec;
@@ -46,21 +46,21 @@ describe('getDiskSpaceInfo', () => {
     expect(diskSpace).toBe('N/A');
   });
 
-  // This new test covers the default parameter branch
+  // This test now correctly mocks the default exec
   it('uses the default exec when no exec function is provided', async () => {
-    // Spy on the original exec from child_process to prevent a real system call
-    spyOn(callbackExec, 'call').and.callFake((...args) => {
-        const callback = args[args.length - 1];
-        const mockStdout = 'Filesystem     1K-blocks      Used Available Use% Mounted on\n' +
-                           '/dev/sda1      999999999 888888888 1234567890  10% /';
-        // Simulate a successful command execution
-        callback(null, { stdout: mockStdout });
+    const mockStdout = 'Filesystem     1K-blocks      Used Available Use% Mounted on\n' +
+                       '/dev/sda1      999999999 888888888 1234567890  10% /';
+
+    // Correctly spy on the 'exec' method of the imported child_process module
+    spyOn(child_process, 'exec').and.callFake((command, callback) => {
+      // The original exec callback is (error, stdout, stderr)
+      callback(null, mockStdout, '');
     });
 
     // Call the function WITHOUT the second argument to test the default path
     const diskSpace = await getDiskSpaceInfo('linux');
 
-    // Assert that the function still works as expected
+    // Assert that the function returns the value from our mocked stdout
     expect(diskSpace).toBe('1177.38 gb');
   });
 });
