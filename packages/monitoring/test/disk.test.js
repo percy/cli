@@ -1,4 +1,5 @@
 import { getDiskSpaceInfo } from '../src/disk.js';
+import { exec as callbackExec } from 'child_process'; // Import the original exec
 
 describe('getDiskSpaceInfo', () => {
   let exec;
@@ -38,11 +39,28 @@ describe('getDiskSpaceInfo', () => {
   });
 
   it('returns "N/A" when available space is not a valid number on Linux', async () => {
-    // This test ensures the isNaN() check is covered.
     const mockStdout = 'Filesystem     1K-blocks      Used Available Use% Mounted on\n' +
                        '/dev/sda1      999999999 888888888 not-a-number  10% /';
     exec = jasmine.createSpy('exec').and.resolveTo({ stdout: mockStdout });
     const diskSpace = await getDiskSpaceInfo('linux', exec);
     expect(diskSpace).toBe('N/A');
+  });
+
+  // This new test covers the default parameter branch
+  it('uses the default exec when no exec function is provided', async () => {
+    // Spy on the original exec from child_process to prevent a real system call
+    spyOn(callbackExec, 'call').and.callFake((...args) => {
+        const callback = args[args.length - 1];
+        const mockStdout = 'Filesystem     1K-blocks      Used Available Use% Mounted on\n' +
+                           '/dev/sda1      999999999 888888888 1234567890  10% /';
+        // Simulate a successful command execution
+        callback(null, { stdout: mockStdout });
+    });
+
+    // Call the function WITHOUT the second argument to test the default path
+    const diskSpace = await getDiskSpaceInfo('linux');
+
+    // Assert that the function still works as expected
+    expect(diskSpace).toBe('1177.38 gb');
   });
 });
