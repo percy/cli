@@ -38,7 +38,7 @@ describe('getDiskSpaceInfo', () => {
   });
 
   it('returns "N/A" when available space is not a valid number on Linux', async () => {
-    // This test ensures the isNaN() check on line 12 is covered.
+    // This test ensures the isNaN() check is covered.
     const mockStdout = 'Filesystem     1K-blocks      Used Available Use% Mounted on\n' +
                        '/dev/sda1      999999999 888888888 not-a-number  10% /';
     exec = jasmine.createSpy('exec').and.resolveTo({ stdout: mockStdout });
