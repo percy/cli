@@ -445,6 +445,42 @@ describe('PlaywrightProvider', () => {
         resolution: 'resolution'
       });
     });
+    it('should return the correct tag details for ios', async () => {
+      spyOn(NormalizeData.prototype, 'osRollUp').and.returnValue('IOS');
+      spyOn(NormalizeData.prototype, 'browserRollUp').and.returnValue('Safari');
+      spyOn(
+        NormalizeData.prototype,
+        'browserVersionOrDeviceNameRollup'
+      ).and.returnValue('iPhone 12');
+      provider.automateResults = {
+        deviceName: 'iPhone 12',
+        capabilities: {
+          os: 'ios',
+          os_version: '14.0',
+          browserName: 'Safari',
+          browserVersion: '14.0'
+        }
+      };
+      const response = await provider.getTag({
+        width: 375,
+        height: 812,
+        resolution: '375x812'
+      });
+
+      expect(NormalizeData.prototype.browserRollUp).toHaveBeenCalledWith('Safari', true);
+      expect(response).toEqual({
+        name: 'iPhone 12',
+        osName: 'IOS',
+        osVersion: '14',
+        width: 375,
+        height: 812,
+        orientation: 'landscape',
+        browserName: 'Safari',
+        browserVersion: 'iPhone 12',
+        resolution: '375x812'
+      });
+    });
+
     it('should throw an error if automateResults is not available', async () => {
       provider.automateResults = null;
       const error = new Error('Comparison tag details not available');
