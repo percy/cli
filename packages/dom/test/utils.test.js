@@ -1,5 +1,45 @@
-import { resourceFromDataURL, resourceFromText, rewriteLocalhostURL, styleSheetFromNode } from '../src/utils';
+import { resourceFromDataURL, resourceFromText, rewriteLocalhostURL, styleSheetFromNode, uid } from '../src/utils';
 describe('utils', () => {
+  describe('uid', () => {
+    it('generates unique identifiers', () => {
+      const id1 = uid();
+      const id2 = uid();
+      const id3 = uid();
+
+      expect(id1).toMatch(/^[a-z0-9]{9}$/);
+      expect(id2).toMatch(/^[a-z0-9]{9}$/);
+      expect(id3).toMatch(/^[a-z0-9]{9}$/);
+      expect(id1).not.toEqual(id2);
+      expect(id2).not.toEqual(id3);
+      expect(id1).not.toEqual(id3);
+    });
+
+    it('generates strings of consistent length', () => {
+      for (let i = 0; i < 10; i++) {
+        const id = uid();
+        expect(id.length).toEqual(9);
+        expect(typeof id).toEqual('string');
+      }
+    });
+
+    it('generates alphanumeric characters only', () => {
+      for (let i = 0; i < 20; i++) {
+        const id = uid();
+        expect(id).toMatch(/^[a-z0-9]+$/);
+      }
+    });
+
+    it('has very low probability of collisions', () => {
+      const generated = new Set();
+      for (let i = 0; i < 1000; i++) {
+        const id = uid();
+        expect(generated.has(id)).toBe(false);
+        generated.add(id);
+      }
+      expect(generated.size).toEqual(1000);
+    });
+  });
+
   describe('styleSheetFromNode', () => {
     it('creates stylesheet properly', () => {
       const node = document.createElement('style');
