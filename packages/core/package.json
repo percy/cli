@@ -52,12 +52,12 @@
     "content-disposition": "^0.5.4",
     "cross-spawn": "^7.0.3",
     "extract-zip": "^2.0.1",
-    "fast-glob": "^3.2.11",
     "micromatch": "^4.0.8",
     "mime-types": "^2.1.34",
     "pako": "^2.1.0",
     "path-to-regexp": "^6.3.0",
     "rimraf": "^3.0.2",
+    "tinyglobby": "^0.2.14",
     "ws": "^8.17.1",
     "yaml": "^2.4.1"
   }
