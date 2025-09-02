@@ -68,10 +68,11 @@ export const upload = command('upload', {
   if (!percy) exit(0, 'Percy is disabled');
   let config = percy.config.upload;
 
-  let { default: glob } = await import('fast-glob');
+  let { glob } = await import('tinyglobby');
   let pathnames = yield glob(config.files, {
     ignore: [].concat(config.ignore || []),
     cwd: args.dirname,
+    expandDirectories: false,
     fs
   });
 
