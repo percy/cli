@@ -145,7 +145,7 @@ export default class PlaywrightProvider extends GenericProvider {
 
   async getTag(tagData) {
     if (!this.automateResults) throw new Error('Comparison tag details not available');
-    const mobileOS = ['ANDROID'];
+    const mobileOS = ['ANDROID', 'IOS'];
     const normalizeTags = new NormalizeData();
     const automateCaps = this.automateResults.capabilities;
     const osName = normalizeTags.osRollUp(automateCaps.os);
