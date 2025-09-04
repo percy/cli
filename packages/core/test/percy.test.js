@@ -81,7 +81,7 @@ describe('Percy', () => {
       cliEnableJavaScript: true,
       responsiveSnapshotCapture: false,
       ignoreCanvasSerializationErrors: false,
-      forceShadowDomAsLightDom: false,
+      forceShadowDomAsLightDom: false
     });
   });
 

@@ -336,7 +336,7 @@ describe('serializeDOM', () => {
       if (getTestBrowser() !== chromeBrowser) {
         return;
       }
-      
+
       class ForceShadowTestElement extends window.HTMLElement {
         constructor() {
           super();
@@ -356,7 +356,7 @@ describe('serializeDOM', () => {
 
       withExample('<force-shadow-test></force-shadow-test>', { withShadow: false });
       const html = serializeDOM({ forceShadowDomAsLightDom: true }).html;
-      
+
       expect(html).toMatch('<h3>Force Shadow Test<span>Nested Content</span></h3>');
       expect(html).not.toMatch('<template shadowrootmode="open"');
       expect(html).not.toMatch('shadowrootserializable');
@@ -379,7 +379,7 @@ describe('serializeDOM', () => {
       }
 
       const html = serializeDOM({ forceShadowDomAsLightDom: true }).html;
-      
+
       // Verify all content is present as light DOM
       for (let i = 0; i < levels; i++) {
         expect(html).toMatch(`<p>Percy-${i}</p>`);
@@ -395,24 +395,24 @@ describe('serializeDOM', () => {
       }
       withExample('<div id="content"></div>', { withShadow: false });
       const baseContent = document.querySelector('#content');
-      
+
       // Create element with slot
       const hostEl = document.createElement('div');
       const shadow = hostEl.attachShadow({ mode: 'open' });
-      
+
       const slot = document.createElement('slot');
       slot.name = 'title';
       shadow.appendChild(slot);
-      
+
       const slottedContent = document.createElement('p');
       slottedContent.setAttribute('slot', 'title');
       slottedContent.textContent = 'Slotted content as light DOM';
       hostEl.appendChild(slottedContent);
-      
+
       baseContent.appendChild(hostEl);
 
       const html = serializeDOM({ forceShadowDomAsLightDom: true }).html;
-      
+
       // When forceShadowDomAsLightDom is true, shadow content becomes light DOM
       // The slot element from shadow DOM will be present, and slotted content remains in light DOM
       expect(html).toMatch('Slotted content as light DOM');
@@ -432,11 +432,11 @@ describe('serializeDOM', () => {
 
       // When both flags are set, disableShadowDOM takes precedence and no shadow content is processed at all
       // This is because disableShadowDOM prevents shadow DOM cloning entirely in clone-dom.js
-      const html = serializeDOM({ 
-        disableShadowDOM: true, 
-        forceShadowDomAsLightDom: true 
+      const html = serializeDOM({
+        disableShadowDOM: true,
+        forceShadowDomAsLightDom: true
       }).html;
-      
+
       expect(html).not.toMatch('<p>Percy-12</p>');
       expect(html).not.toMatch('<template shadowrootmode="open"');
       expect(html).not.toMatch('data-percy-shadow-host');
@@ -452,11 +452,11 @@ describe('serializeDOM', () => {
       baseContent.appendChild(el);
 
       // When only forceShadowDomAsLightDom is true, shadow content should be rendered as light DOM
-      const html = serializeDOM({ 
-        disableShadowDOM: false, 
-        forceShadowDomAsLightDom: true 
+      const html = serializeDOM({
+        disableShadowDOM: false,
+        forceShadowDomAsLightDom: true
       }).html;
-      
+
       expect(html).toMatch('<p>Percy-14</p>');
       expect(html).not.toMatch('<template shadowrootmode="open"');
       expect(html).not.toMatch('data-percy-shadow-host');
@@ -464,188 +464,188 @@ describe('serializeDOM', () => {
   });
 
   it('renders custom image elements with src attribute properly', () => {
-      if (getTestBrowser() !== chromeBrowser) {
-        return;
+    if (getTestBrowser() !== chromeBrowser) {
+      return;
+    }
+
+    class CustomImage extends window.HTMLElement {
+      static get observedAttributes() {
+        return ['src'];
       }
 
-      class CustomImage extends window.HTMLElement {
-        static get observedAttributes() {
-          return ['src'];
-        }
-
-        constructor() {
-          super();
-          this.img = document.createElement('img');
-          this.appendChild(this.img);
-        }
-
-        attributeChangedCallback(name, oldValue, newValue) {
-          if (name === 'src') {
-            this.img.src = newValue || '';
-          }
-        }
+      constructor() {
+        super();
+        this.img = document.createElement('img');
+        this.appendChild(this.img);
       }
 
-      window.customElements.define('custom-image', CustomImage);
+      attributeChangedCallback(name, oldValue, newValue) {
+        if (name === 'src') {
+          this.img.src = newValue || '';
+        }
+      }
+    }
 
-      withExample(`
+    window.customElements.define('custom-image', CustomImage);
+
+    withExample(`
         <custom-image src="https://example.com/test.jpg"></custom-image>
       `, { withShadow: false });
 
-      const html = serializeDOM().html;
+    const html = serializeDOM().html;
 
-      expect(html).toMatch(
-        /<custom-image[^>]*><img src="https:\/\/example\.com\/test\.jpg"><\/custom-image>/
-      );
+    expect(html).toMatch(
+      /<custom-image[^>]*><img src="https:\/\/example\.com\/test\.jpg"><\/custom-image>/
+    );
+  });
+
+  describe('with `domTransformation`', () => {
+    beforeEach(() => {
+      withExample('<span class="delete-me">Delete me</span>', { withShadow: false });
+      spyOn(console, 'error');
     });
 
-    describe('with `domTransformation`', () => {
-      beforeEach(() => {
-        withExample('<span class="delete-me">Delete me</span>', { withShadow: false });
-        spyOn(console, 'error');
+    it('transforms the DOM without modifying the original DOM', () => {
+      let { html } = serializeDOM({
+        domTransformation(dom) {
+          dom.querySelector('.delete-me').remove();
+        }
       });
 
-      it('transforms the DOM without modifying the original DOM', () => {
-        let { html } = serializeDOM({
-          domTransformation(dom) {
-            dom.querySelector('.delete-me').remove();
-          }
-        });
-
-        expect(html).not.toMatch('Delete me');
-        expect(document.querySelector('.delete-me').innerText).toBe('Delete me');
-      });
-
-      it('String: transforms the DOM without modifying the original DOM', () => {
-        let { html } = serializeDOM({
-          domTransformation: "(dom) => { dom.querySelector('.delete-me').remove(); }"
-        });
-
-        expect(html).not.toMatch('Delete me');
-        expect(document.querySelector('.delete-me').innerText).toBe('Delete me');
-      });
-
-      it('String: Logs error when function is not correct', () => {
-        let { html, warnings } = serializeDOM({
-          domTransformation: "(dom) => { dom.querySelector('.delete-me').delete(); }"
-        });
-
-        expect(html).toMatch('Delete me');
-        expect(console.error)
-          .toHaveBeenCalledOnceWith('Could not transform the dom: dom.querySelector(...).delete is not a function');
-
-        expect(warnings).toEqual(['Could not transform the dom: dom.querySelector(...).delete is not a function']);
-      });
-
-      it('logs any errors and returns the serialized DOM', () => {
-        let { html, warnings } = serializeDOM({
-          domTransformation(dom) {
-            throw new Error('test error');
-            // eslint-disable-next-line no-unreachable
-            dom.querySelector('.delete-me').remove();
-          }
-        });
-
-        expect(html).toMatch('Delete me');
-        expect(console.error)
-          .toHaveBeenCalledOnceWith('Could not transform the dom: test error');
-
-        expect(warnings).toEqual(['Could not transform the dom: test error']);
-      });
+      expect(html).not.toMatch('Delete me');
+      expect(document.querySelector('.delete-me').innerText).toBe('Delete me');
     });
 
-    describe('with `reshuffleInvalidTags`', () => {
-      beforeEach(() => {
-        withExample('', { withShadow: false, invalidTagsOutsideBody: true });
+    it('String: transforms the DOM without modifying the original DOM', () => {
+      let { html } = serializeDOM({
+        domTransformation: "(dom) => { dom.querySelector('.delete-me').remove(); }"
       });
 
-      it('does not reshuffle tags outside </body>', () => {
+      expect(html).not.toMatch('Delete me');
+      expect(document.querySelector('.delete-me').innerText).toBe('Delete me');
+    });
+
+    it('String: Logs error when function is not correct', () => {
+      let { html, warnings } = serializeDOM({
+        domTransformation: "(dom) => { dom.querySelector('.delete-me').delete(); }"
+      });
+
+      expect(html).toMatch('Delete me');
+      expect(console.error)
+        .toHaveBeenCalledOnceWith('Could not transform the dom: dom.querySelector(...).delete is not a function');
+
+      expect(warnings).toEqual(['Could not transform the dom: dom.querySelector(...).delete is not a function']);
+    });
+
+    it('logs any errors and returns the serialized DOM', () => {
+      let { html, warnings } = serializeDOM({
+        domTransformation(dom) {
+          throw new Error('test error');
+          // eslint-disable-next-line no-unreachable
+          dom.querySelector('.delete-me').remove();
+        }
+      });
+
+      expect(html).toMatch('Delete me');
+      expect(console.error)
+        .toHaveBeenCalledOnceWith('Could not transform the dom: test error');
+
+      expect(warnings).toEqual(['Could not transform the dom: test error']);
+    });
+  });
+
+  describe('with `reshuffleInvalidTags`', () => {
+    beforeEach(() => {
+      withExample('', { withShadow: false, invalidTagsOutsideBody: true });
+    });
+
+    it('does not reshuffle tags outside </body>', () => {
+      const result = serializeDOM();
+      expect(result.html).toContain('P tag outside body');
+      expect(result.hints).toEqual(['DOM elements found outside </body>']);
+    });
+
+    it('reshuffles tags outside </body>', () => {
+      const result = serializeDOM({ reshuffleInvalidTags: true });
+      expect(result.html).toContain('P tag outside body');
+      expect(result.hints).toEqual([]);
+    });
+  });
+
+  describe('when `ctx.clone.body` is null for about:blank pages', () => {
+    beforeEach(() => {
+      withExample('', { withoutBody: true });
+    });
+
+    it('does not add hints and does not throw an error', () => {
+      expect(() => {
         const result = serializeDOM();
-        expect(result.html).toContain('P tag outside body');
-        expect(result.hints).toEqual(['DOM elements found outside </body>']);
-      });
-
-      it('reshuffles tags outside </body>', () => {
-        const result = serializeDOM({ reshuffleInvalidTags: true });
-        expect(result.html).toContain('P tag outside body');
         expect(result.hints).toEqual([]);
-      });
+      }).not.toThrow();
     });
+  });
 
-    describe('when `ctx.clone.body` is null for about:blank pages', () => {
-      beforeEach(() => {
-        withExample('', { withoutBody: true });
-      });
-
-      it('does not add hints and does not throw an error', () => {
-        expect(() => {
-          const result = serializeDOM();
-          expect(result.hints).toEqual([]);
-        }).not.toThrow();
-      });
+  describe('waitForResize', () => {
+    it('updates window.resizeCount', async () => {
+      waitForResize();
+      expect(window.resizeCount).toEqual(0);
+      // trigger resize event
+      // eslint-disable-next-line no-undef
+      window.dispatchEvent(new Event('resize'));
+      // eslint-disable-next-line no-undef
+      window.dispatchEvent(new Event('resize'));
+      // should be only updated once in 100ms
+      await new Promise((r) => setTimeout(r, 150));
+      expect(window.resizeCount).toEqual(1);
+      waitForResize();
+      expect(window.resizeCount).toEqual(0);
+      // eslint-disable-next-line no-undef
+      window.dispatchEvent(new Event('resize'));
+      await new Promise((r) => setTimeout(r, 150));
+      // there should only one event listener added
+      expect(window.resizeCount).toEqual(1);
     });
+  });
 
-    describe('waitForResize', () => {
-      it('updates window.resizeCount', async () => {
-        waitForResize();
-        expect(window.resizeCount).toEqual(0);
-        // trigger resize event
-        // eslint-disable-next-line no-undef
-        window.dispatchEvent(new Event('resize'));
-        // eslint-disable-next-line no-undef
-        window.dispatchEvent(new Event('resize'));
-        // should be only updated once in 100ms
-        await new Promise((r) => setTimeout(r, 150));
-        expect(window.resizeCount).toEqual(1);
-        waitForResize();
-        expect(window.resizeCount).toEqual(0);
-        // eslint-disable-next-line no-undef
-        window.dispatchEvent(new Event('resize'));
-        await new Promise((r) => setTimeout(r, 150));
-        // there should only one event listener added
-        expect(window.resizeCount).toEqual(1);
-      });
-    });
-
-    describe('error handling', () => {
-      it('adds node details in error message and rethrow it', () => {
-        let oldURL = window.URL;
-        window.URL = undefined;
-        withExample(`
+  describe('error handling', () => {
+    it('adds node details in error message and rethrow it', () => {
+      let oldURL = window.URL;
+      window.URL = undefined;
+      withExample(`
           <img id="test" class="test1 test2" src="data:image/png;base64,iVBORw0KGgo" alt="Example Image">
           `);
 
-        expect(() => serializeDOM()).toThrowMatching((error) => {
-          return error.message.includes('Error cloning node:') &&
+      expect(() => serializeDOM()).toThrowMatching((error) => {
+        return error.message.includes('Error cloning node:') &&
             error.message.includes('{"nodeName":"IMG","classNames":"test1 test2","id":"test"}');
-        });
-        window.URL = oldURL;
       });
+      window.URL = oldURL;
+    });
 
-      it('ignores canvas serialization errors when flag is enabled', () => {
-        withExample(`
+    it('ignores canvas serialization errors when flag is enabled', () => {
+      withExample(`
           <canvas id="canvas" width="150px" height="150px"/>
         `);
 
-        spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('Canvas error'));
+      spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('Canvas error'));
 
-        let result = serializeDOM({ ignoreCanvasSerializationErrors: true });
-        expect(result.warnings).toContain('Canvas Serialization failed, Replaced canvas with empty Image');
-        expect(result.warnings).toContain('Error: Canvas error');
-        expect(result.html).toContain('data-percy-canvas-serialized');
-      });
+      let result = serializeDOM({ ignoreCanvasSerializationErrors: true });
+      expect(result.warnings).toContain('Canvas Serialization failed, Replaced canvas with empty Image');
+      expect(result.warnings).toContain('Error: Canvas error');
+      expect(result.html).toContain('data-percy-canvas-serialized');
+    });
 
-      it('picks ignoreCanvasSerializationErrors flag from options', () => {
-        withExample(`
+    it('picks ignoreCanvasSerializationErrors flag from options', () => {
+      withExample(`
           <canvas id="canvas" width="150px" height="150px"/>
         `);
 
-        spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('Canvas error'));
+      spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('Canvas error'));
 
-        let result = serializeDOM({ ignoreCanvasSerializationErrors: true });
-        expect(result.html).toContain('data-percy-canvas-serialized');
-        expect(result.warnings).toContain('Canvas Serialization failed, Replaced canvas with empty Image');
-        expect(result.warnings).toContain('Error: Canvas error');
-      });
+      let result = serializeDOM({ ignoreCanvasSerializationErrors: true });
+      expect(result.html).toContain('data-percy-canvas-serialized');
+      expect(result.warnings).toContain('Canvas Serialization failed, Replaced canvas with empty Image');
+      expect(result.warnings).toContain('Error: Canvas error');
     });
   });
+});

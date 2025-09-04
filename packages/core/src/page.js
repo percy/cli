@@ -178,7 +178,7 @@ export class Page {
     execute,
     ...snapshot
   }) {
-    let { name, width, enableJavaScript, disableShadowDOM,forceShadowDomAsLightDom, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors } = snapshot;
+    let { name, width, enableJavaScript, disableShadowDOM, forceShadowDomAsLightDom, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors } = snapshot;
     this.log.debug(`Taking snapshot: ${name}${width ? ` @${width}px` : ''}`, this.meta);
 
     // wait for any specified timeout
