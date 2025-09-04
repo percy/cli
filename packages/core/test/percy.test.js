@@ -85,7 +85,7 @@ describe('Percy', () => {
     });
   });
 
-  fit('allows access to create browser pages for other SDKs', async () => {
+  it('allows access to create browser pages for other SDKs', async () => {
     // add a request that fails for coverage when requests aren't intercepted
     let img = '<img src="http://localhost:9000/404.png">';
     server.reply('/', () => [200, 'text/html', `<p>Hello Percy!</p>${img}`]);
