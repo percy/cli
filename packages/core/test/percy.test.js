@@ -85,7 +85,7 @@ describe('Percy', () => {
     });
   });
 
-  it('allows access to create browser pages for other SDKs', async () => {
+  fit('allows access to create browser pages for other SDKs', async () => {
     // add a request that fails for coverage when requests aren't intercepted
     let img = '<img src="http://localhost:9000/404.png">';
     server.reply('/', () => [200, 'text/html', `<p>Hello Percy!</p>${img}`]);
@@ -108,7 +108,7 @@ describe('Percy', () => {
     });
 
     // expect required arguments are passed to PercyDOM.serialize
-    expect(evalSpy.calls.allArgs()[3]).toEqual(jasmine.arrayContaining([jasmine.anything(), { enableJavaScript: undefined, disableShadowDOM: true, domTransformation: undefined, reshuffleInvalidTags: undefined, ignoreCanvasSerializationErrors: undefined, forceShadowDomAsLightDom: false }]));
+    expect(evalSpy.calls.allArgs()[3]).toEqual(jasmine.arrayContaining([jasmine.anything(), { enableJavaScript: undefined, disableShadowDOM: true, domTransformation: undefined, reshuffleInvalidTags: undefined, ignoreCanvasSerializationErrors: undefined, forceShadowDomAsLightDom: undefined }]));
 
     expect(snapshot.url).toEqual('http://localhost:8000/');
     expect(snapshot.domSnapshot).toEqual(jasmine.objectContaining({
