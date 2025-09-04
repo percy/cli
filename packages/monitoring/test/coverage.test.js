@@ -7,7 +7,7 @@ describe('Coverage Fixes', () => {
   describe('getDiskSpaceInfo', () => {
     let exec;
 
-    it('returns "N/A" when output is not a number for darwin', async () => {
+    it('returns "N/A" when output is not a number for non windows', async () => {
       // This test covers the isNaN check in disk.js for non-windows platforms.
       exec = jasmine.createSpy('exec').and.resolveTo({ stdout: 'Filesystem     1K-blocks      Used Available Use% Mounted on\n/dev/disk1s1   1234567890 123456789 not-a-number  10% /' });
       const diskSpace = await getDiskSpaceInfo('darwin', exec);
