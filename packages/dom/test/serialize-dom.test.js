@@ -240,7 +240,7 @@ describe('serializeDOM', () => {
 
       const html = serializeDOM({ disableShadowDOM: true }).html;
       expect(html).not.toMatch('<p>Percy-8</p>');
-      expect(html).not.toMatch('data-percy-shadow-hos=');
+      expect(html).not.toMatch('data-percy-shadow-host=');
     });
 
     it('renders custom elements properly', () => {
