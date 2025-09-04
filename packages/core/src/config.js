@@ -71,6 +71,10 @@ export const configSchema = {
         type: 'boolean',
         default: false
       },
+      forceShadowDomAsLightDom: {
+        type: 'boolean',
+        default: false
+      },
       enableLayout: {
         type: 'boolean'
       },
@@ -384,6 +388,7 @@ export const snapshotSchema = {
         enableJavaScript: { $ref: '/config/snapshot#/properties/enableJavaScript' },
         cliEnableJavaScript: { $ref: '/config/snapshot#/properties/cliEnableJavaScript' },
         disableShadowDOM: { $ref: '/config/snapshot#/properties/disableShadowDOM' },
+        forceShadowDomAsLightDom: { $ref: '/config/snapshot#/properties/forceShadowDomAsLightDom' },
         domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
         enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
         sync: { $ref: '/config/snapshot#/properties/sync' },

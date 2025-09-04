@@ -23,7 +23,7 @@ function doctype(dom) {
 
 // Serializes and returns the cloned DOM as an HTML string
 function serializeHTML(ctx) {
-  let html = getOuterHTML(ctx.clone.documentElement, { shadowRootElements: ctx.shadowRootElements });
+  let html = getOuterHTML(ctx.clone.documentElement, { shadowRootElements: ctx.shadowRootElements, forceShadowDomAsLightDom: ctx.forceShadowDomAsLightDom });
   // this is replacing serialized data tag with real tag
   html = html.replace(/(<\/?)data-percy-custom-element-/g, '$1');
   // replace serialized data attributes with real attributes
@@ -41,21 +41,23 @@ function serializeElements(ctx) {
     serializeCSSOM(ctx);
     serializeCanvas(ctx);
   }
-
-  for (const shadowHost of ctx.dom.querySelectorAll('[data-percy-shadow-host]')) {
-    let percyElementId = shadowHost.getAttribute('data-percy-element-id');
-    let cloneShadowHost = ctx.clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
-    if (shadowHost.shadowRoot && cloneShadowHost.shadowRoot) {
-      // getHTML requires shadowRoot to be passed explicitly
-      // to serialize the shadow elements properly
-      ctx.shadowRootElements.push(cloneShadowHost.shadowRoot);
-      serializeElements({
-        ...ctx,
-        dom: shadowHost.shadowRoot,
-        clone: cloneShadowHost.shadowRoot
-      });
-    } else {
-      ctx.warnings.add('data-percy-shadow-host does not have shadowRoot');
+  // Only process shadow hosts if forceShadowDomAsLightDom is not enabled
+  if (!ctx.forceShadowDomAsLightDom) {
+    for (const shadowHost of ctx.dom.querySelectorAll('[data-percy-shadow-host]')) {
+      let percyElementId = shadowHost.getAttribute('data-percy-element-id');
+      let cloneShadowHost = ctx.clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
+      if (shadowHost.shadowRoot && cloneShadowHost.shadowRoot) {
+        // getHTML requires shadowRoot to be passed explicitly
+        // to serialize the shadow elements properly
+        ctx.shadowRootElements.push(cloneShadowHost.shadowRoot);
+        serializeElements({
+          ...ctx,
+          dom: shadowHost.shadowRoot,
+          clone: cloneShadowHost.shadowRoot
+        });
+      } else {
+        ctx.warnings.add('data-percy-shadow-host does not have shadowRoot');
+      }
     }
   }
 }
@@ -86,7 +88,8 @@ export function serializeDOM(options) {
     stringifyResponse = options?.stringify_response,
     disableShadowDOM = options?.disable_shadow_dom,
     reshuffleInvalidTags = options?.reshuffle_invalid_tags,
-    ignoreCanvasSerializationErrors = options?.ignore_canvas_serialization_errors
+    ignoreCanvasSerializationErrors = options?.ignore_canvas_serialization_errors,
+    forceShadowDomAsLightDom = options?.force_shadow_dom_as_light_dom
   } = options || {};
 
   // keep certain records throughout serialization
@@ -98,7 +101,8 @@ export function serializeDOM(options) {
     shadowRootElements: [],
     enableJavaScript,
     disableShadowDOM,
-    ignoreCanvasSerializationErrors
+    ignoreCanvasSerializationErrors,
+    forceShadowDomAsLightDom
   };
 
   ctx.dom = dom;
