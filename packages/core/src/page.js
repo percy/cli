@@ -178,7 +178,7 @@ export class Page {
     execute,
     ...snapshot
   }) {
-    let { name, width, enableJavaScript, disableShadowDOM, forceShadowDomAsLightDom, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors } = snapshot;
+    let { name, width, enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors } = snapshot;
     this.log.debug(`Taking snapshot: ${name}${width ? ` @${width}px` : ''}`, this.meta);
 
     // wait for any specified timeout
@@ -212,7 +212,7 @@ export class Page {
       /* eslint-disable-next-line no-undef */
       domSnapshot: PercyDOM.serialize(options),
       url: document.URL
-    }), { enableJavaScript, disableShadowDOM, forceShadowDomAsLightDom, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors });
+    }), { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors });
 
     return { ...snapshot, ...capture };
   }

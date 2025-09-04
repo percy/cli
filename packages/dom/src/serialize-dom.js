@@ -23,7 +23,7 @@ function doctype(dom) {
 
 // Serializes and returns the cloned DOM as an HTML string
 function serializeHTML(ctx) {
-  let html = getOuterHTML(ctx.clone.documentElement, { shadowRootElements: ctx.shadowRootElements, forceShadowDomAsLightDom: ctx.forceShadowDomAsLightDom });
+  let html = getOuterHTML(ctx.clone.documentElement, { shadowRootElements: ctx.shadowRootElements, forceShadowAsLightDOM: ctx.forceShadowAsLightDOM });
   // this is replacing serialized data tag with real tag
   html = html.replace(/(<\/?)data-percy-custom-element-/g, '$1');
   // replace serialized data attributes with real attributes
@@ -41,8 +41,8 @@ function serializeElements(ctx) {
     serializeCSSOM(ctx);
     serializeCanvas(ctx);
   }
-  // Only process shadow hosts if forceShadowDomAsLightDom is not enabled
-  if (!ctx.forceShadowDomAsLightDom) {
+  // Only process shadow hosts if forceShadowAsLightDOM is not enabled
+  if (!ctx.forceShadowAsLightDOM) {
     for (const shadowHost of ctx.dom.querySelectorAll('[data-percy-shadow-host]')) {
       let percyElementId = shadowHost.getAttribute('data-percy-element-id');
       let cloneShadowHost = ctx.clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
@@ -89,7 +89,7 @@ export function serializeDOM(options) {
     disableShadowDOM = options?.disable_shadow_dom,
     reshuffleInvalidTags = options?.reshuffle_invalid_tags,
     ignoreCanvasSerializationErrors = options?.ignore_canvas_serialization_errors,
-    forceShadowDomAsLightDom = options?.force_shadow_dom_as_light_dom
+    forceShadowAsLightDOM = options?.force_shadow_dom_as_light_dom
   } = options || {};
 
   // keep certain records throughout serialization
@@ -102,7 +102,7 @@ export function serializeDOM(options) {
     enableJavaScript,
     disableShadowDOM,
     ignoreCanvasSerializationErrors,
-    forceShadowDomAsLightDom
+    forceShadowAsLightDOM
   };
 
   ctx.dom = dom;

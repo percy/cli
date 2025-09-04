@@ -41,7 +41,7 @@ function cloneElementWithoutLifecycle(element) {
 }
 
 export function cloneNodeAndShadow(ctx) {
-  let { dom, disableShadowDOM, forceShadowDomAsLightDom, resources, cache, enableJavaScript } = ctx;
+  let { dom, disableShadowDOM, forceShadowAsLightDOM, resources, cache, enableJavaScript } = ctx;
   // clones shadow DOM and light DOM for a given node
   let cloneNode = (node, parent) => {
     try {
@@ -55,7 +55,7 @@ export function cloneNodeAndShadow(ctx) {
       };
 
       // mark the node before cloning
-      markElement(node, disableShadowDOM, forceShadowDomAsLightDom);
+      markElement(node, disableShadowDOM, forceShadowAsLightDOM);
 
       let clone = cloneElementWithoutLifecycle(node);
 
@@ -94,8 +94,8 @@ export function cloneNodeAndShadow(ctx) {
 
       // clone shadow DOM
       if (node.shadowRoot && !disableShadowDOM) {
-        if (forceShadowDomAsLightDom) {
-          // When forceShadowDomAsLightDom is true, treat shadow content as normal DOM
+        if (forceShadowAsLightDOM) {
+          // When forceShadowAsLightDOM is true, treat shadow content as normal DOM
           walkTree(node.shadowRoot.firstChild, clone);
         } else {
           // create shadowRoot
@@ -135,11 +135,11 @@ export function cloneNodeAndShadow(ctx) {
 /**
  * Use `getInnerHTML()` to serialize shadow dom as <template> tags. `innerHTML` and `outerHTML` don't do this. Buzzword: "declarative shadow dom"
  */
-export function getOuterHTML(docElement, { shadowRootElements, forceShadowDomAsLightDom }) {
+export function getOuterHTML(docElement, { shadowRootElements, forceShadowAsLightDOM }) {
   // chromium gives us declarative shadow DOM serialization API
   let innerHTML = '';
-  // When forceShadowDomAsLightDom is true, treat shadow DOM as normal HTML
-  if (forceShadowDomAsLightDom) {
+  // When forceShadowAsLightDOM is true, treat shadow DOM as normal HTML
+  if (forceShadowAsLightDOM) {
     return docElement.outerHTML;
   }
   /* istanbul ignore else if: Only triggered in chrome <= 128 and tests runs on latest */

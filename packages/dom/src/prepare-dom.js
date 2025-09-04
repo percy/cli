@@ -3,7 +3,7 @@ export function uid() {
   return `_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-export function markElement(domElement, disableShadowDOM, forceShadowDomAsLightDom) {
+export function markElement(domElement, disableShadowDOM, forceShadowAsLightDOM) {
   // Mark elements that are to be serialized later with a data attribute.
   if (['input', 'textarea', 'select', 'iframe', 'canvas', 'video', 'style'].includes(domElement.tagName?.toLowerCase())) {
     if (!domElement.getAttribute('data-percy-element-id')) {
@@ -13,8 +13,8 @@ export function markElement(domElement, disableShadowDOM, forceShadowDomAsLightD
 
   // add special marker for shadow host
   if (!disableShadowDOM && domElement.shadowRoot) {
-    // When forceShadowDomAsLightDom is true, don't mark as shadow host
-    if (!forceShadowDomAsLightDom) {
+    // When forceShadowAsLightDOM is true, don't mark as shadow host
+    if (!forceShadowAsLightDOM) {
       domElement.setAttribute('data-percy-shadow-host', '');
     }
 

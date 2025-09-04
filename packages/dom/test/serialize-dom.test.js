@@ -296,7 +296,7 @@ describe('serializeDOM', () => {
       expect(html).toMatch(new RegExp(stylePattern));
     });
 
-    it('respects forceShadowDomAsLightDom for single element', () => {
+    it('respects forceShadowAsLightDOM for single element', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
@@ -305,14 +305,14 @@ describe('serializeDOM', () => {
       const el = createShadowEl(9);
       baseContent.appendChild(el);
 
-      const html = serializeDOM({ forceShadowDomAsLightDom: true }).html;
+      const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
       expect(html).toMatch('<p>Percy-9</p>');
       expect(html).not.toMatch('<template shadowrootmode="open"');
       expect(html).not.toMatch('shadowrootserializable');
       expect(html).not.toMatch('data-percy-shadow-host');
     });
 
-    it('respects forceShadowDomAsLightDom for nested shadow elements', () => {
+    it('respects forceShadowAsLightDOM for nested shadow elements', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
@@ -324,7 +324,7 @@ describe('serializeDOM', () => {
       el1.shadowRoot.appendChild(el2);
       baseContent.append(el1);
 
-      const html = serializeDOM({ forceShadowDomAsLightDom: true }).html;
+      const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
       expect(html).toMatch('<p>Percy-10</p>');
       expect(html).toMatch('<p>Percy-11</p>');
       expect(html).not.toMatch('<template shadowrootmode="open"');
@@ -332,7 +332,7 @@ describe('serializeDOM', () => {
       expect(html).not.toMatch('data-percy-shadow-host');
     });
 
-    it('respects forceShadowDomAsLightDom for custom elements', () => {
+    it('respects forceShadowAsLightDOM for custom elements', () => {
       if (getTestBrowser() !== chromeBrowser) {
         return;
       }
@@ -355,14 +355,14 @@ describe('serializeDOM', () => {
       }
 
       withExample('<force-shadow-test></force-shadow-test>', { withShadow: false });
-      const html = serializeDOM({ forceShadowDomAsLightDom: true }).html;
+      const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
 
       expect(html).toMatch('<h3>Force Shadow Test<span>Nested Content</span></h3>');
       expect(html).not.toMatch('<template shadowrootmode="open"');
       expect(html).not.toMatch('shadowrootserializable');
     });
 
-    it('respects forceShadowDomAsLightDom with many flat elements', () => {
+    it('respects forceShadowAsLightDOM with many flat elements', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
@@ -378,7 +378,7 @@ describe('serializeDOM', () => {
         baseContent.appendChild(newEl);
       }
 
-      const html = serializeDOM({ forceShadowDomAsLightDom: true }).html;
+      const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
 
       // Verify all content is present as light DOM
       for (let i = 0; i < levels; i++) {
@@ -389,7 +389,7 @@ describe('serializeDOM', () => {
       expect(html).not.toMatch('data-percy-shadow-host');
     });
 
-    it('respects forceShadowDomAsLightDom with slot content', () => {
+    it('respects forceShadowAsLightDOM with slot content', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
@@ -411,9 +411,9 @@ describe('serializeDOM', () => {
 
       baseContent.appendChild(hostEl);
 
-      const html = serializeDOM({ forceShadowDomAsLightDom: true }).html;
+      const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
 
-      // When forceShadowDomAsLightDom is true, shadow content becomes light DOM
+      // When forceShadowAsLightDOM is true, shadow content becomes light DOM
       // The slot element from shadow DOM will be present, and slotted content remains in light DOM
       expect(html).toMatch('Slotted content as light DOM');
       expect(html).toMatch('<slot name="title"></slot>');
@@ -421,7 +421,7 @@ describe('serializeDOM', () => {
       expect(html).not.toMatch('shadowrootserializable');
     });
 
-    it('disableShadowDOM takes precedence over forceShadowDomAsLightDom', () => {
+    it('disableShadowDOM takes precedence over forceShadowAsLightDOM', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
@@ -434,7 +434,7 @@ describe('serializeDOM', () => {
       // This is because disableShadowDOM prevents shadow DOM cloning entirely in clone-dom.js
       const html = serializeDOM({
         disableShadowDOM: true,
-        forceShadowDomAsLightDom: true
+        forceShadowAsLightDOM: true
       }).html;
 
       expect(html).not.toMatch('<p>Percy-12</p>');
@@ -442,7 +442,7 @@ describe('serializeDOM', () => {
       expect(html).not.toMatch('data-percy-shadow-host');
     });
 
-    it('forceShadowDomAsLightDom works independently when disableShadowDOM is false', () => {
+    it('forceShadowAsLightDOM works independently when disableShadowDOM is false', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
@@ -451,10 +451,10 @@ describe('serializeDOM', () => {
       const el = createShadowEl(14);
       baseContent.appendChild(el);
 
-      // When only forceShadowDomAsLightDom is true, shadow content should be rendered as light DOM
+      // When only forceShadowAsLightDOM is true, shadow content should be rendered as light DOM
       const html = serializeDOM({
         disableShadowDOM: false,
-        forceShadowDomAsLightDom: true
+        forceShadowAsLightDOM: true
       }).html;
 
       expect(html).toMatch('<p>Percy-14</p>');
