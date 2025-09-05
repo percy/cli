@@ -25,20 +25,23 @@ export function resourceFromText(uid, mimetype, data) {
 
 export function styleSheetFromNode(node) {
   /* istanbul ignore if: sanity check */
-  if (node.sheet) return node.sheet;
+  try {
+    if (node.sheet) return node.sheet;
+    // Cloned style nodes don't have a sheet instance unless they are within
+    // a document; we get it by temporarily adding the rules to DOM
+    const scratch = document.implementation.createHTMLDocument('percy-scratch');
+    const tempStyle = node.cloneNode();
+    tempStyle.setAttribute('data-percy-style-helper', '');
+    tempStyle.innerHTML = node.innerHTML;
+    scratch.head.appendChild(tempStyle);
+    const sheet = tempStyle.sheet;
+    // Cleanup node
+    tempStyle.remove();
 
-  // Cloned style nodes don't have a sheet instance unless they are within
-  // a document; we get it by temporarily adding the rules to DOM
-  const tempStyle = node.cloneNode();
-  tempStyle.setAttribute('data-percy-style-helper', '');
-  tempStyle.innerHTML = node.innerHTML;
-  const clone = document.cloneNode();
-  clone.appendChild(tempStyle);
-  const sheet = tempStyle.sheet;
-  // Cleanup node
-  tempStyle.remove();
-
-  return sheet;
+    return sheet;
+  } catch {
+    return null;
+  }
 }
 
 export function rewriteLocalhostURL(url) {
