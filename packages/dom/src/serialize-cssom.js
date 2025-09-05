@@ -7,15 +7,31 @@ function isCSSOM(styleSheet) {
   return !styleSheet.href && styleSheet.cssRules && styleSheet.ownerNode;
 }
 
+function safeRulesLen(sheet) {
+  if (!sheet) return null;
+  try {
+    return sheet.cssRules ? sheet.cssRules.length : 0;
+  } catch {
+    return null;
+  }
+}
+
 // Returns false if any stylesheet rules do not match between two stylesheets
 function styleSheetsMatch(sheetA, sheetB) {
-  for (let i = 0; i < sheetA.cssRules.length; i++) {
-    let ruleA = sheetA.cssRules[i].cssText;
-    let ruleB = sheetB.cssRules[i]?.cssText;
-    if (ruleA !== ruleB) return false;
+  const lenA = safeRulesLen(sheetA);
+  const lenB = safeRulesLen(sheetB);
+  if (lenA == null || lenB == null) return false;
+  if (lenA !== lenB) return false;
+  try {
+    for (let i = 0; i < lenA; i++) {
+      let ruleA = sheetA.cssRules[i].cssText;
+      let ruleB = sheetB.cssRules[i]?.cssText;
+      if (ruleA !== ruleB) return false;
+    }
+    return true;
+  } catch {
+    return false;
   }
-
-  return true;
 }
 
 function createStyleResource(styleSheet) {
