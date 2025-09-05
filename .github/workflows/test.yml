@@ -82,7 +82,9 @@ jobs:
           path: packages
       - run: yarn
       - name: Install browser dependencies
-        run: sudo apt-get install -y libgbm-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --fix-missing libgbm-dev
         if: ${{ matrix.os == 'ubuntu-latest' }}
       - name: Run tests
         run: yarn workspace ${{ matrix.package }} test:coverage --colors
