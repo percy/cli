@@ -262,6 +262,93 @@ describe('serializeCSSOM', () => {
       });
     });
 
+    it('falls back when stylesheet cssRules access throws', () => {
+      withExample('<div class="box"></div>');
+      withCSSOM('.box { height: 500px; }');
+
+      const sheet = document.styleSheets[0];
+      const owner = sheet.ownerNode;
+      owner.setAttribute('data-percy-element-id', 'test-id');
+
+      const clone = document.createDocumentFragment();
+      const cloneOwner = document.createElement('style');
+      cloneOwner.setAttribute('data-percy-element-id', 'test-id');
+      Object.defineProperty(cloneOwner, 'sheet', {
+        get() {
+          return {
+            ownerNode: cloneOwner,
+            get cssRules() { throw new Error('cssRules access error'); }
+          };
+        },
+        configurable: true
+      });
+      clone.appendChild(cloneOwner);
+
+      const resources = new Set();
+      const cache = new Map();
+      const warnings = new Set();
+
+      expect(() => serializeCSSOM({ dom: document, clone, resources, cache, warnings })).not.toThrow();
+
+      let found = false;
+      for (let node of clone.childNodes) {
+        if (node.getAttribute && node.getAttribute('data-percy-cssom-serialized') === 'true') {
+          found = true;
+          break;
+        }
+      }
+      expect(found).toBe(true);
+    });
+    it('falls back when stylesheet cssRules access throws', () => {
+      withExample('<div class="box"></div>');
+      withCSSOM('.box { height: 500px; }');
+
+      const sheet = document.styleSheets[0];
+      const owner = sheet.ownerNode;
+      owner.setAttribute('data-percy-element-id', 'test-id');
+
+      const resources = new Set();
+      const cache = new Map();
+      const warnings = new Set();
+
+      function runCloneWithSheet(getter, expectInserted = true) {
+        const clone = document.createDocumentFragment();
+        const cloneOwner = document.createElement('style');
+        cloneOwner.setAttribute('data-percy-element-id', 'test-id');
+        if (getter) {
+          Object.defineProperty(cloneOwner, 'sheet', {
+            get() { return getter(cloneOwner); },
+            configurable: true
+          });
+        }
+        clone.appendChild(cloneOwner);
+        expect(() => serializeCSSOM({ dom: document, clone, resources, cache, warnings })).not.toThrow();
+        let found = false;
+        for (let node of clone.childNodes) {
+          if (node.getAttribute && node.getAttribute('data-percy-cssom-serialized') === 'true') {
+            found = true;
+            break;
+          }
+        }
+        expect(found).toBe(expectInserted);
+      }
+
+      runCloneWithSheet(() => null, true);
+      runCloneWithSheet(() => ({ ownerNode: null, cssRules: [] }), true);
+      runCloneWithSheet(() => ({
+        ownerNode: null,
+        cssRules: [{ cssText: '.box { height: 999px; }' }]
+      }), true);
+      runCloneWithSheet(() => ({
+        ownerNode: null,
+        cssRules: [{ cssText: '.box { height: 500px; }' }]
+      }), false);
+      runCloneWithSheet((cloneOwner) => ({
+        ownerNode: cloneOwner,
+        get cssRules() { throw new Error('cssRules access error'); }
+      }), true);
+    });
+
     it('handles error and add stylesheet blob details', async () => {
       withExample('<div class="box"></div>', { withShadow: false });
       const cssStyle1 = '.box { height: 800px; }';

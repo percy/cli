@@ -10,6 +10,10 @@ describe('utils', () => {
       // nonce needs to be copied
       expect(cloneSpy).toHaveBeenCalled();
     });
+
+    it('returns null when passed an invalid node', () => {
+      expect(styleSheetFromNode(null)).toBeNull();
+    });
   });
 
   describe('resourceFromDataURL', () => {
