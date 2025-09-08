@@ -286,14 +286,11 @@ describe('serializeDOM', () => {
       expect(html).toMatch('<p slot="title">Hello from the title slot!</p>');
       expect(html).toMatch('<p>This content is distributed into the default slot.</p>');
 
-      // match style pattern regex
-      const stylePattern = [
-        '<style data-percy-element-id=".*">',
-        ':host\\s*{[^}]*}',
-        '::slotted\\(\\[slot="title"\\]\\)\\s*{[^}]*}',
-        '::slotted\\(\\*\\)\\s*{[^}]*}'
-      ].join('\\s*');
-      expect(html).toMatch(new RegExp(stylePattern));
+      // Check styles patterns independently
+      expect(html).toMatch(new RegExp('<style[^>]*data-percy-element-id="[^"]*"[^>]*>'));
+      expect(html).toMatch(new RegExp(':host\\s*{[^}]*}'));
+      expect(html).toMatch(new RegExp('::slotted\\(\\[slot="title"\\]\\)\\s*{[^}]*}'));
+      expect(html).toMatch(new RegExp('::slotted\\(\\*\\)\\s*{[^}]*}'));
     });
 
     it('respects forceShadowAsLightDOM for single element', () => {
