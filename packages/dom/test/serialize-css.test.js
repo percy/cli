@@ -339,10 +339,17 @@ describe('serializeCSSOM', () => {
         ownerNode: null,
         cssRules: [{ cssText: '.box { height: 999px; }' }]
       }), true);
+      runCloneWithSheet(() => ({ ownerNode: null, cssRules: null }), true);
+      runCloneWithSheet(() => 'not-an-object', true);
+      runCloneWithSheet(() => { throw new Error('sheet access error'); }, true);
       runCloneWithSheet(() => ({
         ownerNode: null,
         cssRules: [{ cssText: '.box { height: 500px; }' }]
       }), false);
+      runCloneWithSheet((cloneOwner) => ({
+        ownerNode: cloneOwner,
+        get cssRules() { return []; }
+      }), true);
       runCloneWithSheet((cloneOwner) => ({
         ownerNode: cloneOwner,
         get cssRules() { throw new Error('cssRules access error'); }

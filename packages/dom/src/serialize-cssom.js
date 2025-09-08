@@ -9,21 +9,30 @@ function isCSSOM(styleSheet) {
 
 // Returns false if any stylesheet rules do not match between two stylesheets
 function styleSheetsMatch(sheetA, sheetB) {
-  let lenA = 0, lenB = 0;
-  try {
-    lenA = sheetA?.cssRules?.length;
-    lenB = sheetB?.cssRules?.length;
-
-    if (lenA !== lenB) return false;
-    for (let i = 0; i < lenA; i++) {
-      let ruleA = sheetA.cssRules[i].cssText;
-      let ruleB = sheetB.cssRules[i]?.cssText;
-      if (ruleA !== ruleB) return false;
-    }
-    return true;
-  } catch {
+  if (!sheetA || !sheetB) return false;
+  const hasOwnAccessor = (obj, prop) => {
+    if (!obj || typeof obj !== 'object') return false;
+    const desc = Object.getOwnPropertyDescriptor(obj, prop);
+    return !!(desc && (typeof desc.get === 'function' || typeof desc.set === 'function'));
+  };
+  if (hasOwnAccessor(sheetA, 'cssRules') || hasOwnAccessor(sheetB, 'cssRules')) {
     return false;
   }
+
+  if (!sheetA.cssRules || !sheetB.cssRules) return false;
+
+  const lenA = sheetA.cssRules.length;
+  const lenB = sheetB.cssRules.length;
+
+  if (lenA !== lenB) return false;
+
+  for (let i = 0; i < lenA; i++) {
+    const ruleA = sheetA.cssRules[i] && sheetA.cssRules[i].cssText;
+    const ruleB = sheetB.cssRules[i] && sheetB.cssRules[i].cssText;
+    if (ruleA !== ruleB) return false;
+  }
+
+  return true;
 }
 
 function createStyleResource(styleSheet) {
