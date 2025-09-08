@@ -7,7 +7,7 @@ jobs:
     name: Build Executables
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
           node-version: 14
@@ -39,9 +39,9 @@ jobs:
     name: Sign Win Executable
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
       - name: Download win artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: win-exe
       - name: Set up Node.js

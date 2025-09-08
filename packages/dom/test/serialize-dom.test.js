@@ -295,6 +295,172 @@ describe('serializeDOM', () => {
       ].join('\\s*');
       expect(html).toMatch(new RegExp(stylePattern));
     });
+
+    it('respects forceShadowAsLightDOM for single element', () => {
+      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+        return;
+      }
+      withExample('<div id="content"></div>', { withShadow: false });
+      const baseContent = document.querySelector('#content');
+      const el = createShadowEl(9);
+      baseContent.appendChild(el);
+
+      const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
+      expect(html).toMatch('<p>Percy-9</p>');
+      expect(html).not.toMatch('<template shadowrootmode="open"');
+      expect(html).not.toMatch('shadowrootserializable');
+      expect(html).not.toMatch('data-percy-shadow-host');
+    });
+
+    it('respects forceShadowAsLightDOM for nested shadow elements', () => {
+      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+        return;
+      }
+      withExample('<div id="content"></div>', { withShadow: false });
+      const baseContent = document.querySelector('#content');
+
+      const el1 = createShadowEl(10);
+      const el2 = createShadowEl(11);
+      el1.shadowRoot.appendChild(el2);
+      baseContent.append(el1);
+
+      const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
+      expect(html).toMatch('<p>Percy-10</p>');
+      expect(html).toMatch('<p>Percy-11</p>');
+      expect(html).not.toMatch('<template shadowrootmode="open"');
+      expect(html).not.toMatch('shadowrootserializable');
+      expect(html).not.toMatch('data-percy-shadow-host');
+    });
+
+    it('respects forceShadowAsLightDOM for custom elements', () => {
+      if (getTestBrowser() !== chromeBrowser) {
+        return;
+      }
+
+      class ForceShadowTestElement extends window.HTMLElement {
+        constructor() {
+          super();
+          const shadow = this.attachShadow({ mode: 'open', serializable: true });
+          const wrapper = document.createElement('h3');
+          wrapper.innerText = 'Force Shadow Test';
+          const nested = document.createElement('span');
+          nested.innerText = 'Nested Content';
+          wrapper.appendChild(nested);
+          shadow.appendChild(wrapper);
+        }
+      }
+
+      if (!window.customElements.get('force-shadow-test')) {
+        window.customElements.define('force-shadow-test', ForceShadowTestElement);
+      }
+
+      withExample('<force-shadow-test></force-shadow-test>', { withShadow: false });
+      const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
+
+      expect(html).toMatch('<h3>Force Shadow Test<span>Nested Content</span></h3>');
+      expect(html).not.toMatch('<template shadowrootmode="open"');
+      expect(html).not.toMatch('shadowrootserializable');
+    });
+
+    it('respects forceShadowAsLightDOM with many flat elements', () => {
+      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+        return;
+      }
+      withExample('<div id="content"></div>', { withShadow: false });
+      const baseContent = document.querySelector('#content');
+
+      const levels = 50; // Reduced for performance in tests
+
+      let j = levels;
+
+      while (j--) {
+        let newEl = createShadowEl(j);
+        baseContent.appendChild(newEl);
+      }
+
+      const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
+
+      // Verify all content is present as light DOM
+      for (let i = 0; i < levels; i++) {
+        expect(html).toMatch(`<p>Percy-${i}</p>`);
+      }
+      expect(html).not.toMatch('<template shadowrootmode="open"');
+      expect(html).not.toMatch('shadowrootserializable');
+      expect(html).not.toMatch('data-percy-shadow-host');
+    });
+
+    it('respects forceShadowAsLightDOM with slot content', () => {
+      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+        return;
+      }
+      withExample('<div id="content"></div>', { withShadow: false });
+      const baseContent = document.querySelector('#content');
+
+      // Create element with slot
+      const hostEl = document.createElement('div');
+      const shadow = hostEl.attachShadow({ mode: 'open' });
+
+      const slot = document.createElement('slot');
+      slot.name = 'title';
+      shadow.appendChild(slot);
+
+      const slottedContent = document.createElement('p');
+      slottedContent.setAttribute('slot', 'title');
+      slottedContent.textContent = 'Slotted content as light DOM';
+      hostEl.appendChild(slottedContent);
+
+      baseContent.appendChild(hostEl);
+
+      const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
+
+      // When forceShadowAsLightDOM is true, shadow content becomes light DOM
+      // The slot element from shadow DOM will be present, and slotted content remains in light DOM
+      expect(html).toMatch('Slotted content as light DOM');
+      expect(html).toMatch('<slot name="title"></slot>');
+      expect(html).not.toMatch('<template shadowrootmode="open"');
+      expect(html).not.toMatch('shadowrootserializable');
+    });
+
+    it('disableShadowDOM takes precedence over forceShadowAsLightDOM', () => {
+      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+        return;
+      }
+      withExample('<div id="content"></div>', { withShadow: false });
+      const baseContent = document.querySelector('#content');
+      const el = createShadowEl(12);
+      baseContent.appendChild(el);
+
+      // When both flags are set, disableShadowDOM takes precedence and no shadow content is processed at all
+      // This is because disableShadowDOM prevents shadow DOM cloning entirely in clone-dom.js
+      const html = serializeDOM({
+        disableShadowDOM: true,
+        forceShadowAsLightDOM: true
+      }).html;
+
+      expect(html).not.toMatch('<p>Percy-12</p>');
+      expect(html).not.toMatch('<template shadowrootmode="open"');
+      expect(html).not.toMatch('data-percy-shadow-host');
+    });
+
+    it('forceShadowAsLightDOM works independently when disableShadowDOM is false', () => {
+      if (!navigator.userAgent.toLowerCase().includes('chrome')) {
+        return;
+      }
+      withExample('<div id="content"></div>', { withShadow: false });
+      const baseContent = document.querySelector('#content');
+      const el = createShadowEl(14);
+      baseContent.appendChild(el);
+
+      // When only forceShadowAsLightDOM is true, shadow content should be rendered as light DOM
+      const html = serializeDOM({
+        disableShadowDOM: false,
+        forceShadowAsLightDOM: true
+      }).html;
+
+      expect(html).toMatch('<p>Percy-14</p>');
+      expect(html).not.toMatch('<template shadowrootmode="open"');
+      expect(html).not.toMatch('data-percy-shadow-host');
+    });
   });
 
   it('renders custom image elements with src attribute properly', () => {
@@ -323,8 +489,8 @@ describe('serializeDOM', () => {
     window.customElements.define('custom-image', CustomImage);
 
     withExample(`
-      <custom-image src="https://example.com/test.jpg"></custom-image>
-    `, { withShadow: false });
+        <custom-image src="https://example.com/test.jpg"></custom-image>
+      `, { withShadow: false });
 
     const html = serializeDOM().html;
 
@@ -446,20 +612,20 @@ describe('serializeDOM', () => {
       let oldURL = window.URL;
       window.URL = undefined;
       withExample(`
-        <img id="test" class="test1 test2" src="data:image/png;base64,iVBORw0KGgo" alt="Example Image">
-        `);
+          <img id="test" class="test1 test2" src="data:image/png;base64,iVBORw0KGgo" alt="Example Image">
+          `);
 
       expect(() => serializeDOM()).toThrowMatching((error) => {
         return error.message.includes('Error cloning node:') &&
-          error.message.includes('{"nodeName":"IMG","classNames":"test1 test2","id":"test"}');
+            error.message.includes('{"nodeName":"IMG","classNames":"test1 test2","id":"test"}');
       });
       window.URL = oldURL;
     });
 
     it('ignores canvas serialization errors when flag is enabled', () => {
       withExample(`
-        <canvas id="canvas" width="150px" height="150px"/>
-      `);
+          <canvas id="canvas" width="150px" height="150px"/>
+        `);
 
       spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('Canvas error'));
 
@@ -471,8 +637,8 @@ describe('serializeDOM', () => {
 
     it('picks ignoreCanvasSerializationErrors flag from options', () => {
       withExample(`
-        <canvas id="canvas" width="150px" height="150px"/>
-      `);
+          <canvas id="canvas" width="150px" height="150px"/>
+        `);
 
       spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('Canvas error'));
 
