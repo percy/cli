@@ -53,7 +53,8 @@ export default class Monitoring {
       const diskSpace = await getDiskSpaceInfoParam(this.os);
 
       this.log.debug(`[Operating System] Platform: ${this.os}, Type: ${os.type()}, Release: ${os.release()}`);
-      this.log.debug(`[CPU] Name: ${cpuName}, Arch: ${cpu.arch}, Cores: ${cpu.cores}`);
+      this.log.debug(`[CPU] Name: ${cpuName}`);
+      this.log.debug(`[CPU] Arch: ${cpu.arch}, Cores: ${cpu.cores}`);
       this.log.debug(`[Disk] Available Space: ${diskSpace}`);
       this.log.debug(`[Memory] Total: ${mem.total / (1024 ** 3)} gb, Swap Space: ${mem.swaptotal / (1024 ** 3)} gb`);
       this.log.debug(`Container Level: ${this.isContainer}, Pod Level: ${this.isPod}, Machine Level: ${this.isMachine}`);

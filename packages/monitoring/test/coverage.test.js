@@ -49,7 +49,8 @@ describe('Coverage Fixes', () => {
 
       expect(logger.stderr).toEqual(
         jasmine.arrayContaining([
-          '[percy:monitoring] [CPU] Name: N/A, Arch: test_arch, Cores: 4'
+          '[percy:monitoring] [CPU] Name: N/A',
+          '[percy:monitoring] [CPU] Arch: test_arch, Cores: 4'
         ])
       );
     });
