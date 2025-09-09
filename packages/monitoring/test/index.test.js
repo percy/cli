@@ -80,13 +80,17 @@ describe('Monitoring', () => {
       spyOn(os, 'type').and.returnValue('test_type');
       spyOn(os, 'release').and.returnValue('test_release');
       spyOn(si, 'cpu').and.returnValue(Promise.resolve({ cores: 3 }));
+      spyOn(os, 'cpus').and.returnValue([{ model: 'Test CPU Model' }]);
     });
 
     it('logs os, cpu, memory info', async () => {
-      await monitoring.logSystemInfo();
+      const getDiskSpaceInfoMock = jasmine.createSpy('getDiskSpaceInfo').and.returnValue(Promise.resolve('123.45 gb'));
+      await monitoring.logSystemInfo({ getDiskSpaceInfo: getDiskSpaceInfoMock });
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy:monitoring] [Operating System] Platform: test_platform, Type: test_type, Release: test_release',
+        '[percy:monitoring] [CPU] Name: Test CPU Model',
         '[percy:monitoring] [CPU] Arch: test_arch, cores: 3',
+        '[percy:monitoring] [Disk] Available Space: 123.45 gb',
         '[percy:monitoring] [Memory] Total: 9.633920457214117 gb, Swap Space: 228.49388815835118 gb',
         '[percy:monitoring] Container Level: false, Pod Level: false, Machine Level: true'
       ]));
@@ -97,6 +101,14 @@ describe('Monitoring', () => {
       await monitoring.logSystemInfo();
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy:monitoring] Error logging system info: Error: err'
+      ]));
+    });
+
+    it('logs error when getClientCPUDetails fails', async () => {
+      const getClientCPUDetailsMock = jasmine.createSpy('getClientCPUDetails').and.throwError('Test Error');
+      await monitoring.logSystemInfo({ getClientCPUDetails: getClientCPUDetailsMock });
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy:monitoring] Error logging system info: Error: Test Error'
       ]));
     });
   });
