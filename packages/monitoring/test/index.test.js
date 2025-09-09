@@ -89,7 +89,7 @@ describe('Monitoring', () => {
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy:monitoring] [Operating System] Platform: test_platform, Type: test_type, Release: test_release',
         '[percy:monitoring] [CPU] Name: Test CPU Model',
-        '[percy:monitoring] [CPU] Arch: test_arch, Cores: 3',
+        '[percy:monitoring] [CPU] Arch: test_arch, cores: 3',
         '[percy:monitoring] [Disk] Available Space: 123.45 gb',
         '[percy:monitoring] [Memory] Total: 9.633920457214117 gb, Swap Space: 228.49388815835118 gb',
         '[percy:monitoring] Container Level: false, Pod Level: false, Machine Level: true'
