@@ -32,7 +32,7 @@ export function styleSheetFromNode(node) {
     const scratch = document.implementation.createHTMLDocument('percy-scratch');
     const tempStyle = node.cloneNode();
     tempStyle.setAttribute('data-percy-style-helper', '');
-    tempStyle.innerHTML = node.innerHTML;
+    tempStyle.textContent = node.textContent || '';
     scratch.head.appendChild(tempStyle);
     const sheet = tempStyle.sheet;
     // Cleanup node

@@ -66,7 +66,7 @@ export function serializeCSSOM(ctx) {
           style.type = 'text/css';
           style.setAttribute('data-percy-element-id', styleId);
           style.setAttribute('data-percy-cssom-serialized', 'true');
-          style.innerHTML = Array.from(styleSheet.cssRules)
+          style.textContent = Array.from(styleSheet.cssRules)
             .map(cssRule => cssRule.cssText).join('\n');
 
           cloneOwnerNode.parentNode.insertBefore(style, cloneOwnerNode.nextSibling);

@@ -36,7 +36,7 @@ export function serializeInputElements(ctx) {
           }
           break;
         case 'textarea':
-          cloneEl.innerHTML = elem.value;
+          cloneEl.textContent = elem.value || '';
           break;
         default:
           cloneEl.setAttribute('value', elem.value);
