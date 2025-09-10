@@ -341,7 +341,6 @@ describe('serializeCSSOM', () => {
       }), true);
       runCloneWithSheet(() => ({ ownerNode: null, cssRules: null }), true);
       runCloneWithSheet(() => 'not-an-object', true);
-      runCloneWithSheet(() => { throw new Error('sheet access error'); }, true);
       runCloneWithSheet(() => ({
         ownerNode: null,
         cssRules: [{ cssText: '.box { height: 500px; }' }]
@@ -354,6 +353,52 @@ describe('serializeCSSOM', () => {
         ownerNode: cloneOwner,
         get cssRules() { throw new Error('cssRules access error'); }
       }), true);
+    });
+
+    it('serializes when clone owner is not a style element', () => {
+      withExample('<div class="box"></div>');
+      withCSSOM('.box { height: 222px; }');
+
+      const sheet = document.styleSheets[0];
+      const owner = sheet.ownerNode;
+      owner.setAttribute('data-percy-element-id', 'test-id');
+
+      const clone = document.createDocumentFragment();
+      const cloneOwner = document.createElement('div');
+      cloneOwner.setAttribute('data-percy-element-id', 'test-id');
+      clone.appendChild(cloneOwner);
+
+      const resources = new Set();
+      const cache = new Map();
+      const warnings = new Set();
+
+      expect(() => serializeCSSOM({ dom: document, clone, resources, cache, warnings })).not.toThrow();
+
+      let found = false;
+      for (let node of clone.childNodes) {
+        if (node.getAttribute && node.getAttribute('data-percy-cssom-serialized') === 'true') {
+          found = true;
+          break;
+        }
+      }
+      expect(found).toBe(true);
+    });
+
+    it('throws when sheet getter throws', () => {
+      const clone = document.createDocumentFragment();
+      const cloneOwner = document.createElement('style');
+      cloneOwner.setAttribute('data-percy-element-id', 'test-id');
+      Object.defineProperty(cloneOwner, 'sheet', {
+        get() { throw new Error('sheet access error'); },
+        configurable: true
+      });
+      clone.appendChild(cloneOwner);
+      const resources = new Set();
+      const cache = new Map();
+      const warnings = new Set();
+      expect(() => serializeCSSOM({ dom: document, clone, resources, cache, warnings })).toThrowMatching((err) => {
+        return err.message && err.message.includes('Failed to get stylesheet from node:');
+      });
     });
 
     it('handles error and add stylesheet blob details', async () => {

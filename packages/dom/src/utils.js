@@ -39,8 +39,8 @@ export function styleSheetFromNode(node) {
     tempStyle.remove();
 
     return sheet;
-  } catch {
-    return null;
+  } catch (err) {
+    handleErrors(err, 'Failed to get stylesheet from node: ', node);
   }
 }
 
