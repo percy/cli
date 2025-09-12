@@ -309,4 +309,36 @@ describe('percy build:approve', () => {
       '[percy] Approved by: temp-username (unknown@example.com)'
     ]);
   });
+
+  it('logs an error when build approval fails with 409 Conflict', async () => {
+    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
+    process.env.BROWSERSTACK_USERNAME = 'env-username';
+    process.env.BROWSERSTACK_ACCESS_KEY = 'env-access-key';
+
+    api.reply('/reviews', (req) => [409, { errors: [{ detail: 'approve action is already performed on this build' }] }]);
+
+    await expectAsync(approve(['123'])).toBeRejected();
+
+    expect(logger.stderr).toEqual([
+      '[percy] Failed to approve build 123',
+      '[percy] Error: approve action is already performed on this build',
+      '[percy] Error: Failed to approve the build'
+    ]);
+  });
+
+  it('does not error when build is previously approved and --pass-if-previously-approved flag is used', async () => {
+    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
+    process.env.BROWSERSTACK_USERNAME = 'env-username';
+    process.env.BROWSERSTACK_ACCESS_KEY = 'env-access-key';
+
+    api.reply('/reviews', (req) => [409, { errors: [{ detail: 'approve action is already performed on this build' }] }]);
+
+    await expectAsync(approve(['123', '--pass-if-previously-approved'])).toBeResolved();
+
+    expect(logger.stderr).toEqual([]);
+    expect(logger.stdout).toEqual([
+      '[percy] Approving build 123...',
+      '[percy] Build 123 is already approved: skipping approval'
+    ]);
+  });
 });
