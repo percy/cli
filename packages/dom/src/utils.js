@@ -25,20 +25,23 @@ export function resourceFromText(uid, mimetype, data) {
 
 export function styleSheetFromNode(node) {
   /* istanbul ignore if: sanity check */
-  if (node.sheet) return node.sheet;
+  try {
+    if (node.sheet) return node.sheet;
+    // Cloned style nodes don't have a sheet instance unless they are within
+    // a document; we get it by temporarily adding the rules to DOM
+    const scratch = document.implementation.createHTMLDocument('percy-scratch');
+    const tempStyle = node.cloneNode();
+    tempStyle.setAttribute('data-percy-style-helper', '');
+    tempStyle.textContent = node.textContent || '';
+    scratch.head.appendChild(tempStyle);
+    const sheet = tempStyle.sheet;
+    // Cleanup node
+    tempStyle.remove();
 
-  // Cloned style nodes don't have a sheet instance unless they are within
-  // a document; we get it by temporarily adding the rules to DOM
-  const tempStyle = node.cloneNode();
-  tempStyle.setAttribute('data-percy-style-helper', '');
-  tempStyle.innerHTML = node.innerHTML;
-  const clone = document.cloneNode();
-  clone.appendChild(tempStyle);
-  const sheet = tempStyle.sheet;
-  // Cleanup node
-  tempStyle.remove();
-
-  return sheet;
+    return sheet;
+  } catch (err) {
+    handleErrors(err, 'Failed to get stylesheet from node: ', node);
+  }
 }
 
 export function rewriteLocalhostURL(url) {
@@ -56,9 +59,10 @@ export function handleErrors(error, prefixMessage, element = null, additionalDat
     };
   }
   additionalData = { ...additionalData, ...elementData };
-
-  error.message += `\n${prefixMessage} \n${JSON.stringify(additionalData)}`;
-  error.message += '\n Please validate that your DOM is as per W3C standards using any online tool';
+  let message = error.message;
+  message += `\n${prefixMessage} \n${JSON.stringify(additionalData)}`;
+  message += '\n Please validate that your DOM is as per W3C standards using any online tool';
+  error.message = message;
   error.handled = true;
   throw error;
 }

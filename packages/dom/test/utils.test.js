@@ -10,6 +10,38 @@ describe('utils', () => {
       // nonce needs to be copied
       expect(cloneSpy).toHaveBeenCalled();
     });
+
+    it('throws and triggers error handling when passed an invalid node', () => {
+      expect(() => styleSheetFromNode(null)).toThrowMatching((err) => {
+        return err.message && err.message.includes('Failed to get stylesheet from node:');
+      });
+    });
+
+    it('returns falsy for non-style nodes', () => {
+      const node = document.createElement('div');
+      node.innerText = 'p { color: blue }';
+      const sheet = styleSheetFromNode(node);
+      expect(sheet).toBeFalsy();
+    });
+
+    it('returns the node.sheet when stylesheet is already available', () => {
+      const node = document.createElement('style');
+      node.innerText = 'p { color: green }';
+      // attach to document so node.sheet is populated
+      document.head.appendChild(node);
+      const cloneSpy = spyOn(node, 'cloneNode').and.callThrough();
+      const sheet = styleSheetFromNode(node);
+      expect(sheet).toBe(node.sheet);
+      expect(cloneSpy).not.toHaveBeenCalled();
+      document.head.removeChild(node);
+    });
+
+    it('throws and triggers error handling for invalid node', () => {
+      const text = document.createTextNode('just text');
+      expect(() => styleSheetFromNode(text)).toThrowMatching((err) => {
+        return err.message && err.message.includes('Failed to get stylesheet from node:');
+      });
+    });
   });
 
   describe('resourceFromDataURL', () => {
