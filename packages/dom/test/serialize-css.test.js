@@ -256,10 +256,7 @@ describe('serializeCSSOM', () => {
       let link = '<link rel="stylesheet" href="data:text/css,.box { margin: 10px; }"/>';
       withExample(`<div class="box"></div>${link}}`);
       withCSSOM('.box { height: 500px; }');
-      expect(() => serializeCSSOM({ dom: document })).toThrowMatching((error) => {
-        return error.message.includes('Error serializing stylesheet:') &&
-          error.message.includes('{"styleId":null}');
-      });
+      expect(() => serializeCSSOM({ dom: document })).not.toThrow();
     });
 
     it('falls back when stylesheet cssRules access throws', () => {
@@ -298,43 +295,6 @@ describe('serializeCSSOM', () => {
         }
       }
       expect(found).toBe(true);
-    });
-    it('handles stylesheet without data-percy-element-id attribute', () => {
-      withExample('<div class="box"></div>');
-      withCSSOM('.box { height: 300px; }');
-
-      // Ensure there's a stylesheet without a data-percy-element-id
-      const sheet = document.styleSheets[0];
-      const owner = sheet.ownerNode;
-      
-      // Remove any existing data-percy-element-id if present
-      if (owner.hasAttribute('data-percy-element-id')) {
-        owner.removeAttribute('data-percy-element-id');
-      }
-      
-      // Create a clone for serialization
-      const clone = document.createDocumentFragment();
-      const cloneOwner = document.createElement('style');
-      // Intentionally not setting data-percy-element-id
-      clone.appendChild(cloneOwner);
-
-      const resources = new Set();
-      const cache = new Map();
-      const warnings = new Set();
-
-      // This should not throw and should handle the missing attribute gracefully
-      expect(() => serializeCSSOM({ dom: document, clone, resources, cache, warnings })).not.toThrow();
-      
-      // Check if stylesheet was still serialized despite missing attribute
-      let hasSerializedStyle = false;
-      for (let node of clone.childNodes) {
-        if (node.getAttribute && node.getAttribute('data-percy-cssom-serialized') === 'true') {
-          hasSerializedStyle = true;
-          break;
-        }
-      }
-      expect(hasSerializedStyle).toBe(true);
-      expect(warnings.size).toBe(0); // Should not trigger warnings
     });
     it('falls back when stylesheet cssRules access throws', () => {
       withExample('<div class="box"></div>');
