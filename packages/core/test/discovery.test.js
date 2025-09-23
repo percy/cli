@@ -3730,9 +3730,6 @@ describe('Discovery', () => {
     });
 
     it('scrolls to bottom for each width when multiple widths are specified', async () => {
-      server.reply('/lazy-image-small.gif', () => [200, 'image/gif', pixel]);
-      server.reply('/lazy-image-large.gif', () => [200, 'image/gif', pixel]);
-
       const responsiveDOM = dedent`
         <html>
         <head><link href="style.css" rel="stylesheet"/></head>
@@ -3752,12 +3749,9 @@ describe('Discovery', () => {
               img.loading = "lazy";
               
               // Set the source based on the viewport width
-              if (window.innerWidth <= 375 || window.devicePixelRatio == 2) {
+              if (window.innerWidth <= 500) {
                 img.src = "/small.jpg";
                 img.setAttribute('data-size', 'small');
-              } else if (window.innerWidth < 1200 || window.devicePixelRatio == 3) {
-                img.src = "/medium.jpg";
-                img.setAttribute('data-size', 'medium');
               } else {
                 img.src = "/large.jpg";
                 img.setAttribute('data-size', 'large');
@@ -3779,9 +3773,7 @@ describe('Discovery', () => {
       `;
 
       server.reply('/', () => [200, 'text/html', responsiveDOM]);
-      server.reply('/default.jpg', () => [200, 'image/jpg', pixel]);
       server.reply('/small.jpg', () => [200, 'image/jpg', pixel]);
-      server.reply('/medium.jpg', () => [200, 'image/jpg', pixel]);
       server.reply('/large.jpg', () => [200, 'image/jpg', pixel]);
 
       await percy.snapshot({
@@ -3798,11 +3790,11 @@ describe('Discovery', () => {
       await percy.idle();
 
       const smallImageResource = captured[0].find(resource =>
-        resource.attributes['resource-url'] === 'http://localhost:8080/lazy-image-small.gif'
+        resource.attributes['resource-url'] === 'http://localhost:8080/small.jpg'
       );
 
       const largeImageResource = captured[0].find(resource =>
-        resource.attributes['resource-url'] === 'http://localhost:8080/lazy-image-large.gif'
+        resource.attributes['resource-url'] === 'http://localhost:8080/large.jpg'
       );
 
       expect(smallImageResource).toBeDefined('Small image resource should be captured');
