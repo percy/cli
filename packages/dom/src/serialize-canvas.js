@@ -13,8 +13,10 @@ function createAndInsertImageElement(canvas, clone, percyElementId, imageUrl) {
   img.setAttribute('data-percy-canvas-serialized', '');
   img.setAttribute('data-percy-serialized-attribute-src', imageUrl);
 
-  // set a default max width to account for canvases that might resize with JS
-  img.style.maxWidth = img.style.maxWidth || '100%';
+  // set the maxWidth only if it was set on the canvas
+  if (canvas.style.maxWidth) {
+    img.style.maxWidth = canvas.style.maxWidth;
+  }
 
   // insert the image into the cloned DOM and remove the cloned canvas element
   let cloneEl = clone.querySelector(`[data-percy-element-id=${percyElementId}]`);
