@@ -3187,6 +3187,7 @@ describe('Discovery', () => {
                 image.src = '/large.jpg';
               }
             }
+            window.addEventListener('resize', updateImage);
             window.addEventListener('load', updateImage);
         </script>
         </body>
@@ -3252,6 +3253,7 @@ describe('Discovery', () => {
                 image.src = '/medium.jpg';
               }
             }
+            window.addEventListener('resize', updateImage);
             window.addEventListener('load', updateImage);
         </script>
         </body>
@@ -3640,45 +3642,30 @@ describe('Discovery', () => {
         <body>
           <div id="top-content">Top content</div>
           <div style="height: 2000px;">Tall content</div>
-          <!-- Use a more reliable method to create the responsive images -->
+          <img id="responsive-image" src="default.jpg" alt="Responsive Image">
           <script>
-            // Create and add the appropriate image based on viewport width
-            function createAndAppendImage() {
-              // Remove any existing lazy-loaded images first
-              const existingImg = document.getElementById("lazy-image");
-              if (existingImg) existingImg.remove();
-              
-              const img = document.createElement('img');
-              img.id = "lazy-image";
-              img.loading = "lazy";
-              
-              // Set the source based on the viewport width
-              if (window.innerWidth <= 500) {
-                img.src = "/small.jpg";
-                img.setAttribute('data-size', 'small');
+            var image = document.getElementById('responsive-image');
+            function updateImage() {
+              var width = window.innerWidth;
+              var dpr = window.devicePixelRatio;
+              if (width <= 375 || dpr == 2) {
+                image.src = '/lazy-image-small.gif';
+              } else if (width < 1200 || dpr == 3) {
+                image.src = '/lazy-image-large.gif';
               } else {
-                img.src = "/large.jpg";
-                img.setAttribute('data-size', 'large');
+                image.src = '/lazy-image-large.gif';
               }
-              
-              // Add the image at the bottom of the page
-              document.getElementById("bottom-content").appendChild(img);
             }
-            
-            // Run on initial load
-            window.addEventListener('load', createAndAppendImage);
-            
-            // Also run when the page is resized
-            window.addEventListener('resize', createAndAppendImage);
-        </script>
-        <div id="bottom-content"></div>
+            window.addEventListener('resize', updateImage);
+            window.addEventListener('load', updateImage);
+          </script>
         </body>
         </html>
       `;
 
       server.reply('/', () => [200, 'text/html', responsiveDOM]);
-      server.reply('/small.jpg', () => [200, 'image/jpg', pixel]);
-      server.reply('/large.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/lazy-image-small.gif', () => [200, 'image/gif', pixel]);
+      server.reply('/lazy-image-large.gif', () => [200, 'image/gif', pixel]);
 
       await percy.snapshot({
         name: 'multiple widths scroll test',
@@ -3694,11 +3681,11 @@ describe('Discovery', () => {
       await percy.idle();
 
       const smallImageResource = captured[0].find(resource =>
-        resource.attributes['resource-url'] === 'http://localhost:8080/small.jpg'
+        resource.attributes['resource-url'] === 'http://localhost:8080/lazy-image-small.gif'
       );
 
       const largeImageResource = captured[0].find(resource =>
-        resource.attributes['resource-url'] === 'http://localhost:8080/large.jpg'
+        resource.attributes['resource-url'] === 'http://localhost:8080/lazy-image-large.gif'
       );
 
       expect(smallImageResource).toBeDefined('Small image resource should be captured');
