@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Percy Opacity Test</title>
+    <style>
+        .fade-in {
+            transition: opacity 0.3s ease;
+            opacity: 0;
+        }
+        .fade-in.visible {
+            opacity: 1;
+        }
+        
+        .explicit-opacity {
+            opacity: 1;
+        }
+        
+        .normal-element {
+            color: black;
+        }
+    </style>
+</head>
+<body>
+    <!-- Element with data attribute - should get percy-opacity-1 class -->
+    <div id="data-attr" data-percy-opacity="true" style="opacity: 1;">
+        Data attribute element (should be preserved)
+    </div>
+    
+    <!-- Element with fade-in class - should get percy-opacity-1 class -->
+    <div id="fade-element" class="fade-in visible">
+        Fade-in element (should be preserved)
+    </div>
+    
+    <!-- Element with explicit opacity style - should get percy-opacity-1 class -->
+    <div id="explicit-opacity" style="opacity: 1;">
+        Explicit opacity element (should be preserved)
+    </div>
+    
+    <!-- Element with opacity transition - should get percy-opacity-1 class -->
+    <div id="transition-element" style="transition: opacity 0.3s ease; opacity: 1;">
+        Transition element (should be preserved)
+    </div>
+    
+    <!-- Normal element - should NOT get percy-opacity-1 class -->
+    <div id="normal-element" class="normal-element">
+        Normal element (should not be modified)
+    </div>
+
+    <script>
+        // Simulate testing our implementation
+        console.log('Percy Opacity Serialization Test Page');
+        console.log('Elements with percy-opacity-1 class should be those with:');
+        console.log('1. data-percy-opacity attribute');
+        console.log('2. fade-in/fade-out/animate/animated classes');
+        console.log('3. explicit opacity styles');
+        console.log('4. opacity transitions');
+    </script>
+</body>
+</html>

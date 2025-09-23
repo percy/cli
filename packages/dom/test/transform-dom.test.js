@@ -1,4 +1,4 @@
-import { dropLoadingAttribute, serializeScrollState } from '../src/transform-dom';
+import { dropLoadingAttribute, serializeScrollState, serializeOpacityState } from '../src/transform-dom';
 import { withExample, platforms, platformDOM } from './helpers';
 
 // Note: applyElementTransformations is tested in serialize-dom tests
@@ -52,6 +52,158 @@ describe('transformDOM', () => {
     it('does nothing if original or clone is missing', () => {
       expect(() => serializeScrollState(original, null)).not.toThrow();
       expect(() => serializeScrollState(null, clone)).not.toThrow();
+    });
+  });
+
+  describe('serializeOpacityState', () => {
+    let original, clone;
+    let originalGetComputedStyle;
+
+    beforeEach(() => {
+      original = document.createElement('div');
+      clone = document.createElement('div');
+      
+      // Store original getComputedStyle
+      originalGetComputedStyle = window.getComputedStyle;
+    });
+
+    afterEach(() => {
+      // Restore original getComputedStyle
+      window.getComputedStyle = originalGetComputedStyle;
+    });
+
+    it('adds percy-opacity-1 class when element has data-percy-opacity attribute', () => {
+      original.setAttribute('data-percy-opacity', 'true');
+      window.getComputedStyle = () => ({
+        opacity: '1',
+        transition: '',
+        animation: 'none'
+      });
+      
+      serializeOpacityState(original, clone);
+      expect(clone.getAttribute('class')).toBe('percy-opacity-1');
+    });
+
+    it('adds percy-opacity-1 class when element has animation-related classes', () => {
+      original.classList.add('fade-in');
+      window.getComputedStyle = () => ({
+        opacity: '1',
+        transition: '',
+        animation: 'none'
+      });
+      
+      serializeOpacityState(original, clone);
+      expect(clone.getAttribute('class')).toBe('percy-opacity-1');
+    });
+
+    it('adds percy-opacity-1 class when opacity is 1 and element has explicit opacity style', () => {
+      original.style.opacity = '1';
+      window.getComputedStyle = () => ({
+        opacity: '1',
+        transition: '',
+        animation: 'none'
+      });
+      
+      serializeOpacityState(original, clone);
+      expect(clone.getAttribute('class')).toBe('percy-opacity-1');
+    });
+
+    it('adds percy-opacity-1 class when opacity is 1 and element has opacity transition', () => {
+      window.getComputedStyle = () => ({
+        opacity: '1',
+        transition: 'opacity 0.3s ease',
+        animation: 'none'
+      });
+      
+      serializeOpacityState(original, clone);
+      expect(clone.getAttribute('class')).toBe('percy-opacity-1');
+    });
+
+    it('preserves existing classes when adding percy-opacity-1', () => {
+      clone.setAttribute('class', 'existing-class another-class');
+      original.setAttribute('data-percy-opacity', 'true');
+      window.getComputedStyle = () => ({
+        opacity: '1',
+        transition: '',
+        animation: 'none'
+      });
+      
+      serializeOpacityState(original, clone);
+      expect(clone.getAttribute('class')).toBe('existing-class another-class percy-opacity-1');
+    });
+
+    it('does not add class when opacity is 1 but no opacity-related indicators exist', () => {
+      window.getComputedStyle = () => ({
+        opacity: '1',
+        transition: '',
+        animation: 'none'
+      });
+      
+      serializeOpacityState(original, clone);
+      expect(clone.hasAttribute('class')).toBe(false);
+    });
+
+    it('does not add class when opacity is not 1 even with indicators', () => {
+      original.style.opacity = '0.5';
+      window.getComputedStyle = () => ({
+        opacity: '0.5',
+        transition: 'opacity 0.3s ease',
+        animation: 'none'
+      });
+      
+      serializeOpacityState(original, clone);
+      expect(clone.hasAttribute('class')).toBe(false);
+    });
+
+    it('does not add class when opacity is not 1', () => {
+      original.style.opacity = '0.5';
+      window.getComputedStyle = () => ({
+        opacity: '0.5',
+        transition: 'opacity 0.3s ease',
+        animation: 'none'
+      });
+      
+      serializeOpacityState(original, clone);
+      expect(clone.hasAttribute('class')).toBe(false);
+    });
+
+    it('does not add class when opacity is 0', () => {
+      original.style.opacity = '0';
+      window.getComputedStyle = () => ({
+        opacity: '0',
+        transition: 'opacity 0.3s ease',
+        animation: 'none'
+      });
+      
+      serializeOpacityState(original, clone);
+      expect(clone.hasAttribute('class')).toBe(false);
+    });
+
+    it('does nothing if original or clone is missing', () => {
+      expect(() => serializeOpacityState(original, null)).not.toThrow();
+      expect(() => serializeOpacityState(null, clone)).not.toThrow();
+    });
+
+    it('does nothing for non-element nodes', () => {
+      const textNode = document.createTextNode('text');
+      const commentNode = document.createComment('comment');
+      
+      // Mock nodeType for non-element nodes
+      Object.defineProperty(textNode, 'nodeType', { value: 3 }); // TEXT_NODE
+      Object.defineProperty(commentNode, 'nodeType', { value: 8 }); // COMMENT_NODE
+      
+      expect(() => serializeOpacityState(textNode, clone)).not.toThrow();
+      expect(() => serializeOpacityState(commentNode, clone)).not.toThrow();
+      expect(clone.hasAttribute('class')).toBe(false);
+    });
+
+    it('handles errors gracefully when getComputedStyle fails', () => {
+      window.getComputedStyle = () => {
+        throw new Error('getComputedStyle failed');
+      };
+      
+      expect(() => serializeOpacityState(original, clone)).not.toThrow();
+      expect(clone.hasAttribute('class')).toBe(false);
     });
   });
 

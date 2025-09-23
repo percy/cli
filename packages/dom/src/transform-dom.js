@@ -19,10 +19,53 @@ export function serializeScrollState(original, clone) {
   }
 }
 
+// Serialize opacity state for elements that have opacity: 1 during capture
+// This ensures elements that reached full visibility after animations remain visible
+export function serializeOpacityState(original, clone) {
+  if (!original || !clone) return;
+
+  // Only process element nodes (not text nodes, comments, etc.)
+  if (original.nodeType !== 1) return;
+
+  try {
+    // Only apply opacity preservation if element has clear signs of being animated
+    // Check for data attributes or classes that suggest this element is animated
+    const hasAnimationAttributes = original.hasAttribute('data-percy-opacity') ||
+      original.classList.contains('fade-in') ||
+      original.classList.contains('fade-out') ||
+      original.classList.contains('animate') ||
+      original.classList.contains('animated');
+    
+    // Check for explicit opacity style or animation properties
+    const hasExplicitOpacity = original.style.opacity !== '';
+    const computedStyle = window.getComputedStyle(original);
+    const hasOpacityTransition = computedStyle.transition &&
+      computedStyle.transition.includes('opacity') &&
+      computedStyle.transition !== 'all 0s ease 0s';
+    
+    // Only proceed if there are clear indicators this element uses opacity animations
+    if (hasAnimationAttributes || hasExplicitOpacity || hasOpacityTransition) {
+      const opacity = computedStyle.opacity;
+      
+      // If opacity is 1 (fully visible), add a class to ensure it stays visible
+      if (opacity === '1') {
+        // Add percy-opacity-1 class to preserve the visible state
+        const existingClasses = clone.getAttribute('class') || '';
+        const newClasses = existingClasses ? `${existingClasses} percy-opacity-1` : 'percy-opacity-1';
+        clone.setAttribute('class', newClasses);
+      }
+    }
+  } catch (err) {
+    // Silently handle any errors (e.g., if getComputedStyle fails)
+    // This ensures serialization continues even if opacity detection fails
+  }
+}
+
 // All transformations that we need to apply for a successful discovery and stable render
 function applyElementTransformations(originalElement, domElement) {
   dropLoadingAttribute(domElement);
   serializeScrollState(originalElement, domElement);
+  serializeOpacityState(originalElement, domElement);
 }
 
 export default applyElementTransformations;
