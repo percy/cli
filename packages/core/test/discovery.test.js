@@ -3086,21 +3086,39 @@ describe('Discovery', () => {
         <h1>Responsive Images Example</h1>
         <img id="responsive-image" src="default.jpg" alt="Responsive Image">
         <script>
-            var image = document.getElementById('responsive-image');
-            function updateImage() {
-              var width = window.innerWidth;
-              var dpr = window.devicePixelRatio;
-              if (width <= 375 || dpr == 2) {
-                image.src = '/small.jpg';
-              } else if (width < 1200 || dpr == 3) {
-                image.src = '/medium.jpg';
+            // Create and add the appropriate image based on viewport width
+            function createAndAppendImage() {
+              // Remove any existing lazy-loaded images first
+              const existingImg = document.getElementById("lazy-image");
+              if (existingImg) existingImg.remove();
+              
+              const img = document.createElement('img');
+              img.id = "lazy-image";
+              img.loading = "lazy";
+              
+              // Set the source based on the viewport width
+              if (window.innerWidth <= 375 || window.devicePixelRatio == 2) {
+                img.src = "/small.jpg";
+                img.setAttribute('data-size', 'small');
+              } else if (window.innerWidth < 1200 || window.devicePixelRatio == 3) {
+                img.src = "/medium.jpg";
+                img.setAttribute('data-size', 'medium');
               } else {
-                image.src = '/large.jpg';
+                img.src = "/large.jpg";
+                img.setAttribute('data-size', 'large');
               }
+              
+              // Add the image at the bottom of the page
+              document.getElementById("bottom-content").appendChild(img);
             }
-            window.addEventListener('resize', updateImage);
-            window.addEventListener('load', updateImage);
+            
+            // Run on initial load
+            window.addEventListener('load', createAndAppendImage);
+            
+            // Also run when the page is resized
+            window.addEventListener('resize', createAndAppendImage);
         </script>
+        <div id="bottom-content"></div>
         </body>
         </html>
       `;
@@ -3169,7 +3187,6 @@ describe('Discovery', () => {
                 image.src = '/large.jpg';
               }
             }
-            window.addEventListener('resize', updateImage);
             window.addEventListener('load', updateImage);
         </script>
         </body>
@@ -3530,7 +3547,56 @@ describe('Discovery', () => {
         })
       ]));
     });
+
+    it('injects only opacity CSS when no user CSS is provided', async () => {
+      const domWithOpacityClass = dedent`
+        <html>
+        <head></head>
+        <body>
+          <div class="percy-opacity-1">Element with opacity class</div>
+        </body>
+        </html>
+      `;
+
+      await percy.snapshot({
+        name: 'test opacity only snapshot',
+        url: 'http://localhost:8000',
+        // No percyCSS provided
+        domSnapshot: {
+          html: domWithOpacityClass
+        }
+      });
+
+      await percy.idle();
+
+      // Find the CSS resource in the captured resources
+      let cssResource = captured[0].find(r => r.attributes['resource-url'].endsWith('.css'));
+      expect(cssResource).toBeDefined();
+
+      // Check that a CSS link was injected into the DOM
+      let cssURL = new URL(cssResource.attributes['resource-url']);
+      let injectedDOM = domWithOpacityClass.replace('</body>', (
+        `<link data-percy-specific-css rel="stylesheet" href="${cssURL.pathname}"/>`
+      ) + '</body>');
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        jasmine.objectContaining({
+          id: sha256hash(injectedDOM),
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/',
+            'is-root': true
+          })
+        }),
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': cssResource.attributes['resource-url'],
+            mimetype: 'text/css'
+          })
+        })
+      ]));
+    });
   });
+
   describe('Scroll to bottom functionality', () => {
     let percy, server, captured;
 
@@ -3686,11 +3752,14 @@ describe('Discovery', () => {
               img.loading = "lazy";
               
               // Set the source based on the viewport width
-              if (window.innerWidth <= 500) {
-                img.src = "lazy-image-small.gif";
+              if (window.innerWidth <= 375 || window.devicePixelRatio == 2) {
+                img.src = "/small.jpg";
                 img.setAttribute('data-size', 'small');
+              } else if (window.innerWidth < 1200 || window.devicePixelRatio == 3) {
+                img.src = "/medium.jpg";
+                img.setAttribute('data-size', 'medium');
               } else {
-                img.src = "lazy-image-large.gif";
+                img.src = "/large.jpg";
                 img.setAttribute('data-size', 'large');
               }
               
@@ -3703,13 +3772,17 @@ describe('Discovery', () => {
             
             // Also run when the page is resized
             window.addEventListener('resize', createAndAppendImage);
-          </script>
-          <div id="bottom-content"></div>
+        </script>
+        <div id="bottom-content"></div>
         </body>
         </html>
       `;
 
       server.reply('/', () => [200, 'text/html', responsiveDOM]);
+      server.reply('/default.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/small.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/medium.jpg', () => [200, 'image/jpg', pixel]);
+      server.reply('/large.jpg', () => [200, 'image/jpg', pixel]);
 
       await percy.snapshot({
         name: 'multiple widths scroll test',
