@@ -2545,7 +2545,7 @@ describe('Discovery', () => {
       });
 
       await percy.idle();
-      // Check if browser is still connected after snapshot and idle
+      // Check if the browser is still connected after snapshot and idle
       expect(percy.browser.isConnected()).toBe(true);
       // Explicitly stop percy to close the browser for subsequent tests
       await percy.browser.close(true); // force close
@@ -2603,26 +2603,26 @@ describe('Discovery', () => {
     });
   });
 
-  describe('Asset Discovery Page JS =>', () => {
-    beforeEach(() => {
-      // global defaults
-      percy.config.snapshot.enableJavaScript = false;
-      percy.config.snapshot.cliEnableJavaScript = true;
-    });
+  describe('Percy opacity CSS conditional logic (line 207 coverage)', () => {
+    const opacityDOM = dedent`
+      <html>
+        <head></head>
+        <body>
+          <div class="percy-opacity-1">Line 207 Coverage</div>
+        </body>
+      </html>
+    `;
 
-    describe('cli-snapshot =>', () => {
-      it('enabled when enableJavascript: false and cliEnableJavaScript: true', async () => {
-        percy.loglevel('debug');
-
-        await percy.snapshot({
-          name: 'test snapshot',
-          url: 'http://localhost:8000',
-          domSnapshot: ''
-        });
-
-        await percy.idle();
-
-        expect(logger.stderr).toEqual(jasmine.arrayContaining([
+    it('covers the branch where combinedPercyCSS is set to internalPercyCSS (no user CSS)', async () => {
+      await percy.snapshot({
+        name: 'opacity only line 207',
+        url: 'http://localhost:8000',
+        domSnapshot: opacityDOM,
+        percyCSS: '' // explicitly empty
+      });
+      await percy.idle();
+      const root = captured[0].find(r => r.attributes['is-root']);
+      const dom = root.attributes.content;
           '[percy:core:snapshot] - enableJavaScript: false',
           '[percy:core:snapshot] - cliEnableJavaScript: true',
           '[percy:core:snapshot] - domSnapshot: false',
