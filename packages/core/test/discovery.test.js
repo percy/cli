@@ -3507,7 +3507,7 @@ describe('Discovery', () => {
       // Find the CSS resource in the captured resources
       let cssResource = captured[0].find(r => r.attributes['resource-url'].endsWith('.css'));
       expect(cssResource).toBeDefined();
-      
+
       // Check that a CSS link was injected into the DOM
       let cssURL = new URL(cssResource.attributes['resource-url']);
       let injectedDOM = domWithOpacityClass.replace('</body>', (
