@@ -2545,7 +2545,7 @@ describe('Discovery', () => {
       });
 
       await percy.idle();
-      // Check if the browser is still connected after snapshot and idle
+      // Check if browser is still connected after snapshot and idle
       expect(percy.browser.isConnected()).toBe(true);
       // Explicitly stop percy to close the browser for subsequent tests
       await percy.browser.close(true); // force close
@@ -2603,26 +2603,26 @@ describe('Discovery', () => {
     });
   });
 
-  describe('Percy opacity CSS conditional logic (line 207 coverage)', () => {
-    const opacityDOM = dedent`
-      <html>
-        <head></head>
-        <body>
-          <div class="percy-opacity-1">Line 207 Coverage</div>
-        </body>
-      </html>
-    `;
+  describe('Asset Discovery Page JS =>', () => {
+    beforeEach(() => {
+      // global defaults
+      percy.config.snapshot.enableJavaScript = false;
+      percy.config.snapshot.cliEnableJavaScript = true;
+    });
 
-    it('covers the branch where combinedPercyCSS is set to internalPercyCSS (no user CSS)', async () => {
-      await percy.snapshot({
-        name: 'opacity only line 207',
-        url: 'http://localhost:8000',
-        domSnapshot: opacityDOM,
-        percyCSS: '' // explicitly empty
-      });
-      await percy.idle();
-      const root = captured[0].find(r => r.attributes['is-root']);
-      const dom = root.attributes.content;
+    describe('cli-snapshot =>', () => {
+      it('enabled when enableJavascript: false and cliEnableJavaScript: true', async () => {
+        percy.loglevel('debug');
+
+        await percy.snapshot({
+          name: 'test snapshot',
+          url: 'http://localhost:8000',
+          domSnapshot: ''
+        });
+
+        await percy.idle();
+
+        expect(logger.stderr).toEqual(jasmine.arrayContaining([
           '[percy:core:snapshot] - enableJavaScript: false',
           '[percy:core:snapshot] - cliEnableJavaScript: true',
           '[percy:core:snapshot] - domSnapshot: false',
@@ -3686,6 +3686,127 @@ describe('Discovery', () => {
 
       expect(smallImageResource).toBeDefined('Small image resource should be captured');
       expect(largeImageResource).toBeDefined('Large image resource should be captured');
+    });
+  });
+  describe('Percy CSS injection logic', () => {
+    const internalPercyCSS = '.percy-opacity-1 { opacity: 1 !important; }';
+    const userPercyCSS = 'body { background: purple; }';
+
+    const baseDOM = dedent`
+      <html>
+      <head></head>
+      <body>
+        <p>Hello Percy!</p>
+      </body>
+      </html>
+    `;
+
+    const opacityDOM = dedent`
+      <html>
+      <head></head>
+      <body>
+        <p class="percy-opacity-1">Hello Percy!</p>
+      </body>
+      </html>
+    `;
+
+    // Helper to find the root resource from the 'captured' array
+    const findRootResource = (capture) => {
+      // Root resources are marked with 'is-root': true in the API payload
+      return capture.find(r => r.attributes['is-root'] === true);
+    };
+
+    // Helper to find the Percy CSS resource
+    const findPercyCSSResource = (capture) => {
+      return capture.find(r => r.attributes['resource-url'].includes('/percy-specific-css'));
+    };
+
+    it('injects only user CSS when percyCSS is provided but opacity class is not present', async () => {
+      await percy.snapshot({
+        name: 'user css only',
+        url: 'http://localhost:8000',
+        domSnapshot: baseDOM,
+        percyCSS: userPercyCSS
+      });
+      await percy.idle();
+
+      const percyCSSResource = findPercyCSSResource(captured[0]);
+      expect(percyCSSResource).toBeDefined();
+
+      const cssURL = new URL(percyCSSResource.attributes['resource-url']);
+      const injectedDOM = baseDOM.replace('</body>',
+        `<link data-percy-specific-css rel="stylesheet" href="${cssURL.pathname}"/>` + '</body>'
+      );
+
+      const rootResource = findRootResource(captured[0]);
+      expect(rootResource.id).toEqual(sha256hash(injectedDOM));
+      // We can't check the CSS content directly from `captured`, but we can check its hash
+      expect(percyCSSResource.id).toEqual(sha256hash(userPercyCSS));
+    });
+
+    it('injects only internal opacity CSS when opacity class is present but percyCSS is not provided', async () => {
+      await percy.snapshot({
+        name: 'internal css only',
+        url: 'http://localhost:8000',
+        domSnapshot: opacityDOM
+        // no percyCSS
+      });
+      await percy.idle();
+
+      const percyCSSResource = findPercyCSSResource(captured[0]);
+      expect(percyCSSResource).toBeDefined();
+
+      const cssURL = new URL(percyCSSResource.attributes['resource-url']);
+      const injectedDOM = opacityDOM.replace('</body>',
+        `<link data-percy-specific-css rel="stylesheet" href="${cssURL.pathname}"/>` + '</body>'
+      );
+
+      const rootResource = findRootResource(captured[0]);
+      expect(rootResource.id).toEqual(sha256hash(injectedDOM));
+      // Check hash of the internal CSS
+      expect(percyCSSResource.id).toEqual(sha256hash(internalPercyCSS));
+    });
+
+    it('injects combined CSS when opacity class is present and percyCSS is provided', async () => {
+      await percy.snapshot({
+        name: 'combined css',
+        url: 'http://localhost:8000',
+        domSnapshot: opacityDOM,
+        percyCSS: userPercyCSS
+      });
+      await percy.idle();
+
+      const percyCSSResource = findPercyCSSResource(captured[0]);
+      expect(percyCSSResource).toBeDefined();
+
+      const cssURL = new URL(percyCSSResource.attributes['resource-url']);
+      const injectedDOM = opacityDOM.replace('</body>',
+        `<link data-percy-specific-css rel="stylesheet" href="${cssURL.pathname}"/>` + '</body>'
+      );
+
+      const rootResource = findRootResource(captured[0]);
+      expect(rootResource.id).toEqual(sha256hash(injectedDOM));
+
+      // Check hash of the combined CSS
+      const combinedCSS = `${internalPercyCSS}\n${userPercyCSS}`;
+      expect(percyCSSResource.id).toEqual(sha256hash(combinedCSS));
+    });
+
+    it('does not inject any percy CSS when no percyCSS is given and opacity class is not present', async () => {
+      await percy.snapshot({
+        name: 'no css',
+        url: 'http://localhost:8000',
+        domSnapshot: baseDOM
+        // no percyCSS
+      });
+      await percy.idle();
+
+      const percyCSSResource = findPercyCSSResource(captured[0]);
+      expect(percyCSSResource).toBeUndefined();
+
+      const rootResource = findRootResource(captured[0]);
+      // Root DOM should be unchanged
+      expect(rootResource.id).toEqual(sha256hash(baseDOM));
     });
   });
 });
