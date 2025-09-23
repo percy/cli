@@ -3482,6 +3482,54 @@ describe('Discovery', () => {
         })
       ]));
     });
+
+    it('injects combined percy-css when both user CSS and opacity CSS are needed', async () => {
+      const domWithOpacityClass = dedent`
+        <html>
+        <head></head>
+        <body>
+          <div class="percy-opacity-1">Element with opacity class</div>
+        </body>
+        </html>
+      `;
+
+      await percy.snapshot({
+        name: 'test opacity snapshot',
+        url: 'http://localhost:8000',
+        percyCSS: 'body { color: purple; }',
+        domSnapshot: {
+          html: domWithOpacityClass
+        }
+      });
+
+      await percy.idle();
+
+      // Find the CSS resource in the captured resources
+      let cssResource = captured[0].find(r => r.attributes['resource-url'].endsWith('.css'));
+      expect(cssResource).toBeDefined();
+      
+      // Check that a CSS link was injected into the DOM
+      let cssURL = new URL(cssResource.attributes['resource-url']);
+      let injectedDOM = domWithOpacityClass.replace('</body>', (
+        `<link data-percy-specific-css rel="stylesheet" href="${cssURL.pathname}"/>`
+      ) + '</body>');
+
+      expect(captured[0]).toEqual(jasmine.arrayContaining([
+        jasmine.objectContaining({
+          id: sha256hash(injectedDOM),
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://localhost:8000/',
+            'is-root': true
+          })
+        }),
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': cssResource.attributes['resource-url'],
+            mimetype: 'text/css'
+          })
+        })
+      ]));
+    });
   });
   describe('Scroll to bottom functionality', () => {
     let percy, server, captured;

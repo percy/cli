@@ -62,7 +62,7 @@ describe('transformDOM', () => {
     beforeEach(() => {
       original = document.createElement('div');
       clone = document.createElement('div');
-      
+
       // Store original getComputedStyle
       originalGetComputedStyle = window.getComputedStyle;
     });
@@ -79,7 +79,7 @@ describe('transformDOM', () => {
         transition: '',
         animation: 'none'
       });
-      
+
       serializeOpacityState(original, clone);
       expect(clone.getAttribute('class')).toBe('percy-opacity-1');
     });
@@ -91,7 +91,7 @@ describe('transformDOM', () => {
         transition: '',
         animation: 'none'
       });
-      
+
       serializeOpacityState(original, clone);
       expect(clone.getAttribute('class')).toBe('percy-opacity-1');
     });
@@ -103,7 +103,7 @@ describe('transformDOM', () => {
         transition: '',
         animation: 'none'
       });
-      
+
       serializeOpacityState(original, clone);
       expect(clone.getAttribute('class')).toBe('percy-opacity-1');
     });
@@ -114,7 +114,7 @@ describe('transformDOM', () => {
         transition: 'opacity 0.3s ease',
         animation: 'none'
       });
-      
+
       serializeOpacityState(original, clone);
       expect(clone.getAttribute('class')).toBe('percy-opacity-1');
     });
@@ -127,7 +127,7 @@ describe('transformDOM', () => {
         transition: '',
         animation: 'none'
       });
-      
+
       serializeOpacityState(original, clone);
       expect(clone.getAttribute('class')).toBe('existing-class another-class percy-opacity-1');
     });
@@ -138,7 +138,7 @@ describe('transformDOM', () => {
         transition: '',
         animation: 'none'
       });
-      
+
       serializeOpacityState(original, clone);
       expect(clone.hasAttribute('class')).toBe(false);
     });
@@ -150,7 +150,7 @@ describe('transformDOM', () => {
         transition: 'opacity 0.3s ease',
         animation: 'none'
       });
-      
+
       serializeOpacityState(original, clone);
       expect(clone.hasAttribute('class')).toBe(false);
     });
@@ -162,7 +162,7 @@ describe('transformDOM', () => {
         transition: 'opacity 0.3s ease',
         animation: 'none'
       });
-      
+
       serializeOpacityState(original, clone);
       expect(clone.hasAttribute('class')).toBe(false);
     });
@@ -174,7 +174,7 @@ describe('transformDOM', () => {
         transition: 'opacity 0.3s ease',
         animation: 'none'
       });
-      
+
       serializeOpacityState(original, clone);
       expect(clone.hasAttribute('class')).toBe(false);
     });
@@ -187,11 +187,11 @@ describe('transformDOM', () => {
     it('does nothing for non-element nodes', () => {
       const textNode = document.createTextNode('text');
       const commentNode = document.createComment('comment');
-      
+
       // Mock nodeType for non-element nodes
       Object.defineProperty(textNode, 'nodeType', { value: 3 }); // TEXT_NODE
       Object.defineProperty(commentNode, 'nodeType', { value: 8 }); // COMMENT_NODE
-      
+
       expect(() => serializeOpacityState(textNode, clone)).not.toThrow();
       expect(() => serializeOpacityState(commentNode, clone)).not.toThrow();
       expect(clone.hasAttribute('class')).toBe(false);
@@ -201,7 +201,7 @@ describe('transformDOM', () => {
       window.getComputedStyle = () => {
         throw new Error('getComputedStyle failed');
       };
-      
+
       expect(() => serializeOpacityState(original, clone)).not.toThrow();
       expect(clone.hasAttribute('class')).toBe(false);
     });

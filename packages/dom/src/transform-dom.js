@@ -35,18 +35,18 @@ export function serializeOpacityState(original, clone) {
       original.classList.contains('fade-out') ||
       original.classList.contains('animate') ||
       original.classList.contains('animated');
-    
+
     // Check for explicit opacity style or animation properties
     const hasExplicitOpacity = original.style.opacity !== '';
     const computedStyle = window.getComputedStyle(original);
     const hasOpacityTransition = computedStyle.transition &&
       computedStyle.transition.includes('opacity') &&
       computedStyle.transition !== 'all 0s ease 0s';
-    
+
     // Only proceed if there are clear indicators this element uses opacity animations
     if (hasAnimationAttributes || hasExplicitOpacity || hasOpacityTransition) {
       const opacity = computedStyle.opacity;
-      
+
       // If opacity is 1 (fully visible), add a class to ensure it stays visible
       if (opacity === '1') {
         // Add percy-opacity-1 class to preserve the visible state

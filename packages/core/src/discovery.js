@@ -201,7 +201,7 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   const internalPercyCSS = '.percy-opacity-1 { opacity: 1 !important; }';
   const userPercyCSS = snapshot.percyCSS || '';
   const needsOpacityCSS = domSnapshot && domSnapshot.html && domSnapshot.html.includes('percy-opacity-1');
-  
+
   let combinedPercyCSS = userPercyCSS || '';
   if (needsOpacityCSS) {
     combinedPercyCSS = combinedPercyCSS ? `${internalPercyCSS}\n${userPercyCSS}` : internalPercyCSS;
