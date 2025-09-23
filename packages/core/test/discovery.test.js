@@ -3718,7 +3718,7 @@ describe('Discovery', () => {
 
     // Helper to find the Percy CSS resource
     const findPercyCSSResource = (capture) => {
-      return capture.find(r => r.attributes['resource-url'].includes('/percy-specific-css'));
+      return capture.find(r => r.attributes['resource-url'].includes('/percy-specific.') && r.attributes['resource-url'].endsWith('.css'));
     };
 
     it('injects only user CSS when percyCSS is provided but opacity class is not present', async () => {
