@@ -1045,7 +1045,7 @@ describe('Discovery', () => {
     // bug we are testing here happens specifically when the Network event comes after the Fetch
     // event. Using a stub, we can cause Network events to happen a few milliseconds later than they
     // might, ensuring that they come after Fetch events.
-    spyOn(percy.browser, '_handleMessage').and.callFake(function (data) {
+    spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
       let { method } = JSON.parse(data);
 
       if (method === 'Network.requestWillBeSent') {
@@ -1111,7 +1111,7 @@ describe('Discovery', () => {
     // above request is cancelled in 50ms, and it will not resolve in 50ms as per following
     // mock so we can reproduce browser cancelling the request post requesting it
 
-    spyOn(Session.prototype, 'send').and.callFake(function (method, params) {
+    spyOn(Session.prototype, 'send').and.callFake(function(method, params) {
       if (method === 'Fetch.continueRequest') {
         this.log.debug(`Got Fetch.continueRequest ${params.requestId}`);
         this.log.debug(`Waiting for request to get aborted ${params.requestId}`);
@@ -1393,8 +1393,8 @@ describe('Discovery', () => {
           <p>Hello Percy!</p>
           <img src="img.gif" decoding="async"/>
           ${Array.from({ length: 800 }, (_, i) =>
-      `<img src="/dynamic/image-${i}.png" />`
-    ).join('\n')}
+            `<img src="/dynamic/image-${i}.png" />`
+          ).join('\n')}
         </body>
       </html>
     `;
@@ -2144,7 +2144,7 @@ describe('Discovery', () => {
     async function triggerSessionEventError(event, error) {
       let { Session } = await import('../src/session.js');
 
-      let spy = spyOn(Session.prototype, 'send').and.callFake(function (...args) {
+      let spy = spyOn(Session.prototype, 'send').and.callFake(function(...args) {
         if (args[0] === event) return Promise.reject(error);
         return spy.and.originalFn.apply(this, args);
       });
@@ -2892,7 +2892,7 @@ describe('Discovery', () => {
 
   describe('waitForSelector/waitForTimeout at the time of discovery when Js is enabled =>', () => {
     it('calls waitForTimeout, waitForSelector and page.eval when their respective arguments are given', async () => {
-      const page = await percy.browser.page({ intercept: { getResource: () => { } } });
+      const page = await percy.browser.page({ intercept: { getResource: () => {} } });
       spyOn(percy.browser, 'page').and.returnValue(page);
       spyOn(page, 'eval').and.callThrough();
       percy.loglevel('debug');
@@ -3457,7 +3457,7 @@ describe('Discovery', () => {
 
       let cssURL = new URL((api.requests['/builds/123/snapshots'][0].body.data.relationships.resources.data).find(r => r.attributes['resource-url'].endsWith('.css')).attributes['resource-url']);
       let injectedDOM = simpleDOM.replace('</body>', (
-        `<link data-percy-specific-css rel="stylesheet" href="${cssURL.pathname}"/>`
+       `<link data-percy-specific-css rel="stylesheet" href="${cssURL.pathname}"/>`
       ) + '</body>');
       let injectedDOM1 = DOM1.replace('</body>', (
         `<link data-percy-specific-css rel="stylesheet" href="${cssURL.pathname}"/>`
@@ -3634,6 +3634,7 @@ describe('Discovery', () => {
       ]));
     });
   });
+  
   describe('Scroll to bottom functionality', () => {
     let percy, server, captured;
 
@@ -3839,4 +3840,4 @@ describe('Discovery', () => {
       expect(largeImageResource).toBeDefined('Large image resource should be captured');
     });
   });
-}); 
+});
