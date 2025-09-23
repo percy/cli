@@ -3086,39 +3086,21 @@ describe('Discovery', () => {
         <h1>Responsive Images Example</h1>
         <img id="responsive-image" src="default.jpg" alt="Responsive Image">
         <script>
-            // Create and add the appropriate image based on viewport width
-            function createAndAppendImage() {
-              // Remove any existing lazy-loaded images first
-              const existingImg = document.getElementById("lazy-image");
-              if (existingImg) existingImg.remove();
-              
-              const img = document.createElement('img');
-              img.id = "lazy-image";
-              img.loading = "lazy";
-              
-              // Set the source based on the viewport width
-              if (window.innerWidth <= 375 || window.devicePixelRatio == 2) {
-                img.src = "/small.jpg";
-                img.setAttribute('data-size', 'small');
-              } else if (window.innerWidth < 1200 || window.devicePixelRatio == 3) {
-                img.src = "/medium.jpg";
-                img.setAttribute('data-size', 'medium');
+            var image = document.getElementById('responsive-image');
+            function updateImage() {
+              var width = window.innerWidth;
+              var dpr = window.devicePixelRatio;
+              if (width <= 375 || dpr == 2) {
+                image.src = '/small.jpg';
+              } else if (width < 1200 || dpr == 3) {
+                image.src = '/medium.jpg';
               } else {
-                img.src = "/large.jpg";
-                img.setAttribute('data-size', 'large');
+                image.src = '/large.jpg';
               }
-              
-              // Add the image at the bottom of the page
-              document.getElementById("bottom-content").appendChild(img);
             }
-            
-            // Run on initial load
-            window.addEventListener('load', createAndAppendImage);
-            
-            // Also run when the page is resized
-            window.addEventListener('resize', createAndAppendImage);
+            window.addEventListener('resize', updateImage);
+            window.addEventListener('load', updateImage);
         </script>
-        <div id="bottom-content"></div>
         </body>
         </html>
       `;
@@ -3253,7 +3235,6 @@ describe('Discovery', () => {
                 image.src = '/medium.jpg';
               }
             }
-            window.addEventListener('resize', updateImage);
             window.addEventListener('load', updateImage);
         </script>
         </body>
@@ -3502,7 +3483,6 @@ describe('Discovery', () => {
       ]));
     });
   });
-
   describe('Scroll to bottom functionality', () => {
     let percy, server, captured;
 
@@ -3636,36 +3616,52 @@ describe('Discovery', () => {
     });
 
     it('scrolls to bottom for each width when multiple widths are specified', async () => {
+      server.reply('/lazy-image-small.gif', () => [200, 'image/gif', pixel]);
+      server.reply('/lazy-image-large.gif', () => [200, 'image/gif', pixel]);
+
       const responsiveDOM = dedent`
         <html>
         <head><link href="style.css" rel="stylesheet"/></head>
         <body>
           <div id="top-content">Top content</div>
           <div style="height: 2000px;">Tall content</div>
-          <img id="responsive-image" src="default.jpg" alt="Responsive Image">
+          <!-- Use a more reliable method to create the responsive images -->
           <script>
-            var image = document.getElementById('responsive-image');
-            function updateImage() {
-              var width = window.innerWidth;
-              var dpr = window.devicePixelRatio;
-              if (width <= 375 || dpr == 2) {
-                image.src = '/lazy-image-small.gif';
-              } else if (width < 1200 || dpr == 3) {
-                image.src = '/lazy-image-large.gif';
+            // Create and add the appropriate image based on viewport width
+            function createAndAppendImage() {
+              // Remove any existing lazy-loaded images first
+              const existingImg = document.getElementById("lazy-image");
+              if (existingImg) existingImg.remove();
+              
+              const img = document.createElement('img');
+              img.id = "lazy-image";
+              img.loading = "lazy";
+              
+              // Set the source based on the viewport width
+              if (window.innerWidth <= 500) {
+                img.src = "lazy-image-small.gif";
+                img.setAttribute('data-size', 'small');
               } else {
-                image.src = '/lazy-image-large.gif';
+                img.src = "lazy-image-large.gif";
+                img.setAttribute('data-size', 'large');
               }
+              
+              // Add the image at the bottom of the page
+              document.getElementById("bottom-content").appendChild(img);
             }
-            window.addEventListener('resize', updateImage);
-            window.addEventListener('load', updateImage);
+            
+            // Run on initial load
+            window.addEventListener('load', createAndAppendImage);
+            
+            // Also run when the page is resized
+            window.addEventListener('resize', createAndAppendImage);
           </script>
+          <div id="bottom-content"></div>
         </body>
         </html>
       `;
 
       server.reply('/', () => [200, 'text/html', responsiveDOM]);
-      server.reply('/lazy-image-small.gif', () => [200, 'image/gif', pixel]);
-      server.reply('/lazy-image-large.gif', () => [200, 'image/gif', pixel]);
 
       await percy.snapshot({
         name: 'multiple widths scroll test',
