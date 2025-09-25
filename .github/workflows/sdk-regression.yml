@@ -32,7 +32,7 @@ jobs:
           - gatsby-plugin-percy
     steps:
       - name: Get user permissions
-        uses: actions/github-script@v4
+        uses: actions/github-script@v8
         id: check-access
         with:
           script: |
@@ -64,7 +64,7 @@ jobs:
           job_name: "regression (${{ matrix.repo }})" 
       - name: Output Current Job Log URL
         run: echo ${{ steps.jobs.outputs.html_url }}
-      - uses: actions/github-script@v4
+      - uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           script: |
@@ -99,7 +99,7 @@ jobs:
           client_payload: '{ "branch": "${{ steps.comment-branch.outputs.head_ref }}"}'
           wait_interval: 15
       - name: Update Status
-        uses: actions/github-script@v4
+        uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.WORKFLOW_DISPATCH_ACTIONS_TOKEN }}
           script: |
