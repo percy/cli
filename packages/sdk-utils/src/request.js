@@ -1,4 +1,5 @@
 import percy from './percy-info.js';
+import logger from './logger.js';
 
 // Helper to send a request to the local CLI API
 export async function request(path, options = {}) {
@@ -54,7 +55,6 @@ if (process.env.__PERCY_BROWSERIFIED__) {
     // rollup throws error for -> await import(protocol === 'https:' ? 'https' : 'http')
     let { default: http } = protocol === 'https:' ? await import('https') : await import('http');
 
-    // Use proxy agent if available - handle async operation outside Promise constructor
     const requestOptions = { ...options };
     try {
       const { proxyAgentFor } = await import('./proxy.js');
@@ -63,8 +63,9 @@ if (process.env.__PERCY_BROWSERIFIED__) {
         requestOptions.agent = agent;
       }
     } catch (error) {
-      // Proxy functionality not available, continue without proxy support
-      // This is acceptable fallback behavior for environments without proxy needs
+      // Failed to load proxy module or create proxy agent (e.g., missing proxy.js, invalid proxy config)
+      // Continue without proxy support - requests will go directly without proxy
+      logger('sdk-utils:request').debug(`Proxy agent unavailable: ${error.message}`);
     }
 
     return new Promise((resolve, reject) => {
