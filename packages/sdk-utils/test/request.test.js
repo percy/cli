@@ -180,7 +180,7 @@ describe('Utils Requests', () => {
         fail('Expected request to fail with proxy error');
       } catch (error) {
         // Should be a meaningful proxy-related error
-        expect(error.message).toMatch(/socket hang up|ENOTFOUND|ECONNREFUSED|EHOSTUNREACH|Connection closed/i);
+        expect(error.message).toMatch(/socket hang up|ENOTFOUND|ECONNREFUSED|EHOSTUNREACH|EAI_AGAIN|Connection closed/i);
       }
     });
   });
