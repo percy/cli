@@ -183,5 +183,62 @@ describe('Utils Requests', () => {
         expect(error.message).toMatch(/socket hang up|ENOTFOUND|ECONNREFUSED|EHOSTUNREACH|EAI_AGAIN|Connection closed/i);
       }
     });
+
+    it('does not set agent when proxyAgentFor returns null', async () => {
+      // Clear proxy configuration and cache first
+      delete process.env.https_proxy;
+      delete process.env.http_proxy;
+      if (proxyAgentFor && proxyAgentFor.cache) {
+        proxyAgentFor.cache.clear();
+      }
+
+      // Test the specific case where proxyAgentFor returns null/undefined
+      // This tests the falsy branch of the if (agent) condition
+      const proxyModule = await import('../src/proxy.js');
+      const originalProxyAgentFor = proxyModule.proxyAgentFor;
+
+      // Replace proxyAgentFor with a version that returns null
+      proxyModule.proxyAgentFor = () => null;
+
+      // Spy on the https.request to verify agent is not set
+      let capturedOptions;
+
+      spyOn(https, 'request').and.callFake((url, options) => {
+        capturedOptions = options;
+        return {
+          on: (event, callback) => {
+            if (event === 'response') {
+              const mockResponse = {
+                statusCode: 200,
+                statusMessage: 'OK',
+                headers: {},
+                on: (event, callback) => {
+                  if (event === 'end') setTimeout(() => callback(), 0);
+                  return mockResponse;
+                }
+              };
+              setTimeout(() => callback(mockResponse), 0);
+            }
+            return {
+              on: () => ({ end: () => ({}) }),
+              end: () => ({})
+            };
+          },
+          end: () => ({})
+        };
+      });
+
+      try {
+        // Make a request where proxyAgentFor returns null
+        await utils.request(server.address);
+
+        // Verify that no agent was set in request options due to null agent
+        expect(capturedOptions).toBeDefined();
+        expect(capturedOptions.agent).toBeUndefined();
+      } finally {
+        // Restore original proxyAgentFor function
+        proxyModule.proxyAgentFor = originalProxyAgentFor;
+      }
+    });
   });
 });

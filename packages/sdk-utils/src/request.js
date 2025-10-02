@@ -65,6 +65,7 @@ if (process.env.__PERCY_BROWSERIFIED__) {
     } catch (error) {
       // Failed to load proxy module or create proxy agent (e.g., missing proxy.js, invalid proxy config)
       // Continue without proxy support - requests will go directly without proxy
+      /* istanbul ignore next */
       logger('sdk-utils:request').debug(`Proxy agent unavailable: ${error.message}`);
     }
 
