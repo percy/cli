@@ -38,9 +38,6 @@
     "test": "percy exec --testing -- node ../../scripts/test",
     "test:coverage": "yarn test --coverage"
   },
-  "dependencies": {
-    "@percy/client": "1.31.3-beta.3"
-  },
   "rollup": {
     "external": [
       "ws"
