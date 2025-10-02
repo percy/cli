@@ -117,7 +117,7 @@ describe('Utils Requests', () => {
         NO_PROXY: process.env.NO_PROXY,
         no_proxy: process.env.no_proxy
       };
-      
+
       // Clear proxy environment variables
       delete process.env.HTTP_PROXY;
       delete process.env.HTTPS_PROXY;
@@ -143,7 +143,7 @@ describe('Utils Requests', () => {
       if (proxyAgentFor && proxyAgentFor.cache) {
         proxyAgentFor.cache.clear();
       }
-      
+
       // Restore original environment variables
       Object.keys(originalEnv).forEach(key => {
         if (originalEnv[key] !== undefined) {
@@ -163,7 +163,7 @@ describe('Utils Requests', () => {
       // Set proxy but exclude localhost from proxying
       process.env.https_proxy = 'http://nonexistent-proxy:8080';
       process.env.NO_PROXY = 'localhost,127.0.0.1';
-      
+
       // Request should work because localhost is in NO_PROXY
       let res = await utils.request(server.address);
       expect(res.body).toBe('test');
@@ -172,7 +172,7 @@ describe('Utils Requests', () => {
     it('handles proxy configuration gracefully when proxy is unavailable', async () => {
       // Set a proxy that doesn't exist
       process.env.https_proxy = 'http://nonexistent-proxy:8080';
-      
+
       // The request should fail gracefully with a meaningful error
       try {
         await utils.request(server.address);
