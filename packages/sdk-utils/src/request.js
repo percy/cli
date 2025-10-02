@@ -54,8 +54,27 @@ if (process.env.__PERCY_BROWSERIFIED__) {
     // rollup throws error for -> await import(protocol === 'https:' ? 'https' : 'http')
     let { default: http } = protocol === 'https:' ? await import('https') : await import('http');
 
-    return new Promise((resolve, reject) => {
-      http.request(url, options)
+    return new Promise(async (resolve, reject) => {
+      // Use proxy agent if available
+      const requestOptions = { ...options };
+      
+      // Try to get proxy agent using Function constructor to avoid Babel transformation
+      try {
+        const dynamicImport = new Function('specifier', 'return import(specifier)');
+        const { proxyAgentFor } = await dynamicImport('@percy/client/utils');
+        const agent = proxyAgentFor(url);
+        if (agent) {
+          requestOptions.agent = agent;
+        }
+      } catch (error) {
+        // Silently continue without proxy - this is expected when @percy/client is not available
+        // Only log in development/debug scenarios
+        if (process.env.NODE_ENV === 'development' && typeof window === 'undefined') {
+          console.warn('Proxy agent not available:', error.message);
+        }
+      }
+
+      http.request(url, requestOptions)
         .on('response', response => {
           let body = '';
 
