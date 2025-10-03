@@ -11,6 +11,9 @@ import {
 } from '../src/proxy.js';
 import http from 'http';
 import https from 'https';
+import net from 'net';
+import tls from 'tls';
+import logger from '../src/logger.js';
 
 describe('sdk-utils proxy', () => {
   let originalEnv;
@@ -254,6 +257,25 @@ describe('sdk-utils proxy', () => {
         expect(proxy).toBeDefined();
         expect(typeof proxy.connect).toBe('function');
       });
+
+      it('uses tls.connect when proxy URL uses https protocol', () => {
+        process.env.http_proxy = 'https://proxy.example.com:8080';
+        const options = { protocol: 'http:', hostname: 'example.com' };
+        const proxy = getProxy(options);
+
+        expect(proxy).toBeDefined();
+        expect(proxy.isHttps).toBe(true);
+        expect(typeof proxy.connect).toBe('function');
+
+        // Spy on tls.connect to verify it's called
+        spyOn(tls, 'connect');
+        proxy.connect();
+        expect(tls.connect).toHaveBeenCalledWith({
+          rejectUnauthorized: options.rejectUnauthorized,
+          host: proxy.host,
+          port: proxy.port
+        });
+      });
     });
   });
 
@@ -417,6 +439,224 @@ describe('sdk-utils proxy', () => {
       // better handled by integration tests
       expect(typeof agent.createConnection).toBe('function');
     });
+
+    it('should add Proxy-Authorization header when proxy has auth in createConnection', (done) => {
+      process.env.https_proxy = 'http://user:pass@proxy.example.com:8080';
+
+      const mockSocket = {};
+      mockSocket.on = jasmine.createSpy('on').and.returnValue(mockSocket);
+      mockSocket.write = jasmine.createSpy('write');
+      mockSocket.destroy = jasmine.createSpy('destroy');
+      mockSocket.off = jasmine.createSpy('off');
+
+      // Mock net.connect to return our mock socket
+      spyOn(net, 'connect').and.returnValue(mockSocket);
+
+      const options = {
+        protocol: 'https:',
+        hostname: 'example.com',
+        port: 443
+      };
+      const callback = jasmine.createSpy('callback');
+
+      agent.createConnection(options, callback);
+
+      // Verify that the connect message includes Proxy-Authorization
+      setTimeout(() => {
+        const writeCall = mockSocket.write.calls.first();
+        expect(writeCall).toBeDefined();
+        expect(writeCall.args[0]).toContain('Proxy-Authorization: Basic');
+        done();
+      }, 0);
+    });
+
+    it('should handle ECONNREFUSED and EHOSTUNREACH errors with specific warnings', (done) => {
+      process.env.https_proxy = 'http://proxy.example.com:8080';
+
+      // Spy on the logger.log method to catch the warn calls
+      const logSpy = spyOn(logger, 'log');
+
+      const mockSocket = {};
+      mockSocket.on = jasmine.createSpy('on').and.callFake((event, handler) => {
+        if (event === 'error') {
+          // Simulate ECONNREFUSED error
+          setTimeout(() => handler(new Error('connect ECONNREFUSED 127.0.0.1:8080')), 0);
+        }
+        return mockSocket;
+      });
+      mockSocket.write = jasmine.createSpy('write');
+      mockSocket.destroy = jasmine.createSpy('destroy');
+      mockSocket.off = jasmine.createSpy('off');
+
+      spyOn(net, 'connect').and.returnValue(mockSocket);
+
+      const options = {
+        protocol: 'https:',
+        hostname: 'example.com',
+        port: 443
+      };
+      const callback = jasmine.createSpy('callback');
+
+      agent.createConnection(options, callback);
+
+      // Wait for async error handling
+      setTimeout(() => {
+        const warnCalls = logSpy.calls.all().filter(call => call.args[1] === 'warn');
+        expect(warnCalls.length).toBeGreaterThan(0);
+        const warnMessages = warnCalls.map(call => call.args[2]);
+        expect(warnMessages).toContain('If needed, Please verify if your proxy credentials are correct');
+        expect(warnMessages).toContain('Please check if your proxy is set correctly and reachable');
+        done();
+      }, 20);
+    });
+
+    it('should handle non-200 proxy response correctly', (done) => {
+      process.env.https_proxy = 'http://proxy.example.com:8080';
+
+      const mockSocket = {
+        on: jasmine.createSpy('on').and.callFake((event, handler) => {
+          if (event === 'data') {
+            // Simulate non-200 response
+            setTimeout(() => handler(Buffer.from('HTTP/1.1 407 Proxy Authentication Required\r\n\r\n')), 0);
+          }
+          return mockSocket;
+        }),
+        write: jasmine.createSpy('write'),
+        destroy: jasmine.createSpy('destroy'),
+        off: jasmine.createSpy('off')
+      };
+
+      spyOn(net, 'connect').and.returnValue(mockSocket);
+
+      const options = {
+        protocol: 'https:',
+        hostname: 'example.com',
+        port: 443
+      };
+      const callback = jasmine.createSpy('callback');
+
+      agent.createConnection(options, callback);
+
+      // Wait for async data handling
+      setTimeout(() => {
+        expect(callback).toHaveBeenCalledWith(jasmine.objectContaining({
+          message: jasmine.stringMatching(/Error establishing proxy connection/)
+        }));
+        done();
+      }, 10);
+    });
+
+    it('should handle successful proxy connection', (done) => {
+      process.env.https_proxy = 'http://proxy.example.com:8080';
+
+      const mockSocket = {
+        on: jasmine.createSpy('on').and.callFake((event, handler) => {
+          if (event === 'data') {
+            // Simulate successful 200 response
+            setTimeout(() => handler(Buffer.from('HTTP/1.1 200 Connection established\r\n\r\n')), 0);
+          }
+          return mockSocket;
+        }),
+        write: jasmine.createSpy('write'),
+        destroy: jasmine.createSpy('destroy'),
+        off: jasmine.createSpy('off')
+      };
+
+      spyOn(net, 'connect').and.returnValue(mockSocket);
+      spyOn(https.Agent.prototype, 'createConnection').and.returnValue({});
+
+      const options = {
+        protocol: 'https:',
+        hostname: 'example.com',
+        port: 443
+      };
+      const callback = jasmine.createSpy('callback');
+
+      agent.createConnection(options, callback);
+
+      // Wait for async data handling
+      setTimeout(() => {
+        expect(options.socket).toBe(mockSocket);
+        expect(options.servername).toBe('example.com');
+        expect(callback).toHaveBeenCalledWith(null, jasmine.any(Object));
+        done();
+      }, 10);
+    });
+
+    it('should handle connection close during proxy setup', (done) => {
+      process.env.https_proxy = 'http://proxy.example.com:8080';
+
+      const mockSocket = {
+        on: jasmine.createSpy('on').and.callFake((event, handler) => {
+          if (event === 'close') {
+            // Simulate connection close
+            setTimeout(() => handler(), 0);
+          }
+          return mockSocket;
+        }),
+        write: jasmine.createSpy('write'),
+        destroy: jasmine.createSpy('destroy'),
+        off: jasmine.createSpy('off')
+      };
+
+      spyOn(net, 'connect').and.returnValue(mockSocket);
+
+      const options = {
+        protocol: 'https:',
+        hostname: 'example.com',
+        port: 443
+      };
+      const callback = jasmine.createSpy('callback');
+
+      agent.createConnection(options, callback);
+
+      // Wait for async close handling
+      setTimeout(() => {
+        expect(callback).toHaveBeenCalledWith(jasmine.objectContaining({
+          message: 'Connection closed while sending request to upstream proxy'
+        }));
+        done();
+      }, 10);
+    });
+
+    it('should handle incomplete proxy response headers', (done) => {
+      process.env.https_proxy = 'http://proxy.example.com:8080';
+
+      const mockSocket = {
+        on: jasmine.createSpy('on').and.callFake((event, handler) => {
+          if (event === 'data') {
+            // First call with incomplete headers (no double CRLF)
+            setTimeout(() => handler('HTTP/1.1 200 Connection established'), 5);
+            // Second call completing the headers
+            setTimeout(() => handler('\r\n\r\n'), 10);
+          }
+          return mockSocket;
+        }),
+        write: jasmine.createSpy('write'),
+        destroy: jasmine.createSpy('destroy'),
+        off: jasmine.createSpy('off')
+      };
+
+      spyOn(net, 'connect').and.returnValue(mockSocket);
+      spyOn(https.Agent.prototype, 'createConnection').and.returnValue({});
+
+      const options = {
+        protocol: 'https:',
+        hostname: 'example.com',
+        port: 443
+      };
+      const callback = jasmine.createSpy('callback');
+
+      agent.createConnection(options, callback);
+
+      // Wait for async data handling
+      setTimeout(() => {
+        expect(options.socket).toBe(mockSocket);
+        expect(options.servername).toBe('example.com');
+        expect(https.Agent.prototype.createConnection).toHaveBeenCalled();
+        done();
+      }, 15);
+    });
   });
 
   describe('proxyAgentFor', () => {
@@ -493,10 +733,33 @@ describe('sdk-utils proxy', () => {
       expect(proxyAgentFor.cache.has('https://sub.example.com')).toBe(true);
     });
 
-    it('should handle errors gracefully', () => {
-      // Test that proxyAgentFor handles errors properly
-      // This is a basic test to ensure the function structure is correct
-      expect(typeof proxyAgentFor).toBe('function');
+    it('should handle errors gracefully and log error message', () => {
+      const url = 'http://example.com'; // Use http to test ProxyHttpAgent
+
+      // Spy on the main logger.log function to capture error messages
+      const logSpy = spyOn(logger, 'log');
+
+      // Clear the cache to ensure we create a new agent
+      proxyAgentFor.cache.clear();
+
+      // Mock the https.Agent constructor which is called inside ProxyHttpAgent constructor
+      // for the httpsAgent property. This will cause an error during ProxyHttpAgent creation.
+      const originalHttpsAgent = https.Agent;
+      https.Agent = function() {
+        throw new Error('Test error during agent creation');
+      };
+
+      try {
+        // This should trigger the catch block in proxyAgentFor when ProxyHttpAgent
+        // tries to create its httpsAgent property
+        expect(() => proxyAgentFor(url, {})).toThrow();
+
+        // Verify that the error was logged with correct namespace and level
+        expect(logSpy).toHaveBeenCalledWith('sdk-utils:proxy', 'error', 'Failed to create proxy agent: Test error during agent creation');
+      } finally {
+        // Restore the original constructor
+        https.Agent = originalHttpsAgent;
+      }
     });
 
     it('should have a cache property that is a Map', () => {
