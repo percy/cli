@@ -217,11 +217,11 @@ export class ProxyHttpsAgent extends https.Agent {
 
       // We don't get statusCode here, relying on checking error message only
       if (!!err.message && (err.message?.includes('ECONNREFUSED') || err.message?.includes('EHOSTUNREACH'))) {
-        logger('sdk-utils:proxy').warn('If needed, Please verify if your proxy credentials are correct');
-        logger('sdk-utils:proxy').warn('Please check if your proxy is set correctly and reachable');
+        logger('sdk-utils:proxy').warn('If needed, please verify that your proxy credentials are correct.');
+        logger('sdk-utils:proxy').warn('Please check that your proxy is configured correctly and reachable.');
       }
 
-      logger('sdk-utils:proxy').warn('Please check network connection, proxy and ensure that following domains are whitelisted: github.com, percy.io, storage.googleapis.com. In case you are an enterprise customer make sure to whitelist "percy-enterprise.browserstack.com" as well.');
+      logger('sdk-utils:proxy').warn('Please ensure that the following domains are whitelisted: github.com, percy.io, storage.googleapis.com. If you are an enterprise customer, also whitelist "percy-enterprise.browserstack.com".');
       callback(err);
     };
 
