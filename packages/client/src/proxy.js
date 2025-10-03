@@ -6,6 +6,14 @@ import logger from '@percy/logger';
 import { stripQuotesAndSpaces } from '@percy/env/utils';
 import { PacProxyAgent } from 'pac-proxy-agent';
 
+/**
+ * Primary proxy implementation for Percy CLI
+ *
+ * NOTE: A simplified copy exists in @percy/sdk-utils/src/proxy.js due to module
+ * compatibility constraints. When modifying core proxy logic here, also update
+ * the sdk-utils version.
+ */
+
 const CRLF = '\r\n';
 const STATUS_REG = /^HTTP\/1.[01] (\d*)/;
 
