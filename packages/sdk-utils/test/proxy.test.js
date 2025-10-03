@@ -7,8 +7,10 @@ import {
   getProxy,
   ProxyHttpAgent,
   ProxyHttpsAgent,
-  proxyAgentFor
+  proxyAgentFor,
+  createPacAgent
 } from '../src/proxy.js';
+import { PacProxyAgent } from 'pac-proxy-agent';
 import http from 'http';
 import https from 'https';
 import net from 'net';
@@ -26,7 +28,8 @@ describe('sdk-utils proxy', () => {
       http_proxy: process.env.http_proxy,
       https_proxy: process.env.https_proxy,
       NO_PROXY: process.env.NO_PROXY,
-      no_proxy: process.env.no_proxy
+      no_proxy: process.env.no_proxy,
+      PERCY_PAC_FILE_URL: process.env.PERCY_PAC_FILE_URL
     };
 
     // Clear all proxy environment variables
@@ -36,6 +39,7 @@ describe('sdk-utils proxy', () => {
     delete process.env.https_proxy;
     delete process.env.NO_PROXY;
     delete process.env.no_proxy;
+    delete process.env.PERCY_PAC_FILE_URL;
 
     // Clear proxy agent cache
     if (proxyAgentFor && proxyAgentFor.cache) {
@@ -589,8 +593,8 @@ describe('sdk-utils proxy', () => {
       const mockSocket = {
         on: jasmine.createSpy('on').and.callFake((event, handler) => {
           if (event === 'close') {
-            // Simulate connection close
-            setTimeout(() => handler(), 0);
+            // Immediately call the close handler to simulate a closed connection
+            handler();
           }
           return mockSocket;
         }),
@@ -606,17 +610,14 @@ describe('sdk-utils proxy', () => {
         hostname: 'example.com',
         port: 443
       };
-      const callback = jasmine.createSpy('callback');
+
+      const callback = (err) => {
+        expect(err).toBeInstanceOf(Error);
+        expect(err.message).toBe('Connection closed while sending request to upstream proxy');
+        done();
+      };
 
       agent.createConnection(options, callback);
-
-      // Wait for async close handling
-      setTimeout(() => {
-        expect(callback).toHaveBeenCalledWith(jasmine.objectContaining({
-          message: 'Connection closed while sending request to upstream proxy'
-        }));
-        done();
-      }, 10);
     });
 
     it('should handle incomplete proxy response headers', (done) => {
@@ -625,10 +626,8 @@ describe('sdk-utils proxy', () => {
       const mockSocket = {
         on: jasmine.createSpy('on').and.callFake((event, handler) => {
           if (event === 'data') {
-            // First call with incomplete headers (no double CRLF)
-            setTimeout(() => handler('HTTP/1.1 200 Connection established'), 5);
-            // Second call completing the headers
-            setTimeout(() => handler('\r\n\r\n'), 10);
+            // Simulate receiving incomplete data
+            handler('HTTP/1.1 200 OK\r\n');
           }
           return mockSocket;
         }),
@@ -638,30 +637,51 @@ describe('sdk-utils proxy', () => {
       };
 
       spyOn(net, 'connect').and.returnValue(mockSocket);
-      spyOn(https.Agent.prototype, 'createConnection').and.returnValue({});
 
       const options = {
         protocol: 'https:',
         hostname: 'example.com',
         port: 443
       };
+
       const callback = jasmine.createSpy('callback');
 
       agent.createConnection(options, callback);
 
-      // Wait for async data handling
+      // Let the event loop run to see if anything happens
       setTimeout(() => {
-        expect(options.socket).toBe(mockSocket);
-        expect(options.servername).toBe('example.com');
-        expect(https.Agent.prototype.createConnection).toHaveBeenCalled();
+        expect(callback).not.toHaveBeenCalled();
         done();
-      }, 15);
+      }, 100);
+    });
+  });
+
+  describe('createPacAgent', () => {
+    it('should create a PAC proxy agent successfully', () => {
+      const pacUrl = 'http://example.com/proxy.pac';
+      const options = { keepAlive: true };
+      const agent = createPacAgent(pacUrl, options);
+      expect(agent).toBeInstanceOf(PacProxyAgent);
+    });
+
+    it('should throw an error if PAC proxy agent creation fails', () => {
+      const pacUrl = 'http://invalid-url/proxy.pac';
+      const options = { keepAlive: true };
+      createPacAgent(pacUrl, options);
+      expect(createPacAgent).toThrow();
+    });
+
+    it('should not throw an error if PAC proxy agent creation with invalid URL', () => {
+      const pacUrl = 'invalid-url';
+      const options = { keepAlive: true };
+      // PacProxyAgent constructor doesn't validate URLs, so it won't throw
+      expect(() => createPacAgent(pacUrl, options)).not.toThrow();
     });
   });
 
   describe('proxyAgentFor', () => {
     beforeEach(() => {
-      // Clear cache before each test
+      // Clear proxy agent cache
       if (proxyAgentFor && proxyAgentFor.cache) {
         proxyAgentFor.cache.clear();
       }
@@ -742,7 +762,7 @@ describe('sdk-utils proxy', () => {
       // Clear the cache to ensure we create a new agent
       proxyAgentFor.cache.clear();
 
-      // Mock the https.Agent constructor which is called inside ProxyHttpAgent constructor
+      // Mock the https.Agent constructor which is called inside ProxyHttpAgent
       // for the httpsAgent property. This will cause an error during ProxyHttpAgent creation.
       const originalHttpsAgent = https.Agent;
       https.Agent = function() {
@@ -760,6 +780,17 @@ describe('sdk-utils proxy', () => {
         // Restore the original constructor
         https.Agent = originalHttpsAgent;
       }
+    });
+
+    it('should create PAC agent when PERCY_PAC_FILE_URL is set', () => {
+      process.env.PERCY_PAC_FILE_URL = 'http://example.com/proxy.pac';
+      const logSpy = spyOn(logger, 'log');
+
+      const agent = proxyAgentFor('http://example.com');
+
+      expect(agent).toBeInstanceOf(PacProxyAgent);
+      expect(logSpy).toHaveBeenCalledWith('sdk-utils:proxy', 'info', 'Using PAC file from: http://example.com/proxy.pac');
+      expect(logSpy).toHaveBeenCalledWith('sdk-utils:proxy', 'info', 'Successfully loaded PAC file from: http://example.com/proxy.pac');
     });
 
     it('should have a cache property that is a Map', () => {

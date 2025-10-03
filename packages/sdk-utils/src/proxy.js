@@ -3,6 +3,7 @@ import tls from 'tls';
 import http from 'http';
 import https from 'https';
 import logger from './logger.js';
+import { PacProxyAgent } from 'pac-proxy-agent';
 
 const CRLF = '\r\n';
 const STATUS_REG = /^HTTP\/1.[01] (\d*)/;
@@ -46,6 +47,23 @@ const STATUS_REG = /^HTTP\/1.[01] (\d*)/;
  * This approach ensures proxy functionality works reliably without external
  * import complications while maintaining the same core HTTP/HTTPS proxy features.
  */
+
+// function to create PAC proxy agent
+export function createPacAgent(pacUrl, options = {}) {
+  pacUrl = stripQuotesAndSpaces(pacUrl);
+  try {
+    const agent = new PacProxyAgent(pacUrl, {
+      keepAlive: true,
+      ...options
+    });
+
+    logger('sdk-utils:proxy').info(`Successfully loaded PAC file from: ${pacUrl}`);
+    return agent;
+  } catch (error) {
+    logger('sdk-utils:proxy').error(`Failed to load PAC file, error message: ${error.message},  stack: ${error.stack}`);
+    throw new Error(`Failed to initialize PAC proxy: ${error.message}`);
+  }
+}
 
 // Returns true if the URL hostname matches any patterns
 export function hostnameMatches(patterns, url) {
@@ -271,11 +289,18 @@ export function proxyAgentFor(url, options) {
 
   try {
     let agent;
+    const pacUrl = process.env.PERCY_PAC_FILE_URL;
 
-    // Create the appropriate proxy agent based on protocol
-    agent = protocol === 'https:'
-      ? new ProxyHttpsAgent(options)
-      : new ProxyHttpAgent(options);
+    // If PAC URL is provided, use PAC proxy
+    if (pacUrl) {
+      logger('sdk-utils:proxy').info(`Using PAC file from: ${pacUrl}`);
+      agent = createPacAgent(pacUrl, options);
+    } else {
+      // Fall back to other proxy configuration
+      agent = protocol === 'https:'
+        ? new ProxyHttpsAgent(options)
+        : new ProxyHttpAgent(options);
+    }
 
     // Cache the created agent
     cache.set(cachekey, agent);

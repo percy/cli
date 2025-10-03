@@ -50,5 +50,8 @@
         "test/server(.js)?"
       ]
     }
+  },
+  "dependencies": {
+    "pac-proxy-agent": "^5.0.0"
   }
 }
