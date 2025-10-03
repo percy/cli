@@ -508,8 +508,8 @@ describe('sdk-utils proxy', () => {
         const warnCalls = logSpy.calls.all().filter(call => call.args[1] === 'warn');
         expect(warnCalls.length).toBeGreaterThan(0);
         const warnMessages = warnCalls.map(call => call.args[2]);
-        expect(warnMessages).toContain('If needed, Please verify if your proxy credentials are correct');
-        expect(warnMessages).toContain('Please check if your proxy is set correctly and reachable');
+        expect(warnMessages).toContain('If needed, please verify that your proxy credentials are correct.');
+        expect(warnMessages).toContain('Please check that your proxy is configured correctly and reachable.');
         done();
       }, 20);
     });
