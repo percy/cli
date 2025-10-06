@@ -22,11 +22,13 @@ export function serializeScrollState(original, clone) {
 export function serializeOpacity(original, clone) {
   if (!original || !clone) return;
 
+  // Check if original is a DOM Element
+  if (!original.nodeType || original.nodeType !== 1) return;
+
   // Get computed opacity for the original element
   const opacity = window.getComputedStyle(original).opacity;
 
   // Set opacity attribute for any non-default opacity value
-
   clone.setAttribute('data-percy-opacity', opacity);
 }
 
