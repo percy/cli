@@ -22,23 +22,12 @@ export function serializeScrollState(original, clone) {
 export function serializeOpacity(original, clone) {
   if (!original || !clone) return;
 
-  try {
-    // Get computed styles for the original element
-    const styles = window.getComputedStyle(original);
-    const opacity = styles.opacity;
+  // Get computed opacity for the original element
+  const opacity = window.getComputedStyle(original).opacity;
 
-    // Only set the opacity attribute if the element has an explicit opacity style
-    // or if the computed opacity is not the default value of '1'
-    const hasExplicitOpacity = original.style && original.style.opacity !== '';
-    const isNonDefaultOpacity = opacity !== '1';
+  // Set opacity attribute for any non-default opacity value
 
-    if (hasExplicitOpacity || isNonDefaultOpacity) {
-      clone.setAttribute('data-percy-opacity', opacity);
-    }
-  } catch (err) {
-    // Silently handle any errors in getting computed styles
-    // This prevents the serialization from failing due to opacity issues
-  }
+  clone.setAttribute('data-percy-opacity', opacity);
 }
 
 // All transformations that we need to apply for a successful discovery and stable render
