@@ -55,7 +55,7 @@ export function createPercyServer(percy, port) {
         res.setHeader('X-Percy-Core-Version', percy.testing?.version ?? pkg.version);
       }
 
-      // track all api reqeusts in testing mode
+      // track all api requests in testing mode
       if (percy.testing && !req.url.pathname.startsWith('/test/')) {
         (percy.testing.requests ||= []).push({
           url: `${req.url.pathname}${req.url.search}`,
@@ -115,7 +115,7 @@ export function createPercyServer(percy, port) {
 
       let content = await fs.promises.readFile(PERCY_DOM, 'utf-8');
       let wrapper = '(window.PercyAgent = class { snapshot(n, o) { return PercyDOM.serialize(o); } });';
-      return res.send(200, 'applicaton/javascript', content.concat(wrapper));
+      return res.send(200, 'application/javascript', content.concat(wrapper));
     })
   // post one or more snapshots, optionally async
     .route('post', '/percy/snapshot', async (req, res) => {

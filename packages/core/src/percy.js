@@ -10,7 +10,8 @@ import {
   yieldAll,
   yieldTo,
   redactSecrets,
-  detectSystemProxyAndLog
+  detectSystemProxyAndLog,
+  checkSDKVersion
 } from './utils.js';
 
 import {
@@ -121,6 +122,7 @@ export class Percy {
     // if there is none, stop it
     this.resetMonitoringId = null;
     this.monitoringCheckLastExecutedAt = null;
+    this.sdkInfoDisplayed = false;
 
     // generator methods are wrapped to autorun and return promises
     for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot', 'upload']) {
@@ -217,7 +219,7 @@ export class Percy {
       if (process.env.PERCY_CLIENT_ERROR_LOGS !== 'false') {
         this.log.warn('Notice: Percy collects CI logs to improve service and enhance your experience. These logs help us debug issues and provide insights on your dashboards, making it easier to optimize the product experience. Logs are stored securely for 30 days. You can opt out anytime with export PERCY_CLIENT_ERROR_LOGS=false, but keeping this enabled helps us offer the best support and features.');
       }
-      // Not awaiting proxy check as this can be asyncronous when not enabled
+      // Not awaiting proxy check as this can be asynchronous when not enabled
       const detectProxy = detectSystemProxyAndLog(this.config.percy.useSystemProxy);
       if (this.config.percy.useSystemProxy) await detectProxy;
       // start the snapshots queue immediately when not delayed or deferred
@@ -380,7 +382,7 @@ export class Percy {
     if (cpuInfo.currentUsagePercent >= 80 || memoryUsageInfo.currentUsagePercent >= 80) {
       let currentConcurrent = this.#discovery.concurrency;
 
-      // concurrency must be betweeen [1, (default/user defined value)]
+      // concurrency must be between [1, (default/user defined value)]
       let newConcurrency = Math.max(1, parseInt(currentConcurrent / 2));
       newConcurrency = Math.min(this.discoveryMaxConcurrency, newConcurrency);
 
@@ -390,7 +392,7 @@ export class Percy {
       let currentConcurrent = this.#discovery.concurrency;
       let newConcurrency = currentConcurrent + 2;
 
-      // concurrency must be betweeen [1, (default/user-defined value)]
+      // concurrency must be between [1, (default/user-defined value)]
       newConcurrency = Math.min(this.discoveryMaxConcurrency, newConcurrency);
       newConcurrency = Math.max(1, newConcurrency);
 
@@ -432,11 +434,16 @@ export class Percy {
       throw new Error('Cannot capture DOM snapshots when asset discovery is disabled');
     }
 
-    // return an async generator to allow cancelation
+    // return an async generator to allow cancellation
     return (async function*() {
       let server;
 
       try {
+        // Check SDK version
+        if (!this.sdkInfoDisplayed && options.clientInfo) {
+          await checkSDKVersion(options.clientInfo);
+          this.sdkInfoDisplayed = true;
+        }
         if ('serve' in options) {
           // create and start a static server
           let { baseUrl, snapshots } = options;
@@ -520,7 +527,7 @@ export class Percy {
       Object.assign(options, { ...callback });
     }
 
-    // return an async generator to allow cancelation
+    // return an async generator to allow cancellation
     return (async function*() {
       try {
         return yield* yieldTo(this.#snapshots.push(options));
@@ -636,7 +643,7 @@ export class Percy {
         // This can be due to proxy issue
         this.log.error('percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted.');
         if (!this.#proxyEnabled()) {
-          this.log.error('If inside a proxied envirnment, please configure the following environment variables: HTTP_PROXY, [ and optionally HTTPS_PROXY if you need it ]. Refer to our documentation for more details');
+          this.log.error('If inside a proxied environment, please configure the following environment variables: HTTP_PROXY, [ and optionally HTTPS_PROXY if you need it ]. Refer to our documentation for more details');
         }
       }
       this.log.error('Unable to analyze error logs');

@@ -1,5 +1,5 @@
 import EventEmitter from 'events';
-import { sha256hash } from '@percy/client/utils';
+import { sha256hash, request } from '@percy/client/utils';
 import { camelcase, merge } from '@percy/config/utils';
 import YAML from 'yaml';
 import path from 'path';
@@ -582,5 +582,72 @@ export function normalizeOptions(options) {
 export async function* maybeScrollToBottom(page, discovery) {
   if (discovery.scrollToBottom && page.enableJavaScript) {
     yield page.eval('await scrollToBottom()');
+  }
+}
+
+// Package to GitHub repo mapping
+const PACKAGE_TO_REPO = {
+  '@percy/selenium-webdriver': 'percy-selenium-js',
+  '@percy/playwright': 'percy-playwright',
+  '@percy/appium-app': 'percy-appium-js',
+  '@percy/storybook': 'percy-storybook',
+  '@percy/ember': 'percy-ember',
+  '@percy/cypress': 'percy-cypress',
+  '@percy/puppeteer': 'percy-puppeteer',
+  '@percy/testcafe': 'percy-testcafe',
+  '@percy/nightwatch': 'percy-nightwatch',
+  'percy-java-selenium': 'percy-selenium-java',
+  'percy-playwright-java': 'percy-playwright-java',
+  'percy-appium-dotnet': 'percy-appium-dotnet',
+  'percy-selenium-dotnet': 'percy-selenium-dotnet',
+  'percy-playwright-dotnet': 'percy-playwright-dotnet',
+  'percy-playwright-python': 'percy-playwright-python',
+  'percy-selenium-python': 'percy-selenium-python',
+  'percy-selenium-ruby': 'percy-selenium-ruby',
+  'percy-capybara': 'percy-capybara'
+};
+
+// Utility function to check SDK version updates
+export async function checkSDKVersion(clientInfo) {
+  const log = logger('core:sdk-version');
+
+  try {
+    // Split on the last '/' to get package name and version
+    const lastSlashIndex = clientInfo.lastIndexOf('/');
+    if (lastSlashIndex === -1) {
+      log.debug(`Invalid clientInfo format: ${clientInfo}`);
+      return;
+    }
+
+    const packageName = clientInfo.substring(0, lastSlashIndex);
+    const currentVersion = clientInfo.substring(lastSlashIndex + 1);
+
+    // Get GitHub repo name from mapping
+    const repoName = PACKAGE_TO_REPO[packageName];
+    if (!repoName) {
+      log.debug(`No repo mapping found for package: ${packageName}`);
+      return;
+    }
+
+    // Fetch latest version from GitHub releases
+    const githubData = await request(`https://api.github.com/repos/percy/${repoName}/releases?page=1`, {
+      headers: { 'User-Agent': '@percy/cli' },
+      retries: 0
+    });
+
+    const latestRelease = githubData.find(r => !r.prerelease);
+    if (!latestRelease) {
+      return;
+    }
+
+    const latestVersion = latestRelease.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
+
+    log.debug(`[SDK Version Check] Current: ${currentVersion}, Latest: ${latestVersion}`);
+
+    if (currentVersion !== latestVersion) {
+      log.warn(`[SDK Update Available] ${packageName}: ${currentVersion} -> ${latestVersion}`);
+    }
+  } catch (error) {
+    log.debug('Could not check SDK version', error);
   }
 }

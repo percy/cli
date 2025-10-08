@@ -159,7 +159,7 @@ describe('getMemoryUsageInfo: OtherOS', () => {
     mockSi = spyOn(si, 'mem').and.returnValue(mockMemoryResponse);
   });
 
-  it('returns memory useage info of system level', async () => {
+  it('returns memory usage info of system level', async () => {
     const memInfo = await getMemoryUsageInfo(platform);
 
     // checking only types, as values can differ as we are

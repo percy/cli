@@ -80,7 +80,8 @@ describe('Percy', () => {
       disableShadowDOM: false,
       cliEnableJavaScript: true,
       responsiveSnapshotCapture: false,
-      ignoreCanvasSerializationErrors: false
+      ignoreCanvasSerializationErrors: false,
+      forceShadowAsLightDOM: false
     });
   });
 
@@ -107,7 +108,7 @@ describe('Percy', () => {
     });
 
     // expect required arguments are passed to PercyDOM.serialize
-    expect(evalSpy.calls.allArgs()[3]).toEqual(jasmine.arrayContaining([jasmine.anything(), { enableJavaScript: undefined, disableShadowDOM: true, domTransformation: undefined, reshuffleInvalidTags: undefined, ignoreCanvasSerializationErrors: undefined }]));
+    expect(evalSpy.calls.allArgs()[3]).toEqual(jasmine.arrayContaining([jasmine.anything(), { enableJavaScript: undefined, disableShadowDOM: true, domTransformation: undefined, reshuffleInvalidTags: undefined, ignoreCanvasSerializationErrors: undefined, forceShadowAsLightDOM: undefined }]));
 
     expect(snapshot.url).toEqual('http://localhost:8000/');
     expect(snapshot.domSnapshot).toEqual(jasmine.objectContaining({
@@ -346,7 +347,7 @@ describe('Percy', () => {
       expect(percy.client.labels).toEqual('dev,prod,canary');
     });
 
-    it('cancels deferred build creation when interupted', async () => {
+    it('cancels deferred build creation when interrupted', async () => {
       percy = new Percy({ token: 'PERCY_TOKEN', deferUploads: true });
 
       // abort when the browser is launched
@@ -575,7 +576,7 @@ describe('Percy', () => {
       delete process.env.HTTP_PROXY;
     });
 
-    it('takes no action when no proxt is detected', async () => {
+    it('takes no action when no proxy is detected', async () => {
       spyOn(DetectProxy.prototype, 'getSystemProxy').and.returnValue([]);
       await expectAsync(percy.start()).toBeResolved();
 
@@ -1374,7 +1375,7 @@ describe('Percy', () => {
 
           expect(logger.stderr).toEqual(jasmine.arrayContaining([
             '[percy] percy.io might not be reachable, check network connection, proxy and ensure that percy.io is whitelisted.',
-            '[percy] If inside a proxied envirnment, please configure the following environment variables: HTTP_PROXY, [ and optionally HTTPS_PROXY if you need it ]. Refer to our documentation for more details',
+            '[percy] If inside a proxied environment, please configure the following environment variables: HTTP_PROXY, [ and optionally HTTPS_PROXY if you need it ]. Refer to our documentation for more details',
             '[percy] Unable to analyze error logs'
           ]));
         });
@@ -1631,7 +1632,7 @@ describe('Percy', () => {
       });
     });
 
-    describe('when cpu and memory useage is low', () => {
+    describe('when cpu and memory usage is low', () => {
       beforeEach(() => {
         spyOn(percy.monitoring, 'getMonitoringInfo').and.returnValue({
           cpuInfo: { currentUsagePercent: 20, cores: 3, cgroupExists: false },
@@ -1651,7 +1652,7 @@ describe('Percy', () => {
       });
     });
 
-    describe('when cpu or memory usesage is high', () => {
+    describe('when cpu or memory usage is high', () => {
       let mockCpuInfo = { currentUsagePercent: 20, cores: 3, cgroupExists: false };
       let mockMemInfo = { currentUsagePercent: 90.3, totalMemory: 121212112 };
       beforeEach(() => {

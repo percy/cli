@@ -12,7 +12,7 @@ export default class Cache {
   static dpr = 'dpr';
   static resolution = 'resolution';
 
-  // maintainance
+  // maintenance
   static lastTime = Date.now();
   static timeout = 5 * 60 * 1000;
 

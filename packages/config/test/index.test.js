@@ -806,12 +806,12 @@ describe('PercyConfig', () => {
         })).toEqual([
           {
             path: 'algorithmConfiguration',
-            message: 'algorithmConfiguration needs algorigthm to be passed'
+            message: 'algorithmConfiguration needs algorithm to be passed'
           }
         ]);
       });
 
-      it('validates algorithmConfiguration when layout algorigthm is passed', () => {
+      it('validates algorithmConfiguration when layout algorithm is passed', () => {
         expect(PercyConfig.validate({
           algorithm: 'layout',
           algorithmConfiguration: { diffSensitivity: 2 }
@@ -823,7 +823,7 @@ describe('PercyConfig', () => {
         ]);
       });
 
-      it('validates algorithmConfiguration when standard algorigthm is passed', () => {
+      it('validates algorithmConfiguration when standard algorithm is passed', () => {
         expect(PercyConfig.validate({
           algorithm: 'standard',
           algorithmConfiguration: { diffSensitivity: 2 }

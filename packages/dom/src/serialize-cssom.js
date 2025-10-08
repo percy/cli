@@ -9,9 +9,26 @@ function isCSSOM(styleSheet) {
 
 // Returns false if any stylesheet rules do not match between two stylesheets
 function styleSheetsMatch(sheetA, sheetB) {
-  for (let i = 0; i < sheetA.cssRules.length; i++) {
-    let ruleA = sheetA.cssRules[i].cssText;
-    let ruleB = sheetB.cssRules[i]?.cssText;
+  if (!sheetA || !sheetB) return false;
+  const hasOwnAccessor = (obj, prop) => {
+    if (!obj || typeof obj !== 'object') return false;
+    const desc = Object.getOwnPropertyDescriptor(obj, prop);
+    return !!(desc && (typeof desc.get === 'function' || typeof desc.set === 'function'));
+  };
+  if (hasOwnAccessor(sheetA, 'cssRules') || hasOwnAccessor(sheetB, 'cssRules')) {
+    return false;
+  }
+
+  if (!sheetA.cssRules || !sheetB.cssRules) return false;
+
+  const lenA = sheetA.cssRules.length;
+  const lenB = sheetB.cssRules.length;
+
+  if (lenA !== lenB) return false;
+
+  for (let i = 0; i < lenA; i++) {
+    const ruleA = sheetA.cssRules[i] && sheetA.cssRules[i].cssText;
+    const ruleB = sheetB.cssRules[i] && sheetB.cssRules[i].cssText;
     if (ruleA !== ruleB) return false;
   }
 
@@ -49,7 +66,7 @@ export function serializeCSSOM(ctx) {
           style.type = 'text/css';
           style.setAttribute('data-percy-element-id', styleId);
           style.setAttribute('data-percy-cssom-serialized', 'true');
-          style.innerHTML = Array.from(styleSheet.cssRules)
+          style.textContent = Array.from(styleSheet.cssRules)
             .map(cssRule => cssRule.cssText).join('\n');
 
           cloneOwnerNode.parentNode.insertBefore(style, cloneOwnerNode.nextSibling);

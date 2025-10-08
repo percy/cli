@@ -41,7 +41,7 @@ export default class PlaywrightProvider extends GenericProvider {
   async screenshot(name, options) {
     let response = null;
     let error;
-    log.debug(`[${name}] : Preparing to capture screenshots on playwrght with automate ...`);
+    log.debug(`[${name}] : Preparing to capture screenshots on playwright with automate ...`);
     try {
       log.debug(`[${name}] : Marking automate session as percy ...`);
       const result = await this.percyScreenshotBegin(name);
@@ -51,7 +51,7 @@ export default class PlaywrightProvider extends GenericProvider {
       this.setDebugUrl();
       const tiles = await this.getTiles();
       log.debug(`[${name}] : Tiles ${JSON.stringify(tiles)}`);
-      log.debug('Fetching comparisong tag ...');
+      log.debug('Fetching comparison tag ...');
       const tag = await this.getTag(tiles.tagData);
       log.debug(`[${name}] : Tag ${JSON.stringify(tag)}`);
       response = {
@@ -145,7 +145,7 @@ export default class PlaywrightProvider extends GenericProvider {
 
   async getTag(tagData) {
     if (!this.automateResults) throw new Error('Comparison tag details not available');
-    const mobileOS = ['ANDROID'];
+    const mobileOS = ['ANDROID', 'IOS'];
     const normalizeTags = new NormalizeData();
     const automateCaps = this.automateResults.capabilities;
     const osName = normalizeTags.osRollUp(automateCaps.os);

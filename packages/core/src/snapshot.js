@@ -29,7 +29,7 @@ function validURL(url, base) {
 
 function validateAndFixSnapshotUrl(snapshot) {
   let log = logger('core:snapshot');
-  // encoding snapshot url, if contians invalid URI characters/syntax
+  // encoding snapshot url, if contains invalid URI characters/syntax
   let modifiedURL = decodeAndEncodeURLWithLogging(snapshot.url, log, {
     meta: { snapshot: { name: snapshot.name || snapshot.url } },
     shouldLogWarning: true,
@@ -95,7 +95,7 @@ function mapSnapshotOptions(snapshots, context) {
   // reduce options into a single function
   let applyOptions = [].concat(context?.options || [])
     .reduceRight((next, { include, exclude, ...opts }) => snap => next(
-      // assign additional options to included snaphots
+      // assign additional options to included snapshots
       snapshotMatches(snap, include, exclude) ? Object.assign(snap, opts) : snap
     ), snap => getSnapshotOptions(snap, context));
 
@@ -298,7 +298,7 @@ function mergeSnapshotOptions(prev = {}, next) {
   let { resources: oldResources = [], ...existing } = prev;
   let { resources: newResources = [], widths = [], width, ...incoming } = next;
 
-  // prioritize singular widths over mutilple widths
+  // prioritize singular widths over multiple widths
   widths = width ? [width] : widths;
 
   // deduplicate resources by associated widths and url
