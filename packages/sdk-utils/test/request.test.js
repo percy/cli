@@ -102,4 +102,143 @@ describe('Utils Requests', () => {
     let res = await utils.request(server.address);
     expect(res.body).toBe('test');
   });
+
+  describe('with proxy configuration', () => {
+    let originalEnv;
+    let proxyAgentFor;
+
+    beforeEach(async () => {
+      // Store original environment variables
+      originalEnv = {
+        HTTP_PROXY: process.env.HTTP_PROXY,
+        HTTPS_PROXY: process.env.HTTPS_PROXY,
+        http_proxy: process.env.http_proxy,
+        https_proxy: process.env.https_proxy,
+        NO_PROXY: process.env.NO_PROXY,
+        no_proxy: process.env.no_proxy
+      };
+
+      // Clear proxy environment variables
+      delete process.env.HTTP_PROXY;
+      delete process.env.HTTPS_PROXY;
+      delete process.env.http_proxy;
+      delete process.env.https_proxy;
+      delete process.env.NO_PROXY;
+      delete process.env.no_proxy;
+
+      // Import and clear proxy agent cache
+      try {
+        const proxyModule = await import('../src/proxy.js');
+        proxyAgentFor = proxyModule.proxyAgentFor;
+        if (proxyAgentFor && proxyAgentFor.cache) {
+          proxyAgentFor.cache.clear();
+        }
+      } catch (e) {
+        // Ignore if proxy module doesn't exist
+      }
+    });
+
+    afterEach(() => {
+      // Clear proxy agent cache again after each test
+      if (proxyAgentFor && proxyAgentFor.cache) {
+        proxyAgentFor.cache.clear();
+      }
+
+      // Restore original environment variables
+      Object.keys(originalEnv).forEach(key => {
+        if (originalEnv[key] !== undefined) {
+          process.env[key] = originalEnv[key];
+        } else {
+          delete process.env[key];
+        }
+      });
+    });
+
+    it('makes request successfully when no proxy is configured', async () => {
+      let res = await utils.request(server.address);
+      expect(res.body).toBe('test');
+    });
+
+    it('skips proxy when hostname matches NO_PROXY', async () => {
+      // Set proxy but exclude localhost from proxying
+      process.env.https_proxy = 'http://nonexistent-proxy:8080';
+      process.env.NO_PROXY = 'localhost,127.0.0.1';
+
+      // Request should work because localhost is in NO_PROXY
+      let res = await utils.request(server.address);
+      expect(res.body).toBe('test');
+    });
+
+    it('handles proxy configuration gracefully when proxy is unavailable', async () => {
+      // Set a proxy that doesn't exist
+      process.env.https_proxy = 'http://nonexistent-proxy:8080';
+
+      // The request should fail gracefully with a meaningful error
+      try {
+        await utils.request(server.address);
+        // If we get here, the proxy was bypassed somehow
+        fail('Expected request to fail with proxy error');
+      } catch (error) {
+        // Should be a meaningful proxy-related error
+        expect(error.message).toMatch(/socket hang up|ENOTFOUND|ECONNREFUSED|EHOSTUNREACH|EAI_AGAIN|Connection closed/i);
+      }
+    });
+
+    it('does not set agent when proxyAgentFor returns null', async () => {
+      // Clear proxy configuration and cache first
+      delete process.env.https_proxy;
+      delete process.env.http_proxy;
+      if (proxyAgentFor && proxyAgentFor.cache) {
+        proxyAgentFor.cache.clear();
+      }
+
+      // Test the specific case where proxyAgentFor returns null/undefined
+      // This tests the falsy branch of the if (agent) condition
+      const proxyModule = await import('../src/proxy.js');
+      const originalProxyAgentFor = proxyModule.proxyAgentFor;
+
+      // Replace proxyAgentFor with a version that returns null
+      proxyModule.proxyAgentFor = () => null;
+
+      // Spy on the https.request to verify agent is not set
+      let capturedOptions;
+
+      spyOn(https, 'request').and.callFake((url, options) => {
+        capturedOptions = options;
+        return {
+          on: (event, callback) => {
+            if (event === 'response') {
+              const mockResponse = {
+                statusCode: 200,
+                statusMessage: 'OK',
+                headers: {},
+                on: (event, callback) => {
+                  if (event === 'end') setTimeout(() => callback(), 0);
+                  return mockResponse;
+                }
+              };
+              setTimeout(() => callback(mockResponse), 0);
+            }
+            return {
+              on: () => ({ end: () => ({}) }),
+              end: () => ({})
+            };
+          },
+          end: () => ({})
+        };
+      });
+
+      try {
+        // Make a request where proxyAgentFor returns null
+        await utils.request(server.address);
+
+        // Verify that no agent was set in request options due to null agent
+        expect(capturedOptions).toBeDefined();
+        expect(capturedOptions.agent).toBeUndefined();
+      } finally {
+        // Restore original proxyAgentFor function
+        proxyModule.proxyAgentFor = originalProxyAgentFor;
+      }
+    });
+  });
 });

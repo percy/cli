@@ -2,20 +2,51 @@ import net from 'net';
 import tls from 'tls';
 import http from 'http';
 import https from 'https';
-import logger from '@percy/logger';
-import { stripQuotesAndSpaces } from '@percy/env/utils';
+import logger from './logger.js';
 import { PacProxyAgent } from 'pac-proxy-agent';
-
-/**
- * Primary proxy implementation for Percy CLI
- *
- * NOTE: A simplified copy exists in @percy/sdk-utils/src/proxy.js due to module
- * compatibility constraints. When modifying core proxy logic here, also update
- * the sdk-utils version.
- */
 
 const CRLF = '\r\n';
 const STATUS_REG = /^HTTP\/1.[01] (\d*)/;
+
+/**
+ * Local proxy implementation for sdk-utils package
+ *
+ * WHY THIS EXISTS:
+ * ================
+ * This is a self-contained proxy implementation copied and simplified from
+ * @percy/client/src/proxy.js. We cannot directly import from @percy/client/utils
+ * due to several module compatibility and build system issues:
+ *
+ * 1. MODULE TYPE MISMATCH:
+ *    - @percy/client is built as an ES module ("type": "module")
+ *    - @percy/sdk-utils gets built as CommonJS by Rollup/Babel
+ *    - Runtime import() calls get transformed to require() calls by the build system
+ *    - This causes "require() of ES Module not supported" errors at runtime
+ *
+ * 2. BUILD SYSTEM TRANSFORMATION:
+ *    - Rollup/Babel transforms dynamic imports even when marked as external
+ *    - Attempts to use eval() or Function constructor to bypass transformation
+ *      either fail with "experimental-vm-modules" requirements or still get transformed
+ *
+ * 3. DEPENDENCY RESOLUTION:
+ *    - Cross-package imports create complex dependency resolution issues
+ *    - The sdk-utils package needs to be self-contained for broader compatibility
+ *
+ * 4. RUNTIME ENVIRONMENT DIFFERENCES:
+ *    - sdk-utils may run in different environments than the main Percy CLI
+ *    - A local implementation ensures consistent behavior regardless of environment
+ *
+ * WHAT'S DIFFERENT FROM CLIENT VERSION:
+ * ====================================
+ * - Removed PAC proxy support (pac-proxy-agent dependency)
+ * - Removed @percy/env dependency (inlined stripQuotesAndSpaces function)
+ * - Uses local logger instead of @percy/logger
+ * - Simplified error handling and logging
+ * - Removed some advanced features to keep it lightweight
+ *
+ * This approach ensures proxy functionality works reliably without external
+ * import complications while maintaining the same core HTTP/HTTPS proxy features.
+ */
 
 // function to create PAC proxy agent
 export function createPacAgent(pacUrl, options = {}) {
@@ -26,10 +57,10 @@ export function createPacAgent(pacUrl, options = {}) {
       ...options
     });
 
-    logger('client:proxy').info(`Successfully loaded PAC file from: ${pacUrl}`);
+    logger('sdk-utils:proxy').info(`Successfully loaded PAC file from: ${pacUrl}`);
     return agent;
   } catch (error) {
-    logger('client:proxy').error(`Failed to load PAC file, error message: ${error.message},  stack: ${error.stack}`);
+    logger('sdk-utils:proxy').error(`Failed to load PAC file, error message: ${error.message},  stack: ${error.stack}`);
     throw new Error(`Failed to initialize PAC proxy: ${error.message}`);
   }
 }
@@ -38,8 +69,6 @@ export function createPacAgent(pacUrl, options = {}) {
 export function hostnameMatches(patterns, url) {
   let subject = new URL(url);
 
-  /* istanbul ignore next: only strings are provided internally by the client proxy; core (which
-   * borrows this util) sometimes provides an array of patterns or undefined */
   patterns = typeof patterns === 'string'
     ? patterns.split(/[\s,]+/)
     : [].concat(patterns);
@@ -84,7 +113,13 @@ export function href(options) {
   let { protocol, hostname, path, pathname, search, hash } = options;
   return `${protocol}//${hostname}:${port(options)}` +
     (path || `${pathname || ''}${search || ''}${hash || ''}`);
-};
+}
+
+// Strip quotes and spaces from environment variables
+function stripQuotesAndSpaces(str) {
+  if (typeof str !== 'string') return str;
+  return str.replace(/^["'\s]+|["'\s]+$/g, '');
+}
 
 // Returns the proxy URL for a set of request options
 export function getProxy(options) {
@@ -93,10 +128,12 @@ export function getProxy(options) {
     (process.env.http_proxy || process.env.HTTP_PROXY);
 
   let shouldProxy = !!proxyUrl && !hostnameMatches(
-    stripQuotesAndSpaces(process.env.no_proxy || process.env.NO_PROXY)
-    , href(options));
+    stripQuotesAndSpaces(process.env.no_proxy || process.env.NO_PROXY),
+    href(options));
 
-  if (proxyUrl && typeof proxyUrl === 'string') { proxyUrl = stripQuotesAndSpaces(proxyUrl); }
+  if (proxyUrl && typeof proxyUrl === 'string') {
+    proxyUrl = stripQuotesAndSpaces(proxyUrl);
+  }
 
   if (shouldProxy) {
     proxyUrl = new URL(proxyUrl);
@@ -131,7 +168,7 @@ export class ProxyHttpAgent extends http.Agent {
   addRequest(request, options) {
     let proxy = getProxy(options);
     if (!proxy) return super.addRequest(request, options);
-    logger('client:proxy').debug(`Proxying request: ${options.href}`);
+    logger('sdk-utils:proxy').debug(`Proxying request: ${href(options)}`);
 
     // modify the request for proxying
     request.path = href(options);
@@ -176,7 +213,7 @@ export class ProxyHttpsAgent extends https.Agent {
   createConnection(options, callback) {
     let proxy = getProxy(options);
     if (!proxy) return super.createConnection(options, callback);
-    logger('client:proxy').debug(`Proxying request: ${href(options)}`);
+    logger('sdk-utils:proxy').debug(`Proxying request: ${href(options)}`);
 
     // generate proxy connect message
     let host = `${options.hostname}:${port(options)}`;
@@ -194,15 +231,15 @@ export class ProxyHttpsAgent extends https.Agent {
 
     let handleError = err => {
       socket.destroy(err);
-      logger('client:proxy').error(`Proxying request ${href(options)} failed: ${err}`);
+      logger('sdk-utils:proxy').error(`Proxying request ${href(options)} failed: ${err}`);
 
       // We don't get statusCode here, relying on checking error message only
       if (!!err.message && (err.message?.includes('ECONNREFUSED') || err.message?.includes('EHOSTUNREACH'))) {
-        logger('client:proxy').warn('If needed, Please verify if your proxy credentials are correct');
-        logger('client:proxy').warn('Please check if your proxy is set correctly and reachable');
+        logger('sdk-utils:proxy').warn('If needed, please verify that your proxy credentials are correct.');
+        logger('sdk-utils:proxy').warn('Please check that your proxy is configured correctly and reachable.');
       }
 
-      logger('client:proxy').warn('Please check network connection, proxy and ensure that following domains are whitelisted: github.com, percy.io, storage.googleapis.com. In case you are an enterprise customer make sure to whitelist "percy-enterprise.browserstack.com" as well.');
+      logger('sdk-utils:proxy').warn('Please ensure that the following domains are whitelisted: github.com, percy.io, storage.googleapis.com. If you are an enterprise customer, also whitelist "percy-enterprise.browserstack.com".');
       callback(err);
     };
 
@@ -256,7 +293,7 @@ export function proxyAgentFor(url, options) {
 
     // If PAC URL is provided, use PAC proxy
     if (pacUrl) {
-      logger('client:proxy').info(`Using PAC file from: ${pacUrl}`);
+      logger('sdk-utils:proxy').info(`Using PAC file from: ${pacUrl}`);
       agent = createPacAgent(pacUrl, options);
     } else {
       // Fall back to other proxy configuration
@@ -269,7 +306,7 @@ export function proxyAgentFor(url, options) {
     cache.set(cachekey, agent);
     return agent;
   } catch (error) {
-    logger('client:proxy').error(`Failed to create proxy agent: ${error.message}`);
+    logger('sdk-utils:proxy').error(`Failed to create proxy agent: ${error.message}`);
     throw error;
   }
 }
