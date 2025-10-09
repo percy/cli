@@ -59,7 +59,7 @@ export function serializeCSSOM(ctx) {
         let cloneOwnerNode;
         try {
           styleId = styleSheet.ownerNode.getAttribute('data-percy-element-id');
-          if (!styleId) continue;
+          if (!styleId && process.env.PERCY_SKIP_UNSUPPORTED_STYLESHEETS) continue;
           cloneOwnerNode = clone.querySelector(`[data-percy-element-id="${styleId}"]`);
           if (styleSheetsMatch(styleSheet, styleSheetFromNode(cloneOwnerNode))) continue;
           let style = document.createElement('style');
