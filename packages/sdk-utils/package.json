@@ -1,6 +1,6 @@
 {
   "name": "@percy/sdk-utils",
-  "version": "1.31.3-beta.4",
+  "version": "1.31.3-beta.5",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -52,6 +52,6 @@
     }
   },
   "dependencies": {
-    "pac-proxy-agent": "^5.0.0"
+    "pac-proxy-agent": "^7.0.2"
   }
 }
