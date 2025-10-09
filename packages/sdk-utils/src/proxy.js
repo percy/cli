@@ -149,7 +149,7 @@ export function getProxy(options) {
   // This follows standard industry practice - most proxy implementations
   // (Docker, browsers, corporate proxies) exclude localhost by default.
   let noProxyList = stripQuotesAndSpaces(process.env.no_proxy || process.env.NO_PROXY) || '';
-  const defaultNoProxy = 'localhost,127.0.0.1,::1';
+  const defaultNoProxy = 'localhost,127.0.0.1,::1,[::1]';
   noProxyList = noProxyList ? `${noProxyList},${defaultNoProxy}` : defaultNoProxy;
 
   let shouldProxy = !!proxyUrl && !hostnameMatches(noProxyList, href(options));
