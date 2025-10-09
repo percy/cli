@@ -127,9 +127,32 @@ export function getProxy(options) {
     (process.env.https_proxy || process.env.HTTPS_PROXY)) ||
     (process.env.http_proxy || process.env.HTTP_PROXY);
 
-  let shouldProxy = !!proxyUrl && !hostnameMatches(
-    stripQuotesAndSpaces(process.env.no_proxy || process.env.NO_PROXY),
-    href(options));
+  // Always exclude localhost/127.0.0.1 from proxying to prevent internal loops
+  //
+  // CRITICAL: Percy SDK communicates with percy-cli server via HTTP calls to localhost:5338
+  // When HTTP_PROXY is set, these internal communications would be routed through the proxy,
+  // creating a feedback loop that causes memory leaks and crashes:
+  //
+  // 1. SDK makes request to localhost:5338/percy/log (internal communication)
+  // 2. Request gets routed through external proxy due to HTTP_PROXY setting
+  // 3. Proxy forwards request back to localhost:5338 (adds latency + overhead)
+  // 4. Percy server processes request and generates internal logs/metrics
+  // 5. Those logs trigger MORE requests to localhost:5338/percy/log
+  // 6. Each new request also gets proxied, creating exponential growth
+  // 7. Eventually: JavaScript heap exhaustion and process crash
+  //
+  // By excluding localhost by default, we ensure:
+  // - External requests (percy.io, etc.) go through proxy as intended
+  // - Internal percy-cli ↔ sdk communications remain fast and direct
+  // - No risk of internal communication loops or memory leaks
+  //
+  // This follows standard industry practice - most proxy implementations
+  // (Docker, browsers, corporate proxies) exclude localhost by default.
+  let noProxyList = stripQuotesAndSpaces(process.env.no_proxy || process.env.NO_PROXY) || '';
+  const defaultNoProxy = 'localhost,127.0.0.1,::1';
+  noProxyList = noProxyList ? `${noProxyList},${defaultNoProxy}` : defaultNoProxy;
+
+  let shouldProxy = !!proxyUrl && !hostnameMatches(noProxyList, href(options));
 
   if (proxyUrl && typeof proxyUrl === 'string') {
     proxyUrl = stripQuotesAndSpaces(proxyUrl);
@@ -168,7 +191,7 @@ export class ProxyHttpAgent extends http.Agent {
   addRequest(request, options) {
     let proxy = getProxy(options);
     if (!proxy) return super.addRequest(request, options);
-    logger('sdk-utils:proxy').debug(`Proxying request: ${href(options)}`);
+    logger('sdk-utils:proxy').debug(`Proxying request: ${href(options)} via ${proxy.host}:${proxy.port}`);
 
     // modify the request for proxying
     request.path = href(options);
