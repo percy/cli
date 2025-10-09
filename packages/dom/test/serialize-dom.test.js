@@ -31,7 +31,7 @@ describe('serializeDOM', () => {
 
   it('optionally returns a stringified response', () => {
     expect(serializeDOM({ stringifyResponse: true }))
-      .toMatch('{"html":".*","cookies":".*","userAgent":".*","warnings":\\[\\],"resources":\\[\\],"hints":\\[\\], "perfInfo":{.*}}');
+      .toMatch('{"html":".*","cookies":".*","userAgent":".*","warnings":\\[\\],"resources":\\[\\],"hints":\\[\\],"perfInfo":{.*}}');
   });
 
   it('always has a doctype', () => {
