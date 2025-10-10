@@ -280,6 +280,74 @@ describe('sdk-utils proxy', () => {
           port: proxy.port
         });
       });
+
+      it('automatically excludes localhost from proxying to prevent internal loops', () => {
+        // Set proxy environment variables
+        process.env.http_proxy = 'http://proxy.example.com:8080';
+        process.env.https_proxy = 'http://proxy.example.com:8080';
+
+        // Test various localhost variations - should all be excluded
+        const localhostVariations = [
+          { protocol: 'http:', hostname: 'localhost', port: 5338 },
+          { protocol: 'http:', hostname: '127.0.0.1', port: 5338 },
+          { protocol: 'https:', hostname: 'localhost', port: 443 },
+          { protocol: 'https:', hostname: '127.0.0.1', port: 443 }
+        ];
+
+        localhostVariations.forEach(options => {
+          const proxy = getProxy(options);
+          expect(proxy).toBeUndefined();
+        });
+
+        // Verify external requests still use proxy
+        const externalOptions = { protocol: 'https:', hostname: 'percy.io' };
+        const proxy = getProxy(externalOptions);
+        expect(proxy).toBeDefined();
+        expect(proxy.host).toBe('proxy.example.com');
+        expect(proxy.port).toBe('8080');
+      });
+
+      it('respects user-defined NO_PROXY alongside default localhost exclusion', () => {
+        process.env.https_proxy = 'http://proxy.example.com:8080';
+        process.env.NO_PROXY = 'example.org,*.test.com';
+
+        // User-defined no_proxy should work
+        const userExcluded = { protocol: 'https:', hostname: 'example.org' };
+        expect(getProxy(userExcluded)).toBeUndefined();
+
+        const wildcardExcluded = { protocol: 'https:', hostname: 'api.test.com' };
+        expect(getProxy(wildcardExcluded)).toBeUndefined();
+
+        // Default localhost exclusion should still work
+        const localhost = { protocol: 'https:', hostname: 'localhost' };
+        expect(getProxy(localhost)).toBeUndefined();
+
+        // External requests not in NO_PROXY should still use proxy
+        const external = { protocol: 'https:', hostname: 'percy.io' };
+        const proxy = getProxy(external);
+        expect(proxy).toBeDefined();
+        expect(proxy.host).toBe('proxy.example.com');
+      });
+
+      it('excludes IPv6 localhost (::1) from proxying', () => {
+        process.env.http_proxy = 'http://proxy.example.com:8080';
+
+        // Test IPv6 localhost - when URL is parsed, IPv6 addresses keep brackets
+        const ipv6Url = 'http://[::1]:5338/test';
+        const parsedUrl = new URL(ipv6Url);
+
+        // The parsed hostname should be [::1] (with brackets)
+        expect(parsedUrl.hostname).toBe('[::1]');
+
+        // Test that our default no_proxy list includes both IPv6 formats
+        // [::1] pattern should match [::1] hostname
+        expect(hostnameMatches('[::1]', ipv6Url)).toBe(true);
+
+        // Test that getProxy returns undefined for IPv6 localhost
+        const ipv6Options = { protocol: 'http:', hostname: '[::1]', port: 5338 };
+        const proxy = getProxy(ipv6Options);
+        expect(proxy).toBeUndefined();
+      });
     });
   });
 
