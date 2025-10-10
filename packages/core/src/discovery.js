@@ -197,15 +197,25 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
     roots = resources.find(r => Array.isArray(r));
   }
 
-  // inject Percy CSS
-  if (snapshot.percyCSS) {
-    // check @percy/dom/serialize-dom.js
-    let domSnapshotHints = domSnapshot?.hints ?? [];
-    if (domSnapshotHints.includes('DOM elements found outside </body>')) {
-      log.warn('DOM elements found outside </body>, percyCSS might not work');
-    }
+  // inject Percy CSS (only include internal CSS for opacity handling if needed)
+  const internalPercyCSS = '.percy-opacity-1 { opacity: 1 !important; }';
+  const userPercyCSS = snapshot.percyCSS || '';
+  const needsOpacityCSS = domSnapshot && domSnapshot.html && domSnapshot.html.includes('percy-opacity-1');
 
-    const percyCSSReource = createAndApplyPercyCSS({ percyCSS: snapshot.percyCSS, roots });
+  let combinedPercyCSS = userPercyCSS || '';
+  if (needsOpacityCSS) {
+    combinedPercyCSS = combinedPercyCSS ? `${internalPercyCSS}\n${userPercyCSS}` : internalPercyCSS;
+  }
+
+  // check @percy/dom/serialize-dom.js
+  let domSnapshotHints = domSnapshot?.hints ?? [];
+  if (domSnapshotHints.includes('DOM elements found outside </body>') && userPercyCSS) {
+    log.warn('DOM elements found outside </body>, percyCSS might not work');
+  }
+
+  // Only create and inject Percy CSS resource if there's actually CSS to inject
+  if (combinedPercyCSS) {
+    const percyCSSReource = createAndApplyPercyCSS({ percyCSS: combinedPercyCSS, roots });
     resources.push(percyCSSReource);
   }
 
