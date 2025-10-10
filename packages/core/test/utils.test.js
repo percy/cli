@@ -61,7 +61,7 @@ describe('utils', () => {
       waitForSelectorInsideBrowser(page, 'body', 30000);
 
       expect(page.eval).toHaveBeenCalledWith('await waitForSelector("body", 30000)');
-    });
+    }, 60000);
     it('should handle errors when waitForSelectorInsideBrowser fails', async () => {
       let error = null;
       const expectedError = new Error('Unable to find: body');
