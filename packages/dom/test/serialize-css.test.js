@@ -262,6 +262,15 @@ describe('serializeCSSOM', () => {
       });
     });
 
+    it('handles error and add stylesheet details', () => {
+      process.env.PERCY_SKIP_UNSUPPORTED_STYLESHEETS = 'true';
+      let link = '<link rel="stylesheet" href="data:text/css,.box { margin: 10px; }"/>';
+      withExample(`<div class="box"></div>${link}}`);
+      withCSSOM('.box { height: 500px; }');
+      expect(() => serializeCSSOM({ dom: document })).not.toThrow();
+      delete process.env.PERCY_SKIP_UNSUPPORTED_STYLESHEETS;
+    });
+
     it('falls back when stylesheet cssRules access throws', () => {
       withExample('<div class="box"></div>');
       withCSSOM('.box { height: 500px; }');
