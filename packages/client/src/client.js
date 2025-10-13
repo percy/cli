@@ -206,7 +206,8 @@ export class PercyClient {
           'cli-start-time': cliStartTime,
           source: source,
           'skip-base-build': this.config.percy?.skipBaseBuild,
-          'testhub-build-uuid': this.env.testhubBuildUuid
+          'testhub-build-uuid': this.env.testhubBuildUuid,
+          'testhub-build-run-id': this.env.testhubBuildRunId
         },
         relationships: {
           resources: {
