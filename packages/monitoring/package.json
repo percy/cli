@@ -1,6 +1,6 @@
 {
   "name": "@percy/monitoring",
-  "version": "1.31.3-beta.5",
+  "version": "1.31.3",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -9,7 +9,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "beta"
+    "tag": "latest"
   },
   "engines": {
     "node": ">=14"
@@ -29,9 +29,9 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@percy/config": "1.31.3-beta.5",
-    "@percy/logger": "1.31.3-beta.5",
-    "@percy/sdk-utils": "1.31.3-beta.5",
+    "@percy/config": "1.31.3",
+    "@percy/logger": "1.31.3",
+    "@percy/sdk-utils": "1.31.3",
     "systeminformation": "^5.25.11"
   }
 }

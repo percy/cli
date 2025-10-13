@@ -173,9 +173,13 @@ describe('Utils Requests', () => {
       // Set a proxy that doesn't exist
       process.env.https_proxy = 'http://nonexistent-proxy:8080';
 
+      // Use a non-localhost URL to ensure the proxy is actually used
+      // (localhost is excluded by default to prevent internal loops)
+      const externalUrl = 'https://example.com/test';
+
       // The request should fail gracefully with a meaningful error
       try {
-        await utils.request(server.address);
+        await utils.request(externalUrl);
         // If we get here, the proxy was bypassed somehow
         fail('Expected request to fail with proxy error');
       } catch (error) {
@@ -239,6 +243,26 @@ describe('Utils Requests', () => {
         // Restore original proxyAgentFor function
         proxyModule.proxyAgentFor = originalProxyAgentFor;
       }
+    });
+
+    it('automatically excludes localhost requests from proxying', async () => {
+      // Set proxy environment variables
+      process.env.https_proxy = 'http://nonexistent-proxy:8080';
+      process.env.http_proxy = 'http://nonexistent-proxy:8080';
+      // Deliberately NOT setting NO_PROXY to test default localhost exclusion
+
+      // Clear proxy agent cache to ensure fresh proxy decision
+      if (proxyAgentFor && proxyAgentFor.cache) {
+        proxyAgentFor.cache.clear();
+      }
+
+      // Request to localhost should work despite proxy being set to nonexistent server
+      // This proves localhost is automatically excluded from proxying
+      let res = await utils.request(server.address);
+      expect(res.body).toBe('test');
+
+      // Verify it was actually a localhost request
+      expect(server.address).toContain('localhost');
     });
   });
 });
