@@ -528,7 +528,7 @@ describe('PercyClient', () => {
     });
 
     it('creates a new build with testhub-build-run-id', async () => {
-      process.env.TH_BUILD_UUID = 'test-uuid-123';
+      process.env.TH_BUILD_RUN_ID = 'test-run-id-123';
       await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolvedTo({
         data: {
           id: '123',
