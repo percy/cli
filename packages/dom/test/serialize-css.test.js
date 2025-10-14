@@ -262,11 +262,11 @@ describe('serializeCSSOM', () => {
       });
     });
 
-    it('does not throw when ignoreStylesheetSerializationErrors is true', () => {
+    it('does not throw when ignoreStyleSheetSerializationErrors is true', () => {
       let link = '<link rel="stylesheet" href="data:text/css,.box { margin: 10px; }"/>';
       withExample(`<div class="box"></div>${link}}`);
       withCSSOM('.box { height: 500px; }');
-      expect(() => serializeCSSOM({ dom: document, ignoreStylesheetSerializationErrors: true })).not.toThrow();
+      expect(() => serializeCSSOM({ dom: document, ignoreStyleSheetSerializationErrors: true })).not.toThrow();
     });
 
     it('falls back when stylesheet cssRules access throws', () => {
