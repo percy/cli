@@ -246,6 +246,10 @@ export const configSchema = {
       ignoreCanvasSerializationErrors: {
         type: 'boolean',
         default: false
+      },
+      ignoreStyleSheetSerializationErrors: {
+        type: 'boolean',
+        default: false
       }
     }
   },
@@ -403,6 +407,7 @@ export const snapshotSchema = {
         algorithmConfiguration: { $ref: '/config/snapshot#/properties/algorithmConfiguration' },
         scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
         ignoreCanvasSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreCanvasSerializationErrors' },
+        ignoreStyleSheetSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreStyleSheetSerializationErrors' },
         discovery: {
           type: 'object',
           additionalProperties: false,
