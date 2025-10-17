@@ -93,6 +93,7 @@ export function serializeDOM(options) {
     disableShadowDOM = options?.disable_shadow_dom,
     reshuffleInvalidTags = options?.reshuffle_invalid_tags,
     ignoreCanvasSerializationErrors = options?.ignore_canvas_serialization_errors,
+    ignoreStyleSheetSerializationErrors = options?.ignore_style_sheet_serialization_errors,
     forceShadowAsLightDOM = options?.force_shadow_dom_as_light_dom
   } = options || {};
 
@@ -106,6 +107,7 @@ export function serializeDOM(options) {
     enableJavaScript,
     disableShadowDOM,
     ignoreCanvasSerializationErrors,
+    ignoreStyleSheetSerializationErrors,
     clonedNodeCount: 0, // Track number of cloned nodes
     forceShadowAsLightDOM
   };

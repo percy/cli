@@ -27,7 +27,7 @@ jobs:
           name: win-exe
           path: percy.exe
       - name: Upload assets
-        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974
+        uses: softprops/action-gh-release@62c96d0c4e8a889135c1f3a25910db8dbe0e85f7
         with:
           files: |
             percy-osx.zip
@@ -37,7 +37,7 @@ jobs:
   notify:
     needs: build
     name: Sign Win Executable
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v5
       - name: Download win artifact
@@ -63,7 +63,7 @@ jobs:
       - run: |
           powershell -Command "Compress-Archive -Path 'percy.exe' -DestinationPath 'percy-win.zip'"
       - name: Upload assets
-        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974
+        uses: softprops/action-gh-release@62c96d0c4e8a889135c1f3a25910db8dbe0e85f7
         with:
           files: |
             percy-win.zip

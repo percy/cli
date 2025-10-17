@@ -303,6 +303,11 @@ export class PercyEnv {
     return this.vars.TH_BUILD_UUID || this.vars.BROWSERSTACK_TESTHUB_UUID || null;
   }
 
+  // th build run id
+  get testhubBuildRunId() {
+    return this.vars.TH_BUILD_RUN_ID || this.vars.BROWSERSTACK_TESTHUB_RUN_ID || null;
+  }
+
   // PERCY_FORCE_PKG_VALUE for forcing package.json values
   // to be used as the current environment values in client
   get forcedPkgValue() {

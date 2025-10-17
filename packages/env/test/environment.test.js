@@ -55,4 +55,37 @@ describe('PercyEnv', () => {
       expect(env.testhubBuildUuid).toBeNull();
     });
   });
+
+  describe('testhubBuildRunId', () => {
+    it('should return TH_BUILD_RUN_ID when it is set', () => {
+      let env = new PercyEnv({ TH_BUILD_RUN_ID: 'test_run_id' });
+      expect(env.testhubBuildRunId).toEqual('test_run_id');
+    });
+
+    it('should return BROWSERSTACK_TESTHUB_RUN_ID when TH_BUILD_RUN_ID is not set', () => {
+      let env = new PercyEnv({ BROWSERSTACK_TESTHUB_RUN_ID: 'browserstack_run_id' });
+      expect(env.testhubBuildRunId).toEqual('browserstack_run_id');
+    });
+
+    it('should prioritize TH_BUILD_RUN_ID over BROWSERSTACK_TESTHUB_RUN_ID when both are set', () => {
+      let env = new PercyEnv({
+        TH_BUILD_RUN_ID: 'test_run_id',
+        BROWSERSTACK_TESTHUB_RUN_ID: 'browserstack_run_id'
+      });
+      expect(env.testhubBuildRunId).toEqual('test_run_id');
+    });
+
+    it('should return null if neither TH_BUILD_RUN_ID nor BROWSERSTACK_TESTHUB_RUN_ID are set', () => {
+      let env = new PercyEnv({});
+      expect(env.testhubBuildRunId).toBeNull();
+    });
+
+    it('should return null if both values are null', () => {
+      let env = new PercyEnv({
+        TH_BUILD_RUN_ID: null,
+        BROWSERSTACK_TESTHUB_RUN_ID: null
+      });
+      expect(env.testhubBuildRunId).toBeNull();
+    });
+  });
 });

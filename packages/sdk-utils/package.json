@@ -1,6 +1,6 @@
 {
   "name": "@percy/sdk-utils",
-  "version": "1.31.3-beta.3",
+  "version": "1.31.4",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -9,7 +9,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "beta"
+    "tag": "latest"
   },
   "engines": {
     "node": ">=14"
@@ -50,5 +50,8 @@
         "test/server(.js)?"
       ]
     }
+  },
+  "dependencies": {
+    "pac-proxy-agent": "^7.0.2"
   }
 }

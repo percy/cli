@@ -24,8 +24,10 @@ module.exports = async config => {
       { pattern: 'test/assets/**', watched: false, included: false }
     ],
 // NOTE: Although sdk-utils test run in browser as well, we do not run sdk-utils/request test in browsers as we require creation of https server for this test
+    // NOTE: proxy.test.js is excluded because proxy functionality uses Node.js-specific modules (http, https)
     exclude: [
       '**/test/request.test.js',
+      '**/test/proxy.test.js',
     ],
     proxies: {
       // useful when the contents of a fake asset do not matter
