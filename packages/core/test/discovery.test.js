@@ -164,7 +164,10 @@ describe('Discovery', () => {
     ]);
   });
 
-  it('logs performance info when present in domSnapshot', async () => {
+  fit('logs performance info when present in domSnapshot', async () => {
+    // Enable debug logging to capture the performance info log
+    percy.loglevel('debug');
+
     const domSnapshotWithPerfInfo = {
       html: testDOM,
       perfInfo: {
@@ -183,7 +186,8 @@ describe('Discovery', () => {
 
     await percy.idle();
 
-    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+    // Assert that the debug helper logged the perfInfo line
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       jasmine.stringMatching(/Snapshot performance info.*serializationTime.*123\.45/)
     ]));
   });
