@@ -164,7 +164,7 @@ describe('Discovery', () => {
     ]);
   });
 
-  fit('logs performance info when present in domSnapshot', async () => {
+  it('logs performance info when present in domSnapshot', async () => {
     // Enable debug logging to capture the performance info log
     percy.loglevel('debug');
 
