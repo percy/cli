@@ -22,7 +22,7 @@ jobs:
       - name: Verify executable
         run: ./percy --version
       - name: Upload win artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: win-exe
           path: percy.exe
