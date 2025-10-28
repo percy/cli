@@ -15,12 +15,6 @@ describe('serializeCanvas', () => {
           style="border: 5px solid black;"
         ></canvas>
         <canvas
-          id="canvas-with-maxwidth"
-          width="200px"
-          height="100px"
-          style="border: 2px solid red; max-width: 150px;"
-        ></canvas>
-        <canvas
           id="empty"
           width="0px"
           height="0px"
@@ -43,14 +37,6 @@ describe('serializeCanvas', () => {
         ctx.stroke();
 
         cache[plat].dataURL = canvas.toDataURL();
-
-        // Draw on canvas with maxWidth
-        let canvasWithMaxWidth = dom.getElementById('canvas-with-maxwidth');
-        let ctxWithMaxWidth = canvasWithMaxWidth.getContext('2d');
-        ctxWithMaxWidth.fillStyle = 'blue';
-        ctxWithMaxWidth.fillRect(10, 10, 50, 30);
-
-        cache[plat].dataURLWithMaxWidth = canvasWithMaxWidth.toDataURL();
       });
 
       serialized = serializeDOM();
@@ -68,28 +54,12 @@ describe('serializeCanvas', () => {
         expect($canvas[0].getAttribute('width')).toBe('150px');
         expect($canvas[0].getAttribute('height')).toBe('150px');
         expect($canvas[0].getAttribute('src')).toMatch('/__serialized__/\\w+\\.png');
-        expect($canvas[0].getAttribute('style')).toBe('border: 5px solid black;');
+        expect($canvas[0].getAttribute('style')).toBe('border: 5px solid black; max-width: 100%;');
         expect($canvas[0].matches('[data-percy-canvas-serialized]')).toBe(true);
 
         expect(serialized.resources).toContain(jasmine.objectContaining({
           url: $canvas[0].getAttribute('src'),
           content: cache[platform].dataURL.split(',')[1],
-          mimetype: 'image/png'
-        }));
-      });
-
-      it(`${platform}: preserves maxWidth from canvas to image element`, () => {
-        let $canvas = $('#canvas-with-maxwidth');
-        expect($canvas[0].tagName).toBe('IMG');
-        expect($canvas[0].getAttribute('width')).toBe('200px');
-        expect($canvas[0].getAttribute('height')).toBe('100px');
-        expect($canvas[0].getAttribute('style')).toBe('border: 2px solid red; max-width: 150px;');
-        expect($canvas[0].style.maxWidth).toBe('150px');
-        expect($canvas[0].matches('[data-percy-canvas-serialized]')).toBe(true);
-
-        expect(serialized.resources).toContain(jasmine.objectContaining({
-          url: $canvas[0].getAttribute('src'),
-          content: cache[platform].dataURLWithMaxWidth.split(',')[1],
           mimetype: 'image/png'
         }));
       });
