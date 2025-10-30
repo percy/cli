@@ -801,6 +801,8 @@ export class PercyClient {
         return 'visual_scanner';
       case 'res':
         return 'responsive_scanner';
+      case 'lca':
+        return 'lca';
       default:
         return 'web';
     }
