@@ -220,8 +220,6 @@ describe('@percy/git-utils', () => {
     it('should handle non-existent branch gracefully with fallback', async () => {
       const result = await getMergeBase('this-branch-definitely-does-not-exist-xyz-12345-nonexistent');
 
-      // The function has smart fallback logic - it will try default branch if specified branch fails
-      // So it may succeed OR fail depending on repo state
       expect(typeof result.success).toBe('boolean');
       expect(result.branch).toBe('this-branch-definitely-does-not-exist-xyz-12345-nonexistent');
 
@@ -230,7 +228,6 @@ describe('@percy/git-utils', () => {
         expect(result.error.code).toBe('NO_MERGE_BASE');
         expect(result.error.message).toContain('Could not find common ancestor');
       } else {
-        // Fallback succeeded - verify it returned a valid commit
         expect(result.commit).toMatch(/^[0-9a-f]{40}$/);
       }
     });
@@ -259,14 +256,11 @@ describe('@percy/git-utils', () => {
     });
 
     it('should detect changes between commits', async () => {
-      // Try to get changes from HEAD~1
       try {
         const files = await getChangedFiles('HEAD~1');
         expect(Array.isArray(files)).toBe(true);
-        // Files might be empty if HEAD is first commit, which is okay
         expect(files.length).toBeGreaterThanOrEqual(0);
       } catch (err) {
-        // HEAD~1 might not exist if this is the first commit
         expect(err.message).toContain('Failed to get changed files');
       }
     });
@@ -279,7 +273,6 @@ describe('@percy/git-utils', () => {
           expect(file.length).toBeGreaterThan(0);
         });
       } catch (err) {
-        // Might fail if repository has fewer than 10 commits
         expect(err.message).toContain('Failed to get changed files');
       }
     });
@@ -293,7 +286,6 @@ describe('@percy/git-utils', () => {
         const files = await getChangedFiles(`${remote}/${branch}`);
         expect(Array.isArray(files)).toBe(true);
       } catch (err) {
-        // Remote branch might not exist in test environment
         expect(err.message).toBeTruthy();
       }
     });
@@ -315,7 +307,6 @@ describe('@percy/git-utils', () => {
     it('should checkout file from current commit', async () => {
       const currentCommit = await getCurrentCommit();
 
-      // Use README.md from repo root as it should exist in history
       const readmePath = 'README.md';
 
       const outputPath = await checkoutFile(
@@ -327,7 +318,6 @@ describe('@percy/git-utils', () => {
       expect(fs.existsSync(outputPath)).toBe(true);
       expect(path.basename(outputPath)).toBe('README.md');
 
-      // Verify content
       const content = fs.readFileSync(outputPath, 'utf8');
       expect(content.length).toBeGreaterThan(0);
     });
@@ -448,15 +438,12 @@ describe('@percy/git-utils', () => {
 
   describe('Integration scenarios', () => {
     it('should provide complete workflow: check repo, get state, find merge-base', async () => {
-      // Step 1: Verify it's a git repository
       const isRepo = await isGitRepository();
       expect(isRepo).toBe(true);
 
-      // Step 2: Get comprehensive state
       const state = await getGitState();
       expect(state.isValid).toBe(true);
 
-      // Step 3: Get merge-base using detected default branch
       const mergeBase = await getMergeBase(state.defaultBranch);
       expect(mergeBase.success).toBe(true);
       expect(mergeBase.commit).toBeTruthy();

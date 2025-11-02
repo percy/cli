@@ -38,7 +38,6 @@ async function execGit(command, options = {}) {
         continue;
       }
 
-      // For other errors or last attempt, throw
       throw err;
     }
   }
@@ -145,7 +144,6 @@ export async function getGitState() {
   };
 
   try {
-    // Check if it's a git repository
     await execGit('git rev-parse --git-dir');
     state.isValid = true;
   } catch {
@@ -153,12 +151,10 @@ export async function getGitState() {
     return state;
   }
 
-  // Check for remote configuration
   try {
     const remotes = await execGit('git remote -v');
     if (remotes && remotes.trim().length > 0) {
       state.hasRemote = true;
-      // Extract first remote name (usually 'origin')
       const match = remotes.match(/^(\S+)\s+/);
       if (match) {
         state.remoteName = match[1];
@@ -172,7 +168,6 @@ export async function getGitState() {
     state.issues.push('Failed to check git remote configuration');
   }
 
-  // Check shallow clone
   try {
     const result = await execGit('git rev-parse --is-shallow-repository');
     state.isShallow = result === 'true';
@@ -203,7 +198,6 @@ export async function getGitState() {
     state.isDetached = false;
   }
 
-  // Check if first commit
   try {
     const parents = await execGit('git rev-list --parents HEAD');
     const lines = parents.split('\n').filter(Boolean);
@@ -216,7 +210,6 @@ export async function getGitState() {
     state.isFirstCommit = false;
   }
 
-  // Try to detect default branch (only if remote exists)
   if (state.hasRemote) {
     const remoteName = state.remoteName || 'origin';
     const commonBranches = ['main', 'master', 'develop', 'development'];
@@ -230,7 +223,6 @@ export async function getGitState() {
       }
     }
 
-    // Try to get from remote HEAD
     if (!state.defaultBranch) {
       try {
         const output = await execGit(`git symbolic-ref refs/remotes/${remoteName}/HEAD`);
@@ -239,12 +231,10 @@ export async function getGitState() {
           state.defaultBranch = match[1];
         }
       } catch {
-        // Use fallback
         state.defaultBranch = 'main';
       }
     }
   } else {
-    // No remote configured - try to detect local branches
     const localBranches = ['main', 'master', 'develop', 'development'];
     for (const branch of localBranches) {
       try {
@@ -256,7 +246,6 @@ export async function getGitState() {
       }
     }
 
-    // Final fallback for local-only repos
     if (!state.defaultBranch) {
       state.defaultBranch = 'main';
     }
@@ -274,10 +263,8 @@ export async function getMergeBase(targetBranch = null) {
   const result = { success: false, commit: null, branch: null, error: null };
 
   try {
-    // Get git state for diagnostics
     const gitState = await getGitState();
 
-    // Early failures
     if (!gitState.isValid) {
       result.error = { code: 'NOT_GIT_REPO', message: 'Not a git repository' };
       return result;
@@ -291,22 +278,9 @@ export async function getMergeBase(targetBranch = null) {
       return result;
     }
 
-    // Disabled: do not bail on first commit for now. Keep diagnostic info but allow
-    // the merge-base flow to continue so SmartSnap doesn't exit early in repos
-    // that only contain a single commit (useful for certain CI environments).
-    // if (gitState.isFirstCommit) {
-    //   result.error = {
-    //     code: "FIRST_COMMIT",
-    //     message: "This is the first commit in the repository"
-    //   };
-    //   return result;
-    // }
-
-    // Determine target branch
     const branch = targetBranch || gitState.defaultBranch;
     result.branch = branch;
 
-    // If detached HEAD, try to fetch the branch (only if remote exists)
     if (gitState.isDetached && gitState.hasRemote) {
       const remoteName = gitState.remoteName || 'origin';
       try {
@@ -315,24 +289,19 @@ export async function getMergeBase(targetBranch = null) {
         try {
           await execGit(`git fetch ${remoteName} ${branch}:refs/remotes/${remoteName}/${branch} --depth=100`);
         } catch {
-          // Continue anyway, merge-base might still work
         }
       }
     }
 
-    // Try to get merge-base with various fallbacks
     const attempts = [];
 
-    // For repos with remote, try remote refs first
     if (gitState.hasRemote) {
       const remoteName = gitState.remoteName || 'origin';
       attempts.push(`${remoteName}/${branch}`);
     }
 
-    // Always try local branch
     attempts.push(branch);
 
-    // Try default branch as fallback (if different)
     if (branch !== gitState.defaultBranch) {
       if (gitState.hasRemote) {
         const remoteName = gitState.remoteName || 'origin';
@@ -352,7 +321,6 @@ export async function getMergeBase(targetBranch = null) {
       }
     }
 
-    // All attempts failed - provide helpful error message
     let errorMessage = `Could not find common ancestor with ${branch}.`;
 
     if (!gitState.hasRemote) {
@@ -385,11 +353,7 @@ export async function getMergeBase(targetBranch = null) {
  */
 export async function getChangedFiles(baselineCommit = 'origin/main') {
   try {
-    // Use --name-status to detect renames
-    // Output format: "R100\told/path\tnew/path" for renames
-    //                "M\tfile/path" for modifications
-    //                "A\tfile/path" for additions
-    //                "D\tfile/path" for deletions
+
     const output = await execGit(`git diff --name-status ${baselineCommit}...HEAD`);
 
     if (!output) {
@@ -429,7 +393,6 @@ export async function getChangedFiles(baselineCommit = 'origin/main') {
       if (submoduleOutput && submoduleOutput.includes('Submodule')) {
         files.add('.gitmodules');
 
-        // Also try to get actual changed files within submodules
         try {
           const submodulePaths = await execGit('git config --file .gitmodules --get-regexp path');
           const submodules = submodulePaths.split('\n')
@@ -450,7 +413,6 @@ export async function getChangedFiles(baselineCommit = 'origin/main') {
               }
             } catch {
               // Submodule might not exist or be initialized
-              // .gitmodules addition will trigger bail anyway
             }
           }
         } catch {
@@ -490,7 +452,6 @@ export async function checkoutFile(commit, filePath, outputDir) {
 
 export async function commitExists(commit) {
   try {
-    // Use cat-file -e which fails if the object doesn't exist
     await execGit(`git cat-file -e ${commit}`);
     return true;
   } catch (err) {
