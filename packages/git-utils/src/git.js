@@ -353,7 +353,6 @@ export async function getMergeBase(targetBranch = null) {
  */
 export async function getChangedFiles(baselineCommit = 'origin/main') {
   try {
-
     const output = await execGit(`git diff --name-status ${baselineCommit}...HEAD`);
 
     if (!output) {
