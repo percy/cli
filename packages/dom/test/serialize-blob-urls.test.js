@@ -34,7 +34,7 @@ describe('Blob URL serialization', () => {
     });
 
     // Serialize DOM
-    const result = await serializeDOM({ dom: testDiv });
+    const result = await serializeDOM();
 
     // Blob URL should be converted to Percy resource
     expect(result.resources.length).toBeGreaterThan(0);
@@ -80,7 +80,7 @@ describe('Blob URL serialization', () => {
     testDiv.appendChild(div);
 
     // Serialize DOM
-    const result = await serializeDOM({ dom: testDiv });
+    const result = await serializeDOM();
 
     // Blob URL should be converted to Percy resource
     expect(result.resources.length).toBeGreaterThan(0);
@@ -108,7 +108,7 @@ describe('Blob URL serialization', () => {
     testDiv.appendChild(img);
 
     // Serialize DOM
-    const result = await serializeDOM({ dom: testDiv });
+    const result = await serializeDOM();
 
     // data-src should be converted to src
     expect(result.html).toContain('src="https://example.com/image.jpg"');
@@ -149,7 +149,7 @@ describe('Blob URL serialization', () => {
 
     // Serialize DOM
     const startTime = performance.now();
-    const result = await serializeDOM({ dom: testDiv });
+    const result = await serializeDOM();
     const endTime = performance.now();
 
     // Should create resources for all blob URLs
@@ -175,7 +175,7 @@ describe('Blob URL serialization', () => {
     testDiv.appendChild(img);
 
     // Serialize DOM - should not throw error
-    const result = await serializeDOM({ dom: testDiv });
+    const result = await serializeDOM();
 
     // Should have a warning about the failed conversion
     expect(result.warnings.length).toBeGreaterThan(0);
