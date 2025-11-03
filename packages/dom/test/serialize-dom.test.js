@@ -449,10 +449,10 @@ describe('serializeDOM', () => {
       baseContent.appendChild(el);
 
       // When only forceShadowAsLightDOM is true, shadow content should be rendered as light DOM
-      const html = await serializeDOM({
+      const html = (await serializeDOM({
         disableShadowDOM: false,
         forceShadowAsLightDOM: true
-      }).html;
+      })).html;
 
       expect(html).toMatch('<p>Percy-14</p>');
       expect(html).not.toMatch('<template shadowrootmode="open"');

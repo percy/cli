@@ -1,9 +1,13 @@
 // Example test showing how blob URL serialization works
 /* global fetch, performance */
 import serializeDOM from '@percy/dom';
+import { withExample } from './helpers';
 
 describe('Blob URL serialization', () => {
   it('should convert blob URLs in img src attributes', async () => {
+    withExample('', { withShadow: false });
+    const testDiv = document.getElementById('test');
+
     // Create a canvas with some content
     const canvas = document.createElement('canvas');
     canvas.width = 100;
@@ -22,7 +26,7 @@ describe('Blob URL serialization', () => {
     const img = document.createElement('img');
     img.src = blobUrl;
     img.id = 'test-image';
-    document.body.appendChild(img);
+    testDiv.appendChild(img);
 
     // Wait for image to load
     await new Promise(resolve => {
@@ -30,7 +34,7 @@ describe('Blob URL serialization', () => {
     });
 
     // Serialize DOM
-    const result = await serializeDOM();
+    const result = await serializeDOM({ dom: testDiv });
 
     // Blob URL should be converted to Percy resource
     expect(result.resources.length).toBeGreaterThan(0);
@@ -47,10 +51,12 @@ describe('Blob URL serialization', () => {
 
     // Cleanup
     URL.revokeObjectURL(blobUrl);
-    img.remove();
   });
 
   it('should convert blob URLs in background-image styles', async () => {
+    withExample('', { withShadow: false });
+    const testDiv = document.getElementById('test');
+
     // Create a canvas with some content
     const canvas = document.createElement('canvas');
     canvas.width = 50;
@@ -71,10 +77,10 @@ describe('Blob URL serialization', () => {
     div.style.width = '50px';
     div.style.height = '50px';
     div.id = 'test-div';
-    document.body.appendChild(div);
+    testDiv.appendChild(div);
 
     // Serialize DOM
-    const result = await serializeDOM();
+    const result = await serializeDOM({ dom: testDiv });
 
     // Blob URL should be converted to Percy resource
     expect(result.resources.length).toBeGreaterThan(0);
@@ -89,27 +95,28 @@ describe('Blob URL serialization', () => {
 
     // Cleanup
     URL.revokeObjectURL(blobUrl);
-    div.remove();
   });
 
   it('should handle lazy-loaded images with data-src', async () => {
+    withExample('', { withShadow: false });
+    const testDiv = document.getElementById('test');
+
     // Create img with data-src
     const img = document.createElement('img');
     img.setAttribute('data-src', 'https://example.com/image.jpg');
     img.id = 'lazy-image';
-    document.body.appendChild(img);
+    testDiv.appendChild(img);
 
     // Serialize DOM
-    const result = await serializeDOM();
+    const result = await serializeDOM({ dom: testDiv });
 
     // data-src should be converted to src
     expect(result.html).toContain('src="https://example.com/image.jpg"');
-
-    // Cleanup
-    img.remove();
   });
 
   it('should handle multiple blob URLs in parallel', async () => {
+    withExample('', { withShadow: false });
+    const testDiv = document.getElementById('test');
     const blobUrls = [];
     const elements = [];
 
@@ -131,7 +138,7 @@ describe('Blob URL serialization', () => {
       const img = document.createElement('img');
       img.src = blobUrl;
       img.id = `test-image-${i}`;
-      document.body.appendChild(img);
+      testDiv.appendChild(img);
       elements.push(img);
     }
 
@@ -142,7 +149,7 @@ describe('Blob URL serialization', () => {
 
     // Serialize DOM
     const startTime = performance.now();
-    const result = await serializeDOM();
+    const result = await serializeDOM({ dom: testDiv });
     const endTime = performance.now();
 
     // Should create resources for all blob URLs
@@ -155,24 +162,23 @@ describe('Blob URL serialization', () => {
 
     // Cleanup
     blobUrls.forEach(url => URL.revokeObjectURL(url));
-    elements.forEach(el => el.remove());
   });
 
   it('should handle errors gracefully when blob fetch fails', async () => {
+    withExample('', { withShadow: false });
+    const testDiv = document.getElementById('test');
+
     // Create an invalid blob URL
     const img = document.createElement('img');
     img.src = 'blob:http://localhost/invalid-blob-id';
     img.id = 'invalid-blob';
-    document.body.appendChild(img);
+    testDiv.appendChild(img);
 
     // Serialize DOM - should not throw error
-    const result = await serializeDOM();
+    const result = await serializeDOM({ dom: testDiv });
 
     // Should have a warning about the failed conversion
     expect(result.warnings.length).toBeGreaterThan(0);
     expect(result.warnings.some(w => w.includes('blob'))).toBe(true);
-
-    // Cleanup
-    img.remove();
   });
 });
