@@ -56,7 +56,6 @@ jobs:
           - '@percy/sdk-utils'
           - '@percy/webdriver-utils'
           - '@percy/monitoring'
-          - '@percy/git-utils'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
