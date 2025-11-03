@@ -12,7 +12,7 @@ describe('serializeBase64', () => {
       <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhE2" id="diff_img">
       `);
 
-      serialized = serializeDOM();
+      serialized = await serializeDOM();
       $ = parseDOM(serialized.html, platform);
 
       expect($('#img')[0].getAttribute('src'))
@@ -49,7 +49,7 @@ describe('serializeBase64', () => {
       </svg>
       `);
 
-      serialized = serializeDOM();
+      serialized = await serializeDOM();
       $ = parseDOM(serialized.html, platform);
 
       expect($('#image')[0].getAttribute('href'))
@@ -71,7 +71,7 @@ describe('serializeBase64', () => {
       `);
 
       // Perform serialization
-      serialized = serializeDOM();
+      serialized = await serializeDOM();
 
       // This part needs to be simplified as it's causing test failures
       // Just verify that resources are created correctly
@@ -93,7 +93,7 @@ describe('serializeBase64', () => {
       </svg>
       `);
 
-      serialized = serializeDOM();
+      serialized = await serializeDOM();
       $ = parseDOM(serialized.html, platform);
 
       expect(serialized.resources).toContain(jasmine.objectContaining({
@@ -107,7 +107,7 @@ describe('serializeBase64', () => {
       <a href="https://www.browserstack.com/" id="a">
     `);
 
-      serialized = serializeDOM();
+      serialized = await serializeDOM();
       $ = parseDOM(serialized.html);
 
       expect($('#a')[0].getAttribute('href')).toBe('https://www.browserstack.com/');
@@ -119,7 +119,7 @@ describe('serializeBase64', () => {
       <img src="image.png" id="img">
     `);
 
-      serialized = serializeDOM();
+      serialized = await serializeDOM();
       $ = parseDOM(serialized.html);
 
       expect($('#img')[0].getAttribute('src')).toBe('image.png');
@@ -136,7 +136,7 @@ describe('serializeBase64', () => {
       const shadowRoot = imageContainer.attachShadow({ mode: 'open' });
       shadowRoot.innerHTML = '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEU" id="img">';
 
-      serialized = serializeDOM();
+      serialized = await serializeDOM();
       $ = parseDOM(serialized.html, platform);
 
       const resultRoot = $('#image-container template')[0];
@@ -158,7 +158,7 @@ describe('serializeBase64', () => {
       <img src="data:image/gif;base64,R0lGODlhAQABAIAAAP" id="gif_img">
       `);
 
-      serialized = serializeDOM();
+      serialized = await serializeDOM();
       $ = parseDOM(serialized.html, platform);
 
       expect($('#jpg_img')[0].getAttribute('src')).toMatch('/__serialized__/\\w+\\.jpeg');
@@ -190,7 +190,7 @@ describe('serializeBase64', () => {
       <img src="data:image/png;base64" id="invalid_base64">
       `);
 
-      serialized = serializeDOM();
+      serialized = await serializeDOM();
       $ = parseDOM(serialized.html, platform);
 
       // Rather than checking resources.length === 0, just check that
