@@ -391,6 +391,35 @@ describe('@percy/git-utils', () => {
         checkoutFile(currentCommit, '../package.json', tmpDir)
       ).toBeRejectedWithError(/Invalid file path/);
     });
+
+    it('should correctly checkout binary files without corruption', async () => {
+      const currentCommit = await getCurrentCommit();
+      const binaryFilePath = 'packages/git-utils/test-binary.bin';
+
+      const outputPath = await checkoutFile(
+        currentCommit,
+        binaryFilePath,
+        tmpDir
+      );
+
+      expect(fs.existsSync(outputPath)).toBe(true);
+      expect(path.basename(outputPath)).toBe('test-binary.bin');
+
+      // Read both the original and checked out file as buffers
+      const repoRoot = await getRepositoryRoot();
+      const originalPath = path.join(repoRoot, binaryFilePath);
+      const originalContent = fs.readFileSync(originalPath);
+      const checkedOutContent = fs.readFileSync(outputPath);
+
+      // Verify the binary content is identical
+      expect(Buffer.compare(originalContent, checkedOutContent)).toBe(0);
+
+      // Verify it contains PNG header bytes (binary data)
+      expect(checkedOutContent[0]).toBe(0x89);
+      expect(checkedOutContent[1]).toBe(0x50);
+      expect(checkedOutContent[2]).toBe(0x4e);
+      expect(checkedOutContent[3]).toBe(0x47);
+    });
   });
 
   describe('Edge cases and error handling', () => {

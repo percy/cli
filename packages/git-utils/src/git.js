@@ -49,7 +49,8 @@ async function execGit(command, options = {}) {
  * Execute a git command once (no retries)
  * @param {string} command - Git command to execute
  * @param {Object} options - Spawn options
- * @returns {Promise<string>} - Command output
+ * @param {string|null} options.encoding - Output encoding ('utf8' or null for Buffer, default: 'utf8')
+ * @returns {Promise<string|Buffer>} - Command output (string if utf8, Buffer if null encoding)
  */
 async function execGitOnce(command, options = {}) {
   return new Promise((resolve, reject) => {
@@ -62,17 +63,25 @@ async function execGitOnce(command, options = {}) {
       [cmd, ...args] = command.split(' ');
     }
 
+    // Extract encoding option, default to 'utf8' for backward compatibility
+    const { encoding = 'utf8', ...spawnOptions } = options;
+    const isBinaryMode = encoding === null || encoding === 'buffer';
+
     const child = spawn(cmd, args, {
-      ...options,
-      encoding: 'utf8'
+      ...spawnOptions,
+      encoding: isBinaryMode ? null : encoding
     });
 
-    let stdout = '';
+    let stdout = isBinaryMode ? [] : '';
     let stderr = '';
 
     if (child.stdout) {
       child.stdout.on('data', (data) => {
-        stdout += data.toString();
+        if (isBinaryMode) {
+          stdout.push(data);
+        } else {
+          stdout += data.toString();
+        }
       });
     }
 
@@ -90,7 +99,11 @@ async function execGitOnce(command, options = {}) {
       if (code !== 0) {
         reject(new Error(`Git command failed (exit ${code}): ${stderr || stdout}`));
       } else {
-        resolve(stdout.trim());
+        if (isBinaryMode) {
+          resolve(Buffer.concat(stdout));
+        } else {
+          resolve(stdout.trim());
+        }
       }
     });
   });
@@ -449,6 +462,7 @@ export async function getChangedFiles(baselineCommit = 'origin/main') {
 
 /**
  * Checkout file from specific commit to output path
+ * Supports both text and binary files.
  * @param {string} commit - Commit SHA or ref
  * @param {string} filePath - File path relative to repo root
  * @param {string} outputDir - Output directory
@@ -464,8 +478,9 @@ export async function checkoutFile(commit, filePath, outputDir) {
       throw new Error(`Invalid file path: ${filePath}`);
     }
 
-    const contents = await execGit(['git', 'show', `${commit}:${normalized}`]);
-    await fsPromises.writeFile(outputPath, contents, 'utf8');
+    // Use binary mode to support both text and binary files
+    const contents = await execGit(['git', 'show', `${commit}:${normalized}`], { encoding: null });
+    await fsPromises.writeFile(outputPath, contents);
 
     return outputPath;
   } catch (err) {
