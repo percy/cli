@@ -379,6 +379,23 @@ describe('@percy/git-utils', () => {
         expect(err.message).toContain(currentCommit);
       }
     });
+
+    it('should reject absolute paths and path traversal for filePath', async () => {
+      const currentCommit = await getCurrentCommit();
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'git-checkout-test-'));
+
+      try {
+        await expectAsync(
+          checkoutFile(currentCommit, '/etc/passwd', tmpDir)
+        ).toBeRejectedWithError(/Invalid file path/);
+
+        await expectAsync(
+          checkoutFile(currentCommit, '../package.json', tmpDir)
+        ).toBeRejectedWithError(/Invalid file path/);
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
   });
 
   describe('Edge cases and error handling', () => {
@@ -433,6 +450,14 @@ describe('@percy/git-utils', () => {
       expect(commit).toMatch(/^[0-9a-f]{40}$/);
       expect(branch).toBeTruthy();
       expect(state.isValid).toBe(true);
+    });
+  });
+
+  describe('security checks', () => {
+    it('commitExists should reject clearly invalid refs', async () => {
+      const invalid = 'some$weird;ref`rm -rf /`';
+      const exists = await commitExists(invalid);
+      expect(exists).toBe(false);
     });
   });
 

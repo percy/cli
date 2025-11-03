@@ -53,7 +53,15 @@ async function execGit(command, options = {}) {
  */
 async function execGitOnce(command, options = {}) {
   return new Promise((resolve, reject) => {
-    const [cmd, ...args] = command.split(' ');
+    let cmd;
+    let args;
+
+    if (Array.isArray(command)) {
+      [cmd, ...args] = command;
+    } else {
+      [cmd, ...args] = command.split(' ');
+    }
+
     const child = spawn(cmd, args, {
       ...options,
       encoding: 'utf8'
@@ -353,7 +361,7 @@ export async function getMergeBase(targetBranch = null) {
  */
 export async function getChangedFiles(baselineCommit = 'origin/main') {
   try {
-    const output = await execGit(`git diff --name-status ${baselineCommit}...HEAD`);
+    const output = await execGit(['git', 'diff', '--name-status', `${baselineCommit}..HEAD`]);
 
     if (!output) {
       return [];
@@ -388,22 +396,33 @@ export async function getChangedFiles(baselineCommit = 'origin/main') {
 
     // Check for git submodule changes
     try {
-      const submoduleOutput = await execGit(`git diff ${baselineCommit}...HEAD --submodule=short`);
+      const submoduleOutput = await execGit(['git', 'diff', `${baselineCommit}..HEAD`, '--submodule=short']);
       if (submoduleOutput && submoduleOutput.includes('Submodule')) {
         files.add('.gitmodules');
 
         try {
-          const submodulePaths = await execGit('git config --file .gitmodules --get-regexp path');
+          const submodulePaths = await execGit(['git', 'config', '--file', '.gitmodules', '--get-regexp', 'path']);
           const submodules = submodulePaths.split('\n')
             .filter(Boolean)
             .map(line => line.split(' ')[1]);
 
           for (const submodulePath of submodules) {
             try {
-              const subOutput = await execGit(
-                `git -C ${submodulePath} diff --name-only ${baselineCommit}...HEAD`,
-                { retries: 1 }
-              );
+              // Validate submodule path to avoid path traversal or injection
+              const normalizedSub = path.normalize(submodulePath);
+              if (path.isAbsolute(normalizedSub) || normalizedSub.split(path.sep).includes('..')) {
+                // skip suspicious submodule paths
+                continue;
+              }
+
+              const subOutput = await execGit([
+                'git',
+                '-C',
+                normalizedSub,
+                'diff',
+                '--name-only',
+                `${baselineCommit}..HEAD`
+              ], { retries: 1 });
               if (subOutput) {
                 const subFiles = subOutput.split('\n').filter(Boolean);
                 for (const file of subFiles) {
@@ -440,7 +459,12 @@ export async function checkoutFile(commit, filePath, outputDir) {
     await fsPromises.mkdir(outputDir, { recursive: true });
 
     const outputPath = path.join(outputDir, path.basename(filePath));
-    const contents = await execGit(`git show ${commit}:${filePath}`);
+    const normalized = path.normalize(filePath);
+    if (path.isAbsolute(normalized) || normalized.split(path.sep).includes('..')) {
+      throw new Error(`Invalid file path: ${filePath}`);
+    }
+
+    const contents = await execGit(['git', 'show', `${commit}:${normalized}`]);
     await fsPromises.writeFile(outputPath, contents, 'utf8');
 
     return outputPath;
@@ -451,7 +475,11 @@ export async function checkoutFile(commit, filePath, outputDir) {
 
 export async function commitExists(commit) {
   try {
-    await execGit(`git cat-file -e ${commit}`);
+    if (!commit || typeof commit !== 'string') return false;
+    const safeRef = commit === 'HEAD' || /^[0-9a-fA-F]{4,40}$/.test(commit) || /^[\w/ -]+$/.test(commit);
+    if (!safeRef) return false;
+
+    await execGit(['git', 'cat-file', '-e', commit]);
     return true;
   } catch (err) {
     return false;
