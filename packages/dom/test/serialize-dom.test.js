@@ -35,7 +35,7 @@ describe('serializeDOM', () => {
 
   it('always has a doctype', async () => {
     document.removeChild(document.doctype);
-    expect(await serializeDOM().html).toMatch('<!DOCTYPE html>');
+    expect((await serializeDOM()).html).toMatch('<!DOCTYPE html>');
   });
 
   it('copies existing doctypes', async () => {
@@ -43,13 +43,13 @@ describe('serializeDOM', () => {
     let systemId = 'http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtdd';
 
     replaceDoctype('html', publicId);
-    expect(await serializeDOM().html).toMatch(`<!DOCTYPE html PUBLIC "${publicId}">`);
+    expect((await serializeDOM()).html).toMatch(`<!DOCTYPE html PUBLIC "${publicId}">`);
     replaceDoctype('html', '', systemId);
-    expect(await serializeDOM().html).toMatch(`<!DOCTYPE html SYSTEM "${systemId}">`);
+    expect((await serializeDOM()).html).toMatch(`<!DOCTYPE html SYSTEM "${systemId}">`);
     replaceDoctype('html', publicId, systemId);
-    expect(await serializeDOM().html).toMatch(`<!DOCTYPE html PUBLIC "${publicId}" "${systemId}">`);
+    expect((await serializeDOM()).html).toMatch(`<!DOCTYPE html PUBLIC "${publicId}" "${systemId}">`);
     replaceDoctype('html');
-    expect(await serializeDOM().html).toMatch('<!DOCTYPE html>');
+    expect((await serializeDOM()).html).toMatch('<!DOCTYPE html>');
   });
 
   it('does not trigger DOM events on clone', async () => {
@@ -66,7 +66,7 @@ describe('serializeDOM', () => {
       window.customElements.define('callback-test', CallbackTestElement);
     }
     withExample('<callback-test/>', { withShadow: false });
-    const $ = parseDOM(await serializeDOM().html);
+    const $ = parseDOM((await serializeDOM()).html);
 
     expect($('h2.callback').length).toEqual(1);
   });
@@ -106,7 +106,7 @@ describe('serializeDOM', () => {
       window.customElements.define('attr-callback-test', AttributeCallbackTestElement);
     }
     withExample('<attr-callback-test text="1"/>', { withShadow: false });
-    const $ = parseDOM(await serializeDOM().html);
+    const $ = parseDOM((await serializeDOM()).html);
 
     expect($('h2.callback').length).toEqual(1);
   });
@@ -124,7 +124,7 @@ describe('serializeDOM', () => {
       paragraphEl.textContent = 'Hey Percy!';
       shadow.appendChild(paragraphEl);
 
-      const html = await serializeDOM().html;
+      const html = (await serializeDOM()).html;
       expect(html).toMatch('<template shadowrootmode="open" shadowrootserializable="">');
       expect(html).toMatch('Hey Percy!');
     });
@@ -141,7 +141,7 @@ describe('serializeDOM', () => {
       paragraphEl.textContent = 'Hey Percy!';
       shadow.appendChild(paragraphEl);
 
-      const html = await serializeDOM().html;
+      const html = (await serializeDOM()).html;
       expect(html).not.toMatch('<template shadowroot');
       expect(html).not.toMatch('Hey Percy!');
     });
@@ -159,7 +159,7 @@ describe('serializeDOM', () => {
       el1.shadowRoot.appendChild(el2);
       baseContent.append(el1);
 
-      const html = await serializeDOM().html;
+      const html = (await serializeDOM()).html;
 
       expect(html).toMatch(new RegExp([
         '<template shadowrootmode="open" shadowrootserializable="">',
@@ -198,7 +198,7 @@ describe('serializeDOM', () => {
         ].join('');
       }
 
-      const html = await serializeDOM().html;
+      const html = (await serializeDOM()).html;
       expect(html).toMatch(new RegExp(matchRegex));
     });
 
@@ -225,7 +225,7 @@ describe('serializeDOM', () => {
         ].join('');
       }
 
-      const html = await serializeDOM().html;
+      const html = (await serializeDOM()).html;
       expect(html).toMatch(new RegExp(matchRegex));
     });
 
@@ -261,7 +261,7 @@ describe('serializeDOM', () => {
       window.customElements.define('test-elem', TestElement);
 
       withExample('<test-elem/>', { withShadow: false });
-      const html = await serializeDOM().html;
+      const html = (await serializeDOM()).html;
       expect(html).toMatch('<h2>Test</h2>');
     });
 
@@ -281,7 +281,7 @@ describe('serializeDOM', () => {
       const baseContent = document.querySelector('#content');
       createAndAttachSlotTemplate(baseContent);
 
-      const html = await serializeDOM().html;
+      const html = (await serializeDOM()).html;
       expect(html).toMatch('<template shadowrootmode="open">');
       expect(html).toMatch('<p slot="title">Hello from the title slot!</p>');
       expect(html).toMatch('<p>This content is distributed into the default slot.</p>');
@@ -489,7 +489,7 @@ describe('serializeDOM', () => {
         <custom-image src="https://example.com/test.jpg"></custom-image>
       `, { withShadow: false });
 
-    const html = await serializeDOM().html;
+    const html = (await serializeDOM()).html;
 
     expect(html).toMatch(
       /<custom-image[^>]*><img src="https:\/\/example\.com\/test\.jpg"><\/custom-image>/
