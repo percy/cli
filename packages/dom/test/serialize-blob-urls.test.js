@@ -1,4 +1,5 @@
 // Example test showing how blob URL serialization works
+/* global fetch, performance */
 import serializeDOM from '@percy/dom';
 
 describe('Blob URL serialization', () => {

@@ -1,3 +1,5 @@
+/* global fetch, FileReader */
+
 // Helper: Generate unique ID for resources
 function uid() {
   return `_${Math.random().toString(36).substr(2, 9)}`;
