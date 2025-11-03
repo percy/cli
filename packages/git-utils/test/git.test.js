@@ -382,19 +382,14 @@ describe('@percy/git-utils', () => {
 
     it('should reject absolute paths and path traversal for filePath', async () => {
       const currentCommit = await getCurrentCommit();
-      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'git-checkout-test-'));
 
-      try {
-        await expectAsync(
-          checkoutFile(currentCommit, '/etc/passwd', tmpDir)
-        ).toBeRejectedWithError(/Invalid file path/);
+      await expectAsync(
+        checkoutFile(currentCommit, '/etc/passwd', tmpDir)
+      ).toBeRejectedWithError(/Invalid file path/);
 
-        await expectAsync(
-          checkoutFile(currentCommit, '../package.json', tmpDir)
-        ).toBeRejectedWithError(/Invalid file path/);
-      } finally {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-      }
+      await expectAsync(
+        checkoutFile(currentCommit, '../package.json', tmpDir)
+      ).toBeRejectedWithError(/Invalid file path/);
     });
   });
 
