@@ -238,7 +238,7 @@ describe('serializeDOM', () => {
       const el = createShadowEl(8);
       baseContent.appendChild(el);
 
-      const html = await serializeDOM({ disableShadowDOM: true }).html;
+      const html = (await serializeDOM({ disableShadowDOM: true })).html;
       expect(html).not.toMatch('<p>Percy-8</p>');
       expect(html).not.toMatch('data-percy-shadow-host=');
     });
@@ -302,7 +302,7 @@ describe('serializeDOM', () => {
       const el = createShadowEl(9);
       baseContent.appendChild(el);
 
-      const html = await serializeDOM({ forceShadowAsLightDOM: true }).html;
+      const html = (await serializeDOM({ forceShadowAsLightDOM: true })).html;
       expect(html).toMatch('<p>Percy-9</p>');
       expect(html).not.toMatch('<template shadowrootmode="open"');
       expect(html).not.toMatch('shadowrootserializable');
@@ -321,7 +321,7 @@ describe('serializeDOM', () => {
       el1.shadowRoot.appendChild(el2);
       baseContent.append(el1);
 
-      const html = await serializeDOM({ forceShadowAsLightDOM: true }).html;
+      const html = (await serializeDOM({ forceShadowAsLightDOM: true })).html;
       expect(html).toMatch('<p>Percy-10</p>');
       expect(html).toMatch('<p>Percy-11</p>');
       expect(html).not.toMatch('<template shadowrootmode="open"');
@@ -352,7 +352,7 @@ describe('serializeDOM', () => {
       }
 
       withExample('<force-shadow-test></force-shadow-test>', { withShadow: false });
-      const html = await serializeDOM({ forceShadowAsLightDOM: true }).html;
+      const html = (await serializeDOM({ forceShadowAsLightDOM: true })).html;
 
       expect(html).toMatch('<h3>Force Shadow Test<span>Nested Content</span></h3>');
       expect(html).not.toMatch('<template shadowrootmode="open"');
@@ -375,7 +375,7 @@ describe('serializeDOM', () => {
         baseContent.appendChild(newEl);
       }
 
-      const html = await serializeDOM({ forceShadowAsLightDOM: true }).html;
+      const html = (await serializeDOM({ forceShadowAsLightDOM: true })).html;
 
       // Verify all content is present as light DOM
       for (let i = 0; i < levels; i++) {
@@ -408,7 +408,7 @@ describe('serializeDOM', () => {
 
       baseContent.appendChild(hostEl);
 
-      const html = await serializeDOM({ forceShadowAsLightDOM: true }).html;
+      const html = (await serializeDOM({ forceShadowAsLightDOM: true })).html;
 
       // When forceShadowAsLightDOM is true, shadow content becomes light DOM
       // The slot element from shadow DOM will be present, and slotted content remains in light DOM

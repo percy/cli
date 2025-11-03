@@ -139,7 +139,7 @@ describe('serializeFrames', () => {
     });
 
     it(`${platform}: does not serialize iframes created by JS when JS is enabled`, async () => {
-      const serializedDOM = await serializeDOM({ enableJavaScript: true }).html;
+      const serializedDOM = (await serializeDOM({ enableJavaScript: true })).html;
       $ = parseDOM(serializedDOM, platform);
       expect($('#frame-js')[0].getAttribute('src')).not.toBeNull();
       expect($('#frame-js')[0].getAttribute('srcdoc')).toBeNull();
