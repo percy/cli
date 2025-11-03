@@ -476,7 +476,7 @@ export async function checkoutFile(commit, filePath, outputDir) {
 export async function commitExists(commit) {
   try {
     if (!commit || typeof commit !== 'string') return false;
-    const safeRef = commit === 'HEAD' || /^[0-9a-fA-F]{4,40}$/.test(commit) || /^[\w/ -]+$/.test(commit);
+    const safeRef = commit === 'HEAD' || /^[0-9a-fA-F]{4,40}$/.test(commit) || /^(refs\/[A-Za-z0-9._/-]+)$/.test(commit);
     if (!safeRef) return false;
 
     await execGit(['git', 'cat-file', '-e', commit]);
