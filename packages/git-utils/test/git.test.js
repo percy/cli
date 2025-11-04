@@ -392,6 +392,53 @@ describe('@percy/git-utils', () => {
       ).toBeRejectedWithError(/Invalid file path/);
     });
 
+    it('should reject filenames with path separators in basename', async () => {
+      const currentCommit = await getCurrentCommit();
+
+      // Unix-style separator
+      await expectAsync(
+        checkoutFile(currentCommit, 'foo/bar/../../../etc/passwd', tmpDir)
+      ).toBeRejectedWithError(/Invalid file path/);
+
+      // Windows-style separator in filename
+      await expectAsync(
+        checkoutFile(currentCommit, 'foo\\bar', tmpDir)
+      ).toBeRejectedWithError(/Invalid filename in path/);
+    });
+
+    it('should prevent path traversal attempts via multiple methods', async () => {
+      const currentCommit = await getCurrentCommit();
+
+      // Various traversal attempts
+      const maliciousPaths = [
+        '../../etc/passwd',
+        './../../secrets.txt',
+        'foo/../../../bar',
+        './../parent-dir/file.txt',
+        'subdir/../../escape.txt'
+      ];
+
+      for (const maliciousPath of maliciousPaths) {
+        await expectAsync(
+          checkoutFile(currentCommit, maliciousPath, tmpDir)
+        ).toBeRejectedWithError(/Invalid file path/);
+      }
+    });
+
+    it('should ensure output stays within output directory', async () => {
+      const currentCommit = await getCurrentCommit();
+
+      // Even if somehow a traversal sequence gets through, the final check should catch it
+      // This test ensures the resolved path validation works
+      const result = await checkoutFile(currentCommit, 'README.md', tmpDir);
+
+      // Verify the result is actually within tmpDir
+      const resolvedTmpDir = path.resolve(tmpDir);
+      const resolvedResult = path.resolve(result);
+
+      expect(resolvedResult.startsWith(resolvedTmpDir)).toBe(true);
+    });
+
     it('should correctly checkout binary files without corruption', async () => {
       const currentCommit = await getCurrentCommit();
       const binaryFilePath = 'packages/git-utils/test-binary.bin';

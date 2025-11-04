@@ -470,19 +470,31 @@ export async function getChangedFiles(baselineCommit = 'origin/main') {
  */
 export async function checkoutFile(commit, filePath, outputDir) {
   try {
-    await fsPromises.mkdir(outputDir, { recursive: true });
-
-    const outputPath = path.join(outputDir, path.basename(filePath));
     const normalized = path.normalize(filePath);
     if (path.isAbsolute(normalized) || normalized.split(path.sep).includes('..')) {
       throw new Error(`Invalid file path: ${filePath}`);
     }
 
-    // Use binary mode to support both text and binary files
-    const contents = await execGit(['git', 'show', `${commit}:${normalized}`], { encoding: null });
-    await fsPromises.writeFile(outputPath, contents);
+    await fsPromises.mkdir(outputDir, { recursive: true });
 
-    return outputPath;
+    const basename = path.basename(filePath);
+    if (basename.includes('/') || basename.includes('\\')) {
+      throw new Error(`Invalid filename in path: ${filePath}`);
+    }
+
+    const outputPath = path.join(outputDir, basename);
+
+    const resolvedOutputDir = path.resolve(outputDir);
+    const resolvedOutputPath = path.resolve(outputPath);
+    if (!resolvedOutputPath.startsWith(resolvedOutputDir + path.sep) &&
+        resolvedOutputPath !== resolvedOutputDir) {
+      throw new Error(`Output path escapes output directory: ${outputPath}`);
+    }
+
+    const contents = await execGit(['git', 'show', `${commit}:${normalized}`], { encoding: null });
+    await fsPromises.writeFile(resolvedOutputPath, contents);
+
+    return resolvedOutputPath;
   } catch (err) {
     throw new Error(`Failed to checkout file ${filePath} from ${commit}: ${err.message}`);
   }
