@@ -6,7 +6,7 @@ import {
   getGitState,
   getMergeBase,
   getChangedFiles,
-  checkoutFile,
+  getFileContentFromCommit,
   commitExists
 } from '../src/git.js';
 import fs from 'fs';
@@ -291,212 +291,124 @@ describe('@percy/git-utils', () => {
     });
   });
 
-  describe('checkoutFile', () => {
-    let tmpDir;
-    let repoRoot;
-
-    beforeEach(async () => {
-      // Create temp directory within repo for testing
-      repoRoot = await getRepositoryRoot();
-      const tmpDirName = `test-checkout-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-      tmpDir = path.join(repoRoot, tmpDirName);
-      fs.mkdirSync(tmpDir, { recursive: true });
-    });
-
-    afterEach(() => {
-      if (fs.existsSync(tmpDir)) {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-      }
-    });
-
-    it('should checkout file from current commit', async () => {
+  describe('getFileContentFromCommit', () => {
+    it('should get text file content from current commit', async () => {
       const currentCommit = await getCurrentCommit();
+      const content = await getFileContentFromCommit(currentCommit, 'README.md');
 
-      const readmePath = 'README.md';
-      const relativeTmpDir = path.relative(repoRoot, tmpDir);
-
-      const outputPath = await checkoutFile(
-        currentCommit,
-        readmePath,
-        relativeTmpDir
-      );
-
-      expect(fs.existsSync(outputPath)).toBe(true);
-      expect(path.basename(outputPath)).toBe('README.md');
-
-      const content = fs.readFileSync(outputPath, 'utf8');
+      expect(typeof content).toBe('string');
       expect(content.length).toBeGreaterThan(0);
     });
 
-    it('should checkout file from HEAD reference', async () => {
-      const readmePath = 'README.md';
-      const relativeTmpDir = path.relative(repoRoot, tmpDir);
+    it('should get file content from HEAD reference', async () => {
+      const content = await getFileContentFromCommit('HEAD', 'README.md');
 
-      const outputPath = await checkoutFile(
-        'HEAD',
-        readmePath,
-        relativeTmpDir
-      );
-
-      expect(fs.existsSync(outputPath)).toBe(true);
+      expect(typeof content).toBe('string');
+      expect(content.length).toBeGreaterThan(0);
     });
 
-    it('should create output directory if it does not exist', async () => {
+    it('should get file content with relative path', async () => {
       const currentCommit = await getCurrentCommit();
-      const readmePath = 'README.md';
+      const content = await getFileContentFromCommit(currentCommit, 'packages/git-utils/package.json');
 
-      // Use relative path from repo root
-      const relativePath = path.relative(repoRoot, tmpDir);
-      const nestedDir = path.join(relativePath, 'nested', 'path');
+      expect(typeof content).toBe('string');
+      expect(content).toContain('"name"');
+    });
 
-      const outputPath = await checkoutFile(
+    it('should get binary file content without corruption', async () => {
+      const currentCommit = await getCurrentCommit();
+
+      // Get binary content with encoding: null
+      const binaryContent = await getFileContentFromCommit(
         currentCommit,
-        readmePath,
-        nestedDir
+        'packages/git-utils/test-binary.bin',
+        { encoding: null }
       );
 
-      expect(fs.existsSync(outputPath)).toBe(true);
+      expect(Buffer.isBuffer(binaryContent)).toBe(true);
 
-      const absoluteNestedDir = path.join(repoRoot, nestedDir);
-      expect(fs.existsSync(absoluteNestedDir)).toBe(true);
+      // Verify PNG header bytes
+      expect(binaryContent[0]).toBe(0x89);
+      expect(binaryContent[1]).toBe(0x50);
+      expect(binaryContent[2]).toBe(0x4e);
+      expect(binaryContent[3]).toBe(0x47);
+
+      // Compare with actual file
+      const repoRoot = await getRepositoryRoot();
+      const actualContent = fs.readFileSync(path.join(repoRoot, 'packages/git-utils/test-binary.bin'));
+      expect(Buffer.compare(binaryContent, actualContent)).toBe(0);
     });
 
     it('should throw error for non-existent file', async () => {
       const currentCommit = await getCurrentCommit();
-      const relativeTmpDir = path.relative(repoRoot, tmpDir);
 
       await expectAsync(
-        checkoutFile(currentCommit, 'this-file-does-not-exist.txt', relativeTmpDir)
-      ).toBeRejectedWithError(/Failed to checkout file/);
+        getFileContentFromCommit(currentCommit, 'this-file-does-not-exist.txt')
+      ).toBeRejectedWithError(/Failed to get file/);
     });
 
     it('should throw error for invalid commit', async () => {
-      const packageJsonPath = path.relative(repoRoot, path.join(repoRoot, 'package.json'));
-      const relativeTmpDir = path.relative(repoRoot, tmpDir);
-
       await expectAsync(
-        checkoutFile('invalid-commit-sha-12345', packageJsonPath, relativeTmpDir)
-      ).toBeRejectedWithError(/Failed to checkout file/);
+        getFileContentFromCommit('invalid-commit-sha-12345', 'README.md')
+      ).toBeRejectedWithError(/Failed to get file/);
     });
 
-    it('should throw error with descriptive message', async () => {
+    it('should reject absolute paths', async () => {
       const currentCommit = await getCurrentCommit();
-      const relativeTmpDir = path.relative(repoRoot, tmpDir);
-
-      try {
-        await checkoutFile(currentCommit, 'nonexistent.txt', relativeTmpDir);
-        fail('Should have thrown an error');
-      } catch (err) {
-        expect(err.message).toContain('Failed to checkout file');
-        expect(err.message).toContain('nonexistent.txt');
-        expect(err.message).toContain(currentCommit);
-      }
-    });
-
-    it('should reject absolute paths and path traversal for filePath', async () => {
-      const currentCommit = await getCurrentCommit();
-      const relativeTmpDir = path.relative(repoRoot, tmpDir);
 
       await expectAsync(
-        checkoutFile(currentCommit, '/etc/passwd', relativeTmpDir)
-      ).toBeRejectedWithError(/Invalid file path/);
-
-      await expectAsync(
-        checkoutFile(currentCommit, '../package.json', relativeTmpDir)
+        getFileContentFromCommit(currentCommit, '/etc/passwd')
       ).toBeRejectedWithError(/Invalid file path/);
     });
 
-    it('should reject filenames with path separators in basename', async () => {
+    it('should reject path traversal attempts', async () => {
       const currentCommit = await getCurrentCommit();
-      const relativeTmpDir = path.relative(repoRoot, tmpDir);
 
-      // Unix-style separator
       await expectAsync(
-        checkoutFile(currentCommit, 'foo/bar/../../../etc/passwd', relativeTmpDir)
+        getFileContentFromCommit(currentCommit, '../../../etc/passwd')
       ).toBeRejectedWithError(/Invalid file path/);
 
-      // Windows-style separator in filename
       await expectAsync(
-        checkoutFile(currentCommit, 'foo\\bar', relativeTmpDir)
-      ).toBeRejectedWithError(/Invalid filename in path/);
+        getFileContentFromCommit(currentCommit, 'foo/../../secrets.txt')
+      ).toBeRejectedWithError(/Invalid file path/);
     });
 
-    it('should prevent path traversal attempts via multiple methods', async () => {
-      const currentCommit = await getCurrentCommit();
-      const relativeTmpDir = path.relative(repoRoot, tmpDir);
-
-      // Various traversal attempts
-      const maliciousPaths = [
-        '../../etc/passwd',
-        './../../secrets.txt',
-        'foo/../../../bar',
-        './../parent-dir/file.txt',
-        'subdir/../../escape.txt'
-      ];
-
-      for (const maliciousPath of maliciousPaths) {
-        await expectAsync(
-          checkoutFile(currentCommit, maliciousPath, relativeTmpDir)
-        ).toBeRejectedWithError(/Invalid file path/);
-      }
-    });
-
-    it('should ensure output stays within output directory', async () => {
-      const currentCommit = await getCurrentCommit();
-      const relativeTmpDir = path.relative(repoRoot, tmpDir);
-
-      // Even if somehow a traversal sequence gets through, the final check should catch it
-      // This test ensures the resolved path validation works
-      const result = await checkoutFile(currentCommit, 'README.md', relativeTmpDir);
-
-      // Verify the result is actually within tmpDir
-      const resolvedTmpDir = path.resolve(tmpDir);
-      const resolvedResult = path.resolve(result);
-
-      expect(resolvedResult.startsWith(resolvedTmpDir)).toBe(true);
-    });
-
-    it('should reject outputDir outside repository boundary', async () => {
-      const currentCommit = await getCurrentCommit();
-
-      // Try to write outside repo using absolute path
+    it('should throw error for invalid commit parameter', async () => {
       await expectAsync(
-        checkoutFile(currentCommit, 'README.md', '/tmp/outside-repo')
-      ).toBeRejectedWithError(/Output directory escapes repository/);
+        getFileContentFromCommit('', 'README.md')
+      ).toBeRejectedWithError(/Invalid commit parameter/);
 
-      // Try to write outside repo using relative path
       await expectAsync(
-        checkoutFile(currentCommit, 'README.md', '../../../tmp')
-      ).toBeRejectedWithError(/Output directory escapes repository/);
+        getFileContentFromCommit(null, 'README.md')
+      ).toBeRejectedWithError(/Invalid commit parameter/);
     });
 
-    it('should correctly checkout binary files without corruption', async () => {
+    it('should return string by default for text files', async () => {
       const currentCommit = await getCurrentCommit();
-      const binaryFilePath = 'packages/git-utils/test-binary.bin';
-      const relativeTmpDir = path.relative(repoRoot, tmpDir);
 
-      const outputPath = await checkoutFile(
+      // Default behavior without encoding option
+      const content = await getFileContentFromCommit(currentCommit, 'package.json');
+
+      expect(typeof content).toBe('string');
+      expect(content).toContain('"private"');
+      expect(content).toContain('"workspaces"');
+    });
+
+    it('should return Buffer when encoding is null', async () => {
+      const currentCommit = await getCurrentCommit();
+
+      const content = await getFileContentFromCommit(
         currentCommit,
-        binaryFilePath,
-        relativeTmpDir
+        'package.json',
+        { encoding: null }
       );
 
-      expect(fs.existsSync(outputPath)).toBe(true);
-      expect(path.basename(outputPath)).toBe('test-binary.bin');
+      expect(Buffer.isBuffer(content)).toBe(true);
 
-      // Read both the original and checked out file as buffers
-      const originalPath = path.join(repoRoot, binaryFilePath);
-      const originalContent = fs.readFileSync(originalPath);
-      const checkedOutContent = fs.readFileSync(outputPath);
-
-      // Verify the binary content is identical
-      expect(Buffer.compare(originalContent, checkedOutContent)).toBe(0);
-
-      // Verify it contains PNG header bytes (binary data)
-      expect(checkedOutContent[0]).toBe(0x89);
-      expect(checkedOutContent[1]).toBe(0x50);
-      expect(checkedOutContent[2]).toBe(0x4e);
-      expect(checkedOutContent[3]).toBe(0x47);
+      // Can convert back to string
+      const str = content.toString('utf8');
+      expect(str).toContain('"private"');
+      expect(str).toContain('"workspaces"');
     });
   });
 
@@ -587,27 +499,6 @@ describe('@percy/git-utils', () => {
           const changedFiles = await getChangedFiles(mergeBase.commit);
           expect(Array.isArray(changedFiles)).toBe(true);
         }
-      }
-    });
-
-    it('should handle file checkout workflow', async () => {
-      const repoRoot = await getRepositoryRoot();
-      const tmpDirName = `test-workflow-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-      const tmpDir = path.join(repoRoot, tmpDirName);
-      fs.mkdirSync(tmpDir, { recursive: true });
-
-      try {
-        const commit = await getCurrentCommit();
-        const testFile = 'README.md';
-        const relativeTmpDir = path.relative(repoRoot, tmpDir);
-
-        const outputPath = await checkoutFile(commit, testFile, relativeTmpDir);
-
-        expect(fs.existsSync(outputPath)).toBe(true);
-        const content = fs.readFileSync(outputPath, 'utf8');
-        expect(content.length).toBeGreaterThan(0);
-      } finally {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
       }
     });
   });

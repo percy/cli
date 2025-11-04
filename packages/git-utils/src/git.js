@@ -461,51 +461,28 @@ export async function getChangedFiles(baselineCommit = 'origin/main') {
 }
 
 /**
- * Checkout file from specific commit to output path
+ * Get file content from a specific commit
  * Supports both text and binary files.
- * @param {string} commit - Commit SHA or ref
+ * @param {string} commit - Commit SHA or ref (HEAD, branch name, etc.)
  * @param {string} filePath - File path relative to repo root
- * @param {string} outputDir - Output directory
- * @returns {Promise<string>} - Path to checked out file
+ * @param {Object} options - Options
+ * @param {string|null} options.encoding - Output encoding ('utf8' or null for Buffer, default: 'utf8')
+ * @returns {Promise<string|Buffer>} - File contents (string if utf8, Buffer if null encoding)
  */
-export async function checkoutFile(commit, filePath, outputDir) {
+export async function getFileContentFromCommit(commit, filePath, options = {}) {
   try {
-    const repoRoot = await getRepositoryRoot();
+    if (!commit || typeof commit !== 'string') {
+      throw new Error('Invalid commit parameter');
+    }
     const normalized = path.normalize(filePath);
     if (path.isAbsolute(normalized) || normalized.split(path.sep).includes('..')) {
       throw new Error(`Invalid file path: ${filePath}`);
     }
-
-    const basename = path.basename(filePath);
-    if (basename.includes('/') || basename.includes('\\')) {
-      throw new Error(`Invalid filename in path: ${filePath}`);
-    }
-
-    let resolvedOutputDir;
-    if (path.isAbsolute(outputDir)) {
-      resolvedOutputDir = path.resolve(outputDir);
-    } else {
-      resolvedOutputDir = path.resolve(repoRoot, outputDir);
-    }
-
-    if (!resolvedOutputDir.startsWith(repoRoot + path.sep) && resolvedOutputDir !== repoRoot) {
-      throw new Error(`Output directory escapes repository: ${outputDir}`);
-    }
-
-    await fsPromises.mkdir(resolvedOutputDir, { recursive: true });
-
-    const resolvedOutputPath = path.join(resolvedOutputDir, basename);
-    if (!resolvedOutputPath.startsWith(resolvedOutputDir + path.sep) &&
-        resolvedOutputPath !== resolvedOutputDir) {
-      throw new Error(`Output path escapes output directory: ${resolvedOutputPath}`);
-    }
-
-    const contents = await execGit(['git', 'show', `${commit}:${normalized}`], { encoding: null });
-    await fsPromises.writeFile(resolvedOutputPath, contents);
-
-    return resolvedOutputPath;
+    const { encoding = 'utf8' } = options;
+    const contents = await execGit(['git', 'show', `${commit}:${normalized}`], { encoding });
+    return contents;
   } catch (err) {
-    throw new Error(`Failed to checkout file ${filePath} from ${commit}: ${err.message}`);
+    throw new Error(`Failed to get file ${filePath} from commit ${commit}: ${err.message}`);
   }
 }
 
