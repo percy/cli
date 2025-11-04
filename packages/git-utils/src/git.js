@@ -470,25 +470,34 @@ export async function getChangedFiles(baselineCommit = 'origin/main') {
  */
 export async function checkoutFile(commit, filePath, outputDir) {
   try {
+    const repoRoot = await getRepositoryRoot();
     const normalized = path.normalize(filePath);
     if (path.isAbsolute(normalized) || normalized.split(path.sep).includes('..')) {
       throw new Error(`Invalid file path: ${filePath}`);
     }
-
-    await fsPromises.mkdir(outputDir, { recursive: true });
 
     const basename = path.basename(filePath);
     if (basename.includes('/') || basename.includes('\\')) {
       throw new Error(`Invalid filename in path: ${filePath}`);
     }
 
-    const outputPath = path.join(outputDir, basename);
+    let resolvedOutputDir;
+    if (path.isAbsolute(outputDir)) {
+      resolvedOutputDir = path.resolve(outputDir);
+    } else {
+      resolvedOutputDir = path.resolve(repoRoot, outputDir);
+    }
 
-    const resolvedOutputDir = path.resolve(outputDir);
-    const resolvedOutputPath = path.resolve(outputPath);
+    if (!resolvedOutputDir.startsWith(repoRoot + path.sep) && resolvedOutputDir !== repoRoot) {
+      throw new Error(`Output directory escapes repository: ${outputDir}`);
+    }
+
+    await fsPromises.mkdir(resolvedOutputDir, { recursive: true });
+
+    const resolvedOutputPath = path.join(resolvedOutputDir, basename);
     if (!resolvedOutputPath.startsWith(resolvedOutputDir + path.sep) &&
         resolvedOutputPath !== resolvedOutputDir) {
-      throw new Error(`Output path escapes output directory: ${outputPath}`);
+      throw new Error(`Output path escapes output directory: ${resolvedOutputPath}`);
     }
 
     const contents = await execGit(['git', 'show', `${commit}:${normalized}`], { encoding: null });
