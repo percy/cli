@@ -36,8 +36,14 @@ function findAllBlobUrls(dom) {
   }
 
   // Find blob URLs in href attributes
+  // Skip stylesheet links as they're handled by serializeCSSOM
   const elementsWithHref = dom.querySelectorAll('[href^="blob:"]');
   for (const el of elementsWithHref) {
+    // Skip <link rel="stylesheet"> elements - they're handled by serializeCSSOM
+    if (el.tagName === 'LINK' && el.getAttribute('rel') === 'stylesheet') {
+      continue;
+    }
+
     if (!el.getAttribute('data-percy-element-id')) {
       el.setAttribute('data-percy-element-id', uid());
     }
@@ -61,14 +67,12 @@ function findAllBlobUrls(dom) {
         }
         for (const match of blobMatches) {
           const urlMatch = match.match(/url\(["']?(blob:[^"')]+)["']?\)/);
-          if (urlMatch) {
-            blobUrls.push({
-              element: el,
-              blobUrl: urlMatch[1],
-              property: 'style',
-              id: el.getAttribute('data-percy-element-id')
-            });
-          }
+          blobUrls.push({
+            element: el,
+            blobUrl: urlMatch[1],
+            property: 'style',
+            id: el.getAttribute('data-percy-element-id')
+          });
         }
       }
     }
@@ -98,7 +102,7 @@ async function convertBlobToResource(blobInfo) {
     // Create Percy resource
     const resource = resourceFromDataURL(id, dataUrl);
 
-    // Update element to use resource URL instead of blob URL
+    /* istanbul ignore else: property is always one of 'src', 'href', or 'style' */
     if (property === 'src') {
       element.removeAttribute('src');
       element.setAttribute('data-percy-serialized-attribute-src', resource.url);

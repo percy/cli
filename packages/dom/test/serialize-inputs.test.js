@@ -180,6 +180,64 @@ describe('serializeInputs', () => {
     });
   });
 
+  describe('empty textarea', () => {
+    it('serializes empty textarea content', async () => {
+      withExample(`
+        <form>
+          <textarea id="empty-textarea"></textarea>
+        </form>
+      `);
+
+      // Don't set any value - leave it empty to test the || '' branch at line 39
+      // Serialize
+      const result = await serializeDOM();
+      const $ = parseDOM(result.html);
+
+      // Should have empty textContent
+      const $textarea = $('#empty-textarea');
+      expect($textarea[0]).toBeDefined();
+      expect($textarea[0].textContent).toBe('');
+    });
+  });
+
+  describe('other input types', () => {
+    it('serializes value attribute for number inputs', async () => {
+      withExample(`
+        <form>
+          <input id="age" type="number" />
+        </form>
+      `);
+
+      // Set value on the input
+      document.querySelector('#age').value = '25';
+
+      // Serialize
+      const result = await serializeDOM();
+      const $ = parseDOM(result.html);
+
+      // Should have serialized the value attribute (default case)
+      expect($('#age')[0].getAttribute('value')).toBe('25');
+    });
+
+    it('serializes value attribute for email inputs', async () => {
+      withExample(`
+        <form>
+          <input id="email" type="email" />
+        </form>
+      `);
+
+      // Set value on the input
+      document.querySelector('#email').value = 'test@example.com';
+
+      // Serialize
+      const result = await serializeDOM();
+      const $ = parseDOM(result.html);
+
+      // Should have serialized the value attribute (default case at line 39)
+      expect($('#email')[0].getAttribute('value')).toBe('test@example.com');
+    });
+  });
+
   describe('failure case', () => {
     it('add node details in error message and rethrow it', async () => {
       withExample(`
