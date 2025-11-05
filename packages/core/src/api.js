@@ -114,7 +114,7 @@ export function createPercyServer(percy, port) {
       ].join(' '));
 
       let content = await fs.promises.readFile(PERCY_DOM, 'utf-8');
-      let wrapper = '(window.PercyAgent = class { snapshot(n, o) { return PercyDOM.serialize(o); } });';
+      let wrapper = '(window.PercyAgent = class { async snapshot(n, o) { return await PercyDOM.serialize(o); } });';
       return res.send(200, 'application/javascript', content.concat(wrapper));
     })
   // post one or more snapshots, optionally async
