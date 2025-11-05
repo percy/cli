@@ -21,6 +21,12 @@ describe('serializeCanvas', () => {
           style="border: 2px solid red; max-width: 150px;"
         ></canvas>
         <canvas
+          id="canvas-with-static-width"
+          width="180px"
+          height="120px"
+          style="border: 1px solid green; width: 180px;"
+        ></canvas>
+        <canvas
           id="empty"
           width="0px"
           height="0px"
@@ -51,6 +57,14 @@ describe('serializeCanvas', () => {
         ctxWithMaxWidth.fillRect(10, 10, 50, 30);
 
         cache[plat].dataURLWithMaxWidth = canvasWithMaxWidth.toDataURL();
+
+        // Draw on canvas with static width
+        let canvasWithStaticWidth = dom.getElementById('canvas-with-static-width');
+        let ctxWithStaticWidth = canvasWithStaticWidth.getContext('2d');
+        ctxWithStaticWidth.fillStyle = 'green';
+        ctxWithStaticWidth.fillRect(5, 5, 40, 25);
+
+        cache[plat].dataURLWithStaticWidth = canvasWithStaticWidth.toDataURL();
       });
 
       serialized = serializeDOM();
@@ -68,8 +82,10 @@ describe('serializeCanvas', () => {
         expect($canvas[0].getAttribute('width')).toBe('150px');
         expect($canvas[0].getAttribute('height')).toBe('150px');
         expect($canvas[0].getAttribute('src')).toMatch('/__serialized__/\\w+\\.png');
-        expect($canvas[0].getAttribute('style')).toBe('border: 5px solid black;');
+        expect($canvas[0].getAttribute('style')).toBe('border: 5px solid black; max-width: 100%;');
         expect($canvas[0].matches('[data-percy-canvas-serialized]')).toBe(true);
+        // Verify maxWidth is applied since canvas has no style.width (only attribute width)
+        expect($canvas[0].style.maxWidth).toBe('100%');
 
         expect(serialized.resources).toContain(jasmine.objectContaining({
           url: $canvas[0].getAttribute('src'),
@@ -86,10 +102,29 @@ describe('serializeCanvas', () => {
         expect($canvas[0].getAttribute('style')).toBe('border: 2px solid red; max-width: 150px;');
         expect($canvas[0].style.maxWidth).toBe('150px');
         expect($canvas[0].matches('[data-percy-canvas-serialized]')).toBe(true);
+        // Verify original maxWidth is preserved (not overridden to 100%)
+        // since canvas already has maxWidth and no static pixel width
 
         expect(serialized.resources).toContain(jasmine.objectContaining({
           url: $canvas[0].getAttribute('src'),
           content: cache[platform].dataURLWithMaxWidth.split(',')[1],
+          mimetype: 'image/png'
+        }));
+      });
+
+      it(`${platform}: does not add maxWidth when canvas has static pixel width`, () => {
+        let $canvas = $('#canvas-with-static-width');
+        expect($canvas[0].tagName).toBe('IMG');
+        expect($canvas[0].getAttribute('width')).toBe('180px');
+        expect($canvas[0].getAttribute('height')).toBe('120px');
+        expect($canvas[0].getAttribute('style')).toBe('border: 1px solid green; width: 180px;');
+        expect($canvas[0].matches('[data-percy-canvas-serialized]')).toBe(true);
+        // Verify maxWidth is NOT added since canvas has static pixel width (width: 180px)
+        expect($canvas[0].style.maxWidth).toBe('');
+
+        expect(serialized.resources).toContain(jasmine.objectContaining({
+          url: $canvas[0].getAttribute('src'),
+          content: cache[platform].dataURLWithStaticWidth.split(',')[1],
           mimetype: 'image/png'
         }));
       });
