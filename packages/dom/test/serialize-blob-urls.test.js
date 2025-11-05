@@ -1,5 +1,5 @@
 // Example test showing how blob URL serialization works
-/* global fetch, performance */
+/* global fetch, performance, Blob */
 import serializeDOM from '@percy/dom';
 import { withExample, parseDOM } from './helpers';
 
