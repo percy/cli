@@ -1,6 +1,7 @@
 import { spawn } from 'cross-spawn';
 import path from 'path';
 import fs from 'fs';
+import * as GitCommands from './git-commands.js';
 
 const fsPromises = fs.promises;
 
@@ -22,17 +23,14 @@ async function execGit(command, options = {}) {
     } catch (err) {
       lastError = err;
 
-      // Check if error is due to concurrent git operations
+      // Check if error is due to concurrent git operations (index lock, file conflicts, etc.)
       const errorMsg = err.message.toLowerCase();
-      const isConcurrentError =
-        errorMsg.includes('index.lock') ||
-        errorMsg.includes('unable to create') ||
-        errorMsg.includes('file exists') ||
-        errorMsg.includes('another git process');
+      const isConcurrentError = GitCommands.CONCURRENT_ERROR_PATTERNS.some(
+        pattern => errorMsg.includes(pattern)
+      );
 
-      // Only retry for concurrent operation errors
+      // Only retry for concurrent operation errors with exponential backoff
       if (isConcurrentError && attempt < retries) {
-        // Exponential backoff
         const delay = retryDelay * Math.pow(2, attempt);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
@@ -108,27 +106,38 @@ async function execGitOnce(command, options = {}) {
     });
   });
 }
+
+// Check if the current directory is a git repository
+// Executes: git rev-parse --git-dir
 export async function isGitRepository() {
   try {
-    await execGit('git rev-parse --git-dir');
+    await execGit(GitCommands.GIT_REV_PARSE_GIT_DIR);
     return true;
   } catch (err) {
     return false;
   }
 }
 
+/**
+ * Get the root directory of the git repository
+ * Executes: git rev-parse --show-toplevel
+ */
 export async function getRepositoryRoot() {
   try {
-    const root = await execGit('git rev-parse --show-toplevel');
+    const root = await execGit(GitCommands.GIT_REV_PARSE_SHOW_TOPLEVEL);
     return root;
   } catch (err) {
     throw new Error('Not a git repository');
   }
 }
 
+/**
+ * Get the current commit SHA
+ * Executes: git rev-parse HEAD
+ */
 export async function getCurrentCommit() {
   try {
-    const commit = await execGit('git rev-parse HEAD');
+    const commit = await execGit(GitCommands.GIT_REV_PARSE_HEAD);
     return commit;
   } catch (err) {
     throw new Error(`Failed to get current commit: ${err.message}`);
@@ -137,11 +146,12 @@ export async function getCurrentCommit() {
 
 /**
  * Get current git branch name
+ * Executes: git rev-parse --abbrev-ref HEAD
  * @returns {Promise<string>} - Current branch name
  */
 export async function getCurrentBranch() {
   try {
-    const branch = await execGit('git rev-parse --abbrev-ref HEAD');
+    const branch = await execGit(GitCommands.GIT_REV_PARSE_ABBREV_REF_HEAD);
     return branch;
   } catch (err) {
     throw new Error(`Failed to get current branch: ${err.message}`);
@@ -150,6 +160,7 @@ export async function getCurrentBranch() {
 
 /**
  * Validate git repository state and return diagnostic info
+ * Checks: repository validity, shallow clone, detached HEAD, remote config, default branch
  * @returns {Promise<Object>} - { isValid, isShallow, isDetached, defaultBranch, issues }
  */
 export async function getGitState() {
@@ -164,16 +175,20 @@ export async function getGitState() {
     issues: []
   };
 
+  // Verify this is a valid git repository
+  // Executes: git rev-parse --git-dir
   try {
-    await execGit('git rev-parse --git-dir');
+    await execGit(GitCommands.GIT_REV_PARSE_GIT_DIR);
     state.isValid = true;
   } catch {
     state.issues.push('Not a git repository');
     return state;
   }
 
+  // Check for remote configuration
+  // Executes: git remote -v
   try {
-    const remotes = await execGit('git remote -v');
+    const remotes = await execGit(GitCommands.GIT_REMOTE_V);
     if (remotes && remotes.trim().length > 0) {
       state.hasRemote = true;
       const match = remotes.match(/^(\S+)\s+/);
@@ -189,11 +204,13 @@ export async function getGitState() {
     state.issues.push('Failed to check git remote configuration');
   }
 
+  // Check if repository is a shallow clone
+  // Executes: git rev-parse --is-shallow-repository
   try {
-    const result = await execGit('git rev-parse --is-shallow-repository');
+    const result = await execGit(GitCommands.GIT_REV_PARSE_IS_SHALLOW);
     state.isShallow = result === 'true';
   } catch {
-    // Fallback: check for .git/shallow file
+    // Fallback: check for .git/shallow file existence
     try {
       const repoRoot = await getRepositoryRoot();
       const shallowPath = path.join(repoRoot, '.git', 'shallow');
@@ -204,11 +221,12 @@ export async function getGitState() {
     }
   }
 
+  // Warn about shallow clone as it affects history operations
   if (state.isShallow) {
     state.issues.push("Shallow clone detected - use 'git fetch --unshallow' or set fetch-depth: 0 in CI");
   }
 
-  // Check detached HEAD
+  // Check if HEAD is detached (not on a branch)
   try {
     const branch = await getCurrentBranch();
     state.isDetached = branch === 'HEAD';
@@ -219,64 +237,109 @@ export async function getGitState() {
     state.isDetached = false;
   }
 
+  // Check if this is the first commit (no parent commits)
+  // Executes: git rev-parse HEAD~1 (simplified approach)
   try {
-    const parents = await execGit('git rev-list --parents HEAD');
-    const lines = parents.split('\n').filter(Boolean);
-    if (lines.length > 0) {
-      const firstLine = lines[lines.length - 1];
-      const shas = firstLine.trim().split(/\s+/);
-      state.isFirstCommit = shas.length === 1;
-    }
-  } catch {
+    await execGit(GitCommands.GIT_REV_PARSE_VERIFY('HEAD~1'));
     state.isFirstCommit = false;
+  } catch {
+    // If HEAD~1 doesn't exist, this is the first commit
+    state.isFirstCommit = true;
   }
 
-  if (state.hasRemote) {
-    const remoteName = state.remoteName || 'origin';
-    const commonBranches = ['main', 'master', 'develop', 'development'];
-    for (const branch of commonBranches) {
-      try {
-        await execGit(`git rev-parse --verify ${remoteName}/${branch}`);
-        state.defaultBranch = branch;
-        break;
-      } catch {
-        // Try next branch
-      }
-    }
-
-    if (!state.defaultBranch) {
-      try {
-        const output = await execGit(`git symbolic-ref refs/remotes/${remoteName}/HEAD`);
-        const match = output.match(/refs\/remotes\/[^/]+\/(.+)/);
-        if (match) {
-          state.defaultBranch = match[1];
-        }
-      } catch {
-        state.defaultBranch = 'main';
-      }
-    }
-  } else {
-    const localBranches = ['main', 'master', 'develop', 'development'];
-    for (const branch of localBranches) {
-      try {
-        await execGit(`git rev-parse --verify ${branch}`);
-        state.defaultBranch = branch;
-        break;
-      } catch {
-        // Try next branch
-      }
-    }
-
-    if (!state.defaultBranch) {
-      state.defaultBranch = 'main';
-    }
-  }
+  // Determine default branch by checking common branch names
+  state.defaultBranch = await findDefaultBranch(state.hasRemote, state.remoteName);
 
   return state;
 }
 
 /**
+ * Helper function to find the default branch
+ * Uses git symbolic-ref to detect the actual default branch instead of guessing
+ * @param {boolean} hasRemote - Whether repository has a remote configured
+ * @param {string|null} remoteName - Name of the remote (e.g., 'origin')
+ * @returns {Promise<string>} - Default branch name
+ */
+async function findDefaultBranch(hasRemote, remoteName) {
+  if (hasRemote) {
+    const remote = remoteName || 'origin';
+    // Executes: git symbolic-ref refs/remotes/<remote>/HEAD
+    // This returns the branch that the remote considers as default (e.g., refs/remotes/origin/main)
+    try {
+      const output = await execGit(GitCommands.GIT_SYMBOLIC_REF(`refs/remotes/${remote}/HEAD`));
+      const match = output.match(/refs\/remotes\/[^/]+\/(.+)/);
+      if (match) {
+        return match[1];
+      }
+    } catch {
+      // If symbolic-ref fails, the remote HEAD might not be set
+      // This can happen in shallow clones or if remote HEAD was never fetched
+    }
+
+    // Fallback: Try to set the remote HEAD by fetching it, then retry
+    try {
+      // Executes: git remote set-head <remote> --auto
+      // This queries the remote and sets the symbolic-ref locally
+      await execGit(GitCommands.GIT_REMOTE_SET_HEAD(remote, '--auto'));
+
+      // Retry getting the symbolic ref
+      const output = await execGit(GitCommands.GIT_SYMBOLIC_REF(`refs/remotes/${remote}/HEAD`));
+      const match = output.match(/refs\/remotes\/[^/]+\/(.+)/);
+      if (match) {
+        return match[1];
+      }
+    } catch {
+      // Remote set-head failed, continue to manual detection
+    }
+
+    // Last resort for remote: Check common branch names
+    const commonBranches = ['main', 'master', 'develop', 'development'];
+    for (const branch of commonBranches) {
+      try {
+        await execGit(GitCommands.GIT_REV_PARSE_VERIFY(`${remote}/${branch}`));
+        return branch;
+      } catch {
+        // Try next branch
+      }
+    }
+  } else {
+    // No remote configured - detect local default branch
+    // For local repos, we check which branch was used during git init
+
+    try {
+      // Executes: git config init.defaultBranch
+      const configBranch = await execGit(GitCommands.GIT_CONFIG('init.defaultBranch'));
+      if (configBranch) {
+        // Verify this branch actually exists locally
+        try {
+          await execGit(GitCommands.GIT_REV_PARSE_VERIFY(configBranch));
+          return configBranch;
+        } catch {
+          // Config branch doesn't exist, continue
+        }
+      }
+    } catch {
+      // init.defaultBranch not set, continue
+    }
+
+    // Fallback: Check common local branch names
+    const commonBranches = ['main', 'master', 'develop', 'development'];
+    for (const branch of commonBranches) {
+      try {
+        await execGit(GitCommands.GIT_REV_PARSE_VERIFY(branch));
+        return branch;
+      } catch {
+        // Try next branch
+      }
+    }
+  }
+  return 'main';
+}
+
+/**
  * Get merge-base commit with smart error handling and recovery
+ * Finds the common ancestor between HEAD and a target branch
+ * Executes: git merge-base HEAD <branch>
  * @param {string} targetBranch - Target branch (if null, auto-detects)
  * @returns {Promise<Object>} - { success, commit, branch, error }
  */
@@ -302,18 +365,24 @@ export async function getMergeBase(targetBranch = null) {
     const branch = targetBranch || gitState.defaultBranch;
     result.branch = branch;
 
+    // If in detached HEAD state with remote, try to fetch the branch
     if (gitState.isDetached && gitState.hasRemote) {
       const remoteName = gitState.remoteName || 'origin';
       try {
-        await execGit(`git rev-parse --verify ${remoteName}/${branch}`);
+        // Check if remote branch exists
+        await execGit(GitCommands.GIT_REV_PARSE_VERIFY(`${remoteName}/${branch}`));
       } catch {
         try {
-          await execGit(`git fetch ${remoteName} ${branch}:refs/remotes/${remoteName}/${branch} --depth=100`);
+          // Fetch remote branch with limited depth
+          // Executes: git fetch <remote> <branch>:refs/remotes/<remote>/<branch> --depth=100
+          await execGit(GitCommands.GIT_FETCH(remoteName, `${branch}:refs/remotes/${remoteName}/${branch}`, '--depth=100'));
         } catch {
+          // Fetch failed, continue with available refs
         }
       }
     }
 
+    // Build list of branch references to try for merge-base
     const attempts = [];
 
     if (gitState.hasRemote) {
@@ -323,6 +392,7 @@ export async function getMergeBase(targetBranch = null) {
 
     attempts.push(branch);
 
+    // Also try default branch if different from target
     if (branch !== gitState.defaultBranch) {
       if (gitState.hasRemote) {
         const remoteName = gitState.remoteName || 'origin';
@@ -331,9 +401,11 @@ export async function getMergeBase(targetBranch = null) {
       attempts.push(gitState.defaultBranch);
     }
 
+    // Try each reference until one succeeds
+    // Executes: git merge-base HEAD <ref>
     for (const attempt of attempts) {
       try {
-        const commit = await execGit(`git merge-base HEAD ${attempt}`);
+        const commit = await execGit(GitCommands.GIT_MERGE_BASE('HEAD', attempt));
         result.success = true;
         result.commit = commit;
         return result;
@@ -342,11 +414,11 @@ export async function getMergeBase(targetBranch = null) {
       }
     }
 
+    // No merge-base found - build helpful error message
     let errorMessage = `Could not find common ancestor with ${branch}.`;
 
     if (!gitState.hasRemote) {
       errorMessage += ` No git remote configured. Tried local branch '${branch}'.`;
-      errorMessage += ' Use --smart-snap-baseline=<branch> to specify a different baseline branch.';
     } else {
       errorMessage += ' This might be an orphan branch.';
       errorMessage += ` Tried: ${attempts.join(', ')}.`;
@@ -369,12 +441,14 @@ export async function getMergeBase(targetBranch = null) {
 /**
  * Get changed files between current commit and baseline
  * Handles renames, copies, and submodule changes
+ * Executes: git diff --name-status <baseline>..HEAD
  * @param {string} baselineCommit - Baseline commit SHA or ref
  * @returns {Promise<string[]>} - Array of changed file paths (relative to repo root)
  */
 export async function getChangedFiles(baselineCommit = 'origin/main') {
   try {
-    const output = await execGit(['git', 'diff', '--name-status', `${baselineCommit}..HEAD`]);
+    // Get list of changed files with status indicators
+    const output = await execGit(GitCommands.GIT_DIFF_NAME_STATUS(baselineCommit));
 
     if (!output) {
       return [];
@@ -383,6 +457,7 @@ export async function getChangedFiles(baselineCommit = 'origin/main') {
     const files = new Set();
     const lines = output.split('\n').filter(Boolean);
 
+    // Parse each line of git diff output
     for (const line of lines) {
       const parts = line.split('\t');
       const status = parts[0];
@@ -408,34 +483,35 @@ export async function getChangedFiles(baselineCommit = 'origin/main') {
     }
 
     // Check for git submodule changes
+    // Executes: git diff <baseline>..HEAD --submodule=short
     try {
-      const submoduleOutput = await execGit(['git', 'diff', `${baselineCommit}..HEAD`, '--submodule=short']);
+      const submoduleOutput = await execGit(GitCommands.GIT_DIFF_SUBMODULE(baselineCommit));
       if (submoduleOutput && submoduleOutput.includes('Submodule')) {
         files.add('.gitmodules');
 
         try {
-          const submodulePaths = await execGit(['git', 'config', '--file', '.gitmodules', '--get-regexp', 'path']);
+          // Get list of submodule paths from .gitmodules
+          // Executes: git config --file .gitmodules --get-regexp path
+          const submodulePaths = await execGit(GitCommands.GIT_CONFIG_FILE_GET_REGEXP('.gitmodules', 'path'));
           const submodules = submodulePaths.split('\n')
             .filter(Boolean)
             .map(line => line.split(' ')[1]);
 
           for (const submodulePath of submodules) {
             try {
-              // Validate submodule path to avoid path traversal or injection
+              // Validate submodule path to prevent path traversal attacks
               const normalizedSub = path.normalize(submodulePath);
               if (path.isAbsolute(normalizedSub) || normalizedSub.split(path.sep).includes('..')) {
-                // skip suspicious submodule paths
+                // Skip suspicious submodule paths
                 continue;
               }
 
-              const subOutput = await execGit([
-                'git',
-                '-C',
-                normalizedSub,
-                'diff',
-                '--name-only',
-                `${baselineCommit}..HEAD`
-              ], { retries: 1 });
+              // Get changed files within the submodule
+              // Executes: git -C <submodule> diff --name-only <baseline>..HEAD
+              const subOutput = await execGit(
+                GitCommands.GIT_SUBMODULE_DIFF(normalizedSub, baselineCommit),
+                { retries: 1 }
+              );
               if (subOutput) {
                 const subFiles = subOutput.split('\n').filter(Boolean);
                 for (const file of subFiles) {
@@ -462,7 +538,8 @@ export async function getChangedFiles(baselineCommit = 'origin/main') {
 
 /**
  * Get file content from a specific commit
- * Supports both text and binary files.
+ * Supports both text and binary files
+ * Executes: git show <commit>:<filePath>
  * @param {string} commit - Commit SHA or ref (HEAD, branch name, etc.)
  * @param {string} filePath - File path relative to repo root
  * @param {Object} options - Options
@@ -474,25 +551,33 @@ export async function getFileContentFromCommit(commit, filePath, options = {}) {
     if (!commit || typeof commit !== 'string') {
       throw new Error('Invalid commit parameter');
     }
+    // Sanitize file path to prevent path traversal attacks
     const normalized = path.normalize(filePath);
     if (path.isAbsolute(normalized) || normalized.split(path.sep).includes('..')) {
       throw new Error(`Invalid file path: ${filePath}`);
     }
     const { encoding = 'utf8' } = options;
-    const contents = await execGit(['git', 'show', `${commit}:${normalized}`], { encoding });
+    const contents = await execGit(GitCommands.GIT_SHOW(commit, normalized), { encoding });
     return contents;
   } catch (err) {
     throw new Error(`Failed to get file ${filePath} from commit ${commit}: ${err.message}`);
   }
 }
 
+/**
+ * Check if a commit exists in the repository
+ * Executes: git cat-file -e <commit>
+ * @param {string} commit - Commit SHA or ref to check
+ * @returns {Promise<boolean>} - True if commit exists
+ */
 export async function commitExists(commit) {
   try {
     if (!commit || typeof commit !== 'string') return false;
+    // Validate commit reference format for security
     const safeRef = commit === 'HEAD' || /^[0-9a-fA-F]{4,40}$/.test(commit) || /^(refs\/[A-Za-z0-9._/-]+)$/.test(commit);
     if (!safeRef) return false;
 
-    await execGit(['git', 'cat-file', '-e', commit]);
+    await execGit(GitCommands.GIT_CAT_FILE_E(commit));
     return true;
   } catch (err) {
     return false;
