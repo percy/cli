@@ -61,6 +61,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: ${{ matrix.package == '@percy/git-utils' && 0 || 1 }}
       - uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node }}
