@@ -164,6 +164,34 @@ describe('Discovery', () => {
     ]);
   });
 
+  it('logs performance info when present in domSnapshot', async () => {
+    // Enable debug logging to capture the performance info log
+    percy.loglevel('debug');
+
+    const domSnapshotWithPerfInfo = {
+      html: testDOM,
+      perfInfo: {
+        serializationTime: 123.45,
+        clonedNodeCount: 100,
+        finalHtmlLength: 5000,
+        resourceCount: 3
+      }
+    };
+
+    await percy.snapshot({
+      name: 'test snapshot with perfInfo',
+      url: 'http://localhost:8000',
+      domSnapshot: domSnapshotWithPerfInfo
+    });
+
+    await percy.idle();
+
+    // Assert that the debug helper logged the perfInfo line
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Snapshot performance info.*serializationTime.*123\.45/)
+    ]));
+  });
+
   it('waits for discovery network idle timeout', async () => {
     percy.set({ discovery: { networkIdleTimeout: 400 } });
 

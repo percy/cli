@@ -29,6 +29,15 @@ function debugSnapshotOptions(snapshot) {
   log.debug('---------', snapshot.meta);
   log.debug(`Received snapshot: ${snapshot.name}`, snapshot.meta);
 
+  // Check if domSnapshot contains serialization timing and log it
+  if (snapshot.domSnapshot) {
+    let domData = Array.isArray(snapshot.domSnapshot) ? snapshot.domSnapshot[0] : snapshot.domSnapshot;
+    if (domData && typeof domData === 'object' && domData.perfInfo) {
+      const perfInfo = domData.perfInfo;
+      log.debug(`- Snapshot performance info: ${JSON.stringify(perfInfo)}`, snapshot.meta);
+    }
+  }
+
   // will log debug info for an object property if its value is defined
   let debugProp = (obj, prop, format = String) => {
     let val = prop.split('.').reduce((o, k) => o?.[k], obj);
