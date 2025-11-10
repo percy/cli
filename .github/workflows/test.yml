@@ -28,7 +28,7 @@ jobs:
             ${{ hashFiles('.github/.cache-key') }}/
       - run: yarn
       - run: yarn build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: dist
           path: packages/*/dist
