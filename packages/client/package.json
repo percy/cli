@@ -1,6 +1,6 @@
 {
   "name": "@percy/client",
-  "version": "1.31.5-beta.0",
+  "version": "1.31.5-beta.1",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -33,9 +33,9 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@percy/config": "1.31.5-beta.0",
-    "@percy/env": "1.31.5-beta.0",
-    "@percy/logger": "1.31.5-beta.0",
+    "@percy/config": "1.31.5-beta.1",
+    "@percy/env": "1.31.5-beta.1",
+    "@percy/logger": "1.31.5-beta.1",
     "pac-proxy-agent": "^7.0.2",
     "pako": "^2.1.0"
   }
