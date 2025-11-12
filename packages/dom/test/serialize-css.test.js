@@ -18,7 +18,7 @@ describe('serializeCSSOM', () => {
   }
 
   describe('success case', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
       let link = '<link rel="stylesheet" href="data:text/css,.box { margin: 10px; }"/>';
       let mod = '<style id="mod">.box { width: 500px; }</style>';
       let style = '<style>.box { background: green; }</style>';
@@ -37,12 +37,12 @@ describe('serializeCSSOM', () => {
 
     platforms.forEach((platform) => {
       let dom;
-      beforeEach(() => {
+      beforeEach(async () => {
         dom = platformDOM(platform);
       });
 
-      it(`${platform}: serializes CSSOM and does not mutate the orignal DOM`, () => {
-        let $cssom = parseDOM(serializeDOM(), platform)('[data-percy-cssom-serialized]');
+      it(`${platform}: serializes CSSOM and does not mutate the orignal DOM`, async () => {
+        let $cssom = parseDOM(await serializeDOM(), platform)('[data-percy-cssom-serialized]');
 
         // linked and unmodified stylesheets are not included
         expect($cssom).toHaveSize(3);
@@ -56,11 +56,11 @@ describe('serializeCSSOM', () => {
         expect(dom.querySelectorAll('[data-percy-cssom-serialized]')).toHaveSize(0);
       });
 
-      it(`${platform}: does not break the CSSOM by adding new styles after serializing`, () => {
+      it(`${platform}: does not break the CSSOM by adding new styles after serializing`, async () => {
         let cssomSheet = dom.styleSheets[0];
 
         // serialize DOM
-        serializeDOM();
+        await serializeDOM();
 
         // delete the old rule and create a new one
         cssomSheet.deleteRule(0);
@@ -71,38 +71,38 @@ describe('serializeCSSOM', () => {
           .toBe('.box { height: 200px; width: 200px; background-color: blue; }');
       });
 
-      it(`${platform}: does not serialize the CSSOM when JS is enabled`, () => {
-        const serializedDOM = serializeDOM({ enableJavaScript: true });
+      it(`${platform}: does not serialize the CSSOM when JS is enabled`, async () => {
+        const serializedDOM = await serializeDOM({ enableJavaScript: true });
         let $ = parseDOM(serializedDOM, platform);
         expect(dom.styleSheets[0]).toHaveProperty('ownerNode.innerText', '');
         expect($('[data-percy-cssom-serialized]')).toHaveSize(0);
       });
 
-      it(`${platform}: skips empty CSSStyleSheets`, () => {
+      it(`${platform}: skips empty CSSStyleSheets`, async () => {
         let cssomSheet = dom.styleSheets[0];
         cssomSheet.deleteRule(0); // Remove all rules to make it empty
-        const serialized = serializeDOM();
+        const serialized = await serializeDOM();
         let $cssom = parseDOM(serialized, platform)('[data-percy-cssom-serialized]');
         expect($cssom).toHaveSize(2); // should skip the empty stylesheet
       });
 
-      it(`${platform}: preserves media queries inside CSSOM`, () => {
+      it(`${platform}: preserves media queries inside CSSOM`, async () => {
         let cssomSheet = dom.styleSheets[0];
         cssomSheet.insertRule('@media screen and (min-width: 600px) { .box { display: none; } }');
-        const serialized = serializeDOM();
+        const serialized = await serializeDOM();
         let $cssom = parseDOM(serialized, platform)('[data-percy-cssom-serialized]');
         expect($cssom[0].innerHTML).toContain('@media screen and (min-width: 600px)');
       });
 
-      it(`${platform}: maintains order of CSSOM serialization`, () => {
+      it(`${platform}: maintains order of CSSOM serialization`, async () => {
         let cssomSheet = dom.styleSheets[0];
         cssomSheet.insertRule('.box { padding: 20px; }', 0);
-        const serialized = serializeDOM();
+        const serialized = await serializeDOM();
         let $cssom = parseDOM(serialized, platform)('[data-percy-cssom-serialized]');
         expect($cssom[0].innerHTML.startsWith('.box { padding: 20px; }')).toBe(true);
       });
 
-      it('captures adoptedStylesheets inside document', () => {
+      it('captures adoptedStylesheets inside document', async () => {
         if (platform !== 'plain') {
           return;
         }
@@ -111,13 +111,13 @@ describe('serializeCSSOM', () => {
         const style = 'div { background: blue; }';
         sheet.replaceSync(style);
         dom.adoptedStyleSheets = [sheet];
-        const capture = serializeDOM();
+        const capture = await serializeDOM();
         let $ = parseDOM(capture, 'plain');
         dom.adoptedStyleSheets = [];
         expect($('body')[0].innerHTML).toMatch(`<link rel="stylesheet" data-percy-adopted-stylesheets-serialized="true" href="${capture.resources[0].url}">`);
       });
 
-      it('captures adoptedStylesheets', () => {
+      it('captures adoptedStylesheets', async () => {
         if (platform === 'plain') {
           return;
         }
@@ -131,7 +131,7 @@ describe('serializeCSSOM', () => {
         shadowEl.shadowRoot.adoptedStyleSheets = [sheet];
         box.appendChild(shadowEl);
 
-        const capture = serializeDOM();
+        const capture = await serializeDOM();
         let $ = parseDOM(capture, 'plain');
 
         const resultShadowEl = $('#Percy-0')[0];
@@ -151,7 +151,7 @@ describe('serializeCSSOM', () => {
         shadowEl.shadowRoot.adoptedStyleSheets = [];
       });
 
-      it('uses single resource for same adoptedStylesheet', () => {
+      it('uses single resource for same adoptedStylesheet', async () => {
         if (platform === 'plain') {
           return;
         }
@@ -175,7 +175,7 @@ describe('serializeCSSOM', () => {
         shadowEl.appendChild(shadowElChild);
         box.appendChild(shadowEl);
 
-        const capture = serializeDOM();
+        const capture = await serializeDOM();
         expect(capture.resources.length).toEqual(3);
 
         let $ = parseDOM(capture, 'plain');
@@ -226,7 +226,7 @@ describe('serializeCSSOM', () => {
         await when(() => {
           assert(dom.styleSheets.length === 3);
         }, 5000);
-        const capture = serializeDOM();
+        const capture = await serializeDOM();
         let $ = parseDOM(capture, 'plain');
         expect($('body')[0].innerHTML).toMatch(
           `<link rel="stylesheet" data-percy-blob-stylesheets-serialized="true" href="${capture.resources[2].url}">` +
@@ -241,18 +241,18 @@ describe('serializeCSSOM', () => {
         URL.revokeObjectURL(blobUrl2);
       });
 
-      it('warns if styleSheets property is producing an error on shadow root', () => {
+      it('warns if styleSheets property is producing an error on shadow root', async () => {
         withExample('<div id="content"></div>', { withRestrictedShadow: true });
         const baseContent = document.querySelector('#content');
         baseContent.innerHTML = '<input type="text>';
-        const serialized = serializeDOM();
+        const serialized = await serializeDOM();
         expect(serialized.warnings).toEqual(['Skipping `styleSheets` as it is not supported.']);
       });
     });
   });
 
   describe('failure case', () => {
-    it('handles error and add stylesheet details', () => {
+    it('handles error and add stylesheet details', async () => {
       let link = '<link rel="stylesheet" href="data:text/css,.box { margin: 10px; }"/>';
       withExample(`<div class="box"></div>${link}}`);
       withCSSOM('.box { height: 500px; }');
@@ -262,14 +262,14 @@ describe('serializeCSSOM', () => {
       });
     });
 
-    it('does not throw when ignoreStyleSheetSerializationErrors is true', () => {
+    it('does not throw when ignoreStyleSheetSerializationErrors is true', async () => {
       let link = '<link rel="stylesheet" href="data:text/css,.box { margin: 10px; }"/>';
       withExample(`<div class="box"></div>${link}}`);
       withCSSOM('.box { height: 500px; }');
       expect(() => serializeCSSOM({ dom: document, ignoreStyleSheetSerializationErrors: true })).not.toThrow();
     });
 
-    it('falls back when stylesheet cssRules access throws', () => {
+    it('falls back when stylesheet cssRules access throws', async () => {
       withExample('<div class="box"></div>');
       withCSSOM('.box { height: 500px; }');
 
@@ -306,7 +306,7 @@ describe('serializeCSSOM', () => {
       }
       expect(found).toBe(true);
     });
-    it('falls back when stylesheet cssRules access throws', () => {
+    it('falls back when stylesheet cssRules access throws', async () => {
       withExample('<div class="box"></div>');
       withCSSOM('.box { height: 500px; }');
 
@@ -362,7 +362,7 @@ describe('serializeCSSOM', () => {
       }), true);
     });
 
-    it('serializes when clone owner is not a style element', () => {
+    it('serializes when clone owner is not a style element', async () => {
       withExample('<div class="box"></div>');
       withCSSOM('.box { height: 222px; }');
 
@@ -391,7 +391,7 @@ describe('serializeCSSOM', () => {
       expect(found).toBe(true);
     });
 
-    it('throws when sheet getter throws', () => {
+    it('throws when sheet getter throws', async () => {
       const clone = document.createDocumentFragment();
       const cloneOwner = document.createElement('style');
       cloneOwner.setAttribute('data-percy-element-id', 'test-id');

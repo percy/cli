@@ -72,32 +72,36 @@ describe('serializeInputs', () => {
           }
         });
         cache[platform].dom = dom;
-        cache[platform].$ = parseDOM(serializeDOM(), platform);
       });
+
+      // Serialize after setting up all platforms
+      for (const platform of platforms) {
+        cache[platform].$ = parseDOM(await serializeDOM(), platform);
+      }
       // interact with the inputs to update properties (does not update attributes)
     });
 
     platforms.forEach((platform) => {
       let $, dom;
-      beforeEach(() => {
+      beforeEach(async () => {
         dom = cache[platform].dom;
         $ = cache[platform].$;
       });
 
-      it(`${platform}: serializes checked checkboxes`, () => {
+      it(`${platform}: serializes checked checkboxes`, async () => {
         expect($('#mailing')[0].checked).toBe(true);
       });
 
-      it(`${platform}: leaves unchecked checkboxes alone`, () => {
+      it(`${platform}: leaves unchecked checkboxes alone`, async () => {
         expect($('#nevercheckedradio')[0].checked).toBe(false);
       });
 
-      it(`${platform}: serializes checked radio buttons`, () => {
+      it(`${platform}: serializes checked radio buttons`, async () => {
         expect($('#radio')[0].outerHTML).toContain('checked=""');
         expect($('#radio')[0].checked).toBe(true);
       });
 
-      it(`${platform}: removes checked attr from radio-button option1 when option1 is not explictly selected`, () => {
+      it(`${platform}: removes checked attr from radio-button option1 when option1 is not explictly selected`, async () => {
         expect($('#option1')[0].outerHTML).not.toContain('checked=""');
         expect($('#option1')[0].checked).toBe(false);
 
@@ -105,9 +109,9 @@ describe('serializeInputs', () => {
         expect($('#option2')[0].checked).toBe(true);
       });
 
-      it(`${platform}: removes checked attr from radio-button option2 when option1 is explictly selected`, () => {
+      it(`${platform}: removes checked attr from radio-button option2 when option1 is explictly selected`, async () => {
         dom.querySelector('#option1').checked = true;
-        $ = parseDOM(serializeDOM(), platform);
+        $ = parseDOM(await serializeDOM(), platform);
 
         expect($('#option1')[0].outerHTML).toContain('checked=""');
         expect($('#option1')[0].checked).toBe(true);
@@ -116,27 +120,27 @@ describe('serializeInputs', () => {
         expect($('#option2')[0].checked).toBe(false);
       });
 
-      it(`${platform}: serializes textareas`, () => {
+      it(`${platform}: serializes textareas`, async () => {
         expect($('#feedback')[0].innerText).toBe('This is my feedback... And it is not very helpful');
       });
 
-      it(`${platform}: serializes input elements`, () => {
+      it(`${platform}: serializes input elements`, async () => {
         expect($('#name')[0].getAttribute('value')).toBe('Bob Boberson');
       });
 
-      it(`${platform}: serializes single select elements`, () => {
+      it(`${platform}: serializes single select elements`, async () => {
         expect($('#singleSelect>:nth-child(1)')[0].selected).toBe(false);
         expect($('#singleSelect>:nth-child(2)')[0].selected).toBe(false);
         expect($('#singleSelect>:nth-child(3)')[0].selected).toBe(true);
       });
 
-      it(`${platform}: serializes multi-select elements`, () => {
+      it(`${platform}: serializes multi-select elements`, async () => {
         expect($('#multiselect>:nth-child(1)')[0].selected).toBe(true);
         expect($('#multiselect>:nth-child(2)')[0].selected).toBe(false);
         expect($('#multiselect>:nth-child(3)')[0].selected).toBe(true);
       });
 
-      it(`${platform}: does not mutate original select elements`, () => {
+      it(`${platform}: does not mutate original select elements`, async () => {
         let options = [
           ...dom.querySelector('#multiselect').options,
           ...dom.querySelector('#singleSelect').options
@@ -147,32 +151,90 @@ describe('serializeInputs', () => {
         }
       });
 
-      it(`${platform}: serializes inputs with already present value attributes`, () => {
+      it(`${platform}: serializes inputs with already present value attributes`, async () => {
         expect($('#valueAttr')[0].getAttribute('value')).toBe('Replacement Value!');
       });
 
-      it(`${platform}: adds a guid data-attribute to the original DOM`, () => {
+      it(`${platform}: adds a guid data-attribute to the original DOM`, async () => {
         // plain platform has extra element #test-shadow
         expect(dom.querySelectorAll('[data-percy-element-id]')).toHaveSize(platform === 'plain' ? 12 : 11);
       });
 
-      it(`${platform}: adds matching guids to the orignal DOM and cloned DOM`, () => {
+      it(`${platform}: adds matching guids to the orignal DOM and cloned DOM`, async () => {
         let og = dom.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
         expect(og).toEqual($('[data-percy-element-id]')[0].getAttribute('data-percy-element-id'));
       });
 
-      it(`${platform}: does not override previous guids when reserializing`, () => {
+      it(`${platform}: does not override previous guids when reserializing`, async () => {
         let getUid = () => dom.querySelector('[data-percy-element-id]').getAttribute('data-percy-element-id');
         let first = getUid();
 
-        serializeDOM();
+        await serializeDOM();
         expect(getUid()).toEqual(first);
       });
 
-      it(`${platform}: does not mutate values in origial DOM`, () => {
+      it(`${platform}: does not mutate values in origial DOM`, async () => {
         expect($('#name')[0].getAttribute('value')).toBe('Bob Boberson');
         expect(dom.querySelector('#name').getAttribute('value')).toBeNull();
       });
+    });
+  });
+
+  describe('empty textarea', () => {
+    it('serializes empty textarea content', async () => {
+      withExample(`
+        <form>
+          <textarea id="empty-textarea"></textarea>
+        </form>
+      `);
+
+      // Don't set any value - leave it empty to test the || '' branch at line 39
+      // Serialize
+      const result = await serializeDOM();
+      const $ = parseDOM(result.html);
+
+      // Should have empty textContent
+      const $textarea = $('#empty-textarea');
+      expect($textarea[0]).toBeDefined();
+      expect($textarea[0].textContent).toBe('');
+    });
+  });
+
+  describe('other input types', () => {
+    it('serializes value attribute for number inputs', async () => {
+      withExample(`
+        <form>
+          <input id="age" type="number" />
+        </form>
+      `);
+
+      // Set value on the input
+      document.querySelector('#age').value = '25';
+
+      // Serialize
+      const result = await serializeDOM();
+      const $ = parseDOM(result.html);
+
+      // Should have serialized the value attribute (default case)
+      expect($('#age')[0].getAttribute('value')).toBe('25');
+    });
+
+    it('serializes value attribute for email inputs', async () => {
+      withExample(`
+        <form>
+          <input id="email" type="email" />
+        </form>
+      `);
+
+      // Set value on the input
+      document.querySelector('#email').value = 'test@example.com';
+
+      // Serialize
+      const result = await serializeDOM();
+      const $ = parseDOM(result.html);
+
+      // Should have serialized the value attribute (default case at line 39)
+      expect($('#email')[0].getAttribute('value')).toBe('test@example.com');
     });
   });
 
