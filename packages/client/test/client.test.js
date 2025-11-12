@@ -2103,9 +2103,9 @@ describe('PercyClient', () => {
       expect(client.tokenType()).toBe('responsive_scanner');
     });
 
-    it("should return lca for lca token", () => {
-      client.token = "lca_abc";
-      expect(client.tokenType()).toBe("lca");
+    it('should return lca for lca token', () => {
+      client.token = 'lca_abc';
+      expect(client.tokenType()).toBe('lca');
     });
 
     it('should return web for no token', () => {
