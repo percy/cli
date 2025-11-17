@@ -33,6 +33,6 @@
     }
   },
   "devDependencies": {
-    "interactor.js": "^2.0.0-beta.10"
+    "interactor.js": "^3.5.0"
   }
 }

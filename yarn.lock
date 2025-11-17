@@ -5324,10 +5324,10 @@ inquirer@^8.2.4:
     through "^2.3.6"
     wrap-ansi "^7.0.0"
 
-interactor.js@^2.0.0-beta.10:
-  version "2.0.0-beta.11"
-  resolved "https://registry.yarnpkg.com/interactor.js/-/interactor.js-2.0.0-beta.11.tgz#a32242ba570f5118af8e07c73239f5f0e0dab1bb"
-  integrity sha512-tbcPkofD5ssFxP0WS5PhDNke22dfaaSOFbu1g9fzDxzCrM+YDNPNFQ7R2WnHSIPV7+ec2zWD2K3yrB0h0jwMNw==
+interactor.js@^3.5.0:
+  version "3.5.0"
+  resolved "https://registry.yarnpkg.com/interactor.js/-/interactor.js-3.5.0.tgz#499330ed3eee66a884959eb9246df222a815d1cd"
+  integrity sha512-SdX67odXwekgFmD4ETB2PqWVXrDp/NLl8vn0I/uRyAjYhj+hmdcoX590FzRrXBmvJFfpso+etq10QoYbKVf50A==
 
 internal-slot@^1.0.7:
   version "1.0.7"
