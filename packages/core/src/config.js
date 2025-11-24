@@ -250,6 +250,24 @@ export const configSchema = {
       ignoreStyleSheetSerializationErrors: {
         type: 'boolean',
         default: false
+      },
+      pseudoClassEnabledElements: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          id: {
+            type: 'array',
+            items: {
+              type: 'string'
+            }
+          },
+          xpath: {
+            type: 'array',
+            items: {
+              type: 'string'
+            }
+          }
+        }
       }
     }
   },
@@ -408,6 +426,7 @@ export const snapshotSchema = {
         scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
         ignoreCanvasSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreCanvasSerializationErrors' },
         ignoreStyleSheetSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreStyleSheetSerializationErrors' },
+        pseudoClassEnabledElements: { $ref: '/config/snapshot#/properties/pseudoClassEnabledElements' },
         discovery: {
           type: 'object',
           additionalProperties: false,

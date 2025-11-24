@@ -4,6 +4,7 @@ import serializeCSSOM from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
 import preprocessDynamicResources from './serialize-blob-urls';
+import { serializePseudoClasses, markPseudoClassElements } from './serialize-pseudo-classes';
 import { cloneNodeAndShadow, getOuterHTML } from './clone-dom';
 
 // Returns a copy or new doctype for a document.
@@ -91,7 +92,8 @@ export async function serializeDOM(options) {
     reshuffleInvalidTags = options?.reshuffle_invalid_tags,
     ignoreCanvasSerializationErrors = options?.ignore_canvas_serialization_errors,
     ignoreStyleSheetSerializationErrors = options?.ignore_style_sheet_serialization_errors,
-    forceShadowAsLightDOM = options?.force_shadow_dom_as_light_dom
+    forceShadowAsLightDOM = options?.force_shadow_dom_as_light_dom,
+    pseudoClassEnabledElements = options?.pseudo_class_enabled_elements
   } = options || {};
 
   // keep certain records throughout serialization
@@ -105,7 +107,8 @@ export async function serializeDOM(options) {
     disableShadowDOM,
     ignoreCanvasSerializationErrors,
     ignoreStyleSheetSerializationErrors,
-    forceShadowAsLightDOM
+    forceShadowAsLightDOM,
+    pseudoClassEnabledElements
   };
 
   ctx.dom = dom;
@@ -113,11 +116,21 @@ export async function serializeDOM(options) {
   // STEP 1: Preprocess dynamic resources (async) - before cloning
   await preprocessDynamicResources(ctx.dom, ctx.resources, ctx.warnings);
 
+  // STEP 1.5: Mark pseudo-class enabled elements before cloning
+  if (pseudoClassEnabledElements) {
+    markPseudoClassElements(ctx.dom, pseudoClassEnabledElements);
+  }
+
   // STEP 2: Clone the DOM
   ctx.clone = cloneNodeAndShadow(ctx);
 
   // STEP 3: Serialize elements (AWAIT async call)
   await serializeElements(ctx);
+
+  // STEP 4: Process pseudo-class enabled elements
+  if (ctx.pseudoClassEnabledElements) {
+    serializePseudoClasses(ctx);
+  }
 
   if (domTransformation) {
     try {

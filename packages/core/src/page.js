@@ -178,7 +178,7 @@ export class Page {
     execute,
     ...snapshot
   }) {
-    let { name, width, enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors } = snapshot;
+    let { name, width, enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements } = snapshot;
     this.log.debug(`Taking snapshot: ${name}${width ? ` @${width}px` : ''}`, this.meta);
 
     // wait for any specified timeout
@@ -215,7 +215,7 @@ export class Page {
         url: document.URL
       };
       /* eslint-enable no-undef */
-    }, { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors });
+    }, { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements });
 
     return { ...snapshot, ...capture };
   }
