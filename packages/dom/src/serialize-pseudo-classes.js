@@ -7,9 +7,10 @@ import { uid } from './prepare-dom';
  * Get all elements matching the pseudoClassEnabledElements configuration
  * @param {Document} dom - The document to search
  * @param {Object} config - Configuration with id and xpath arrays
- * @returns {Array} Array of elements to process
+ * @param {boolean} markWithId - Whether to mark elements with data-percy-element-id
+ * @returns {Array} Array of elements found
  */
-function getElementsToProcess(dom, config) {
+function getElementsToProcess(dom, config, markWithId = false) {
   if (!config || (!config.id && !config.xpath)) {
     return [];
   }
@@ -21,6 +22,9 @@ function getElementsToProcess(dom, config) {
     for (const id of config.id) {
       const element = dom.getElementById(id);
       if (element) {
+        if (markWithId && !element.getAttribute('data-percy-element-id')) {
+          element.setAttribute('data-percy-element-id', uid());
+        }
         elements.push(element);
       }
     }
@@ -38,7 +42,11 @@ function getElementsToProcess(dom, config) {
           null
         );
         for (let i = 0; i < result.snapshotLength; i++) {
-          elements.push(result.snapshotItem(i));
+          const element = result.snapshotItem(i);
+          if (markWithId && !element.getAttribute('data-percy-element-id')) {
+            element.setAttribute('data-percy-element-id', uid());
+          }
+          elements.push(element);
         }
       } catch (err) {
         console.warn(`Invalid XPath expression: ${xpathExpression}`, err);
@@ -56,42 +64,7 @@ function getElementsToProcess(dom, config) {
  * @param {Object} config - Configuration with id and xpath arrays
  */
 export function markPseudoClassElements(dom, config) {
-  if (!config || (!config.id && !config.xpath)) {
-    return;
-  }
-
-  // Process ID selectors
-  if (config.id && Array.isArray(config.id)) {
-    for (const id of config.id) {
-      const element = dom.getElementById(id);
-      if (element && !element.getAttribute('data-percy-element-id')) {
-        element.setAttribute('data-percy-element-id', uid());
-      }
-    }
-  }
-
-  // Process XPath selectors
-  if (config.xpath && Array.isArray(config.xpath)) {
-    for (const xpathExpression of config.xpath) {
-      try {
-        const result = dom.evaluate(
-          xpathExpression,
-          dom,
-          null,
-          XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-          null
-        );
-        for (let i = 0; i < result.snapshotLength; i++) {
-          const element = result.snapshotItem(i);
-          if (!element.getAttribute('data-percy-element-id')) {
-            element.setAttribute('data-percy-element-id', uid());
-          }
-        }
-      } catch (err) {
-        console.warn(`Invalid XPath expression: ${xpathExpression}`, err);
-      }
-    }
-  }
+  getElementsToProcess(dom, config, true);
 }
 
 
