@@ -6,12 +6,12 @@ import { uid } from './prepare-dom';
 /**
  * Get all elements matching the pseudoClassEnabledElements configuration
  * @param {Document} dom - The document to search
- * @param {Object} config - Configuration with id and xpath arrays
+ * @param {Object} config - Configuration with id, className, and xpath arrays
  * @param {boolean} markWithId - Whether to mark elements with data-percy-element-id
  * @returns {Array} Array of elements found
  */
 function getElementsToProcess(dom, config, markWithId = false) {
-  if (!config || (!config.id && !config.xpath)) {
+  if (!config || (!config.id && !config.className && !config.xpath)) {
     return [];
   }
 
@@ -22,6 +22,20 @@ function getElementsToProcess(dom, config, markWithId = false) {
     for (const id of config.id) {
       const element = dom.getElementById(id);
       if (element) {
+        if (markWithId && !element.getAttribute('data-percy-element-id')) {
+          element.setAttribute('data-percy-element-id', uid());
+        }
+        elements.push(element);
+      }
+    }
+  }
+
+  // Process class name selectors (only first match per class name)
+  if (config.className && Array.isArray(config.className)) {
+    for (const className of config.className) {
+      const elementCollection = dom.getElementsByClassName(className);
+      if (elementCollection.length > 0) {
+        const element = elementCollection[0];
         if (markWithId && !element.getAttribute('data-percy-element-id')) {
           element.setAttribute('data-percy-element-id', uid());
         }

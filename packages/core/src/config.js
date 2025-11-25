@@ -261,6 +261,12 @@ export const configSchema = {
               type: 'string'
             }
           },
+          className: {
+            type: 'array',
+            items: {
+              type: 'string'
+            }
+          },
           xpath: {
             type: 'array',
             items: {
