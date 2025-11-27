@@ -117,9 +117,7 @@ export async function serializeDOM(options) {
   await preprocessDynamicResources(ctx.dom, ctx.resources, ctx.warnings);
 
   // STEP 1.5: Mark pseudo-class enabled elements before cloning
-  if (pseudoClassEnabledElements) {
-    markPseudoClassElements(ctx, pseudoClassEnabledElements);
-  }
+  markPseudoClassElements(ctx, pseudoClassEnabledElements);
 
   // STEP 2: Clone the DOM
   ctx.clone = cloneNodeAndShadow(ctx);
