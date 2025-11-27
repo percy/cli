@@ -19,15 +19,10 @@ function markElementIfNeeded(element, markWithId) {
  * @param {boolean} markWithId - Whether to mark elements with PSEDUO_ELEMENT_MARKER_ATTR
  * @returns {Array} Array of elements found
  */
-function getElementsToProcess(ctx, config, markWithId = false) {
+export function getElementsToProcess(ctx, config, markWithId = false) {
   const { dom } = ctx;
-  if (!config || (!config.id && !config.className && !config.xpath)) {
-    return [];
-  }
-
   const elements = [];
 
-  // Process ID selectors
   if (config.id && Array.isArray(config.id)) {
     for (const id of config.id) {
       const element = dom.getElementById(id);
@@ -41,7 +36,7 @@ function getElementsToProcess(ctx, config, markWithId = false) {
     }
   }
 
-  // Process class name selectors (only first match per class name)
+  // Process only first match per class name
   if (config.className && Array.isArray(config.className)) {
     for (const className of config.className) {
       const elementCollection = dom.getElementsByClassName(className);
@@ -56,7 +51,6 @@ function getElementsToProcess(ctx, config, markWithId = false) {
     }
   }
 
-  // Process XPath selectors
   if (config.xpath && Array.isArray(config.xpath)) {
     for (const xpathExpression of config.xpath) {
       try {
@@ -90,6 +84,7 @@ function getElementsToProcess(ctx, config, markWithId = false) {
  * @param {Object} config - Configuration with id and xpath arrays
  */
 export function markPseudoClassElements(ctx, config) {
+  if (!config) return;
   getElementsToProcess(ctx, config, true);
 }
 
@@ -99,17 +94,11 @@ export function markPseudoClassElements(ctx, config) {
  * @returns {string} CSS text
  */
 function stylesToCSSText(styles) {
-  if (!styles || styles.length === 0) {
-    return '';
-  }
-
   const cssProperties = [];
   for (let i = 0; i < styles.length; i++) {
     const property = styles[i];
     const value = styles.getPropertyValue(property);
-    if (value) {
-      cssProperties.push(`${property}: ${value} !important;`);
-    }
+    cssProperties.push(`${property}: ${value} !important;`);
   }
 
   return cssProperties.join(' ');
@@ -125,7 +114,6 @@ export function serializePseudoClasses(ctx) {
   }
 
   const elements = ctx.dom.querySelectorAll(`[${PSEDUO_ELEMENT_MARKER_ATTR}]`);
-
   if (elements.length === 0) {
     return;
   }
@@ -146,11 +134,8 @@ export function serializePseudoClasses(ctx) {
       // Get all computed styles including pseudo-classes
       const computedStyles = window.getComputedStyle(element);
       const cssText = stylesToCSSText(computedStyles);
-
-      if (cssText) {
-        const selector = `[${PSEDUO_ELEMENT_MARKER_ATTR}="${percyElementId}"]`;
-        cssRules.push(`${selector} { ${cssText} }`);
-      }
+      const selector = `[${PSEDUO_ELEMENT_MARKER_ATTR}="${percyElementId}"]`;
+      cssRules.push(`${selector} { ${cssText} }`);
     } catch (err) {
       console.warn('Could not get computed styles for element', element, err);
     }
