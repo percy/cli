@@ -118,7 +118,7 @@ export async function serializeDOM(options) {
 
   // STEP 1.5: Mark pseudo-class enabled elements before cloning
   if (pseudoClassEnabledElements) {
-    markPseudoClassElements(ctx.dom, pseudoClassEnabledElements);
+    markPseudoClassElements(ctx, pseudoClassEnabledElements);
   }
 
   // STEP 2: Clone the DOM
@@ -128,9 +128,7 @@ export async function serializeDOM(options) {
   await serializeElements(ctx);
 
   // STEP 4: Process pseudo-class enabled elements
-  if (ctx.pseudoClassEnabledElements) {
-    serializePseudoClasses(ctx);
-  }
+  serializePseudoClasses(ctx);
 
   if (domTransformation) {
     try {

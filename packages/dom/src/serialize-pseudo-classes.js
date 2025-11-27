@@ -1,16 +1,26 @@
+/* global XPathResult */
+
 // Process pseudo-class enabled elements by capturing their pseudo-class styles
 // and applying them as inline styles with !important
 
 import { uid } from './prepare-dom';
 
+const PSEDUO_ELEMENT_MARKER_ATTR = 'data-percy-pseudo-element-id';
+function markElementIfNeeded(element, markWithId) {
+  if (markWithId && !element.getAttribute(PSEDUO_ELEMENT_MARKER_ATTR)) {
+    element.setAttribute(PSEDUO_ELEMENT_MARKER_ATTR, uid());
+  }
+}
+
 /**
  * Get all elements matching the pseudoClassEnabledElements configuration
  * @param {Document} dom - The document to search
  * @param {Object} config - Configuration with id, className, and xpath arrays
- * @param {boolean} markWithId - Whether to mark elements with data-percy-element-id
+ * @param {boolean} markWithId - Whether to mark elements with PSEDUO_ELEMENT_MARKER_ATTR
  * @returns {Array} Array of elements found
  */
-function getElementsToProcess(dom, config, markWithId = false) {
+function getElementsToProcess(ctx, config, markWithId = false) {
+  const { dom } = ctx;
   if (!config || (!config.id && !config.className && !config.xpath)) {
     return [];
   }
@@ -21,12 +31,13 @@ function getElementsToProcess(dom, config, markWithId = false) {
   if (config.id && Array.isArray(config.id)) {
     for (const id of config.id) {
       const element = dom.getElementById(id);
-      if (element) {
-        if (markWithId && !element.getAttribute('data-percy-element-id')) {
-          element.setAttribute('data-percy-element-id', uid());
-        }
-        elements.push(element);
+      if (!element) {
+        ctx.warnings.add(`No element found with ID: ${id} for pseudo-class serialization`);
+        continue;
       }
+
+      markElementIfNeeded(element, markWithId);
+      elements.push(element);
     }
   }
 
@@ -34,13 +45,14 @@ function getElementsToProcess(dom, config, markWithId = false) {
   if (config.className && Array.isArray(config.className)) {
     for (const className of config.className) {
       const elementCollection = dom.getElementsByClassName(className);
-      if (elementCollection.length > 0) {
-        const element = elementCollection[0];
-        if (markWithId && !element.getAttribute('data-percy-element-id')) {
-          element.setAttribute('data-percy-element-id', uid());
-        }
-        elements.push(element);
+      if (!elementCollection.length) {
+        ctx.warnings.add(`No element found with class name: ${className} for pseudo-class serialization`);
+        continue;
       }
+
+      const element = elementCollection[0];
+      markElementIfNeeded(element, markWithId);
+      elements.push(element);
     }
   }
 
@@ -48,22 +60,22 @@ function getElementsToProcess(dom, config, markWithId = false) {
   if (config.xpath && Array.isArray(config.xpath)) {
     for (const xpathExpression of config.xpath) {
       try {
-        const result = dom.evaluate(
+        const element = dom.evaluate(
           xpathExpression,
           dom,
           null,
-          XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+          XPathResult.FIRST_ORDERED_NODE_TYPE,
           null
-        );
-        for (let i = 0; i < result.snapshotLength; i++) {
-          const element = result.snapshotItem(i);
-          if (markWithId && !element.getAttribute('data-percy-element-id')) {
-            element.setAttribute('data-percy-element-id', uid());
-          }
-          elements.push(element);
+        ).singleNodeValue;
+
+        if (!element) {
+          ctx.warnings.add(`No element found for XPath: ${xpathExpression} for pseudo-class serialization`);
+          continue;
         }
+
+        markElementIfNeeded(element, markWithId);
       } catch (err) {
-        console.warn(`Invalid XPath expression: ${xpathExpression}`, err);
+        console.warn(`Invalid XPath expression "${xpathExpression}". Error: ${err.message}`);
       }
     }
   }
@@ -77,10 +89,9 @@ function getElementsToProcess(dom, config, markWithId = false) {
  * @param {Document} dom - The document to mark
  * @param {Object} config - Configuration with id and xpath arrays
  */
-export function markPseudoClassElements(dom, config) {
-  getElementsToProcess(dom, config, true);
+export function markPseudoClassElements(ctx, config) {
+  getElementsToProcess(ctx, config, true);
 }
-
 
 /**
  * Convert CSSStyleDeclaration to CSS text with !important declarations
@@ -100,7 +111,7 @@ function stylesToCSSText(styles) {
       cssProperties.push(`${property}: ${value} !important;`);
     }
   }
-  
+
   return cssProperties.join(' ');
 }
 
@@ -113,8 +124,8 @@ export function serializePseudoClasses(ctx) {
     return;
   }
 
-  const elements = getElementsToProcess(ctx.dom, ctx.pseudoClassEnabledElements);
-  
+  const elements = ctx.dom.querySelectorAll(`[${PSEDUO_ELEMENT_MARKER_ATTR}]`);
+
   if (elements.length === 0) {
     return;
   }
@@ -122,16 +133,12 @@ export function serializePseudoClasses(ctx) {
   const cssRules = [];
 
   for (const element of elements) {
-    const percyElementId = element.getAttribute('data-percy-element-id');
-    
-    if (!percyElementId) {
-      continue;
-    }
+    const percyElementId = element.getAttribute(PSEDUO_ELEMENT_MARKER_ATTR);
 
-    // Get corresponding clone element
-    const cloneElement = ctx.clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
-    
+    const cloneElement = ctx.clone.querySelector(`[${PSEDUO_ELEMENT_MARKER_ATTR}="${percyElementId}"]`);
+
     if (!cloneElement) {
+      ctx.warnings.add(`Element not found for pseudo-class serialization with percy-element-id: ${percyElementId}`);
       continue;
     }
 
@@ -139,13 +146,13 @@ export function serializePseudoClasses(ctx) {
       // Get all computed styles including pseudo-classes
       const computedStyles = window.getComputedStyle(element);
       const cssText = stylesToCSSText(computedStyles);
-      
+
       if (cssText) {
-        const selector = `[data-percy-element-id="${percyElementId}"]`;
+        const selector = `[${PSEDUO_ELEMENT_MARKER_ATTR}="${percyElementId}"]`;
         cssRules.push(`${selector} { ${cssText} }`);
       }
     } catch (err) {
-      console.warn(`Could not get computed styles for element`, element, err);
+      console.warn('Could not get computed styles for element', element, err);
     }
   }
 
@@ -154,7 +161,7 @@ export function serializePseudoClasses(ctx) {
     const styleElement = ctx.dom.createElement('style');
     styleElement.setAttribute('data-percy-pseudo-class-styles', 'true');
     styleElement.textContent = cssRules.join('\n');
-    
+
     const head = ctx.clone.head || ctx.clone.querySelector('head');
     if (head) {
       head.appendChild(styleElement);
