@@ -1,3 +1,5 @@
+// nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+
 import { markPseudoClassElements, serializePseudoClasses, getElementsToProcess } from '../src/serialize-pseudo-classes';
 import { withExample } from './helpers';
 
