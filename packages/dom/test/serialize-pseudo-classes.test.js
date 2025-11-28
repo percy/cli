@@ -13,7 +13,8 @@ describe('serialize-pseudo-classes', () => {
     };
     withExample('<div id="foo" style="color: red;"></div><div class="bar"></div><div id="baz"></div>');
     ctx.clone = document.implementation.createHTMLDocument('Clone');
-    ctx.clone.body.innerHTML = document.body.innerHTML; // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+    // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+    ctx.clone.body.innerHTML = document.body.innerHTML;
   });
 
   describe('when no pseudoClassEnabledElements is given', () => {
@@ -44,13 +45,15 @@ describe('serialize-pseudo-classes', () => {
       beforeEach(() => {
         ctx.pseudoClassEnabledElements = { id: ['foo'] };
         markPseudoClassElements(ctx, ctx.pseudoClassEnabledElements);
-        ctx.clone.body.innerHTML = ctx.dom.body.innerHTML; // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+        // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+        ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
       });
 
       it('adds warning if pseudo clone element is not found', () => {
         // Remove marker from clone for 'foo' so it cannot be found
         console.log('-->> ', ctx.clone.getElementById('foo'));
         ctx.clone.getElementById('foo').removeAttribute('data-percy-pseudo-element-id');
+        // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
         ctx.clone.head.innerHTML = '';
         serializePseudoClasses(ctx);
         // Should add a warning for missing clone element
@@ -67,6 +70,7 @@ describe('serialize-pseudo-classes', () => {
       });
 
       it('adds style element to head in clone', () => {
+        // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
         ctx.clone.head.innerHTML = '';
         serializePseudoClasses(ctx);
         const style = ctx.clone.head.querySelector('style[data-percy-pseudo-class-styles="true"]');
@@ -78,7 +82,8 @@ describe('serialize-pseudo-classes', () => {
         let orginalBody = ctx.dom.body.innerHTML;
         let originalClonedBody = ctx.clone.body.innerHTML;
         markPseudoClassElements(ctx, { id: ['foo', 'baz'], className: ['bar'] });
-        ctx.clone.body.innerHTML = ctx.dom.body.innerHTML; // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+        // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+        ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
         serializePseudoClasses(ctx);
         // Check that the marker attribute exists in the clone for each element
         ['foo', 'baz'].forEach(id => {
@@ -89,8 +94,10 @@ describe('serialize-pseudo-classes', () => {
         const cloneBar = ctx.clone.getElementsByClassName('bar')[0];
         expect(cloneBar.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
         // Restore original cloned body
-        ctx.clone.body.innerHTML = originalClonedBody; // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
-        ctx.dom.body.innerHTML = orginalBody; // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+        // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+        ctx.clone.body.innerHTML = originalClonedBody;
+        // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+        ctx.dom.body.innerHTML = orginalBody;
       });
 
       describe('handles getComputedStyle errors gracefully', () => {
@@ -99,7 +106,8 @@ describe('serialize-pseudo-classes', () => {
           // Setup DOM and clone
           withExample('<div id="foo"></div><div class="bar"></div><div id="baz"></div>');
           ctx.clone = document.implementation.createHTMLDocument('Clone');
-          ctx.clone.body.innerHTML = document.body.innerHTML; // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+          // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+          ctx.clone.body.innerHTML = document.body.innerHTML;
           ctx.pseudoClassEnabledElements = {
             id: ['foo'],
             className: ['bar'],
@@ -136,6 +144,7 @@ describe('serialize-pseudo-classes', () => {
           // Setup spy for console.warn using Jasmine
           spyOn(console, 'warn');
           window.getComputedStyle = () => { throw new Error('fail'); };
+          // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
           ctx.clone.head.innerHTML = '';
           expect(() => serializePseudoClasses(ctx)).not.toThrow();
           expect(console.warn).toHaveBeenCalled();
