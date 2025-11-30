@@ -35,7 +35,7 @@ function debugSnapshotOptions(snapshot) {
 
     if (val != null) {
       // join formatted array values with a space
-      val = [].concat(val).map(format).join(', ');
+      val = [].concat(JSON.stringify(val)).map(format).join(', ');
       log.debug(`- ${prop}: ${val}`, snapshot.meta);
     }
   };
