@@ -35,7 +35,7 @@ function debugSnapshotOptions(snapshot) {
 
     if (val != null) {
       // join formatted array values with a space
-      val = [].concat(JSON.stringify(val)).map(format).join(', ');
+      val = [].concat(val).map(format).join(', ');
       log.debug(`- ${prop}: ${val}`, snapshot.meta);
     }
   };
@@ -75,7 +75,7 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'discovery.scrollToBottom');
   debugProp(snapshot, 'ignoreCanvasSerializationErrors');
   debugProp(snapshot, 'ignoreStyleSheetSerializationErrors');
-  debugProp(snapshot, 'pseudoClassEnabledElements');
+  debugProp(snapshot, 'pseudoClassEnabledElements', JSON.stringify);
   if (Array.isArray(snapshot.domSnapshot)) {
     debugProp(snapshot, 'domSnapshot.0.userAgent');
   } else {
