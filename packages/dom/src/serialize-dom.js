@@ -3,7 +3,6 @@ import serializeFrames from './serialize-frames';
 import serializeCSSOM from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
-import preprocessDynamicResources from './serialize-blob-urls';
 import { cloneNodeAndShadow, getOuterHTML } from './clone-dom';
 
 // Returns a copy or new doctype for a document.
@@ -33,9 +32,9 @@ function serializeHTML(ctx) {
   return doctype(ctx.dom) + html;
 }
 
-async function serializeElements(ctx) {
+function serializeElements(ctx) {
   serializeInputs(ctx);
-  await serializeFrames(ctx); // AWAIT async iframe serialization
+  serializeFrames(ctx);
   serializeVideos(ctx);
 
   if (!ctx.enableJavaScript) {
@@ -51,7 +50,7 @@ async function serializeElements(ctx) {
         // getHTML requires shadowRoot to be passed explicitly
         // to serialize the shadow elements properly
         ctx.shadowRootElements.push(cloneShadowHost.shadowRoot);
-        await serializeElements({ // AWAIT recursive call for shadow DOM
+        serializeElements({
           ...ctx,
           dom: shadowHost.shadowRoot,
           clone: cloneShadowHost.shadowRoot
@@ -79,8 +78,8 @@ export function waitForResize() {
   window.resizeCount = 0;
 }
 
-// Serializes a document and returns the resulting DOM string (ASYNC).
-export async function serializeDOM(options) {
+// Serializes a document and returns the resulting DOM string.
+export function serializeDOM(options) {
   let {
     dom = document,
     // allow snake_case or camelCase
@@ -109,15 +108,9 @@ export async function serializeDOM(options) {
   };
 
   ctx.dom = dom;
-
-  // STEP 1: Preprocess dynamic resources (async) - before cloning
-  await preprocessDynamicResources(ctx.dom, ctx.resources, ctx.warnings);
-
-  // STEP 2: Clone the DOM
   ctx.clone = cloneNodeAndShadow(ctx);
 
-  // STEP 3: Serialize elements (AWAIT async call)
-  await serializeElements(ctx);
+  serializeElements(ctx);
 
   if (domTransformation) {
     try {

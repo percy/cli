@@ -2,8 +2,8 @@ import { withExample, replaceDoctype, createShadowEl, getTestBrowser, chromeBrow
 import serializeDOM, { waitForResize } from '@percy/dom';
 
 describe('serializeDOM', () => {
-  it('returns serialied html, warnings, and resources', async () => {
-    expect(await serializeDOM()).toEqual({
+  it('returns serialied html, warnings, and resources', () => {
+    expect(serializeDOM()).toEqual({
       html: jasmine.any(String),
       cookies: jasmine.any(String),
       userAgent: jasmine.any(String),
@@ -13,46 +13,46 @@ describe('serializeDOM', () => {
     });
   });
 
-  it('keeps replace special chars as is and does not replace with regex rules', async () => {
+  it('keeps replace special chars as is and does not replace with regex rules', () => {
     withExample('<p>Hey Percy $&</p>');
 
-    const result = await serializeDOM();
+    const result = serializeDOM();
     expect(result.html).toContain('Hey Percy $&');
   });
 
-  it('excludes noscript tags when present', async () => {
+  it('excludes noscript tags when present', () => {
     withExample('<p>Hey Percy $&</p><noscript>Your browser does not support JavaScript!</noscript>');
 
-    const result = await serializeDOM();
+    const result = serializeDOM();
     expect(result.html).not.toContain('<noscript>');
     expect(result.html).toContain('Hey Percy $&');
   });
 
-  it('optionally returns a stringified response', async () => {
-    expect(await serializeDOM({ stringifyResponse: true }))
+  it('optionally returns a stringified response', () => {
+    expect(serializeDOM({ stringifyResponse: true }))
       .toMatch('{"html":".*","cookies":".*","userAgent":".*","warnings":\\[\\],"resources":\\[\\],"hints":\\[\\]}');
   });
 
-  it('always has a doctype', async () => {
+  it('always has a doctype', () => {
     document.removeChild(document.doctype);
-    expect((await serializeDOM()).html).toMatch('<!DOCTYPE html>');
+    expect(serializeDOM().html).toMatch('<!DOCTYPE html>');
   });
 
-  it('copies existing doctypes', async () => {
+  it('copies existing doctypes', () => {
     let publicId = '-//W3C//DTD XHTML 1.0 Transitional//EN';
     let systemId = 'http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtdd';
 
     replaceDoctype('html', publicId);
-    expect((await serializeDOM()).html).toMatch(`<!DOCTYPE html PUBLIC "${publicId}">`);
+    expect(serializeDOM().html).toMatch(`<!DOCTYPE html PUBLIC "${publicId}">`);
     replaceDoctype('html', '', systemId);
-    expect((await serializeDOM()).html).toMatch(`<!DOCTYPE html SYSTEM "${systemId}">`);
+    expect(serializeDOM().html).toMatch(`<!DOCTYPE html SYSTEM "${systemId}">`);
     replaceDoctype('html', publicId, systemId);
-    expect((await serializeDOM()).html).toMatch(`<!DOCTYPE html PUBLIC "${publicId}" "${systemId}">`);
+    expect(serializeDOM().html).toMatch(`<!DOCTYPE html PUBLIC "${publicId}" "${systemId}">`);
     replaceDoctype('html');
-    expect((await serializeDOM()).html).toMatch('<!DOCTYPE html>');
+    expect(serializeDOM().html).toMatch('<!DOCTYPE html>');
   });
 
-  it('does not trigger DOM events on clone', async () => {
+  it('does not trigger DOM events on clone', () => {
     class CallbackTestElement extends window.HTMLElement {
       connectedCallback() {
         const wrapper = document.createElement('h2');
@@ -66,29 +66,29 @@ describe('serializeDOM', () => {
       window.customElements.define('callback-test', CallbackTestElement);
     }
     withExample('<callback-test/>', { withShadow: false });
-    const $ = parseDOM((await serializeDOM()).html);
+    const $ = parseDOM(serializeDOM().html);
 
     expect($('h2.callback').length).toEqual(1);
   });
 
-  it('applies default dom transformations', async () => {
+  it('applies default dom transformations', () => {
     withExample('<img loading="lazy" src="http://some-url"/><iframe loading="lazy" src="">');
 
-    const result = await serializeDOM();
+    const result = serializeDOM();
     expect(result.html).not.toContain('loading="lazy"');
   });
 
-  it('collects cookies', async () => {
-    const result = await serializeDOM();
+  it('collects cookies', () => {
+    const result = serializeDOM();
     expect(result.cookies).toContain('test-cokkie=test-value');
   });
 
-  it('collects userAgent', async () => {
-    const result = await serializeDOM();
+  it('collects userAgent', () => {
+    const result = serializeDOM();
     expect(result.userAgent).toContain(navigator.userAgent);
   });
 
-  it('clone node is always shallow', async () => {
+  it('clone node is always shallow', () => {
     class AttributeCallbackTestElement extends window.HTMLElement {
       static get observedAttributes() {
         return ['text'];
@@ -106,13 +106,13 @@ describe('serializeDOM', () => {
       window.customElements.define('attr-callback-test', AttributeCallbackTestElement);
     }
     withExample('<attr-callback-test text="1"/>', { withShadow: false });
-    const $ = parseDOM((await serializeDOM()).html);
+    const $ = parseDOM(serializeDOM().html);
 
     expect($('h2.callback').length).toEqual(1);
   });
 
   describe('shadow dom', () => {
-    it('renders open root as template tag', async () => {
+    it('renders open root as template tag', () => {
       if (getTestBrowser() !== chromeBrowser) {
         return;
       }
@@ -124,12 +124,12 @@ describe('serializeDOM', () => {
       paragraphEl.textContent = 'Hey Percy!';
       shadow.appendChild(paragraphEl);
 
-      const html = (await serializeDOM()).html;
+      const html = serializeDOM().html;
       expect(html).toMatch('<template shadowrootmode="open" shadowrootserializable="">');
       expect(html).toMatch('Hey Percy!');
     });
 
-    it('does not render closed root', async () => {
+    it('does not render closed root', () => {
       if (getTestBrowser() !== chromeBrowser) {
         return;
       }
@@ -141,12 +141,12 @@ describe('serializeDOM', () => {
       paragraphEl.textContent = 'Hey Percy!';
       shadow.appendChild(paragraphEl);
 
-      const html = (await serializeDOM()).html;
+      const html = serializeDOM().html;
       expect(html).not.toMatch('<template shadowroot');
       expect(html).not.toMatch('Hey Percy!');
     });
 
-    it('renders single nested', async () => {
+    it('renders single nested', () => {
       if (getTestBrowser() !== chromeBrowser) {
         return;
       }
@@ -159,7 +159,7 @@ describe('serializeDOM', () => {
       el1.shadowRoot.appendChild(el2);
       baseContent.append(el1);
 
-      const html = (await serializeDOM()).html;
+      const html = serializeDOM().html;
 
       expect(html).toMatch(new RegExp([
         '<template shadowrootmode="open" shadowrootserializable="">',
@@ -171,7 +171,7 @@ describe('serializeDOM', () => {
       ].join('')));
     });
 
-    it('renders many nested', async () => {
+    it('renders many nested', () => {
       if (getTestBrowser() !== chromeBrowser) {
         return;
       }
@@ -198,11 +198,11 @@ describe('serializeDOM', () => {
         ].join('');
       }
 
-      const html = (await serializeDOM()).html;
+      const html = serializeDOM().html;
       expect(html).toMatch(new RegExp(matchRegex));
     });
 
-    it('renders many flat', async () => {
+    it('renders many flat', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
@@ -225,11 +225,11 @@ describe('serializeDOM', () => {
         ].join('');
       }
 
-      const html = (await serializeDOM()).html;
+      const html = serializeDOM().html;
       expect(html).toMatch(new RegExp(matchRegex));
     });
 
-    it('respects disableShadowDOM', async () => {
+    it('respects disableShadowDOM', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
@@ -238,12 +238,12 @@ describe('serializeDOM', () => {
       const el = createShadowEl(8);
       baseContent.appendChild(el);
 
-      const html = (await serializeDOM({ disableShadowDOM: true })).html;
+      const html = serializeDOM({ disableShadowDOM: true }).html;
       expect(html).not.toMatch('<p>Percy-8</p>');
       expect(html).not.toMatch('data-percy-shadow-host=');
     });
 
-    it('renders custom elements properly', async () => {
+    it('renders custom elements properly', () => {
       if (getTestBrowser() !== chromeBrowser) {
         return;
       }
@@ -261,27 +261,27 @@ describe('serializeDOM', () => {
       window.customElements.define('test-elem', TestElement);
 
       withExample('<test-elem/>', { withShadow: false });
-      const html = (await serializeDOM()).html;
+      const html = serializeDOM().html;
       expect(html).toMatch('<h2>Test</h2>');
     });
 
-    it('warns if data-percy-shadow-host incorrectly marked', async () => {
+    it('warns if data-percy-shadow-host incorrectly marked', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
       withExample('<div id="content" data-percy-shadow-host=""></div>', { withShadow: false });
       const baseContent = document.querySelector('#content');
       baseContent.innerHTML = '<input type="text>';
-      const serialized = await serializeDOM();
+      const serialized = serializeDOM();
       expect(serialized.warnings).toEqual(['data-percy-shadow-host does not have shadowRoot']);
     });
 
-    it('renders slot template with shadowrootmode open', async () => {
+    it('renders slot template with shadowrootmode open', () => {
       withExample('<div id="content"></div>', { withShadow: false });
       const baseContent = document.querySelector('#content');
       createAndAttachSlotTemplate(baseContent);
 
-      const html = (await serializeDOM()).html;
+      const html = serializeDOM().html;
       expect(html).toMatch('<template shadowrootmode="open">');
       expect(html).toMatch('<p slot="title">Hello from the title slot!</p>');
       expect(html).toMatch('<p>This content is distributed into the default slot.</p>');
@@ -293,7 +293,7 @@ describe('serializeDOM', () => {
       expect(html).toMatch(/::slotted\(\*\)\s*{[^}]*}/);
     });
 
-    it('respects forceShadowAsLightDOM for single element', async () => {
+    it('respects forceShadowAsLightDOM for single element', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
@@ -302,14 +302,14 @@ describe('serializeDOM', () => {
       const el = createShadowEl(9);
       baseContent.appendChild(el);
 
-      const html = (await serializeDOM({ forceShadowAsLightDOM: true })).html;
+      const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
       expect(html).toMatch('<p>Percy-9</p>');
       expect(html).not.toMatch('<template shadowrootmode="open"');
       expect(html).not.toMatch('shadowrootserializable');
       expect(html).not.toMatch('data-percy-shadow-host');
     });
 
-    it('respects forceShadowAsLightDOM for nested shadow elements', async () => {
+    it('respects forceShadowAsLightDOM for nested shadow elements', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
@@ -321,7 +321,7 @@ describe('serializeDOM', () => {
       el1.shadowRoot.appendChild(el2);
       baseContent.append(el1);
 
-      const html = (await serializeDOM({ forceShadowAsLightDOM: true })).html;
+      const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
       expect(html).toMatch('<p>Percy-10</p>');
       expect(html).toMatch('<p>Percy-11</p>');
       expect(html).not.toMatch('<template shadowrootmode="open"');
@@ -329,7 +329,7 @@ describe('serializeDOM', () => {
       expect(html).not.toMatch('data-percy-shadow-host');
     });
 
-    it('respects forceShadowAsLightDOM for custom elements', async () => {
+    it('respects forceShadowAsLightDOM for custom elements', () => {
       if (getTestBrowser() !== chromeBrowser) {
         return;
       }
@@ -352,14 +352,14 @@ describe('serializeDOM', () => {
       }
 
       withExample('<force-shadow-test></force-shadow-test>', { withShadow: false });
-      const html = (await serializeDOM({ forceShadowAsLightDOM: true })).html;
+      const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
 
       expect(html).toMatch('<h3>Force Shadow Test<span>Nested Content</span></h3>');
       expect(html).not.toMatch('<template shadowrootmode="open"');
       expect(html).not.toMatch('shadowrootserializable');
     });
 
-    it('respects forceShadowAsLightDOM with many flat elements', async () => {
+    it('respects forceShadowAsLightDOM with many flat elements', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
@@ -375,7 +375,7 @@ describe('serializeDOM', () => {
         baseContent.appendChild(newEl);
       }
 
-      const html = (await serializeDOM({ forceShadowAsLightDOM: true })).html;
+      const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
 
       // Verify all content is present as light DOM
       for (let i = 0; i < levels; i++) {
@@ -386,7 +386,7 @@ describe('serializeDOM', () => {
       expect(html).not.toMatch('data-percy-shadow-host');
     });
 
-    it('respects forceShadowAsLightDOM with slot content', async () => {
+    it('respects forceShadowAsLightDOM with slot content', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
@@ -408,7 +408,7 @@ describe('serializeDOM', () => {
 
       baseContent.appendChild(hostEl);
 
-      const html = (await serializeDOM({ forceShadowAsLightDOM: true })).html;
+      const html = serializeDOM({ forceShadowAsLightDOM: true }).html;
 
       // When forceShadowAsLightDOM is true, shadow content becomes light DOM
       // The slot element from shadow DOM will be present, and slotted content remains in light DOM
@@ -418,7 +418,7 @@ describe('serializeDOM', () => {
       expect(html).not.toMatch('shadowrootserializable');
     });
 
-    it('disableShadowDOM takes precedence over forceShadowAsLightDOM', async () => {
+    it('disableShadowDOM takes precedence over forceShadowAsLightDOM', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
@@ -429,7 +429,7 @@ describe('serializeDOM', () => {
 
       // When both flags are set, disableShadowDOM takes precedence and no shadow content is processed at all
       // This is because disableShadowDOM prevents shadow DOM cloning entirely in clone-dom.js
-      const html = await serializeDOM({
+      const html = serializeDOM({
         disableShadowDOM: true,
         forceShadowAsLightDOM: true
       }).html;
@@ -439,7 +439,7 @@ describe('serializeDOM', () => {
       expect(html).not.toMatch('data-percy-shadow-host');
     });
 
-    it('forceShadowAsLightDOM works independently when disableShadowDOM is false', async () => {
+    it('forceShadowAsLightDOM works independently when disableShadowDOM is false', () => {
       if (!navigator.userAgent.toLowerCase().includes('chrome')) {
         return;
       }
@@ -449,10 +449,10 @@ describe('serializeDOM', () => {
       baseContent.appendChild(el);
 
       // When only forceShadowAsLightDOM is true, shadow content should be rendered as light DOM
-      const html = (await serializeDOM({
+      const html = serializeDOM({
         disableShadowDOM: false,
         forceShadowAsLightDOM: true
-      })).html;
+      }).html;
 
       expect(html).toMatch('<p>Percy-14</p>');
       expect(html).not.toMatch('<template shadowrootmode="open"');
@@ -460,7 +460,7 @@ describe('serializeDOM', () => {
     });
   });
 
-  it('renders custom image elements with src attribute properly', async () => {
+  it('renders custom image elements with src attribute properly', () => {
     if (getTestBrowser() !== chromeBrowser) {
       return;
     }
@@ -489,7 +489,7 @@ describe('serializeDOM', () => {
         <custom-image src="https://example.com/test.jpg"></custom-image>
       `, { withShadow: false });
 
-    const html = (await serializeDOM()).html;
+    const html = serializeDOM().html;
 
     expect(html).toMatch(
       /<custom-image[^>]*><img src="https:\/\/example\.com\/test\.jpg"><\/custom-image>/
@@ -497,13 +497,13 @@ describe('serializeDOM', () => {
   });
 
   describe('with `domTransformation`', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       withExample('<span class="delete-me">Delete me</span>', { withShadow: false });
       spyOn(console, 'error');
     });
 
-    it('transforms the DOM without modifying the original DOM', async () => {
-      let { html } = await serializeDOM({
+    it('transforms the DOM without modifying the original DOM', () => {
+      let { html } = serializeDOM({
         domTransformation(dom) {
           dom.querySelector('.delete-me').remove();
         }
@@ -513,8 +513,8 @@ describe('serializeDOM', () => {
       expect(document.querySelector('.delete-me').innerText).toBe('Delete me');
     });
 
-    it('String: transforms the DOM without modifying the original DOM', async () => {
-      let { html } = await serializeDOM({
+    it('String: transforms the DOM without modifying the original DOM', () => {
+      let { html } = serializeDOM({
         domTransformation: "(dom) => { dom.querySelector('.delete-me').remove(); }"
       });
 
@@ -522,8 +522,8 @@ describe('serializeDOM', () => {
       expect(document.querySelector('.delete-me').innerText).toBe('Delete me');
     });
 
-    it('String: Logs error when function is not correct', async () => {
-      let { html, warnings } = await serializeDOM({
+    it('String: Logs error when function is not correct', () => {
+      let { html, warnings } = serializeDOM({
         domTransformation: "(dom) => { dom.querySelector('.delete-me').delete(); }"
       });
 
@@ -534,8 +534,8 @@ describe('serializeDOM', () => {
       expect(warnings).toEqual(['Could not transform the dom: dom.querySelector(...).delete is not a function']);
     });
 
-    it('logs any errors and returns the serialized DOM', async () => {
-      let { html, warnings } = await serializeDOM({
+    it('logs any errors and returns the serialized DOM', () => {
+      let { html, warnings } = serializeDOM({
         domTransformation(dom) {
           throw new Error('test error');
           // eslint-disable-next-line no-unreachable
@@ -552,31 +552,33 @@ describe('serializeDOM', () => {
   });
 
   describe('with `reshuffleInvalidTags`', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       withExample('', { withShadow: false, invalidTagsOutsideBody: true });
     });
 
-    it('does not reshuffle tags outside </body>', async () => {
-      const result = await serializeDOM();
+    it('does not reshuffle tags outside </body>', () => {
+      const result = serializeDOM();
       expect(result.html).toContain('P tag outside body');
       expect(result.hints).toEqual(['DOM elements found outside </body>']);
     });
 
-    it('reshuffles tags outside </body>', async () => {
-      const result = await serializeDOM({ reshuffleInvalidTags: true });
+    it('reshuffles tags outside </body>', () => {
+      const result = serializeDOM({ reshuffleInvalidTags: true });
       expect(result.html).toContain('P tag outside body');
       expect(result.hints).toEqual([]);
     });
   });
 
   describe('when `ctx.clone.body` is null for about:blank pages', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       withExample('', { withoutBody: true });
     });
 
-    it('does not add hints and does not throw an error', async () => {
-      const result = await serializeDOM();
-      expect(result.hints).toEqual([]);
+    it('does not add hints and does not throw an error', () => {
+      expect(() => {
+        const result = serializeDOM();
+        expect(result.hints).toEqual([]);
+      }).not.toThrow();
     });
   });
 
@@ -603,42 +605,41 @@ describe('serializeDOM', () => {
   });
 
   describe('error handling', () => {
-    it('adds node details in error message and rethrow it', async () => {
+    it('adds node details in error message and rethrow it', () => {
       let oldURL = window.URL;
       window.URL = undefined;
       withExample(`
           <img id="test" class="test1 test2" src="data:image/png;base64,iVBORw0KGgo" alt="Example Image">
           `);
 
-      // The error can occur in blob URL preprocessing (URL is not a constructor) or during cloning
-      await expectAsync(serializeDOM()).toBeRejected();
-      const rejection = await serializeDOM().catch(e => e);
-      expect(rejection.message).toMatch(/(URL is not a constructor|Error cloning node)/);
-      expect(rejection.message).toMatch(/IMG/);
+      expect(() => serializeDOM()).toThrowMatching((error) => {
+        return error.message.includes('Error cloning node:') &&
+            error.message.includes('{"nodeName":"IMG","classNames":"test1 test2","id":"test"}');
+      });
       window.URL = oldURL;
     });
 
-    it('ignores canvas serialization errors when flag is enabled', async () => {
+    it('ignores canvas serialization errors when flag is enabled', () => {
       withExample(`
           <canvas id="canvas" width="150px" height="150px"/>
         `);
 
       spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('Canvas error'));
 
-      let result = await serializeDOM({ ignoreCanvasSerializationErrors: true });
+      let result = serializeDOM({ ignoreCanvasSerializationErrors: true });
       expect(result.warnings).toContain('Canvas Serialization failed, Replaced canvas with empty Image');
       expect(result.warnings).toContain('Error: Canvas error');
       expect(result.html).toContain('data-percy-canvas-serialized');
     });
 
-    it('picks ignoreCanvasSerializationErrors flag from options', async () => {
+    it('picks ignoreCanvasSerializationErrors flag from options', () => {
       withExample(`
           <canvas id="canvas" width="150px" height="150px"/>
         `);
 
       spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('Canvas error'));
 
-      let result = await serializeDOM({ ignoreCanvasSerializationErrors: true });
+      let result = serializeDOM({ ignoreCanvasSerializationErrors: true });
       expect(result.html).toContain('data-percy-canvas-serialized');
       expect(result.warnings).toContain('Canvas Serialization failed, Replaced canvas with empty Image');
       expect(result.warnings).toContain('Error: Canvas error');

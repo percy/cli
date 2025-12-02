@@ -57,7 +57,7 @@ describe('serializeFrames', () => {
       // ensure external frame has loaded for coverage
       await getFrame('frame-external', dom);
 
-      serialized = await serializeDOM();
+      serialized = serializeDOM();
       cache[platform].$ = parseDOM(serialized.html, platform);
     }
   }, 0); // frames may take a bit to load
@@ -66,7 +66,7 @@ describe('serializeFrames', () => {
     window.document.createDocumentFragment.calls.reset();
   });
 
-  it('calls document.createDocumentFragment once for parent frame', async () => {
+  it('calls document.createDocumentFragment once for parent frame', () => {
     // document.createDocumentFragment is only called on first depth of recursion for serializing iframes
     // post that the document of the iframe itself should be used for creating document fragment
     // we're having expection for root frame only currently, this should suffice for now
@@ -85,7 +85,7 @@ describe('serializeFrames', () => {
 
   platforms.forEach(platform => {
     let $;
-    beforeEach(async () => {
+    beforeEach(() => {
       $ = cache[platform].$;
     });
 
@@ -93,7 +93,7 @@ describe('serializeFrames', () => {
       document.querySelector('#frame-head').remove();
     });
 
-    it(`${platform}: serializes iframes created with JS`, async () => {
+    it(`${platform}: serializes iframes created with JS`, () => {
       let dom = platformDOM(platform);
       expect($('#frame-js')[0].getAttribute('src')).toBeNull();
       expect($('#frame-js')[0].getAttribute('srcdoc')).toMatch(new RegExp([
@@ -122,7 +122,7 @@ describe('serializeFrames', () => {
       }));
     });
 
-    it(`${platform}: serializes iframes that have been interacted with`, async () => {
+    it(`${platform}: serializes iframes that have been interacted with`, () => {
       expect($('#frame-input')[0].getAttribute('srcdoc')).toMatch(new RegExp([
         '^<!DOCTYPE html><html><head>',
         '.*?</head><body>',
@@ -131,32 +131,32 @@ describe('serializeFrames', () => {
       ].join('')));
     });
 
-    it(`${platform}: does not serialize iframes with CORS`, async () => {
+    it(`${platform}: does not serialize iframes with CORS`, () => {
       expect($('#frame-external')[0].getAttribute('src')).toBe('https://example.com');
       expect($('#frame-external-fail')[0].getAttribute('src')).toBe('https://google.com');
       expect($('#frame-external')[0].getAttribute('srcdoc')).toBeNull();
       expect($('#frame-external-fail')[0].getAttribute('srcdoc')).toBeNull();
     });
 
-    it(`${platform}: does not serialize iframes created by JS when JS is enabled`, async () => {
-      const serializedDOM = (await serializeDOM({ enableJavaScript: true })).html;
+    it(`${platform}: does not serialize iframes created by JS when JS is enabled`, () => {
+      const serializedDOM = serializeDOM({ enableJavaScript: true }).html;
       $ = parseDOM(serializedDOM, platform);
       expect($('#frame-js')[0].getAttribute('src')).not.toBeNull();
       expect($('#frame-js')[0].getAttribute('srcdoc')).toBeNull();
       expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toBeNull();
     });
 
-    it(`${platform}: does not serialize iframes without document elements`, async () => {
+    it(`${platform}: does not serialize iframes without document elements`, () => {
       expect($('#frame-empty')[0]).toBeDefined();
       expect($('#frame-empty')[0].getAttribute('srcdoc')).toBe('<input/>');
       expect($('#frame-empty-self')).toHaveSize(0);
     });
 
-    it(`${platform}: removes iframes from the head element`, async () => {
+    it(`${platform}: removes iframes from the head element`, () => {
       expect($('#frame-head')).toHaveSize(0);
     });
 
-    it(`${platform}: removes inaccessible JS frames`, async () => {
+    it(`${platform}: removes inaccessible JS frames`, () => {
       expect($('#frame-inject')).toHaveSize(0);
     });
   });

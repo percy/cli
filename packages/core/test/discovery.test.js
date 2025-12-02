@@ -1820,9 +1820,9 @@ describe('Discovery', () => {
       const page = await percy.browser.page();
       await page.goto('http://localhost:8000');
       await page.insertPercyDom();
-      let capture = await page.eval(async (_) => ({
+      let capture = await page.eval((_) => ({
         /* eslint-disable-next-line no-undef */
-        domSnapshot: await PercyDOM.serialize(),
+        domSnapshot: PercyDOM.serialize(),
         url: document.URL
       }));
 
@@ -1835,9 +1835,9 @@ describe('Discovery', () => {
       const page = await percy.browser.page();
       await page.goto('about:blank');
       await page.insertPercyDom();
-      let capture = await page.eval(async (_) => ({
+      let capture = await page.eval((_) => ({
         /* eslint-disable-next-line no-undef */
-        domSnapshot: await PercyDOM.serialize(),
+        domSnapshot: PercyDOM.serialize(),
         url: document.URL
       }));
 
