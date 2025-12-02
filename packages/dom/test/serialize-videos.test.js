@@ -17,7 +17,7 @@ describe('serializeVideos', () => {
       `);
 
       await canPlay(platform === 'shadow' ? platformDOM(platform).querySelector('video') : window.video);
-      serialized = await serializeDOM();
+      serialized = serializeDOM();
       $ = parseDOM(serialized.html, platform);
 
       expect($('#video')[0].getAttribute('poster'))
@@ -35,30 +35,30 @@ describe('serializeVideos', () => {
     `);
 
       await canPlay(platform === 'shadow' ? platformDOM(platform).querySelector('video') : window.video);
-      serialized = await serializeDOM();
+      serialized = serializeDOM();
       $ = parseDOM(serialized.html);
 
       expect($('#video')[0].getAttribute('poster')).toBe('//:0');
       expect(serialized.resources).toEqual([]);
     });
 
-    it(`${platform}: does not apply blank poster images`, async () => {
+    it(`${platform}: does not apply blank poster images`, () => {
       withExample(`
       <video src="//:0" id="video" />
     `);
 
-      $ = parseDOM(await serializeDOM(), platform);
+      $ = parseDOM(serializeDOM(), platform);
       expect($('#video')[0].hasAttribute('poster')).toBe(false);
     });
 
-    it(`${platform}: does not hang serialization when there is an error thrown`, async () => {
+    it(`${platform}: does not hang serialization when there is an error thrown`, () => {
       withExample(`
       <video src="//:0" id="video" />
     `);
 
       spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('An error'));
 
-      $ = parseDOM(await serializeDOM());
+      $ = parseDOM(serializeDOM());
       expect($('#video')[0].hasAttribute('poster')).toBe(false);
     });
 
@@ -73,7 +73,7 @@ describe('serializeVideos', () => {
       shadowRoot.innerHTML = '<video src="base/test/assets/example.webm" id="video" controls />';
 
       await canPlay(shadowRoot.querySelector('video'));
-      serialized = await serializeDOM();
+      serialized = serializeDOM();
       $ = parseDOM(serialized.html, platform);
 
       const resultRoot = $('#video-container template')[0];

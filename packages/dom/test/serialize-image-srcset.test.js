@@ -44,7 +44,7 @@ describe('loadAllSrcsetLinks', () => {
       ]);
     });
 
-    it(`${platform}: srcset inside shadowroot`, async () => {
+    it(`${platform}: srcset inside shadowroot`, () => {
       withExample(`
       <img srcset="/base/test/assets/example.webp, /base/test/assets/example.png 100px, /base/test/assets/example1.png 2x" />
     `, { withShadow: true });

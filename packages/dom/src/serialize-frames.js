@@ -12,8 +12,8 @@ function setBaseURI(dom) {
   dom.querySelector('head')?.prepend($base);
 }
 
-// Recursively serializes iframe documents into srcdoc attributes (ASYNC).
-export async function serializeFrames({ dom, clone, warnings, resources, enableJavaScript, disableShadowDOM }) {
+// Recursively serializes iframe documents into srcdoc attributes.
+export function serializeFrames({ dom, clone, warnings, resources, enableJavaScript, disableShadowDOM }) {
   for (let frame of dom.querySelectorAll('iframe')) {
     let percyElementId = frame.getAttribute('data-percy-element-id');
     let cloneEl = clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
@@ -32,8 +32,8 @@ export async function serializeFrames({ dom, clone, warnings, resources, enableJ
       // the frame has yet to load and wasn't built with js, it is unsafe to serialize
       if (!builtWithJs && !frame.contentWindow.performance.timing.loadEventEnd) continue;
 
-      // recersively serialize contents (AWAIT async call)
-      let serialized = await serializeDOM({
+      // recersively serialize contents
+      let serialized = serializeDOM({
         domTransformation: setBaseURI,
         dom: frame.contentDocument,
         enableJavaScript,

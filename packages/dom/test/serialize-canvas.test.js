@@ -6,7 +6,7 @@ describe('serializeCanvas', () => {
   let serialized, cache = { shadow: {}, plain: {} };
 
   describe('sucess case', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       withExample(`
         <canvas
           id="canvas"
@@ -67,16 +67,16 @@ describe('serializeCanvas', () => {
         cache[plat].dataURLWithStaticWidth = canvasWithStaticWidth.toDataURL();
       });
 
-      serialized = await serializeDOM();
+      serialized = serializeDOM();
     });
 
     platforms.forEach((platform) => {
       let $;
-      beforeEach(async () => {
+      beforeEach(() => {
         $ = parseDOM(serialized.html, platform);
       });
 
-      it(`${platform}: serializes canvas elements`, async () => {
+      it(`${platform}: serializes canvas elements`, () => {
         let $canvas = $('#canvas');
         expect($canvas[0].tagName).toBe('IMG');
         expect($canvas[0].getAttribute('width')).toBe('150px');
@@ -94,7 +94,7 @@ describe('serializeCanvas', () => {
         }));
       });
 
-      it(`${platform}: preserves maxWidth from canvas to image element`, async () => {
+      it(`${platform}: preserves maxWidth from canvas to image element`, () => {
         let $canvas = $('#canvas-with-maxwidth');
         expect($canvas[0].tagName).toBe('IMG');
         expect($canvas[0].getAttribute('width')).toBe('200px');
@@ -112,8 +112,25 @@ describe('serializeCanvas', () => {
         }));
       });
 
-      it(`${platform}: does not serialize canvas elements when JS is enabled`, async () => {
-        serialized = await serializeDOM({ enableJavaScript: true });
+      it(`${platform}: does not add maxWidth when canvas has static pixel width`, () => {
+        let $canvas = $('#canvas-with-static-width');
+        expect($canvas[0].tagName).toBe('IMG');
+        expect($canvas[0].getAttribute('width')).toBe('180px');
+        expect($canvas[0].getAttribute('height')).toBe('120px');
+        expect($canvas[0].getAttribute('style')).toBe('border: 1px solid green; width: 180px;');
+        expect($canvas[0].matches('[data-percy-canvas-serialized]')).toBe(true);
+        // Verify maxWidth is NOT added since canvas has static pixel width (width: 180px)
+        expect($canvas[0].style.maxWidth).toBe('');
+
+        expect(serialized.resources).toContain(jasmine.objectContaining({
+          url: $canvas[0].getAttribute('src'),
+          content: cache[platform].dataURLWithStaticWidth.split(',')[1],
+          mimetype: 'image/png'
+        }));
+      });
+
+      it(`${platform}: does not serialize canvas elements when JS is enabled`, () => {
+        serialized = serializeDOM({ enableJavaScript: true });
         $ = parseDOM(serialized.html, platform);
 
         let $canvas = $('#canvas');
@@ -122,7 +139,7 @@ describe('serializeCanvas', () => {
         expect(serialized.resources).toEqual([]);
       });
 
-      it(`${platform}: does not serialize empty canvas elements`, async () => {
+      it(`${platform}: does not serialize empty canvas elements`, () => {
         let $canvas = $('#empty');
         expect($canvas[0].tagName).toBe('CANVAS');
         expect($canvas[0].matches('[data-percy-canvas-serialized]')).toBe(false);
@@ -142,7 +159,7 @@ describe('serializeCanvas', () => {
       });
     });
 
-    it('ignores canvas serialization errors when flag is enabled', async () => {
+    it('ignores canvas serialization errors when flag is enabled', () => {
       withExample(`
         <canvas id="canvas" width="150px" height="150px"/>
       `);
@@ -162,7 +179,7 @@ describe('serializeCanvas', () => {
       expect(Array.from(ctx.warnings)).toContain('Error: Canvas error');
     });
 
-    it('creates fallback image element when ignoring canvas errors', async () => {
+    it('creates fallback image element when ignoring canvas errors', () => {
       withExample(`
         <canvas id="canvas" width="150px" height="150px"/>
       `);
@@ -170,7 +187,7 @@ describe('serializeCanvas', () => {
       // Use serializeDOM to properly set up the context like the real flow
       spyOn(window.HTMLCanvasElement.prototype, 'toDataURL').and.throwError(new Error('Canvas error'));
 
-      let result = await serializeDOM({ ignoreCanvasSerializationErrors: true });
+      let result = serializeDOM({ ignoreCanvasSerializationErrors: true });
 
       expect(Array.from(result.warnings)).toContain('Canvas Serialization failed, Replaced canvas with empty Image');
       expect(Array.from(result.warnings)).toContain('Error: Canvas error');
@@ -185,7 +202,7 @@ describe('serializeCanvas', () => {
       expect($img[0].getAttribute('height')).toBe('150px');
     });
 
-    it('handles fallback image creation errors gracefully', async () => {
+    it('handles fallback image creation errors gracefully', () => {
       withExample(`
         <canvas id="canvas"/>
       `);
@@ -201,7 +218,7 @@ describe('serializeCanvas', () => {
         return originalCreateElement.call(document, tagName);
       });
 
-      let result = await serializeDOM({ ignoreCanvasSerializationErrors: true });
+      let result = serializeDOM({ ignoreCanvasSerializationErrors: true });
 
       expect(result.warnings).toContain('Canvas Serialization failed, Replaced canvas with empty Image');
       expect(result.warnings).toContain('Error: Canvas error');

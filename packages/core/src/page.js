@@ -204,18 +204,15 @@ export class Page {
 
     await this.insertPercyDom();
 
-    // serialize and capture a DOM snapshot (async)
+    // serialize and capture a DOM snapshot
     this.log.debug('Serialize DOM', this.meta);
 
     /* istanbul ignore next: no instrumenting injected code */
-    let capture = await this.eval(async (_, options) => {
-      /* eslint-disable no-undef */
-      return {
-        domSnapshot: await PercyDOM.serialize(options),
-        url: document.URL
-      };
-      /* eslint-enable no-undef */
-    }, { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors });
+    let capture = await this.eval((_, options) => ({
+      /* eslint-disable-next-line no-undef */
+      domSnapshot: PercyDOM.serialize(options),
+      url: document.URL
+    }), { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors });
 
     return { ...snapshot, ...capture };
   }

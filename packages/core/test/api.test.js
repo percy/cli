@@ -129,7 +129,7 @@ describe('API Server', () => {
 
     await expectAsync(request('/percy-agent.js')).toBeResolvedTo(
       fs.readFileSync(path.resolve('../dom/dist/bundle.js'), 'utf-8').concat(
-        '(window.PercyAgent = class { async snapshot(n, o) { return await PercyDOM.serialize(o); } });'
+        '(window.PercyAgent = class { snapshot(n, o) { return PercyDOM.serialize(o); } });'
       )
     );
 
