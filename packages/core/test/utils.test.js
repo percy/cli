@@ -284,4 +284,204 @@ describe('utils', () => {
       expect(logger.stderr).toContain('[percy:core:sdk-version] Could not check SDK version');
     });
   });
+
+  describe('withRetries', () => {
+    it('succeeds on first attempt without retrying', async () => {
+      let { withRetries } = await import('../src/utils.js');
+      let attemptCount = 0;
+      const fn = function*() {
+        attemptCount++;
+        return 'success';
+      };
+
+      const result = await withRetries(fn, { count: 3 });
+
+      expect(result).toBe('success');
+      expect(attemptCount).toBe(1);
+    });
+
+    it('retries on failure and eventually succeeds', async () => {
+      let { withRetries } = await import('../src/utils.js');
+      let attemptCount = 0;
+      const fn = function*() {
+        attemptCount++;
+        if (attemptCount < 3) {
+          throw new Error('Temporary failure');
+        }
+        return 'success';
+      };
+
+      const result = await withRetries(fn, { count: 3 });
+
+      expect(result).toBe('success');
+      expect(attemptCount).toBe(3);
+    });
+
+    it('throws error after all retries exhausted', async () => {
+      let { withRetries } = await import('../src/utils.js');
+      let attemptCount = 0;
+      const fn = function*() {
+        attemptCount++;
+        throw new Error('Persistent failure');
+      };
+
+      await expectAsync(
+        withRetries(fn, { count: 3 })
+      ).toBeRejectedWithError('Persistent failure');
+
+      expect(attemptCount).toBe(3);
+    });
+
+    it('passes error to onRetry callback', async () => {
+      let { withRetries } = await import('../src/utils.js');
+      let attemptCount = 0;
+      const errors = [];
+
+      const fn = function*() {
+        attemptCount++;
+        if (attemptCount < 3) {
+          throw new Error(`Error attempt ${attemptCount}`);
+        }
+        return 'success';
+      };
+
+      const onRetry = async (error) => {
+        errors.push(error);
+      };
+
+      await withRetries(fn, { count: 3, onRetry });
+
+      expect(errors.length).toBe(2);
+      expect(errors[0].message).toBe('Error attempt 1');
+      expect(errors[1].message).toBe('Error attempt 2');
+    });
+
+    it('calls onRetry before each retry attempt', async () => {
+      let { withRetries } = await import('../src/utils.js');
+      let attemptCount = 0;
+      let retryCallCount = 0;
+
+      const fn = function*() {
+        attemptCount++;
+        if (attemptCount < 3) {
+          throw new Error('Retry me');
+        }
+        return 'success';
+      };
+
+      const onRetry = async () => {
+        retryCallCount++;
+      };
+
+      await withRetries(fn, { count: 3, onRetry });
+
+      expect(attemptCount).toBe(3);
+      expect(retryCallCount).toBe(2); // Called twice (before 2nd and 3rd attempts)
+    });
+
+    it('throws immediately for errors in throwOn list', async () => {
+      let { withRetries } = await import('../src/utils.js');
+      let attemptCount = 0;
+
+      const fn = function*() {
+        attemptCount++;
+        const error = new Error('Abort this');
+        error.name = 'AbortError';
+        throw error;
+      };
+
+      await expectAsync(
+        withRetries(fn, { count: 3, throwOn: ['AbortError'] })
+      ).toBeRejectedWithError('Abort this');
+
+      expect(attemptCount).toBe(1); // Should not retry
+    });
+
+    it('retries for errors not in throwOn list', async () => {
+      let { withRetries } = await import('../src/utils.js');
+      let attemptCount = 0;
+
+      const fn = function*() {
+        attemptCount++;
+        if (attemptCount < 3) {
+          throw new Error('Retry this');
+        }
+        return 'success';
+      };
+
+      const result = await withRetries(fn, {
+        count: 3,
+        throwOn: ['AbortError']
+      });
+
+      expect(result).toBe('success');
+      expect(attemptCount).toBe(3);
+    });
+
+    it('defaults to single attempt when count is not provided', async () => {
+      let { withRetries } = await import('../src/utils.js');
+      let attemptCount = 0;
+
+      const fn = function*() {
+        attemptCount++;
+        throw new Error('No retries');
+      };
+
+      await expectAsync(
+        withRetries(fn, {})
+      ).toBeRejectedWithError('No retries');
+
+      expect(attemptCount).toBe(1);
+    });
+
+    it('supports async onRetry callbacks', async () => {
+      let { withRetries } = await import('../src/utils.js');
+      let attemptCount = 0;
+      const retryDelays = [];
+
+      const fn = function*() {
+        attemptCount++;
+        if (attemptCount < 3) {
+          throw new Error('Retry');
+        }
+        return 'success';
+      };
+
+      const onRetry = async () => {
+        const start = Date.now();
+        await new Promise(resolve => setTimeout(resolve, 10));
+        retryDelays.push(Date.now() - start);
+      };
+
+      await withRetries(fn, { count: 3, onRetry });
+
+      expect(retryDelays.length).toBe(2);
+      expect(retryDelays[0]).toBeGreaterThanOrEqual(10);
+      expect(retryDelays[1]).toBeGreaterThanOrEqual(10);
+    });
+
+    it('handles onRetry callback errors gracefully', async () => {
+      let { withRetries } = await import('../src/utils.js');
+      let attemptCount = 0;
+
+      const fn = function*() {
+        attemptCount++;
+        if (attemptCount < 2) {
+          throw new Error('Retry me');
+        }
+        return 'success';
+      };
+
+      const onRetry = async () => {
+        throw new Error('OnRetry failed');
+      };
+
+      // The onRetry error should propagate and stop retries
+      await expectAsync(
+        withRetries(fn, { count: 3, onRetry })
+      ).toBeRejectedWithError('OnRetry failed');
+
+      expect(attemptCount).toBe(1);
+    });
+  });
 });

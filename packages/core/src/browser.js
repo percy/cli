@@ -120,6 +120,27 @@ export class Browser extends EventEmitter {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
+  async restart() {
+    this.log.info('Restarting browser after disconnection');
+
+    // Force close the existing browser instance
+    if (this.readyState !== null) {
+      await this.close(true).catch(err => {
+        this.log.debug('Error during force close:', err);
+      });
+    }
+
+    // Reset state for fresh launch
+    this.readyState = null;
+    this._closed = null;
+    this.#callbacks.clear();
+    this.sessions.clear();
+
+    // Launch a new browser instance
+    await this.launch();
+    this.log.info('Browser restarted successfully');
+  }
+
   async close(force = false) {
     // Check for the new closeBrowser option
     if (!force && this.percy.config.discovery?.launchOptions?.closeBrowser === false) {
@@ -195,6 +216,12 @@ export class Browser extends EventEmitter {
   }
 
   async page(options = {}) {
+    // Check if browser is connected, restart if needed
+    if (!this.isConnected()) {
+      this.log.warn('Browser disconnected, attempting restart');
+      await this.restart();
+    }
+
     let { targetId } = await this.send('Target.createTarget', { url: '' });
     let { sessionId } = await this.send('Target.attachToTarget', { targetId, flatten: true });
     let page = new Page(this.sessions.get(sessionId), options);
