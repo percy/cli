@@ -353,7 +353,7 @@ export async function withRetries(fn, { count, onRetry, signal, throwOn }) {
       // if this error should not be retried on, we want to skip errors
       let throwError = throwOn?.includes(e.name);
       if (!throwError && run < count) {
-        await onRetry?.();
+        await onRetry?.(e);
         continue;
       }
       throw e;
