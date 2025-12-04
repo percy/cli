@@ -1,1 +1,2 @@
 packages/core/src/secretPatterns.yml
+packages/dom/test/serialize-pseudo-classes.test.js

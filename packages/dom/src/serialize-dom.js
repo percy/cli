@@ -3,6 +3,7 @@ import serializeFrames from './serialize-frames';
 import serializeCSSOM from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
+import { serializePseudoClasses, markPseudoClassElements } from './serialize-pseudo-classes';
 import { cloneNodeAndShadow, getOuterHTML } from './clone-dom';
 
 // Returns a copy or new doctype for a document.
@@ -90,7 +91,8 @@ export function serializeDOM(options) {
     reshuffleInvalidTags = options?.reshuffle_invalid_tags,
     ignoreCanvasSerializationErrors = options?.ignore_canvas_serialization_errors,
     ignoreStyleSheetSerializationErrors = options?.ignore_style_sheet_serialization_errors,
-    forceShadowAsLightDOM = options?.force_shadow_dom_as_light_dom
+    forceShadowAsLightDOM = options?.force_shadow_dom_as_light_dom,
+    pseudoClassEnabledElements = options?.pseudo_class_enabled_elements
   } = options || {};
 
   // keep certain records throughout serialization
@@ -104,13 +106,18 @@ export function serializeDOM(options) {
     disableShadowDOM,
     ignoreCanvasSerializationErrors,
     ignoreStyleSheetSerializationErrors,
-    forceShadowAsLightDOM
+    forceShadowAsLightDOM,
+    pseudoClassEnabledElements
   };
 
   ctx.dom = dom;
+  markPseudoClassElements(ctx, pseudoClassEnabledElements);
   ctx.clone = cloneNodeAndShadow(ctx);
 
   serializeElements(ctx);
+
+  // STEP 4: Process pseudo-class enabled elements
+  serializePseudoClasses(ctx);
 
   if (domTransformation) {
     try {
