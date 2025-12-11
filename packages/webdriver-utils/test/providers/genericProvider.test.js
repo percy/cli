@@ -160,10 +160,10 @@ describe('GenericProvider', () => {
         { osName: 'iOS', device: 'iPhone 13', browserName: 'Safari', percyBrowserCustomName: 'ios-safari-iphone13' }
       ];
       const provider = new GenericProvider({ options: { platforms } });
-      
+
       const name1 = provider.resolvePercyBrowserCustomNameFor({ osName: 'Windows', browserName: 'Chrome' });
       expect(name1).toBe('win-chrome');
-      
+
       const name2 = provider.resolvePercyBrowserCustomNameFor({ osName: 'iOS', browserName: 'Safari', deviceName: 'iPhone 13', isMobile: true });
       expect(name2).toBe('ios-safari-iphone13');
     });
@@ -173,7 +173,7 @@ describe('GenericProvider', () => {
         { osName: 'Windows', browserName: 'Chrome', browserVersion: '', percyBrowserCustomName: 'win-chrome-empty' }
       ];
       const provider = new GenericProvider({ options: { platforms } });
-      
+
       const name = provider.resolvePercyBrowserCustomNameFor({ osName: 'Windows', browserName: 'Chrome', browserVersion: '118' });
       expect(name).toBe('win-chrome-empty');
     });
@@ -184,7 +184,7 @@ describe('GenericProvider', () => {
         { osName: 'iOS', deviceName: 'iPhone 13', browserName: 'Safari', percyBrowserCustomName: 'ios-safari-iphone13' }
       ];
       const provider = new GenericProvider({ options: { platforms } });
-      
+
       const name = provider.resolvePercyBrowserCustomNameFor({ osName: 'iOS', browserName: 'Safari', deviceName: 'iPhone 13', isMobile: true });
       expect(name).toBe('ios-safari-iphone13');
     });
@@ -194,7 +194,7 @@ describe('GenericProvider', () => {
         { osName: 'iOS', deviceName: 'iPhone 12', browserName: 'Safari', percyBrowserCustomName: 'ios-safari-iphone12' }
       ];
       const provider = new GenericProvider({ options: { platforms } });
-      
+
       const name = provider.resolvePercyBrowserCustomNameFor({ osName: 'iOS', browserName: 'Safari', deviceName: 'iPhone 14', isMobile: true });
       expect(name).toBeNull();
     });
