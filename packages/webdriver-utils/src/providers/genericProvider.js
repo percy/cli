@@ -454,7 +454,7 @@ export default class GenericProvider {
     return elementsArray;
   }
 
-  resolvePercyBrowserCustomNameFor({ osName = '', osVersion = '', browserName = '', browserVersion = '', deviceName = '', isMobile = false } = {}) {
+  resolvePercyBrowserCustomNameFor({ osName, osVersion, browserName, browserVersion, deviceName, isMobile } = {}) {
     if (this.platforms.length === 0) return null;
 
     const norm = v => v.toString().toLowerCase(); // normalize
