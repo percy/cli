@@ -454,7 +454,7 @@ export default class GenericProvider {
     return elementsArray;
   }
 
-  resolvePercyBrowserCustomNameFor({ osName, osVersion, browserName, browserVersion, deviceName, isMobile } = {}) {
+  resolvePercyBrowserCustomNameFor({ osName, osVersion, browserName, browserVersion, deviceName, isMobile }) {
     if (this.platforms.length === 0) return null;
 
     const norm = v => v.toString().toLowerCase(); // normalize
@@ -466,14 +466,14 @@ export default class GenericProvider {
     const includes = (a, b) => {
       const na = norm(a);
       const nb = norm(b);
-      return na && nb ? na.includes(nb) : false;
+      return na.includes(nb);
     };
 
     for (const platform of this.platforms) {
       const percyBrowserCustomName = platform.percyBrowserCustomName;
 
-      const pDevice = platform.deviceName || platform.device || '';
-      const pOsName = platform.osName || platform.os || '';
+      const pDevice = platform.deviceName || '';
+      const pOsName = platform.osName || '';
       const pOsVersion = platform.osVersion || '';
       const pBrowserName = platform.browserName || '';
       const pBrowserVersion = platform.browserVersion || '';

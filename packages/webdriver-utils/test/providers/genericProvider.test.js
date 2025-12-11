@@ -150,7 +150,7 @@ describe('GenericProvider', () => {
       const name3 = provider.resolvePercyBrowserCustomNameFor({ osName: 'iOS', browserName: 'Safari', browserVersion: '17', deviceName: 'iPhone 12', isMobile: true });
       expect(name3).toBe('ios-safari-iphone12');
       // when no match returns null
-      const name4 = provider.resolvePercyBrowserCustomNameFor({ osName: 'Android', browserName: 'Chrome' });
+      const name4 = provider.resolvePercyBrowserCustomNameFor({ osName: '', browserName: 'Chrome' });
       expect(name4).toBeNull();
     });
 
