@@ -138,7 +138,7 @@ describe('GenericProvider', () => {
         { osName: 'Windows', browserName: 'Chrome', browserVersion: '118', percyBrowserCustomName: 'win-chrome-118' },
         { osName: 'Windows', browserName: 'Chrome', browserVersion: 'latest', percyBrowserCustomName: 'win-chrome-latest' },
         { osName: 'iOS', deviceName: 'iPhone 12', browserName: 'Safari', browserVersion: 'latest', percyBrowserCustomName: 'ios-safari-iphone12' },
-        { osName: 'iOS', deviceName: 'iPhone 13', browserName: 'Safari', percyBrowserCustomName: 'ios-safari-iphone13' }
+        { osName: 'iOS', deviceName: 'iPhone 13', percyBrowserCustomName: 'ios-safari-iphone13' }
       ];
       const provider = new GenericProvider({ options: { platforms } });
       // exact specific version wins over latest
