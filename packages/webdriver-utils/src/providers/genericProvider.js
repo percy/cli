@@ -14,6 +14,7 @@ export default class GenericProvider {
     Object.assign(this, args);
     this.addClientInfo(this.clientInfo);
     this.addEnvironmentInfo(this.environmentInfo);
+    this.platforms = this.sortPlatforms(this.options?.platforms || []);
     this._markedPercy = false;
     this.metaData = null;
     this.debugUrl = null;
@@ -26,6 +27,23 @@ export default class GenericProvider {
     this.currentTag = null;
     this.removeElementShiftFactor = 50000;
     this.initialScrollLocation = null;
+  }
+
+  // Sort platforms so that entries without browserVersion or with 'latest' come last
+  // As we want to prioritize specific versions first while matching
+  sortPlatforms(platforms) {
+    const isMissingOrLatest = (v) => {
+      if (!v) return true;
+      const s = String(v).toLowerCase();
+      return s.includes('latest');
+    };
+
+    return [...platforms].sort((a, b) => {
+      const aFlag = isMissingOrLatest(a?.browserVersion);
+      const bFlag = isMissingOrLatest(b?.browserVersion);
+      if (aFlag === bFlag) return 0; // keep original order when both are same group
+      return aFlag ? 1 : -1; // push missing/latest to the end
+    });
   }
 
   addDefaultOptions() {
@@ -436,6 +454,48 @@ export default class GenericProvider {
     return elementsArray;
   }
 
+  resolvePercyBrowserCustomNameFor({ osName = '', osVersion = '', browserName = '', browserVersion = '', deviceName = '', isMobile = false } = {}) {
+    if (this.platforms.length === 0) return null;
+
+    const norm = v => v.toString().toLowerCase(); // normalize
+    const match = (userInput, output) => {
+      if (!userInput) return true;
+      return norm(userInput) === norm(output);
+    };
+
+    const includes = (a, b) => {
+      const na = norm(a);
+      const nb = norm(b);
+      return na && nb ? na.includes(nb) : false;
+    };
+
+    for (const platform of this.platforms) {
+      const percyBrowserCustomName = platform.percyBrowserCustomName;
+
+      const pDevice = platform.deviceName || platform.device || '';
+      const pOsName = platform.osName || platform.os || '';
+      const pOsVersion = platform.osVersion || '';
+      const pBrowserName = platform.browserName || '';
+      const pBrowserVersion = platform.browserVersion || '';
+
+      if (match(pOsName, osName) &&
+          match(pBrowserName, browserName) &&
+          match(pOsVersion, osVersion) &&
+          (
+            !pBrowserVersion ||
+            pBrowserVersion.toLowerCase() === 'latest' ||
+            includes(browserVersion, pBrowserVersion)
+          )) {
+        if (isMobile) {
+          if (!match(pDevice, deviceName)) continue;
+          return percyBrowserCustomName;
+        }
+        return percyBrowserCustomName;
+      }
+    }
+    return null;
+  }
+
   async getTag(tagData) {
     if (!this.automateResults) throw new Error('Comparison tag details not available');
     const automateCaps = this.automateResults.capabilities;
@@ -454,6 +514,14 @@ export default class GenericProvider {
     let { width, height } = { width: tagData.width, height: tagData.height };
     const resolution = tagData.resolution;
     const orientation = tagData.orientation || automateCaps.deviceOrientation || 'landscape';
+    const percyBrowserCustomName = this.resolvePercyBrowserCustomNameFor({
+      osName,
+      osVersion,
+      browserName,
+      browserVersion,
+      deviceName,
+      isMobile: !!tagData.device
+    });
 
     return {
       name: deviceName,
@@ -464,7 +532,8 @@ export default class GenericProvider {
       orientation,
       browserName,
       browserVersion,
-      resolution
+      resolution,
+      percyBrowserCustomName
     };
   }
 }

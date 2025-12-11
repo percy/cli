@@ -22,6 +22,127 @@ describe('GenericProvider', () => {
       .and.returnValue(Promise.resolve({ browserName: 'Chrome' }));
   });
 
+  describe('sortPlatforms', () => {
+    it('prioritizes specific versions over latest/missing while preserving relative order', () => {
+      const provider = new GenericProvider({ options: {} });
+      const input = [
+        { browserVersion: 'latest', id: 1 },
+        { browserVersion: '120', id: 2 },
+        { id: 3 },
+        { browserVersion: '118', id: 4 },
+        { browserVersion: 'Latest', id: 5 }
+      ];
+      const out = provider.sortPlatforms(input);
+      expect(out.map(p => p.id)).toEqual([2, 4, 1, 3, 5]);
+    });
+  });
+
+  describe('addDefaultOptions', () => {
+    it('maps freezeAnimatedImage/freezeAnimation into options.freezeAnimation', () => {
+      let provider = new GenericProvider({ options: { freezeAnimatedImage: true } });
+      provider.addDefaultOptions();
+      expect(provider.options.freezeAnimation).toBeTrue();
+
+      provider = new GenericProvider({ options: { freezeAnimation: true } });
+      provider.addDefaultOptions();
+      expect(provider.options.freezeAnimation).toBeTrue();
+
+      provider = new GenericProvider({ options: {} });
+      provider.addDefaultOptions();
+      expect(provider.options.freezeAnimation).toBeFalse();
+    });
+  });
+
+  describe('supports', () => {
+    it('always returns true', () => {
+      expect(GenericProvider.supports('http://executor')).toBeTrue();
+    });
+  });
+
+  describe('client/environment info aggregation', () => {
+    it('adds non-empty values to sets', () => {
+      const provider = new GenericProvider({ clientInfo: ['a', null, 'b'], environmentInfo: 'env', options: {} });
+      expect([...provider.clientInfoDetails]).toEqual(['a', 'b']);
+      expect([...provider.environmentInfoDetails]).toEqual(['env']);
+    });
+  });
+
+  describe('setDebugUrl', () => {
+    it('sets default debug url', async () => {
+      const provider = new GenericProvider(args);
+      await provider.setDebugUrl();
+      expect(provider.debugUrl).toBe('https://localhost/v1');
+    });
+  });
+
+  describe('percyScreenshotBegin', () => {
+    beforeEach(() => {
+      args.buildInfo = { id: 'b1', url: 'http://build' };
+    });
+
+    it('marks session as percy on success', async () => {
+      const provider = new GenericProvider(args);
+      await provider.createDriver();
+      spyOn(GenericProvider.prototype, 'browserstackExecutor').and.returnValue(Promise.resolve({ success: true }));
+      const res = await provider.percyScreenshotBegin('snap');
+      expect(res).toEqual({ success: true });
+      expect(provider._markedPercy).toBeTrue();
+    });
+
+    it('throws with status 13 using Selenium dialect body', async () => {
+      const provider = new GenericProvider(args);
+      await provider.createDriver();
+      spyOn(GenericProvider.prototype, 'browserstackExecutor').and.returnValue(Promise.resolve({ status: 13, value: 'bad' }));
+      await expectAsync(provider.percyScreenshotBegin('snap')).toBeRejectedWithError('bad');
+    });
+
+    it('throws with parsed W3C error body', async () => {
+      const provider = new GenericProvider(args);
+      await provider.createDriver();
+      const err = new Error('boom');
+      err.response = { body: JSON.stringify({ value: { error: 'unknown error', message: 'w3c fail' } }) };
+      spyOn(GenericProvider.prototype, 'browserstackExecutor').and.callFake(() => { throw err; });
+      await expectAsync(provider.percyScreenshotBegin('snap')).toBeRejectedWithError('w3c fail');
+    });
+  });
+
+  describe('percyScreenshotEnd', () => {
+    beforeEach(() => {
+      args.options = { sync: true };
+    });
+    it('swallows errors and logs when executor fails', async () => {
+      const provider = new GenericProvider(args);
+      await provider.createDriver();
+      spyOn(GenericProvider.prototype, 'browserstackExecutor').and.throwError('fail');
+      await provider.percyScreenshotEnd('snap', new Error('x'));
+      // no throw expected
+      expect(GenericProvider.prototype.browserstackExecutor).toHaveBeenCalled();
+    });
+  });
+
+  describe('resolvePercyBrowserCustomNameFor', () => {
+    it('matches by normalized fields, includes version, and device when mobile', () => {
+      const platforms = [
+        { osName: 'Windows', browserName: 'Chrome', browserVersion: '118', percyBrowserCustomName: 'win-chrome-118' },
+        { osName: 'Windows', browserName: 'Chrome', browserVersion: 'latest', percyBrowserCustomName: 'win-chrome-latest' },
+        { osName: 'iOS', deviceName: 'iPhone 12', browserName: 'Safari', browserVersion: 'latest', percyBrowserCustomName: 'ios-safari-iphone12' }
+      ];
+      const provider = new GenericProvider({ options: { platforms } });
+      // exact specific version wins over latest
+      const name1 = provider.resolvePercyBrowserCustomNameFor({ osName: 'Windows', browserName: 'chrome', browserVersion: '118.0' });
+      expect(name1).toBe('win-chrome-118');
+      // latest used when specific not found
+      const name2 = provider.resolvePercyBrowserCustomNameFor({ osName: 'Windows', browserName: 'Chrome', browserVersion: '200' });
+      expect(name2).toBe('win-chrome-latest');
+      // mobile requires device match
+      const name3 = provider.resolvePercyBrowserCustomNameFor({ osName: 'iOS', browserName: 'Safari', browserVersion: '17', deviceName: 'iPhone 12', isMobile: true });
+      expect(name3).toBe('ios-safari-iphone12');
+      // when no match returns null
+      const name4 = provider.resolvePercyBrowserCustomNameFor({ osName: 'Android', browserName: 'Chrome' });
+      expect(name4).toBeNull();
+    });
+  });
+
   describe('createDriver', () => {
     let metaDataResolverSpy;
     let expectedDriver;
