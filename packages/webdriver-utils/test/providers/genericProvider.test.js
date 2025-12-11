@@ -121,6 +121,18 @@ describe('GenericProvider', () => {
   });
 
   describe('resolvePercyBrowserCustomNameFor', () => {
+    it('returns null when platforms array is empty', () => {
+      const provider = new GenericProvider({ options: { platforms: [] } });
+      const name = provider.resolvePercyBrowserCustomNameFor({ osName: 'Windows', browserName: 'Chrome' });
+      expect(name).toBeNull();
+    });
+
+    it('returns null when no platforms provided', () => {
+      const provider = new GenericProvider({ options: {} });
+      const name = provider.resolvePercyBrowserCustomNameFor({ osName: 'Windows', browserName: 'Chrome' });
+      expect(name).toBeNull();
+    });
+
     it('matches by normalized fields, includes version, and device when mobile', () => {
       const platforms = [
         { osName: 'Windows', browserName: 'Chrome', browserVersion: '118', percyBrowserCustomName: 'win-chrome-118' },
@@ -140,6 +152,51 @@ describe('GenericProvider', () => {
       // when no match returns null
       const name4 = provider.resolvePercyBrowserCustomNameFor({ osName: 'Android', browserName: 'Chrome' });
       expect(name4).toBeNull();
+    });
+
+    it('uses alternative platform property names (os, device)', () => {
+      const platforms = [
+        { os: 'Windows', browserName: 'Chrome', percyBrowserCustomName: 'win-chrome' },
+        { osName: 'iOS', device: 'iPhone 13', browserName: 'Safari', percyBrowserCustomName: 'ios-safari-iphone13' }
+      ];
+      const provider = new GenericProvider({ options: { platforms } });
+      
+      const name1 = provider.resolvePercyBrowserCustomNameFor({ osName: 'Windows', browserName: 'Chrome' });
+      expect(name1).toBe('win-chrome');
+      
+      const name2 = provider.resolvePercyBrowserCustomNameFor({ osName: 'iOS', browserName: 'Safari', deviceName: 'iPhone 13', isMobile: true });
+      expect(name2).toBe('ios-safari-iphone13');
+    });
+
+    it('handles includes with null or empty values in version check', () => {
+      const platforms = [
+        { osName: 'Windows', browserName: 'Chrome', browserVersion: '', percyBrowserCustomName: 'win-chrome-empty' }
+      ];
+      const provider = new GenericProvider({ options: { platforms } });
+      
+      const name = provider.resolvePercyBrowserCustomNameFor({ osName: 'Windows', browserName: 'Chrome', browserVersion: '118' });
+      expect(name).toBe('win-chrome-empty');
+    });
+
+    it('continues to next platform when mobile device does not match', () => {
+      const platforms = [
+        { osName: 'iOS', deviceName: 'iPhone 12', browserName: 'Safari', percyBrowserCustomName: 'ios-safari-iphone12' },
+        { osName: 'iOS', deviceName: 'iPhone 13', browserName: 'Safari', percyBrowserCustomName: 'ios-safari-iphone13' }
+      ];
+      const provider = new GenericProvider({ options: { platforms } });
+      
+      const name = provider.resolvePercyBrowserCustomNameFor({ osName: 'iOS', browserName: 'Safari', deviceName: 'iPhone 13', isMobile: true });
+      expect(name).toBe('ios-safari-iphone13');
+    });
+
+    it('returns null when mobile device name does not match any platform', () => {
+      const platforms = [
+        { osName: 'iOS', deviceName: 'iPhone 12', browserName: 'Safari', percyBrowserCustomName: 'ios-safari-iphone12' }
+      ];
+      const provider = new GenericProvider({ options: { platforms } });
+      
+      const name = provider.resolvePercyBrowserCustomNameFor({ osName: 'iOS', browserName: 'Safari', deviceName: 'iPhone 14', isMobile: true });
+      expect(name).toBeNull();
     });
   });
 
