@@ -474,9 +474,9 @@ export default class GenericProvider {
 
       const pDevice = platform.deviceName || '';
       const pOsName = platform.osName || '';
-      const pOsVersion = platform.osVersion || '';
+      const pOsVersion = (platform.osVersion || '').toString();
       const pBrowserName = platform.browserName || '';
-      const pBrowserVersion = platform.browserVersion || '';
+      const pBrowserVersion = (platform.browserVersion || '').toString();
 
       if (match(pOsName, osName) &&
           match(pBrowserName, browserName) &&

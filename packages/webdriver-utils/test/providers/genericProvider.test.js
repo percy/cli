@@ -135,7 +135,7 @@ describe('GenericProvider', () => {
 
     it('matches by normalized fields, includes version, and device when mobile', () => {
       const platforms = [
-        { osName: 'Windows', browserName: 'Chrome', browserVersion: '118', percyBrowserCustomName: 'win-chrome-118' },
+        { osName: 'Windows', browserName: 'Chrome', browserVersion: 118, percyBrowserCustomName: 'win-chrome-118' },
         { osName: 'Windows', browserName: 'Chrome', browserVersion: 'latest', percyBrowserCustomName: 'win-chrome-latest' },
         { osName: 'iOS', deviceName: 'iPhone 12', browserName: 'Safari', browserVersion: 'latest', percyBrowserCustomName: 'ios-safari-iphone12' },
         { osName: 'iOS', deviceName: 'iPhone 13', percyBrowserCustomName: 'ios-safari-iphone13' }
@@ -157,15 +157,15 @@ describe('GenericProvider', () => {
 
     it('uses alternative platform property names (os, device)', () => {
       const platforms = [
-        { os: 'Windows', browserName: 'Chrome', percyBrowserCustomName: 'win-chrome' },
+        { os: 'Windows', osVersion: 11, browserName: 'Chrome', percyBrowserCustomName: 'win-chrome' },
         { osName: 'iOS', device: 'iPhone 13', browserName: 'Safari', percyBrowserCustomName: 'ios-safari-iphone13' }
       ];
       const provider = new GenericProvider({ options: { platforms } });
 
-      const name1 = provider.resolvePercyBrowserCustomNameFor({ osName: 'Windows', browserName: 'Chrome' });
+      const name1 = provider.resolvePercyBrowserCustomNameFor({ osName: 'Windows', osVersion: 11, browserName: 'Chrome' });
       expect(name1).toBe('win-chrome');
 
-      const name2 = provider.resolvePercyBrowserCustomNameFor({ osName: 'iOS', browserName: 'Safari', deviceName: 'iPhone 13', isMobile: true });
+      const name2 = provider.resolvePercyBrowserCustomNameFor({ osName: 'iOS', osVersion: 'iphone', browserName: 'Safari', deviceName: 'iPhone 13', isMobile: true });
       expect(name2).toBe('ios-safari-iphone13');
     });
 

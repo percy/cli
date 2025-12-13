@@ -31,10 +31,16 @@ export const configSchema = {
               type: 'string'
             },
             browserVersion: {
-              type: 'string'
+              oneOf: [
+                { type: 'string' },
+                { type: 'number' }
+              ]
             },
             osVersion: {
-              type: 'string'
+              oneOf: [
+                { type: 'string' },
+                { type: 'number' }
+              ]
             },
             deviceName: {
               type: 'string'
