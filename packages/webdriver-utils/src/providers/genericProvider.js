@@ -503,7 +503,7 @@ export default class GenericProvider {
 
     let deviceName = this.automateResults.deviceName;
     const osName = normalizeTags.osRollUp(automateCaps.os);
-    const osVersion = automateCaps.os_version?.split('.')[0];
+    const osVersion = normalizeTags.osVersionRollUp(automateCaps.os_version?.split('.')[0]);
     const browserName = normalizeTags.browserRollUp(automateCaps.browserName, tagData.device);
     const browserVersion = normalizeTags.browserVersionOrDeviceNameRollup(automateCaps.browserVersion, deviceName, tagData.device);
 
@@ -514,6 +514,15 @@ export default class GenericProvider {
     let { width, height } = { width: tagData.width, height: tagData.height };
     const resolution = tagData.resolution;
     const orientation = tagData.orientation || automateCaps.deviceOrientation || 'landscape';
+
+    log.debug(
+      `Tag Details - Device: ${deviceName}, OS: ${osName}, ` +
+      `OS Version: ${osVersion}, Browser: ${browserName}, ` +
+      `Browser Version: ${browserVersion}, Width: ${width}, ` +
+      `Height: ${height}, Orientation: ${orientation}, ` +
+      `Resolution: ${resolution}`
+    );
+
     const percyBrowserCustomName = this.resolvePercyBrowserCustomNameFor({
       osName,
       osVersion,
@@ -522,6 +531,7 @@ export default class GenericProvider {
       deviceName,
       isMobile: !!tagData.device
     });
+    log.debug(`Resolved percyBrowserCustomName: ${percyBrowserCustomName}`);
 
     return {
       name: deviceName,

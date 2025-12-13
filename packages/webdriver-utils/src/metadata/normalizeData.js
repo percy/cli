@@ -1,3 +1,29 @@
+const OS_VERSION_MAP = {
+  winxp: 'XP',
+  win7: '7',
+  win8: '8',
+  'win8.1': '8.1',
+  win10: '10',
+  win11: '11',
+  win12: '12',
+  mactho: "Tahoe",
+  macsqa: "Sequoia",
+  macson: "Sonoma",
+  macven: "Ventura",
+  macmty: "Monterey",
+  macbsr: "Big Sur",
+  maccat: "Catalina",
+  macmo: "Mojave",
+  machs: "High Sierra",
+  macsie: "Sierra",
+  macelc: "El Capitan",
+  macyos: "Yosemite",
+  macmav: "Mavericks",
+  macml: "Mountain Lion",
+  maclion: "Lion",
+  macsl: "Snow Leopard"
+};
+
 export default class NormalizeData {
   osRollUp(os) {
     if (os.toLowerCase().startsWith('win')) {
@@ -10,6 +36,11 @@ export default class NormalizeData {
       return 'Android';
     }
     return os;
+  }
+
+  osVersionRollUp(osVersion) {
+    const normVersion = osVersion.toLowerCase();
+    return OS_VERSION_MAP[normVersion] || osVersion;
   }
 
   browserRollUp(browserName, device) {
