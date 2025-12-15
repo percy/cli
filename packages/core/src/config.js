@@ -20,6 +20,39 @@ export const configSchema = {
       skipBaseBuild: {
         type: 'boolean',
         default: false
+      },
+      platforms: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            browserName: {
+              type: 'string'
+            },
+            browserVersion: {
+              oneOf: [
+                { type: 'string' },
+                { type: 'number' }
+              ]
+            },
+            osVersion: {
+              oneOf: [
+                { type: 'string' },
+                { type: 'number' }
+              ]
+            },
+            deviceName: {
+              type: 'string'
+            },
+            os: {
+              type: 'string'
+            },
+            percyBrowserCustomName: {
+              type: 'string'
+            }
+          }
+        }
       }
     }
   },
@@ -769,7 +802,8 @@ export const comparisonSchema = {
         },
         browserName: { type: 'string' },
         browserVersion: { type: 'string' },
-        resolution: { type: 'string' }
+        resolution: { type: 'string' },
+        percyBrowserCustomName: { type: 'string' }
       }
     },
     tiles: {

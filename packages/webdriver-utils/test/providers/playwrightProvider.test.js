@@ -406,7 +406,8 @@ describe('PlaywrightProvider', () => {
         orientation: 'orientation',
         browserName: 'Chrome',
         browserVersion: '90.0',
-        resolution: 'resolution'
+        resolution: 'resolution',
+        percyBrowserCustomName: null
       });
     });
 
@@ -442,7 +443,8 @@ describe('PlaywrightProvider', () => {
         orientation: 'landscape',
         browserName: 'Chrome',
         browserVersion: '90.0',
-        resolution: 'resolution'
+        resolution: 'resolution',
+        percyBrowserCustomName: null
       });
     });
     it('should return the correct tag details for ios', async () => {
@@ -477,7 +479,8 @@ describe('PlaywrightProvider', () => {
         orientation: 'landscape',
         browserName: 'Safari',
         browserVersion: 'iPhone 12',
-        resolution: '375x812'
+        resolution: '375x812',
+        percyBrowserCustomName: null
       });
     });
 
