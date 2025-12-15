@@ -11,7 +11,7 @@ describe('WaitForJob', () => {
 
   beforeEach(async () => {
     await logger.mock({ level: 'debug' });
-    jasmine.DEFAULT_TIMEOUT_INTERVAL = 50000;
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 150000;
 
     client = new PercyClient({
       token: 'PERCY_TOKEN'

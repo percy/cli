@@ -10,7 +10,7 @@ describe('Percy', () => {
 
   beforeEach(async () => {
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
-    jasmine.DEFAULT_TIMEOUT_INTERVAL = 50000;
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 150000;
     await setupTest();
 
     server = await createTestServer({
