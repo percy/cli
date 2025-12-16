@@ -318,6 +318,103 @@ describe('Discovery', () => {
     ]));
   });
 
+  it('handles Google Fonts with incorrect mime type', async () => {
+    // Create a WOFF2 font buffer
+    const woff2FontBuffer = Buffer.from('wOF2\x00\x01\x00\x00test font data', 'binary');
+
+    // Mock Google Fonts URL with text/html mime type (incorrect)
+    server.reply('/fonts.gstatic.com/s/roboto/v30/font.woff2', () => [
+      200,
+      'text/html', // Incorrect mime type
+      woff2FontBuffer
+    ]);
+
+    const googleFontCSS = [
+      '@font-face { font-family: "Roboto"; src: url("http://localhost:8000/fonts.gstatic.com/s/roboto/v30/font.woff2") format("woff2"); }',
+      'body { font-family: "Roboto", sans-serif; }'
+    ].join('');
+
+    server.reply('/google-fonts.css', () => [200, 'text/css', googleFontCSS]);
+
+    const googleFontDOM = testDOM.replace('style.css', 'google-fonts.css');
+
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'google fonts snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: googleFontDOM
+    });
+
+    await percy.idle();
+
+    let paths = server.requests.map(r => r[0]);
+    expect(paths).toContain('/fonts.gstatic.com/s/roboto/v30/font.woff2');
+
+    // Verify the font was captured with correct mime type detection
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        id: jasmine.any(String),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/fonts.gstatic.com/s/roboto/v30/font.woff2'
+        })
+      })
+    ]));
+
+    // Check that the mime type was detected and overridden
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Detected Google Font as font\/woff2 from content/)
+    ]));
+  });
+
+  it('handles Google Fonts with unrecognizable format', async () => {
+    // Create a non-standard font buffer that doesn't match known signatures
+    const unknownFontBuffer = Buffer.from('UNKN\x00\x01\x00\x00test font data', 'binary');
+
+    server.reply('/fonts.gstatic.com/icon/font', () => [
+      200,
+      'text/html', // Incorrect mime type
+      unknownFontBuffer
+    ]);
+
+    const googleIconCSS = [
+      '@font-face { font-family: "Material Icons"; src: url("http://localhost:8000/fonts.gstatic.com/icon/font") format("woff2"); }',
+      'body { font-family: "Material Icons"; }'
+    ].join('');
+
+    server.reply('/google-icons.css', () => [200, 'text/css', googleIconCSS]);
+
+    const googleIconDOM = testDOM.replace('style.css', 'google-icons.css');
+
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'google icons snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: googleIconDOM
+    });
+
+    await percy.idle();
+
+    let paths = server.requests.map(r => r[0]);
+    expect(paths).toContain('/fonts.gstatic.com/icon/font');
+
+    // Should still capture the font even if format is unclear
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        id: jasmine.any(String),
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/fonts.gstatic.com/icon/font'
+        })
+      })
+    ]));
+
+    // Check that fallback was used
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Google Font detected but format unclear/)
+    ]));
+  });
+
   it('captures redirected resources', async () => {
     let stylesheet = [
       '@font-face { font-family: "test"; src: url("/font-file.woff") format("woff"); }',
