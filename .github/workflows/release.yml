@@ -18,5 +18,4 @@ jobs:
     - run: yarn build
     - name: lerna publish
       run: yarn lerna publish from-package --yes
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
