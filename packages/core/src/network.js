@@ -513,7 +513,7 @@ async function saveResponseResource(network, request, session) {
       // Check if this is a Google Fonts request with incorrect mime type
       // Google Fonts sometimes returns font files with text/html mime type and URLs without extensions
       // Detect the actual font format from the file content using magic bytes
-      let isGoogleFont = url.includes('fonts.gstatic.com');
+      let isGoogleFont = urlObj.hostname === 'fonts.gstatic.com';
       if (isGoogleFont && mimeType === 'text/html') {
         const detectedFontMime = detectFontMimeType(body);
         if (detectedFontMime) {
