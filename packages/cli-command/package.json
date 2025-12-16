@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-command",
-  "version": "1.31.6-beta.3",
+  "version": "1.31.6-beta.4",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -36,8 +36,8 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@percy/config": "1.31.6-beta.3",
-    "@percy/core": "1.31.6-beta.3",
-    "@percy/logger": "1.31.6-beta.3"
+    "@percy/config": "1.31.6-beta.4",
+    "@percy/core": "1.31.6-beta.4",
+    "@percy/logger": "1.31.6-beta.4"
   }
 }
