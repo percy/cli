@@ -103,6 +103,7 @@ export function percyAutomateRequestHandler(req, percy) {
     algorithm: percy.config.snapshot.algorithm,
     algorithmConfiguration: percy.config.snapshot.algorithmConfiguration,
     sync: percy.config.snapshot.sync,
+    platforms: percy.config.percy.platforms,
     version: 'v2'
   },
   camelCasedOptions

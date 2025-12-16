@@ -404,7 +404,8 @@ describe('AutomateProvider', () => {
           orientation: 'landscape',
           browserName: 'chrome',
           browserVersion: '113',
-          resolution: '1980 x 1080'
+          resolution: '1980 x 1080',
+          percyBrowserCustomName: null
         });
       });
     });
@@ -443,7 +444,8 @@ describe('AutomateProvider', () => {
           orientation: 'portrait',
           browserName: 'chrome',
           browserVersion: 'Samsung Galaxy S21',
-          resolution: '1980 x 1080'
+          resolution: '1980 x 1080',
+          percyBrowserCustomName: null
         });
       });
     });

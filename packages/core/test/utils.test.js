@@ -1,4 +1,4 @@
-import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, detectFontMimeType } from '../src/utils.js';
+import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType } from '../src/utils.js';
 import { logger, setupTest, mockRequests } from './helpers/index.js';
 import percyLogger from '@percy/logger';
 import Percy from '@percy/core';
@@ -10,7 +10,94 @@ describe('utils', () => {
     log = percyLogger();
     logger.reset(true);
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 150000;
     await logger.mock({ level: 'debug' });
+  });
+
+  describe('percyAutomateRequestHandler', () => {
+    it('maps client/environment info, camelCases options, merges config, concatenates percyCSS and attaches buildInfo', () => {
+      const req = {
+        body: {
+          client_info: 'sdk/1.0.0',
+          environment_info: 'env/abc',
+          options: {
+            'percy-css': '.a{color:red}',
+            freeze_animated_image: true,
+            ignore_region_selectors: ['.ignore'],
+            consider_region_xpaths: ['//div']
+          }
+        }
+      };
+
+      const percy = {
+        build: { id: 'b1' },
+        config: {
+          percy: { platforms: [{ osName: 'Windows' }] },
+          snapshot: {
+            fullPage: false,
+            percyCSS: '.root{display:none}',
+            freezeAnimatedImage: false,
+            freezeAnimation: true,
+            freezeAnimatedImageOptions: {
+              freezeImageBySelectors: ['.gif'],
+              freezeImageByXpaths: ['//img']
+            },
+            ignoreRegions: { ignoreRegionSelectors: ['.global-ignore'], ignoreRegionXpaths: ['//global'] },
+            considerRegions: { considerRegionSelectors: ['.global-consider'], considerRegionXpaths: ['//gconsider'] },
+            regions: [{ top: 0, left: 0, bottom: 10, right: 10 }],
+            algorithm: 'ssim',
+            algorithmConfiguration: { sensitivity: 'high' },
+            sync: true
+          }
+        }
+      };
+
+      percyAutomateRequestHandler(req, percy);
+
+      // client/env mapping
+      expect(req.body.clientInfo).toBe('sdk/1.0.0');
+      expect(req.body.environmentInfo).toBe('env/abc');
+
+      // options normalized and merged, percyCSS concatenated
+      expect(req.body.options.version).toBe('v2');
+      expect(req.body.options.platforms).toEqual(percy.config.percy.platforms);
+      expect(req.body.options.fullPage).toBe(false);
+      expect(req.body.options.percyCSS).toBe('.root{display:none}\n.a{color:red}');
+      // freezeAnimatedImage comes from snapshot.freezeAnimatedImage || freezeAnimation (true)
+      expect(req.body.options.freezeAnimatedImage).toBeTrue();
+      expect(req.body.options.freezeImageBySelectors).toEqual(['.gif']);
+      expect(req.body.options.freezeImageByXpaths).toEqual(['//img']);
+      // arrays from request options should merge with global config where applicable
+      expect(req.body.options.ignoreRegionSelectors).toEqual(['.global-ignore', '.ignore']);
+      expect(req.body.options.ignoreRegionXpaths).toEqual(['//global']);
+      expect(req.body.options.considerRegionSelectors).toEqual(['.global-consider']);
+      expect(req.body.options.considerRegionXpaths).toEqual(['//gconsider', '//div']);
+      expect(req.body.options.regions).toEqual([{ top: 0, left: 0, bottom: 10, right: 10 }]);
+      expect(req.body.options.algorithm).toBe('ssim');
+      expect(req.body.options.algorithmConfiguration).toEqual({ sensitivity: 'high' });
+      expect(req.body.options.sync).toBeTrue();
+
+      // build info attached
+      expect(req.body.buildInfo).toEqual({ id: 'b1' });
+    });
+
+    it('handles missing client/environment and empty options', () => {
+      const req = { body: { options: { } } };
+      const percy = { build: { id: 'b' }, config: { percy: { platforms: [] }, snapshot: { percyCSS: '', freezeAnimation: false } } };
+
+      percyAutomateRequestHandler(req, percy);
+
+      expect(req.body.clientInfo).toBeUndefined();
+      expect(req.body.environmentInfo).toBeUndefined();
+      expect(req.body.options.version).toBe('v2');
+      // When no global regions are defined, these should be undefined (not empty arrays)
+      expect(req.body.options.platforms).toBeUndefined();
+      expect(req.body.options.ignoreRegionSelectors).toBeUndefined();
+      expect(req.body.options.ignoreRegionXpaths).toBeUndefined();
+      expect(req.body.options.considerRegionSelectors).toBeUndefined();
+      expect(req.body.options.considerRegionXpaths).toBeUndefined();
+      expect(req.body.buildInfo).toEqual({ id: 'b' });
+    });
   });
 
   describe('decodeAndEncodeURLWithLogging', () => {

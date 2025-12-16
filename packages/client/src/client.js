@@ -569,6 +569,7 @@ export class PercyClient {
                 orientation: tag.orientation || null,
                 'browser-name': tag.browserName || null,
                 'browser-version': tag.browserVersion || null,
+                'percy-browser-custom-name': tag.percyBrowserCustomName || null,
                 resolution: tag.resolution || null
               }
             }

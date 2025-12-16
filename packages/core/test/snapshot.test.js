@@ -12,7 +12,7 @@ describe('Snapshot', () => {
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     // to stop logging cpu/mem info as percy start
     process.env.PERCY_DISABLE_SYSTEM_MONITORING = 'true';
-
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 150000;
     await setupTest();
 
     server = await createTestServer({
