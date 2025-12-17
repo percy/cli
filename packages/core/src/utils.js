@@ -73,6 +73,28 @@ export function detectFontMimeType(buffer) {
   }
 }
 
+// Handles Google Fonts MIME type detection and override
+// Google Fonts sometimes returns font files with text/html mime type
+// This function detects the actual font format from the file content
+export function handleGoogleFontMimeType(urlObj, mimeType, body, log, meta) {
+  // Check if this is a Google Fonts request with incorrect mime type
+  let isGoogleFont = urlObj.hostname === 'fonts.gstatic.com';
+
+  if (isGoogleFont && mimeType === 'text/html') {
+    const detectedFontMime = detectFontMimeType(body);
+    if (detectedFontMime) {
+      mimeType = detectedFontMime;
+      log.debug(`- Detected Google Font as ${detectedFontMime} from content, overriding mime type`, meta);
+    } else {
+      // Fallback to generic font mime type if we can't detect the specific format
+      mimeType = 'application/font-woff2';
+      log.debug('- Google Font detected but format unclear, treating as font', meta);
+    }
+  }
+
+  return mimeType;
+}
+
 /* istanbul ignore next: tested, but coverage is stripped */
 // Returns the body for automateScreenshot in structure
 export function percyAutomateRequestHandler(req, percy) {

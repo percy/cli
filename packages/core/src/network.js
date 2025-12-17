@@ -1,7 +1,7 @@
 import { request as makeRequest } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
-import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, detectFontMimeType } from './utils.js';
+import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleGoogleFontMimeType } from './utils.js';
 
 const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
@@ -510,21 +510,8 @@ async function saveResponseResource(network, request, session) {
         response.mimeType === 'text/plain' && detectedMime
       ) || response.mimeType;
 
-      // Check if this is a Google Fonts request with incorrect mime type
-      // Google Fonts sometimes returns font files with text/html mime type and URLs without extensions
-      // Detect the actual font format from the file content using magic bytes
-      let isGoogleFont = urlObj.hostname === 'fonts.gstatic.com';
-      if (isGoogleFont && mimeType === 'text/html') {
-        const detectedFontMime = detectFontMimeType(body);
-        if (detectedFontMime) {
-          mimeType = detectedFontMime;
-          log.debug(`- Detected Google Font as ${detectedFontMime} from content, overriding mime type`, meta);
-        } else {
-          // Fallback to generic font mime type if we can't detect the specific format
-          mimeType = 'application/font-woff2';
-          log.debug('- Google Font detected but format unclear, treating as font', meta);
-        }
-      }
+      // Handle Google Fonts MIME type detection and override
+      mimeType = handleGoogleFontMimeType(urlObj, mimeType, body, log, meta);
 
       // if we detect a font mime, we dont want to override it as different browsers may behave
       // differently for incorrect mimetype in font response, but we want to treat it as a
