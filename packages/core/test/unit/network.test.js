@@ -1,126 +1,118 @@
-import { detectFontMimeType } from '../../src/utils.js';
+import { saveResponseResource } from '../../src/network.js';
+import logger from '@percy/logger';
+import * as clientUtils from '@percy/client/utils';
+import * as utils from '../../src/utils.js';
 
 describe('Network - Google Fonts MIME type handling', () => {
-  describe('MIME type detection logic', () => {
-    it('should detect WOFF2 format and return font/woff2', () => {
-      const woff2FontBuffer = Buffer.from('wOF2\x00\x01\x00\x00additional font data here', 'binary');
-      const url = new URL('https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxK.woff2');
-      const mimeType = 'text/html';
+  let network, session, mockLog;
 
-      // Test the logic
-      const isGoogleFont = url.hostname === 'fonts.gstatic.com';
-      expect(isGoogleFont).toBe(true);
+  beforeEach(() => {
+    mockLog = logger('test');
+    spyOn(mockLog, 'debug');
 
-      if (isGoogleFont && mimeType === 'text/html') {
-        const detectedFontMime = detectFontMimeType(woff2FontBuffer);
-        expect(detectedFontMime).toEqual('font/woff2');
+    network = {
+      log: mockLog,
+      meta: { snapshotName: 'test' },
+      intercept: {
+        disableCache: true,
+        allowedHostnames: ['fonts.gstatic.com'],
+        enableJavaScript: true,
+        getResource: () => null,
+        saveResource: jasmine.createSpy('saveResource')
       }
+    };
+
+    session = {
+      send: jasmine.createSpy('send').and.returnValue(Promise.resolve({ cookies: [] }))
+    };
+
+    // Mock makeRequest to return a valid font buffer
+    spyOn(clientUtils, 'request').and.returnValue(
+      Promise.resolve(Buffer.from('wOF2\x00\x01\x00\x00font data', 'binary'))
+    );
+
+    // Mock createResource to return a valid resource object
+    spyOn(utils, 'createResource').and.returnValue({
+      url: 'https://fonts.gstatic.com/font.woff2',
+      content: 'mock',
+      sha: 'mock-sha',
+      mimetype: 'font/woff2'
     });
+  });
 
-    it('should detect WOFF format and return font/woff', () => {
-      const woffFontBuffer = Buffer.from('wOFF\x00\x01\x00\x00font data here', 'binary');
-      const url = new URL('https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxK.woff');
-      const mimeType = 'text/html';
-
-      const isGoogleFont = url.hostname === 'fonts.gstatic.com';
-      expect(isGoogleFont).toBe(true);
-
-      if (isGoogleFont && mimeType === 'text/html') {
-        const detectedFontMime = detectFontMimeType(woffFontBuffer);
-        expect(detectedFontMime).toEqual('font/woff');
+  it('should detect WOFF2 format and override mime type for Google Fonts', async () => {
+    const woff2Buffer = Buffer.from('wOF2\x00\x01\x00\x00font data', 'binary');
+    
+    const request = {
+      url: 'https://fonts.gstatic.com/s/roboto/v30/font.woff2',
+      type: 'Font',
+      headers: {},
+      redirectChain: [],
+      response: {
+        status: 200,
+        mimeType: 'text/html',
+        headers: {},
+        buffer: () => Promise.resolve(woff2Buffer)
       }
-    });
+    };
 
-    it('should detect TTF format and return font/ttf', () => {
-      const ttfFontBuffer = Buffer.from('\x00\x01\x00\x00font data here', 'binary');
-      const url = new URL('https://fonts.gstatic.com/s/roboto/v30/font.ttf');
-      const mimeType = 'text/html';
+    await saveResponseResource(network, request, session);
 
-      const isGoogleFont = url.hostname === 'fonts.gstatic.com';
-      expect(isGoogleFont).toBe(true);
+    expect(mockLog.debug).toHaveBeenCalledWith(
+      jasmine.stringContaining('Detected Google Font as font/woff2 from content'),
+      jasmine.any(Object)
+    );
+  });
 
-      if (isGoogleFont && mimeType === 'text/html') {
-        const detectedFontMime = detectFontMimeType(ttfFontBuffer);
-        expect(detectedFontMime).toEqual('font/ttf');
+  it('should fallback to application/font-woff2 when format cannot be detected', async () => {
+    const unknownBuffer = Buffer.from('UNKN\x00\x01\x00\x00data', 'binary');
+    
+    const request = {
+      url: 'https://fonts.gstatic.com/s/roboto/v30/font.unknown',
+      type: 'Font',
+      headers: {},
+      redirectChain: [],
+      response: {
+        status: 200,
+        mimeType: 'text/html',
+        headers: {},
+        buffer: () => Promise.resolve(unknownBuffer)
       }
-    });
+    };
 
-    it('should fallback to application/font-woff2 when format cannot be detected', () => {
-      const unknownFontBuffer = Buffer.from('UNKN\x00\x01\x00\x00some font data', 'binary');
-      const url = new URL('https://fonts.gstatic.com/s/custom/unknown-format.font');
-      const mimeType = 'text/html';
+    await saveResponseResource(network, request, session);
 
-      const isGoogleFont = url.hostname === 'fonts.gstatic.com';
-      expect(isGoogleFont).toBe(true);
+    expect(mockLog.debug).toHaveBeenCalledWith(
+      '- Google Font detected but format unclear, treating as font',
+      jasmine.any(Object)
+    );
+  });
 
-      if (isGoogleFont && mimeType === 'text/html') {
-        const detectedFontMime = detectFontMimeType(unknownFontBuffer);
-        expect(detectedFontMime).toBeNull();
-
-        // When null, the code should fallback to 'application/font-woff2'
-        const finalMimeType = detectedFontMime || 'application/font-woff2';
-        expect(finalMimeType).toEqual('application/font-woff2');
+  it('should not override mime type when already correct', async () => {
+    const woffBuffer = Buffer.from('wOFF\x00\x01\x00\x00font data', 'binary');
+    
+    const request = {
+      url: 'https://fonts.gstatic.com/s/roboto/v30/font.woff',
+      type: 'Font',
+      headers: {},
+      redirectChain: [],
+      response: {
+        status: 200,
+        mimeType: 'font/woff',
+        headers: {},
+        buffer: () => Promise.resolve(woffBuffer)
       }
-    });
+    };
 
-    it('should not apply Google Font logic when mime type is already correct', () => {
-      const url = new URL('https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxK.woff');
-      let mimeType = 'font/woff'; // Already correct
+    await saveResponseResource(network, request, session);
 
-      const isGoogleFont = url.hostname === 'fonts.gstatic.com';
-      expect(isGoogleFont).toBe(true);
-
-      // The condition should NOT trigger because mimeType is not 'text/html'
-      if (isGoogleFont && mimeType === 'text/html') {
-        // This should not execute
-        fail('Should not execute Google Font override when mime type is already correct');
-      }
-
-      expect(mimeType).toEqual('font/woff');
-    });
-
-    it('should not apply Google Font logic for non-Google Fonts domains', () => {
-      const url = new URL('https://other-cdn.com/fonts/myfont.woff2');
-      let mimeType = 'text/html';
-
-      const isGoogleFont = url.hostname === 'fonts.gstatic.com';
-      expect(isGoogleFont).toBe(false);
-
-      // The condition should NOT trigger because hostname is not fonts.gstatic.com
-      if (isGoogleFont && mimeType === 'text/html') {
-        // This should not execute
-        fail('Should not execute Google Font logic for non-Google Fonts domains');
-      }
-
-      expect(mimeType).toEqual('text/html'); // Should remain unchanged
-    });
-
-    it('should handle fonts.gstatic.com with different ports', () => {
-      const woff2FontBuffer = Buffer.from('wOF2\x00\x01\x00\x00font data', 'binary');
-      const url = new URL('http://fonts.gstatic.com:8080/s/roboto/v30/font.woff2');
-      const mimeType = 'text/html';
-
-      const isGoogleFont = url.hostname === 'fonts.gstatic.com';
-      expect(isGoogleFont).toBe(true);
-
-      if (isGoogleFont && mimeType === 'text/html') {
-        const detectedFontMime = detectFontMimeType(woff2FontBuffer);
-        expect(detectedFontMime).toEqual('font/woff2');
-      }
-    });
-
-    it('should handle fonts.gstatic.com with query parameters', () => {
-      const woff2FontBuffer = Buffer.from('wOF2\x00\x01\x00\x00font data', 'binary');
-      const url = new URL('https://fonts.gstatic.com/s/roboto/v30/font.woff2?version=1.2.3');
-      const mimeType = 'text/html';
-
-      const isGoogleFont = url.hostname === 'fonts.gstatic.com';
-      expect(isGoogleFont).toBe(true);
-
-      if (isGoogleFont && mimeType === 'text/html') {
-        const detectedFontMime = detectFontMimeType(woff2FontBuffer);
-        expect(detectedFontMime).toEqual('font/woff2');
-      }
-    });
+    expect(mockLog.debug).not.toHaveBeenCalledWith(
+      jasmine.stringContaining('Detected Google Font as'),
+      jasmine.any(Object)
+    );
+    expect(mockLog.debug).not.toHaveBeenCalledWith(
+      '- Google Font detected but format unclear, treating as font',
+      jasmine.any(Object)
+    );
   });
 });
