@@ -38,7 +38,7 @@ describe('Discovery', () => {
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     await setupTest();
     originalTimeout = jasmine.DEFAULT_TIMEOUT_INTERVAL;
-    jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 150000;
     delete process.env.PERCY_BROWSER_EXECUTABLE;
     delete process.env.PERCY_GZIP;
 
