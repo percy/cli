@@ -30,6 +30,71 @@ export function normalizeURL(url) {
   return `${protocol}//${host}${pathname}${search}`;
 }
 
+// Detects font MIME type from file content by checking magic bytes
+// Returns the detected MIME type or null if not a recognized font format
+export function detectFontMimeType(buffer) {
+  try {
+    // Ensure buffer has at least 4 bytes
+    if (!buffer || buffer.length < 4) {
+      return null;
+    }
+
+    // Read the first 4 bytes as the file header
+    const header = buffer.slice(0, 4).toString('binary');
+
+    // Check for WOFF signature: 'wOFF'
+    if (header === 'wOFF') {
+      return 'font/woff';
+    }
+
+    // Check for WOFF2 signature: 'wOF2'
+    if (header === 'wOF2') {
+      return 'font/woff2';
+    }
+
+    // Check for TrueType/OpenType signature: 0x00 0x01 0x00 0x00
+    if (header.charCodeAt(0) === 0x00 &&
+        header.charCodeAt(1) === 0x01 &&
+        header.charCodeAt(2) === 0x00 &&
+        header.charCodeAt(3) === 0x00) {
+      return 'font/ttf';
+    }
+
+    // Check for OpenType signature: 'OTTO'
+    if (header === 'OTTO') {
+      return 'font/otf';
+    }
+
+    // Not a recognized font format
+    return null;
+  } catch (error) {
+    // Return null on any error during detection
+    return null;
+  }
+}
+
+// Handles Google Fonts MIME type detection and override
+// Google Fonts sometimes returns font files with text/html mime type
+// This function detects the actual font format from the file content
+export function handleGoogleFontMimeType(urlObj, mimeType, body, log, meta) {
+  // Check if this is a Google Fonts request with incorrect mime type
+  let isGoogleFont = urlObj.hostname === 'fonts.gstatic.com';
+
+  if (isGoogleFont && mimeType === 'text/html') {
+    const detectedFontMime = detectFontMimeType(body);
+    if (detectedFontMime) {
+      mimeType = detectedFontMime;
+      log.debug(`- Detected Google Font as ${detectedFontMime} from content, overriding mime type`, meta);
+    } else {
+      // Fallback to generic font mime type if we can't detect the specific format
+      mimeType = 'application/font-woff2';
+      log.debug('- Google Font detected but format unclear, treating as font', meta);
+    }
+  }
+
+  return mimeType;
+}
+
 /* istanbul ignore next: tested, but coverage is stripped */
 // Returns the body for automateScreenshot in structure
 export function percyAutomateRequestHandler(req, percy) {

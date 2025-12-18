@@ -1,4 +1,4 @@
-import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler } from '../src/utils.js';
+import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType } from '../src/utils.js';
 import { logger, setupTest, mockRequests } from './helpers/index.js';
 import percyLogger from '@percy/logger';
 import Percy from '@percy/core';
@@ -369,6 +369,57 @@ describe('utils', () => {
       await checkSDKVersion('@percy/selenium-webdriver/2.2.0');
       // Should not log an update or version check, but may log an error
       expect(logger.stderr).toContain('[percy:core:sdk-version] Could not check SDK version');
+    });
+  });
+
+  describe('detectFontMimeType', () => {
+    it('should detect WOFF font format', () => {
+      const woffBuffer = Buffer.from('wOFF\x00\x01\x00\x00', 'binary');
+      expect(detectFontMimeType(woffBuffer)).toEqual('font/woff');
+    });
+
+    it('should detect WOFF2 font format', () => {
+      const woff2Buffer = Buffer.from('wOF2\x00\x01\x00\x00', 'binary');
+      expect(detectFontMimeType(woff2Buffer)).toEqual('font/woff2');
+    });
+
+    it('should detect TTF font format', () => {
+      const ttfBuffer = Buffer.from([0x00, 0x01, 0x00, 0x00, 0x00, 0x00]);
+      expect(detectFontMimeType(ttfBuffer)).toEqual('font/ttf');
+    });
+
+    it('should detect OTF font format', () => {
+      const otfBuffer = Buffer.from('OTTO\x00\x01\x00\x00', 'binary');
+      expect(detectFontMimeType(otfBuffer)).toEqual('font/otf');
+    });
+
+    it('should return null for non-font buffer', () => {
+      const nonFontBuffer = Buffer.from('This is not a font file', 'utf-8');
+      expect(detectFontMimeType(nonFontBuffer)).toBeNull();
+    });
+
+    it('should return null for buffer with less than 4 bytes', () => {
+      const shortBuffer = Buffer.from([0x00, 0x01]);
+      expect(detectFontMimeType(shortBuffer)).toBeNull();
+    });
+
+    it('should return null for empty buffer', () => {
+      const emptyBuffer = Buffer.from([]);
+      expect(detectFontMimeType(emptyBuffer)).toBeNull();
+    });
+
+    it('should return null for null input', () => {
+      expect(detectFontMimeType(null)).toBeNull();
+    });
+
+    it('should return null for undefined input', () => {
+      expect(detectFontMimeType(undefined)).toBeNull();
+    });
+
+    it('should handle errors gracefully and return null', () => {
+      // Create a malformed buffer-like object that will cause an error
+      const malformedBuffer = { slice: () => { throw new Error('Test error'); } };
+      expect(detectFontMimeType(malformedBuffer)).toBeNull();
     });
   });
 });
