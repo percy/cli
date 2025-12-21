@@ -511,5 +511,16 @@ describe('utils', () => {
       expect(result).toBe('text/html');
       expect(logger.stderr).toEqual([]);
     });
+
+    it('should detect Google Fonts with default userConfiguredFontDomains', () => {
+      const woff2Buffer = Buffer.from([0x77, 0x4F, 0x46, 0x32, 0x00, 0x01, 0x00, 0x00]);
+      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font.woff2');
+
+      // Call without userConfiguredFontDomains parameter to use default
+      const result = handleIncorrectFontMimeType(urlObj, 'text/html', woff2Buffer, undefined, mockMeta);
+
+      expect(result).toBe('font/woff2');
+      expect(logger.stderr).toContain('[percy:core:utils] - Detected Google Font as font/woff2 from content, overriding mime type');
+    });
   });
 });

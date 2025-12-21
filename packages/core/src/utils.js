@@ -72,7 +72,7 @@ function isKnownFontDomain(hostname, userConfiguredFontDomains = []) {
 // Handles Inncorrect Fonts MIME type detection and override
 // Google Fonts sometimes returns font files with text/html mime type
 // This function detects the actual font format from the file content
-export function handleIncorrectFontMimeType(urlObj, mimeType, body, userConfiguredFontDomains = [], meta) {
+export function handleIncorrectFontMimeType(urlObj, mimeType, body, userConfiguredFontDomains, meta) {
   // Check if this is a Google Fonts request with incorrect mime type
   const log = logger('core:utils');
   let isFontDomain = isKnownFontDomain(urlObj.hostname, userConfiguredFontDomains);
