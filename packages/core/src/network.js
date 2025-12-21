@@ -1,7 +1,7 @@
 import { request as makeRequest } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
-import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleGoogleFontMimeType } from './utils.js';
+import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType } from './utils.js';
 
 const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
@@ -42,6 +42,7 @@ export class Network {
     this.userAgent = options.userAgent ??
       // by default, emulate a non-headless browser
       page.session.browser.version.userAgent.replace('Headless', '');
+    this.fontDomains = options.fontDomains || [];
     this.intercept = options.intercept;
     this.meta = options.meta;
     this._initializeNetworkIdleWaitTimeout();
@@ -509,9 +510,10 @@ async function saveResponseResource(network, request, session) {
         // ensure the mimetype is correct for text/plain responses
         response.mimeType === 'text/plain' && detectedMime
       ) || response.mimeType;
+      let isgoogleFont = urlObj.hostname === 'fonts.gstatic.com';
 
       // Handle Google Fonts MIME type detection and override
-      mimeType = handleGoogleFontMimeType(urlObj, mimeType, body, log, meta);
+      mimeType = handleIncorrectFontMimeType(urlObj, mimeType, body, network.fontDomains, meta);
 
       // if we detect a font mime, we dont want to override it as different browsers may behave
       // differently for incorrect mimetype in font response, but we want to treat it as a

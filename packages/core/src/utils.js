@@ -30,65 +30,62 @@ export function normalizeURL(url) {
   return `${protocol}//${host}${pathname}${search}`;
 }
 
-// Detects font MIME type from file content by checking magic bytes
-// Returns the detected MIME type or null if not a recognized font format
+/**
+ * Detects font MIME type from file content by checking magic bytes.
+ * Handles string-based signatures (WOFF, OTTO) and binary signatures (TTF).
+ */
 export function detectFontMimeType(buffer) {
   try {
-    // Ensure buffer has at least 4 bytes
     if (!buffer || buffer.length < 4) {
       return null;
     }
 
-    // Read the first 4 bytes as the file header
-    const header = buffer.slice(0, 4).toString('binary');
+    // Convert the first 4 bytes into two formats for matching:
+    // 1. A lowercase string for text-based signatures (e.g., 'otto')
+    // 2. A hex string for binary/null-byte signatures (e.g., '00010000')
+    const headerString = buffer.slice(0, 4).toString('binary').toLowerCase();
+    const headerHex = buffer.slice(0, 4).toString('hex');
 
-    // Check for WOFF signature: 'wOFF'
-    if (header === 'wOFF') {
-      return 'font/woff';
-    }
+    const mimeMap = {
+      woff: 'font/woff',
+      wof2: 'font/woff2',
+      otto: 'font/otf',
+      '00010000': 'font/ttf'
+    };
 
-    // Check for WOFF2 signature: 'wOF2'
-    if (header === 'wOF2') {
-      return 'font/woff2';
-    }
-
-    // Check for TrueType/OpenType signature: 0x00 0x01 0x00 0x00
-    if (header.charCodeAt(0) === 0x00 &&
-        header.charCodeAt(1) === 0x01 &&
-        header.charCodeAt(2) === 0x00 &&
-        header.charCodeAt(3) === 0x00) {
-      return 'font/ttf';
-    }
-
-    // Check for OpenType signature: 'OTTO'
-    if (header === 'OTTO') {
-      return 'font/otf';
-    }
-
-    // Not a recognized font format
-    return null;
+    // Return the match if it exists in our map for either format
+    return mimeMap[headerString] || mimeMap[headerHex] || null;
   } catch (error) {
-    // Return null on any error during detection
+    // Fail silently and return null if buffer reading fails
     return null;
   }
 }
 
-// Handles Google Fonts MIME type detection and override
+const KNOWN_PROBLEMATIC_FONT_DOMAINS = [
+  'fonts.gstatic.com'
+];
+
+function isKnownFontDomain(hostname, userConfiguredFontDomains = []) {
+  return KNOWN_PROBLEMATIC_FONT_DOMAINS.includes(hostname) || userConfiguredFontDomains.includes(hostname);
+}
+
+// Handles Inncorrect Fonts MIME type detection and override
 // Google Fonts sometimes returns font files with text/html mime type
 // This function detects the actual font format from the file content
-export function handleGoogleFontMimeType(urlObj, mimeType, body, log, meta) {
+export function handleIncorrectFontMimeType(urlObj, mimeType, body, userConfiguredFontDomains = [], meta) {
   // Check if this is a Google Fonts request with incorrect mime type
-  let isGoogleFont = urlObj.hostname === 'fonts.gstatic.com';
+  const log = logger('core:utils');
+  let isFontDomain = isKnownFontDomain(urlObj.hostname, userConfiguredFontDomains);
 
-  if (isGoogleFont && mimeType === 'text/html') {
+  if (isFontDomain && mimeType === 'text/html') {
     const detectedFontMime = detectFontMimeType(body);
     if (detectedFontMime) {
       mimeType = detectedFontMime;
-      log.debug(`- Detected Google Font as ${detectedFontMime} from content, overriding mime type`, meta);
+      log.warn(`- Detected Google Font as ${detectedFontMime} from content, overriding mime type`, meta);
     } else {
       // Fallback to generic font mime type if we can't detect the specific format
       mimeType = 'application/font-woff2';
-      log.debug('- Google Font detected but format unclear, treating as font', meta);
+      log.warn('- Google Font detected but format unclear, treating as font', meta);
     }
   }
 

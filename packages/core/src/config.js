@@ -429,6 +429,20 @@ export const configSchema = {
           headless: { type: 'boolean' },
           closeBrowser: { type: 'boolean', default: true }
         }
+      },
+      fontDomains: {
+        type: 'array',
+        default: [],
+        items: {
+          type: 'string',
+          allOf: [{
+            not: { pattern: '[^/]/' },
+            error: 'must not include a pathname'
+          }, {
+            not: { pattern: '^([a-zA-Z]+:)?//' },
+            error: 'must not include a protocol'
+          }]
+        }
       }
     }
   }
@@ -482,7 +496,8 @@ export const snapshotSchema = {
             userAgent: { $ref: '/config/discovery#/properties/userAgent' },
             devicePixelRatio: { $ref: '/config/discovery#/properties/devicePixelRatio' },
             retry: { $ref: '/config/discovery#/properties/retry' },
-            scrollToBottom: { $ref: '/config/discovery#/properties/scrollToBottom' }
+            scrollToBottom: { $ref: '/config/discovery#/properties/scrollToBottom' },
+            fontDomains: { $ref: '/config/discovery#/properties/fontDomains' }
           }
         }
       },

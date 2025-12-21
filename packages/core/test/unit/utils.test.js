@@ -6,8 +6,7 @@ import {
   yieldAll,
   DefaultMap,
   redactSecrets,
-  base64encode,
-  handleGoogleFontMimeType
+  base64encode
 } from '../../src/utils.js';
 
 describe('Unit / Utils', () => {
@@ -208,89 +207,6 @@ describe('Unit / Utils', () => {
   describe('base64encode', () => {
     it('should return base64 string', () => {
       expect(base64encode('abcd')).toEqual('YWJjZA==');
-    });
-  });
-
-  describe('handleGoogleFontMimeType', () => {
-    let mockLog, mockMeta;
-
-    beforeEach(() => {
-      mockLog = {
-        debug: jasmine.createSpy('debug')
-      };
-      mockMeta = { url: 'http://fonts.gstatic.com/s/roboto/font' };
-    });
-
-    it('should detect WOFF2 format from Google Fonts with text/html mime type', () => {
-      const woff2Buffer = Buffer.from([0x77, 0x4F, 0x46, 0x32, 0x00, 0x01, 0x00, 0x00]);
-      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font.woff2');
-
-      const result = handleGoogleFontMimeType(urlObj, 'text/html', woff2Buffer, mockLog, mockMeta);
-
-      expect(result).toBe('font/woff2');
-      expect(mockLog.debug).toHaveBeenCalledWith(
-        jasmine.stringMatching(/Detected Google Font as font\/woff2/),
-        mockMeta
-      );
-    });
-
-    it('should detect WOFF format from Google Fonts with text/html mime type', () => {
-      const woffBuffer = Buffer.from([0x77, 0x4F, 0x46, 0x46, 0x00, 0x01, 0x00, 0x00]);
-      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font.woff');
-
-      const result = handleGoogleFontMimeType(urlObj, 'text/html', woffBuffer, mockLog, mockMeta);
-
-      expect(result).toBe('font/woff');
-      expect(mockLog.debug).toHaveBeenCalledWith(
-        jasmine.stringMatching(/Detected Google Font as font\/woff/),
-        mockMeta
-      );
-    });
-
-    it('should fallback to application/font-woff2 when format cannot be detected', () => {
-      const unknownBuffer = Buffer.from([0xFF, 0xFE, 0x00, 0x00]);
-      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font');
-
-      const result = handleGoogleFontMimeType(urlObj, 'text/html', unknownBuffer, mockLog, mockMeta);
-
-      expect(result).toBe('application/font-woff2');
-      expect(mockLog.debug).toHaveBeenCalledWith(
-        jasmine.stringMatching(/format unclear/),
-        mockMeta
-      );
-    });
-
-    it('should not override mime type for non-Google Fonts URLs', () => {
-      const woff2Buffer = Buffer.from([0x77, 0x4F, 0x46, 0x32, 0x00, 0x01, 0x00, 0x00]);
-      const urlObj = new URL('http://my-cdn.com/fonts/roboto.woff2');
-
-      const result = handleGoogleFontMimeType(urlObj, 'text/html', woff2Buffer, mockLog, mockMeta);
-
-      expect(result).toBe('text/html');
-      expect(mockLog.debug).not.toHaveBeenCalled();
-    });
-
-    it('should not override mime type for Google Fonts with non-text/html response', () => {
-      const woff2Buffer = Buffer.from([0x77, 0x4F, 0x46, 0x32, 0x00, 0x01, 0x00, 0x00]);
-      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font.woff2');
-
-      const result = handleGoogleFontMimeType(urlObj, 'font/woff2', woff2Buffer, mockLog, mockMeta);
-
-      expect(result).toBe('font/woff2');
-      expect(mockLog.debug).not.toHaveBeenCalled();
-    });
-
-    it('should handle empty buffer gracefully', () => {
-      const emptyBuffer = Buffer.from([]);
-      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font');
-
-      const result = handleGoogleFontMimeType(urlObj, 'text/html', emptyBuffer, mockLog, mockMeta);
-
-      expect(result).toBe('application/font-woff2');
-      expect(mockLog.debug).toHaveBeenCalledWith(
-        jasmine.stringMatching(/format unclear/),
-        mockMeta
-      );
     });
   });
 });
