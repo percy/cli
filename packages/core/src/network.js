@@ -510,7 +510,6 @@ async function saveResponseResource(network, request, session) {
         // ensure the mimetype is correct for text/plain responses
         response.mimeType === 'text/plain' && detectedMime
       ) || response.mimeType;
-      let isgoogleFont = urlObj.hostname === 'fonts.gstatic.com';
 
       // Handle Google Fonts MIME type detection and override
       mimeType = handleIncorrectFontMimeType(urlObj, mimeType, body, network.fontDomains, meta);
