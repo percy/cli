@@ -457,6 +457,7 @@ export default class GenericProvider {
   resolvePercyBrowserCustomNameFor({ osName, osVersion, browserName, browserVersion, deviceName, isMobile }) {
     if (this.platforms.length === 0) return null;
 
+    const normalizeTags = new NormalizeData();
     const norm = v => v.toString().toLowerCase(); // normalize
     const match = (userInput, output) => {
       if (!userInput) return true;
@@ -473,10 +474,18 @@ export default class GenericProvider {
       const percyBrowserCustomName = platform.percyBrowserCustomName;
 
       const pDevice = platform.deviceName || '';
-      const pOsName = platform.osName || '';
-      const pOsVersion = (platform.osVersion || '').toString();
-      const pBrowserName = platform.browserName || '';
-      const pBrowserVersion = (platform.browserVersion || '').toString();
+      const pOsName = normalizeTags.osRollUp(platform.osName || '');
+      const pOsVersion = normalizeTags.osVersionRollUp(((platform.osVersion || '').toString()).split('.')[0]);
+      const pBrowserName = normalizeTags.browserRollUp(platform.browserName || '', isMobile);
+      const pBrowserVersion = (platform.browserVersion || '').toString().split('.')[0];
+
+      log.debug(`Normalized Platform - 
+        Device: ${pDevice},
+        OS: ${pOsName}, 
+        OS Version: ${pOsVersion}, 
+        Browser: ${pBrowserName},
+        Browser Version: ${pBrowserVersion}`
+      );
 
       if (match(pOsName, osName) &&
           match(pBrowserName, browserName) &&
