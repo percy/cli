@@ -211,7 +211,8 @@ export default class GenericProvider {
       environmentInfo: this.getUserAgentString(this.environmentInfoDetails),
       clientInfo: this.getUserAgentString(this.clientInfoDetails),
       domInfoSha: tiles.domInfoSha,
-      metadata: tiles.metadata || null
+      metadata: tiles.metadata || null,
+      elementSelectorsData: tiles.boundingBoxes || null
     };
   }
 
@@ -255,7 +256,8 @@ export default class GenericProvider {
       domInfoSha: await this.getDomContent(),
       metadata: {
         windowHeight: await this.getWindowHeight()
-      }
+      },
+      boundingBoxes: null
     };
   }
 

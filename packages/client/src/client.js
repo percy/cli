@@ -525,7 +525,7 @@ export class PercyClient {
 
   async createComparison(snapshotId, {
     tag, tiles = [], externalDebugUrl, ignoredElementsData,
-    domInfoSha, consideredElementsData, metadata, sync, regions, algorithm,
+    domInfoSha, consideredElementsData, elementSelectorsData, metadata, sync, regions, algorithm,
     algorithmConfiguration, meta = {}
   } = {}) {
     validateId('snapshot', snapshotId);
@@ -552,6 +552,7 @@ export class PercyClient {
           'ignore-elements-data': ignoredElementsData || null,
           regions: regionsArr || null,
           'consider-elements-data': consideredElementsData || null,
+          'element-selectors-data': elementSelectorsData || null,
           'dom-info-sha': domInfoSha || null,
           sync: !!sync,
           metadata: metadata || null

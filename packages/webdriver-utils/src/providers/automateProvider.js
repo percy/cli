@@ -96,7 +96,12 @@ export default class AutomateProvider extends GenericProvider {
     const metadata = {
       screenshotType: screenshotType
     };
-    return { tiles: tiles, domInfoSha: tileResponse.dom_sha, metadata: metadata };
+    return {
+      tiles: tiles,
+      domInfoSha: tileResponse.dom_sha,
+      metadata: metadata,
+      boundingBoxes: tileResponse.bounding_boxes || null
+    };
   }
 
   async setDebugUrl() {

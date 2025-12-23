@@ -861,6 +861,21 @@ export const comparisonSchema = {
       properties: {
         considerElementsData: regionsSchema
       }
+    },
+    elementSelectorsData: {
+      type: 'object',
+      additionalProperties: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          top: { type: 'number' },
+          left: { type: 'number' },
+          bottom: { type: 'number' },
+          right: { type: 'number' },
+          message: { type: 'string' },
+          stacktrace: { type: ['string', 'null'] }
+        }
+      }
     }
   }
 };

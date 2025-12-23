@@ -263,8 +263,29 @@ describe('AutomateProvider', () => {
       });
 
       it('should return tiles when success', async () => {
+        const response = {
+          success: true,
+          result: JSON.stringify({
+            tiles: [{
+              sha: 'abc',
+              status_bar: 0,
+              nav_bar: 156,
+              header_height: 0,
+              footer_height: 156,
+              index: 0
+            }, {
+              sha: 'cde',
+              status_bar: 0,
+              nav_bar: 156,
+              header_height: 0.0,
+              footer_height: 156.0,
+              index: 1
+            }],
+            dom_sha: 'def'
+          })
+        };
         browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
-          .and.returnValue(Promise.resolve({ value: '{"success": true, "result": "{\\"tiles\\":[{\\"sha\\":\\"abc\\",\\"status_bar\\":0,\\"nav_bar\\":156,\\"header_height\\":0,\\"footer_height\\":156,\\"index\\":0},{\\"sha\\":\\"cde\\",\\"status_bar\\":0,\\"nav_bar\\":156,\\"header_height\\":0.0,\\"footer_height\\":156.0,\\"index\\":1}],\\"dom_sha\\":\\"def\\"}"}' }));
+          .and.returnValue(Promise.resolve({ value: JSON.stringify(response) }));
         await automateProvider.createDriver();
         const res = await automateProvider.getTiles(false);
         const expectedOutput = {
@@ -289,7 +310,8 @@ describe('AutomateProvider', () => {
           domInfoSha: 'def',
           metadata: {
             screenshotType: 'fullpage'
-          }
+          },
+          boundingBoxes: null
         };
         expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
         expect(executeScriptSpy).toHaveBeenCalledTimes(1);
@@ -297,8 +319,18 @@ describe('AutomateProvider', () => {
       });
 
       it('should return default values of header and footer if not in response', async () => {
+        const response = {
+          success: true,
+          result: JSON.stringify({
+            tiles: [{
+              sha: 'abc',
+              index: 0
+            }],
+            dom_sha: 'def'
+          })
+        };
         browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
-          .and.returnValue(Promise.resolve({ value: '{"success": true, "result": "{\\"tiles\\":[{\\"sha\\":\\"abc\\",\\"index\\":0}],\\"dom_sha\\":\\"def\\"}"}' }));
+          .and.returnValue(Promise.resolve({ value: JSON.stringify(response) }));
         await automateProvider.createDriver();
         const res = await automateProvider.getTiles(false);
         const expectedOutput = {
@@ -315,6 +347,211 @@ describe('AutomateProvider', () => {
           domInfoSha: 'def',
           metadata: {
             screenshotType: 'fullpage'
+          },
+          boundingBoxes: null
+        };
+        expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
+        expect(executeScriptSpy).toHaveBeenCalledTimes(1);
+        expect(res).toEqual(expectedOutput);
+      });
+
+      it('should return bounding boxes when present in response', async () => {
+        const response = {
+          success: true,
+          result: JSON.stringify({
+            tiles: [{
+              sha: 'abc',
+              status_bar: 0,
+              nav_bar: 156,
+              header_height: 0,
+              footer_height: 156,
+              index: 0
+            }],
+            dom_sha: 'def',
+            bounding_boxes: {
+              '//div[@id="test"]': {
+                success: true,
+                top: 100,
+                left: 50,
+                bottom: 200,
+                right: 150,
+                message: 'Found',
+                stacktrace: null
+              }
+            }
+          })
+        };
+        browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
+          .and.returnValue(Promise.resolve({ value: JSON.stringify(response) }));
+        await automateProvider.createDriver();
+        const res = await automateProvider.getTiles(false);
+        const expectedOutput = {
+          tiles: [
+            new Tile({
+              statusBarHeight: 0,
+              navBarHeight: 156,
+              headerHeight: 0,
+              footerHeight: 156,
+              fullscreen: false,
+              sha: 'abc'
+            })
+          ],
+          domInfoSha: 'def',
+          metadata: {
+            screenshotType: 'fullpage'
+          },
+          boundingBoxes: {
+            '//div[@id="test"]': {
+              success: true,
+              top: 100,
+              left: 50,
+              bottom: 200,
+              right: 150,
+              message: 'Found',
+              stacktrace: null
+            }
+          }
+        };
+        expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
+        expect(executeScriptSpy).toHaveBeenCalledTimes(1);
+        expect(res).toEqual(expectedOutput);
+      });
+
+      it('should return multiple bounding boxes when present in response', async () => {
+        const response = {
+          success: true,
+          result: JSON.stringify({
+            tiles: [{
+              sha: 'abc',
+              status_bar: 0,
+              nav_bar: 156,
+              header_height: 0,
+              footer_height: 156,
+              index: 0
+            }],
+            dom_sha: 'def',
+            bounding_boxes: {
+              '//div[@id="header"]': {
+                success: true,
+                top: 0,
+                left: 0,
+                bottom: 60,
+                right: 1920,
+                message: 'Found',
+                stacktrace: null
+              },
+              '//div[@id="footer"]': {
+                success: true,
+                top: 1800,
+                left: 0,
+                bottom: 1920,
+                right: 1920,
+                message: 'Found',
+                stacktrace: null
+              }
+            }
+          })
+        };
+        browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
+          .and.returnValue(Promise.resolve({ value: JSON.stringify(response) }));
+        await automateProvider.createDriver();
+        const res = await automateProvider.getTiles(false);
+        const expectedOutput = {
+          tiles: [
+            new Tile({
+              statusBarHeight: 0,
+              navBarHeight: 156,
+              headerHeight: 0,
+              footerHeight: 156,
+              fullscreen: false,
+              sha: 'abc'
+            })
+          ],
+          domInfoSha: 'def',
+          metadata: {
+            screenshotType: 'fullpage'
+          },
+          boundingBoxes: {
+            '//div[@id="header"]': {
+              success: true,
+              top: 0,
+              left: 0,
+              bottom: 60,
+              right: 1920,
+              message: 'Found',
+              stacktrace: null
+            },
+            '//div[@id="footer"]': {
+              success: true,
+              top: 1800,
+              left: 0,
+              bottom: 1920,
+              right: 1920,
+              message: 'Found',
+              stacktrace: null
+            }
+          }
+        };
+        expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
+        expect(executeScriptSpy).toHaveBeenCalledTimes(1);
+        expect(res).toEqual(expectedOutput);
+      });
+
+      it('should handle failed bounding box lookups', async () => {
+        const response = {
+          success: true,
+          result: JSON.stringify({
+            tiles: [{
+              sha: 'abc',
+              status_bar: 0,
+              nav_bar: 156,
+              header_height: 0,
+              footer_height: 156,
+              index: 0
+            }],
+            dom_sha: 'def',
+            bounding_boxes: {
+              '//div[@id="notfound"]': {
+                success: false,
+                top: null,
+                left: null,
+                bottom: null,
+                right: null,
+                message: 'Element not found',
+                stacktrace: 'Error: Element not found'
+              }
+            }
+          })
+        };
+        browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
+          .and.returnValue(Promise.resolve({ value: JSON.stringify(response) }));
+        await automateProvider.createDriver();
+        const res = await automateProvider.getTiles(false);
+        const expectedOutput = {
+          tiles: [
+            new Tile({
+              statusBarHeight: 0,
+              navBarHeight: 156,
+              headerHeight: 0,
+              footerHeight: 156,
+              fullscreen: false,
+              sha: 'abc'
+            })
+          ],
+          domInfoSha: 'def',
+          metadata: {
+            screenshotType: 'fullpage'
+          },
+          boundingBoxes: {
+            '//div[@id="notfound"]': {
+              success: false,
+              top: null,
+              left: null,
+              bottom: null,
+              right: null,
+              message: 'Element not found',
+              stacktrace: 'Error: Element not found'
+            }
           }
         };
         expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
@@ -338,6 +575,22 @@ describe('AutomateProvider', () => {
       });
 
       it('should return tiles when success', async () => {
+        const response = {
+          success: true,
+          result: JSON.stringify({
+            tiles: [{
+              sha: 'abc',
+              status_bar: 0,
+              nav_bar: 156,
+              header_height: 0,
+              footer_height: 156,
+              index: 0
+            }],
+            dom_sha: 'def'
+          })
+        };
+        browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
+          .and.returnValue(Promise.resolve({ value: JSON.stringify(response) }));
         await automateProvider.createDriver();
         const res = await automateProvider.getTiles(false);
         const expectedOutput = {
@@ -354,12 +607,118 @@ describe('AutomateProvider', () => {
           domInfoSha: 'def',
           metadata: {
             screenshotType: 'singlepage'
+          },
+          boundingBoxes: null
+        };
+        expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
+        expect(executeScriptSpy).toHaveBeenCalledTimes(1);
+        expect(res).toEqual(expectedOutput);
+      });
+
+      it('should return bounding boxes when present in response', async () => {
+        const response = {
+          success: true,
+          result: JSON.stringify({
+            tiles: [{
+              sha: 'abc',
+              status_bar: 0,
+              nav_bar: 156,
+              header_height: 0,
+              footer_height: 156,
+              index: 0
+            }],
+            dom_sha: 'def',
+            bounding_boxes: {
+              '#button-id': {
+                success: true,
+                top: 300,
+                left: 100,
+                bottom: 350,
+                right: 250,
+                message: 'Found',
+                stacktrace: null
+              }
+            }
+          })
+        };
+        browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
+          .and.returnValue(Promise.resolve({ value: JSON.stringify(response) }));
+        await automateProvider.createDriver();
+        const res = await automateProvider.getTiles(false);
+        const expectedOutput = {
+          tiles: [
+            new Tile({
+              statusBarHeight: 0,
+              navBarHeight: 156,
+              headerHeight: 0,
+              footerHeight: 156,
+              fullscreen: false,
+              sha: 'abc'
+            })
+          ],
+          domInfoSha: 'def',
+          metadata: {
+            screenshotType: 'singlepage'
+          },
+          boundingBoxes: {
+            '#button-id': {
+              success: true,
+              top: 300,
+              left: 100,
+              bottom: 350,
+              right: 250,
+              message: 'Found',
+              stacktrace: null
+            }
           }
         };
         expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
         expect(executeScriptSpy).toHaveBeenCalledTimes(1);
         expect(res).toEqual(expectedOutput);
       });
+
+      it('should handle empty bounding boxes object', async () => {
+        const response = {
+          success: true,
+          result: JSON.stringify({
+            tiles: [{
+              sha: 'abc',
+              status_bar: 0,
+              nav_bar: 156,
+              header_height: 0,
+              footer_height: 156,
+              index: 0
+            }],
+            dom_sha: 'def',
+            bounding_boxes: {}
+          })
+        };
+        browserstackExecutorSpy = spyOn(AutomateProvider.prototype, 'browserstackExecutor')
+          .and.returnValue(Promise.resolve({ value: JSON.stringify(response) }));
+        await automateProvider.createDriver();
+        const res = await automateProvider.getTiles(false);
+        const expectedOutput = {
+          tiles: [
+            new Tile({
+              statusBarHeight: 0,
+              navBarHeight: 156,
+              headerHeight: 0,
+              footerHeight: 156,
+              fullscreen: false,
+              sha: 'abc'
+            })
+          ],
+          domInfoSha: 'def',
+          metadata: {
+            screenshotType: 'singlepage'
+          },
+          boundingBoxes: {}
+        };
+        expect(browserstackExecutorSpy).toHaveBeenCalledTimes(1);
+        expect(executeScriptSpy).toHaveBeenCalledTimes(1);
+        expect(res).toEqual(expectedOutput);
+      });
+
       tilesErrorResponseCheck(automateProvider);
     });
   });

@@ -1410,6 +1410,17 @@ describe('PercyClient', () => {
         metadata: {
           windowHeight: 1947,
           screenshotType: 'singlepage'
+        },
+        elementSelectorsData: {
+          '#button-id': {
+            success: true,
+            top: 300,
+            left: 100,
+            bottom: 350,
+            right: 250,
+            message: 'Found',
+            stacktrace: null
+          }
         }
       })).toBeResolved();
 
@@ -1429,6 +1440,17 @@ describe('PercyClient', () => {
             'ignore-elements-data': ignoredElementsData,
             'consider-elements-data': consideredElementsData,
             'dom-info-sha': 'abcd=',
+            'element-selectors-data': {
+              '#button-id': {
+                success: true,
+                top: 300,
+                left: 100,
+                bottom: 350,
+                right: 250,
+                message: 'Found',
+                stacktrace: null
+              }
+            },
             regions: expectedRegions,
             sync: true,
             metadata: {
@@ -1590,6 +1612,7 @@ describe('PercyClient', () => {
             'ignore-elements-data': ignoredElementsData,
             'consider-elements-data': consideredElementsData,
             'dom-info-sha': 'abcd=',
+            'element-selectors-data': null,
             regions: expectedRegions,
             sync: true,
             metadata: {
@@ -1665,6 +1688,7 @@ describe('PercyClient', () => {
             'external-debug-url': null,
             'ignore-elements-data': null,
             'consider-elements-data': null,
+            'element-selectors-data': null,
             'dom-info-sha': null,
             sync: false,
             regions: null,
@@ -1734,6 +1758,28 @@ describe('PercyClient', () => {
         resolution: '1920 x 1080',
         'percy-browser-custom-name': 'My Custom Browser Name'
       });
+    });
+
+    it('includes elementSelectorsData when provided', async () => {
+      const elementSelectorsData = {
+        '#test-id': {
+          success: true,
+          top: 100,
+          left: 100,
+          bottom: 200,
+          right: 200,
+          message: 'Found',
+          stacktrace: null
+        }
+      };
+
+      await expectAsync(client.createComparison(4567, {
+        tag: { name: 'tag' },
+        tiles: [{ content: 'test' }],
+        elementSelectorsData
+      })).toBeResolved();
+
+      expect(api.requests['/snapshots/4567/comparisons'][0].body.data.attributes['element-selectors-data']).toEqual(elementSelectorsData);
     });
 
     it('throws unknown property in invalid comparison json', () => {
@@ -2020,6 +2066,7 @@ describe('PercyClient', () => {
               'ignore-elements-data': null,
               'consider-elements-data': null,
               'dom-info-sha': null,
+              'element-selectors-data': null,
               sync: false,
               regions: null,
               metadata: null

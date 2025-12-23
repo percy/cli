@@ -302,7 +302,8 @@ describe('GenericProvider', () => {
           regions: null,
           algorithm: null,
           algorithmConfiguration: null,
-          metadata: null
+          metadata: null,
+          elementSelectorsData: null
         });
       });
     });
@@ -363,7 +364,49 @@ describe('GenericProvider', () => {
           regions: null,
           algorithm: null,
           algorithmConfiguration: null,
-          metadata: null
+          metadata: null,
+          elementSelectorsData: null
+        });
+      });
+
+      it('includes elementSelectorsData when boundingBoxes are provided', async () => {
+        const tilesWithBoundingBoxes = {
+          tiles: [{
+            statusBarHeight: 132,
+            sha: 'abc',
+            navBarHeight: 0,
+            headerHeight: 0,
+            footerHeight: 0,
+            fullscreen: false
+          }],
+          domInfoSha: 'mock-dom-sha',
+          boundingBoxes: {
+            '//*[@id="__next"]/div/div': {
+              success: true,
+              top: 0,
+              left: 0,
+              bottom: 1688.0625,
+              right: 1280,
+              message: 'Found',
+              stacktrace: null
+            }
+          }
+        };
+        iOSGetTilesSpy.and.returnValue(Promise.resolve(tilesWithBoundingBoxes));
+        genericProvider = new GenericProvider(args);
+        await genericProvider.createDriver();
+        let res = await genericProvider.screenshot('mock-name', {});
+
+        expect(res.elementSelectorsData).toEqual({
+          '//*[@id="__next"]/div/div': {
+            success: true,
+            top: 0,
+            left: 0,
+            bottom: 1688.0625,
+            right: 1280,
+            message: 'Found',
+            stacktrace: null
+          }
         });
       });
     });
