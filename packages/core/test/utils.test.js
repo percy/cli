@@ -1,4 +1,4 @@
-import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler } from '../src/utils.js';
+import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType } from '../src/utils.js';
 import { logger, setupTest, mockRequests } from './helpers/index.js';
 import percyLogger from '@percy/logger';
 import Percy from '@percy/core';
@@ -369,6 +369,158 @@ describe('utils', () => {
       await checkSDKVersion('@percy/selenium-webdriver/2.2.0');
       // Should not log an update or version check, but may log an error
       expect(logger.stderr).toContain('[percy:core:sdk-version] Could not check SDK version');
+    });
+  });
+
+  describe('detectFontMimeType', () => {
+    it('should detect WOFF font format', () => {
+      const woffBuffer = Buffer.from('wOFF\x00\x01\x00\x00', 'binary');
+      expect(detectFontMimeType(woffBuffer)).toEqual('font/woff');
+    });
+
+    it('should detect WOFF2 font format', () => {
+      const woff2Buffer = Buffer.from('wOF2\x00\x01\x00\x00', 'binary');
+      expect(detectFontMimeType(woff2Buffer)).toEqual('font/woff2');
+    });
+
+    it('should detect TTF font format', () => {
+      const ttfBuffer = Buffer.from([0x00, 0x01, 0x00, 0x00, 0x00, 0x00]);
+      expect(detectFontMimeType(ttfBuffer)).toEqual('font/ttf');
+    });
+
+    it('should detect OTF font format', () => {
+      const otfBuffer = Buffer.from('OTTO\x00\x01\x00\x00', 'binary');
+      expect(detectFontMimeType(otfBuffer)).toEqual('font/otf');
+    });
+
+    it('should return null for non-font buffer', () => {
+      const nonFontBuffer = Buffer.from('This is not a font file', 'utf-8');
+      expect(detectFontMimeType(nonFontBuffer)).toBeNull();
+    });
+
+    it('should return null for buffer with less than 4 bytes', () => {
+      const shortBuffer = Buffer.from([0x00, 0x01]);
+      expect(detectFontMimeType(shortBuffer)).toBeNull();
+    });
+
+    it('should return null for empty buffer', () => {
+      const emptyBuffer = Buffer.from([]);
+      expect(detectFontMimeType(emptyBuffer)).toBeNull();
+    });
+
+    it('should return null for null input', () => {
+      expect(detectFontMimeType(null)).toBeNull();
+    });
+
+    it('should return null for undefined input', () => {
+      expect(detectFontMimeType(undefined)).toBeNull();
+    });
+
+    it('should handle errors gracefully and return null', () => {
+      // Create a malformed buffer-like object that will cause an error
+      const malformedBuffer = { slice: () => { throw new Error('Test error'); } };
+      expect(detectFontMimeType(malformedBuffer)).toBeNull();
+    });
+  });
+
+  describe('handleIncorrectFontMimeType', () => {
+    let mockMeta;
+
+    beforeEach(() => {
+      mockMeta = { url: 'http://fonts.gstatic.com/s/roboto/font' };
+    });
+
+    it('should detect WOFF2 format from Google Fonts with text/html mime type', () => {
+      const woff2Buffer = Buffer.from([0x77, 0x4F, 0x46, 0x32, 0x00, 0x01, 0x00, 0x00]);
+      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font.woff2');
+
+      const result = handleIncorrectFontMimeType(urlObj, 'text/html', woff2Buffer, [], mockMeta);
+
+      expect(result).toBe('font/woff2');
+      expect(logger.stderr).toContain('[percy:core:utils] - Detected Google Font as font/woff2 from content, overriding mime type');
+    });
+
+    it('should detect WOFF format from Google Fonts with text/html mime type', () => {
+      const woffBuffer = Buffer.from([0x77, 0x4F, 0x46, 0x46, 0x00, 0x01, 0x00, 0x00]);
+      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font.woff');
+
+      const result = handleIncorrectFontMimeType(urlObj, 'text/html', woffBuffer, [], mockMeta);
+
+      expect(result).toBe('font/woff');
+      expect(logger.stderr).toContain('[percy:core:utils] - Detected Google Font as font/woff from content, overriding mime type');
+    });
+
+    it('should fallback to application/font-woff2 when format cannot be detected', () => {
+      const unknownBuffer = Buffer.from([0xFF, 0xFE, 0x00, 0x00]);
+      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font');
+
+      const result = handleIncorrectFontMimeType(urlObj, 'text/html', unknownBuffer, [], mockMeta);
+
+      expect(result).toBe('application/font-woff2');
+      expect(logger.stderr).toContain('[percy:core:utils] - Google Font detected but format unclear, treating as font');
+    });
+
+    it('should not override mime type for non-Google Fonts URLs', () => {
+      const woff2Buffer = Buffer.from([0x77, 0x4F, 0x46, 0x32, 0x00, 0x01, 0x00, 0x00]);
+      const urlObj = new URL('http://my-cdn.com/fonts/roboto.woff2');
+
+      const result = handleIncorrectFontMimeType(urlObj, 'text/html', woff2Buffer, [], mockMeta);
+
+      expect(result).toBe('text/html');
+      expect(logger.stderr).toEqual([]);
+    });
+
+    it('should not override mime type for Google Fonts with non-text/html response', () => {
+      const woff2Buffer = Buffer.from([0x77, 0x4F, 0x46, 0x32, 0x00, 0x01, 0x00, 0x00]);
+      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font.woff2');
+
+      const result = handleIncorrectFontMimeType(urlObj, 'font/woff2', woff2Buffer, [], mockMeta);
+
+      expect(result).toBe('font/woff2');
+      expect(logger.stderr).toEqual([]);
+    });
+
+    it('should handle empty buffer gracefully', () => {
+      const emptyBuffer = Buffer.from([]);
+      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font');
+
+      const result = handleIncorrectFontMimeType(urlObj, 'text/html', emptyBuffer, [], mockMeta);
+
+      expect(result).toBe('application/font-woff2');
+      expect(logger.stderr).toContain('[percy:core:utils] - Google Font detected but format unclear, treating as font');
+    });
+
+    it('should detect custom configured font domains and override mime type', () => {
+      const woff2Buffer = Buffer.from([0x77, 0x4F, 0x46, 0x32, 0x00, 0x01, 0x00, 0x00]);
+      const urlObj = new URL('http://custom-fonts.example.com/roboto.woff2');
+      const userDomains = ['custom-fonts.example.com'];
+
+      const result = handleIncorrectFontMimeType(urlObj, 'text/html', woff2Buffer, userDomains, mockMeta);
+
+      expect(result).toBe('font/woff2');
+      expect(logger.stderr).toContain('[percy:core:utils] - Detected Google Font as font/woff2 from content, overriding mime type');
+    });
+
+    it('should not override mime type for custom domains not in the list', () => {
+      const woff2Buffer = Buffer.from([0x77, 0x4F, 0x46, 0x32, 0x00, 0x01, 0x00, 0x00]);
+      const urlObj = new URL('http://other-cdn.example.com/roboto.woff2');
+      const userDomains = ['custom-fonts.example.com'];
+
+      const result = handleIncorrectFontMimeType(urlObj, 'text/html', woff2Buffer, userDomains, mockMeta);
+
+      expect(result).toBe('text/html');
+      expect(logger.stderr).toEqual([]);
+    });
+
+    it('should detect Google Fonts with default userConfiguredFontDomains', () => {
+      const woff2Buffer = Buffer.from([0x77, 0x4F, 0x46, 0x32, 0x00, 0x01, 0x00, 0x00]);
+      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font.woff2');
+
+      // Call without userConfiguredFontDomains parameter to use default
+      const result = handleIncorrectFontMimeType(urlObj, 'text/html', woff2Buffer, undefined, mockMeta);
+
+      expect(result).toBe('font/woff2');
+      expect(logger.stderr).toContain('[percy:core:utils] - Detected Google Font as font/woff2 from content, overriding mime type');
     });
   });
 });
