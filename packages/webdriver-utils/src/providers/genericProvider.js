@@ -474,7 +474,7 @@ export default class GenericProvider {
       const percyBrowserCustomName = platform.percyBrowserCustomName;
 
       const pDevice = platform.deviceName || '';
-      const pOsName = normalizeTags.osRollUp(platform.osName || '');
+      const pOsName = normalizeTags.osRollUp(platform.os || '');
       const pOsVersion = normalizeTags.osVersionRollUp(((platform.osVersion || '').toString()).split('.')[0]);
       const pBrowserName = normalizeTags.browserRollUp(platform.browserName || '', isMobile);
       const pBrowserVersion = (platform.browserVersion || '').toString().split('.')[0];
