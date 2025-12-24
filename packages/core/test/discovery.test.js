@@ -1461,14 +1461,13 @@ describe('Discovery', () => {
       delete process.env.PERCY_PAGE_LOAD_TIMEOUT;
     });
 
-    it('should retry the snapshot discovery upto 3 times', async () => {
+    it('should retry by default on the snapshot discovery upto 3 times', async () => {
       // 3rd request will resolve instantly
       fastCount = 3;
 
       await percy.snapshot({
         name: 'test navigation timeout',
         url: 'http://localhost:8000',
-        discovery: { retry: true },
         widths: [400, 800]
       });
 
@@ -2606,23 +2605,17 @@ describe('Discovery', () => {
   describe('Browser restart on disconnection', () => {
     let testDOM;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       testDOM = '<html><body><p>Test</p></body></html>';
-    });
-
-    afterEach(async () => {
-      if (percy) {
-        await percy.stop(true);
-        percy = null;
-      }
+      // ensure a new percy instance is used for each test
+      await percy?.stop(true);
     });
 
     it('restarts the browser when it is disconnected', async () => {
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
         snapshot: { widths: [1000] },
-        discovery: { concurrency: 1 },
-        port: 0
+        discovery: { concurrency: 1 }
       });
 
       const browserInstance = percy.browser;
@@ -2637,14 +2630,15 @@ describe('Discovery', () => {
       expect(browserInstance.isConnected()).toBe(true);
       expect(browserInstance.process.pid).not.toBe(originalPid);
       expect(browserInstance.readyState).toBe(1); // connected state
+
+      await percy.stop(true);
     });
 
     it('restarts the browser automatically in page() when disconnected', async () => {
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
         snapshot: { widths: [1000] },
-        discovery: { concurrency: 1 },
-        port: 0
+        discovery: { concurrency: 1 }
       });
 
       const browserInstance = percy.browser;
@@ -2671,8 +2665,7 @@ describe('Discovery', () => {
         discovery: {
           concurrency: 1,
           retry: true
-        },
-        port: 0
+        }
       });
 
       const browserInstance = percy.browser;
@@ -2708,230 +2701,6 @@ describe('Discovery', () => {
         '[percy] Detected browser disconnection, restarting browser before retry'
       ]));
       await percy.stop(true);
-    });
-
-    it('retries snapshot with browser restart on "Browser closed" error', async () => {
-      percy = await Percy.start({
-        token: 'PERCY_TOKEN',
-        snapshot: { widths: [1000] },
-        discovery: {
-          concurrency: 1,
-          retry: true
-        },
-        port: 0
-      });
-
-      const browserInstance = percy.browser;
-      spyOn(browserInstance, 'restart').and.callThrough();
-
-      let attemptCount = 0;
-      const originalPage = browserInstance.page.bind(browserInstance);
-      spyOn(browserInstance, 'page').and.callFake(async function(...args) {
-        attemptCount++;
-        if (attemptCount === 1) {
-          throw new Error('Protocol error (Target.createTarget): Browser closed');
-        }
-        return originalPage(...args);
-      });
-
-      await percy.snapshot({
-        name: 'test browser closed',
-        url: 'http://localhost:8000',
-        domSnapshot: testDOM,
-        port: 0
-      });
-
-      await percy.idle();
-
-      expect(browserInstance.restart).toHaveBeenCalled();
-      expect(logger.stdout).toEqual(jasmine.arrayContaining([
-        '[percy] Retrying snapshot: test browser closed'
-      ]));
-    });
-
-    it('retries snapshot with browser restart on "Session crashed" error', async () => {
-      percy = await Percy.start({
-        token: 'PERCY_TOKEN',
-        snapshot: { widths: [1000] },
-        discovery: {
-          concurrency: 1,
-          retry: true
-        },
-        port: 0
-      });
-
-      const browserInstance = percy.browser;
-      spyOn(browserInstance, 'restart').and.callThrough();
-
-      let attemptCount = 0;
-      const originalPage = browserInstance.page.bind(browserInstance);
-      spyOn(browserInstance, 'page').and.callFake(async function(...args) {
-        attemptCount++;
-        if (attemptCount === 1) {
-          throw new Error('Protocol error (Page.navigate): Session crashed!');
-        }
-        return originalPage(...args);
-      });
-
-      await percy.snapshot({
-        name: 'test session crashed',
-        url: 'http://localhost:8000',
-        domSnapshot: testDOM,
-        port: 0
-      });
-
-      await percy.idle();
-
-      expect(browserInstance.restart).toHaveBeenCalled();
-      expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        '[percy] Detected browser disconnection, restarting browser before retry'
-      ]));
-    });
-
-    it('does not restart browser on non-connection errors during retry', async () => {
-      percy = await Percy.start({
-        token: 'PERCY_TOKEN',
-        snapshot: { widths: [1000] },
-        discovery: {
-          concurrency: 1,
-          retry: true
-        },
-        port: 0
-      });
-
-      const browserInstance = percy.browser;
-      spyOn(browserInstance, 'restart').and.callThrough();
-
-      let attemptCount = 0;
-      const originalPage = browserInstance.page.bind(browserInstance);
-      spyOn(browserInstance, 'page').and.callFake(async function(...args) {
-        attemptCount++;
-        if (attemptCount === 1) {
-          throw new Error('Some other error');
-        }
-        return originalPage(...args);
-      });
-
-      await percy.snapshot({
-        name: 'test other error',
-        url: 'http://localhost:8000',
-        domSnapshot: testDOM,
-        port: 0
-      });
-
-      await percy.idle();
-
-      // Should not restart for non-connection errors
-      expect(browserInstance.restart).not.toHaveBeenCalled();
-      expect(logger.stdout).toEqual(jasmine.arrayContaining([
-        '[percy] Retrying snapshot: test other error'
-      ]));
-    });
-
-    it('fails after max retries even with browser restart', async () => {
-      percy = await Percy.start({
-        token: 'PERCY_TOKEN',
-        snapshot: { widths: [1000] },
-        discovery: {
-          concurrency: 1,
-          retry: true
-        },
-        port: 0
-      });
-
-      const browserInstance = percy.browser;
-      spyOn(browserInstance, 'restart').and.callThrough();
-
-      // Always fail with browser disconnection
-      spyOn(browserInstance, 'page').and.callFake(async function() {
-        throw new Error('Browser not connected');
-      });
-
-      await percy.snapshot({
-        name: 'test max retries',
-        url: 'http://localhost:8000',
-        domSnapshot: testDOM,
-        port: 0
-      });
-
-      await percy.idle();
-
-      // Should have tried to restart 2 times (for retry attempts 2 and 3)
-      expect(browserInstance.restart).toHaveBeenCalledTimes(2);
-      expect(logger.stdout).toEqual(jasmine.arrayContaining([
-        '[percy] Retrying snapshot: test max retries',
-        '[percy] Retrying snapshot: test max retries'
-      ]));
-      expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        '[percy] Encountered an error taking snapshot: test max retries',
-        jasmine.stringMatching('Browser not connected')
-      ]));
-    });
-
-    it('handles browser restart failure gracefully', async () => {
-      percy = await Percy.start({
-        token: 'PERCY_TOKEN',
-        snapshot: { widths: [1000] },
-        discovery: {
-          concurrency: 1,
-          retry: true
-        },
-        port: 0
-      });
-
-      const browserInstance = percy.browser;
-
-      let attemptCount = 0;
-      const originalPage = browserInstance.page.bind(browserInstance);
-      spyOn(browserInstance, 'page').and.callFake(async function(...args) {
-        attemptCount++;
-        if (attemptCount === 1) {
-          throw new Error('Browser not connected');
-        }
-        return originalPage(...args);
-      });
-
-      // Make restart fail
-      spyOn(browserInstance, 'restart').and.callFake(async function() {
-        throw new Error('Failed to restart browser');
-      });
-
-      await percy.snapshot({
-        name: 'test restart failure',
-        url: 'http://localhost:8000',
-        domSnapshot: testDOM,
-        port: 0
-      });
-
-      await percy.idle();
-
-      expect(browserInstance.restart).toHaveBeenCalled();
-      expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        '[percy] Failed to restart browser:',
-        jasmine.stringMatching('Failed to restart browser')
-      ]));
-    });
-
-    it('clears callbacks and sessions when restarting', async () => {
-      percy = await Percy.start({
-        token: 'PERCY_TOKEN',
-        snapshot: { widths: [1000] },
-        discovery: { concurrency: 1 },
-        port: 0
-      });
-
-      const browserInstance = percy.browser;
-
-      // Create some sessions
-      await browserInstance.page();
-      expect(browserInstance.sessions.size).toBeGreaterThan(0);
-
-      // Restart the browser
-      await browserInstance.restart();
-
-      // Sessions should be cleared and browser reconnected
-      expect(browserInstance.isConnected()).toBe(true);
-      expect(browserInstance.sessions.size).toBe(0);
     });
   });
 

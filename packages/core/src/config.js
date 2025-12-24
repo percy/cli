@@ -417,7 +417,7 @@ export const configSchema = {
       },
       retry: {
         type: 'boolean',
-        default: false
+        default: true
       },
       launchOptions: {
         type: 'object',
