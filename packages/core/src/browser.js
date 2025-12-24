@@ -124,9 +124,9 @@ export class Browser extends EventEmitter {
     this.log.info('Restarting browser after disconnection');
 
     // Force close the existing browser instance
+    /* istanbul ignore next: Hard to mock */
     if (this.readyState !== null) {
       await this.close(true).catch(err => {
-        /* istanbul ignore next: Hard to mock */
         this.log.debug('Error during force close:', err);
       });
     }
