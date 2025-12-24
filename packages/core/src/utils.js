@@ -30,6 +30,68 @@ export function normalizeURL(url) {
   return `${protocol}//${host}${pathname}${search}`;
 }
 
+/**
+ * Detects font MIME type from file content by checking magic bytes.
+ * Handles string-based signatures (WOFF, OTTO) and binary signatures (TTF).
+ */
+export function detectFontMimeType(buffer) {
+  try {
+    if (!buffer || buffer.length < 4) {
+      return null;
+    }
+
+    // Convert the first 4 bytes into two formats for matching:
+    // 1. A lowercase string for text-based signatures (e.g., 'otto')
+    // 2. A hex string for binary/null-byte signatures (e.g., '00010000')
+    const headerString = buffer.slice(0, 4).toString('binary').toLowerCase();
+    const headerHex = buffer.slice(0, 4).toString('hex');
+
+    const mimeMap = {
+      woff: 'font/woff',
+      wof2: 'font/woff2',
+      otto: 'font/otf',
+      '00010000': 'font/ttf'
+    };
+
+    // Return the match if it exists in our map for either format
+    return mimeMap[headerString] || mimeMap[headerHex] || null;
+  } catch (error) {
+    // Fail silently and return null if buffer reading fails
+    return null;
+  }
+}
+
+const KNOWN_PROBLEMATIC_FONT_DOMAINS = [
+  'fonts.gstatic.com'
+];
+
+function isKnownFontDomain(hostname, userConfiguredFontDomains = []) {
+  return KNOWN_PROBLEMATIC_FONT_DOMAINS.includes(hostname) || userConfiguredFontDomains.includes(hostname);
+}
+
+// Handles Inncorrect Fonts MIME type detection and override
+// Google Fonts sometimes returns font files with text/html mime type
+// This function detects the actual font format from the file content
+export function handleIncorrectFontMimeType(urlObj, mimeType, body, userConfiguredFontDomains, meta) {
+  // Check if this is a Google Fonts request with incorrect mime type
+  const log = logger('core:utils');
+  let isFontDomain = isKnownFontDomain(urlObj.hostname, userConfiguredFontDomains);
+
+  if (isFontDomain && mimeType === 'text/html') {
+    const detectedFontMime = detectFontMimeType(body);
+    if (detectedFontMime) {
+      mimeType = detectedFontMime;
+      log.warn(`- Detected Google Font as ${detectedFontMime} from content, overriding mime type`, meta);
+    } else {
+      // Fallback to generic font mime type if we can't detect the specific format
+      mimeType = 'application/font-woff2';
+      log.warn('- Google Font detected but format unclear, treating as font', meta);
+    }
+  }
+
+  return mimeType;
+}
+
 /* istanbul ignore next: tested, but coverage is stripped */
 // Returns the body for automateScreenshot in structure
 export function percyAutomateRequestHandler(req, percy) {
@@ -60,6 +122,7 @@ export function percyAutomateRequestHandler(req, percy) {
     algorithm: percy.config.snapshot.algorithm,
     algorithmConfiguration: percy.config.snapshot.algorithmConfiguration,
     sync: percy.config.snapshot.sync,
+    platforms: percy.config.percy.platforms,
     version: 'v2'
   },
   camelCasedOptions

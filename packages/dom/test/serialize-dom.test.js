@@ -88,6 +88,32 @@ describe('serializeDOM', () => {
     expect(result.userAgent).toContain(navigator.userAgent);
   });
 
+  it('serializes base element correctly without string coercion', () => {
+    withExample('<head><base href="/"></head><body><p>Test</p></body>');
+
+    const result = serializeDOM();
+    const $ = parseDOM(result.html);
+
+    // Should NOT contain the string representation of the object
+    expect(result.html).not.toContain('[object HTMLBaseElement]');
+    expect(result.html).not.toContain('[object');
+
+    // Should contain properly serialized base element
+    expect($('base').length).toEqual(1);
+    expect($('base')[0].getAttribute('href')).toEqual('/');
+  });
+
+  it('preserves base element attributes', () => {
+    withExample('<head><base href="https://example.com/" target="_blank"></head>');
+
+    const result = serializeDOM();
+    const $ = parseDOM(result.html);
+
+    expect($('base')[0].getAttribute('href')).toEqual('https://example.com/');
+    expect($('base')[0].getAttribute('target')).toEqual('_blank');
+    expect(result.html).not.toContain('[object');
+  });
+
   it('clone node is always shallow', () => {
     class AttributeCallbackTestElement extends window.HTMLElement {
       static get observedAttributes() {

@@ -54,6 +54,12 @@ export function cloneNodeAndShadow(ctx) {
         }
       };
 
+      if (node.nodeName === 'BASE') {
+        let clone = node.cloneNode(false);
+        parent.appendChild(clone);
+        return;
+      }
+
       // mark the node before cloning
       markElement(node, disableShadowDOM, forceShadowAsLightDOM);
 

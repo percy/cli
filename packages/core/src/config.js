@@ -20,6 +20,39 @@ export const configSchema = {
       skipBaseBuild: {
         type: 'boolean',
         default: false
+      },
+      platforms: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            browserName: {
+              type: 'string'
+            },
+            browserVersion: {
+              oneOf: [
+                { type: 'string' },
+                { type: 'number' }
+              ]
+            },
+            osVersion: {
+              oneOf: [
+                { type: 'string' },
+                { type: 'number' }
+              ]
+            },
+            deviceName: {
+              type: 'string'
+            },
+            os: {
+              type: 'string'
+            },
+            percyBrowserCustomName: {
+              type: 'string'
+            }
+          }
+        }
       }
     }
   },
@@ -396,6 +429,20 @@ export const configSchema = {
           headless: { type: 'boolean' },
           closeBrowser: { type: 'boolean', default: true }
         }
+      },
+      fontDomains: {
+        type: 'array',
+        default: [],
+        items: {
+          type: 'string',
+          allOf: [{
+            not: { pattern: '[^/]/' },
+            error: 'must not include a pathname'
+          }, {
+            not: { pattern: '^([a-zA-Z]+:)?//' },
+            error: 'must not include a protocol'
+          }]
+        }
       }
     }
   }
@@ -449,7 +496,8 @@ export const snapshotSchema = {
             userAgent: { $ref: '/config/discovery#/properties/userAgent' },
             devicePixelRatio: { $ref: '/config/discovery#/properties/devicePixelRatio' },
             retry: { $ref: '/config/discovery#/properties/retry' },
-            scrollToBottom: { $ref: '/config/discovery#/properties/scrollToBottom' }
+            scrollToBottom: { $ref: '/config/discovery#/properties/scrollToBottom' },
+            fontDomains: { $ref: '/config/discovery#/properties/fontDomains' }
           }
         }
       },
@@ -769,7 +817,8 @@ export const comparisonSchema = {
         },
         browserName: { type: 'string' },
         browserVersion: { type: 'string' },
-        resolution: { type: 'string' }
+        resolution: { type: 'string' },
+        percyBrowserCustomName: { type: 'string' }
       }
     },
     tiles: {

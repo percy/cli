@@ -14,6 +14,7 @@ export default class GenericProvider {
     Object.assign(this, args);
     this.addClientInfo(this.clientInfo);
     this.addEnvironmentInfo(this.environmentInfo);
+    this.platforms = this.sortPlatforms(this.options?.platforms || []);
     this._markedPercy = false;
     this.metaData = null;
     this.debugUrl = null;
@@ -26,6 +27,23 @@ export default class GenericProvider {
     this.currentTag = null;
     this.removeElementShiftFactor = 50000;
     this.initialScrollLocation = null;
+  }
+
+  // Sort platforms so that entries without browserVersion or with 'latest' come last
+  // As we want to prioritize specific versions first while matching
+  sortPlatforms(platforms) {
+    const isMissingOrLatest = (v) => {
+      if (!v) return true;
+      const s = String(v).toLowerCase();
+      return s.includes('latest');
+    };
+
+    return [...platforms].sort((a, b) => {
+      const aFlag = isMissingOrLatest(a?.browserVersion);
+      const bFlag = isMissingOrLatest(b?.browserVersion);
+      if (aFlag === bFlag) return 0; // keep original order when both are same group
+      return aFlag ? 1 : -1; // push missing/latest to the end
+    });
   }
 
   addDefaultOptions() {
@@ -436,6 +454,57 @@ export default class GenericProvider {
     return elementsArray;
   }
 
+  resolvePercyBrowserCustomNameFor({ osName, osVersion, browserName, browserVersion, deviceName, isMobile }) {
+    if (this.platforms.length === 0) return null;
+
+    const normalizeTags = new NormalizeData();
+    const norm = v => v.toString().toLowerCase(); // normalize
+    const match = (userInput, output) => {
+      if (!userInput) return true;
+      return norm(userInput) === norm(output);
+    };
+
+    const includes = (a, b) => {
+      const na = norm(a);
+      const nb = norm(b);
+      return na.includes(nb);
+    };
+
+    for (const platform of this.platforms) {
+      const percyBrowserCustomName = platform.percyBrowserCustomName;
+
+      const pDevice = platform.deviceName || '';
+      const pOsName = normalizeTags.osRollUp(platform.os || '');
+      const pOsVersion = normalizeTags.osVersionRollUp(((platform.osVersion || '').toString()).split('.')[0]);
+      const pBrowserName = normalizeTags.browserRollUp(platform.browserName || '', isMobile);
+      const pBrowserVersion = (platform.browserVersion || '').toString().split('.')[0];
+
+      log.debug(`Normalized Platform - 
+        Device: ${pDevice},
+        OS: ${pOsName}, 
+        OS Version: ${pOsVersion}, 
+        Browser: ${pBrowserName},
+        Browser Version: ${pBrowserVersion}`
+      );
+
+      if (match(pOsName, osName) &&
+          match(pBrowserName, browserName) &&
+          match(pOsVersion, osVersion) &&
+          (
+            !pBrowserVersion ||
+            pBrowserVersion.toLowerCase() === 'latest' ||
+            includes(browserVersion, pBrowserVersion)
+          )) {
+        if (isMobile) {
+          if (!match(pDevice, deviceName)) continue;
+          return percyBrowserCustomName;
+        }
+        return percyBrowserCustomName;
+      }
+    }
+    return null;
+  }
+
   async getTag(tagData) {
     if (!this.automateResults) throw new Error('Comparison tag details not available');
     const automateCaps = this.automateResults.capabilities;
@@ -443,7 +512,7 @@ export default class GenericProvider {
 
     let deviceName = this.automateResults.deviceName;
     const osName = normalizeTags.osRollUp(automateCaps.os);
-    const osVersion = automateCaps.os_version?.split('.')[0];
+    const osVersion = normalizeTags.osVersionRollUp(automateCaps.os_version?.split('.')[0]);
     const browserName = normalizeTags.browserRollUp(automateCaps.browserName, tagData.device);
     const browserVersion = normalizeTags.browserVersionOrDeviceNameRollup(automateCaps.browserVersion, deviceName, tagData.device);
 
@@ -455,6 +524,24 @@ export default class GenericProvider {
     const resolution = tagData.resolution;
     const orientation = tagData.orientation || automateCaps.deviceOrientation || 'landscape';
 
+    log.debug(
+      `Tag Details - Device: ${deviceName}, OS: ${osName}, ` +
+      `OS Version: ${osVersion}, Browser: ${browserName}, ` +
+      `Browser Version: ${browserVersion}, Width: ${width}, ` +
+      `Height: ${height}, Orientation: ${orientation}, ` +
+      `Resolution: ${resolution}`
+    );
+
+    const percyBrowserCustomName = this.resolvePercyBrowserCustomNameFor({
+      osName,
+      osVersion,
+      browserName,
+      browserVersion,
+      deviceName,
+      isMobile: !!tagData.device
+    });
+    log.debug(`Resolved percyBrowserCustomName: ${percyBrowserCustomName}`);
+
     return {
       name: deviceName,
       osName,
@@ -464,7 +551,8 @@ export default class GenericProvider {
       orientation,
       browserName,
       browserVersion,
-      resolution
+      resolution,
+      percyBrowserCustomName
     };
   }
 }

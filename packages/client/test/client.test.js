@@ -1449,7 +1449,8 @@ describe('PercyClient', () => {
                   orientation: 'portrait',
                   'browser-name': 'chrome',
                   'browser-version': '111.0.0',
-                  resolution: '1980 x 1080'
+                  resolution: '1980 x 1080',
+                  'percy-browser-custom-name': null
                 }
               }
             },
@@ -1609,7 +1610,8 @@ describe('PercyClient', () => {
                   orientation: 'portrait',
                   'browser-name': 'chrome',
                   'browser-version': '111.0.0',
-                  resolution: '1980 x 1080'
+                  resolution: '1980 x 1080',
+                  'percy-browser-custom-name': null
                 }
               }
             },
@@ -1681,7 +1683,8 @@ describe('PercyClient', () => {
                   orientation: null,
                   'browser-name': null,
                   'browser-version': null,
-                  resolution: null
+                  resolution: null,
+                  'percy-browser-custom-name': null
                 }
               }
             },
@@ -1699,6 +1702,37 @@ describe('PercyClient', () => {
             }
           }
         }
+      });
+    });
+
+    it('includes percy-browser-custom-name when provided in tag', async () => {
+      await expectAsync(client.createComparison(4567, {
+        tag: {
+          name: 'custom-tag',
+          width: 1920,
+          height: 1080,
+          osName: 'Windows',
+          osVersion: '11',
+          orientation: 'landscape',
+          browserName: 'chrome',
+          browserVersion: '120',
+          resolution: '1920 x 1080',
+          percyBrowserCustomName: 'My Custom Browser Name'
+        },
+        tiles: [{ content: 'test' }]
+      })).toBeResolved();
+
+      expect(api.requests['/snapshots/4567/comparisons'][0].body.data.relationships.tag.data.attributes).toEqual({
+        name: 'custom-tag',
+        width: 1920,
+        height: 1080,
+        'os-name': 'Windows',
+        'os-version': '11',
+        orientation: 'landscape',
+        'browser-name': 'chrome',
+        'browser-version': '120',
+        resolution: '1920 x 1080',
+        'percy-browser-custom-name': 'My Custom Browser Name'
       });
     });
 
@@ -2003,7 +2037,8 @@ describe('PercyClient', () => {
                     orientation: null,
                     'browser-name': null,
                     'browser-version': null,
-                    resolution: null
+                    resolution: null,
+                    'percy-browser-custom-name': null
                   }
                 }
               },

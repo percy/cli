@@ -443,6 +443,7 @@ export function createDiscoveryQueue(percy) {
             requestHeaders: snapshot.discovery.requestHeaders,
             authorization: snapshot.discovery.authorization,
             userAgent: snapshot.discovery.userAgent,
+            fontDomains: snapshot.discovery.fontDomains,
             captureMockedServiceWorker: snapshot.discovery.captureMockedServiceWorker,
             meta: { ...snapshot.meta, snapshotURL: snapshot.url },
 

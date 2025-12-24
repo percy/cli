@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-upload",
-  "version": "1.31.5",
+  "version": "1.31.6",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -33,7 +33,7 @@
     ]
   },
   "dependencies": {
-    "@percy/cli-command": "1.31.5",
+    "@percy/cli-command": "1.31.6",
     "fast-glob": "^3.2.11",
     "image-size": "^1.0.0"
   }

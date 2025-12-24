@@ -1,4 +1,4 @@
-import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion } from '../src/utils.js';
+import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType } from '../src/utils.js';
 import { logger, setupTest, mockRequests } from './helpers/index.js';
 import percyLogger from '@percy/logger';
 import Percy from '@percy/core';
@@ -10,7 +10,94 @@ describe('utils', () => {
     log = percyLogger();
     logger.reset(true);
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 150000;
     await logger.mock({ level: 'debug' });
+  });
+
+  describe('percyAutomateRequestHandler', () => {
+    it('maps client/environment info, camelCases options, merges config, concatenates percyCSS and attaches buildInfo', () => {
+      const req = {
+        body: {
+          client_info: 'sdk/1.0.0',
+          environment_info: 'env/abc',
+          options: {
+            'percy-css': '.a{color:red}',
+            freeze_animated_image: true,
+            ignore_region_selectors: ['.ignore'],
+            consider_region_xpaths: ['//div']
+          }
+        }
+      };
+
+      const percy = {
+        build: { id: 'b1' },
+        config: {
+          percy: { platforms: [{ osName: 'Windows' }] },
+          snapshot: {
+            fullPage: false,
+            percyCSS: '.root{display:none}',
+            freezeAnimatedImage: false,
+            freezeAnimation: true,
+            freezeAnimatedImageOptions: {
+              freezeImageBySelectors: ['.gif'],
+              freezeImageByXpaths: ['//img']
+            },
+            ignoreRegions: { ignoreRegionSelectors: ['.global-ignore'], ignoreRegionXpaths: ['//global'] },
+            considerRegions: { considerRegionSelectors: ['.global-consider'], considerRegionXpaths: ['//gconsider'] },
+            regions: [{ top: 0, left: 0, bottom: 10, right: 10 }],
+            algorithm: 'ssim',
+            algorithmConfiguration: { sensitivity: 'high' },
+            sync: true
+          }
+        }
+      };
+
+      percyAutomateRequestHandler(req, percy);
+
+      // client/env mapping
+      expect(req.body.clientInfo).toBe('sdk/1.0.0');
+      expect(req.body.environmentInfo).toBe('env/abc');
+
+      // options normalized and merged, percyCSS concatenated
+      expect(req.body.options.version).toBe('v2');
+      expect(req.body.options.platforms).toEqual(percy.config.percy.platforms);
+      expect(req.body.options.fullPage).toBe(false);
+      expect(req.body.options.percyCSS).toBe('.root{display:none}\n.a{color:red}');
+      // freezeAnimatedImage comes from snapshot.freezeAnimatedImage || freezeAnimation (true)
+      expect(req.body.options.freezeAnimatedImage).toBeTrue();
+      expect(req.body.options.freezeImageBySelectors).toEqual(['.gif']);
+      expect(req.body.options.freezeImageByXpaths).toEqual(['//img']);
+      // arrays from request options should merge with global config where applicable
+      expect(req.body.options.ignoreRegionSelectors).toEqual(['.global-ignore', '.ignore']);
+      expect(req.body.options.ignoreRegionXpaths).toEqual(['//global']);
+      expect(req.body.options.considerRegionSelectors).toEqual(['.global-consider']);
+      expect(req.body.options.considerRegionXpaths).toEqual(['//gconsider', '//div']);
+      expect(req.body.options.regions).toEqual([{ top: 0, left: 0, bottom: 10, right: 10 }]);
+      expect(req.body.options.algorithm).toBe('ssim');
+      expect(req.body.options.algorithmConfiguration).toEqual({ sensitivity: 'high' });
+      expect(req.body.options.sync).toBeTrue();
+
+      // build info attached
+      expect(req.body.buildInfo).toEqual({ id: 'b1' });
+    });
+
+    it('handles missing client/environment and empty options', () => {
+      const req = { body: { options: { } } };
+      const percy = { build: { id: 'b' }, config: { percy: { platforms: [] }, snapshot: { percyCSS: '', freezeAnimation: false } } };
+
+      percyAutomateRequestHandler(req, percy);
+
+      expect(req.body.clientInfo).toBeUndefined();
+      expect(req.body.environmentInfo).toBeUndefined();
+      expect(req.body.options.version).toBe('v2');
+      // When no global regions are defined, these should be undefined (not empty arrays)
+      expect(req.body.options.platforms).toBeUndefined();
+      expect(req.body.options.ignoreRegionSelectors).toBeUndefined();
+      expect(req.body.options.ignoreRegionXpaths).toBeUndefined();
+      expect(req.body.options.considerRegionSelectors).toBeUndefined();
+      expect(req.body.options.considerRegionXpaths).toBeUndefined();
+      expect(req.body.buildInfo).toEqual({ id: 'b' });
+    });
   });
 
   describe('decodeAndEncodeURLWithLogging', () => {
@@ -285,203 +372,155 @@ describe('utils', () => {
     });
   });
 
-  describe('withRetries', () => {
-    it('succeeds on first attempt without retrying', async () => {
-      let { withRetries } = await import('../src/utils.js');
-      let attemptCount = 0;
-      const fn = function*() {
-        attemptCount++;
-        return 'success';
-      };
-
-      const result = await withRetries(fn, { count: 3 });
-
-      expect(result).toBe('success');
-      expect(attemptCount).toBe(1);
+  describe('detectFontMimeType', () => {
+    it('should detect WOFF font format', () => {
+      const woffBuffer = Buffer.from('wOFF\x00\x01\x00\x00', 'binary');
+      expect(detectFontMimeType(woffBuffer)).toEqual('font/woff');
     });
 
-    it('retries on failure and eventually succeeds', async () => {
-      let { withRetries } = await import('../src/utils.js');
-      let attemptCount = 0;
-      const fn = function*() {
-        attemptCount++;
-        if (attemptCount < 3) {
-          throw new Error('Temporary failure');
-        }
-        return 'success';
-      };
-
-      const result = await withRetries(fn, { count: 3 });
-
-      expect(result).toBe('success');
-      expect(attemptCount).toBe(3);
+    it('should detect WOFF2 font format', () => {
+      const woff2Buffer = Buffer.from('wOF2\x00\x01\x00\x00', 'binary');
+      expect(detectFontMimeType(woff2Buffer)).toEqual('font/woff2');
     });
 
-    it('throws error after all retries exhausted', async () => {
-      let { withRetries } = await import('../src/utils.js');
-      let attemptCount = 0;
-      const fn = function*() {
-        attemptCount++;
-        throw new Error('Persistent failure');
-      };
-
-      await expectAsync(
-        withRetries(fn, { count: 3 })
-      ).toBeRejectedWithError('Persistent failure');
-
-      expect(attemptCount).toBe(3);
+    it('should detect TTF font format', () => {
+      const ttfBuffer = Buffer.from([0x00, 0x01, 0x00, 0x00, 0x00, 0x00]);
+      expect(detectFontMimeType(ttfBuffer)).toEqual('font/ttf');
     });
 
-    it('passes error to onRetry callback', async () => {
-      let { withRetries } = await import('../src/utils.js');
-      let attemptCount = 0;
-      const errors = [];
-
-      const fn = function*() {
-        attemptCount++;
-        if (attemptCount < 3) {
-          throw new Error(`Error attempt ${attemptCount}`);
-        }
-        return 'success';
-      };
-
-      const onRetry = async (error) => {
-        errors.push(error);
-      };
-
-      await withRetries(fn, { count: 3, onRetry });
-
-      expect(errors.length).toBe(2);
-      expect(errors[0].message).toBe('Error attempt 1');
-      expect(errors[1].message).toBe('Error attempt 2');
+    it('should detect OTF font format', () => {
+      const otfBuffer = Buffer.from('OTTO\x00\x01\x00\x00', 'binary');
+      expect(detectFontMimeType(otfBuffer)).toEqual('font/otf');
     });
 
-    it('calls onRetry before each retry attempt', async () => {
-      let { withRetries } = await import('../src/utils.js');
-      let attemptCount = 0;
-      let retryCallCount = 0;
-
-      const fn = function*() {
-        attemptCount++;
-        if (attemptCount < 3) {
-          throw new Error('Retry me');
-        }
-        return 'success';
-      };
-
-      const onRetry = async () => {
-        retryCallCount++;
-      };
-
-      await withRetries(fn, { count: 3, onRetry });
-
-      expect(attemptCount).toBe(3);
-      expect(retryCallCount).toBe(2); // Called twice (before 2nd and 3rd attempts)
+    it('should return null for non-font buffer', () => {
+      const nonFontBuffer = Buffer.from('This is not a font file', 'utf-8');
+      expect(detectFontMimeType(nonFontBuffer)).toBeNull();
     });
 
-    it('throws immediately for errors in throwOn list', async () => {
-      let { withRetries } = await import('../src/utils.js');
-      let attemptCount = 0;
-
-      const fn = function*() {
-        attemptCount++;
-        const error = new Error('Abort this');
-        error.name = 'AbortError';
-        throw error;
-      };
-
-      await expectAsync(
-        withRetries(fn, { count: 3, throwOn: ['AbortError'] })
-      ).toBeRejectedWithError('Abort this');
-
-      expect(attemptCount).toBe(1); // Should not retry
+    it('should return null for buffer with less than 4 bytes', () => {
+      const shortBuffer = Buffer.from([0x00, 0x01]);
+      expect(detectFontMimeType(shortBuffer)).toBeNull();
     });
 
-    it('retries for errors not in throwOn list', async () => {
-      let { withRetries } = await import('../src/utils.js');
-      let attemptCount = 0;
-
-      const fn = function*() {
-        attemptCount++;
-        if (attemptCount < 3) {
-          throw new Error('Retry this');
-        }
-        return 'success';
-      };
-
-      const result = await withRetries(fn, {
-        count: 3,
-        throwOn: ['AbortError']
-      });
-
-      expect(result).toBe('success');
-      expect(attemptCount).toBe(3);
+    it('should return null for empty buffer', () => {
+      const emptyBuffer = Buffer.from([]);
+      expect(detectFontMimeType(emptyBuffer)).toBeNull();
     });
 
-    it('defaults to single attempt when count is not provided', async () => {
-      let { withRetries } = await import('../src/utils.js');
-      let attemptCount = 0;
-
-      const fn = function*() {
-        attemptCount++;
-        throw new Error('No retries');
-      };
-
-      await expectAsync(
-        withRetries(fn, {})
-      ).toBeRejectedWithError('No retries');
-
-      expect(attemptCount).toBe(1);
+    it('should return null for null input', () => {
+      expect(detectFontMimeType(null)).toBeNull();
     });
 
-    it('supports async onRetry callbacks', async () => {
-      let { withRetries } = await import('../src/utils.js');
-      let attemptCount = 0;
-      const retryDelays = [];
-
-      const fn = function*() {
-        attemptCount++;
-        if (attemptCount < 3) {
-          throw new Error('Retry');
-        }
-        return 'success';
-      };
-
-      const onRetry = async () => {
-        const start = Date.now();
-        await new Promise(resolve => setTimeout(resolve, 10));
-        retryDelays.push(Date.now() - start);
-      };
-
-      await withRetries(fn, { count: 3, onRetry });
-
-      expect(retryDelays.length).toBe(2);
-      expect(retryDelays[0]).toBeGreaterThanOrEqual(10);
-      expect(retryDelays[1]).toBeGreaterThanOrEqual(10);
+    it('should return null for undefined input', () => {
+      expect(detectFontMimeType(undefined)).toBeNull();
     });
 
-    it('handles onRetry callback errors gracefully', async () => {
-      let { withRetries } = await import('../src/utils.js');
-      let attemptCount = 0;
+    it('should handle errors gracefully and return null', () => {
+      // Create a malformed buffer-like object that will cause an error
+      const malformedBuffer = { slice: () => { throw new Error('Test error'); } };
+      expect(detectFontMimeType(malformedBuffer)).toBeNull();
+    });
+  });
 
-      const fn = function*() {
-        attemptCount++;
-        if (attemptCount < 2) {
-          throw new Error('Retry me');
-        }
-        return 'success';
-      };
+  describe('handleIncorrectFontMimeType', () => {
+    let mockMeta;
 
-      const onRetry = async () => {
-        throw new Error('OnRetry failed');
-      };
+    beforeEach(() => {
+      mockMeta = { url: 'http://fonts.gstatic.com/s/roboto/font' };
+    });
 
-      // The onRetry error should propagate and stop retries
-      await expectAsync(
-        withRetries(fn, { count: 3, onRetry })
-      ).toBeRejectedWithError('OnRetry failed');
+    it('should detect WOFF2 format from Google Fonts with text/html mime type', () => {
+      const woff2Buffer = Buffer.from([0x77, 0x4F, 0x46, 0x32, 0x00, 0x01, 0x00, 0x00]);
+      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font.woff2');
 
-      expect(attemptCount).toBe(1);
+      const result = handleIncorrectFontMimeType(urlObj, 'text/html', woff2Buffer, [], mockMeta);
+
+      expect(result).toBe('font/woff2');
+      expect(logger.stderr).toContain('[percy:core:utils] - Detected Google Font as font/woff2 from content, overriding mime type');
+    });
+
+    it('should detect WOFF format from Google Fonts with text/html mime type', () => {
+      const woffBuffer = Buffer.from([0x77, 0x4F, 0x46, 0x46, 0x00, 0x01, 0x00, 0x00]);
+      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font.woff');
+
+      const result = handleIncorrectFontMimeType(urlObj, 'text/html', woffBuffer, [], mockMeta);
+
+      expect(result).toBe('font/woff');
+      expect(logger.stderr).toContain('[percy:core:utils] - Detected Google Font as font/woff from content, overriding mime type');
+    });
+
+    it('should fallback to application/font-woff2 when format cannot be detected', () => {
+      const unknownBuffer = Buffer.from([0xFF, 0xFE, 0x00, 0x00]);
+      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font');
+
+      const result = handleIncorrectFontMimeType(urlObj, 'text/html', unknownBuffer, [], mockMeta);
+
+      expect(result).toBe('application/font-woff2');
+      expect(logger.stderr).toContain('[percy:core:utils] - Google Font detected but format unclear, treating as font');
+    });
+
+    it('should not override mime type for non-Google Fonts URLs', () => {
+      const woff2Buffer = Buffer.from([0x77, 0x4F, 0x46, 0x32, 0x00, 0x01, 0x00, 0x00]);
+      const urlObj = new URL('http://my-cdn.com/fonts/roboto.woff2');
+
+      const result = handleIncorrectFontMimeType(urlObj, 'text/html', woff2Buffer, [], mockMeta);
+
+      expect(result).toBe('text/html');
+      expect(logger.stderr).toEqual([]);
+    });
+
+    it('should not override mime type for Google Fonts with non-text/html response', () => {
+      const woff2Buffer = Buffer.from([0x77, 0x4F, 0x46, 0x32, 0x00, 0x01, 0x00, 0x00]);
+      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font.woff2');
+
+      const result = handleIncorrectFontMimeType(urlObj, 'font/woff2', woff2Buffer, [], mockMeta);
+
+      expect(result).toBe('font/woff2');
+      expect(logger.stderr).toEqual([]);
+    });
+
+    it('should handle empty buffer gracefully', () => {
+      const emptyBuffer = Buffer.from([]);
+      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font');
+
+      const result = handleIncorrectFontMimeType(urlObj, 'text/html', emptyBuffer, [], mockMeta);
+
+      expect(result).toBe('application/font-woff2');
+      expect(logger.stderr).toContain('[percy:core:utils] - Google Font detected but format unclear, treating as font');
+    });
+
+    it('should detect custom configured font domains and override mime type', () => {
+      const woff2Buffer = Buffer.from([0x77, 0x4F, 0x46, 0x32, 0x00, 0x01, 0x00, 0x00]);
+      const urlObj = new URL('http://custom-fonts.example.com/roboto.woff2');
+      const userDomains = ['custom-fonts.example.com'];
+
+      const result = handleIncorrectFontMimeType(urlObj, 'text/html', woff2Buffer, userDomains, mockMeta);
+
+      expect(result).toBe('font/woff2');
+      expect(logger.stderr).toContain('[percy:core:utils] - Detected Google Font as font/woff2 from content, overriding mime type');
+    });
+
+    it('should not override mime type for custom domains not in the list', () => {
+      const woff2Buffer = Buffer.from([0x77, 0x4F, 0x46, 0x32, 0x00, 0x01, 0x00, 0x00]);
+      const urlObj = new URL('http://other-cdn.example.com/roboto.woff2');
+      const userDomains = ['custom-fonts.example.com'];
+
+      const result = handleIncorrectFontMimeType(urlObj, 'text/html', woff2Buffer, userDomains, mockMeta);
+
+      expect(result).toBe('text/html');
+      expect(logger.stderr).toEqual([]);
+    });
+
+    it('should detect Google Fonts with default userConfiguredFontDomains', () => {
+      const woff2Buffer = Buffer.from([0x77, 0x4F, 0x46, 0x32, 0x00, 0x01, 0x00, 0x00]);
+      const urlObj = new URL('http://fonts.gstatic.com/s/roboto/v30/font.woff2');
+
+      // Call without userConfiguredFontDomains parameter to use default
+      const result = handleIncorrectFontMimeType(urlObj, 'text/html', woff2Buffer, undefined, mockMeta);
+
+      expect(result).toBe('font/woff2');
+      expect(logger.stderr).toContain('[percy:core:utils] - Detected Google Font as font/woff2 from content, overriding mime type');
     });
   });
 });
