@@ -117,3 +117,158 @@ describe('SnapshotSchema', () => {
     expect(errors[0].message).toBe('must have property scope when property scopeOptions is present');
   });
 });
+
+describe('ComparisonSchema - elementSelectorsData', () => {
+  beforeEach(() => {
+    PercyConfig.addSchema(CoreConfig.schemas);
+  });
+
+  it('should accept valid elementSelectorsData with xpath selector and coordinates', () => {
+    const comparison = {
+      name: 'test-snapshot',
+      tag: {
+        name: 'test-tag',
+        width: 1280,
+        height: 1024
+      },
+      elementSelectorsData: {
+        '//*[@id="__next"]/div/div': {
+          success: true,
+          top: 0,
+          left: 0,
+          bottom: 1688.0625,
+          right: 1280,
+          message: 'Found',
+          stacktrace: null
+        }
+      }
+    };
+
+    const errors = PercyConfig.validate(comparison, '/comparison');
+    expect(errors).toBe(undefined);
+  });
+
+  it('should accept elementSelectorsData with multiple selectors', () => {
+    const comparison = {
+      name: 'test-snapshot',
+      tag: {
+        name: 'test-tag',
+        width: 1280,
+        height: 1024
+      },
+      elementSelectorsData: {
+        '//*[@id="header"]': {
+          success: true,
+          top: 0,
+          left: 0,
+          bottom: 100,
+          right: 1280,
+          message: 'Found',
+          stacktrace: null
+        },
+        '//*[@id="footer"]': {
+          success: false,
+          top: null,
+          left: null,
+          bottom: null,
+          right: null,
+          message: 'Not found',
+          stacktrace: 'Element not visible'
+        }
+      }
+    };
+
+    const errors = PercyConfig.validate(comparison, '/comparison');
+    expect(errors).toBe(undefined);
+  });
+
+  it('should accept elementSelectorsData with success false and stacktrace', () => {
+    const comparison = {
+      name: 'test-snapshot',
+      tag: {
+        name: 'test-tag',
+        width: 1280,
+        height: 1024
+      },
+      elementSelectorsData: {
+        '//div[@class="missing"]': {
+          success: false,
+          top: 0,
+          left: 0,
+          bottom: 0,
+          right: 0,
+          message: 'Element not found',
+          stacktrace: 'Timeout waiting for element'
+        }
+      }
+    };
+
+    const errors = PercyConfig.validate(comparison, '/comparison');
+    expect(errors).toBe(undefined);
+  });
+
+  it('should accept empty elementSelectorsData object', () => {
+    const comparison = {
+      name: 'test-snapshot',
+      tag: {
+        name: 'test-tag',
+        width: 1280,
+        height: 1024
+      },
+      elementSelectorsData: {}
+    };
+
+    const errors = PercyConfig.validate(comparison, '/comparison');
+    expect(errors).toBe(undefined);
+  });
+
+  it('should accept elementSelectorsData with decimal coordinates', () => {
+    const comparison = {
+      name: 'test-snapshot',
+      tag: {
+        name: 'test-tag',
+        width: 1280,
+        height: 1024
+      },
+      elementSelectorsData: {
+        '//*[@id="content"]': {
+          success: true,
+          top: 100.5,
+          left: 50.25,
+          bottom: 500.75,
+          right: 1200.125,
+          message: 'Found',
+          stacktrace: null
+        }
+      }
+    };
+
+    const errors = PercyConfig.validate(comparison, '/comparison');
+    expect(errors).toBe(undefined);
+  });
+
+  it('should accept elementSelectorsData with negative coordinates', () => {
+    const comparison = {
+      name: 'test-snapshot',
+      tag: {
+        name: 'test-tag',
+        width: 1280,
+        height: 1024
+      },
+      elementSelectorsData: {
+        '//*[@id="offscreen"]': {
+          success: true,
+          top: -100,
+          left: -50,
+          bottom: 0,
+          right: 0,
+          message: 'Found off-screen',
+          stacktrace: null
+        }
+      }
+    };
+
+    const errors = PercyConfig.validate(comparison, '/comparison');
+    expect(errors).toBe(undefined);
+  });
+});
