@@ -1,6 +1,6 @@
 {
   "name": "@percy/config",
-  "version": "1.31.6-beta.7",
+  "version": "1.31.6",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -9,7 +9,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "beta"
+    "tag": "latest"
   },
   "engines": {
     "node": ">=14"
@@ -38,7 +38,7 @@
     "test:types": "tsd"
   },
   "dependencies": {
-    "@percy/logger": "1.31.6-beta.7",
+    "@percy/logger": "1.31.6",
     "ajv": "^8.6.2",
     "cosmiconfig": "^8.0.0",
     "yaml": "^2.0.0"
