@@ -883,11 +883,11 @@ export const comparisonSchema = {
         type: 'object',
         properties: {
           success: { type: 'boolean' },
-          top: { type: 'number' },
-          left: { type: 'number' },
-          bottom: { type: 'number' },
-          right: { type: 'number' },
-          message: { type: 'string' },
+          top: { type: ['number', 'null'] },
+          left: { type: ['number', 'null'] },
+          bottom: { type: ['number', 'null'] },
+          right: { type: ['number', 'null'] },
+          message: { type: ['string', 'null'] },
           stacktrace: { type: ['string', 'null'] }
         }
       }
