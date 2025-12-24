@@ -1074,7 +1074,8 @@ describe('Snapshot', () => {
 
     let snap = percy.snapshot({
       name: 'test snapshot',
-      url: 'http://localhost:8000'
+      url: 'http://localhost:8000',
+      discovery: { retry: false }
     });
 
     // wait until an asset has at least been requested
@@ -1101,7 +1102,8 @@ describe('Snapshot', () => {
       url: 'http://localhost:8000',
       execute: () => {
         document.body.innerHTML += '<img src="/img.png"/>';
-      }
+      },
+      discovery: { retry: false }
     });
 
     // wait until the asset is requested before exiting
@@ -1119,7 +1121,8 @@ describe('Snapshot', () => {
     let snap = percy.snapshot({
       name: 'crash snapshot',
       url: 'http://localhost:8000',
-      execute: () => new Promise(r => setTimeout(r, 1000))
+      execute: () => new Promise(r => setTimeout(r, 1000)),
+      discovery: { retry: false }
     });
 
     await waitFor(() => !!percy.browser.sessions.size);

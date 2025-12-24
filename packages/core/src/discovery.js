@@ -488,8 +488,21 @@ export function createDiscoveryQueue(percy) {
           }
         }, {
           count: snapshot.discovery.retry ? 3 : 1,
-          onRetry: () => {
+          onRetry: async (error) => {
             percy.log.info(`Retrying snapshot: ${snapshotLogName(snapshot.name, snapshot.meta)}`, snapshot.meta);
+            // If browser disconnected or crashed, restart it before retrying
+            if (error?.message?.includes('Browser not connected') ||
+                error?.message?.includes('Browser closed') ||
+                error?.message?.includes('Session closed') ||
+                error?.message?.includes('Session crashed')) {
+              percy.log.warn('Detected browser disconnection, restarting browser before retry');
+              try {
+                await percy.browser.restart();
+              } catch (restartError) {
+                percy.log.error(`Failed to restart browser: ${restartError}`);
+                throw restartError;
+              }
+            }
           },
           signal: snapshot._ctrl.signal,
           throwOn: ['AbortError']
