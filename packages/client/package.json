@@ -1,6 +1,6 @@
 {
   "name": "@percy/client",
-  "version": "1.31.6",
+  "version": "1.31.7-beta.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -9,7 +9,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "latest"
+    "tag": "beta"
   },
   "engines": {
     "node": ">=14"
@@ -33,9 +33,9 @@
     "test:coverage": "yarn test --coverage"
   },
   "dependencies": {
-    "@percy/config": "1.31.6",
-    "@percy/env": "1.31.6",
-    "@percy/logger": "1.31.6",
+    "@percy/config": "1.31.7-beta.0",
+    "@percy/env": "1.31.7-beta.0",
+    "@percy/logger": "1.31.7-beta.0",
     "pac-proxy-agent": "^7.0.2",
     "pako": "^2.1.0"
   }
