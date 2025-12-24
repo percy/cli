@@ -2702,6 +2702,85 @@ describe('Discovery', () => {
       ]));
       await percy.stop(true);
     });
+
+    it('retries snapshot with browser restart on "Session closed" error', async () => {
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: {
+          concurrency: 1
+        }
+      });
+
+      const browserInstance = percy.browser;
+      spyOn(browserInstance, 'restart').and.callThrough();
+
+      let attemptCount = 0;
+      const originalPage = browserInstance.page.bind(browserInstance);
+      spyOn(browserInstance, 'page').and.callFake(async function(...args) {
+        attemptCount++;
+        if (attemptCount === 1) {
+          await browserInstance.close(true);
+          throw new Error('Session closed');
+        }
+        return originalPage(...args);
+      });
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await percy.idle();
+
+      expect(browserInstance.restart).toHaveBeenCalled();
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Retrying snapshot: test snapshot'
+      ]));
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy] Detected browser disconnection, restarting browser before retry'
+      ]));
+      await percy.stop(true);
+    });
+
+    it('logs error and throws when browser restart fails', async () => {
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: {
+          concurrency: 1
+        }
+      });
+
+      const browserInstance = percy.browser;
+      spyOn(browserInstance, 'restart').and.rejectWith(new Error('Restart failed'));
+
+      let attemptCount = 0;
+      spyOn(browserInstance, 'page').and.callFake(async function(...args) {
+        attemptCount++;
+        if (attemptCount === 1) {
+          throw new Error('Browser not connected');
+        }
+      });
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await percy.idle();
+
+      expect(browserInstance.restart).toHaveBeenCalled();
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy] Detected browser disconnection, restarting browser before retry',
+        '[percy] Failed to restart browser: Error: Restart failed',
+        '[percy] Encountered an error taking snapshot: test snapshot',
+        jasmine.stringMatching(/Error: Restart failed/)
+      ]));
+      await percy.stop(true);
+    });
   });
 
   describe('Asset Discovery Page JS =>', () => {

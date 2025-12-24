@@ -126,6 +126,7 @@ export class Browser extends EventEmitter {
     // Force close the existing browser instance
     if (this.readyState !== null) {
       await this.close(true).catch(err => {
+        /* istanbul ignore next: Hard to mock */
         this.log.debug('Error during force close:', err);
       });
     }

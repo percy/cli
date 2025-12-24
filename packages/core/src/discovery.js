@@ -499,7 +499,7 @@ export function createDiscoveryQueue(percy) {
               try {
                 await percy.browser.restart();
               } catch (restartError) {
-                percy.log.error('Failed to restart browser:', restartError);
+                percy.log.error(`Failed to restart browser: ${restartError}`);
                 throw restartError;
               }
             }
