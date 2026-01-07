@@ -345,7 +345,7 @@ export class Network {
           requestType: request.type
         });
       }
-    } else if (event.errorText === 'net::ERR_ABORTED') {
+    } /* istanbul ignore next: difficult to trigger aborted request without response in test */ else if (event.errorText === 'net::ERR_ABORTED') {
       // Request was aborted without a response (could be various reasons including network errors)
       logAssetInstrumentation('asset_load_missing', {
         url: request.url,
