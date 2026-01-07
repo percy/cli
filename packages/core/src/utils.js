@@ -30,6 +30,17 @@ export function normalizeURL(url) {
   return `${protocol}//${host}${pathname}${search}`;
 }
 
+// Logs structured asset instrumentation data that can be parsed by API rule engine
+export function logAssetInstrumentation(category, data) {
+  // Format: ASSET_INSTRUMENTATION|category|details
+  // This format is easy for API rule engine to parse with regex
+  const message = `ASSET_INSTRUMENTATION|${category}|${JSON.stringify(data)}`;
+
+  // Log with 'ci' debug namespace so it goes to CI logs for API analysis
+  const instrumentationLog = logger('ci');
+  instrumentationLog.info(message, { ...data, instrumentationCategory: category });
+}
+
 /**
  * Detects font MIME type from file content by checking magic bytes.
  * Handles string-based signatures (WOFF, OTTO) and binary signatures (TTF).

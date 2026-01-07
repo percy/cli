@@ -523,4 +523,101 @@ describe('utils', () => {
       expect(logger.stderr).toContain('[percy:core:utils] - Detected Google Font as font/woff2 from content, overriding mime type');
     });
   });
+
+  describe('logAssetInstrumentation', () => {
+    let logAssetInstrumentation;
+
+    beforeEach(async () => {
+      await setupTest();
+      // Import after setupTest to ensure logger is mocked
+      ({ logAssetInstrumentation } = await import('../src/utils.js'));
+    });
+
+    it('logs asset instrumentation with correct format', () => {
+      logAssetInstrumentation('asset_load_5xx', {
+        url: 'http://example.com/api/data',
+        reason: 'server_error',
+        statusCode: 502,
+        snapshot: 'Home Page'
+      });
+
+      // Verify the log was stored with CI debug namespace
+      // Note: 'ci' logs are excluded from stdout but stored in memory
+      const logs = logger.instance.query(log => log.debug === 'ci');
+      expect(logs.length).toBe(1);
+      expect(logs[0].message).toContain('ASSET_INSTRUMENTATION|asset_load_5xx|');
+      expect(logs[0].meta.instrumentationCategory).toBe('asset_load_5xx');
+      expect(logs[0].meta.url).toBe('http://example.com/api/data');
+      expect(logs[0].meta.statusCode).toBe(502);
+    });
+
+    it('logs asset_load_missing category', () => {
+      logAssetInstrumentation('asset_load_missing', {
+        url: 'http://example.com/missing.jpg',
+        reason: 'no_response',
+        snapshot: 'Product Page',
+        requestType: 'Image'
+      });
+
+      const logs = logger.instance.query(log => log.debug === 'ci');
+      expect(logs.length).toBe(1);
+      expect(logs[0].meta.instrumentationCategory).toBe('asset_load_missing');
+      expect(logs[0].meta.reason).toBe('no_response');
+    });
+
+    it('logs asset_not_uploaded category with various reasons', () => {
+      logAssetInstrumentation('asset_not_uploaded', {
+        url: 'http://example.com/large.css',
+        reason: 'resource_too_large',
+        size: 30000000,
+        snapshot: 'Home Page'
+      });
+
+      const logs = logger.instance.query(log => log.debug === 'ci');
+      expect(logs.length).toBe(1);
+      expect(logs[0].meta.instrumentationCategory).toBe('asset_not_uploaded');
+      expect(logs[0].meta.reason).toBe('resource_too_large');
+      expect(logs[0].meta.size).toBe(30000000);
+    });
+
+    it('includes all data fields in meta', () => {
+      const testData = {
+        url: 'http://example.com/test.js',
+        reason: 'disallowed_hostname',
+        hostname: 'example.com',
+        snapshot: 'Test Snapshot',
+        customField: 'custom value'
+      };
+
+      logAssetInstrumentation('asset_not_uploaded', testData);
+
+      const logs = logger.instance.query(log => log.debug === 'ci');
+      expect(logs.length).toBe(1);
+
+      // All fields should be in meta
+      Object.keys(testData).forEach(key => {
+        expect(logs[0].meta[key]).toBe(testData[key]);
+      });
+    });
+
+    it('formats message with pipe-separated values for API parsing', () => {
+      logAssetInstrumentation('asset_load_5xx', {
+        url: 'http://example.com/api',
+        statusCode: 503
+      });
+
+      const logs = logger.instance.query(log => log.debug === 'ci');
+      const message = logs[0].message;
+
+      // Message should follow format: ASSET_INSTRUMENTATION|category|json
+      const parts = message.split('|');
+      expect(parts[0]).toBe('ASSET_INSTRUMENTATION');
+      expect(parts[1]).toBe('asset_load_5xx');
+
+      // Third part should be valid JSON
+      const jsonData = JSON.parse(parts.slice(2).join('|'));
+      expect(jsonData.url).toBe('http://example.com/api');
+      expect(jsonData.statusCode).toBe(503);
+    });
+  });
 });

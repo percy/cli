@@ -783,6 +783,94 @@ describe('Discovery', () => {
     );
   });
 
+  describe('asset instrumentation', () => {
+    it('logs instrumentation for 5xx errors', async () => {
+      server.reply('/error.css', () => [502, 'text/plain', 'Bad Gateway']);
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM.replace('style.css', 'error.css'),
+        discovery: { disableCache: true }
+      });
+
+      await percy.idle();
+
+      const logs = logger.instance.query(log => log.debug === 'ci');
+      expect(logs.length).toBeGreaterThan(0, 'No CI logs found');
+
+      const errorLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_load_5xx');
+      expect(errorLogs.length).toBeGreaterThan(0, 'No asset_load_5xx logs found');
+      expect(errorLogs[0].meta.statusCode).toBe(502);
+      expect(errorLogs[0].meta.reason).toBe('server_error');
+      expect(errorLogs[0].message).toContain('ASSET_INSTRUMENTATION|asset_load_5xx|');
+    });
+
+    it('logs instrumentation for resources too large', async () => {
+      server.reply('/huge.css', () => [200, 'text/css', 'A'.repeat(30_000_000)]);
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM.replace('style.css', 'huge.css')
+      });
+
+      await percy.idle();
+
+      const logs = logger.instance.query(log => log.debug === 'ci');
+      expect(logs.length).toBeGreaterThan(0, 'No CI logs found');
+
+      const notUploadedLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_not_uploaded');
+      const largeLogs = notUploadedLogs.filter(l => l.meta.reason === 'resource_too_large');
+      expect(largeLogs.length).toBeGreaterThan(0, 'No resource_too_large logs found');
+      expect(largeLogs[0].meta.size).toBeGreaterThan(25000000);
+      expect(largeLogs[0].message).toContain('ASSET_INSTRUMENTATION|asset_not_uploaded|');
+    });
+
+    it('logs instrumentation for disallowed status codes', async () => {
+      server.reply('/notfound.css', () => [404, 'text/plain', 'Not Found']);
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM.replace('style.css', 'notfound.css'),
+        discovery: { disableCache: true }
+      });
+
+      await percy.idle();
+
+      const logs = logger.instance.query(log => log.debug === 'ci');
+      expect(logs.length).toBeGreaterThan(0, 'No CI logs found');
+
+      const notUploadedLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_not_uploaded');
+      const disallowedLogs = notUploadedLogs.filter(l => l.meta.reason === 'disallowed_status');
+      expect(disallowedLogs.length).toBeGreaterThan(0, 'No disallowed_status logs found');
+      expect(disallowedLogs[0].meta.statusCode).toBe(404);
+      expect(disallowedLogs[0].message).toContain('ASSET_INSTRUMENTATION|asset_not_uploaded|');
+    });
+
+    it('logs instrumentation for empty responses', async () => {
+      server.reply('/empty.css', () => [200, 'text/css', '']);
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM.replace('style.css', 'empty.css'),
+        discovery: { disableCache: true }
+      });
+
+      await percy.idle();
+
+      const logs = logger.instance.query(log => log.debug === 'ci');
+      expect(logs.length).toBeGreaterThan(0, 'No CI logs found');
+
+      const notUploadedLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_not_uploaded');
+      const emptyLogs = notUploadedLogs.filter(l => l.meta && l.meta.reason === 'empty_response');
+      expect(emptyLogs.length).toBeGreaterThan(0, 'No empty_response logs found');
+      expect(emptyLogs[0].message).toContain('ASSET_INSTRUMENTATION|asset_not_uploaded|');
+    });
+  });
+
   it('does not capture duplicate root resources', async () => {
     let reDOM = dedent`
       <html><head></head><body>
