@@ -326,31 +326,40 @@ export class Network {
 
     // Log instrumentation for failed requests
     let response = request.response;
+    let category, reason, details;
+
     if (response) {
       // Request has a response but failed (e.g., 404, 5xx)
       if (response.status >= 500 && response.status < 600) {
-        logAssetInstrumentation(this.log, 'asset_load_5xx', 'server_error', {
-          url: request.url,
-          statusCode: response.status,
-          snapshot: this.meta.snapshot,
-          requestType: request.type
-        });
+        category = 'asset_load_5xx';
+        reason = 'server_error';
       } else if (!ALLOWED_STATUSES.includes(response.status)) {
-        logAssetInstrumentation(this.log, 'asset_not_uploaded', 'disallowed_status', {
+        category = 'asset_not_uploaded';
+        reason = 'disallowed_status';
+      }
+
+      if (category) {
+        details = {
           url: request.url,
           statusCode: response.status,
           snapshot: this.meta.snapshot,
           requestType: request.type
-        });
+        };
       }
     // Failed request without a response (network error)
     } else if (event.errorText && event.errorText !== 'net::ERR_FAILED') {
-      logAssetInstrumentation(this.log, 'asset_load_missing', 'network_error', {
+      category = 'asset_load_missing';
+      reason = 'network_error';
+      details = {
         url: request.url,
         errorText: event.errorText,
         snapshot: this.meta.snapshot,
         requestType: request.type
-      });
+      };
+    }
+
+    if (category) {
+      logAssetInstrumentation(this.log, category, reason, details);
     }
 
     // If request was aborted, keep track of it as we need to cancel any in process callbacks for
