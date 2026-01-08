@@ -796,14 +796,14 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      const logs = logger.instance.query(log => log.debug === 'ci');
-      expect(logs.length).toBeGreaterThan(0, 'No CI logs found');
+      const logs = logger.instance.query(log => log.debug === 'core:discovery');
+      expect(logs.length).toBeGreaterThan(0, 'No core:discovery logs found');
 
       const errorLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_load_5xx');
       expect(errorLogs.length).toBeGreaterThan(0, 'No asset_load_5xx logs found');
       expect(errorLogs[0].meta.statusCode).toBe(502);
       expect(errorLogs[0].meta.reason).toBe('server_error');
-      expect(errorLogs[0].message).toContain('ASSET_INSTRUMENTATION|asset_load_5xx|');
+      expect(errorLogs[0].message).toContain('[ASSET_LOAD_5XX]');
     });
 
     it('logs instrumentation for resources too large', async () => {
@@ -817,14 +817,14 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      const logs = logger.instance.query(log => log.debug === 'ci');
-      expect(logs.length).toBeGreaterThan(0, 'No CI logs found');
+      const logs = logger.instance.query(log => log.debug === 'core:discovery');
+      expect(logs.length).toBeGreaterThan(0, 'No core:discovery logs found');
 
       const notUploadedLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_not_uploaded');
       const largeLogs = notUploadedLogs.filter(l => l.meta.reason === 'resource_too_large');
       expect(largeLogs.length).toBeGreaterThan(0, 'No resource_too_large logs found');
       expect(largeLogs[0].meta.size).toBeGreaterThan(25000000);
-      expect(largeLogs[0].message).toContain('ASSET_INSTRUMENTATION|asset_not_uploaded|');
+      expect(largeLogs[0].message).toContain('[ASSET_NOT_UPLOADED]');
     });
 
     it('logs instrumentation for disallowed status codes', async () => {
@@ -839,14 +839,14 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      const logs = logger.instance.query(log => log.debug === 'ci');
-      expect(logs.length).toBeGreaterThan(0, 'No CI logs found');
+      const logs = logger.instance.query(log => log.debug === 'core:discovery');
+      expect(logs.length).toBeGreaterThan(0, 'No core:discovery logs found');
 
       const notUploadedLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_not_uploaded');
       const disallowedLogs = notUploadedLogs.filter(l => l.meta.reason === 'disallowed_status');
       expect(disallowedLogs.length).toBeGreaterThan(0, 'No disallowed_status logs found');
       expect(disallowedLogs[0].meta.statusCode).toBe(404);
-      expect(disallowedLogs[0].message).toContain('ASSET_INSTRUMENTATION|asset_not_uploaded|');
+      expect(disallowedLogs[0].message).toContain('[ASSET_NOT_UPLOADED]');
     });
 
     it('logs instrumentation for empty responses', async () => {
@@ -861,13 +861,13 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      const logs = logger.instance.query(log => log.debug === 'ci');
-      expect(logs.length).toBeGreaterThan(0, 'No CI logs found');
+      const logs = logger.instance.query(log => log.debug === 'core:discovery');
+      expect(logs.length).toBeGreaterThan(0, 'No core:discovery logs found');
 
       const notUploadedLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_not_uploaded');
       const emptyLogs = notUploadedLogs.filter(l => l.meta && l.meta.reason === 'empty_response');
       expect(emptyLogs.length).toBeGreaterThan(0, 'No empty_response logs found');
-      expect(emptyLogs[0].message).toContain('ASSET_INSTRUMENTATION|asset_not_uploaded|');
+      expect(emptyLogs[0].message).toContain('[ASSET_NOT_UPLOADED]');
     });
   });
 

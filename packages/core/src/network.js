@@ -1,7 +1,7 @@
 import { request as makeRequest } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
-import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, logAssetInstrumentation } from './utils.js';
+import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType } from './utils.js';
 
 const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
@@ -329,31 +329,43 @@ export class Network {
     if (response) {
       // Request has a response but failed (e.g., 404, 5xx)
       if (response.status >= 500 && response.status < 600) {
-        logAssetInstrumentation('asset_load_5xx', {
-          url: request.url,
-          reason: 'server_error',
-          statusCode: response.status,
-          snapshot: this.meta.snapshot?.name,
-          requestType: request.type
-        });
+        this.log.debug(
+          '[ASSET_LOAD_5XX] Server error response',
+          {
+            url: request.url,
+            reason: 'server_error',
+            statusCode: response.status,
+            snapshot: this.meta.snapshot,
+            requestType: request.type,
+            instrumentationCategory: 'asset_load_5xx'
+          }
+        );
       } else if (!ALLOWED_STATUSES.includes(response.status)) {
-        logAssetInstrumentation('asset_not_uploaded', {
-          url: request.url,
-          reason: 'disallowed_status',
-          statusCode: response.status,
-          snapshot: this.meta.snapshot?.name,
-          requestType: request.type
-        });
+        this.log.debug(
+          '[ASSET_NOT_UPLOADED] Disallowed status code',
+          {
+            url: request.url,
+            reason: 'disallowed_status',
+            statusCode: response.status,
+            snapshot: this.meta.snapshot,
+            requestType: request.type,
+            instrumentationCategory: 'asset_not_uploaded'
+          }
+        );
       }
-    } /* istanbul ignore next: difficult to trigger aborted request without response in test */ else if (event.errorText === 'net::ERR_ABORTED') {
-      // Request was aborted without a response (could be various reasons including network errors)
-      logAssetInstrumentation('asset_load_missing', {
-        url: request.url,
-        reason: 'request_aborted',
-        errorText: event.errorText,
-        snapshot: this.meta.snapshot?.name,
-        requestType: request.type
-      });
+    // Aborted request without a response
+    } else if (event.errorText === 'net::ERR_ABORTED') {
+      this.log.debug(
+        '[ASSET_LOAD_MISSING] Request aborted',
+        {
+          url: request.url,
+          reason: 'request_aborted',
+          errorText: event.errorText,
+          snapshot: this.meta.snapshot,
+          requestType: request.type,
+          instrumentationCategory: 'asset_load_missing'
+        }
+      );
     }
 
     // If request was aborted, keep track of it as we need to cancel any in process callbacks for
@@ -404,12 +416,16 @@ async function sendResponseResource(network, request, session) {
     network.log.debug(`Handling request: ${url}`, meta);
 
     if (!resource?.root && hostnameMatches(disallowedHostnames, url)) {
-      logAssetInstrumentation('asset_not_uploaded', {
-        url,
-        reason: 'disallowed_hostname_intercept',
-        hostname: new URL(url).hostname,
-        snapshot: meta.snapshot?.name
-      });
+      log.debug(
+        '[ASSET_NOT_UPLOADED] Disallowed hostname',
+        {
+          url,
+          reason: 'disallowed_hostname',
+          hostname: new URL(url).hostname,
+          snapshot: meta.snapshot,
+          instrumentationCategory: 'asset_not_uploaded'
+        }
+      );
       log.debug('- Skipping disallowed hostname', meta);
 
       await send('Fetch.failRequest', {
@@ -512,12 +528,16 @@ async function saveResponseResource(network, request, session) {
   let contentLength = response.headers?.[Object.keys(response.headers).find(key => key.toLowerCase() === 'content-length')];
   contentLength = parseInt(contentLength);
   if (contentLength > MAX_RESOURCE_SIZE) {
-    logAssetInstrumentation('asset_not_uploaded', {
-      url,
-      reason: 'resource_too_large',
-      size: contentLength,
-      snapshot: meta.snapshot?.name
-    });
+    log.debug(
+      '[ASSET_NOT_UPLOADED] Resource too large',
+      {
+        url,
+        reason: 'resource_too_large',
+        size: contentLength,
+        snapshot: meta.snapshot,
+        instrumentationCategory: 'asset_not_uploaded'
+      }
+    );
     return log.debug('- Skipping resource larger than 25MB', meta);
   }
   let resource = network.intercept.getResource(url);
@@ -532,56 +552,84 @@ async function saveResponseResource(network, request, session) {
       // Don't rename the below log line as it is used in getting network logs in api
       /* istanbul ignore if: first check is a sanity check */
       if (!response) {
-        logAssetInstrumentation('asset_load_missing', {
-          url,
-          reason: 'no_response',
-          snapshot: meta.snapshot?.name,
-          requestType: request.type
-        });
+        log.debug(
+          '[ASSET_LOAD_MISSING] No response received',
+          {
+            url,
+            reason: 'no_response',
+            snapshot: meta.snapshot,
+            requestType: request.type,
+            instrumentationCategory: 'asset_load_missing'
+          }
+        );
         return log.debug('- Skipping no response', meta);
       } else if (!shouldCapture) {
-        logAssetInstrumentation('asset_not_uploaded', {
-          url,
-          reason: 'disallowed_hostname',
-          hostname: new URL(url).hostname,
-          snapshot: meta.snapshot?.name
-        });
+        log.debug(
+          '[ASSET_NOT_UPLOADED] Disallowed hostname',
+          {
+            url,
+            reason: 'disallowed_hostname',
+            hostname: new URL(url).hostname,
+            snapshot: meta.snapshot,
+            instrumentationCategory: 'asset_not_uploaded'
+          }
+        );
         return log.debug('- Skipping remote resource', meta);
       } else if (!body.length) {
-        logAssetInstrumentation('asset_not_uploaded', {
-          url,
-          reason: 'empty_response',
-          snapshot: meta.snapshot?.name
-        });
+        log.debug(
+          '[ASSET_NOT_UPLOADED] Empty response',
+          {
+            url,
+            reason: 'empty_response',
+            snapshot: meta.snapshot,
+            instrumentationCategory: 'asset_not_uploaded'
+          }
+        );
         return log.debug('- Skipping empty response', meta);
       } else if (body.length > MAX_RESOURCE_SIZE) {
-        logAssetInstrumentation('asset_not_uploaded', {
-          url,
-          reason: 'resource_too_large',
-          size: body.length,
-          snapshot: meta.snapshot?.name
-        });
+        log.debug(
+          '[ASSET_NOT_UPLOADED] Resource too large',
+          {
+            url,
+            reason: 'resource_too_large',
+            size: body.length,
+            snapshot: meta.snapshot,
+            instrumentationCategory: 'asset_not_uploaded'
+          }
+        );
         log.debug('- Missing headers for the requested resource.', meta);
         return log.debug('- Skipping resource larger than 25MB', meta);
       } else if (!ALLOWED_STATUSES.includes(response.status)) {
+        /* istanbul ignore next: ternary branches tested separately */
         const category = (response.status >= 500 && response.status < 600)
           ? 'asset_load_5xx'
           : 'asset_not_uploaded';
-        logAssetInstrumentation(category, {
-          url,
-          reason: response.status >= 500 ? 'server_error' : 'disallowed_status',
-          statusCode: response.status,
-          snapshot: meta.snapshot?.name,
-          requestType: request.type
-        });
+        const prefix = (response.status >= 500 && response.status < 600)
+          ? '[ASSET_LOAD_5XX]'
+          : '[ASSET_NOT_UPLOADED]';
+        log.debug(
+          `${prefix} Disallowed status code`,
+          {
+            url,
+            reason: response.status >= 500 ? 'server_error' : 'disallowed_status',
+            statusCode: response.status,
+            snapshot: meta.snapshot,
+            requestType: request.type,
+            instrumentationCategory: category
+          }
+        );
         return log.debug(`- Skipping disallowed status [${response.status}]`, meta);
       } else if (!enableJavaScript && !ALLOWED_RESOURCES.includes(request.type)) {
-        logAssetInstrumentation('asset_not_uploaded', {
-          url,
-          reason: 'disallowed_resource_type',
-          resourceType: request.type,
-          snapshot: meta.snapshot?.name
-        });
+        log.debug(
+          '[ASSET_NOT_UPLOADED] Disallowed resource type',
+          {
+            url,
+            reason: 'disallowed_resource_type',
+            resourceType: request.type,
+            snapshot: meta.snapshot,
+            instrumentationCategory: 'asset_not_uploaded'
+          }
+        );
         return log.debug(`- Skipping disallowed resource type [${request.type}]`, meta);
       }
 
