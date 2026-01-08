@@ -869,6 +869,32 @@ describe('Discovery', () => {
       expect(emptyLogs.length).toBeGreaterThan(0, 'No empty_response logs found');
       expect(emptyLogs[0].message).toContain('[ASSET_NOT_UPLOADED]');
     });
+
+    it('logs instrumentation for network errors', async () => {
+      // Simulate a network error by closing connection without response
+      server.reply('/aborted.css', req => {
+        req.socket.destroy();
+        return null;
+      });
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM.replace('style.css', 'aborted.css'),
+        discovery: { disableCache: true }
+      });
+
+      await percy.idle();
+
+      const logs = logger.instance.query(log => log.debug === 'core:discovery');
+      expect(logs.length).toBeGreaterThan(0, 'No core:discovery logs found');
+
+      const missingLogs = logs.filter(l => l.meta && l.meta.instrumentationCategory === 'asset_load_missing');
+      expect(missingLogs.length).toBeGreaterThan(0, 'No asset_load_missing logs found');
+      expect(missingLogs[0].meta.reason).toBe('network_error');
+      expect(missingLogs[0].meta.errorText).toBeDefined();
+      expect(missingLogs[0].message).toContain('[ASSET_LOAD_MISSING]');
+    });
   });
 
   it('does not capture duplicate root resources', async () => {

@@ -353,13 +353,13 @@ export class Network {
           }
         );
       }
-    // Aborted request without a response
-    } else if (event.errorText === 'net::ERR_ABORTED') {
+    // Failed request without a response (network error)
+    } else if (event.errorText && event.errorText !== 'net::ERR_FAILED') {
       this.log.debug(
-        '[ASSET_LOAD_MISSING] Request aborted',
+        '[ASSET_LOAD_MISSING] Network error',
         {
           url: request.url,
-          reason: 'request_aborted',
+          reason: 'network_error',
           errorText: event.errorText,
           snapshot: this.meta.snapshot,
           requestType: request.type,
