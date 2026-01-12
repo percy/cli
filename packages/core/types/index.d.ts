@@ -59,9 +59,66 @@ interface CommonSnapshotOptions {
   scopeOptions?: ScopeOptions;
   browsers?: string[];
 }
+// Region support for TypeScript
+interface BoundingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface Padding {
+  top?: number;
+  left?: number;
+  right?: number;
+  bottom?: number;
+}
+
+interface ElementSelector {
+  boundingBox?: BoundingBox;
+  elementXpath?: string;
+  elementCSS?: string;
+}
+
+interface RegionConfiguration {
+  diffSensitivity?: number;
+  imageIgnoreThreshold?: number;
+  carouselsEnabled?: boolean;
+  bannersEnabled?: boolean;
+  adsEnabled?: boolean;
+}
+
+interface RegionAssertion {
+  diffIgnoreThreshold?: number;
+}
+
+export interface Region {
+  algorithm: string;
+  elementSelector: ElementSelector;
+  padding?: Padding;
+  configuration?: RegionConfiguration;
+  assertion?: RegionAssertion;
+}
+
+export interface CreateRegionOptions {
+  boundingBox?: BoundingBox;
+  elementXpath?: string;
+  elementCSS?: string;
+  padding?: Padding;
+  algorithm?: string;
+  diffSensitivity?: number;
+  imageIgnoreThreshold?: number;
+  carouselsEnabled?: boolean;
+  bannersEnabled?: boolean;
+  adsEnabled?: boolean;
+  diffIgnoreThreshold?: number;
+}
+
+export function createRegion(options: CreateRegionOptions): Region;
 
 export interface SnapshotOptions extends CommonSnapshotOptions {
   discovery?: DiscoveryOptions;
+  regions?: Region[];
 }
 
 type ClientEnvInfo = {
