@@ -1,5 +1,5 @@
 import { expectType, expectError } from 'tsd';
-import Percy, { PercyOptions, PercyConfigOptions } from '@percy/core';
+import Percy, { Region, PercyOptions, PercyConfigOptions, CreateRegionOptions, createRegion } from '@percy/core';
 
 // PercyOptions
 const percyOptions: PercyOptions = {
@@ -187,4 +187,183 @@ expectError(percy.snapshot({
   url: 'http://localhost:3000',
   domSnapshot: '...',
   waitForTimeout: 200
+}));
+
+// Region type
+const region: Region = {
+  algorithm: 'default',
+  elementSelector: {
+    elementCSS: '.header'
+  }
+};
+expectType<Region>(region);
+
+const regionWithPadding: Region = {
+  algorithm: 'default',
+  elementSelector: {
+    elementCSS: '.card'
+  },
+  padding: {
+    top: 5,
+    left: 10,
+    right: 10,
+    bottom: 5
+  }
+};
+expectType<Region>(regionWithPadding);
+
+const regionWithConfiguration: Region = {
+  algorithm: 'default',
+  elementSelector: {
+    elementCSS: '.banner'
+  },
+  configuration: {
+    diffSensitivity: 0.1,
+    imageIgnoreThreshold: 0.05,
+    carouselsEnabled: true,
+    bannersEnabled: true,
+    adsEnabled: false
+  }
+};
+expectType<Region>(regionWithConfiguration);
+
+const regionWithAssertion: Region = {
+  algorithm: 'default',
+  elementSelector: {
+    elementCSS: '.content'
+  },
+  assertion: {
+    diffIgnoreThreshold: 0.02
+  }
+};
+expectType<Region>(regionWithAssertion);
+
+const regionFull: Region = {
+  algorithm: 'advanced',
+  elementSelector: {
+    boundingBox: {
+      x: 5,
+      y: 5,
+      width: 300,
+      height: 200
+    },
+    elementCSS: '.interactive',
+    elementXpath: '//section[@class="interactive"]'
+  },
+  padding: {
+    top: 15,
+    left: 20,
+    right: 20,
+    bottom: 15
+  },
+  configuration: {
+    diffSensitivity: 0.15,
+    imageIgnoreThreshold: 0.1,
+    carouselsEnabled: true,
+    bannersEnabled: true,
+    adsEnabled: true
+  },
+  assertion: {
+    diffIgnoreThreshold: 0.05
+  }
+};
+expectType<Region>(regionFull);
+
+// CreateRegionOptions type
+const createRegionOptions: CreateRegionOptions = {
+  boundingBox: {
+    x: 10,
+    y: 10,
+    width: 200,
+    height: 100
+  },
+  algorithm: 'default',
+  diffSensitivity: 0.1
+};
+expectType<CreateRegionOptions>(createRegionOptions);
+
+const createRegionWithXpath: CreateRegionOptions = {
+  elementXpath: '//nav',
+  padding: {
+    top: 10
+  },
+  carouselsEnabled: true
+};
+expectType<CreateRegionOptions>(createRegionWithXpath);
+
+const createRegionWithCSS: CreateRegionOptions = {
+  elementCSS: '.footer',
+  bannersEnabled: false,
+  adsEnabled: true
+};
+expectType<CreateRegionOptions>(createRegionWithCSS);
+
+// createRegion function
+expectType<Region>(createRegion({
+  elementCSS: '.header',
+  algorithm: 'default'
+}));
+
+expectType<Region>(createRegion({
+  boundingBox: {
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 50
+  },
+  padding: {
+    top: 5,
+    bottom: 5
+  },
+  diffSensitivity: 0.1
+}));
+
+// Snapshot with regions
+expectType<Promise<void>>(percy.snapshot({
+  url: 'http://localhost:3000',
+  name: 'Snapshot with regions',
+  regions: [
+    {
+      algorithm: 'default',
+      elementSelector: {
+        elementCSS: '.header'
+      }
+    }
+  ]
+}));
+
+expectType<Promise<void>>(percy.snapshot({
+  url: 'http://localhost:3000',
+  regions: [
+    {
+      algorithm: 'default',
+      elementSelector: {
+        elementCSS: '.header'
+      },
+      padding: {
+        top: 10,
+        bottom: 10
+      }
+    },
+    {
+      algorithm: 'default',
+      elementSelector: {
+        elementXpath: '//footer'
+      },
+      configuration: {
+        carouselsEnabled: true
+      }
+    }
+  ]
+}));
+
+expectType<Promise<void>>(percy.snapshot({
+  url: 'http://localhost:3000',
+  regions: []
+}));
+
+expectType<Promise<void>>(percy.snapshot({
+  url: 'http://localhost:3000',
+  name: 'Snapshot',
+  regions: [region, regionWithPadding, regionFull]
 }));
