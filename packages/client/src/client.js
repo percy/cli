@@ -777,6 +777,56 @@ export class PercyClient {
     );
   }
 
+  // Fetches project details including domain configuration
+  async getProject(projectPath) {
+    validateProjectPath(projectPath);
+    this.log.debug(`Fetching project ${projectPath}`);
+    return this.get(`projects/${projectPath}`);
+  }
+
+  // Updates project with domain configuration for auto domain validation
+  async updateProjectDomainConfig(projectPath, { buildId, allowed = [], blocked = [] } = {}) {
+    validateProjectPath(projectPath);
+    this.log.debug(`Updating domain config for project ${projectPath}`);
+
+    return this.post(`projects/${projectPath}`, {
+      data: {
+        type: 'projects',
+        attributes: {
+          'domain-config': {
+            'allowed-domains': allowed,
+            'blocked-domains': blocked,
+            'auto-allow-enabled': true,
+            'last-build-id': buildId
+          }
+        }
+      }
+    }, { identifier: 'project.updateDomainConfig' });
+  }
+
+  // Validates a domain with the Cloudflare worker endpoint
+  async validateDomain(hostname, url, options = {}) {
+    const endpoint = options.validationEndpoint ||
+      'https://winter-morning-fa32.shobhit-k.workers.dev/validate-domain';
+    const timeout = options.timeout || 5000;
+
+    this.log.debug(`Validating domain: ${hostname}`);
+
+    try {
+      const response = await request(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: hostname, url }),
+        timeout
+      });
+
+      return response;
+    } catch (error) {
+      this.log.debug(`Domain validation failed for ${hostname}: ${error.message}`);
+      throw error;
+    }
+  }
+
   mayBeLogUploadSize(contentSize, meta = {}) {
     if (contentSize >= 25 * 1024 * 1024) {
       this.log.error('Uploading resource above 25MB might fail the build...', meta);

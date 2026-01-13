@@ -45,6 +45,9 @@ export class Network {
     this.fontDomains = options.fontDomains || [];
     this.intercept = options.intercept;
     this.meta = options.meta;
+    // domain validation context for auto-allowlisting
+    this.domainValidation = options.domainValidation;
+    this.client = options.client;
     this._initializeNetworkIdleWaitTimeout();
   }
 
@@ -358,9 +361,91 @@ function originURL(request) {
   return normalizeURL((request.redirectChain[0] || request).url);
 }
 
+// Validate domain for auto-allowlisting feature
+async function validateDomainForAllowlist(network, hostname, url) {
+  const { domainValidation, client } = network;
+
+  // Skip if domain validation is not enabled
+  if (!domainValidation?.enabled) return null;
+
+  const {
+    preApproved, preBlocked,
+    sessionAllowed, sessionBlocked,
+    pending, stats
+  } = domainValidation;
+
+  // Check pre-approved domains first (cached from project config)
+  if (preApproved.has(hostname)) {
+    stats.preApprovedHits++;
+    network.log.debug(`Domain validation: ${hostname} is pre-approved`, network.meta);
+    return 'allowed';
+  }
+
+  // Check pre-blocked domains (cached from project config)
+  if (preBlocked.has(hostname)) {
+    stats.preBlockedHits++;
+    network.log.debug(`Domain validation: ${hostname} is pre-blocked`, network.meta);
+    return 'blocked';
+  }
+
+  // Check session cache (validated during this build)
+  if (sessionAllowed.has(hostname)) {
+    stats.sessionHits++;
+    network.log.debug(`Domain validation: ${hostname} is session-allowed`, network.meta);
+    return 'allowed';
+  }
+
+  if (sessionBlocked.has(hostname)) {
+    stats.sessionHits++;
+    network.log.debug(`Domain validation: ${hostname} is session-blocked`, network.meta);
+    return 'blocked';
+  }
+
+  // Check if validation is already pending for this domain
+  if (pending.has(hostname)) {
+    network.log.debug(`Domain validation: Waiting for pending validation of ${hostname}`, network.meta);
+    return pending.get(hostname);
+  }
+
+  // Perform external validation
+  const validationEndpoint = domainValidation.config?.validationEndpoint ||
+    'https://winter-morning-fa32.shobhit-k.workers.dev/validate-domain';
+  const timeout = domainValidation.config?.timeout || 5000;
+
+  const validationPromise = (async () => {
+    try {
+      stats.apiCalls++;
+      network.log.debug(`Domain validation: Validating ${hostname} via external service`, network.meta);
+
+      const result = await client.validateDomain(hostname, url, { validationEndpoint, timeout });
+
+      if (result?.allowed) {
+        sessionAllowed.add(hostname);
+        network.log.debug(`Domain validation: ${hostname} validated as ALLOWED`, network.meta);
+        return 'allowed';
+      } else {
+        sessionBlocked.add(hostname);
+        network.log.debug(`Domain validation: ${hostname} validated as BLOCKED - ${result?.reason || 'unknown reason'}`, network.meta);
+        return 'blocked';
+      }
+    } catch (error) {
+      // On error, default to allowing (fail-open for better UX)
+      stats.errors++;
+      network.log.warn(`Domain validation: Failed to validate ${hostname} - ${error.message}`, network.meta);
+      sessionAllowed.add(hostname);
+      return 'allowed';
+    } finally {
+      pending.delete(hostname);
+    }
+  })();
+
+  pending.set(hostname, validationPromise);
+  return validationPromise;
+}
+
 // Send a response for a given request, responding with cached resources when able
 async function sendResponseResource(network, request, session) {
-  let { disallowedHostnames, disableCache } = network.intercept;
+  let { disallowedHostnames, allowedHostnames, disableCache } = network.intercept;
 
   let log = network.log;
   let url = originURL(request);
@@ -371,9 +456,33 @@ async function sendResponseResource(network, request, session) {
     let resource = network.intercept.getResource(url, network.intercept.currentWidth);
     network.log.debug(`Handling request: ${url}`, meta);
 
-    if (!resource?.root && hostnameMatches(disallowedHostnames, url)) {
-      log.debug('- Skipping disallowed hostname', meta);
+    // Extract hostname for domain validation
+    let hostname;
+    try {
+      hostname = new URL(url).hostname;
+    } catch (e) {
+      hostname = null;
+    }
 
+    // Determine if domain should be blocked
+    let shouldBlock = false;
+
+    // Check manual disallowed hostnames first (user config takes precedence)
+    if (!resource?.root && hostnameMatches(disallowedHostnames, url)) {
+      shouldBlock = true;
+      log.debug('- Skipping disallowed hostname', meta);
+    }
+
+    // If not manually blocked and not manually allowed, check auto-validation
+    if (!shouldBlock && hostname && !resource?.root && !hostnameMatches(allowedHostnames, url)) {
+      const validationResult = await validateDomainForAllowlist(network, hostname, url);
+      if (validationResult === 'blocked') {
+        shouldBlock = true;
+        log.debug('- Skipping disallowed hostname', meta);
+      }
+    }
+
+    if (shouldBlock) {
       await send('Fetch.failRequest', {
         requestId: request.interceptId,
         errorReason: 'Aborted'
@@ -482,7 +591,27 @@ async function saveResponseResource(network, request, session) {
     try {
       // Don't rename the below log line as it is used in getting network logs in api
       log.debug(`Processing resource: ${url}`, meta);
+
+      // Check if domain should be captured via auto-validation
+      let hostname;
+      try {
+        hostname = new URL(url).hostname;
+      } catch (e) {
+        hostname = null;
+      }
+
+      // Check if domain is allowed via manual config or auto-validation
       let shouldCapture = response && hostnameMatches(allowedHostnames, url);
+
+      // Also capture if domain is auto-validated as allowed (preApproved or sessionAllowed)
+      if (!shouldCapture && hostname && network.domainValidation?.enabled) {
+        const { preApproved, sessionAllowed } = network.domainValidation;
+        if (preApproved?.has(hostname) || sessionAllowed?.has(hostname)) {
+          shouldCapture = true;
+          log.debug(`- Capturing auto-validated domain: ${hostname}`, meta);
+        }
+      }
+
       let body = shouldCapture && await response.buffer();
 
       // Don't rename the below log line as it is used in getting network logs in api
