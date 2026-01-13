@@ -159,5 +159,21 @@ describe('serializeFrames', () => {
     it(`${platform}: removes inaccessible JS frames`, () => {
       expect($('#frame-inject')).toHaveSize(0);
     });
+
+    if (platform === 'plain') {
+      it('uses Trusted Types policy to create srcdoc when available', () => {
+        let createHTML = jasmine.createSpy('createHTML').and.callFake(html => html);
+        let createPolicy = jasmine.createSpy('createPolicy').and.returnValue({ createHTML });
+
+        let originalTrustedTypes = window.trustedTypes;
+        window.trustedTypes = { createPolicy };
+
+        serializeDOM();
+        expect(createPolicy).toHaveBeenCalledWith('percy-dom', jasmine.objectContaining({ createHTML: jasmine.any(Function) }));
+        expect(createHTML).toHaveBeenCalled();
+
+        window.trustedTypes = originalTrustedTypes;
+      });
+    }
   });
 });
