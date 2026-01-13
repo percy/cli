@@ -2445,6 +2445,399 @@ describe('Discovery', () => {
     });
   });
 
+  describe('with auto domain validation', () => {
+    let testExternalDOM = testDOM.replace('img.gif', 'http://ex.localhost:8001/img.gif');
+    let server2;
+    let validationServer;
+
+    beforeEach(async () => {
+      // Create an external server for resources
+      server2 = await createTestServer({
+        '/img.gif': () => [200, 'image/gif', pixel]
+      }, 8001);
+
+      // Create a mock validation worker server
+      validationServer = await createTestServer({
+        default: () => [200, 'application/json', { allowed: false, reason: 'unknown domain' }]
+      }, 8002);
+    });
+
+    afterEach(async () => {
+      await server2.close();
+      await validationServer.close();
+    });
+
+    it('blocks external domains when validation service returns not allowed', async () => {
+      await percy.stop();
+
+      // Configure validation server to return blocked
+      validationServer.reply('/validate-domain', () => [200, 'application/json', {
+        allowed: false,
+        reason: 'not a recognized CDN'
+      }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          autoDomainValidation: {
+            enabled: true,
+            validationEndpoint: 'http://localhost:8002/validate-domain',
+            timeout: 5000
+          }
+        }
+      });
+
+      logger.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Verify the validation server was called
+      expect(validationServer.requests.some(r => r[0] === '/validate-domain')).toBe(true);
+
+      // Verify external resource was NOT captured (blocked by validation)
+      expect(captured[0]).not.toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+
+      // Log should show domain validation blocking
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Domain validation:.*ex\.localhost.*validated as BLOCKED/)
+      ]));
+    });
+
+    it('allows external domains when validation service returns allowed', async () => {
+      await percy.stop();
+
+      // Configure validation server to return allowed
+      validationServer.reply('/validate-domain', () => [200, 'application/json', {
+        allowed: true,
+        reason: 'known CDN: Cloudflare'
+      }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          autoDomainValidation: {
+            enabled: true,
+            validationEndpoint: 'http://localhost:8002/validate-domain',
+            timeout: 5000
+          }
+        }
+      });
+
+      logger.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Verify the validation server was called
+      expect(validationServer.requests.some(r => r[0] === '/validate-domain')).toBe(true);
+
+      // Verify external resource WAS captured (allowed by validation)
+      expect(captured[0]).toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+
+      // Log should show domain validation allowing
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Domain validation:.*ex\.localhost.*validated as ALLOWED/)
+      ]));
+    });
+
+    it('uses pre-approved domains from session cache without calling validation service', async () => {
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          autoDomainValidation: {
+            enabled: true,
+            validationEndpoint: 'http://localhost:8002/validate-domain',
+            timeout: 5000
+          }
+        }
+      });
+
+      // Pre-populate session cache with approved domain
+      percy.domainValidation.preApproved.add('ex.localhost');
+
+      logger.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Verify the validation server was NOT called (domain was pre-approved)
+      expect(validationServer.requests.filter(r => r[0] === '/validate-domain').length).toBe(0);
+
+      // Verify external resource WAS captured (pre-approved)
+      expect(captured[0]).toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+
+      // Log should show domain was pre-approved
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Domain validation:.*ex\.localhost.*is pre-approved/)
+      ]));
+    });
+
+    it('uses pre-blocked domains from session cache without calling validation service', async () => {
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          autoDomainValidation: {
+            enabled: true,
+            validationEndpoint: 'http://localhost:8002/validate-domain',
+            timeout: 5000
+          }
+        }
+      });
+
+      // Pre-populate session cache with blocked domain
+      percy.domainValidation.preBlocked.add('ex.localhost');
+
+      logger.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Verify the validation server was NOT called (domain was pre-blocked)
+      expect(validationServer.requests.filter(r => r[0] === '/validate-domain').length).toBe(0);
+
+      // Verify external resource was NOT captured (pre-blocked)
+      expect(captured[0]).not.toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+
+      // Log should show domain was pre-blocked
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Domain validation:.*ex\.localhost.*is pre-blocked/)
+      ]));
+    });
+
+    it('caches validation results for subsequent requests', async () => {
+      await percy.stop();
+
+      // Configure validation server to return allowed
+      validationServer.reply('/validate-domain', () => [200, 'application/json', {
+        allowed: true,
+        reason: 'known CDN'
+      }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          autoDomainValidation: {
+            enabled: true,
+            validationEndpoint: 'http://localhost:8002/validate-domain',
+            timeout: 5000
+          }
+        }
+      });
+
+      // Take first snapshot
+      await percy.snapshot({
+        name: 'test snapshot 1',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      const firstCallCount = validationServer.requests.filter(r => r[0] === '/validate-domain').length;
+
+      // Take second snapshot with same external domain
+      await percy.snapshot({
+        name: 'test snapshot 2',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      const secondCallCount = validationServer.requests.filter(r => r[0] === '/validate-domain').length;
+
+      // Validation server should only be called once (result cached from first snapshot)
+      expect(firstCallCount).toBe(1);
+      expect(secondCallCount).toBe(1);
+    });
+
+    it('allows domain on validation service failure (fail-open)', async () => {
+      await percy.stop();
+
+      // Configure validation server to return error
+      validationServer.reply('/validate-domain', () => [500, 'text/plain', 'Internal Server Error']);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          autoDomainValidation: {
+            enabled: true,
+            validationEndpoint: 'http://localhost:8002/validate-domain',
+            timeout: 5000
+          }
+        }
+      });
+
+      logger.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Verify external resource WAS captured (fail-open on error)
+      expect(captured[0]).toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+
+      // Log should show warning about validation failure
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Domain validation: Failed to validate.*ex\.localhost/)
+      ]));
+    });
+
+    it('respects manual allowedHostnames over auto validation', async () => {
+      await percy.stop();
+
+      // Configure validation server to return blocked (should be ignored)
+      validationServer.reply('/validate-domain', () => [200, 'application/json', {
+        allowed: false,
+        reason: 'not allowed'
+      }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          allowedHostnames: ['ex.localhost'],
+          autoDomainValidation: {
+            enabled: true,
+            validationEndpoint: 'http://localhost:8002/validate-domain',
+            timeout: 5000
+          }
+        }
+      });
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Validation server should NOT be called (manual allowedHostnames takes precedence)
+      expect(validationServer.requests.filter(r => r[0] === '/validate-domain').length).toBe(0);
+
+      // Verify external resource WAS captured (manually allowed)
+      expect(captured[0]).toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+    });
+
+    it('respects manual disallowedHostnames over auto validation', async () => {
+      await percy.stop();
+
+      // Configure validation server to return allowed (should be ignored)
+      validationServer.reply('/validate-domain', () => [200, 'application/json', {
+        allowed: true,
+        reason: 'known CDN'
+      }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          disallowedHostnames: ['ex.localhost'],
+          autoDomainValidation: {
+            enabled: true,
+            validationEndpoint: 'http://localhost:8002/validate-domain',
+            timeout: 5000
+          }
+        }
+      });
+
+      logger.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Validation server should NOT be called (manual disallowedHostnames takes precedence)
+      expect(validationServer.requests.filter(r => r[0] === '/validate-domain').length).toBe(0);
+
+      // Verify external resource was NOT captured (manually disallowed)
+      expect(captured[0]).not.toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+    });
+  });
+
   describe('with launch options', () => {
     beforeEach(async () => {
       // ensure a new percy instance is used for each test

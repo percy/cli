@@ -124,6 +124,25 @@ export class Percy {
     this.monitoringCheckLastExecutedAt = null;
     this.sdkInfoDisplayed = false;
 
+    // Domain validation state for auto domain allow-listing
+    const autoDomainValidationConfig = this.config.discovery?.autoDomainValidation;
+    this.domainValidation = {
+      enabled: autoDomainValidationConfig?.enabled ?? false,
+      config: autoDomainValidationConfig || {},
+      preApproved: new Set(), // Domains from project config
+      preBlocked: new Set(), // Domains from project config
+      sessionAllowed: new Set(), // Newly discovered allowed domains this session
+      sessionBlocked: new Set(), // Newly discovered blocked domains this session
+      pending: new Map(), // Domain -> Promise (deduplication)
+      stats: {
+        preApprovedHits: 0,
+        preBlockedHits: 0,
+        sessionHits: 0,
+        apiCalls: 0,
+        errors: 0
+      }
+    };
+
     // generator methods are wrapped to autorun and return promises
     for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot', 'upload']) {
       // the original generator can be referenced with percy.yield.<method>
@@ -228,6 +247,12 @@ export class Percy {
       if (!this.skipDiscovery) yield this.#discovery.start();
       // start a local API server for SDK communication
       if (this.server) yield this.server.listen();
+
+      // Load project domain config if auto-validation is enabled
+      if (this.domainValidation.enabled && !this.skipUploads) {
+        yield this._loadProjectDomainConfig();
+      }
+
       if (this.renderingTypeProject()) {
         if (!process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS || process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS !== 'true') {
           this.deviceDetails = yield this.client.getDeviceDetails(this.build?.id);
@@ -332,6 +357,11 @@ export class Percy {
       // if dry-running, log the total number of snapshots
       if (this.dryRun && this.#snapshots.size) {
         this.log.info(info('Found', this.#snapshots.size));
+      }
+
+      // Save domain validation config before closing
+      if (this.domainValidation.enabled && !this.skipUploads) {
+        await this._saveProjectDomainConfig();
       }
 
       // close server and end queues
@@ -678,6 +708,85 @@ export class Percy {
       this.log.info(`Build's CLI${sendCILogs ? ' and CI' : ''} logs sent successfully. Please share this log ID with Percy team in case of any issues - ${logsSHA}`);
     } catch (err) {
       this.log.warn('Could not send the builds logs');
+    }
+  }
+
+  // Load project domain configuration for auto domain validation
+  async _loadProjectDomainConfig() {
+    if (!this.domainValidation.enabled) return;
+
+    try {
+      // Extract project slug from build info or env
+      const projectSlug = process.env.PERCY_PROJECT || this.build?.attributes?.['web-url']?.split('/').slice(-2).join('/');
+      if (!projectSlug) {
+        this.log.debug('Domain validation: No project slug available, skipping config load');
+        return;
+      }
+
+      this.log.debug(`Domain validation: Loading config for project ${projectSlug}`);
+      const projectData = await this.client.getProject(projectSlug);
+
+      if (projectData?.data?.attributes?.['domain-config']) {
+        const domainConfig = projectData.data.attributes['domain-config'];
+
+        // Populate pre-approved domains
+        if (domainConfig['allowed-domains']?.length) {
+          domainConfig['allowed-domains'].forEach(domain => {
+            this.domainValidation.preApproved.add(domain);
+          });
+          this.log.debug(`Domain validation: Loaded ${domainConfig['allowed-domains'].length} pre-approved domains`);
+        }
+
+        // Populate pre-blocked domains
+        if (domainConfig['blocked-domains']?.length) {
+          domainConfig['blocked-domains'].forEach(domain => {
+            this.domainValidation.preBlocked.add(domain);
+          });
+          this.log.debug(`Domain validation: Loaded ${domainConfig['blocked-domains'].length} pre-blocked domains`);
+        }
+
+        this.log.info(`Domain validation: Initialized with ${this.domainValidation.preApproved.size} allowed and ${this.domainValidation.preBlocked.size} blocked domains`);
+      } else {
+        this.log.debug('Domain validation: No existing domain config found for project');
+      }
+    } catch (error) {
+      this.log.warn(`Domain validation: Failed to load project config - ${error.message}`);
+      this.log.debug(error);
+    }
+  }
+
+  // Save newly discovered domain validations back to project
+  async _saveProjectDomainConfig() {
+    if (!this.domainValidation.enabled) return;
+
+    const { sessionAllowed, sessionBlocked, stats } = this.domainValidation;
+
+    // Only save if there are new domains discovered in this session
+    if (sessionAllowed.size === 0 && sessionBlocked.size === 0) {
+      this.log.debug('Domain validation: No new domains to save');
+      return;
+    }
+
+    try {
+      const projectSlug = process.env.PERCY_PROJECT || this.build?.attributes?.['web-url']?.split('/').slice(-2).join('/');
+      if (!projectSlug) {
+        this.log.debug('Domain validation: No project slug available, skipping config save');
+        return;
+      }
+
+      this.log.debug(`Domain validation: Saving config for project ${projectSlug}`);
+
+      await this.client.updateProjectDomainConfig(projectSlug, {
+        buildId: this.build?.id,
+        allowed: Array.from(sessionAllowed),
+        blocked: Array.from(sessionBlocked)
+      });
+
+      this.log.info(`Domain validation: Saved ${sessionAllowed.size} new allowed and ${sessionBlocked.size} new blocked domains`);
+      this.log.debug(`Domain validation stats: ${JSON.stringify(stats)}`);
+    } catch (error) {
+      this.log.warn(`Domain validation: Failed to save project config - ${error.message}`);
+      this.log.debug(error);
     }
   }
 }
