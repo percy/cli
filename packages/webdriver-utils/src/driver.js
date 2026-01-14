@@ -6,7 +6,7 @@ const log = utils.logger('webdriver-utils:driver');
 export default class Driver {
   constructor(sessionId, executorUrl, passedCapabilities) {
     this.sessionId = sessionId;
-    this.executorUrl = executorUrl.includes('@') ? `https://${executorUrl.split('@')[1]}` : executorUrl;
+    this.executorUrl = (executorUrl.includes('@') ? `https://${executorUrl.split('@')[1]}` : executorUrl).replace(/\/+$/, '');
     this.passedCapabilities = passedCapabilities;
   }
 
