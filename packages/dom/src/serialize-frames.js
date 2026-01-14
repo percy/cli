@@ -70,7 +70,10 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
 
       // assign serialized html to srcdoc and remove src
       let p = getPolicy() || {};
-      cloneEl.setAttribute('srcdoc', p.createHTML ? p.createHTML(serialized.html) : serialized.html);
+      try {
+        cloneEl.setAttribute('srcdoc', p.createHTML ? p.createHTML(serialized.html) : serialized.html);
+      } catch {}
+
       cloneEl.removeAttribute('src');
 
     // delete inaccessible frames built with js when js is disabled because they
