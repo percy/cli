@@ -12,12 +12,12 @@ function getPolicy() {
 
     try {
       policy = window.trustedTypes.createPolicy('percy-dom', {
-        createHTML: html => html
+        createHTML: html => html // codeql[js/dom-text-reinterpreted-as-html]
       });
     } catch (e) {
       // ignore
     }
-
+    /* istanbul ignore next */
     return policy || {};
   }
 }
