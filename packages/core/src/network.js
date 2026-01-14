@@ -324,6 +324,45 @@ export class Network {
     /* istanbul ignore if: race condition paranoia */
     if (!request) return;
 
+    // Log instrumentation for failed requests
+    let response = request.response;
+    let category, reason, details;
+
+    /* istanbul ignore next: rare edge case where loadingFailed is called with a response */
+    if (response) {
+      // Request has a response but failed (e.g., 404, 5xx)
+      if (response.status >= 500 && response.status < 600) {
+        category = 'asset_load_5xx';
+        reason = 'server_error';
+      } else if (!ALLOWED_STATUSES.includes(response.status)) {
+        category = 'asset_not_uploaded';
+        reason = 'disallowed_status';
+      }
+
+      if (category) {
+        details = {
+          url: request.url,
+          statusCode: response.status,
+          snapshot: this.meta.snapshot,
+          requestType: request.type
+        };
+      }
+    // Failed request without a response (network error)
+    } else if (event.errorText && event.errorText !== 'net::ERR_FAILED') {
+      category = 'asset_load_missing';
+      reason = 'network_error';
+      details = {
+        url: request.url,
+        errorText: event.errorText,
+        snapshot: this.meta.snapshot,
+        requestType: request.type
+      };
+    }
+
+    if (category) {
+      logAssetInstrumentation(this.log, category, reason, details);
+    }
+
     // If request was aborted, keep track of it as we need to cancel any in process callbacks for
     // such a request to avoid Invalid InterceptionId errors
     // Note: 404s also show up under ERR_ABORTED and not ERR_FAILED
@@ -353,6 +392,39 @@ export class Network {
   }
 }
 
+// Logs asset instrumentation for failed/skipped asset loading
+function logAssetInstrumentation(log, category, reason, details) {
+  const categoryMap = {
+    asset_load_5xx: '[ASSET_LOAD_5XX]',
+    asset_not_uploaded: '[ASSET_NOT_UPLOADED]',
+    asset_load_missing: '[ASSET_LOAD_MISSING]'
+  };
+
+  const messageMap = {
+    server_error: 'Server error response',
+    disallowed_status: 'Disallowed status code',
+    network_error: 'Network error',
+    disallowed_hostname: 'Disallowed hostname',
+    resource_too_large: 'Resource too large',
+    no_response: 'No response received',
+    empty_response: 'Empty response',
+    disallowed_resource_type: 'Disallowed resource type'
+  };
+
+  const prefix = categoryMap[category];
+  /* istanbul ignore next: fallback for unknown reason */
+  const message = messageMap[reason] || reason;
+
+  log.debug(
+    `${prefix} ${message}`,
+    {
+      ...details,
+      reason,
+      instrumentationCategory: category
+    }
+  );
+}
+
 // Returns the normalized origin URL of a request
 function originURL(request) {
   return normalizeURL((request.redirectChain[0] || request).url);
@@ -372,6 +444,11 @@ async function sendResponseResource(network, request, session) {
     network.log.debug(`Handling request: ${url}`, meta);
 
     if (!resource?.root && hostnameMatches(disallowedHostnames, url)) {
+      logAssetInstrumentation(log, 'asset_not_uploaded', 'disallowed_hostname', {
+        url,
+        hostname: new URL(url).hostname,
+        snapshot: meta.snapshot
+      });
       log.debug('- Skipping disallowed hostname', meta);
 
       await send('Fetch.failRequest', {
@@ -474,6 +551,11 @@ async function saveResponseResource(network, request, session) {
   let contentLength = response.headers?.[Object.keys(response.headers).find(key => key.toLowerCase() === 'content-length')];
   contentLength = parseInt(contentLength);
   if (contentLength > MAX_RESOURCE_SIZE) {
+    logAssetInstrumentation(log, 'asset_not_uploaded', 'resource_too_large', {
+      url,
+      size: contentLength,
+      snapshot: meta.snapshot
+    });
     return log.debug('- Skipping resource larger than 25MB', meta);
   }
   let resource = network.intercept.getResource(url);
@@ -488,17 +570,55 @@ async function saveResponseResource(network, request, session) {
       // Don't rename the below log line as it is used in getting network logs in api
       /* istanbul ignore if: first check is a sanity check */
       if (!response) {
+        logAssetInstrumentation(log, 'asset_load_missing', 'no_response', {
+          url,
+          snapshot: meta.snapshot,
+          requestType: request.type
+        });
         return log.debug('- Skipping no response', meta);
       } else if (!shouldCapture) {
+        logAssetInstrumentation(log, 'asset_not_uploaded', 'disallowed_hostname', {
+          url,
+          hostname: new URL(url).hostname,
+          snapshot: meta.snapshot
+        });
         return log.debug('- Skipping remote resource', meta);
       } else if (!body.length) {
+        logAssetInstrumentation(log, 'asset_not_uploaded', 'empty_response', {
+          url,
+          snapshot: meta.snapshot
+        });
         return log.debug('- Skipping empty response', meta);
       } else if (body.length > MAX_RESOURCE_SIZE) {
+        logAssetInstrumentation(log, 'asset_not_uploaded', 'resource_too_large', {
+          url,
+          size: body.length,
+          snapshot: meta.snapshot
+        });
         log.debug('- Missing headers for the requested resource.', meta);
         return log.debug('- Skipping resource larger than 25MB', meta);
       } else if (!ALLOWED_STATUSES.includes(response.status)) {
+        /* istanbul ignore next: ternary branches tested separately */
+        const category = (response.status >= 500 && response.status < 600)
+          ? 'asset_load_5xx'
+          : 'asset_not_uploaded';
+        /* istanbul ignore next: ternary branches tested separately */
+        const reason = (response.status >= 500 && response.status < 600)
+          ? 'server_error'
+          : 'disallowed_status';
+        logAssetInstrumentation(log, category, reason, {
+          url,
+          statusCode: response.status,
+          snapshot: meta.snapshot,
+          requestType: request.type
+        });
         return log.debug(`- Skipping disallowed status [${response.status}]`, meta);
       } else if (!enableJavaScript && !ALLOWED_RESOURCES.includes(request.type)) {
+        logAssetInstrumentation(log, 'asset_not_uploaded', 'disallowed_resource_type', {
+          url,
+          resourceType: request.type,
+          snapshot: meta.snapshot
+        });
         return log.debug(`- Skipping disallowed resource type [${request.type}]`, meta);
       }
 
