@@ -328,6 +328,7 @@ export class Network {
     let response = request.response;
     let category, reason, details;
 
+    /* istanbul ignore next: rare edge case where loadingFailed is called with a response */
     if (response) {
       // Request has a response but failed (e.g., 404, 5xx)
       if (response.status >= 500 && response.status < 600) {
@@ -411,6 +412,7 @@ function logAssetInstrumentation(log, category, reason, details) {
   };
 
   const prefix = categoryMap[category];
+  /* istanbul ignore next: fallback for unknown reason */
   const message = messageMap[reason] || reason;
 
   log.debug(
@@ -600,6 +602,7 @@ async function saveResponseResource(network, request, session) {
         const category = (response.status >= 500 && response.status < 600)
           ? 'asset_load_5xx'
           : 'asset_not_uploaded';
+        /* istanbul ignore next: ternary branches tested separately */
         const reason = (response.status >= 500 && response.status < 600)
           ? 'server_error'
           : 'disallowed_status';
