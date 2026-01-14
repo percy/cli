@@ -12,7 +12,8 @@ function getPolicy() {
 
     try {
       policy = window.trustedTypes.createPolicy('percy-dom', {
-        createHTML: html => html // codeql[js/dom-text-reinterpreted-as-html]
+        // codeql[js/dom-text-reinterpreted-as-html]
+        createHTML: html => html
       });
     } catch (e) {
       // ignore
