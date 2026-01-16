@@ -54,7 +54,7 @@
     "karma-jasmine": "^5.0.0",
     "karma-mocha-reporter": "^2.2.5",
     "karma-rollup-preprocessor": "^7.0.5",
-    "lerna": "^6.0.1",
+    "lerna": "^9.0.3",
     "memfs": "^3.4.0",
     "nyc": "^15.1.0",
     "rollup": "^2.53.2",
