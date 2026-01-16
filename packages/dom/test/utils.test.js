@@ -145,5 +145,23 @@ describe('utils', () => {
       const case4 = rewriteLocalhostURL('https://hellolocalhost:2000/world');
       expect(case4).toEqual('https://hellolocalhost:2000/world');
     });
+    it('should rewrite non-http(s) schemes to http://render.percy.local', () => {
+      const case1 = rewriteLocalhostURL('file:///path/to/file.html');
+      expect(case1).toEqual('http://render.percy.local/path/to/file.html');
+      const case2 = rewriteLocalhostURL('data:image/png;base64,iVBORw0KGg');
+      expect(case2).toEqual('http://render.percy.localimage/png;base64,iVBORw0KGg');
+      const case3 = rewriteLocalhostURL('chrome-extension://abc123/popup.html');
+      expect(case3).toEqual('http://render.percy.local/popup.html');
+      const case4 = rewriteLocalhostURL('ftp://example.com/file.txt');
+      expect(case4).toEqual('http://render.percy.local/file.txt');
+    });
+    it('should preserve pathname, search params and hash for non-http(s) schemes', () => {
+      const case1 = rewriteLocalhostURL('file:///path/to/file.html?query=value#section');
+      expect(case1).toEqual('http://render.percy.local/path/to/file.html?query=value#section');
+      const case2 = rewriteLocalhostURL('chrome-extension://abc123/popup.html?tab=1#top');
+      expect(case2).toEqual('http://render.percy.local/popup.html?tab=1#top');
+      const case3 = rewriteLocalhostURL('file:///index.html#header');
+      expect(case3).toEqual('http://render.percy.local/index.html#header');
+    });
   });
 });
