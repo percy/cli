@@ -1,5 +1,28 @@
 import serializeDOM from './serialize-dom';
 
+let policy = null;
+
+export function resetPolicy() {
+  policy = null;
+}
+
+function getPolicy() {
+  if (typeof window !== 'undefined' && window.trustedTypes && window.trustedTypes.createPolicy) {
+    if (policy && policy.createHTML) return policy;
+
+    try {
+      policy = window.trustedTypes.createPolicy('percy-dom', {
+        // codeql[js/dom-text-reinterpreted-as-html]
+        createHTML: html => html
+      });
+    } catch (e) {
+      // ignore
+    }
+    /* istanbul ignore next */
+    return policy || {};
+  }
+}
+
 // Adds a `<base>` element to the serialized iframe's `<head>`. This is necessary when
 // embedded documents are serialized and their contents become root-relative.
 function setBaseURI(dom) {
@@ -46,7 +69,11 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
       for (let r of serialized.resources) resources.add(r);
 
       // assign serialized html to srcdoc and remove src
-      cloneEl.setAttribute('srcdoc', serialized.html);
+      let p = getPolicy() || {};
+      try {
+        cloneEl.setAttribute('srcdoc', p.createHTML ? p.createHTML(serialized.html) : serialized.html);
+      } catch {}
+
       cloneEl.removeAttribute('src');
 
     // delete inaccessible frames built with js when js is disabled because they

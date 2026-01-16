@@ -1,6 +1,7 @@
 import { when } from 'interactor.js';
 import { assert, withExample, parseDOM, platforms, platformDOM, getTestBrowser, chromeBrowser, firefoxBrowser } from './helpers';
-import serializeDOM from '@percy/dom';
+import serializeDOM from '../src/serialize-dom';
+import { resetPolicy } from '../src/serialize-frames';
 
 describe('serializeFrames', () => {
   let serialized, cache = { shadow: {}, plain: {} };
@@ -159,5 +160,33 @@ describe('serializeFrames', () => {
     it(`${platform}: removes inaccessible JS frames`, () => {
       expect($('#frame-inject')).toHaveSize(0);
     });
+
+    if (platform === 'plain') {
+      it('uses Trusted Types policy to create srcdoc when available', () => {
+        let createHTML = jasmine.createSpy('createHTML').and.callFake(html => html);
+        let createPolicy = jasmine.createSpy('createPolicy').and.returnValue({ createHTML });
+        let trustedTypesDescriptor = Object.getOwnPropertyDescriptor(window, 'trustedTypes');
+
+        // Reset policy to ensure we don't use a cached version from a previous test/environment
+        resetPolicy();
+
+        Object.defineProperty(window, 'trustedTypes', {
+          value: { createPolicy },
+          configurable: true
+        });
+
+        try {
+          serializeDOM();
+          expect(createPolicy).toHaveBeenCalledWith('percy-dom', jasmine.objectContaining({ createHTML: jasmine.any(Function) }));
+          expect(createHTML).toHaveBeenCalled();
+        } finally {
+          if (trustedTypesDescriptor) {
+            Object.defineProperty(window, 'trustedTypes', trustedTypesDescriptor);
+          } else {
+            delete window.trustedTypes;
+          }
+        }
+      });
+    }
   });
 });
