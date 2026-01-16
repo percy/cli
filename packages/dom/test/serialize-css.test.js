@@ -425,5 +425,39 @@ describe('serializeCSSOM', () => {
       document.head.removeChild(linkElement1);
       URL.revokeObjectURL(blobUrl1);
     });
+
+    it('skips stylesheet when cloneOwnerNode is not found in clone', () => {
+      withExample('<div class="box"></div>');
+      withCSSOM('.box { height: 500px; }');
+
+      const sheet = document.styleSheets[0];
+      const owner = sheet.ownerNode;
+      owner.setAttribute('data-percy-element-id', 'test-id');
+
+      // Create a clone without the matching element
+      const clone = document.createDocumentFragment();
+      const cloneBody = document.createElement('body');
+      clone.appendChild(cloneBody);
+
+      const resources = new Set();
+      const cache = new Map();
+      const warnings = new Set();
+
+      // Should not throw when element is missing from clone
+      expect(() => serializeCSSOM({ dom: document, clone, resources, cache, warnings })).not.toThrow();
+
+      // Verify no style element was added since the owner wasn't found
+      let found = false;
+      for (let node of clone.childNodes) {
+        if (node.querySelectorAll) {
+          const serializedStyles = node.querySelectorAll('[data-percy-cssom-serialized]');
+          if (serializedStyles.length > 0) {
+            found = true;
+            break;
+          }
+        }
+      }
+      expect(found).toBe(false);
+    });
   });
 });
