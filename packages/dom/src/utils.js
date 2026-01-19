@@ -45,12 +45,12 @@ export function styleSheetFromNode(node) {
 }
 
 export function rewriteLocalhostURL(url) {
-  // check if URL has non-http(s) scheme and rewrite to render.percy.local
   let parsedURL = new URL(url);
-  if (parsedURL.protocol !== 'http:' && parsedURL.protocol !== 'https:') {
-    url = 'http://render.percy.local' + parsedURL.pathname + parsedURL.search + parsedURL.hash;
+
+  // check if URL has chrome-error scheme and rewrite to a non-existent URL that will 404
+  if (parsedURL.protocol === 'chrome-error:') {
+    url = 'http://we-got-a-chrome-error-url-handled-gracefully.com/' + parsedURL.host + parsedURL.pathname + parsedURL.search + parsedURL.hash;
   }
-  // else ->
   return url.replace(/(http[s]{0,1}:\/\/)(localhost|127.0.0.1)[:\d+]*/, '$1render.percy.local');
 }
 
