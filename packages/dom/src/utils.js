@@ -45,6 +45,12 @@ export function styleSheetFromNode(node) {
 }
 
 export function rewriteLocalhostURL(url) {
+  let parsedURL = new URL(url);
+
+  // check if URL has chrome-error scheme and rewrite to a non-existent URL that will 404
+  if (parsedURL.protocol === 'chrome-error:') {
+    url = 'http://we-got-a-chrome-error-url-handled-gracefully.com/' + parsedURL.host + parsedURL.pathname + parsedURL.search + parsedURL.hash;
+  }
   return url.replace(/(http[s]{0,1}:\/\/)(localhost|127.0.0.1)[:\d+]*/, '$1render.percy.local');
 }
 

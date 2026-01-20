@@ -145,5 +145,13 @@ describe('utils', () => {
       const case4 = rewriteLocalhostURL('https://hellolocalhost:2000/world');
       expect(case4).toEqual('https://hellolocalhost:2000/world');
     });
+    it('should rewrite chrome-error scheme to non-existent URL', () => {
+      const case1 = rewriteLocalhostURL('chrome-error://chromewebdata/');
+      expect(case1).toEqual('http://we-got-a-chrome-error-url-handled-gracefully.com/chromewebdata/');
+      const case2 = rewriteLocalhostURL('chrome-error://chromewebdata/__serialized__/abc.png');
+      expect(case2).toEqual('http://we-got-a-chrome-error-url-handled-gracefully.com/chromewebdata/__serialized__/abc.png');
+      const case3 = rewriteLocalhostURL('chrome-error://chromewebdata/path?query=1#hash');
+      expect(case3).toEqual('http://we-got-a-chrome-error-url-handled-gracefully.com/chromewebdata/path?query=1#hash');
+    });
   });
 });
