@@ -49,7 +49,7 @@
     "@percy/logger": "1.31.9-beta.1",
     "@percy/monitoring": "1.31.9-beta.1",
     "@percy/webdriver-utils": "1.31.9-beta.1",
-    "content-disposition": "^0.5.4",
+    "content-disposition": "^1.0.1",
     "cross-spawn": "^7.0.3",
     "extract-zip": "^2.0.1",
     "fast-glob": "^3.2.11",
