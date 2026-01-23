@@ -447,6 +447,10 @@ export function createDiscoveryQueue(percy) {
             captureMockedServiceWorker: snapshot.discovery.captureMockedServiceWorker,
             meta: { ...snapshot.meta, snapshotURL: snapshot.url },
 
+            // pass domain validation context for auto-allowlisting
+            domainValidation: percy.domainValidation,
+            client: percy.client,
+
             // enable network inteception
             intercept: {
               enableJavaScript: snapshot.enableJavaScript,

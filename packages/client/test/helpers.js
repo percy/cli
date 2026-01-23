@@ -146,6 +146,18 @@ export const api = {
     '/discovery/device-details': () => [201, {
       data: []
     }],
+    '/projects/domain-config': () => [200, {
+      data: {
+        id: 'domain-config',
+        type: 'projects',
+        attributes: {
+          'domain-config': {
+            allowed: [],
+            blocked: []
+          }
+        }
+      }
+    }],
     '/logs': () => [200, 'random_sha']
   },
 

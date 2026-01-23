@@ -168,6 +168,21 @@ export class PercyClient {
     });
   }
 
+  // Performs a PATCH request to a JSON API endpoint with appropriate headers.
+  patch(path, body = {}, { ...meta } = {}, customHeaders = {}, raiseIfMissing = true) {
+    return logger.measure('client:patch', meta.identifier || 'Unknown', meta, () => {
+      return request(`${this.apiUrl}/${path}`, {
+        headers: this.headers({
+          'Content-Type': 'application/vnd.api+json',
+          ...customHeaders
+        }, raiseIfMissing),
+        method: 'PATCH',
+        body,
+        meta
+      });
+    });
+  }
+
   // Creates a build with optional build resources. Only one build can be
   // created at a time per instance so snapshots and build finalization can be
   // done more seamlessly without manually tracking build ids
@@ -775,6 +790,45 @@ export class PercyClient {
       { Authorization: `Basic ${base64encode(`${username}:${accessKey}`)}` },
       false
     );
+  }
+
+  // Updates project domain configuration
+  async updateProjectDomainConfig({ buildId, allowed = [], blocked = [] } = {}) {
+    this.log.debug('Updating domain config');
+    return this.patch('projects/domain-config', {
+      data: {
+        type: 'projects',
+        attributes: {
+          'domain-config': {
+            'build-id': buildId,
+            allowed: allowed,
+            blocked: blocked
+          }
+        }
+      }
+    }, { identifier: 'project.updateDomainConfig' });
+  }
+
+  // Validates a domain with the Cloudflare worker endpoint
+  async validateDomain(hostname, options = {}) {
+    const endpoint = 'https://winter-morning-fa32.shobhit-k.workers.dev/validate-domain';
+    const timeout = 5000;
+
+    this.log.debug(`Validating domain: ${hostname}`);
+
+    try {
+      const response = await request(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: hostname }),
+        timeout
+      });
+
+      return response;
+    } catch (error) {
+      this.log.debug(`Domain validation failed for ${hostname}: ${error.message}`);
+      throw error;
+    }
   }
 
   mayBeLogUploadSize(contentSize, meta = {}) {

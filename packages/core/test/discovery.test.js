@@ -1,5 +1,5 @@
 import { sha256hash } from '@percy/client/utils';
-import { logger, api, setupTest, createTestServer, dedent } from './helpers/index.js';
+import { logger, api, setupTest, createTestServer, dedent, mockRequests } from './helpers/index.js';
 import Percy from '@percy/core';
 import { RESOURCE_CACHE_KEY } from '../src/discovery.js';
 import Session from '../src/session.js';
@@ -50,6 +50,15 @@ describe('Discovery', () => {
 
       return [201, { data: { id: '4567' } }];
     });
+
+    // Mock domain config endpoint - return empty config by default
+    api.reply('/projects/domain-config', () => [200, {
+      data: {
+        type: 'projects',
+        id: '123',
+        attributes: {}
+      }
+    }]);
 
     const dynamicImageRoutes = {};
     for (let i = 0; i < 800; i++) {
@@ -2328,7 +2337,10 @@ describe('Discovery', () => {
       await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
-        domSnapshot: testExternalDOM
+        domSnapshot: testExternalDOM,
+        discovery: {
+          disallowedHostnames: ['ex.localhost']
+        }
       });
 
       await percy.idle();
@@ -2336,8 +2348,9 @@ describe('Discovery', () => {
       let paths = server.requests.map(r => r[0]);
       expect(paths).toContain('/style.css');
       expect(paths).not.toContain('/img.gif');
+      // With disallowedHostnames, the request is blocked and never made to the external server
       let paths2 = server2.requests.map(r => r[0]);
-      expect(paths2).toContain('/img.gif');
+      expect(paths2).not.toContain('/img.gif');
 
       expect(captured[0]).toEqual([
         jasmine.objectContaining({
@@ -2372,7 +2385,10 @@ describe('Discovery', () => {
         domSnapshot: testExternalAsyncDOM,
         // img loading is eager when not enabled which causes the page load event
         // to wait for the eager img request to finish
-        enableJavaScript: true
+        enableJavaScript: true,
+        discovery: {
+          disallowedHostnames: ['ex.localhost']
+        }
       });
 
       await percy.idle();
@@ -2472,7 +2488,7 @@ describe('Discovery', () => {
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
         discovery: {
-          disallowedHostnames: ['localhost']
+          disallowedHostnames: ['localhost', 'ex.localhost']
         }
       });
 
@@ -2518,7 +2534,10 @@ describe('Discovery', () => {
 
       await percy.snapshot({
         name: 'test cors',
-        url: 'http://test.localhost:8001'
+        url: 'http://test.localhost:8001',
+        discovery: {
+          disallowedHostnames: ['embed.localhost']
+        }
       });
 
       await expectAsync(percy.idle()).toBeResolved();
@@ -2556,6 +2575,412 @@ describe('Discovery', () => {
           })
         })
       );
+    });
+  });
+
+  describe('with auto domain validation', () => {
+    let testExternalDOM = testDOM.replace('img.gif', 'http://ex.localhost:8001/img.gif');
+    let server2;
+    let validationMock;
+
+    beforeEach(async () => {
+      // Create an external server for resources
+      server2 = await createTestServer({
+        '/img.gif': () => [200, 'image/gif', pixel]
+      }, 8001);
+
+      // Mock the Cloudflare worker validation endpoint
+      validationMock = await mockRequests('https://winter-morning-fa32.shobhit-k.workers.dev', () => [
+        200, { accessible: false, reason: 'unknown domain' }
+      ]);
+    });
+
+    afterEach(async () => {
+      await server2.close();
+    });
+
+    it('blocks external domains when validation service returns not allowed', async () => {
+      await percy.stop();
+
+      // Configure validation mock to return blocked
+      validationMock.and.returnValue([200, { accessible: false, reason: 'not a recognized CDN' }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN'
+      });
+
+      logger.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Verify the validation mock was called
+      expect(validationMock).toHaveBeenCalled();
+
+      // Verify external resource was NOT captured (blocked by validation)
+      expect(captured[0]).not.toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+
+      // Log should show domain validation blocking
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Domain validation:.*ex\.localhost.*validated as BLOCKED/)
+      ]));
+    });
+
+    it('allows external domains when validation service returns allowed', async () => {
+      await percy.stop();
+
+      // Configure validation mock to return allowed
+      validationMock.and.returnValue([200, { accessible: true, reason: 'known CDN: Cloudflare' }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN'
+      });
+
+      logger.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Verify the validation mock was called
+      expect(validationMock).toHaveBeenCalled();
+
+      // Verify external resource WAS captured (allowed by validation)
+      expect(captured[0]).toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+
+      // Log should show domain validation allowing
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Domain validation:.*ex\.localhost.*validated as ALLOWED/)
+      ]));
+    });
+
+    it('uses pre-approved domains from session cache without calling validation service', async () => {
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN'
+      });
+
+      // Pre-populate session cache with approved domain
+      percy.domainValidation.preApproved.add('ex.localhost');
+
+      logger.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Verify the validation mock was NOT called (domain was pre-approved)
+      expect(validationMock).not.toHaveBeenCalled();
+
+      // Verify external resource WAS captured (pre-approved)
+      expect(captured[0]).toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+
+      // Log should show domain was pre-approved
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Domain validation:.*ex\.localhost.*is pre-approved/)
+      ]));
+    });
+
+    it('uses pre-blocked domains from session cache without calling validation service', async () => {
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN'
+      });
+
+      // Pre-populate session cache with blocked domain
+      percy.domainValidation.preBlocked.add('ex.localhost');
+
+      logger.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Verify the validation mock was NOT called (domain was pre-blocked)
+      expect(validationMock).not.toHaveBeenCalled();
+
+      // Verify external resource was NOT captured (pre-blocked)
+      expect(captured[0]).not.toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+
+      // Log should show domain was pre-blocked
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Domain validation:.*ex\.localhost.*is pre-blocked/)
+      ]));
+    });
+
+    it('caches validation results for subsequent requests', async () => {
+      await percy.stop();
+
+      // Configure validation mock to return allowed
+      validationMock.and.returnValue([200, { accessible: true, reason: 'known CDN' }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN'
+      });
+
+      // Take first snapshot
+      await percy.snapshot({
+        name: 'test snapshot 1',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      const firstCallCount = validationMock.calls.count();
+
+      // Take second snapshot with same external domain
+      await percy.snapshot({
+        name: 'test snapshot 2',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      const secondCallCount = validationMock.calls.count();
+
+      // Validation mock should only be called once (result cached from first snapshot)
+      expect(firstCallCount).toBe(1);
+      expect(secondCallCount).toBe(1);
+    });
+
+    it('allows domain on validation service failure (fail-open)', async () => {
+      await percy.stop();
+
+      // Configure validation mock to return error
+      validationMock.and.returnValue([500, 'Internal Server Error']);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN'
+      });
+
+      logger.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Verify external resource WAS captured (fail-open on error)
+      expect(captured[0]).toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+
+      // Log should show warning about validation failure
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Domain validation: Failed to validate.*ex\.localhost/)
+      ]));
+    });
+
+    it('respects manual allowedHostnames over auto validation', async () => {
+      await percy.stop();
+
+      // Configure validation mock to return blocked (should be ignored)
+      validationMock.and.returnValue([200, { accessible: false, reason: 'not allowed' }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          allowedHostnames: ['ex.localhost']
+        }
+      });
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Validation mock should NOT be called (manual allowedHostnames takes precedence)
+      expect(validationMock).not.toHaveBeenCalled();
+
+      // Verify external resource WAS captured (manually allowed)
+      expect(captured[0]).toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+    });
+
+    it('respects manual disallowedHostnames over auto validation', async () => {
+      await percy.stop();
+
+      // Configure validation mock to return allowed (should be ignored)
+      validationMock.and.returnValue([200, { accessible: true, reason: 'known CDN' }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          disallowedHostnames: ['ex.localhost']
+        }
+      });
+
+      logger.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Validation mock should NOT be called (manual disallowedHostnames takes precedence)
+      expect(validationMock).not.toHaveBeenCalled();
+
+      // Verify external resource was NOT captured (manually disallowed)
+      expect(captured[0]).not.toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+    });
+
+    it('loads domain config early from API before discovery starts', async () => {
+      await percy.stop();
+
+      // Clear previous mocks and set up new one
+      api.replies['/projects/domain-config'] = [];
+
+      // Mock API response for domain config endpoint
+      api.reply('/projects/domain-config', () => [200, {
+        data: {
+          type: 'projects',
+          attributes: {
+            'domain-config': {
+              'allowed-domains': ['cdn.example.com', 'images.example.com'],
+              'blocked-domains': ['evil.example.com'],
+              'updated-at': '2024-01-01T00:00:00Z',
+              'last-build-id': '123'
+            }
+          }
+        }
+      }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN'
+      });
+
+      // Verify domain config was loaded early
+      expect(percy.domainValidation.preApproved.size).toBe(2);
+      expect(percy.domainValidation.preApproved.has('cdn.example.com')).toBe(true);
+      expect(percy.domainValidation.preApproved.has('images.example.com')).toBe(true);
+      expect(percy.domainValidation.preBlocked.size).toBe(1);
+      expect(percy.domainValidation.preBlocked.has('evil.example.com')).toBe(true);
+    });
+
+    it('handles missing domain config gracefully during early load', async () => {
+      await percy.stop();
+
+      // Clear previous mocks and set up empty config
+      api.replies['/projects/domain-config'] = [];
+
+      // Mock API response with no domain config
+      api.reply('/projects/domain-config', () => [200, {
+        data: {
+          type: 'projects',
+          attributes: {}
+        }
+      }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN'
+      });
+
+      // Verify domain validation structure is empty but initialized
+      expect(percy.domainValidation.preApproved.size).toBe(0);
+      expect(percy.domainValidation.preBlocked.size).toBe(0);
+    });
+
+    it('continues without domain config if API call fails during early load', async () => {
+      await percy.stop();
+
+      // Clear previous mocks and set up error response
+      api.replies['/projects/domain-config'] = [];
+
+      // Mock API to return error
+      api.reply('/projects/domain-config', () => [404, 'Not Found']);
+
+      logger.loglevel('debug');
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN'
+      });
+
+      // Verify domain validation structure is empty but Percy still starts
+      expect(percy.domainValidation.preApproved.size).toBe(0);
+      expect(percy.domainValidation.preBlocked.size).toBe(0);
+
+      // Log should show debug message about early load failure
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Domain validation: Could not load config \(/)
+      ]));
     });
   });
 
@@ -3186,9 +3611,14 @@ describe('Discovery', () => {
 
   describe('waitForSelector/waitForTimeout at the time of discovery when Js is enabled =>', () => {
     it('calls waitForTimeout, waitForSelector and page.eval when their respective arguments are given', async () => {
-      const page = await percy.browser.page({ intercept: { getResource: () => {} } });
-      spyOn(percy.browser, 'page').and.returnValue(page);
-      spyOn(page, 'eval').and.callThrough();
+      let capturedPage;
+      const originalPageMethod = percy.browser.page.bind(percy.browser);
+      spyOn(percy.browser, 'page').and.callFake(async (options) => {
+        capturedPage = await originalPageMethod(options);
+        spyOn(capturedPage, 'eval').and.callThrough();
+        return capturedPage;
+      });
+
       percy.loglevel('debug');
 
       await percy.snapshot({
@@ -3202,7 +3632,7 @@ describe('Discovery', () => {
       });
       await percy.idle();
 
-      expect(page.eval).toHaveBeenCalledWith('await waitForSelector("body", 30000)');
+      expect(capturedPage.eval).toHaveBeenCalledWith('await waitForSelector("body", 30000)');
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy:core:discovery] Wait for selector: body',
         '[percy:core:discovery] Wait for 100ms timeout'
