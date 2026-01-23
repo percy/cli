@@ -168,6 +168,21 @@ export class PercyClient {
     });
   }
 
+  // Performs a PATCH request to a JSON API endpoint with appropriate headers.
+  patch(path, body = {}, { ...meta } = {}, customHeaders = {}, raiseIfMissing = true) {
+    return logger.measure('client:patch', meta.identifier || 'Unknown', meta, () => {
+      return request(`${this.apiUrl}/${path}`, {
+        headers: this.headers({
+          'Content-Type': 'application/vnd.api+json',
+          ...customHeaders
+        }, raiseIfMissing),
+        method: 'PATCH',
+        body,
+        meta
+      });
+    });
+  }
+
   // Creates a build with optional build resources. Only one build can be
   // created at a time per instance so snapshots and build finalization can be
   // done more seamlessly without manually tracking build ids
@@ -784,20 +799,17 @@ export class PercyClient {
     return this.get(`projects/${projectPath}`);
   }
 
-  // Updates project with domain configuration for auto domain validation
-  async updateProjectDomainConfig(projectPath, { buildId, allowed = [], blocked = [] } = {}) {
-    validateProjectPath(projectPath);
-    this.log.debug(`Updating domain config for project ${projectPath}`);
-
-    return this.post(`projects/${projectPath}`, {
+  // Updates project domain configuration
+  async updateProjectDomainConfig({ buildId, allowed = [], blocked = [] } = {}) {
+    this.log.debug('Updating domain config');
+    return this.patch('projects/domain-config', {
       data: {
         type: 'projects',
         attributes: {
           'domain-config': {
-            'allowed-domains': allowed,
-            'blocked-domains': blocked,
-            'auto-allow-enabled': true,
-            'last-build-id': buildId
+            'build-id': buildId,
+            allowed: allowed,
+            blocked: blocked
           }
         }
       }
@@ -806,9 +818,8 @@ export class PercyClient {
 
   // Validates a domain with the Cloudflare worker endpoint
   async validateDomain(hostname, url, options = {}) {
-    const endpoint = options.validationEndpoint ||
-      'https://winter-morning-fa32.shobhit-k.workers.dev/validate-domain';
-    const timeout = options.timeout || 5000;
+    const endpoint = 'https://winter-morning-fa32.shobhit-k.workers.dev/validate-domain';
+    const timeout = 5000;
 
     this.log.debug(`Validating domain: ${hostname}`);
 

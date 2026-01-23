@@ -443,30 +443,6 @@ export const configSchema = {
             error: 'must not include a protocol'
           }]
         }
-      },
-      autoDomainValidation: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          enabled: {
-            type: 'boolean',
-            default: true
-          },
-          validationEndpoint: {
-            type: 'string',
-            default: 'https://winter-morning-fa32.shobhit-k.workers.dev/validate-domain'
-          },
-          timeout: {
-            type: 'integer',
-            default: 5000,
-            minimum: 1000,
-            maximum: 30000
-          },
-          saveToProject: {
-            type: 'boolean',
-            default: true
-          }
-        }
       }
     }
   }

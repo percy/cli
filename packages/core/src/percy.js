@@ -125,10 +125,7 @@ export class Percy {
     this.sdkInfoDisplayed = false;
 
     // Domain validation state for auto domain allow-listing
-    const autoDomainValidationConfig = this.config.discovery?.autoDomainValidation;
     this.domainValidation = {
-      enabled: autoDomainValidationConfig?.enabled ?? false,
-      config: autoDomainValidationConfig || {},
       preApproved: new Set(), // Domains from project config
       preBlocked: new Set(), // Domains from project config
       sessionAllowed: new Set(), // Newly discovered allowed domains this session
@@ -241,17 +238,19 @@ export class Percy {
       // Not awaiting proxy check as this can be asynchronous when not enabled
       const detectProxy = detectSystemProxyAndLog(this.config.percy.useSystemProxy);
       if (this.config.percy.useSystemProxy) await detectProxy;
+
+      // Load domain config early if domain validation is enabled
+      // This ensures pre-approved domains are loaded before discovery starts
+      if (!this.skipUploads) {
+        await this._loadProjectDomainConfigEarly();
+      }
+
       // start the snapshots queue immediately when not delayed or deferred
       if (!this.delayUploads && !this.deferUploads) yield this.#snapshots.start();
       // do not start the discovery queue when not needed
       if (!this.skipDiscovery) yield this.#discovery.start();
       // start a local API server for SDK communication
       if (this.server) yield this.server.listen();
-
-      // Load project domain config if auto-validation is enabled
-      if (this.domainValidation.enabled && !this.skipUploads) {
-        yield this._loadProjectDomainConfig();
-      }
 
       if (this.renderingTypeProject()) {
         if (!process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS || process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS !== 'true') {
@@ -360,7 +359,7 @@ export class Percy {
       }
 
       // Save domain validation config before closing
-      if (this.domainValidation.enabled && !this.skipUploads) {
+      if (!this.skipUploads) {
         await this._saveProjectDomainConfig();
       }
 
@@ -711,23 +710,17 @@ export class Percy {
     }
   }
 
-  // Load project domain configuration for auto domain validation
-  async _loadProjectDomainConfig() {
-    if (!this.domainValidation.enabled) return;
-
+  // Load project domain config early during startup (before discovery)
+  // This allows pre-approved domains to skip external validation
+  async _loadProjectDomainConfigEarly() {
     try {
-      // Extract project slug from build info or env
-      const projectSlug = process.env.PERCY_PROJECT || this.build?.attributes?.['web-url']?.split('/').slice(-2).join('/');
-      if (!projectSlug) {
-        this.log.debug('Domain validation: No project slug available, skipping config load');
-        return;
-      }
+      this.log.debug('Domain validation: Fetching project domain config');
 
-      this.log.debug(`Domain validation: Loading config for project ${projectSlug}`);
-      const projectData = await this.client.getProject(projectSlug);
+      const response = await this.client.get('projects/domain-config');
+      const projectData = response?.data;
 
-      if (projectData?.data?.attributes?.['domain-config']) {
-        const domainConfig = projectData.data.attributes['domain-config'];
+      if (projectData?.attributes?.['domain-config']) {
+        const domainConfig = projectData.attributes['domain-config'];
 
         // Populate pre-approved domains
         if (domainConfig['allowed-domains']?.length) {
@@ -750,15 +743,12 @@ export class Percy {
         this.log.debug('Domain validation: No existing domain config found for project');
       }
     } catch (error) {
-      this.log.warn(`Domain validation: Failed to load project config - ${error.message}`);
-      this.log.debug(error);
+      this.log.debug(`Domain validation: Could not load config (${error.message})`);
     }
   }
 
   // Save newly discovered domain validations back to project
   async _saveProjectDomainConfig() {
-    if (!this.domainValidation.enabled) return;
-
     const { sessionAllowed, sessionBlocked, stats } = this.domainValidation;
 
     // Only save if there are new domains discovered in this session
@@ -768,15 +758,9 @@ export class Percy {
     }
 
     try {
-      const projectSlug = process.env.PERCY_PROJECT || this.build?.attributes?.['web-url']?.split('/').slice(-2).join('/');
-      if (!projectSlug) {
-        this.log.debug('Domain validation: No project slug available, skipping config save');
-        return;
-      }
+      this.log.debug('Domain validation: Saving new domains');
 
-      this.log.debug(`Domain validation: Saving config for project ${projectSlug}`);
-
-      await this.client.updateProjectDomainConfig(projectSlug, {
+      await this.client.updateProjectDomainConfig({
         buildId: this.build?.id,
         allowed: Array.from(sessionAllowed),
         blocked: Array.from(sessionBlocked)

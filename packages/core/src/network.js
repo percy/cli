@@ -365,9 +365,6 @@ function originURL(request) {
 async function validateDomainForAllowlist(network, hostname, url) {
   const { domainValidation, client } = network;
 
-  // Skip if domain validation is not enabled
-  if (!domainValidation?.enabled) return null;
-
   const {
     preApproved, preBlocked,
     sessionAllowed, sessionBlocked,
@@ -408,9 +405,8 @@ async function validateDomainForAllowlist(network, hostname, url) {
   }
 
   // Perform external validation
-  const validationEndpoint = domainValidation.config?.validationEndpoint ||
-    'https://winter-morning-fa32.shobhit-k.workers.dev/validate-domain';
-  const timeout = domainValidation.config?.timeout || 5000;
+  const validationEndpoint = 'https://winter-morning-fa32.shobhit-k.workers.dev/validate-domain';
+  const timeout = 5000;
 
   const validationPromise = (async () => {
     try {
@@ -419,7 +415,8 @@ async function validateDomainForAllowlist(network, hostname, url) {
 
       const result = await client.validateDomain(hostname, url, { validationEndpoint, timeout });
 
-      if (result?.allowed) {
+      // Worker returns 'accessible' field, not 'allowed'
+      if (result?.accessible) {
         sessionAllowed.add(hostname);
         network.log.debug(`Domain validation: ${hostname} validated as ALLOWED`, network.meta);
         return 'allowed';
@@ -604,7 +601,7 @@ async function saveResponseResource(network, request, session) {
       let shouldCapture = response && hostnameMatches(allowedHostnames, url);
 
       // Also capture if domain is auto-validated as allowed (preApproved or sessionAllowed)
-      if (!shouldCapture && hostname && network.domainValidation?.enabled) {
+      if (!shouldCapture && hostname) {
         const { preApproved, sessionAllowed } = network.domainValidation;
         if (preApproved?.has(hostname) || sessionAllowed?.has(hostname)) {
           shouldCapture = true;
