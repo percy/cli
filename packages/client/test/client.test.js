@@ -2668,6 +2668,12 @@ describe('PercyClient', () => {
       await expectAsync(client.patch('projects/domain-config', {}, {}, {}, false)).toBeResolved();
       expect(api.requests['/projects/domain-config'].length).toBeGreaterThan(0);
     });
+
+    it('calls patch with undefined meta to trigger default parameter', async () => {
+      // call patch with explicit undefined for meta parameter to cover default branch
+      await expectAsync(client.patch('projects/domain-config', {}, undefined)).toBeResolved();
+      expect(api.requests['/projects/domain-config'].length).toBeGreaterThan(0);
+    });
   });
 
   describe('#validateDomain()', () => {
