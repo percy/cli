@@ -792,13 +792,6 @@ export class PercyClient {
     );
   }
 
-  // Fetches project details including domain configuration
-  async getProject(projectPath) {
-    validateProjectPath(projectPath);
-    this.log.debug(`Fetching project ${projectPath}`);
-    return this.get(`projects/${projectPath}`);
-  }
-
   // Updates project domain configuration
   async updateProjectDomainConfig({ buildId, allowed = [], blocked = [] } = {}) {
     this.log.debug('Updating domain config');

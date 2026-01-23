@@ -8,6 +8,10 @@ const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
 
+// Domain validation constants
+const DOMAIN_VALIDATION_ENDPOINT = 'https://winter-morning-fa32.shobhit-k.workers.dev/validate-domain';
+const DOMAIN_VALIDATION_TIMEOUT = 5000;
+
 // RequestLifeCycleHandler handles life cycle of a requestId
 // Ideal flow:          requestWillBeSent -> requestPaused -> responseReceived -> loadingFinished / loadingFailed
 // ServiceWorker flow:  requestWillBeSent -> responseReceived -> loadingFinished / loadingFailed
@@ -404,9 +408,9 @@ async function validateDomainForAllowlist(network, hostname, url) {
     return pending.get(hostname);
   }
 
-  // Perform external validation
-  const validationEndpoint = 'https://winter-morning-fa32.shobhit-k.workers.dev/validate-domain';
-  const timeout = 5000;
+  // Perform external validation using hardcoded defaults
+  const validationEndpoint = DOMAIN_VALIDATION_ENDPOINT;
+  const timeout = DOMAIN_VALIDATION_TIMEOUT;
 
   const validationPromise = (async () => {
     try {
