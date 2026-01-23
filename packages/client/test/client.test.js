@@ -2645,6 +2645,23 @@ describe('PercyClient', () => {
         }
       });
     });
+
+    it('uses defaults when called with no arguments', async () => {
+      await expectAsync(client.updateProjectDomainConfig()).toBeResolved();
+
+      // defaults should produce a domain-config body with undefined buildId and empty arrays
+      const body = api.requests['/projects/domain-config'][0].body;
+      expect(body.data.type).toBe('projects');
+      expect(body.data.attributes['domain-config'].allowed).toEqual([]);
+      expect(body.data.attributes['domain-config'].blocked).toEqual([]);
+      // buildId will be undefined, which may or may not be serialized in JSON
+    });
+
+    it('calls patch with Unknown identifier when no meta identifier provided', async () => {
+      // call patch directly with empty meta to hit the meta.identifier || 'Unknown' branch
+      await expectAsync(client.patch('projects/domain-config', {}, {})).toBeResolved();
+      expect(api.requests['/projects/domain-config'].length).toBeGreaterThan(0);
+    });
   });
 
   describe('#validateDomain()', () => {
