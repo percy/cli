@@ -51,6 +51,15 @@ describe('Discovery', () => {
       return [201, { data: { id: '4567' } }];
     });
 
+    // Mock domain config endpoint - return empty config by default
+    api.reply('/projects/domain-config', () => [200, {
+      data: {
+        type: 'projects',
+        id: '123',
+        attributes: {}
+      }
+    }]);
+
     const dynamicImageRoutes = {};
     for (let i = 0; i < 800; i++) {
       dynamicImageRoutes[`/dynamic/image-${i}.png`] = () => [200, 'image/png', pixel];
@@ -2896,6 +2905,9 @@ describe('Discovery', () => {
     it('loads domain config early from API before discovery starts', async () => {
       await percy.stop();
 
+      // Clear previous mocks and set up new one
+      api.replies['/projects/domain-config'] = [];
+
       // Mock API response for domain config endpoint
       api.reply('/projects/domain-config', () => [200, {
         data: {
@@ -2904,7 +2916,6 @@ describe('Discovery', () => {
             'domain-config': {
               'allowed-domains': ['cdn.example.com', 'images.example.com'],
               'blocked-domains': ['evil.example.com'],
-              'auto-allow-enabled': true,
               'updated-at': '2024-01-01T00:00:00Z',
               'last-build-id': '123'
             }
@@ -2927,6 +2938,9 @@ describe('Discovery', () => {
     it('handles missing domain config gracefully during early load', async () => {
       await percy.stop();
 
+      // Clear previous mocks and set up empty config
+      api.replies['/projects/domain-config'] = [];
+
       // Mock API response with no domain config
       api.reply('/projects/domain-config', () => [200, {
         data: {
@@ -2946,6 +2960,9 @@ describe('Discovery', () => {
 
     it('continues without domain config if API call fails during early load', async () => {
       await percy.stop();
+
+      // Clear previous mocks and set up error response
+      api.replies['/projects/domain-config'] = [];
 
       // Mock API to return error
       api.reply('/projects/domain-config', () => [404, 'Not Found']);
@@ -3594,9 +3611,14 @@ describe('Discovery', () => {
 
   describe('waitForSelector/waitForTimeout at the time of discovery when Js is enabled =>', () => {
     it('calls waitForTimeout, waitForSelector and page.eval when their respective arguments are given', async () => {
-      const page = await percy.browser.page({ intercept: { getResource: () => {} } });
-      spyOn(percy.browser, 'page').and.returnValue(page);
-      spyOn(page, 'eval').and.callThrough();
+      let capturedPage;
+      const originalPageMethod = percy.browser.page.bind(percy.browser);
+      spyOn(percy.browser, 'page').and.callFake(async (options) => {
+        capturedPage = await originalPageMethod(options);
+        spyOn(capturedPage, 'eval').and.callThrough();
+        return capturedPage;
+      });
+
       percy.loglevel('debug');
 
       await percy.snapshot({
@@ -3610,7 +3632,7 @@ describe('Discovery', () => {
       });
       await percy.idle();
 
-      expect(page.eval).toHaveBeenCalledWith('await waitForSelector("body", 30000)');
+      expect(capturedPage.eval).toHaveBeenCalledWith('await waitForSelector("body", 30000)');
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy:core:discovery] Wait for selector: body',
         '[percy:core:discovery] Wait for 100ms timeout'

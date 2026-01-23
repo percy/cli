@@ -810,7 +810,7 @@ export class PercyClient {
   }
 
   // Validates a domain with the Cloudflare worker endpoint
-  async validateDomain(hostname, url, options = {}) {
+  async validateDomain(hostname, options = {}) {
     const endpoint = 'https://winter-morning-fa32.shobhit-k.workers.dev/validate-domain';
     const timeout = 5000;
 
@@ -820,7 +820,7 @@ export class PercyClient {
       const response = await request(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: hostname, url }),
+        body: JSON.stringify({ domain: hostname }),
         timeout
       });
 

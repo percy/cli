@@ -738,7 +738,7 @@ export class Percy {
           this.log.debug(`Domain validation: Loaded ${domainConfig['blocked-domains'].length} pre-blocked domains`);
         }
 
-        this.log.info(`Domain validation: Initialized with ${this.domainValidation.preApproved.size} allowed and ${this.domainValidation.preBlocked.size} blocked domains`);
+        this.log.debug(`Domain validation: Initialized with ${this.domainValidation.preApproved.size} allowed and ${this.domainValidation.preBlocked.size} blocked domains`);
       } else {
         this.log.debug('Domain validation: No existing domain config found for project');
       }

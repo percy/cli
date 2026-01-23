@@ -489,7 +489,7 @@ async function validateDomainForAllowlist(network, hostname, url) {
       stats.apiCalls++;
       network.log.debug(`Domain validation: Validating ${hostname} via external service`, network.meta);
 
-      const result = await client.validateDomain(hostname, url, { validationEndpoint, timeout });
+      const result = await client.validateDomain(hostname, { validationEndpoint, timeout });
 
       // Worker returns 'accessible' field, not 'allowed'
       if (result?.accessible) {
