@@ -3,7 +3,7 @@ import logger from '@percy/logger/test/helpers';
 import { mockgit } from '@percy/env/test/helpers';
 import { sha256hash, base64encode } from '@percy/client/utils';
 import PercyClient from '@percy/client';
-import api from './helpers.js';
+import api, { mockRequests } from './helpers.js';
 import * as CoreConfig from '@percy/core/config';
 import PercyConfig from '@percy/config';
 import Pako from 'pako';
@@ -2586,6 +2586,121 @@ describe('PercyClient', () => {
       await expectAsync(client.deleteBuild(123, 'testuser', 'testkey')).toBeResolved();
 
       expect(api.requests['/builds/123/delete'][0].method).toBe('POST');
+    });
+  });
+
+  describe('#updateProjectDomainConfig()', () => {
+    beforeEach(() => {
+      api.reply('/projects/domain-config', () => [204]);
+    });
+
+    it('calls PATCH with domain config data', async () => {
+      spyOn(client, 'patch').and.callThrough();
+
+      await expectAsync(client.updateProjectDomainConfig({
+        buildId: '123',
+        allowed: ['cdn.example.com'],
+        blocked: ['bad.com']
+      })).toBeResolved();
+
+      expect(client.patch).toHaveBeenCalledWith(
+        'projects/domain-config',
+        {
+          data: {
+            type: 'projects',
+            attributes: {
+              'domain-config': {
+                'build-id': '123',
+                allowed: ['cdn.example.com'],
+                blocked: ['bad.com']
+              }
+            }
+          }
+        },
+        { identifier: 'project.updateDomainConfig' }
+      );
+    });
+
+    it('logs debug message', async () => {
+      spyOn(client.log, 'debug');
+
+      await expectAsync(client.updateProjectDomainConfig({ buildId: '123' })).toBeResolved();
+
+      expect(client.log.debug).toHaveBeenCalledWith('Updating domain config');
+    });
+
+    it('handles empty arrays', async () => {
+      await expectAsync(client.updateProjectDomainConfig({ buildId: '456' })).toBeResolved();
+
+      expect(api.requests['/projects/domain-config'][0].body).toEqual({
+        data: {
+          type: 'projects',
+          attributes: {
+            'domain-config': {
+              'build-id': '456',
+              allowed: [],
+              blocked: []
+            }
+          }
+        }
+      });
+    });
+  });
+
+  describe('#validateDomain()', () => {
+    let workerMock;
+
+    beforeEach(async () => {
+      workerMock = await mockRequests(
+        'https://winter-morning-fa32.shobhit-k.workers.dev',
+        (req) => [200, { accessible: true, status_code: 200 }]
+      );
+    });
+
+    it('makes POST request to Cloudflare worker', async () => {
+      const result = await client.validateDomain('cdn.example.com');
+
+      expect(result).toEqual({ accessible: true, status_code: 200 });
+      expect(workerMock).toHaveBeenCalled();
+    });
+
+    it('logs debug message', async () => {
+      spyOn(client.log, 'debug');
+
+      await expectAsync(client.validateDomain('cdn.example.com')).toBeResolved();
+
+      expect(client.log.debug).toHaveBeenCalledWith('Validating domain: cdn.example.com');
+    });
+
+    it('throws error on request failure', async () => {
+      spyOn(client.log, 'debug');
+      workerMock.and.returnValue([500, { error: 'Internal server error' }]);
+
+      await expectAsync(client.validateDomain('cdn.example.com')).toBeRejected();
+
+      expect(client.log.debug).toHaveBeenCalledWith(
+        jasmine.stringMatching(/Domain validation failed for cdn\.example\.com/)
+      );
+    });
+
+    it('handles network errors', async () => {
+      spyOn(client.log, 'debug');
+      // Simulate a network error by returning an error status without proper response
+      workerMock.and.returnValue([0, '']); // Status 0 indicates network failure
+
+      await expectAsync(client.validateDomain('cdn.example.com')).toBeRejected();
+    });
+
+    it('sends domain in request body', async () => {
+      let capturedRequest;
+      workerMock.and.callFake((req) => {
+        capturedRequest = req;
+        return [200, { accessible: false, status_code: 403 }];
+      });
+
+      await client.validateDomain('restricted.example.com');
+
+      expect(capturedRequest.body.domain).toBe('restricted.example.com');
     });
   });
 });
