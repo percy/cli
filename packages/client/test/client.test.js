@@ -2798,6 +2798,21 @@ describe('PercyClient', () => {
       );
     });
 
+    it('throws error when validationEndpoint is missing', async () => {
+      await expectAsync(client.validateDomain('cdn.example.com', {}))
+        .toBeRejectedWithError('Domain validation endpoint URL is required');
+    });
+
+    it('throws error when validationEndpoint is null', async () => {
+      await expectAsync(client.validateDomain('cdn.example.com', { validationEndpoint: null }))
+        .toBeRejectedWithError('Domain validation endpoint URL is required');
+    });
+
+    it('throws error when validationEndpoint is undefined', async () => {
+      await expectAsync(client.validateDomain('cdn.example.com', { validationEndpoint: undefined }))
+        .toBeRejectedWithError('Domain validation endpoint URL is required');
+    });
+
     it('makes POST request to Cloudflare worker', async () => {
       const result = await client.validateDomain('cdn.example.com', {
         validationEndpoint: 'https://winter-morning-fa32.shobhit-k.workers.dev'
