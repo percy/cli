@@ -1916,18 +1916,22 @@ describe('Percy', () => {
     it('handles API errors gracefully', async () => {
       await percy.stop();
 
-      api.reply('/projects/domain-config', () => [500, 'Internal Server Error']);
-
       percy = new Percy({ token: 'PERCY_TOKEN' });
+
+      // Spy on the client method and make it throw to trigger the catch block
+      spyOn(percy.client, 'getProjectDomainConfig').and.returnValue(
+        Promise.reject(new Error('Network error'))
+      );
+
       logger.loglevel('debug');
 
       await percy.loadAutoConfiguredHostnames();
 
       expect(percy.domainValidation.autoConfiguredHosts.size).toBe(0);
       expect(percy.domainValidation.workerUrl).toBeNull();
-      // The client logs "Failed to fetch project domain config" and then percy logs "Could not fetch auto configured hostnames"
+      // Percy catches the error and logs the message
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Failed to fetch project domain config/)
+        jasmine.stringMatching(/Could not fetch auto configured hostnames.*Network error/)
       ]));
     });
 

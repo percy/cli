@@ -3045,6 +3045,121 @@ describe('Discovery', () => {
       expect(percy.domainValidation.newAllowedHosts.size).toBe(0);
       expect(percy.domainValidation.newErrorHosts.size).toBe(0);
     });
+
+    it('validates domain with error response and marks as blocked', async () => {
+      await percy.stop();
+
+      // Configure validation mock to return error field
+      validationMock.and.returnValue([200, { error: true, reason: 'domain is blocked' }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN'
+      });
+
+      // Set the worker URL so validation happens
+      percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
+
+      logger.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Verify the validation mock was called
+      expect(validationMock).toHaveBeenCalled();
+
+      // Verify external resource was NOT captured (error response blocks domain)
+      expect(captured[0]).not.toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+
+      // Verify domain was added to error hosts
+      expect(percy.domainValidation.newErrorHosts.has('ex.localhost')).toBe(true);
+
+      // Log should show domain was validated as BLOCKED
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Domain validation:.*ex\.localhost.*validated as BLOCKED/)
+      ]));
+    });
+
+    it('handles invalid URLs gracefully during hostname extraction', async () => {
+      await percy.stop();
+
+      // Configure validation mock
+      validationMock.and.returnValue([200, { accessible: false }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN'
+      });
+
+      // Set the worker URL
+      percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
+
+      // Create DOM with malformed URL (invalid protocol)
+      const malformedDOM = testDOM.replace('img.gif', 'not-a-valid-url:///malformed');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: malformedDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Should complete without crashing - the invalid URL parsing is caught
+      expect(captured.length).toBeGreaterThan(0);
+    });
+
+    it('returns cached validation result for previously validated domains', async () => {
+      await percy.stop();
+
+      // Configure validation mock to return allowed
+      validationMock.and.returnValue([200, { accessible: false }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN'
+      });
+
+      // Set the worker URL
+      percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
+
+      // First snapshot to trigger validation
+      await percy.snapshot({
+        name: 'test snapshot 1',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      const callCountAfterFirst = validationMock.calls.count();
+      expect(callCountAfterFirst).toBe(1);
+
+      // Second snapshot with same domain should use cached result
+      await percy.snapshot({
+        name: 'test snapshot 2',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      const callCountAfterSecond = validationMock.calls.count();
+      // Should still be 1 - no new validation call
+      expect(callCountAfterSecond).toBe(1);
+    });
   });
 
   describe('with launch options', () => {
