@@ -2438,7 +2438,7 @@ describe('Discovery', () => {
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
         discovery: {
-          disallowedHostnames: ['ex.localhost:8001']
+          disallowedHostnames: ['ex.localhost']
         }
       });
 
