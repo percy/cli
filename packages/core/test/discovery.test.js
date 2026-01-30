@@ -2339,7 +2339,7 @@ describe('Discovery', () => {
         url: 'http://localhost:8000',
         domSnapshot: testExternalDOM,
         discovery: {
-          disallowedHostnames: ['ex.localhost']
+          disallowedHostnames: ['ex.localhost:8001']
         }
       });
 
@@ -2387,7 +2387,7 @@ describe('Discovery', () => {
         // to wait for the eager img request to finish
         enableJavaScript: true,
         discovery: {
-          disallowedHostnames: ['ex.localhost']
+          disallowedHostnames: ['ex.localhost:8001']
         }
       });
 
@@ -2409,7 +2409,7 @@ describe('Discovery', () => {
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
         discovery: {
-          allowedHostnames: ['ex.localhost']
+          allowedHostnames: ['ex.localhost:8001']
         }
       });
 
@@ -2438,7 +2438,7 @@ describe('Discovery', () => {
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
         discovery: {
-          disallowedHostnames: ['ex.localhost']
+          disallowedHostnames: ['ex.localhost:8001']
         }
       });
 
@@ -2488,7 +2488,7 @@ describe('Discovery', () => {
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
         discovery: {
-          disallowedHostnames: ['localhost', 'ex.localhost']
+          disallowedHostnames: ['localhost', 'ex.localhost:8001']
         }
       });
 
@@ -2686,7 +2686,7 @@ describe('Discovery', () => {
       });
 
       // Pre-populate session cache with approved domain
-      percy.domainValidation.autoConfiguredHosts.add('ex.localhost');
+      percy.domainValidation.autoConfiguredHosts.add('ex.localhost:8001');
 
       logger.loglevel('debug');
 
@@ -2713,7 +2713,7 @@ describe('Discovery', () => {
 
       // Log should show domain was captured using auto-validated domain
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Capturing auto-validated domain: ex\.localhost/)
+        jasmine.stringMatching(/Capturing auto-validated domain: ex\.localhost:8001/)
       ]));
     });
 
@@ -2735,7 +2735,7 @@ describe('Discovery', () => {
       });
 
       // Pre-add the hostname to autoConfiguredHosts to trigger early return at line 469
-      percy.domainValidation.autoConfiguredHosts.add('ex.localhost');
+      percy.domainValidation.autoConfiguredHosts.add('ex.localhost:8001');
 
       logger.loglevel('debug');
 
@@ -2762,8 +2762,8 @@ describe('Discovery', () => {
       );
 
       // Verify the domain stayed in autoConfiguredHosts and wasn't added to newAllowedHosts
-      expect(percy.domainValidation.autoConfiguredHosts.has('ex.localhost')).toBe(true);
-      expect(percy.domainValidation.newAllowedHosts.has('ex.localhost')).toBe(false);
+      expect(percy.domainValidation.autoConfiguredHosts.has('ex.localhost:8001')).toBe(true);
+      expect(percy.domainValidation.newAllowedHosts.has('ex.localhost:8001')).toBe(false);
     });
 
     it('validates and blocks domains that are not in pre-approved list', async () => {
@@ -2893,7 +2893,7 @@ describe('Discovery', () => {
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
         discovery: {
-          allowedHostnames: ['ex.localhost']
+          allowedHostnames: ['ex.localhost:8001']
         }
       });
 
@@ -2928,7 +2928,7 @@ describe('Discovery', () => {
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
         discovery: {
-          disallowedHostnames: ['ex.localhost']
+          disallowedHostnames: ['ex.localhost:8001']
         }
       });
 
@@ -3040,7 +3040,7 @@ describe('Discovery', () => {
 
     it('handles malformed URLs gracefully in getHostnameFromURL', async () => {
       // Create DOM with malformed URL that will trigger catch block in getHostnameFromURL
-      let testMalformedDOM = testDOM.replace('img.gif', 'ht!tp://invalid url with spaces/img.gif');
+      let testMalformedDOM = testDOM.replace('img.gif', 'ht!tp://invalid');
 
       await percy.snapshot({
         name: 'test with malformed url',
@@ -3057,6 +3057,138 @@ describe('Discovery', () => {
 
       // Verify no validation was attempted on the malformed URL (hostname is null)
       expect(validationMock).not.toHaveBeenCalled();
+    });
+
+    it('skips validation for non-200 status code responses', async () => {
+      await percy.stop();
+
+      let validationCallCount = 0;
+      validationMock.and.callFake(() => {
+        validationCallCount++;
+        return [200, { accessible: false }];
+      });
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          autoConfigureAllowedHostnames: true
+        }
+      });
+
+      percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
+
+      // Create external server that returns 404
+      let testDOM404 = testDOM.replace('img.gif', 'http://ex.localhost:8001/notfound.gif');
+      server2.reply('/notfound.gif', () => [404, 'text/plain', 'Not Found']);
+
+      await percy.snapshot({
+        name: 'test with 404 resource',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM404,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Validation should not be called for non-200 responses (line 467)
+      expect(validationCallCount).toBe(0);
+      expect(validationMock).not.toHaveBeenCalled();
+
+      // Domain should not be added to any sets
+      expect(percy.domainValidation.newAllowedHosts.has('ex.localhost:8001')).toBe(false);
+      expect(percy.domainValidation.autoConfiguredHosts.has('ex.localhost:8001')).toBe(false);
+    });
+
+    it('skips validation when workerUrl is not set', async () => {
+      await percy.stop();
+
+      let validationCallCount = 0;
+      validationMock.and.callFake(() => {
+        validationCallCount++;
+        return [200, { accessible: false }];
+      });
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          autoConfigureAllowedHostnames: true
+        }
+      });
+
+      // Explicitly set workerUrl to null (line 469)
+      percy.domainValidation.workerUrl = null;
+
+      await percy.snapshot({
+        name: 'test without worker url',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Validation should not be called when workerUrl is missing
+      expect(validationCallCount).toBe(0);
+      expect(validationMock).not.toHaveBeenCalled();
+
+      // Domain should not be processed
+      expect(percy.domainValidation.newAllowedHosts.has('ex.localhost:8001')).toBe(false);
+    });
+
+    it('skips validation when hostname validation is already pending', async () => {
+      await percy.stop();
+
+      let validationCallCount = 0;
+      let validationResolvers = [];
+
+      // Mock validation to hang so we can test concurrent requests
+      validationMock.and.callFake(() => {
+        validationCallCount++;
+        return new Promise(resolve => {
+          validationResolvers.push(resolve);
+        });
+      });
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          autoConfigureAllowedHostnames: true
+        }
+      });
+
+      percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
+
+      // Take two snapshots with the same external domain
+      let snapshot1Promise = percy.snapshot({
+        name: 'test snapshot 1',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      let snapshot2Promise = percy.snapshot({
+        name: 'test snapshot 2',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      // Wait a bit for both requests to be processed
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Validation should only be called once (line 470 prevents duplicate calls)
+      expect(validationCallCount).toBe(1);
+
+      // Resolve the validation
+      if (validationResolvers.length > 0) {
+        validationResolvers[0]([200, { accessible: false }]);
+      }
+
+      await Promise.all([snapshot1Promise, snapshot2Promise]);
+      await percy.idle();
+
+      // Still only one validation call even after both snapshots complete
+      expect(validationCallCount).toBe(1);
     });
 
     it('skips domain validation when autoConfigureAllowedHostnames is disabled', async () => {
@@ -3158,7 +3290,7 @@ describe('Discovery', () => {
       );
 
       // Verify domain was added to error hosts
-      expect(percy.domainValidation.newErrorHosts.has('ex.localhost')).toBe(true);
+      expect(percy.domainValidation.newErrorHosts.has('ex.localhost:8001')).toBe(true);
 
       // Log should show domain was validated as BLOCKED
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
@@ -3253,7 +3385,7 @@ describe('Discovery', () => {
       expect(callCountAfterFirst).toBe(1);
 
       // Verify domain is in processedDomains cache
-      expect(percy.domainValidation.processedDomains.has('ex.localhost')).toBe(true);
+      expect(percy.domainValidation.processedDomains.has('ex.localhost:8001')).toBe(true);
 
       // Second snapshot with same domain should use cached result
       await percy.snapshot({
@@ -3286,7 +3418,7 @@ describe('Discovery', () => {
       percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
 
       // Manually pre-populate the cache to test the cache hit path
-      percy.domainValidation.processedDomains.set('ex.localhost', true);
+      percy.domainValidation.processedDomains.set('ex.localhost:8001', true);
 
       // Take snapshot - should use cached value and not call validation
       await percy.snapshot({

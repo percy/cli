@@ -437,15 +437,6 @@ function originURL(request) {
   return normalizeURL((request.redirectChain[0] || request).url);
 }
 
-// Extracts hostname from URL, returns null if URL is invalid
-function getHostnameFromURL(url) {
-  try {
-    return new URL(url).hostname;
-  } catch (e) {
-    return null;
-  }
-}
-
 // Validate domain for auto-allowlisting feature
 // Only validates domains that returned 200 status
 async function validateDomainForAllowlist(network, hostname, url, statusCode) {
@@ -650,7 +641,7 @@ async function saveResponseResource(network, request, session) {
       log.debug(`Processing resource: ${url}`, meta);
 
       // Check if domain should be captured via auto-validation
-      let hostname = getHostnameFromURL(url);
+      let hostname = new URL(url).host;
 
       // Check if domain is allowed via manual config or auto-validation
       let shouldCapture = response && hostnameMatches(allowedHostnames, url);
