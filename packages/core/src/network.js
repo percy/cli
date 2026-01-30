@@ -8,8 +8,7 @@ const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
 
-// Domain validation constants
-const DOMAIN_VALIDATION_ENDPOINT = 'https://winter-morning-fa32.shobhit-k.workers.dev/validate-domain';
+// Domain validation timeout constant
 const DOMAIN_VALIDATION_TIMEOUT = 5000;
 
 // RequestLifeCycleHandler handles life cycle of a requestId
@@ -52,6 +51,7 @@ export class Network {
     // domain validation context for auto-allowlisting
     this.domainValidation = options.domainValidation;
     this.client = options.client;
+    this.autoConfigureAllowedHostnames = options.autoConfigureAllowedHostnames ?? true;
     this._initializeNetworkIdleWaitTimeout();
   }
 
@@ -438,75 +438,64 @@ function originURL(request) {
 }
 
 // Validate domain for auto-allowlisting feature
-async function validateDomainForAllowlist(network, hostname, url) {
-  const { domainValidation, client } = network;
+// Only validates domains that returned 200 status
+async function validateDomainForAllowlist(network, hostname, url, statusCode) {
+  const { domainValidation, client, autoConfigureAllowedHostnames } = network;
+
+  // Skip validation if autoConfigureAllowedHostnames is disabled
+  if (!autoConfigureAllowedHostnames) {
+    return;
+  }
 
   const {
-    preApproved, preBlocked,
-    sessionAllowed, sessionBlocked,
-    pending, stats
+    autoConfiguredHosts,
+    newAllowedHosts, newErrorHosts,
+    pending, workerUrl, processedDomains
   } = domainValidation;
 
-  // Check pre-approved domains first (cached from project config)
-  if (preApproved.has(hostname)) {
-    stats.preApprovedHits++;
-    network.log.debug(`Domain validation: ${hostname} is pre-approved`, network.meta);
-    return 'allowed';
+  // Only validate domains that returned 200 status
+  // Non-200 responses should not be validated
+  if (
+    statusCode !== 200 ||
+    autoConfiguredHosts.has(hostname) ||
+    !workerUrl ||
+    pending.has(hostname)
+  ) {
+    return;
   }
 
-  // Check pre-blocked domains (cached from project config)
-  if (preBlocked.has(hostname)) {
-    stats.preBlockedHits++;
-    network.log.debug(`Domain validation: ${hostname} is pre-blocked`, network.meta);
-    return 'blocked';
+  if (processedDomains.has(hostname)) {
+    return processedDomains.get(hostname);
   }
 
-  // Check session cache (validated during this build)
-  if (sessionAllowed.has(hostname)) {
-    stats.sessionHits++;
-    network.log.debug(`Domain validation: ${hostname} is session-allowed`, network.meta);
-    return 'allowed';
-  }
-
-  if (sessionBlocked.has(hostname)) {
-    stats.sessionHits++;
-    network.log.debug(`Domain validation: ${hostname} is session-blocked`, network.meta);
-    return 'blocked';
-  }
-
-  // Check if validation is already pending for this domain
-  if (pending.has(hostname)) {
-    network.log.debug(`Domain validation: Waiting for pending validation of ${hostname}`, network.meta);
-    return pending.get(hostname);
-  }
-
-  // Perform external validation using hardcoded defaults
-  const validationEndpoint = DOMAIN_VALIDATION_ENDPOINT;
-  const timeout = DOMAIN_VALIDATION_TIMEOUT;
-
+  // Perform external validation using worker URL from API
   const validationPromise = (async () => {
     try {
-      stats.apiCalls++;
       network.log.debug(`Domain validation: Validating ${hostname} via external service`, network.meta);
 
-      const result = await client.validateDomain(hostname, { validationEndpoint, timeout });
+      const result = await client.validateDomain(hostname, {
+        validationEndpoint: workerUrl,
+        timeout: DOMAIN_VALIDATION_TIMEOUT
+      });
 
       // Worker returns 'accessible' field, not 'allowed'
-      if (result?.accessible) {
-        sessionAllowed.add(hostname);
-        network.log.debug(`Domain validation: ${hostname} validated as ALLOWED`, network.meta);
-        return 'allowed';
-      } else {
-        sessionBlocked.add(hostname);
+      if (result?.error) {
+        newErrorHosts.add(hostname);
         network.log.debug(`Domain validation: ${hostname} validated as BLOCKED - ${result?.reason || 'unknown reason'}`, network.meta);
-        return 'blocked';
+        processedDomains.set(hostname, null);
+        return null;
+      } else if (!result?.accessible) {
+        newAllowedHosts.add(hostname);
+        network.log.debug(`Domain validation: ${hostname} validated as ALLOWED`, network.meta);
+        processedDomains.set(hostname, true);
+        return true;
       }
+      return null;
     } catch (error) {
       // On error, default to allowing (fail-open for better UX)
-      stats.errors++;
       network.log.warn(`Domain validation: Failed to validate ${hostname} - ${error.message}`, network.meta);
-      sessionAllowed.add(hostname);
-      return 'allowed';
+      processedDomains.set(hostname, null);
+      return null;
     } finally {
       pending.delete(hostname);
     }
@@ -518,7 +507,7 @@ async function validateDomainForAllowlist(network, hostname, url) {
 
 // Send a response for a given request, responding with cached resources when able
 async function sendResponseResource(network, request, session) {
-  let { disallowedHostnames, allowedHostnames, disableCache } = network.intercept;
+  let { disallowedHostnames, disableCache } = network.intercept;
 
   let log = network.log;
   let url = originURL(request);
@@ -529,38 +518,14 @@ async function sendResponseResource(network, request, session) {
     let resource = network.intercept.getResource(url, network.intercept.currentWidth);
     network.log.debug(`Handling request: ${url}`, meta);
 
-    // Extract hostname for domain validation
-    let hostname;
-    try {
-      hostname = new URL(url).hostname;
-    } catch (e) {
-      hostname = null;
-    }
-
-    // Determine if domain should be blocked
-    let shouldBlock = false;
-
-    // Check manual disallowed hostnames first (user config takes precedence)
     if (!resource?.root && hostnameMatches(disallowedHostnames, url)) {
-      shouldBlock = true;
       logAssetInstrumentation(log, 'asset_not_uploaded', 'disallowed_hostname', {
         url,
         hostname: new URL(url).hostname,
         snapshot: meta.snapshot
       });
       log.debug('- Skipping disallowed hostname', meta);
-    }
 
-    // If not manually blocked and not manually allowed, check auto-validation
-    if (!shouldBlock && hostname && !resource?.root && !hostnameMatches(allowedHostnames, url)) {
-      const validationResult = await validateDomainForAllowlist(network, hostname, url);
-      if (validationResult === 'blocked') {
-        shouldBlock = true;
-        log.debug('- Skipping disallowed hostname', meta);
-      }
-    }
-
-    if (shouldBlock) {
       await send('Fetch.failRequest', {
         requestId: request.interceptId,
         errorReason: 'Aborted'
@@ -686,12 +651,18 @@ async function saveResponseResource(network, request, session) {
       // Check if domain is allowed via manual config or auto-validation
       let shouldCapture = response && hostnameMatches(allowedHostnames, url);
 
-      // Also capture if domain is auto-validated as allowed (preApproved or sessionAllowed)
+      // Also capture if domain is auto-validated as allowed (autoConfiguredHosts or newAllowedHosts)
       if (!shouldCapture && hostname) {
-        const { preApproved, sessionAllowed } = network.domainValidation;
-        if (preApproved?.has(hostname) || sessionAllowed?.has(hostname)) {
+        const { autoConfiguredHosts } = network.domainValidation;
+        if (autoConfiguredHosts?.has(hostname)) {
           shouldCapture = true;
           log.debug(`- Capturing auto-validated domain: ${hostname}`, meta);
+        } else {
+          const domainResult = await validateDomainForAllowlist(network, hostname, url, response.status);
+          if (domainResult) {
+            shouldCapture = true;
+            log.debug(`- Capturing auto-validated domain: ${hostname}`, meta);
+          }
         }
       }
 

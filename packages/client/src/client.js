@@ -793,35 +793,57 @@ export class PercyClient {
   }
 
   // Updates project domain configuration
-  async updateProjectDomainConfig({ buildId, allowed = [], blocked = [] } = {}) {
+  async updateProjectDomainConfig({ buildId, allowedDomains = [], errorDomains = [] } = {}) {
     this.log.debug('Updating domain config');
     return this.patch('projects/domain-config', {
       data: {
         type: 'projects',
         attributes: {
           'domain-config': {
-            'build-id': buildId,
-            allowed: allowed,
-            blocked: blocked
+            build_id: buildId,
+            allowed_domains: allowedDomains,
+            error_domains: errorDomains
           }
         }
       }
     }, { identifier: 'project.updateDomainConfig' });
   }
 
-  // Validates a domain with the Cloudflare worker endpoint
-  async validateDomain(hostname, options = {}) {
-    const endpoint = 'https://winter-morning-fa32.shobhit-k.workers.dev/validate-domain';
-    const timeout = 5000;
-
-    this.log.debug(`Validating domain: ${hostname}`);
+  // Gets project domain configuration including worker URL and allowed/blocked domains
+  async getProjectDomainConfig() {
+    this.log.debug('Fetching project domain config');
 
     try {
-      const response = await request(endpoint, {
+      const response = await this.get('projects/domain-config');
+      const projectData = response?.data;
+
+      return {
+        workerUrl: projectData?.attributes?.['domain-validator-worker-url'] || null,
+        domainConfig: projectData?.attributes?.['domain-config'] || null
+      };
+    } catch (error) {
+      this.log.debug(`Failed to fetch project domain config: ${error.message}`);
+      return { workerUrl: null, domainConfig: null };
+    }
+  }
+
+  // Validates a domain with the Cloudflare worker endpoint
+  async validateDomain(hostname, options = {}) {
+    const { validationEndpoint, timeout = 5000 } = options;
+
+    if (!validationEndpoint) {
+      throw new Error('Domain validation endpoint URL is required');
+    }
+
+    this.log.debug(`Validating domain: ${hostname} via ${validationEndpoint}`);
+
+    try {
+      const response = await request(validationEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ domain: hostname }),
-        timeout
+        timeout,
+        retries: 0 // Don't retry validation requests
       });
 
       return response;

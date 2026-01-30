@@ -2599,8 +2599,8 @@ describe('PercyClient', () => {
 
       await expectAsync(client.updateProjectDomainConfig({
         buildId: '123',
-        allowed: ['cdn.example.com'],
-        blocked: ['bad.com']
+        allowedDomains: ['cdn.example.com'],
+        errorDomains: ['bad.com']
       })).toBeResolved();
 
       expect(client.patch).toHaveBeenCalledWith(
@@ -2610,9 +2610,9 @@ describe('PercyClient', () => {
             type: 'projects',
             attributes: {
               'domain-config': {
-                'build-id': '123',
-                allowed: ['cdn.example.com'],
-                blocked: ['bad.com']
+                build_id: '123',
+                allowed_domains: ['cdn.example.com'],
+                error_domains: ['bad.com']
               }
             }
           }
@@ -2637,9 +2637,9 @@ describe('PercyClient', () => {
           type: 'projects',
           attributes: {
             'domain-config': {
-              'build-id': '456',
-              allowed: [],
-              blocked: []
+              build_id: '456',
+              allowed_domains: [],
+              error_domains: []
             }
           }
         }
@@ -2652,8 +2652,8 @@ describe('PercyClient', () => {
       // defaults should produce a domain-config body with undefined buildId and empty arrays
       const body = api.requests['/projects/domain-config'][0].body;
       expect(body.data.type).toBe('projects');
-      expect(body.data.attributes['domain-config'].allowed).toEqual([]);
-      expect(body.data.attributes['domain-config'].blocked).toEqual([]);
+      expect(body.data.attributes['domain-config'].allowed_domains).toEqual([]);
+      expect(body.data.attributes['domain-config'].error_domains).toEqual([]);
       // buildId will be undefined, which may or may not be serialized in JSON
     });
 
@@ -2676,6 +2676,118 @@ describe('PercyClient', () => {
     });
   });
 
+  describe('#getProjectDomainConfig()', () => {
+    it('fetches and returns domain config with worker URL', async () => {
+      api.reply('/projects/domain-config', () => [200, {
+        data: {
+          id: 'test-project',
+          type: 'projects',
+          attributes: {
+            'domain-validator-worker-url': 'https://domain-validator-worker.percy.workers.dev',
+            'domain-config': {
+              'allowed-domains': ['cdn.example.com', 'trusted.com']
+            }
+          }
+        }
+      }]);
+
+      const result = await client.getProjectDomainConfig();
+
+      expect(result).toEqual({
+        workerUrl: 'https://domain-validator-worker.percy.workers.dev',
+        domainConfig: {
+          'allowed-domains': ['cdn.example.com', 'trusted.com']
+        }
+      });
+    });
+
+    it('returns null values when domain config is not present', async () => {
+      api.reply('/projects/domain-config', () => [200, {
+        data: {
+          id: 'test-project',
+          type: 'projects',
+          attributes: {}
+        }
+      }]);
+
+      const result = await client.getProjectDomainConfig();
+
+      expect(result).toEqual({
+        workerUrl: null,
+        domainConfig: null
+      });
+    });
+
+    it('returns null values when API call fails', async () => {
+      api.reply('/projects/domain-config', () => [500, { error: 'Internal Server Error' }]);
+
+      spyOn(client.log, 'debug');
+
+      const result = await client.getProjectDomainConfig();
+
+      expect(result).toEqual({
+        workerUrl: null,
+        domainConfig: null
+      });
+
+      expect(client.log.debug).toHaveBeenCalledWith(jasmine.stringMatching(/Failed to fetch project domain config/));
+    });
+
+    it('logs debug message when fetching domain config', async () => {
+      api.reply('/projects/domain-config', () => [200, {
+        data: {
+          id: 'test-project',
+          type: 'projects',
+          attributes: {
+            'domain-validator-worker-url': 'https://worker.example.com',
+            'domain-config': {}
+          }
+        }
+      }]);
+
+      spyOn(client.log, 'debug');
+
+      await client.getProjectDomainConfig();
+
+      expect(client.log.debug).toHaveBeenCalledWith('Fetching project domain config');
+    });
+
+    it('handles missing response data gracefully', async () => {
+      api.reply('/projects/domain-config', () => [200, {}]);
+
+      const result = await client.getProjectDomainConfig();
+
+      expect(result).toEqual({
+        workerUrl: null,
+        domainConfig: null
+      });
+    });
+
+    it('handles empty allowed-domains array', async () => {
+      api.reply('/projects/domain-config', () => [200, {
+        data: {
+          id: 'test-project',
+          type: 'projects',
+          attributes: {
+            'domain-validator-worker-url': 'https://worker.example.com',
+            'domain-config': {
+              'allowed-domains': []
+            }
+          }
+        }
+      }]);
+
+      const result = await client.getProjectDomainConfig();
+
+      expect(result).toEqual({
+        workerUrl: 'https://worker.example.com',
+        domainConfig: {
+          'allowed-domains': []
+        }
+      });
+    });
+  });
+
   describe('#validateDomain()', () => {
     let workerMock;
 
@@ -2687,7 +2799,9 @@ describe('PercyClient', () => {
     });
 
     it('makes POST request to Cloudflare worker', async () => {
-      const result = await client.validateDomain('cdn.example.com');
+      const result = await client.validateDomain('cdn.example.com', {
+        validationEndpoint: 'https://winter-morning-fa32.shobhit-k.workers.dev'
+      });
 
       expect(result).toEqual({ accessible: true, status_code: 200 });
       expect(workerMock).toHaveBeenCalled();
@@ -2696,16 +2810,20 @@ describe('PercyClient', () => {
     it('logs debug message', async () => {
       spyOn(client.log, 'debug');
 
-      await expectAsync(client.validateDomain('cdn.example.com')).toBeResolved();
+      await expectAsync(client.validateDomain('cdn.example.com', {
+        validationEndpoint: 'https://winter-morning-fa32.shobhit-k.workers.dev'
+      })).toBeResolved();
 
-      expect(client.log.debug).toHaveBeenCalledWith('Validating domain: cdn.example.com');
+      expect(client.log.debug).toHaveBeenCalledWith('Validating domain: cdn.example.com via https://winter-morning-fa32.shobhit-k.workers.dev');
     });
 
     it('throws error on request failure', async () => {
       spyOn(client.log, 'debug');
       workerMock.and.returnValue([500, { error: 'Internal server error' }]);
 
-      await expectAsync(client.validateDomain('cdn.example.com')).toBeRejected();
+      await expectAsync(client.validateDomain('cdn.example.com', {
+        validationEndpoint: 'https://winter-morning-fa32.shobhit-k.workers.dev'
+      })).toBeRejected();
 
       expect(client.log.debug).toHaveBeenCalledWith(
         jasmine.stringMatching(/Domain validation failed for cdn\.example\.com/)
@@ -2717,7 +2835,9 @@ describe('PercyClient', () => {
       // Simulate a network error by returning an error status without proper response
       workerMock.and.returnValue([0, '']); // Status 0 indicates network failure
 
-      await expectAsync(client.validateDomain('cdn.example.com')).toBeRejected();
+      await expectAsync(client.validateDomain('cdn.example.com', {
+        validationEndpoint: 'https://winter-morning-fa32.shobhit-k.workers.dev'
+      })).toBeRejected();
     });
 
     it('sends domain in request body', async () => {
@@ -2727,7 +2847,9 @@ describe('PercyClient', () => {
         return [200, { accessible: false, status_code: 403 }];
       });
 
-      await client.validateDomain('restricted.example.com');
+      await client.validateDomain('restricted.example.com', {
+        validationEndpoint: 'https://winter-morning-fa32.shobhit-k.workers.dev'
+      });
 
       expect(capturedRequest.body.domain).toBe('restricted.example.com');
     });

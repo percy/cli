@@ -151,10 +151,8 @@ export const api = {
         id: 'domain-config',
         type: 'projects',
         attributes: {
-          'domain-config': {
-            allowed: [],
-            blocked: []
-          }
+          'allowed-domains': [],
+          'domain-validator-worker-url': 'https://domain-validator-worker.percy.workers.dev'
         }
       }
     }],

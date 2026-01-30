@@ -126,18 +126,12 @@ export class Percy {
 
     // Domain validation state for auto domain allow-listing
     this.domainValidation = {
-      preApproved: new Set(), // Domains from project config
-      preBlocked: new Set(), // Domains from project config
-      sessionAllowed: new Set(), // Newly discovered allowed domains this session
-      sessionBlocked: new Set(), // Newly discovered blocked domains this session
+      autoConfiguredHosts: new Set(), // Domains from project config
+      newAllowedHosts: new Set(), // Newly discovered allowed domains this session
+      newErrorHosts: new Set(), // Newly discovered blocked domains this session
       pending: new Map(), // Domain -> Promise (deduplication)
-      stats: {
-        preApprovedHits: 0,
-        preBlockedHits: 0,
-        sessionHits: 0,
-        apiCalls: 0,
-        errors: 0
-      }
+      workerUrl: null, // Domain validator worker URL from API
+      processedDomains: new Map()
     };
 
     // generator methods are wrapped to autorun and return promises
@@ -241,8 +235,8 @@ export class Percy {
 
       // Load domain config early if domain validation is enabled
       // This ensures pre-approved domains are loaded before discovery starts
-      if (!this.skipUploads) {
-        await this._loadProjectDomainConfigEarly();
+      if (!this.skipUploads && !this.skipDiscovery) {
+        await this.loadAutoConfiguredHostnames();
       }
 
       // start the snapshots queue immediately when not delayed or deferred
@@ -359,8 +353,8 @@ export class Percy {
       }
 
       // Save domain validation config before closing
-      if (!this.skipUploads) {
-        await this._saveProjectDomainConfig();
+      if (!this.skipUploads && !this.skipDiscovery) {
+        await this.saveHostnamesToAutoConfigure();
       }
 
       // close server and end queues
@@ -710,66 +704,72 @@ export class Percy {
     }
   }
 
-  // Load project domain config early during startup (before discovery)
-  // This allows pre-approved domains to skip external validation
-  async _loadProjectDomainConfigEarly() {
-    try {
-      this.log.debug('Domain validation: Fetching project domain config');
-
-      const response = await this.client.get('projects/domain-config');
-      const projectData = response?.data;
-
-      if (projectData?.attributes?.['domain-config']) {
-        const domainConfig = projectData.attributes['domain-config'];
-
-        // Populate pre-approved domains
-        if (domainConfig['allowed-domains']?.length) {
-          domainConfig['allowed-domains'].forEach(domain => {
-            this.domainValidation.preApproved.add(domain);
-          });
-          this.log.debug(`Domain validation: Loaded ${domainConfig['allowed-domains'].length} pre-approved domains`);
-        }
-
-        // Populate pre-blocked domains
-        if (domainConfig['blocked-domains']?.length) {
-          domainConfig['blocked-domains'].forEach(domain => {
-            this.domainValidation.preBlocked.add(domain);
-          });
-          this.log.debug(`Domain validation: Loaded ${domainConfig['blocked-domains'].length} pre-blocked domains`);
-        }
-
-        this.log.debug(`Domain validation: Initialized with ${this.domainValidation.preApproved.size} allowed and ${this.domainValidation.preBlocked.size} blocked domains`);
-      } else {
-        this.log.debug('Domain validation: No existing domain config found for project');
-      }
-    } catch (error) {
-      this.log.debug(`Domain validation: Could not load config (${error.message})`);
-    }
-  }
-
-  // Save newly discovered domain validations back to project
-  async _saveProjectDomainConfig() {
-    const { sessionAllowed, sessionBlocked, stats } = this.domainValidation;
-
-    // Only save if there are new domains discovered in this session
-    if (sessionAllowed.size === 0 && sessionBlocked.size === 0) {
-      this.log.debug('Domain validation: No new domains to save');
+  // This method fetched auto configured hostnames from project settings for asset discovery
+  async loadAutoConfiguredHostnames() {
+    // Skip if autoConfigureAllowedHostnames is disabled
+    if (this.config.discovery.autoConfigureAllowedHostnames === false) {
+      this.log.debug('Auto configure allowed hostnames is disabled, skipping load');
       return;
     }
 
     try {
-      this.log.debug('Domain validation: Saving new domains');
+      this.log.debug('Fetching auto configured hostnames from project settings');
+
+      const { workerUrl, domainConfig } = await this.client.getProjectDomainConfig();
+
+      // Store domain validator worker URL from API
+      if (workerUrl) {
+        this.domainValidation.workerUrl = workerUrl;
+        this.log.debug(`Domain validation Worker URL set to ${this.domainValidation.workerUrl}`);
+      } else {
+        this.log.debug('No Domain validation Worker URL found for project');
+      }
+
+      if (domainConfig) {
+        // Populate pre-approved domains
+        if (domainConfig['allowed-domains']?.length) {
+          domainConfig['allowed-domains'].forEach(domain => {
+            this.domainValidation.autoConfiguredHosts.add(domain);
+          });
+          this.log.debug(`Loaded ${domainConfig['allowed-domains'].length} auto configured allowed hostnames`);
+        }
+      } else {
+        this.log.debug('No existing auto configured hostnames found for project');
+      }
+    } catch (error) {
+      this.log.debug(`Could not fetch auto configured hostnames (${error.message})`);
+    }
+  }
+
+  // Save newly discovered auto configured hostnames back to project
+  async saveHostnamesToAutoConfigure() {
+    // Skip if autoConfigureAllowedHostnames is disabled
+    if (this.config.discovery.autoConfigureAllowedHostnames === false) {
+      this.log.debug('Auto configure allowed hostnames is disabled, skipping save');
+      return;
+    }
+
+    const { newAllowedHosts, newErrorHosts, stats } = this.domainValidation;
+
+    // Only save if there are new domains discovered in this session
+    if (newAllowedHosts.size === 0 && newErrorHosts.size === 0) {
+      this.log.debug('No new auto configured hostnames to save');
+      return;
+    }
+
+    try {
+      this.log.debug('Saving new auto configured hostnames');
 
       await this.client.updateProjectDomainConfig({
         buildId: this.build?.id,
-        allowed: Array.from(sessionAllowed),
-        blocked: Array.from(sessionBlocked)
+        allowedDomains: Array.from(newAllowedHosts),
+        errorDomains: Array.from(newErrorHosts)
       });
 
-      this.log.info(`Domain validation: Saved ${sessionAllowed.size} new allowed and ${sessionBlocked.size} new blocked domains`);
+      this.log.info(`Saved ${newAllowedHosts.size} new allowed domains`);
       this.log.debug(`Domain validation stats: ${JSON.stringify(stats)}`);
     } catch (error) {
-      this.log.warn(`Domain validation: Failed to save project config - ${error.message}`);
+      this.log.warn(`Failed to save project config - ${error.message}`);
       this.log.debug(error);
     }
   }

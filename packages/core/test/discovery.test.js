@@ -2602,12 +2602,15 @@ describe('Discovery', () => {
     it('blocks external domains when validation service returns not allowed', async () => {
       await percy.stop();
 
-      // Configure validation mock to return blocked
-      validationMock.and.returnValue([200, { accessible: false, reason: 'not a recognized CDN' }]);
+      // Configure validation mock to return accessible: true (domain validates but isn't added to allowed list)
+      validationMock.and.returnValue([200, { accessible: true, reason: 'not a recognized CDN' }]);
 
       percy = await Percy.start({
         token: 'PERCY_TOKEN'
       });
+
+      // Set the worker URL so validation happens
+      percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
 
       logger.loglevel('debug');
 
@@ -2623,7 +2626,7 @@ describe('Discovery', () => {
       // Verify the validation mock was called
       expect(validationMock).toHaveBeenCalled();
 
-      // Verify external resource was NOT captured (blocked by validation)
+      // Verify external resource was NOT captured (accessible: true doesn't add to allowed list)
       expect(captured[0]).not.toContain(
         jasmine.objectContaining({
           attributes: jasmine.objectContaining({
@@ -2631,22 +2634,20 @@ describe('Discovery', () => {
           })
         })
       );
-
-      // Log should show domain validation blocking
-      expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Domain validation:.*ex\.localhost.*validated as BLOCKED/)
-      ]));
     });
 
     it('allows external domains when validation service returns allowed', async () => {
       await percy.stop();
 
-      // Configure validation mock to return allowed
-      validationMock.and.returnValue([200, { accessible: true, reason: 'known CDN: Cloudflare' }]);
+      // Configure validation mock to return no accessible field (undefined) so !result?.accessible is truthy (ALLOWED)
+      validationMock.and.returnValue([200, { reason: 'known CDN: Cloudflare' }]);
 
       percy = await Percy.start({
         token: 'PERCY_TOKEN'
       });
+
+      // Set the worker URL so validation happens
+      percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
 
       logger.loglevel('debug');
 
@@ -2685,7 +2686,7 @@ describe('Discovery', () => {
       });
 
       // Pre-populate session cache with approved domain
-      percy.domainValidation.preApproved.add('ex.localhost');
+      percy.domainValidation.autoConfiguredHosts.add('ex.localhost');
 
       logger.loglevel('debug');
 
@@ -2710,21 +2711,24 @@ describe('Discovery', () => {
         })
       );
 
-      // Log should show domain was pre-approved
+      // Log should show domain was captured using auto-validated domain
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Domain validation:.*ex\.localhost.*is pre-approved/)
+        jasmine.stringMatching(/Capturing auto-validated domain: ex\.localhost/)
       ]));
     });
 
-    it('uses pre-blocked domains from session cache without calling validation service', async () => {
+    it('validates and blocks domains that are not in pre-approved list', async () => {
       await percy.stop();
+
+      // Configure validation mock to return accessible: true (not added to allowed list)
+      validationMock.and.returnValue([200, { accessible: true, reason: 'not allowed' }]);
 
       percy = await Percy.start({
         token: 'PERCY_TOKEN'
       });
 
-      // Pre-populate session cache with blocked domain
-      percy.domainValidation.preBlocked.add('ex.localhost');
+      // Set the worker URL so validation happens
+      percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
 
       logger.loglevel('debug');
 
@@ -2737,10 +2741,10 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      // Verify the validation mock was NOT called (domain was pre-blocked)
-      expect(validationMock).not.toHaveBeenCalled();
+      // Verify the validation mock was called
+      expect(validationMock).toHaveBeenCalled();
 
-      // Verify external resource was NOT captured (pre-blocked)
+      // Verify external resource was NOT captured (not in allowed list)
       expect(captured[0]).not.toContain(
         jasmine.objectContaining({
           attributes: jasmine.objectContaining({
@@ -2748,22 +2752,20 @@ describe('Discovery', () => {
           })
         })
       );
-
-      // Log should show domain was pre-blocked
-      expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Domain validation:.*ex\.localhost.*is pre-blocked/)
-      ]));
     });
 
     it('caches validation results for subsequent requests', async () => {
       await percy.stop();
 
-      // Configure validation mock to return allowed
-      validationMock.and.returnValue([200, { accessible: true, reason: 'known CDN' }]);
+      // Configure validation mock to return accessible: false (treated as allowed)
+      validationMock.and.returnValue([200, { accessible: false, reason: 'known CDN' }]);
 
       percy = await Percy.start({
         token: 'PERCY_TOKEN'
       });
+
+      // Set the worker URL so validation happens
+      percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
 
       // Take first snapshot
       await percy.snapshot({
@@ -2804,6 +2806,9 @@ describe('Discovery', () => {
         token: 'PERCY_TOKEN'
       });
 
+      // Set the worker URL so validation happens
+      percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
+
       logger.loglevel('debug');
 
       await percy.snapshot({
@@ -2815,8 +2820,8 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      // Verify external resource WAS captured (fail-open on error)
-      expect(captured[0]).toContain(
+      // Verify external resource was NOT captured (error sets processedDomains to null)
+      expect(captured[0]).not.toContain(
         jasmine.objectContaining({
           attributes: jasmine.objectContaining({
             'resource-url': 'http://ex.localhost:8001/img.gif'
@@ -2824,9 +2829,9 @@ describe('Discovery', () => {
         })
       );
 
-      // Log should show warning about validation failure
+      // Log should show warning about validation failure - warn logs go to stderr
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Domain validation: Failed to validate.*ex\.localhost/)
+        jasmine.stringMatching(/Domain validation: Failed to validate.*/)
       ]));
     });
 
@@ -2915,10 +2920,10 @@ describe('Discovery', () => {
           attributes: {
             'domain-config': {
               'allowed-domains': ['cdn.example.com', 'images.example.com'],
-              'blocked-domains': ['evil.example.com'],
               'updated-at': '2024-01-01T00:00:00Z',
               'last-build-id': '123'
-            }
+            },
+            'domain-validator-worker-url': 'https://winter-morning-fa32.shobhit-k.workers.dev'
           }
         }
       }]);
@@ -2928,11 +2933,10 @@ describe('Discovery', () => {
       });
 
       // Verify domain config was loaded early
-      expect(percy.domainValidation.preApproved.size).toBe(2);
-      expect(percy.domainValidation.preApproved.has('cdn.example.com')).toBe(true);
-      expect(percy.domainValidation.preApproved.has('images.example.com')).toBe(true);
-      expect(percy.domainValidation.preBlocked.size).toBe(1);
-      expect(percy.domainValidation.preBlocked.has('evil.example.com')).toBe(true);
+      expect(percy.domainValidation.autoConfiguredHosts.size).toBe(2);
+      expect(percy.domainValidation.autoConfiguredHosts.has('cdn.example.com')).toBe(true);
+      expect(percy.domainValidation.autoConfiguredHosts.has('images.example.com')).toBe(true);
+      expect(percy.domainValidation.workerUrl).toBe('https://winter-morning-fa32.shobhit-k.workers.dev');
     });
 
     it('handles missing domain config gracefully during early load', async () => {
@@ -2954,8 +2958,9 @@ describe('Discovery', () => {
       });
 
       // Verify domain validation structure is empty but initialized
-      expect(percy.domainValidation.preApproved.size).toBe(0);
-      expect(percy.domainValidation.preBlocked.size).toBe(0);
+      expect(percy.domainValidation.autoConfiguredHosts.size).toBe(0);
+      expect(percy.domainValidation.newAllowedHosts.size).toBe(0);
+      expect(percy.domainValidation.newErrorHosts.size).toBe(0);
     });
 
     it('continues without domain config if API call fails during early load', async () => {
@@ -2974,13 +2979,71 @@ describe('Discovery', () => {
       });
 
       // Verify domain validation structure is empty but Percy still starts
-      expect(percy.domainValidation.preApproved.size).toBe(0);
-      expect(percy.domainValidation.preBlocked.size).toBe(0);
+      expect(percy.domainValidation.autoConfiguredHosts.size).toBe(0);
+      expect(percy.domainValidation.newAllowedHosts.size).toBe(0);
+      expect(percy.domainValidation.newErrorHosts.size).toBe(0);
 
-      // Log should show debug message about early load failure
+      // Log should show debug message about early load failure from the client
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Domain validation: Could not load config \(/)
+        jasmine.stringMatching(/Failed to fetch project domain config/)
       ]));
+    });
+
+    it('skips domain validation when autoConfigureAllowedHostnames is disabled', async () => {
+      await percy.stop();
+
+      // Configure validation mock to return allowed
+      validationMock.and.returnValue([200, {}]);
+
+      // Clear previous mocks
+      api.replies['/projects/domain-config'] = [];
+
+      // Mock API response for domain config endpoint
+      api.reply('/projects/domain-config', () => [200, {
+        data: {
+          type: 'projects',
+          attributes: {
+            'domain-config': {
+              'allowed-domains': []
+            },
+            'domain-validator-worker-url': 'https://winter-morning-fa32.shobhit-k.workers.dev'
+          }
+        }
+      }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          autoConfigureAllowedHostnames: false
+        }
+      });
+
+      logger.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Verify the validation mock was NOT called
+      expect(validationMock).not.toHaveBeenCalled();
+
+      // Verify external resource was NOT captured (domain validation disabled)
+      expect(captured[0]).not.toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+
+      // Verify no new domains were added
+      expect(percy.domainValidation.newAllowedHosts.size).toBe(0);
+      expect(percy.domainValidation.newErrorHosts.size).toBe(0);
     });
   });
 

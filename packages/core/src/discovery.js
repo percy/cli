@@ -450,6 +450,7 @@ export function createDiscoveryQueue(percy) {
             // pass domain validation context for auto-allowlisting
             domainValidation: percy.domainValidation,
             client: percy.client,
+            autoConfigureAllowedHostnames: snapshot.discovery.autoConfigureAllowedHostnames,
 
             // enable network inteception
             intercept: {
