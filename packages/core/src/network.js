@@ -481,7 +481,7 @@ async function validateDomainForAllowlist(network, hostname, url, statusCode) {
       // Worker returns 'accessible' field, not 'allowed'
       if (result?.error) {
         newErrorHosts.add(hostname);
-        network.log.debug(`Domain validation: ${hostname} validated as BLOCKED - ${result?.reason || 'unknown reason'}`, network.meta);
+        network.log.debug(`Domain validation: ${hostname} validated as BLOCKED - ${result?.reason}`, network.meta);
         processedDomains.set(hostname, null);
         return null;
       } else if (!result?.accessible) {
