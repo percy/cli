@@ -2663,6 +2663,12 @@ describe('PercyClient', () => {
       expect(api.requests['/projects/domain-config'].length).toBeGreaterThan(0);
     });
 
+    it('calls patch with only path to trigger all default parameters', async () => {
+      // call patch with only path parameter to cover all defaults on line 172
+      await expectAsync(client.patch('projects/domain-config')).toBeResolved();
+      expect(api.requests['/projects/domain-config'].length).toBeGreaterThan(0);
+    });
+
     it('calls patch with raiseIfMissing=false', async () => {
       // call patch with raiseIfMissing=false to cover that branch
       await expectAsync(client.patch('projects/domain-config', {}, {}, {}, false)).toBeResolved();
