@@ -3023,6 +3023,7 @@ describe('Discovery', () => {
 
       logger.loglevel('debug');
 
+      // Take snapshot with external resource that would trigger validation if enabled
       await percy.snapshot({
         name: 'test snapshot',
         url: 'http://localhost:8000',
@@ -3032,7 +3033,8 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      // Verify the validation mock was NOT called
+      // Verify the validation mock was NOT called (line 447 early return)
+      expect(validationMock).not.toHaveBeenCalled();
       expect(validationMock).not.toHaveBeenCalled();
 
       // Verify external resource was NOT captured (domain validation disabled)
@@ -3127,6 +3129,31 @@ describe('Discovery', () => {
       ]));
     });
 
+    it('handles invalid URLs with special characters during hostname extraction', async () => {
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN'
+      });
+
+      percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
+
+      // Create DOM with URL that has invalid characters
+      const invalidDOM = testDOM.replace('img.gif', 'ht!tp://bad-url');
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: invalidDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Should complete without crashing
+      expect(captured.length).toBeGreaterThan(0);
+    });
+
     it('returns cached validation result for previously validated domains', async () => {
       await percy.stop();
 
@@ -3171,6 +3198,88 @@ describe('Discovery', () => {
       const callCountAfterSecond = validationMock.calls.count();
       // Should still be 1 - no new validation call (cached result used)
       expect(callCountAfterSecond).toBe(1);
+    });
+
+    it('directly tests processedDomains cache hit path', async () => {
+      await percy.stop();
+
+      let callCount = 0;
+      validationMock.and.callFake(() => {
+        callCount++;
+        return [200, { accessible: false }];
+      });
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN'
+      });
+
+      percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
+
+      // Manually pre-populate the cache to test the cache hit path
+      percy.domainValidation.processedDomains.set('ex.localhost', true);
+
+      // Take snapshot - should use cached value and not call validation
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Validation should not have been called (cache hit)
+      expect(callCount).toBe(0);
+      expect(validationMock).not.toHaveBeenCalled();
+    });
+
+    it('tests early return when autoConfigureAllowedHostnames is false', async () => {
+      await percy.stop();
+
+      let validationAttempted = false;
+      validationMock.and.callFake(() => {
+        validationAttempted = true;
+        return [200, { accessible: false }];
+      });
+
+      // Clear previous mocks and set up API response
+      api.replies['/projects/domain-config'] = [];
+      api.reply('/projects/domain-config', () => [200, {
+        data: {
+          type: 'projects',
+          attributes: {
+            'domain-config': { 'allowed-domains': [] },
+            'domain-validator-worker-url': 'https://winter-morning-fa32.shobhit-k.workers.dev'
+          }
+        }
+      }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          autoConfigureAllowedHostnames: false
+        }
+      });
+
+      // When autoConfigureAllowedHostnames is false, worker URL is not loaded
+      expect(percy.domainValidation.workerUrl).toBeNull();
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Validation endpoint should never be called due to early return at line 455
+      expect(validationAttempted).toBe(false);
+      expect(validationMock).not.toHaveBeenCalled();
+
+      // No domains should be added when feature is disabled
+      expect(percy.domainValidation.newAllowedHosts.size).toBe(0);
+      expect(percy.domainValidation.newErrorHosts.size).toBe(0);
     });
   });
 
