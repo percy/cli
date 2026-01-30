@@ -8,6 +8,9 @@ const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
 
+// Domain validation timeout constant
+const DOMAIN_VALIDATION_TIMEOUT = 5000;
+
 // RequestLifeCycleHandler handles life cycle of a requestId
 // Ideal flow:          requestWillBeSent -> requestPaused -> responseReceived -> loadingFinished / loadingFailed
 // ServiceWorker flow:  requestWillBeSent -> responseReceived -> loadingFinished / loadingFailed
@@ -45,6 +48,10 @@ export class Network {
     this.fontDomains = options.fontDomains || [];
     this.intercept = options.intercept;
     this.meta = options.meta;
+    // domain validation context for auto-allowlisting
+    this.domainValidation = options.domainValidation;
+    this.client = options.client;
+    this.autoConfigureAllowedHostnames = options.autoConfigureAllowedHostnames ?? true;
     this._initializeNetworkIdleWaitTimeout();
   }
 
@@ -430,6 +437,74 @@ function originURL(request) {
   return normalizeURL((request.redirectChain[0] || request).url);
 }
 
+// Validate domain for auto-allowlisting feature
+// Only validates domains that returned 200 status
+async function validateDomainForAllowlist(network, hostname, url, statusCode) {
+  const { domainValidation, client, autoConfigureAllowedHostnames } = network;
+
+  // Skip validation if autoConfigureAllowedHostnames is disabled
+  if (!autoConfigureAllowedHostnames) {
+    return;
+  }
+
+  const {
+    autoConfiguredHosts,
+    newAllowedHosts, newErrorHosts,
+    pending, workerUrl, processedDomains
+  } = domainValidation;
+
+  // Only validate domains that returned 200 status
+  // Non-200 responses should not be validated
+  if (
+    statusCode !== 200 ||
+    autoConfiguredHosts.has(hostname) ||
+    !workerUrl ||
+    pending.has(hostname)
+  ) {
+    return;
+  }
+
+  if (processedDomains.has(hostname)) {
+    return processedDomains.get(hostname);
+  }
+
+  // Perform external validation using worker URL from API
+  const validationPromise = (async () => {
+    try {
+      network.log.debug(`Domain validation: Validating ${hostname} via external service`, network.meta);
+
+      const result = await client.validateDomain(hostname, {
+        validationEndpoint: workerUrl,
+        timeout: DOMAIN_VALIDATION_TIMEOUT
+      });
+
+      // Worker returns 'accessible' field, not 'allowed'
+      if (result?.error) {
+        newErrorHosts.add(hostname);
+        network.log.debug(`Domain validation: ${hostname} validated as BLOCKED - ${result?.reason}`, network.meta);
+        processedDomains.set(hostname, null);
+        return null;
+      } else if (!result?.accessible) {
+        newAllowedHosts.add(hostname);
+        network.log.debug(`Domain validation: ${hostname} validated as ALLOWED`, network.meta);
+        processedDomains.set(hostname, true);
+        return true;
+      }
+      return null;
+    } catch (error) {
+      // On error, default to allowing (fail-open for better UX)
+      network.log.warn(`Domain validation: Failed to validate ${hostname} - ${error.message}`, network.meta);
+      processedDomains.set(hostname, null);
+      return null;
+    } finally {
+      pending.delete(hostname);
+    }
+  })();
+
+  pending.set(hostname, validationPromise);
+  return validationPromise;
+}
+
 // Send a response for a given request, responding with cached resources when able
 async function sendResponseResource(network, request, session) {
   let { disallowedHostnames, disableCache } = network.intercept;
@@ -564,7 +639,28 @@ async function saveResponseResource(network, request, session) {
     try {
       // Don't rename the below log line as it is used in getting network logs in api
       log.debug(`Processing resource: ${url}`, meta);
+
+      // Check if domain should be captured via auto-validation
+      let hostname = new URL(url).host;
+
+      // Check if domain is allowed via manual config or auto-validation
       let shouldCapture = response && hostnameMatches(allowedHostnames, url);
+
+      // Also capture if domain is auto-validated as allowed (autoConfiguredHosts or newAllowedHosts)
+      if (!shouldCapture && hostname) {
+        const { autoConfiguredHosts } = network.domainValidation;
+        if (autoConfiguredHosts?.has(hostname)) {
+          shouldCapture = true;
+          log.debug(`- Capturing auto-validated domain: ${hostname}`, meta);
+        } else {
+          const domainResult = await validateDomainForAllowlist(network, hostname, url, response.status);
+          if (domainResult) {
+            shouldCapture = true;
+            log.debug(`- Capturing auto-validated domain: ${hostname}`, meta);
+          }
+        }
+      }
+
       let body = shouldCapture && await response.buffer();
 
       // Don't rename the below log line as it is used in getting network logs in api

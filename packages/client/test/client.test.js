@@ -3,7 +3,7 @@ import logger from '@percy/logger/test/helpers';
 import { mockgit } from '@percy/env/test/helpers';
 import { sha256hash, base64encode } from '@percy/client/utils';
 import PercyClient from '@percy/client';
-import api from './helpers.js';
+import api, { mockRequests } from './helpers.js';
 import * as CoreConfig from '@percy/core/config';
 import PercyConfig from '@percy/config';
 import Pako from 'pako';
@@ -2586,6 +2586,304 @@ describe('PercyClient', () => {
       await expectAsync(client.deleteBuild(123, 'testuser', 'testkey')).toBeResolved();
 
       expect(api.requests['/builds/123/delete'][0].method).toBe('POST');
+    });
+  });
+
+  describe('#updateProjectDomainConfig()', () => {
+    beforeEach(() => {
+      api.reply('/projects/domain-config', () => [204]);
+    });
+
+    it('calls PATCH with domain config data', async () => {
+      spyOn(client, 'patch').and.callThrough();
+
+      await expectAsync(client.updateProjectDomainConfig({
+        buildId: '123',
+        allowedDomains: ['cdn.example.com'],
+        errorDomains: ['bad.com']
+      })).toBeResolved();
+
+      expect(client.patch).toHaveBeenCalledWith(
+        'projects/domain-config',
+        {
+          data: {
+            type: 'projects',
+            attributes: {
+              'domain-config': {
+                build_id: '123',
+                allowed_domains: ['cdn.example.com'],
+                error_domains: ['bad.com']
+              }
+            }
+          }
+        },
+        { identifier: 'project.updateDomainConfig' }
+      );
+    });
+
+    it('logs debug message', async () => {
+      spyOn(client.log, 'debug');
+
+      await expectAsync(client.updateProjectDomainConfig({ buildId: '123' })).toBeResolved();
+
+      expect(client.log.debug).toHaveBeenCalledWith('Updating domain config');
+    });
+
+    it('handles empty arrays', async () => {
+      await expectAsync(client.updateProjectDomainConfig({ buildId: '456' })).toBeResolved();
+
+      expect(api.requests['/projects/domain-config'][0].body).toEqual({
+        data: {
+          type: 'projects',
+          attributes: {
+            'domain-config': {
+              build_id: '456',
+              allowed_domains: [],
+              error_domains: []
+            }
+          }
+        }
+      });
+    });
+
+    it('uses defaults when called with no arguments', async () => {
+      await expectAsync(client.updateProjectDomainConfig()).toBeResolved();
+
+      // defaults should produce a domain-config body with undefined buildId and empty arrays
+      const body = api.requests['/projects/domain-config'][0].body;
+      expect(body.data.type).toBe('projects');
+      expect(body.data.attributes['domain-config'].allowed_domains).toEqual([]);
+      expect(body.data.attributes['domain-config'].error_domains).toEqual([]);
+      // buildId will be undefined, which may or may not be serialized in JSON
+    });
+
+    it('calls patch with Unknown identifier when no meta identifier provided', async () => {
+      // call patch directly with empty meta to hit the meta.identifier || 'Unknown' branch
+      await expectAsync(client.patch('projects/domain-config', {}, {})).toBeResolved();
+      expect(api.requests['/projects/domain-config'].length).toBeGreaterThan(0);
+    });
+
+    it('calls patch with only path to trigger all default parameters', async () => {
+      // call patch with only path parameter to cover all defaults on line 172
+      await expectAsync(client.patch('projects/domain-config')).toBeResolved();
+      expect(api.requests['/projects/domain-config'].length).toBeGreaterThan(0);
+    });
+
+    it('calls patch with raiseIfMissing=false', async () => {
+      // call patch with raiseIfMissing=false to cover that branch
+      await expectAsync(client.patch('projects/domain-config', {}, {}, {}, false)).toBeResolved();
+      expect(api.requests['/projects/domain-config'].length).toBeGreaterThan(0);
+    });
+
+    it('calls patch with customHeaders and default raiseIfMissing', async () => {
+      // call patch with customHeaders but let raiseIfMissing use default
+      await expectAsync(client.patch('projects/domain-config', {}, {}, { 'X-Custom': 'test' })).toBeResolved();
+      expect(api.requests['/projects/domain-config'].length).toBeGreaterThan(0);
+    });
+
+    it('calls patch with undefined meta to trigger default parameter', async () => {
+      // call patch with explicit undefined for meta parameter to cover default branch
+      await expectAsync(client.patch('projects/domain-config', {}, undefined)).toBeResolved();
+      expect(api.requests['/projects/domain-config'].length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('#getProjectDomainConfig()', () => {
+    it('fetches and returns domain config with worker URL', async () => {
+      api.reply('/projects/domain-config', () => [200, {
+        data: {
+          id: 'test-project',
+          type: 'projects',
+          attributes: {
+            'domain-validator-worker-url': 'https://domain-validator-worker.percy.workers.dev',
+            'domain-config': {
+              'allowed-domains': ['cdn.example.com', 'trusted.com']
+            }
+          }
+        }
+      }]);
+
+      const result = await client.getProjectDomainConfig();
+
+      expect(result).toEqual({
+        workerUrl: 'https://domain-validator-worker.percy.workers.dev',
+        domainConfig: {
+          'allowed-domains': ['cdn.example.com', 'trusted.com']
+        }
+      });
+    });
+
+    it('returns null values when domain config is not present', async () => {
+      api.reply('/projects/domain-config', () => [200, {
+        data: {
+          id: 'test-project',
+          type: 'projects',
+          attributes: {}
+        }
+      }]);
+
+      const result = await client.getProjectDomainConfig();
+
+      expect(result).toEqual({
+        workerUrl: null,
+        domainConfig: null
+      });
+    });
+
+    it('returns null values when API call fails', async () => {
+      api.reply('/projects/domain-config', () => [500, { error: 'Internal Server Error' }]);
+
+      spyOn(client.log, 'debug');
+
+      const result = await client.getProjectDomainConfig();
+
+      expect(result).toEqual({
+        workerUrl: null,
+        domainConfig: null
+      });
+
+      expect(client.log.debug).toHaveBeenCalledWith(jasmine.stringMatching(/Failed to fetch project domain config/));
+    });
+
+    it('logs debug message when fetching domain config', async () => {
+      api.reply('/projects/domain-config', () => [200, {
+        data: {
+          id: 'test-project',
+          type: 'projects',
+          attributes: {
+            'domain-validator-worker-url': 'https://worker.example.com',
+            'domain-config': {}
+          }
+        }
+      }]);
+
+      spyOn(client.log, 'debug');
+
+      await client.getProjectDomainConfig();
+
+      expect(client.log.debug).toHaveBeenCalledWith('Fetching project domain config');
+    });
+
+    it('handles missing response data gracefully', async () => {
+      api.reply('/projects/domain-config', () => [200, {}]);
+
+      const result = await client.getProjectDomainConfig();
+
+      expect(result).toEqual({
+        workerUrl: null,
+        domainConfig: null
+      });
+    });
+
+    it('handles empty allowed-domains array', async () => {
+      api.reply('/projects/domain-config', () => [200, {
+        data: {
+          id: 'test-project',
+          type: 'projects',
+          attributes: {
+            'domain-validator-worker-url': 'https://worker.example.com',
+            'domain-config': {
+              'allowed-domains': []
+            }
+          }
+        }
+      }]);
+
+      const result = await client.getProjectDomainConfig();
+
+      expect(result).toEqual({
+        workerUrl: 'https://worker.example.com',
+        domainConfig: {
+          'allowed-domains': []
+        }
+      });
+    });
+  });
+
+  describe('#validateDomain()', () => {
+    let workerMock;
+
+    beforeEach(async () => {
+      workerMock = await mockRequests(
+        'https://winter-morning-fa32.shobhit-k.workers.dev',
+        (req) => [200, { accessible: true, status_code: 200 }]
+      );
+    });
+
+    it('throws error when validationEndpoint is missing', async () => {
+      await expectAsync(client.validateDomain('cdn.example.com', {}))
+        .toBeRejectedWithError('Domain validation endpoint URL is required');
+    });
+
+    it('throws error when no options provided', async () => {
+      await expectAsync(client.validateDomain('cdn.example.com'))
+        .toBeRejectedWithError('Domain validation endpoint URL is required');
+    });
+
+    it('throws error when validationEndpoint is null', async () => {
+      await expectAsync(client.validateDomain('cdn.example.com', { validationEndpoint: null }))
+        .toBeRejectedWithError('Domain validation endpoint URL is required');
+    });
+
+    it('throws error when validationEndpoint is undefined', async () => {
+      await expectAsync(client.validateDomain('cdn.example.com', { validationEndpoint: undefined }))
+        .toBeRejectedWithError('Domain validation endpoint URL is required');
+    });
+
+    it('makes POST request to Cloudflare worker', async () => {
+      const result = await client.validateDomain('cdn.example.com', {
+        validationEndpoint: 'https://winter-morning-fa32.shobhit-k.workers.dev'
+      });
+
+      expect(result).toEqual({ accessible: true, status_code: 200 });
+      expect(workerMock).toHaveBeenCalled();
+    });
+
+    it('logs debug message', async () => {
+      spyOn(client.log, 'debug');
+
+      await expectAsync(client.validateDomain('cdn.example.com', {
+        validationEndpoint: 'https://winter-morning-fa32.shobhit-k.workers.dev'
+      })).toBeResolved();
+
+      expect(client.log.debug).toHaveBeenCalledWith('Validating domain: cdn.example.com via https://winter-morning-fa32.shobhit-k.workers.dev');
+    });
+
+    it('throws error on request failure', async () => {
+      spyOn(client.log, 'debug');
+      workerMock.and.returnValue([500, { error: 'Internal server error' }]);
+
+      await expectAsync(client.validateDomain('cdn.example.com', {
+        validationEndpoint: 'https://winter-morning-fa32.shobhit-k.workers.dev'
+      })).toBeRejected();
+
+      expect(client.log.debug).toHaveBeenCalledWith(
+        jasmine.stringMatching(/Domain validation failed for cdn\.example\.com/)
+      );
+    });
+
+    it('handles network errors', async () => {
+      spyOn(client.log, 'debug');
+      // Simulate a network error by returning an error status without proper response
+      workerMock.and.returnValue([0, '']); // Status 0 indicates network failure
+
+      await expectAsync(client.validateDomain('cdn.example.com', {
+        validationEndpoint: 'https://winter-morning-fa32.shobhit-k.workers.dev'
+      })).toBeRejected();
+    });
+
+    it('sends domain in request body', async () => {
+      let capturedRequest;
+      workerMock.and.callFake((req) => {
+        capturedRequest = req;
+        return [200, { accessible: false, status_code: 403 }];
+      });
+
+      await client.validateDomain('restricted.example.com', {
+        validationEndpoint: 'https://winter-morning-fa32.shobhit-k.workers.dev'
+      });
+
+      expect(capturedRequest.body.domain).toBe('restricted.example.com');
     });
   });
 });
