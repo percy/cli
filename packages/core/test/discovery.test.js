@@ -3173,10 +3173,15 @@ describe('Discovery', () => {
         widths: [1000]
       });
 
-      // Wait a bit for both requests to be processed
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Wait for validation to be called at least once (with timeout)
+      let attempts = 0;
+      // eslint-disable-next-line no-unmodified-loop-condition
+      while (validationCallCount === 0 && attempts < 50) {
+        await new Promise(resolve => setTimeout(resolve, 10));
+        attempts++;
+      }
 
-      // Validation should only be called once (line 470 prevents duplicate calls)
+      // Validation should only be called once (not twice for concurrent requests)
       expect(validationCallCount).toBe(1);
 
       // Resolve the validation
