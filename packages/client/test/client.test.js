@@ -2669,6 +2669,12 @@ describe('PercyClient', () => {
       expect(api.requests['/projects/domain-config'].length).toBeGreaterThan(0);
     });
 
+    it('calls patch with customHeaders and default raiseIfMissing', async () => {
+      // call patch with customHeaders but let raiseIfMissing use default
+      await expectAsync(client.patch('projects/domain-config', {}, {}, { 'X-Custom': 'test' })).toBeResolved();
+      expect(api.requests['/projects/domain-config'].length).toBeGreaterThan(0);
+    });
+
     it('calls patch with undefined meta to trigger default parameter', async () => {
       // call patch with explicit undefined for meta parameter to cover default branch
       await expectAsync(client.patch('projects/domain-config', {}, undefined)).toBeResolved();
@@ -2800,6 +2806,11 @@ describe('PercyClient', () => {
 
     it('throws error when validationEndpoint is missing', async () => {
       await expectAsync(client.validateDomain('cdn.example.com', {}))
+        .toBeRejectedWithError('Domain validation endpoint URL is required');
+    });
+
+    it('throws error when no options provided', async () => {
+      await expectAsync(client.validateDomain('cdn.example.com'))
         .toBeRejectedWithError('Domain validation endpoint URL is required');
     });
 
