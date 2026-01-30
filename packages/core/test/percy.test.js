@@ -1998,6 +1998,9 @@ describe('Percy', () => {
       });
       logger.loglevel('debug');
 
+      // Clear any previous requests
+      delete api.requests['/projects/domain-config'];
+
       await percy.loadAutoConfiguredHostnames();
 
       // Should not have loaded domains or worker URL
