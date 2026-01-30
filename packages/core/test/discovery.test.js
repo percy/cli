@@ -3018,6 +3018,9 @@ describe('Discovery', () => {
         }
       });
 
+      // Verify the setting was applied
+      expect(percy.config.discovery.autoConfigureAllowedHostnames).toBe(false);
+
       logger.loglevel('debug');
 
       await percy.snapshot({
@@ -3094,9 +3097,6 @@ describe('Discovery', () => {
     it('handles invalid URLs gracefully during hostname extraction', async () => {
       await percy.stop();
 
-      // Configure validation mock
-      validationMock.and.returnValue([200, { accessible: false }]);
-
       percy = await Percy.start({
         token: 'PERCY_TOKEN'
       });
@@ -3104,8 +3104,10 @@ describe('Discovery', () => {
       // Set the worker URL
       percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
 
-      // Create DOM with malformed URL (invalid protocol)
-      const malformedDOM = testDOM.replace('img.gif', 'not-a-valid-url:///malformed');
+      // Create DOM with completely malformed URL that will throw when parsed
+      const malformedDOM = testDOM.replace('img.gif', ':::invalid-url:::');
+
+      logger.loglevel('debug');
 
       await percy.snapshot({
         name: 'test snapshot',
@@ -3118,6 +3120,11 @@ describe('Discovery', () => {
 
       // Should complete without crashing - the invalid URL parsing is caught
       expect(captured.length).toBeGreaterThan(0);
+
+      // Should log the resource processing
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Processing resource:.*:::invalid-url:::/)
+      ]));
     });
 
     it('returns cached validation result for previously validated domains', async () => {
@@ -3133,6 +3140,8 @@ describe('Discovery', () => {
       // Set the worker URL
       percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
 
+      logger.loglevel('debug');
+
       // First snapshot to trigger validation
       await percy.snapshot({
         name: 'test snapshot 1',
@@ -3146,6 +3155,9 @@ describe('Discovery', () => {
       const callCountAfterFirst = validationMock.calls.count();
       expect(callCountAfterFirst).toBe(1);
 
+      // Verify domain is in processedDomains cache
+      expect(percy.domainValidation.processedDomains.has('ex.localhost')).toBe(true);
+
       // Second snapshot with same domain should use cached result
       await percy.snapshot({
         name: 'test snapshot 2',
@@ -3157,7 +3169,7 @@ describe('Discovery', () => {
       await percy.idle();
 
       const callCountAfterSecond = validationMock.calls.count();
-      // Should still be 1 - no new validation call
+      // Should still be 1 - no new validation call (cached result used)
       expect(callCountAfterSecond).toBe(1);
     });
   });
