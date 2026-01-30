@@ -76,6 +76,8 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'ignoreCanvasSerializationErrors');
   debugProp(snapshot, 'ignoreStyleSheetSerializationErrors');
   debugProp(snapshot, 'pseudoClassEnabledElements', JSON.stringify);
+  debugProp(snapshot, 'discovery.autoConfigureAllowedHostnames');
+
   if (Array.isArray(snapshot.domSnapshot)) {
     debugProp(snapshot, 'domSnapshot.0.userAgent');
   } else {

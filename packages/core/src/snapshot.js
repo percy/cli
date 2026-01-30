@@ -143,7 +143,8 @@ function getSnapshotOptions(options, { config, meta }) {
       userAgent: config.discovery.userAgent,
       retry: config.discovery.retry,
       scrollToBottom: config.discovery.scrollToBottom,
-      fontDomains: config.discovery.fontDomains
+      fontDomains: config.discovery.fontDomains,
+      autoConfigureAllowedHostnames: config.discovery.autoConfigureAllowedHostnames
     }
   }, options], (path, prev, next) => {
     switch (path.map(k => k.toString()).join('.')) {
