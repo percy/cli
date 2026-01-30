@@ -2717,6 +2717,55 @@ describe('Discovery', () => {
       ]));
     });
 
+    it('returns early from validateDomainForAllowlist when hostname is already in autoConfiguredHosts', async () => {
+      await percy.stop();
+
+      // Track validation calls
+      let validationCallCount = 0;
+      validationMock.and.callFake(() => {
+        validationCallCount++;
+        return [200, { accessible: false }];
+      });
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          autoConfigureAllowedHostnames: true
+        }
+      });
+
+      // Pre-add the hostname to autoConfiguredHosts to trigger early return at line 469
+      percy.domainValidation.autoConfiguredHosts.add('ex.localhost');
+
+      logger.loglevel('debug');
+
+      await percy.snapshot({
+        name: 'test with pre-configured host',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Verify early return: validation should not be called since hostname is pre-configured
+      expect(validationCallCount).toBe(0);
+      expect(validationMock).not.toHaveBeenCalled();
+
+      // Verify domain was captured using cached approval
+      expect(captured[0]).toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+
+      // Verify the domain stayed in autoConfiguredHosts and wasn't added to newAllowedHosts
+      expect(percy.domainValidation.autoConfiguredHosts.has('ex.localhost')).toBe(true);
+      expect(percy.domainValidation.newAllowedHosts.has('ex.localhost')).toBe(false);
+    });
+
     it('validates and blocks domains that are not in pre-approved list', async () => {
       await percy.stop();
 
@@ -2987,6 +3036,27 @@ describe('Discovery', () => {
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         jasmine.stringMatching(/Failed to fetch project domain config/)
       ]));
+    });
+
+    it('handles malformed URLs gracefully in getHostnameFromURL', async () => {
+      // Create DOM with malformed URL that will trigger catch block in getHostnameFromURL
+      let testMalformedDOM = testDOM.replace('img.gif', 'ht!tp://invalid url with spaces/img.gif');
+
+      await percy.snapshot({
+        name: 'test with malformed url',
+        url: 'http://localhost:8000',
+        domSnapshot: testMalformedDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // The snapshot should complete without errors despite the malformed URL
+      // getHostnameFromURL should return null for invalid URLs, caught in catch block
+      expect(captured[0]).toBeDefined();
+
+      // Verify no validation was attempted on the malformed URL (hostname is null)
+      expect(validationMock).not.toHaveBeenCalled();
     });
 
     it('skips domain validation when autoConfigureAllowedHostnames is disabled', async () => {
@@ -3280,6 +3350,57 @@ describe('Discovery', () => {
       // No domains should be added when feature is disabled
       expect(percy.domainValidation.newAllowedHosts.size).toBe(0);
       expect(percy.domainValidation.newErrorHosts.size).toBe(0);
+    });
+
+    it('returns early from validateDomainForAllowlist when autoConfigureAllowedHostnames is false', async () => {
+      await percy.stop();
+
+      // Track if validation worker was called
+      let workerCallCount = 0;
+      validationMock.and.callFake(() => {
+        workerCallCount++;
+        return [200, { accessible: false }];
+      });
+
+      // Clear previous mocks
+      api.replies['/projects/domain-config'] = [];
+
+      // Mock API response - note we provide a worker URL but disable the feature
+      api.reply('/projects/domain-config', () => [200, {
+        data: {
+          type: 'projects',
+          attributes: {
+            'domain-config': { 'allowed-domains': [] },
+            'domain-validator-worker-url': 'https://winter-morning-fa32.shobhit-k.workers.dev'
+          }
+        }
+      }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          autoConfigureAllowedHostnames: false
+        }
+      });
+
+      // Take snapshot with external resource
+      await percy.snapshot({
+        name: 'test with disabled auto-config',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Verify early return at line 455-457: validation should not be attempted
+      expect(workerCallCount).toBe(0);
+      expect(validationMock).not.toHaveBeenCalled();
+
+      // Verify no domains were processed
+      expect(percy.domainValidation.newAllowedHosts.size).toBe(0);
+      expect(percy.domainValidation.newErrorHosts.size).toBe(0);
+      expect(percy.domainValidation.autoConfiguredHosts.size).toBe(0);
     });
   });
 
