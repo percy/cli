@@ -437,31 +437,69 @@ function originURL(request) {
   return normalizeURL((request.redirectChain[0] || request).url);
 }
 
+// Executes domain validation via external service
+async function executeDomainValidation(network, hostname, domainValidation, client, workerUrl) {
+  const { processedHosts, newErrorHosts, processedDomains, pending } = domainValidation;
+
+  try {
+    network.log.debug(`Domain validation: Validating ${hostname} via external service`, network.meta);
+
+    const result = await client.validateDomain(hostname, {
+      validationEndpoint: workerUrl,
+      timeout: DOMAIN_VALIDATION_TIMEOUT
+    });
+
+    // Worker returns 'accessible' field, not 'allowed'
+    if (result?.error) {
+      newErrorHosts.add(hostname);
+      network.log.debug(`Domain validation: ${hostname} validated as BLOCKED - ${result?.reason}`, network.meta);
+      processedDomains.set(hostname, false);
+      return false;
+    } else if (!result?.accessible) {
+      processedHosts.add(hostname);
+      network.log.debug(`Domain validation: ${hostname} validated as ALLOWED`, network.meta);
+      processedDomains.set(hostname, true);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    // On error, default to allowing (fail-open for better UX)
+    network.log.warn(`Domain validation: Failed to validate ${hostname} - ${error.message}`, network.meta);
+    processedDomains.set(hostname, false);
+    return false;
+  } finally {
+    pending.delete(hostname);
+  }
+}
+
 // Validate domain for auto-allowlisting feature
 // Only validates domains that returned 200 status
 async function validateDomainForAllowlist(network, hostname, url, statusCode) {
   const { domainValidation, client, autoConfigureAllowedHostnames } = network;
-
-  // Skip validation if autoConfigureAllowedHostnames is disabled
-  if (!autoConfigureAllowedHostnames) {
-    return;
-  }
-
   const {
     autoConfiguredHosts,
-    newAllowedHosts, newErrorHosts,
+    processedHosts,
     pending, workerUrl, processedDomains
   } = domainValidation;
 
-  // Only validate domains that returned 200 status
-  // Non-200 responses should not be validated
-  if (
-    statusCode !== 200 ||
-    autoConfiguredHosts.has(hostname) ||
-    !workerUrl ||
-    pending.has(hostname)
+  // Skip validation if autoConfigureAllowedHostnames is disabled
+  if (!autoConfigureAllowedHostnames ||
+      statusCode !== 200 ||
+      !workerUrl
   ) {
-    return;
+    return false;
+  }
+
+  if (autoConfiguredHosts.has(hostname)) {
+    // Adding autoConfigured hosts to processedHosts so that we can track the latest
+    // usage of autoConfigured hosts for cleanup later.
+    processedHosts.add(hostname);
+    return true;
+  }
+
+  // If validation is already pending for this hostname, await the same promise (mutex)
+  if (pending.has(hostname)) {
+    return pending.get(hostname);
   }
 
   if (processedDomains.has(hostname)) {
@@ -469,37 +507,7 @@ async function validateDomainForAllowlist(network, hostname, url, statusCode) {
   }
 
   // Perform external validation using worker URL from API
-  const validationPromise = (async () => {
-    try {
-      network.log.debug(`Domain validation: Validating ${hostname} via external service`, network.meta);
-
-      const result = await client.validateDomain(hostname, {
-        validationEndpoint: workerUrl,
-        timeout: DOMAIN_VALIDATION_TIMEOUT
-      });
-
-      // Worker returns 'accessible' field, not 'allowed'
-      if (result?.error) {
-        newErrorHosts.add(hostname);
-        network.log.debug(`Domain validation: ${hostname} validated as BLOCKED - ${result?.reason}`, network.meta);
-        processedDomains.set(hostname, null);
-        return null;
-      } else if (!result?.accessible) {
-        newAllowedHosts.add(hostname);
-        network.log.debug(`Domain validation: ${hostname} validated as ALLOWED`, network.meta);
-        processedDomains.set(hostname, true);
-        return true;
-      }
-      return null;
-    } catch (error) {
-      // On error, default to allowing (fail-open for better UX)
-      network.log.warn(`Domain validation: Failed to validate ${hostname} - ${error.message}`, network.meta);
-      processedDomains.set(hostname, null);
-      return null;
-    } finally {
-      pending.delete(hostname);
-    }
-  })();
+  const validationPromise = executeDomainValidation(network, hostname, domainValidation, client, workerUrl);
 
   pending.set(hostname, validationPromise);
   return validationPromise;
@@ -646,18 +654,12 @@ async function saveResponseResource(network, request, session) {
       // Check if domain is allowed via manual config or auto-validation
       let shouldCapture = response && hostnameMatches(allowedHostnames, url);
 
-      // Also capture if domain is auto-validated as allowed (autoConfiguredHosts or newAllowedHosts)
+      // Also capture if domain is auto-validated as allowed (autoConfiguredHosts or processedHosts)
       if (!shouldCapture && hostname) {
-        const { autoConfiguredHosts } = network.domainValidation;
-        if (autoConfiguredHosts?.has(hostname)) {
+        const domainResult = await validateDomainForAllowlist(network, hostname, url, response.status);
+        if (domainResult) {
           shouldCapture = true;
           log.debug(`- Capturing auto-validated domain: ${hostname}`, meta);
-        } else {
-          const domainResult = await validateDomainForAllowlist(network, hostname, url, response.status);
-          if (domainResult) {
-            shouldCapture = true;
-            log.debug(`- Capturing auto-validated domain: ${hostname}`, meta);
-          }
         }
       }
 

@@ -127,7 +127,7 @@ export class Percy {
     // Domain validation state for auto domain allow-listing
     this.domainValidation = {
       autoConfiguredHosts: new Set(), // Domains from project config
-      newAllowedHosts: new Set(), // Newly discovered allowed domains this session
+      processedHosts: new Set(), // Newly discovered allowed domains this session
       newErrorHosts: new Set(), // Newly discovered blocked domains this session
       pending: new Map(), // Domain -> Promise (deduplication)
       workerUrl: null, // Domain validator worker URL from API
@@ -749,10 +749,10 @@ export class Percy {
       return;
     }
 
-    const { newAllowedHosts, newErrorHosts, stats } = this.domainValidation;
+    const { processedHosts, newErrorHosts, stats } = this.domainValidation;
 
     // Only save if there are new domains discovered in this session
-    if (newAllowedHosts.size === 0 && newErrorHosts.size === 0) {
+    if (processedHosts.size === 0 && newErrorHosts.size === 0) {
       this.log.debug('No new auto configured hostnames to save');
       return;
     }
@@ -762,11 +762,11 @@ export class Percy {
 
       await this.client.updateProjectDomainConfig({
         buildId: this.build?.id,
-        allowedDomains: Array.from(newAllowedHosts),
+        allowedDomains: Array.from(processedHosts),
         errorDomains: Array.from(newErrorHosts)
       });
 
-      this.log.info(`Saved ${newAllowedHosts.size} new allowed domains`);
+      this.log.info(`Saved ${processedHosts.size} new allowed domains`);
       this.log.debug(`Domain validation stats: ${JSON.stringify(stats)}`);
     } catch (error) {
       this.log.warn(`Failed to save project config - ${error.message}`);

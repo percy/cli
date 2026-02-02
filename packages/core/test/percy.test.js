@@ -2030,8 +2030,8 @@ describe('Percy', () => {
       api.reply('/projects/domain-config', () => [204]);
 
       percy.build = { id: 'build-123' };
-      percy.domainValidation.newAllowedHosts.add('new-cdn.example.com');
-      percy.domainValidation.newAllowedHosts.add('new-images.example.com');
+      percy.domainValidation.processedHosts.add('new-cdn.example.com');
+      percy.domainValidation.processedHosts.add('new-images.example.com');
       percy.domainValidation.newErrorHosts.add('blocked.example.com');
 
       await percy.saveHostnamesToAutoConfigure();
@@ -2057,8 +2057,8 @@ describe('Percy', () => {
       api.reply('/projects/domain-config', () => [204]);
 
       percy.build = { id: 'build-456' };
-      percy.domainValidation.newAllowedHosts.add('cdn1.example.com');
-      percy.domainValidation.newAllowedHosts.add('cdn2.example.com');
+      percy.domainValidation.processedHosts.add('cdn1.example.com');
+      percy.domainValidation.processedHosts.add('cdn2.example.com');
 
       await percy.saveHostnamesToAutoConfigure();
 
@@ -2084,7 +2084,7 @@ describe('Percy', () => {
       api.reply('/projects/domain-config', () => [500, 'Internal Server Error']);
 
       percy.build = { id: 'build-789' };
-      percy.domainValidation.newAllowedHosts.add('test.example.com');
+      percy.domainValidation.processedHosts.add('test.example.com');
 
       await percy.saveHostnamesToAutoConfigure();
 
@@ -2097,8 +2097,8 @@ describe('Percy', () => {
       api.reply('/projects/domain-config', () => [204]);
 
       percy.build = { id: 'build-999' };
-      percy.domainValidation.newAllowedHosts.add('allowed1.example.com');
-      percy.domainValidation.newAllowedHosts.add('allowed2.example.com');
+      percy.domainValidation.processedHosts.add('allowed1.example.com');
+      percy.domainValidation.processedHosts.add('allowed2.example.com');
 
       await percy.saveHostnamesToAutoConfigure();
 
@@ -2140,7 +2140,7 @@ describe('Percy', () => {
       api.reply('/projects/domain-config', () => [204]);
 
       percy.build = { id: 'build-123' };
-      percy.domainValidation.newAllowedHosts.add('new-cdn.example.com');
+      percy.domainValidation.processedHosts.add('new-cdn.example.com');
       percy.domainValidation.newErrorHosts.add('blocked.example.com');
 
       logger.loglevel('debug');

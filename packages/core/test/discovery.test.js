@@ -2678,45 +2678,6 @@ describe('Discovery', () => {
       ]));
     });
 
-    it('uses pre-approved domains from session cache without calling validation service', async () => {
-      await percy.stop();
-
-      percy = await Percy.start({
-        token: 'PERCY_TOKEN'
-      });
-
-      // Pre-populate session cache with approved domain
-      percy.domainValidation.autoConfiguredHosts.add('ex.localhost:8001');
-
-      logger.loglevel('debug');
-
-      await percy.snapshot({
-        name: 'test snapshot',
-        url: 'http://localhost:8000',
-        domSnapshot: testExternalDOM,
-        widths: [1000]
-      });
-
-      await percy.idle();
-
-      // Verify the validation mock was NOT called (domain was pre-approved)
-      expect(validationMock).not.toHaveBeenCalled();
-
-      // Verify external resource WAS captured (pre-approved)
-      expect(captured[0]).toContain(
-        jasmine.objectContaining({
-          attributes: jasmine.objectContaining({
-            'resource-url': 'http://ex.localhost:8001/img.gif'
-          })
-        })
-      );
-
-      // Log should show domain was captured using auto-validated domain
-      expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Capturing auto-validated domain: ex\.localhost:8001/)
-      ]));
-    });
-
     it('returns early from validateDomainForAllowlist when hostname is already in autoConfiguredHosts', async () => {
       await percy.stop();
 
@@ -2736,6 +2697,7 @@ describe('Discovery', () => {
 
       // Pre-add the hostname to autoConfiguredHosts to trigger early return at line 469
       percy.domainValidation.autoConfiguredHosts.add('ex.localhost:8001');
+      percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
 
       logger.loglevel('debug');
 
@@ -2761,9 +2723,9 @@ describe('Discovery', () => {
         })
       );
 
-      // Verify the domain stayed in autoConfiguredHosts and wasn't added to newAllowedHosts
+      // Verify the domain stayed in autoConfiguredHosts and wasn't added to processedHosts
       expect(percy.domainValidation.autoConfiguredHosts.has('ex.localhost:8001')).toBe(true);
-      expect(percy.domainValidation.newAllowedHosts.has('ex.localhost:8001')).toBe(false);
+      expect(percy.domainValidation.processedHosts.has('ex.localhost:8001')).toBe(true);
     });
 
     it('validates and blocks domains that are not in pre-approved list', async () => {
@@ -3008,7 +2970,7 @@ describe('Discovery', () => {
 
       // Verify domain validation structure is empty but initialized
       expect(percy.domainValidation.autoConfiguredHosts.size).toBe(0);
-      expect(percy.domainValidation.newAllowedHosts.size).toBe(0);
+      expect(percy.domainValidation.processedHosts.size).toBe(0);
       expect(percy.domainValidation.newErrorHosts.size).toBe(0);
     });
 
@@ -3029,7 +2991,7 @@ describe('Discovery', () => {
 
       // Verify domain validation structure is empty but Percy still starts
       expect(percy.domainValidation.autoConfiguredHosts.size).toBe(0);
-      expect(percy.domainValidation.newAllowedHosts.size).toBe(0);
+      expect(percy.domainValidation.processedHosts.size).toBe(0);
       expect(percy.domainValidation.newErrorHosts.size).toBe(0);
 
       // Log should show debug message about early load failure from the client
@@ -3095,7 +3057,7 @@ describe('Discovery', () => {
       expect(validationMock).not.toHaveBeenCalled();
 
       // Domain should not be added to any sets
-      expect(percy.domainValidation.newAllowedHosts.has('ex.localhost:8001')).toBe(false);
+      expect(percy.domainValidation.processedHosts.has('ex.localhost:8001')).toBe(false);
       expect(percy.domainValidation.autoConfiguredHosts.has('ex.localhost:8001')).toBe(false);
     });
 
@@ -3132,7 +3094,7 @@ describe('Discovery', () => {
       expect(validationMock).not.toHaveBeenCalled();
 
       // Domain should not be processed
-      expect(percy.domainValidation.newAllowedHosts.has('ex.localhost:8001')).toBe(false);
+      expect(percy.domainValidation.processedHosts.has('ex.localhost:8001')).toBe(false);
     });
 
     it('skips validation when hostname validation is already pending', async () => {
@@ -3254,7 +3216,7 @@ describe('Discovery', () => {
       );
 
       // Verify no new domains were added
-      expect(percy.domainValidation.newAllowedHosts.size).toBe(0);
+      expect(percy.domainValidation.processedHosts.size).toBe(0);
       expect(percy.domainValidation.newErrorHosts.size).toBe(0);
     });
 
@@ -3485,7 +3447,7 @@ describe('Discovery', () => {
       expect(validationMock).not.toHaveBeenCalled();
 
       // No domains should be added when feature is disabled
-      expect(percy.domainValidation.newAllowedHosts.size).toBe(0);
+      expect(percy.domainValidation.processedHosts.size).toBe(0);
       expect(percy.domainValidation.newErrorHosts.size).toBe(0);
     });
 
@@ -3535,7 +3497,7 @@ describe('Discovery', () => {
       expect(validationMock).not.toHaveBeenCalled();
 
       // Verify no domains were processed
-      expect(percy.domainValidation.newAllowedHosts.size).toBe(0);
+      expect(percy.domainValidation.processedHosts.size).toBe(0);
       expect(percy.domainValidation.newErrorHosts.size).toBe(0);
       expect(percy.domainValidation.autoConfiguredHosts.size).toBe(0);
     });

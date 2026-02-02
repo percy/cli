@@ -840,7 +840,9 @@ export class PercyClient {
     try {
       const response = await request(validationEndpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.headers({
+          'Content-Type': 'application/json'
+        }),
         body: JSON.stringify({ domain: hostname }),
         timeout,
         retries: 0 // Don't retry validation requests
