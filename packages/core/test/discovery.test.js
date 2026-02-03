@@ -3158,6 +3158,70 @@ describe('Discovery', () => {
       expect(validationCallCount).toBe(1);
     });
 
+    it('returns the same promise for concurrent validation requests to the same hostname', async () => {
+      await percy.stop();
+
+      let validationCallCount = 0;
+      let validationResolver;
+
+      // Mock validation to hang so we can test concurrent requests
+      validationMock.and.callFake(() => {
+        validationCallCount++;
+        return new Promise(resolve => {
+          validationResolver = resolve;
+        });
+      });
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          autoConfigureAllowedHostnames: true
+        }
+      });
+
+      percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
+
+      // Take two snapshots with the same external domain
+      let snapshot1Promise = percy.snapshot({
+        name: 'test snapshot 1',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      let snapshot2Promise = percy.snapshot({
+        name: 'test snapshot 2',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      // Wait for validation to be called at least once
+      let attempts = 0;
+      // eslint-disable-next-line no-unmodified-loop-condition
+      while (validationCallCount === 0 && attempts < 50) {
+        await new Promise(resolve => setTimeout(resolve, 10));
+        attempts++;
+      }
+
+      // Validation should only be called once
+      expect(validationCallCount).toBe(1);
+
+      // Resolve with validation result (allowed - accessible: false means domain should be captured)
+      validationResolver([200, { accessible: false }]);
+
+      await Promise.all([snapshot1Promise, snapshot2Promise]);
+      await percy.idle();
+
+      // Give the promise chain time to complete
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Verify both snapshots received the same validation result
+      // by checking that the domain was processed and added to processedHosts
+      expect(percy.domainValidation.processedHosts.has('ex.localhost:8001')).toBe(true);
+      expect(validationCallCount).toBe(1); // Still only one call after everything completes
+    });
+
     it('skips domain validation when autoConfigureAllowedHostnames is disabled', async () => {
       await percy.stop();
 
