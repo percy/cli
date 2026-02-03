@@ -9,6 +9,8 @@ env:
   TEMP: "D:\\temp"
   TMP: "D:\\temp"
   YARN_CACHE_FOLDER: "D:\\yarn-cache"
+  # Disabling some Node.js specific overhead
+  NODE_OPTIONS: "--max-old-space-size=4096" 
 
 jobs:
   build:
@@ -16,6 +18,16 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Kill Windows Bottlenecks (Antivirus & Indexer)
+        run: |
+          # Disable Windows Defender Realtime Monitoring (Massive speedup for I/O)
+          Set-MpPreference -DisableRealtimeMonitoring $true
+          # Exclude the workspace and temp drives from scanning
+          Add-MpPreference -ExclusionPath "D:\", "C:\hostedtoolcache", "${{ github.workspace }}"
+          # Stop the Search Indexer
+          Stop-Service -Name WSearch -Force
+        shell: pwsh
 
       - name: 'Initialize D: Drive'
         run: |
@@ -29,7 +41,7 @@ jobs:
           cache: 'yarn'
 
       - name: Install Dependencies
-        run: yarn install --frozen-lockfile --prefer-offline --progress false
+        run: yarn install --frozen-lockfile --prefer-offline --progress false --network-timeout 100000
         shell: pwsh
 
       - name: Build
@@ -68,6 +80,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Kill Windows Bottlenecks (Antivirus & Indexer)
+        run: |
+          Set-MpPreference -DisableRealtimeMonitoring $true
+          Add-MpPreference -ExclusionPath "D:\", "C:\hostedtoolcache", "${{ github.workspace }}"
+          Stop-Service -Name WSearch -Force
+        shell: pwsh
+
       - name: 'Initialize D: Drive'
         run: |
           if (!(Test-Path "D:\temp")) { New-Item -ItemType Directory -Path "D:\temp" }
@@ -88,6 +107,7 @@ jobs:
         run: yarn install --frozen-lockfile --prefer-offline --progress false
         shell: pwsh
 
+      # Original Retry Logic
       - name: Run tests
         continue-on-error: true
         id: retry0
