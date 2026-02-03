@@ -828,14 +828,14 @@ export class PercyClient {
   }
 
   // Validates a domain with the Cloudflare worker endpoint
-  async validateDomain(hostname, options = {}) {
+  async validateDomain(url, options = {}) {
     const { validationEndpoint, timeout = 5000 } = options;
 
     if (!validationEndpoint) {
       throw new Error('Domain validation endpoint URL is required');
     }
 
-    this.log.debug(`Validating domain: ${hostname} via ${validationEndpoint}`);
+    this.log.debug(`Validating domain: ${url} via ${validationEndpoint}`);
 
     try {
       const response = await request(validationEndpoint, {
@@ -843,14 +843,14 @@ export class PercyClient {
         headers: this.headers({
           'Content-Type': 'application/json'
         }),
-        body: JSON.stringify({ domain: hostname }),
+        body: JSON.stringify({ url }),
         timeout,
         retries: 0 // Don't retry validation requests
       });
 
       return response;
     } catch (error) {
-      this.log.debug(`Domain validation failed for ${hostname}: ${error.message}`);
+      this.log.debug(`Domain validation failed for ${url}: ${error.message}`);
       throw error;
     }
   }

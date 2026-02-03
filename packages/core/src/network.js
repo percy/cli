@@ -438,13 +438,13 @@ function originURL(request) {
 }
 
 // Executes domain validation via external service
-async function executeDomainValidation(network, hostname, domainValidation, client, workerUrl) {
+async function executeDomainValidation(network, hostname, url, domainValidation, client, workerUrl) {
   const { processedHosts, newErrorHosts, processedDomains, pending } = domainValidation;
 
   try {
     network.log.debug(`Domain validation: Validating ${hostname} via external service`, network.meta);
 
-    const result = await client.validateDomain(hostname, {
+    const result = await client.validateDomain(url, {
       validationEndpoint: workerUrl,
       timeout: DOMAIN_VALIDATION_TIMEOUT
     });
@@ -507,7 +507,7 @@ async function validateDomainForAllowlist(network, hostname, url, statusCode) {
   }
 
   // Perform external validation using worker URL from API
-  const validationPromise = executeDomainValidation(network, hostname, domainValidation, client, workerUrl);
+  const validationPromise = executeDomainValidation(network, hostname, url, domainValidation, client, workerUrl);
 
   pending.set(hostname, validationPromise);
   return validationPromise;

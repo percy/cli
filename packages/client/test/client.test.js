@@ -2811,27 +2811,27 @@ describe('PercyClient', () => {
     });
 
     it('throws error when validationEndpoint is missing', async () => {
-      await expectAsync(client.validateDomain('cdn.example.com', {}))
+      await expectAsync(client.validateDomain('https://cdn.example.com', {}))
         .toBeRejectedWithError('Domain validation endpoint URL is required');
     });
 
     it('throws error when no options provided', async () => {
-      await expectAsync(client.validateDomain('cdn.example.com'))
+      await expectAsync(client.validateDomain('https://cdn.example.com'))
         .toBeRejectedWithError('Domain validation endpoint URL is required');
     });
 
     it('throws error when validationEndpoint is null', async () => {
-      await expectAsync(client.validateDomain('cdn.example.com', { validationEndpoint: null }))
+      await expectAsync(client.validateDomain('https://cdn.example.com', { validationEndpoint: null }))
         .toBeRejectedWithError('Domain validation endpoint URL is required');
     });
 
     it('throws error when validationEndpoint is undefined', async () => {
-      await expectAsync(client.validateDomain('cdn.example.com', { validationEndpoint: undefined }))
+      await expectAsync(client.validateDomain('https://cdn.example.com', { validationEndpoint: undefined }))
         .toBeRejectedWithError('Domain validation endpoint URL is required');
     });
 
     it('makes POST request to Cloudflare worker', async () => {
-      const result = await client.validateDomain('cdn.example.com', {
+      const result = await client.validateDomain('https://cdn.example.com', {
         validationEndpoint: 'https://winter-morning-fa32.shobhit-k.workers.dev'
       });
 
@@ -2842,23 +2842,23 @@ describe('PercyClient', () => {
     it('logs debug message', async () => {
       spyOn(client.log, 'debug');
 
-      await expectAsync(client.validateDomain('cdn.example.com', {
+      await expectAsync(client.validateDomain('https://cdn.example.com', {
         validationEndpoint: 'https://winter-morning-fa32.shobhit-k.workers.dev'
       })).toBeResolved();
 
-      expect(client.log.debug).toHaveBeenCalledWith('Validating domain: cdn.example.com via https://winter-morning-fa32.shobhit-k.workers.dev');
+      expect(client.log.debug).toHaveBeenCalledWith('Validating domain: https://cdn.example.com via https://winter-morning-fa32.shobhit-k.workers.dev');
     });
 
     it('throws error on request failure', async () => {
       spyOn(client.log, 'debug');
       workerMock.and.returnValue([500, { error: 'Internal server error' }]);
 
-      await expectAsync(client.validateDomain('cdn.example.com', {
+      await expectAsync(client.validateDomain('https://cdn.example.com', {
         validationEndpoint: 'https://winter-morning-fa32.shobhit-k.workers.dev'
       })).toBeRejected();
 
       expect(client.log.debug).toHaveBeenCalledWith(
-        jasmine.stringMatching(/Domain validation failed for cdn\.example\.com/)
+        jasmine.stringMatching(/Domain validation failed for https:\/\/cdn\.example\.com/)
       );
     });
 
@@ -2867,23 +2867,23 @@ describe('PercyClient', () => {
       // Simulate a network error by returning an error status without proper response
       workerMock.and.returnValue([0, '']); // Status 0 indicates network failure
 
-      await expectAsync(client.validateDomain('cdn.example.com', {
+      await expectAsync(client.validateDomain('https://cdn.example.com', {
         validationEndpoint: 'https://winter-morning-fa32.shobhit-k.workers.dev'
       })).toBeRejected();
     });
 
-    it('sends domain in request body', async () => {
+    it('sends url in request body', async () => {
       let capturedRequest;
       workerMock.and.callFake((req) => {
         capturedRequest = req;
         return [200, { accessible: false, status_code: 403 }];
       });
 
-      await client.validateDomain('restricted.example.com', {
+      await client.validateDomain('https://restricted.example.com/path/to/resource', {
         validationEndpoint: 'https://winter-morning-fa32.shobhit-k.workers.dev'
       });
 
-      expect(capturedRequest.body.domain).toBe('restricted.example.com');
+      expect(capturedRequest.body.url).toBe('https://restricted.example.com/path/to/resource');
     });
   });
 });
