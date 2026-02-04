@@ -795,7 +795,8 @@ export class PercyClient {
   // Updates project domain configuration
   async updateProjectDomainConfig({ buildId, allowedDomains = [], errorDomains = [] } = {}) {
     this.log.debug('Updating domain config');
-    return this.patch('projects/domain-config', {
+    // Authentication happens on Project Token so id is not used
+    return this.patch('project-domain-configs/cli-test-id', {
       data: {
         type: 'projects',
         attributes: {
@@ -814,7 +815,8 @@ export class PercyClient {
     this.log.debug('Fetching project domain config');
 
     try {
-      const response = await this.get('projects/domain-config');
+      // Authentication happens on Project Token so id is not used
+      const response = await this.get('project-domain-configs/cli-test-id');
       const projectData = response?.data;
 
       return {

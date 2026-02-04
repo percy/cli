@@ -1848,7 +1848,7 @@ describe('Percy', () => {
     it('loads allowed domains from API response', async () => {
       await percy.stop();
 
-      api.reply('/projects/domain-config', () => [200, {
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
         data: {
           type: 'projects',
           attributes: {
@@ -1872,7 +1872,7 @@ describe('Percy', () => {
     it('sets worker URL when provided in API response', async () => {
       await percy.stop();
 
-      api.reply('/projects/domain-config', () => [200, {
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
         data: {
           type: 'projects',
           attributes: {
@@ -1895,7 +1895,7 @@ describe('Percy', () => {
     it('handles missing domain config gracefully', async () => {
       await percy.stop();
 
-      api.reply('/projects/domain-config', () => [200, {
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
         data: {
           type: 'projects',
           attributes: {}
@@ -1938,7 +1938,7 @@ describe('Percy', () => {
     it('handles empty allowed-domains array', async () => {
       await percy.stop();
 
-      api.reply('/projects/domain-config', () => [200, {
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
         data: {
           type: 'projects',
           attributes: {
@@ -1959,7 +1959,7 @@ describe('Percy', () => {
     it('handles null domain-config gracefully', async () => {
       await percy.stop();
 
-      api.reply('/projects/domain-config', () => [200, {
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
         data: {
           type: 'projects',
           attributes: {
@@ -1982,7 +1982,7 @@ describe('Percy', () => {
     it('skips loading when autoConfigureAllowedHostnames is disabled', async () => {
       await percy.stop();
 
-      api.reply('/projects/domain-config', () => [200, {
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
         data: {
           type: 'projects',
           attributes: {
@@ -2003,7 +2003,7 @@ describe('Percy', () => {
       logger.loglevel('debug');
 
       // Clear any previous requests
-      delete api.requests['/projects/domain-config'];
+      delete api.requests['/project-domain-configs/cli-test-id'];
 
       await percy.loadAutoConfiguredHostnames();
 
@@ -2015,7 +2015,7 @@ describe('Percy', () => {
       ]));
 
       // Should not have made API call
-      expect(api.requests['/projects/domain-config']).toBeUndefined();
+      expect(api.requests['/project-domain-configs/cli-test-id']).toBeUndefined();
     });
   });
 
@@ -2027,7 +2027,7 @@ describe('Percy', () => {
     });
 
     it('saves newly discovered allowed and error domains', async () => {
-      api.reply('/projects/domain-config', () => [204]);
+      api.reply('/project-domain-configs/cli-test-id', () => [204]);
 
       percy.build = { id: 'build-123' };
       percy.domainValidation.processedHosts.add('new-cdn.example.com');
@@ -2036,8 +2036,8 @@ describe('Percy', () => {
 
       await percy.saveHostnamesToAutoConfigure();
 
-      expect(api.requests['/projects/domain-config']).toBeDefined();
-      const request = api.requests['/projects/domain-config'].find(r => r.method === 'PATCH');
+      expect(api.requests['/project-domain-configs/cli-test-id']).toBeDefined();
+      const request = api.requests['/project-domain-configs/cli-test-id'].find(r => r.method === 'PATCH');
       expect(request).toBeDefined();
       expect(request.body).toEqual({
         data: {
@@ -2054,7 +2054,7 @@ describe('Percy', () => {
     });
 
     it('logs info message when domains are saved', async () => {
-      api.reply('/projects/domain-config', () => [204]);
+      api.reply('/project-domain-configs/cli-test-id', () => [204]);
 
       percy.build = { id: 'build-456' };
       percy.domainValidation.processedHosts.add('cdn1.example.com');
@@ -2073,7 +2073,7 @@ describe('Percy', () => {
       await percy.saveHostnamesToAutoConfigure();
 
       // Should not have any PATCH requests, only GET
-      const patchRequests = api.requests['/projects/domain-config']?.filter(r => r.method === 'PATCH');
+      const patchRequests = api.requests['/project-domain-configs/cli-test-id']?.filter(r => r.method === 'PATCH');
       expect(patchRequests || []).toEqual([]);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         '[percy:core] No new auto configured hostnames to save'
@@ -2081,7 +2081,7 @@ describe('Percy', () => {
     });
 
     it('handles API errors gracefully', async () => {
-      api.reply('/projects/domain-config', () => [500, 'Internal Server Error']);
+      api.reply('/project-domain-configs/cli-test-id', () => [500, 'Internal Server Error']);
 
       percy.build = { id: 'build-789' };
       percy.domainValidation.processedHosts.add('test.example.com');
@@ -2094,7 +2094,7 @@ describe('Percy', () => {
     });
 
     it('saves only new allowed domains when no error domains', async () => {
-      api.reply('/projects/domain-config', () => [204]);
+      api.reply('/project-domain-configs/cli-test-id', () => [204]);
 
       percy.build = { id: 'build-999' };
       percy.domainValidation.processedHosts.add('allowed1.example.com');
@@ -2102,7 +2102,7 @@ describe('Percy', () => {
 
       await percy.saveHostnamesToAutoConfigure();
 
-      const request = api.requests['/projects/domain-config'].find(r => r.method === 'PATCH');
+      const request = api.requests['/project-domain-configs/cli-test-id'].find(r => r.method === 'PATCH');
       const domainConfig = request.body.data.attributes['domain-config'];
       expect(domainConfig.allowed_domains).toEqual(
         jasmine.arrayContaining(['allowed1.example.com', 'allowed2.example.com'])
@@ -2111,7 +2111,7 @@ describe('Percy', () => {
     });
 
     it('saves only error domains when no allowed domains', async () => {
-      api.reply('/projects/domain-config', () => [204]);
+      api.reply('/project-domain-configs/cli-test-id', () => [204]);
 
       percy.build = { id: 'build-111' };
       percy.domainValidation.newErrorHosts.add('error1.example.com');
@@ -2119,7 +2119,7 @@ describe('Percy', () => {
 
       await percy.saveHostnamesToAutoConfigure();
 
-      const request = api.requests['/projects/domain-config'].find(r => r.method === 'PATCH');
+      const request = api.requests['/project-domain-configs/cli-test-id'].find(r => r.method === 'PATCH');
       const domainConfig = request.body.data.attributes['domain-config'];
       expect(domainConfig.allowed_domains).toEqual([]);
       expect(domainConfig.error_domains).toEqual(
@@ -2137,7 +2137,7 @@ describe('Percy', () => {
         }
       });
 
-      api.reply('/projects/domain-config', () => [204]);
+      api.reply('/project-domain-configs/cli-test-id', () => [204]);
 
       percy.build = { id: 'build-123' };
       percy.domainValidation.processedHosts.add('new-cdn.example.com');
@@ -2148,7 +2148,7 @@ describe('Percy', () => {
       await percy.saveHostnamesToAutoConfigure();
 
       // Should not have made API call
-      const patchRequests = api.requests['/projects/domain-config']?.filter(r => r.method === 'PATCH');
+      const patchRequests = api.requests['/project-domain-configs/cli-test-id']?.filter(r => r.method === 'PATCH');
       expect(patchRequests || []).toEqual([]);
 
       expect(logger.stderr).toEqual(jasmine.arrayContaining([

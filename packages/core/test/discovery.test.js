@@ -52,7 +52,7 @@ describe('Discovery', () => {
     });
 
     // Mock domain config endpoint - return empty config by default
-    api.reply('/projects/domain-config', () => [200, {
+    api.reply('/project-domain-configs/cli-test-id', () => [200, {
       data: {
         type: 'projects',
         id: '123',
@@ -2921,11 +2921,9 @@ describe('Discovery', () => {
     it('loads domain config early from API before discovery starts', async () => {
       await percy.stop();
 
-      // Clear previous mocks and set up new one
-      api.replies['/projects/domain-config'] = [];
-
       // Mock API response for domain config endpoint
-      api.reply('/projects/domain-config', () => [200, {
+      delete api.replies['/project-domain-configs/cli-test-id'];
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
         data: {
           type: 'projects',
           attributes: {
@@ -2953,11 +2951,9 @@ describe('Discovery', () => {
     it('handles missing domain config gracefully during early load', async () => {
       await percy.stop();
 
-      // Clear previous mocks and set up empty config
-      api.replies['/projects/domain-config'] = [];
-
       // Mock API response with no domain config
-      api.reply('/projects/domain-config', () => [200, {
+      delete api.replies['/project-domain-configs/cli-test-id'];
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
         data: {
           type: 'projects',
           attributes: {}
@@ -2977,11 +2973,9 @@ describe('Discovery', () => {
     it('continues without domain config if API call fails during early load', async () => {
       await percy.stop();
 
-      // Clear previous mocks and set up error response
-      api.replies['/projects/domain-config'] = [];
-
       // Mock API to return error
-      api.reply('/projects/domain-config', () => [404, 'Not Found']);
+      delete api.replies['/project-domain-configs/cli-test-id'];
+      api.reply('/project-domain-configs/cli-test-id', () => [404, 'Not Found']);
 
       logger.loglevel('debug');
 
@@ -3228,11 +3222,9 @@ describe('Discovery', () => {
       // Configure validation mock to return allowed
       validationMock.and.returnValue([200, {}]);
 
-      // Clear previous mocks
-      api.replies['/projects/domain-config'] = [];
-
       // Mock API response for domain config endpoint
-      api.reply('/projects/domain-config', () => [200, {
+      delete api.replies['/project-domain-configs/cli-test-id'];
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
         data: {
           type: 'projects',
           attributes: {
@@ -3475,9 +3467,9 @@ describe('Discovery', () => {
         return [200, { accessible: false }];
       });
 
-      // Clear previous mocks and set up API response
-      api.replies['/projects/domain-config'] = [];
-      api.reply('/projects/domain-config', () => [200, {
+      // Set up API response
+      delete api.replies['/project-domain-configs/cli-test-id'];
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
         data: {
           type: 'projects',
           attributes: {
@@ -3525,11 +3517,9 @@ describe('Discovery', () => {
         return [200, { accessible: false }];
       });
 
-      // Clear previous mocks
-      api.replies['/projects/domain-config'] = [];
-
       // Mock API response - note we provide a worker URL but disable the feature
-      api.reply('/projects/domain-config', () => [200, {
+      delete api.replies['/project-domain-configs/cli-test-id'];
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
         data: {
           type: 'projects',
           attributes: {

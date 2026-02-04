@@ -2591,7 +2591,7 @@ describe('PercyClient', () => {
 
   describe('#updateProjectDomainConfig()', () => {
     beforeEach(() => {
-      api.reply('/projects/domain-config', () => [204]);
+      api.reply('/project-domain-configs/cli-test-id', () => [204]);
     });
 
     it('calls PATCH with domain config data', async () => {
@@ -2604,7 +2604,7 @@ describe('PercyClient', () => {
       })).toBeResolved();
 
       expect(client.patch).toHaveBeenCalledWith(
-        'projects/domain-config',
+        'project-domain-configs/cli-test-id',
         {
           data: {
             type: 'projects',
@@ -2632,7 +2632,7 @@ describe('PercyClient', () => {
     it('handles empty arrays', async () => {
       await expectAsync(client.updateProjectDomainConfig({ buildId: '456' })).toBeResolved();
 
-      expect(api.requests['/projects/domain-config'][0].body).toEqual({
+      expect(api.requests['/project-domain-configs/cli-test-id'][0].body).toEqual({
         data: {
           type: 'projects',
           attributes: {
@@ -2650,7 +2650,7 @@ describe('PercyClient', () => {
       await expectAsync(client.updateProjectDomainConfig()).toBeResolved();
 
       // defaults should produce a domain-config body with undefined buildId and empty arrays
-      const body = api.requests['/projects/domain-config'][0].body;
+      const body = api.requests['/project-domain-configs/cli-test-id'][0].body;
       expect(body.data.type).toBe('projects');
       expect(body.data.attributes['domain-config'].allowed_domains).toEqual([]);
       expect(body.data.attributes['domain-config'].error_domains).toEqual([]);
@@ -2659,38 +2659,42 @@ describe('PercyClient', () => {
 
     it('calls patch with Unknown identifier when no meta identifier provided', async () => {
       // call patch directly with empty meta to hit the meta.identifier || 'Unknown' branch
-      await expectAsync(client.patch('projects/domain-config', {}, {})).toBeResolved();
-      expect(api.requests['/projects/domain-config'].length).toBeGreaterThan(0);
+      await expectAsync(client.patch('project-domain-configs/project-123', {}, {})).toBeResolved();
+      expect(api.requests['/project-domain-configs/cli-test-id'].length).toBeGreaterThan(0);
     });
 
     it('calls patch with only path to trigger all default parameters', async () => {
       // call patch with only path parameter to cover all defaults on line 172
-      await expectAsync(client.patch('projects/domain-config')).toBeResolved();
-      expect(api.requests['/projects/domain-config'].length).toBeGreaterThan(0);
+      await expectAsync(client.patch('project-domain-configs/cli-test-id')).toBeResolved();
+      expect(api.requests['/project-domain-configs/cli-test-id'].length).toBeGreaterThan(0);
     });
 
     it('calls patch with raiseIfMissing=false', async () => {
       // call patch with raiseIfMissing=false to cover that branch
-      await expectAsync(client.patch('projects/domain-config', {}, {}, {}, false)).toBeResolved();
-      expect(api.requests['/projects/domain-config'].length).toBeGreaterThan(0);
+      await expectAsync(client.patch('project-domain-configs/cli-test-id', {}, {}, {}, false)).toBeResolved();
+      expect(api.requests['/project-domain-configs/cli-test-id'].length).toBeGreaterThan(0);
     });
 
     it('calls patch with customHeaders and default raiseIfMissing', async () => {
       // call patch with customHeaders but let raiseIfMissing use default
-      await expectAsync(client.patch('projects/domain-config', {}, {}, { 'X-Custom': 'test' })).toBeResolved();
-      expect(api.requests['/projects/domain-config'].length).toBeGreaterThan(0);
+      await expectAsync(client.patch('project-domain-configs/cli-test-id', {}, {}, { 'X-Custom': 'test' })).toBeResolved();
+      expect(api.requests['/project-domain-configs/cli-test-id'].length).toBeGreaterThan(0);
     });
 
     it('calls patch with undefined meta to trigger default parameter', async () => {
       // call patch with explicit undefined for meta parameter to cover default branch
-      await expectAsync(client.patch('projects/domain-config', {}, undefined)).toBeResolved();
-      expect(api.requests['/projects/domain-config'].length).toBeGreaterThan(0);
+      await expectAsync(client.patch('project-domain-configs/cli-test-id', {}, undefined)).toBeResolved();
+      expect(api.requests['/project-domain-configs/cli-test-id'].length).toBeGreaterThan(0);
     });
   });
 
   describe('#getProjectDomainConfig()', () => {
+    beforeEach(() => {
+      client.projectInfo = { id: 'test-project-123' };
+    });
+
     it('fetches and returns domain config with worker URL', async () => {
-      api.reply('/projects/domain-config', () => [200, {
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
         data: {
           id: 'test-project',
           type: 'projects',
@@ -2714,7 +2718,7 @@ describe('PercyClient', () => {
     });
 
     it('returns null values when domain config is not present', async () => {
-      api.reply('/projects/domain-config', () => [200, {
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
         data: {
           id: 'test-project',
           type: 'projects',
@@ -2731,7 +2735,7 @@ describe('PercyClient', () => {
     });
 
     it('returns null values when API call fails', async () => {
-      api.reply('/projects/domain-config', () => [500, { error: 'Internal Server Error' }]);
+      api.reply('/project-domain-configs/cli-test-id', () => [500, { error: 'Internal Server Error' }]);
 
       spyOn(client.log, 'debug');
 
@@ -2746,7 +2750,7 @@ describe('PercyClient', () => {
     });
 
     it('logs debug message when fetching domain config', async () => {
-      api.reply('/projects/domain-config', () => [200, {
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
         data: {
           id: 'test-project',
           type: 'projects',
@@ -2765,7 +2769,7 @@ describe('PercyClient', () => {
     });
 
     it('handles missing response data gracefully', async () => {
-      api.reply('/projects/domain-config', () => [200, {}]);
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {}]);
 
       const result = await client.getProjectDomainConfig();
 
@@ -2776,7 +2780,7 @@ describe('PercyClient', () => {
     });
 
     it('handles empty allowed-domains array', async () => {
-      api.reply('/projects/domain-config', () => [200, {
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
         data: {
           id: 'test-project',
           type: 'projects',
