@@ -1,15 +1,12 @@
 import { request as makeRequest } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
-import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType } from './utils.js';
+import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, executeDomainValidation } from './utils.js';
 
 const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
-
-// Domain validation timeout constant
-const DOMAIN_VALIDATION_TIMEOUT = 5000;
 
 // RequestLifeCycleHandler handles life cycle of a requestId
 // Ideal flow:          requestWillBeSent -> requestPaused -> responseReceived -> loadingFinished / loadingFailed
@@ -435,41 +432,6 @@ function logAssetInstrumentation(log, category, reason, details) {
 // Returns the normalized origin URL of a request
 function originURL(request) {
   return normalizeURL((request.redirectChain[0] || request).url);
-}
-
-// Executes domain validation via external service
-async function executeDomainValidation(network, hostname, url, domainValidation, client, workerUrl) {
-  const { processedHosts, newErrorHosts, processedDomains, pending } = domainValidation;
-
-  try {
-    network.log.debug(`Domain validation: Validating ${hostname} via external service`, network.meta);
-
-    const result = await client.validateDomain(url, {
-      validationEndpoint: workerUrl,
-      timeout: DOMAIN_VALIDATION_TIMEOUT
-    });
-
-    // Worker returns 'accessible' field, not 'allowed'
-    if (result?.error) {
-      newErrorHosts.add(hostname);
-      network.log.debug(`Domain validation: ${hostname} validated as BLOCKED - ${result?.reason}`, network.meta);
-      processedDomains.set(hostname, false);
-      return false;
-    } else if (!result?.accessible) {
-      processedHosts.add(hostname);
-      network.log.debug(`Domain validation: ${hostname} validated as ALLOWED`, network.meta);
-      processedDomains.set(hostname, true);
-      return true;
-    }
-    return false;
-  } catch (error) {
-    // On error, default to allowing (fail-open for better UX)
-    network.log.warn(`Domain validation: Failed to validate ${hostname} - ${error.message}`, network.meta);
-    processedDomains.set(hostname, false);
-    return false;
-  } finally {
-    pending.delete(hostname);
-  }
 }
 
 // Validate domain for auto-allowlisting feature
