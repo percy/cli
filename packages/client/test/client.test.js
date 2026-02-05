@@ -2659,7 +2659,7 @@ describe('PercyClient', () => {
 
     it('calls patch with Unknown identifier when no meta identifier provided', async () => {
       // call patch directly with empty meta to hit the meta.identifier || 'Unknown' branch
-      await expectAsync(client.patch('project-domain-configs/project-123', {}, {})).toBeResolved();
+      await expectAsync(client.patch('project-domain-configs/cli-test-id', {}, {})).toBeResolved();
       expect(api.requests['/project-domain-configs/cli-test-id'].length).toBeGreaterThan(0);
     });
 
