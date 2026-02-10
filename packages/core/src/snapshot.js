@@ -345,12 +345,12 @@ export function createSnapshotsQueue(percy) {
         let usageWarning = data.attributes['usage-warning'];
         percy.client.buildType = data.attributes?.type;
         Object.assign(build, { id: data.id, url, number });
-        
+
         // Display usage warning if present
         if (usageWarning) {
           percy.log.warn(usageWarning);
         }
-        
+
         // immediately run the queue if not delayed or deferred
         if (!percy.delayUploads && !percy.deferUploads) queue.run();
       } catch (err) {

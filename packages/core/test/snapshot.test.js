@@ -325,6 +325,64 @@ describe('Snapshot', () => {
     expect(resourceURLs.length).toEqual(uniqueURLs.length);
   });
 
+  describe('usage warnings', () => {
+    it('displays usage warning when variable is set in build response', async () => {
+      // stop and recreate a percy instance to customize the API response
+      await percy.stop(true);
+      await api.mock();
+
+      const usageWarningMessage = 'Usage Limit Exceeded 100%. Please contact your admin for more screenshots to ensure uninterrupted usage.';
+
+      // Mock the build creation endpoint to return a usage warning
+      api.reply('/builds', () => [201, {
+        data: {
+          id: '123',
+          attributes: {
+            'build-number': 1,
+            'web-url': 'https://percy.io/test/test/123',
+            'usage-warning': usageWarningMessage
+          }
+        }
+      }]);
+
+      logger.reset();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info',
+        server: false,
+        projectType: 'web'
+      });
+
+      // Usage warning is logged during first snapshot when build is created
+      await percy.snapshot({
+        url: 'http://localhost:8000',
+        domSnapshot: '<p>Test</p>'
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        `[percy] ${usageWarningMessage}`
+      ]));
+    });
+
+    it('does not display a warning when usage-warning is absent in build response', async () => {
+      await percy.snapshot({
+        url: 'http://localhost:8000',
+        domSnapshot: '<p>Test</p>'
+      });
+
+      // Ensure no warning is logged when usage-warning is not present
+      expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Usage Limit Exceeded/)
+      ]));
+    });
+  });
+
   it('uploads snapshots before the next one when delayed', async () => {
     // stop and recreate a percy instance with the desired option
     await percy.stop(true);
