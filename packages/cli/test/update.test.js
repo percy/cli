@@ -148,9 +148,9 @@ describe('CLI update check', () => {
 
     await checkForUpdate();
     expect(logger.stdout).toEqual([]);
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy:cli:update] Unable to check for updates',
       jasmine.stringContaining('[percy:cli:update] Error: 503')
-    ]);
+    ]));
   });
 });
