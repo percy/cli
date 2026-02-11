@@ -286,6 +286,17 @@ describe('Unit / Request', () => {
         errorCount: 6
       });
     });
+
+    it('automatically retries 409 conflict errors', async () => {
+      let responses = [[409], [409], [200]];
+      server.reply('/test', () => responses.splice(0, 1)[0]);
+
+      await expectAsync(server.request('/test'))
+        .toBeResolvedTo('test');
+
+      expect(responses.length).toBe(0);
+      expect(server.received.length).toBe(3);
+    });
   });
 
   for (let serverType of ['http', 'https']) {

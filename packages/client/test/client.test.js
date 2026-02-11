@@ -871,6 +871,30 @@ describe('PercyClient', () => {
       await expectAsync(client.finalizeBuild(123, { all: true })).toBeResolved();
       expect(api.requests['/builds/123/finalize?all-shards=true']).toBeDefined();
     });
+
+    it('retries on 409 conflict error and succeeds', async () => {
+      api
+        .reply('/builds/456/finalize', () => [409, { errors: [{ detail: 'Conflict error' }] }])
+        .reply('/builds/456/finalize', () => [409, { errors: [{ detail: 'Conflict error' }] }])
+        .reply('/builds/456/finalize', () => [200, { data: { id: '456', attributes: { state: 'finished' } } }]);
+
+      await expectAsync(client.finalizeBuild(456)).toBeResolved();
+      expect(api.requests['/builds/456/finalize']).toBeDefined();
+      expect(api.requests['/builds/456/finalize'].length).toBe(3);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Retrying request \(attempt 1\) due to status 409/),
+        jasmine.stringMatching(/Retrying request \(attempt 2\) due to status 409/)
+      ]));
+    });
+
+    it('fails after exhausting retries on persistent 409 errors', async () => {
+      api.reply('/builds/789/finalize', () => [409, { errors: [{ detail: 'Persistent conflict' }] }]);
+
+      await expectAsync(client.finalizeBuild(789))
+        .toBeRejectedWithError('Persistent conflict');
+      expect(api.requests['/builds/789/finalize']).toBeDefined();
+      expect(api.requests['/builds/789/finalize'].length).toBe(6);
+    });
   });
 
   describe('#uploadResource()', () => {
