@@ -96,7 +96,8 @@ export function pool(generator, context, concurrency) {
 // passed to `retry`.
 export function retry(fn, { retries = 5, interval = 50 }) {
   return new Promise((resolve, reject) => {
-    let run = () => fn(resolve, reject, retry);
+    const maxRetries = retries;
+    let run = () => fn(resolve, reject, retry, maxRetries - retries);
 
     // wait an interval to try again or reject with the error
     let retry = err => {
@@ -157,7 +158,7 @@ export async function request(url, options = {}, callback) {
     port
   });
 
-  return retry((resolve, reject, retry) => {
+  return retry((resolve, reject, retry, attemptNumber) => {
     let handleError = error => {
       if (handleError.handled) return;
       handleError.handled = true;
@@ -171,11 +172,19 @@ export async function request(url, options = {}, callback) {
         meta.cfRay = response.headers['cf-ray'];
       }
 
-      // maybe retry 404s, always retry 500s, or retry specific errors
+      // maybe retry 404s, always retry 500s, 409s (conflict), or retry specific errors
       let shouldRetry = response
         ? ((retryNotFound && response.statusCode === 404) ||
-           (response.statusCode >= 500 && response.statusCode < 600))
+           (response.statusCode >= 500 && response.statusCode < 600) ||
+           response.statusCode === 409)
         : (!!error.code && RETRY_ERROR_CODES.includes(error.code));
+
+      if (shouldRetry) {
+        let reason = response
+          ? `status ${response.statusCode}`
+          : `error ${error.code}`;
+        logger('client:utils').debug(`Retrying request (attempt ${attemptNumber + 1}) due to ${reason}`);
+      }
 
       return shouldRetry ? retry(error) : reject(error);
     };
