@@ -342,8 +342,15 @@ export function createSnapshotsQueue(percy) {
         let { data } = await percy.client.createBuild({ projectType: percy.projectType, cliStartTime: percy.cliStartTime });
         let url = data.attributes['web-url'];
         let number = data.attributes['build-number'];
+        let usageWarning = data.attributes['usage-warning'];
         percy.client.buildType = data.attributes?.type;
         Object.assign(build, { id: data.id, url, number });
+
+        // Display usage warning if present
+        if (usageWarning) {
+          percy.log.warn(usageWarning);
+        }
+
         // immediately run the queue if not delayed or deferred
         if (!percy.delayUploads && !percy.deferUploads) queue.run();
       } catch (err) {
