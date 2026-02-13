@@ -124,6 +124,16 @@ export class Percy {
     this.monitoringCheckLastExecutedAt = null;
     this.sdkInfoDisplayed = false;
 
+    // Domain validation state for auto domain allow-listing
+    this.domainValidation = {
+      autoConfiguredHosts: new Set(), // Domains from project config
+      processedHosts: new Set(), // Newly discovered allowed domains this session
+      newErrorHosts: new Set(), // Newly discovered blocked domains this session
+      pending: new Map(), // Domain -> Promise (deduplication)
+      workerUrl: null, // Domain validator worker URL from API
+      processedDomains: new Map()
+    };
+
     // generator methods are wrapped to autorun and return promises
     for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot', 'upload']) {
       // the original generator can be referenced with percy.yield.<method>
@@ -222,12 +232,20 @@ export class Percy {
       // Not awaiting proxy check as this can be asynchronous when not enabled
       const detectProxy = detectSystemProxyAndLog(this.config.percy.useSystemProxy);
       if (this.config.percy.useSystemProxy) await detectProxy;
+
+      // Load domain config early if domain validation is enabled
+      // This ensures pre-approved domains are loaded before discovery starts
+      if (!this.skipUploads && !this.skipDiscovery) {
+        await this.loadAutoConfiguredHostnames();
+      }
+
       // start the snapshots queue immediately when not delayed or deferred
       if (!this.delayUploads && !this.deferUploads) yield this.#snapshots.start();
       // do not start the discovery queue when not needed
       if (!this.skipDiscovery) yield this.#discovery.start();
       // start a local API server for SDK communication
       if (this.server) yield this.server.listen();
+
       if (this.renderingTypeProject()) {
         if (!process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS || process.env.PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS !== 'true') {
           this.deviceDetails = yield this.client.getDeviceDetails(this.build?.id);
@@ -332,6 +350,11 @@ export class Percy {
       // if dry-running, log the total number of snapshots
       if (this.dryRun && this.#snapshots.size) {
         this.log.info(info('Found', this.#snapshots.size));
+      }
+
+      // Save domain validation config before closing
+      if (!this.skipUploads && !this.skipDiscovery) {
+        await this.saveHostnamesToAutoConfigure();
       }
 
       // close server and end queues
@@ -678,6 +701,76 @@ export class Percy {
       this.log.info(`Build's CLI${sendCILogs ? ' and CI' : ''} logs sent successfully. Please share this log ID with Percy team in case of any issues - ${logsSHA}`);
     } catch (err) {
       this.log.warn('Could not send the builds logs');
+    }
+  }
+
+  // This method fetched auto configured hostnames from project settings for asset discovery
+  async loadAutoConfiguredHostnames() {
+    // Skip if autoConfigureAllowedHostnames is disabled
+    if (this.config.discovery.autoConfigureAllowedHostnames === false) {
+      this.log.debug('Auto configure allowed hostnames is disabled, skipping load');
+      return;
+    }
+
+    try {
+      this.log.debug('Fetching auto configured hostnames from project settings');
+
+      const { workerUrl, domainConfig } = await this.client.getProjectDomainConfig();
+
+      // Store domain validator worker URL from API
+      if (workerUrl) {
+        this.domainValidation.workerUrl = workerUrl;
+        this.log.debug(`Domain validation Worker URL set to ${this.domainValidation.workerUrl}`);
+      } else {
+        this.log.debug('No Domain validation Worker URL found for project');
+      }
+
+      if (domainConfig) {
+        // Populate pre-approved domains
+        if (domainConfig['allowed-domains']?.length) {
+          domainConfig['allowed-domains'].forEach(domain => {
+            this.domainValidation.autoConfiguredHosts.add(domain);
+          });
+          this.log.debug(`Loaded ${domainConfig['allowed-domains'].length} auto configured allowed hostnames`);
+        }
+      } else {
+        this.log.debug('No existing auto configured hostnames found for project');
+      }
+    } catch (error) {
+      this.log.debug(`Could not fetch auto configured hostnames (${error.message})`);
+    }
+  }
+
+  // Save newly discovered auto configured hostnames back to project
+  async saveHostnamesToAutoConfigure() {
+    // Skip if autoConfigureAllowedHostnames is disabled
+    if (this.config.discovery.autoConfigureAllowedHostnames === false) {
+      this.log.debug('Auto configure allowed hostnames is disabled, skipping save');
+      return;
+    }
+
+    const { processedHosts, newErrorHosts, stats } = this.domainValidation;
+
+    // Only save if there are new domains discovered in this session
+    if (processedHosts.size === 0 && newErrorHosts.size === 0) {
+      this.log.debug('No new auto configured hostnames to save');
+      return;
+    }
+
+    try {
+      this.log.debug('Saving new auto configured hostnames');
+
+      await this.client.updateProjectDomainConfig({
+        buildId: this.build?.id,
+        allowedDomains: Array.from(processedHosts),
+        errorDomains: Array.from(newErrorHosts)
+      });
+
+      this.log.info(`Saved ${processedHosts.size} new allowed domains`);
+      this.log.debug(`Domain validation stats: ${JSON.stringify(stats)}`);
+    } catch (error) {
+      this.log.warn(`Failed to save project config - ${error.message}`);
+      this.log.debug(error);
     }
   }
 }

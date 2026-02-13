@@ -1,7 +1,7 @@
 import { request as makeRequest } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
-import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType } from './utils.js';
+import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, executeDomainValidation } from './utils.js';
 
 const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
@@ -45,6 +45,10 @@ export class Network {
     this.fontDomains = options.fontDomains || [];
     this.intercept = options.intercept;
     this.meta = options.meta;
+    // domain validation context for auto-allowlisting
+    this.domainValidation = options.domainValidation;
+    this.client = options.client;
+    this.autoConfigureAllowedHostnames = options.autoConfigureAllowedHostnames ?? true;
     this._initializeNetworkIdleWaitTimeout();
   }
 
@@ -430,6 +434,47 @@ function originURL(request) {
   return normalizeURL((request.redirectChain[0] || request).url);
 }
 
+// Validate domain for auto-allowlisting feature
+// Only validates domains that returned 200 status
+async function validateDomainForAllowlist(network, hostname, url, statusCode) {
+  const { domainValidation, client, autoConfigureAllowedHostnames } = network;
+  const {
+    autoConfiguredHosts,
+    processedHosts,
+    pending, workerUrl, processedDomains
+  } = domainValidation;
+
+  // Skip validation if autoConfigureAllowedHostnames is disabled
+  if (!autoConfigureAllowedHostnames ||
+      statusCode !== 200 ||
+      !workerUrl
+  ) {
+    return false;
+  }
+
+  if (autoConfiguredHosts.has(hostname)) {
+    // Adding autoConfigured hosts to processedHosts so that we can track the latest
+    // usage of autoConfigured hosts for cleanup later.
+    processedHosts.add(hostname);
+    return true;
+  }
+
+  // If validation is already pending for this hostname, await the same promise (mutex)
+  if (pending.has(hostname)) {
+    return pending.get(hostname);
+  }
+
+  if (processedDomains.has(hostname)) {
+    return processedDomains.get(hostname);
+  }
+
+  // Perform external validation using worker URL from API
+  const validationPromise = executeDomainValidation(network, hostname, url, domainValidation, client, workerUrl);
+
+  pending.set(hostname, validationPromise);
+  return validationPromise;
+}
+
 // Send a response for a given request, responding with cached resources when able
 async function sendResponseResource(network, request, session) {
   let { disallowedHostnames, disableCache } = network.intercept;
@@ -564,7 +609,22 @@ async function saveResponseResource(network, request, session) {
     try {
       // Don't rename the below log line as it is used in getting network logs in api
       log.debug(`Processing resource: ${url}`, meta);
+
+      // Check if domain should be captured via auto-validation
+      let hostname = new URL(url).host;
+
+      // Check if domain is allowed via manual config or auto-validation
       let shouldCapture = response && hostnameMatches(allowedHostnames, url);
+
+      // Also capture if domain is auto-validated as allowed (autoConfiguredHosts or processedHosts)
+      if (!shouldCapture && hostname) {
+        const domainResult = await validateDomainForAllowlist(network, hostname, url, response.status);
+        if (domainResult) {
+          shouldCapture = true;
+          log.debug(`- Capturing auto-validated domain: ${hostname}`, meta);
+        }
+      }
+
       let body = shouldCapture && await response.buffer();
 
       // Don't rename the below log line as it is used in getting network logs in api

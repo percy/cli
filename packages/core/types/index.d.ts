@@ -20,7 +20,8 @@ interface DiscoveryOptions {
   disableCache?: boolean;
   captureMockedServiceWorker?: boolean;
   captureSrcset?: boolean;
-  devicePixelRatio?: number; 
+  devicePixelRatio?: number;
+  autoConfigureAllowedHostnames?: boolean;
 }
 
 interface ScopeOptions {

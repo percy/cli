@@ -168,6 +168,21 @@ export class PercyClient {
     });
   }
 
+  // Performs a PATCH request to a JSON API endpoint with appropriate headers.
+  patch(path, body = {}, { ...meta } = {}, customHeaders = {}, raiseIfMissing = true) {
+    return logger.measure('client:patch', meta.identifier || 'Unknown', meta, () => {
+      return request(`${this.apiUrl}/${path}`, {
+        headers: this.headers({
+          'Content-Type': 'application/vnd.api+json',
+          ...customHeaders
+        }, raiseIfMissing),
+        method: 'PATCH',
+        body,
+        meta
+      });
+    });
+  }
+
   // Creates a build with optional build resources. Only one build can be
   // created at a time per instance so snapshots and build finalization can be
   // done more seamlessly without manually tracking build ids
@@ -775,6 +790,71 @@ export class PercyClient {
       { Authorization: `Basic ${base64encode(`${username}:${accessKey}`)}` },
       false
     );
+  }
+
+  // Updates project domain configuration
+  async updateProjectDomainConfig({ buildId, allowedDomains = [], errorDomains = [] } = {}) {
+    this.log.debug('Updating domain config');
+    // Authentication happens on Project Token so id is not used
+    return this.patch('project-domain-configs/cli-test-id', {
+      data: {
+        type: 'projects',
+        attributes: {
+          'domain-config': {
+            build_id: buildId,
+            allowed_domains: allowedDomains,
+            error_domains: errorDomains
+          }
+        }
+      }
+    }, { identifier: 'project.updateDomainConfig' });
+  }
+
+  // Gets project domain configuration including worker URL and allowed/blocked domains
+  async getProjectDomainConfig() {
+    this.log.debug('Fetching project domain config');
+
+    try {
+      // Authentication happens on Project Token so id is not used
+      const response = await this.get('project-domain-configs/cli-test-id');
+      const projectData = response?.data;
+
+      return {
+        workerUrl: projectData?.attributes?.['domain-validator-worker-url'] || null,
+        domainConfig: projectData?.attributes?.['domain-config'] || null
+      };
+    } catch (error) {
+      this.log.debug(`Failed to fetch project domain config: ${error.message}`);
+      return { workerUrl: null, domainConfig: null };
+    }
+  }
+
+  // Validates a domain with the Cloudflare worker endpoint
+  async validateDomain(url, options = {}) {
+    const { validationEndpoint, timeout = 5000 } = options;
+
+    if (!validationEndpoint) {
+      throw new Error('Domain validation endpoint URL is required');
+    }
+
+    this.log.debug(`Validating domain: ${url} via ${validationEndpoint}`);
+
+    try {
+      const response = await request(validationEndpoint, {
+        method: 'POST',
+        headers: this.headers({
+          'Content-Type': 'application/json'
+        }),
+        body: JSON.stringify({ url }),
+        timeout,
+        retries: 0 // Don't retry validation requests
+      });
+
+      return response;
+    } catch (error) {
+      this.log.debug(`Domain validation failed for ${url}: ${error.message}`);
+      throw error;
+    }
   }
 
   mayBeLogUploadSize(contentSize, meta = {}) {

@@ -1837,4 +1837,323 @@ describe('Percy', () => {
       });
     });
   });
+
+  describe('#loadAutoConfiguredHostnames', () => {
+    beforeEach(async () => {
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN'
+      });
+    });
+
+    it('loads allowed domains from API response', async () => {
+      await percy.stop();
+
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
+        data: {
+          type: 'projects',
+          attributes: {
+            'domain-config': {
+              'allowed-domains': ['cdn.example.com', 'images.example.com']
+            },
+            'domain-validator-worker-url': 'https://worker.example.com'
+          }
+        }
+      }]);
+
+      percy = new Percy({ token: 'PERCY_TOKEN' });
+      await percy.loadAutoConfiguredHostnames();
+
+      expect(percy.domainValidation.autoConfiguredHosts.size).toBe(2);
+      expect(percy.domainValidation.autoConfiguredHosts.has('cdn.example.com')).toBe(true);
+      expect(percy.domainValidation.autoConfiguredHosts.has('images.example.com')).toBe(true);
+      expect(percy.domainValidation.workerUrl).toBe('https://worker.example.com');
+    });
+
+    it('sets worker URL when provided in API response', async () => {
+      await percy.stop();
+
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
+        data: {
+          type: 'projects',
+          attributes: {
+            'domain-validator-worker-url': 'https://validation-worker.cloudflare.com'
+          }
+        }
+      }]);
+
+      percy = new Percy({ token: 'PERCY_TOKEN' });
+      logger.loglevel('debug');
+
+      await percy.loadAutoConfiguredHostnames();
+
+      expect(percy.domainValidation.workerUrl).toBe('https://validation-worker.cloudflare.com');
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy:core] Domain validation Worker URL set to https://validation-worker.cloudflare.com'
+      ]));
+    });
+
+    it('handles missing domain config gracefully', async () => {
+      await percy.stop();
+
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
+        data: {
+          type: 'projects',
+          attributes: {}
+        }
+      }]);
+
+      percy = new Percy({ token: 'PERCY_TOKEN' });
+      logger.loglevel('debug');
+
+      await percy.loadAutoConfiguredHostnames();
+
+      expect(percy.domainValidation.autoConfiguredHosts.size).toBe(0);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy:core] No existing auto configured hostnames found for project'
+      ]));
+    });
+
+    it('handles API errors gracefully', async () => {
+      await percy.stop();
+
+      percy = new Percy({ token: 'PERCY_TOKEN' });
+
+      // Spy on the client method and make it throw to trigger the catch block
+      spyOn(percy.client, 'getProjectDomainConfig').and.returnValue(
+        Promise.reject(new Error('Network error'))
+      );
+
+      logger.loglevel('debug');
+
+      await percy.loadAutoConfiguredHostnames();
+
+      expect(percy.domainValidation.autoConfiguredHosts.size).toBe(0);
+      expect(percy.domainValidation.workerUrl).toBeNull();
+      // Percy catches the error and logs the message
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Could not fetch auto configured hostnames.*Network error/)
+      ]));
+    });
+
+    it('handles empty allowed-domains array', async () => {
+      await percy.stop();
+
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
+        data: {
+          type: 'projects',
+          attributes: {
+            'domain-config': {
+              'allowed-domains': []
+            }
+          }
+        }
+      }]);
+
+      percy = new Percy({ token: 'PERCY_TOKEN' });
+
+      await percy.loadAutoConfiguredHostnames();
+
+      expect(percy.domainValidation.autoConfiguredHosts.size).toBe(0);
+    });
+
+    it('handles null domain-config gracefully', async () => {
+      await percy.stop();
+
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
+        data: {
+          type: 'projects',
+          attributes: {
+            'domain-config': null
+          }
+        }
+      }]);
+
+      percy = new Percy({ token: 'PERCY_TOKEN' });
+      logger.loglevel('debug');
+
+      await percy.loadAutoConfiguredHostnames();
+
+      expect(percy.domainValidation.autoConfiguredHosts.size).toBe(0);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy:core] No existing auto configured hostnames found for project'
+      ]));
+    });
+
+    it('skips loading when autoConfigureAllowedHostnames is disabled', async () => {
+      await percy.stop();
+
+      api.reply('/project-domain-configs/cli-test-id', () => [200, {
+        data: {
+          type: 'projects',
+          attributes: {
+            'domain-config': {
+              'allowed-domains': ['cdn.example.com']
+            },
+            'domain-validator-worker-url': 'https://worker.example.com'
+          }
+        }
+      }]);
+
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          autoConfigureAllowedHostnames: false
+        }
+      });
+      logger.loglevel('debug');
+
+      // Clear any previous requests
+      delete api.requests['/project-domain-configs/cli-test-id'];
+
+      await percy.loadAutoConfiguredHostnames();
+
+      // Should not have loaded domains or worker URL
+      expect(percy.domainValidation.autoConfiguredHosts.size).toBe(0);
+      expect(percy.domainValidation.workerUrl).toBeNull();
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy:core] Auto configure allowed hostnames is disabled, skipping load'
+      ]));
+
+      // Should not have made API call
+      expect(api.requests['/project-domain-configs/cli-test-id']).toBeUndefined();
+    });
+  });
+
+  describe('#saveHostnamesToAutoConfigure', () => {
+    beforeEach(async () => {
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN'
+      });
+    });
+
+    it('saves newly discovered allowed and error domains', async () => {
+      api.reply('/project-domain-configs/cli-test-id', () => [204]);
+
+      percy.build = { id: 'build-123' };
+      percy.domainValidation.processedHosts.add('new-cdn.example.com');
+      percy.domainValidation.processedHosts.add('new-images.example.com');
+      percy.domainValidation.newErrorHosts.add('blocked.example.com');
+
+      await percy.saveHostnamesToAutoConfigure();
+
+      expect(api.requests['/project-domain-configs/cli-test-id']).toBeDefined();
+      const request = api.requests['/project-domain-configs/cli-test-id'].find(r => r.method === 'PATCH');
+      expect(request).toBeDefined();
+      expect(request.body).toEqual({
+        data: {
+          type: 'projects',
+          attributes: {
+            'domain-config': {
+              build_id: 'build-123',
+              allowed_domains: jasmine.arrayContaining(['new-cdn.example.com', 'new-images.example.com']),
+              error_domains: jasmine.arrayContaining(['blocked.example.com'])
+            }
+          }
+        }
+      });
+    });
+
+    it('logs info message when domains are saved', async () => {
+      api.reply('/project-domain-configs/cli-test-id', () => [204]);
+
+      percy.build = { id: 'build-456' };
+      percy.domainValidation.processedHosts.add('cdn1.example.com');
+      percy.domainValidation.processedHosts.add('cdn2.example.com');
+
+      await percy.saveHostnamesToAutoConfigure();
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Saved 2 new allowed domains'
+      ]));
+    });
+
+    it('does not save when no new domains discovered', async () => {
+      logger.loglevel('debug');
+
+      await percy.saveHostnamesToAutoConfigure();
+
+      // Should not have any PATCH requests, only GET
+      const patchRequests = api.requests['/project-domain-configs/cli-test-id']?.filter(r => r.method === 'PATCH');
+      expect(patchRequests || []).toEqual([]);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy:core] No new auto configured hostnames to save'
+      ]));
+    });
+
+    it('handles API errors gracefully', async () => {
+      api.reply('/project-domain-configs/cli-test-id', () => [500, 'Internal Server Error']);
+
+      percy.build = { id: 'build-789' };
+      percy.domainValidation.processedHosts.add('test.example.com');
+
+      await percy.saveHostnamesToAutoConfigure();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Failed to save project config/)
+      ]));
+    });
+
+    it('saves only new allowed domains when no error domains', async () => {
+      api.reply('/project-domain-configs/cli-test-id', () => [204]);
+
+      percy.build = { id: 'build-999' };
+      percy.domainValidation.processedHosts.add('allowed1.example.com');
+      percy.domainValidation.processedHosts.add('allowed2.example.com');
+
+      await percy.saveHostnamesToAutoConfigure();
+
+      const request = api.requests['/project-domain-configs/cli-test-id'].find(r => r.method === 'PATCH');
+      const domainConfig = request.body.data.attributes['domain-config'];
+      expect(domainConfig.allowed_domains).toEqual(
+        jasmine.arrayContaining(['allowed1.example.com', 'allowed2.example.com'])
+      );
+      expect(domainConfig.error_domains).toEqual([]);
+    });
+
+    it('saves only error domains when no allowed domains', async () => {
+      api.reply('/project-domain-configs/cli-test-id', () => [204]);
+
+      percy.build = { id: 'build-111' };
+      percy.domainValidation.newErrorHosts.add('error1.example.com');
+      percy.domainValidation.newErrorHosts.add('error2.example.com');
+
+      await percy.saveHostnamesToAutoConfigure();
+
+      const request = api.requests['/project-domain-configs/cli-test-id'].find(r => r.method === 'PATCH');
+      const domainConfig = request.body.data.attributes['domain-config'];
+      expect(domainConfig.allowed_domains).toEqual([]);
+      expect(domainConfig.error_domains).toEqual(
+        jasmine.arrayContaining(['error1.example.com', 'error2.example.com'])
+      );
+    });
+
+    it('skips saving when autoConfigureAllowedHostnames is disabled', async () => {
+      await percy.stop();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: {
+          autoConfigureAllowedHostnames: false
+        }
+      });
+
+      api.reply('/project-domain-configs/cli-test-id', () => [204]);
+
+      percy.build = { id: 'build-123' };
+      percy.domainValidation.processedHosts.add('new-cdn.example.com');
+      percy.domainValidation.newErrorHosts.add('blocked.example.com');
+
+      logger.loglevel('debug');
+
+      await percy.saveHostnamesToAutoConfigure();
+
+      // Should not have made API call
+      const patchRequests = api.requests['/project-domain-configs/cli-test-id']?.filter(r => r.method === 'PATCH');
+      expect(patchRequests || []).toEqual([]);
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy:core] Auto configure allowed hostnames is disabled, skipping save'
+      ]));
+    });
+  });
 });

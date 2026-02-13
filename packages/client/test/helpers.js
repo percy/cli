@@ -146,6 +146,16 @@ export const api = {
     '/discovery/device-details': () => [201, {
       data: []
     }],
+    '/project-domain-configs/cli-test-id': () => [200, {
+      data: {
+        id: 'domain-config',
+        type: 'projects',
+        attributes: {
+          'allowed-domains': [],
+          'domain-validator-worker-url': 'https://domain-validator-worker.percy.workers.dev'
+        }
+      }
+    }],
     '/logs': () => [200, 'random_sha']
   },
 

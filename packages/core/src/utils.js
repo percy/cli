@@ -92,6 +92,44 @@ export function handleIncorrectFontMimeType(urlObj, mimeType, body, userConfigur
   return mimeType;
 }
 
+// Domain validation timeout constant
+const DOMAIN_VALIDATION_TIMEOUT = 5000;
+
+// Executes domain validation via external service
+export async function executeDomainValidation(network, hostname, url, domainValidation, client, workerUrl) {
+  const { processedHosts, newErrorHosts, processedDomains, pending } = domainValidation;
+
+  try {
+    network.log.debug(`Domain validation: Validating ${hostname} via external service`, network.meta);
+
+    const result = await client.validateDomain(url, {
+      validationEndpoint: workerUrl,
+      timeout: DOMAIN_VALIDATION_TIMEOUT
+    });
+
+    // Worker returns 'accessible' field, not 'allowed'
+    if (result?.error) {
+      newErrorHosts.add(hostname);
+      network.log.debug(`Domain validation: ${hostname} validated as BLOCKED - ${result?.reason}`, network.meta);
+      processedDomains.set(hostname, false);
+      return false;
+    } else if (!result?.accessible) {
+      processedHosts.add(hostname);
+      network.log.debug(`Domain validation: ${hostname} validated as ALLOWED`, network.meta);
+      processedDomains.set(hostname, true);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    // On error, default to allowing (fail-open for better UX)
+    network.log.warn(`Domain validation: Failed to validate ${hostname} - ${error.message}`, network.meta);
+    processedDomains.set(hostname, false);
+    return false;
+  } finally {
+    pending.delete(hostname);
+  }
+}
+
 /* istanbul ignore next: tested, but coverage is stripped */
 // Returns the body for automateScreenshot in structure
 export function percyAutomateRequestHandler(req, percy) {
