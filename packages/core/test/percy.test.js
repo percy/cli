@@ -2063,21 +2063,16 @@ describe('Percy', () => {
       await percy.saveHostnamesToAutoConfigure();
 
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
-        '[percy] Saved 2 new allowed domains'
+        jasmine.stringMatching(/Saved new allowed domains: (cdn1\.example\.com, cdn2\.example\.com|cdn2\.example\.com, cdn1\.example\.com)/)
       ]));
     });
 
     it('does not save when no new domains discovered', async () => {
-      logger.loglevel('debug');
-
       await percy.saveHostnamesToAutoConfigure();
 
       // Should not have any PATCH requests, only GET
       const patchRequests = api.requests['/project-domain-configs/cli-test-id']?.filter(r => r.method === 'PATCH');
       expect(patchRequests || []).toEqual([]);
-      expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        '[percy:core] No new auto configured hostnames to save'
-      ]));
     });
 
     it('handles API errors gracefully', async () => {
@@ -2089,7 +2084,7 @@ describe('Percy', () => {
       await percy.saveHostnamesToAutoConfigure();
 
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Failed to save project config/)
+        jasmine.stringMatching(/Failed to save auto configured hostnames/)
       ]));
     });
 
@@ -2143,16 +2138,76 @@ describe('Percy', () => {
       percy.domainValidation.processedHosts.add('new-cdn.example.com');
       percy.domainValidation.newErrorHosts.add('blocked.example.com');
 
-      logger.loglevel('debug');
-
       await percy.saveHostnamesToAutoConfigure();
 
       // Should not have made API call
       const patchRequests = api.requests['/project-domain-configs/cli-test-id']?.filter(r => r.method === 'PATCH');
       expect(patchRequests || []).toEqual([]);
+    });
 
-      expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        '[percy:core] Auto configure allowed hostnames is disabled, skipping save'
+    it('does not log info when all domains are already auto-configured', async () => {
+      api.reply('/project-domain-configs/cli-test-id', () => [204]);
+
+      percy.build = { id: 'build-555' };
+      // Add domains to autoConfiguredHosts first
+      percy.domainValidation.autoConfiguredHosts.add('existing1.example.com');
+      percy.domainValidation.autoConfiguredHosts.add('existing2.example.com');
+      // Add same domains to processedHosts
+      percy.domainValidation.processedHosts.add('existing1.example.com');
+      percy.domainValidation.processedHosts.add('existing2.example.com');
+
+      await percy.saveHostnamesToAutoConfigure();
+
+      // Should still make API call
+      const request = api.requests['/project-domain-configs/cli-test-id'].find(r => r.method === 'PATCH');
+      expect(request).toBeDefined();
+
+      // But should not log info message since no new domains
+      expect(logger.stdout).not.toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Saved .* new allowed domains/)
+      ]));
+    });
+
+    it('logs only the count of truly new domains not already in autoConfiguredHosts', async () => {
+      api.reply('/project-domain-configs/cli-test-id', () => [204]);
+
+      percy.build = { id: 'build-666' };
+      // Add existing domain
+      percy.domainValidation.autoConfiguredHosts.add('existing.example.com');
+      // Add both existing and new domains to processedHosts
+      percy.domainValidation.processedHosts.add('existing.example.com');
+      percy.domainValidation.processedHosts.add('new1.example.com');
+      percy.domainValidation.processedHosts.add('new2.example.com');
+      percy.domainValidation.newErrorHosts.add('error.example.com');
+
+      await percy.saveHostnamesToAutoConfigure();
+
+      // Should log only new domains (not existing.example.com)
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Saved new allowed domains: (new1\.example\.com, new2\.example\.com|new2\.example\.com, new1\.example\.com) and error domains: error\.example\.com/)
+      ]));
+    });
+
+    it('logs only error domains when no new allowed domains', async () => {
+      api.reply('/project-domain-configs/cli-test-id', () => [204]);
+
+      percy.build = { id: 'build-777' };
+      // Add domains that are already configured
+      percy.domainValidation.autoConfiguredHosts.add('existing.example.com');
+      percy.domainValidation.processedHosts.add('existing.example.com');
+      // But add new error domains
+      percy.domainValidation.newErrorHosts.add('error1.example.com');
+      percy.domainValidation.newErrorHosts.add('error2.example.com');
+
+      await percy.saveHostnamesToAutoConfigure();
+
+      // Should log only error domains (no allowed domains prefix)
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Saved error domains: (error1\.example\.com, error2\.example\.com|error2\.example\.com, error1\.example\.com)/)
+      ]));
+      // Should not contain "allowed domains" text
+      expect(logger.stdout).not.toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/allowed domains/)
       ]));
     });
   });

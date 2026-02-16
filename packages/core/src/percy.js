@@ -731,7 +731,7 @@ export class Percy {
           domainConfig['allowed-domains'].forEach(domain => {
             this.domainValidation.autoConfiguredHosts.add(domain);
           });
-          this.log.debug(`Loaded ${domainConfig['allowed-domains'].length} auto configured allowed hostnames`);
+          this.log.debug(`Auto configured hosts: ${JSON.stringify(Array.from(this.domainValidation.autoConfiguredHosts))}`);
         }
       } else {
         this.log.debug('No existing auto configured hostnames found for project');
@@ -749,27 +749,32 @@ export class Percy {
       return;
     }
 
-    const { processedHosts, newErrorHosts, stats } = this.domainValidation;
+    const { processedHosts, newErrorHosts, autoConfiguredHosts } = this.domainValidation;
 
     // Only save if there are new domains discovered in this session
     if (processedHosts.size === 0 && newErrorHosts.size === 0) {
-      this.log.debug('No new auto configured hostnames to save');
       return;
     }
 
-    try {
-      this.log.debug('Saving new auto configured hostnames');
+    // Check if there are truly new domains not already in autoConfiguredHosts
+    const newAllowedDomains = Array.from(processedHosts).filter(domain => !autoConfiguredHosts.has(domain));
+    const hasNewDomains = newAllowedDomains.length > 0 || newErrorHosts.size > 0;
 
+    try {
       await this.client.updateProjectDomainConfig({
         buildId: this.build?.id,
         allowedDomains: Array.from(processedHosts),
         errorDomains: Array.from(newErrorHosts)
       });
 
-      this.log.info(`Saved ${processedHosts.size} new allowed domains`);
-      this.log.debug(`Domain validation stats: ${JSON.stringify(stats)}`);
+      if (hasNewDomains) {
+        const errorDomainsArray = Array.from(newErrorHosts);
+        const allowedDomainsStr = newAllowedDomains.length > 0 ? `Saved new allowed domains: ${newAllowedDomains.join(', ')}` : '';
+        const errorDomainsStr = errorDomainsArray.length > 0 ? `${allowedDomainsStr ? ' and ' : 'Saved '}error domains: ${errorDomainsArray.join(', ')}` : '';
+        this.log.info(`${allowedDomainsStr}${errorDomainsStr}`);
+      }
     } catch (error) {
-      this.log.warn(`Failed to save project config - ${error.message}`);
+      this.log.warn(`Failed to save auto configured hostnames - ${error.message}`);
       this.log.debug(error);
     }
   }
