@@ -272,3 +272,50 @@ describe('ComparisonSchema - elementSelectorsData', () => {
     expect(errors).toBe(undefined);
   });
 });
+
+describe('Discovery config', () => {
+  beforeEach(() => {
+    PercyConfig.addSchema(CoreConfig.schemas);
+  });
+
+  it('should accept autoConfigureAllowedHostnames as boolean', () => {
+    const config = {
+      discovery: {
+        autoConfigureAllowedHostnames: true
+      }
+    };
+
+    const errors = PercyConfig.validate(config, '/config');
+    expect(errors).toBe(undefined);
+  });
+
+  it('should accept autoConfigureAllowedHostnames as false', () => {
+    const config = {
+      discovery: {
+        autoConfigureAllowedHostnames: false
+      }
+    };
+
+    const errors = PercyConfig.validate(config, '/config');
+    expect(errors).toBe(undefined);
+  });
+
+  it('should default autoConfigureAllowedHostnames to true', () => {
+    const config = PercyConfig.load({ overrides: { discovery: {} } });
+
+    expect(config.discovery.autoConfigureAllowedHostnames).toBe(true);
+  });
+
+  it('should reject non-boolean values for autoConfigureAllowedHostnames', () => {
+    const config = {
+      discovery: {
+        autoConfigureAllowedHostnames: 'yes'
+      }
+    };
+
+    const errors = PercyConfig.validate(config, '/config');
+    expect(errors).toBeDefined();
+    expect(errors[0].path).toBe('discovery.autoConfigureAllowedHostnames');
+    expect(errors[0].message).toMatch(/must be a boolean/);
+  });
+});

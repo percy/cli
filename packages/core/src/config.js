@@ -443,6 +443,10 @@ export const configSchema = {
             error: 'must not include a protocol'
           }]
         }
+      },
+      autoConfigureAllowedHostnames: {
+        type: 'boolean',
+        default: true
       }
     }
   }

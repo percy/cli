@@ -87,7 +87,8 @@ expectType<Promise<void>>(percy.snapshot({
     authorization: { username: 'u', password: '*' },
     requestHeaders: { 'x-testing': 'test' },
     allowedHostnames: ['foobar'],
-    disableCache: true
+    disableCache: true,
+    autoConfigureAllowedHostnames: true
   }
 }));
 

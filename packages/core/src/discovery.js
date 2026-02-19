@@ -76,6 +76,8 @@ function debugSnapshotOptions(snapshot) {
   debugProp(snapshot, 'ignoreCanvasSerializationErrors');
   debugProp(snapshot, 'ignoreStyleSheetSerializationErrors');
   debugProp(snapshot, 'pseudoClassEnabledElements', JSON.stringify);
+  debugProp(snapshot, 'discovery.autoConfigureAllowedHostnames');
+
   if (Array.isArray(snapshot.domSnapshot)) {
     debugProp(snapshot, 'domSnapshot.0.userAgent');
   } else {
@@ -446,6 +448,11 @@ export function createDiscoveryQueue(percy) {
             fontDomains: snapshot.discovery.fontDomains,
             captureMockedServiceWorker: snapshot.discovery.captureMockedServiceWorker,
             meta: { ...snapshot.meta, snapshotURL: snapshot.url },
+
+            // pass domain validation context for auto-allowlisting
+            domainValidation: percy.domainValidation,
+            client: percy.client,
+            autoConfigureAllowedHostnames: snapshot.discovery.autoConfigureAllowedHostnames,
 
             // enable network inteception
             intercept: {
