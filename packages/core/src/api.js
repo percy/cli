@@ -89,6 +89,7 @@ export function createPercyServer(percy, port) {
         // This will only be used if width is not passed in options
         config: percy.config.snapshot.widths
       },
+      deviceDetails: percy.deviceDetails || [],
       success: true,
       type: percy.client.tokenType()
     }))
