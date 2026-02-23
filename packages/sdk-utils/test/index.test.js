@@ -66,6 +66,26 @@ describe('SDK Utils', () => {
         expect(percy.widths).toHaveProperty('config', [375, 1280]);
         expect(percy.widths).toHaveProperty('mobile', []);
       });
+
+      it('contains percy deviceDetails', () => {
+        expect(percy.deviceDetails).toEqual([]);
+      });
+
+      it('contains percy deviceDetails with populated data', async () => {
+        // Reset to refetch with new config
+        percy.enabled = null;
+
+        // Set up deviceDetails via test config
+        await helpers.test('config', { mobile: [390, 456] });
+
+        // Refetch healthcheck data
+        await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
+
+        expect(percy.deviceDetails).toEqual([
+          { width: 390 },
+          { width: 456 }
+        ]);
+      });
     });
   });
 
