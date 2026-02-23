@@ -70,22 +70,6 @@ describe('SDK Utils', () => {
       it('contains percy deviceDetails', () => {
         expect(percy.deviceDetails).toEqual([]);
       });
-
-      it('contains percy deviceDetails with populated data', async () => {
-        // Reset to refetch with new config
-        percy.enabled = null;
-
-        // Set up deviceDetails via test config
-        await helpers.test('config', { mobile: [390, 456] });
-
-        // Refetch healthcheck data
-        await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
-
-        expect(percy.deviceDetails).toEqual([
-          { width: 390 },
-          { width: 456 }
-        ]);
-      });
     });
   });
 
@@ -136,6 +120,25 @@ describe('SDK Utils', () => {
       await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
       await expectAsync(utils.postSnapshot({})).toBeResolved();
       await expectAsync(isPercyEnabled()).toBeResolvedTo(false);
+    });
+
+    it('stores deviceDetails when populated', async () => {
+      // Set up deviceDetails via test config
+      await helpers.test('config', { mobile: [390, 456] });
+
+      // Reset and refetch healthcheck data
+      utils.percy.enabled = null;
+      await expectAsync(isPercyEnabled()).toBeResolvedTo(true);
+
+      expect(utils.percy.deviceDetails).toEqual([
+        { width: 390 },
+        { width: 456 }
+      ]);
+
+      // Cleanup: reset deviceDetails back to empty
+      await helpers.test('config', { config: [375, 1280] });
+      utils.percy.enabled = null;
+      utils.percy.deviceDetails = undefined;
     });
   });
 

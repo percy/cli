@@ -217,7 +217,8 @@ export function createPercyServer(percy, port) {
         percy.testing.version = body;
       } else if (cmd === 'config') {
         percy.config.snapshot.widths = body.config;
-        percy.deviceDetails = body.mobile?.map((w) => { return { width: w }; });
+        // Support setting deviceDetails directly or deriving from mobile widths
+        percy.deviceDetails = body.deviceDetails || body.mobile?.map((w) => { return { width: w }; });
         percy.config.snapshot.responsiveSnapshotCapture = !!body.responsive;
         percy.config.percy.deferUploads = !!body.deferUploads;
       } else if (cmd === 'error' || cmd === 'disconnect') {
