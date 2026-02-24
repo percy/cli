@@ -7,6 +7,7 @@ const helpers = {
     delete utils.percy.build;
     delete utils.percy.enabled;
     delete utils.percy.domScript;
+    delete utils.percy.deviceDetails;
     delete utils.logger.log.history;
     delete utils.logger.loglevel.lvl;
     delete process.env.PERCY_LOGLEVEL;

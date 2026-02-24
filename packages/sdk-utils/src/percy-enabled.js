@@ -16,6 +16,7 @@ export async function isPercyEnabled() {
       percy.enabled = true;
       percy.type = response.body.type;
       percy.widths = response.body.widths;
+      percy.deviceDetails = response.body.deviceDetails;
     } catch (e) {
       percy.enabled = false;
       error = e;

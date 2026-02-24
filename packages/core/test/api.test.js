@@ -61,6 +61,7 @@ describe('API Server', () => {
       loglevel: 'info',
       config: PercyConfig.getDefaults(),
       widths: { mobile: [], config: PercyConfig.getDefaults().snapshot.widths },
+      deviceDetails: [],
       build: {
         id: '123',
         number: 1,
@@ -88,7 +89,8 @@ describe('API Server', () => {
       widths: {
         mobile: [390],
         config: [1000]
-      }
+      },
+      deviceDetails: [{ width: 390, devicePixelRatio: 2 }]
     }));
   });
 
@@ -741,21 +743,24 @@ describe('API Server', () => {
     });
 
     it('can manipulate the config widths via /test/api/config', async () => {
-      let { widths, config } = await get('/percy/healthcheck');
+      let { widths, config, deviceDetails } = await get('/percy/healthcheck');
       expect(widths.config).toEqual([375, 1280]);
       expect(widths.mobile).toEqual([]);
+      expect(deviceDetails).toEqual([]);
 
       await post('/test/api/config', { config: [390], deferUploads: true });
-      ({ widths, config } = await get('/percy/healthcheck'));
+      ({ widths, config, deviceDetails } = await get('/percy/healthcheck'));
       expect(widths.config).toEqual([390]);
       expect(config.snapshot.responsiveSnapshotCapture).toEqual(false);
       expect(config.percy.deferUploads).toEqual(true);
+      expect(deviceDetails).toEqual([]);
 
       await post('/test/api/config', { config: [375, 1280], mobile: [456], responsive: true });
-      ({ widths, config } = await get('/percy/healthcheck'));
+      ({ widths, config, deviceDetails } = await get('/percy/healthcheck'));
       expect(widths.mobile).toEqual([456]);
       expect(config.snapshot.responsiveSnapshotCapture).toEqual(true);
       expect(config.percy.deferUploads).toEqual(false);
+      expect(deviceDetails).toEqual([{ width: 456 }]);
     });
 
     it('can make endpoints return server errors via /test/api/error', async () => {
