@@ -1,0 +1,116 @@
+// ANSI colour helpers (stripped when NO_COLOR or non-TTY)
+const useColor = () => process.stdout.isTTY && !process.env.NO_COLOR;
+
+const c = {
+  reset: s => useColor() ? `\x1b[0m${s}\x1b[0m` : s,
+  bold: s => useColor() ? `\x1b[1m${s}\x1b[0m` : s,
+  green: s => useColor() ? `\x1b[32m${s}\x1b[0m` : s,
+  yellow: s => useColor() ? `\x1b[33m${s}\x1b[0m` : s,
+  red: s => useColor() ? `\x1b[31m${s}\x1b[0m` : s,
+  cyan: s => useColor() ? `\x1b[36m${s}\x1b[0m` : s,
+  dim: s => useColor() ? `\x1b[2m${s}\x1b[0m` : s
+};
+
+// Status icons
+const ICON = {
+  pass: '✔',
+  warn: '⚠',
+  fail: '✖',
+  info: 'ℹ',
+  skip: '–'
+};
+
+/**
+ * Render a section header for a check group.
+ * @param {string} title
+ */
+export function sectionHeader(title) {
+  return `\n${c.bold(c.cyan(`── ${title} `))}`;
+}
+
+/**
+ * Render a single check result line.
+ * @param {'pass'|'warn'|'fail'|'info'|'skip'} status
+ * @param {string} message
+ * @param {string} [detail]   - indented secondary line
+ */
+export function checkLine(status, message, detail) {
+  const icon = ICON[status] ?? ICON.info;
+  const colorFn = { pass: c.green, warn: c.yellow, fail: c.red, info: c.cyan, skip: c.dim }[status] ?? (s => s);
+  let line = `  ${colorFn(icon)} ${message}`;
+  if (detail) line += `\n      ${c.dim(detail)}`;
+  return line;
+}
+
+/**
+ * Render a bulleted suggestion list.
+ * @param {string[]} suggestions
+ */
+export function suggestionList(suggestions) {
+  if (!suggestions?.length) return '';
+  return suggestions.map(s => `      ${c.yellow('→')} ${s}`).join('\n');
+}
+
+/**
+ * Render a final summary banner.
+ * @param {number} passed
+ * @param {number} warned
+ * @param {number} failed
+ */
+export function summaryBanner(passed, warned, failed) {
+  const total = passed + warned + failed;
+  let banner;
+  if (failed > 0) {
+    banner = c.red(c.bold(`\n✖ ${failed} check(s) failed`));
+    banner += c.dim(`, ${warned} warning(s), ${passed}/${total} passed`);
+  } else if (warned > 0) {
+    banner = c.yellow(c.bold(`\n⚠ ${warned} warning(s)`));
+    banner += c.dim(`, ${passed}/${total} checks passed`);
+  } else {
+    banner = c.green(c.bold(`\n✔ All ${total} checks passed`));
+  }
+  return banner + '\n';
+}
+
+/**
+ * Render a findings array to the logger and accumulate counts into a shared tally.
+ * Keeps doctor.js free of nested helper functions.
+ *
+ * @param {object[]} findings
+ * @param {import('@percy/logger').Logger} log
+ * @param {{ pass: number, warn: number, fail: number }} tally  – mutated in-place
+ * @param {{ indent?: string }} [opts]
+ */
+export function renderFindings(findings, log, tally, { indent = '' } = {}) {
+  for (const f of findings) {
+    if (f.status === 'pass') tally.pass++;
+    else if (f.status === 'warn') tally.warn++;
+    else if (f.status === 'fail') tally.fail++;
+    print(log, indent + checkLine(f.status, f.message));
+    if (f.suggestions?.length) print(log, suggestionList(f.suggestions));
+  }
+}
+
+/**
+ * Derive the worst-case status across a findings array.
+ * @param {object[]} findings
+ * @returns {'pass'|'warn'|'fail'|'info'}
+ */
+export function sectionStatus(findings) {
+  if (findings.some(f => f.status === 'fail')) return 'fail';
+  if (findings.some(f => f.status === 'warn')) return 'warn';
+  if (findings.some(f => f.status === 'pass')) return 'pass';
+  return 'info';
+}
+
+/**
+ * Convenience: write lines to a logger's stdout.
+ * @param {import('@percy/logger').Logger} log
+ * @param {string} text
+ */
+export function print(log, text) {
+  if (text) {
+    // Use stdout write directly to preserve ANSI codes through Percy's logger
+    process.stdout.write(text + '\n');
+  }
+}
