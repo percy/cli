@@ -39,6 +39,7 @@
     "@percy/cli-snapshot": "1.31.10-beta.0",
     "@percy/cli-upload": "1.31.10-beta.0",
     "@percy/client": "1.31.10-beta.0",
-    "@percy/logger": "1.31.10-beta.0"
+    "@percy/logger": "1.31.10-beta.0",
+    "@percy/cli-doctor": "1.31.10-beta.0"
   }
 }
