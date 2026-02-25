@@ -256,7 +256,6 @@ async function _evaluatePac(pacUrl, source) {
   // Fetch PAC content
   let pacScript;
   try {
-    const { probeUrl } = await import('../utils/http.js');
     // We need the body – use a raw http/https request
     pacScript = await _fetchText(pacUrl);
   } catch (err) {

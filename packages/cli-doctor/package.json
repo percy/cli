@@ -23,6 +23,7 @@
     ".": "./dist/index.js",
     "./src/utils/http.js": "./src/utils/http.js",
     "./src/utils/reporter.js": "./src/utils/reporter.js",
+    "./src/utils/helpers.js": "./src/utils/helpers.js",
     "./src/checks/ssl.js": "./src/checks/ssl.js",
     "./src/checks/connectivity.js": "./src/checks/connectivity.js",
     "./src/checks/proxy.js": "./src/checks/proxy.js",
@@ -43,6 +44,7 @@
   },
   "dependencies": {
     "@percy/cli-command": "1.31.9",
+    "@percy/core": "1.31.9",
     "@percy/logger": "1.31.9",
     "ws": "^8.17.1"
   }

@@ -1,10 +1,9 @@
 import { execSync, exec as execCb } from 'child_process';
 import { promisify } from 'util';
-import net from 'net';
 import dns from 'dns';
 import fs from 'fs';
 import os from 'os';
-import { probeUrl } from '../utils/http.js';
+import { probeUrl, isSslError } from '../utils/http.js';
 
 const exec = promisify(execCb);
 
@@ -15,9 +14,6 @@ const PROXY_ENV_KEYS = [
   'ALL_PROXY', 'all_proxy'
 ];
 const NO_PROXY_KEYS = ['NO_PROXY', 'no_proxy'];
-
-// Common proxy ports to scan on localhost and default gateway
-const PROXY_PORTS = [3128, 8080, 8443, 8888, 9090, 1080, 3000, 8118, 6588];
 
 // Process names that indicate a proxy or security agent
 const PROXY_PROCESS_PATTERNS = [
@@ -59,14 +55,12 @@ const PROXY_HEADER_INDICATORS = [
  *   1. Environment variables (HTTPS_PROXY, HTTP_PROXY, ALL_PROXY, NO_PROXY)
  *   2. System-level settings (macOS scutil, Linux gsettings, Windows registry)
  *   3. Response-header fingerprinting (Via, X-Forwarded-For, Proxy-* etc.)
- *   4. Common-port scanning on localhost and default gateway
- *   5. System process inspection for known proxy/security agents
- *   6. WPAD / DNS auto-discovery
+ *   4. System process inspection for known proxy/security agents
+ *   5. WPAD / DNS auto-discovery
  *
  * @param {object}  [options]
  * @param {number}  [options.timeout]         Request timeout ms
  * @param {boolean} [options.testProxy]       Validate discovered proxies
- * @param {boolean} [options.scanPorts]       Scan common proxy ports on localhost/gateway
  * @param {boolean} [options.checkHeaders]    Fingerprint via HTTP response headers
  * @param {boolean} [options.scanProcesses]   Inspect running process list
  * @param {boolean} [options.checkWpad]       Test WPAD DNS resolution
@@ -76,7 +70,6 @@ export async function detectProxy(options = {}) {
   const {
     timeout = 10000,
     testProxy = true,
-    scanPorts = true,
     checkHeaders = true,
     scanProcesses = true,
     checkWpad = true
@@ -127,20 +120,11 @@ export async function detectProxy(options = {}) {
     }
   }
 
-  // ── Layer 4: Common-port scan ─────────────────────────────────────────────
-  const portFindings = scanPorts ? await scanProxyPorts(timeout) : [];
-  for (const pf of portFindings) {
-    findings.push(pf);
-    if (pf.proxyUrl && !discovered.has(pf.proxyUrl)) {
-      discovered.set(pf.proxyUrl, { source: pf.source, confidence: 'possible' });
-    }
-  }
-
-  // ── Layer 5: Process inspection ───────────────────────────────────────────
+  // ── Layer 4: Process inspection ───────────────────────────────────────────
   const procFindings = scanProcesses ? await detectProxyProcesses() : [];
   for (const pf of procFindings) findings.push(pf);
 
-  // ── Layer 6: WPAD / DNS auto-discovery ────────────────────────────────────
+  // ── Layer 5: WPAD / DNS auto-discovery ────────────────────────────────────
   const wpadFindings = checkWpad ? await detectWpad() : [];
   for (const wf of wpadFindings) findings.push(wf);
 
@@ -174,23 +158,9 @@ export async function detectProxy(options = {}) {
 
     if (testProxy) {
       const validation = await validateProxy(proxyUrl, timeout);
-
-      // Port-scan proxies are speculative — an open port is not a confirmed
-      // proxy. Downgrade any fail/warn to info so the overall check isn't
-      // affected. Only surface as pass/warn if it actually works.
-      if (confidence === 'possible') {
-        if (validation.status === 'pass') {
-          finding.status = 'pass';
-          finding.message += ` — works for Percy (consider setting HTTPS_PROXY=${proxyUrl})`;
-        } else {
-          finding.status = 'info';
-          finding.message += ` — port is open but not usable as a Percy proxy`;
-        }
-      } else {
-        finding.status = validation.status;
-        finding.message += ` — ${validation.message}`;
-        finding.suggestions = validation.suggestions;
-      }
+      finding.status = validation.status;
+      finding.message += ` — ${validation.message}`;
+      finding.suggestions = validation.suggestions;
       finding.proxyValidation = validation;
     } else {
       finding.status = 'info';
@@ -305,7 +275,7 @@ async function detectViaHeaders(timeout) {
 
   for (const target of PROBE_TARGETS) {
     try {
-      const result = await probeUrl(target, { timeout, rejectUnauthorized: false });
+      const result = await probeUrl(target, { timeout });
       if (!result.responseHeaders) continue;
 
       const found = {};
@@ -360,87 +330,7 @@ async function detectViaHeaders(timeout) {
   return findings;
 }
 
-// ─── Layer 4: Common-port scan ────────────────────────────────────────────────
-
-async function scanProxyPorts(timeout) {
-  const findings = [];
-  const hosts = ['127.0.0.1'];
-
-  // Also try the default gateway — corp proxies often run there
-  const gateway = getDefaultGateway();
-  if (gateway) hosts.push(gateway);
-
-  const openPorts = [];
-  await Promise.all(
-    hosts.flatMap(host =>
-      PROXY_PORTS.map(port =>
-        tcpProbe(host, port, Math.min(timeout, 2000)).then(open => {
-          if (open) openPorts.push({ host, port });
-        })
-      )
-    )
-  );
-
-  if (openPorts.length === 0) {
-    findings.push({
-      status: 'info',
-      layer: 'port-scan',
-      source: 'port-scan',
-      message: `No common proxy ports open on localhost/gateway (checked: ${PROXY_PORTS.join(', ')}).`
-    });
-  } else {
-    for (const { host, port } of openPorts) {
-      findings.push({
-        status: 'warn',
-        layer: 'port-scan',
-        source: `port-scan:${host}`,
-        proxyUrl: `http://${host}:${port}`,
-        message: `Port ${port} open on ${host} — possible proxy`,
-        suggestions: [
-          `Test: percy doctor --proxy-server http://${host}:${port}`
-        ]
-      });
-    }
-  }
-
-  return findings;
-}
-
-function tcpProbe(host, port, timeout) {
-  return new Promise(resolve => {
-    const sock = new net.Socket();
-    sock.setTimeout(timeout);
-    sock.on('connect', () => { sock.destroy(); resolve(true); });
-    sock.on('timeout', () => { sock.destroy(); resolve(false); });
-    sock.on('error', () => { sock.destroy(); resolve(false); });
-    sock.connect(port, host);
-  });
-}
-
-function getDefaultGateway() {
-  try {
-    const platform = os.platform();
-    if (platform === 'darwin') {
-      return execSync("netstat -rn | awk '/^default/{print $2; exit}' 2>/dev/null", {
-        timeout: 3000, encoding: 'utf8'
-      }).trim() || null;
-    }
-    if (platform === 'linux') {
-      return execSync("ip route show default 2>/dev/null | awk '{print $3; exit}'", {
-        timeout: 3000, encoding: 'utf8'
-      }).trim() || null;
-    }
-    if (platform === 'win32') {
-      return execSync(
-        'powershell -Command "(Get-NetRoute -DestinationPrefix \'0.0.0.0/0\').NextHop | Select-Object -First 1"',
-        { timeout: 5000, encoding: 'utf8' }
-      ).trim() || null;
-    }
-  } catch { /* ignore */ }
-  return null;
-}
-
-// ─── Layer 5: Process inspection ─────────────────────────────────────────────
+// ─── Layer 4: Process inspection ─────────────────────────────────────────────
 
 async function detectProxyProcesses() {
   const findings = [];
@@ -483,7 +373,7 @@ async function detectProxyProcesses() {
   return findings;
 }
 
-// ─── Layer 6: WPAD / DNS auto-discovery ──────────────────────────────────────
+// ─── Layer 5: WPAD / DNS auto-discovery ──────────────────────────────────────
 
 async function detectWpad() {
   const findings = [];
@@ -537,9 +427,8 @@ async function detectWpad() {
 
 async function validateProxy(proxyUrl, timeout) {
   const TEST_URLS = ['https://percy.io', 'https://www.browserstack.com'];
-  const rejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0';
   const results = await Promise.all(
-    TEST_URLS.map(u => probeUrl(u, { proxyUrl, timeout, rejectUnauthorized }))
+    TEST_URLS.map(u => probeUrl(u, { proxyUrl, timeout }))
   );
 
   const allOk = results.every(r => r.ok);
@@ -566,12 +455,17 @@ async function validateProxy(proxyUrl, timeout) {
   }
 
   const errors = results.map((r, i) => `${new URL(TEST_URLS[i]).hostname}: ${r.errorCode ?? r.error}`).join(', ');
-  return {
-    status: 'fail',
-    message: `proxy cannot reach Percy/BrowserStack — ${errors}`,
-    suggestions: [
-      'Verify the proxy is running and allows outbound HTTPS to percy.io.',
-      'If credentials needed: HTTPS_PROXY=http://user:pass@host:port'
-    ]
-  };
+  const hasSslError = results.some(r => isSslError(r));
+  const suggestions = [
+    'Verify the proxy is running and allows outbound HTTPS to percy.io.',
+    'If credentials needed: HTTPS_PROXY=http://user:pass@host:port'
+  ];
+  if (hasSslError) {
+    suggestions.push(
+      'The proxy is intercepting HTTPS with its own certificate (SSL inspection).',
+      'Temporary bypass: export NODE_TLS_REJECT_UNAUTHORIZED=0  (re-run percy doctor to verify)',
+      'Or trust the proxy CA: export NODE_EXTRA_CA_CERTS=/path/to/proxy-ca.crt'
+    );
+  }
+  return { status: 'fail', message: `proxy cannot reach Percy/BrowserStack — ${errors}`, suggestions };
 }
