@@ -41,7 +41,17 @@ function systemChromePaths() {
   return [];
 }
 
-/** Returns the path to a usable Chrome/Chromium binary, or null. */
+/**
+ * Locate a usable Chrome/Chromium binary.
+ *
+ * Search order:
+ *  1. PERCY_BROWSER_EXECUTABLE (user override)
+ *  2. Percy's bundled Chromium via @percy/core/src/install.js
+ *     (auto-downloads if not already present)
+ *  3. System-installed Chrome/Chromium (fallback when install fails)
+ *
+ * Returns the executable path, or null if nothing is found.
+ */
 async function findChrome() {
   // 1. User-supplied override
   if (process.env.PERCY_BROWSER_EXECUTABLE) {
@@ -49,38 +59,11 @@ async function findChrome() {
     if (fs.existsSync(p)) return p;
   }
 
-  // 2. Percy's bundled Chromium (core package lives beside cli-doctor in the monorepo)
-  const coreDir = path.resolve(
-    path.dirname(new URL(import.meta.url).pathname),
-    '../../../../core/.local-chromium'
-  );
-  if (fs.existsSync(coreDir)) {
-    const platform = os.platform();
-    const arch = process.arch;
-    const bundledPaths = [
-      // darwin arm64
-      ...(platform === 'darwin' && arch === 'arm64'
-        ? fs.readdirSync(coreDir).map(r =>
-          path.join(coreDir, r, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'))
-        : []),
-      // darwin x64
-      ...(platform === 'darwin' && arch !== 'arm64'
-        ? fs.readdirSync(coreDir).map(r =>
-          path.join(coreDir, r, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'))
-        : []),
-      // linux
-      ...(platform === 'linux'
-        ? fs.readdirSync(coreDir).map(r => path.join(coreDir, r, 'chrome-linux', 'chrome'))
-        : []),
-      // windows
-      ...(platform === 'win32'
-        ? fs.readdirSync(coreDir).map(r => path.join(coreDir, r, 'chrome-win', 'chrome.exe'))
-        : [])
-    ];
-    for (const p of bundledPaths) {
-      if (fs.existsSync(p)) return p;
-    }
-  }
+  // 2. Percy's bundled Chromium (managed by @percy/core, lazy import)
+  try {
+    const { chromium: installChromium } = await import('@percy/core/src/install.js');
+    return await installChromium();
+  } catch { /* fall through to system Chrome */ }
 
   // 3. System Chrome
   for (const p of systemChromePaths()) {
@@ -167,7 +150,11 @@ async function connectCDP(wsUrl) {
     if (msg.id && _pending.has(msg.id)) {
       const { resolve, reject } = _pending.get(msg.id);
       _pending.delete(msg.id);
-      msg.error ? reject(new Error(msg.error.message)) : resolve(msg.result ?? {});
+      if (msg.error) {
+        reject(new Error(msg.error.message));
+      } else {
+        resolve(msg.result ?? {});
+      }
     }
 
     if (msg.method) {
@@ -193,21 +180,134 @@ async function connectCDP(wsUrl) {
   };
 }
 
+// ─── Request lifecycle & network capture (mirrors @percy/core's network.js) ───
+
+/**
+ * Tracks the two key lifecycle moments for a single CDP requestId so that
+ * async event handlers can await proper ordering — the same pattern used in
+ * @percy/core's RequestLifeCycleHandler.
+ */
+class RequestLifecycle {
+  constructor() {
+    this.requestWillBeSent = new Promise(r => (this.resolveRequestWillBeSent = r));
+    this.responseReceived = new Promise(r => (this.resolveResponseReceived = r));
+  }
+}
+
+/**
+ * Lightweight network-event aggregator modelled on @percy/core's Network class.
+ *
+ * Uses per-request Promise chains to guarantee event processing order:
+ *   requestWillBeSent → responseReceived → loadingFailed
+ *
+ * This prevents response/failure data being stored before the corresponding
+ * request record exists, which can occur when Chrome emits events out of order.
+ */
+class NetworkCapture {
+  #lifecycles = new Map();
+  #requests = new Map();
+  #responses = new Map();
+  #failed = new Map();
+  #proxyHeaders = new Set();
+
+  _lifecycle(requestId) {
+    if (!this.#lifecycles.has(requestId)) {
+      this.#lifecycles.set(requestId, new RequestLifecycle());
+    }
+    return this.#lifecycles.get(requestId);
+  }
+
+  /** Network.requestWillBeSent — stores request info and releases lifecycle. */
+  onRequestWillBeSent({ requestId, request, type, timestamp }) {
+    if (request.url.startsWith('data:')) return;
+    this.#requests.set(requestId, {
+      url: request.url,
+      hostname: safeHostname(request.url),
+      method: request.method,
+      type,
+      initiatorType: request.initiator?.type,
+      timestamp
+    });
+    this._lifecycle(requestId).resolveRequestWillBeSent();
+  }
+
+  /** Network.responseReceived — awaits requestWillBeSent before storing response. */
+  async onResponseReceived({ requestId, response }) {
+    await this._lifecycle(requestId).requestWillBeSent;
+    this.#responses.set(requestId, {
+      status: response.status,
+      statusText: response.statusText,
+      fromCache: response.fromDiskCache || response.fromServiceWorker,
+      protocol: response.protocol,
+      remoteIPAddress: response.remoteIPAddress,
+      headers: response.headers
+    });
+    // Collect proxy-indicating headers
+    for (const h of Object.keys(response.headers ?? {})) {
+      const lh = h.toLowerCase();
+      if (
+        lh.startsWith('x-proxy') || lh.startsWith('proxy-') ||
+        lh === 'via' || lh === 'x-forwarded-for' || lh === 'x-forwarded-host' ||
+        lh.includes('zscaler') || lh.includes('netskope') || lh.includes('bluecoat') ||
+        lh === 'x-cache' || lh === 'cf-ray'
+      ) {
+        this.#proxyHeaders.add(`${h}: ${response.headers[h]}`);
+      }
+    }
+    this._lifecycle(requestId).resolveResponseReceived();
+  }
+
+  /** Network.loadingFailed — awaits requestWillBeSent before storing failure. */
+  async onLoadingFailed({ requestId, errorText, blockedReason, corsErrorStatus }) {
+    await this._lifecycle(requestId).requestWillBeSent;
+    this.#failed.set(requestId, { errorText, blockedReason, corsErrorStatus });
+  }
+
+  /** Merge all tracked maps into a flat request array. */
+  buildRequests() {
+    const result = [];
+    for (const [id, req] of this.#requests) {
+      const res = this.#responses.get(id) ?? null;
+      const fail = this.#failed.get(id) ?? null;
+      result.push({
+        ...req,
+        response: res,
+        failure: fail,
+        reachable: res ? (res.status >= 200 && res.status < 400) : false,
+        blocked: !!fail?.blockedReason,
+        errorText: fail?.errorText ?? null
+      });
+    }
+    return result;
+  }
+
+  getProxyHeaders() { return Array.from(this.#proxyHeaders); }
+}
+
 // ─── Core capture logic ───────────────────────────────────────────────────────
 
 /**
- * Launch Chrome and capture all network activity for a given URL.
+ * Launch Chrome, attach CDP event handlers via a NetworkCapture instance,
+ * navigate to targetUrl, and return all observed network activity.
  *
  * @param {string}  chromePath
  * @param {string}  targetUrl
  * @param {object}  [opts]
  * @param {boolean} [opts.headless=true]
- * @param {number}  [opts.timeout=30000]     Navigation timeout ms
- * @param {string}  [opts.proxyUrl]          Optional --proxy-server
- * @returns {Promise<NetworkCapture>}
+ * @param {number}  [opts.timeout=30000]  Navigation timeout ms
+ * @param {string}  [opts.proxyUrl]       Optional --proxy-server flag
+ * @returns {Promise<CaptureResult>}
  */
 async function captureNetworkRequests(chromePath, targetUrl, opts = {}) {
   const { headless = true, timeout = 30000, proxyUrl } = opts;
+
+  // When NODE_TLS_REJECT_UNAUTHORIZED=0 is set the Node process has already
+  // disabled SSL verification (e.g. for an SSL-intercepting proxy). Mirror that
+  // into Chrome via two mechanisms:
+  //   1. --ignore-certificate-errors CLI flag (broad bypass, works for most cases)
+  //   2. Security.setIgnoreCertificateErrors CDP command (per-session, more reliable
+  //      for intercepting proxies — this is how Puppeteer/Playwright do it)
+  const ignoreCerts = process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0';
 
   const port = await getFreePort();
   const chromeArgs = [
@@ -235,132 +335,58 @@ async function captureNetworkRequests(chromePath, targetUrl, opts = {}) {
     detached: false
   });
 
-  const requests = new Map(); // requestId → RequestInfo
-  const responses = new Map(); // requestId → ResponseInfo
-  const failed = new Map(); // requestId → FailInfo
-  const proxyHeaders = new Set(); // proxy-indicating header names seen
-
+  const capture = new NetworkCapture();
   let captureError = null;
+  let navMs = 0;
 
   try {
     const wsUrl = await waitForCDP(port, 12000);
     const cdp = await connectCDP(wsUrl);
 
-    // ── Track requests ──────────────────────────────────────────────────────
-    cdp.on('Network.requestWillBeSent', (p) => {
-      if (p.request.url.startsWith('data:')) return;
-      requests.set(p.requestId, {
-        url: p.request.url,
-        hostname: safeHostname(p.request.url),
-        method: p.request.method,
-        type: p.type,
-        initiatorType: p.initiator?.type,
-        timestamp: p.timestamp
-      });
-    });
+    // Attach event handlers — mirrors the watch() pattern in @percy/core's Network class
+    cdp.on('Network.requestWillBeSent', p => capture.onRequestWillBeSent(p));
+    cdp.on('Network.responseReceived', p => capture.onResponseReceived(p));
+    cdp.on('Network.loadingFailed', p => capture.onLoadingFailed(p));
 
-    cdp.on('Network.responseReceived', (p) => {
-      const res = p.response;
-      responses.set(p.requestId, {
-        status: res.status,
-        statusText: res.statusText,
-        fromCache: res.fromDiskCache || res.fromServiceWorker,
-        protocol: res.protocol,
-        remoteIPAddress: res.remoteIPAddress,
-        headers: res.headers
-      });
-
-      // Detect proxy-indicative headers
-      for (const h of Object.keys(res.headers ?? {})) {
-        const lh = h.toLowerCase();
-        if (lh.startsWith('x-proxy') || lh.startsWith('proxy-') ||
-            lh === 'via' || lh === 'x-forwarded-for' ||
-            lh === 'x-forwarded-host' || lh.includes('zscaler') ||
-            lh.includes('netskope') || lh.includes('bluecoat') ||
-            lh === 'x-cache' || lh === 'cf-ray') {
-          proxyHeaders.add(`${h}: ${res.headers[h]}`);
-        }
-      }
-    });
-
-    cdp.on('Network.loadingFailed', (p) => {
-      failed.set(p.requestId, {
-        errorText: p.errorText,
-        blockedReason: p.blockedReason,
-        corsErrorStatus: p.corsErrorStatus
-      });
-    });
-
-    // ── Enable domains + navigate ───────────────────────────────────────────
     await Promise.all([
       cdp.send('Network.enable'),
       cdp.send('Page.enable')
     ]);
 
-    const navStart = Date.now();
+    // Per-session SSL bypass — more reliable than the CLI flag for intercepting
+    // proxies (the flag sometimes doesn't fire in headless=new for CONNECT tunnels).
+    if (ignoreCerts) {
+      await cdp.send('Security.setIgnoreCertificateErrors', { ignore: true });
+    }
 
+    const navStart = Date.now();
     await cdp.send('Page.navigate', { url: targetUrl });
     await Promise.race([
       new Promise(resolve => cdp.on('Page.loadEventFired', () => setTimeout(resolve, 2500))),
       new Promise(resolve => setTimeout(resolve, timeout))
     ]);
-
-    const navMs = Date.now() - navStart;
+    navMs = Date.now() - navStart;
 
     cdp.close();
 
-    // ── Build result ────────────────────────────────────────────────────────
-    const allRequests = [];
-    for (const [id, req] of requests) {
-      const res = responses.get(id) ?? null;
-      const fail = failed.get(id) ?? null;
-      allRequests.push({
-        ...req,
-        response: res,
-        failure: fail,
-        reachable: res ? (res.status >= 200 && res.status < 400) : false,
-        blocked: !!fail?.blockedReason,
-        errorText: fail?.errorText ?? null
-      });
-    }
-
-    return {
-      targetUrl,
-      proxyUrl: proxyUrl ?? null,
-      navMs,
-      requests: allRequests,
-      proxyHeaders: Array.from(proxyHeaders),
-      error: null
-    };
+    // Allow any in-flight async lifecycle handlers (onResponseReceived,
+    // onLoadingFailed) to fully settle before collecting results
+    await new Promise(resolve => setImmediate(resolve));
   } catch (err) {
     captureError = err.message;
-    // Return whatever was accumulated by the event listeners before the error
-    // so domainSummary is still populated in the JSON report and terminal table.
-    const partialRequests = [];
-    for (const [id, req] of requests) {
-      const res = responses.get(id) ?? null;
-      const fail = failed.get(id) ?? null;
-      partialRequests.push({
-        ...req,
-        response: res,
-        failure: fail,
-        reachable: res ? (res.status >= 200 && res.status < 400) : false,
-        blocked: !!fail?.blockedReason,
-        errorText: fail?.errorText ?? null
-      });
-    }
-    return {
-      targetUrl,
-      proxyUrl: proxyUrl ?? null,
-      navMs: 0,
-      requests: partialRequests,
-      proxyHeaders: Array.from(proxyHeaders),
-      error: captureError
-    };
   } finally {
     try { proc.kill('SIGTERM'); } catch { /* ignore */ }
     await new Promise(resolve => proc.once('exit', resolve));
   }
+
+  return {
+    targetUrl,
+    proxyUrl: proxyUrl ?? null,
+    navMs,
+    requests: capture.buildRequests(),
+    proxyHeaders: capture.getProxyHeaders(),
+    error: captureError
+  };
 }
 
 function safeHostname(rawUrl) {
