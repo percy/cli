@@ -11,7 +11,8 @@ import {
   yieldTo,
   redactSecrets,
   detectSystemProxyAndLog,
-  checkSDKVersion
+  checkSDKVersion,
+  processCorsIframes
 } from './utils.js';
 
 import {
@@ -445,6 +446,11 @@ export class Percy {
       options = options.endsWith('.xml')
         ? { sitemap: options }
         : { url: options };
+    }
+
+    // process CORS iframes in domSnapshot before validation
+    if (options.domSnapshot) {
+      options.domSnapshot = processCorsIframes(options.domSnapshot);
     }
 
     // validate options and add client & environment info

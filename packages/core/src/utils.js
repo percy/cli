@@ -30,6 +30,81 @@ export function normalizeURL(url) {
   return `${protocol}//${host}${pathname}${search}`;
 }
 
+// Appends a search parameter to a URL. Returns the original URL if the value is not provided.
+export function appendUrlSearchParam(urlString, key, value) {
+  if (!value) return urlString;
+
+  try {
+    const url = new URL(urlString);
+    url.searchParams.set(key, String(value));
+    return url.toString();
+  } catch (error) {
+    logger('core:utils').debug(`Failed to append search param to URL: ${urlString}`, error);
+    return urlString;
+  }
+}
+
+// Process CORS iframes in a single domSnapshot object
+export function processCorsIframesInDomSnapshot(domSnapshot) {
+  if (!domSnapshot?.corsIframes?.length) {
+    return domSnapshot;
+  }
+
+  const crossOriginFrames = domSnapshot.corsIframes;
+
+  // Initialize resources array if it doesn't exist
+  if (!domSnapshot.resources) {
+    domSnapshot.resources = [];
+  }
+
+  for (const frame of crossOriginFrames) {
+    const { iframeData, iframeResource, iframeSnapshot, frameUrl } = frame;
+
+    // Build frame URL with width parameter if available
+    const frameUrlWithWidth = appendUrlSearchParam(frameUrl, 'percy_width', domSnapshot.width);
+
+    // Add iframe snapshot resources to main resources
+    if (iframeSnapshot?.resources) {
+      domSnapshot.resources.push(...iframeSnapshot.resources);
+    }
+
+    // Add iframe resource with updated URL
+    iframeResource.url = frameUrlWithWidth;
+    domSnapshot.resources.push(iframeResource);
+
+    // Update iframe src attribute in HTML
+    if (iframeData?.percyElementId) {
+      const regex = new RegExp(
+        `(<iframe[^>]*data-percy-element-id=["']${iframeData.percyElementId}["'][^>]*>)`
+      );
+      const match = domSnapshot.html.match(regex);
+
+      /* istanbul ignore next: iframe matching logic depends on DOM structure */
+      if (match) {
+        const iframeTag = match[1];
+        const newIframeTag = iframeTag.replace(/src="[^"]*"/i, `src="${frameUrlWithWidth}"`);
+        domSnapshot.html = domSnapshot.html.replace(iframeTag, newIframeTag);
+      }
+    }
+  }
+
+  // Remove corsIframes key after processing
+  delete domSnapshot.corsIframes;
+
+  return domSnapshot;
+}
+
+// Process CORS iframes - handles both single object and array of domSnapshots
+export function processCorsIframes(domSnapshot) {
+  if (!domSnapshot) return domSnapshot;
+
+  if (Array.isArray(domSnapshot)) {
+    return domSnapshot.map(snap => processCorsIframesInDomSnapshot(snap));
+  }
+
+  return processCorsIframesInDomSnapshot(domSnapshot);
+}
+
 /**
  * Detects font MIME type from file content by checking magic bytes.
  * Handles string-based signatures (WOFF, OTTO) and binary signatures (TTF).
