@@ -319,3 +319,29 @@ describe('Discovery config', () => {
     expect(errors[0].message).toMatch(/must be a boolean/);
   });
 });
+
+describe('ProjectId config', () => {
+  beforeEach(() => {
+    PercyConfig.addSchema(CoreConfig.schemas);
+  });
+
+  it('should accept projectId as a number', () => {
+    const config = {
+      projectId: 12345
+    };
+
+    const errors = PercyConfig.validate(config, '/config');
+    expect(errors).toBe(undefined);
+  });
+
+  it('should reject non-numeric values for projectId', () => {
+    const config = {
+      projectId: 'abc'
+    };
+
+    const errors = PercyConfig.validate(config, '/config');
+    expect(errors).toBeDefined();
+    expect(errors[0].path).toBe('projectId');
+    expect(errors[0].message).toMatch(/must be a number/);
+  });
+});

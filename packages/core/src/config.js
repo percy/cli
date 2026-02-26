@@ -449,6 +449,9 @@ export const configSchema = {
         default: true
       }
     }
+  },
+  projectId: {
+    type: 'number'
   }
 };
 
