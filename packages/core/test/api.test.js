@@ -811,4 +811,170 @@ describe('API Server', () => {
       expect(logs).toEqual([]);
     });
   });
+
+  describe('/percy/widths-config', () => {
+    it('returns widths with heights for mobile devices and without heights for user widths', async () => {
+      await percy.start();
+      percy.deviceDetails = [
+        { width: 390, height: 844 },
+        { width: 428, height: 926 }
+      ];
+      percy.config.snapshot.widths = [1280];
+
+      await expectAsync(
+        request('/percy/widths-config?widths=375,1920')
+      ).toBeResolvedTo({
+        success: true,
+        widths: [
+          { width: 375 },
+          { width: 390, height: 844 },
+          { width: 428, height: 926 },
+          { width: 1920 }
+        ]
+      });
+    });
+
+    it('returns config widths when no user widths are passed', async () => {
+      await percy.start();
+      percy.deviceDetails = [
+        { width: 375, height: 667 }
+      ];
+      percy.config.snapshot.widths = [1280, 1920];
+
+      await expectAsync(
+        request('/percy/widths-config')
+      ).toBeResolvedTo({
+        success: true,
+        widths: [
+          { width: 375, height: 667 },
+          { width: 1280 },
+          { width: 1920 }
+        ]
+      });
+    });
+
+    it('returns only user widths when no mobile devices exist', async () => {
+      await percy.start();
+      percy.deviceDetails = [];
+      percy.config.snapshot.widths = [1280];
+
+      await expectAsync(
+        request('/percy/widths-config?widths=375,1920')
+      ).toBeResolvedTo({
+        success: true,
+        widths: [
+          { width: 375 },
+          { width: 1920 }
+        ]
+      });
+    });
+
+    it('returns widths sorted in ascending order', async () => {
+      await percy.start();
+      percy.deviceDetails = [
+        { width: 428, height: 926 },
+        { width: 390, height: 844 }
+      ];
+      percy.config.snapshot.widths = [1280];
+
+      await expectAsync(
+        request('/percy/widths-config?widths=1920,375')
+      ).toBeResolvedTo({
+        success: true,
+        widths: [
+          { width: 375 },
+          { width: 390, height: 844 },
+          { width: 428, height: 926 },
+          { width: 1920 }
+        ]
+      });
+    });
+
+    it('filters out invalid widths from query parameters', async () => {
+      await percy.start();
+      percy.deviceDetails = [];
+      percy.config.snapshot.widths = [1280];
+
+      await expectAsync(
+        request('/percy/widths-config?widths=375,abc,1920,def,')
+      ).toBeResolvedTo({
+        success: true,
+        widths: [
+          { width: 375 },
+          { width: 1920 }
+        ]
+      });
+    });
+
+    it('does not duplicate widths when user width matches device width', async () => {
+      await percy.start();
+      percy.deviceDetails = [
+        { width: 375, height: 667 }
+      ];
+      percy.config.snapshot.widths = [1280];
+
+      await expectAsync(
+        request('/percy/widths-config?widths=375,1280')
+      ).toBeResolvedTo({
+        success: true,
+        widths: [
+          { width: 375, height: 667 },
+          { width: 1280 }
+        ]
+      });
+    });
+
+    it('handles devices without height property', async () => {
+      await percy.start();
+      percy.deviceDetails = [
+        { width: 375, height: 667 },
+        { width: 390 } // no height
+      ];
+      percy.config.snapshot.widths = [1280];
+
+      await expectAsync(
+        request('/percy/widths-config?widths=1920')
+      ).toBeResolvedTo({
+        success: true,
+        widths: [
+          { width: 375, height: 667 },
+          { width: 1920 }
+        ]
+      });
+    });
+
+    it('returns only config widths when no device details and no user widths', async () => {
+      await percy.start();
+      percy.deviceDetails = [];
+      percy.config.snapshot.widths = [375, 1280];
+
+      await expectAsync(
+        request('/percy/widths-config')
+      ).toBeResolvedTo({
+        success: true,
+        widths: [
+          { width: 375 },
+          { width: 1280 }
+        ]
+      });
+    });
+
+    it('handles empty widths query parameter', async () => {
+      await percy.start();
+      percy.deviceDetails = [
+        { width: 390, height: 844 }
+      ];
+      percy.config.snapshot.widths = [1280];
+
+      await expectAsync(
+        request('/percy/widths-config?widths=')
+      ).toBeResolvedTo({
+        success: true,
+        widths: [
+          { width: 390, height: 844 },
+          { width: 1280 }
+        ]
+      });
+    });
+  });
 });

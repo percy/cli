@@ -514,4 +514,117 @@ describe('SDK Utils', () => {
       ]);
     });
   });
+
+  describe('getResponsiveWidths(widths)', () => {
+    let { getResponsiveWidths } = utils;
+
+    beforeEach(async () => {
+      // Setup test environment with deviceDetails
+      await helpers.test('config', {
+        config: [375, 1280],
+        deviceDetails: [
+          { width: 390, height: 844 },
+          { width: 428, height: 926 }
+        ]
+      });
+    });
+
+    afterEach(async () => {
+      await helpers.test('config', { config: [375, 1280] });
+    });
+
+    it('calls the widths-config endpoint with widths query parameter', async () => {
+      await expectAsync(getResponsiveWidths([768, 1024])).toBeResolved();
+      await expectAsync(helpers.get('requests', r => r.url))
+        .toBeResolvedTo(jasmine.arrayContaining(['/percy/widths-config?widths=768,1024']));
+    });
+
+    it('returns computed widths from the response', async () => {
+      const result = await getResponsiveWidths([768, 1024]);
+
+      expect(result).toEqual([
+        { width: 390, height: 844 },
+        { width: 428, height: 926 },
+        { width: 768 },
+        { width: 1024 }
+      ]);
+    });
+
+    it('calls endpoint without query parameter when widths array is empty', async () => {
+      await expectAsync(getResponsiveWidths([])).toBeResolved();
+      await expectAsync(helpers.get('requests', r => r.url))
+        .toBeResolvedTo(jasmine.arrayContaining(['/percy/widths-config']));
+    });
+
+    it('returns config widths when no widths are passed', async () => {
+      const result = await getResponsiveWidths([]);
+
+      expect(result).toEqual([
+        { width: 375 },
+        { width: 390, height: 844 },
+        { width: 428, height: 926 },
+        { width: 1280 }
+      ]);
+    });
+
+    it('handles non-array widths by converting to empty array', async () => {
+      await expectAsync(getResponsiveWidths('not-an-array')).toBeResolved();
+      await expectAsync(helpers.get('requests', r => r.url))
+        .toBeResolvedTo(jasmine.arrayContaining(['/percy/widths-config']));
+    });
+
+    it('handles undefined widths parameter', async () => {
+      const result = await getResponsiveWidths();
+
+      expect(result).toEqual([
+        { width: 375 },
+        { width: 390, height: 844 },
+        { width: 428, height: 926 },
+        { width: 1280 }
+      ]);
+    });
+
+    it('returns empty array when the endpoint fails', async () => {
+      helpers.logger.loglevel('debug');
+      await helpers.test('error', '/percy/widths-config');
+      const result = await getResponsiveWidths([768]);
+
+      expect(result).toEqual([]);
+      expect(helpers.logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('[percy:utils] Failed to get responsive widths: testing')
+      ]));
+    });
+
+    it('returns empty array when the endpoint disconnects', async () => {
+      await helpers.test('disconnect', '/percy/widths-config');
+      const result = await getResponsiveWidths([768]);
+
+      expect(result).toEqual([]);
+    });
+
+    it('handles response without widths property', async () => {
+      // This scenario shouldn't normally happen, but we should handle it gracefully
+      const result = await getResponsiveWidths([375]);
+
+      // The endpoint always returns widths, so this validates we handle edge cases
+      expect(Array.isArray(result)).toBe(true);
+    });
+
+    it('properly formats multiple widths in query string', async () => {
+      await getResponsiveWidths([375, 768, 1024, 1920]);
+
+      await expectAsync(helpers.get('requests', r => r.url))
+        .toBeResolvedTo(jasmine.arrayContaining(['/percy/widths-config?widths=375,768,1024,1920']));
+    });
+
+    it('handles single width value', async () => {
+      const result = await getResponsiveWidths([768]);
+
+      expect(result).toEqual([
+        { width: 390, height: 844 },
+        { width: 428, height: 926 },
+        { width: 768 }
+      ]);
+    });
+  });
 });

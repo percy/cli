@@ -1,4 +1,4 @@
-import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType } from '../src/utils.js';
+import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType, computeResponsiveWidths } from '../src/utils.js';
 import { logger, setupTest, mockRequests } from './helpers/index.js';
 import percyLogger from '@percy/logger';
 import Percy from '@percy/core';
@@ -521,6 +521,211 @@ describe('utils', () => {
 
       expect(result).toBe('font/woff2');
       expect(logger.stderr).toContain('[percy:core:utils] - Detected Google Font as font/woff2 from content, overriding mime type');
+    });
+  });
+
+  describe('computeResponsiveWidths', () => {
+    it('returns widths with heights for mobile devices', () => {
+      const userPassedWidths = [];
+      const eligibleWidths = {
+        mobile: [390, 428],
+        config: [1280]
+      };
+      const deviceDetails = [
+        { width: 390, height: 844 },
+        { width: 428, height: 926 }
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 390, height: 844 },
+        { width: 428, height: 926 },
+        { width: 1280 }
+      ]);
+    });
+
+    it('returns user-passed widths without heights', () => {
+      const userPassedWidths = [375, 1920];
+      const eligibleWidths = {
+        mobile: [390],
+        config: [1280]
+      };
+      const deviceDetails = [
+        { width: 390, height: 844 }
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 375 },
+        { width: 390, height: 844 },
+        { width: 1920 }
+      ]);
+    });
+
+    it('returns config widths when no user widths are passed', () => {
+      const userPassedWidths = [];
+      const eligibleWidths = {
+        mobile: [390],
+        config: [1280, 1920]
+      };
+      const deviceDetails = [
+        { width: 390, height: 844 }
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 390, height: 844 },
+        { width: 1280 },
+        { width: 1920 }
+      ]);
+    });
+
+    it('sorts widths in ascending order', () => {
+      const userPassedWidths = [1920, 375];
+      const eligibleWidths = {
+        mobile: [428, 390],
+        config: [1280]
+      };
+      const deviceDetails = [
+        { width: 428, height: 926 },
+        { width: 390, height: 844 }
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 375 },
+        { width: 390, height: 844 },
+        { width: 428, height: 926 },
+        { width: 1920 }
+      ]);
+    });
+
+    it('does not duplicate widths', () => {
+      const userPassedWidths = [375, 1280];
+      const eligibleWidths = {
+        mobile: [375],
+        config: [1280]
+      };
+      const deviceDetails = [
+        { width: 375, height: 667 }
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 375, height: 667 },
+        { width: 1280 }
+      ]);
+    });
+
+    it('handles empty mobile widths array', () => {
+      const userPassedWidths = [375, 1920];
+      const eligibleWidths = {
+        mobile: [],
+        config: [1280]
+      };
+      const deviceDetails = [];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 375 },
+        { width: 1920 }
+      ]);
+    });
+
+    it('handles devices without height property', () => {
+      const userPassedWidths = [];
+      const eligibleWidths = {
+        mobile: [390, 428],
+        config: [1280]
+      };
+      const deviceDetails = [
+        { width: 390, height: 844 },
+        { width: 428 } // no height
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 390, height: 844 },
+        { width: 1280 }
+      ]);
+    });
+
+    it('handles empty device details', () => {
+      const userPassedWidths = [375];
+      const eligibleWidths = {
+        mobile: [],
+        config: [1280]
+      };
+      const deviceDetails = [];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 375 }
+      ]);
+    });
+
+    it('returns only config widths when no user widths and no mobile devices', () => {
+      const userPassedWidths = [];
+      const eligibleWidths = {
+        mobile: [],
+        config: [375, 1280]
+      };
+      const deviceDetails = [];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 375 },
+        { width: 1280 }
+      ]);
+    });
+
+    it('prioritizes mobile device height over user-passed width', () => {
+      const userPassedWidths = [390]; // Same width as device
+      const eligibleWidths = {
+        mobile: [390],
+        config: [1280]
+      };
+      const deviceDetails = [
+        { width: 390, height: 844 }
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+      console.log(result);
+
+      // Should keep the device with height, not duplicate
+      expect(result).toEqual([
+        { width: 390, height: 844 }
+      ]);
+    });
+
+    it('handles mixed scenario with all width sources', () => {
+      const userPassedWidths = [768, 1024];
+      const eligibleWidths = {
+        mobile: [390, 428],
+        config: [1280, 1920]
+      };
+      const deviceDetails = [
+        { width: 390, height: 844 },
+        { width: 428, height: 926 }
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 390, height: 844 },
+        { width: 428, height: 926 },
+        { width: 768 },
+        { width: 1024 }
+      ]);
     });
   });
 });

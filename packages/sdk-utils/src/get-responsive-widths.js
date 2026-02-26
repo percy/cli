@@ -3,6 +3,7 @@ import logger from './logger.js';
 
 // Gets computed responsive widths from the Percy server for responsive snapshot capture
 export async function getResponsiveWidths(widths = []) {
+  let log = logger('utils');
   try {
     // Ensure widths is an array
     const widthsArray = Array.isArray(widths) ? widths : [];
@@ -11,7 +12,7 @@ export async function getResponsiveWidths(widths = []) {
     return response.body?.widths || [];
   } catch (error) {
     // Log error and return empty array as fallback
-    logger('sdk-utils:responsive-widths').debug(`Failed to get responsive widths: ${error.message}`);
+    log.debug(`Failed to get responsive widths: ${error.message}`);
     return [];
   }
 }
