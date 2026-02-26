@@ -47,6 +47,10 @@ export function appendUrlSearchParam(urlString, key, value) {
 // Process CORS iframes in a single domSnapshot object
 export function processCorsIframesInDomSnapshot(domSnapshot) {
   if (!domSnapshot?.corsIframes?.length) {
+    // Delete corsIframes key if it exists but is empty
+    if (domSnapshot?.corsIframes) {
+      delete domSnapshot.corsIframes;
+    }
     return domSnapshot;
   }
 

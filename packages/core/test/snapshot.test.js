@@ -1102,6 +1102,155 @@ describe('Snapshot', () => {
     ]));
   });
 
+  describe('CORS iframe processing', () => {
+    it('processes CORS iframes in domSnapshot', async () => {
+      await percy.snapshot({
+        name: 'CORS iframe test',
+        url: 'http://localhost:8000/',
+        domSnapshot: {
+          html: '<html><body><iframe data-percy-element-id="frame1" src="old-url"></iframe></body></html>',
+          resources: [],
+          corsIframes: [{
+            frameUrl: 'https://example.com/iframe',
+            iframeData: { percyElementId: 'frame1' },
+            iframeResource: { url: '', content: 'iframe-content', mimetype: 'text/html' },
+            iframeSnapshot: {
+              resources: [
+                { url: 'https://example.com/style.css', content: 'css-content', mimetype: 'text/css' }
+              ]
+            }
+          }]
+        },
+        widths: [1280]
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: CORS iframe test'
+      ]));
+
+      // Wait for uploads to verify processing
+      await percy.idle();
+
+      // Check that resources were uploaded
+      let uploads = api.requests['/builds/123/resources'];
+      expect(uploads.length).toBeGreaterThan(0);
+    });
+
+    it('processes multiple CORS iframes in domSnapshot', async () => {
+      await percy.snapshot({
+        name: 'Multiple CORS iframes',
+        url: 'http://localhost:8000/',
+        domSnapshot: {
+          html: '<html><body><iframe data-percy-element-id="frame1"></iframe><iframe data-percy-element-id="frame2"></iframe></body></html>',
+          resources: [],
+          corsIframes: [{
+            frameUrl: 'https://example.com/iframe1',
+            iframeData: { percyElementId: 'frame1' },
+            iframeResource: { url: '', content: 'iframe1-content', mimetype: 'text/html' },
+            iframeSnapshot: null
+          }, {
+            frameUrl: 'https://example.com/iframe2',
+            iframeData: { percyElementId: 'frame2' },
+            iframeResource: { url: '', content: 'iframe2-content', mimetype: 'text/html' },
+            iframeSnapshot: null
+          }]
+        },
+        widths: [1920]
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: Multiple CORS iframes'
+      ]));
+    });
+
+    it('processes CORS iframes in array of domSnapshots', async () => {
+      const domSnapshots = [{
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: 1280,
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe1',
+          iframeData: { percyElementId: 'frame1' },
+          iframeResource: { url: '', content: 'iframe1-content', mimetype: 'text/html' },
+          iframeSnapshot: null
+        }]
+      }, {
+        html: '<html><body><iframe data-percy-element-id="frame2"></iframe></body></html>',
+        width: 1920,
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe2',
+          iframeData: { percyElementId: 'frame2' },
+          iframeResource: { url: '', content: 'iframe2-content', mimetype: 'text/html' },
+          iframeSnapshot: null
+        }]
+      }];
+
+      await percy.snapshot({
+        name: 'Array of CORS iframes',
+        url: 'http://localhost:8000/',
+        domSnapshot: domSnapshots
+      });
+
+      expect(domSnapshots[0].corsIframes).toBeUndefined();
+      expect(domSnapshots[1].corsIframes).toBeUndefined();
+      expect(domSnapshots[0].resources[0].url).toBe('https://example.com/iframe1?percy_width=1280');
+      expect(domSnapshots[1].resources[0].url).toBe('https://example.com/iframe2?percy_width=1920');
+    });
+
+    it('handles domSnapshot without corsIframes', async () => {
+      await percy.snapshot({
+        name: 'No CORS iframes',
+        url: 'http://localhost:8000/',
+        domSnapshot: {
+          html: '<html><body>no iframes</body></html>',
+          resources: []
+        }
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: No CORS iframes'
+      ]));
+    });
+
+    it('handles empty corsIframes array', async () => {
+      const domSnapshot = {
+        html: '<html><body>test</body></html>',
+        resources: [],
+        corsIframes: []
+      };
+
+      await percy.snapshot({
+        name: 'Empty CORS iframes',
+        url: 'http://localhost:8000/',
+        domSnapshot
+      });
+
+      // Empty corsIframes should be removed
+      expect(domSnapshot.corsIframes).toBeUndefined();
+    });
+
+    it('processes CORS iframes without width parameter when width is missing', async () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: { percyElementId: 'frame1' },
+          iframeResource: { url: '', content: 'iframe-content', mimetype: 'text/html' },
+          iframeSnapshot: null
+        }]
+      };
+
+      await percy.snapshot({
+        name: 'CORS iframe without width',
+        url: 'http://localhost:8000/',
+        domSnapshot
+      });
+
+      // URL should not have width parameter
+      expect(domSnapshot.resources[0].url).toBe('https://example.com/iframe');
+    });
+  });
+
   it('handles the browser closing early', async () => {
     // close the browser after a page target is created
     spyOn(percy.browser, 'send').and.callFake((...args) => {
