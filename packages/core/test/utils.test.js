@@ -699,11 +699,31 @@ describe('utils', () => {
       ];
 
       const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
-      console.log(result);
 
       // Should keep the device with height, not duplicate
       expect(result).toEqual([
         { width: 390, height: 844 }
+      ]);
+    });
+
+    it('handles duplicate widths in mobile array', () => {
+      const userPassedWidths = [];
+      const eligibleWidths = {
+        mobile: [390, 390, 428], // Duplicate 390
+        config: [1280]
+      };
+      const deviceDetails = [
+        { width: 390, height: 844 },
+        { width: 428, height: 926 }
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      // Should not duplicate the 390 width
+      expect(result).toEqual([
+        { width: 390, height: 844 },
+        { width: 428, height: 926 },
+        { width: 1280 }
       ]);
     });
 

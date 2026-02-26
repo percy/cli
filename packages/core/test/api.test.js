@@ -976,5 +976,36 @@ describe('API Server', () => {
         ]
       });
     });
+
+    it('handles null deviceDetails', async () => {
+      await percy.start();
+      percy.deviceDetails = null;
+      percy.config.snapshot.widths = [375, 1280];
+
+      await expectAsync(
+        request('/percy/widths-config?widths=1920')
+      ).toBeResolvedTo({
+        success: true,
+        widths: [
+          { width: 1920 }
+        ]
+      });
+    });
+
+    it('handles undefined deviceDetails', async () => {
+      await percy.start();
+      percy.deviceDetails = undefined;
+      percy.config.snapshot.widths = [375, 1280];
+
+      await expectAsync(
+        request('/percy/widths-config')
+      ).toBeResolvedTo({
+        success: true,
+        widths: [
+          { width: 375 },
+          { width: 1280 }
+        ]
+      });
+    });
   });
 });
