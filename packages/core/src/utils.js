@@ -752,3 +752,40 @@ export async function checkSDKVersion(clientInfo) {
     log.debug('Could not check SDK version', error);
   }
 }
+
+/**
+ * Computes widths configuration with heights for responsive snapshot capture
+ * @param {Array<number>} userPassedWidths - Widths passed by the user
+ * @param {Object} eligibleWidths - Object containing mobile and config widths
+ * @param {Array<Object>} deviceDetails - Array of device objects with width and height
+ * @returns {Array<Object>} Array of width objects sorted in ascending order
+ */
+export function computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails) {
+  const widthHeightMap = new Map();
+
+  // Add mobile widths with their associated heights from deviceDetails
+  if (eligibleWidths.mobile.length !== 0) {
+    eligibleWidths.mobile.forEach(width => {
+      if (!widthHeightMap.has(width)) {
+        const deviceInfo = deviceDetails.find(device => device.width === width);
+        if (deviceInfo?.height) {
+          widthHeightMap.set(width, {
+            width,
+            height: deviceInfo.height
+          });
+        }
+      }
+    });
+  }
+
+  // Add user passed or config widths without height
+  const otherWidths = userPassedWidths.length !== 0 ? userPassedWidths : eligibleWidths.config;
+  otherWidths.forEach(width => {
+    if (!widthHeightMap.has(width)) {
+      widthHeightMap.set(width, { width });
+    }
+  });
+
+  // Convert to array and sort by width in ascending order
+  return Array.from(widthHeightMap.values()).sort((a, b) => a.width - b.width);
+}
