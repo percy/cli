@@ -603,10 +603,17 @@ describe('SDK Utils', () => {
     });
 
     it('handles response without widths property', async () => {
-      // This scenario shouldn't normally happen, but we should handle it gracefully
+      // Mock a response that has a body but widths is null/undefined
+      spyOn(utils.request, 'fetch').and.returnValue(Promise.resolve({
+        status: 200,
+        statusText: 'OK',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ success: true, widths: null })
+      }));
+
       const result = await getResponsiveWidths([375]);
 
-      // The endpoint always returns widths, so this validates we handle edge cases
+      expect(result).toEqual([]);
       expect(Array.isArray(result)).toBe(true);
     });
 
