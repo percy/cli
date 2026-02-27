@@ -62,7 +62,7 @@ export function processCorsIframesInDomSnapshot(domSnapshot) {
   }
 
   for (const frame of crossOriginFrames) {
-    const { iframeData, iframeResource, iframeSnapshot, frameUrl } = frame;
+    const { iframeData, iframeSnapshot, frameUrl } = frame;
 
     // Build frame URL with width parameter if available
     const frameUrlWithWidth = appendUrlSearchParam(frameUrl, 'percy_width', domSnapshot.width);
@@ -71,6 +71,12 @@ export function processCorsIframesInDomSnapshot(domSnapshot) {
     if (iframeSnapshot?.resources) {
       domSnapshot.resources.push(...iframeSnapshot.resources);
     }
+    // Create a new resource for the iframe's HTML
+    const iframeResource = {
+      url: frameUrlWithWidth,
+      content: iframeSnapshot.html,
+      mimetype: 'text/html'
+    };
 
     // Add iframe resource with updated URL
     iframeResource.url = frameUrlWithWidth;
