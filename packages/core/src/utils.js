@@ -83,10 +83,9 @@ export function processCorsIframesInDomSnapshot(domSnapshot) {
 
     // Update iframe src attribute in HTML
     if (iframeData?.percyElementId) {
-      // percyElementId is internally generated via uid() function - only contains safe chars (_[a-z0-9]{9})
-      // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+      const escapedId = iframeData.percyElementId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(
-        `(<iframe[^>]*data-percy-element-id=["']${iframeData.percyElementId}["'][^>]*>)`
+        `(<iframe[^>]*data-percy-element-id=["']${escapedId}["'][^>]*>)`
       );
       const match = domSnapshot.html.match(regex);
 
