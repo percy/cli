@@ -97,7 +97,7 @@ export function createPercyServer(percy, port) {
     .route('get', '/percy/widths-config', (req, res) => {
       // Parse widths from query parameters (e.g., ?widths=375,1280)
       const widthsParam = req.url.searchParams.get('widths');
-      const userPassedWidths = widthsParam ? widthsParam.split(',').map(w => parseInt(w.trim(), 10)).filter(w => !isNaN(w)) : [];
+      const userPassedWidths = widthsParam ? widthsParam.split(',').map(w => parseInt(w.trim(), 10)).filter(w => !isNaN(w) && w >= 120 && w <= 2000) : [];
 
       const eligibleWidths = {
         mobile: percy.deviceDetails ? percy.deviceDetails.map((d) => d.width) : [],

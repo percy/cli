@@ -906,6 +906,22 @@ describe('API Server', () => {
       });
     });
 
+    it('filters out out-of-range widths from query parameters', async () => {
+      await percy.start();
+      percy.deviceDetails = [];
+      percy.config.snapshot.widths = [1280];
+
+      await expectAsync(
+        request('/percy/widths-config?widths=100,375,2001,-50,1920')
+      ).toBeResolvedTo({
+        success: true,
+        widths: [
+          { width: 375 },
+          { width: 1920 }
+        ]
+      });
+    });
+
     it('does not duplicate widths when user width matches device width', async () => {
       await percy.start();
       percy.deviceDetails = [
