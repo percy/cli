@@ -1039,6 +1039,83 @@ describe('utils', () => {
 
       expect(result.resources[0].url).toBe('https://example.com/iframe?param=value&percy_width=1280');
     });
+
+    it('skips and logs invalid entries missing frameUrl', () => {
+      const domSnapshot = {
+        html: '<html><body></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [{
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: { html: 'iframe-content' }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources.length).toBe(0);
+    });
+
+    it('skips and logs invalid entries missing iframeSnapshot', () => {
+      const domSnapshot = {
+        html: '<html><body></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: { percyElementId: 'frame1' }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources.length).toBe(0);
+    });
+
+    it('skips and logs invalid entries missing iframeSnapshot.html', () => {
+      const domSnapshot = {
+        html: '<html><body></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: { resources: [] }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources.length).toBe(0);
+    });
+
+    it('processes valid entries and skips invalid ones in mixed array', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [
+          {
+            frameUrl: 'https://example.com/iframe1',
+            iframeData: { percyElementId: 'frame1' },
+            iframeSnapshot: { html: 'valid-content' }
+          },
+          {
+            iframeData: { percyElementId: 'frame2' },
+            iframeSnapshot: { html: 'no-frameUrl' }
+          },
+          {
+            frameUrl: 'https://example.com/iframe3',
+            iframeData: { percyElementId: 'frame3' }
+          }
+        ]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources.length).toBe(1);
+      expect(result.resources[0].url).toBe('https://example.com/iframe1?percy_width=1280');
+    });
   });
 
   describe('processCorsIframes', () => {
