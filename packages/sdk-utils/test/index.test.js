@@ -617,6 +617,20 @@ describe('SDK Utils', () => {
       expect(Array.isArray(result)).toBe(true);
     });
 
+    it('returns empty array when server responds with non-array widths', async () => {
+      spyOn(utils.request, 'fetch').and.returnValue(Promise.resolve({
+        status: 200,
+        statusText: 'OK',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ success: true, widths: {} })
+      }));
+
+      const result = await getResponsiveWidths([375]);
+
+      expect(result).toEqual([]);
+      expect(Array.isArray(result)).toBe(true);
+    });
+
     it('properly formats multiple widths in query string', async () => {
       await getResponsiveWidths([375, 768, 1024, 1920]);
 
