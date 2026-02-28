@@ -91,18 +91,26 @@ export function processCorsIframesInDomSnapshot(domSnapshot) {
     domSnapshot.resources.push(iframeResource);
 
     // Update iframe src attribute in HTML
+    // Use string-based search instead of dynamic RegExp to avoid ReDoS risk
     if (iframeData?.percyElementId) {
-      const escapedId = iframeData.percyElementId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(
-        `(<iframe[^>]*data-percy-element-id=["']${escapedId}["'][^>]*>)`
-      );
-      const match = domSnapshot.html.match(regex);
+      const attrValue = iframeData.percyElementId;
+      const html = domSnapshot.html;
+
+      let attrIdx = html.indexOf(`data-percy-element-id="${attrValue}"`);
+      if (attrIdx === -1) attrIdx = html.indexOf(`data-percy-element-id='${attrValue}'`);
 
       /* istanbul ignore next: iframe matching logic depends on DOM structure */
-      if (match) {
-        const iframeTag = match[1];
-        const newIframeTag = iframeTag.replace(/src="[^"]*"/i, `src="${frameUrlWithWidth}"`);
-        domSnapshot.html = domSnapshot.html.replace(iframeTag, newIframeTag);
+      if (attrIdx !== -1) {
+        const tagStart = html.lastIndexOf('<iframe', attrIdx);
+        if (tagStart !== -1) {
+          const tagEnd = html.indexOf('>', attrIdx) + 1;
+          if (tagEnd > 0) {
+            const iframeTag = html.slice(tagStart, tagEnd);
+            // Hardcoded regex with backreference ensures matching quote style; not vulnerable to ReDoS
+            const newIframeTag = iframeTag.replace(/src=(["'])[^"']*\1/i, `src="${frameUrlWithWidth}"`);
+            domSnapshot.html = domSnapshot.html.replace(iframeTag, newIframeTag);
+          }
+        }
       }
     }
   }
