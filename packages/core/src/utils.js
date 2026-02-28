@@ -71,6 +71,7 @@ export function processCorsIframesInDomSnapshot(domSnapshot) {
     if (iframeSnapshot?.resources) {
       domSnapshot.resources.push(...iframeSnapshot.resources);
     }
+
     // Create a new resource for the iframe's HTML
     const iframeResource = {
       url: frameUrlWithWidth,
@@ -78,8 +79,6 @@ export function processCorsIframesInDomSnapshot(domSnapshot) {
       mimetype: 'text/html'
     };
 
-    // Add iframe resource with updated URL
-    iframeResource.url = frameUrlWithWidth;
     domSnapshot.resources.push(iframeResource);
 
     // Update iframe src attribute in HTML

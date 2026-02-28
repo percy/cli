@@ -1113,8 +1113,8 @@ describe('Snapshot', () => {
           corsIframes: [{
             frameUrl: 'https://example.com/iframe',
             iframeData: { percyElementId: 'frame1' },
-            iframeResource: { url: '', content: 'iframe-content', mimetype: 'text/html' },
             iframeSnapshot: {
+              html: 'iframe-content',
               resources: [
                 { url: 'https://example.com/style.css', content: 'css-content', mimetype: 'text/css' }
               ]
@@ -1146,13 +1146,15 @@ describe('Snapshot', () => {
           corsIframes: [{
             frameUrl: 'https://example.com/iframe1',
             iframeData: { percyElementId: 'frame1' },
-            iframeResource: { url: '', content: 'iframe1-content', mimetype: 'text/html' },
-            iframeSnapshot: null
+            iframeSnapshot: {
+              html: 'iframe1-content'
+            }
           }, {
             frameUrl: 'https://example.com/iframe2',
             iframeData: { percyElementId: 'frame2' },
-            iframeResource: { url: '', content: 'iframe2-content', mimetype: 'text/html' },
-            iframeSnapshot: null
+            iframeSnapshot: {
+              html: 'iframe2-content'
+            }
           }]
         },
         widths: [1920]
@@ -1170,8 +1172,9 @@ describe('Snapshot', () => {
         corsIframes: [{
           frameUrl: 'https://example.com/iframe1',
           iframeData: { percyElementId: 'frame1' },
-          iframeResource: { url: '', content: 'iframe1-content', mimetype: 'text/html' },
-          iframeSnapshot: null
+          iframeSnapshot: {
+            html: 'iframe1-content'
+          }
         }]
       }, {
         html: '<html><body><iframe data-percy-element-id="frame2"></iframe></body></html>',
@@ -1179,8 +1182,9 @@ describe('Snapshot', () => {
         corsIframes: [{
           frameUrl: 'https://example.com/iframe2',
           iframeData: { percyElementId: 'frame2' },
-          iframeResource: { url: '', content: 'iframe2-content', mimetype: 'text/html' },
-          iframeSnapshot: null
+          iframeSnapshot: {
+            html: 'iframe2-content'
+          }
         }]
       }];
 
@@ -1235,8 +1239,9 @@ describe('Snapshot', () => {
         corsIframes: [{
           frameUrl: 'https://example.com/iframe',
           iframeData: { percyElementId: 'frame1' },
-          iframeResource: { url: '', content: 'iframe-content', mimetype: 'text/html' },
-          iframeSnapshot: null
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
         }]
       };
 

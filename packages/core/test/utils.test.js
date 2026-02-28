@@ -840,13 +840,37 @@ describe('utils', () => {
         corsIframes: [{
           frameUrl: 'https://example.com/iframe',
           iframeData: { percyElementId: 'frame1' },
-          iframeResource: { url: '', content: 'data' },
-          iframeSnapshot: null
+          iframeSnapshot: {
+            html: 'data'
+          }
         }]
       };
       const result = processCorsIframesInDomSnapshot(domSnapshot);
       expect(result.resources).toBeDefined();
       expect(Array.isArray(result.resources)).toBe(true);
+    });
+
+    it('constructs iframe resource from iframeSnapshot.html with correct structure', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: {
+            html: '<html><body>iframe content</body></html>'
+          }
+        }]
+      };
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources.length).toBe(1);
+      expect(result.resources[0]).toEqual({
+        url: 'https://example.com/iframe?percy_width=1280',
+        content: '<html><body>iframe content</body></html>',
+        mimetype: 'text/html'
+      });
     });
 
     it('processes single CORS iframe correctly with width parameter', () => {
@@ -857,8 +881,8 @@ describe('utils', () => {
         corsIframes: [{
           frameUrl: 'https://example.com/iframe',
           iframeData: { percyElementId: 'frame1' },
-          iframeResource: { url: '', content: 'iframe-content' },
           iframeSnapshot: {
+            html: 'iframe-content',
             resources: [
               { url: 'https://example.com/style.css', content: 'css' }
             ]
@@ -888,8 +912,9 @@ describe('utils', () => {
         corsIframes: [{
           frameUrl: 'https://example.com/iframe',
           iframeData: { percyElementId: 'frame1' },
-          iframeResource: { url: '', content: 'iframe-content' },
-          iframeSnapshot: null
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
         }]
       };
 
@@ -906,8 +931,9 @@ describe('utils', () => {
         corsIframes: [{
           frameUrl: 'https://example.com/iframe',
           iframeData: null,
-          iframeResource: { url: '', content: 'iframe-content' },
-          iframeSnapshot: null
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
         }]
       };
 
@@ -928,8 +954,9 @@ describe('utils', () => {
         corsIframes: [{
           frameUrl: 'https://example.com/iframe',
           iframeData: { percyElementId: 'frame1' },
-          iframeResource: { url: '', content: 'iframe-content' },
-          iframeSnapshot: null
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
         }]
       };
 
@@ -947,15 +974,15 @@ describe('utils', () => {
         corsIframes: [{
           frameUrl: 'https://example.com/iframe1',
           iframeData: { percyElementId: 'frame1' },
-          iframeResource: { url: '', content: 'iframe1-content' },
           iframeSnapshot: {
+            html: 'iframe1-content',
             resources: [{ url: 'https://example.com/style1.css', content: 'css1' }]
           }
         }, {
           frameUrl: 'https://example.com/iframe2',
           iframeData: { percyElementId: 'frame2' },
-          iframeResource: { url: '', content: 'iframe2-content' },
           iframeSnapshot: {
+            html: 'iframe2-content',
             resources: [{ url: 'https://example.com/style2.css', content: 'css2' }]
           }
         }]
@@ -981,8 +1008,9 @@ describe('utils', () => {
         corsIframes: [{
           frameUrl: 'https://example.com/iframe',
           iframeData: { percyElementId: 'frame1' },
-          iframeResource: { url: '', content: 'iframe-content' },
-          iframeSnapshot: null
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
         }]
       };
 
@@ -1001,8 +1029,9 @@ describe('utils', () => {
         corsIframes: [{
           frameUrl: 'https://example.com/iframe?param=value',
           iframeData: { percyElementId: 'frame1' },
-          iframeResource: { url: '', content: 'iframe-content' },
-          iframeSnapshot: null
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
         }]
       };
 
@@ -1030,8 +1059,9 @@ describe('utils', () => {
         corsIframes: [{
           frameUrl: 'https://example.com/iframe',
           iframeData: { percyElementId: 'frame1' },
-          iframeResource: { url: '', content: 'iframe-content' },
-          iframeSnapshot: null
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
         }]
       };
 
@@ -1049,8 +1079,9 @@ describe('utils', () => {
         corsIframes: [{
           frameUrl: 'https://example.com/iframe1',
           iframeData: { percyElementId: 'frame1' },
-          iframeResource: { url: '', content: 'iframe1-content' },
-          iframeSnapshot: null
+          iframeSnapshot: {
+            html: 'iframe1-content'
+          }
         }]
       }, {
         html: '<html><body><iframe data-percy-element-id="frame2"></iframe></body></html>',
@@ -1058,8 +1089,9 @@ describe('utils', () => {
         corsIframes: [{
           frameUrl: 'https://example.com/iframe2',
           iframeData: { percyElementId: 'frame2' },
-          iframeResource: { url: '', content: 'iframe2-content' },
-          iframeSnapshot: null
+          iframeSnapshot: {
+            html: 'iframe2-content'
+          }
         }]
       }];
 
@@ -1085,8 +1117,9 @@ describe('utils', () => {
         corsIframes: [{
           frameUrl: 'https://example.com/iframe',
           iframeData: { percyElementId: 'frame1' },
-          iframeResource: { url: '', content: 'iframe-content' },
-          iframeSnapshot: null
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
         }]
       }, {
         html: '<html><body>no iframes</body></html>',
