@@ -70,8 +70,11 @@ export function processCorsIframesInDomSnapshot(domSnapshot) {
       continue;
     }
 
+    // width is only passed in case of responsiveSnapshotCapture
     // Build frame URL with width parameter if available
-    const frameUrlWithWidth = appendUrlSearchParam(frameUrl, 'percy_width', domSnapshot.width);
+    const frameUrlWithWidth = domSnapshot.width
+      ? appendUrlSearchParam(frameUrl, 'percy_width', domSnapshot.width)
+      : frameUrl;
 
     // Add iframe snapshot resources to main resources
     if (iframeSnapshot?.resources) {
