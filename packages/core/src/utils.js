@@ -64,8 +64,17 @@ export function processCorsIframesInDomSnapshot(domSnapshot) {
   for (const frame of crossOriginFrames) {
     const { iframeData, iframeSnapshot, frameUrl } = frame;
 
+    // Validate required fields and skip malformed entries
+    if (!frameUrl || !iframeSnapshot?.html) {
+      logger('core:utils').debug('Skipping malformed corsIframes entry: missing frameUrl or iframeSnapshot.html', frame);
+      continue;
+    }
+
+    // width is only passed in case of responsiveSnapshotCapture
     // Build frame URL with width parameter if available
-    const frameUrlWithWidth = appendUrlSearchParam(frameUrl, 'percy_width', domSnapshot.width);
+    const frameUrlWithWidth = domSnapshot.width
+      ? appendUrlSearchParam(frameUrl, 'percy_width', domSnapshot.width)
+      : frameUrl;
 
     // Add iframe snapshot resources to main resources
     if (iframeSnapshot?.resources) {
