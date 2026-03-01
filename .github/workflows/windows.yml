@@ -4,30 +4,50 @@ on:
     branches: [master]
   pull_request:
   workflow_dispatch:
+
+env:
+  TEMP: "D:\\temp"
+  TMP: "D:\\temp"
+  YARN_CACHE_FOLDER: "D:\\yarn-cache"
+  # Disabling some Node.js specific overhead
+  NODE_OPTIONS: "--max-old-space-size=4096" 
+
 jobs:
   build:
     name: Build
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+
+      - name: Kill Windows Bottlenecks (Antivirus & Indexer)
+        run: |
+          # Disable Windows Defender Realtime Monitoring (Massive speedup for I/O)
+          Set-MpPreference -DisableRealtimeMonitoring $true
+          # Exclude the workspace and temp drives from scanning
+          Add-MpPreference -ExclusionPath "D:\", "C:\hostedtoolcache", "${{ github.workspace }}"
+          # Stop the Search Indexer
+          Stop-Service -Name WSearch -Force
+        shell: pwsh
+
+      - name: 'Initialize D: Drive'
+        run: |
+          if (!(Test-Path "D:\temp")) { New-Item -ItemType Directory -Path "D:\temp" }
+          if (!(Test-Path "D:\yarn-cache")) { New-Item -ItemType Directory -Path "D:\yarn-cache" }
+        shell: pwsh
+
+      - uses: actions/setup-node@v4
         with:
           node-version: 14
-      - uses: actions/cache@v3
-        with:
-          path: |
-            node_modules
-            packages/*/node_modules
-            packages/core/.local-chromium
-          key: >
-            ${{ runner.os }}/node-14/
-            ${{ hashFiles('.github/.cache-key') }}/
-            ${{ hashFiles('**/yarn.lock') }}
-          restore-keys: >
-            ${{ runner.os }}/node-14/
-            ${{ hashFiles('.github/.cache-key') }}/
-      - run: yarn
-      - run: yarn build
+          cache: 'yarn'
+
+      - name: Install Dependencies
+        run: yarn install --frozen-lockfile --prefer-offline --progress false --network-timeout 100000
+        shell: pwsh
+
+      - name: Build
+        run: yarn build
+        shell: pwsh
+      
       - uses: actions/upload-artifact@v4
         with:
           name: dist
@@ -58,48 +78,65 @@ jobs:
           - '@percy/monitoring'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+
+      - name: Kill Windows Bottlenecks (Antivirus & Indexer)
+        run: |
+          Set-MpPreference -DisableRealtimeMonitoring $true
+          Add-MpPreference -ExclusionPath "D:\", "C:\hostedtoolcache", "${{ github.workspace }}"
+          Stop-Service -Name WSearch -Force
+        shell: pwsh
+
+      - name: 'Initialize D: Drive'
+        run: |
+          if (!(Test-Path "D:\temp")) { New-Item -ItemType Directory -Path "D:\temp" }
+          if (!(Test-Path "D:\yarn-cache")) { New-Item -ItemType Directory -Path "D:\yarn-cache" }
+        shell: pwsh
+
+      - uses: actions/setup-node@v4
         with:
           node-version: 14
-      - uses: actions/cache@v3
-        with:
-          path: |
-            node_modules
-            packages/*/node_modules
-            packages/core/.local-chromium
-          key: >
-            ${{ runner.os }}/node-14/
-            ${{ hashFiles('.github/.cache-key') }}/
-            ${{ hashFiles('**/yarn.lock') }}
-          restore-keys: >
-            ${{ runner.os }}/node-14/
-            ${{ hashFiles('.github/.cache-key') }}/
-      - uses: actions/download-artifact@v5
+          cache: 'yarn'
+
+      - uses: actions/download-artifact@v4
         with:
           name: dist
           path: packages
-      - run: yarn
+
+      - name: Install Dependencies
+        run: yarn install --frozen-lockfile --prefer-offline --progress false
+        shell: pwsh
+
+      # Original Retry Logic
       - name: Run tests
         continue-on-error: true
         id: retry0
         run: yarn workspace ${{ matrix.package }} test --colors
+        shell: pwsh
+
       - name: Run tests Retry (1/3)
         continue-on-error: true
         id: retry1
         if: steps.retry0.outcome=='failure'
         run: yarn workspace ${{ matrix.package }} test --colors
+        shell: pwsh
+
       - name: Run tests Retry (2/4)
         continue-on-error: true
         id: retry2
         if: steps.retry1.outcome=='failure'
         run: yarn workspace ${{ matrix.package }} test --colors
+        shell: pwsh
+
       - name: Run tests Retry (3/4)
         continue-on-error: true
         id: retry3
         if: steps.retry2.outcome=='failure'
         run: yarn workspace ${{ matrix.package }} test --colors
+        shell: pwsh
+
       - name: Run tests Retry (4/4)
         id: retry4
         if: steps.retry3.outcome=='failure'
         run: yarn workspace ${{ matrix.package }} test --colors
+        shell: pwsh
