@@ -26,8 +26,15 @@ function getPolicy() {
 // Adds a `<base>` element to the serialized iframe's `<head>`. This is necessary when
 // embedded documents are serialized and their contents become root-relative.
 function setBaseURI(dom) {
+  let parsedURL;
+  try {
+    parsedURL = new URL(dom.baseURI);
+  } catch (e) {
+    return;
+  }
+
   /* istanbul ignore if: sanity check */
-  if (!new URL(dom.baseURI).hostname) return;
+  if (!parsedURL.hostname) return;
 
   let $base = document.createElement('base');
   $base.href = dom.baseURI;

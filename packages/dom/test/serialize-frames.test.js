@@ -147,6 +147,30 @@ describe('serializeFrames', () => {
       expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toBeNull();
     });
 
+    it(`${platform}: does not crash when an iframe has an unparseable baseURI`, () => {
+      // Simulate a transient/non-standard iframe baseURI (e.g. third-party widgets like Intercom)
+      // by creating an iframe whose contentDocument.baseURI is overridden to an invalid value.
+      let $frameInvalid = document.createElement('iframe');
+      $frameInvalid.id = 'frame-invalid-base-uri';
+      document.getElementById('test').appendChild($frameInvalid);
+
+      // Wait for it to be accessible, then stub the baseURI
+      let doc = $frameInvalid.contentDocument;
+      if (doc) {
+        Object.defineProperty(doc, 'baseURI', { value: 'not-a-valid-url', configurable: true });
+      }
+
+      // Should not throw, and the frame should simply not get a <base> tag
+      let result;
+      expect(() => { result = serializeDOM(); }).not.toThrow();
+
+      let $parsed = parseDOM(result.html, platform);
+      // The invalid-base-uri frame should still be present (just without a <base> injected)
+      expect($parsed('#frame-invalid-base-uri')).toBeDefined();
+
+      $frameInvalid.remove();
+    });
+
     it(`${platform}: does not serialize iframes without document elements`, () => {
       expect($('#frame-empty')[0]).toBeDefined();
       expect($('#frame-empty')[0].getAttribute('srcdoc')).toBe('<input/>');
