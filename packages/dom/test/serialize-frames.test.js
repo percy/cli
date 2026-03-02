@@ -171,6 +171,32 @@ describe('serializeFrames', () => {
       $frameInvalid.remove();
     });
 
+    it(`${platform}: handles catch block when URL constructor throws`, () => {
+      // Create an iframe that will trigger the catch block in setBaseURI
+      let $frameURLError = document.createElement('iframe');
+      $frameURLError.id = 'frame-url-error';
+      document.getElementById('test').appendChild($frameURLError);
+
+      // Mock the baseURI to return a value that will cause URL constructor to throw
+      let doc = $frameURLError.contentDocument;
+      if (doc) {
+        Object.defineProperty(doc, 'baseURI', {
+          value: 'not a valid url at all!!!',
+          configurable: true
+        });
+      }
+
+      // Should not throw and should handle the error gracefully
+      let result;
+      expect(() => { result = serializeDOM(); }).not.toThrow();
+
+      let $parsed = parseDOM(result.html, platform);
+      // The frame should be present but without a <base> tag due to the URL error
+      expect($parsed('#frame-url-error')).toBeDefined();
+
+      $frameURLError.remove();
+    });
+
     it(`${platform}: does not serialize iframes without document elements`, () => {
       expect($('#frame-empty')[0]).toBeDefined();
       expect($('#frame-empty')[0].getAttribute('srcdoc')).toBe('<input/>');
