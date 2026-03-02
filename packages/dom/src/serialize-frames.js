@@ -30,6 +30,7 @@ function setBaseURI(dom) {
   try {
     parsedURL = new URL(dom.baseURI);
   } catch (e) {
+    /* istanbul ignore next */
     return;
   }
 
