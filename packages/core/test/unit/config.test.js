@@ -320,14 +320,16 @@ describe('Discovery config', () => {
   });
 });
 
-describe('ProjectId config', () => {
+describe('Project config', () => {
   beforeEach(() => {
     PercyConfig.addSchema(CoreConfig.schemas);
   });
 
   it('should accept projectId as a number', () => {
     const config = {
-      projectId: 12345
+      project: {
+        id: 123
+      }
     };
 
     const errors = PercyConfig.validate(config, '/config');
@@ -336,12 +338,26 @@ describe('ProjectId config', () => {
 
   it('should reject non-numeric values for projectId', () => {
     const config = {
-      projectId: 'abc'
+      project: {
+        id: 'abc'
+      }
     };
 
     const errors = PercyConfig.validate(config, '/config');
     expect(errors).toBeDefined();
-    expect(errors[0].path).toBe('projectId');
+    expect(errors[0].path).toBe('project.id');
     expect(errors[0].message).toMatch(/must be a number/);
+  });
+
+  it('should accept project name as a number', () => {
+    const config = {
+      project: {
+        id: 123,
+        name: 'Test Project'
+      }
+    };
+
+    const errors = PercyConfig.validate(config, '/config');
+    expect(errors).toBe(undefined);
   });
 });
