@@ -617,7 +617,7 @@ describe('utils', () => {
       const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
 
       expect(result).toEqual([
-        { width: 375, height: 667 },
+        { width: 375 },
         { width: 1280 }
       ]);
     });
@@ -688,7 +688,7 @@ describe('utils', () => {
       ]);
     });
 
-    it('prioritizes mobile device height over user-passed width', () => {
+    it('prioritizes user-passed width over mobile device height', () => {
       const userPassedWidths = [390]; // Same width as device
       const eligibleWidths = {
         mobile: [390],
@@ -700,9 +700,9 @@ describe('utils', () => {
 
       const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
 
-      // Should keep the device with height, not duplicate
+      // Should override mobile width with user-passed width (without height)
       expect(result).toEqual([
-        { width: 390, height: 844 }
+        { width: 390 }
       ]);
     });
 

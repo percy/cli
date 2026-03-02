@@ -873,11 +873,11 @@ export function computeResponsiveWidths(userPassedWidths, eligibleWidths, device
   }
 
   // Add user passed or config widths without height
+  // If a width exists in both mobile and user-passed/config, user-passed/config takes precedence (without height)
+  // This ensures consistency with percy-storybook SDK behavior
   const otherWidths = userPassedWidths.length !== 0 ? userPassedWidths : eligibleWidths.config;
   otherWidths.forEach(width => {
-    if (!widthHeightMap.has(width)) {
-      widthHeightMap.set(width, { width });
-    }
+    widthHeightMap.set(width, { width });
   });
 
   // Convert to array and sort by width in ascending order
