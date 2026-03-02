@@ -320,7 +320,7 @@ describe('Discovery config', () => {
   });
 });
 
-fdescribe('Project config', () => {
+describe('Project config', () => {
   beforeEach(() => {
     PercyConfig.addSchema(CoreConfig.schemas);
   });
