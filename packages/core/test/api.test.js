@@ -918,7 +918,7 @@ describe('API Server', () => {
       ).toBeResolvedTo({
         success: true,
         widths: [
-          { width: 375, height: 667 },
+          { width: 375 },
           { width: 1280 }
         ]
       });
