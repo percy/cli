@@ -450,8 +450,17 @@ export const configSchema = {
       }
     }
   },
-  projectId: {
-    type: 'number'
+  project: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      id: {
+        type: 'number'
+      },
+      name: {
+        type: 'string'
+      }
+    }
   }
 };
 
