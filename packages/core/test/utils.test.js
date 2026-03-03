@@ -815,8 +815,7 @@ describe('utils', () => {
         resources: []
       };
       const result = processCorsIframesInDomSnapshot(domSnapshot);
-      expect(result).toEqual(domSnapshot);
-      expect(result.corsIframes).toBeUndefined();
+      expect(result).toBe(domSnapshot);
     });
 
     it('returns domSnapshot unchanged when corsIframes is empty array', () => {
@@ -826,11 +825,9 @@ describe('utils', () => {
         corsIframes: []
       };
       const result = processCorsIframesInDomSnapshot(domSnapshot);
-      expect(result).toEqual({
-        html: '<html><body>test</body></html>',
-        resources: []
-      });
-      expect(result.corsIframes).toBeUndefined();
+      expect(result).toBe(domSnapshot);
+      // Empty corsIframes array is preserved
+      expect(result.corsIframes).toEqual([]);
     });
 
     it('initializes resources array if not present', () => {
@@ -901,8 +898,9 @@ describe('utils', () => {
       // Check HTML was updated
       expect(result.html).toContain('src="https://example.com/iframe?percy_width=1280"');
 
-      // Check corsIframes was removed
-      expect(result.corsIframes).toBeUndefined();
+      // Check corsIframes is preserved
+      expect(result.corsIframes).toBeDefined();
+      expect(result.corsIframes.length).toBe(1);
     });
 
     it('processes CORS iframe without width parameter when width is not present', () => {
@@ -1052,7 +1050,10 @@ describe('utils', () => {
       expect(result.resources[1].url).toBe('https://example.com/iframe1?percy_width=1280');
       expect(result.resources[2].url).toBe('https://example.com/style2.css');
       expect(result.resources[3].url).toBe('https://example.com/iframe2?percy_width=1280');
-      expect(result.corsIframes).toBeUndefined();
+
+      // Check corsIframes is preserved
+      expect(result.corsIframes).toBeDefined();
+      expect(result.corsIframes.length).toBe(2);
     });
 
     it('appends to existing resources array', () => {
@@ -1203,7 +1204,9 @@ describe('utils', () => {
 
       expect(result.resources).toBeDefined();
       expect(result.resources.length).toBe(1);
-      expect(result.corsIframes).toBeUndefined();
+
+      // corsIframes is preserved
+      expect(result.corsIframes).toBeDefined();
     });
 
     it('processes array of domSnapshots', () => {
@@ -1235,8 +1238,10 @@ describe('utils', () => {
       expect(result.length).toBe(2);
       expect(result[0].resources[0].url).toBe('https://example.com/iframe1?percy_width=1280');
       expect(result[1].resources[0].url).toBe('https://example.com/iframe2?percy_width=1920');
-      expect(result[0].corsIframes).toBeUndefined();
-      expect(result[1].corsIframes).toBeUndefined();
+
+      // corsIframes is preserved in both snapshots
+      expect(result[0].corsIframes).toBeDefined();
+      expect(result[1].corsIframes).toBeDefined();
     });
 
     it('handles empty array', () => {
