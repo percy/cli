@@ -30,6 +30,93 @@ export function normalizeURL(url) {
   return `${protocol}//${host}${pathname}${search}`;
 }
 
+// Appends a search parameter to a URL. Returns the original URL if the value is not provided.
+export function appendUrlSearchParam(urlString, key, value) {
+  if (!value) return urlString;
+
+  try {
+    const url = new URL(urlString);
+    url.searchParams.set(key, String(value));
+    return url.toString();
+  } catch (error) {
+    logger('core:utils').debug(`Failed to append search param to URL: ${urlString}`, error);
+    return urlString;
+  }
+}
+
+// Process CORS iframes in a single domSnapshot object
+export function processCorsIframesInDomSnapshot(domSnapshot) {
+  if (!domSnapshot?.corsIframes?.length) {
+    return domSnapshot;
+  }
+
+  const crossOriginFrames = domSnapshot.corsIframes;
+
+  // Initialize resources array if it doesn't exist
+  if (!domSnapshot.resources) {
+    domSnapshot.resources = [];
+  }
+
+  for (const frame of crossOriginFrames) {
+    const { iframeData, iframeSnapshot, frameUrl } = frame;
+
+    // Validate required fields and skip malformed entries
+    if (!frameUrl || !iframeSnapshot?.html) {
+      logger('core:utils').debug('Skipping malformed corsIframes entry: missing frameUrl or iframeSnapshot.html', frame);
+      continue;
+    }
+
+    // width is only passed in case of responsiveSnapshotCapture
+    // Build frame URL with width parameter if available
+    const frameUrlWithWidth = domSnapshot.width
+      ? appendUrlSearchParam(frameUrl, 'percy_width', domSnapshot.width)
+      : frameUrl;
+
+    // Add iframe snapshot resources to main resources
+    if (iframeSnapshot?.resources) {
+      domSnapshot.resources.push(...iframeSnapshot.resources);
+    }
+
+    // Create a new resource for the iframe's HTML
+    const iframeResource = {
+      url: frameUrlWithWidth,
+      content: iframeSnapshot.html,
+      mimetype: 'text/html'
+    };
+
+    domSnapshot.resources.push(iframeResource);
+
+    // Update iframe src attribute in HTML
+    if (iframeData?.percyElementId) {
+      const escapedId = iframeData.percyElementId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+      const regex = new RegExp(
+        `(<iframe[^>]*data-percy-element-id=["']${escapedId}["'][^>]*>)`
+      );
+      const match = domSnapshot.html.match(regex);
+      /* istanbul ignore next: iframe matching logic depends on DOM structure */
+      if (match) {
+        const iframeTag = match[1];
+        const newIframeTag = iframeTag.replace(/src="[^"]*"/i, `src="${frameUrlWithWidth}"`);
+        domSnapshot.html = domSnapshot.html.replace(iframeTag, newIframeTag);
+      }
+    }
+  }
+
+  return domSnapshot;
+}
+
+// Process CORS iframes - handles both single object and array of domSnapshots
+export function processCorsIframes(domSnapshot) {
+  if (!domSnapshot) return domSnapshot;
+
+  if (Array.isArray(domSnapshot)) {
+    return domSnapshot.map(snap => processCorsIframesInDomSnapshot(snap));
+  }
+
+  return processCorsIframesInDomSnapshot(domSnapshot);
+}
+
 /**
  * Detects font MIME type from file content by checking magic bytes.
  * Handles string-based signatures (WOFF, OTTO) and binary signatures (TTF).
@@ -751,4 +838,41 @@ export async function checkSDKVersion(clientInfo) {
   } catch (error) {
     log.debug('Could not check SDK version', error);
   }
+}
+
+/**
+ * Computes widths configuration with heights for responsive snapshot capture
+ * @param {Array<number>} userPassedWidths - Widths passed by the user
+ * @param {Object} eligibleWidths - Object containing mobile and config widths
+ * @param {Array<Object>} deviceDetails - Array of device objects with width and height
+ * @returns {Array<Object>} Array of width objects sorted in ascending order
+ */
+export function computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails) {
+  const widthHeightMap = new Map();
+
+  // Add mobile widths with their associated heights from deviceDetails
+  if (eligibleWidths.mobile.length !== 0) {
+    eligibleWidths.mobile.forEach(width => {
+      if (!widthHeightMap.has(width)) {
+        const deviceInfo = deviceDetails.find(device => device.width === width);
+        if (deviceInfo?.height) {
+          widthHeightMap.set(width, {
+            width,
+            height: deviceInfo.height
+          });
+        }
+      }
+    });
+  }
+
+  // Add user passed or config widths without height
+  // If a width exists in both mobile and user-passed/config, user-passed/config takes precedence (without height)
+  // This ensures consistency with percy-storybook SDK behavior
+  const otherWidths = userPassedWidths.length !== 0 ? userPassedWidths : eligibleWidths.config;
+  otherWidths.forEach(width => {
+    widthHeightMap.set(width, { width });
+  });
+
+  // Convert to array and sort by width in ascending order
+  return Array.from(widthHeightMap.values()).sort((a, b) => a.width - b.width);
 }
