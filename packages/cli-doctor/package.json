@@ -1,0 +1,52 @@
+{
+  "name": "@percy/cli-doctor",
+  "version": "1.31.9",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/percy/cli",
+    "directory": "packages/cli-doctor"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "beta"
+  },
+  "engines": {
+    "node": ">=14"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./src/utils/http.js": "./src/utils/http.js",
+    "./src/utils/reporter.js": "./src/utils/reporter.js",
+    "./src/utils/helpers.js": "./src/utils/helpers.js",
+    "./src/checks/ssl.js": "./src/checks/ssl.js",
+    "./src/checks/connectivity.js": "./src/checks/connectivity.js",
+    "./src/checks/proxy.js": "./src/checks/proxy.js",
+    "./src/checks/pac.js": "./src/checks/pac.js",
+    "./src/checks/browser.js": "./src/checks/browser.js"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build",
+    "lint": "eslint --ignore-path ../../.gitignore .",
+    "readme": "percy-cli-readme",
+    "test": "node ../../scripts/test",
+    "test:coverage": "yarn test --coverage"
+  },
+  "@percy/cli": {
+    "commands": [
+      "./dist/doctor.js"
+    ]
+  },
+  "dependencies": {
+    "@percy/cli-command": "1.31.9",
+    "@percy/core": "1.31.9",
+    "@percy/logger": "1.31.9",
+    "minimatch": "^9.0.0",
+    "ws": "^8.17.1"
+  }
+}
