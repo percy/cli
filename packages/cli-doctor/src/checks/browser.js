@@ -147,14 +147,14 @@ function pollCDPPageTarget(port) {
 }
 
 /** Wait until Chrome's CDP page target is ready and return its webSocketDebuggerUrl. */
-async function waitForCDP(port, timeout = 15000) {
+async function waitForCDP(port, timeout = 30000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     try {
       const wsUrl = await pollCDPPageTarget(port);
       if (wsUrl) return wsUrl;
     } catch { /* not ready yet */ }
-    await new Promise(r => setTimeout(r, 250));
+    await new Promise(r => setTimeout(r, 150));
   }
   throw new Error('Timed out waiting for Chrome CDP page target');
 }
@@ -332,6 +332,26 @@ class NetworkCapture {
  * @returns {Promise<CaptureResult>}
  */
 async function captureNetworkRequests(chromePath, targetUrl, opts = {}) {
+  const { timeout = 30000, proxyUrl } = opts;
+  // Hard wall-clock cap: navigation timeout + 15 s for Chrome startup + CDP handshake.
+  // If Chrome hangs (e.g. frozen renderer, hung SIGTERM), this ensures we always
+  // return within a bounded time rather than blocking the whole doctor run.
+  const hardDeadline = timeout + 15000;
+  const timeoutResult = {
+    targetUrl,
+    proxyUrl: proxyUrl ?? null,
+    navMs: 0,
+    requests: [],
+    proxyHeaders: [],
+    error: `Browser capture timed out after ${hardDeadline / 1000}s`
+  };
+  return Promise.race([
+    _doCapture(chromePath, targetUrl, opts),
+    new Promise(resolve => setTimeout(() => resolve(timeoutResult), hardDeadline))
+  ]);
+}
+
+async function _doCapture(chromePath, targetUrl, opts = {}) {
   const { headless = true, timeout = 30000, proxyUrl } = opts;
 
   // When NODE_TLS_REJECT_UNAUTHORIZED=0 is set the Node process has already
@@ -374,7 +394,7 @@ async function captureNetworkRequests(chromePath, targetUrl, opts = {}) {
   let navMs = 0;
 
   try {
-    const wsUrl = await waitForCDP(port, 12000);
+    const wsUrl = await waitForCDP(port, Math.max(timeout, 30000));
     const cdp = await connectCDP(wsUrl);
 
     // Attach event handlers — mirrors the watch() pattern in @percy/core's Network class
@@ -410,7 +430,7 @@ async function captureNetworkRequests(chromePath, targetUrl, opts = {}) {
     captureError = err.message;
   } finally {
     try { proc.kill('SIGTERM'); } catch { /* ignore */ }
-    await new Promise(resolve => proc.once('exit', resolve));
+    await killProcess(proc, 3000);
   }
 
   return {
@@ -421,6 +441,26 @@ async function captureNetworkRequests(chromePath, targetUrl, opts = {}) {
     proxyHeaders: capture.getProxyHeaders(),
     error: captureError
   };
+}
+/**
+ * Terminate a child process gracefully (SIGTERM), escalating to SIGKILL after
+ * `gracePeriodMs` if it hasn't exited. Handles the race where the process has
+ * already exited so `proc.once('exit')` would never fire.
+ */
+function killProcess(proc, gracePeriodMs = 3000) {
+  return new Promise(resolve => {
+    // Already dead — nothing to do
+    if (proc.exitCode !== null || proc.killed) return resolve();
+
+    const escalate = setTimeout(() => {
+      try { proc.kill('SIGKILL'); } catch { /* already gone */ }
+      // One final wait; if it still doesn't fire we move on
+      const bail = setTimeout(resolve, 2000);
+      proc.once('exit', () => { clearTimeout(bail); resolve(); });
+    }, gracePeriodMs);
+
+    proc.once('exit', () => { clearTimeout(escalate); resolve(); });
+  });
 }
 
 function safeHostname(rawUrl) {
@@ -502,15 +542,32 @@ export async function checkBrowserNetwork(options = {}) {
     };
   }
 
-  // ── 2. Direct capture ──────────────────────────────────────────────────────
-  const directCapture = await captureNetworkRequests(chromePath, targetUrl, {
-    headless, timeout
+  // ── 2 & 3. Direct + proxy captures in parallel ─────────────────────────────
+  // Promise.allSettled ensures that a hung/failed run never blocks the other;
+  // both Chrome instances race independently against their hard deadlines.
+  const errCapture = (url, pUrl, msg) => ({
+    targetUrl: url,
+    proxyUrl: pUrl ?? null,
+    navMs: 0,
+    requests: [],
+    proxyHeaders: [],
+    error: msg
   });
 
-  // ── 3. Proxy capture (if requested) ────────────────────────────────────────
-  const proxyCapture = proxyUrl
-    ? await captureNetworkRequests(chromePath, targetUrl, { headless, timeout, proxyUrl })
-    : null;
+  const [directResult, proxyResult] = await Promise.allSettled([
+    captureNetworkRequests(chromePath, targetUrl, { headless, timeout }),
+    proxyUrl
+      ? captureNetworkRequests(chromePath, targetUrl, { headless, timeout, proxyUrl })
+      : Promise.resolve(null)
+  ]);
+
+  const directCapture = directResult.status === 'fulfilled'
+    ? directResult.value
+    : errCapture(targetUrl, null, directResult.reason?.message ?? 'capture failed');
+
+  const proxyCapture = proxyResult.status === 'fulfilled'
+    ? proxyResult.value
+    : (proxyUrl ? errCapture(targetUrl, proxyUrl, proxyResult.reason?.message ?? 'capture failed') : null);
 
   // ── 4. Build domain-level summary ─────────────────────────────────────────
   const directByHost = analyseCapture(directCapture);

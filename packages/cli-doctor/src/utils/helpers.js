@@ -178,7 +178,7 @@ export async function runBrowserCheck(ctx) {
 
   print(log, sectionHeader('Browser Network Analysis'));
   if (proxyUrl) {
-    print(log, checkLine('info', `Opening ${targetUrl} in Chrome — two runs: direct and via proxy (${redactProxyUrl(proxyUrl)})…`));
+    print(log, checkLine('info', `Opening ${targetUrl} in Chrome — running direct and proxy (${redactProxyUrl(proxyUrl)}) captures in parallel…`));
   } else {
     print(log, checkLine('info', `Opening ${targetUrl} in Chrome to capture network activity…`));
   }
