@@ -21,11 +21,7 @@ export const REQUIRED_DOMAINS = [
  * Combined connectivity + SSL check.
  *
  * Runs all required-domain probes in parallel, then derives SSL findings from
- * the same percy.io probe result — avoiding a duplicate request in the common case.
- *
- * A separate strict SSL probe (rejectUnauthorized: true) is only issued when
- * NODE_TLS_REJECT_UNAUTHORIZED=0 is set, since in that case the main connectivity
- * probe uses rejectUnauthorized: false and cannot surface SSL certificate errors.
+ * the same percy.io probe result — no duplicate HTTP roundtrip.
  *
  * @param {object}   [options]
  * @param {string}   [options.proxyUrl]   - Proxy to test alongside direct
@@ -57,36 +53,12 @@ export async function checkConnectivityAndSSL(options = {}) {
 }
 
 /**
- * Backward-compatible wrapper — returns only connectivity findings.
- * Existing callers and tests that do not need SSL findings can use this.
- */
-export async function checkConnectivity(options = {}) {
-  const { connectivityFindings } = await checkConnectivityAndSSL(options);
-  return connectivityFindings;
-}
-
-// ─── Internal ────────────────────────────────────────────────────────────────
-
-/**
  * Build SSL findings from a percy.io probe result.
  * Mirrors the ssl.js checkSSL() logic, but reuses an existing probe result
  * rather than issuing a new HTTP request.
  */
 function _buildSSLFindings(percyProbeResult) {
   const findings = [];
-
-  // (a) NODE_TLS_REJECT_UNAUTHORIZED env var warning
-  if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
-    findings.push({
-      status: 'warn',
-      message: 'NODE_TLS_REJECT_UNAUTHORIZED=0 is set – SSL certificate verification is disabled.',
-      suggestions: [
-        'Remove NODE_TLS_REJECT_UNAUTHORIZED=0 from your environment once SSL issues are resolved.',
-        'If you intentionally disabled SSL (e.g. self-signed corp cert), this is expected.',
-        'Note: percy doctor mirrors this to Chrome (--ignore-certificate-errors) so browser captures also bypass SSL.'
-      ]
-    });
-  }
 
   // (b) SSL probe result derived from the connectivity probe
   if (!percyProbeResult) {
@@ -101,7 +73,7 @@ function _buildSSLFindings(percyProbeResult) {
       suggestions: [
         'Your network proxy or VPN may be intercepting HTTPS traffic with its own certificate.',
         'Ask your network admin to add percy.io to the SSL inspection exclusion list.',
-        'Temporary bypass: export NODE_TLS_REJECT_UNAUTHORIZED=0  (re-run percy doctor to verify)',
+        'Solution: export NODE_TLS_REJECT_UNAUTHORIZED=0  (re-run percy doctor to verify)',
         'Or trust the proxy CA: export NODE_EXTRA_CA_CERTS=/path/to/proxy-ca.crt'
       ]
     });
@@ -143,7 +115,7 @@ async function _probeTarget(label, url, proxyUrl, timeout) {
       suggestions: [
         'See the SSL / TLS section above for remediation steps.',
         'Ensure your network proxy is not performing SSL inspection on percy.io / browserstack.com.',
-        'Temporary bypass: export NODE_TLS_REJECT_UNAUTHORIZED=0'
+        'Solution: export NODE_TLS_REJECT_UNAUTHORIZED=0'
       ]
     };
   }
@@ -182,56 +154,17 @@ async function _probeTarget(label, url, proxyUrl, timeout) {
   }
 
   // Both direct and proxy failed (or no proxy configured)
-  const failReason = _classifyConnFailure(direct);
   return {
     status: 'fail',
     label,
     url,
     directResult: direct,
     proxyResult: viaProxy,
-    message: `${label} (${url}) is NOT reachable. ${failReason.reason}`,
-    suggestions: failReason.suggestions
+    message: `${label} (${url}) is NOT reachable.`,
+    suggestions: [
+      `Ensure your network allows outbound HTTPS to ${new URL(url).hostname}.`,
+      'Contact your network/IT team to whitelist: percy.io, www.browserstack.com, hub.browserstack.com.',
+      'If behind a corporate proxy, set HTTPS_PROXY=http://proxy-host:port in your environment.'
+    ]
   };
-}
-
-function _classifyConnFailure(result) {
-  switch (result.errorCode) {
-    case 'ENOTFOUND':
-      return {
-        reason: 'DNS resolution failed.',
-        suggestions: [
-          'Check that percy.io / browserstack.com are not blocked by your DNS server.',
-          'Try: nslookup percy.io  – if it fails, contact your network/IT team.',
-          'Add percy.io and browserstack.com to your corporate DNS or firewall whitelist.'
-        ]
-      };
-    case 'ECONNREFUSED':
-      return {
-        reason: 'Connection refused.',
-        suggestions: [
-          'The destination port may be blocked by your firewall.',
-          'Ensure outbound HTTPS (port 443) traffic to percy.io is allowed.'
-        ]
-      };
-    case 'ETIMEDOUT':
-    case 'ECONNRESET':
-      return {
-        reason: 'Connection timed out or was reset.',
-        suggestions: [
-          'A firewall or proxy may be silently dropping packets to percy.io.',
-          'Ensure percy.io (185.105.106.0/24) and browserstack.com are whitelisted.',
-          'If behind a proxy, configure HTTPS_PROXY or --proxy-server flag.',
-          'Try: curl -v https://percy.io  to diagnose manually.'
-        ]
-      };
-    default:
-      return {
-        reason: result.error ?? result.errorCode,
-        suggestions: [
-          'Run with --verbose for more detail.',
-          'Try: curl -v https://percy.io',
-          'Ensure your network permits outbound HTTPS to percy.io and browserstack.com.'
-        ]
-      };
-  }
 }

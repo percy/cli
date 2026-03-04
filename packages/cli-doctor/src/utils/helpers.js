@@ -78,7 +78,7 @@ export function captureProxyEnv() {
  * same request — no duplicate HTTP roundtrip in the common case.
  */
 export async function runConnectivityAndSSL(ctx) {
-  const { log, tally, report, proxyUrl, timeout } = ctx;
+  const { log, report, proxyUrl, timeout } = ctx;
 
   print(log, sectionHeader('Network Connectivity'));
 
@@ -89,11 +89,10 @@ export async function runConnectivityAndSSL(ctx) {
     ({ connectivityFindings, sslFindings } = await checkConnectivityAndSSL({ proxyUrl, timeout }));
   } catch (err) {
     log.error(`Connectivity/SSL check failed unexpectedly: ${err.message}`);
-    tally.fail++;
     connectivityFindings = [{ status: 'fail', message: err.message }];
   }
 
-  renderFindings(connectivityFindings, log, tally);
+  renderFindings(connectivityFindings, log);
   report.checks.connectivity = {
     status: sectionStatus(connectivityFindings),
     findings: connectivityFindings
@@ -101,7 +100,7 @@ export async function runConnectivityAndSSL(ctx) {
 
   // ── SSL / TLS ──────────────────────────────────────────────────────────────
   print(log, sectionHeader('SSL / TLS'));
-  renderFindings(sslFindings, log, tally);
+  renderFindings(sslFindings, log);
 
   report.checks.ssl = {
     status: sectionStatus(sslFindings),
@@ -115,20 +114,20 @@ export async function runConnectivityAndSSL(ctx) {
  * process inspection → WPAD
  */
 export async function runProxyCheck(ctx) {
-  const { log, tally, report, timeout } = ctx;
+  const { log, report, timeout } = ctx;
 
   print(log, sectionHeader('Proxy Configuration'));
+  print(log, checkLine('info', 'Scanning for proxy configuration and validating discovered proxies...'));
 
   let proxyFindings = [];
   try {
     proxyFindings = await detectProxy({ timeout, testProxy: true });
   } catch (err) {
     log.error(`Proxy detection failed unexpectedly: ${err.message}`);
-    tally.fail++;
     proxyFindings = [{ status: 'fail', message: err.message }];
   }
 
-  renderFindings(proxyFindings, log, tally);
+  renderFindings(proxyFindings, log);
   report.checks.proxy = {
     status: sectionStatus(proxyFindings),
     findings: proxyFindings
@@ -140,7 +139,7 @@ export async function runProxyCheck(ctx) {
  * Detects PAC files from macOS, Linux, Windows, Chrome, Firefox.
  */
 export async function runPACCheck(ctx) {
-  const { log, tally, report } = ctx;
+  const { log, report } = ctx;
 
   print(log, sectionHeader('PAC / Auto-Proxy Configuration'));
 
@@ -149,11 +148,10 @@ export async function runPACCheck(ctx) {
     pacFindings = await detectPAC();
   } catch (err) {
     log.error(`PAC detection failed unexpectedly: ${err.message}`);
-    tally.fail++;
     pacFindings = [{ status: 'fail', message: err.message }];
   }
 
-  renderFindings(pacFindings, log, tally);
+  renderFindings(pacFindings, log);
 
   const actionablePac = pacFindings.find(f => f.detectedProxyUrl);
   if (actionablePac) {
@@ -176,7 +174,7 @@ export async function runPACCheck(ctx) {
  * If --proxy-server was supplied, runs the capture twice and compares.
  */
 export async function runBrowserCheck(ctx) {
-  const { log, tally, report, targetUrl, proxyUrl, timeout } = ctx;
+  const { log, report, targetUrl, proxyUrl, timeout } = ctx;
 
   print(log, sectionHeader('Browser Network Analysis'));
   if (proxyUrl) {
@@ -202,7 +200,7 @@ export async function runBrowserCheck(ctx) {
         'npm install @percy/cli will install a bundled Chromium.'
       ]));
     } else {
-      _renderBrowserResults(log, tally, browserResult, proxyUrl);
+      _renderBrowserResults(log, browserResult, proxyUrl);
     }
   } catch (err) {
     log.error(`Browser analysis failed unexpectedly: ${err.message}`);
@@ -228,13 +226,37 @@ export async function runBrowserCheck(ctx) {
     : { status: 'skip', error: 'Browser analysis not attempted' };
 }
 
+/**
+ * Run all Percy doctor checks programmatically.
+ * Can be imported and called from other Percy packages to diagnose network
+ * connectivity issues on demand.
+ *
+ * @param {object}  [options]
+ * @param {object}  options.log          - Percy logger instance
+ * @param {string}  [options.proxyUrl]   - Proxy URL to test
+ * @param {number}  [options.timeout]    - Per-request timeout ms (default: 10000)
+ * @param {string}  [options.targetUrl]  - URL to open in Chrome (default: https://percy.io)
+ * @returns {Promise<{ checks: object, hasFail: boolean, hasWarn: boolean }>}
+ */
+export async function runDiagnostics({ log, proxyUrl, timeout = 10000, targetUrl = 'https://percy.io' } = {}) {
+  const report = { checks: {} };
+  const ctx = { log, report, proxyUrl, timeout, targetUrl };
+  await runConnectivityAndSSL(ctx);
+  await runProxyCheck(ctx);
+  await runPACCheck(ctx);
+  await runBrowserCheck(ctx);
+  const hasFail = Object.values(report.checks).some(c => c?.status === 'fail');
+  const hasWarn = Object.values(report.checks).some(c => c?.status === 'warn');
+  return { checks: report.checks, hasFail, hasWarn };
+}
+
 // ─── Private rendering helpers ────────────────────────────────────────────────
 
 /**
  * Render the domain table, proxy-header list, and update the tally for the
  * browser section. Only Percy/BrowserStack domains count toward pass/fail.
  */
-function _renderBrowserResults(log, tally, browserResult, proxyUrl) {
+function _renderBrowserResults(log, browserResult, proxyUrl) {
   if (browserResult.error) {
     print(log, checkLine('info', `Browser capture note: ${browserResult.error}`));
   }
@@ -305,13 +327,10 @@ function _renderBrowserResults(log, tally, browserResult, proxyUrl) {
   // Tally: only Percy/BrowserStack domains count.
   const criticalBlocked = allRows.filter(d => PERCY_DOMAINS.has(d.hostname) && d.status === 'fail');
   if (!allRows.length) {
-    tally.warn++;
     print(log, checkLine('warn', 'No network requests captured from Chrome.'));
   } else if (criticalBlocked.length === 0) {
-    tally.pass++;
     print(log, checkLine('pass', 'Percy/BrowserStack domains are reachable from Chrome.'));
   } else {
-    tally.fail++;
     print(log, checkLine('fail',
       `Percy domain(s) unreachable from Chrome: ${criticalBlocked.map(d => d.hostname).join(', ')}`
     ));

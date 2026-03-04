@@ -40,6 +40,6 @@
     "@percy/cli-upload": "1.31.9",
     "@percy/client": "1.31.9",
     "@percy/logger": "1.31.9",
-    "@percy/cli-doctor": "1.31.9",
+    "@percy/cli-doctor": "1.31.9"
   }
 }
