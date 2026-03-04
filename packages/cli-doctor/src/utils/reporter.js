@@ -48,7 +48,7 @@ export function checkLine(status, message, detail) {
  */
 export function suggestionList(suggestions) {
   if (!suggestions?.length) return '';
-  return suggestions.map(s => `      ${c.yellow('→')} ${s}`).join('\n');
+  return suggestions.map(s => `      ${c.yellow('→')} ${c.cyan(s)}`).join('\n');
 }
 
 /**
@@ -81,11 +81,8 @@ export function summaryBanner(passed, warned, failed) {
  * @param {{ pass: number, warn: number, fail: number }} tally  – mutated in-place
  * @param {{ indent?: string }} [opts]
  */
-export function renderFindings(findings, log, tally, { indent = '' } = {}) {
+export function renderFindings(findings, log, { indent = '' } = {}) {
   for (const f of findings) {
-    if (f.status === 'pass') tally.pass++;
-    else if (f.status === 'warn') tally.warn++;
-    else if (f.status === 'fail') tally.fail++;
     print(log, indent + checkLine(f.status, f.message));
     if (f.suggestions?.length) print(log, suggestionList(f.suggestions));
   }

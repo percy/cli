@@ -10,7 +10,7 @@ import {
   runPACCheck,
   runBrowserCheck
 } from './utils/helpers.js';
-import { summaryBanner, checkLine, print } from './utils/reporter.js';
+import { checkLine, print } from './utils/reporter.js';
 
 import { getPackageJSON } from '@percy/cli-command/utils';
 const pkg = getPackageJSON(import.meta.url);
@@ -70,7 +70,6 @@ export const doctor = command(
     const targetUrl = flags.url?.trim() || 'https://percy.io';
     const jsonOutputPath = flags.outputJson || 'percy-doctor-report.json';
 
-    const tally = { pass: 0, warn: 0, fail: 0 };
     const report = {
       timestamp: new Date().toISOString(),
       environment: {
@@ -85,7 +84,7 @@ export const doctor = command(
     };
 
     // Shared context passed into every section runner
-    const ctx = { log, tally, report, proxyUrl, timeout, targetUrl };
+    const ctx = { log, report, proxyUrl, timeout, targetUrl };
 
     print(log, '\n  Percy Doctor — network readiness check\n');
     if (proxyUrl) {
@@ -98,14 +97,9 @@ export const doctor = command(
     await runPACCheck(ctx);
     await runBrowserCheck(ctx);
 
-    // ── Summary ────────────────────────────────────────────────────────────
-    print(log, summaryBanner(tally.pass, tally.warn, tally.fail));
-
     report.summary = {
-      pass: tally.pass,
-      warn: tally.warn,
-      fail: tally.fail,
-      overall: tally.fail > 0 ? 'fail' : tally.warn > 0 ? 'warn' : 'pass'
+      overall: Object.values(report.checks).some(c => c?.status === 'fail') ? 'fail'
+        : Object.values(report.checks).some(c => c?.status === 'warn') ? 'warn' : 'pass'
     };
 
     try {
@@ -116,7 +110,7 @@ export const doctor = command(
       log.warn(`Could not write JSON report: ${err.message}`);
     }
 
-    if (tally.fail > 0) {
+    if (report.summary.overall === 'fail') {
       exit(1, '', false);
     }
   }

@@ -40,7 +40,7 @@ export async function probeUrl(targetUrl, options = {}) {
   try {
     const url = new URL(targetUrl);
     const proxy = proxyUrl ? new URL(proxyUrl) : null;
-    const result = await _makeRequest(url, proxy, { timeout, method });
+    const result = await makeRequest(url, proxy, { timeout, method });
     result.latencyMs = Date.now() - start;
     return result;
   } catch (err) {
@@ -54,8 +54,6 @@ export async function probeUrl(targetUrl, options = {}) {
   }
 }
 
-// ─── Internal helpers ─────────────────────────────────────────────────────────
-
 /**
  * Unified request dispatcher.  Routes to the right transport based on whether
  * a proxy is present and whether the target URL uses HTTPS.
@@ -64,7 +62,7 @@ export async function probeUrl(targetUrl, options = {}) {
  *  • proxy + HTTPS target   → CONNECT tunnel → TLS → HTTPS request
  *  • proxy + HTTP target    → plain HTTP request with absolute-URI to proxy
  */
-function _makeRequest(url, proxy, { timeout, method }) {
+function makeRequest(url, proxy, { timeout, method }) {
   // ── common response resolver ──────────────────────────────────────────────
   function resolveResponse(res, resolve) {
     res.resume(); // drain body

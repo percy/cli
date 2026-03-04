@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import vm from 'vm';
+import { minimatch } from 'minimatch';
 
 // Test URL used when evaluating PAC scripts
 const PAC_TEST_URL = 'https://percy.io/';
@@ -36,13 +37,13 @@ export async function detectPAC() {
 
   // ── System-level detection ────────────────────────────────────────────────
   const platform = os.platform();
-  if (platform === 'darwin') discovered.push(..._macOSPacUrls());
-  else if (platform === 'linux') discovered.push(..._linuxPacUrls());
-  else if (platform === 'win32') discovered.push(..._windowsPacUrls());
+  if (platform === 'darwin') discovered.push(...macOSPacUrls());
+  else if (platform === 'linux') discovered.push(...linuxPacUrls());
+  else if (platform === 'win32') discovered.push(...windowsPacUrls());
 
-  // ── Browser-level detection ───────────────────────────────────────────────
-  discovered.push(..._chromePacUrls());
-  discovered.push(..._firefoxPacUrls());
+  // ── Browser-level detection ─────────────────────────────────────────
+  discovered.push(...chromePacUrls());
+  discovered.push(...firefoxPacUrls());
 
   if (discovered.length === 0) {
     findings.push({
@@ -58,7 +59,7 @@ export async function detectPAC() {
 
   // ── Evaluate each discovered PAC ──────────────────────────────────────────
   for (const { url: pacUrl, source } of discovered) {
-    const finding = await _evaluatePac(pacUrl, source);
+    const finding = await evaluatePac(pacUrl, source);
     findings.push(finding);
   }
 
@@ -67,7 +68,7 @@ export async function detectPAC() {
 
 // ─── macOS ────────────────────────────────────────────────────────────────────
 
-function _macOSPacUrls() {
+function macOSPacUrls() {
   const urls = [];
 
   // Try each common network interface
@@ -103,7 +104,7 @@ function _macOSPacUrls() {
         timeout: 4000, encoding: 'utf8'
       });
       const data = JSON.parse(json);
-      const pacUrl = _findInObject(data, 'ProxyAutoConfigURLString');
+      const pacUrl = findInObject(data, 'ProxyAutoConfigURLString');
       if (pacUrl) urls.push({ url: pacUrl, source: 'macOS:plist' });
     } catch { /* ignore */ }
   }
@@ -113,7 +114,7 @@ function _macOSPacUrls() {
 
 // ─── Linux ────────────────────────────────────────────────────────────────────
 
-function _linuxPacUrls() {
+function linuxPacUrls() {
   const urls = [];
 
   // GNOME gsettings
@@ -141,7 +142,7 @@ function _linuxPacUrls() {
 
 // ─── Windows ──────────────────────────────────────────────────────────────────
 
-function _windowsPacUrls() {
+function windowsPacUrls() {
   const urls = [];
   try {
     const out = execSync(
@@ -159,7 +160,7 @@ function _windowsPacUrls() {
 
 // ─── Chrome / Chromium ────────────────────────────────────────────────────────
 
-function _chromePacUrls() {
+function chromePacUrls() {
   const urls = [];
   const platform = os.platform();
 
@@ -190,13 +191,13 @@ function _chromePacUrls() {
         const prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf8'));
         const pacScript = prefs?.proxy?.pac_url ||
           prefs?.chromeos?.proxy?.pac_url ||
-          _findInObject(prefs?.proxy ?? {}, 'pac_url');
+          findInObject(prefs?.proxy ?? {}, 'pac_url');
         if (pacScript) {
           urls.push({ url: pacScript, source: `chrome:Preferences(${path.dirname(prefsPath)})` });
         }
       }
       // Check extension-based proxy settings
-      const extProxies = _findInObject(state, 'pac_url') ?? _findInObject(state, 'pac_script');
+      const extProxies = findInObject(state, 'pac_url') ?? findInObject(state, 'pac_script');
       if (extProxies) urls.push({ url: extProxies, source: 'chrome:extension' });
     } catch { /* ignore parse errors */ }
   }
@@ -205,7 +206,7 @@ function _chromePacUrls() {
 
 // ─── Firefox ──────────────────────────────────────────────────────────────────
 
-function _firefoxPacUrls() {
+function firefoxPacUrls() {
   const urls = [];
   const platform = os.platform();
 
@@ -245,7 +246,7 @@ function _firefoxPacUrls() {
 
 // ─── PAC evaluation ──────────────────────────────────────────────────────────
 
-async function _evaluatePac(pacUrl, source) {
+async function evaluatePac(pacUrl, source) {
   const baseFinding = {
     source,
     pacUrl,
@@ -257,7 +258,7 @@ async function _evaluatePac(pacUrl, source) {
   let pacScript;
   try {
     // We need the body – use a raw http/https request
-    pacScript = await _fetchText(pacUrl);
+    pacScript = await fetchText(pacUrl);
   } catch (err) {
     return {
       ...baseFinding,
@@ -265,7 +266,8 @@ async function _evaluatePac(pacUrl, source) {
       message: `PAC file detected at ${pacUrl} (source: ${source}) but could not be fetched: ${err.message}`,
       suggestions: [
         'Ensure the PAC server is reachable from this machine.',
-        `Manually inspect: curl -v "${pacUrl}"`
+        `Manually inspect: curl -v "${pacUrl}"`,
+        `Set PERCY_PAC_FILE_URL=${pacUrl} if this PAC file is accessible from your CI environment.`
       ]
     };
   }
@@ -273,7 +275,7 @@ async function _evaluatePac(pacUrl, source) {
   // Evaluate PAC script in a sandboxed Node vm context
   let resolvedProxy = 'UNKNOWN';
   try {
-    resolvedProxy = _runPacScript(pacScript, PAC_TEST_URL, PAC_TEST_HOST);
+    resolvedProxy = runPacScript(pacScript, PAC_TEST_URL, PAC_TEST_HOST);
   } catch (err) {
     return {
       ...baseFinding,
@@ -303,7 +305,12 @@ async function _evaluatePac(pacUrl, source) {
       finding.detectedProxyUrl = `http://${proxyMatch[1]}`;
       finding.suggestions = [
         `Set HTTPS_PROXY=http://${proxyMatch[1]} in your environment so Percy can route traffic.`,
-        `Add this to your CI environment: HTTPS_PROXY=http://${proxyMatch[1]}`
+        `Set PERCY_PAC_FILE_URL=${pacUrl} to have Percy automatically use this PAC file.`,
+        `Add to your CI environment: HTTPS_PROXY=http://${proxyMatch[1]}`
+      ];
+    } else {
+      finding.suggestions = [
+        `Set PERCY_PAC_FILE_URL=${pacUrl} to have Percy automatically use this PAC file.`
       ];
     }
   }
@@ -314,18 +321,18 @@ async function _evaluatePac(pacUrl, source) {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Recursively search an object for a key, return first value found. */
-function _findInObject(obj, key, depth = 0) {
+function findInObject(obj, key, depth = 0) {
   if (depth > 6 || typeof obj !== 'object' || obj === null) return null;
   if (key in obj) return obj[key];
   for (const v of Object.values(obj)) {
-    const found = _findInObject(v, key, depth + 1);
+    const found = findInObject(v, key, depth + 1);
     if (found) return found;
   }
   return null;
 }
 
 /** Fetch text content of a URL using Node built-in http/https. */
-async function _fetchText(url) {
+async function fetchText(url) {
   const mod = url.startsWith('https')
     ? (await import('https')).default
     : (await import('http')).default;
@@ -350,9 +357,9 @@ async function _fetchText(url) {
  * Provides minimal shims for the standard PAC helper functions.
  * Returns the string result of FindProxyForURL(url, host).
  */
-function _runPacScript(script, url, host) {
+function runPacScript(script, url, host) {
   const sandbox = {
-    // ── Standard PAC helper shims ────────────────────────────────────────
+    // ── Standard PAC helper shims ─────────────────────────────────────────
     isPlainHostName: h => !h.includes('.'),
     dnsDomainIs: (h, d) => h.endsWith(d),
     localHostOrDomainIs: (h, hd) => h === hd || h.split('.')[0] === hd.split('.')[0],
@@ -362,8 +369,12 @@ function _runPacScript(script, url, host) {
     myIpAddress: () => '127.0.0.1',
     dnsDomainLevels: h => (h.match(/\./g) || []).length,
     shExpMatch: (str, shexp) => {
-      const re = new RegExp('^' + shexp.replace(/\./g, '\\.').replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
-      return re.test(str);
+      if (typeof str !== 'string' || typeof shexp !== 'string') return false;
+      if (shexp.length > 256) return false;
+      // minimatch handles * and ? exactly as PAC shExpMatch requires;
+      // { nonull: false, dot: true } keeps semantics consistent with browsers.
+      // No RegExp is constructed in our code → no detect-non-literal-regexp.
+      return minimatch(str, shexp, { dot: true, nocase: false });
     },
     weekdayRange: () => true,
     dateRange: () => true,

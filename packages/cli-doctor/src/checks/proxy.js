@@ -76,12 +76,12 @@ export async function detectProxy(options = {}) {
   } = options;
 
   const findings = [];
-  const discovered = new Map(); // proxyUrl → { source, confidence }
+  const discovered = new Map(); // proxyUrl → { source }
 
   // ── Layer 1: Environment variables ────────────────────────────────────────
   for (const key of PROXY_ENV_KEYS) {
     const val = process.env[key];
-    if (val) discovered.set(val, { source: `env:${key}`, confidence: 'definite' });
+    if (val) discovered.set(val, { source: `env:${key}` });
   }
 
   const noProxy = NO_PROXY_KEYS.map(k => process.env[k]).filter(Boolean).join(',');
@@ -102,13 +102,13 @@ export async function detectProxy(options = {}) {
   const platform = os.platform();
   if (platform === 'darwin') {
     const sys = detectMacOSProxy();
-    if (sys) discovered.set(sys.url, { source: sys.source, confidence: 'definite' });
+    if (sys) discovered.set(sys.url, { source: sys.source });
   } else if (platform === 'linux') {
     const sys = detectLinuxProxy();
-    if (sys) discovered.set(sys.url, { source: sys.source, confidence: 'definite' });
+    if (sys) discovered.set(sys.url, { source: sys.source });
   } else if (platform === 'win32') {
     const sys = detectWindowsProxy();
-    if (sys) discovered.set(sys.url, { source: sys.source, confidence: 'definite' });
+    if (sys) discovered.set(sys.url, { source: sys.source });
   }
 
   // ── Layer 3: Response-header fingerprinting ────────────────────────────────
@@ -116,7 +116,7 @@ export async function detectProxy(options = {}) {
   for (const hf of headerFindings) {
     findings.push(hf);
     if (hf.detectedProxyUrl) {
-      discovered.set(hf.detectedProxyUrl, { source: 'header-fingerprint', confidence: 'likely' });
+      discovered.set(hf.detectedProxyUrl, { source: 'header-fingerprint' });
     }
   }
 
@@ -141,17 +141,16 @@ export async function detectProxy(options = {}) {
       message: 'No proxy configuration detected from any detection layer.',
       proxyUrl: null,
       suggestions: [
-        'If you are behind a corporate proxy, set HTTPS_PROXY=http://proxy-host:port.',
+        'If you are behind a corporate proxy, set HTTPS_PROXY=https://proxy-host:port.',
         'Alternatively add proxy settings to your Percy config file.'
       ]
     });
   }
 
-  for (const [proxyUrl, { source, confidence }] of discovered) {
+  for (const [proxyUrl, { source }] of discovered) {
     const finding = {
-      layer: confidence === 'definite' ? 'configuration' : 'heuristic',
+      layer: 'configuration',
       source,
-      confidence,
       proxyUrl,
       message: `Proxy ${proxyUrl} (${source})`
     };

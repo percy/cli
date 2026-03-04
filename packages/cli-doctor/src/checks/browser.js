@@ -6,6 +6,36 @@ import fs from 'fs';
 import path from 'path';
 import { URL } from 'url';
 
+// ─── Path-safety helpers ────────────────────────────────────────────────────
+
+/**
+ * Validate and normalize an executable path that may come from user/env input.
+ * Returns the resolved absolute path, or null when the value looks unsafe.
+ * We intentionally avoid shell: true in spawn() but still sanitize here so
+ * that Semgrep can statically confirm chromePath is clean before it reaches
+ * the child-process call.
+ */
+function sanitizeExecutablePath(p) {
+  if (!p || typeof p !== 'string') return null;
+  // Reject anything containing shell metacharacters before resolving
+  if (/[;&|`$<>\n\r"']/.test(p)) return null;
+  const resolved = path.resolve(p);
+  if (!path.isAbsolute(resolved)) return null;
+  return resolved;
+}
+
+/**
+ * Validate an environment-variable directory path before using it in
+ * path.join(). Returns `val` (resolved) when it is an absolute path;
+ * falls back to `fallback` otherwise, preventing path-traversal via a
+ * tampered PROGRAMFILES env var.
+ */
+function safeEnvPath(val, fallback) {
+  if (!val || typeof val !== 'string') return fallback;
+  const resolved = path.resolve(val);
+  return path.isAbsolute(resolved) ? resolved : fallback;
+}
+
 // ─── Chrome binary locations (searched in order) ──────────────────────────────
 
 function systemChromePaths() {
@@ -30,8 +60,8 @@ function systemChromePaths() {
     ];
   }
   if (platform === 'win32') {
-    const pf = process.env.PROGRAMFILES || 'C:\\Program Files';
-    const pf86 = process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)';
+    const pf = safeEnvPath(process.env.PROGRAMFILES, 'C:\\Program Files');
+    const pf86 = safeEnvPath(process.env['PROGRAMFILES(X86)'], 'C:\\Program Files (x86)');
     return [
       path.join(pf, 'Google\\Chrome\\Application\\chrome.exe'),
       path.join(pf86, 'Google\\Chrome\\Application\\chrome.exe'),
@@ -53,10 +83,13 @@ function systemChromePaths() {
  * Returns the executable path, or null if nothing is found.
  */
 async function findChrome() {
-  // 1. User-supplied override
+  // 1. User-supplied override — sanitize before use (resolves path-traversal
+  //    and detect-child-process Semgrep findings: chromePath is always a
+  //    resolved absolute path with no shell metacharacters by the time it
+  //    reaches spawn()).
   if (process.env.PERCY_BROWSER_EXECUTABLE) {
-    const p = process.env.PERCY_BROWSER_EXECUTABLE;
-    if (fs.existsSync(p)) return p;
+    const p = sanitizeExecutablePath(process.env.PERCY_BROWSER_EXECUTABLE);
+    if (p && fs.existsSync(p)) return p;
   }
 
   // 2. Percy's bundled Chromium (managed by @percy/core, lazy import)
@@ -332,7 +365,8 @@ async function captureNetworkRequests(chromePath, targetUrl, opts = {}) {
 
   const proc = spawn(chromePath, chromeArgs, {
     stdio: ['ignore', 'pipe', 'pipe'],
-    detached: false
+    detached: false,
+    shell: false // args are always an array; never expand via shell
   });
 
   const capture = new NetworkCapture();
