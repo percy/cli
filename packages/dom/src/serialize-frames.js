@@ -25,9 +25,17 @@ function getPolicy() {
 
 // Adds a `<base>` element to the serialized iframe's `<head>`. This is necessary when
 // embedded documents are serialized and their contents become root-relative.
-function setBaseURI(dom) {
+function setBaseURI(dom, warnings) {
+  let parsedURL;
+  try {
+    parsedURL = new URL(dom.baseURI);
+  } catch (e) {
+    /* istanbul ignore next */
+    if (warnings) warnings.add(`Could not parse baseURI for iframe: ${dom.baseURI}`);
+  }
+
   /* istanbul ignore if: sanity check */
-  if (!new URL(dom.baseURI).hostname) return;
+  if (!parsedURL.hostname) return;
 
   let $base = document.createElement('base');
   $base.href = dom.baseURI;
@@ -57,7 +65,7 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
 
       // recersively serialize contents
       let serialized = serializeDOM({
-        domTransformation: setBaseURI,
+        domTransformation: (dom) => setBaseURI(dom, warnings),
         dom: frame.contentDocument,
         enableJavaScript,
         disableShadowDOM

@@ -147,6 +147,56 @@ describe('serializeFrames', () => {
       expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toBeNull();
     });
 
+    it(`${platform}: does not crash when an iframe has an unparseable baseURI`, () => {
+      // Simulate a transient/non-standard iframe baseURI (e.g. third-party widgets like Intercom)
+      // by creating an iframe whose contentDocument.baseURI is overridden to an invalid value.
+      let $frameInvalid = document.createElement('iframe');
+      $frameInvalid.id = 'frame-invalid-base-uri';
+      document.getElementById('test').appendChild($frameInvalid);
+
+      // Wait for it to be accessible, then stub the baseURI
+      let doc = $frameInvalid.contentDocument;
+      if (doc) {
+        Object.defineProperty(doc, 'baseURI', { value: 'not-a-valid-url', configurable: true });
+      }
+
+      // Should not throw, and the frame should simply not get a <base> tag
+      let result;
+      expect(() => { result = serializeDOM(); }).not.toThrow();
+
+      let $parsed = parseDOM(result.html, platform);
+      // The invalid-base-uri frame should still be present (just without a <base> injected)
+      expect($parsed('#frame-invalid-base-uri')).toBeDefined();
+
+      $frameInvalid.remove();
+    });
+
+    it(`${platform}: handles catch block when URL constructor throws`, () => {
+      // Create an iframe that will trigger the catch block in setBaseURI
+      let $frameURLError = document.createElement('iframe');
+      $frameURLError.id = 'frame-url-error';
+      document.getElementById('test').appendChild($frameURLError);
+
+      // Mock the baseURI to return a value that will cause URL constructor to throw
+      let doc = $frameURLError.contentDocument;
+      if (doc) {
+        Object.defineProperty(doc, 'baseURI', {
+          value: 'ht!tp://invalid url with spaces',
+          configurable: true
+        });
+      }
+
+      // Should not throw and should handle the error gracefully
+      let result;
+      expect(() => { result = serializeDOM(); }).not.toThrow();
+
+      let $parsed = parseDOM(result.html, platform);
+      // The frame should be present but without a <base> tag due to the URL error
+      expect($parsed('#frame-url-error')).toBeDefined();
+
+      $frameURLError.remove();
+    });
+
     it(`${platform}: does not serialize iframes without document elements`, () => {
       expect($('#frame-empty')[0]).toBeDefined();
       expect($('#frame-empty')[0].getAttribute('srcdoc')).toBe('<input/>');
@@ -179,6 +229,96 @@ describe('serializeFrames', () => {
           serializeDOM();
           expect(createPolicy).toHaveBeenCalledWith('percy-dom', jasmine.objectContaining({ createHTML: jasmine.any(Function) }));
           expect(createHTML).toHaveBeenCalled();
+        } finally {
+          if (trustedTypesDescriptor) {
+            Object.defineProperty(window, 'trustedTypes', trustedTypesDescriptor);
+          } else {
+            delete window.trustedTypes;
+          }
+        }
+      });
+
+      it('handles createPolicy throwing an error gracefully', () => {
+        let createPolicy = jasmine.createSpy('createPolicy').and.throwError('Policy creation not allowed');
+        let trustedTypesDescriptor = Object.getOwnPropertyDescriptor(window, 'trustedTypes');
+
+        // Reset policy to ensure we don't use a cached version
+        resetPolicy();
+
+        Object.defineProperty(window, 'trustedTypes', {
+          value: { createPolicy },
+          configurable: true
+        });
+
+        try {
+          let result = serializeDOM();
+          expect(createPolicy).toHaveBeenCalled();
+          expect(result.html).toBeTruthy();
+        } finally {
+          if (trustedTypesDescriptor) {
+            Object.defineProperty(window, 'trustedTypes', trustedTypesDescriptor);
+          } else {
+            delete window.trustedTypes;
+          }
+        }
+      });
+
+      it('handles setAttribute throwing an error when setting srcdoc', async () => {
+        await getFrame('frame-input');
+        let originalSetAttribute = window.HTMLIFrameElement.prototype.setAttribute;
+        let setAttributeCalled = false;
+
+        spyOn(window.HTMLIFrameElement.prototype, 'setAttribute').and.callFake(function(name, value) {
+          if (name === 'srcdoc') {
+            setAttributeCalled = true;
+            throw new Error('setAttribute not allowed');
+          }
+          return originalSetAttribute.call(this, name, value);
+        });
+
+        try {
+          let result = serializeDOM();
+          expect(setAttributeCalled).toBe(true);
+          expect(result.html).toBeTruthy();
+          expect(result.html).toContain('frame-input');
+        } finally {
+          window.HTMLIFrameElement.prototype.setAttribute = originalSetAttribute;
+        }
+      });
+
+      it('handles missing trustedTypes gracefully', () => {
+        let trustedTypesDescriptor = Object.getOwnPropertyDescriptor(window, 'trustedTypes');
+
+        // Reset policy to ensure we don't use a cached version
+        resetPolicy();
+
+        // Remove trustedTypes entirely
+        delete window.trustedTypes;
+
+        try {
+          let result = serializeDOM();
+          expect(result.html).toBeTruthy();
+        } finally {
+          if (trustedTypesDescriptor) {
+            Object.defineProperty(window, 'trustedTypes', trustedTypesDescriptor);
+          }
+        }
+      });
+
+      it('handles trustedTypes without createPolicy method', () => {
+        let trustedTypesDescriptor = Object.getOwnPropertyDescriptor(window, 'trustedTypes');
+
+        // Reset policy to ensure we don't use a cached version
+        resetPolicy();
+
+        Object.defineProperty(window, 'trustedTypes', {
+          value: {}, // trustedTypes exists but without createPolicy
+          configurable: true
+        });
+
+        try {
+          let result = serializeDOM();
+          expect(result.html).toBeTruthy();
         } finally {
           if (trustedTypesDescriptor) {
             Object.defineProperty(window, 'trustedTypes', trustedTypesDescriptor);
