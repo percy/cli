@@ -146,6 +146,61 @@ describe('serializeFrames', () => {
       expect($('#frame-js')[0].getAttribute('srcdoc')).toBeNull();
       expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toBeNull();
     });
+    it(`${platform}: adds a warning and catches error when baseURI is unparseable`, async () => {
+      // 1. Inject an iframe with a very specific, unique <base> tag.
+      // This guarantees both the original AND the clone will share this exact baseURI string.
+      let $frameInvalid = document.createElement('iframe');
+      $frameInvalid.id = 'frame-warning-test';
+      $frameInvalid.srcdoc = `
+        <html>
+          <head><base href="http://mock-invalid-base.com/"></head>
+          <body><p>Test</p></body>
+        </html>
+      `;
+      document.getElementById('test').appendChild($frameInvalid);
+
+      // 2. Wait for iframe to load to bypass early exit checks
+      await getFrame('frame-warning-test', document);
+
+      // 3. Capture the exact resolved string (Chrome usually adds a trailing slash)
+      const targetBaseURI = $frameInvalid.contentDocument.baseURI;
+
+      // 4. Safely hijack the URL constructor
+      const RealURL = window.URL;
+      window.URL = function(url, base) {
+        // setBaseURI calls `new URL(dom.baseURI)` with NO base parameter.
+        // serializeDOM's internal resource parsers use `new URL(href, baseURI)` WITH a base parameter.
+        // We ONLY throw when called with exactly 1 argument matching our unique string.
+        if (url === targetBaseURI && base === undefined) {
+          throw new TypeError('Simulated invalid URL parsing error');
+        }
+        return base !== undefined ? new RealURL(url, base) : new RealURL(url);
+      };
+
+      // Keep static methods intact (like URL.createObjectURL) just in case
+      window.URL.prototype = RealURL.prototype;
+      Object.assign(window.URL, RealURL);
+
+      let result;
+      try {
+        // 5. Execute serialization
+        result = serializeDOM();
+      } finally {
+        // 6. ALWAYS restore the original URL constructor immediately
+        window.URL = RealURL;
+      }
+
+      // 7. Verify the catch block successfully logged the warning
+      expect(result.warnings).toContain(
+        `Could not parse baseURI for iframe: ${targetBaseURI}`
+      );
+
+      // 8. Verify the frame itself didn't cause a fatal crash and is present in output
+      let $parsed = parseDOM(result.html, platform);
+      expect($parsed('#frame-warning-test')).toBeDefined();
+
+      $frameInvalid.remove();
+    });
 
     it(`${platform}: does not crash when an iframe has an unparseable baseURI`, () => {
       // Simulate a transient/non-standard iframe baseURI (e.g. third-party widgets like Intercom)

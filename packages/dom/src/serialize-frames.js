@@ -30,8 +30,9 @@ function setBaseURI(dom, warnings) {
   try {
     parsedURL = new URL(dom.baseURI);
   } catch (e) {
+    warnings?.add(`Could not parse baseURI for iframe: ${dom.baseURI}`);
     /* istanbul ignore next */
-    if (warnings) warnings.add(`Could not parse baseURI for iframe: ${dom.baseURI}`);
+    return;
   }
 
   if (!parsedURL?.hostname) return;
