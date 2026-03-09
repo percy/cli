@@ -35,7 +35,7 @@ function setBaseURI(dom, warnings) {
   }
 
   /* istanbul ignore if: sanity check */
-  if (!parsedURL.hostname) return;
+  if (!parsedURL?.hostname) return;
 
   let $base = document.createElement('base');
   $base.href = dom.baseURI;
