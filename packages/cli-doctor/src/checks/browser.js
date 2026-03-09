@@ -383,6 +383,10 @@ async function _doCapture(chromePath, targetUrl, opts = {}) {
     'about:blank'
   ].filter(Boolean);
 
+  // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
+  // chromePath has already been validated and sanitized by sanitizeExecutablePath()
+  // (rejects shell metacharacters, requires an absolute path). shell: false ensures
+  // no shell expansion occurs. This tool runs inside the customer's own CI environment.
   const proc = spawn(chromePath, chromeArgs, {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,

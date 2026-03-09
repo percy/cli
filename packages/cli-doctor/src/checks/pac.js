@@ -97,6 +97,9 @@ function macOSPacUrls() {
   }
 
   // Also check system configuration plist
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+  // os.homedir() is controlled by the process owner running percy-doctor in their
+  // own CI environment — this is not a network-accessible code path.
   const plistPaths = [
     '/Library/Preferences/SystemConfiguration/preferences.plist',
     path.join(os.homedir(), 'Library/Preferences/com.apple.systempreferences.plist')
