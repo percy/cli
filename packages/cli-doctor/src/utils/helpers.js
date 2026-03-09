@@ -174,7 +174,7 @@ export async function runPACCheck(ctx) {
  * If --proxy-server was supplied, runs the capture twice and compares.
  */
 export async function runBrowserCheck(ctx) {
-  const { log, report, targetUrl, proxyUrl, timeout } = ctx;
+  const { log, report, targetUrl, proxyUrl, timeout, _chromePath } = ctx;
 
   print(log, sectionHeader('Browser Network Analysis'));
   if (proxyUrl) {
@@ -189,7 +189,8 @@ export async function runBrowserCheck(ctx) {
       targetUrl,
       proxyUrl,
       timeout: Math.max(timeout, 30000), // browsers need more time
-      headless: true
+      headless: true,
+      _chromePath // undefined = auto-detect; null = force skip (test override)
     });
 
     if (!browserResult.chromePath) {
@@ -238,9 +239,9 @@ export async function runBrowserCheck(ctx) {
  * @param {string}  [options.targetUrl]  - URL to open in Chrome (default: https://percy.io)
  * @returns {Promise<{ checks: object, hasFail: boolean, hasWarn: boolean }>}
  */
-export async function runDiagnostics({ log, proxyUrl, timeout = 10000, targetUrl = 'https://percy.io' } = {}) {
+export async function runDiagnostics({ log, proxyUrl, timeout = 10000, targetUrl = 'https://percy.io', _chromePath } = {}) {
   const report = { checks: {} };
-  const ctx = { log, report, proxyUrl, timeout, targetUrl };
+  const ctx = { log, report, proxyUrl, timeout, targetUrl, _chromePath };
   await runConnectivityAndSSL(ctx);
   await runProxyCheck(ctx);
   await runPACCheck(ctx);

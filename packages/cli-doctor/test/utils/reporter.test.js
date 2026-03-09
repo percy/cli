@@ -261,3 +261,63 @@ describe('print', () => {
     expect(written.length).toBe(0);
   });
 });
+
+// ─── useColor() branch: NO_COLOR env var ─────────────────────────────────────
+
+describe('reporter — NO_COLOR suppresses ANSI codes', () => {
+  const origNoColor = process.env.NO_COLOR;
+  const origIsTTY = process.stdout.isTTY;
+
+  afterAll(() => {
+    // restore
+    if (origNoColor === undefined) delete process.env.NO_COLOR;
+    else process.env.NO_COLOR = origNoColor;
+    Object.defineProperty(process.stdout, 'isTTY', { value: origIsTTY, configurable: true });
+  });
+
+  it('produces plain text (no ANSI codes) when NO_COLOR is set', () => {
+    // Force TTY on so useColor() would normally return true, then set NO_COLOR
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
+    process.env.NO_COLOR = '1';
+    const line = checkLine('pass', 'everything fine');
+    // eslint-disable-next-line no-control-regex
+    expect(line).not.toMatch(/\u001b\[/);
+    expect(line).toContain('everything fine');
+  });
+
+  it('produces plain text when stdout is not a TTY', () => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: false, configurable: true });
+    delete process.env.NO_COLOR;
+    const line = checkLine('fail', 'something broke');
+    // eslint-disable-next-line no-control-regex
+    expect(line).not.toMatch(/\u001b\[/);
+    expect(line).toContain('something broke');
+  });
+
+  it('sectionHeader produces plain text under NO_COLOR', () => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
+    process.env.NO_COLOR = '1';
+    const header = sectionHeader('My Section');
+    // eslint-disable-next-line no-control-regex
+    expect(header).not.toMatch(/\u001b\[/);
+    expect(header).toContain('My Section');
+  });
+
+  it('suggestionList produces plain text under NO_COLOR', () => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
+    process.env.NO_COLOR = '1';
+    const out = suggestionList(['do this']);
+    // eslint-disable-next-line no-control-regex
+    expect(out).not.toMatch(/\u001b\[/);
+    expect(out).toContain('do this');
+  });
+
+  it('summaryBanner produces plain text under NO_COLOR', () => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
+    process.env.NO_COLOR = '1';
+    const banner = summaryBanner(3, 0, 0);
+    // eslint-disable-next-line no-control-regex
+    expect(banner).not.toMatch(/\u001b\[/);
+    expect(banner).toContain('3');
+  });
+});

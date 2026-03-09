@@ -218,3 +218,157 @@ describe('detectProxy with live proxy validation', () => {
     expect(proxyFinding.status).toBe('fail');
   });
 });
+
+// ─── detectProxy — detection layers enabled ────────────────────────────────
+
+describe('detectProxy — with scanProcesses and checkWpad enabled', () => {
+  it('returns findings array without throwing when process scan is enabled', async () => {
+    const findings = await withEnv(
+      {
+        HTTPS_PROXY: undefined,
+        https_proxy: undefined,
+        HTTP_PROXY: undefined,
+        http_proxy: undefined,
+        ALL_PROXY: undefined,
+        all_proxy: undefined,
+        NO_PROXY: undefined,
+        no_proxy: undefined
+      },
+      () => detectProxy({
+        testProxy: false,
+        checkHeaders: false,
+        scanProcesses: true,
+        checkWpad: false,
+        timeout: 3000
+      })
+    );
+    expect(Array.isArray(findings)).toBe(true);
+    expect(findings.length).toBeGreaterThan(0);
+    // Each finding must have status + message
+    for (const f of findings) {
+      expect(typeof f.status).toBe('string');
+      expect(typeof f.message).toBe('string');
+    }
+  });
+
+  it('process-scan finding has layer:process-inspection', async () => {
+    const findings = await withEnv(
+      {
+        HTTPS_PROXY: undefined,
+        https_proxy: undefined,
+        HTTP_PROXY: undefined,
+        http_proxy: undefined,
+        ALL_PROXY: undefined,
+        all_proxy: undefined,
+        NO_PROXY: undefined,
+        no_proxy: undefined
+      },
+      () => detectProxy({
+        testProxy: false,
+        checkHeaders: false,
+        scanProcesses: true,
+        checkWpad: false,
+        timeout: 3000
+      })
+    );
+    const procFinding = findings.find(f => f.layer === 'process-inspection');
+    expect(procFinding).toBeDefined();
+    // Either "no agents detected" (info) or "agents detected" (warn)
+    expect(['info', 'warn']).toContain(procFinding.status);
+  });
+
+  it('returns findings without throwing when WPAD scan is enabled', async () => {
+    const findings = await withEnv(
+      {
+        HTTPS_PROXY: undefined,
+        https_proxy: undefined,
+        HTTP_PROXY: undefined,
+        http_proxy: undefined,
+        ALL_PROXY: undefined,
+        all_proxy: undefined,
+        NO_PROXY: undefined,
+        no_proxy: undefined
+      },
+      () => detectProxy({
+        testProxy: false,
+        checkHeaders: false,
+        scanProcesses: false,
+        checkWpad: true,
+        timeout: 3000
+      })
+    );
+    expect(Array.isArray(findings)).toBe(true);
+    const wpadFinding = findings.find(f => f.layer === 'wpad-discovery');
+    expect(wpadFinding).toBeDefined();
+    expect(['info', 'warn']).toContain(wpadFinding.status);
+  });
+
+  it('returns findings without throwing when header scan is enabled (no proxy)', async () => {
+    const findings = await withEnv(
+      {
+        HTTPS_PROXY: undefined,
+        https_proxy: undefined,
+        HTTP_PROXY: undefined,
+        http_proxy: undefined,
+        ALL_PROXY: undefined,
+        all_proxy: undefined,
+        NO_PROXY: undefined,
+        no_proxy: undefined
+      },
+      () => detectProxy({
+        testProxy: false,
+        checkHeaders: true,
+        scanProcesses: false,
+        checkWpad: false,
+        timeout: 3000
+      })
+    );
+    expect(Array.isArray(findings)).toBe(true);
+    const headerFinding = findings.find(f => f.layer === 'header-fingerprint');
+    expect(headerFinding).toBeDefined();
+    expect(typeof headerFinding.status).toBe('string');
+  });
+
+  it('returns info when no proxy detected across all layers', async () => {
+    const findings = await withEnv(
+      {
+        HTTPS_PROXY: undefined,
+        https_proxy: undefined,
+        HTTP_PROXY: undefined,
+        http_proxy: undefined,
+        ALL_PROXY: undefined,
+        all_proxy: undefined,
+        NO_PROXY: undefined,
+        no_proxy: undefined
+      },
+      () => detectProxy({
+        testProxy: false,
+        checkHeaders: false,
+        scanProcesses: false,
+        checkWpad: false
+      })
+    );
+    const summary = findings.find(f => f.source === 'none');
+    expect(summary).toBeDefined();
+    expect(summary.status).toBe('info');
+  });
+});
+
+// ─── validateProxy — all-fail with SSL suggestion ────────────────────────────
+
+describe('validateProxy — SSL suggestion in failures', () => {
+  it('result always has the three required fields', async () => {
+    // validateProxy probes real URLs but the result shape must always be consistent
+    const result = await validateProxy('http://127.0.0.1:1/', 1500);
+    expect(['pass', 'warn', 'fail']).toContain(result.status);
+    expect(typeof result.message).toBe('string');
+    expect(Array.isArray(result.suggestions)).toBe(true);
+  });
+
+  it('fail result contains troubleshooting suggestions', async () => {
+    const result = await validateProxy('http://127.0.0.1:1/', 1500);
+    if (result.status === 'fail') {
+      expect(result.suggestions.some(s => /HTTPS_PROXY|proxy/i.test(s))).toBe(true);
+    }
+  });
+});

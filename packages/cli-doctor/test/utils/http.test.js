@@ -247,3 +247,39 @@ describe('probeUrl — HTTP target via proxy', () => {
     expect(r.errorCode).toBe('ECONNREFUSED');
   });
 });
+
+// ─── probeUrl — HTTPS via CONNECT proxy (path A): timeout ────────────────────
+
+describe('probeUrl — HTTPS via CONNECT proxy timeout', () => {
+  it('returns ETIMEDOUT when proxy accepts TCP but never sends CONNECT response', async () => {
+    // Proxy that accepts the connection but never writes back anything
+    // → the setTimeout inside path (A) fires → ETIMEDOUT
+    const { createServer } = await import('net');
+    let hangClose;
+    const hangProxy = await new Promise(res => {
+      const sockets = new Set();
+      const srv = createServer(s => {
+        sockets.add(s);
+        s.once('close', () => sockets.delete(s));
+        // Accept the socket but never respond
+        s.on('error', () => {});
+      });
+      srv.listen(0, '127.0.0.1', () => {
+        const { port } = srv.address();
+        hangClose = () => new Promise(r => { sockets.forEach(s => s.destroy()); srv.close(r); });
+        res({ url: `http://127.0.0.1:${port}` });
+      });
+    });
+
+    try {
+      const result = await probeUrl('https://percy.io/', {
+        proxyUrl: hangProxy.url,
+        timeout: 600
+      });
+      expect(result.ok).toBe(false);
+      expect(result.errorCode).toMatch(/ETIMEDOUT|ECONNRESET/);
+    } finally {
+      await hangClose();
+    }
+  });
+});

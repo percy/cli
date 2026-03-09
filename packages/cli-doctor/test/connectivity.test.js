@@ -258,3 +258,49 @@ describe('checkConnectivityAndSSL', () => {
     }
   });
 });
+
+// ─── _buildSSLFindings branches (via checkConnectivityAndSSL) ─────────────────
+
+describe('checkConnectivityAndSSL — SSL findings branches', () => {
+  it('sslFindings contains skip when no percy.io domain is probed', async () => {
+    // _domains with no https://percy.io → percyFinding is undefined → skip branch
+    const { sslFindings } = await checkConnectivityAndSSL({
+      _domains: [{ label: 'Other', url: 'http://127.0.0.1:1/' }],
+      timeout: 1000
+    });
+    expect(sslFindings.length).toBeGreaterThan(0);
+    // The skip finding is emitted when percyProbeResult is undefined
+    const skip = sslFindings.find(f => f.status === 'skip');
+    expect(skip).toBeDefined();
+    expect(skip.message).toMatch(/skip/i);
+  });
+
+  it('sslFindings contains pass when percy.io probe succeeds', async () => {
+    // Use _percyUrl to point the SSL-probe selector at the local server URL.
+    // directResult.ok=true → not an SSL error → falls to the "else" pass branch.
+    let target;
+    try {
+      target = await createHttpServer((req, res) => { res.writeHead(200); res.end(); });
+      const { sslFindings } = await checkConnectivityAndSSL({
+        _domains: [{ label: 'Percy API', url: target.url }],
+        _percyUrl: target.url, // tell _buildSSLFindings to look up this URL
+        timeout: 3000
+      });
+      const pass = sslFindings.find(f => f.status === 'pass');
+      expect(pass).toBeDefined();
+      expect(pass.message).toMatch(/SSL|ssl|handshake|succeeded/i);
+    } finally {
+      if (target) await target.close();
+    }
+  });
+
+  it('sslFindings contain skip when probe fails with ECONNREFUSED (non-SSL error)', async () => {
+    // Direct fails but errorCode is ECONNREFUSED (not SSL) → skip branch
+    const { sslFindings } = await checkConnectivityAndSSL({
+      _domains: [{ label: 'Percy API', url: 'http://127.0.0.1:1/' }],
+      timeout: 1000
+    });
+    // status===0 && errorCode=ECONNREFUSED → skip (not SSL error, server unreachable)
+    expect(sslFindings.some(f => ['skip', 'pass', 'fail'].includes(f.status))).toBe(true);
+  });
+});

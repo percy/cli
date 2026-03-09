@@ -297,3 +297,118 @@ describe('detectPAC — PERCY_PAC_FILE_URL env var', () => {
     expect(pacFinding.suggestions.some(s => s.includes('PERCY_PAC_FILE_URL'))).toBe(true);
   });
 });
+
+// ─── detectPAC — PAC result without "PROXY" keyword (else-branch) ─────────────
+
+describe('detectPAC — non-PROXY result without keyword', () => {
+  it('shows PAC_FILE_URL-only suggestion when result contains no PROXY keyword', async () => {
+    // PAC script returns a custom string that is not DIRECT and not "PROXY host:port"
+    // This hits the else-branch inside evaluatePac (proxyMatch === null)
+    const customPacScript = 'function FindProxyForURL(url, host) { return "SOCKS 127.0.0.1:1080"; }';
+    const pacServer = await createPacServer(customPacScript);
+    try {
+      const findings = await withEnv(
+        { PERCY_PAC_FILE_URL: `${pacServer.url}/proxy.pac` },
+        () => detectPAC()
+      );
+      const pacFinding = findings.find(f => f.pacUrl === `${pacServer.url}/proxy.pac`);
+      expect(pacFinding).toBeDefined();
+      expect(pacFinding.status).toBe('warn'); // non-DIRECT
+      // No PROXY match → suggestions should only include PERCY_PAC_FILE_URL, not HTTPS_PROXY
+      expect(pacFinding.detectedProxyUrl).toBeUndefined();
+      expect(pacFinding.suggestions.some(s => /PERCY_PAC_FILE_URL/i.test(s))).toBe(true);
+    } finally {
+      await pacServer.close();
+    }
+  });
+});
+
+// ─── detectPAC — PAC evaluation failure (invalid script) ─────────────────────
+
+describe('detectPAC — PAC evaluation failure', () => {
+  it('returns warn when the fetched PAC script is invalid JavaScript', async () => {
+    // Serve an invalid PAC script → runPacScript throws → evaluatePac returns warn
+    const brokenPacServer = await createPacServer('this is not valid js {{{');
+    try {
+      const findings = await withEnv(
+        { PERCY_PAC_FILE_URL: `${brokenPacServer.url}/proxy.pac` },
+        () => detectPAC()
+      );
+      const pacFinding = findings.find(f => f.pacUrl === `${brokenPacServer.url}/proxy.pac`);
+      expect(pacFinding).toBeDefined();
+      expect(pacFinding.status).toBe('warn');
+      expect(pacFinding.message).toMatch(/evaluat|PAC/i);
+    } finally {
+      await brokenPacServer.close();
+    }
+  });
+});
+
+// ─── runPacScript — remaining PAC helper shims ───────────────────────────────
+
+describe('runPacScript — remaining PAC helper shims', () => {
+  it('localHostOrDomainIs matches same host', () => {
+    const script = `
+      function FindProxyForURL(url, host) {
+        return localHostOrDomainIs(host, "www.percy.io") ? "PROXY corp:8080" : "DIRECT";
+      }
+    `;
+    expect(runPacScript(script, 'https://www.percy.io/', 'www')).toBe('PROXY corp:8080');
+    expect(runPacScript(script, 'https://other.io/', 'other')).toBe('DIRECT');
+  });
+
+  it('isResolvable always returns true (shim)', () => {
+    const script = `
+      function FindProxyForURL(url, host) {
+        return isResolvable(host) ? "PROXY ok:8080" : "DIRECT";
+      }
+    `;
+    expect(runPacScript(script, 'https://percy.io/', 'percy.io')).toBe('PROXY ok:8080');
+  });
+
+  it('isInNet always returns false (shim)', () => {
+    const script = `
+      function FindProxyForURL(url, host) {
+        return isInNet(myIpAddress(), "10.0.0.0", "255.0.0.0") ? "PROXY intranet:8080" : "DIRECT";
+      }
+    `;
+    expect(runPacScript(script, 'https://percy.io/', 'percy.io')).toBe('DIRECT');
+  });
+
+  it('dnsResolve returns the host as-is (shim)', () => {
+    const script = `
+      function FindProxyForURL(url, host) {
+        return dnsResolve(host) === host ? "PROXY shim:8080" : "DIRECT";
+      }
+    `;
+    expect(runPacScript(script, 'https://percy.io/', 'percy.io')).toBe('PROXY shim:8080');
+  });
+
+  it('weekdayRange / dateRange / timeRange return true (shims)', () => {
+    const script = `
+      function FindProxyForURL(url, host) {
+        if (weekdayRange("MON","FRI") && dateRange(1,31) && timeRange(0,23)) return "PROXY time:8080";
+        return "DIRECT";
+      }
+    `;
+    expect(runPacScript(script, 'https://percy.io/', 'percy.io')).toBe('PROXY time:8080');
+  });
+
+  it('myIpAddress returns 127.0.0.1', () => {
+    const script = `
+      function FindProxyForURL(url, host) {
+        return myIpAddress() === "127.0.0.1" ? "PROXY local:8080" : "DIRECT";
+      }
+    `;
+    expect(runPacScript(script, 'https://percy.io/', 'percy.io')).toBe('PROXY local:8080');
+  });
+
+  it('shExpMatch returns false for invalid input types', () => {
+    const script = `
+      function FindProxyForURL(url, host) {
+        return shExpMatch(null, "*.io") ? "PROXY x:1" : "DIRECT";
+      }
+    `;
+    expect(runPacScript(script, 'https://percy.io/', 'percy.io')).toBe('DIRECT');
+  });
+});
