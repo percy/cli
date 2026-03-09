@@ -35,6 +35,11 @@ export async function detectPAC() {
   const findings = [];
   const discovered = []; // { url, source }
 
+  // ── Env var override (highest priority, also used in CI) ─────────────────
+  if (process.env.PERCY_PAC_FILE_URL) {
+    discovered.push({ url: process.env.PERCY_PAC_FILE_URL, source: 'env:PERCY_PAC_FILE_URL' });
+  }
+
   // ── System-level detection ────────────────────────────────────────────────
   const platform = os.platform();
   if (platform === 'darwin') discovered.push(...macOSPacUrls());
@@ -357,7 +362,7 @@ async function fetchText(url) {
  * Provides minimal shims for the standard PAC helper functions.
  * Returns the string result of FindProxyForURL(url, host).
  */
-function runPacScript(script, url, host) {
+export function runPacScript(script, url, host) {
   const sandbox = {
     // ── Standard PAC helper shims ─────────────────────────────────────────
     isPlainHostName: h => !h.includes('.'),

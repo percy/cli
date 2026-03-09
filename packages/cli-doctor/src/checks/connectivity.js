@@ -29,9 +29,9 @@ export const REQUIRED_DOMAINS = [
  * @returns {Promise<{ connectivityFindings: Array, sslFindings: Array }>}
  */
 export async function checkConnectivityAndSSL(options = {}) {
-  const { proxyUrl, timeout = 10000 } = options;
+  const { proxyUrl, timeout = 10000, _domains = REQUIRED_DOMAINS } = options;
 
-  const rawFindings = await Promise.all(REQUIRED_DOMAINS.map(async ({ label, url, optional, onFail }) => {
+  const rawFindings = await Promise.all(_domains.map(async ({ label, url, optional, onFail }) => {
     const finding = await _probeTarget(label, url, proxyUrl, timeout);
     if (optional && finding.status === 'fail') {
       finding.status = 'warn';

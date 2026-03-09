@@ -424,7 +424,7 @@ async function detectWpad() {
 
 // ─── Proxy validation ─────────────────────────────────────────────────────────
 
-async function validateProxy(proxyUrl, timeout) {
+export async function validateProxy(proxyUrl, timeout) {
   const TEST_URLS = ['https://percy.io', 'https://www.browserstack.com'];
   const results = await Promise.all(
     TEST_URLS.map(u => probeUrl(u, { proxyUrl, timeout }))

@@ -1,0 +1,263 @@
+/**
+ * Tests for packages/cli-doctor/src/utils/reporter.js
+ *
+ * All functions are pure (no I/O, no side-effects on external state), so every
+ * branch can be exercised synchronously without any server setup.
+ */
+
+import {
+  sectionHeader,
+  checkLine,
+  suggestionList,
+  summaryBanner,
+  renderFindings,
+  sectionStatus,
+  print
+} from '../../src/utils/reporter.js';
+
+// Strip ANSI colour escapes so plain-text assertions work across all describe blocks
+// eslint-disable-next-line no-control-regex -- \u001b is an intentional ANSI sentinel
+function strip(s) { return s.replace(/\u001b\[[0-9;]*m/g, ''); }
+
+// ─── sectionHeader ────────────────────────────────────────────────────────────
+
+describe('sectionHeader', () => {
+  it('includes the title text', () => {
+    expect(sectionHeader('Network Connectivity')).toContain('Network Connectivity');
+  });
+
+  it('starts with a newline for visual separation', () => {
+    expect(sectionHeader('Test')).toMatch(/^\n/);
+  });
+
+  it('includes the ── separator', () => {
+    expect(sectionHeader('Test')).toContain('──');
+  });
+});
+
+// ─── checkLine ────────────────────────────────────────────────────────────────
+
+describe('checkLine', () => {
+  it('includes the message for every status', () => {
+    for (const status of ['pass', 'warn', 'fail', 'info', 'skip']) {
+      expect(strip(checkLine(status, 'hello'))).toContain('hello');
+    }
+  });
+
+  it('includes pass icon for pass status', () => {
+    expect(strip(checkLine('pass', 'ok'))).toContain('✔');
+  });
+
+  it('includes warn icon for warn status', () => {
+    expect(strip(checkLine('warn', 'watch out'))).toContain('⚠');
+  });
+
+  it('includes fail icon for fail status', () => {
+    expect(strip(checkLine('fail', 'broken'))).toContain('✖');
+  });
+
+  it('includes info icon for info status', () => {
+    expect(strip(checkLine('info', 'note'))).toContain('ℹ');
+  });
+
+  it('includes skip icon for skip status', () => {
+    expect(strip(checkLine('skip', 'skipped'))).toContain('–');
+  });
+
+  it('falls back to info icon for unknown status', () => {
+    expect(strip(checkLine('unknown', 'msg'))).toContain('ℹ');
+  });
+
+  it('appends detail on a second indented line when provided', () => {
+    const line = strip(checkLine('pass', 'main', 'extra detail'));
+    expect(line).toContain('main');
+    expect(line).toContain('extra detail');
+    expect(line).toContain('\n');
+  });
+
+  it('does not add a newline when detail is omitted', () => {
+    expect(checkLine('pass', 'no detail')).not.toContain('\n');
+  });
+});
+
+// ─── suggestionList ───────────────────────────────────────────────────────────
+
+describe('suggestionList', () => {
+  it('returns empty string for empty array', () => {
+    expect(suggestionList([])).toBe('');
+  });
+
+  it('returns empty string for undefined', () => {
+    expect(suggestionList(undefined)).toBe('');
+  });
+
+  it('returns empty string for null', () => {
+    expect(suggestionList(null)).toBe('');
+  });
+
+  it('includes each suggestion in the output', () => {
+    const out = strip(suggestionList(['do this', 'do that']));
+    expect(out).toContain('do this');
+    expect(out).toContain('do that');
+  });
+
+  it('includes the arrow indicator (→) for each suggestion', () => {
+    const out = strip(suggestionList(['fix me']));
+    expect(out).toContain('→');
+  });
+
+  it('joins multiple suggestions with newlines', () => {
+    const out = suggestionList(['a', 'b', 'c']);
+    const lines = out.split('\n').filter(Boolean);
+    expect(lines.length).toBe(3);
+  });
+});
+
+// ─── summaryBanner ────────────────────────────────────────────────────────────
+
+describe('summaryBanner', () => {
+  it('shows "All X checks passed" when no failures or warnings', () => {
+    expect(strip(summaryBanner(5, 0, 0))).toContain('All 5 checks passed');
+  });
+
+  it('shows warning count when only warnings are present', () => {
+    const out = strip(summaryBanner(3, 2, 0));
+    expect(out).toContain('2 warning');
+  });
+
+  it('shows failure count when there are failures', () => {
+    const out = strip(summaryBanner(1, 1, 2));
+    expect(out).toContain('2 check(s) failed');
+  });
+
+  it('failure banner takes priority over warnings', () => {
+    const out = strip(summaryBanner(0, 3, 1));
+    expect(out).toContain('1 check(s) failed');
+    expect(out).not.toContain('All');
+  });
+
+  it('includes total count in passed+warned+failed banner', () => {
+    const out = strip(summaryBanner(2, 1, 1));
+    expect(out).toMatch(/4|total/i); // 2+1+1 = 4 total
+  });
+
+  it('ends with a newline', () => {
+    expect(summaryBanner(1, 0, 0)).toMatch(/\n$/);
+  });
+});
+
+// ─── sectionStatus ───────────────────────────────────────────────────────────
+
+describe('sectionStatus', () => {
+  it('returns "fail" when any finding is fail', () => {
+    expect(sectionStatus([
+      { status: 'pass' }, { status: 'fail' }, { status: 'warn' }
+    ])).toBe('fail');
+  });
+
+  it('fail takes priority over warn', () => {
+    expect(sectionStatus([{ status: 'warn' }, { status: 'fail' }])).toBe('fail');
+  });
+
+  it('returns "warn" when there are warns but no fails', () => {
+    expect(sectionStatus([{ status: 'pass' }, { status: 'warn' }])).toBe('warn');
+  });
+
+  it('returns "pass" when all findings are pass', () => {
+    expect(sectionStatus([{ status: 'pass' }, { status: 'pass' }])).toBe('pass');
+  });
+
+  it('returns "info" when all findings are info', () => {
+    expect(sectionStatus([{ status: 'info' }])).toBe('info');
+  });
+
+  it('returns "info" for an empty findings array', () => {
+    expect(sectionStatus([])).toBe('info');
+  });
+});
+
+// ─── renderFindings ───────────────────────────────────────────────────────────
+
+describe('renderFindings', () => {
+  let written;
+  let origWrite;
+
+  beforeEach(() => {
+    written = [];
+    origWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = (chunk) => { written.push(chunk); return true; };
+  });
+
+  afterEach(() => {
+    process.stdout.write = origWrite;
+  });
+
+  it('writes each finding message to stdout', () => {
+    renderFindings([
+      { status: 'pass', message: 'connected', suggestions: [] },
+      { status: 'fail', message: 'timeout', suggestions: [] }
+    ], null);
+    const out = written.join('');
+    expect(out).toContain('connected');
+    expect(out).toContain('timeout');
+  });
+
+  it('writes suggestions when present', () => {
+    renderFindings([
+      { status: 'warn', message: 'slow', suggestions: ['try this fix'] }
+    ], null);
+    expect(written.join('')).toContain('try this fix');
+  });
+
+  it('does not error on findings with no suggestions array', () => {
+    expect(() => renderFindings([{ status: 'info', message: 'note' }], null)).not.toThrow();
+  });
+
+  it('handles an empty findings array without writing anything', () => {
+    renderFindings([], null);
+    expect(written.length).toBe(0);
+  });
+
+  it('respects the indent option', () => {
+    renderFindings([{ status: 'pass', message: 'ok', suggestions: [] }], null, { indent: '  ' });
+    // The indent is prepended to the checkLine output
+    expect(written.join('')).toContain('ok');
+  });
+});
+
+// ─── print ────────────────────────────────────────────────────────────────────
+
+describe('print', () => {
+  let written;
+  let origWrite;
+
+  beforeEach(() => {
+    written = [];
+    origWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = (chunk) => { written.push(chunk); return true; };
+  });
+
+  afterEach(() => {
+    process.stdout.write = origWrite;
+  });
+
+  it('writes text followed by newline to stdout', () => {
+    print(null, 'hello world');
+    expect(written[0]).toBe('hello world\n');
+  });
+
+  it('does not write when text is empty string', () => {
+    print(null, '');
+    expect(written.length).toBe(0);
+  });
+
+  it('does not write when text is null', () => {
+    print(null, null);
+    expect(written.length).toBe(0);
+  });
+
+  it('does not write when text is undefined', () => {
+    print(null, undefined);
+    expect(written.length).toBe(0);
+  });
+});

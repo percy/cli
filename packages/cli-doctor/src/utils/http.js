@@ -156,7 +156,16 @@ function makeRequest(url, proxy, { timeout, method }) {
             ? { 'Proxy-Authorization': `Basic ${Buffer.from(`${proxy.username}:${proxy.password}`).toString('base64')}` }
             : {})
         }
-      }, (res) => resolveResponse(res, resolve));
+      }, (res) => {
+        if (res.statusCode === 407) {
+          res.resume();
+          return reject(Object.assign(
+            new Error('Proxy CONNECT failed: HTTP/1.1 407 Proxy Authentication Required'),
+            { code: 'EPROXY' }
+          ));
+        }
+        resolveResponse(res, resolve);
+      });
       req.on('timeout', () => { req.destroy(); reject(timeoutError('Request')); });
       req.on('error', reject);
       req.end();
@@ -198,7 +207,7 @@ export const SSL_ERROR_CODES = new Set([
 ]);
 
 export function isSslError(result) {
-  if (!result.errorCode) return false;
+  if (!result || !result.errorCode) return false;
   if (SSL_ERROR_CODES.has(result.errorCode)) return true;
   return result.errorCode.includes('CERT') || result.errorCode.includes('SSL');
 }

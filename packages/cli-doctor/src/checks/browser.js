@@ -15,7 +15,7 @@ import { URL } from 'url';
  * that Semgrep can statically confirm chromePath is clean before it reaches
  * the child-process call.
  */
-function sanitizeExecutablePath(p) {
+export function sanitizeExecutablePath(p) {
   if (!p || typeof p !== 'string') return null;
   // Reject anything containing shell metacharacters before resolving
   if (/[;&|`$<>\n\r"']/.test(p)) return null;
@@ -30,7 +30,7 @@ function sanitizeExecutablePath(p) {
  * falls back to `fallback` otherwise, preventing path-traversal via a
  * tampered PROGRAMFILES env var.
  */
-function safeEnvPath(val, fallback) {
+export function safeEnvPath(val, fallback) {
   if (!val || typeof val !== 'string') return fallback;
   const resolved = path.resolve(val);
   return path.isAbsolute(resolved) ? resolved : fallback;
@@ -519,11 +519,12 @@ export async function checkBrowserNetwork(options = {}) {
     targetUrl = 'https://percy.io',
     proxyUrl,
     timeout = 30000,
-    headless = true
+    headless = true,
+    _chromePath // test/CI override: undefined = auto-detect, null = force skip
   } = options;
 
   // ── 1. Find Chrome ─────────────────────────────────────────────────────────
-  const chromePath = await findChrome();
+  const chromePath = _chromePath !== undefined ? _chromePath : await findChrome();
 
   if (!chromePath) {
     return {
