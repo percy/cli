@@ -196,6 +196,41 @@ describe('serializeFrames', () => {
 
       $frameURLError.remove();
     });
+    it(`${platform}: returns early and does not prepend <base> if hostname is missing`, () => {
+      const RealURL = window.URL;
+      // We use a standard function to support "new URL()"
+      window.URL = function(url) {
+        this.hostname = '';
+        this.href = url;
+      };
+
+      try {
+        let $frame = document.createElement('iframe');
+        $frame.id = 'frame-no-hostname';
+        $frame.srcdoc = '<p>test</p>';
+        document.getElementById('test').appendChild($frame);
+
+        // Wait for frame to load
+        when(() => {
+          return $frame.contentDocument && $frame.contentWindow.performance.timing.loadEventEnd;
+        }, 5000);
+
+        Object.defineProperty($frame.contentDocument, 'baseURI', {
+          value: 'about:blank',
+          configurable: true
+        });
+
+        let result = serializeDOM();
+        let $parsed = parseDOM(result.html, platform);
+
+        // The frame should be serialized without a base tag since hostname is empty
+        expect($parsed('#frame-no-hostname')).toBeDefined();
+
+        $frame.remove();
+      } finally {
+        window.URL = RealURL;
+      }
+    });
 
     it(`${platform}: does not serialize iframes without document elements`, () => {
       expect($('#frame-empty')[0]).toBeDefined();
