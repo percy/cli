@@ -450,8 +450,17 @@ export const configSchema = {
       }
     }
   },
-  projectId: {
-    type: 'number'
+  project: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      id: {
+        type: 'number'
+      },
+      name: {
+        type: 'string'
+      }
+    }
   }
 };
 
@@ -666,6 +675,44 @@ export const snapshotSchema = {
               hints: {
                 type: 'array',
                 items: { type: 'string' }
+              },
+              corsIframes: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    frameUrl: {
+                      type: 'string',
+                      description: 'The URL of the cross-origin iframe'
+                    },
+                    iframeData: {
+                      type: 'object',
+                      additionalProperties: false,
+                      properties: {
+                        percyElementId: {
+                          type: 'string',
+                          description: 'Unique identifier for the iframe element in the DOM'
+                        }
+                      }
+                    },
+                    iframeSnapshot: {
+                      type: 'object',
+                      required: ['html'],
+                      additionalProperties: false,
+                      properties: {
+                        html: {
+                          type: 'string',
+                          description: 'Serialized HTML content of the iframe'
+                        },
+                        resources: {
+                          $ref: '/snapshot/dom#/properties/domSnapshot/oneOf/1/properties/resources',
+                          description: 'Resources discovered within the iframe'
+                        }
+                      }
+                    }
+                  }
+                }
               }
             }
           },
