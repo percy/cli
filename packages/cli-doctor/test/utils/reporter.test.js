@@ -323,6 +323,96 @@ describe('reporter — NO_COLOR suppresses ANSI codes', () => {
   });
 });
 
+// ─── reporter — ANSI color output (useColor = true, covers lines 5-10 true branches) ──────
+
+describe('reporter — ANSI color output (useColor=true)', () => {
+  let originalIsTTY;
+  let originalNoColor;
+
+  beforeEach(() => {
+    originalIsTTY = process.stdout.isTTY;
+    originalNoColor = process.env.NO_COLOR;
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
+    delete process.env.NO_COLOR;
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: originalIsTTY, configurable: true });
+    if (originalNoColor === undefined) delete process.env.NO_COLOR;
+    else process.env.NO_COLOR = originalNoColor;
+  });
+
+  it('checkLine pass produces ANSI green codes (line 6 true branch)', () => {
+    const line = checkLine('pass', 'all good');
+    // eslint-disable-next-line no-control-regex
+    expect(line).toMatch(/\u001b\[/);
+    expect(line).toContain('all good');
+  });
+
+  it('checkLine warn produces ANSI yellow codes (line 7 true branch)', () => {
+    const line = checkLine('warn', 'watch out');
+    // eslint-disable-next-line no-control-regex
+    expect(line).toMatch(/\u001b\[/);
+    expect(line).toContain('watch out');
+  });
+
+  it('checkLine fail produces ANSI red codes (line 8 true branch)', () => {
+    const line = checkLine('fail', 'broken');
+    // eslint-disable-next-line no-control-regex
+    expect(line).toMatch(/\u001b\[/);
+    expect(line).toContain('broken');
+  });
+
+  it('checkLine info produces ANSI cyan codes (line 9 true branch)', () => {
+    const line = checkLine('info', 'note');
+    // eslint-disable-next-line no-control-regex
+    expect(line).toMatch(/\u001b\[/);
+    expect(line).toContain('note');
+  });
+
+  it('checkLine skip produces ANSI dim codes (line 10 true branch)', () => {
+    const line = checkLine('skip', 'skipped');
+    // eslint-disable-next-line no-control-regex
+    expect(line).toMatch(/\u001b\[/);
+    expect(line).toContain('skipped');
+  });
+
+  it('sectionHeader produces ANSI bold+cyan codes (lines 5+9 true branches)', () => {
+    const header = sectionHeader('My Section');
+    // eslint-disable-next-line no-control-regex
+    expect(header).toMatch(/\u001b\[/);
+    expect(header).toContain('My Section');
+  });
+
+  it('suggestionList produces ANSI yellow+cyan codes', () => {
+    const out = suggestionList(['fix this issue']);
+    // eslint-disable-next-line no-control-regex
+    expect(out).toMatch(/\u001b\[/);
+    expect(out).toContain('fix this issue');
+  });
+
+  it('summaryBanner pass path produces ANSI green+bold codes', () => {
+    const banner = summaryBanner(5, 0, 0);
+    // eslint-disable-next-line no-control-regex
+    expect(banner).toMatch(/\u001b\[/);
+    expect(banner).toContain('5');
+  });
+
+  it('summaryBanner warn path produces ANSI yellow+bold+dim codes', () => {
+    const banner = summaryBanner(3, 2, 0);
+    // eslint-disable-next-line no-control-regex
+    expect(banner).toMatch(/\u001b\[/);
+    expect(banner).toContain('2');
+  });
+
+  it('summaryBanner fail path produces ANSI red+bold+dim codes', () => {
+    const banner = summaryBanner(1, 1, 2);
+    // eslint-disable-next-line no-control-regex
+    expect(banner).toMatch(/\u001b\[/);
+    expect(banner).toContain('2');
+  });
+});
+
 // ─── useColor (line-level coverage for the const arrow fn) ───────────────────
 
 describe('useColor', () => {

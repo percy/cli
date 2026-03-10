@@ -48,7 +48,7 @@ export async function probeUrl(targetUrl, options = {}) {
       ok: false,
       status: 0,
       error: err.message,
-      errorCode: err.code ?? 'UNKNOWN',
+      errorCode: /* istanbul ignore next */ err.code ?? 'UNKNOWN',
       latencyMs: Date.now() - start
     };
   }

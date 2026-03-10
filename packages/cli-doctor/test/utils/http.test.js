@@ -412,6 +412,184 @@ describe('probeUrl — HTTPS proxy, no explicit port (path A proxyPort default)'
   });
 });
 
+// ─── probeUrl — path A: Proxy-Authorization header when credentials in proxy URL ──────────
+// Covers lines 96-98 TRUE branch: proxy.username ? `Proxy-Authorization: ...` : ''
+
+describe('probeUrl — HTTPS CONNECT with proxy credentials (path A proxy.username=true)', () => {
+  it('sends Proxy-Authorization header in CONNECT request when proxy URL has credentials', async () => {
+    // A hang server: accepts TCP but never sends CONNECT response
+    // With user:pass@ in proxy URL, proxy.username is truthy → authHeader TRUE branch fires
+    const { createServer } = await import('net');
+    let hangClose;
+    const hangProxy = await new Promise(resolve => {
+      const sockets = new Set();
+      const srv = createServer(s => {
+        sockets.add(s);
+        s.once('close', () => sockets.delete(s));
+        s.on('error', () => {});
+        // Accept but never respond
+      });
+      srv.listen(0, '127.0.0.1', () => {
+        const { port } = srv.address();
+        hangClose = () => new Promise(r => { sockets.forEach(s => s.destroy()); srv.close(r); });
+        resolve({ url: `http://127.0.0.1:${port}` });
+      });
+    });
+
+    try {
+      // Add credentials to proxy URL so proxy.username is truthy → line 97 (TRUE branch) fires
+      const proxyWithCreds = hangProxy.url.replace('http://', 'http://user:pass@');
+      const result = await probeUrl('https://example.com/', {
+        proxyUrl: proxyWithCreds,
+        timeout: 600
+      });
+      expect(result.ok).toBe(false);
+      expect(result.errorCode).toMatch(/ETIMEDOUT|ECONNRESET/);
+    } finally {
+      await hangClose();
+    }
+  });
+});
+
+// ─── probeUrl — path A: partial CONNECT response (line 109 TRUE branch: early return) ───────
+// Server sends a partial HTTP response without the final \r\n\r\n.
+// socket.on('data') fires, response += chunk, !response.includes('\r\n\r\n') → return early.
+
+describe('probeUrl — HTTPS CONNECT: partial CONNECT response (path A line 109 true branch)', () => {
+  it('handles partial CONNECT response and eventually times out', async () => {
+    const { createServer } = await import('net');
+    let partialClose;
+    const partialProxy = await new Promise(resolve => {
+      const sockets = new Set();
+      const srv = createServer(s => {
+        sockets.add(s);
+        s.once('close', () => sockets.delete(s));
+        s.on('error', () => {});
+        s.on('data', () => {
+          // Send incomplete CONNECT response — no \r\n\r\n — triggers early return at line 109
+          s.write('HTTP/1.1 200 Connec');
+          // Never send the rest
+        });
+      });
+      srv.listen(0, '127.0.0.1', () => {
+        const { port } = srv.address();
+        partialClose = () => new Promise(r => { sockets.forEach(s => s.destroy()); srv.close(r); });
+        resolve({ url: `http://127.0.0.1:${port}` });
+      });
+    });
+
+    try {
+      const result = await probeUrl('https://example.com/', {
+        proxyUrl: partialProxy.url,
+        timeout: 700
+      });
+      expect(result.ok).toBe(false);
+      expect(result.errorCode).toMatch(/ETIMEDOUT|ECONNRESET/);
+    } finally {
+      await partialClose();
+    }
+  });
+});
+
+// ─── probeUrl — path A: 200 CONNECT response then TLS fails (lines 108-121) ─────────────────
+// Server sends a proper 200 CONNECT response, covering the full data callback body.
+// After 200, client attempts TLS which fails because the server is not a real TLS endpoint.
+
+describe('probeUrl — HTTPS CONNECT: 200 response → TLS error (path A data callback body)', () => {
+  it('proceeds to TLS handshake after CONNECT 200 and fails with a TLS/connection error', async () => {
+    const { createServer } = await import('net');
+    let close200;
+    const connect200Proxy = await new Promise(resolve => {
+      const sockets = new Set();
+      const srv = createServer(s => {
+        sockets.add(s);
+        s.once('close', () => sockets.delete(s));
+        s.on('error', () => {});
+        let buf = '';
+        s.on('data', chunk => {
+          buf += chunk.toString();
+          if (buf.includes('\r\n\r\n')) {
+            // Send valid 200 CONNECT response, then close — TLS will error out
+            s.write('HTTP/1.1 200 Connection established\r\n\r\n');
+            s.end();
+          }
+        });
+      });
+      srv.listen(0, '127.0.0.1', () => {
+        const { port } = srv.address();
+        close200 = () => new Promise(r => { sockets.forEach(s => s.destroy()); srv.close(r); });
+        resolve({ url: `http://127.0.0.1:${port}` });
+      });
+    });
+
+    try {
+      const result = await probeUrl('https://example.com/', {
+        proxyUrl: connect200Proxy.url,
+        timeout: 3000
+      });
+      // TLS handshake fails (not a real TLS server)
+      expect(result.ok).toBe(false);
+      expect(typeof result.errorCode).toBe('string');
+    } finally {
+      await close200();
+    }
+  });
+});
+
+// ─── probeUrl — path A: 407 CONNECT response (line 114-118 TRUE branch) ──────────────────────
+// Server returns HTTP 407 to the CONNECT request → statusCode !== 200 → EPROXY error.
+
+describe('probeUrl — HTTPS CONNECT: 407 response (path A statusCode !== 200)', () => {
+  it('returns EPROXY when CONNECT proxy responds with 407', async () => {
+    const { createServer } = await import('net');
+    let close407;
+    const proxy407 = await new Promise(resolve => {
+      const sockets = new Set();
+      const srv = createServer(s => {
+        sockets.add(s);
+        s.once('close', () => sockets.delete(s));
+        s.on('error', () => {});
+        s.on('data', () => {
+          s.write('HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm="corp"\r\n\r\n');
+          s.end();
+        });
+      });
+      srv.listen(0, '127.0.0.1', () => {
+        const { port } = srv.address();
+        close407 = () => new Promise(r => { sockets.forEach(s => s.destroy()); srv.close(r); });
+        resolve({ url: `http://127.0.0.1:${port}` });
+      });
+    });
+
+    try {
+      const result = await probeUrl('https://example.com/', {
+        proxyUrl: proxy407.url,
+        timeout: 3000
+      });
+      expect(result.ok).toBe(false);
+      expect(result.errorCode).toBe('EPROXY');
+    } finally {
+      await close407();
+    }
+  });
+});
+
+// ─── probeUrl — path B: no-port HTTP proxy URL (line 146 || 8080 fallback) ───────────────────
+// When the HTTP proxy URL has no explicit port, parseInt('', 10) returns NaN → || 8080 fires.
+
+describe('probeUrl — HTTP proxy path (B): no explicit port falls back to 8080', () => {
+  it('uses port 8080 when HTTP proxy URL has no explicit port (covers line 146 || 8080)', async () => {
+    // http://127.0.0.1 (no port) → proxy.port = '' → parseInt('', 10) = NaN → 8080
+    // Nothing listens on :8080 → ECONNREFUSED, but the || 8080 branch is covered
+    const result = await probeUrl('http://example.com/path', {
+      proxyUrl: 'http://127.0.0.1', // no explicit port
+      timeout: 1000
+    });
+    expect(result.ok).toBe(false);
+    expect(typeof result.errorCode).toBe('string');
+  });
+});
+
 // ─── probeUrl — errorCode ?? 'UNKNOWN' fallback (line 51) ────────────────────
 // To get err.code === undefined we use a proxyUrl that successfully parses but
 // whose makeRequest() path will fail early enough to throw a codeless Error.

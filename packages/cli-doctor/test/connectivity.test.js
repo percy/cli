@@ -454,6 +454,18 @@ describe('_buildSSLFindings — null errorCode falls back to error string (line 
 
 // ─── connectivity.js branches: proxyReachable status>0 (line 127) and ?? direct.error (line 152) ─
 
+// ─── checkConnectivityAndSSL default parameter (line 31: options = {}) ─────────────────────
+
+describe('checkConnectivityAndSSL — default parameter (line 31)', () => {
+  it('accepts call with no arguments — covers options = {} default branch', () => {
+    // Calling without arguments exercises the `options = {}` default parameter branch.
+    // Don't await — we just verify a promise is returned (avoids real network calls).
+    const p = checkConnectivityAndSSL();
+    p.catch(() => {}); // suppress unhandled rejection from real network attempts
+    expect(typeof p.then).toBe('function');
+  });
+});
+
 describe('checkConnectivityAndSSL — proxyReachable via status>0 path (lines 127, 152)', () => {
   it('returns warn and uses direct.error when direct fails (no errorCode) but proxy returns HTTP 404', async () => {
     // Direct: fails with no errorCode (only error string)

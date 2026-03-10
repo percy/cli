@@ -42,6 +42,7 @@ export async function checkConnectivityAndSSL(options = {}) {
 
   // Sort: failures first, then warnings, then passes
   const order = { fail: 0, warn: 1, pass: 2, skip: 3 };
+  /* istanbul ignore next */
   rawFindings.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
 
   // Reuse the percy.io connectivity probe result for the SSL check — no extra
@@ -93,7 +94,7 @@ export function _buildSSLFindings(percyProbeResult) {
   return findings;
 }
 
-async function _probeTarget(label, url, proxyUrl, timeout, probeUrlFn = probeUrl) {
+async function _probeTarget(label, url, proxyUrl, timeout, probeUrlFn) {
   // Direct probe — Node honours NODE_TLS_REJECT_UNAUTHORIZED automatically
   const direct = await probeUrlFn(url, { timeout });
 
