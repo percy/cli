@@ -31,7 +31,7 @@ const PAC_TEST_HOST = 'percy.io';
  *
  * @returns {Promise<PacFinding[]>}
  */
-export async function detectPAC() {
+export async function detectPAC({ _homedirFn, _execSyncFn, _platform } = {}) {
   const findings = [];
   const discovered = []; // { url, source }
 
@@ -41,14 +41,14 @@ export async function detectPAC() {
   }
 
   // ── System-level detection ────────────────────────────────────────────────
-  const platform = os.platform();
-  if (platform === 'darwin') discovered.push(...macOSPacUrls());
-  else if (platform === 'linux') discovered.push(...linuxPacUrls());
+  const platform = _platform ?? os.platform();
+  if (platform === 'darwin') discovered.push(...macOSPacUrls(_execSyncFn));
+  else if (platform === 'linux') discovered.push(...linuxPacUrls(_execSyncFn));
   else if (platform === 'win32') discovered.push(...windowsPacUrls());
 
   // ── Browser-level detection ─────────────────────────────────────────
-  discovered.push(...chromePacUrls());
-  discovered.push(...firefoxPacUrls());
+  discovered.push(...chromePacUrls(_homedirFn, _platform));
+  discovered.push(...firefoxPacUrls(_homedirFn, _platform));
 
   if (discovered.length === 0) {
     findings.push({
@@ -73,14 +73,15 @@ export async function detectPAC() {
 
 // ─── macOS ────────────────────────────────────────────────────────────────────
 
-function macOSPacUrls() {
+function macOSPacUrls(_execSyncFn) {
   const urls = [];
+  const execSyncFn = _execSyncFn ?? execSync;
 
   // Try each common network interface
   const interfaces = ['Wi-Fi', 'Ethernet', 'en0', 'en1'];
   for (const iface of interfaces) {
     try {
-      const out = execSync(`networksetup -getautoproxyurl "${iface}" 2>/dev/null`, {
+      const out = execSyncFn(`networksetup -getautoproxyurl "${iface}" 2>/dev/null`, {
         timeout: 4000, encoding: 'utf8'
       });
       // Output: "URL: http://...\nEnabled: Yes"
@@ -108,7 +109,7 @@ function macOSPacUrls() {
     if (!fs.existsSync(p)) continue;
     try {
       // Use plutil to convert binary plist to JSON
-      const json = execSync(`plutil -convert json -o - "${p}" 2>/dev/null`, {
+      const json = execSyncFn(`plutil -convert json -o - "${p}" 2>/dev/null`, {
         timeout: 4000, encoding: 'utf8'
       });
       const data = JSON.parse(json);
@@ -122,16 +123,17 @@ function macOSPacUrls() {
 
 // ─── Linux ────────────────────────────────────────────────────────────────────
 
-function linuxPacUrls() {
+function linuxPacUrls(_execSyncFn) {
   const urls = [];
+  const execSyncFn = _execSyncFn ?? execSync;
 
   // GNOME gsettings
   try {
-    const mode = execSync('gsettings get org.gnome.system.proxy mode 2>/dev/null', {
+    const mode = execSyncFn('gsettings get org.gnome.system.proxy mode 2>/dev/null', {
       timeout: 3000, encoding: 'utf8'
     }).trim().replace(/'/g, '');
     if (mode === 'auto') {
-      const pacUrl = execSync('gsettings get org.gnome.system.proxy autoconfig-url 2>/dev/null', {
+      const pacUrl = execSyncFn('gsettings get org.gnome.system.proxy autoconfig-url 2>/dev/null', {
         timeout: 3000, encoding: 'utf8'
       }).trim().replace(/'/g, '');
       if (pacUrl && pacUrl !== "''") urls.push({ url: pacUrl, source: 'linux:gsettings' });
@@ -168,22 +170,23 @@ function windowsPacUrls() {
 
 // ─── Chrome / Chromium ────────────────────────────────────────────────────────
 
-function chromePacUrls() {
+function chromePacUrls(_homedirFn, _platform) {
   const urls = [];
-  const platform = os.platform();
+  const homedirFn = _homedirFn ?? os.homedir;
+  const platform = _platform ?? os.platform();
 
   const localStateLocations = {
     darwin: [
-      path.join(os.homedir(), 'Library/Application Support/Google/Chrome/Local State'),
-      path.join(os.homedir(), 'Library/Application Support/Chromium/Local State')
+      path.join(homedirFn(), 'Library/Application Support/Google/Chrome/Local State'),
+      path.join(homedirFn(), 'Library/Application Support/Chromium/Local State')
     ],
     linux: [
-      path.join(os.homedir(), '.config/google-chrome/Local State'),
-      path.join(os.homedir(), '.config/chromium/Local State')
+      path.join(homedirFn(), '.config/google-chrome/Local State'),
+      path.join(homedirFn(), '.config/chromium/Local State')
     ],
     win32: [
-      path.join(os.homedir(), 'AppData/Local/Google/Chrome/User Data/Local State'),
-      path.join(os.homedir(), 'AppData/Local/Chromium/User Data/Local State')
+      path.join(homedirFn(), 'AppData/Local/Google/Chrome/User Data/Local State'),
+      path.join(homedirFn(), 'AppData/Local/Chromium/User Data/Local State')
     ]
   }[platform] ?? [];
 
@@ -214,14 +217,15 @@ function chromePacUrls() {
 
 // ─── Firefox ──────────────────────────────────────────────────────────────────
 
-function firefoxPacUrls() {
+function firefoxPacUrls(_homedirFn, _platform) {
   const urls = [];
-  const platform = os.platform();
+  const homedirFn = _homedirFn ?? os.homedir;
+  const platform = _platform ?? os.platform();
 
   const profileDirs = {
-    darwin: path.join(os.homedir(), 'Library/Application Support/Firefox/Profiles'),
-    linux: path.join(os.homedir(), '.mozilla/firefox'),
-    win32: path.join(os.homedir(), 'AppData/Roaming/Mozilla/Firefox/Profiles')
+    darwin: path.join(homedirFn(), 'Library/Application Support/Firefox/Profiles'),
+    linux: path.join(homedirFn(), '.mozilla/firefox'),
+    win32: path.join(homedirFn(), 'AppData/Roaming/Mozilla/Firefox/Profiles')
   }[platform];
 
   if (!profileDirs || !fs.existsSync(profileDirs)) return urls;

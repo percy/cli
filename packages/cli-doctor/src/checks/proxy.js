@@ -72,7 +72,11 @@ export async function detectProxy(options = {}) {
     testProxy = true,
     checkHeaders = true,
     scanProcesses = true,
-    checkWpad = true
+    checkWpad = true,
+    _probeTargets,
+    _probeUrlFn,
+    _processList,
+    _dnsResolve
   } = options;
 
   const findings = [];
@@ -112,7 +116,7 @@ export async function detectProxy(options = {}) {
   }
 
   // ── Layer 3: Response-header fingerprinting ────────────────────────────────
-  const headerFindings = checkHeaders ? await detectViaHeaders(timeout) : [];
+  const headerFindings = checkHeaders ? await detectViaHeaders(timeout, _probeTargets, _probeUrlFn) : [];
   for (const hf of headerFindings) {
     findings.push(hf);
     if (hf.detectedProxyUrl) {
@@ -121,11 +125,11 @@ export async function detectProxy(options = {}) {
   }
 
   // ── Layer 4: Process inspection ───────────────────────────────────────────
-  const procFindings = scanProcesses ? await detectProxyProcesses() : [];
+  const procFindings = scanProcesses ? await detectProxyProcesses(_processList) : [];
   for (const pf of procFindings) findings.push(pf);
 
   // ── Layer 5: WPAD / DNS auto-discovery ────────────────────────────────────
-  const wpadFindings = checkWpad ? await detectWpad() : [];
+  const wpadFindings = checkWpad ? await detectWpad(_dnsResolve) : [];
   for (const wf of wpadFindings) findings.push(wf);
 
   // ── Emit findings for each discovered proxy URL ────────────────────────────
@@ -263,18 +267,19 @@ function detectWindowsProxy() {
 
 // ─── Layer 3: HTTP response-header fingerprinting ────────────────────────────
 
-async function detectViaHeaders(timeout) {
+async function detectViaHeaders(timeout, _probeTargets, _probeUrlFn) {
   // Probe a few endpoints and check response headers for proxy indicators
-  const PROBE_TARGETS = [
+  const PROBE_TARGETS = _probeTargets ?? [
     'https://percy.io',
     'http://httpbin.org/headers' // plain HTTP — proxy headers are more visible
   ];
+  const probeFn = _probeUrlFn ?? probeUrl;
 
   const findings = [];
 
   for (const target of PROBE_TARGETS) {
     try {
-      const result = await probeUrl(target, { timeout });
+      const result = await probeFn(target, { timeout });
       if (!result.responseHeaders) continue;
 
       const found = {};
@@ -331,20 +336,22 @@ async function detectViaHeaders(timeout) {
 
 // ─── Layer 4: Process inspection ─────────────────────────────────────────────
 
-async function detectProxyProcesses() {
+async function detectProxyProcesses(_processList) {
   const findings = [];
-  let processList = '';
+  let processList = _processList ?? '';
 
-  try {
-    const platform = os.platform();
-    if (platform === 'win32') {
-      const { stdout } = await exec('tasklist /fo csv /nh 2>nul', { timeout: 5000 });
-      processList = stdout.toLowerCase();
-    } else {
-      const { stdout } = await exec('ps aux 2>/dev/null || ps -ef 2>/dev/null', { timeout: 5000 });
-      processList = stdout.toLowerCase();
-    }
-  } catch { /* ignore */ }
+  if (_processList === undefined) {
+    try {
+      const platform = os.platform();
+      if (platform === 'win32') {
+        const { stdout } = await exec('tasklist /fo csv /nh 2>nul', { timeout: 5000 });
+        processList = stdout.toLowerCase();
+      } else {
+        const { stdout } = await exec('ps aux 2>/dev/null || ps -ef 2>/dev/null', { timeout: 5000 });
+        processList = stdout.toLowerCase();
+      }
+    } catch { /* ignore */ }
+  }
 
   const matched = PROXY_PROCESS_PATTERNS.filter(p => processList.includes(p.toLowerCase()));
 
@@ -374,8 +381,9 @@ async function detectProxyProcesses() {
 
 // ─── Layer 5: WPAD / DNS auto-discovery ──────────────────────────────────────
 
-async function detectWpad() {
+async function detectWpad(_dnsResolve) {
   const findings = [];
+  const dnsResolve4 = _dnsResolve ?? ((host, cb) => dns.resolve4(host, cb));
 
   const wpadHosts = ['wpad'];
   try {
@@ -387,7 +395,7 @@ async function detectWpad() {
   for (const wpadHost of wpadHosts) {
     try {
       const addresses = await new Promise((resolve, reject) => {
-        dns.resolve4(wpadHost, (err, addrs) => err ? reject(err) : resolve(addrs));
+        dnsResolve4(wpadHost, (err, addrs) => err ? reject(err) : resolve(addrs));
       });
 
       if (addresses.length > 0) {
