@@ -187,6 +187,60 @@ describe('serializeFrames', () => {
           }
         }
       });
+
+      it('handles srcdoc serialization without Trusted Types', () => {
+        let trustedTypesDescriptor = Object.getOwnPropertyDescriptor(window, 'trustedTypes');
+
+        // Reset policy to ensure we don't use a cached version from a previous test/environment
+        resetPolicy();
+
+        // Remove trustedTypes to test fallback
+        delete window.trustedTypes;
+
+        try {
+          let serializedDOM = serializeDOM();
+          $ = parseDOM(serializedDOM.html, platform);
+
+          // Should still serialize iframes correctly without Trusted Types
+          expect($('#frame-input')[0].getAttribute('srcdoc')).toMatch(new RegExp([
+            '^<!DOCTYPE html><html><head>',
+            '.*?</head><body>',
+            '<input data-percy-element-id=".+?" value="iframe with an input">',
+            '</body></html>$'
+          ].join('')));
+        } finally {
+          if (trustedTypesDescriptor) {
+            Object.defineProperty(window, 'trustedTypes', trustedTypesDescriptor);
+          }
+        }
+      });
+
+      it('handles setAttribute errors gracefully', async () => {
+        // Create a new iframe to test error handling
+        withExample(`
+          <iframe id="frame-error-test" srcdoc="<p>test</p>"></iframe>
+        `);
+
+        await getFrame('frame-error-test');
+
+        // Spy on setAttribute to make it throw
+        let originalSetAttribute = window.Element.prototype.setAttribute;
+        spyOn(window.Element.prototype, 'setAttribute').and.callFake(function(name, value) {
+          if (name === 'srcdoc') {
+            throw new Error('setAttribute failed');
+          }
+          return originalSetAttribute.call(this, name, value);
+        });
+
+        try {
+          // Should not throw even if setAttribute fails
+          let serializedDOM = serializeDOM();
+          expect(serializedDOM).toBeDefined();
+          expect(serializedDOM.html).toBeDefined();
+        } finally {
+          window.Element.prototype.setAttribute.and.callThrough();
+        }
+      });
     }
   });
 });
