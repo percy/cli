@@ -2,7 +2,7 @@ import fs from 'fs';
 import path, { dirname, resolve } from 'path';
 import logger from '@percy/logger';
 import { normalize } from '@percy/config/utils';
-import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHandler } from './utils.js';
+import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHandler, computeResponsiveWidths } from './utils.js';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { handleSyncJob } from './snapshot.js';
 // Previously, we used `createRequire(import.meta.url).resolve` to resolve the path to the module.
@@ -93,6 +93,25 @@ export function createPercyServer(percy, port) {
       success: true,
       type: percy.client.tokenType()
     }))
+  // compute widths configuration with heights
+    .route('get', '/percy/widths-config', (req, res) => {
+      // Parse widths from query parameters (e.g., ?widths=375,1280)
+      const widthsParam = req.url.searchParams.get('widths');
+      const userPassedWidths = widthsParam ? widthsParam.split(',').map(w => parseInt(w.trim(), 10)).filter(w => !isNaN(w)) : [];
+
+      const eligibleWidths = {
+        mobile: percy.deviceDetails ? percy.deviceDetails.map((d) => d.width) : [],
+        config: percy.config.snapshot.widths
+      };
+      const deviceDetails = percy.deviceDetails || [];
+
+      const widths = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      return res.json(200, {
+        widths,
+        success: true
+      });
+    })
   // get or set config options
     .route(['get', 'post'], '/percy/config', async (req, res) => res.json(200, {
       config: req.body ? percy.set(req.body) : percy.config,

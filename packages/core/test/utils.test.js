@@ -1,4 +1,4 @@
-import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType } from '../src/utils.js';
+import { decodeAndEncodeURLWithLogging, waitForSelectorInsideBrowser, compareObjectTypes, isGzipped, checkSDKVersion, percyAutomateRequestHandler, detectFontMimeType, handleIncorrectFontMimeType, computeResponsiveWidths, appendUrlSearchParam, processCorsIframesInDomSnapshot, processCorsIframes } from '../src/utils.js';
 import { logger, setupTest, mockRequests } from './helpers/index.js';
 import percyLogger from '@percy/logger';
 import Percy from '@percy/core';
@@ -521,6 +521,797 @@ describe('utils', () => {
 
       expect(result).toBe('font/woff2');
       expect(logger.stderr).toContain('[percy:core:utils] - Detected Google Font as font/woff2 from content, overriding mime type');
+    });
+  });
+
+  describe('computeResponsiveWidths', () => {
+    it('returns widths with heights for mobile devices', () => {
+      const userPassedWidths = [];
+      const eligibleWidths = {
+        mobile: [390, 428],
+        config: [1280]
+      };
+      const deviceDetails = [
+        { width: 390, height: 844 },
+        { width: 428, height: 926 }
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 390, height: 844 },
+        { width: 428, height: 926 },
+        { width: 1280 }
+      ]);
+    });
+
+    it('returns user-passed widths without heights', () => {
+      const userPassedWidths = [375, 1920];
+      const eligibleWidths = {
+        mobile: [390],
+        config: [1280]
+      };
+      const deviceDetails = [
+        { width: 390, height: 844 }
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 375 },
+        { width: 390, height: 844 },
+        { width: 1920 }
+      ]);
+    });
+
+    it('returns config widths when no user widths are passed', () => {
+      const userPassedWidths = [];
+      const eligibleWidths = {
+        mobile: [390],
+        config: [1280, 1920]
+      };
+      const deviceDetails = [
+        { width: 390, height: 844 }
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 390, height: 844 },
+        { width: 1280 },
+        { width: 1920 }
+      ]);
+    });
+
+    it('sorts widths in ascending order', () => {
+      const userPassedWidths = [1920, 375];
+      const eligibleWidths = {
+        mobile: [428, 390],
+        config: [1280]
+      };
+      const deviceDetails = [
+        { width: 428, height: 926 },
+        { width: 390, height: 844 }
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 375 },
+        { width: 390, height: 844 },
+        { width: 428, height: 926 },
+        { width: 1920 }
+      ]);
+    });
+
+    it('does not duplicate widths', () => {
+      const userPassedWidths = [375, 1280];
+      const eligibleWidths = {
+        mobile: [375],
+        config: [1280]
+      };
+      const deviceDetails = [
+        { width: 375, height: 667 }
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 375 },
+        { width: 1280 }
+      ]);
+    });
+
+    it('handles empty mobile widths array', () => {
+      const userPassedWidths = [375, 1920];
+      const eligibleWidths = {
+        mobile: [],
+        config: [1280]
+      };
+      const deviceDetails = [];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 375 },
+        { width: 1920 }
+      ]);
+    });
+
+    it('handles devices without height property', () => {
+      const userPassedWidths = [];
+      const eligibleWidths = {
+        mobile: [390, 428],
+        config: [1280]
+      };
+      const deviceDetails = [
+        { width: 390, height: 844 },
+        { width: 428 } // no height
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 390, height: 844 },
+        { width: 1280 }
+      ]);
+    });
+
+    it('handles empty device details', () => {
+      const userPassedWidths = [375];
+      const eligibleWidths = {
+        mobile: [],
+        config: [1280]
+      };
+      const deviceDetails = [];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 375 }
+      ]);
+    });
+
+    it('returns only config widths when no user widths and no mobile devices', () => {
+      const userPassedWidths = [];
+      const eligibleWidths = {
+        mobile: [],
+        config: [375, 1280]
+      };
+      const deviceDetails = [];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 375 },
+        { width: 1280 }
+      ]);
+    });
+
+    it('prioritizes user-passed width over mobile device height', () => {
+      const userPassedWidths = [390]; // Same width as device
+      const eligibleWidths = {
+        mobile: [390],
+        config: [1280]
+      };
+      const deviceDetails = [
+        { width: 390, height: 844 }
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      // Should override mobile width with user-passed width (without height)
+      expect(result).toEqual([
+        { width: 390 }
+      ]);
+    });
+
+    it('handles duplicate widths in mobile array', () => {
+      const userPassedWidths = [];
+      const eligibleWidths = {
+        mobile: [390, 390, 428], // Duplicate 390
+        config: [1280]
+      };
+      const deviceDetails = [
+        { width: 390, height: 844 },
+        { width: 428, height: 926 }
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      // Should not duplicate the 390 width
+      expect(result).toEqual([
+        { width: 390, height: 844 },
+        { width: 428, height: 926 },
+        { width: 1280 }
+      ]);
+    });
+
+    it('handles mixed scenario with all width sources', () => {
+      const userPassedWidths = [768, 1024];
+      const eligibleWidths = {
+        mobile: [390, 428],
+        config: [1280, 1920]
+      };
+      const deviceDetails = [
+        { width: 390, height: 844 },
+        { width: 428, height: 926 }
+      ];
+
+      const result = computeResponsiveWidths(userPassedWidths, eligibleWidths, deviceDetails);
+
+      expect(result).toEqual([
+        { width: 390, height: 844 },
+        { width: 428, height: 926 },
+        { width: 768 },
+        { width: 1024 }
+      ]);
+    });
+  });
+
+  describe('appendUrlSearchParam', () => {
+    it('returns original URL when value is not provided (null)', () => {
+      const url = 'https://example.com/page';
+      const result = appendUrlSearchParam(url, 'percy_width', null);
+      expect(result).toBe(url);
+    });
+
+    it('returns original URL when value is undefined', () => {
+      const url = 'https://example.com/page';
+      const result = appendUrlSearchParam(url, 'percy_width', undefined);
+      expect(result).toBe(url);
+    });
+
+    it('returns original URL when value is empty string', () => {
+      const url = 'https://example.com/page';
+      const result = appendUrlSearchParam(url, 'percy_width', '');
+      expect(result).toBe(url);
+    });
+
+    it('returns original URL when value is 0', () => {
+      const url = 'https://example.com/page';
+      const result = appendUrlSearchParam(url, 'percy_width', 0);
+      expect(result).toBe(url);
+    });
+
+    it('successfully appends search parameter to URL without existing params', () => {
+      const url = 'https://example.com/page';
+      const result = appendUrlSearchParam(url, 'percy_width', 1280);
+      expect(result).toBe('https://example.com/page?percy_width=1280');
+    });
+
+    it('successfully appends search parameter to URL with existing params', () => {
+      const url = 'https://example.com/page?existing=param';
+      const result = appendUrlSearchParam(url, 'percy_width', 1280);
+      expect(result).toBe('https://example.com/page?existing=param&percy_width=1280');
+    });
+
+    it('successfully updates existing search parameter', () => {
+      const url = 'https://example.com/page?percy_width=800';
+      const result = appendUrlSearchParam(url, 'percy_width', 1280);
+      expect(result).toBe('https://example.com/page?percy_width=1280');
+    });
+
+    it('converts numeric value to string', () => {
+      const url = 'https://example.com/page';
+      const result = appendUrlSearchParam(url, 'percy_width', 1280);
+      expect(result).toContain('percy_width=1280');
+    });
+
+    it('handles invalid URL gracefully and returns original', () => {
+      const invalidUrl = 'not-a-valid-url';
+      const result = appendUrlSearchParam(invalidUrl, 'percy_width', 1280);
+      expect(result).toBe(invalidUrl);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Failed to append search param to URL/)
+      ]));
+    });
+  });
+
+  describe('processCorsIframesInDomSnapshot', () => {
+    it('returns domSnapshot unchanged when corsIframes is not present', () => {
+      const domSnapshot = {
+        html: '<html><body>test</body></html>',
+        resources: []
+      };
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+      expect(result).toBe(domSnapshot);
+    });
+
+    it('returns domSnapshot unchanged when corsIframes is empty array', () => {
+      const domSnapshot = {
+        html: '<html><body>test</body></html>',
+        resources: [],
+        corsIframes: []
+      };
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+      expect(result).toBe(domSnapshot);
+      // Empty corsIframes array is preserved
+      expect(result.corsIframes).toEqual([]);
+    });
+
+    it('initializes resources array if not present', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: 1280,
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: {
+            html: 'data'
+          }
+        }]
+      };
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+      expect(result.resources).toBeDefined();
+      expect(Array.isArray(result.resources)).toBe(true);
+    });
+
+    it('constructs iframe resource from iframeSnapshot.html with correct structure', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: {
+            html: '<html><body>iframe content</body></html>'
+          }
+        }]
+      };
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources.length).toBe(1);
+      expect(result.resources[0]).toEqual({
+        url: 'https://example.com/iframe?percy_width=1280',
+        content: '<html><body>iframe content</body></html>',
+        mimetype: 'text/html'
+      });
+    });
+
+    it('processes single CORS iframe correctly with width parameter', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1" src="old-url"></iframe></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: {
+            html: 'iframe-content',
+            resources: [
+              { url: 'https://example.com/style.css', content: 'css' }
+            ]
+          }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      // Check iframe resources were added
+      expect(result.resources.length).toBe(2);
+      expect(result.resources[0]).toEqual({ url: 'https://example.com/style.css', content: 'css' });
+      expect(result.resources[1].url).toBe('https://example.com/iframe?percy_width=1280');
+      expect(result.resources[1].content).toBe('iframe-content');
+
+      // Check HTML was updated
+      expect(result.html).toContain('src="https://example.com/iframe?percy_width=1280"');
+
+      // Check corsIframes is preserved
+      expect(result.corsIframes).toBeDefined();
+      expect(result.corsIframes.length).toBe(1);
+    });
+
+    it('processes CORS iframe without width parameter when width is not present', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources[0].url).toBe('https://example.com/iframe');
+    });
+
+    it('processes CORS iframe without width parameter when width is 0', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: 0,
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources[0].url).toBe('https://example.com/iframe');
+    });
+
+    it('processes CORS iframe without width parameter when width is null', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: null,
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources[0].url).toBe('https://example.com/iframe');
+    });
+
+    it('processes CORS iframe without width parameter when width is empty string', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: '',
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources[0].url).toBe('https://example.com/iframe');
+    });
+
+    it('handles iframe without percyElementId (skips HTML src update)', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe src="old-url"></iframe></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: null,
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      // HTML should remain unchanged
+      expect(result.html).toContain('src="old-url"');
+      // But resource should be added
+      expect(result.resources.length).toBe(1);
+      expect(result.resources[0].url).toBe('https://example.com/iframe?percy_width=1280');
+    });
+
+    it('handles iframe without iframeSnapshot.resources', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources.length).toBe(1);
+      expect(result.resources[0].url).toBe('https://example.com/iframe?percy_width=1280');
+    });
+
+    it('processes multiple CORS iframes correctly', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe><iframe data-percy-element-id="frame2"></iframe></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe1',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: {
+            html: 'iframe1-content',
+            resources: [{ url: 'https://example.com/style1.css', content: 'css1' }]
+          }
+        }, {
+          frameUrl: 'https://example.com/iframe2',
+          iframeData: { percyElementId: 'frame2' },
+          iframeSnapshot: {
+            html: 'iframe2-content',
+            resources: [{ url: 'https://example.com/style2.css', content: 'css2' }]
+          }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources.length).toBe(4);
+      expect(result.resources[0].url).toBe('https://example.com/style1.css');
+      expect(result.resources[1].url).toBe('https://example.com/iframe1?percy_width=1280');
+      expect(result.resources[2].url).toBe('https://example.com/style2.css');
+      expect(result.resources[3].url).toBe('https://example.com/iframe2?percy_width=1280');
+
+      // Check corsIframes is preserved
+      expect(result.corsIframes).toBeDefined();
+      expect(result.corsIframes.length).toBe(2);
+    });
+
+    it('appends to existing resources array', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: 1280,
+        resources: [
+          { url: 'https://example.com/existing.js', content: 'existing' }
+        ],
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources.length).toBe(2);
+      expect(result.resources[0].url).toBe('https://example.com/existing.js');
+      expect(result.resources[1].url).toBe('https://example.com/iframe?percy_width=1280');
+    });
+
+    it('handles iframe with existing query parameters in frameUrl', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe?param=value',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources[0].url).toBe('https://example.com/iframe?param=value&percy_width=1280');
+    });
+
+    it('skips and logs invalid entries missing frameUrl', () => {
+      const domSnapshot = {
+        html: '<html><body></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [{
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: { html: 'iframe-content' }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources.length).toBe(0);
+    });
+
+    it('skips and logs invalid entries missing iframeSnapshot', () => {
+      const domSnapshot = {
+        html: '<html><body></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: { percyElementId: 'frame1' }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources.length).toBe(0);
+    });
+
+    it('skips and logs invalid entries missing iframeSnapshot.html', () => {
+      const domSnapshot = {
+        html: '<html><body></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: { resources: [] }
+        }]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources.length).toBe(0);
+    });
+
+    it('processes valid entries and skips invalid ones in mixed array', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: 1280,
+        resources: [],
+        corsIframes: [
+          {
+            frameUrl: 'https://example.com/iframe1',
+            iframeData: { percyElementId: 'frame1' },
+            iframeSnapshot: { html: 'valid-content' }
+          },
+          {
+            iframeData: { percyElementId: 'frame2' },
+            iframeSnapshot: { html: 'no-frameUrl' }
+          },
+          {
+            frameUrl: 'https://example.com/iframe3',
+            iframeData: { percyElementId: 'frame3' }
+          }
+        ]
+      };
+
+      const result = processCorsIframesInDomSnapshot(domSnapshot);
+
+      expect(result.resources.length).toBe(1);
+      expect(result.resources[0].url).toBe('https://example.com/iframe1?percy_width=1280');
+    });
+  });
+
+  describe('processCorsIframes', () => {
+    it('returns null when domSnapshot is null', () => {
+      const result = processCorsIframes(null);
+      expect(result).toBeNull();
+    });
+
+    it('returns undefined when domSnapshot is undefined', () => {
+      const result = processCorsIframes(undefined);
+      expect(result).toBeUndefined();
+    });
+
+    it('processes single domSnapshot object', () => {
+      const domSnapshot = {
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: 1280,
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
+        }]
+      };
+
+      const result = processCorsIframes(domSnapshot);
+
+      expect(result.resources).toBeDefined();
+      expect(result.resources.length).toBe(1);
+
+      // corsIframes is preserved
+      expect(result.corsIframes).toBeDefined();
+    });
+
+    it('processes array of domSnapshots', () => {
+      const domSnapshots = [{
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: 1280,
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe1',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: {
+            html: 'iframe1-content'
+          }
+        }]
+      }, {
+        html: '<html><body><iframe data-percy-element-id="frame2"></iframe></body></html>',
+        width: 1920,
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe2',
+          iframeData: { percyElementId: 'frame2' },
+          iframeSnapshot: {
+            html: 'iframe2-content'
+          }
+        }]
+      }];
+
+      const result = processCorsIframes(domSnapshots);
+
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBe(2);
+      expect(result[0].resources[0].url).toBe('https://example.com/iframe1?percy_width=1280');
+      expect(result[1].resources[0].url).toBe('https://example.com/iframe2?percy_width=1920');
+
+      // corsIframes is preserved in both snapshots
+      expect(result[0].corsIframes).toBeDefined();
+      expect(result[1].corsIframes).toBeDefined();
+    });
+
+    it('handles empty array', () => {
+      const result = processCorsIframes([]);
+      expect(result).toEqual([]);
+    });
+
+    it('processes array with mixed scenarios (some with corsIframes, some without)', () => {
+      const domSnapshots = [{
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: 1280,
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: {
+            html: 'iframe-content'
+          }
+        }]
+      }, {
+        html: '<html><body>no iframes</body></html>',
+        width: 1920
+      }];
+
+      const result = processCorsIframes(domSnapshots);
+
+      expect(result.length).toBe(2);
+      expect(result[0].resources).toBeDefined();
+      expect(result[0].resources.length).toBe(1);
+      expect(result[1].resources).toBeUndefined();
+    });
+
+    it('processes domSnapshot without corsIframes', () => {
+      const domSnapshot = {
+        html: '<html><body>test</body></html>',
+        resources: []
+      };
+
+      const result = processCorsIframes(domSnapshot);
+
+      expect(result).toEqual(domSnapshot);
+    });
+
+    it('processes array with mixed width scenarios (some with width, some without)', () => {
+      const domSnapshots = [{
+        html: '<html><body><iframe data-percy-element-id="frame1"></iframe></body></html>',
+        width: 1280,
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe1',
+          iframeData: { percyElementId: 'frame1' },
+          iframeSnapshot: {
+            html: 'iframe1-content'
+          }
+        }]
+      }, {
+        html: '<html><body><iframe data-percy-element-id="frame2"></iframe></body></html>',
+        corsIframes: [{
+          frameUrl: 'https://example.com/iframe2',
+          iframeData: { percyElementId: 'frame2' },
+          iframeSnapshot: {
+            html: 'iframe2-content'
+          }
+        }]
+      }];
+
+      const result = processCorsIframes(domSnapshots);
+
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBe(2);
+      expect(result[0].resources[0].url).toBe('https://example.com/iframe1?percy_width=1280');
+      expect(result[1].resources[0].url).toBe('https://example.com/iframe2');
     });
   });
 });

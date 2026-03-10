@@ -11,7 +11,8 @@ import {
   yieldTo,
   redactSecrets,
   detectSystemProxyAndLog,
-  checkSDKVersion
+  checkSDKVersion,
+  processCorsIframes
 } from './utils.js';
 
 import {
@@ -449,6 +450,10 @@ export class Percy {
 
     // validate options and add client & environment info
     options = validateSnapshotOptions(options);
+    // process CORS iframes in domSnapshot before validation
+    if (options.domSnapshot) {
+      options.domSnapshot = processCorsIframes(options.domSnapshot);
+    }
     this.client.addClientInfo(options.clientInfo);
     this.client.addEnvironmentInfo(options.environmentInfo);
 
