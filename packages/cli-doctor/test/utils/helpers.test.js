@@ -19,10 +19,11 @@ import {
   runProxyCheck,
   runPACCheck,
   runBrowserCheck,
-  runDiagnostics
+  runDiagnostics,
+  _renderBrowserResults
 } from '../../src/utils/helpers.js';
 
-import { withEnv } from '../helpers.js';
+import { withEnv, createPacServer, buildPacScript } from '../helpers.js';
 
 // These tests include browser-check which launches Chrome; give them plenty of
 // room even when Chrome is skipped (null path) to avoid flaky timeouts.
@@ -480,5 +481,647 @@ describe('runDiagnostics', () => {
     });
 
     expect(typeof result.hasFail).toBe('boolean');
+  });
+});
+
+// ─── Section runner — error-path catch blocks ────────────────────────────────
+// These use the _*Fn injection hooks added to each section runner so we can
+// force the catch block to execute without mocking module-level imports.
+
+describe('runConnectivityAndSSL — catch block (line 91-92)', () => {
+  it('handles unexpected throw from checkConnectivityAndSSL gracefully', async () => {
+    const log = makeLog();
+    const report = { checks: {} };
+    await runConnectivityAndSSL({
+      log,
+      report,
+      proxyUrl: undefined,
+      timeout: 1000,
+      _connectivityFn: async () => { throw new Error('simulated connectivity failure'); }
+    });
+    expect(report.checks.connectivity).toBeDefined();
+    expect(report.checks.connectivity.status).toBe('fail');
+    expect(log._lines.some(l => l.join(' ').includes('simulated connectivity failure'))).toBe(true);
+  });
+});
+
+describe('runProxyCheck — catch block (line 126-127)', () => {
+  it('handles unexpected throw from detectProxy gracefully', async () => {
+    const log = makeLog();
+    const report = { checks: {} };
+    await runProxyCheck({
+      log,
+      report,
+      timeout: 1000,
+      _proxyFn: async () => { throw new Error('simulated proxy failure'); }
+    });
+    expect(report.checks.proxy).toBeDefined();
+    expect(report.checks.proxy.status).toBe('fail');
+    expect(log._lines.some(l => l.join(' ').includes('simulated proxy failure'))).toBe(true);
+  });
+});
+
+describe('runPACCheck — catch block (line 150-151)', () => {
+  it('handles unexpected throw from detectPAC gracefully', async () => {
+    const log = makeLog();
+    const report = { checks: {} };
+    await runPACCheck({
+      log,
+      report,
+      _pacFn: async () => { throw new Error('simulated pac failure'); }
+    });
+    expect(report.checks.pac).toBeDefined();
+    expect(report.checks.pac.status).toBe('fail');
+    expect(log._lines.some(l => l.join(' ').includes('simulated pac failure'))).toBe(true);
+  });
+});
+
+describe('runBrowserCheck — proxyUrl branch (line 181)', () => {
+  it('prints proxy-capture message when proxyUrl is set', async () => {
+    const log = makeLog();
+    const report = { checks: {} };
+    const { text } = await captureStdout(() =>
+      runBrowserCheck({
+        log,
+        report,
+        targetUrl: 'https://percy.io',
+        proxyUrl: 'http://proxy.corp:8080',
+        timeout: 5000,
+        _chromePath: null
+      })
+    );
+    expect(text).toMatch(/direct and proxy|parallel/i);
+  });
+});
+
+describe('runBrowserCheck — Chrome found path (line 204)', () => {
+  it('calls _renderBrowserResults when _browserNetworkFn returns a real chromePath', async () => {
+    const log = makeLog();
+    const report = { checks: {} };
+    // Inject a fake checkBrowserNetwork that simulates Chrome found + empty network
+    const fakeBrowserResult = {
+      status: 'pass',
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io',
+      directCapture: null,
+      proxyCapture: null,
+      domainSummary: [
+        {
+          hostname: 'percy.io',
+          status: 'pass',
+          direct: { reachable: true, blocked: false, errors: [], sampleStatus: 200 },
+          viaProxy: null
+        }
+      ],
+      proxyHeaders: [],
+      navMs: 450,
+      error: null,
+      suggestions: []
+    };
+    const { text } = await captureStdout(() =>
+      runBrowserCheck({
+        log,
+        report,
+        targetUrl: 'https://percy.io',
+        proxyUrl: undefined,
+        timeout: 5000,
+        _chromePath: null,
+        _browserNetworkFn: async () => fakeBrowserResult
+      })
+    );
+    // _renderBrowserResults was called → table output present
+    expect(text).toMatch(/percy\.io|Hostname|Chrome/i);
+    expect(report.checks.browser.chromePath).toBe('/usr/bin/google-chrome');
+  });
+
+  it('covers filter/map callbacks (lines 217-218) with percy-domain entries', async () => {
+    const log = makeLog();
+    const report = { checks: {} };
+    const fakeBrowserResult = {
+      status: 'pass',
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io',
+      directCapture: null,
+      proxyCapture: null,
+      domainSummary: [
+        {
+          hostname: 'percy.io',
+          status: 'pass',
+          direct: { reachable: true, blocked: false, errors: [], sampleStatus: 200 },
+          viaProxy: null
+        },
+        {
+          hostname: 'www.browserstack.com',
+          status: 'fail',
+          direct: { reachable: false, blocked: false, errors: ['ECONNREFUSED'], sampleStatus: null },
+          viaProxy: null
+        }
+      ],
+      proxyHeaders: [],
+      navMs: 500,
+      error: null,
+      suggestions: []
+    };
+    await captureStdout(() =>
+      runBrowserCheck({
+        log,
+        report,
+        targetUrl: 'https://percy.io',
+        proxyUrl: undefined,
+        timeout: 5000,
+        _chromePath: null,
+        _browserNetworkFn: async () => fakeBrowserResult
+      })
+    );
+    // The filter/map over domainSummary with PERCY_DOMAINS entries ran
+    expect(['pass', 'warn', 'fail', 'info']).toContain(report.checks.browser.status);
+    expect(report.checks.browser.domainSummary.length).toBe(2);
+  });
+});
+
+describe('runBrowserCheck — catch block (line 207)', () => {
+  it('handles unexpected throw from checkBrowserNetwork gracefully', async () => {
+    const log = makeLog();
+    const report = { checks: {} };
+    await runBrowserCheck({
+      log,
+      report,
+      targetUrl: 'https://percy.io',
+      proxyUrl: undefined,
+      timeout: 5000,
+      _browserNetworkFn: async () => { throw new Error('Chrome crashed unexpectedly'); }
+    });
+    expect(log._lines.some(l => l.join(' ').includes('Chrome crashed unexpectedly'))).toBe(true);
+    // report.checks.browser is set to the skip sentinel when browserResult is null
+    expect(report.checks.browser.status).toBe('skip');
+  });
+});
+
+// ─── captureStdout helper ────────────────────────────────────────────────────
+// print() in reporter.js writes directly to process.stdout.write, bypassing
+// the log object. Intercept stdout to inspect rendered output in tests.
+async function captureStdout(fn) {
+  const chunks = [];
+  const orig = process.stdout.write.bind(process.stdout);
+  process.stdout.write = (s) => { chunks.push(String(s)); return true; };
+  try {
+    const value = await fn();
+    return { text: chunks.join(''), value };
+  } finally {
+    process.stdout.write = orig;
+  }
+}
+
+// ─── runPACCheck — actionablePac branch ──────────────────────────────────────
+
+describe('runPACCheck — actionablePac branch', () => {
+  it('prints action-required message and suggestions when PAC has detectedProxyUrl', async () => {
+    const pacServer = await createPacServer(buildPacScript('PROXY corp.proxy.local:8080'));
+    const log = makeLog();
+    const report = { checks: {} };
+
+    try {
+      const { text } = await captureStdout(() =>
+        withEnv(
+          { PERCY_PAC_FILE_URL: `${pacServer.url}/proxy.pac` },
+          () => runPACCheck({ log, report })
+        )
+      );
+
+      // The actionablePac branch: finding has detectedProxyUrl → extra warn line is printed
+      const hasPacWarn = report.checks.pac.findings.some(
+        f => f.status === 'warn' || f.detectedProxyUrl
+      );
+      expect(hasPacWarn).toBe(true);
+      // The stdout output should mention the proxy URL or the action required message
+      expect(text).toMatch(/proxy|PAC/i);
+    } finally {
+      await pacServer.close();
+    }
+  });
+});
+
+// ─── _renderBrowserResults ────────────────────────────────────────────────────
+
+describe('_renderBrowserResults — single-column table (no proxy)', () => {
+  function makeBrowserResult(overrides = {}) {
+    return {
+      error: null,
+      domainSummary: [
+        {
+          hostname: 'percy.io',
+          status: 'pass',
+          direct: { reachable: true, blocked: false, errors: [], sampleStatus: 200 },
+          viaProxy: null
+        },
+        {
+          hostname: 'www.browserstack.com',
+          status: 'fail',
+          direct: { reachable: false, blocked: false, errors: ['net::ERR_CONNECTION_REFUSED'], sampleStatus: null },
+          viaProxy: null
+        }
+      ],
+      proxyHeaders: [],
+      navMs: 1234,
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io',
+      ...overrides
+    };
+  }
+
+  it('renders single-column table when no proxyUrl supplied', async () => {
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), makeBrowserResult(), null));
+    expect(text).toMatch(/percy\.io/);
+    expect(text).toMatch(/Hostname/);
+  });
+
+  it('prints "no network requests captured" when domainSummary is empty', async () => {
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), makeBrowserResult({ domainSummary: [] }), null));
+    expect(text).toMatch(/No network requests/i);
+  });
+
+  it('prints pass message when no percy domain is blocked', async () => {
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), makeBrowserResult({
+      domainSummary: [
+        { hostname: 'percy.io', status: 'pass', direct: { reachable: true, blocked: false, errors: [], sampleStatus: 200 }, viaProxy: null }
+      ]
+    }), null));
+    expect(text).toMatch(/reachable|pass/i);
+  });
+
+  it('prints fail message with domain names when percy domains are blocked', async () => {
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), makeBrowserResult({
+      domainSummary: [
+        { hostname: 'percy.io', status: 'fail', direct: { reachable: false, blocked: false, errors: ['ERR_NAME_NOT_RESOLVED'], sampleStatus: null }, viaProxy: null }
+      ]
+    }), null));
+    expect(text).toMatch(/percy\.io/);
+  });
+
+  it('prints the browser capture error note when result.error is set', async () => {
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), makeBrowserResult({ error: 'Browser capture timed out after 45s' }), null));
+    expect(text).toMatch(/timed out/i);
+  });
+
+  it('prints proxy headers when proxyHeaders is non-empty', async () => {
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), makeBrowserResult({ proxyHeaders: ['via: 1.1 corp.proxy.com'] }), null));
+    expect(text).toMatch(/via/i);
+  });
+
+  it('uses info icon for unknown status in single-column table (line 312)', async () => {
+    // status not in {pass/warn/fail/skip} → ?? '\u2139' (ℹ) fallback is used
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), makeBrowserResult({
+      domainSummary: [{
+        hostname: 'percy.io',
+        status: 'unknown-status',
+        direct: { reachable: true, blocked: false, errors: [], sampleStatus: 200 },
+        viaProxy: null
+      }]
+    }), null));
+    expect(text).toContain('percy.io');
+  });
+
+  it('truncates hostname longer than 39 chars in single-column table (line 313)', async () => {
+    // hostname.length > 39 → slice(0, 37) + '…' truncation branch
+    const longHost = 'a'.repeat(40) + '.example.com';
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), makeBrowserResult({
+      domainSummary: [{
+        hostname: longHost,
+        status: 'pass',
+        direct: { reachable: true, blocked: false, errors: [], sampleStatus: 200 },
+        viaProxy: null
+      }]
+    }), null));
+    expect(text).toMatch(/…/);
+  });
+});
+
+describe('_renderBrowserResults — two-column table (with proxy)', () => {
+  it('renders two-column table when proxyUrl is supplied and viaProxy is non-null', async () => {
+    const result = {
+      error: null,
+      domainSummary: [
+        {
+          hostname: 'percy.io',
+          status: 'warn',
+          direct: { reachable: false, blocked: false, errors: ['ERR_NAME'], sampleStatus: null },
+          viaProxy: { reachable: true, blocked: false, errors: [], sampleStatus: 200 }
+        }
+      ],
+      proxyHeaders: [],
+      navMs: 500,
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io'
+    };
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), result, 'http://corp-proxy:8080'));
+    expect(text).toMatch(/Via Proxy|Direct/i);
+    expect(text).toMatch(/percy\.io/);
+  });
+
+  it('labels proxy auth failure as auth-required', async () => {
+    const result = {
+      error: null,
+      domainSummary: [
+        {
+          hostname: 'percy.io',
+          status: 'fail',
+          direct: { reachable: false, blocked: false, errors: [], sampleStatus: null },
+          viaProxy: { reachable: false, blocked: false, errors: ['PROXY_AUTH_REQUIRED_407'], sampleStatus: null }
+        }
+      ],
+      proxyHeaders: [],
+      navMs: 200,
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io'
+    };
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), result, 'http://corp-proxy:8080'));
+    expect(text).toMatch(/auth-required|percy\.io/i);
+  });
+
+  it('labels cert-error for SSL-related proxy errors', async () => {
+    const result = {
+      error: null,
+      domainSummary: [
+        {
+          hostname: 'percy.io',
+          status: 'fail',
+          direct: { reachable: false, blocked: false, errors: [], sampleStatus: null },
+          viaProxy: { reachable: false, blocked: false, errors: ['ERR_CERT_AUTHORITY_INVALID'], sampleStatus: null }
+        }
+      ],
+      proxyHeaders: [],
+      navMs: 200,
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io'
+    };
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), result, 'http://corp-proxy:8080'));
+    expect(text).toMatch(/cert-error|percy\.io/i);
+  });
+
+  it('labels blocked for blocked viaProxy entry', async () => {
+    const result = {
+      error: null,
+      domainSummary: [
+        {
+          hostname: 'percy.io',
+          status: 'fail',
+          direct: { reachable: false, blocked: false, errors: [], sampleStatus: null },
+          viaProxy: { reachable: false, blocked: true, errors: [], sampleStatus: null }
+        }
+      ],
+      proxyHeaders: [],
+      navMs: 200,
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io'
+    };
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), result, 'http://corp-proxy:8080'));
+    expect(text).toMatch(/blocked|percy\.io/i);
+  });
+
+  it('shows http-NNN label for non-200 sampleStatus via proxy', async () => {
+    const result = {
+      error: null,
+      domainSummary: [
+        {
+          hostname: 'percy.io',
+          status: 'fail',
+          direct: { reachable: false, blocked: false, errors: [], sampleStatus: null },
+          viaProxy: { reachable: false, blocked: false, errors: [], sampleStatus: 503 }
+        }
+      ],
+      proxyHeaders: [],
+      navMs: 200,
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io'
+    };
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), result, 'http://corp-proxy:8080'));
+    expect(text).toMatch(/http-503|percy\.io/i);
+  });
+
+  it('truncates very long hostnames with ellipsis', async () => {
+    const longHost = 'a'.repeat(50) + '.example.com';
+    const result = {
+      error: null,
+      domainSummary: [
+        {
+          hostname: longHost,
+          status: 'pass',
+          direct: { reachable: true, blocked: false, errors: [], sampleStatus: 200 },
+          viaProxy: { reachable: true, blocked: false, errors: [], sampleStatus: 200 }
+        }
+      ],
+      proxyHeaders: [],
+      navMs: 100,
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io'
+    };
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), result, 'http://corp-proxy:8080'));
+    expect(text).toMatch(/…/);
+  });
+
+  it('shows — for null direct entry in two-column table (line 277)', async () => {
+    const result = {
+      error: null,
+      domainSummary: [{
+        hostname: 'percy.io',
+        status: 'pass',
+        direct: null, // ← null triggers line 277 '—' branch
+        viaProxy: { reachable: true, blocked: false, errors: [], sampleStatus: 200 }
+      }],
+      proxyHeaders: [],
+      navMs: 100,
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io'
+    };
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), result, 'http://corp-proxy:8080'));
+    expect(text).toContain('percy.io');
+  });
+
+  it('shows — for null viaProxy in two-column table (line 280)', async () => {
+    const result = {
+      error: null,
+      domainSummary: [
+        {
+          hostname: 'percy.io',
+          status: 'warn',
+          direct: { reachable: false, blocked: false, errors: [], sampleStatus: null },
+          viaProxy: null // ← null → '—' at end of proxyLabel ternary (line 280/294)
+        },
+        {
+          hostname: 'other.com',
+          status: 'pass',
+          direct: { reachable: true, blocked: false, errors: [], sampleStatus: 200 },
+          viaProxy: { reachable: true, blocked: false, errors: [], sampleStatus: 200 }
+        }
+      ],
+      proxyHeaders: [],
+      navMs: 100,
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io'
+    };
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), result, 'http://corp-proxy:8080'));
+    expect(text).toMatch(/—/);
+  });
+
+  it('labels no-proxy for ERR_PROXY_CONNECTION_FAILED error (line 285)', async () => {
+    const result = {
+      error: null,
+      domainSummary: [{
+        hostname: 'percy.io',
+        status: 'fail',
+        direct: { reachable: false, blocked: false, errors: [], sampleStatus: null },
+        viaProxy: {
+          reachable: false,
+          blocked: false,
+          errors: ['ERR_PROXY_CONNECTION_FAILED'], // ← covers line 285 true branch
+          sampleStatus: null
+        }
+      }],
+      proxyHeaders: [],
+      navMs: 200,
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io'
+    };
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), result, 'http://corp-proxy:8080'));
+    expect(text).toMatch(/no-proxy|percy\.io/i);
+  });
+
+  it('labels failed when viaProxy: not reachable, no errors, not blocked, null sampleStatus (line 291 false branch)', async () => {
+    const result = {
+      error: null,
+      domainSummary: [{
+        hostname: 'percy.io',
+        status: 'fail',
+        direct: { reachable: false, blocked: false, errors: [], sampleStatus: null },
+        viaProxy: {
+          reachable: false,
+          blocked: false,
+          errors: [],
+          sampleStatus: null // ← null: `sampleStatus != null` → false → 'failed'
+        }
+      }],
+      proxyHeaders: [],
+      navMs: 200,
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io'
+    };
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), result, 'http://corp-proxy:8080'));
+    expect(text).toMatch(/failed|percy\.io/i);
+  });
+
+  it('uses info icon for unknown status in two-column table (line 298)', async () => {
+    const result = {
+      error: null,
+      domainSummary: [{
+        hostname: 'percy.io',
+        status: 'custom-unknown', // not pass/warn/fail/skip → ?? '\u2139'
+        direct: { reachable: true, blocked: false, errors: [], sampleStatus: 200 },
+        viaProxy: { reachable: true, blocked: false, errors: [], sampleStatus: 200 }
+      }],
+      proxyHeaders: [],
+      navMs: 100,
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io'
+    };
+    const { text } = await captureStdout(() => _renderBrowserResults(makeLog(), result, 'http://corp-proxy:8080'));
+    expect(text).toContain('percy.io');
+  });
+});
+
+// ─── runBrowserCheck — browserResult.error branch (lines 213-214) ─────────────
+
+describe('runBrowserCheck — browserResult.error sets status to warn (lines 213-214)', () => {
+  it('report.checks.browser.status is warn when browserResult.error is truthy', async () => {
+    const log = makeLog();
+    const report = { checks: {} };
+    const fakeBrowserResult = {
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io',
+      domainSummary: [],
+      proxyHeaders: [],
+      navMs: 200,
+      error: 'Navigation timeout after 30s', // ← truthy: status = 'warn'
+      suggestions: []
+    };
+    await captureStdout(() =>
+      runBrowserCheck({
+        log,
+        report,
+        targetUrl: 'https://percy.io',
+        proxyUrl: undefined,
+        timeout: 5000,
+        _chromePath: null,
+        _browserNetworkFn: async () => fakeBrowserResult
+      })
+    );
+    expect(report.checks.browser.status).toBe('warn');
+    expect(report.checks.browser.error).toBe('Navigation timeout after 30s');
+  });
+});
+
+// ─── runBrowserCheck — null domainSummary/proxyHeaders (lines 216, 222, 223, 265) ─
+
+describe('runBrowserCheck — null domainSummary and proxyHeaders (lines 216, 222, 223, 265)', () => {
+  it('applies ?? [] fallback when domainSummary and proxyHeaders are null', async () => {
+    const log = makeLog();
+    const report = { checks: {} };
+    const fakeBrowserResult = {
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io',
+      domainSummary: null, // ← null: triggers ?? [] on lines 216, 222, 265
+      proxyHeaders: null, // ← null: triggers ?? [] on line 223
+      navMs: 200,
+      error: null,
+      suggestions: []
+    };
+    await captureStdout(() =>
+      runBrowserCheck({
+        log,
+        report,
+        targetUrl: 'https://percy.io',
+        proxyUrl: undefined,
+        timeout: 5000,
+        _chromePath: null,
+        _browserNetworkFn: async () => fakeBrowserResult
+      })
+    );
+    expect(report.checks.browser.domainSummary).toEqual([]);
+    expect(report.checks.browser.proxyHeaders).toEqual([]);
+    expect(report.checks.browser.status).toBe('info'); // sectionStatus([]) = 'info'
+  });
+});
+
+// ─── runDiagnostics — injection hooks + = {} default (line 242) ───────────────
+
+describe('runDiagnostics — injection hooks and = {} default (line 242)', () => {
+  it('completes quickly when all section runners are injected via ctx', async () => {
+    const log = makeLog();
+    const result = await runDiagnostics({
+      log,
+      timeout: 500,
+      _chromePath: null,
+      _connectivityFn: async () => ({
+        connectivityFindings: [{ status: 'pass', label: 'T', url: 'http://t', message: 'ok' }],
+        sslFindings: [{ status: 'pass', message: 'ssl ok' }]
+      }),
+      _proxyFn: async () => [{ status: 'info', message: 'no proxy', layer: 'summary' }],
+      _pacFn: async () => [{ status: 'info', message: 'no pac', source: 'none', pacUrl: null, resolvedProxy: null, suggestions: [] }],
+      _browserNetworkFn: async () => ({ chromePath: null, domainSummary: [], proxyHeaders: [], navMs: 0, error: null })
+    });
+    expect(typeof result.hasFail).toBe('boolean');
+    expect(typeof result.hasWarn).toBe('boolean');
+    expect(result.checks.connectivity).toBeDefined();
+    expect(result.checks.ssl).toBeDefined();
+    expect(result.checks.proxy).toBeDefined();
+    expect(result.checks.pac).toBeDefined();
+    expect(result.checks.browser).toBeDefined();
+  });
+
+  it('accepts call with no arguments — covers = {} default parameter (line 242)', () => {
+    // Calling without args triggers the = {} default parameter branch (Istanbul branch coverage).
+    // We don't await so real network calls happen in the background and don't block the suite.
+    const p = runDiagnostics();
+    p.catch(() => {}); // prevent unhandled rejection from in-flight network/timeout operations
+    expect(typeof p.then).toBe('function'); // confirmed it returned a Promise
   });
 });

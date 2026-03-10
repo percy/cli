@@ -372,3 +372,86 @@ describe('validateProxy — SSL suggestion in failures', () => {
     }
   });
 });
+
+// ─── validateProxy — anyOk (partial success) branch ──────────────────────────
+// Uses the _probeUrlFn injection hook added to validateProxy so we can
+// control which URLs succeed without real network access.
+
+describe('validateProxy — partial success (anyOk) branch', () => {
+  it('returns warn when one URL succeeds and the other fails via _probeUrlFn', async () => {
+    let callCount = 0;
+    const fakeProbe = async (url, opts) => {
+      callCount++;
+      // First call succeeds, second call fails
+      return callCount === 1
+        ? { ok: true, status: 200, error: null, errorCode: null, latencyMs: 10 }
+        : { ok: false, status: 0, error: 'ECONNREFUSED', errorCode: 'ECONNREFUSED', latencyMs: 5 };
+    };
+
+    const result = await validateProxy(
+      'http://127.0.0.1:1/',
+      2000,
+      {
+        _testUrls: ['https://percy.io', 'https://www.browserstack.com'],
+        _probeUrlFn: fakeProbe
+      }
+    );
+
+    expect(result.status).toBe('warn');
+    expect(result.message).toMatch(/proxy reachable but could not connect/i);
+    expect(result.suggestions.some(s => /whitelist|unreachable/i.test(s))).toBe(true);
+  });
+
+  it('returns pass when all URLs succeed via _probeUrlFn', async () => {
+    const fakeProbe = async () => ({ ok: true, status: 200, error: null, errorCode: null, latencyMs: 5 });
+    const result = await validateProxy('http://127.0.0.1:1/', 2000, { _probeUrlFn: fakeProbe });
+    expect(result.status).toBe('pass');
+    expect(result.message).toMatch(/connectivity OK/i);
+    expect(result.suggestions).toEqual([]);
+  });
+
+  it('returns fail with SSL suggestion when both URLs fail with SSL errors', async () => {
+    const fakeProbe = async () => ({
+      ok: false, status: 0, error: 'certificate expired', errorCode: 'CERT_HAS_EXPIRED', latencyMs: 5
+    });
+    const result = await validateProxy('http://127.0.0.1:1/', 2000, { _probeUrlFn: fakeProbe });
+    expect(result.status).toBe('fail');
+    expect(result.suggestions.some(s => /NODE_TLS_REJECT_UNAUTHORIZED|SSL|intercepting/i.test(s))).toBe(true);
+  });
+});
+
+// ─── detectProxy — Via-header fingerprinting ─────────────────────────────────
+
+describe('detectProxy — Via-header detection', () => {
+  it('detectProxy checkHeaders:true returns header-fingerprint layer findings', async () => {
+    // Call detectProxy with real HTTP header scan but no env-var proxy,
+    // no process scan, no WPAD. The header scan probes external URLs so we
+    // just assert the shape of the returned findings.
+    const findings = await withEnv(
+      {
+        HTTPS_PROXY: undefined,
+        https_proxy: undefined,
+        HTTP_PROXY: undefined,
+        http_proxy: undefined,
+        ALL_PROXY: undefined,
+        all_proxy: undefined
+      },
+      () => detectProxy({
+        testProxy: false,
+        checkHeaders: true,
+        scanProcesses: false,
+        checkWpad: false,
+        timeout: 3000
+      })
+    );
+
+    const headerFindings = findings.filter(f => f.layer === 'header-fingerprint');
+    expect(headerFindings.length).toBeGreaterThan(0);
+    // Each header finding has the expected shape
+    for (const hf of headerFindings) {
+      expect(typeof hf.status).toBe('string');
+      expect(typeof hf.message).toBe('string');
+      expect(typeof hf.headers).toBe('object');
+    }
+  });
+});

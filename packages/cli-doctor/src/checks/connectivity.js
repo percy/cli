@@ -29,10 +29,10 @@ export const REQUIRED_DOMAINS = [
  * @returns {Promise<{ connectivityFindings: Array, sslFindings: Array }>}
  */
 export async function checkConnectivityAndSSL(options = {}) {
-  const { proxyUrl, timeout = 10000, _domains = REQUIRED_DOMAINS, _percyUrl = 'https://percy.io' } = options;
+  const { proxyUrl, timeout = 10000, _domains = REQUIRED_DOMAINS, _percyUrl = 'https://percy.io', _probeUrl: probeUrlFn = probeUrl } = options;
 
   const rawFindings = await Promise.all(_domains.map(async ({ label, url, optional, onFail }) => {
-    const finding = await _probeTarget(label, url, proxyUrl, timeout);
+    const finding = await _probeTarget(label, url, proxyUrl, timeout, probeUrlFn);
     if (optional && finding.status === 'fail') {
       finding.status = 'warn';
       if (onFail) finding.suggestions = onFail;
@@ -58,7 +58,7 @@ export async function checkConnectivityAndSSL(options = {}) {
  * Mirrors the ssl.js checkSSL() logic, but reuses an existing probe result
  * rather than issuing a new HTTP request.
  */
-function _buildSSLFindings(percyProbeResult) {
+export function _buildSSLFindings(percyProbeResult) {
   const findings = [];
 
   // (b) SSL probe result derived from the connectivity probe
@@ -93,13 +93,13 @@ function _buildSSLFindings(percyProbeResult) {
   return findings;
 }
 
-async function _probeTarget(label, url, proxyUrl, timeout) {
+async function _probeTarget(label, url, proxyUrl, timeout, probeUrlFn = probeUrl) {
   // Direct probe — Node honours NODE_TLS_REJECT_UNAUTHORIZED automatically
-  const direct = await probeUrl(url, { timeout });
+  const direct = await probeUrlFn(url, { timeout });
 
   // Proxy probe (only if a proxy is configured)
   const viaProxy = proxyUrl
-    ? await probeUrl(url, { proxyUrl, timeout })
+    ? await probeUrlFn(url, { proxyUrl, timeout })
     : null;
 
   // ── classify ──────────────────────────────────────────────────────────────

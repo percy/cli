@@ -236,7 +236,7 @@ class RequestLifecycle {
  * This prevents response/failure data being stored before the corresponding
  * request record exists, which can occur when Chrome emits events out of order.
  */
-class NetworkCapture {
+export class NetworkCapture {
   #lifecycles = new Map();
   #requests = new Map();
   #responses = new Map();
@@ -467,13 +467,13 @@ function killProcess(proc, gracePeriodMs = 3000) {
   });
 }
 
-function safeHostname(rawUrl) {
+export function safeHostname(rawUrl) {
   try { return new URL(rawUrl).hostname; } catch { return rawUrl; }
 }
 
 // ─── Analyse & build findings ─────────────────────────────────────────────────
 
-function analyseCapture(capture) {
+export function analyseCapture(capture) {
   const byHostname = new Map();
 
   for (const req of capture.requests) {

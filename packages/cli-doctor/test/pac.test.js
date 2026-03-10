@@ -6,7 +6,7 @@
  * full fetch → evaluate → classify pipeline without system config access.
  */
 
-import { runPacScript, detectPAC } from '../src/checks/pac.js';
+import { runPacScript, detectPAC, findInObject } from '../src/checks/pac.js';
 import { createPacServer, createHttpServer, withEnv, buildPacScript } from './helpers.js';
 
 // ─── runPacScript — basic results ─────────────────────────────────────────────
@@ -410,5 +410,61 @@ describe('runPacScript — remaining PAC helper shims', () => {
       }
     `;
     expect(runPacScript(script, 'https://percy.io/', 'percy.io')).toBe('DIRECT');
+  });
+});
+
+// ─── findInObject ─────────────────────────────────────────────────────────────
+
+describe('findInObject', () => {
+  it('finds a key at the top level', () => {
+    expect(findInObject({ pac_url: 'http://proxy.pac' }, 'pac_url')).toBe('http://proxy.pac');
+  });
+
+  it('finds a key nested one level deep', () => {
+    expect(findInObject({ proxy: { pac_url: 'http://nested.pac' } }, 'pac_url')).toBe('http://nested.pac');
+  });
+
+  it('finds a key nested several levels deep (within depth limit)', () => {
+    const obj = { a: { b: { c: { target: 'deep-value' } } } };
+    expect(findInObject(obj, 'target')).toBe('deep-value');
+  });
+
+  it('returns null when key is not found', () => {
+    expect(findInObject({ a: { b: 1 } }, 'missing')).toBeNull();
+  });
+
+  it('returns null for null input', () => {
+    expect(findInObject(null, 'key')).toBeNull();
+  });
+
+  it('returns null for non-object input (string)', () => {
+    expect(findInObject('string', 'key')).toBeNull();
+  });
+
+  it('returns null for non-object input (number)', () => {
+    expect(findInObject(42, 'key')).toBeNull();
+  });
+
+  it('stops recursing beyond depth 6', () => {
+    // A chain of 7 nested objects — target is in the 8th level (beyond limit)
+    const deep = { a: { b: { c: { d: { e: { f: { g: { target: 'too-deep' } } } } } } } };
+    expect(findInObject(deep, 'target')).toBeNull();
+  });
+
+  it('returns first occurrence when key exists at multiple places', () => {
+    const obj = { a: { pac_url: 'first' }, b: { pac_url: 'second' } };
+    const result = findInObject(obj, 'pac_url');
+    // Either 'first' or 'second' is acceptable — key is found
+    expect(['first', 'second']).toContain(result);
+  });
+
+  it('finds key in an array element (array is an object)', () => {
+    const obj = { items: [{ pac_url: 'array-entry' }] };
+    const result = findInObject(obj, 'pac_url');
+    expect(result).toBe('array-entry');
+  });
+
+  it('returns null for an empty object', () => {
+    expect(findInObject({}, 'key')).toBeNull();
   });
 });

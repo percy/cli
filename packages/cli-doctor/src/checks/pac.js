@@ -329,7 +329,7 @@ async function evaluatePac(pacUrl, source) {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Recursively search an object for a key, return first value found. */
-function findInObject(obj, key, depth = 0) {
+export function findInObject(obj, key, depth = 0) {
   if (depth > 6 || typeof obj !== 'object' || obj === null) return null;
   if (key in obj) return obj[key];
   for (const v of Object.values(obj)) {

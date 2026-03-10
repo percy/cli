@@ -14,7 +14,14 @@
 
 import path from 'path';
 import os from 'os';
-import { sanitizeExecutablePath, safeEnvPath, checkBrowserNetwork } from '../src/checks/browser.js';
+import {
+  sanitizeExecutablePath,
+  safeEnvPath,
+  checkBrowserNetwork,
+  NetworkCapture,
+  analyseCapture,
+  safeHostname
+} from '../src/checks/browser.js';
 import { withEnv } from './helpers.js';
 
 // Increase timeout for tests that might launch Chrome
@@ -215,13 +222,306 @@ describe('checkBrowserNetwork — _chromePath override', () => {
   });
 });
 
-// ─── checkBrowserNetwork — live Chrome integration test ───────────────────────
-// These tests actually launch Chrome and navigate to percy.io.
-// They are SKIPPED by default to keep the CI suite fast.
-// Enable by setting: PERCY_TEST_BROWSER=1
-//
-// Example:
-//   PERCY_TEST_BROWSER=1 yarn workspace @percy/cli-doctor test
+// ─── safeHostname ─────────────────────────────────────────────────────────────
+
+describe('safeHostname', () => {
+  it('extracts hostname from https URL', () => {
+    expect(safeHostname('https://percy.io/path?q=1')).toBe('percy.io');
+  });
+
+  it('extracts hostname from http URL', () => {
+    expect(safeHostname('http://www.example.com:8080/foo')).toBe('www.example.com');
+  });
+
+  it('returns raw string for an invalid URL', () => {
+    expect(safeHostname('not-a-url')).toBe('not-a-url');
+  });
+
+  it('returns raw string for data: URL (malformed)', () => {
+    // data: URLs parse successfully but have empty hostname; safeHostname
+    // returns whatever new URL() gives — just verify it is a string.
+    const r = safeHostname('data:text/html,hello');
+    expect(typeof r).toBe('string');
+  });
+
+  it('handles URL with authentication info', () => {
+    expect(safeHostname('http://user:pass@proxy.corp.com:3128')).toBe('proxy.corp.com');
+  });
+});
+
+// ─── analyseCapture ───────────────────────────────────────────────────────────
+
+describe('analyseCapture', () => {
+  it('returns an empty Map for empty requests', () => {
+    const m = analyseCapture({ requests: [] });
+    expect(m instanceof Map).toBe(true);
+    expect(m.size).toBe(0);
+  });
+
+  it('groups requests by hostname', () => {
+    const requests = [
+      { hostname: 'percy.io', reachable: true, blocked: false, errorText: null },
+      { hostname: 'percy.io', reachable: false, blocked: false, errorText: null },
+      { hostname: 'cdn.example.com', reachable: false, blocked: true, errorText: 'net::ERR_BLOCKED_BY_CLIENT' }
+    ];
+    const m = analyseCapture({ requests });
+    expect(m.has('percy.io')).toBe(true);
+    expect(m.has('cdn.example.com')).toBe(true);
+    expect(m.size).toBe(2);
+  });
+
+  it('marks hostname reachable when any request is reachable', () => {
+    const requests = [
+      { hostname: 'percy.io', reachable: true, blocked: false, errorText: null },
+      { hostname: 'percy.io', reachable: false, blocked: false, errorText: null }
+    ];
+    const m = analyseCapture({ requests });
+    expect(m.get('percy.io').reachable).toBe(true);
+  });
+
+  it('marks hostname blocked when any request is blocked', () => {
+    const requests = [
+      { hostname: 'percy.io', reachable: false, blocked: true, errorText: null }
+    ];
+    const m = analyseCapture({ requests });
+    expect(m.get('percy.io').blocked).toBe(true);
+  });
+
+  it('collects error text, excluding ERR_ABORTED', () => {
+    const requests = [
+      { hostname: 'percy.io', reachable: false, blocked: false, errorText: 'net::ERR_CONNECTION_REFUSED' },
+      { hostname: 'percy.io', reachable: false, blocked: false, errorText: 'net::ERR_ABORTED' }
+    ];
+    const m = analyseCapture({ requests });
+    const entry = m.get('percy.io');
+    expect(entry.errors).toContain('net::ERR_CONNECTION_REFUSED');
+    expect(entry.errors).not.toContain('net::ERR_ABORTED');
+  });
+
+  it('each entry has requests array with all requests for that hostname', () => {
+    const requests = [
+      { hostname: 'percy.io', reachable: true, blocked: false, errorText: null, url: 'https://percy.io/a' },
+      { hostname: 'percy.io', reachable: true, blocked: false, errorText: null, url: 'https://percy.io/b' }
+    ];
+    const m = analyseCapture({ requests });
+    expect(m.get('percy.io').requests.length).toBe(2);
+  });
+
+  it('errors is an array (not a Set) after build', () => {
+    const requests = [
+      { hostname: 'percy.io', reachable: false, blocked: false, errorText: 'ERR_CERT_AUTHORITY_INVALID' }
+    ];
+    const m = analyseCapture({ requests });
+    expect(Array.isArray(m.get('percy.io').errors)).toBe(true);
+  });
+});
+
+// ─── NetworkCapture ────────────────────────────────────────────────────────────
+
+describe('NetworkCapture — onRequestWillBeSent', () => {
+  it('records a request by requestId', () => {
+    const nc = new NetworkCapture();
+    nc.onRequestWillBeSent({
+      requestId: '1',
+      request: { url: 'https://percy.io/', method: 'GET', initiator: { type: 'other' } },
+      type: 'Document',
+      timestamp: 1000
+    });
+    const reqs = nc.buildRequests();
+    expect(reqs.length).toBe(1);
+    expect(reqs[0].hostname).toBe('percy.io');
+    expect(reqs[0].method).toBe('GET');
+  });
+
+  it('ignores data: URLs', () => {
+    const nc = new NetworkCapture();
+    nc.onRequestWillBeSent({
+      requestId: '2',
+      request: { url: 'data:text/html,hello', method: 'GET', initiator: null },
+      type: 'Document',
+      timestamp: 1000
+    });
+    expect(nc.buildRequests().length).toBe(0);
+  });
+
+  it('handles missing initiator gracefully', () => {
+    const nc = new NetworkCapture();
+    nc.onRequestWillBeSent({
+      requestId: '3',
+      request: { url: 'https://example.com/', method: 'HEAD', initiator: null },
+      type: 'XHR',
+      timestamp: 1000
+    });
+    const reqs = nc.buildRequests();
+    expect(reqs[0].initiatorType).toBeUndefined();
+  });
+});
+
+describe('NetworkCapture — onResponseReceived', () => {
+  it('stores response status and marks reachable for 200', async () => {
+    const nc = new NetworkCapture();
+    nc.onRequestWillBeSent({
+      requestId: '1',
+      request: { url: 'https://percy.io/', method: 'GET', initiator: null },
+      type: 'Document',
+      timestamp: 1000
+    });
+    await nc.onResponseReceived({
+      requestId: '1',
+      response: {
+        status: 200,
+        statusText: 'OK',
+        fromDiskCache: false,
+        fromServiceWorker: false,
+        protocol: 'h2',
+        remoteIPAddress: '1.2.3.4',
+        headers: { 'content-type': 'text/html' }
+      }
+    });
+    const reqs = nc.buildRequests();
+    expect(reqs[0].reachable).toBe(true);
+    expect(reqs[0].response.status).toBe(200);
+  });
+
+  it('collects proxy-indicating headers (Via)', async () => {
+    const nc = new NetworkCapture();
+    nc.onRequestWillBeSent({
+      requestId: '1',
+      request: { url: 'https://percy.io/', method: 'GET', initiator: null },
+      type: 'Document',
+      timestamp: 1000
+    });
+    await nc.onResponseReceived({
+      requestId: '1',
+      response: {
+        status: 200,
+        statusText: 'OK',
+        fromDiskCache: false,
+        fromServiceWorker: false,
+        protocol: 'h2',
+        remoteIPAddress: '1.2.3.4',
+        headers: { via: '1.1 proxy.corp.com' }
+      }
+    });
+    expect(nc.getProxyHeaders()).toContain('via: 1.1 proxy.corp.com');
+  });
+
+  it('collects x-forwarded-for proxy header', async () => {
+    const nc = new NetworkCapture();
+    nc.onRequestWillBeSent({
+      requestId: '1',
+      request: { url: 'https://percy.io/', method: 'GET', initiator: null },
+      type: 'Document',
+      timestamp: 1000
+    });
+    await nc.onResponseReceived({
+      requestId: '1',
+      response: {
+        status: 200,
+        statusText: 'OK',
+        fromDiskCache: false,
+        fromServiceWorker: false,
+        protocol: 'h2',
+        remoteIPAddress: '1.2.3.4',
+        headers: { 'x-forwarded-for': '203.0.113.5' }
+      }
+    });
+    expect(nc.getProxyHeaders().some(h => h.startsWith('x-forwarded-for'))).toBe(true);
+  });
+});
+
+describe('NetworkCapture — onLoadingFailed', () => {
+  it('stores failure and marks blocked when blockedReason is set', async () => {
+    const nc = new NetworkCapture();
+    nc.onRequestWillBeSent({
+      requestId: '1',
+      request: { url: 'https://percy.io/', method: 'GET', initiator: null },
+      type: 'Document',
+      timestamp: 1000
+    });
+    await nc.onLoadingFailed({
+      requestId: '1',
+      errorText: 'net::ERR_BLOCKED_BY_ADMINISTRATOR',
+      blockedReason: 'inspector',
+      corsErrorStatus: null
+    });
+    const reqs = nc.buildRequests();
+    expect(reqs[0].blocked).toBe(true);
+    expect(reqs[0].errorText).toBe('net::ERR_BLOCKED_BY_ADMINISTRATOR');
+  });
+
+  it('marks reachable false when request fails', async () => {
+    const nc = new NetworkCapture();
+    nc.onRequestWillBeSent({
+      requestId: '1',
+      request: { url: 'https://percy.io/', method: 'GET', initiator: null },
+      type: 'Document',
+      timestamp: 1000
+    });
+    await nc.onLoadingFailed({
+      requestId: '1',
+      errorText: 'net::ERR_CONNECTION_REFUSED',
+      blockedReason: null,
+      corsErrorStatus: null
+    });
+    const reqs = nc.buildRequests();
+    expect(reqs[0].reachable).toBe(false);
+  });
+});
+
+describe('NetworkCapture — buildRequests + getProxyHeaders', () => {
+  it('getProxyHeaders returns empty array when no proxy headers seen', () => {
+    const nc = new NetworkCapture();
+    nc.onRequestWillBeSent({
+      requestId: '1',
+      request: { url: 'https://percy.io/', method: 'GET', initiator: null },
+      type: 'Document',
+      timestamp: 1000
+    });
+    expect(nc.getProxyHeaders()).toEqual([]);
+  });
+
+  it('deduplicates proxy headers', async () => {
+    const nc = new NetworkCapture();
+    for (const id of ['1', '2']) {
+      nc.onRequestWillBeSent({
+        requestId: id,
+        request: { url: `https://percy.io/${id}`, method: 'GET', initiator: null },
+        type: 'XHR',
+        timestamp: 1000
+      });
+      await nc.onResponseReceived({
+        requestId: id,
+        response: {
+          status: 200,
+          statusText: 'OK',
+          fromDiskCache: false,
+          fromServiceWorker: false,
+          protocol: 'h2',
+          remoteIPAddress: '1.2.3.4',
+          headers: { via: '1.1 same-proxy' }
+        }
+      });
+    }
+    const headers = nc.getProxyHeaders();
+    expect(headers.filter(h => h === 'via: 1.1 same-proxy').length).toBe(1);
+  });
+
+  it('request with neither response nor failure is not reachable and not blocked', () => {
+    const nc = new NetworkCapture();
+    nc.onRequestWillBeSent({
+      requestId: '1',
+      request: { url: 'https://percy.io/', method: 'GET', initiator: null },
+      type: 'Document',
+      timestamp: 1000
+    });
+    const reqs = nc.buildRequests();
+    expect(reqs[0].reachable).toBe(false);
+    expect(reqs[0].blocked).toBe(false);
+    expect(reqs[0].response).toBeNull();
+    expect(reqs[0].errorText).toBeNull();
+  });
+});
 
 if (process.env.PERCY_TEST_BROWSER) {
   describe('checkBrowserNetwork — live Chrome', () => {

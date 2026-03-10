@@ -6,7 +6,7 @@
  * works identically on Linux, macOS, and Windows CI runners.
  */
 
-import { checkConnectivityAndSSL } from '../src/checks/connectivity.js';
+import { checkConnectivityAndSSL, _buildSSLFindings } from '../src/checks/connectivity.js';
 import { probeUrl, isSslError } from '../src/utils/http.js';
 import { createHttpServer, createProxyServer } from './helpers.js';
 
@@ -302,5 +302,183 @@ describe('checkConnectivityAndSSL — SSL findings branches', () => {
     });
     // status===0 && errorCode=ECONNREFUSED → skip (not SSL error, server unreachable)
     expect(sslFindings.some(f => ['skip', 'pass', 'fail'].includes(f.status))).toBe(true);
+  });
+});
+
+// ─── _buildSSLFindings direct unit tests ──────────────────────────────────────
+
+describe('_buildSSLFindings — direct unit tests', () => {
+  it('returns skip when percyProbeResult is undefined', () => {
+    const findings = _buildSSLFindings(undefined);
+    expect(findings[0].status).toBe('skip');
+    expect(findings[0].message).toMatch(/skip/i);
+  });
+
+  it('returns skip when percyProbeResult is null', () => {
+    const findings = _buildSSLFindings(null);
+    expect(findings[0].status).toBe('skip');
+  });
+
+  it('returns fail with SSL error details when isSslError is true', () => {
+    const sslResult = {
+      ok: false,
+      status: 0,
+      error: 'certificate has expired',
+      errorCode: 'CERT_HAS_EXPIRED',
+      latencyMs: 12
+    };
+    const findings = _buildSSLFindings(sslResult);
+    expect(findings[0].status).toBe('fail');
+    expect(findings[0].message).toMatch(/SSL/i);
+    expect(findings[0].message).toMatch(/CERT_HAS_EXPIRED/);
+    expect(Array.isArray(findings[0].suggestions)).toBe(true);
+    expect(findings[0].suggestions.length).toBeGreaterThan(0);
+  });
+
+  it('returns fail for UNABLE_TO_VERIFY_LEAF_SIGNATURE', () => {
+    const findings = _buildSSLFindings({
+      ok: false, status: 0, error: 'leaf sig', errorCode: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', latencyMs: 5
+    });
+    expect(findings[0].status).toBe('fail');
+    expect(findings[0].suggestions.some(s => /NODE_TLS_REJECT_UNAUTHORIZED/i.test(s))).toBe(true);
+  });
+
+  it('returns skip when probe failed with non-SSL, non-ECONNREFUSED error (ETIMEDOUT)', () => {
+    const findings = _buildSSLFindings({
+      ok: false, status: 0, error: 'timed out', errorCode: 'ETIMEDOUT', latencyMs: 5000
+    });
+    expect(findings[0].status).toBe('skip');
+    expect(findings[0].message).toMatch(/ETIMEDOUT/);
+  });
+
+  it('returns pass when probe succeeded', () => {
+    const findings = _buildSSLFindings({
+      ok: true, status: 200, error: null, errorCode: null, latencyMs: 120
+    });
+    expect(findings[0].status).toBe('pass');
+    expect(findings[0].message).toMatch(/SSL|handshake|succeeded/i);
+    expect(findings[0].message).toContain('120ms');
+  });
+
+  it('returns pass for 404 response (server reachable, non-SSL issue)', () => {
+    const findings = _buildSSLFindings({
+      ok: false, status: 404, error: null, errorCode: null, latencyMs: 80
+    });
+    // status=404 → ok=false but status>0 and no errorCode → falls to else (pass)
+    expect(findings[0].status).toBe('pass');
+  });
+});
+
+// ─── checkConnectivityAndSSL — _probeUrl injection ────────────────────────────
+
+describe('checkConnectivityAndSSL — _probeUrl injection', () => {
+  it('uses injected probeUrl function instead of real network', async () => {
+    const injected = async (url) => ({ ok: true, status: 200, error: null, errorCode: null, latencyMs: 5 });
+    const { connectivityFindings } = await checkConnectivityAndSSL({
+      _domains: [{ label: 'Injected', url: 'https://example.com' }],
+      _probeUrl: injected,
+      timeout: 1000
+    });
+    expect(connectivityFindings[0].status).toBe('pass');
+  });
+
+  it('SSL fail path: injected SSL error triggers fail in _probeTarget', async () => {
+    // Returns an SSL error → _probeTarget isSslError(direct) branch → status fail
+    const sslProbe = async () => ({
+      ok: false, status: 0, error: 'cert expired', errorCode: 'CERT_HAS_EXPIRED', latencyMs: 5
+    });
+    const { connectivityFindings } = await checkConnectivityAndSSL({
+      _domains: [{ label: 'Percy API', url: 'https://percy.io' }],
+      _percyUrl: 'https://percy.io',
+      _probeUrl: sslProbe,
+      timeout: 1000
+    });
+    const fail = connectivityFindings.find(f => f.status === 'fail');
+    expect(fail).toBeDefined();
+    expect(fail.message).toMatch(/SSL/i);
+  });
+
+  it('SSL fail path: _buildSSLFindings returns fail for the injected percy.io probe', async () => {
+    const sslProbe = async () => ({
+      ok: false, status: 0, error: 'self signed cert', errorCode: 'DEPTH_ZERO_SELF_SIGNED_CERT', latencyMs: 3
+    });
+    const { sslFindings } = await checkConnectivityAndSSL({
+      _domains: [{ label: 'Percy API', url: 'https://percy.io' }],
+      _percyUrl: 'https://percy.io',
+      _probeUrl: sslProbe,
+      timeout: 1000
+    });
+    expect(sslFindings[0].status).toBe('fail');
+    expect(sslFindings[0].message).toMatch(/SSL/i);
+  });
+});
+
+// ─── connectivity.js branch: optional domain with no onFail (line 38) ─────────
+
+describe('checkConnectivityAndSSL — optional domain without onFail (line 38 branch)', () => {
+  it('does not override suggestions when optional domain fails with no onFail array', async () => {
+    // optional: true, no onFail → if (onFail) is false → suggestions NOT replaced
+    const { connectivityFindings } = await checkConnectivityAndSSL({
+      _domains: [{
+        label: 'Optional-no-onFail',
+        url: 'http://127.0.0.1:1/',
+        optional: true
+        // intentionally no onFail array
+      }],
+      timeout: 1500
+    });
+    const f = connectivityFindings[0];
+    expect(f.status).toBe('warn'); // optional fail → status promoted to warn
+    expect(Array.isArray(f.suggestions)).toBe(true); // suggestions from default fail path
+  });
+});
+
+// ─── connectivity.js branch: _buildSSLFindings null errorCode ?? error (line 84) ─
+
+describe('_buildSSLFindings — null errorCode falls back to error string (line 84)', () => {
+  it('uses the error string when errorCode is null', () => {
+    // Condition: !ok && errorCode !== ECONNREFUSED && status === 0
+    // With errorCode: null → null !== 'ECONNREFUSED' → true → enters skip branch
+    // Then: errorCode ?? error → null ?? 'msg' → 'msg' (covers ?? right-side branch)
+    const findings = _buildSSLFindings({
+      ok: false,
+      status: 0,
+      error: 'proxy reset the connection',
+      errorCode: null,
+      latencyMs: 50
+    });
+    expect(findings[0].status).toBe('skip');
+    expect(findings[0].message).toContain('proxy reset the connection');
+  });
+});
+
+// ─── connectivity.js branches: proxyReachable status>0 (line 127) and ?? direct.error (line 152) ─
+
+describe('checkConnectivityAndSSL — proxyReachable via status>0 path (lines 127, 152)', () => {
+  it('returns warn and uses direct.error when direct fails (no errorCode) but proxy returns HTTP 404', async () => {
+    // Direct: fails with no errorCode (only error string)
+    //   → directReachable = false
+    //   → direct.errorCode ?? direct.error fires (line 152)
+    // Proxy: status 404 (>0), no errorCode
+    //   → proxyReachable = viaProxy && (false || (404 > 0 && !null)) = true (line 127)
+    const smartProbe = async (url, opts) => {
+      if (opts && opts.proxyUrl) {
+        return { ok: false, status: 404, error: null, errorCode: null, latencyMs: 10 };
+      }
+      return { ok: false, status: 0, error: 'connection was reset by peer', errorCode: null, latencyMs: 1 };
+    };
+
+    const { connectivityFindings } = await checkConnectivityAndSSL({
+      _domains: [{ label: 'Test', url: 'https://example.com' }],
+      proxyUrl: 'http://proxy.corp:8080',
+      _probeUrl: smartProbe,
+      timeout: 1000
+    });
+
+    const warn = connectivityFindings.find(f => f.status === 'warn');
+    expect(warn).toBeDefined();
+    expect(warn.message).toMatch(/via proxy/i);
+    // line 152: `Direct error: ${direct.errorCode ?? direct.error}` → uses direct.error
+    expect(warn.suggestions.some(s => s.includes('connection was reset by peer'))).toBe(true);
   });
 });

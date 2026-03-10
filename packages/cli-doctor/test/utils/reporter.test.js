@@ -12,7 +12,8 @@ import {
   summaryBanner,
   renderFindings,
   sectionStatus,
-  print
+  print,
+  useColor
 } from '../../src/utils/reporter.js';
 
 // Strip ANSI colour escapes so plain-text assertions work across all describe blocks
@@ -319,5 +320,45 @@ describe('reporter — NO_COLOR suppresses ANSI codes', () => {
     // eslint-disable-next-line no-control-regex
     expect(banner).not.toMatch(/\u001b\[/);
     expect(banner).toContain('3');
+  });
+});
+
+// ─── useColor (line-level coverage for the const arrow fn) ───────────────────
+
+describe('useColor', () => {
+  let originalIsTTY;
+
+  beforeEach(() => {
+    originalIsTTY = process.stdout.isTTY;
+    delete process.env.NO_COLOR;
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: originalIsTTY, configurable: true });
+    delete process.env.NO_COLOR;
+  });
+
+  it('returns true when stdout is a TTY and NO_COLOR is not set', () => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
+    delete process.env.NO_COLOR;
+    expect(useColor()).toBe(true);
+  });
+
+  it('returns false when NO_COLOR is set (even if stdout is a TTY)', () => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
+    process.env.NO_COLOR = '1';
+    expect(useColor()).toBe(false);
+  });
+
+  it('returns false when stdout is not a TTY', () => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: false, configurable: true });
+    delete process.env.NO_COLOR;
+    expect(useColor()).toBe(false);
+  });
+
+  it('returns false when stdout.isTTY is undefined', () => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: undefined, configurable: true });
+    delete process.env.NO_COLOR;
+    expect(useColor()).toBeFalsy();
   });
 });

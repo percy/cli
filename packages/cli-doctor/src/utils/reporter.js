@@ -1,8 +1,7 @@
 // ANSI colour helpers (stripped when NO_COLOR or non-TTY)
-const useColor = () => process.stdout.isTTY && !process.env.NO_COLOR;
+export const useColor = () => process.stdout.isTTY && !process.env.NO_COLOR;
 
 const c = {
-  reset: s => useColor() ? `\x1b[0m${s}\x1b[0m` : s,
   bold: s => useColor() ? `\x1b[1m${s}\x1b[0m` : s,
   green: s => useColor() ? `\x1b[32m${s}\x1b[0m` : s,
   yellow: s => useColor() ? `\x1b[33m${s}\x1b[0m` : s,
