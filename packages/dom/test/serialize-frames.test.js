@@ -200,7 +200,7 @@ describe('serializeFrames', () => {
         try {
           let serializedDOM = serializeDOM();
           $ = parseDOM(serializedDOM.html, platform);
-          
+
           // Should still serialize iframes correctly without Trusted Types
           expect($('#frame-input')[0].getAttribute('srcdoc')).toMatch(new RegExp([
             '^<!DOCTYPE html><html><head>',
@@ -224,8 +224,8 @@ describe('serializeFrames', () => {
         await getFrame('frame-error-test');
 
         // Spy on setAttribute to make it throw
-        let originalSetAttribute = Element.prototype.setAttribute;
-        spyOn(Element.prototype, 'setAttribute').and.callFake(function(name, value) {
+        let originalSetAttribute = window.Element.prototype.setAttribute;
+        spyOn(window.Element.prototype, 'setAttribute').and.callFake(function(name, value) {
           if (name === 'srcdoc') {
             throw new Error('setAttribute failed');
           }
@@ -238,7 +238,7 @@ describe('serializeFrames', () => {
           expect(serializedDOM).toBeDefined();
           expect(serializedDOM.html).toBeDefined();
         } finally {
-          Element.prototype.setAttribute.and.callThrough();
+          window.Element.prototype.setAttribute.and.callThrough();
         }
       });
     }
