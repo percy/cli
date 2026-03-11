@@ -146,6 +146,146 @@ describe('serializeFrames', () => {
       expect($('#frame-js')[0].getAttribute('srcdoc')).toBeNull();
       expect($('#frame-js-no-src')[0].getAttribute('srcdoc')).toBeNull();
     });
+    it(`${platform}: adds a warning and catches error when baseURI is unparseable`, async () => {
+      // 1. Inject an iframe with a very specific, unique <base> tag.
+      // This guarantees both the original AND the clone will share this exact baseURI string.
+      let $frameInvalid = document.createElement('iframe');
+      $frameInvalid.id = 'frame-warning-test';
+      $frameInvalid.srcdoc = `
+        <html>
+          <head><base href="http://mock-invalid-base.com/"></head>
+          <body><p>Test</p></body>
+        </html>
+      `;
+      document.getElementById('test').appendChild($frameInvalid);
+
+      // 2. Wait for iframe to load to bypass early exit checks
+      await getFrame('frame-warning-test', document);
+
+      // 3. Capture the exact resolved string (Chrome usually adds a trailing slash)
+      const targetBaseURI = $frameInvalid.contentDocument.baseURI;
+
+      // 4. Safely hijack the URL constructor
+      const RealURL = window.URL;
+      window.URL = function(url, base) {
+        // setBaseURI calls `new URL(dom.baseURI)` with NO base parameter.
+        // serializeDOM's internal resource parsers use `new URL(href, baseURI)` WITH a base parameter.
+        // We ONLY throw when called with exactly 1 argument matching our unique string.
+        if (url === targetBaseURI && base === undefined) {
+          throw new TypeError('Simulated invalid URL parsing error');
+        }
+        return base !== undefined ? new RealURL(url, base) : new RealURL(url);
+      };
+
+      // Keep static methods intact (like URL.createObjectURL) just in case
+      window.URL.prototype = RealURL.prototype;
+      Object.assign(window.URL, RealURL);
+
+      let result;
+      try {
+        // 5. Execute serialization
+        result = serializeDOM();
+      } finally {
+        // 6. ALWAYS restore the original URL constructor immediately
+        window.URL = RealURL;
+      }
+
+      // 7. Verify the catch block successfully logged the warning
+      expect(result.warnings).toContain(
+        `Could not parse baseURI for iframe: ${targetBaseURI}`
+      );
+
+      // 8. Verify the frame itself didn't cause a fatal crash and is present in output
+      let $parsed = parseDOM(result.html, platform);
+      expect($parsed('#frame-warning-test')).toBeDefined();
+
+      $frameInvalid.remove();
+    });
+
+    it(`${platform}: does not crash when an iframe has an unparseable baseURI`, () => {
+      // Simulate a transient/non-standard iframe baseURI (e.g. third-party widgets like Intercom)
+      // by creating an iframe whose contentDocument.baseURI is overridden to an invalid value.
+      let $frameInvalid = document.createElement('iframe');
+      $frameInvalid.id = 'frame-invalid-base-uri';
+      document.getElementById('test').appendChild($frameInvalid);
+
+      // Wait for it to be accessible, then stub the baseURI
+      let doc = $frameInvalid.contentDocument;
+      if (doc) {
+        Object.defineProperty(doc, 'baseURI', { value: 'not-a-valid-url', configurable: true });
+      }
+
+      // Should not throw, and the frame should simply not get a <base> tag
+      let result;
+      expect(() => { result = serializeDOM(); }).not.toThrow();
+
+      let $parsed = parseDOM(result.html, platform);
+      // The invalid-base-uri frame should still be present (just without a <base> injected)
+      expect($parsed('#frame-invalid-base-uri')).toBeDefined();
+
+      $frameInvalid.remove();
+    });
+
+    it(`${platform}: handles catch block when URL constructor throws`, () => {
+      // Create an iframe that will trigger the catch block in setBaseURI
+      let $frameURLError = document.createElement('iframe');
+      $frameURLError.id = 'frame-url-error';
+      document.getElementById('test').appendChild($frameURLError);
+
+      // Mock the baseURI to return a value that will cause URL constructor to throw
+      let doc = $frameURLError.contentDocument;
+      if (doc) {
+        Object.defineProperty(doc, 'baseURI', {
+          value: 'ht!tp://invalid url with spaces',
+          configurable: true
+        });
+      }
+
+      // Should not throw and should handle the error gracefully
+      let result;
+      expect(() => { result = serializeDOM(); }).not.toThrow();
+
+      let $parsed = parseDOM(result.html, platform);
+      // The frame should be present but without a <base> tag due to the URL error
+      expect($parsed('#frame-url-error')).toBeDefined();
+
+      $frameURLError.remove();
+    });
+    it(`${platform}: returns early and does not prepend <base> if hostname is missing`, () => {
+      const RealURL = window.URL;
+      // We use a standard function to support "new URL()"
+      window.URL = function(url) {
+        this.hostname = '';
+        this.href = url;
+      };
+
+      try {
+        let $frame = document.createElement('iframe');
+        $frame.id = 'frame-no-hostname';
+        $frame.srcdoc = '<p>test</p>';
+        document.getElementById('test').appendChild($frame);
+
+        // Wait for frame to load
+        when(() => {
+          return $frame.contentDocument && $frame.contentWindow.performance.timing.loadEventEnd;
+        }, 5000);
+
+        Object.defineProperty($frame.contentDocument, 'baseURI', {
+          value: 'about:blank',
+          configurable: true
+        });
+
+        let result = serializeDOM();
+        let $parsed = parseDOM(result.html, platform);
+
+        // The frame should be serialized without a base tag since hostname is empty
+        expect($parsed('#frame-no-hostname')).toBeDefined();
+
+        $frame.remove();
+      } finally {
+        window.URL = RealURL;
+      }
+    });
 
     it(`${platform}: does not serialize iframes without document elements`, () => {
       expect($('#frame-empty')[0]).toBeDefined();
