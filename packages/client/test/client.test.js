@@ -644,8 +644,8 @@ describe('PercyClient', () => {
       await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
 
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        "[percy:client] Warning: Ignoring unknown PERCY_VISUAL_CONFIG key: 'unknownTopLevel'",
-        "[percy:client] Warning: Ignoring unknown PERCY_VISUAL_CONFIG intelliIgnore key: 'unknownNested'"
+        "[percy:client] Ignoring unknown PERCY_VISUAL_CONFIG key: 'unknownTopLevel'",
+        "[percy:client] Ignoring unknown PERCY_VISUAL_CONFIG intelliIgnore key: 'unknownNested'"
       ]));
       expect(api.requests['/builds'][0].body.data.attributes['visual-config'])
         .toEqual({
