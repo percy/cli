@@ -198,6 +198,7 @@ describe('PercyClient', () => {
     beforeEach(() => {
       delete process.env.PERCY_AUTO_ENABLED_GROUP_BUILD;
       delete process.env.PERCY_ORIGINATED_SOURCE;
+      delete process.env.PERCY_VISUAL_CONFIG;
     });
 
     it('creates a new build', async () => {
@@ -603,6 +604,73 @@ describe('PercyClient', () => {
             tags: []
           }
         }));
+    });
+
+    it('creates a new build with visual-config from PERCY_VISUAL_CONFIG', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({
+        diffSensitivity: 3,
+        compareWithPreviousRun: false,
+        intelliIgnore: {
+          enabled: true,
+          dynamic: true,
+          ignoreCustomElementsClasses: '.ad;.promo'
+        }
+      });
+
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes['visual-config'])
+        .toEqual({
+          diffSensitivity: 3,
+          compareWithPreviousRun: false,
+          intelliIgnore: {
+            enabled: true,
+            dynamic: true,
+            ignoreCustomElementsClasses: '.ad;.promo'
+          }
+        });
+    });
+
+    it('warns and strips unknown visual-config keys before build creation', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({
+        diffSensitivity: 2,
+        unknownTopLevel: true,
+        intelliIgnore: {
+          enabled: true,
+          unknownNested: true
+        }
+      });
+
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        "[percy:client] Warning: Ignoring unknown PERCY_VISUAL_CONFIG key: 'unknownTopLevel'",
+        "[percy:client] Warning: Ignoring unknown PERCY_VISUAL_CONFIG intelliIgnore key: 'unknownNested'"
+      ]));
+      expect(api.requests['/builds'][0].body.data.attributes['visual-config'])
+        .toEqual({
+          diffSensitivity: 2,
+          intelliIgnore: {
+            enabled: true
+          }
+        });
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG is invalid JSON', async () => {
+      process.env.PERCY_VISUAL_CONFIG = '{ invalid json }';
+
+      await expectAsync(client.createBuild({ projectType: 'web' }))
+        .toBeRejectedWithError('Invalid PERCY_VISUAL_CONFIG: value must be valid JSON');
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG contains invalid types', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({
+        diffSensitivity: 'high'
+      });
+
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeRejectedWithError(
+        "Invalid PERCY_VISUAL_CONFIG: 'diffSensitivity' must be an integer between 1 and 5"
+      );
     });
   });
 
