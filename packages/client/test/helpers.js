@@ -109,6 +109,18 @@ export const api = {
       }
     }],
 
+    '/builds/123': () => [200, {
+      data: {
+        id: '123',
+        attributes: {
+          'build-number': 1,
+          'web-url': 'https://percy.io/test/test/123',
+          'total-snapshots': 0,
+          state: 'pending'
+        }
+      }
+    }],
+
     '/builds/123/snapshots': ({ body }) => [201, {
       data: {
         id: '4567',
