@@ -701,6 +701,15 @@ describe('PercyClient', () => {
         .toBeRejectedWithError("Invalid PERCY_VISUAL_CONFIG: 'diffIgnorePercentage' must be a number between 0 and 1");
     });
 
+    it('creates a new build with valid diffIgnorePercentage', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ diffIgnorePercentage: 0.5 });
+
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes['visual-config'])
+        .toEqual(jasmine.objectContaining({ diffIgnorePercentage: 0.5 }));
+    });
+
     it('throws when PERCY_VISUAL_CONFIG browsers is not an array of strings', async () => {
       process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ browsers: 'chrome' });
 
