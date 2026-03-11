@@ -672,6 +672,64 @@ describe('PercyClient', () => {
         "Invalid PERCY_VISUAL_CONFIG: 'diffSensitivity' must be an integer between 1 and 5"
       );
     });
+
+    it('throws when PERCY_VISUAL_CONFIG is not a JSON object', async () => {
+      process.env.PERCY_VISUAL_CONFIG = '"just a string"';
+
+      await expectAsync(client.createBuild({ projectType: 'web' }))
+        .toBeRejectedWithError('Invalid PERCY_VISUAL_CONFIG: value must be a JSON object');
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG boolean field has non-boolean value', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ enableLayout: 'yes' });
+
+      await expectAsync(client.createBuild({ projectType: 'web' }))
+        .toBeRejectedWithError("Invalid PERCY_VISUAL_CONFIG: 'enableLayout' must be a boolean");
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG percyCssValue is not a string', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ percyCssValue: 123 });
+
+      await expectAsync(client.createBuild({ projectType: 'web' }))
+        .toBeRejectedWithError("Invalid PERCY_VISUAL_CONFIG: 'percyCssValue' must be a string");
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG diffIgnorePercentage is out of range', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ diffIgnorePercentage: 5 });
+
+      await expectAsync(client.createBuild({ projectType: 'web' }))
+        .toBeRejectedWithError("Invalid PERCY_VISUAL_CONFIG: 'diffIgnorePercentage' must be a number between 0 and 1");
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG browsers is not an array of strings', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ browsers: 'chrome' });
+
+      await expectAsync(client.createBuild({ projectType: 'web' }))
+        .toBeRejectedWithError("Invalid PERCY_VISUAL_CONFIG: 'browsers' must be an array of strings");
+    });
+
+    it('creates a new build with visual-config browsers array', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ browsers: ['chrome', 'firefox'] });
+
+      await expectAsync(client.createBuild({ projectType: 'web' })).toBeResolved();
+
+      expect(api.requests['/builds'][0].body.data.attributes['visual-config'])
+        .toEqual(jasmine.objectContaining({ browsers: jasmine.any(Array) }));
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG intelliIgnore is not an object', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ intelliIgnore: [] });
+
+      await expectAsync(client.createBuild({ projectType: 'web' }))
+        .toBeRejectedWithError("Invalid PERCY_VISUAL_CONFIG: 'intelliIgnore' must be an object");
+    });
+
+    it('throws when PERCY_VISUAL_CONFIG intelliIgnore.ignoreCustomElementsClasses is not a string', async () => {
+      process.env.PERCY_VISUAL_CONFIG = JSON.stringify({ intelliIgnore: { ignoreCustomElementsClasses: 123 } });
+
+      await expectAsync(client.createBuild({ projectType: 'web' }))
+        .toBeRejectedWithError("Invalid PERCY_VISUAL_CONFIG: 'intelliIgnore.ignoreCustomElementsClasses' must be a string");
+    });
   });
 
   describe('#getBuild()', () => {
