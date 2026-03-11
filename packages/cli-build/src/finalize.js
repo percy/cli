@@ -21,6 +21,10 @@ export const finalize = command('finalize', {
   // rely on the parallel nonce to cause the API to return the current running build for the nonce
   let { data: build } = await percy.client.createBuild({ cliStartTime: percy.cliStartTime });
   try {
+    // Wait for snapshot counts to stabilise across all shards before finalizing.
+    // Without this guard, percy build:finalize can race against snapshot-level
+    // upload/finalize requests that are still in-flight on other shards.
+    await percy.client.waitForBuildReadyToFinalize(build.id);
     await percy.client.finalizeBuild(build.id, { all: true });
   } catch (error) {
     exit(1, 'Percy build failed during finalize', error.message);

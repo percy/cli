@@ -250,6 +250,52 @@ export class PercyClient {
     return this.post(`builds/${buildId}/finalize?${qs}`, {}, { identifier: 'build.finalze' });
   }
 
+  // Waits until the build's total-snapshots count has been stable for a quiet
+  // window before the all-shards finalize call. This avoids a race where
+  // snapshot-level upload/finalize requests from other parallel shards are
+  // still in-flight when percy build:finalize is triggered by the CI
+  // orchestrator. Configurable via environment variables:
+  //   PERCY_FINALIZE_QUIET_WINDOW_MS – ms the count must be unchanged (default 5000)
+  //   PERCY_FINALIZE_TIMEOUT_MS      – overall wait ceiling (default 10 min)
+  //   PERCY_FINALIZE_INTERVAL_MS     – poll interval (default 1000)
+  async waitForBuildReadyToFinalize(buildId, {
+    quietMs = parseInt(process.env.PERCY_FINALIZE_QUIET_WINDOW_MS ?? '5000'),
+    timeout = parseInt(process.env.PERCY_FINALIZE_TIMEOUT_MS ?? String(10 * 60 * 1000)),
+    interval = parseInt(process.env.PERCY_FINALIZE_INTERVAL_MS ?? '1000')
+  } = {}) {
+    validateId('build', buildId);
+    this.log.debug(`Waiting for build ${buildId} to be ready to finalize...`);
+
+    let start = Date.now();
+    let lastSnapshotCount = null;
+    let stableSince = null;
+
+    while (Date.now() - start < timeout) {
+      try {
+        let { data } = await this.getBuild(buildId);
+        let snapshotCount = data?.attributes?.['total-snapshots'] ?? 0;
+
+        if (snapshotCount !== lastSnapshotCount) {
+          // Count changed — reset the stability window
+          lastSnapshotCount = snapshotCount;
+          stableSince = Date.now();
+        } else if (stableSince != null && Date.now() - stableSince >= quietMs) {
+          // Count has been stable for the full quiet window — safe to finalize
+          this.log.debug(`Build ${buildId} ready to finalize with ${snapshotCount} snapshots`);
+          return;
+        }
+      } catch (error) {
+        this.log.warn(`Build readiness check failed: ${error.message}`);
+        lastSnapshotCount = null;
+        stableSince = null;
+      }
+
+      await waitForTimeout(interval);
+    }
+
+    throw new Error(`Timed out waiting for build ${buildId} to be ready to finalize`);
+  }
+
   // Retrieves build data by id. Requires a read access token.
   async getBuild(buildId) {
     validateId('build', buildId);
