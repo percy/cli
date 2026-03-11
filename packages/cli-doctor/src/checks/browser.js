@@ -523,12 +523,11 @@ export async function checkBrowserNetwork(options = {}) {
     targetUrl = 'https://percy.io',
     proxyUrl,
     timeout = 30000,
-    headless = true,
-    _chromePath // test/CI override: undefined = auto-detect, null = force skip
+    headless = true
   } = options;
 
   // ── 1. Find Chrome ─────────────────────────────────────────────────────────
-  const chromePath = _chromePath !== undefined ? _chromePath : await findChrome();
+  const chromePath = await findChrome();
 
   if (!chromePath) {
     return {

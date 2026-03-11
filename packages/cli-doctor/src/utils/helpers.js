@@ -78,7 +78,7 @@ export function captureProxyEnv() {
  * same request — no duplicate HTTP roundtrip in the common case.
  */
 export async function runConnectivityAndSSL(ctx) {
-  const { log, report, proxyUrl, timeout, _connectivityFn = checkConnectivityAndSSL } = ctx;
+  const { log, report, proxyUrl, timeout } = ctx;
 
   print(log, sectionHeader('Network Connectivity'));
 
@@ -86,7 +86,7 @@ export async function runConnectivityAndSSL(ctx) {
   let sslFindings = [];
 
   try {
-    ({ connectivityFindings, sslFindings } = await _connectivityFn({ proxyUrl, timeout }));
+    ({ connectivityFindings, sslFindings } = await checkConnectivityAndSSL({ proxyUrl, timeout }));
   } catch (err) {
     log.error(`Connectivity/SSL check failed unexpectedly: ${err.message}`);
     connectivityFindings = [{ status: 'fail', message: err.message }];
@@ -114,14 +114,14 @@ export async function runConnectivityAndSSL(ctx) {
  * process inspection → WPAD
  */
 export async function runProxyCheck(ctx) {
-  const { log, report, timeout, _proxyFn = detectProxy } = ctx;
+  const { log, report, timeout } = ctx;
 
   print(log, sectionHeader('Proxy Configuration'));
   print(log, checkLine('info', 'Scanning for proxy configuration and validating discovered proxies...'));
 
   let proxyFindings = [];
   try {
-    proxyFindings = await _proxyFn({ timeout, testProxy: true });
+    proxyFindings = await detectProxy({ timeout, testProxy: true });
   } catch (err) {
     log.error(`Proxy detection failed unexpectedly: ${err.message}`);
     proxyFindings = [{ status: 'fail', message: err.message }];
@@ -139,13 +139,13 @@ export async function runProxyCheck(ctx) {
  * Detects PAC files from macOS, Linux, Windows, Chrome, Firefox.
  */
 export async function runPACCheck(ctx) {
-  const { log, report, _pacFn = detectPAC } = ctx;
+  const { log, report } = ctx;
 
   print(log, sectionHeader('PAC / Auto-Proxy Configuration'));
 
   let pacFindings = [];
   try {
-    pacFindings = await _pacFn();
+    pacFindings = await detectPAC();
   } catch (err) {
     log.error(`PAC detection failed unexpectedly: ${err.message}`);
     pacFindings = [{ status: 'fail', message: err.message }];
@@ -174,7 +174,7 @@ export async function runPACCheck(ctx) {
  * If --proxy-server was supplied, runs the capture twice and compares.
  */
 export async function runBrowserCheck(ctx) {
-  const { log, report, targetUrl, proxyUrl, timeout, _chromePath, _browserNetworkFn = checkBrowserNetwork } = ctx;
+  const { log, report, targetUrl, proxyUrl, timeout } = ctx;
 
   print(log, sectionHeader('Browser Network Analysis'));
   if (proxyUrl) {
@@ -185,12 +185,11 @@ export async function runBrowserCheck(ctx) {
 
   let browserResult = null;
   try {
-    browserResult = await _browserNetworkFn({
+    browserResult = await checkBrowserNetwork({
       targetUrl,
       proxyUrl,
       timeout: Math.max(timeout, 30000), // browsers need more time
-      headless: true,
-      _chromePath // undefined = auto-detect; null = force skip (test override)
+      headless: true
     });
 
     if (!browserResult.chromePath) {
@@ -239,9 +238,9 @@ export async function runBrowserCheck(ctx) {
  * @param {string}  [options.targetUrl]  - URL to open in Chrome (default: https://percy.io)
  * @returns {Promise<{ checks: object, hasFail: boolean, hasWarn: boolean }>}
  */
-export async function runDiagnostics({ log, proxyUrl, timeout = 10000, targetUrl = 'https://percy.io', _chromePath, _connectivityFn, _proxyFn, _pacFn, _browserNetworkFn } = {}) {
+export async function runDiagnostics({ log, proxyUrl, timeout = 10000, targetUrl = 'https://percy.io' } = {}) {
   const report = { checks: {} };
-  const ctx = { log, report, proxyUrl, timeout, targetUrl, _chromePath, _connectivityFn, _proxyFn, _pacFn, _browserNetworkFn };
+  const ctx = { log, report, proxyUrl, timeout, targetUrl };
   await runConnectivityAndSSL(ctx);
   await runProxyCheck(ctx);
   await runPACCheck(ctx);

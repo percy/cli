@@ -29,10 +29,10 @@ export const REQUIRED_DOMAINS = [
  * @returns {Promise<{ connectivityFindings: Array, sslFindings: Array }>}
  */
 export async function checkConnectivityAndSSL(options = {}) {
-  const { proxyUrl, timeout = 10000, _domains = REQUIRED_DOMAINS, _percyUrl = 'https://percy.io', _probeUrl: probeUrlFn = probeUrl } = options;
+  const { proxyUrl, timeout = 10000 } = options;
 
-  const rawFindings = await Promise.all(_domains.map(async ({ label, url, optional, onFail }) => {
-    const finding = await _probeTarget(label, url, proxyUrl, timeout, probeUrlFn);
+  const rawFindings = await Promise.all(REQUIRED_DOMAINS.map(async ({ label, url, optional, onFail }) => {
+    const finding = await _probeTarget(label, url, proxyUrl, timeout, probeUrl);
     if (optional && finding.status === 'fail') {
       finding.status = 'warn';
       if (onFail) finding.suggestions = onFail;
@@ -47,9 +47,8 @@ export async function checkConnectivityAndSSL(options = {}) {
 
   // Reuse the percy.io connectivity probe result for the SSL check — no extra
   // HTTP round-trip needed.
-  // _percyUrl is overridable in tests so we can point it at a local server.
-  const percyFinding = rawFindings.find(f => f.url === _percyUrl);
-  const sslFindings = _buildSSLFindings(percyFinding?.directResult);
+  const percyFinding = rawFindings.find(f => f.url === 'https://percy.io');
+  const sslFindings = [_buildSSLFindings(percyFinding?.directResult)];
 
   return { connectivityFindings: rawFindings, sslFindings };
 }
