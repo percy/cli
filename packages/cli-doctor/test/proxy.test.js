@@ -456,6 +456,29 @@ describe('detectProxy — macOS system proxy detection', () => {
     expect(macFinding).toBeDefined();
     expect(macFinding.proxyUrl).toBe('http://http-proxy.corp.com:8080');
   });
+
+  it('returns no macOS finding when scutil output has no proxy enabled (covers return null)', async () => {
+    spyOn(osMod, 'platform').and.returnValue('darwin');
+    // Neither HTTPSEnable nor HTTPEnable is 1 → #detectMacOSProxy returns null
+    spyOn(childProcess, 'execSync').and.returnValue(
+      'HTTPSEnable : 0\nHTTPEnable : 0\nHTTPSProxy : (null)\n'
+    );
+
+    const findings = await withEnv(
+      { HTTPS_PROXY: undefined, https_proxy: undefined, HTTP_PROXY: undefined, http_proxy: undefined, ALL_PROXY: undefined, all_proxy: undefined, NO_PROXY: undefined, no_proxy: undefined },
+      () => detectProxy({
+        testProxy: false,
+        checkHeaders: false,
+        scanProcesses: false,
+        checkWpad: false
+      })
+    );
+
+    const macFinding = findings.find(f => f.source && f.source.startsWith('macOS:'));
+    expect(macFinding).toBeUndefined();
+    const summary = findings.find(f => f.source === 'none');
+    expect(summary).toBeDefined();
+  });
 });
 
 describe('detectProxy — Linux system proxy detection', () => {
@@ -775,17 +798,14 @@ describe('detectProxy — process inspection', () => {
   });
 
   it('returns warn finding when known proxy process is detected', async () => {
-    // Spy on exec — proxy.js's const exec = promisify(execCb) captures execCb at
-    // module load time, so this spy only works if Babel compiled execCb access
-    // as a property read. Either way, info/warn are both acceptable outcomes.
     spyOn(childProcess, 'exec').and.callFake((cmd, opts, cb) => {
-      // ps aux output containing 'zscaler'
+      // ps aux output containing 'zscaler'.
+      // Pass as a single {stdout,stderr} object so standard util.promisify resolves
+      // correctly — cb(null, str, '') would produce a two-element array causing
+      // `const { stdout }` to be undefined and fall into the catch branch.
       const stdout = 'root 1234 0.0 0.1 zscaler-daemon\n';
-      if (typeof opts === 'function') {
-        opts(null, stdout, '');
-      } else if (typeof cb === 'function') {
-        cb(null, stdout, '');
-      }
+      const callback = typeof opts === 'function' ? opts : cb;
+      callback(null, { stdout, stderr: '' });
     });
 
     const findings = await withEnv(
@@ -801,8 +821,9 @@ describe('detectProxy — process inspection', () => {
 
     const procFinding = findings.find(f => f.layer === 'process-inspection');
     expect(procFinding).toBeDefined();
-    // If the spy worked, we get warn; if exec was already promisified before spy, info is still valid
-    expect(['info', 'warn']).toContain(procFinding.status);
+    expect(procFinding.status).toBe('warn');
+    expect(procFinding.message).toMatch(/zscaler/i);
+    expect(procFinding.processes).toContain('zscaler');
   });
 
   it('uses tasklist on win32 and detects proxy agent from stdout', async () => {
@@ -810,11 +831,8 @@ describe('detectProxy — process inspection', () => {
 
     spyOn(childProcess, 'exec').and.callFake((cmd, opts, cb) => {
       const stdout = '"zscaler.exe","1234","Services","0","12,345 K","Running","SYSTEM","0","0:00:01","N/A"\n';
-      if (typeof opts === 'function') {
-        opts(null, stdout, '');
-      } else if (typeof cb === 'function') {
-        cb(null, stdout, '');
-      }
+      const callback = typeof opts === 'function' ? opts : cb;
+      callback(null, { stdout, stderr: '' });
     });
 
     const findings = await withEnv(
@@ -830,18 +848,16 @@ describe('detectProxy — process inspection', () => {
 
     const procFinding = findings.find(f => f.layer === 'process-inspection');
     expect(procFinding).toBeDefined();
-    expect(['info', 'warn']).toContain(procFinding.status);
+    expect(procFinding.status).toBe('warn');
+    expect(procFinding.message).toMatch(/zscaler/i);
   });
 
   it('returns info finding when no known proxy/security agents are found', async () => {
     spyOn(childProcess, 'exec').and.callFake((cmd, opts, cb) => {
       // Return process list with no known proxy agents
       const stdout = 'bash 1234 0.0 0.1 bash\nnode 5678 0.1 0.2 node\n';
-      if (typeof opts === 'function') {
-        opts(null, stdout, '');
-      } else if (typeof cb === 'function') {
-        cb(null, stdout, '');
-      }
+      const callback = typeof opts === 'function' ? opts : cb;
+      callback(null, { stdout, stderr: '' });
     });
 
     const findings = await withEnv(

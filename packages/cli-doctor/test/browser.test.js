@@ -1033,6 +1033,22 @@ describe('BrowserChecker — checkBrowserNetwork — win32 Chrome paths', () => 
   });
 });
 
+// ─── BrowserChecker — darwin Chrome paths ─────────────────────────────────────
+// Covers line 190: the darwin branch inside #systemChromePaths().
+// Reached via checkBrowserNetwork() when os.platform() is spoofed to 'darwin'.
+
+describe('BrowserChecker — checkBrowserNetwork — darwin Chrome paths', () => {
+  it('exercises darwin Chrome candidate paths and returns skip when none exist', async () => {
+    spyOn(os, 'platform').and.returnValue('darwin');
+    spyOn(fsMod, 'existsSync').and.returnValue(false);
+    const result = await withEnv(
+      { PERCY_BROWSER_EXECUTABLE: undefined },
+      () => new BrowserChecker().checkBrowserNetwork()
+    );
+    expect(result.status).toBe('skip');
+  });
+});
+
 // ─── BrowserChecker — _pollCDPPageTarget ──────────────────────────────────────
 // Covers lines 281-283: the two rejection branches inside _pollCDPPageTarget.
 
