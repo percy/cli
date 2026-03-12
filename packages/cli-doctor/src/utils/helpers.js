@@ -58,11 +58,24 @@ export function captureProxyEnv() {
     'PERCY_BROWSER_EXECUTABLE'
   ];
   const out = {};
+  // On Windows env var names are case-insensitive, so HTTPS_PROXY and
+  // https_proxy resolve to the same underlying slot. Track already-emitted
+  // lowercase keys to avoid producing duplicate entries (e.g. both HTTPS_PROXY
+  // and https_proxy) when only one distinct variable exists.
+  const seenLower = new Set();
   for (const k of proxyKeys) {
-    if (process.env[k] !== undefined) out[k] = redactProxyUrl(process.env[k]);
+    const lower = k.toLowerCase();
+    if (process.env[k] !== undefined && !seenLower.has(lower)) {
+      seenLower.add(lower);
+      out[k] = redactProxyUrl(process.env[k]);
+    }
   }
   for (const k of otherKeys) {
-    if (process.env[k] !== undefined) out[k] = process.env[k];
+    const lower = k.toLowerCase();
+    if (process.env[k] !== undefined && !seenLower.has(lower)) {
+      seenLower.add(lower);
+      out[k] = process.env[k];
+    }
   }
   return out;
 }

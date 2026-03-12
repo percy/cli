@@ -85,9 +85,12 @@ export class ProxyDetector {
     const discovered = new Map(); // proxyUrl → { source }
 
     // ── Layer 1: Environment variables ──────────────────────────────────────
+    // Use first-write-wins so that on case-insensitive systems (Windows) where
+    // HTTPS_PROXY and https_proxy resolve to the same value, the uppercase
+    // variant (which comes first in PROXY_ENV_KEYS) keeps the source credit.
     for (const key of PROXY_ENV_KEYS) {
       const val = process.env[key];
-      if (val) discovered.set(val, { source: `env:${key}` });
+      if (val && !discovered.has(val)) discovered.set(val, { source: `env:${key}` });
     }
 
     const noProxy = NO_PROXY_KEYS.map(k => process.env[k]).filter(Boolean).join(',');

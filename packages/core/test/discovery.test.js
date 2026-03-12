@@ -3091,7 +3091,7 @@ describe('Discovery', () => {
       expect(percy.domainValidation.processedHosts.has('ex.localhost:8001')).toBe(false);
     });
 
-    fit('skips validation when hostname validation is already pending', async () => {
+    it('skips validation when hostname validation is already pending', async () => {
       await percy.stop();
 
       let validationCallCount = 0;

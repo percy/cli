@@ -166,7 +166,9 @@ describe('detectProxy — environment variable detection', () => {
     );
     const found = findings.find(f => f.proxyUrl === 'http://lowercase.proxy:3128');
     expect(found).toBeDefined();
-    expect(found.source).toContain('https_proxy');
+    // On Windows env vars are case-insensitive (HTTPS_PROXY === https_proxy),
+    // so the source always reflects whichever casing is first in PROXY_ENV_KEYS.
+    expect(found.source).toMatch(/HTTPS_PROXY|https_proxy/);
   });
 
   it('detects HTTP_PROXY env var', async () => {

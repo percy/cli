@@ -461,7 +461,6 @@ async function validateDomainForAllowlist(network, hostname, url, statusCode) {
 
   // If validation is already pending for this hostname, await the same promise (mutex)
   if (pending.has(hostname)) {
-    console.log('Here');
     return pending.get(hostname);
   }
 

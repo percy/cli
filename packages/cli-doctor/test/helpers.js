@@ -155,8 +155,28 @@ export function createProxyServer(opts = {}) {
  * @param {function} fn
  */
 export async function withEnv(vars, fn) {
+  // On Windows env var names are case-insensitive: HTTPS_PROXY and https_proxy
+  // refer to the same underlying slot. When `vars` contains both a "set" and a
+  // "delete" entry for the same case-insensitive key (e.g. HTTPS_PROXY:'x' plus
+  // https_proxy:undefined), naively processing them in insertion order could let
+  // the delete silently erase the assignment. Deduplicate first so that a
+  // non-undefined "set" always wins over an undefined "delete" for the same key.
+  let entries = Object.entries(vars);
+  if (os.platform() === 'win32') {
+    const seen = new Map(); // lower-case key → [key, value]
+    for (const [k, v] of entries) {
+      const lower = k.toLowerCase();
+      const existing = seen.get(lower);
+      // Keep the first entry unless the current one promotes undefined → defined.
+      if (!existing || (existing[1] === undefined && v !== undefined)) {
+        seen.set(lower, [k, v]);
+      }
+    }
+    entries = [...seen.values()];
+  }
+
   const saved = {};
-  for (const [k, v] of Object.entries(vars)) {
+  for (const [k, v] of entries) {
     saved[k] = process.env[k];
     if (v === undefined) {
       delete process.env[k];

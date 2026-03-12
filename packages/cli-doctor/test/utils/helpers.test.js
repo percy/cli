@@ -147,7 +147,11 @@ describe('captureProxyEnv', () => {
 
   it('captures lowercase https_proxy', async () => {
     const result = await withEnv({ https_proxy: 'http://proxy:8080' }, () => captureProxyEnv());
-    expect(result.https_proxy).toBe('http://proxy:8080/');
+    // On Windows env vars are case-insensitive, so the value may be captured
+    // under the uppercase canonical key (HTTPS_PROXY) that comes first in
+    // proxyKeys.  Accept either form.
+    const captured = result.https_proxy ?? result.HTTPS_PROXY;
+    expect(captured).toBe('http://proxy:8080/');
   });
 
   it('captures HTTP_PROXY', async () => {

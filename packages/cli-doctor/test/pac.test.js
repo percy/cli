@@ -762,9 +762,9 @@ describe('detectPAC — Firefox prefs.js branch (lines 199-209)', () => {
     spyOn(osMod, 'platform').and.returnValue('linux');
     spyOn(osMod, 'homedir').and.returnValue('/home/testuser');
 
-    const firefoxProfilesDir = '/home/testuser/.mozilla/firefox';
-    const profileDir = `${firefoxProfilesDir}/abc123.default`;
-    const prefsJsPath = `${profileDir}/prefs.js`;
+    const firefoxProfilesDir = path.join('/home/testuser', '.mozilla/firefox');
+    const profileDir = path.join(firefoxProfilesDir, 'abc123.default');
+    const prefsJsPath = path.join(profileDir, 'prefs.js');
 
     spyOn(childProcess, 'execSync').and.throwError('not available');
 
@@ -818,9 +818,9 @@ describe('detectPAC — Firefox prefs.js branch (lines 199-209)', () => {
     spyOn(osMod, 'platform').and.returnValue('linux');
     spyOn(osMod, 'homedir').and.returnValue('/home/testuser');
 
-    const firefoxProfilesDir = '/home/testuser/.mozilla/firefox';
-    const profileDir = `${firefoxProfilesDir}/def456.default`;
-    const prefsJsPath = `${profileDir}/prefs.js`;
+    const firefoxProfilesDir = path.join('/home/testuser', '.mozilla/firefox');
+    const profileDir = path.join(firefoxProfilesDir, 'def456.default');
+    const prefsJsPath = path.join(profileDir, 'prefs.js');
 
     spyOn(childProcess, 'execSync').and.throwError('not available');
 
@@ -1015,8 +1015,8 @@ describe('detectPAC — Chrome Preferences pac_url branch (line 174)', () => {
     spyOn(osMod, 'platform').and.returnValue('darwin');
     spyOn(osMod, 'homedir').and.returnValue('/home/testuser');
 
-    const localStatePath = '/home/testuser/Library/Application Support/Google/Chrome/Local State';
-    const prefsPath = '/home/testuser/Library/Application Support/Google/Chrome/Default/Preferences';
+    const localStatePath = path.join('/home/testuser', 'Library/Application Support/Google/Chrome/Local State');
+    const prefsPath = path.join('/home/testuser', 'Library/Application Support/Google/Chrome/Default/Preferences');
 
     const localStateData = JSON.stringify({ profile: { info_cache: {} } });
     const prefsData = JSON.stringify({ proxy: { pac_url: 'http://chrome-prefs.pac/proxy.pac' } });
