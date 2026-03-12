@@ -3152,6 +3152,44 @@ describe('Discovery', () => {
       expect(validationCallCount).toBe(1);
     });
 
+    fit('uses a pre-populated pending promise to skip validation deterministically', async () => {
+      await percy.stop();
+
+      // Ensure the validation endpoint is not called when a pending result exists
+      validationMock.and.callFake(() => {
+        throw new Error('validation should not be called when pending is pre-populated');
+      });
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        discovery: { autoConfigureAllowedHostnames: true }
+      });
+
+      // Set worker URL (not used since we populate pending)
+      percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
+
+      // Pre-populate pending with a resolved promise for the hostname so the mutex path is taken
+      percy.domainValidation.pending.set('ex.localhost:8001', Promise.resolve(true));
+
+      await percy.snapshot({
+        name: 'test snapshot pre-populated pending',
+        url: 'http://localhost:8000',
+        domSnapshot: testExternalDOM,
+        widths: [1000]
+      });
+
+      await percy.idle();
+
+      // Validation endpoint should not have been called and resource should be captured
+      expect(validationMock).not.toHaveBeenCalled();
+      expect(captured[0]).toContain(
+        jasmine.objectContaining({
+          attributes: jasmine.objectContaining({
+            'resource-url': 'http://ex.localhost:8001/img.gif'
+          })
+        })
+      );
+    });
     it('returns the same promise for concurrent validation requests to the same hostname', async () => {
       await percy.stop();
 
