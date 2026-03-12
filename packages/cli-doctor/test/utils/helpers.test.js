@@ -18,9 +18,15 @@ import {
   runConnectivityAndSSL,
   runProxyCheck,
   runPACCheck,
+  runBrowserCheck,
   runDiagnostics,
   _renderBrowserResults
 } from '../../src/utils/helpers.js';
+
+import { ConnectivityChecker } from '../../src/checks/connectivity.js';
+import { ProxyDetector } from '../../src/checks/proxy.js';
+import { PACDetector } from '../../src/checks/pac.js';
+import { BrowserChecker } from '../../src/checks/browser.js';
 
 import { withEnv, createPacServer, buildPacScript } from '../helpers.js';
 
@@ -235,117 +241,91 @@ function makeLog() {
 // ─── runConnectivityAndSSL ────────────────────────────────────────────────────
 
 describe('runConnectivityAndSSL', () => {
-  it('populates report.checks.connectivity and report.checks.ssl', async () => {
-    const log = makeLog();
-    const report = { checks: {} };
+  it('returns connectivity and ssl results', async () => {
+    spyOn(ConnectivityChecker.prototype, 'checkConnectivityAndSSL').and.returnValue(
+      Promise.resolve({ connectivityFindings: [], sslFindings: [] })
+    );
 
-    await runConnectivityAndSSL({
-      log,
-      report,
-      proxyUrl: undefined,
-      timeout: 10000
-    });
+    const result = await runConnectivityAndSSL(undefined, 10000);
 
-    expect(report.checks.connectivity).toBeDefined();
-    expect(typeof report.checks.connectivity.status).toBe('string');
-    expect(Array.isArray(report.checks.connectivity.findings)).toBe(true);
+    expect(result.connectivity).toBeDefined();
+    expect(typeof result.connectivity.status).toBe('string');
+    expect(Array.isArray(result.connectivity.findings)).toBe(true);
 
-    expect(report.checks.ssl).toBeDefined();
-    expect(typeof report.checks.ssl.status).toBe('string');
-    expect(Array.isArray(report.checks.ssl.findings)).toBe(true);
+    expect(result.ssl).toBeDefined();
+    expect(typeof result.ssl.status).toBe('string');
+    expect(Array.isArray(result.ssl.findings)).toBe(true);
   });
 
   it('handles unexpected error from check gracefully', async () => {
-    const log = makeLog();
-    const report = { checks: {} };
+    spyOn(ConnectivityChecker.prototype, 'checkConnectivityAndSSL').and.rejectWith(new Error('network failure'));
 
-    // Use very short timeout to potentially trigger errors
-    await runConnectivityAndSSL({
-      log,
-      report,
-      timeout: 1
-    });
+    const result = await runConnectivityAndSSL();
 
-    expect(report.checks.connectivity).toBeDefined();
-    expect(report.checks.ssl).toBeDefined();
+    expect(result.connectivity).toBeDefined();
+    expect(result.ssl).toBeDefined();
   });
 });
 
 // ─── runProxyCheck ────────────────────────────────────────────────────────────
 
 describe('runProxyCheck', () => {
-  it('populates report.checks.proxy', async () => {
-    const log = makeLog();
-    const report = { checks: {} };
+  it('returns proxy result', async () => {
+    spyOn(ProxyDetector.prototype, 'detectProxy').and.returnValue(
+      Promise.resolve([{ status: 'info', layer: 'summary', source: 'none', message: 'No proxy detected.', proxyUrl: null }])
+    );
 
-    await withEnv({
-      HTTPS_PROXY: undefined,
-      https_proxy: undefined,
-      HTTP_PROXY: undefined,
-      http_proxy: undefined,
-      ALL_PROXY: undefined,
-      all_proxy: undefined,
-      NO_PROXY: undefined,
-      no_proxy: undefined
-    }, () => runProxyCheck({
-      log,
-      report,
-      timeout: 2000
-    }));
+    const result = await runProxyCheck(10000);
 
-    expect(report.checks.proxy).toBeDefined();
-    expect(typeof report.checks.proxy.status).toBe('string');
-    expect(Array.isArray(report.checks.proxy.findings)).toBe(true);
+    expect(ProxyDetector.prototype.detectProxy).toHaveBeenCalled();
+    expect(result.proxy).toBeDefined();
+    expect(typeof result.proxy.status).toBe('string');
+    expect(Array.isArray(result.proxy.findings)).toBe(true);
   });
 
-  it('report.checks.proxy.status is a valid status string', async () => {
-    const log = makeLog();
-    const report = { checks: {} };
+  it('proxy.status is a valid status string', async () => {
+    spyOn(ProxyDetector.prototype, 'detectProxy').and.returnValue(
+      Promise.resolve([{ status: 'pass', layer: 'configuration', source: 'env:HTTPS_PROXY', message: 'Proxy OK.', proxyUrl: 'http://proxy:8080' }])
+    );
 
-    await withEnv({
-      HTTPS_PROXY: undefined,
-      https_proxy: undefined,
-      HTTP_PROXY: undefined,
-      http_proxy: undefined,
-      ALL_PROXY: undefined,
-      all_proxy: undefined,
-      NO_PROXY: undefined,
-      no_proxy: undefined
-    }, () => runProxyCheck({ log, report, timeout: 2000 }));
+    const result = await runProxyCheck(10000);
 
-    expect(['pass', 'warn', 'fail', 'info']).toContain(report.checks.proxy.status);
+    expect(['pass', 'warn', 'fail', 'info']).toContain(result.proxy.status);
+  });
+
+  it('handles unexpected error from detectProxy gracefully', async () => {
+    spyOn(ProxyDetector.prototype, 'detectProxy').and.rejectWith(new Error('Proxy detection failed'));
+
+    const result = await runProxyCheck(10000);
+
+    expect(result.proxy).toBeDefined();
   });
 });
 
 // ─── runPACCheck ──────────────────────────────────────────────────────────────
 
 describe('runPACCheck', () => {
-  it('populates report.checks.pac', async () => {
-    const log = makeLog();
-    const report = { checks: {} };
-
-    await withEnv({ PERCY_PAC_FILE_URL: undefined }, () =>
-      runPACCheck({ log, report })
+  it('returns pac result', async () => {
+    const result = await withEnv({ PERCY_PAC_FILE_URL: undefined }, () =>
+      runPACCheck()
     );
 
-    expect(report.checks.pac).toBeDefined();
-    expect(typeof report.checks.pac.status).toBe('string');
-    expect(Array.isArray(report.checks.pac.findings)).toBe(true);
+    expect(result.pac).toBeDefined();
+    expect(typeof result.pac.status).toBe('string');
+    expect(Array.isArray(result.pac.findings)).toBe(true);
   });
 
-  it('prints action required message when PAC resolves a proxy', async () => {
+  it('returns warn finding when PAC resolves a proxy', async () => {
     const { createPacServer: mkPac, buildPacScript } = await import('../helpers.js');
     const pacServer = await mkPac(buildPacScript('PROXY corp.proxy:8080'));
-    const log = makeLog();
-    const report = { checks: {} };
 
     try {
-      await withEnv(
+      const result = await withEnv(
         { PERCY_PAC_FILE_URL: `${pacServer.url}/proxy.pac` },
-        () => runPACCheck({ log, report })
+        () => runPACCheck()
       );
-      // PAC resolves to a proxy → report findings includes a warn
-      const hasWarn = report.checks.pac.findings.some(f => f.status === 'warn');
+      // PAC resolves to a proxy → findings includes a warn
+      const hasWarn = result.pac.findings.some(f => f.status === 'warn');
       expect(hasWarn).toBe(true);
     } finally {
       await pacServer.close();
@@ -356,33 +336,187 @@ describe('runPACCheck', () => {
 // ─── runBrowserCheck ──────────────────────────────────────────────────────────
 
 describe('runBrowserCheck', () => {
-  it('populates report.checks.browser when Chrome not found (_chromePath: null)', async () => {
-    // This test requires injection parameter which is no longer supported
-    // Browser check behavior is tested with real Chrome in CI
+  function makeBrowserNetworkResult(overrides = {}) {
+    return {
+      status: 'pass',
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io',
+      directCapture: { requests: [], proxyHeaders: [], navMs: 100, error: null },
+      proxyCapture: null,
+      domainSummary: [
+        { hostname: 'percy.io', status: 'pass', direct: { reachable: true, blocked: false, errors: [], sampleStatus: 200 }, viaProxy: null }
+      ],
+      proxyHeaders: [],
+      navMs: 100,
+      error: null,
+      ...overrides
+    };
+  }
+
+  it('returns browser result with mocked BrowserChecker', async () => {
+    spyOn(BrowserChecker.prototype, 'checkBrowserNetwork').and.returnValue(Promise.resolve(makeBrowserNetworkResult()));
+
+    const result = await runBrowserCheck('https://percy.io', undefined, 10000);
+
+    expect(BrowserChecker.prototype.checkBrowserNetwork).toHaveBeenCalled();
+    expect(result.browser).toBeDefined();
+    expect(typeof result.browser.status).toBe('string');
   });
 
-  it('report.checks.browser has required fields', async () => {
-    // This test requires injection parameter which is no longer supported
-    // Browser check behavior is tested with real Chrome in CI
+  it('browser.status is warn when browserResult.error is truthy', async () => {
+    spyOn(BrowserChecker.prototype, 'checkBrowserNetwork').and.returnValue(
+      Promise.resolve(makeBrowserNetworkResult({ error: 'Browser capture timed out after 45s', domainSummary: [] }))
+    );
+
+    const result = await runBrowserCheck('https://percy.io', undefined, 10000);
+
+    expect(result.browser.status).toBe('warn');
+  });
+
+  it('sets status skip and skips rendering when Chrome not found (chromePath: null)', async () => {
+    spyOn(BrowserChecker.prototype, 'checkBrowserNetwork').and.returnValue(Promise.resolve({
+      status: 'skip',
+      chromePath: null,
+      targetUrl: 'https://percy.io',
+      directCapture: null,
+      proxyCapture: null,
+      domainSummary: [],
+      proxyHeaders: [],
+      navMs: 0,
+      error: null
+    }));
+
+    const result = await runBrowserCheck('https://percy.io', undefined, 10000);
+
+    expect(result.browser).toBeDefined();
+  });
+
+  it('applies ?? [] fallback when domainSummary and proxyHeaders are null', async () => {
+    spyOn(BrowserChecker.prototype, 'checkBrowserNetwork').and.returnValue(Promise.resolve({
+      status: 'pass',
+      chromePath: '/usr/bin/chrome',
+      targetUrl: 'https://percy.io',
+      directCapture: { requests: [], proxyHeaders: [], navMs: 50, error: null },
+      proxyCapture: null,
+      domainSummary: null, // null → ?? [] fallback
+      proxyHeaders: null, // null → ?? [] fallback
+      navMs: 50,
+      error: null
+    }));
+
+    const result = await runBrowserCheck('https://percy.io', undefined, 10000);
+
+    expect(result.browser.domainSummary).toEqual([]);
+    expect(result.browser.proxyHeaders).toEqual([]);
+  });
+
+  it('handles unexpected error from checkBrowserNetwork gracefully', async () => {
+    spyOn(BrowserChecker.prototype, 'checkBrowserNetwork').and.rejectWith(new Error('Browser launch failed'));
+
+    const result = await runBrowserCheck('https://percy.io', undefined, 10000);
+
+    expect(result.browser).toBeDefined();
+  });
+
+  it('prints proxy-capture message when proxyUrl is set', async () => {
+    spyOn(BrowserChecker.prototype, 'checkBrowserNetwork').and.returnValue(Promise.resolve(makeBrowserNetworkResult({
+      proxyCapture: { requests: [], proxyHeaders: [], navMs: 80, error: null }
+    })));
+
+    const { text } = await captureStdout(() =>
+      runBrowserCheck('https://percy.io', 'http://corp-proxy:8080', 10000)
+    );
+
+    expect(text).toMatch(/proxy/i);
+  });
+
+  it('takes default value when url and timeout is not passed', async () => {
+    spyOn(BrowserChecker.prototype, 'checkBrowserNetwork').and.returnValue(Promise.resolve(makeBrowserNetworkResult({
+      proxyCapture: { requests: [], proxyHeaders: [], navMs: 80, error: null }
+    })));
+
+    runBrowserCheck();
+
+    expect(BrowserChecker.prototype.checkBrowserNetwork).toHaveBeenCalledWith({
+      targetUrl: 'https://percy.io',
+      proxyUrl: null,
+      timeout: 30000,
+      headless: true
+    });
   });
 });
 
 // ─── runDiagnostics ───────────────────────────────────────────────────────────
 
 describe('runDiagnostics', () => {
+  function spyAllCheckers({ connectivityResult, proxyResult, pacResult, browserResult } = {}) {
+    spyOn(ConnectivityChecker.prototype, 'checkConnectivityAndSSL').and.returnValue(Promise.resolve(
+      connectivityResult ?? { connectivityFindings: [{ status: 'pass', message: 'ok' }], sslFindings: [{ status: 'pass', message: 'ok' }] }
+    ));
+    spyOn(ProxyDetector.prototype, 'detectProxy').and.returnValue(Promise.resolve(
+      proxyResult ?? [{ status: 'info', message: 'no proxy' }]
+    ));
+    spyOn(PACDetector.prototype, 'detectPAC').and.returnValue(Promise.resolve(
+      pacResult ?? [{ status: 'info', message: 'no pac' }]
+    ));
+    spyOn(BrowserChecker.prototype, 'checkBrowserNetwork').and.returnValue(Promise.resolve(
+      browserResult ?? { status: 'pass', chromePath: '/usr/bin/chrome', domainSummary: [], proxyHeaders: [], navMs: 100, error: null }
+    ));
+  }
+
   it('returns { checks, hasFail, hasWarn } shape', async () => {
-    // This test requires injection parameter which is no longer supported
-    // runDiagnostics behavior is tested with real diagnostics in CI
+    spyAllCheckers();
+    const result = await runDiagnostics({});
+
+    expect(result.checks).toBeDefined();
+    expect(typeof result.hasFail).toBe('boolean');
+    expect(typeof result.hasWarn).toBe('boolean');
+    expect(result.checks.connectivity).toBeDefined();
+    expect(result.checks.ssl).toBeDefined();
+    expect(result.checks.proxy).toBeDefined();
+    expect(result.checks.pac).toBeDefined();
+    expect(result.checks.browser).toBeDefined();
   });
 
-  it('hasFail is true when domains are unreachable', async () => {
-    // This test requires injection parameter which is no longer supported
-    // hasFail logic is tested with real network failures in CI
+  it('hasFail is true when a connectivity domain is unreachable', async () => {
+    spyAllCheckers({
+      connectivityResult: {
+        connectivityFindings: [{ status: 'fail', label: 'Percy API', url: 'https://percy.io', message: 'not reachable' }],
+        sslFindings: [{ status: 'skip', message: 'skipped' }]
+      }
+    });
+
+    const result = await runDiagnostics({});
+
+    expect(result.hasFail).toBe(true);
   });
 
-  it('uses default timeout and targetUrl when called with empty options', async () => {
-    // This test requires injection parameter which is no longer supported
-    // Default parameter behavior is tested with real diagnostics in CI
+  it('hasWarn is true when proxy detection returns a warn finding', async () => {
+    spyAllCheckers({
+      proxyResult: [{ status: 'warn', layer: 'header-fingerprint', source: 'http://proxy.corp', message: 'Proxy headers detected.' }]
+    });
+
+    const result = await runDiagnostics({});
+
+    expect(result.hasWarn).toBe(true);
+  });
+
+  it('calls all four section checkers', async () => {
+    spyAllCheckers();
+    await runDiagnostics({});
+
+    expect(ConnectivityChecker.prototype.checkConnectivityAndSSL).toHaveBeenCalled();
+    expect(ProxyDetector.prototype.detectProxy).toHaveBeenCalled();
+    expect(PACDetector.prototype.detectPAC).toHaveBeenCalled();
+    expect(BrowserChecker.prototype.checkBrowserNetwork).toHaveBeenCalled();
+  });
+
+  it('accepts call with no arguments — covers = {} default parameter', () => {
+    // Calling without args triggers the = {} default parameter branch.
+    // We don't await so real network calls happen in the background and don't block the suite.
+    const p = runDiagnostics();
+    p.catch(() => {});
+    expect(typeof p.then).toBe('function');
   });
 });
 
@@ -390,50 +524,111 @@ describe('runDiagnostics', () => {
 // These use the _*Fn injection hooks added to each section runner so we can
 // force the catch block to execute without mocking module-level imports.
 
-describe('runConnectivityAndSSL — catch block (line 91-92)', () => {
+describe('runConnectivityAndSSL — catch block', () => {
   it('handles unexpected throw from checkConnectivityAndSSL gracefully', async () => {
-    // This test requires injection which has been removed
-    // Error handling is tested by actual network failures
+    spyOn(ConnectivityChecker.prototype, 'checkConnectivityAndSSL').and.rejectWith(new Error('Connectivity failure'));
+
+    const result = await runConnectivityAndSSL();
+
+    expect(result.connectivity).toBeDefined();
+    expect(result.ssl).toBeDefined();
   });
 });
 
-describe('runProxyCheck — catch block (line 126-127)', () => {
+describe('runProxyCheck — catch block', () => {
   it('handles unexpected throw from detectProxy gracefully', async () => {
-    // This test requires injection which has been removed
-    // Error handling is tested by actual failures
+    spyOn(ProxyDetector.prototype, 'detectProxy').and.rejectWith(new Error('Proxy detection error'));
+
+    const result = await runProxyCheck();
+
+    expect(result.proxy).toBeDefined();
   });
 });
 
-describe('runPACCheck — catch block (line 150-151)', () => {
+describe('runPACCheck — catch block', () => {
   it('handles unexpected throw from detectPAC gracefully', async () => {
-    // This test requires injection parameter which is no longer supported
-    // Error handling is tested with real PAC detection in CI
+    spyOn(PACDetector.prototype, 'detectPAC').and.rejectWith(new Error('PAC error'));
+
+    const result = await runPACCheck();
+
+    expect(result.pac).toBeDefined();
   });
 });
 
-describe('runBrowserCheck — proxyUrl branch (line 181)', () => {
+describe('runBrowserCheck — proxyUrl branch', () => {
   it('prints proxy-capture message when proxyUrl is set', async () => {
-    // This test requires injection parameter which is no longer supported
-    // Proxy branch behavior is tested with real Chrome in CI
+    spyOn(BrowserChecker.prototype, 'checkBrowserNetwork').and.returnValue(Promise.resolve({
+      status: 'pass',
+      chromePath: '/usr/bin/chrome',
+      targetUrl: 'https://percy.io',
+      directCapture: { requests: [], proxyHeaders: [], navMs: 100, error: null },
+      proxyCapture: { requests: [], proxyHeaders: [], navMs: 120, error: null },
+      domainSummary: [],
+      proxyHeaders: [],
+      navMs: 100,
+      error: null
+    }));
+
+    const { text } = await captureStdout(() =>
+      runBrowserCheck('https://percy.io', 'http://corp-proxy:8080', 10000)
+    );
+
+    expect(text).toMatch(/proxy/i);
   });
 });
 
-describe('runBrowserCheck — Chrome found path (line 204)', () => {
-  it('calls _renderBrowserResults when _browserNetworkFn returns a real chromePath', async () => {
-    // This test requires injection parameter which is no longer supported
-    // Browser check rendering is tested with real Chrome in CI
+describe('runBrowserCheck — Chrome found path', () => {
+  it('calls _renderBrowserResults when browserChecker returns a real chromePath', async () => {
+    spyOn(BrowserChecker.prototype, 'checkBrowserNetwork').and.returnValue(Promise.resolve({
+      status: 'pass',
+      chromePath: '/usr/bin/google-chrome',
+      targetUrl: 'https://percy.io',
+      directCapture: { requests: [], proxyHeaders: [], navMs: 200, error: null },
+      proxyCapture: null,
+      domainSummary: [
+        { hostname: 'percy.io', status: 'pass', direct: { reachable: true, blocked: false, errors: [], sampleStatus: 200 }, viaProxy: null }
+      ],
+      proxyHeaders: [],
+      navMs: 200,
+      error: null
+    }));
+
+    const { text } = await captureStdout(() =>
+      runBrowserCheck('https://percy.io', undefined, 10000)
+    );
+
+    expect(text).toMatch(/percy\.io/i);
   });
 
-  it('covers filter/map callbacks (lines 217-218) with percy-domain entries', async () => {
-    // This test requires injection parameter which is no longer supported
-    // Domain filtering is tested with real Chrome in CI
+  it('sets browser.status to fail when percy domains are unreachable', async () => {
+    spyOn(BrowserChecker.prototype, 'checkBrowserNetwork').and.returnValue(Promise.resolve({
+      status: 'fail',
+      chromePath: '/usr/bin/chrome',
+      targetUrl: 'https://percy.io',
+      directCapture: { requests: [], proxyHeaders: [], navMs: 0, error: null },
+      proxyCapture: null,
+      domainSummary: [
+        { hostname: 'percy.io', status: 'fail', direct: { reachable: false, blocked: false, errors: ['ERR_NAME_NOT_RESOLVED'], sampleStatus: null }, viaProxy: null },
+        { hostname: 'www.browserstack.com', status: 'fail', direct: { reachable: false, blocked: false, errors: [], sampleStatus: null }, viaProxy: null }
+      ],
+      proxyHeaders: [],
+      navMs: 0,
+      error: null
+    }));
+
+    const result = await runBrowserCheck('https://percy.io', undefined, 10000);
+
+    expect(result.browser.status).toBe('fail');
   });
 });
 
-describe('runBrowserCheck — catch block (line 207)', () => {
+describe('runBrowserCheck — catch block', () => {
   it('handles unexpected throw from checkBrowserNetwork gracefully', async () => {
-    // This test requires injection parameter which is no longer supported
-    // Error handling is tested with real Chrome failures in CI
+    spyOn(BrowserChecker.prototype, 'checkBrowserNetwork').and.rejectWith(new Error('Chrome crashed'));
+
+    const result = await runBrowserCheck('https://percy.io', undefined, 10000);
+
+    expect(result.browser).toBeDefined();
   });
 });
 
@@ -457,19 +652,17 @@ async function captureStdout(fn) {
 describe('runPACCheck — actionablePac branch', () => {
   it('prints action-required message and suggestions when PAC has detectedProxyUrl', async () => {
     const pacServer = await createPacServer(buildPacScript('PROXY corp.proxy.local:8080'));
-    const log = makeLog();
-    const report = { checks: {} };
 
     try {
-      const { text } = await captureStdout(() =>
+      const { text, value: result } = await captureStdout(() =>
         withEnv(
           { PERCY_PAC_FILE_URL: `${pacServer.url}/proxy.pac` },
-          () => runPACCheck({ log, report })
+          () => runPACCheck()
         )
       );
 
       // The actionablePac branch: finding has detectedProxyUrl → extra warn line is printed
-      const hasPacWarn = report.checks.pac.findings.some(
+      const hasPacWarn = result.pac.findings.some(
         f => f.status === 'warn' || f.detectedProxyUrl
       );
       expect(hasPacWarn).toBe(true);
@@ -808,36 +1001,68 @@ describe('_renderBrowserResults — two-column table (with proxy)', () => {
   });
 });
 
-// ─── runBrowserCheck — browserResult.error branch (lines 213-214) ─────────────
+// ─── runBrowserCheck — browserResult.error branch (lines 213-214) ────────────────────
 
-describe('runBrowserCheck — browserResult.error sets status to warn (lines 213-214)', () => {
-  it('report.checks.browser.status is warn when browserResult.error is truthy', async () => {
-    // This test requires injection parameter which is no longer supported
-    // Error status handling is tested with real Chrome failures in CI
+describe('runBrowserCheck — browserResult.error sets status to warn', () => {
+  it('browser.status is warn when browserResult.error is truthy', async () => {
+    spyOn(BrowserChecker.prototype, 'checkBrowserNetwork').and.returnValue(Promise.resolve({
+      status: 'warn',
+      chromePath: '/usr/bin/chrome',
+      targetUrl: 'https://percy.io',
+      directCapture: { requests: [], proxyHeaders: [], navMs: 0, error: null },
+      proxyCapture: null,
+      domainSummary: [],
+      proxyHeaders: [],
+      navMs: 0,
+      error: 'Browser capture timed out'
+    }));
+
+    const result = await runBrowserCheck('https://percy.io', undefined, 10000);
+
+    expect(result.browser.status).toBe('warn');
+    expect(result.browser.error).toBe('Browser capture timed out');
   });
 });
 
 // ─── runBrowserCheck — null domainSummary/proxyHeaders (lines 216, 222, 223, 265) ─
 
-describe('runBrowserCheck — null domainSummary and proxyHeaders (lines 216, 222, 223, 265)', () => {
+describe('runBrowserCheck — null domainSummary and proxyHeaders', () => {
   it('applies ?? [] fallback when domainSummary and proxyHeaders are null', async () => {
-    // This test requires injection parameter which is no longer supported
-    // Null fallback logic is tested with real Chrome in CI
+    spyOn(BrowserChecker.prototype, 'checkBrowserNetwork').and.returnValue(Promise.resolve({
+      status: 'pass',
+      chromePath: '/usr/bin/chrome',
+      targetUrl: 'https://percy.io',
+      directCapture: { requests: [], proxyHeaders: [], navMs: 50, error: null },
+      proxyCapture: null,
+      domainSummary: null,
+      proxyHeaders: null,
+      navMs: 50,
+      error: null
+    }));
+
+    const result = await runBrowserCheck('https://percy.io', undefined, 10000);
+
+    expect(result.browser.domainSummary).toEqual([]);
+    expect(result.browser.proxyHeaders).toEqual([]);
   });
 });
 
-// ─── runDiagnostics — injection hooks + = {} default (line 242) ───────────────
+// ─── runDiagnostics — injection hooks + = {} default (line 242) ───────────────────────────────
 
-describe('runDiagnostics — injection hooks and = {} default (line 242)', () => {
-  it('completes quickly when all section runners are injected via ctx', async () => {
-    // This test requires injection which has been removed for clean API
+describe('runDiagnostics — = {} default parameter', () => {
+  it('completes quickly when all checker prototypes are spied', async () => {
+    spyOn(ConnectivityChecker.prototype, 'checkConnectivityAndSSL').and.returnValue(Promise.resolve({ connectivityFindings: [], sslFindings: [] }));
+    spyOn(ProxyDetector.prototype, 'detectProxy').and.returnValue(Promise.resolve([]));
+    spyOn(PACDetector.prototype, 'detectPAC').and.returnValue(Promise.resolve([]));
+    spyOn(BrowserChecker.prototype, 'checkBrowserNetwork').and.returnValue(Promise.resolve({ status: 'skip', chromePath: null, domainSummary: [], proxyHeaders: [], navMs: 0, error: null }));
+
+    const result = await runDiagnostics({});
+    expect(result.checks).toBeDefined();
   });
 
-  it('accepts call with no arguments — covers = {} default parameter (line 242)', () => {
-    // Calling without args triggers the = {} default parameter branch (Istanbul branch coverage).
-    // We don't await so real network calls happen in the background and don't block the suite.
+  it('accepts call with no arguments — covers = {} default parameter', () => {
     const p = runDiagnostics();
-    p.catch(() => {}); // prevent unhandled rejection from in-flight network/timeout operations
-    expect(typeof p.then).toBe('function'); // confirmed it returned a Promise
+    p.catch(() => {});
+    expect(typeof p.then).toBe('function');
   });
 });

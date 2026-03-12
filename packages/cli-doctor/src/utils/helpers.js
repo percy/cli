@@ -1,7 +1,8 @@
-import { checkConnectivityAndSSL } from '../checks/connectivity.js';
-import { detectProxy } from '../checks/proxy.js';
-import { detectPAC } from '../checks/pac.js';
-import { checkBrowserNetwork } from '../checks/browser.js';
+import { ConnectivityChecker } from '../checks/connectivity.js';
+import { ProxyDetector } from '../checks/proxy.js';
+import { PACDetector } from '../checks/pac.js';
+import { BrowserChecker } from '../checks/browser.js';
+import logger from '@percy/logger';
 import {
   sectionHeader,
   checkLine,
@@ -67,18 +68,23 @@ export function captureProxyEnv() {
 }
 
 // ─── Section runners ──────────────────────────────────────────────────────────
-// Each function receives a shared `ctx` object:
-//   { log, tally, report, proxyUrl, timeout, targetUrl }
-// It prints output, updates tally and report in-place, and returns nothing.
+// Each function receives only the data it needs (proxyUrl, timeout, targetUrl).
+// It creates its own logger and checker internally, then returns its results.
+// doctor.js (and runDiagnostics) assembles report.checks from the return values.
 
 /**
  * Sections 1 + 2: Network Connectivity and SSL/TLS.
  *
  * Both checks probe percy.io; checkConnectivityAndSSL runs them sharing the
  * same request — no duplicate HTTP roundtrip in the common case.
+ *
+ * @param {string}  [proxyUrl]  - Proxy URL to use for outbound requests
+ * @param {number}  [timeout]   - Per-request timeout ms (default: 10000)
+ * @returns {{ connectivity: object, ssl: object }}
  */
-export async function runConnectivityAndSSL(ctx) {
-  const { log, report, proxyUrl, timeout } = ctx;
+export async function runConnectivityAndSSL(proxyUrl, timeout = 10000) {
+  const log = logger('percy:doctor');
+  const connectivityChecker = new ConnectivityChecker();
 
   print(log, sectionHeader('Network Connectivity'));
 
@@ -86,25 +92,27 @@ export async function runConnectivityAndSSL(ctx) {
   let sslFindings = [];
 
   try {
-    ({ connectivityFindings, sslFindings } = await checkConnectivityAndSSL({ proxyUrl, timeout }));
+    ({ connectivityFindings, sslFindings } = await connectivityChecker.checkConnectivityAndSSL({ proxyUrl, timeout }));
   } catch (err) {
     log.error(`Connectivity/SSL check failed unexpectedly: ${err.message}`);
     connectivityFindings = [{ status: 'fail', message: err.message }];
   }
 
   renderFindings(connectivityFindings, log);
-  report.checks.connectivity = {
-    status: sectionStatus(connectivityFindings),
-    findings: connectivityFindings
-  };
 
   // ── SSL / TLS ──────────────────────────────────────────────────────────────
   print(log, sectionHeader('SSL / TLS'));
   renderFindings(sslFindings, log);
 
-  report.checks.ssl = {
-    status: sectionStatus(sslFindings),
-    findings: sslFindings
+  return {
+    connectivity: {
+      status: sectionStatus(connectivityFindings),
+      findings: connectivityFindings
+    },
+    ssl: {
+      status: sectionStatus(sslFindings),
+      findings: sslFindings
+    }
   };
 }
 
@@ -112,40 +120,50 @@ export async function runConnectivityAndSSL(ctx) {
  * Section 3: Proxy Configuration
  * env vars → system settings → header fingerprinting → port scan →
  * process inspection → WPAD
+ *
+ * @param {number}  [timeout]  - Per-request timeout ms (default: 10000)
+ * @returns {{ proxy: object }}
  */
-export async function runProxyCheck(ctx) {
-  const { log, report, timeout } = ctx;
+export async function runProxyCheck(timeout = 10000) {
+  const log = logger('percy:doctor');
+  const proxyDetector = new ProxyDetector();
 
   print(log, sectionHeader('Proxy Configuration'));
   print(log, checkLine('info', 'Scanning for proxy configuration and validating discovered proxies...'));
 
   let proxyFindings = [];
   try {
-    proxyFindings = await detectProxy({ timeout, testProxy: true });
+    proxyFindings = await proxyDetector.detectProxy({ timeout, testProxy: true });
   } catch (err) {
     log.error(`Proxy detection failed unexpectedly: ${err.message}`);
     proxyFindings = [{ status: 'fail', message: err.message }];
   }
 
   renderFindings(proxyFindings, log);
-  report.checks.proxy = {
-    status: sectionStatus(proxyFindings),
-    findings: proxyFindings
+
+  return {
+    proxy: {
+      status: sectionStatus(proxyFindings),
+      findings: proxyFindings
+    }
   };
 }
 
 /**
  * Section 4: PAC / Auto-Proxy Configuration
  * Detects PAC files from macOS, Linux, Windows, Chrome, Firefox.
+ *
+ * @returns {{ pac: object }}
  */
-export async function runPACCheck(ctx) {
-  const { log, report } = ctx;
+export async function runPACCheck() {
+  const log = logger('percy:doctor');
+  const pacDetector = new PACDetector();
 
   print(log, sectionHeader('PAC / Auto-Proxy Configuration'));
 
   let pacFindings = [];
   try {
-    pacFindings = await detectPAC();
+    pacFindings = await pacDetector.detectPAC();
   } catch (err) {
     log.error(`PAC detection failed unexpectedly: ${err.message}`);
     pacFindings = [{ status: 'fail', message: err.message }];
@@ -162,19 +180,27 @@ export async function runPACCheck(ctx) {
     ]));
   }
 
-  report.checks.pac = {
-    status: sectionStatus(pacFindings),
-    findings: pacFindings
+  return {
+    pac: {
+      status: sectionStatus(pacFindings),
+      findings: pacFindings
+    }
   };
 }
 
 /**
  * Section 5: Browser Network Analysis
  * Launches Chrome, navigates to targetUrl, captures all network activity.
- * If --proxy-server was supplied, runs the capture twice and compares.
+ * If proxyUrl is supplied, runs the capture twice and compares.
+ *
+ * @param {string}  [targetUrl]  - URL to open in Chrome (default: https://percy.io)
+ * @param {string}  [proxyUrl]   - Proxy URL to test alongside direct connectivity
+ * @param {number}  [timeout]    - Base timeout ms; browser gets max(timeout, 30000)
+ * @returns {{ browser: object }}
  */
-export async function runBrowserCheck(ctx) {
-  const { log, report, targetUrl, proxyUrl, timeout } = ctx;
+export async function runBrowserCheck(targetUrl = 'https://percy.io', proxyUrl = null, timeout = 10000) {
+  const log = logger('percy:doctor');
+  const browserChecker = new BrowserChecker();
 
   print(log, sectionHeader('Browser Network Analysis'));
   if (proxyUrl) {
@@ -185,7 +211,7 @@ export async function runBrowserCheck(ctx) {
 
   let browserResult = null;
   try {
-    browserResult = await checkBrowserNetwork({
+    browserResult = await browserChecker.checkBrowserNetwork({
       targetUrl,
       proxyUrl,
       timeout: Math.max(timeout, 30000), // browsers need more time
@@ -207,23 +233,25 @@ export async function runBrowserCheck(ctx) {
     // Non-fatal — browser analysis is best-effort
   }
 
-  report.checks.browser = browserResult
-    ? {
-        status: browserResult.error
-          ? 'warn'
-          : sectionStatus(
-            (browserResult.domainSummary ?? [])
-              .filter(d => PERCY_DOMAINS.has(d.hostname))
-              .map(d => ({ status: d.status }))
-          ),
-        chromePath: browserResult.chromePath,
-        targetUrl: browserResult.targetUrl,
-        domainSummary: browserResult.domainSummary ?? [],
-        proxyHeaders: browserResult.proxyHeaders ?? [],
-        navMs: browserResult.navMs,
-        error: browserResult.error ?? null
-      }
-    : { status: 'skip', error: 'Browser analysis not attempted' };
+  return {
+    browser: browserResult
+      ? {
+          status: browserResult.error
+            ? 'warn'
+            : sectionStatus(
+              (browserResult.domainSummary ?? [])
+                .filter(d => PERCY_DOMAINS.has(d.hostname))
+                .map(d => ({ status: d.status }))
+            ),
+          chromePath: browserResult.chromePath,
+          targetUrl: browserResult.targetUrl,
+          domainSummary: browserResult.domainSummary ?? [],
+          proxyHeaders: browserResult.proxyHeaders ?? [],
+          navMs: browserResult.navMs,
+          error: browserResult.error ?? null
+        }
+      : { status: 'skip', error: 'Browser analysis not attempted' }
+  };
 }
 
 /**
@@ -238,13 +266,26 @@ export async function runBrowserCheck(ctx) {
  * @param {string}  [options.targetUrl]  - URL to open in Chrome (default: https://percy.io)
  * @returns {Promise<{ checks: object, hasFail: boolean, hasWarn: boolean }>}
  */
-export async function runDiagnostics({ log, proxyUrl, timeout = 10000, targetUrl = 'https://percy.io' } = {}) {
+export async function runDiagnostics({
+  proxyUrl,
+  timeout = 10000,
+  targetUrl = 'https://percy.io'
+} = {}) {
   const report = { checks: {} };
-  const ctx = { log, report, proxyUrl, timeout, targetUrl };
-  await runConnectivityAndSSL(ctx);
-  await runProxyCheck(ctx);
-  await runPACCheck(ctx);
-  await runBrowserCheck(ctx);
+
+  const { connectivity, ssl } = await runConnectivityAndSSL(proxyUrl, timeout);
+  report.checks.connectivity = connectivity;
+  report.checks.ssl = ssl;
+
+  const { proxy } = await runProxyCheck(timeout);
+  report.checks.proxy = proxy;
+
+  const { pac } = await runPACCheck();
+  report.checks.pac = pac;
+
+  const { browser } = await runBrowserCheck(targetUrl, proxyUrl, timeout);
+  report.checks.browser = browser;
+
   const hasFail = Object.values(report.checks).some(c => c?.status === 'fail');
   const hasWarn = Object.values(report.checks).some(c => c?.status === 'warn');
   return { checks: report.checks, hasFail, hasWarn };

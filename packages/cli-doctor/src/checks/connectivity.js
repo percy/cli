@@ -1,4 +1,4 @@
-import { probeUrl, isSslError } from '../utils/http.js';
+import { httpProber } from '../utils/http.js';
 
 // Domains that Percy's infrastructure relies on
 export const REQUIRED_DOMAINS = [
@@ -18,154 +18,161 @@ export const REQUIRED_DOMAINS = [
 ];
 
 /**
- * Combined connectivity + SSL check.
- *
- * Runs all required-domain probes in parallel, then derives SSL findings from
- * the same percy.io probe result — no duplicate HTTP roundtrip.
- *
- * @param {object}   [options]
- * @param {string}   [options.proxyUrl]   - Proxy to test alongside direct
- * @param {number}   [options.timeout]    - Per-request timeout ms (default 10 000)
- * @returns {Promise<{ connectivityFindings: Array, sslFindings: Array }>}
+ * Connectivity and SSL checker class.
+ * All probing, SSL analysis and result classification logic lives here.
  */
-export async function checkConnectivityAndSSL(options = {}) {
-  const { proxyUrl, timeout = 10000 } = options;
+export class ConnectivityChecker {
+  /**
+   * Combined connectivity + SSL check.
+   *
+   * Runs all required-domain probes in parallel, then derives SSL findings from
+   * the same percy.io probe result — no duplicate HTTP roundtrip.
+   *
+   * @param {object}   [options]
+   * @param {string}   [options.proxyUrl]   - Proxy to test alongside direct
+   * @param {number}   [options.timeout]    - Per-request timeout ms (default 10 000)
+   * @returns {Promise<{ connectivityFindings: Array, sslFindings: Array }>}
+   */
+  async checkConnectivityAndSSL(options = {}) {
+    const { proxyUrl, timeout = 10000 } = options;
 
-  const rawFindings = await Promise.all(REQUIRED_DOMAINS.map(async ({ label, url, optional, onFail }) => {
-    const finding = await _probeTarget(label, url, proxyUrl, timeout, probeUrl);
-    if (optional && finding.status === 'fail') {
-      finding.status = 'warn';
-      if (onFail) finding.suggestions = onFail;
+    const rawFindings = await Promise.all(REQUIRED_DOMAINS.map(async ({ label, url, optional, onFail }) => {
+      const finding = await this.#probeTarget(label, url, proxyUrl, timeout);
+      if (optional && finding.status === 'fail') {
+        finding.status = 'warn';
+        if (onFail) {
+          finding.suggestions = onFail;
+        }
+      }
+      return finding;
+    }));
+
+    // Sort: failures first, then warnings, then passes
+    const order = { fail: 0, warn: 1, pass: 2, skip: 3 };
+    /* istanbul ignore next */
+    rawFindings.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
+
+    // Reuse the percy.io connectivity probe result for the SSL check — no extra
+    // HTTP round-trip needed.
+    const percyFinding = rawFindings.find(f => f.url === 'https://percy.io');
+    const sslFindings = this.#buildSSLFindings(percyFinding?.directResult);
+
+    return { connectivityFindings: rawFindings, sslFindings };
+  }
+
+  /**
+   * Build SSL findings from a percy.io probe result.
+   * Mirrors the ssl.js checkSSL() logic, but reuses an existing probe result
+   * rather than issuing a new HTTP request.
+   */
+  #buildSSLFindings(percyProbeResult) {
+    const findings = [];
+
+    if (!percyProbeResult) {
+      findings.push({ status: 'skip', message: 'SSL check skipped — percy.io was not probed.' });
+      return findings;
     }
-    return finding;
-  }));
 
-  // Sort: failures first, then warnings, then passes
-  const order = { fail: 0, warn: 1, pass: 2, skip: 3 };
-  /* istanbul ignore next */
-  rawFindings.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
+    if (httpProber.isSslError(percyProbeResult)) {
+      findings.push({
+        status: 'fail',
+        message: `SSL error connecting to percy.io: ${percyProbeResult.error} [${percyProbeResult.errorCode}]`,
+        suggestions: [
+          'Your network proxy or VPN may be intercepting HTTPS traffic with its own certificate.',
+          'Ask your network admin to add percy.io to the SSL inspection exclusion list.',
+          'Solution: export NODE_TLS_REJECT_UNAUTHORIZED=0  (re-run percy doctor to verify)',
+          'Or trust the proxy CA: export NODE_EXTRA_CA_CERTS=/path/to/proxy-ca.crt'
+        ]
+      });
+    } else if (!percyProbeResult.ok && percyProbeResult.errorCode !== 'ECONNREFUSED' && percyProbeResult.status === 0) {
+      findings.push({
+        status: 'skip',
+        message: `Could not reach percy.io over HTTPS (${percyProbeResult.errorCode ?? percyProbeResult.error}). SSL check skipped – see connectivity check.`
+      });
+    } else {
+      findings.push({
+        status: 'pass',
+        message: `SSL handshake with percy.io succeeded (${percyProbeResult.latencyMs}ms).`
+      });
+    }
 
-  // Reuse the percy.io connectivity probe result for the SSL check — no extra
-  // HTTP round-trip needed.
-  const percyFinding = rawFindings.find(f => f.url === 'https://percy.io');
-  const sslFindings = [_buildSSLFindings(percyFinding?.directResult)];
-
-  return { connectivityFindings: rawFindings, sslFindings };
-}
-
-/**
- * Build SSL findings from a percy.io probe result.
- * Mirrors the ssl.js checkSSL() logic, but reuses an existing probe result
- * rather than issuing a new HTTP request.
- */
-export function _buildSSLFindings(percyProbeResult) {
-  const findings = [];
-
-  // (b) SSL probe result derived from the connectivity probe
-  if (!percyProbeResult) {
-    findings.push({ status: 'skip', message: 'SSL check skipped — percy.io was not probed.' });
     return findings;
   }
 
-  if (isSslError(percyProbeResult)) {
-    findings.push({
-      status: 'fail',
-      message: `SSL error connecting to percy.io: ${percyProbeResult.error} [${percyProbeResult.errorCode}]`,
-      suggestions: [
-        'Your network proxy or VPN may be intercepting HTTPS traffic with its own certificate.',
-        'Ask your network admin to add percy.io to the SSL inspection exclusion list.',
-        'Solution: export NODE_TLS_REJECT_UNAUTHORIZED=0  (re-run percy doctor to verify)',
-        'Or trust the proxy CA: export NODE_EXTRA_CA_CERTS=/path/to/proxy-ca.crt'
-      ]
-    });
-  } else if (!percyProbeResult.ok && percyProbeResult.errorCode !== 'ECONNREFUSED' && percyProbeResult.status === 0) {
-    findings.push({
-      status: 'skip',
-      message: `Could not reach percy.io over HTTPS (${percyProbeResult.errorCode ?? percyProbeResult.error}). SSL check skipped – see connectivity check.`
-    });
-  } else {
-    findings.push({
-      status: 'pass',
-      message: `SSL handshake with percy.io succeeded (${percyProbeResult.latencyMs}ms).`
-    });
-  }
+  async #probeTarget(label, url, proxyUrl, timeout) {
+    // Direct probe — Node honours NODE_TLS_REJECT_UNAUTHORIZED automatically
+    const direct = await httpProber.probeUrl(url, { timeout });
 
-  return findings;
-}
+    // Proxy probe (only if a proxy is configured)
+    const viaProxy = proxyUrl
+      ? await httpProber.probeUrl(url, { proxyUrl, timeout })
+      : null;
 
-async function _probeTarget(label, url, proxyUrl, timeout, probeUrlFn) {
-  // Direct probe — Node honours NODE_TLS_REJECT_UNAUTHORIZED automatically
-  const direct = await probeUrlFn(url, { timeout });
+    // ── classify ────────────────────────────────────────────────────────────
 
-  // Proxy probe (only if a proxy is configured)
-  const viaProxy = proxyUrl
-    ? await probeUrlFn(url, { proxyUrl, timeout })
-    : null;
+    // SSL errors are surfaced here too so the user sees them in context
+    if (httpProber.isSslError(direct)) {
+      return {
+        status: 'fail',
+        label,
+        url,
+        directResult: direct,
+        proxyResult: viaProxy,
+        message: `SSL error for ${label} (${url}): ${direct.errorCode}`,
+        suggestions: [
+          'See the SSL / TLS section above for remediation steps.',
+          'Ensure your network proxy is not performing SSL inspection on percy.io / browserstack.com.',
+          'Solution: export NODE_TLS_REJECT_UNAUTHORIZED=0'
+        ]
+      };
+    }
 
-  // ── classify ──────────────────────────────────────────────────────────────
+    // Any HTTP response (even 4xx/5xx) means the server is network-reachable.
+    // Endpoints like hub.browserstack.com return 401/403 without credentials — that is still reachable.
+    const directReachable = direct.ok || (direct.status > 0 && !direct.errorCode);
+    const proxyReachable = viaProxy && (viaProxy.ok || (viaProxy.status > 0 && !viaProxy.errorCode));
 
-  // SSL errors are surfaced here too so the user sees them in context
-  if (isSslError(direct)) {
+    if (directReachable) {
+      return {
+        status: 'pass',
+        label,
+        url,
+        directResult: direct,
+        proxyResult: viaProxy,
+        message: `${label} is reachable directly (HTTP ${direct.status}, ${direct.latencyMs}ms).`
+      };
+    }
+
+    // Direct failed – check if proxy helps
+    if (proxyReachable) {
+      return {
+        status: 'warn',
+        label,
+        url,
+        directResult: direct,
+        proxyResult: viaProxy,
+        message: `${label} is reachable via proxy but NOT directly.`,
+        suggestions: [
+          `Ensure the proxy server is configured: set HTTPS_PROXY=${proxyUrl}`,
+          'Add proxy settings to your Percy config file under the proxy key.',
+          `Direct error: ${direct.errorCode ?? direct.error}`
+        ]
+      };
+    }
+
+    // Both direct and proxy failed (or no proxy configured)
     return {
       status: 'fail',
       label,
       url,
       directResult: direct,
       proxyResult: viaProxy,
-      message: `SSL error for ${label} (${url}): ${direct.errorCode}`,
+      message: `${label} (${url}) is NOT reachable.`,
       suggestions: [
-        'See the SSL / TLS section above for remediation steps.',
-        'Ensure your network proxy is not performing SSL inspection on percy.io / browserstack.com.',
-        'Solution: export NODE_TLS_REJECT_UNAUTHORIZED=0'
+        `Ensure your network allows outbound HTTPS to ${new URL(url).hostname}.`,
+        'Contact your network/IT team to whitelist: percy.io, www.browserstack.com, hub.browserstack.com.',
+        'If behind a corporate proxy, set HTTPS_PROXY=http://proxy-host:port in your environment.'
       ]
     };
   }
-
-  // Any HTTP response (even 4xx/5xx) means the server is network-reachable.
-  // Endpoints like hub.browserstack.com return 401/403 without credentials — that is still reachable.
-  const directReachable = direct.ok || (direct.status > 0 && !direct.errorCode);
-  const proxyReachable = viaProxy && (viaProxy.ok || (viaProxy.status > 0 && !viaProxy.errorCode));
-
-  if (directReachable) {
-    return {
-      status: 'pass',
-      label,
-      url,
-      directResult: direct,
-      proxyResult: viaProxy,
-      message: `${label} is reachable directly (HTTP ${direct.status}, ${direct.latencyMs}ms).`
-    };
-  }
-
-  // Direct failed – check if proxy helps
-  if (proxyReachable) {
-    return {
-      status: 'warn',
-      label,
-      url,
-      directResult: direct,
-      proxyResult: viaProxy,
-      message: `${label} is reachable via proxy but NOT directly.`,
-      suggestions: [
-        `Ensure the proxy server is configured: set HTTPS_PROXY=${proxyUrl}`,
-        'Add proxy settings to your Percy config file under the proxy key.',
-        `Direct error: ${direct.errorCode ?? direct.error}`
-      ]
-    };
-  }
-
-  // Both direct and proxy failed (or no proxy configured)
-  return {
-    status: 'fail',
-    label,
-    url,
-    directResult: direct,
-    proxyResult: viaProxy,
-    message: `${label} (${url}) is NOT reachable.`,
-    suggestions: [
-      `Ensure your network allows outbound HTTPS to ${new URL(url).hostname}.`,
-      'Contact your network/IT team to whitelist: percy.io, www.browserstack.com, hub.browserstack.com.',
-      'If behind a corporate proxy, set HTTPS_PROXY=http://proxy-host:port in your environment.'
-    ]
-  };
 }

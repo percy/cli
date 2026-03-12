@@ -83,19 +83,24 @@ export const doctor = command(
       checks: {}
     };
 
-    // Shared context passed into every section runner
-    const ctx = { log, report, proxyUrl, timeout, targetUrl };
-
     print(log, '\n  Percy Doctor — network readiness check\n');
     if (proxyUrl) {
       print(log, checkLine('info', `Proxy in use: ${redactProxyUrl(proxyUrl)}`));
       print(log, '');
     }
 
-    await runConnectivityAndSSL(ctx);
-    await runProxyCheck(ctx);
-    await runPACCheck(ctx);
-    await runBrowserCheck(ctx);
+    const { connectivity, ssl } = await runConnectivityAndSSL(proxyUrl, timeout);
+    report.checks.connectivity = connectivity;
+    report.checks.ssl = ssl;
+
+    const { proxy } = await runProxyCheck(timeout);
+    report.checks.proxy = proxy;
+
+    const { pac } = await runPACCheck();
+    report.checks.pac = pac;
+
+    const { browser } = await runBrowserCheck(targetUrl, proxyUrl, timeout);
+    report.checks.browser = browser;
 
     report.summary = {
       overall: Object.values(report.checks).some(c => c?.status === 'fail') ? 'fail'

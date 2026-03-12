@@ -8,7 +8,7 @@
  *   const chromePath = process.env.PERCY_BROWSER_EXECUTABLE || <auto-detect>;
  *   if (!chromePath) return pending('Chrome not available');
  *
- * The _chromePath: null override tests the "skip" code-path deterministically
+ * The chromePath: null scenario tests the "skip" code-path deterministically
  * without needing to control the entire OS environment.
  */
 
@@ -17,7 +17,7 @@ import os from 'os';
 import {
   sanitizeExecutablePath,
   safeEnvPath,
-  checkBrowserNetwork,
+  BrowserChecker,
   NetworkCapture,
   analyseCapture,
   safeHostname
@@ -156,7 +156,7 @@ describe('safeEnvPath', () => {
 // ─── checkBrowserNetwork — skip path ─────────────────────────────────────────
 
 // ─── checkBrowserNetwork tests removed ───────────────────────────────────────
-// These tests relied on _chromePath injection which has been removed to keep
+// These tests relied on chromePath injection which has been removed to keep
 // the API clean. The skip path is tested by the actual Chrome detection logic.
 
 // ─── safeHostname ─────────────────────────────────────────────────────────────
@@ -491,7 +491,7 @@ if (process.env.PERCY_TEST_BROWSER) {
 
       const result = await withEnv(
         { PERCY_BROWSER_EXECUTABLE: chromePath },
-        () => checkBrowserNetwork({
+        () => new BrowserChecker().checkBrowserNetwork({
           targetUrl: 'https://percy.io',
           timeout: 10000, // hard deadline fires at ~25s so test always finishes
           headless: true
@@ -510,7 +510,7 @@ if (process.env.PERCY_TEST_BROWSER) {
 
       const result = await withEnv(
         { PERCY_BROWSER_EXECUTABLE: chromePath },
-        () => checkBrowserNetwork({
+        () => new BrowserChecker().checkBrowserNetwork({
           timeout: 10000,
           headless: true
         })

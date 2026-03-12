@@ -6,8 +6,18 @@
  * full fetch → evaluate → classify pipeline without system config access.
  */
 
-import { runPacScript, detectPAC, findInObject } from '../src/checks/pac.js';
+import { runPacScript, findInObject, PACDetector } from '../src/checks/pac.js';
 import { createPacServer, createHttpServer, withEnv, buildPacScript } from './helpers.js';
+import childProcess from 'child_process';
+import fsMod from 'fs';
+import osMod from 'os';
+import path from 'path';
+import http from 'http';
+import { EventEmitter } from 'events';
+
+// Convenience shim so existing detectPAC call-sites work unchanged after the
+// refactor that moved detectPAC into PACDetector.
+const detectPAC = (...args) => new PACDetector().detectPAC(...args);
 
 // ─── runPacScript — basic results ─────────────────────────────────────────────
 
@@ -174,6 +184,15 @@ describe('runPacScript — PAC helper shims', () => {
     `;
     expect(runPacScript(script, 'https://sub.domain.com/', 'sub.domain.com')).toBe('PROXY deep:8080');
     expect(runPacScript(script, 'https://example.com/', 'example.com')).toBe('DIRECT');
+  });
+
+  it('dnsDomainLevels counts correctly', () => {
+    const script = `
+      function FindProxyForURL(url, host) {
+        return dnsDomainLevels(host) >= 2 ? "PROXY deep:8080" : "DIRECT";
+      }
+    `;
+    expect(runPacScript(script, 'https://sub.domain.com/', 'proxy:123')).toBe('DIRECT');
   });
 });
 
@@ -487,6 +506,717 @@ describe('detectPAC — fetchText https branch (lines 357-358)', () => {
   });
 });
 
-// Note: OS-specific PAC detection (macOS plist, Linux gsettings, Chrome/Firefox)
-// is tested on actual systems during CI. SpyOn mocking of ES modules requires
-// more complex setup that would complicate the test code.
+// ─── detectPAC — spy-based OS-layer coverage ─────────────────────────────────
+// These tests spy on execSync / fs / os to exercise platform-specific branches
+// without requiring the real OS tools to be installed.
+
+describe('detectPAC — macOS plist branch (lines 71-74)', () => {
+  it('parses plist JSON and pushes a PAC url when ProxyAutoConfigURLString is found', async () => {
+    spyOn(osMod, 'platform').and.returnValue('darwin');
+    spyOn(osMod, 'homedir').and.returnValue('/home/testuser');
+
+    const plistData = JSON.stringify({ ProxyAutoConfigURLString: 'http://corp.pac/proxy.pac' });
+
+    // networksetup returns "no enabled PAC" for all interfaces
+    spyOn(childProcess, 'execSync').and.callFake((cmd) => {
+      if (cmd.includes('networksetup')) return 'URL: (null)\nEnabled: No\n';
+      if (cmd.includes('plutil')) return plistData;
+      if (cmd.includes('gsettings') || cmd.includes('reg query')) throw new Error('not found');
+      return '';
+    });
+
+    spyOn(fsMod, 'existsSync').and.callFake((p) => {
+      // macOS plist path
+      if (p.includes('preferences.plist') || p.includes('systempreferences.plist')) return true;
+      return false;
+    });
+
+    // Mock http.get so #fetchText rejects immediately — no real network call
+    const fakeReq1 = new EventEmitter();
+    fakeReq1.destroy = () => {};
+    spyOn(http, 'get').and.callFake((url, opts, cb) => {
+      setImmediate(() => fakeReq1.emit('error', Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })));
+      return fakeReq1;
+    });
+
+    const detector = new PACDetector();
+    // PAC url is discovered via plist; fetch is mocked to fail → warn
+    const findings = await withEnv(
+      { PERCY_PAC_FILE_URL: undefined },
+      () => detector.detectPAC()
+    );
+
+    // The PAC url from plist must appear in the findings
+    const plistFinding = findings.find(f => f.pacUrl === 'http://corp.pac/proxy.pac');
+    expect(plistFinding).toBeDefined();
+    expect(plistFinding.source).toBe('macOS:plist');
+    // fetch will fail (unreachable) → warn
+    expect(plistFinding.status).toBe('warn');
+  });
+});
+
+describe('detectPAC — Linux gsettings auto branch (lines 103-116)', () => {
+  it('discovers PAC url when gsettings mode is "auto"', async () => {
+    spyOn(osMod, 'platform').and.returnValue('linux');
+    spyOn(osMod, 'homedir').and.returnValue('/home/testuser');
+
+    spyOn(childProcess, 'execSync').and.callFake((cmd) => {
+      if (cmd.includes('proxy mode')) return "'auto'\n";
+      if (cmd.includes('autoconfig-url')) return "'http://linux.pac/proxy.pac'\n";
+      throw new Error('not available');
+    });
+
+    spyOn(fsMod, 'existsSync').and.returnValue(false);
+    spyOn(fsMod, 'readFileSync').and.throwError('ENOENT');
+
+    // Mock http.get so #fetchText rejects immediately — no real network call
+    const fakeReq2 = new EventEmitter();
+    fakeReq2.destroy = () => {};
+    spyOn(http, 'get').and.callFake((url, opts, cb) => {
+      setImmediate(() => fakeReq2.emit('error', Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })));
+      return fakeReq2;
+    });
+
+    const detector = new PACDetector();
+    const findings = await withEnv(
+      { PERCY_PAC_FILE_URL: undefined },
+      () => detector.detectPAC()
+    );
+
+    const linuxFinding = findings.find(f => f.source === 'linux:gsettings');
+    expect(linuxFinding).toBeDefined();
+    expect(linuxFinding.pacUrl).toBe('http://linux.pac/proxy.pac');
+    expect(linuxFinding.status).toBe('warn'); // unreachable → warn
+  });
+
+  it('ignores empty PAC url when gsettings mode is "auto"', async () => {
+    spyOn(osMod, 'platform').and.returnValue('linux');
+    spyOn(osMod, 'homedir').and.returnValue('/home/testuser');
+
+    spyOn(childProcess, 'execSync').and.callFake((cmd) => {
+      if (cmd.includes('proxy mode')) return "'auto'\n";
+      if (cmd.includes('autoconfig-url')) return "''\n";
+      throw new Error('not available');
+    });
+
+    spyOn(fsMod, 'existsSync').and.returnValue(false);
+    spyOn(fsMod, 'readFileSync').and.throwError('ENOENT');
+
+    // Mock http.get so #fetchText rejects immediately — no real network call
+    const fakeReq2 = new EventEmitter();
+    fakeReq2.destroy = () => {};
+    spyOn(http, 'get').and.callFake((url, opts, cb) => {
+      setImmediate(() => fakeReq2.emit('error', Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })));
+      return fakeReq2;
+    });
+
+    const detector = new PACDetector();
+    const findings = await withEnv(
+      { PERCY_PAC_FILE_URL: undefined },
+      () => detector.detectPAC()
+    );
+
+    const linuxFinding = findings.find(f => f.source === 'linux:gsettings');
+    expect(linuxFinding).toBeUndefined();
+  });
+
+  it('does not discovers PAC url when gsettings mode is not "auto"', async () => {
+    spyOn(osMod, 'platform').and.returnValue('linux');
+    spyOn(osMod, 'homedir').and.returnValue('/home/testuser');
+
+    spyOn(childProcess, 'execSync').and.callFake((cmd) => {
+      if (cmd.includes('proxy mode')) return "'manual'\n";
+      if (cmd.includes('autoconfig-url')) return "'http://linux.pac/proxy.pac'\n";
+      throw new Error('not available');
+    });
+
+    spyOn(fsMod, 'existsSync').and.returnValue(false);
+    spyOn(fsMod, 'readFileSync').and.throwError('ENOENT');
+
+    // Mock http.get so #fetchText rejects immediately — no real network call
+    const fakeReq2 = new EventEmitter();
+    fakeReq2.destroy = () => {};
+    spyOn(http, 'get').and.callFake((url, opts, cb) => {
+      setImmediate(() => fakeReq2.emit('error', Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })));
+      return fakeReq2;
+    });
+
+    const detector = new PACDetector();
+    const findings = await withEnv(
+      { PERCY_PAC_FILE_URL: undefined },
+      () => detector.detectPAC()
+    );
+
+    const linuxFinding = findings.find(f => f.source === 'linux:gsettings');
+    expect(linuxFinding).toBeUndefined();
+  });
+});
+
+describe('detectPAC — Linux /etc/environment auto_proxy branch (lines 118-122)', () => {
+  it('discovers PAC url from /etc/environment AUTO_PROXY setting', async () => {
+    spyOn(osMod, 'platform').and.returnValue('linux');
+    spyOn(osMod, 'homedir').and.returnValue('/home/testuser');
+
+    spyOn(childProcess, 'execSync').and.throwError('gsettings not found');
+
+    spyOn(fsMod, 'existsSync').and.returnValue(false);
+    spyOn(fsMod, 'readFileSync').and.callFake((p) => {
+      if (p === '/etc/environment') return 'AUTO_PROXY=http://etcenv.pac/proxy.pac\n';
+      throw new Error(`ENOENT: ${p}`);
+    });
+
+    // Mock http.get so #fetchText rejects immediately — no real network call
+    const fakeReq3 = new EventEmitter();
+    fakeReq3.destroy = () => {};
+    spyOn(http, 'get').and.callFake((url, opts, cb) => {
+      setImmediate(() => fakeReq3.emit('error', Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })));
+      return fakeReq3;
+    });
+
+    const detector = new PACDetector();
+    const findings = await withEnv(
+      { PERCY_PAC_FILE_URL: undefined },
+      () => detector.detectPAC()
+    );
+
+    const etcFinding = findings.find(f => f.source === 'linux:/etc/environment');
+    expect(etcFinding).toBeDefined();
+    expect(etcFinding.pacUrl).toBe('http://etcenv.pac/proxy.pac');
+  });
+
+  it('does not discovers PAC url from /etc/environment if AUTO_PROXY setting is not there', async () => {
+    spyOn(osMod, 'platform').and.returnValue('linux');
+    spyOn(osMod, 'homedir').and.returnValue('/home/testuser');
+
+    spyOn(childProcess, 'execSync').and.throwError('gsettings not found');
+
+    spyOn(fsMod, 'existsSync').and.returnValue(false);
+    spyOn(fsMod, 'readFileSync').and.callFake((p) => {
+      if (p === '/etc/environment') return 'ABCD_PROXY=http://etcenv.pac/proxy.pac\n';
+      throw new Error(`ENOENT: ${p}`);
+    });
+
+    // Mock http.get so #fetchText rejects immediately — no real network call
+    const fakeReq3 = new EventEmitter();
+    fakeReq3.destroy = () => {};
+    spyOn(http, 'get').and.callFake((url, opts, cb) => {
+      setImmediate(() => fakeReq3.emit('error', Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })));
+      return fakeReq3;
+    });
+
+    const detector = new PACDetector();
+    const findings = await withEnv(
+      { PERCY_PAC_FILE_URL: undefined },
+      () => detector.detectPAC()
+    );
+
+    const etcFinding = findings.find(f => f.source === 'linux:/etc/environment');
+    expect(etcFinding).toBeUndefined();
+  });
+});
+
+describe('detectPAC — Chrome Local State extProxies branch (line 171)', () => {
+  it('discovers PAC url from Chrome extension state via findInObject', async () => {
+    spyOn(osMod, 'platform').and.returnValue('darwin');
+    spyOn(osMod, 'homedir').and.returnValue('/home/testuser');
+
+    const localStateData = JSON.stringify({
+      extensions: { settings: { abc123: { pac_url: 'http://chrome-ext.pac/proxy.pac' } } }
+    });
+
+    spyOn(childProcess, 'execSync').and.throwError('not available');
+
+    // existsSync: only true for Chrome Local State file, not Preferences
+    spyOn(fsMod, 'existsSync').and.callFake((p) => {
+      if (p.includes('Local State')) return true;
+      return false; // Preferences path doesn't exist — skip prefs branch
+    });
+
+    spyOn(fsMod, 'readFileSync').and.callFake((p) => {
+      if (p.includes('Local State')) return localStateData;
+      throw new Error(`ENOENT: ${p}`);
+    });
+
+    // Mock http.get so #fetchText rejects immediately — no real network call
+    const fakeReq4 = new EventEmitter();
+    fakeReq4.destroy = () => {};
+    spyOn(http, 'get').and.callFake((url, opts, cb) => {
+      setImmediate(() => fakeReq4.emit('error', Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })));
+      return fakeReq4;
+    });
+
+    const detector = new PACDetector();
+    const findings = await withEnv(
+      { PERCY_PAC_FILE_URL: undefined },
+      () => detector.detectPAC()
+    );
+
+    const chromeFinding = findings.find(f => f.source === 'chrome:extension');
+    expect(chromeFinding).toBeDefined();
+    expect(chromeFinding.pacUrl).toBe('http://chrome-ext.pac/proxy.pac');
+  });
+});
+
+describe('detectPAC — Firefox prefs.js branch (lines 199-209)', () => {
+  it('discovers PAC url from Firefox profile prefs.js', async () => {
+    spyOn(osMod, 'platform').and.returnValue('linux');
+    spyOn(osMod, 'homedir').and.returnValue('/home/testuser');
+
+    const firefoxProfilesDir = '/home/testuser/.mozilla/firefox';
+    const profileDir = `${firefoxProfilesDir}/abc123.default`;
+    const prefsJsPath = `${profileDir}/prefs.js`;
+
+    spyOn(childProcess, 'execSync').and.throwError('not available');
+
+    spyOn(fsMod, 'existsSync').and.callFake((p) => {
+      if (p === firefoxProfilesDir) return true;
+      if (p === prefsJsPath) return true;
+      return false;
+    });
+
+    spyOn(fsMod, 'readdirSync').and.callFake((p, opts) => {
+      if (p === firefoxProfilesDir) {
+        // Return dirent-like objects
+        return [{
+          isDirectory: () => true,
+          name: 'abc123.default'
+        }];
+      }
+      return [];
+    });
+
+    const prefsContent = [
+      'user_pref("network.proxy.type", 2);',
+      'user_pref("network.proxy.autoconfig_url", "http://firefox.pac/proxy.pac");'
+    ].join('\n');
+
+    spyOn(fsMod, 'readFileSync').and.callFake((p) => {
+      if (p === prefsJsPath) return prefsContent;
+      throw new Error(`ENOENT: ${p}`);
+    });
+
+    // Mock http.get so #fetchText rejects immediately — no real network call
+    const fakeReq5 = new EventEmitter();
+    fakeReq5.destroy = () => {};
+    spyOn(http, 'get').and.callFake((url, opts, cb) => {
+      setImmediate(() => fakeReq5.emit('error', Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })));
+      return fakeReq5;
+    });
+
+    const detector = new PACDetector();
+    const findings = await withEnv(
+      { PERCY_PAC_FILE_URL: undefined },
+      () => detector.detectPAC()
+    );
+
+    const ffFinding = findings.find(f => f.source && f.source.startsWith('firefox:prefs.js'));
+    expect(ffFinding).toBeDefined();
+    expect(ffFinding.pacUrl).toBe('http://firefox.pac/proxy.pac');
+  });
+
+  it('handles Firefox proxy type 4 (auto-detect with PAC url)', async () => {
+    spyOn(osMod, 'platform').and.returnValue('linux');
+    spyOn(osMod, 'homedir').and.returnValue('/home/testuser');
+
+    const firefoxProfilesDir = '/home/testuser/.mozilla/firefox';
+    const profileDir = `${firefoxProfilesDir}/def456.default`;
+    const prefsJsPath = `${profileDir}/prefs.js`;
+
+    spyOn(childProcess, 'execSync').and.throwError('not available');
+
+    spyOn(fsMod, 'existsSync').and.callFake((p) => {
+      if (p === firefoxProfilesDir || p === prefsJsPath) return true;
+      return false;
+    });
+
+    spyOn(fsMod, 'readdirSync').and.returnValue([{ isDirectory: () => true, name: 'def456.default' }]);
+
+    const prefsContent = [
+      'user_pref("network.proxy.type", 4);',
+      'user_pref("network.proxy.autoconfig_url", "http://ff-type4.pac/proxy.pac");'
+    ].join('\n');
+
+    spyOn(fsMod, 'readFileSync').and.callFake((p) => {
+      if (p === prefsJsPath) return prefsContent;
+      throw new Error(`ENOENT: ${p}`);
+    });
+
+    // Mock http.get so #fetchText rejects immediately — no real network call
+    const fakeReq6 = new EventEmitter();
+    fakeReq6.destroy = () => {};
+    spyOn(http, 'get').and.callFake((url, opts, cb) => {
+      setImmediate(() => fakeReq6.emit('error', Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })));
+      return fakeReq6;
+    });
+
+    const detector = new PACDetector();
+    const findings = await withEnv(
+      { PERCY_PAC_FILE_URL: undefined },
+      () => detector.detectPAC()
+    );
+
+    const ffFinding = findings.find(f => f.source && f.source.startsWith('firefox:prefs.js'));
+    expect(ffFinding).toBeDefined();
+    expect(ffFinding.pacUrl).toBe('http://ff-type4.pac/proxy.pac');
+  });
+});
+
+// ─── detectPAC — unsupported platform branches ────────────────────────────────
+// Covers: detectPAC() if/else-if fall-through, #chromePacUrls() ?? [] fallback,
+// and #firefoxPacUrls() !profileDirs early-return — all triggered by one unknown OS.
+
+describe('detectPAC — unsupported platform (freebsd) skips all OS-specific paths', () => {
+  it('returns a single info/none finding and hits the unsupported-platform branches in detectPAC, Chrome, and Firefox', async () => {
+    spyOn(osMod, 'platform').and.returnValue('freebsd');
+    spyOn(osMod, 'homedir').and.returnValue('/home/testuser');
+    // existsSync must not be reached for Chrome/Firefox on an unknown OS; stub it
+    // defensively so any unexpected call doesn't touch the real filesystem.
+    spyOn(fsMod, 'existsSync').and.returnValue(false);
+
+    const detector = new PACDetector();
+    const findings = await withEnv(
+      { PERCY_PAC_FILE_URL: undefined },
+      () => detector.detectPAC()
+    );
+
+    // All three unsupported-platform branches return empty arrays →
+    // discovered stays empty → the "none" info finding is emitted.
+    expect(findings.length).toBe(1);
+    expect(findings[0].source).toBe('none');
+    expect(findings[0].status).toBe('info');
+    // Confirm no OS-specific, Chrome, or Firefox PAC source was added
+    expect(findings.every(f => f.source === 'none')).toBe(true);
+  });
+});
+
+// ─── detectPAC — Firefox readdirSync throws branch (pac.js line 198) ─────────
+
+describe('detectPAC — Firefox readdirSync throws branch (pac.js line 198)', () => {
+  it('returns no Firefox findings when readdirSync throws inside #firefoxPacUrls', async () => {
+    spyOn(osMod, 'platform').and.returnValue('linux');
+    spyOn(osMod, 'homedir').and.returnValue('/home/testuser');
+
+    const firefoxProfilesDir = '/home/testuser/.mozilla/firefox';
+
+    // existsSync returns true only for the Firefox profiles dir so we pass the
+    // !profileDirs guard on line 191, but readdirSync then throws → catch fires
+    spyOn(fsMod, 'existsSync').and.callFake(p => p === firefoxProfilesDir);
+    spyOn(fsMod, 'readdirSync').and.throwError('EACCES: permission denied, scandir');
+    spyOn(fsMod, 'readFileSync').and.throwError('ENOENT');
+
+    const detector = new PACDetector();
+    const findings = await withEnv(
+      { PERCY_PAC_FILE_URL: undefined },
+      () => detector.detectPAC()
+    );
+
+    // catch { return urls } was reached — no firefox:prefs.js finding present
+    expect(findings.every(f => !f.source?.startsWith('firefox:'))).toBe(true);
+  });
+});
+
+// ─── detectPAC — macOS networksetup URL enabled branch (lines 73-76) ────────────
+
+describe('detectPAC — macOS networksetup URL enabled branch (lines 73-76)', () => {
+  it('discovers PAC url from networksetup when URL is set and Enabled is Yes', async () => {
+    spyOn(osMod, 'platform').and.returnValue('darwin');
+    spyOn(osMod, 'homedir').and.returnValue('/home/testuser');
+
+    spyOn(childProcess, 'execSync').and.callFake((cmd) => {
+      if (typeof cmd === 'string' && cmd.includes('getautoproxyurl')) {
+        return 'URL: http://macos-net.pac/proxy.pac\nEnabled: Yes\n';
+      }
+      // plutil / plist paths — return empty JSON so plist branch doesn't find anything
+      if (typeof cmd === 'string' && cmd.includes('plutil')) return '{}';
+      throw new Error('not available');
+    });
+
+    spyOn(fsMod, 'existsSync').and.returnValue(false);
+
+    // Mock http.get so #fetchText rejects immediately — no real network call
+    const fakeReq7 = new EventEmitter();
+    fakeReq7.destroy = () => {};
+    spyOn(http, 'get').and.callFake((url, opts, cb) => {
+      setImmediate(() => fakeReq7.emit('error', Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })));
+      return fakeReq7;
+    });
+
+    const detector = new PACDetector();
+    const findings = await withEnv(
+      { PERCY_PAC_FILE_URL: undefined },
+      () => detector.detectPAC()
+    );
+
+    const netFinding = findings.find(f => f.source && f.source.startsWith('macOS:networksetup'));
+    expect(netFinding).toBeDefined();
+    expect(netFinding.pacUrl).toBe('http://macos-net.pac/proxy.pac');
+    expect(netFinding.status).toBe('warn'); // unreachable host → warn
+  });
+});
+
+// ─── detectPAC — Windows registry branch (lines 33, 132-140) ─────────────────
+
+describe('detectPAC — Windows registry branch (lines 33, 132-140)', () => {
+  it('discovers PAC url from Windows registry AutoConfigURL', async () => {
+    spyOn(osMod, 'platform').and.returnValue('win32');
+    spyOn(osMod, 'homedir').and.returnValue('C:\\Users\\testuser');
+
+    spyOn(childProcess, 'execSync').and.callFake((cmd) => {
+      if (typeof cmd === 'string' && cmd.includes('AutoConfigURL')) {
+        return '    AutoConfigURL    REG_SZ    http://win.pac/proxy.pac\n';
+      }
+      throw new Error('not available');
+    });
+
+    spyOn(fsMod, 'existsSync').and.returnValue(false);
+
+    // Mock http.get so #fetchText rejects immediately — no real network call
+    const fakeReq8 = new EventEmitter();
+    fakeReq8.destroy = () => {};
+    spyOn(http, 'get').and.callFake((url, opts, cb) => {
+      setImmediate(() => fakeReq8.emit('error', Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })));
+      return fakeReq8;
+    });
+
+    const detector = new PACDetector();
+    const findings = await withEnv(
+      { PERCY_PAC_FILE_URL: undefined },
+      () => detector.detectPAC()
+    );
+
+    const winFinding = findings.find(f => f.source === 'windows:registry');
+    expect(winFinding).toBeDefined();
+    expect(winFinding.pacUrl).toBe('http://win.pac/proxy.pac');
+    expect(winFinding.status).toBe('warn'); // unreachable host → warn
+  });
+
+  it('ignores registry when reg query throws (AutoConfigURL not set)', async () => {
+    spyOn(osMod, 'platform').and.returnValue('win32');
+    spyOn(osMod, 'homedir').and.returnValue('C:\\Users\\testuser');
+
+    spyOn(childProcess, 'execSync').and.returnValue('reg query failed');
+    spyOn(fsMod, 'existsSync').and.returnValue(false);
+
+    const detector = new PACDetector();
+    const findings = await withEnv(
+      { PERCY_PAC_FILE_URL: undefined },
+      () => detector.detectPAC()
+    );
+
+    const winFinding = findings.find(f => f.source === 'windows:registry');
+    expect(winFinding).toBeUndefined();
+  });
+});
+
+// ─── detectPAC — Chrome Preferences pac_url branch (line 174) ─────────────────
+
+describe('detectPAC — Chrome Preferences pac_url branch (line 174)', () => {
+  it('discovers PAC url from Chrome Default/Preferences proxy.pac_url', async () => {
+    spyOn(osMod, 'platform').and.returnValue('darwin');
+    spyOn(osMod, 'homedir').and.returnValue('/home/testuser');
+
+    const localStatePath = '/home/testuser/Library/Application Support/Google/Chrome/Local State';
+    const prefsPath = '/home/testuser/Library/Application Support/Google/Chrome/Default/Preferences';
+
+    const localStateData = JSON.stringify({ profile: { info_cache: {} } });
+    const prefsData = JSON.stringify({ proxy: { pac_url: 'http://chrome-prefs.pac/proxy.pac' } });
+
+    spyOn(childProcess, 'execSync').and.throwError('not available');
+
+    spyOn(fsMod, 'existsSync').and.callFake((p) => {
+      if (p === localStatePath) return true;
+      if (p === prefsPath) return true;
+      return false;
+    });
+
+    spyOn(fsMod, 'readFileSync').and.callFake((p) => {
+      if (p === localStatePath) return localStateData;
+      if (p === prefsPath) return prefsData;
+      throw new Error(`ENOENT: ${p}`);
+    });
+
+    // Mock http.get so #fetchText rejects immediately — no real network call
+    const fakeReq9 = new EventEmitter();
+    fakeReq9.destroy = () => {};
+    spyOn(http, 'get').and.callFake((url, opts, cb) => {
+      setImmediate(() => fakeReq9.emit('error', Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })));
+      return fakeReq9;
+    });
+
+    const detector = new PACDetector();
+    const findings = await withEnv(
+      { PERCY_PAC_FILE_URL: undefined },
+      () => detector.detectPAC()
+    );
+
+    const chromePrefsFinding = findings.find(f => f.source && f.source.startsWith('chrome:Preferences'));
+    expect(chromePrefsFinding).toBeDefined();
+    expect(chromePrefsFinding.pacUrl).toBe('http://chrome-prefs.pac/proxy.pac');
+    expect(chromePrefsFinding.status).toBe('warn'); // unreachable host → warn
+  });
+});
+
+// ─── detectPAC — Firefox win32 profile path (line 202) ───────────────────────
+
+describe('detectPAC — Firefox win32 profile path (line 202)', () => {
+  it('discovers PAC url from Firefox prefs.js on win32', async () => {
+    spyOn(osMod, 'platform').and.returnValue('win32');
+    const home = 'C:\\Users\\testuser';
+    spyOn(osMod, 'homedir').and.returnValue(home);
+
+    const firefoxProfilesDir = path.join(home, 'AppData/Roaming/Mozilla/Firefox/Profiles');
+    const profileDir = path.join(firefoxProfilesDir, 'abc123.default');
+    const prefsJsPath = path.join(profileDir, 'prefs.js');
+
+    spyOn(childProcess, 'execSync').and.throwError('not available');
+
+    spyOn(fsMod, 'existsSync').and.callFake((p) => {
+      if (p === firefoxProfilesDir) return true;
+      if (p === prefsJsPath) return true;
+      return false;
+    });
+
+    spyOn(fsMod, 'readdirSync').and.callFake((p, opts) => {
+      if (p === firefoxProfilesDir) {
+        return [{ isDirectory: () => true, name: 'abc123.default' }];
+      }
+      return [];
+    });
+
+    const prefsContent = [
+      'user_pref("network.proxy.type", 2);',
+      'user_pref("network.proxy.autoconfig_url", "http://win-firefox.pac/proxy.pac");'
+    ].join('\n');
+
+    spyOn(fsMod, 'readFileSync').and.callFake((p) => {
+      if (p === prefsJsPath) return prefsContent;
+      throw new Error(`ENOENT: ${p}`);
+    });
+
+    // Mock http.get so #fetchText rejects immediately — no real network call
+    const fakeReq10 = new EventEmitter();
+    fakeReq10.destroy = () => {};
+    spyOn(http, 'get').and.callFake((url, opts, cb) => {
+      setImmediate(() => fakeReq10.emit('error', Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })));
+      return fakeReq10;
+    });
+
+    const detector = new PACDetector();
+    const findings = await withEnv(
+      { PERCY_PAC_FILE_URL: undefined },
+      () => detector.detectPAC()
+    );
+
+    const ffFinding = findings.find(f => f.source && f.source.startsWith('firefox:prefs.js'));
+    expect(ffFinding).toBeDefined();
+    expect(ffFinding.pacUrl).toBe('http://win-firefox.pac/proxy.pac');
+  });
+});
+
+// ─── detectPAC — evaluatePac proxyMatch detectedProxyUrl (lines 262-263) ──────
+
+describe('detectPAC — evaluatePac proxyMatch sets detectedProxyUrl (lines 262-263)', () => {
+  it('sets detectedProxyUrl and HTTPS_PROXY suggestion when PAC resolves to PROXY', async () => {
+    let pacServer;
+    try {
+      pacServer = await createPacServer(buildPacScript('PROXY corp.proxy.internal:8080'));
+
+      const findings = await withEnv(
+        { PERCY_PAC_FILE_URL: `${pacServer.url}/proxy.pac` },
+        () => detectPAC()
+      );
+
+      const finding = findings.find(f => f.pacUrl === `${pacServer.url}/proxy.pac`);
+      expect(finding).toBeDefined();
+      expect(finding.status).toBe('warn');
+      expect(finding.detectedProxyUrl).toBe('http://corp.proxy.internal:8080');
+      expect(finding.suggestions.some(s => /HTTPS_PROXY.*corp\.proxy\.internal/.test(s))).toBe(true);
+      expect(finding.suggestions.some(s => /PERCY_PAC_FILE_URL/.test(s))).toBe(true);
+    } finally {
+      if (pacServer) await pacServer.close();
+    }
+  });
+});
+
+// ─── detectPAC — #fetchText timeout branch (pac.js lines 296-297) ──────────────
+
+describe('detectPAC — #fetchText timeout branch (pac.js lines 296-297)', () => {
+  it('calls req.destroy and rejects with "PAC fetch timed out" when timeout event fires', async () => {
+    // Build a fake ClientRequest that emits 'timeout' after all listeners are set up
+    const fakeReq = new EventEmitter();
+    fakeReq.destroy = jasmine.createSpy('req.destroy');
+
+    // #fetchText uses (await import('http')).default — Babel compiles this to
+    // the same require('http') object that our static `http` import points to,
+    // so spying on http.get intercepts the call inside #fetchText.
+    spyOn(http, 'get').and.callFake((url, options, callback) => {
+      // Schedule timeout after all req.on() listeners have been registered
+      setImmediate(() => fakeReq.emit('timeout'));
+      return fakeReq;
+    });
+
+    const findings = await withEnv(
+      { PERCY_PAC_FILE_URL: 'http://hanging.local/proxy.pac' },
+      () => detectPAC()
+    );
+
+    // #evaluatePac catches the timed-out rejection and returns a warn finding
+    const finding = findings.find(f => f.pacUrl === 'http://hanging.local/proxy.pac');
+    expect(finding).toBeDefined();
+    expect(finding.status).toBe('warn');
+    expect(finding.message).toContain('PAC fetch timed out');
+    expect(fakeReq.destroy).toHaveBeenCalled();
+  });
+});
+
+// ─── PACDetector class ───────────────────────────────────────────────────────────
+
+describe('PACDetector class', () => {
+  it('can be instantiated', () => {
+    const detector = new PACDetector();
+    expect(detector).toBeDefined();
+    expect(typeof detector.detectPAC).toBe('function');
+  });
+
+  it('detectPAC is spyable on instances', async () => {
+    const detector = new PACDetector();
+    spyOn(detector, 'detectPAC').and.returnValue(Promise.resolve([
+      { status: 'info', source: 'none', message: 'mocked: no PAC detected.', pacUrl: null, resolvedProxy: null, suggestions: [] }
+    ]));
+
+    const findings = await detector.detectPAC();
+
+    expect(detector.detectPAC).toHaveBeenCalled();
+    expect(findings[0].message).toContain('mocked');
+  });
+
+  it('can be mocked to return a warn finding with detectedProxyUrl', async () => {
+    const detector = new PACDetector();
+    spyOn(detector, 'detectPAC').and.returnValue(Promise.resolve([
+      {
+        status: 'warn',
+        source: 'env:PERCY_PAC_FILE_URL',
+        pacUrl: 'http://corp.proxy/proxy.pac',
+        resolvedProxy: 'PROXY corp.proxy:8080',
+        detectedProxyUrl: 'http://corp.proxy:8080',
+        message: 'PAC file routes percy.io via proxy.',
+        suggestions: ['Set HTTPS_PROXY=http://corp.proxy:8080']
+      }
+    ]));
+
+    const findings = await detector.detectPAC();
+    const warn = findings[0];
+
+    expect(warn.status).toBe('warn');
+    expect(warn.detectedProxyUrl).toBe('http://corp.proxy:8080');
+    expect(warn.suggestions[0]).toContain('HTTPS_PROXY');
+  });
+
+  it('multiple instances are independent (spy on one does not affect other)', () => {
+    const a = new PACDetector();
+    const b = new PACDetector();
+    spyOn(a, 'detectPAC').and.returnValue(Promise.resolve([]));
+
+    expect(b.detectPAC).not.toBe(a.detectPAC);
+  });
+});

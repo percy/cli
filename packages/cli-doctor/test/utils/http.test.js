@@ -8,14 +8,14 @@
  *   - SSL_ERROR_CODES: exported set membership
  */
 
-import { probeUrl, isSslError, SSL_ERROR_CODES } from '../../src/utils/http.js';
+import { httpProber, HttpProber } from '../../src/utils/http.js';
 import { createHttpServer, createProxyServer } from '../helpers.js';
 
 // ─── SSL_ERROR_CODES exported set ────────────────────────────────────────────
 
 describe('SSL_ERROR_CODES', () => {
   it('is a Set', () => {
-    expect(SSL_ERROR_CODES instanceof Set).toBe(true);
+    expect(HttpProber.SSL_ERROR_CODES instanceof Set).toBe(true);
   });
 
   const expectedCodes = [
@@ -32,14 +32,14 @@ describe('SSL_ERROR_CODES', () => {
 
   for (const code of expectedCodes) {
     it(`contains ${code}`, () => {
-      expect(SSL_ERROR_CODES.has(code)).toBe(true);
+      expect(HttpProber.SSL_ERROR_CODES.has(code)).toBe(true);
     });
   }
 
   it('does not contain plain network errors', () => {
-    expect(SSL_ERROR_CODES.has('ECONNREFUSED')).toBe(false);
-    expect(SSL_ERROR_CODES.has('ETIMEDOUT')).toBe(false);
-    expect(SSL_ERROR_CODES.has('ENOTFOUND')).toBe(false);
+    expect(HttpProber.SSL_ERROR_CODES.has('ECONNREFUSED')).toBe(false);
+    expect(HttpProber.SSL_ERROR_CODES.has('ETIMEDOUT')).toBe(false);
+    expect(HttpProber.SSL_ERROR_CODES.has('ENOTFOUND')).toBe(false);
   });
 });
 
@@ -47,50 +47,50 @@ describe('SSL_ERROR_CODES', () => {
 
 describe('isSslError', () => {
   it('returns false for null', () => {
-    expect(isSslError(null)).toBe(false);
+    expect(httpProber.isSslError(null)).toBe(false);
   });
 
   it('returns false for undefined', () => {
-    expect(isSslError(undefined)).toBe(false);
+    expect(httpProber.isSslError(undefined)).toBe(false);
   });
 
   it('returns false when errorCode is null', () => {
-    expect(isSslError({ errorCode: null })).toBe(false);
+    expect(httpProber.isSslError({ errorCode: null })).toBe(false);
   });
 
   it('returns false when errorCode is undefined', () => {
-    expect(isSslError({ errorCode: undefined })).toBe(false);
+    expect(httpProber.isSslError({ errorCode: undefined })).toBe(false);
   });
 
   it('returns false when errorCode is empty string', () => {
-    expect(isSslError({ errorCode: '' })).toBe(false);
+    expect(httpProber.isSslError({ errorCode: '' })).toBe(false);
   });
 
   it('returns true for every member of SSL_ERROR_CODES', () => {
-    for (const code of SSL_ERROR_CODES) {
-      expect(isSslError({ errorCode: code })).toBe(true);
+    for (const code of HttpProber.SSL_ERROR_CODES) {
+      expect(httpProber.isSslError({ errorCode: code })).toBe(true);
     }
   });
 
   it('returns true for codes containing "CERT" (generic catch-all)', () => {
-    expect(isSslError({ errorCode: 'MY_CERT_PROBLEM' })).toBe(true);
-    expect(isSslError({ errorCode: 'CERT_CUSTOM_ERROR' })).toBe(true);
+    expect(httpProber.isSslError({ errorCode: 'MY_CERT_PROBLEM' })).toBe(true);
+    expect(httpProber.isSslError({ errorCode: 'CERT_CUSTOM_ERROR' })).toBe(true);
   });
 
   it('returns true for codes containing "SSL" (generic catch-all)', () => {
-    expect(isSslError({ errorCode: 'SSL_HANDSHAKE_FAIL' })).toBe(true);
-    expect(isSslError({ errorCode: 'ERR_SSL_VERSION_MISMATCH' })).toBe(true);
+    expect(httpProber.isSslError({ errorCode: 'SSL_HANDSHAKE_FAIL' })).toBe(true);
+    expect(httpProber.isSslError({ errorCode: 'ERR_SSL_VERSION_MISMATCH' })).toBe(true);
   });
 
   it('returns false for unrelated error codes', () => {
-    expect(isSslError({ errorCode: 'ECONNREFUSED' })).toBe(false);
-    expect(isSslError({ errorCode: 'ETIMEDOUT' })).toBe(false);
-    expect(isSslError({ errorCode: 'ENOTFOUND' })).toBe(false);
-    expect(isSslError({ errorCode: 'EPROXY' })).toBe(false);
+    expect(httpProber.isSslError({ errorCode: 'ECONNREFUSED' })).toBe(false);
+    expect(httpProber.isSslError({ errorCode: 'ETIMEDOUT' })).toBe(false);
+    expect(httpProber.isSslError({ errorCode: 'ENOTFOUND' })).toBe(false);
+    expect(httpProber.isSslError({ errorCode: 'EPROXY' })).toBe(false);
   });
 
   it('returns false when ok is true but no errorCode', () => {
-    expect(isSslError({ ok: true, status: 200, errorCode: null })).toBe(false);
+    expect(httpProber.isSslError({ ok: true, status: 200, errorCode: null })).toBe(false);
   });
 });
 
@@ -109,13 +109,13 @@ describe('probeUrl — HTTP method option', () => {
   afterAll(() => server.close());
 
   it('defaults to HEAD', async () => {
-    const result = await probeUrl(server.url, { timeout: 3000 });
+    const result = await httpProber.probeUrl(server.url, { timeout: 3000 });
     expect(result.ok).toBe(true);
     expect(result.responseHeaders['x-method']).toBe('HEAD');
   });
 
   it('sends GET when method: GET is specified', async () => {
-    const result = await probeUrl(server.url, { method: 'GET', timeout: 3000 });
+    const result = await httpProber.probeUrl(server.url, { method: 'GET', timeout: 3000 });
     expect(result.ok).toBe(true);
     expect(result.responseHeaders['x-method']).toBe('GET');
   });
@@ -125,7 +125,7 @@ describe('probeUrl — HTTP method option', () => {
 
 describe('probeUrl — invalid URL', () => {
   it('returns ok:false for a completely invalid URL', async () => {
-    const result = await probeUrl('not-a-url', { timeout: 3000 });
+    const result = await httpProber.probeUrl('not-a-url', { timeout: 3000 });
     expect(result.ok).toBe(false);
     expect(result.status).toBe(0);
     expect(result.error).toBeTruthy();
@@ -134,7 +134,7 @@ describe('probeUrl — invalid URL', () => {
 
   it('uses UNKNOWN errorCode when error has no code property', async () => {
     // An invalid URL throws a TypeError (no .code) — should map to 'UNKNOWN'
-    const result = await probeUrl(':::bad:::url', { timeout: 3000 });
+    const result = await httpProber.probeUrl(':::bad:::url', { timeout: 3000 });
     expect(result.ok).toBe(false);
     // Either UNKNOWN or whatever Node assigns — must be a non-empty string
     expect(typeof result.errorCode).toBe('string');
@@ -146,7 +146,7 @@ describe('probeUrl — invalid URL', () => {
 
 describe('probeUrl — ECONNREFUSED', () => {
   it('returns ok:false with ECONNREFUSED code on a closed port', async () => {
-    const result = await probeUrl('http://127.0.0.1:1/', { timeout: 3000 });
+    const result = await httpProber.probeUrl('http://127.0.0.1:1/', { timeout: 3000 });
     expect(result.ok).toBe(false);
     expect(result.errorCode).toBe('ECONNREFUSED');
     expect(result.latencyMs).toBeGreaterThanOrEqual(0);
@@ -159,7 +159,7 @@ describe('probeUrl — HTTPS direct, no proxy (path C https driver)', () => {
   it('uses https driver for HTTPS target without a proxy (covers line 146)', async () => {
     // https:// target with no proxyUrl → path C, driver = https (not http)
     // Port 1 is always refused → ECONNREFUSED, but the https driver branch is covered.
-    const result = await probeUrl('https://127.0.0.1:1/', { timeout: 1000 });
+    const result = await httpProber.probeUrl('https://127.0.0.1:1/', { timeout: 1000 });
     expect(result.ok).toBe(false);
     expect(result.errorCode).toBeTruthy();
   });
@@ -181,28 +181,28 @@ describe('probeUrl — HTTP response codes', () => {
   afterAll(() => server.close());
 
   it('ok=true for 200', async () => {
-    expect((await probeUrl(`${server.url}/200`, { timeout: 3000 })).ok).toBe(true);
+    expect((await httpProber.probeUrl(`${server.url}/200`, { timeout: 3000 })).ok).toBe(true);
   });
 
   it('ok=true for 301', async () => {
-    expect((await probeUrl(`${server.url}/301`, { timeout: 3000 })).ok).toBe(true);
+    expect((await httpProber.probeUrl(`${server.url}/301`, { timeout: 3000 })).ok).toBe(true);
   });
 
   it('ok=false for 404 (server reachable but not found)', async () => {
-    const r = await probeUrl(`${server.url}/404`, { timeout: 3000 });
+    const r = await httpProber.probeUrl(`${server.url}/404`, { timeout: 3000 });
     expect(r.ok).toBe(false);
     expect(r.status).toBe(404);
     expect(r.errorCode).toBeNull();
   });
 
   it('ok=false for 500', async () => {
-    const r = await probeUrl(`${server.url}/500`, { timeout: 3000 });
+    const r = await httpProber.probeUrl(`${server.url}/500`, { timeout: 3000 });
     expect(r.ok).toBe(false);
     expect(r.status).toBe(500);
   });
 
   it('includes latencyMs on all results', async () => {
-    const r = await probeUrl(`${server.url}/200`, { timeout: 3000 });
+    const r = await httpProber.probeUrl(`${server.url}/200`, { timeout: 3000 });
     expect(typeof r.latencyMs).toBe('number');
     expect(r.latencyMs).toBeGreaterThanOrEqual(0);
   });
@@ -229,17 +229,17 @@ describe('probeUrl — HTTP target via proxy', () => {
   });
 
   it('ok=true through an open proxy', async () => {
-    const r = await probeUrl(target.url, { proxyUrl: openProxy.url, timeout: 4000 });
+    const r = await httpProber.probeUrl(target.url, { proxyUrl: openProxy.url, timeout: 4000 });
     expect(r.ok).toBe(true);
   });
 
   it('ok=false when proxy returns 502', async () => {
-    const r = await probeUrl(target.url, { proxyUrl: blockProxy.url, timeout: 4000 });
+    const r = await httpProber.probeUrl(target.url, { proxyUrl: blockProxy.url, timeout: 4000 });
     expect(r.ok).toBe(false);
   });
 
   it('ok=false (ECONNREFUSED) when proxy is not listening', async () => {
-    const r = await probeUrl(target.url, { proxyUrl: 'http://127.0.0.1:1/', timeout: 3000 });
+    const r = await httpProber.probeUrl(target.url, { proxyUrl: 'http://127.0.0.1:1/', timeout: 3000 });
     expect(r.ok).toBe(false);
     expect(r.errorCode).toBe('ECONNREFUSED');
   });
@@ -278,7 +278,7 @@ describe('probeUrl — HTTP proxy path (B): 407 response', () => {
 
   it('returns EPROXY with 407 message when HTTP proxy demands auth', async () => {
     // Path B: HTTP target via HTTP proxy — proxy returns 407
-    const r = await probeUrl('http://example.com/test', {
+    const r = await httpProber.probeUrl('http://example.com/test', {
       proxyUrl: auth407Proxy.url,
       timeout: 4000
     });
@@ -300,7 +300,7 @@ describe('probeUrl — HTTP proxy path (B): Proxy-Authorization header', () => {
 
     try {
       const proxyWithCreds = echoProxy.url.replace('http://', 'http://user:pass@');
-      const r = await probeUrl('http://example.com/path', {
+      const r = await httpProber.probeUrl('http://example.com/path', {
         proxyUrl: proxyWithCreds,
         timeout: 3000
       });
@@ -336,7 +336,7 @@ describe('probeUrl — HTTP target via proxy timeout (path B)', () => {
     });
 
     try {
-      const result = await probeUrl('http://example.com/path', {
+      const result = await httpProber.probeUrl('http://example.com/path', {
         proxyUrl: hangProxy.url,
         timeout: 600
       });
@@ -372,7 +372,7 @@ describe('probeUrl — HTTPS via CONNECT proxy timeout', () => {
     });
 
     try {
-      const result = await probeUrl('https://percy.io/', {
+      const result = await httpProber.probeUrl('https://percy.io/', {
         proxyUrl: hangProxy.url,
         timeout: 600
       });
@@ -391,7 +391,7 @@ describe('probeUrl — HTTPS via CONNECT proxy timeout', () => {
 describe('probeUrl — HTTPS proxy, no explicit port (path A proxyPort default)', () => {
   it('defaults proxyPort to 8080 when http proxy URL has no port', async () => {
     // http://127.0.0.1 (no port) → proxy.port = '' → parseInt('',10) = NaN → 8080
-    const result = await probeUrl('https://example.com/', {
+    const result = await httpProber.probeUrl('https://example.com/', {
       proxyUrl: 'http://127.0.0.1', // no port
       timeout: 500
     });
@@ -402,7 +402,7 @@ describe('probeUrl — HTTPS proxy, no explicit port (path A proxyPort default)'
 
   it('defaults proxyPort to 443 when https proxy URL has no port', async () => {
     // https://127.0.0.1 (no port) → proxy.port = '' → parseInt('',10) = NaN → 443
-    const result = await probeUrl('https://example.com/', {
+    const result = await httpProber.probeUrl('https://example.com/', {
       proxyUrl: 'https://127.0.0.1', // no port, https scheme
       timeout: 500
     });
@@ -439,7 +439,7 @@ describe('probeUrl — HTTPS CONNECT with proxy credentials (path A proxy.userna
     try {
       // Add credentials to proxy URL so proxy.username is truthy → line 97 (TRUE branch) fires
       const proxyWithCreds = hangProxy.url.replace('http://', 'http://user:pass@');
-      const result = await probeUrl('https://example.com/', {
+      const result = await httpProber.probeUrl('https://example.com/', {
         proxyUrl: proxyWithCreds,
         timeout: 600
       });
@@ -479,7 +479,7 @@ describe('probeUrl — HTTPS CONNECT: partial CONNECT response (path A line 109 
     });
 
     try {
-      const result = await probeUrl('https://example.com/', {
+      const result = await httpProber.probeUrl('https://example.com/', {
         proxyUrl: partialProxy.url,
         timeout: 700
       });
@@ -523,7 +523,7 @@ describe('probeUrl — HTTPS CONNECT: 200 response → TLS error (path A data ca
     });
 
     try {
-      const result = await probeUrl('https://example.com/', {
+      const result = await httpProber.probeUrl('https://example.com/', {
         proxyUrl: connect200Proxy.url,
         timeout: 3000
       });
@@ -562,7 +562,7 @@ describe('probeUrl — HTTPS CONNECT: 407 response (path A statusCode !== 200)',
     });
 
     try {
-      const result = await probeUrl('https://example.com/', {
+      const result = await httpProber.probeUrl('https://example.com/', {
         proxyUrl: proxy407.url,
         timeout: 3000
       });
@@ -581,7 +581,7 @@ describe('probeUrl — HTTP proxy path (B): no explicit port falls back to 8080'
   it('uses port 8080 when HTTP proxy URL has no explicit port (covers line 146 || 8080)', async () => {
     // http://127.0.0.1 (no port) → proxy.port = '' → parseInt('', 10) = NaN → 8080
     // Nothing listens on :8080 → ECONNREFUSED, but the || 8080 branch is covered
-    const result = await probeUrl('http://example.com/path', {
+    const result = await httpProber.probeUrl('http://example.com/path', {
       proxyUrl: 'http://127.0.0.1', // no explicit port
       timeout: 1000
     });
@@ -607,7 +607,7 @@ describe('probeUrl — UNKNOWN errorCode fallback', () => {
     // proxy URL that parses but makes the socket connection fail in a way that
     // produces a codeless error. The cleanest approach is to verify the branch
     // exists and that 'UNKNOWN' is a valid string errorCode for safety:
-    const result = await probeUrl('http://127.0.0.1:1/', { timeout: 500 });
+    const result = await httpProber.probeUrl('http://127.0.0.1:1/', { timeout: 500 });
     // ECONNREFUSED has a code; errorCode is non-null
     expect(typeof result.errorCode).toBe('string');
     expect(result.errorCode.length).toBeGreaterThan(0);

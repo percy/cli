@@ -36,183 +36,6 @@ export function safeEnvPath(val, fallback) {
   return path.isAbsolute(resolved) ? resolved : fallback;
 }
 
-// ─── Chrome binary locations (searched in order) ──────────────────────────────
-
-function systemChromePaths() {
-  const home = os.homedir();
-  const platform = os.platform();
-
-  if (platform === 'darwin') {
-    return [
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-      '/Applications/Chromium.app/Contents/MacOS/Chromium',
-      '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
-      path.join(home, 'Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
-    ];
-  }
-  if (platform === 'linux') {
-    return [
-      '/usr/bin/google-chrome',
-      '/usr/bin/google-chrome-stable',
-      '/usr/bin/chromium-browser',
-      '/usr/bin/chromium',
-      '/snap/bin/chromium'
-    ];
-  }
-  if (platform === 'win32') {
-    const pf = safeEnvPath(process.env.PROGRAMFILES, 'C:\\Program Files');
-    const pf86 = safeEnvPath(process.env['PROGRAMFILES(X86)'], 'C:\\Program Files (x86)');
-    return [
-      path.join(pf, 'Google\\Chrome\\Application\\chrome.exe'),
-      path.join(pf86, 'Google\\Chrome\\Application\\chrome.exe'),
-      path.join(home, 'AppData\\Local\\Google\\Chrome\\Application\\chrome.exe')
-    ];
-  }
-  return [];
-}
-
-/**
- * Locate a usable Chrome/Chromium binary.
- *
- * Search order:
- *  1. PERCY_BROWSER_EXECUTABLE (user override)
- *  2. Percy's bundled Chromium via @percy/core/src/install.js
- *     (auto-downloads if not already present)
- *  3. System-installed Chrome/Chromium (fallback when install fails)
- *
- * Returns the executable path, or null if nothing is found.
- */
-async function findChrome() {
-  // 1. User-supplied override — sanitize before use (resolves path-traversal
-  //    and detect-child-process Semgrep findings: chromePath is always a
-  //    resolved absolute path with no shell metacharacters by the time it
-  //    reaches spawn()).
-  if (process.env.PERCY_BROWSER_EXECUTABLE) {
-    const p = sanitizeExecutablePath(process.env.PERCY_BROWSER_EXECUTABLE);
-    if (p && fs.existsSync(p)) return p;
-  }
-
-  // 2. Percy's bundled Chromium (managed by @percy/core, lazy import)
-  try {
-    const { chromium: installChromium } = await import('@percy/core/src/install.js');
-    return await installChromium();
-  } catch { /* fall through to system Chrome */ }
-
-  // 3. System Chrome
-  for (const p of systemChromePaths()) {
-    if (fs.existsSync(p)) return p;
-  }
-
-  return null;
-}
-
-// ─── CDP helpers ──────────────────────────────────────────────────────────────
-
-/** Find a free TCP port by letting the OS assign one. */
-function getFreePort() {
-  return new Promise((resolve, reject) => {
-    const srv = net.createServer();
-    srv.listen(0, '127.0.0.1', () => {
-      const port = srv.address().port;
-      srv.close(() => resolve(port));
-    });
-    srv.on('error', reject);
-  });
-}
-
-/**
- * Poll Chrome's /json/list endpoint for a page-type target's WS URL.
- * Network.enable and Page.enable are page-level CDP domains — they must be sent
- * to a page target, not the browser-level target from /json/version.
- */
-function pollCDPPageTarget(port) {
-  return new Promise((resolve, reject) => {
-    const req = http.get(`http://127.0.0.1:${port}/json/list`, { timeout: 1000 }, (res) => {
-      let body = '';
-      res.on('data', d => (body += d));
-      res.on('end', () => {
-        try {
-          const targets = JSON.parse(body);
-          const page = targets.find(t => t.type === 'page' && t.webSocketDebuggerUrl);
-          if (page) resolve(page.webSocketDebuggerUrl);
-          else reject(new Error('no page target ready'));
-        } catch {
-          reject(new Error('invalid CDP response'));
-        }
-      });
-    });
-    req.on('error', reject);
-    req.on('timeout', () => reject(new Error('CDP poll timeout')));
-  });
-}
-
-/** Wait until Chrome's CDP page target is ready and return its webSocketDebuggerUrl. */
-async function waitForCDP(port, timeout = 30000) {
-  const deadline = Date.now() + timeout;
-  while (Date.now() < deadline) {
-    try {
-      const wsUrl = await pollCDPPageTarget(port);
-      if (wsUrl) return wsUrl;
-    } catch { /* not ready yet */ }
-    await new Promise(r => setTimeout(r, 150));
-  }
-  throw new Error('Timed out waiting for Chrome CDP page target');
-}
-
-/**
- * Minimal CDP client over WebSocket.
- * Only depends on the `ws` package (transitive dep via @percy/core).
- */
-async function connectCDP(wsUrl) {
-  const { default: WS } = await import('ws');
-  const ws = new WS(wsUrl, { perMessageDeflate: false });
-
-  await new Promise((resolve, reject) => {
-    ws.once('open', resolve);
-    ws.once('error', reject);
-  });
-
-  let _id = 0;
-  const _pending = new Map();
-  const _listeners = new Map(); // event → Set<handler>
-
-  ws.on('message', (raw) => {
-    let msg;
-    try { msg = JSON.parse(raw.toString()); } catch { return; }
-
-    if (msg.id && _pending.has(msg.id)) {
-      const { resolve, reject } = _pending.get(msg.id);
-      _pending.delete(msg.id);
-      if (msg.error) {
-        reject(new Error(msg.error.message));
-      } else {
-        resolve(msg.result ?? {});
-      }
-    }
-
-    if (msg.method) {
-      for (const handler of (_listeners.get(msg.method) ?? [])) {
-        handler(msg.params);
-      }
-    }
-  });
-
-  return {
-    send(method, params = {}) {
-      const id = ++_id;
-      return new Promise((resolve, reject) => {
-        _pending.set(id, { resolve, reject });
-        ws.send(JSON.stringify({ id, method, params }));
-      });
-    },
-    on(event, handler) {
-      if (!_listeners.has(event)) _listeners.set(event, new Set());
-      _listeners.get(event).add(handler);
-    },
-    close() { ws.close(); }
-  };
-}
-
 // ─── Request lifecycle & network capture (mirrors @percy/core's network.js) ───
 
 /**
@@ -243,7 +66,7 @@ export class NetworkCapture {
   #failed = new Map();
   #proxyHeaders = new Set();
 
-  _lifecycle(requestId) {
+  #lifecycle(requestId) {
     if (!this.#lifecycles.has(requestId)) {
       this.#lifecycles.set(requestId, new RequestLifecycle());
     }
@@ -261,12 +84,12 @@ export class NetworkCapture {
       initiatorType: request.initiator?.type,
       timestamp
     });
-    this._lifecycle(requestId).resolveRequestWillBeSent();
+    this.#lifecycle(requestId).resolveRequestWillBeSent();
   }
 
   /** Network.responseReceived — awaits requestWillBeSent before storing response. */
   async onResponseReceived({ requestId, response }) {
-    await this._lifecycle(requestId).requestWillBeSent;
+    await this.#lifecycle(requestId).requestWillBeSent;
     this.#responses.set(requestId, {
       status: response.status,
       statusText: response.statusText,
@@ -287,12 +110,12 @@ export class NetworkCapture {
         this.#proxyHeaders.add(`${h}: ${response.headers[h]}`);
       }
     }
-    this._lifecycle(requestId).resolveResponseReceived();
+    this.#lifecycle(requestId).resolveResponseReceived();
   }
 
   /** Network.loadingFailed — awaits requestWillBeSent before storing failure. */
   async onLoadingFailed({ requestId, errorText, blockedReason, corsErrorStatus }) {
-    await this._lifecycle(requestId).requestWillBeSent;
+    await this.#lifecycle(requestId).requestWillBeSent;
     this.#failed.set(requestId, { errorText, blockedReason, corsErrorStatus });
   }
 
@@ -315,156 +138,6 @@ export class NetworkCapture {
   }
 
   getProxyHeaders() { return Array.from(this.#proxyHeaders); }
-}
-
-// ─── Core capture logic ───────────────────────────────────────────────────────
-
-/**
- * Launch Chrome, attach CDP event handlers via a NetworkCapture instance,
- * navigate to targetUrl, and return all observed network activity.
- *
- * @param {string}  chromePath
- * @param {string}  targetUrl
- * @param {object}  [opts]
- * @param {boolean} [opts.headless=true]
- * @param {number}  [opts.timeout=30000]  Navigation timeout ms
- * @param {string}  [opts.proxyUrl]       Optional --proxy-server flag
- * @returns {Promise<CaptureResult>}
- */
-async function captureNetworkRequests(chromePath, targetUrl, opts = {}) {
-  const { timeout = 30000, proxyUrl } = opts;
-  // Hard wall-clock cap: navigation timeout + 15 s for Chrome startup + CDP handshake.
-  // If Chrome hangs (e.g. frozen renderer, hung SIGTERM), this ensures we always
-  // return within a bounded time rather than blocking the whole doctor run.
-  const hardDeadline = timeout + 15000;
-  const timeoutResult = {
-    targetUrl,
-    proxyUrl: proxyUrl ?? null,
-    navMs: 0,
-    requests: [],
-    proxyHeaders: [],
-    error: `Browser capture timed out after ${hardDeadline / 1000}s`
-  };
-  return Promise.race([
-    _doCapture(chromePath, targetUrl, opts),
-    new Promise(resolve => setTimeout(() => resolve(timeoutResult), hardDeadline))
-  ]);
-}
-
-async function _doCapture(chromePath, targetUrl, opts = {}) {
-  const { headless = true, timeout = 30000, proxyUrl } = opts;
-
-  // When NODE_TLS_REJECT_UNAUTHORIZED=0 is set the Node process has already
-  // disabled SSL verification (e.g. for an SSL-intercepting proxy). Mirror that
-  // into Chrome via two mechanisms:
-  //   1. --ignore-certificate-errors CLI flag (broad bypass, works for most cases)
-  //   2. Security.setIgnoreCertificateErrors CDP command (per-session, more reliable
-  //      for intercepting proxies — this is how Puppeteer/Playwright do it)
-  const ignoreCerts = process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0';
-
-  const port = await getFreePort();
-  const chromeArgs = [
-    `--remote-debugging-port=${port}`,
-    '--no-sandbox',
-    '--disable-extensions',
-    '--disable-background-networking',
-    '--disable-default-apps',
-    '--disable-sync',
-    '--disable-translate',
-    '--metrics-recording-only',
-    '--no-first-run',
-    '--safebrowsing-disable-auto-update',
-    '--password-store=basic',
-    '--use-mock-keychain',
-    headless ? '--headless=new' : '',
-    headless ? '--hide-scrollbars' : '',
-    headless ? '--mute-audio' : '',
-    proxyUrl ? `--proxy-server=${proxyUrl}` : '',
-    'about:blank'
-  ].filter(Boolean);
-
-  // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
-  // chromePath has already been validated and sanitized by sanitizeExecutablePath()
-  // (rejects shell metacharacters, requires an absolute path). shell: false ensures
-  // no shell expansion occurs. This tool runs inside the customer's own CI environment.
-  const proc = spawn(chromePath, chromeArgs, {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    detached: false,
-    shell: false // args are always an array; never expand via shell
-  });
-
-  const capture = new NetworkCapture();
-  let captureError = null;
-  let navMs = 0;
-
-  try {
-    const wsUrl = await waitForCDP(port, Math.max(timeout, 30000));
-    const cdp = await connectCDP(wsUrl);
-
-    // Attach event handlers — mirrors the watch() pattern in @percy/core's Network class
-    cdp.on('Network.requestWillBeSent', p => capture.onRequestWillBeSent(p));
-    cdp.on('Network.responseReceived', p => capture.onResponseReceived(p));
-    cdp.on('Network.loadingFailed', p => capture.onLoadingFailed(p));
-
-    await Promise.all([
-      cdp.send('Network.enable'),
-      cdp.send('Page.enable')
-    ]);
-
-    // Per-session SSL bypass — more reliable than the CLI flag for intercepting
-    // proxies (the flag sometimes doesn't fire in headless=new for CONNECT tunnels).
-    if (ignoreCerts) {
-      await cdp.send('Security.setIgnoreCertificateErrors', { ignore: true });
-    }
-
-    const navStart = Date.now();
-    await cdp.send('Page.navigate', { url: targetUrl });
-    await Promise.race([
-      new Promise(resolve => cdp.on('Page.loadEventFired', () => setTimeout(resolve, 2500))),
-      new Promise(resolve => setTimeout(resolve, timeout))
-    ]);
-    navMs = Date.now() - navStart;
-
-    cdp.close();
-
-    // Allow any in-flight async lifecycle handlers (onResponseReceived,
-    // onLoadingFailed) to fully settle before collecting results
-    await new Promise(resolve => setImmediate(resolve));
-  } catch (err) {
-    captureError = err.message;
-  } finally {
-    try { proc.kill('SIGTERM'); } catch { /* ignore */ }
-    await killProcess(proc, 3000);
-  }
-
-  return {
-    targetUrl,
-    proxyUrl: proxyUrl ?? null,
-    navMs,
-    requests: capture.buildRequests(),
-    proxyHeaders: capture.getProxyHeaders(),
-    error: captureError
-  };
-}
-/**
- * Terminate a child process gracefully (SIGTERM), escalating to SIGKILL after
- * `gracePeriodMs` if it hasn't exited. Handles the race where the process has
- * already exited so `proc.once('exit')` would never fire.
- */
-function killProcess(proc, gracePeriodMs = 3000) {
-  return new Promise(resolve => {
-    // Already dead — nothing to do
-    if (proc.exitCode !== null || proc.killed) return resolve();
-
-    const escalate = setTimeout(() => {
-      try { proc.kill('SIGKILL'); } catch { /* already gone */ }
-      // One final wait; if it still doesn't fire we move on
-      const bail = setTimeout(resolve, 2000);
-      proc.once('exit', () => { clearTimeout(bail); resolve(); });
-    }, gracePeriodMs);
-
-    proc.once('exit', () => { clearTimeout(escalate); resolve(); });
-  });
 }
 
 export function safeHostname(rawUrl) {
@@ -499,152 +172,477 @@ export function analyseCapture(capture) {
   return byHostname;
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
+// ─── BrowserChecker ───────────────────────────────────────────────────────────
 
 /**
- * Check 5 – Browser Network Analysis
- *
- * Launches Chrome (bundled Chromium or system) and navigates to `targetUrl`.
- * All network requests are captured and grouped by hostname into:
- *   reachable / blocked / errored
- *
- * If `proxyUrl` is provided the test is run twice (direct + via proxy) so the
- * delta is visible.
- *
- * @param {object}  [options]
- * @param {string}  [options.targetUrl]    URL to open (default: https://percy.io)
- * @param {string}  [options.proxyUrl]     Optional proxy server to test
- * @param {number}  [options.timeout]      Navigation timeout ms (default: 30000)
- * @param {boolean} [options.headless]     Run headless (default: true)
- * @returns {Promise<BrowserFinding>}
+ * All Chrome browser-network analysis logic lives here as methods.
+ * Instantiate and call checkBrowserNetwork() to run Check 5.
  */
-export async function checkBrowserNetwork(options = {}) {
-  const {
-    targetUrl = 'https://percy.io',
-    proxyUrl,
-    timeout = 30000,
-    headless = true
-  } = options;
+export class BrowserChecker {
+  // ─── Private: Chrome binary discovery ──────────────────────────────────────
 
-  // ── 1. Find Chrome ─────────────────────────────────────────────────────────
-  const chromePath = await findChrome();
+  /** Return platform-specific candidate Chrome binary paths in priority order. */
+  #systemChromePaths() {
+    const home = os.homedir();
+    const platform = os.platform();
 
-  if (!chromePath) {
-    return {
-      status: 'skip',
-      message: 'Chrome / Chromium not found. Install Google Chrome or set PERCY_BROWSER_EXECUTABLE.',
-      chromePath: null,
-      targetUrl,
-      directCapture: null,
-      proxyCapture: null,
-      domainSummary: [],
-      proxyHeaders: [],
-      suggestions: [
-        'Install Google Chrome from https://www.google.com/chrome/',
-        'Or set PERCY_BROWSER_EXECUTABLE=/path/to/chrome in your environment.'
-      ]
-    };
+    if (platform === 'darwin') {
+      return [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/Applications/Chromium.app/Contents/MacOS/Chromium',
+        '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
+        path.join(home, 'Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
+      ];
+    }
+    if (platform === 'linux') {
+      return [
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium',
+        '/snap/bin/chromium'
+      ];
+    }
+    if (platform === 'win32') {
+      const pf = safeEnvPath(process.env.PROGRAMFILES, 'C:\\Program Files');
+      const pf86 = safeEnvPath(process.env['PROGRAMFILES(X86)'], 'C:\\Program Files (x86)');
+      return [
+        path.join(pf, 'Google\\Chrome\\Application\\chrome.exe'),
+        path.join(pf86, 'Google\\Chrome\\Application\\chrome.exe'),
+        path.join(home, 'AppData\\Local\\Google\\Chrome\\Application\\chrome.exe')
+      ];
+    }
+    return [];
   }
 
-  // ── 2 & 3. Direct + proxy captures in parallel ─────────────────────────────
-  // Promise.allSettled ensures that a hung/failed run never blocks the other;
-  // both Chrome instances race independently against their hard deadlines.
-  const errCapture = (url, pUrl, msg) => ({
-    targetUrl: url,
-    proxyUrl: pUrl ?? null,
-    navMs: 0,
-    requests: [],
-    proxyHeaders: [],
-    error: msg
-  });
-
-  const [directResult, proxyResult] = await Promise.allSettled([
-    captureNetworkRequests(chromePath, targetUrl, { headless, timeout }),
-    proxyUrl
-      ? captureNetworkRequests(chromePath, targetUrl, { headless, timeout, proxyUrl })
-      : Promise.resolve(null)
-  ]);
-
-  const directCapture = directResult.status === 'fulfilled'
-    ? directResult.value
-    : errCapture(targetUrl, null, directResult.reason?.message ?? 'capture failed');
-
-  const proxyCapture = proxyResult.status === 'fulfilled'
-    ? proxyResult.value
-    : (proxyUrl ? errCapture(targetUrl, proxyUrl, proxyResult.reason?.message ?? 'capture failed') : null);
-
-  // ── 4. Build domain-level summary ─────────────────────────────────────────
-  const directByHost = analyseCapture(directCapture);
-  const proxyByHost = proxyCapture ? analyseCapture(proxyCapture) : null;
-
-  const allHostnames = new Set([
-    ...directByHost.keys(),
-    ...(proxyByHost?.keys() ?? [])
-  ]);
-
-  const domainSummary = [];
-  for (const hostname of allHostnames) {
-    const direct = directByHost.get(hostname) ?? null;
-    const viaProxy = proxyByHost?.get(hostname) ?? null;
-
-    let status;
-    if (direct?.reachable) {
-      status = 'pass';
-    } else if (viaProxy?.reachable) {
-      status = 'warn'; // reachable via proxy only
-    } else {
-      status = direct ? 'fail' : 'skip';
+  /**
+   * Locate a usable Chrome/Chromium binary.
+   *
+   * Search order:
+   *  1. PERCY_BROWSER_EXECUTABLE (user override)
+   *  2. Percy's bundled Chromium via @percy/core/src/install.js
+   *  3. System-installed Chrome/Chromium (fallback when install fails)
+   *
+   * @returns {Promise<string|null>}
+   */
+  async #findChrome() {
+    // 1. User-supplied override — sanitize before use (resolves path-traversal
+    //    and detect-child-process Semgrep findings: chromePath is always a
+    //    resolved absolute path with no shell metacharacters by the time it
+    //    reaches spawn()).
+    if (process.env.PERCY_BROWSER_EXECUTABLE) {
+      const p = sanitizeExecutablePath(process.env.PERCY_BROWSER_EXECUTABLE);
+      if (p && fs.existsSync(p)) return p;
     }
 
-    const entry = {
-      hostname,
-      status,
-      direct: direct
-        ? {
-            reachable: direct.reachable,
-            blocked: direct.blocked,
-            errors: direct.errors,
-            sampleStatus: direct.requests.find(r => r.response)?.response?.status ?? null
-          }
-        : null,
-      viaProxy: viaProxy
-        ? {
-            reachable: viaProxy.reachable,
-            blocked: viaProxy.blocked,
-            errors: viaProxy.errors,
-            sampleStatus: viaProxy.requests.find(r => r.response)?.response?.status ?? null
-          }
-        : null
-    };
-    domainSummary.push(entry);
+    // 2. Percy's bundled Chromium (managed by @percy/core, lazy import)
+    try {
+      const { chromium: installChromium } = await import('@percy/core/src/install.js');
+      return await installChromium();
+    } catch { /* fall through to system Chrome */ }
+
+    // 3. System Chrome
+    for (const p of this.#systemChromePaths()) {
+      if (fs.existsSync(p)) return p;
+    }
+    return null;
   }
 
-  // Sort: failures first
-  const order = { fail: 0, warn: 1, pass: 2, skip: 3 };
-  domainSummary.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
+  // ─── Private: CDP helpers ───────────────────────────────────────────────────
 
-  // ── 5. Aggregate proxy headers ─────────────────────────────────────────────
-  const proxyHeaders = [
-    ...new Set([
-      ...directCapture.proxyHeaders,
-      ...(proxyCapture?.proxyHeaders ?? [])
-    ])
-  ];
+  /** Find a free TCP port by letting the OS assign one. */
+  #getFreePort() {
+    return new Promise((resolve, reject) => {
+      const srv = net.createServer();
+      srv.listen(0, '127.0.0.1', () => {
+        const port = srv.address().port;
+        srv.close(() => resolve(port));
+      });
+      srv.on('error', reject);
+    });
+  }
 
-  // ── 6. Overall status ──────────────────────────────────────────────────────
-  const hasFail = domainSummary.some(d => d.status === 'fail');
-  const hasWarn = domainSummary.some(d => d.status === 'warn');
-  const overallStatus = hasFail ? 'fail' : (hasWarn ? 'warn' : 'pass');
+  /**
+   * Poll Chrome's /json/list endpoint for a page-type target's WS URL.
+   * Network.enable and Page.enable are page-level CDP domains — they must be sent
+   * to a page target, not the browser-level target from /json/version.
+   */
+  #pollCDPPageTarget(port) {
+    return new Promise((resolve, reject) => {
+      const req = http.get(`http://127.0.0.1:${port}/json/list`, { timeout: 1000 }, (res) => {
+        let body = '';
+        res.on('data', d => (body += d));
+        res.on('end', () => {
+          try {
+            const targets = JSON.parse(body);
+            const page = targets.find(t => t.type === 'page' && t.webSocketDebuggerUrl);
+            if (page) resolve(page.webSocketDebuggerUrl);
+            else reject(new Error('no page target ready'));
+          } catch {
+            reject(new Error('invalid CDP response'));
+          }
+        });
+      });
+      req.on('error', reject);
+      req.on('timeout', () => reject(new Error('CDP poll timeout')));
+    });
+  }
 
-  return {
-    status: overallStatus,
-    chromePath,
-    targetUrl,
-    directCapture,
-    proxyCapture,
-    domainSummary,
-    proxyHeaders,
-    navMs: directCapture.navMs,
-    error: directCapture.error
-  };
+  /** Wait until Chrome's CDP page target is ready and return its webSocketDebuggerUrl. */
+  async #waitForCDP(port, timeout = 30000) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      try {
+        const wsUrl = await this.#pollCDPPageTarget(port);
+        if (wsUrl) return wsUrl;
+      } catch { /* not ready yet */ }
+      await new Promise(r => setTimeout(r, 150));
+    }
+    throw new Error('Timed out waiting for Chrome CDP page target');
+  }
+
+  /**
+   * Minimal CDP client over WebSocket.
+   * Only depends on the `ws` package (transitive dep via @percy/core).
+   */
+  async #connectCDP(wsUrl) {
+    const { default: WS } = await import('ws');
+    const ws = new WS(wsUrl, { perMessageDeflate: false });
+
+    await new Promise((resolve, reject) => {
+      ws.once('open', resolve);
+      ws.once('error', reject);
+    });
+
+    let _id = 0;
+    const _pending = new Map();
+    const _listeners = new Map(); // event → Set<handler>
+
+    ws.on('message', (raw) => {
+      let msg;
+      try { msg = JSON.parse(raw.toString()); } catch { return; }
+
+      if (msg.id && _pending.has(msg.id)) {
+        const { resolve, reject } = _pending.get(msg.id);
+        _pending.delete(msg.id);
+        if (msg.error) {
+          reject(new Error(msg.error.message));
+        } else {
+          resolve(msg.result ?? {});
+        }
+      }
+
+      if (msg.method) {
+        for (const handler of (_listeners.get(msg.method) ?? [])) {
+          handler(msg.params);
+        }
+      }
+    });
+
+    return {
+      send(method, params = {}) {
+        const id = ++_id;
+        return new Promise((resolve, reject) => {
+          _pending.set(id, { resolve, reject });
+          ws.send(JSON.stringify({ id, method, params }));
+        });
+      },
+      on(event, handler) {
+        if (!_listeners.has(event)) _listeners.set(event, new Set());
+        _listeners.get(event).add(handler);
+      },
+      close() { ws.close(); }
+    };
+  }
+
+  // ─── Private: capture ──────────────────────────────────────────────────────
+
+  /**
+   * Launch Chrome, capture network activity, and return raw results.
+   * Races the capture against a hard deadline (timeout + 15 s).
+   */
+  async #captureNetworkRequests(chromePath, targetUrl, opts = {}) {
+    const { timeout = 30000, proxyUrl } = opts;
+    // Hard wall-clock cap: navigation timeout + 15 s for Chrome startup + CDP handshake.
+    // If Chrome hangs (e.g. frozen renderer, hung SIGTERM), this ensures we always
+    // return within a bounded time rather than blocking the whole doctor run.
+    const hardDeadline = timeout + 15000;
+    const timeoutResult = {
+      targetUrl,
+      proxyUrl: proxyUrl ?? null,
+      navMs: 0,
+      requests: [],
+      proxyHeaders: [],
+      error: `Browser capture timed out after ${hardDeadline / 1000}s`
+    };
+    return Promise.race([
+      this.#doCapture(chromePath, targetUrl, opts),
+      new Promise(resolve => setTimeout(() => resolve(timeoutResult), hardDeadline))
+    ]);
+  }
+
+  async #doCapture(chromePath, targetUrl, opts = {}) {
+    const { headless = true, timeout = 30000, proxyUrl } = opts;
+
+    // When NODE_TLS_REJECT_UNAUTHORIZED=0 is set the Node process has already
+    // disabled SSL verification (e.g. for an SSL-intercepting proxy). Mirror that
+    // into Chrome via two mechanisms:
+    //   1. --ignore-certificate-errors CLI flag (broad bypass, works for most cases)
+    //   2. Security.setIgnoreCertificateErrors CDP command (per-session, more reliable
+    //      for intercepting proxies — this is how Puppeteer/Playwright do it)
+    const ignoreCerts = process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0';
+
+    const port = await this.#getFreePort();
+    const chromeArgs = [
+      `--remote-debugging-port=${port}`,
+      '--no-sandbox',
+      '--disable-extensions',
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--disable-sync',
+      '--disable-translate',
+      '--metrics-recording-only',
+      '--no-first-run',
+      '--safebrowsing-disable-auto-update',
+      '--password-store=basic',
+      '--use-mock-keychain',
+      headless ? '--headless=new' : '',
+      headless ? '--hide-scrollbars' : '',
+      headless ? '--mute-audio' : '',
+      proxyUrl ? `--proxy-server=${proxyUrl}` : '',
+      'about:blank'
+    ].filter(Boolean);
+
+    // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
+    // chromePath has already been validated and sanitized by sanitizeExecutablePath()
+    // (rejects shell metacharacters, requires an absolute path). shell: false ensures
+    // no shell expansion occurs. This tool runs inside the customer's own CI environment.
+    const proc = spawn(chromePath, chromeArgs, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: false,
+      shell: false // args are always an array; never expand via shell
+    });
+
+    const capture = new NetworkCapture();
+    let captureError = null;
+    let navMs = 0;
+
+    try {
+      const wsUrl = await this.#waitForCDP(port, Math.max(timeout, 30000));
+      const cdp = await this.#connectCDP(wsUrl);
+
+      // Attach event handlers — mirrors the watch() pattern in @percy/core's Network class
+      cdp.on('Network.requestWillBeSent', p => capture.onRequestWillBeSent(p));
+      cdp.on('Network.responseReceived', p => capture.onResponseReceived(p));
+      cdp.on('Network.loadingFailed', p => capture.onLoadingFailed(p));
+
+      await Promise.all([
+        cdp.send('Network.enable'),
+        cdp.send('Page.enable')
+      ]);
+
+      // Per-session SSL bypass — more reliable than the CLI flag for intercepting
+      // proxies (the flag sometimes doesn't fire in headless=new for CONNECT tunnels).
+      if (ignoreCerts) {
+        await cdp.send('Security.setIgnoreCertificateErrors', { ignore: true });
+      }
+
+      const navStart = Date.now();
+      await cdp.send('Page.navigate', { url: targetUrl });
+      await Promise.race([
+        new Promise(resolve => cdp.on('Page.loadEventFired', () => setTimeout(resolve, 2500))),
+        new Promise(resolve => setTimeout(resolve, timeout))
+      ]);
+      navMs = Date.now() - navStart;
+
+      cdp.close();
+
+      // Allow any in-flight async lifecycle handlers (onResponseReceived,
+      // onLoadingFailed) to fully settle before collecting results
+      await new Promise(resolve => setImmediate(resolve));
+    } catch (err) {
+      captureError = err.message;
+    } finally {
+      try { proc.kill('SIGTERM'); } catch { /* ignore */ }
+      await this.#killProcess(proc, 3000);
+    }
+
+    return {
+      targetUrl,
+      proxyUrl: proxyUrl ?? null,
+      navMs,
+      requests: capture.buildRequests(),
+      proxyHeaders: capture.getProxyHeaders(),
+      error: captureError
+    };
+  }
+
+  /**
+   * Terminate a child process gracefully (SIGTERM), escalating to SIGKILL after
+   * `gracePeriodMs` if it hasn't exited. Handles the race where the process has
+   * already exited so `proc.once('exit')` would never fire.
+   */
+  #killProcess(proc, gracePeriodMs = 3000) {
+    return new Promise(resolve => {
+      // Already dead — nothing to do
+      if (proc.exitCode !== null || proc.killed) return resolve();
+
+      const escalate = setTimeout(() => {
+        try { proc.kill('SIGKILL'); } catch { /* already gone */ }
+        // One final wait; if it still doesn't fire we move on
+        const bail = setTimeout(resolve, 2000);
+        proc.once('exit', () => { clearTimeout(bail); resolve(); });
+      }, gracePeriodMs);
+
+      proc.once('exit', () => { clearTimeout(escalate); resolve(); });
+    });
+  }
+
+  // ─── Public API ─────────────────────────────────────────────────────────────
+
+  /**
+   * Check 5 – Browser Network Analysis
+   *
+   * Launches Chrome (bundled Chromium or system) and navigates to `targetUrl`.
+   * All network requests are captured and grouped by hostname into:
+   *   reachable / blocked / errored
+   *
+   * If `proxyUrl` is provided the test is run twice (direct + via proxy) so the
+   * delta is visible.
+   *
+   * @param {object}  [options]
+   * @param {string}  [options.targetUrl]    URL to open (default: https://percy.io)
+   * @param {string}  [options.proxyUrl]     Optional proxy server to test
+   * @param {number}  [options.timeout]      Navigation timeout ms (default: 30000)
+   * @param {boolean} [options.headless]     Run headless (default: true)
+   * @returns {Promise<BrowserFinding>}
+   */
+  async checkBrowserNetwork(options = {}) {
+    const {
+      targetUrl = 'https://percy.io',
+      proxyUrl,
+      timeout = 30000,
+      headless = true
+    } = options;
+
+    // ── 1. Find Chrome ───────────────────────────────────────────────────────
+    const chromePath = await this.#findChrome();
+
+    if (!chromePath) {
+      return {
+        status: 'skip',
+        message: 'Chrome / Chromium not found. Install Google Chrome or set PERCY_BROWSER_EXECUTABLE.',
+        chromePath: null,
+        targetUrl,
+        directCapture: null,
+        proxyCapture: null,
+        domainSummary: [],
+        proxyHeaders: [],
+        suggestions: [
+          'Install Google Chrome from https://www.google.com/chrome/',
+          'Or set PERCY_BROWSER_EXECUTABLE=/path/to/chrome in your environment.'
+        ]
+      };
+    }
+
+    // ── 2 & 3. Direct + proxy captures in parallel ──────────────────────────
+    const errCapture = (url, pUrl, msg) => ({
+      targetUrl: url,
+      proxyUrl: pUrl ?? null,
+      navMs: 0,
+      requests: [],
+      proxyHeaders: [],
+      error: msg
+    });
+
+    const [directResult, proxyResult] = await Promise.allSettled([
+      this.#captureNetworkRequests(chromePath, targetUrl, { headless, timeout }),
+      proxyUrl
+        ? this.#captureNetworkRequests(chromePath, targetUrl, { headless, timeout, proxyUrl })
+        : Promise.resolve(null)
+    ]);
+
+    const directCapture = directResult.status === 'fulfilled'
+      ? directResult.value
+      : errCapture(targetUrl, null, directResult.reason?.message ?? 'capture failed');
+
+    const proxyCapture = proxyResult.status === 'fulfilled'
+      ? proxyResult.value
+      : (proxyUrl ? errCapture(targetUrl, proxyUrl, proxyResult.reason?.message ?? 'capture failed') : null);
+
+    // ── 4. Build domain-level summary ────────────────────────────────────────
+    const directByHost = analyseCapture(directCapture);
+    const proxyByHost = proxyCapture ? analyseCapture(proxyCapture) : null;
+
+    const allHostnames = new Set([
+      ...directByHost.keys(),
+      ...(proxyByHost?.keys() ?? [])
+    ]);
+
+    const domainSummary = [];
+    for (const hostname of allHostnames) {
+      const direct = directByHost.get(hostname) ?? null;
+      const viaProxy = proxyByHost?.get(hostname) ?? null;
+
+      let status;
+      if (direct?.reachable) {
+        status = 'pass';
+      } else if (viaProxy?.reachable) {
+        status = 'warn'; // reachable via proxy only
+      } else {
+        status = direct ? 'fail' : 'skip';
+      }
+
+      const entry = {
+        hostname,
+        status,
+        direct: direct
+          ? {
+              reachable: direct.reachable,
+              blocked: direct.blocked,
+              errors: direct.errors,
+              sampleStatus: direct.requests.find(r => r.response)?.response?.status ?? null
+            }
+          : null,
+        viaProxy: viaProxy
+          ? {
+              reachable: viaProxy.reachable,
+              blocked: viaProxy.blocked,
+              errors: viaProxy.errors,
+              sampleStatus: viaProxy.requests.find(r => r.response)?.response?.status ?? null
+            }
+          : null
+      };
+      domainSummary.push(entry);
+    }
+
+    // Sort: failures first
+    const order = { fail: 0, warn: 1, pass: 2, skip: 3 };
+    domainSummary.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
+
+    // ── 5. Aggregate proxy headers ───────────────────────────────────────────
+    const proxyHeaders = [
+      ...new Set([
+        ...directCapture.proxyHeaders,
+        ...(proxyCapture?.proxyHeaders ?? [])
+      ])
+    ];
+
+    // ── 6. Overall status ────────────────────────────────────────────────────
+    const hasFail = domainSummary.some(d => d.status === 'fail');
+    const hasWarn = domainSummary.some(d => d.status === 'warn');
+    const overallStatus = hasFail ? 'fail' : (hasWarn ? 'warn' : 'pass');
+
+    return {
+      status: overallStatus,
+      chromePath,
+      targetUrl,
+      directCapture,
+      proxyCapture,
+      domainSummary,
+      proxyHeaders,
+      navMs: directCapture.navMs,
+      error: directCapture.error
+    };
+  }
 }
