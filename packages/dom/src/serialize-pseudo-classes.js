@@ -6,7 +6,14 @@
 import { uid } from './prepare-dom';
 
 const PSEDUO_ELEMENT_MARKER_ATTR = 'data-percy-pseudo-element-id';
+const POPOVER_OPEN_ATTR = 'data-percy-popover-open';
 function markElementIfNeeded(element, markWithId) {
+  // If this is a popover element, also stamp data-percy-popover-open so the
+  // renderer knows to call showPopover() to restore native top-layer state.
+  if (element.hasAttribute('popover') && !element.hasAttribute(POPOVER_OPEN_ATTR)) {
+    element.setAttribute(POPOVER_OPEN_ATTR, '');
+  }
+  // Always stamp the pseudo-element-id so serializePseudoClasses can freeze styles.
   if (markWithId && !element.getAttribute(PSEDUO_ELEMENT_MARKER_ATTR)) {
     element.setAttribute(PSEDUO_ELEMENT_MARKER_ATTR, uid());
   }
@@ -70,6 +77,23 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
         markElementIfNeeded(element, markWithId);
       } catch (err) {
         console.warn(`Invalid XPath expression "${xpathExpression}". Error: ${err.message}`);
+      }
+    }
+  }
+
+  if (config.selector && Array.isArray(config.selector)) {
+    for (const selector of config.selector) {
+      try {
+        const matched = Array.from(dom.querySelectorAll(selector));
+
+        if (!matched.length) {
+          ctx.warnings.add(`No element found for selector: ${selector} for pseudo-class serialization`);
+          continue;
+        }
+
+        matched.forEach(el => markElementIfNeeded(el, markWithId));
+      } catch (err) {
+        console.warn(`Invalid selector "${selector}". Error: ${err.message}`);
       }
     }
   }
