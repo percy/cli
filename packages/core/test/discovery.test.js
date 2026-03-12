@@ -3152,7 +3152,7 @@ describe('Discovery', () => {
       expect(validationCallCount).toBe(1);
     });
 
-    fit('uses a pre-populated pending promise to skip validation deterministically', async () => {
+    it('uses a pre-populated pending promise to skip validation deterministically', async () => {
       await percy.stop();
 
       // Ensure the validation endpoint is not called when a pending result exists
