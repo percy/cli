@@ -208,20 +208,38 @@ describe('checkConnectivityAndSSL', () => {
 
 describe('checkConnectivityAndSSL — SSL findings branches', () => {
   it('sslFindings contains skip when no percy.io domain is probed', async () => {
-    // SSL findings are always based on percy.io which is in REQUIRED_DOMAINS
-    const { sslFindings } = await checkConnectivityAndSSL({
-      timeout: 10000
-    });
-    expect(sslFindings.length).toBeGreaterThan(0);
+    spyOn(httpProber, 'probeUrl').and.returnValue(
+      Promise.resolve({ ok: true, status: 200, error: null, errorCode: null, latencyMs: 7 })
+    );
+    spyOn(httpProber, 'isSslError').and.returnValue(false);
+
+    // Remove percy.io so #buildSSLFindings receives undefined and returns skip.
+    const saved = REQUIRED_DOMAINS.splice(0);
+    REQUIRED_DOMAINS.push({ label: 'Other', url: 'https://other.example.com' });
+
+    try {
+      const { sslFindings } = await new ConnectivityChecker().checkConnectivityAndSSL({ timeout: 5000 });
+      expect(sslFindings.length).toBeGreaterThan(0);
+      expect(sslFindings[0].status).toBe('skip');
+    } finally {
+      REQUIRED_DOMAINS.splice(0);
+      REQUIRED_DOMAINS.push(...saved);
+    }
   });
 
   it('sslFindings contains pass when percy.io probe succeeds', async () => {
-    // Test with real percy.io
-    const { sslFindings } = await checkConnectivityAndSSL({
-      timeout: 10000
+    spyOn(httpProber, 'probeUrl').and.callFake((url) => {
+      if (url === 'https://percy.io') {
+        return Promise.resolve({ ok: true, status: 200, error: null, errorCode: null, latencyMs: 42 });
+      }
+      return Promise.resolve({ ok: true, status: 200, error: null, errorCode: null, latencyMs: 10 });
     });
-    // Should have at least one SSL finding
+    spyOn(httpProber, 'isSslError').and.returnValue(false);
+
+    const { sslFindings } = await checkConnectivityAndSSL({ timeout: 5000 });
+
     expect(sslFindings.length).toBeGreaterThan(0);
+    expect(sslFindings[0].status).toBe('pass');
   });
 });
 
@@ -232,31 +250,45 @@ describe('checkConnectivityAndSSL — SSL findings branches', () => {
 // the percy.io probe result.
 
 describe('#buildSSLFindings via checkConnectivityAndSSL', () => {
+  beforeEach(() => {
+    spyOn(httpProber, 'probeUrl').and.callFake((url) => {
+      if (url === 'https://percy.io') {
+        return Promise.resolve({ ok: true, status: 200, error: null, errorCode: null, latencyMs: 37 });
+      }
+      return Promise.resolve({ ok: true, status: 200, error: null, errorCode: null, latencyMs: 12 });
+    });
+    spyOn(httpProber, 'isSslError').and.returnValue(false);
+  });
+
   it('sslFindings contains at least one entry for every run', async () => {
-    const { sslFindings } = await checkConnectivityAndSSL({ timeout: 10000 });
+    const { sslFindings } = await checkConnectivityAndSSL({ timeout: 5000 });
     expect(Array.isArray(sslFindings)).toBe(true);
     expect(sslFindings.length).toBeGreaterThan(0);
   });
 
   it('sslFindings[0].status is one of: pass | fail | skip', async () => {
-    const { sslFindings } = await checkConnectivityAndSSL({ timeout: 10000 });
+    const { sslFindings } = await checkConnectivityAndSSL({ timeout: 5000 });
     expect(['pass', 'fail', 'skip']).toContain(sslFindings[0].status);
   });
 
   it('returns skip when percy.io times out (very short timeout)', async () => {
-    const { sslFindings } = await checkConnectivityAndSSL({ timeout: 1 });
-    // 1 ms timeout causes ETIMEDOUT / ECONNRESET — #buildSSLFindings maps that to skip
-    expect(['skip', 'fail']).toContain(sslFindings[0].status);
+    httpProber.probeUrl.and.callFake((url) => {
+      if (url === 'https://percy.io') {
+        return Promise.resolve({ ok: false, status: 0, error: 'connect ETIMEDOUT', errorCode: 'ETIMEDOUT', latencyMs: 1 });
+      }
+      return Promise.resolve({ ok: true, status: 200, error: null, errorCode: null, latencyMs: 12 });
+    });
+
+    const { sslFindings } = await checkConnectivityAndSSL({ timeout: 5000 });
+    expect(sslFindings[0].status).toBe('skip');
   });
 
   it('pass finding includes latencyMs mention in the message', async () => {
-    const { sslFindings } = await checkConnectivityAndSSL({ timeout: 10000 });
+    const { sslFindings } = await checkConnectivityAndSSL({ timeout: 5000 });
     const passFinding = sslFindings.find(f => f.status === 'pass');
-    if (passFinding) {
-      // Message format: "SSL handshake with percy.io succeeded (NNNms)."
-      expect(passFinding.message).toMatch(/\d+ms/);
-    }
-    // If no pass (CI offline) the test is effectively skipped — no assertion
+    expect(passFinding).toBeDefined();
+    // Message format: "SSL handshake with percy.io succeeded (NNNms)."
+    expect(passFinding.message).toMatch(/\d+ms/);
   });
 });
 
