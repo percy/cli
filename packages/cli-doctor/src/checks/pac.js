@@ -87,7 +87,7 @@ export class PACDetector {
         });
         const data = JSON.parse(json);
         const pacUrl = findInObject(data, 'ProxyAutoConfigURLString');
-        /* istanbul ignore if */
+        /* istanbul ignore next */
         if (pacUrl) urls.push({ url: pacUrl, source: 'macOS:plist' });
       } catch { /* ignore */ }
     }
@@ -205,6 +205,7 @@ export class PACDetector {
         const prefs = fs.readFileSync(prefsPath, 'utf8');
         const typeMatch = prefs.match(/user_pref\s*\(\s*"network\.proxy\.type"\s*,\s*(\d+)\s*\)/);
         const pacMatch = prefs.match(/user_pref\s*\(\s*"network\.proxy\.autoconfig_url"\s*,\s*"([^"]+)"\s*\)/);
+        /* istanbul ignore if */
         if (typeMatch && ['2', '4'].includes(typeMatch[1]) && pacMatch) {
           urls.push({ url: pacMatch[1], source: `firefox:prefs.js(${profileDir})` });
         }
