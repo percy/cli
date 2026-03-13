@@ -305,6 +305,12 @@ export const configSchema = {
             items: {
               type: 'string'
             }
+          },
+          selector: {
+            type: 'array',
+            items: {
+              type: 'string'
+            }
           }
         }
       }
