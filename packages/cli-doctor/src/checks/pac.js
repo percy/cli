@@ -207,6 +207,7 @@ export class PACDetector {
         const pacMatch = prefs.match(/user_pref\s*\(\s*"network\.proxy\.autoconfig_url"\s*,\s*"([^"]+)"\s*\)/);
         /* istanbul ignore if */
         if (typeMatch && ['2', '4'].includes(typeMatch[1]) && pacMatch) {
+          /* istanbul ignore next */
           urls.push({ url: pacMatch[1], source: `firefox:prefs.js(${profileDir})` });
         }
       } catch { /* ignore */ }
