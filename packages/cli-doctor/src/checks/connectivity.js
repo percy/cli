@@ -68,6 +68,18 @@ export class ConnectivityChecker {
   #buildSSLFindings(percyProbeResult) {
     const findings = [];
 
+    if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
+      findings.push({
+        status: 'warn',
+        message: 'NODE_TLS_REJECT_UNAUTHORIZED=0 is set — SSL certificate validation is DISABLED.',
+        suggestions: [
+          'SSL check results may not reflect your actual certificate status.',
+          'This is typically a temporary workaround. Remove after diagnosing the underlying SSL issue.',
+          'Consider using NODE_EXTRA_CA_CERTS=/path/to/ca.crt instead for a permanent fix.'
+        ]
+      });
+    }
+
     if (!percyProbeResult) {
       findings.push({ status: 'skip', message: 'SSL check skipped — percy.io was not probed.' });
       return findings;

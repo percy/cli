@@ -20,6 +20,7 @@ import http from 'http';
 import { WebSocketServer } from 'ws';
 import {
   sanitizeExecutablePath,
+  sanitizeProxyForChrome,
   safeEnvPath,
   BrowserChecker,
   NetworkCapture,
@@ -213,6 +214,23 @@ describe('sanitizeExecutablePath', () => {
     const result = sanitizeExecutablePath('/usr//bin/../bin/chrome');
     expect(result).toBe(path.resolve('/usr//bin/../bin/chrome'));
     expect(result).not.toContain('..');
+  });
+});
+
+describe('sanitizeProxyForChrome', () => {
+  it('strips username/password from proxy URL', () => {
+    const sanitized = sanitizeProxyForChrome('http://user:pass@proxy.corp:8080');
+    expect(sanitized).toBe('http://proxy.corp:8080');
+  });
+
+  it('returns unchanged URL when no credentials are present', () => {
+    const sanitized = sanitizeProxyForChrome('http://proxy.corp:8080');
+    expect(sanitized).toBe('http://proxy.corp:8080');
+  });
+
+  it('returns input as-is when URL parsing fails', () => {
+    const sanitized = sanitizeProxyForChrome('proxy-without-scheme:8080');
+    expect(sanitized).toBe('proxy-without-scheme:8080');
   });
 });
 

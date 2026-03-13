@@ -145,6 +145,19 @@ export function safeHostname(rawUrl) {
   try { return new URL(rawUrl).hostname; } catch { return rawUrl; }
 }
 
+export function sanitizeProxyForChrome(proxyUrl) {
+  if (!proxyUrl) return null;
+  try {
+    const p = new URL(proxyUrl);
+    p.username = '';
+    p.password = '';
+    return p.toString().replace(/\/$/, '');
+  } catch {
+    /* istanbul ignore next */
+    return proxyUrl;
+  }
+}
+
 // ─── Analyse & build findings ─────────────────────────────────────────────────
 
 export function analyseCapture(capture) {
@@ -393,6 +406,7 @@ export class BrowserChecker {
   /* istanbul ignore next */
   async _doCapture(chromePath, targetUrl, opts = {}) {
     const { headless = true, timeout = 30000, proxyUrl } = opts;
+    const chromeProxyUrl = sanitizeProxyForChrome(proxyUrl);
 
     // Re-validate at the sink to keep the child_process usage safe even if this
     // method is called directly in tests or from future code paths.
@@ -427,14 +441,21 @@ export class BrowserChecker {
       headless ? '--headless=new' : '',
       headless ? '--hide-scrollbars' : '',
       headless ? '--mute-audio' : '',
-      proxyUrl ? `--proxy-server=${proxyUrl}` : '',
+      chromeProxyUrl ? `--proxy-server=${chromeProxyUrl}` : '',
       'about:blank'
     ].filter(Boolean);
 
     const proc = spawn(safeChromePath, chromeArgs, {
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['ignore', 'ignore', 'pipe'],
       detached: false,
       shell: false // args are always an array; never expand via shell
+    });
+
+    let chromeStderr = '';
+    proc.stderr?.on('data', chunk => {
+      const next = String(chunk ?? '');
+      if (!next) return;
+      chromeStderr = (chromeStderr + next).slice(0, 4000);
     });
 
     const capture = new NetworkCapture();
@@ -488,6 +509,8 @@ export class BrowserChecker {
       requests: capture.buildRequests(),
       proxyHeaders: capture.getProxyHeaders(),
       error: captureError
+        ? `${captureError}${chromeStderr ? ` | Chrome stderr: ${chromeStderr.trim().slice(0, 500)}` : ''}`
+        : null
     };
   }
 
@@ -539,6 +562,22 @@ export class BrowserChecker {
       timeout = 30000,
       headless = true
     } = options;
+
+    const notes = [];
+    if (proxyUrl) {
+      try {
+        const p = new URL(proxyUrl);
+        /* istanbul ignore next */
+        if (p.username || p.password) {
+          /* istanbul ignore next */
+          notes.push({
+            status: 'info',
+            message: 'Proxy credentials detected but not passed to Chrome (security: not exposed in process args).',
+            suggestions: ['Chrome browser check runs without proxy auth. Results may differ from authenticated access.']
+          });
+        }
+      } catch { /* ignore malformed proxy URL */ }
+    }
 
     // ── 1. Find Chrome ───────────────────────────────────────────────────────
     const chromePath = await this.#findChrome();
@@ -659,7 +698,8 @@ export class BrowserChecker {
       domainSummary,
       proxyHeaders,
       navMs: directCapture.navMs,
-      error: directCapture.error
+      error: directCapture.error,
+      notes
     };
   }
 }

@@ -414,6 +414,24 @@ describe('runBrowserCheck', () => {
     expect(result.browser.proxyHeaders).toEqual([]);
   });
 
+  it('propagates informational notes from BrowserChecker results', async () => {
+    spyOn(BrowserChecker.prototype, 'checkBrowserNetwork').and.returnValue(Promise.resolve(
+      makeBrowserNetworkResult({
+        notes: [{
+          status: 'info',
+          message: 'Proxy credentials detected but not passed to Chrome (security: not exposed in process args).',
+          suggestions: ['Chrome browser check runs without proxy auth. Results may differ from authenticated access.']
+        }]
+      })
+    ));
+
+    const result = await runBrowserCheck('https://percy.io', 'http://user:pass@proxy.corp:8080', 10000);
+
+    expect(result.browser.notes).toBeDefined();
+    expect(result.browser.notes.length).toBe(1);
+    expect(result.browser.notes[0].status).toBe('info');
+  });
+
   it('handles unexpected error from checkBrowserNetwork gracefully', async () => {
     spyOn(BrowserChecker.prototype, 'checkBrowserNetwork').and.rejectWith(new Error('Browser launch failed'));
 
@@ -521,6 +539,18 @@ describe('runDiagnostics', () => {
     const p = runDiagnostics();
     p.catch(() => {});
     expect(typeof p.then).toBe('function');
+  });
+
+  it('rejects when timeout is non-numeric (equivalent to --timeout abc)', async () => {
+    spyAllCheckers();
+    await expectAsync(runDiagnostics({ timeout: 'abc' }))
+      .toBeRejectedWithError('--timeout must be a positive integer (milliseconds)');
+  });
+
+  it('rejects when timeout is <= 0 (equivalent to --timeout -1)', async () => {
+    spyAllCheckers();
+    await expectAsync(runDiagnostics({ timeout: -1 }))
+      .toBeRejectedWithError('--timeout must be a positive integer (milliseconds)');
   });
 });
 

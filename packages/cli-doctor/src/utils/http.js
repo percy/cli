@@ -110,13 +110,32 @@ export class HttpProber {
         const targetPort = parseInt(url.port, 10) || 443;
 
         const socket = net.connect({ host: proxy.hostname, port: proxyPort });
+        let tlsSock = null;
+        let settled = false;
+
+        const fail = (err) => {
+          /* istanbul ignore next */
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          try { tlsSock?.destroy(); } catch { /* ignore */ }
+          try { socket.destroy(); } catch { /* ignore */ }
+          reject(err);
+        };
+
+        const pass = (result) => {
+          /* istanbul ignore next */
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(result);
+        };
 
         const timer = setTimeout(() => {
-          socket.destroy();
-          reject(timeoutError('Proxy CONNECT'));
+          fail(timeoutError('Proxy CONNECT'));
         }, timeout);
 
-        socket.on('error', (err) => { clearTimeout(timer); reject(err); });
+        socket.on('error', fail);
 
         socket.on('connect', () => {
           const authHeader = proxy.username
@@ -138,25 +157,28 @@ export class HttpProber {
             const statusCode = parseInt(statusLine.split(' ')[1], 10);
 
             if (statusCode !== 200) {
-              clearTimeout(timer);
-              socket.destroy();
-              return reject(Object.assign(new Error(`Proxy CONNECT failed: ${statusLine}`), { code: 'EPROXY' }));
+              return fail(Object.assign(new Error(`Proxy CONNECT failed: ${statusLine}`), { code: 'EPROXY' }));
             }
 
             socket.removeAllListeners('data');
-            clearTimeout(timer);
 
-            const tlsSocket = tls.connect({ socket, servername: url.hostname });
-            tlsSocket.on('error', reject);
-            tlsSocket.on('secureConnect', () => {
+            tlsSock = tls.connect({ socket, servername: url.hostname });
+            tlsSock.on('error', fail);
+            tlsSock.on('secureConnect', () => {
               const req = https.request({
-                createConnection: () => tlsSocket,
+                createConnection: () => tlsSock,
                 hostname: url.hostname,
                 port: targetPort,
                 path: url.pathname + url.search,
                 method
-              }, (res) => resolveResponse(res, resolve));
-              req.on('error', reject);
+              }, (res) => pass({
+                ok: res.statusCode >= 200 && res.statusCode < 400,
+                status: res.statusCode,
+                error: null,
+                errorCode: null,
+                responseHeaders: res.headers
+              }));
+              req.on('error', fail);
               req.end();
             });
           });

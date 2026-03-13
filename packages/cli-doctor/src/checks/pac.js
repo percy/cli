@@ -324,33 +324,72 @@ export function findInObject(obj, key, depth = 0) {
  * Returns the string result of FindProxyForURL(url, host).
  */
 export function runPacScript(script, url, host) {
-  const sandbox = {
-    isPlainHostName: h => !h.includes('.'),
-    dnsDomainIs: (h, d) => h.endsWith(d),
-    localHostOrDomainIs: (h, hd) => h === hd || h.split('.')[0] === hd.split('.')[0],
-    isResolvable: () => true,
-    isInNet: () => false,
-    dnsResolve: h => h,
-    myIpAddress: () => '127.0.0.1',
-    dnsDomainLevels: h => (h.match(/\./g) || []).length,
-    shExpMatch: (str, shexp) => {
-      if (typeof str !== 'string' || typeof shexp !== 'string') return false;
-      if (shexp.length > 256) return false;
-      // minimatch handles * and ? exactly as PAC shExpMatch requires.
-      return minimatch(str, shexp, { dot: true, nocase: false });
-    },
-    weekdayRange: () => true,
-    dateRange: () => true,
-    timeRange: () => true,
-    FindProxyForURL: null
-  };
-
-  const ctx = vm.createContext(sandbox);
-  vm.runInContext(script, ctx);
-
-  if (typeof sandbox.FindProxyForURL !== 'function') {
-    throw new Error('PAC script does not define FindProxyForURL');
+  // 1) Size guard against oversized scripts
+  /* istanbul ignore next */
+  if (typeof script !== 'string') {
+    /* istanbul ignore next */
+    throw new Error('PAC script must be a string');
+  }
+  if (script.length > 100000) {
+    throw new Error('PAC script exceeds 100KB size limit');
   }
 
-  return String(sandbox.FindProxyForURL(url, host));
+  // 2) Static guard against obvious Node.js API usage in untrusted PAC content
+  const dangerous = /require\s*\(|import\s+|process\.|child_process|fs\.|net\./;
+  if (dangerous.test(script)) {
+    throw new Error('PAC script contains disallowed Node.js API references');
+  }
+
+  // 3) Null-prototype sandbox (no prototype chain). PAC helpers are exposed as
+  // non-writable properties to reduce mutation surface.
+  const sandbox = Object.create(null);
+  Object.defineProperties(sandbox, {
+    isPlainHostName: { value: h => !h.includes('.'), enumerable: true },
+    dnsDomainIs: { value: (h, d) => h.endsWith(d), enumerable: true },
+    localHostOrDomainIs: { value: (h, hd) => h === hd || h.split('.')[0] === hd.split('.')[0], enumerable: true },
+    isResolvable: { value: () => true, enumerable: true },
+    isInNet: { value: () => false, enumerable: true },
+    dnsResolve: { value: h => h, enumerable: true },
+    myIpAddress: { value: () => '127.0.0.1', enumerable: true },
+    dnsDomainLevels: { value: h => (h.match(/\./g) || []).length, enumerable: true },
+    shExpMatch: {
+      value: (str, shexp) => {
+        if (typeof str !== 'string' || typeof shexp !== 'string') return false;
+        if (shexp.length > 256) return false;
+        // minimatch handles * and ? exactly as PAC shExpMatch requires.
+        return minimatch(str, shexp, { dot: true, nocase: false });
+      },
+      enumerable: true
+    },
+    weekdayRange: { value: () => true, enumerable: true },
+    dateRange: { value: () => true, enumerable: true },
+    timeRange: { value: () => true, enumerable: true }
+  });
+
+  const ctx = vm.createContext(sandbox);
+
+  // 4) Definition timeout (catches immediate infinite loops in top-level code)
+  try {
+    vm.runInContext(`"use strict";\n(function(){\n${script}\n; if (typeof FindProxyForURL !== 'function') throw new Error('PAC script does not define FindProxyForURL');\n})()`, ctx, { timeout: 5000 });
+  } catch (err) {
+    /* istanbul ignore next */
+    if (err?.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT') {
+      throw new Error('PAC script evaluation timed out after 5 seconds — possible infinite loop');
+    }
+    throw err;
+  }
+
+  // 5) Invocation timeout (catches loops inside FindProxyForURL itself)
+  try {
+    return vm.runInContext(
+      `"use strict";\n(function(){\n${script}\n; if (typeof FindProxyForURL !== 'function') throw new Error('PAC script does not define FindProxyForURL');\nreturn String(FindProxyForURL(${JSON.stringify(url)}, ${JSON.stringify(host)}));\n})()`,
+      ctx,
+      { timeout: 3000 }
+    );
+  } catch (err) {
+    if (err?.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT') {
+      throw new Error('PAC script evaluation timed out after 3 seconds — possible infinite loop');
+    }
+    throw err;
+  }
 }

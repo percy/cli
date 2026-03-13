@@ -283,7 +283,7 @@ export class ProxyDetector {
     // Probe a few endpoints and check response headers for proxy indicators
     const PROBE_TARGETS = [
       'https://percy.io',
-      'http://httpbin.org/headers' // plain HTTP — proxy headers are more visible
+      'http://percy.io' // plain HTTP — proxy headers are more visible
     ];
 
     const findings = [];

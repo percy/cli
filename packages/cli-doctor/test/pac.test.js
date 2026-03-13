@@ -216,6 +216,49 @@ describe('runPacScript — error handling', () => {
   });
 });
 
+describe('runPacScript — security hardening', () => {
+  it('rejects PAC scripts larger than 100KB', () => {
+    const bigBody = 'a'.repeat(100001);
+    const script = `function FindProxyForURL(url, host) { ${bigBody}; return "DIRECT"; }`;
+    expect(() => runPacScript(script, 'https://percy.io/', 'percy.io'))
+      .toThrowError(/100KB size limit/i);
+  });
+
+  it('rejects obvious Node.js API references (require)', () => {
+    const script = `
+      function FindProxyForURL(url, host) {
+        require('fs');
+        return 'DIRECT';
+      }
+    `;
+    expect(() => runPacScript(script, 'https://percy.io/', 'percy.io'))
+      .toThrowError(/disallowed Node\.js API references/i);
+  });
+
+  it('times out infinite-loop PAC scripts', () => {
+    const script = `
+      function FindProxyForURL(url, host) {
+        while (true) {}
+      }
+    `;
+    expect(() => runPacScript(script, 'https://percy.io/', 'percy.io'))
+      .toThrowError(/timed out/i);
+  });
+
+  it('blocks constructor-chain escape attempts', () => {
+    const script = `
+      function FindProxyForURL(url, host) {
+        try {
+          return this.constructor.constructor('return process')() ? 'PROXY leaked:1' : 'DIRECT';
+        } catch (e) {
+          return 'DIRECT';
+        }
+      }
+    `;
+    expect(runPacScript(script, 'https://percy.io/', 'percy.io')).toBe('DIRECT');
+  });
+});
+
 // ─── detectPAC — env var detection ───────────────────────────────────────────
 
 describe('detectPAC — PERCY_PAC_FILE_URL env var', () => {

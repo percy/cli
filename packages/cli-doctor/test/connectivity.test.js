@@ -8,7 +8,7 @@
 
 import { ConnectivityChecker, REQUIRED_DOMAINS } from '../src/checks/connectivity.js';
 import { httpProber } from '../src/utils/http.js';
-import { createHttpServer, createProxyServer } from './helpers.js';
+import { createHttpServer, createProxyServer, withEnv } from './helpers.js';
 
 // Convenience shim so existing call-sites work unchanged after the refactor
 // that moved checkConnectivityAndSSL into ConnectivityChecker.
@@ -289,6 +289,19 @@ describe('#buildSSLFindings via checkConnectivityAndSSL', () => {
     expect(passFinding).toBeDefined();
     // Message format: "SSL handshake with percy.io succeeded (NNNms)."
     expect(passFinding.message).toMatch(/\d+ms/);
+  });
+
+  it('adds warning when NODE_TLS_REJECT_UNAUTHORIZED=0 is set', async () => {
+    const { sslFindings } = await withEnv(
+      { NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+      () => checkConnectivityAndSSL({ timeout: 5000 })
+    );
+
+    const warning = sslFindings.find(f =>
+      f.status === 'warn' && /certificate validation is DISABLED/i.test(f.message)
+    );
+    expect(warning).toBeDefined();
+    expect(warning.suggestions.some(s => s.includes('NODE_EXTRA_CA_CERTS'))).toBe(true);
   });
 });
 

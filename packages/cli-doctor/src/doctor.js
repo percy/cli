@@ -51,7 +51,7 @@ export const doctor = command(
       {
         name: 'output-json',
         description:
-          'Write the full diagnostic report to a JSON file (default: percy-doctor-report.json)',
+          'Write the full diagnostic report to a JSON file',
         type: 'string',
         attribute: 'outputJson'
       }
@@ -67,8 +67,12 @@ export const doctor = command(
       null;
 
     const timeout = parseInt(flags.timeout ?? '10000', 10);
+    if (isNaN(timeout) || timeout <= 0) {
+      log.error('--timeout must be a positive integer (milliseconds)');
+      return exit(1, '--timeout must be a positive integer', false);
+    }
     const targetUrl = flags.url?.trim() || 'https://percy.io';
-    const jsonOutputPath = flags.outputJson || 'percy-doctor-report.json';
+    const jsonOutputPath = flags.outputJson ?? null;
 
     const report = {
       timestamp: new Date().toISOString(),
@@ -107,15 +111,17 @@ export const doctor = command(
         : Object.values(report.checks).some(c => c?.status === 'warn') ? 'warn' : 'pass'
     };
 
-    try {
-      // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
-      // cli-doctor runs inside the customer's own CI environment; jsonOutputPath is a
-      // CLI flag value supplied by the operator, not arbitrary remote user input.
-      const absPath = path.resolve(process.cwd(), jsonOutputPath);
-      fs.writeFileSync(absPath, JSON.stringify(report, null, 2), 'utf8');
-      print(log, checkLine('info', `Full report saved to: ${absPath}`));
-    } catch (err) {
-      log.warn(`Could not write JSON report: ${err.message}`);
+    if (jsonOutputPath) {
+      try {
+        // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+        // cli-doctor runs inside the customer's own CI environment; jsonOutputPath is a
+        // CLI flag value supplied by the operator, not arbitrary remote user input.
+        const absPath = path.resolve(process.cwd(), jsonOutputPath);
+        fs.writeFileSync(absPath, JSON.stringify(report, null, 2), 'utf8');
+        print(log, checkLine('info', `Full report saved to: ${absPath}`));
+      } catch (err) {
+        log.warn(`Could not write JSON report: ${err.message}`);
+      }
     }
 
     if (report.summary.overall === 'fail') {

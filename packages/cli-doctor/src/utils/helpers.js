@@ -239,6 +239,15 @@ export async function runBrowserCheck(targetUrl = 'https://percy.io', proxyUrl =
         'npm install @percy/cli will install a bundled Chromium.'
       ]));
     } else {
+      for (const note of browserResult.notes ?? []) {
+        /* istanbul ignore next */
+        print(log, checkLine(note.status ?? 'info', note.message));
+        /* istanbul ignore next */
+        if (note.suggestions?.length) {
+          /* istanbul ignore next */
+          print(log, suggestionList(note.suggestions));
+        }
+      }
       _renderBrowserResults(log, browserResult, proxyUrl);
     }
   } catch (err) {
@@ -260,6 +269,7 @@ export async function runBrowserCheck(targetUrl = 'https://percy.io', proxyUrl =
           targetUrl: browserResult.targetUrl,
           domainSummary: browserResult.domainSummary ?? [],
           proxyHeaders: browserResult.proxyHeaders ?? [],
+          notes: browserResult.notes ?? [],
           navMs: browserResult.navMs,
           error: browserResult.error ?? null
         }
@@ -284,19 +294,24 @@ export async function runDiagnostics({
   timeout = 10000,
   targetUrl = 'https://percy.io'
 } = {}) {
+  const parsedTimeout = Number(timeout);
+  if (!Number.isInteger(parsedTimeout) || parsedTimeout <= 0) {
+    throw new Error('--timeout must be a positive integer (milliseconds)');
+  }
+
   const report = { checks: {} };
 
-  const { connectivity, ssl } = await runConnectivityAndSSL(proxyUrl, timeout);
+  const { connectivity, ssl } = await runConnectivityAndSSL(proxyUrl, parsedTimeout);
   report.checks.connectivity = connectivity;
   report.checks.ssl = ssl;
 
-  const { proxy } = await runProxyCheck(timeout);
+  const { proxy } = await runProxyCheck(parsedTimeout);
   report.checks.proxy = proxy;
 
   const { pac } = await runPACCheck();
   report.checks.pac = pac;
 
-  const { browser } = await runBrowserCheck(targetUrl, proxyUrl, timeout);
+  const { browser } = await runBrowserCheck(targetUrl, proxyUrl, parsedTimeout);
   report.checks.browser = browser;
 
   const hasFail = Object.values(report.checks).some(c => c?.status === 'fail');
