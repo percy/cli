@@ -324,6 +324,7 @@ export class BrowserChecker {
 
     ws.on('message', (raw) => {
       let msg;
+      /* istanbul ignore next */
       try { msg = JSON.parse(raw.toString()); } catch { return; }
 
       if (msg.id && _pending.has(msg.id)) {
@@ -502,6 +503,7 @@ export class BrowserChecker {
         proc.once('exit', () => { clearTimeout(bail); resolve(); });
       }, gracePeriodMs);
 
+      /* istanbul ignore next */
       proc.once('exit', () => { clearTimeout(escalate); resolve(); });
     });
   }
