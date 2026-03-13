@@ -394,6 +394,14 @@ export class BrowserChecker {
   async _doCapture(chromePath, targetUrl, opts = {}) {
     const { headless = true, timeout = 30000, proxyUrl } = opts;
 
+    // Re-validate at the sink to keep the child_process usage safe even if this
+    // method is called directly in tests or from future code paths.
+    const safeChromePath = sanitizeExecutablePath(chromePath);
+    /* istanbul ignore next */
+    if (!safeChromePath || !fs.existsSync(safeChromePath)) {
+      throw new Error('Invalid Chrome executable path');
+    }
+
     // When NODE_TLS_REJECT_UNAUTHORIZED=0 is set the Node process has already
     // disabled SSL verification (e.g. for an SSL-intercepting proxy). Mirror that
     // into Chrome via two mechanisms:
@@ -423,12 +431,7 @@ export class BrowserChecker {
       'about:blank'
     ].filter(Boolean);
 
-    // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
-    // chromePath has already been validated and sanitized by sanitizeExecutablePath()
-    // (rejects shell metacharacters, requires an absolute path). shell: false ensures
-    // no shell expansion occurs. This tool runs inside the customer's own CI environment.
-    // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
-    const proc = spawn(chromePath, chromeArgs, {
+    const proc = spawn(safeChromePath, chromeArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: false,
       shell: false // args are always an array; never expand via shell
