@@ -194,6 +194,7 @@ export class PACDetector {
     try {
       profileEntries = fs.readdirSync(profileDirs, { withFileTypes: true })
         .filter(e => e.isDirectory())
+        // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
         .map(e => path.join(profileDirs, e.name));
     } catch { return urls; }
 

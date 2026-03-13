@@ -707,7 +707,9 @@ describe('detectProxy — Via-header fingerprinting', () => {
     const headerFinding = findings.find(f => f.layer === 'header-fingerprint' && f.status === 'warn');
     expect(headerFinding).toBeDefined();
     expect(headerFinding.detectedProxyUrl).toBe('http://proxy.corp.example.com:8080');
-    expect(headerFinding.suggestions.some(s => /proxy.corp.example.com/.test(s))).toBe(true);
+    expect(headerFinding.suggestions).toContain(
+      'Possible proxy address from Via header: set HTTPS_PROXY=http://proxy.corp.example.com:8080'
+    );
   });
 
   it('handles proxy headers without Via (no extracted address)', async () => {

@@ -326,7 +326,9 @@ describe('checkConnectivityAndSSL — proxyReachable via status>0 path (lines 14
     expect(warnFinding).toBeDefined();
     expect(warnFinding.message).toContain('via proxy but NOT directly');
     // line 148 — HTTPS_PROXY suggestion contains the proxyUrl
-    expect(warnFinding.suggestions.some(s => s.includes('http://proxy.corp:8080'))).toBe(true);
+    expect(warnFinding.suggestions).toContain(
+      'Ensure the proxy server is configured: set HTTPS_PROXY=http://proxy.corp:8080'
+    );
     // line 152 — direct.errorCode ?? direct.error → uses errorCode when present
     expect(warnFinding.suggestions.some(s => s.includes('ECONNREFUSED'))).toBe(true);
   });

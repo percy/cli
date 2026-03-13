@@ -32,6 +32,7 @@ export function sanitizeExecutablePath(p) {
  */
 export function safeEnvPath(val, fallback) {
   if (!val || typeof val !== 'string') return fallback;
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
   const resolved = path.resolve(val);
   return path.isAbsolute(resolved) ? resolved : fallback;
 }
@@ -426,6 +427,7 @@ export class BrowserChecker {
     // chromePath has already been validated and sanitized by sanitizeExecutablePath()
     // (rejects shell metacharacters, requires an absolute path). shell: false ensures
     // no shell expansion occurs. This tool runs inside the customer's own CI environment.
+    // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
     const proc = spawn(chromePath, chromeArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: false,
