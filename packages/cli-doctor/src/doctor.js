@@ -113,9 +113,9 @@ export const doctor = command(
 
     if (jsonOutputPath) {
       try {
-        // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
         // cli-doctor runs inside the customer's own CI environment; jsonOutputPath is a
         // CLI flag value supplied by the operator, not arbitrary remote user input.
+        // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
         const absPath = path.resolve(process.cwd(), jsonOutputPath);
         fs.writeFileSync(absPath, JSON.stringify(report, null, 2), 'utf8');
         print(log, checkLine('info', `Full report saved to: ${absPath}`));

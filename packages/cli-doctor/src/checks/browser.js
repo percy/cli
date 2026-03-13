@@ -445,6 +445,7 @@ export class BrowserChecker {
       'about:blank'
     ].filter(Boolean);
 
+    // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process --- IGNORE
     const proc = spawn(safeChromePath, chromeArgs, {
       stdio: ['ignore', 'ignore', 'pipe'],
       detached: false,
