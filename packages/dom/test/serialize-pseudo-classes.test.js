@@ -100,6 +100,28 @@ describe('serialize-pseudo-classes', () => {
         ctx.dom.body.innerHTML = orginalBody;
       });
 
+      it('opens and restores popover state while capturing styles', () => {
+        withExample('<div id="p1" popover="auto"></div>');
+        ctx.clone = document.implementation.createHTMLDocument('Clone');
+        ctx.pseudoClassEnabledElements = { id: ['p1'] };
+        markPseudoClassElements(ctx, ctx.pseudoClassEnabledElements);
+        // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+        ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
+
+        const popover = document.getElementById('p1');
+        popover.showPopover = jasmine.createSpy('showPopover');
+        popover.hidePopover = jasmine.createSpy('hidePopover');
+
+        // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+        ctx.clone.head.innerHTML = '';
+        serializePseudoClasses(ctx);
+
+        expect(popover.showPopover).toHaveBeenCalled();
+        expect(popover.hidePopover).toHaveBeenCalled();
+        const style = ctx.clone.head.querySelector('style[data-percy-pseudo-class-styles="true"]');
+        expect(style).not.toBeNull();
+      });
+
       describe('handles getComputedStyle errors gracefully', () => {
         let origGetComputedStyle;
         beforeEach(() => {
