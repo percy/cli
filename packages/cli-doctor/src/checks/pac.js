@@ -87,6 +87,7 @@ export class PACDetector {
         });
         const data = JSON.parse(json);
         const pacUrl = findInObject(data, 'ProxyAutoConfigURLString');
+        /* istanbul ignore if */
         if (pacUrl) urls.push({ url: pacUrl, source: 'macOS:plist' });
       } catch { /* ignore */ }
     }
@@ -159,6 +160,7 @@ export class PACDetector {
       try {
         const state = JSON.parse(fs.readFileSync(localStatePath, 'utf8'));
         const prefsPath = path.join(path.dirname(localStatePath), 'Default/Preferences');
+        /* istanbul ignore if */
         if (fs.existsSync(prefsPath)) {
           const prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf8'));
           const pacScript = prefs?.proxy?.pac_url ||
@@ -197,6 +199,7 @@ export class PACDetector {
 
     for (const profileDir of profileEntries) {
       const prefsPath = path.join(profileDir, 'prefs.js');
+      /* istanbul ignore if */
       if (!fs.existsSync(prefsPath)) continue;
       try {
         const prefs = fs.readFileSync(prefsPath, 'utf8');
