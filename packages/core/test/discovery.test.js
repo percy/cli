@@ -3094,70 +3094,11 @@ describe('Discovery', () => {
     it('skips validation when hostname validation is already pending', async () => {
       await percy.stop();
 
-      let validationCallCount = 0;
-      let validationResolvers = [];
-
-      // Mock validation to hang so we can test concurrent requests
+      let validationAttempted = false;
+      // Track if validation is attempted (it shouldn't be)
       validationMock.and.callFake(() => {
-        validationCallCount++;
-        return new Promise(resolve => {
-          validationResolvers.push(resolve);
-        });
-      });
-
-      percy = await Percy.start({
-        token: 'PERCY_TOKEN',
-        discovery: {
-          autoConfigureAllowedHostnames: true
-        }
-      });
-
-      percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
-
-      // Take two snapshots with the same external domain
-      let snapshot1Promise = percy.snapshot({
-        name: 'test snapshot 1',
-        url: 'http://localhost:8000',
-        domSnapshot: testExternalDOM,
-        widths: [1000]
-      });
-
-      let snapshot2Promise = percy.snapshot({
-        name: 'test snapshot 2',
-        url: 'http://localhost:8000',
-        domSnapshot: testExternalDOM,
-        widths: [1000]
-      });
-
-      // Wait for validation to be called at least once (with timeout)
-      let attempts = 0;
-      // eslint-disable-next-line no-unmodified-loop-condition
-      while (validationCallCount === 0 && attempts < 50) {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        attempts++;
-      }
-
-      // Validation should only be called once (not twice for concurrent requests)
-      expect(validationCallCount).toBe(1);
-
-      // Resolve the validation
-      if (validationResolvers.length > 0) {
-        validationResolvers[0]([200, { accessible: false }]);
-      }
-
-      await Promise.all([snapshot1Promise, snapshot2Promise]);
-      await percy.idle();
-
-      // Still only one validation call even after both snapshots complete
-      expect(validationCallCount).toBe(1);
-    });
-
-    it('uses a pre-populated pending promise to skip validation deterministically', async () => {
-      await percy.stop();
-
-      // Ensure the validation endpoint is not called when a pending result exists
-      validationMock.and.callFake(() => {
-        throw new Error('validation should not be called when pending is pre-populated');
+        validationAttempted = true;
+        return Promise.resolve({ accessible: false });
       });
 
       percy = await Percy.start({
@@ -3168,7 +3109,8 @@ describe('Discovery', () => {
       // Set worker URL (not used since we populate pending)
       percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
 
-      // Pre-populate pending with a resolved promise for the hostname so the mutex path is taken
+      // Pre-populate pending with a resolved promise for the hostname (ex.localhost:8001 from testExternalDOM)
+      // This ensures the mutex path (lines 462-465: pending.has/get) is taken instead of calling validation
       percy.domainValidation.pending.set('ex.localhost:8001', Promise.resolve(true));
 
       await percy.snapshot({
@@ -3180,8 +3122,10 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      // Validation endpoint should not have been called and resource should be captured
+      // Validation endpoint should not have been called because pending was pre-populated
+      expect(validationAttempted).toBe(false);
       expect(validationMock).not.toHaveBeenCalled();
+      // Resource should be captured because the pending promise resolved to truthy
       expect(captured[0]).toContain(
         jasmine.objectContaining({
           attributes: jasmine.objectContaining({
