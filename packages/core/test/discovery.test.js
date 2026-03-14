@@ -3110,7 +3110,7 @@ describe('Discovery', () => {
       percy.domainValidation.workerUrl = 'https://winter-morning-fa32.shobhit-k.workers.dev';
 
       // Pre-populate pending with a resolved promise for the hostname (ex.localhost:8001 from testExternalDOM)
-      // This ensures the mutex path (lines 462-465: pending.has/get) is taken instead of calling validation
+      // This ensures the mutex path (pending.has/get) is taken instead of calling validation
       percy.domainValidation.pending.set('ex.localhost:8001', Promise.resolve(true));
 
       await percy.snapshot({
