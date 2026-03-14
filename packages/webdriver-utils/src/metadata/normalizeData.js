@@ -40,7 +40,14 @@ export default class NormalizeData {
 
   osVersionRollUp(osVersion) {
     const normVersion = osVersion.toLowerCase();
-    return OS_VERSION_MAP[normVersion] || normVersion;
+    if (OS_VERSION_MAP[normVersion]) {
+      return OS_VERSION_MAP[normVersion];
+    }
+
+    return normVersion
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   }
 
   browserRollUp(browserName, device) {
