@@ -88,3 +88,48 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
       - name: Run tests
         run: yarn workspace ${{ matrix.package }} test:coverage --colors
+
+  regression:
+    name: Regression
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 50
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 14
+      - uses: actions/cache@v3
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            packages/core/.local-chromium
+          key: >
+            ${{ runner.os }}/node-14/
+            ${{ hashFiles('.github/.cache-key') }}/
+            ${{ hashFiles('**/yarn.lock') }}
+          restore-keys: >
+            ${{ runner.os }}/node-14/
+            ${{ hashFiles('.github/.cache-key') }}/
+      - uses: actions/download-artifact@v5
+        with:
+          name: dist
+          path: packages
+      - run: yarn
+      - name: Install browser dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --fix-missing libgbm-dev
+      - name: Set up @percy/cli
+        run: |
+          PERCY_PACKAGES=$(find packages -mindepth 1 -maxdepth 1 -type d | sed -e 's/packages/@percy/g' | tr '\n' ' ')
+          yarn global:link
+          yarn link `echo $PERCY_PACKAGES`
+          npx percy --version
+      - name: Run regression tests
+        run: yarn test:regression
+        env:
+          PERCY_TOKEN: ${{ secrets.PERCY_REGRESSION_TOKEN }}
