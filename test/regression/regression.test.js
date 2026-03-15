@@ -28,7 +28,8 @@ async function run() {
         'snapshot',
         join(__dirname, 'snapshots.yml'),
         '--base-url', 'http://localhost:9100',
-        '--config', join(__dirname, '.percy.yml')
+        '--config', join(__dirname, '.percy.yml'),
+        '--verbose'
       ], {
         env: { ...process.env },
         stdio: ['ignore', 'pipe', 'pipe'],
