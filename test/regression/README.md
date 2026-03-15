@@ -43,5 +43,3 @@ Each snapshot entry supports all Percy options: `widths`, `enableJavaScript`, `d
 ## CI
 
 Runs automatically on PRs and pushes to master via `.github/workflows/regression.yml` (Linux only).
-
-**Important:** Never hardcode `PERCY_TOKEN` in any committed file. Always use environment variables.
