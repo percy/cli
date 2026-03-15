@@ -101,7 +101,6 @@ function createMainServer() {
 
 function createCorsServer() {
   const corsAssetsDir = join(__dirname, 'assets');
-  const corsPagesDir = join(__dirname, 'pages');
 
   return http.createServer((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);

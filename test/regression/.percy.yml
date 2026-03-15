@@ -13,3 +13,5 @@ discovery:
     - localhost:9101
   networkIdleTimeout: 150
   concurrency: 5
+  launchOptions:
+    timeout: 120000

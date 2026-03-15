@@ -1,3 +1,4 @@
+/* eslint-env browser */
 // Custom element for regression testing
 // Tests: shadow DOM, scoped styles, attributeChangedCallback, slotted content
 

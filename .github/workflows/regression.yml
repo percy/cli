@@ -23,12 +23,14 @@ jobs:
     # For issue_comment: only run on PR comments matching "/regression"
     # For push: always run on master
     # For workflow_dispatch: always run
+    # NOTE: issue_comment trigger only works when this workflow file exists on the default branch (master).
+    # You must merge this file to master first before /regression comments will trigger runs.
     if: >-
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.pull_request &&
-       github.event.comment.body == '/regression')
+       contains(github.event.comment.body, '/regression'))
     steps:
       # Permission check for comment-triggered runs
       - name: Check commenter permissions
