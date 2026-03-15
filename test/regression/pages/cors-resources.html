@@ -6,7 +6,8 @@
   <title>CORS Resources Regression Test</title>
   <link rel="stylesheet" href="/assets/css/base.css">
   <!-- Cross-origin CSS from CORS server -->
-  <link rel="stylesheet" href="http://localhost:9101/css/base.css">
+  <!-- nosemgrep: html.security.missing-integrity.missing-integrity -- localhost test server, no SRI needed -->
+  <link rel="stylesheet" href="http://localhost:9101/css/base.css" crossorigin="anonymous">
 </head>
 <body>
   <h1>CORS Resources</h1>

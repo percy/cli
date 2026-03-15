@@ -10,6 +10,12 @@ on:
   # Allow manual re-runs (useful for baseline setup)
   workflow_dispatch:
 
+# Explicit minimal permissions (fix: workflow missing permissions)
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   regression:
     runs-on: ubuntu-latest
@@ -39,15 +45,28 @@ jobs:
             }
           result-encoding: string
 
-      # Get PR branch for comment-triggered runs
-      - uses: xt0rted/pull-request-comment-branch@v3
+      # Resolve immutable PR head SHA for comment-triggered runs
+      # (fix: TOCTOU — use head_sha not head_ref to prevent code changes between permission check and execution)
+      - name: Get PR head SHA
         if: github.event_name == 'issue_comment'
-        id: comment-branch
+        uses: actions/github-script@v4
+        id: pr-sha
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const { data: pr } = await github.pulls.get({
+              owner,
+              repo,
+              pull_number: context.issue.number
+            });
+            core.setOutput('sha', pr.head.sha);
+          result-encoding: string
 
       - uses: actions/checkout@v5
         with:
-          # Use PR branch for comment triggers, default for push/dispatch
-          ref: ${{ steps.comment-branch.outputs.head_ref || github.ref }}
+          # Use immutable PR commit SHA for comment triggers (prevents TOCTOU),
+          # default ref for push/dispatch
+          ref: ${{ steps.pr-sha.outputs.sha || github.sha }}
 
       - uses: actions/setup-node@v4
         with:

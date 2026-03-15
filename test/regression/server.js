@@ -1,7 +1,7 @@
 import http from 'http';
 import { readFileSync, existsSync, statSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { dirname, join, extname } from 'path';
+import { dirname, join, extname, resolve } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pagesDir = join(__dirname, 'pages');
@@ -48,10 +48,14 @@ const mainRoutes = {
 };
 
 function serveStaticFile(baseDir, urlPath, res, corsHeaders = {}) {
-  const filePath = join(baseDir, urlPath);
+  // Sanitize: strip query strings, decode URI, remove null bytes
+  const sanitized = decodeURIComponent(urlPath.split('?')[0]).replace(/\0/g, '');
 
-  // Prevent directory traversal
-  if (!filePath.startsWith(baseDir)) {
+  // Resolve to absolute path and verify it's within baseDir (prevents path traversal)
+  const filePath = resolve(baseDir, sanitized);
+  const resolvedBase = resolve(baseDir);
+
+  if (!filePath.startsWith(resolvedBase + '/') && filePath !== resolvedBase) {
     res.writeHead(403);
     res.end('Forbidden');
     return;
