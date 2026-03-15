@@ -1,0 +1,88 @@
+name: Regression Tests
+
+on:
+  # Trigger via PR comment: "/regression"
+  issue_comment:
+    types: [created]
+  # Also run on push to master for baseline updates
+  push:
+    branches: [master]
+  # Allow manual re-runs (useful for baseline setup)
+  workflow_dispatch:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # For issue_comment: only run on PR comments matching "/regression"
+    # For push: always run on master
+    # For workflow_dispatch: always run
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       github.event.comment.body == '/regression')
+    steps:
+      # Permission check for comment-triggered runs
+      - name: Check commenter permissions
+        if: github.event_name == 'issue_comment'
+        uses: actions/github-script@v4
+        id: check-access
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const { login } = context.payload.comment.user;
+            const { data } = await github.repos.getCollaboratorPermissionLevel({ owner, repo, username: login });
+            if (data.permission !== 'write' && data.permission !== 'admin') {
+              core.setFailed(`User ${login} does not have write access`);
+            }
+          result-encoding: string
+
+      # Get PR branch for comment-triggered runs
+      - uses: xt0rted/pull-request-comment-branch@v3
+        if: github.event_name == 'issue_comment'
+        id: comment-branch
+
+      - uses: actions/checkout@v5
+        with:
+          # Use PR branch for comment triggers, default for push/dispatch
+          ref: ${{ steps.comment-branch.outputs.head_ref || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: yarn
+
+      - uses: actions/cache@v3
+        with:
+          path: |
+            packages/core/.local-chromium
+          key: chromium-${{ runner.os }}-${{ hashFiles('packages/core/package.json') }}
+
+      - run: yarn install --frozen-lockfile
+      - run: yarn build
+
+      - name: Install browser dependencies
+        run: sudo apt-get install -y libgbm-dev
+
+      - name: Run regression tests
+        run: yarn test:regression
+        env:
+          PERCY_TOKEN: ${{ secrets.PERCY_REGRESSION_TOKEN }}
+
+      # Post result back to PR for comment-triggered runs
+      - name: Comment result on PR
+        if: github.event_name == 'issue_comment' && always()
+        uses: actions/github-script@v4
+        with:
+          script: |
+            const status = '${{ job.status }}';
+            const emoji = status === 'success' ? '✅' : '❌';
+            const body = `${emoji} **Regression tests ${status}**\n\n[View run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`;
+            github.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });

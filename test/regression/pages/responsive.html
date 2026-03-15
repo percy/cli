@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Responsive Regression Test</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/responsive.css">
+</head>
+<body>
+  <h1>Responsive Layout</h1>
+  <p>This page is snapshotted at 375px, 768px, and 1280px widths.</p>
+
+  <!-- Breakpoint indicator changes text and color based on viewport width -->
+  <div class="breakpoint-indicator"></div>
+
+  <!-- Responsive grid changes columns based on viewport -->
+  <div class="responsive-grid" style="margin-top:16px;">
+    <div class="responsive-card">
+      <h2>Card 1</h2>
+      <p>First grid item. Layout changes at breakpoints.</p>
+    </div>
+    <div class="responsive-card">
+      <h2>Card 2</h2>
+      <p>Second grid item. Check column count per width.</p>
+    </div>
+    <div class="responsive-card">
+      <h2>Card 3</h2>
+      <p>Third grid item. 3 cols on desktop, 2 on tablet, 1 on mobile.</p>
+    </div>
+    <div class="responsive-card">
+      <h2>Card 4</h2>
+      <p>Fourth grid item. Visual diff catches layout regressions.</p>
+    </div>
+    <div class="responsive-card">
+      <h2>Card 5</h2>
+      <p>Fifth grid item. Each width is a separate discovery cycle.</p>
+    </div>
+    <div class="responsive-card">
+      <h2>Card 6</h2>
+      <p>Sixth grid item. Resources are cached across widths.</p>
+    </div>
+  </div>
+</body>
+</html>

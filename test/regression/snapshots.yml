@@ -1,0 +1,54 @@
+# Percy CLI E2E Regression Test Snapshots
+# To add a new test: create an HTML page in pages/ and add an entry here.
+# Each entry can override any Percy snapshot/discovery option.
+
+# Comprehensive smoke test — includes video poster, base64 inline image, pseudo-class CSS
+- name: Comprehensive
+  url: /comprehensive.html
+  widths: [1280]
+
+# Individual feature pages
+- name: Shadow DOM
+  url: /shadow-dom.html
+  widths: [1280]
+
+- name: Iframes
+  url: /iframes.html
+  widths: [1280]
+
+- name: CORS Iframes
+  url: /cors-iframes.html
+  widths: [1280]
+
+- name: CSSOM
+  url: /cssom.html
+  widths: [1280]
+
+- name: Fonts
+  url: /fonts.html
+  widths: [1280]
+
+- name: Canvas
+  url: /canvas.html
+  widths: [1280]
+
+- name: Images
+  url: /images.html
+  widths: [1280]
+
+- name: CORS Resources
+  url: /cors-resources.html
+  widths: [1280]
+
+- name: Redirected Resources
+  url: /redirects.html
+  widths: [1280]
+
+- name: JavaScript Enabled
+  url: /js-enabled.html
+  widths: [1280]
+  enableJavaScript: true
+
+- name: Responsive
+  url: /responsive.html
+  widths: [375, 768, 1280]

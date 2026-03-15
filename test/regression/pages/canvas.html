@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canvas Regression Test</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+</head>
+<body>
+  <h1>Canvas</h1>
+
+  <!-- 2D Canvas with drawn shapes and text -->
+  <div class="section">
+    <div class="section-title">2D Canvas</div>
+    <canvas id="canvas-2d" width="300" height="150"></canvas>
+  </div>
+
+  <!-- WebGL Canvas with preserveDrawingBuffer -->
+  <div class="section">
+    <div class="section-title">WebGL Canvas</div>
+    <canvas id="canvas-webgl" width="300" height="150"></canvas>
+  </div>
+
+  <script>
+    // 2D Canvas — drawn synchronously before snapshot
+    const ctx = document.getElementById('canvas-2d').getContext('2d');
+    // Background
+    ctx.fillStyle = '#f0f4ff';
+    ctx.fillRect(0, 0, 300, 150);
+    // Rectangle
+    ctx.fillStyle = '#3366cc';
+    ctx.fillRect(20, 20, 100, 80);
+    // Circle
+    ctx.beginPath();
+    ctx.arc(200, 60, 40, 0, Math.PI * 2);
+    ctx.fillStyle = '#cc3333';
+    ctx.fill();
+    // Text
+    ctx.fillStyle = '#333';
+    ctx.font = '16px sans-serif';
+    ctx.fillText('2D Canvas', 20, 130);
+
+    // WebGL Canvas — preserveDrawingBuffer required for toDataURL()
+    const gl = document.getElementById('canvas-webgl').getContext('webgl', {
+      preserveDrawingBuffer: true
+    });
+    if (gl) {
+      gl.clearColor(0.2, 0.4, 0.8, 1.0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    }
+  </script>
+</body>
+</html>

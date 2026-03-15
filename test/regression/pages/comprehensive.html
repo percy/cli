@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comprehensive Regression Test</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <style>
+    @font-face {
+      font-family: 'TestFont';
+      src: url('/assets/fonts/test-font.woff2') format('woff2');
+      font-display: block;
+    }
+    .font-test { font-family: 'TestFont', sans-serif; }
+
+    /* Pseudo-class CSS rules — Percy captures these rules in the stylesheet */
+    .hover-box:hover { background-color: #e0e7ff; border-color: #4f46e5; }
+    .focus-input:focus { outline: 3px solid #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,0.3); }
+  </style>
+</head>
+<body>
+  <h1>Comprehensive Smoke Test</h1>
+  <p>This page combines all major asset discovery features into a single snapshot.</p>
+
+  <!-- Basic HTML + CSS -->
+  <div class="section">
+    <div class="section-title">Basic HTML + CSS</div>
+    <p>Static text content with <strong>bold</strong> and <em>italic</em> formatting.</p>
+  </div>
+
+  <!-- Image -->
+  <div class="section">
+    <div class="section-title">Image</div>
+    <img src="/assets/images/logo.png" alt="Test logo" width="100" height="100">
+  </div>
+
+  <!-- Web Font -->
+  <div class="section">
+    <div class="section-title">Web Font</div>
+    <p class="font-test">This text uses a custom web font loaded via @font-face.</p>
+  </div>
+
+  <!-- Shadow DOM Component -->
+  <div class="section">
+    <div class="section-title">Shadow DOM Component</div>
+    <percy-test-card title="Shadow DOM Card">
+      <p>This content is slotted into a shadow DOM component.</p>
+    </percy-test-card>
+  </div>
+
+  <!-- Canvas -->
+  <div class="section">
+    <div class="section-title">Canvas</div>
+    <canvas id="test-canvas" width="200" height="100"></canvas>
+  </div>
+
+  <!-- Video with poster -->
+  <div class="section">
+    <div class="section-title">Video Poster</div>
+    <video width="200" height="150" poster="/assets/images/poster.jpg" preload="none">
+      <source src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDE=" type="video/mp4">
+    </video>
+  </div>
+
+  <!-- Inline Base64 Image -->
+  <div class="section">
+    <div class="section-title">Base64 Inline Image</div>
+    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFklEQVQYV2P8z8BQz0AEYBxVOHIUAgBGWAkFdYFJrgAAAABJRU5ErkJggg==" alt="Inline base64" width="10" height="10">
+  </div>
+
+  <!-- Pseudo-class targets -->
+  <div class="section">
+    <div class="section-title">Pseudo-class CSS</div>
+    <button class="hover-box" style="padding:8px 16px; border:2px solid #ccc; border-radius:4px; cursor:pointer;">Hover Target</button>
+    <input class="focus-input" type="text" value="Focus Target" style="padding:8px; border:2px solid #ccc; border-radius:4px; margin-left:8px;">
+  </div>
+
+  <!-- SVG -->
+  <div class="section">
+    <div class="section-title">SVG Image</div>
+    <img src="/assets/images/icon.svg" alt="SVG icon" width="24" height="24">
+  </div>
+
+  <script src="/assets/js/custom-element.js"></script>
+  <script>
+    // Draw on canvas synchronously
+    const canvas = document.getElementById('test-canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#3366cc';
+    ctx.fillRect(10, 10, 80, 80);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '14px sans-serif';
+    ctx.fillText('Canvas', 25, 55);
+  </script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shadow DOM Regression Test</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+</head>
+<body>
+  <h1>Shadow DOM</h1>
+
+  <!-- Basic shadow root with scoped styles -->
+  <div class="section">
+    <div class="section-title">Basic Shadow Root</div>
+    <div id="basic-shadow-host"></div>
+  </div>
+
+  <!-- Custom element with shadow DOM and slots -->
+  <div class="section">
+    <div class="section-title">Custom Element with Slots</div>
+    <percy-test-card title="Slotted Content Card">
+      <p>This paragraph is slotted into the shadow DOM.</p>
+      <p>Multiple slotted children should be serialized.</p>
+    </percy-test-card>
+  </div>
+
+  <!-- Custom element with theme attribute (tests attributeChangedCallback) -->
+  <div class="section">
+    <div class="section-title">attributeChangedCallback</div>
+    <percy-test-card title="Dark Theme Card" theme="dark">
+      <p>This card uses a dark theme set via attribute.</p>
+    </percy-test-card>
+  </div>
+
+  <!-- Nested shadow roots -->
+  <div class="section">
+    <div class="section-title">Nested Shadow Roots</div>
+    <percy-nested-shadow></percy-nested-shadow>
+  </div>
+
+  <!-- Custom element loading external resources -->
+  <div class="section">
+    <div class="section-title">Shadow DOM with External Resources</div>
+    <div id="resource-shadow-host"></div>
+  </div>
+
+  <script src="/assets/js/custom-element.js"></script>
+  <script>
+    // Programmatic shadow root
+    const basicHost = document.getElementById('basic-shadow-host');
+    const basicShadow = basicHost.attachShadow({ mode: 'open' });
+    basicShadow.innerHTML = `
+      <style>
+        .shadow-content {
+          padding: 12px;
+          background: #f0f4ff;
+          border: 1px solid #3366cc;
+          border-radius: 4px;
+          color: #003366;
+        }
+      </style>
+      <div class="shadow-content">
+        <p>This content lives inside a programmatic shadow root.</p>
+        <p>Its styles are scoped and should be serialized via CSSOM.</p>
+      </div>
+    `;
+
+    // Shadow root with external image resource
+    const resourceHost = document.getElementById('resource-shadow-host');
+    const resourceShadow = resourceHost.attachShadow({ mode: 'open' });
+    resourceShadow.innerHTML = `
+      <style>
+        .resource-card { padding: 12px; background: #fff5f5; border: 1px solid #cc3333; border-radius: 4px; }
+        .resource-card img { width: 24px; height: 24px; vertical-align: middle; margin-right: 8px; }
+      </style>
+      <div class="resource-card">
+        <img src="/assets/images/icon.svg" alt="Icon in shadow DOM">
+        <span>Shadow DOM with external image resource</span>
+      </div>
+    `;
+  </script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+/* Base styles for regression test pages */
+body {
+  font-family: sans-serif;
+  margin: 0;
+  padding: 20px;
+  background: #fff;
+  color: #333;
+}
+
+h1 {
+  font-size: 24px;
+  margin-bottom: 16px;
+}
+
+h2 {
+  font-size: 18px;
+  margin-bottom: 12px;
+  color: #555;
+}
+
+.section {
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.section-title {
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Pseudo-class rules (tested in comprehensive.html) */
+.hover-target:hover {
+  background-color: #e0e0ff;
+  border-color: #3333ff;
+}
+
+.focus-target:focus {
+  outline: 3px solid #3333ff;
+  box-shadow: 0 0 5px rgba(51, 51, 255, 0.5);
+}

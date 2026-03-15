@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Iframes Regression Test</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+</head>
+<body>
+  <h1>Iframes</h1>
+
+  <!-- Same-origin iframe -->
+  <div class="section">
+    <div class="section-title">Same-origin Iframe</div>
+    <iframe src="/iframe-content.html" width="400" height="150" style="border:1px solid #ddd;"></iframe>
+  </div>
+
+  <!-- Nested iframe (iframe within an iframe) -->
+  <div class="section">
+    <div class="section-title">Nested Iframe</div>
+    <iframe src="/nested-iframe.html" width="400" height="200" style="border:1px solid #ddd;"></iframe>
+  </div>
+
+  <!-- srcdoc iframe -->
+  <div class="section">
+    <div class="section-title">srcdoc Iframe</div>
+    <iframe srcdoc="<html><body style='font-family:sans-serif;padding:12px;'><h3 style='color:#3366cc;'>srcdoc Content</h3><p>This iframe uses the srcdoc attribute.</p></body></html>" width="400" height="120" style="border:1px solid #ddd;"></iframe>
+  </div>
+
+  <!-- JS-created iframe -->
+  <div class="section">
+    <div class="section-title">JavaScript-created Iframe</div>
+    <div id="js-iframe-container"></div>
+  </div>
+
+  <script>
+    // Create iframe via JavaScript and write content
+    const container = document.getElementById('js-iframe-container');
+    const iframe = document.createElement('iframe');
+    iframe.width = '400';
+    iframe.height = '120';
+    iframe.style.border = '1px solid #ddd';
+    container.appendChild(iframe);
+
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open();
+    doc.write('<html><body style="font-family:sans-serif;padding:12px;"><h3 style="color:#cc6633;">JS-Created Iframe</h3><p>This iframe was created and written via JavaScript.</p></body></html>');
+    doc.close();
+  </script>
+</body>
+</html>

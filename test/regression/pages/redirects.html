@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redirects Regression Test</title>
+  <!-- CSS loaded via 302 redirect -->
+  <link rel="stylesheet" href="/redirect/style.css">
+</head>
+<body>
+  <h1>Redirected Resources</h1>
+
+  <!-- CSS behind 302 redirect -->
+  <div class="section">
+    <div class="section-title">CSS via 302 Redirect</div>
+    <p>The stylesheet for this page is loaded from <code>/redirect/style.css</code> which returns a 302 redirect to <code>/assets/css/base.css</code>.</p>
+    <p>Percy should follow the redirect and capture the final resource.</p>
+  </div>
+
+  <!-- Image behind 301 redirect -->
+  <div class="section">
+    <div class="section-title">Image via 301 Redirect</div>
+    <img src="/redirect/image.png" alt="Redirected image" width="100" height="100">
+    <p style="margin-top:8px;">This image is loaded from <code>/redirect/image.png</code> which returns a 301 redirect to <code>/assets/images/logo.png</code>.</p>
+  </div>
+</body>
+</html>
