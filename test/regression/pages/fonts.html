@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fonts Regression Test</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <style>
+    /* Local font — served from main server */
+    @font-face {
+      font-family: 'LocalFont';
+      src: url('/assets/fonts/test-font.woff2') format('woff2'),
+           url('/assets/fonts/test-font.woff') format('woff');
+      font-display: block;
+    }
+
+    /* Cross-origin font — served from CORS server on port 9101 */
+    @font-face {
+      font-family: 'CorsFont';
+      src: url('http://localhost:9101/fonts/test-font.woff2') format('woff2');
+      font-display: block;
+    }
+
+    /* Wrong MIME type font — server returns text/html for a woff2 file */
+    @font-face {
+      font-family: 'WrongMimeFont';
+      src: url('/fonts/wrong-mime.woff2') format('woff2');
+      font-display: block;
+    }
+
+    .local-font { font-family: 'LocalFont', monospace; }
+    .cors-font { font-family: 'CorsFont', monospace; }
+    .wrong-mime-font { font-family: 'WrongMimeFont', monospace; }
+  </style>
+</head>
+<body>
+  <h1>Fonts</h1>
+
+  <div class="section">
+    <div class="section-title">Local Font (woff2 from main server)</div>
+    <p class="local-font" style="font-size:18px;">
+      The quick brown fox jumps over the lazy dog. 0123456789
+    </p>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Cross-origin Font (from port 9101)</div>
+    <p class="cors-font" style="font-size:18px;">
+      The quick brown fox jumps over the lazy dog. 0123456789
+    </p>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Wrong MIME Type Font (server returns text/html)</div>
+    <p class="wrong-mime-font" style="font-size:18px;">
+      This font is served with content-type: text/html. Percy should detect it via magic bytes.
+    </p>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Font loaded via CSS @import</div>
+    <style>
+      .system-font { font-family: serif; font-size: 18px; }
+    </style>
+    <p class="system-font">Fallback system serif font for comparison.</p>
+  </div>
+</body>
+</html>

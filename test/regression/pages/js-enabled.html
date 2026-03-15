@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JavaScript Enabled Regression Test</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+</head>
+<body>
+  <h1>JavaScript Enabled</h1>
+  <!-- This page is snapshotted with enableJavaScript: true -->
+  <!-- Percy will execute JS in its rendering environment -->
+  <!-- This page must NOT make external network requests -->
+
+  <div id="app">
+    <p>Loading...</p>
+  </div>
+
+  <script>
+    // Dynamically create DOM content (simulates SPA rendering)
+    const app = document.getElementById('app');
+    app.innerHTML = '';
+
+    const heading = document.createElement('h2');
+    heading.textContent = 'Dynamically Rendered Content';
+    heading.style.color = '#3366cc';
+    app.appendChild(heading);
+
+    const grid = document.createElement('div');
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+    grid.style.gap = '12px';
+    grid.style.marginTop = '16px';
+
+    for (let i = 1; i <= 6; i++) {
+      const card = document.createElement('div');
+      card.style.padding = '16px';
+      card.style.background = '#f0f4ff';
+      card.style.border = '1px solid #ddd';
+      card.style.borderRadius = '4px';
+      card.textContent = `Card ${i}`;
+      grid.appendChild(card);
+    }
+
+    app.appendChild(grid);
+
+    const status = document.createElement('p');
+    status.id = 'render-status';
+    status.style.marginTop = '16px';
+    status.style.color = '#137333';
+    status.textContent = 'JavaScript rendering complete.';
+    app.appendChild(status);
+  </script>
+</body>
+</html>

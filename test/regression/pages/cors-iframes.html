@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CORS Iframes Regression Test</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+</head>
+<body>
+  <h1>CORS Iframes</h1>
+
+  <!-- Cross-origin iframe from CORS server -->
+  <div class="section">
+    <div class="section-title">Cross-origin Iframe (port 9101)</div>
+    <iframe src="http://localhost:9101/iframe-page.html" width="400" height="150" style="border:1px solid #ddd;"></iframe>
+    <p style="margin-top:8px; font-size:12px; color:#888;">
+      This iframe is loaded from a different origin (port 9101).
+      Percy's CORS iframe processing should handle serialization.
+    </p>
+  </div>
+</body>
+</html>

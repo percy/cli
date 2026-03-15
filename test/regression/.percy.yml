@@ -1,0 +1,17 @@
+version: 2
+snapshot:
+  widths: [1280]
+  minHeight: 1024
+  percyCSS: |
+    *, *::before, *::after {
+      animation-duration: 0s !important;
+      transition-duration: 0s !important;
+    }
+    * { caret-color: transparent !important; cursor: none !important; }
+discovery:
+  allowedHostnames:
+    - localhost:9101
+  networkIdleTimeout: 150
+  concurrency: 5
+  launchOptions:
+    timeout: 120000

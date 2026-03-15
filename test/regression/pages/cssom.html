@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSSOM Regression Test</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <style id="dynamic-sheet">
+    /* This stylesheet will have rules injected via CSSOM */
+    .cssom-base { padding: 12px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>CSSOM</h1>
+
+  <!-- Dynamically injected CSS rules via insertRule -->
+  <div class="section">
+    <div class="section-title">insertRule (dynamic CSSOM)</div>
+    <div class="cssom-base cssom-injected">
+      This element is styled by a rule injected via document.styleSheets[].insertRule()
+    </div>
+  </div>
+
+  <!-- Adopted stylesheets -->
+  <div class="section">
+    <div class="section-title">Adopted Stylesheets</div>
+    <div class="adopted-styled">
+      This element is styled via document.adoptedStyleSheets (Constructable Stylesheets API).
+    </div>
+  </div>
+
+  <!-- CSS @import -->
+  <div class="section">
+    <div class="section-title">CSS @import</div>
+    <style>
+      @import url('/assets/css/base.css');
+    </style>
+    <p>This section has a style tag using @import to load an external stylesheet.</p>
+  </div>
+
+  <!-- JS-modified inline style -->
+  <div class="section">
+    <div class="section-title">JS-modified Style</div>
+    <div id="js-styled" style="padding:12px; border-radius:4px;">
+      This element's background is set by JavaScript after page load.
+    </div>
+  </div>
+
+  <script>
+    // 1. Insert rules via CSSOM
+    const sheet = document.getElementById('dynamic-sheet').sheet;
+    sheet.insertRule('.cssom-injected { background-color: #e8f0fe; border: 2px solid #1a73e8; color: #174ea6; }', sheet.cssRules.length);
+
+    // 2. Adopted stylesheets (Constructable Stylesheets)
+    if ('adoptedStyleSheets' in document) {
+      const adoptedSheet = new CSSStyleSheet();
+      adoptedSheet.replaceSync(`
+        .adopted-styled {
+          background-color: #fce8e6;
+          border: 2px solid #d93025;
+          color: #a50e0e;
+          padding: 12px;
+          border-radius: 4px;
+        }
+      `);
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, adoptedSheet];
+    }
+
+    // 3. JS-modified style
+    const jsStyled = document.getElementById('js-styled');
+    jsStyled.style.backgroundColor = '#e6f4ea';
+    jsStyled.style.border = '2px solid #34a853';
+    jsStyled.style.color = '#137333';
+  </script>
+</body>
+</html>

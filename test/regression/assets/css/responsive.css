@@ -1,0 +1,48 @@
+/* Responsive styles — visually distinct at each breakpoint */
+.responsive-container {
+  padding: 20px;
+  text-align: center;
+}
+
+.responsive-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.responsive-card {
+  padding: 20px;
+  background: #f0f4ff;
+  border: 2px solid #3366cc;
+  border-radius: 8px;
+}
+
+.breakpoint-indicator {
+  font-size: 24px;
+  font-weight: bold;
+  padding: 12px;
+  text-align: center;
+  border-radius: 4px;
+}
+
+/* Desktop: 3 columns, blue indicator */
+.breakpoint-indicator { background: #ddeeff; color: #003366; }
+.breakpoint-indicator::after { content: "Desktop (1280px)"; }
+
+/* Tablet: 2 columns, green indicator */
+@media (max-width: 768px) {
+  .responsive-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .breakpoint-indicator { background: #ddf5dd; color: #003300; }
+  .breakpoint-indicator::after { content: "Tablet (768px)"; }
+}
+
+/* Mobile: 1 column, orange indicator */
+@media (max-width: 375px) {
+  .responsive-grid {
+    grid-template-columns: 1fr;
+  }
+  .breakpoint-indicator { background: #ffedcc; color: #663300; }
+  .breakpoint-indicator::after { content: "Mobile (375px)"; }
+}
