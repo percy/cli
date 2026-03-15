@@ -81,11 +81,17 @@ jobs:
             packages/core/.local-chromium
           key: chromium-${{ runner.os }}-${{ hashFiles('packages/core/package.json') }}
 
-      - run: yarn install --frozen-lockfile
-      - run: yarn build
-
       - name: Install browser dependencies
         run: sudo apt-get install -y libgbm-dev
+
+      - name: Set up @percy/cli from branch
+        run: |
+          PERCY_PACKAGES=$(find packages -mindepth 1 -maxdepth 1 -type d | sed -e 's/packages/@percy/g' | tr '\n' ' ')
+          yarn install --frozen-lockfile
+          yarn build
+          yarn global:link
+          yarn link `echo $PERCY_PACKAGES`
+          npx percy --version
 
       - name: Run regression tests
         run: yarn test:regression
