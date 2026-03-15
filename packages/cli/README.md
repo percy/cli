@@ -5,11 +5,13 @@
 The Percy CLI is used to interact with, and upload snapshots to, [percy.io](https://percy.io) via
 the command line.
 
-- [Installation](#installation)
-- [Command Topics](#command-topics)
-- [Advanced](#advanced)
-- [Issues](#issues)
-- [Developing](#developing)
+- [Percy CLI](#percy-cli)
+  - [Installation](#installation)
+  - [Command Topics](#command-topics)
+    - [Advanced](#advanced)
+  - [Issues](#issues)
+  - [Developing](#developing)
+    - [How to update Chromium revision?](#how-to-update-chromium-revision)
 
 ## Installation
 
@@ -31,7 +33,7 @@ In addition to the CLI packages, this repo contains core libraries responsible f
 integrations, Percy API communication, DOM serialization, asset discovery, etc.
 
 - [`@percy/core`](./packages/core#readme) - performs snapshot asset discovery and uploading
-- [`@percy/client`](./packages/client#readme) - handles communicating with the Percy API
+- [`@percy/client`](./packages/client#readme) - handles communicating with the Percy AP
 - [`@percy/dom`](./packages/dom#readme) - serializes DOM snapshots
 - [`@percy/env`](./packages/env#readme) - captures CI build environment variables
 - [`@percy/config`](./packages/config#readme) - loads Percy configuration files
