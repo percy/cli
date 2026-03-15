@@ -4,8 +4,6 @@ import { dirname, join } from 'path';
 import { startServers, stopServers } from './server.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const repoRoot = join(__dirname, '..', '..');
-const percyBin = join(repoRoot, 'packages', 'cli', 'bin', 'run.cjs');
 
 // Graceful skip when PERCY_TOKEN is not set
 if (!process.env.PERCY_TOKEN) {
@@ -25,16 +23,17 @@ async function run() {
 
   try {
     exitCode = await new Promise((resolve, reject) => {
-      const child = spawn('node', [
-        percyBin,
+      const child = spawn('npx', [
+        'percy',
         'snapshot',
         join(__dirname, 'snapshots.yml'),
         '--base-url', 'http://localhost:9100',
-        '--config', join(__dirname, '.percy.yml')
+        '--config', join(__dirname, '.percy.yml'),
+        '--verbose'
       ], {
-        cwd: repoRoot,
         env: { ...process.env },
-        stdio: ['ignore', 'pipe', 'pipe']
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: true
       });
 
       child.stdout.on('data', (data) => {

@@ -52,6 +52,7 @@ function serveStaticFile(baseDir, urlPath, res, corsHeaders = {}) {
   const sanitized = decodeURIComponent(urlPath.split('?')[0]).replace(/\0/g, '');
 
   // Resolve to absolute path and verify it's within baseDir (prevents path traversal)
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal
   const filePath = resolve(baseDir, sanitized);
   const resolvedBase = resolve(baseDir);
 
