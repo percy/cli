@@ -44,6 +44,9 @@ export default class NormalizeData {
       return OS_VERSION_MAP[normVersion];
     }
 
+    // Input: "15.0" -> Output: "15.0"
+    // Input: "Google Pixel 6" -> Output: "Google Pixel 6"
+    // Input: "google pixel 6" -> Output: "Google Pixel 6"
     return normVersion
       .split(' ')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
