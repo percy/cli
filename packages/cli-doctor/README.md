@@ -1,6 +1,6 @@
 # @percy/cli-doctor
 
-> Percy CLI sub-command that diagnoses network readiness for running Percy builds.
+> Percy CLI sub-command that diagnoses network, authentication, configuration, and CI readiness for running Percy builds.
 
 ---
 
@@ -32,7 +32,10 @@ Options:
                           e.g. http://proxy.corp.example.com:8080
   --url           <url>   URL to open in Chrome for network activity analysis
                           (default: https://percy.io)
-  --timeout       <ms>    Per-request timeout in milliseconds (default: 10000)
+  --timeout       <ms>    Per-request timeout in milliseconds
+                          (default: 10000, max: 300000)
+  --quick                 Run only connectivity, SSL, and token auth checks
+                          (~4 seconds instead of a full diagnostic run)
   --output-json   <path>  Write the full diagnostic report to a JSON file
   -v, --verbose           Show detailed debug output
   -h, --help              Show help
@@ -42,7 +45,32 @@ Options:
 
 ## What it checks
 
-### 1 · Network Connectivity
+### 1 · Configuration Validation
+
+Detects and validates Percy configuration files (`.percy.yml`, `.percy.yaml`, `percy.config.js`, etc.) via cosmiconfig:
+
+- Reports file location and format
+- Warns on missing or outdated `version` field (recommends version 2)
+- Detects project-type/config mismatches (e.g., automate-only keys like `fullPage` used with a web token)
+
+### 2 · CI Environment Detection
+
+Detects your CI provider and validates CI-related settings:
+
+- Identifies 10+ CI systems (GitHub Actions, GitLab CI, Jenkins, CircleCI, Travis, etc.)
+- Validates git availability for commit/branch detection
+- Checks parallel build configuration (`PERCY_PARALLEL_TOTAL` + `PERCY_PARALLEL_NONCE`)
+
+### 3 · Environment Variable Audit
+
+Inventories all Percy-specific environment variables:
+
+- Lists all set `PERCY_*` vars (names only — values are never exposed)
+- Validates `PERCY_PARALLEL_TOTAL` is a positive integer
+- Flags manual overrides (`PERCY_COMMIT`, `PERCY_BRANCH`, `PERCY_PULL_REQUEST`)
+- Warns when `NODE_TLS_REJECT_UNAUTHORIZED=0` disables SSL validation
+
+### 4 · Network Connectivity
 
 Probes each required Percy / BrowserStack domain:
 
@@ -58,7 +86,7 @@ Failure modes are classified as:
 * **ETIMEDOUT / ECONNRESET** → Firewall dropping packets; list CIDRs to whitelist
 * **via proxy only** → Proxy required, suggests setting `HTTPS_PROXY`
 
-### 2 · SSL / TLS
+### 5 · SSL / TLS
 
 | Scenario | Outcome |
 |---|---|
@@ -69,7 +97,7 @@ Failure modes are classified as:
 When a certificate error is detected, the command prints actionable suggestions
 (contact network admin, add proxy cert to trust store, set `NODE_EXTRA_CA_CERTS`).
 
-### 3 · Proxy Detection
+### 6 · Proxy Detection
 
 Detects proxy configuration from (in priority order):
 
@@ -82,7 +110,7 @@ Detects proxy configuration from (in priority order):
 Each discovered proxy is validated by attempting connections to percy.io and
 browserstack.com through it.
 
-### 4 · PAC / WPAD Auto-Proxy Configuration
+### 7 · PAC / WPAD Auto-Proxy Configuration
 
 Detects PAC file URLs from:
 
@@ -102,12 +130,62 @@ using shims for all standard PAC helper functions. The result of
 If a PAC file routes percy.io through a proxy the command surfaces the exact
 `HTTPS_PROXY=…` export statement to add to your CI environment.
 
+### 8 · Token Authentication
+
+Validates the `PERCY_TOKEN` environment variable:
+
+- **Presence**: Checks the token is set
+- **Format**: Detects project type from token prefix (`web_`, `auto_`, `app_`, `ss_`, `vmw_`, `res_`) and suggests the correct CLI command
+- **Authentication**: Makes a live API call to `percy.io/api/v1/tokens` to verify the token is valid (uses proxy if one was discovered in earlier checks)
+
+Token values are **never** included in output — only the project type and pass/fail status.
+
+### 9 · Browser Network (Chrome CDP)
+
+Launches headless Chrome to test end-to-end network connectivity through the browser process, including proxy and PAC resolution as Chrome would see it.
+
+---
+
+## Quick Mode
+
+Use `--quick` to run only the essential checks (connectivity, SSL, and token auth) in ~4 seconds:
+
+```sh
+npx percy doctor --quick
+```
+
+This is useful for fast triage in CI pipelines or when you just want to verify your token and network are working.
+
+---
+
+## Auto-Doctor on Build Failure
+
+Set `PERCY_AUTO_DOCTOR=true` to automatically run diagnostics when a Percy build fails:
+
+```sh
+export PERCY_AUTO_DOCTOR=true
+npx percy exec -- your-test-command
+```
+
+When enabled, a build failure triggers a diagnostic run and prints actionable findings inline. This is opt-in and has no effect on successful builds.
+
 ---
 
 ## Example output
 
 ```
-  Percy Doctor — network readiness check
+  Percy Doctor — diagnostic check
+
+── Configuration
+  ℹ Configuration file detected: /project/.percy.yml
+  ✔ Config version: 2 (current)
+
+── CI Environment
+  ℹ CI system detected: GitHub Actions
+  ✔ Git is available for commit detection.
+
+── Environment Variables
+  ℹ Percy environment variables set: PERCY_TOKEN, PERCY_PARALLEL_TOTAL
 
 ── SSL / TLS
   ✔ SSL handshake with percy.io succeeded (47ms).
@@ -123,7 +201,14 @@ If a PAC file routes percy.io through a proxy the command surfaces the exact
 ── PAC / Auto-Proxy Configuration
   ℹ No PAC (Proxy Auto-Configuration) file detected.
 
-✔ All 6 checks passed
+── Token Authentication
+  ℹ Token detected (project type: web). Use `percy exec` to run snapshots.
+  ✔ Token authentication successful.
+
+── Browser Network
+  ✔ Chrome loaded percy.io successfully.
+
+  ✔ 8 passed · 0 warnings · 0 failures (4.2s)
 ```
 
 ---
