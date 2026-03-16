@@ -30,7 +30,8 @@
     "./src/checks/browser.js": "./src/checks/browser.js",
     "./src/checks/auth.js": "./src/checks/auth.js",
     "./src/checks/config.js": "./src/checks/config.js",
-    "./src/checks/ci.js": "./src/checks/ci.js"
+    "./src/checks/ci.js": "./src/checks/ci.js",
+    "./src/checks/env-audit.js": "./src/checks/env-audit.js"
   },
   "scripts": {
     "build": "node ../../scripts/build",

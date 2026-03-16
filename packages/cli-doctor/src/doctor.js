@@ -11,7 +11,8 @@ import {
   runBrowserCheck,
   runAuthCheck,
   runConfigCheck,
-  runCICheck
+  runCICheck,
+  runEnvAuditCheck
 } from './utils/helpers.js';
 import { checkLine, summaryBanner, print } from './utils/reporter.js';
 
@@ -26,6 +27,7 @@ export const doctor = command(
 
     examples: [
       '$0',
+      '$0 --quick',
       '$0 --proxy-server http://proxy.corp.example.com:8080',
       '$0 --url https://my-staging.example.com',
       '$0 --output-json ./percy-doctor.json'
@@ -57,6 +59,13 @@ export const doctor = command(
           'Write the full diagnostic report to a JSON file',
         type: 'string',
         attribute: 'outputJson'
+      },
+      {
+        name: 'quick',
+        description:
+          'Run only connectivity, SSL, and token checks (~4s)',
+        type: 'boolean',
+        default: false
       }
     ]
   },
@@ -77,6 +86,7 @@ export const doctor = command(
     }
     const targetUrl = flags.url?.trim() || 'https://percy.io';
     const jsonOutputPath = flags.outputJson ?? null;
+    const mode = flags.quick ? 'quick' : 'default';
 
     // Inter-check context — plain object, not a class
     const ctx = {
@@ -94,6 +104,7 @@ export const doctor = command(
     const report = {
       version: '1.0.0',
       timestamp: new Date().toISOString(),
+      mode,
       environment: {
         percyCLIVersion: pkg.version,
         platform: process.platform,
@@ -105,23 +116,29 @@ export const doctor = command(
       checks: {}
     };
 
-    print(log, '\n  Percy Doctor — diagnostic check\n');
+    print(log, `\n  Percy Doctor — diagnostic check${mode === 'quick' ? ' (quick mode)' : ''}\n`);
     if (proxyUrl) {
       print(log, checkLine('info', `Proxy in use: ${redactProxyUrl(proxyUrl)}`));
       print(log, '');
     }
 
-    // Phase 1: Independent checks (parallel with allSettled)
-    const phase1Results = await Promise.allSettled([
-      runConfigCheck(),
-      runCICheck()
-    ]);
-    report.checks.config = phase1Results[0].status === 'fulfilled'
-      ? phase1Results[0].value.config
-      : { status: 'fail', findings: [{ status: 'fail', message: phase1Results[0].reason?.message }] };
-    report.checks.ci = phase1Results[1].status === 'fulfilled'
-      ? phase1Results[1].value.ci
-      : { status: 'fail', findings: [{ status: 'fail', message: phase1Results[1].reason?.message }] };
+    // Phase 1: Independent checks (parallel with allSettled) — skip in quick mode
+    if (mode !== 'quick') {
+      const phase1Results = await Promise.allSettled([
+        runConfigCheck(),
+        runCICheck(),
+        runEnvAuditCheck()
+      ]);
+      report.checks.config = phase1Results[0].status === 'fulfilled'
+        ? phase1Results[0].value.config
+        : { status: 'fail', findings: [{ status: 'fail', message: phase1Results[0].reason?.message }] };
+      report.checks.ci = phase1Results[1].status === 'fulfilled'
+        ? phase1Results[1].value.ci
+        : { status: 'fail', findings: [{ status: 'fail', message: phase1Results[1].reason?.message }] };
+      report.checks.envAudit = phase1Results[2].status === 'fulfilled'
+        ? phase1Results[2].value.envAudit
+        : { status: 'fail', findings: [{ status: 'fail', message: phase1Results[2].reason?.message }] };
+    }
 
     // Phase 2: Network checks (sequential — order matters for output readability)
     const { connectivity, ssl } = await runConnectivityAndSSL(proxyUrl, timeout);
@@ -129,23 +146,39 @@ export const doctor = command(
     report.checks.ssl = ssl;
     ctx.connectivityOk = connectivity.status !== 'fail';
 
-    const { proxy } = await runProxyCheck(timeout);
-    report.checks.proxy = proxy;
-    ctx.discoveredProxies = (proxy.findings ?? [])
-      .filter(f => f.proxyUrl && f.proxyValidation?.status === 'pass')
-      .map(f => ({ url: f.proxyUrl, source: f.source }));
+    if (mode !== 'quick') {
+      const { proxy } = await runProxyCheck(timeout);
+      report.checks.proxy = proxy;
+      ctx.discoveredProxies = (proxy.findings ?? [])
+        .filter(f => f.proxyUrl && f.proxyValidation?.status === 'pass')
+        .map(f => ({ url: f.proxyUrl, source: f.source }));
 
-    const { pac } = await runPACCheck();
-    report.checks.pac = pac;
-    ctx.pacResolvedProxy = (pac.findings ?? []).find(f => f.detectedProxyUrl)?.detectedProxyUrl ?? null;
+      const { pac } = await runPACCheck();
+      report.checks.pac = pac;
+      ctx.pacResolvedProxy = (pac.findings ?? []).find(f => f.detectedProxyUrl)?.detectedProxyUrl ?? null;
+    }
 
     // Phase 3: Token auth (depends on connectivity + proxy discovery)
-    const { auth } = await runAuthCheck(ctx);
-    report.checks.auth = auth;
+    if (mode === 'quick' && !ctx.connectivityOk) {
+      report.checks.auth = {
+        status: 'skip',
+        findings: [{
+          code: 'PERCY-DR-007',
+          status: 'skip',
+          message: 'Token validation skipped — percy.io is unreachable.',
+          suggestions: ['Fix connectivity issues first, then re-run percy doctor.']
+        }]
+      };
+    } else {
+      const { auth } = await runAuthCheck(ctx);
+      report.checks.auth = auth;
+    }
 
-    // Phase 4: Browser network analysis
-    const { browser } = await runBrowserCheck(targetUrl, ctx.bestProxy, timeout);
-    report.checks.browser = browser;
+    // Phase 4: Browser network analysis — skip in quick mode
+    if (mode !== 'quick') {
+      const { browser } = await runBrowserCheck(targetUrl, ctx.bestProxy, timeout);
+      report.checks.browser = browser;
+    }
 
     const counts = { passed: 0, warned: 0, failed: 0 };
     for (const c of Object.values(report.checks)) {
