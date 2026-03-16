@@ -115,6 +115,16 @@ describe('checkEnvVars', () => {
     expect(fail.status).toBe('fail');
   });
 
+  it('returns PERCY-DR-303 fail when PERCY_PARALLEL_TOTAL is a float', async () => {
+    const findings = await withEnv(
+      { ...CLEAN_PERCY_ENV, PERCY_PARALLEL_TOTAL: '4.5' },
+      () => checkEnvVars()
+    );
+    const fail = findings.find(f => f.code === 'PERCY-DR-303');
+    expect(fail).toBeDefined();
+    expect(fail.status).toBe('fail');
+  });
+
   it('does not fail when PERCY_PARALLEL_TOTAL is a valid positive integer', async () => {
     const findings = await withEnv(
       { ...CLEAN_PERCY_ENV, PERCY_PARALLEL_TOTAL: '4' },

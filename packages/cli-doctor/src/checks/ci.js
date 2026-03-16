@@ -76,14 +76,14 @@ export async function checkCI() {
       findings.push({
         code: 'PERCY-DR-206',
         status: 'pass',
-        message: `Parallel config: total=${process.env.PERCY_PARALLEL_TOTAL}, nonce=${process.env.PERCY_PARALLEL_NONCE}`
+        message: 'Parallel build configuration detected (PERCY_PARALLEL_TOTAL and PERCY_PARALLEL_NONCE are set).'
       });
     }
   }
 
   // 5. Git availability
   try {
-    cp.execSync('git rev-parse --is-inside-work-tree 2>/dev/null', { timeout: 5000 });
+    cp.execSync('git rev-parse --is-inside-work-tree', { timeout: 5000, stdio: 'pipe' });
     findings.push({
       code: 'PERCY-DR-207',
       status: 'pass',

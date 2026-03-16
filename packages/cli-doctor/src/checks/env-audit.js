@@ -49,8 +49,8 @@ export async function checkEnvVars() {
 
   // 2. Validate PERCY_PARALLEL_TOTAL format
   if (process.env.PERCY_PARALLEL_TOTAL) {
-    const val = parseInt(process.env.PERCY_PARALLEL_TOTAL, 10);
-    if (isNaN(val) || val <= 0) {
+    const val = Number(process.env.PERCY_PARALLEL_TOTAL);
+    if (!Number.isInteger(val) || val <= 0) {
       findings.push({
         code: 'PERCY-DR-303',
         status: 'fail',

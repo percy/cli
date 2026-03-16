@@ -1,5 +1,11 @@
 import { httpProber } from '../utils/http.js';
 
+// Strip token-like patterns from error messages to prevent credential leakage
+function sanitizeError(msg) {
+  if (!msg) return msg;
+  return msg.replace(/Token token=[^\s,;]*/gi, 'Token token=***');
+}
+
 // Known token prefixes → project types (mirrors @percy/client tokenType())
 const KNOWN_PREFIXES = {
   auto: 'automate',
@@ -21,12 +27,13 @@ const COMMAND_BY_TYPE = {
  * Plain async function (not a class) — matches monorepo functional style.
  *
  * @param {object} options
- * @param {string} [options.proxyUrl] - Proxy for API call (from ctx.bestProxy)
- * @param {number} [options.timeout]  - Request timeout ms
+ * @param {string} [options.proxyUrl]    - Proxy for API call (from ctx.bestProxy)
+ * @param {number} [options.timeout]     - Request timeout ms
+ * @param {string} [options.apiBaseUrl]  - Base URL for token API (for testing)
  * @returns {Promise<Finding[]>}
  */
 export async function checkAuth(options = {}) {
-  const { proxyUrl, timeout = 10000 } = options;
+  const { proxyUrl, timeout = 10000, apiBaseUrl = 'https://percy.io' } = options;
   const findings = [];
   const token = process.env.PERCY_TOKEN?.trim();
 
@@ -64,7 +71,7 @@ export async function checkAuth(options = {}) {
   //    - 200 = token is a valid user master token
   try {
     const result = await httpProber.probeUrl(
-      'https://percy.io/api/v1/tokens',
+      `${apiBaseUrl}/api/v1/tokens`,
       {
         proxyUrl,
         timeout,
@@ -99,7 +106,7 @@ export async function checkAuth(options = {}) {
       findings.push({
         code: 'PERCY-DR-006',
         status: 'warn',
-        message: `Token auth check could not reach Percy API: ${result.error}`,
+        message: `Token auth check could not reach Percy API: ${sanitizeError(result.error)}`,
         suggestions: [
           'This may be a network issue rather than a token issue.',
           'See the Connectivity and Proxy sections for network diagnostics.'
@@ -121,7 +128,7 @@ export async function checkAuth(options = {}) {
     findings.push({
       code: 'PERCY-DR-006',
       status: 'warn',
-      message: `Token auth check could not reach Percy API: ${err.message}`,
+      message: `Token auth check could not reach Percy API: ${sanitizeError(err.message)}`,
       suggestions: [
         'This may be a network issue rather than a token issue.',
         'See the Connectivity and Proxy sections for network diagnostics.'

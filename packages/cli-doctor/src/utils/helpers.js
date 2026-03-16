@@ -326,9 +326,10 @@ export async function runDiagnostics({
   targetUrl = 'https://percy.io',
   mode = 'default'
 } = {}) {
+  const MAX_TIMEOUT = 300000; // 5 minutes
   const parsedTimeout = Number(timeout);
-  if (!Number.isInteger(parsedTimeout) || parsedTimeout <= 0) {
-    throw new Error('--timeout must be a positive integer (milliseconds)');
+  if (!Number.isInteger(parsedTimeout) || parsedTimeout <= 0 || parsedTimeout > MAX_TIMEOUT) {
+    throw new Error(`--timeout must be a positive integer up to ${MAX_TIMEOUT}ms (5 minutes)`);
   }
 
   const report = { checks: {} };

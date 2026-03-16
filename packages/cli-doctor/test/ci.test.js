@@ -209,8 +209,11 @@ describe('checkCI', () => {
     const parallelPass = findings.find(f => f.code === 'PERCY-DR-206');
     expect(parallelPass).toBeDefined();
     expect(parallelPass.status).toBe('pass');
-    expect(parallelPass.message).toContain('total=4');
-    expect(parallelPass.message).toContain('nonce=build-42');
+    expect(parallelPass.message).toContain('PERCY_PARALLEL_TOTAL');
+    expect(parallelPass.message).toContain('PERCY_PARALLEL_NONCE');
+    // SECURITY: values must NOT appear in the message
+    expect(parallelPass.message).not.toContain('build-42');
+    expect(parallelPass.message).not.toContain('=4');
   });
 
   it('skips parallel checks when PERCY_PARALLEL_TOTAL is not set', async () => {
@@ -247,6 +250,26 @@ describe('checkCI', () => {
     expect(gitPass).toBeDefined();
     expect(gitPass.status).toBe('pass');
     expect(gitPass.message).toContain('Git repository detected');
+  });
+
+  it('returns PERCY-DR-209 warn when git is unavailable', async () => {
+    spyOn(cp, 'execSync').and.throwError('git not found');
+    const findings = await withEnv(
+      {
+        ...NO_CI_ENV,
+        ...GITHUB_CI_ENV,
+        PERCY_SKIP_GIT_CHECK: undefined,
+        PERCY_PARALLEL_TOTAL: undefined,
+        PERCY_PARALLEL_NONCE: undefined
+      },
+      () => checkCI()
+    );
+    const gitWarn = findings.find(f => f.code === 'PERCY-DR-209');
+    expect(gitWarn).toBeDefined();
+    expect(gitWarn.status).toBe('warn');
+    expect(gitWarn.message).toContain('Git is not available');
+    expect(gitWarn.suggestions.some(s => s.includes('PERCY_COMMIT'))).toBe(true);
+    expect(gitWarn.suggestions.some(s => s.includes('PERCY_SKIP_GIT_CHECK'))).toBe(true);
   });
 
   it('returns PERCY-DR-208 info when PERCY_SKIP_GIT_CHECK=true', async () => {

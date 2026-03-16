@@ -98,8 +98,19 @@ describe('checkConfig', () => {
     const versionFinding = findings.find(f => f.code === 'PERCY-DR-103');
     expect(versionFinding).toBeDefined();
     expect(versionFinding.status).toBe('warn');
-    expect(versionFinding.message).toContain('outdated format');
+    expect(versionFinding.message).toContain('outdated format (version 1)');
     expect(versionFinding.suggestions).toContain('Run: percy config:migrate to update to the latest format.');
+  });
+
+  it('returns PERCY-DR-103 warn with correct version number for version 0', async () => {
+    const findings = await withEnv({ PERCY_TOKEN: undefined }, () =>
+      checkConfig({
+        searchFn: mockSearch({ config: { version: 0 }, filepath: '/project/.percy.yml' })
+      })
+    );
+    const versionFinding = findings.find(f => f.code === 'PERCY-DR-103');
+    expect(versionFinding).toBeDefined();
+    expect(versionFinding.message).toContain('outdated format (version 0)');
   });
 
   it('does not warn when config uses version 2', async () => {
@@ -203,6 +214,62 @@ describe('checkConfig', () => {
     );
     const mismatch = findings.find(f => f.code === 'PERCY-DR-106');
     expect(mismatch).toBeUndefined();
+  });
+
+  it('returns PERCY-DR-106 warn for web-only keys with ss_ (generic) token', async () => {
+    const findings = await withEnv({ PERCY_TOKEN: 'ss_abc123' }, () =>
+      checkConfig({
+        searchFn: mockSearch({
+          config: { version: 2, snapshot: { waitForTimeout: 5000 } },
+          filepath: '/project/.percy.yml'
+        })
+      })
+    );
+    const mismatch = findings.find(f => f.code === 'PERCY-DR-106');
+    expect(mismatch).toBeDefined();
+    expect(mismatch.message).toContain('generic');
+  });
+
+  it('returns PERCY-DR-105 with correct type for ss_ (generic) token', async () => {
+    const findings = await withEnv({ PERCY_TOKEN: 'ss_abc123' }, () =>
+      checkConfig({
+        searchFn: mockSearch({
+          config: { version: 2, snapshot: { fullPage: true } },
+          filepath: '/project/.percy.yml'
+        })
+      })
+    );
+    const mismatch = findings.find(f => f.code === 'PERCY-DR-105');
+    expect(mismatch).toBeDefined();
+    expect(mismatch.message).toContain('generic');
+  });
+
+  it('returns PERCY-DR-105 with correct type for vmw_ (visual_scanner) token', async () => {
+    const findings = await withEnv({ PERCY_TOKEN: 'vmw_abc123' }, () =>
+      checkConfig({
+        searchFn: mockSearch({
+          config: { version: 2, snapshot: { freezeAnimation: true } },
+          filepath: '/project/.percy.yml'
+        })
+      })
+    );
+    const mismatch = findings.find(f => f.code === 'PERCY-DR-105');
+    expect(mismatch).toBeDefined();
+    expect(mismatch.message).toContain('visual_scanner');
+  });
+
+  it('returns PERCY-DR-105 with correct type for res_ (responsive_scanner) token', async () => {
+    const findings = await withEnv({ PERCY_TOKEN: 'res_abc123' }, () =>
+      checkConfig({
+        searchFn: mockSearch({
+          config: { version: 2, snapshot: { ignoreRegions: [{}] } },
+          filepath: '/project/.percy.yml'
+        })
+      })
+    );
+    const mismatch = findings.find(f => f.code === 'PERCY-DR-105');
+    expect(mismatch).toBeDefined();
+    expect(mismatch.message).toContain('responsive_scanner');
   });
 
   // ── No mismatch when snapshot section is empty ─────────────────────────────

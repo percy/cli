@@ -28,10 +28,18 @@ describe('checkAuth', () => {
         // Project tokens get 403 (valid auth, but not user token)
         res.writeHead(403);
         res.end();
-      } else {
+      } else if (token === 'user_master_token') {
         // User tokens get 200
         res.writeHead(200);
         res.end(JSON.stringify({ data: [] }));
+      } else if (token === 'weird_status_token') {
+        // Simulate unexpected status
+        res.writeHead(500);
+        res.end();
+      } else {
+        // Default: treat as project token
+        res.writeHead(403);
+        res.end();
       }
     }));
   });
@@ -40,12 +48,9 @@ describe('checkAuth', () => {
 
   // Helper that patches the auth check to use our mock server
   async function checkAuthWithMock(token, opts = {}) {
-    // We need to override the hardcoded percy.io URL.
-    // Since checkAuth uses httpProber.probeUrl directly, we'll test the logic
-    // by setting the env var and testing the function's behavior.
     return withEnv(
       { PERCY_TOKEN: token },
-      () => checkAuth({ timeout: 5000, ...opts })
+      () => checkAuth({ timeout: 5000, apiBaseUrl: mockApiUrl, ...opts })
     );
   }
 
@@ -127,6 +132,54 @@ describe('checkAuth', () => {
     expect(info.metadata.tokenType).toBe('responsive_scanner');
   });
 
+  // ── Token auth API responses ─────────────────────────────────────────────────
+
+  it('returns PERCY-DR-003 pass when project token gets 403', async () => {
+    const findings = await checkAuthWithMock('web_valid_project_token');
+    const authPass = findings.find(f => f.code === 'PERCY-DR-003');
+    expect(authPass).toBeDefined();
+    expect(authPass.status).toBe('pass');
+    expect(authPass.message).toContain('Token authentication successful');
+  });
+
+  it('returns PERCY-DR-003 pass when user token gets 200', async () => {
+    const findings = await checkAuthWithMock('user_master_token');
+    const authPass = findings.find(f => f.code === 'PERCY-DR-003');
+    expect(authPass).toBeDefined();
+    expect(authPass.status).toBe('pass');
+    expect(authPass.message).toContain('Token authentication successful');
+  });
+
+  it('returns PERCY-DR-004 fail when token gets 401', async () => {
+    const findings = await checkAuthWithMock('invalid_token');
+    const authFail = findings.find(f => f.code === 'PERCY-DR-004');
+    expect(authFail).toBeDefined();
+    expect(authFail.status).toBe('fail');
+    expect(authFail.message).toContain('401');
+    expect(authFail.suggestions.length).toBeGreaterThan(0);
+  });
+
+  it('returns PERCY-DR-005 warn for unexpected HTTP status', async () => {
+    const findings = await checkAuthWithMock('weird_status_token');
+    const authWarn = findings.find(f => f.code === 'PERCY-DR-005');
+    expect(authWarn).toBeDefined();
+    expect(authWarn.status).toBe('warn');
+    expect(authWarn.message).toContain('unexpected HTTP');
+  });
+
+  it('returns PERCY-DR-006 warn when API is unreachable', async () => {
+    // Use an unreachable URL to simulate network failure
+    const findings = await withEnv(
+      { PERCY_TOKEN: 'web_test_token' },
+      () => checkAuth({ timeout: 1000, apiBaseUrl: 'http://127.0.0.1:1' })
+    );
+    const networkWarn = findings.find(f => f.code === 'PERCY-DR-006');
+    expect(networkWarn).toBeDefined();
+    expect(networkWarn.status).toBe('warn');
+    expect(networkWarn.message).toContain('could not reach Percy API');
+    expect(networkWarn.suggestions.some(s => s.includes('network issue'))).toBe(true);
+  });
+
   // ── SECURITY: token never in output ─────────────────────────────────────────
 
   it('never includes token value or prefix in any finding message', async () => {
@@ -141,20 +194,6 @@ describe('checkAuth', () => {
     expect(allText).not.toContain('12345');
   });
 
-  // ── Auth network error ──────────────────────────────────────────────────────
-
-  it('returns PERCY-DR-006 warn when API is unreachable', async () => {
-    // Use an unreachable port to simulate network failure
-    const findings = await withEnv(
-      { PERCY_TOKEN: 'web_test_token' },
-      () => checkAuth({ timeout: 1000 })
-    );
-    // The real percy.io call will either succeed or fail depending on network.
-    // We just verify the function doesn't throw and returns findings.
-    expect(findings.length).toBeGreaterThanOrEqual(1);
-    expect(findings[0].code).toBe('PERCY-DR-002'); // format finding always present
-  });
-
   // ── Suggestions ─────────────────────────────────────────────────────────────
 
   it('includes helpful suggestions for missing token', async () => {
@@ -162,5 +201,12 @@ describe('checkAuth', () => {
     const fail = findings[0];
     expect(fail.suggestions).toContain('Set PERCY_TOKEN in your environment: export PERCY_TOKEN=<your-token>');
     expect(fail.suggestions).toContain('In CI, add PERCY_TOKEN as a secret environment variable.');
+  });
+
+  it('includes suggestions for 401 auth failure', async () => {
+    const findings = await checkAuthWithMock('invalid_token');
+    const authFail = findings.find(f => f.code === 'PERCY-DR-004');
+    expect(authFail.suggestions.some(s => s.includes('expired'))).toBe(true);
+    expect(authFail.suggestions.some(s => s.includes('Project Settings'))).toBe(true);
   });
 });

@@ -1,5 +1,15 @@
 import { search as defaultSearch } from '@percy/config';
 
+// Known token prefixes → project type names (shared with auth.js)
+const KNOWN_PREFIXES = {
+  auto: 'automate',
+  web: 'web',
+  app: 'app',
+  ss: 'generic',
+  vmw: 'visual_scanner',
+  res: 'responsive_scanner'
+};
+
 /**
  * Validate Percy configuration file presence, format, and content.
  * Plain async function — matches monorepo functional style.
@@ -62,7 +72,7 @@ export async function checkConfig(options = {}) {
     findings.push({
       code: 'PERCY-DR-103',
       status: 'warn',
-      message: 'Configuration file uses an outdated format (version 1).',
+      message: `Configuration file uses an outdated format (version ${version}).`,
       suggestions: ['Run: percy config:migrate to update to the latest format.']
     });
   }
@@ -73,6 +83,7 @@ export async function checkConfig(options = {}) {
   const token = process.env.PERCY_TOKEN?.trim();
   if (token && result.config) {
     const prefix = token.split('_')[0];
+    const projectType = KNOWN_PREFIXES[prefix] || 'web';
     const isAutomate = prefix === 'auto';
     const isApp = prefix === 'app';
 
@@ -90,7 +101,7 @@ export async function checkConfig(options = {}) {
         findings.push({
           code: 'PERCY-DR-105',
           status: 'warn',
-          message: `Config keys only supported for Automate projects: ${mismatched.join(', ')}. Your token is for "${isApp ? 'app' : 'web'}" project type.`,
+          message: `Config keys only supported for Automate projects: ${mismatched.join(', ')}. Your token is for "${projectType}" project type.`,
           suggestions: [
             'These config keys will be silently ignored for your project type.',
             'Remove them from your config or use an Automate project token.'
@@ -99,13 +110,13 @@ export async function checkConfig(options = {}) {
       }
     }
 
-    if (isAutomate || isApp) {
+    if (projectType !== 'web') {
       const mismatched = webOnlyKeys.filter(k => snapshotConfig[k] !== undefined);
       if (mismatched.length > 0) {
         findings.push({
           code: 'PERCY-DR-106',
           status: 'warn',
-          message: `Config keys only supported for Web projects: ${mismatched.join(', ')}. Your token is for "${isAutomate ? 'automate' : 'app'}" project type.`,
+          message: `Config keys only supported for Web projects: ${mismatched.join(', ')}. Your token is for "${projectType}" project type.`,
           suggestions: [
             'These config keys will be silently ignored for your project type.',
             'Remove them from your config or use a Web project token.'

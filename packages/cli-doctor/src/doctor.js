@@ -79,9 +79,11 @@ export const doctor = command(
       process.env.http_proxy ||
       null;
 
-    const timeout = parseInt(flags.timeout ?? '10000', 10);
-    if (isNaN(timeout) || timeout <= 0) {
-      log.error('--timeout must be a positive integer (milliseconds)');
+    const MAX_TIMEOUT = 300000; // 5 minutes
+    const rawTimeout = Number(flags.timeout ?? '10000');
+    const timeout = Number.isInteger(rawTimeout) ? rawTimeout : NaN;
+    if (isNaN(timeout) || timeout <= 0 || timeout > MAX_TIMEOUT) {
+      log.error(`--timeout must be a positive integer up to ${MAX_TIMEOUT}ms (5 minutes)`);
       return exit(1, '--timeout must be a positive integer', false);
     }
     const targetUrl = flags.url?.trim() || 'https://percy.io';

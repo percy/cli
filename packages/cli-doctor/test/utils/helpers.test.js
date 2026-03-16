@@ -544,13 +544,13 @@ describe('runDiagnostics', () => {
   it('rejects when timeout is non-numeric (equivalent to --timeout abc)', async () => {
     spyAllCheckers();
     await expectAsync(runDiagnostics({ timeout: 'abc' }))
-      .toBeRejectedWithError('--timeout must be a positive integer (milliseconds)');
+      .toBeRejectedWithError('--timeout must be a positive integer up to 300000ms (5 minutes)');
   });
 
   it('rejects when timeout is <= 0 (equivalent to --timeout -1)', async () => {
     spyAllCheckers();
     await expectAsync(runDiagnostics({ timeout: -1 }))
-      .toBeRejectedWithError('--timeout must be a positive integer (milliseconds)');
+      .toBeRejectedWithError('--timeout must be a positive integer up to 300000ms (5 minutes)');
   });
 });
 
