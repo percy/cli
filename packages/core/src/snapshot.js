@@ -338,7 +338,7 @@ async function runDoctorOnFailure(percy) {
 
   percy.log.info('[percy doctor] Running quick diagnostics after build failure...');
   try {
-    const { runDiagnostics } = await import('@percy/cli-doctor/src/utils/helpers.js');
+    const { runDiagnostics } = await import('@percy/cli-doctor');
     const report = await runDiagnostics({ mode: 'quick', timeout: 8000 });
 
     const failed = report?.checks?.connectivity?.status === 'fail' ||

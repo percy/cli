@@ -124,6 +124,8 @@ export const doctor = command(
       print(log, '');
     }
 
+    // NOTE: Phase 1-4 orchestration is mirrored in runDiagnostics() (helpers.js).
+    // If you change phase ordering or add checks here, update runDiagnostics() too.
     // Phase 1: Independent checks (parallel with allSettled) — skip in quick mode
     if (mode !== 'quick') {
       const phase1Results = await Promise.allSettled([

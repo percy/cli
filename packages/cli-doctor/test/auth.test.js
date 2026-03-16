@@ -194,6 +194,21 @@ describe('checkAuth', () => {
     expect(allText).not.toContain('12345');
   });
 
+  it('sanitizes raw token value from error messages even in non-standard formats', async () => {
+    const token = 'web_leaked_in_error_msg';
+    // Network error path — error message may contain the token in any format
+    const findings = await withEnv(
+      { PERCY_TOKEN: token },
+      () => checkAuth({ timeout: 1000, apiBaseUrl: 'http://127.0.0.1:1' })
+    );
+    const allText = findings.map(f =>
+      `${f.message} ${(f.suggestions || []).join(' ')}`
+    ).join(' ');
+
+    expect(allText).not.toContain('leaked_in_error');
+    expect(allText).not.toContain(token);
+  });
+
   // ── Suggestions ─────────────────────────────────────────────────────────────
 
   it('includes helpful suggestions for missing token', async () => {

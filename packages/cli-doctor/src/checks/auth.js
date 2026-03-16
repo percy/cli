@@ -1,20 +1,16 @@
 import { httpProber } from '../utils/http.js';
+import { KNOWN_PREFIXES } from '../utils/constants.js';
 
-// Strip token-like patterns from error messages to prevent credential leakage
+// Strip token-like patterns AND raw token value from error messages to prevent credential leakage.
+// Defense-in-depth: the regex catches the Authorization header format, and the literal
+// replacement catches any other format the token might appear in (e.g., URL, quoted string).
 function sanitizeError(msg) {
   if (!msg) return msg;
-  return msg.replace(/Token token=[^\s,;]*/gi, 'Token token=***');
+  let sanitized = msg.replace(/Token token=[^\s,;)']*/gi, 'Token token=***');
+  const token = process.env.PERCY_TOKEN?.trim();
+  if (token) sanitized = sanitized.replaceAll(token, '***');
+  return sanitized;
 }
-
-// Known token prefixes → project types (mirrors @percy/client tokenType())
-const KNOWN_PREFIXES = {
-  auto: 'automate',
-  web: 'web',
-  app: 'app',
-  ss: 'generic',
-  vmw: 'visual_scanner',
-  res: 'responsive_scanner'
-};
 
 // Command suggestion by project type
 const COMMAND_BY_TYPE = {

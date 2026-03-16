@@ -334,6 +334,8 @@ export async function runDiagnostics({
 
   const report = { checks: {} };
 
+  // NOTE: Phase 1-4 orchestration is mirrored in doctor.js CLI handler.
+  // If you change phase ordering or add checks here, update doctor.js too.
   // Phase 1: Independent checks — skip in quick mode
   if (mode !== 'quick') {
     const phase1Results = await Promise.allSettled([

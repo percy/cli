@@ -1,14 +1,5 @@
 import { search as defaultSearch } from '@percy/config';
-
-// Known token prefixes → project type names (shared with auth.js)
-const KNOWN_PREFIXES = {
-  auto: 'automate',
-  web: 'web',
-  app: 'app',
-  ss: 'generic',
-  vmw: 'visual_scanner',
-  res: 'responsive_scanner'
-};
+import { KNOWN_PREFIXES } from '../utils/constants.js';
 
 /**
  * Validate Percy configuration file presence, format, and content.
@@ -85,7 +76,6 @@ export async function checkConfig(options = {}) {
     const prefix = token.split('_')[0];
     const projectType = KNOWN_PREFIXES[prefix] || 'web';
     const isAutomate = prefix === 'auto';
-    const isApp = prefix === 'app';
 
     // Keys that only work with automate tokens
     const automateOnlyKeys = ['fullPage', 'freezeAnimation', 'freezeAnimatedImage',
