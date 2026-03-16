@@ -46,7 +46,8 @@ export class HttpProber {
     const {
       proxyUrl,
       timeout = DEFAULT_TIMEOUT,
-      method = 'HEAD'
+      method = 'HEAD',
+      headers = {}
     } = options;
 
     const start = Date.now();
@@ -54,7 +55,7 @@ export class HttpProber {
     try {
       const url = new URL(targetUrl);
       const proxy = proxyUrl ? new URL(proxyUrl) : null;
-      const result = await this.#makeRequest(url, proxy, { timeout, method });
+      const result = await this.#makeRequest(url, proxy, { timeout, method, headers });
       result.latencyMs = Date.now() - start;
       return result;
     } catch (err) {
@@ -88,7 +89,7 @@ export class HttpProber {
  *  • proxy + HTTPS target   → CONNECT tunnel → TLS → HTTPS request
  *  • proxy + HTTP target    → plain HTTP request with absolute-URI to proxy
  */
-  #makeRequest(url, proxy, { timeout, method }) {
+  #makeRequest(url, proxy, { timeout, method, headers = {} }) {
     // ── common response resolver ──────────────────────────────────────────────
     function resolveResponse(res, resolve) {
       res.resume(); // drain body
@@ -170,7 +171,8 @@ export class HttpProber {
                 hostname: url.hostname,
                 port: targetPort,
                 path: url.pathname + url.search,
-                method
+                method,
+                headers
               }, (res) => pass({
                 ok: res.statusCode >= 200 && res.statusCode < 400,
                 status: res.statusCode,
@@ -200,6 +202,7 @@ export class HttpProber {
           timeout,
           headers: {
             Host: url.hostname,
+            ...headers,
             ...(proxy.username
               ? { 'Proxy-Authorization': `Basic ${Buffer.from(`${proxy.username}:${proxy.password}`).toString('base64')}` }
               : {})
@@ -232,7 +235,8 @@ export class HttpProber {
         port,
         path: url.pathname + url.search,
         method,
-        timeout
+        timeout,
+        headers
       }, (res) => resolveResponse(res, resolve));
 
       req.on('timeout', () => { req.destroy(); reject(timeoutError('Request')); });

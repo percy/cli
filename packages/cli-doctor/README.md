@@ -30,10 +30,11 @@ percy doctor [options]
 Options:
   --proxy-server  <url>   Proxy server to test alongside direct connectivity
                           e.g. http://proxy.corp.example.com:8080
-  --url           <urls>  Extra URL(s) to probe (comma-separated)
+  --url           <url>   URL to open in Chrome for network activity analysis
+                          (default: https://percy.io)
   --timeout       <ms>    Per-request timeout in milliseconds (default: 10000)
-  --fix                   Automatically apply suggested Percy config fixes
-  -v, --verbose           Log everything
+  --output-json   <path>  Write the full diagnostic report to a JSON file
+  -v, --verbose           Show detailed debug output
   -h, --help              Show help
 ```
 
@@ -41,20 +42,7 @@ Options:
 
 ## What it checks
 
-### 1 · SSL / TLS
-
-| Scenario | Outcome |
-|---|---|
-| `NODE_TLS_REJECT_UNAUTHORIZED=0` is set | **Warning** – SSL verification is disabled globally |
-| SSL certificate error connecting to percy.io | **Fail** – likely a MITM proxy/VPN; suggests remediation |
-| SSL handshake succeeds | **Pass** |
-
-When a certificate error is detected, the command:
-* Prints actionable suggestions (contact network admin, add proxy cert to trust store)
-* With `--fix`: patches the nearest `.percy.yml` to add `ssl: { rejectUnauthorized: false }`
-* When running interactively in a TTY: offers an inline yes/no prompt
-
-### 2 · Network Connectivity
+### 1 · Network Connectivity
 
 Probes each required Percy / BrowserStack domain:
 
@@ -69,6 +57,17 @@ Failure modes are classified as:
 * **ENOTFOUND** → DNS resolution failure; suggest whitelisting on corporate DNS
 * **ETIMEDOUT / ECONNRESET** → Firewall dropping packets; list CIDRs to whitelist
 * **via proxy only** → Proxy required, suggests setting `HTTPS_PROXY`
+
+### 2 · SSL / TLS
+
+| Scenario | Outcome |
+|---|---|
+| `NODE_TLS_REJECT_UNAUTHORIZED=0` is set | **Warning** – SSL verification is disabled globally |
+| SSL certificate error connecting to percy.io | **Fail** – likely a MITM proxy/VPN; suggests remediation |
+| SSL handshake succeeds | **Pass** |
+
+When a certificate error is detected, the command prints actionable suggestions
+(contact network admin, add proxy cert to trust store, set `NODE_EXTRA_CA_CERTS`).
 
 ### 3 · Proxy Detection
 
@@ -126,27 +125,6 @@ If a PAC file routes percy.io through a proxy the command surfaces the exact
 
 ✔ All 6 checks passed
 ```
-
----
-
-## Configuration fix (`--fix`)
-
-When the doctor detects an SSL certificate error it can automatically patch the
-nearest Percy configuration file (`.percy.yml` / `.percy.yaml`):
-
-```sh
-percy doctor --fix
-```
-
-This appends the following snippet to your config:
-
-```yaml
-ssl:
-  rejectUnauthorized: false
-```
-
-> **Note**: disabling SSL verification is a security trade-off. Use it only
-> when your network proxy performs SSL inspection and you trust the proxy's CA.
 
 ---
 

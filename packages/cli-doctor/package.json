@@ -27,7 +27,10 @@
     "./src/checks/connectivity.js": "./src/checks/connectivity.js",
     "./src/checks/proxy.js": "./src/checks/proxy.js",
     "./src/checks/pac.js": "./src/checks/pac.js",
-    "./src/checks/browser.js": "./src/checks/browser.js"
+    "./src/checks/browser.js": "./src/checks/browser.js",
+    "./src/checks/auth.js": "./src/checks/auth.js",
+    "./src/checks/config.js": "./src/checks/config.js",
+    "./src/checks/ci.js": "./src/checks/ci.js"
   },
   "scripts": {
     "build": "node ../../scripts/build",
@@ -43,8 +46,11 @@
   },
   "dependencies": {
     "@percy/cli-command": "1.31.10-beta.2",
+    "@percy/config": "1.31.10-beta.1",
     "@percy/core": "1.31.10-beta.2",
+    "@percy/env": "1.31.10-beta.1",
     "@percy/logger": "1.31.10-beta.2",
+    "@percy/monitoring": "1.31.10-beta.2",
     "minimatch": "^9.0.0",
     "ws": "^8.17.1"
   }

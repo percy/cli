@@ -80,6 +80,37 @@ export function captureProxyEnv() {
   return out;
 }
 
+// ─── Section runner factory ──────────────────────────────────────────────────
+// Generic runner that reduces boilerplate for each check section.
+
+/**
+ * Generic section runner factory. Reduces boilerplate for each check.
+ * @param {string} sectionName - Display name for the section header
+ * @param {string} checkKey    - Key in the report.checks object
+ * @param {Function} checkFn   - Async function returning findings array
+ * @returns {Promise<object>}  - { [checkKey]: { status, findings, durationMs } }
+ */
+async function runSection(sectionName, checkKey, checkFn) {
+  const log = logger('percy:doctor');
+  print(log, sectionHeader(sectionName));
+  let findings = [];
+  const start = Date.now();
+  try {
+    findings = await checkFn();
+  } catch (err) {
+    log.error(`${sectionName} check failed unexpectedly: ${err.message}`);
+    findings = [{ status: 'fail', message: err.message }];
+  }
+  renderFindings(findings, log);
+  return {
+    [checkKey]: {
+      status: sectionStatus(findings),
+      findings,
+      durationMs: Date.now() - start
+    }
+  };
+}
+
 // ─── Section runners ──────────────────────────────────────────────────────────
 // Each function receives only the data it needs (proxyUrl, timeout, targetUrl).
 // It creates its own logger and checker internally, then returns its results.
@@ -410,4 +441,36 @@ export function _renderBrowserResults(log, browserResult, proxyUrl) {
       'Contact your network team to whitelist: percy.io, www.browserstack.com, hub.browserstack.com.'
     ]));
   }
+}
+
+// ─── New check runners (Phase 3-6) ──────────────────────────────────────────
+
+/**
+ * Run the token auth check.
+ * @param {object} ctx - Doctor context with bestProxy, timeout
+ * @returns {Promise<{ auth: object }>}
+ */
+export async function runAuthCheck(ctx = {}) {
+  const { checkAuth } = await import('../checks/auth.js');
+  return runSection('Token Authentication', 'auth', () =>
+    checkAuth({ proxyUrl: ctx.bestProxy, timeout: ctx.timeout })
+  );
+}
+
+/**
+ * Run the config validation check.
+ * @returns {Promise<{ config: object }>}
+ */
+export async function runConfigCheck() {
+  const { checkConfig } = await import('../checks/config.js');
+  return runSection('Percy Configuration', 'config', () => checkConfig());
+}
+
+/**
+ * Run the CI environment check.
+ * @returns {Promise<{ ci: object }>}
+ */
+export async function runCICheck() {
+  const { checkCI } = await import('../checks/ci.js');
+  return runSection('CI Environment', 'ci', () => checkCI());
 }

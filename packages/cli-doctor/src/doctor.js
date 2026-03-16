@@ -8,9 +8,12 @@ import {
   runConnectivityAndSSL,
   runProxyCheck,
   runPACCheck,
-  runBrowserCheck
+  runBrowserCheck,
+  runAuthCheck,
+  runConfigCheck,
+  runCICheck
 } from './utils/helpers.js';
-import { checkLine, print } from './utils/reporter.js';
+import { checkLine, summaryBanner, print } from './utils/reporter.js';
 
 import { getPackageJSON } from '@percy/cli-command/utils';
 const pkg = getPackageJSON(import.meta.url);
@@ -58,6 +61,7 @@ export const doctor = command(
     ]
   },
   async ({ flags, log, exit }) => {
+    const startTime = Date.now();
     const proxyUrl =
       flags.proxyServer ||
       process.env.HTTPS_PROXY ||
@@ -74,7 +78,21 @@ export const doctor = command(
     const targetUrl = flags.url?.trim() || 'https://percy.io';
     const jsonOutputPath = flags.outputJson ?? null;
 
+    // Inter-check context — plain object, not a class
+    const ctx = {
+      proxyUrl,
+      timeout,
+      targetUrl,
+      discoveredProxies: [],
+      connectivityOk: null,
+      pacResolvedProxy: null,
+      get bestProxy() {
+        return this.proxyUrl || this.discoveredProxies[0]?.url || this.pacResolvedProxy || null;
+      }
+    };
+
     const report = {
+      version: '1.0.0',
       timestamp: new Date().toISOString(),
       environment: {
         percyCLIVersion: pkg.version,
@@ -87,29 +105,65 @@ export const doctor = command(
       checks: {}
     };
 
-    print(log, '\n  Percy Doctor — network readiness check\n');
+    print(log, '\n  Percy Doctor — diagnostic check\n');
     if (proxyUrl) {
       print(log, checkLine('info', `Proxy in use: ${redactProxyUrl(proxyUrl)}`));
       print(log, '');
     }
 
+    // Phase 1: Independent checks (parallel with allSettled)
+    const phase1Results = await Promise.allSettled([
+      runConfigCheck(),
+      runCICheck()
+    ]);
+    report.checks.config = phase1Results[0].status === 'fulfilled'
+      ? phase1Results[0].value.config
+      : { status: 'fail', findings: [{ status: 'fail', message: phase1Results[0].reason?.message }] };
+    report.checks.ci = phase1Results[1].status === 'fulfilled'
+      ? phase1Results[1].value.ci
+      : { status: 'fail', findings: [{ status: 'fail', message: phase1Results[1].reason?.message }] };
+
+    // Phase 2: Network checks (sequential — order matters for output readability)
     const { connectivity, ssl } = await runConnectivityAndSSL(proxyUrl, timeout);
     report.checks.connectivity = connectivity;
     report.checks.ssl = ssl;
+    ctx.connectivityOk = connectivity.status !== 'fail';
 
     const { proxy } = await runProxyCheck(timeout);
     report.checks.proxy = proxy;
+    ctx.discoveredProxies = (proxy.findings ?? [])
+      .filter(f => f.proxyUrl && f.proxyValidation?.status === 'pass')
+      .map(f => ({ url: f.proxyUrl, source: f.source }));
 
     const { pac } = await runPACCheck();
     report.checks.pac = pac;
+    ctx.pacResolvedProxy = (pac.findings ?? []).find(f => f.detectedProxyUrl)?.detectedProxyUrl ?? null;
 
-    const { browser } = await runBrowserCheck(targetUrl, proxyUrl, timeout);
+    // Phase 3: Token auth (depends on connectivity + proxy discovery)
+    const { auth } = await runAuthCheck(ctx);
+    report.checks.auth = auth;
+
+    // Phase 4: Browser network analysis
+    const { browser } = await runBrowserCheck(targetUrl, ctx.bestProxy, timeout);
     report.checks.browser = browser;
 
+    const counts = { passed: 0, warned: 0, failed: 0 };
+    for (const c of Object.values(report.checks)) {
+      if (c?.status === 'pass') counts.passed++;
+      else if (c?.status === 'warn') counts.warned++;
+      else if (c?.status === 'fail') counts.failed++;
+    }
+
     report.summary = {
-      overall: Object.values(report.checks).some(c => c?.status === 'fail') ? 'fail'
-        : Object.values(report.checks).some(c => c?.status === 'warn') ? 'warn' : 'pass'
+      overall: counts.failed > 0 ? 'fail' : counts.warned > 0 ? 'warn' : 'pass',
+      passed: counts.passed,
+      warned: counts.warned,
+      failed: counts.failed,
+      durationMs: Date.now() - startTime
     };
+
+    print(log, summaryBanner(counts.passed, counts.warned, counts.failed));
+    print(log, `  Completed in ${((Date.now() - startTime) / 1000).toFixed(1)}s\n`);
 
     if (jsonOutputPath) {
       try {
