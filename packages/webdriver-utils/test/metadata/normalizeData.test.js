@@ -164,12 +164,12 @@ describe('NormalizeData', () => {
     });
 
     describe('Unknown versions', () => {
-      it('should return unmapped versions as-is', () => {
+      it('should return unmapped versions as normalized fallback values', () => {
         expect(normalizeDataObj.osVersionRollUp('Ubuntu 20.04')).toBe('Ubuntu 20.04');
         expect(normalizeDataObj.osVersionRollUp('13.5')).toBe('13.5');
-        expect(normalizeDataObj.osVersionRollUp('unknown')).toBe('unknown');
-        expect(normalizeDataObj.osVersionRollUp('win9')).toBe('win9');
-        expect(normalizeDataObj.osVersionRollUp('macunknown')).toBe('macunknown');
+        expect(normalizeDataObj.osVersionRollUp('unknown')).toBe('Unknown');
+        expect(normalizeDataObj.osVersionRollUp('win9')).toBe('Win9');
+        expect(normalizeDataObj.osVersionRollUp('macunknown')).toBe('Macunknown');
       });
     });
   });
