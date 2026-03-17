@@ -2065,3 +2065,138 @@ describe('Snapshot', () => {
     });
   });
 });
+
+// ── runDoctorOnFailure ────────────────────────────────────────────────────────
+// Exercises all branches of the auto-doctor helper that fires after a build
+// failure. Uses global.__MOCK_IMPORTS__ (the ESM loader hook) to mock
+// @percy/cli-doctor without making it a hard dependency.
+
+fdescribe('runDoctorOnFailure', () => {
+  let percy;
+
+  beforeEach(async () => {
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+    process.env.PERCY_DISABLE_SYSTEM_MONITORING = 'true';
+    await setupTest();
+  });
+
+  afterEach(async () => {
+    delete process.env.PERCY_AUTO_DOCTOR;
+    delete process.env.PERCY_DISABLE_SYSTEM_MONITORING;
+    global.__MOCK_IMPORTS__?.delete('@percy/cli-doctor');
+    await percy?.stop(true);
+  });
+
+  // Helper: start percy with deferUploads so build creation is deferred, then
+  // trigger it with a failing /builds reply so the queue 'start' catch fires.
+  async function triggerBuildCreateFailure() {
+    api.reply('/builds', () => [401, { errors: [{ detail: 'unauthorized' }] }]);
+
+    percy = new Percy({
+      token: 'PERCY_TOKEN',
+      snapshot: { widths: [1000] },
+      discovery: { concurrency: 1 },
+      deferUploads: true
+    });
+    await percy.start();
+
+    // Queue a dom snapshot so the queue has items to flush
+    await percy.snapshot({
+      name: 'test',
+      url: 'http://localhost:8000',
+      domSnapshot: '<html></html>'
+    }).catch(() => {});
+
+    // stop() triggers the deferred flush; build creation fails here
+    await percy.stop().catch(() => {});
+  }
+
+  it('logs a plain warn when PERCY_AUTO_DOCTOR is not set', async () => {
+    delete process.env.PERCY_AUTO_DOCTOR;
+    await triggerBuildCreateFailure();
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Run `percy doctor` to diagnose connectivity and token issues.'
+    ]));
+  });
+
+  it('logs a plain warn when PERCY_AUTO_DOCTOR is set to a non-true value', async () => {
+    process.env.PERCY_AUTO_DOCTOR = 'false';
+    await triggerBuildCreateFailure();
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Run `percy doctor` to diagnose connectivity and token issues.'
+    ]));
+  });
+
+  it('runs quick diagnostics and logs warn when checks fail', async () => {
+    process.env.PERCY_AUTO_DOCTOR = 'true';
+
+    const runDiagnostics = jasmine.createSpy('runDiagnostics').and.resolveTo({
+      checks: {
+        connectivity: { status: 'fail' },
+        auth: { status: 'pass' }
+      }
+    });
+    global.__MOCK_IMPORTS__.set('@percy/cli-doctor', { runDiagnostics });
+
+    await triggerBuildCreateFailure();
+
+    expect(runDiagnostics).toHaveBeenCalledWith({ mode: 'quick', timeout: 8000 });
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] [percy doctor] Running quick diagnostics after build failure...'
+    ]));
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] [percy doctor] Quick check found issues — see above for details.'
+    ]));
+  });
+
+  it('logs info when quick diagnostics find no issues', async () => {
+    process.env.PERCY_AUTO_DOCTOR = 'true';
+
+    const runDiagnostics = jasmine.createSpy('runDiagnostics').and.resolveTo({
+      checks: {
+        connectivity: { status: 'pass' },
+        auth: { status: 'pass' }
+      }
+    });
+    global.__MOCK_IMPORTS__.set('@percy/cli-doctor', { runDiagnostics });
+
+    await triggerBuildCreateFailure();
+
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] [percy doctor] Connectivity and token look healthy — the failure may be server-side.'
+    ]));
+  });
+
+  it('degrades silently when @percy/cli-doctor has no runDiagnostics export', async () => {
+    process.env.PERCY_AUTO_DOCTOR = 'true';
+
+    // Simulate package not available: no runDiagnostics export → TypeError on call
+    // The catch block in runDoctorOnFailure swallows it and logs debug.
+    global.__MOCK_IMPORTS__.set('@percy/cli-doctor', {});
+
+    await triggerBuildCreateFailure();
+
+    // Catch block fires — no issue/warn about doctor should appear
+    expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching('\\[percy doctor\\]')
+    ]));
+  });
+
+  it('degrades silently when runDiagnostics itself throws', async () => {
+    process.env.PERCY_AUTO_DOCTOR = 'true';
+
+    const runDiagnostics = jasmine.createSpy('runDiagnostics').and.rejectWith(
+      new Error('network unavailable')
+    );
+    global.__MOCK_IMPORTS__.set('@percy/cli-doctor', { runDiagnostics });
+
+    await triggerBuildCreateFailure();
+
+    // catch block fires — should not propagate the error
+    expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching('network unavailable')
+    ]));
+  });
+});

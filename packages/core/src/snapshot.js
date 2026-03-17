@@ -338,6 +338,7 @@ async function runDoctorOnFailure(percy) {
 
   percy.log.info('[percy doctor] Running quick diagnostics after build failure...');
   try {
+    // eslint-disable-next-line import/no-extraneous-dependencies
     const { runDiagnostics } = await import('@percy/cli-doctor');
     const report = await runDiagnostics({ mode: 'quick', timeout: 8000 });
 
