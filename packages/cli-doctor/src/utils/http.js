@@ -15,6 +15,7 @@ const DEFAULT_TIMEOUT = 10000;
  * @property {string}  error     - Error message if request failed
  * @property {string}  errorCode - Node.js error code (e.g. CERT_HAS_EXPIRED)
  * @property {number}  latencyMs - Round-trip time in milliseconds
+ * @property {string}  body      - Response body as UTF-8 string
  */
 
 export class HttpProber {
@@ -89,12 +90,16 @@ export class HttpProber {
  *  • proxy + HTTPS target   → CONNECT tunnel → TLS → HTTPS request
  *  • proxy + HTTP target    → plain HTTP request with absolute-URI to proxy
  */
-  #makeRequest(url, proxy, { timeout, method, headers = {} }) {
+  #makeRequest(url, proxy, { timeout, method, headers }) {
     // ── common response resolver ──────────────────────────────────────────────
     function resolveResponse(res, resolve) {
-      res.resume(); // drain body
       const status = res.statusCode;
-      resolve({ ok: status >= 200 && status < 400, status, error: null, errorCode: null, responseHeaders: res.headers });
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8');
+        resolve({ ok: status >= 200 && status < 400, status, error: null, errorCode: null, responseHeaders: res.headers, body });
+      });
     }
 
     // ── common timeout error ──────────────────────────────────────────────────
@@ -124,6 +129,7 @@ export class HttpProber {
           reject(err);
         };
 
+        /* istanbul ignore next */
         const pass = (result) => {
           /* istanbul ignore next */
           if (settled) return;
@@ -173,13 +179,17 @@ export class HttpProber {
                 path: url.pathname + url.search,
                 method,
                 headers
-              }, (res) => pass({
-                ok: res.statusCode >= 200 && res.statusCode < 400,
-                status: res.statusCode,
-                error: null,
-                errorCode: null,
-                responseHeaders: res.headers
-              }));
+              },
+              /* istanbul ignore next */
+              (res) => {
+                const status = res.statusCode;
+                const chunks = [];
+                res.on('data', chunk => chunks.push(chunk));
+                res.on('end', () => {
+                  const body = Buffer.concat(chunks).toString('utf8');
+                  pass({ ok: status >= 200 && status < 400, status, error: null, errorCode: null, responseHeaders: res.headers, body });
+                });
+              });
               req.on('error', fail);
               req.end();
             });

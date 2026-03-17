@@ -11,7 +11,6 @@ import {
   runBrowserCheck,
   runAuthCheck,
   runConfigCheck,
-  runCICheck,
   runEnvAuditCheck
 } from './utils/helpers.js';
 import { checkLine, summaryBanner, print } from './utils/reporter.js';
@@ -127,21 +126,18 @@ export const doctor = command(
     // NOTE: Phase 1-4 orchestration is mirrored in runDiagnostics() (helpers.js).
     // If you change phase ordering or add checks here, update runDiagnostics() too.
     // Phase 1: Independent checks (parallel with allSettled) — skip in quick mode
+    // CI is merged into runEnvAuditCheck (see env-audit.js + helpers.js).
     if (mode !== 'quick') {
       const phase1Results = await Promise.allSettled([
         runConfigCheck(),
-        runCICheck(),
         runEnvAuditCheck()
       ]);
       report.checks.config = phase1Results[0].status === 'fulfilled'
         ? phase1Results[0].value.config
         : { status: 'fail', findings: [{ status: 'fail', message: phase1Results[0].reason?.message }] };
-      report.checks.ci = phase1Results[1].status === 'fulfilled'
-        ? phase1Results[1].value.ci
+      report.checks.envAudit = phase1Results[1].status === 'fulfilled'
+        ? phase1Results[1].value.envAudit
         : { status: 'fail', findings: [{ status: 'fail', message: phase1Results[1].reason?.message }] };
-      report.checks.envAudit = phase1Results[2].status === 'fulfilled'
-        ? phase1Results[2].value.envAudit
-        : { status: 'fail', findings: [{ status: 'fail', message: phase1Results[2].reason?.message }] };
     }
 
     // Phase 2: Network checks (sequential — order matters for output readability)

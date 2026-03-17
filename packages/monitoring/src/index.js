@@ -59,8 +59,25 @@ export default class Monitoring {
       this.log.debug(`[Memory] Total: ${mem.total / (1024 ** 3)} gb, Swap Space: ${mem.swaptotal / (1024 ** 3)} gb`);
       this.log.debug(`Container Level: ${this.isContainer}, Pod Level: ${this.isPod}, Machine Level: ${this.isMachine}`);
       this.log.debug(`Percy Envs: ${JSON.stringify(percyEnvs)}`);
+
+      return {
+        os: { platform: this.os, type: os.type(), release: os.release() },
+        cpu: { name: cpuName, arch: cpu.arch, cores: cpu.cores },
+        disk: { available: diskSpace },
+        memory: {
+          totalGb: mem.total / (1024 ** 3),
+          swapGb: mem.swaptotal / (1024 ** 3)
+        },
+        containerInfo: {
+          isContainer: this.isContainer,
+          isPod: this.isPod,
+          isMachine: this.isMachine
+        },
+        percyEnvs
+      };
     } catch (error) {
       this.log.debug(`Error logging system info: ${error}`);
+      return null;
     }
   }
 

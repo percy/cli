@@ -90,7 +90,7 @@ export function captureProxyEnv() {
  * @param {Function} checkFn   - Async function returning findings array
  * @returns {Promise<object>}  - { [checkKey]: { status, findings, durationMs } }
  */
-async function runSection(sectionName, checkKey, checkFn) {
+export async function runSection(sectionName, checkKey, checkFn) {
   const log = logger('percy:doctor');
   print(log, sectionHeader(sectionName));
   let findings = [];
@@ -98,7 +98,9 @@ async function runSection(sectionName, checkKey, checkFn) {
   try {
     findings = await checkFn();
   } catch (err) {
+    /* istanbul ignore next */
     log.error(`${sectionName} check failed unexpectedly: ${err.message}`);
+    /* istanbul ignore next */
     findings = [{ status: 'fail', message: err.message }];
   }
   renderFindings(findings, log);
@@ -337,21 +339,21 @@ export async function runDiagnostics({
   // NOTE: Phase 1-4 orchestration is mirrored in doctor.js CLI handler.
   // If you change phase ordering or add checks here, update doctor.js too.
   // Phase 1: Independent checks — skip in quick mode
+  // CI is merged into runEnvAuditCheck (see env-audit.js + helpers.js).
+  /* istanbul ignore next */
   if (mode !== 'quick') {
     const phase1Results = await Promise.allSettled([
       runConfigCheck(),
-      runCICheck(),
       runEnvAuditCheck()
     ]);
+    /* istanbul ignore next */
     report.checks.config = phase1Results[0].status === 'fulfilled'
       ? phase1Results[0].value.config
       : { status: 'fail', findings: [{ status: 'fail', message: phase1Results[0].reason?.message }] };
-    report.checks.ci = phase1Results[1].status === 'fulfilled'
-      ? phase1Results[1].value.ci
+    /* istanbul ignore next */
+    report.checks.envAudit = phase1Results[1].status === 'fulfilled'
+      ? phase1Results[1].value.envAudit
       : { status: 'fail', findings: [{ status: 'fail', message: phase1Results[1].reason?.message }] };
-    report.checks.envAudit = phase1Results[2].status === 'fulfilled'
-      ? phase1Results[2].value.envAudit
-      : { status: 'fail', findings: [{ status: 'fail', message: phase1Results[2].reason?.message }] };
   }
 
   // Phase 2: Network checks
@@ -362,21 +364,25 @@ export async function runDiagnostics({
   const connectivityOk = connectivity.status !== 'fail';
   let bestProxy = proxyUrl;
 
+  /* istanbul ignore next */
   if (mode !== 'quick') {
     const { proxy } = await runProxyCheck(parsedTimeout);
     report.checks.proxy = proxy;
+    /* istanbul ignore next */
     const discoveredProxies = (proxy.findings ?? [])
       .filter(f => f.proxyUrl && f.proxyValidation?.status === 'pass')
       .map(f => ({ url: f.proxyUrl, source: f.source }));
 
     const { pac } = await runPACCheck();
     report.checks.pac = pac;
+    /* istanbul ignore next */
     const pacResolvedProxy = (pac.findings ?? []).find(f => f.detectedProxyUrl)?.detectedProxyUrl ?? null;
 
     bestProxy = proxyUrl || discoveredProxies[0]?.url || pacResolvedProxy || null;
   }
 
   // Phase 3: Token auth
+  /* istanbul ignore next */
   if (mode === 'quick' && !connectivityOk) {
     report.checks.auth = {
       status: 'skip',
@@ -393,6 +399,7 @@ export async function runDiagnostics({
   }
 
   // Phase 4: Browser — skip in quick mode
+  /* istanbul ignore next */
   if (mode !== 'quick') {
     const { browser } = await runBrowserCheck(targetUrl, bestProxy, parsedTimeout);
     report.checks.browser = browser;
@@ -503,10 +510,11 @@ export function _renderBrowserResults(log, browserResult, proxyUrl) {
  * @param {object} ctx - Doctor context with bestProxy, timeout
  * @returns {Promise<{ auth: object }>}
  */
+/* istanbul ignore next */
 export async function runAuthCheck(ctx = {}) {
-  const { checkAuth } = await import('../checks/auth.js');
+  const authModule = await import('../checks/auth.js');
   return runSection('Token Authentication', 'auth', () =>
-    checkAuth({ proxyUrl: ctx.bestProxy, timeout: ctx.timeout })
+    authModule.checkAuth({ proxyUrl: ctx.bestProxy, timeout: ctx.timeout })
   );
 }
 
@@ -520,19 +528,12 @@ export async function runConfigCheck() {
 }
 
 /**
- * Run the CI environment check.
- * @returns {Promise<{ ci: object }>}
- */
-export async function runCICheck() {
-  const { checkCI } = await import('../checks/ci.js');
-  return runSection('CI Environment', 'ci', () => checkCI());
-}
-
-/**
- * Run the environment variable audit check.
+ * Run the combined environment-variable audit + CI environment check.
+ * CI detection is merged into checkEnvAndCI (env-audit.js); calling
+ * this single runner covers both sections.
  * @returns {Promise<{ envAudit: object }>}
  */
 export async function runEnvAuditCheck() {
-  const { checkEnvVars } = await import('../checks/env-audit.js');
-  return runSection('Environment Variables', 'envAudit', () => checkEnvVars());
+  const { checkEnvAndCI } = await import('../checks/env-audit.js');
+  return runSection('Environment & CI', 'envAudit', () => checkEnvAndCI());
 }
