@@ -2071,7 +2071,7 @@ describe('Snapshot', () => {
 // failure. Uses global.__MOCK_IMPORTS__ (the ESM loader hook) to mock
 // @percy/cli-doctor without making it a hard dependency.
 
-fdescribe('runDoctorOnFailure', () => {
+describe('runDoctorOnFailure', () => {
   let percy;
 
   beforeEach(async () => {
