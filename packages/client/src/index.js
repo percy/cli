@@ -1,1 +1,1 @@
-export { default, PercyClient } from './client.js';
+export { default, PercyClient, tokenType } from './client.js';

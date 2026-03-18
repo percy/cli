@@ -60,5 +60,8 @@
     "rimraf": "^3.0.2",
     "ws": "^8.17.1",
     "yaml": "^2.4.1"
+  },
+  "optionalDependencies": {
+    "@percy/cli-doctor": "1.31.10-beta.2"
   }
 }

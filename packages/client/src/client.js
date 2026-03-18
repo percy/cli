@@ -868,24 +868,21 @@ export class PercyClient {
   // decides project type
   tokenType() {
     let token = this.getToken(false) || '';
+    return tokenType(token.split('_')[0]);
+  }
+}
 
-    const type = token.split('_')[0];
-    switch (type) {
-      case 'auto':
-        return 'automate';
-      case 'web':
-        return 'web';
-      case 'app':
-        return 'app';
-      case 'ss':
-        return 'generic';
-      case 'vmw':
-        return 'visual_scanner';
-      case 'res':
-        return 'responsive_scanner';
-      default:
-        return 'web';
-    }
+// Maps a token prefix to its project type string.
+// Exported so other packages can reuse without duplicating the mapping.
+export function tokenType(prefix) {
+  switch (prefix) {
+    case 'auto': return 'automate';
+    case 'web': return 'web';
+    case 'app': return 'app';
+    case 'ss': return 'generic';
+    case 'vmw': return 'visual_scanner';
+    case 'res': return 'responsive_scanner';
+    default: return 'web';
   }
 }
 

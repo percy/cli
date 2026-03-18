@@ -328,6 +328,40 @@ function mergeSnapshotOptions(prev = {}, next) {
   });
 }
 
+// Runs quick doctor diagnostics after a build failure, guarded by PERCY_AUTO_DOCTOR env var.
+// Uses dynamic import so @percy/cli-doctor is not a hard dependency of @percy/core.
+async function runDoctorOnFailure(percy) {
+  // Guard against double-fire: build-creation failure triggers this in the
+  // 'start' catch, and the subsequent 'end' handler (no build id) would fire
+  // it again — each quick-mode run carries up to 8s of network latency.
+  if (percy._doctorRanOnFailure) return;
+  percy._doctorRanOnFailure = true;
+
+  if (process.env.PERCY_AUTO_DOCTOR !== 'true') {
+    percy.log.warn('Run `percy doctor` to diagnose connectivity and token issues.');
+    return;
+  }
+
+  percy.log.info('[percy doctor] Running quick diagnostics after build failure...');
+  try {
+    // eslint-disable-next-line import/no-extraneous-dependencies
+    const { runDiagnostics } = await import('@percy/cli-doctor');
+    const report = await runDiagnostics({ mode: 'quick', timeout: 8000 });
+
+    const failed = report?.checks?.connectivity?.status === 'fail' ||
+                   report?.checks?.auth?.status === 'fail';
+
+    if (failed) {
+      percy.log.warn('[percy doctor] Quick check found issues — see above for details.');
+    } else {
+      percy.log.info('[percy doctor] Connectivity and token look healthy — the failure may be server-side.');
+    }
+  } catch {
+    // doctor not installed or import failed — degrade silently
+    percy.log.debug('[percy doctor] Could not run automatic diagnostics (package not available).');
+  }
+}
+
 // Creates a snapshots queue that manages a Percy build and uploads snapshots.
 export function createSnapshotsQueue(percy) {
   let { concurrency } = percy.config.discovery;
@@ -360,6 +394,7 @@ export function createSnapshotsQueue(percy) {
         Object.assign(build, { error: 'Failed to create build' });
         percy.log.error(build.error);
         percy.log.error(err);
+        await runDoctorOnFailure(percy);
         queue.close(true);
       }
     })
@@ -369,11 +404,13 @@ export function createSnapshotsQueue(percy) {
 
       if (build?.failed) {
         percy.log.warn(`Build #${build.number} failed: ${build.url}`, { build });
+        await runDoctorOnFailure(percy);
       } else if (build?.id) {
         await percy.client.finalizeBuild(build.id);
         percy.log.info(`Finalized build #${build.number}: ${build.url}`, { build });
       } else {
         percy.log.warn('Build not created', { build });
+        await runDoctorOnFailure(percy);
       }
     })
     // snapshots are unique by name and testCase both

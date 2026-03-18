@@ -15,6 +15,7 @@ const DEFAULT_TIMEOUT = 10000;
  * @property {string}  error     - Error message if request failed
  * @property {string}  errorCode - Node.js error code (e.g. CERT_HAS_EXPIRED)
  * @property {number}  latencyMs - Round-trip time in milliseconds
+ * @property {string}  body      - Response body as UTF-8 string
  */
 
 export class HttpProber {
@@ -46,7 +47,8 @@ export class HttpProber {
     const {
       proxyUrl,
       timeout = DEFAULT_TIMEOUT,
-      method = 'HEAD'
+      method = 'HEAD',
+      headers = {}
     } = options;
 
     const start = Date.now();
@@ -54,7 +56,7 @@ export class HttpProber {
     try {
       const url = new URL(targetUrl);
       const proxy = proxyUrl ? new URL(proxyUrl) : null;
-      const result = await this.#makeRequest(url, proxy, { timeout, method });
+      const result = await this.#makeRequest(url, proxy, { timeout, method, headers });
       result.latencyMs = Date.now() - start;
       return result;
     } catch (err) {
@@ -88,12 +90,16 @@ export class HttpProber {
  *  • proxy + HTTPS target   → CONNECT tunnel → TLS → HTTPS request
  *  • proxy + HTTP target    → plain HTTP request with absolute-URI to proxy
  */
-  #makeRequest(url, proxy, { timeout, method }) {
+  #makeRequest(url, proxy, { timeout, method, headers }) {
     // ── common response resolver ──────────────────────────────────────────────
     function resolveResponse(res, resolve) {
-      res.resume(); // drain body
       const status = res.statusCode;
-      resolve({ ok: status >= 200 && status < 400, status, error: null, errorCode: null, responseHeaders: res.headers });
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8');
+        resolve({ ok: status >= 200 && status < 400, status, error: null, errorCode: null, responseHeaders: res.headers, body });
+      });
     }
 
     // ── common timeout error ──────────────────────────────────────────────────
@@ -123,6 +129,7 @@ export class HttpProber {
           reject(err);
         };
 
+        /* istanbul ignore next */
         const pass = (result) => {
           /* istanbul ignore next */
           if (settled) return;
@@ -164,20 +171,26 @@ export class HttpProber {
 
             tlsSock = tls.connect({ socket, servername: url.hostname });
             tlsSock.on('error', fail);
+            /* istanbul ignore next */
             tlsSock.on('secureConnect', () => {
               const req = https.request({
                 createConnection: () => tlsSock,
                 hostname: url.hostname,
                 port: targetPort,
                 path: url.pathname + url.search,
-                method
-              }, (res) => pass({
-                ok: res.statusCode >= 200 && res.statusCode < 400,
-                status: res.statusCode,
-                error: null,
-                errorCode: null,
-                responseHeaders: res.headers
-              }));
+                method,
+                headers
+              },
+              /* istanbul ignore next */
+              (res) => {
+                const status = res.statusCode;
+                const chunks = [];
+                res.on('data', chunk => chunks.push(chunk));
+                res.on('end', () => {
+                  const body = Buffer.concat(chunks).toString('utf8');
+                  pass({ ok: status >= 200 && status < 400, status, error: null, errorCode: null, responseHeaders: res.headers, body });
+                });
+              });
               req.on('error', fail);
               req.end();
             });
@@ -200,6 +213,7 @@ export class HttpProber {
           timeout,
           headers: {
             Host: url.hostname,
+            ...headers,
             ...(proxy.username
               ? { 'Proxy-Authorization': `Basic ${Buffer.from(`${proxy.username}:${proxy.password}`).toString('base64')}` }
               : {})
@@ -232,7 +246,8 @@ export class HttpProber {
         port,
         path: url.pathname + url.search,
         method,
-        timeout
+        timeout,
+        headers
       }, (res) => resolveResponse(res, resolve));
 
       req.on('timeout', () => { req.destroy(); reject(timeoutError('Request')); });

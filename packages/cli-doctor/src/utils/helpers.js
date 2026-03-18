@@ -80,6 +80,39 @@ export function captureProxyEnv() {
   return out;
 }
 
+// ─── Section runner factory ──────────────────────────────────────────────────
+// Generic runner that reduces boilerplate for each check section.
+
+/**
+ * Generic section runner factory. Reduces boilerplate for each check.
+ * @param {string} sectionName - Display name for the section header
+ * @param {string} checkKey    - Key in the report.checks object
+ * @param {Function} checkFn   - Async function returning findings array
+ * @returns {Promise<object>}  - { [checkKey]: { status, findings, durationMs } }
+ */
+export async function runSection(sectionName, checkKey, checkFn) {
+  const log = logger('percy:doctor');
+  print(log, sectionHeader(sectionName));
+  let findings = [];
+  const start = Date.now();
+  try {
+    findings = await checkFn();
+  } catch (err) {
+    /* istanbul ignore next */
+    log.error(`${sectionName} check failed unexpectedly: ${err.message}`);
+    /* istanbul ignore next */
+    findings = [{ status: 'fail', message: err.message }];
+  }
+  renderFindings(findings, log);
+  return {
+    [checkKey]: {
+      status: sectionStatus(findings),
+      findings,
+      durationMs: Date.now() - start
+    }
+  };
+}
+
 // ─── Section runners ──────────────────────────────────────────────────────────
 // Each function receives only the data it needs (proxyUrl, timeout, targetUrl).
 // It creates its own logger and checker internally, then returns its results.
@@ -292,27 +325,85 @@ export async function runBrowserCheck(targetUrl = 'https://percy.io', proxyUrl =
 export async function runDiagnostics({
   proxyUrl,
   timeout = 10000,
-  targetUrl = 'https://percy.io'
+  targetUrl = 'https://percy.io',
+  mode = 'default'
 } = {}) {
+  const MAX_TIMEOUT = 300000; // 5 minutes
   const parsedTimeout = Number(timeout);
-  if (!Number.isInteger(parsedTimeout) || parsedTimeout <= 0) {
-    throw new Error('--timeout must be a positive integer (milliseconds)');
+  if (!Number.isInteger(parsedTimeout) || parsedTimeout <= 0 || parsedTimeout > MAX_TIMEOUT) {
+    throw new Error(`--timeout must be a positive integer up to ${MAX_TIMEOUT}ms (5 minutes)`);
   }
 
   const report = { checks: {} };
 
+  // NOTE: Phase 1-4 orchestration is mirrored in doctor.js CLI handler.
+  // If you change phase ordering or add checks here, update doctor.js too.
+  // Phase 1: Independent checks — skip in quick mode
+  // CI is merged into runEnvAuditCheck (see env-audit.js + helpers.js).
+  /* istanbul ignore next */
+  if (mode !== 'quick') {
+    const phase1Results = await Promise.allSettled([
+      runConfigCheck(),
+      runEnvAuditCheck()
+    ]);
+    /* istanbul ignore next */
+    report.checks.config = phase1Results[0].status === 'fulfilled'
+      ? phase1Results[0].value.config
+      : { status: 'fail', findings: [{ status: 'fail', message: phase1Results[0].reason?.message }] };
+    /* istanbul ignore next */
+    report.checks.envAudit = phase1Results[1].status === 'fulfilled'
+      ? phase1Results[1].value.envAudit
+      : { status: 'fail', findings: [{ status: 'fail', message: phase1Results[1].reason?.message }] };
+  }
+
+  // Phase 2: Network checks
   const { connectivity, ssl } = await runConnectivityAndSSL(proxyUrl, parsedTimeout);
   report.checks.connectivity = connectivity;
   report.checks.ssl = ssl;
 
-  const { proxy } = await runProxyCheck(parsedTimeout);
-  report.checks.proxy = proxy;
+  const connectivityOk = connectivity.status !== 'fail';
+  let bestProxy = proxyUrl;
 
-  const { pac } = await runPACCheck();
-  report.checks.pac = pac;
+  /* istanbul ignore next */
+  if (mode !== 'quick') {
+    const { proxy } = await runProxyCheck(parsedTimeout);
+    report.checks.proxy = proxy;
+    /* istanbul ignore next */
+    const discoveredProxies = (proxy.findings ?? [])
+      .filter(f => f.proxyUrl && f.proxyValidation?.status === 'pass')
+      .map(f => ({ url: f.proxyUrl, source: f.source }));
 
-  const { browser } = await runBrowserCheck(targetUrl, proxyUrl, parsedTimeout);
-  report.checks.browser = browser;
+    const { pac } = await runPACCheck();
+    report.checks.pac = pac;
+    /* istanbul ignore next */
+    const pacResolvedProxy = (pac.findings ?? []).find(f => f.detectedProxyUrl)?.detectedProxyUrl ?? null;
+
+    bestProxy = proxyUrl || discoveredProxies[0]?.url || pacResolvedProxy || null;
+  }
+
+  // Phase 3: Token auth
+  /* istanbul ignore next */
+  if (mode === 'quick' && !connectivityOk) {
+    report.checks.auth = {
+      status: 'skip',
+      findings: [{
+        category: 'check_skipped',
+        status: 'skip',
+        message: 'Token validation skipped — percy.io is unreachable.',
+        suggestions: ['Fix connectivity issues first, then re-run percy doctor.']
+      }]
+    };
+  } else {
+    const { auth } = await runAuthCheck({ bestProxy, timeout: parsedTimeout });
+    report.checks.auth = auth;
+  }
+
+  // Phase 4: Browser — skip in quick mode
+  /* istanbul ignore next */
+  if (mode !== 'quick') {
+    const { browser } = await runBrowserCheck(targetUrl, bestProxy, parsedTimeout);
+    report.checks.browser = browser;
+  }
 
   const hasFail = Object.values(report.checks).some(c => c?.status === 'fail');
   const hasWarn = Object.values(report.checks).some(c => c?.status === 'warn');
@@ -410,4 +501,39 @@ export function _renderBrowserResults(log, browserResult, proxyUrl) {
       'Contact your network team to whitelist: percy.io, www.browserstack.com, hub.browserstack.com.'
     ]));
   }
+}
+
+// ─── New check runners (Phase 3-6) ──────────────────────────────────────────
+
+/**
+ * Run the token auth check.
+ * @param {object} ctx - Doctor context with bestProxy, timeout
+ * @returns {Promise<{ auth: object }>}
+ */
+/* istanbul ignore next */
+export async function runAuthCheck(ctx = {}) {
+  const authModule = await import('../checks/auth.js');
+  return runSection('Token Authentication', 'auth', () =>
+    authModule.checkAuth({ proxyUrl: ctx.bestProxy, timeout: ctx.timeout })
+  );
+}
+
+/**
+ * Run the config validation check.
+ * @returns {Promise<{ config: object }>}
+ */
+export async function runConfigCheck() {
+  const { checkConfig } = await import('../checks/config.js');
+  return runSection('Percy Configuration', 'config', () => checkConfig());
+}
+
+/**
+ * Run the combined environment-variable audit + CI environment check.
+ * CI detection is merged into checkEnvAndCI (env-audit.js); calling
+ * this single runner covers both sections.
+ * @returns {Promise<{ envAudit: object }>}
+ */
+export async function runEnvAuditCheck() {
+  const { checkEnvAndCI } = await import('../checks/env-audit.js');
+  return runSection('Environment & CI', 'envAudit', () => checkEnvAndCI());
 }
