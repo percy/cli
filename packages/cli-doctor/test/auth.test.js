@@ -114,8 +114,7 @@ describe('checkAuth', () => {
     expect(info.metadata.role).toBe('master');
     expect(pass).toBeDefined();
     expect(pass.status).toBe('pass');
-    expect(pass.message).toContain('master');
-    expect(pass.message).toContain('full access');
+    expect(pass.message).toContain('role: master');
   });
 
   it('DR-002 suggests percy exec for web token type', async () => {
@@ -145,7 +144,7 @@ describe('checkAuth', () => {
     const pass = findings.find(f => f.code === 'PERCY-DR-003');
     expect(pass).toBeDefined();
     expect(pass.status).toBe('pass');
-    expect(pass.message).toContain('read-only');
+    expect(pass.message).toContain('role: read_only');
     expect(pass.suggestions).toBeDefined();
     expect(pass.suggestions.some(s => s.includes('write_only') || s.includes('master'))).toBe(true);
   });
@@ -155,7 +154,7 @@ describe('checkAuth', () => {
     const pass = findings.find(f => f.code === 'PERCY-DR-003');
     expect(pass).toBeDefined();
     expect(pass.status).toBe('pass');
-    expect(pass.message).toContain('write-only');
+    expect(pass.message).toContain('role: write_only');
     expect(pass.suggestions).toBeDefined();
     expect(pass.suggestions.some(s => s.includes('read results'))).toBe(true);
   });
