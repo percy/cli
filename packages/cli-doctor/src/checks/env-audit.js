@@ -248,7 +248,3 @@ export async function checkEnvAndCI({ monitoringInstance, percyEnv: percyEnvArg 
 
   return findings;
 }
-
-// Backward-compatible aliases
-export const checkEnvVars = checkEnvAndCI;
-export const checkCI = checkEnvAndCI;

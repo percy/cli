@@ -331,6 +331,12 @@ function mergeSnapshotOptions(prev = {}, next) {
 // Runs quick doctor diagnostics after a build failure, guarded by PERCY_AUTO_DOCTOR env var.
 // Uses dynamic import so @percy/cli-doctor is not a hard dependency of @percy/core.
 async function runDoctorOnFailure(percy) {
+  // Guard against double-fire: build-creation failure triggers this in the
+  // 'start' catch, and the subsequent 'end' handler (no build id) would fire
+  // it again — each quick-mode run carries up to 8s of network latency.
+  if (percy._doctorRanOnFailure) return;
+  percy._doctorRanOnFailure = true;
+
   if (process.env.PERCY_AUTO_DOCTOR !== 'true') {
     percy.log.warn('Run `percy doctor` to diagnose connectivity and token issues.');
     return;

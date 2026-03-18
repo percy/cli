@@ -12,7 +12,7 @@
  * Uses withEnv to control process.env for env-audit assertions.
  */
 
-import { checkEnvAndCI, checkEnvVars } from '../src/checks/env-audit.js';
+import { checkEnvAndCI } from '../src/checks/env-audit.js';
 import { withEnv } from './helpers.js';
 import cp from 'child_process';
 
@@ -97,14 +97,6 @@ function run(envOverrides = {}, percyEnvOverride = noCI, monOverride = nullMonit
     checkEnvAndCI({ monitoringInstance: monOverride, percyEnv: percyEnvOverride })
   );
 }
-
-// ── Backward-compat alias ────────────────────────────────────────────────────
-
-describe('checkEnvVars alias', () => {
-  it('checkEnvVars is the same function as checkEnvAndCI', () => {
-    expect(checkEnvVars).toBe(checkEnvAndCI);
-  });
-});
 
 // ── System info (PERCY-DR-302) ───────────────────────────────────────────────
 

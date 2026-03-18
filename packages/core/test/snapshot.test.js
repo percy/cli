@@ -2199,4 +2199,23 @@ describe('runDoctorOnFailure', () => {
       jasmine.stringMatching('network unavailable')
     ]));
   });
+
+  // P1: double-fire guard — build-creation failure hits the 'start' catch
+  // AND the 'end' handler's "Build not created" branch; the
+  // _doctorRanOnFailure flag must ensure runDiagnostics is called only once.
+  it('calls runDiagnostics exactly once even when both start-catch and end-handler fire', async () => {
+    process.env.PERCY_AUTO_DOCTOR = 'true';
+
+    const runDiagnostics = jasmine.createSpy('runDiagnostics').and.resolveTo({
+      checks: { connectivity: { status: 'pass' }, auth: { status: 'pass' } }
+    });
+    global.__MOCK_IMPORTS__.set('@percy/cli-doctor', { runDiagnostics });
+
+    await triggerBuildCreateFailure();
+
+    // Both handle('start') catch AND handle('end') "no build id" branch invoke
+    // runDoctorOnFailure — the _doctorRanOnFailure guard must prevent the
+    // second call from reaching runDiagnostics.
+    expect(runDiagnostics).toHaveBeenCalledTimes(1);
+  });
 });

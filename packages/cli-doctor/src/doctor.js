@@ -89,17 +89,14 @@ export const doctor = command(
     const jsonOutputPath = flags.outputJson ?? null;
     const mode = flags.quick ? 'quick' : 'default';
 
-    // Inter-check context — plain object, not a class
+    // Inter-check context — plain data object
     const ctx = {
       proxyUrl,
       timeout,
       targetUrl,
       discoveredProxies: [],
       connectivityOk: null,
-      pacResolvedProxy: null,
-      get bestProxy() {
-        return this.proxyUrl || this.discoveredProxies[0]?.url || this.pacResolvedProxy || null;
-      }
+      pacResolvedProxy: null
     };
 
     const report = {
@@ -176,7 +173,8 @@ export const doctor = command(
 
     // Phase 4: Browser network analysis — skip in quick mode
     if (mode !== 'quick') {
-      const { browser } = await runBrowserCheck(targetUrl, ctx.bestProxy, timeout);
+      const bestProxy = ctx.proxyUrl || ctx.discoveredProxies[0]?.url || ctx.pacResolvedProxy || null;
+      const { browser } = await runBrowserCheck(targetUrl, bestProxy, timeout);
       report.checks.browser = browser;
     }
 

@@ -58,7 +58,7 @@ export default class Monitoring {
       this.log.debug(`[Disk] Available Space: ${diskSpace}`);
       this.log.debug(`[Memory] Total: ${mem.total / (1024 ** 3)} gb, Swap Space: ${mem.swaptotal / (1024 ** 3)} gb`);
       this.log.debug(`Container Level: ${this.isContainer}, Pod Level: ${this.isPod}, Machine Level: ${this.isMachine}`);
-      this.log.debug(`Percy Envs: ${JSON.stringify(percyEnvs)}`);
+      this.log.debug(`Percy Envs: ${Object.keys(percyEnvs).join(', ')}`);
 
       return {
         os: { platform: this.os, type: os.type(), release: os.release() },

@@ -13,29 +13,6 @@ function sanitizeError(msg) {
   return sanitized;
 }
 
-// Role-based command suggestions.
-// Roles returned by /api/v1/token: master, read_only, write_only
-const ROLE_COMMAND = {
-  app: 'percy app:exec'
-};
-
-function commandForType(projectTokenType) {
-  return ROLE_COMMAND[projectTokenType] ?? 'percy exec';
-}
-
-function roleSummary(role) {
-  switch (role) {
-    case 'master':
-      return 'master — full access (create builds, read results, manage project)';
-    case 'read_only':
-      return 'read_only — read-only access — can view results but cannot create builds';
-    case 'write_only':
-      return 'write_only — write-only access — can create builds but cannot read existing results';
-    default:
-      return `role: ${role}`;
-  }
-}
-
 /**
  * Validate PERCY_TOKEN presence and authenticate against the Percy API.
  * Uses GET /api/v1/token to obtain token type and role directly from the API —
@@ -100,7 +77,7 @@ export async function checkAuth(options = {}) {
         // Malformed JSON — leave defaults, still a pass
       }
 
-      const cmd = commandForType(projectTokenType);
+      const cmd = projectTokenType === 'app' ? 'percy app:exec' : 'percy exec';
 
       // DR-002: token type info (NEVER emit the token value)
       findings.push({
@@ -110,9 +87,7 @@ export async function checkAuth(options = {}) {
         metadata: { projectTokenType, role }
       });
 
-      // DR-003: authentication pass with role messaging
-      const roleDesc = roleSummary(role);
-      let passMsg = `Token authentication successful — ${roleDesc}.`;
+      // DR-003: authentication pass with role and actionable hints
       const suggestions = [];
       if (role === 'read_only') {
         suggestions.push('This token cannot create Percy builds. Use a master or write_only token in CI.');
@@ -123,7 +98,7 @@ export async function checkAuth(options = {}) {
       findings.push({
         code: 'PERCY-DR-003',
         status: 'pass',
-        message: passMsg,
+        message: `Token authentication successful — role: ${role}.`,
         ...(suggestions.length > 0 && { suggestions })
       });
     } else if (httpStatus === 401) {

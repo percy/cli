@@ -1,16 +1,5 @@
 import { search as defaultSearch } from '@percy/config';
-
-// Token-prefix → project-type name (kept in sync with @percy/client tokenType()).
-// Used only for config-key mismatch warnings when the full API response is
-// not available (config check runs independently of auth check).
-const TOKEN_PREFIX_TYPE = {
-  auto: 'automate',
-  web: 'web',
-  app: 'app',
-  ss: 'generic',
-  vmw: 'visual_scanner',
-  res: 'responsive_scanner'
-};
+import { tokenType } from '@percy/client';
 
 /**
  * Validate Percy configuration file presence, format, and content.
@@ -86,7 +75,7 @@ export async function checkConfig(options = {}) {
   if (token && result.config) {
     const prefix = token.split('_')[0];
     /* istanbul ignore next */
-    const projectType = TOKEN_PREFIX_TYPE[prefix] || 'web';
+    const projectType = tokenType(prefix);
     const isAutomate = prefix === 'auto';
 
     // Keys that only work with automate tokens

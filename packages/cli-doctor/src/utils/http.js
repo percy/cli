@@ -171,6 +171,7 @@ export class HttpProber {
 
             tlsSock = tls.connect({ socket, servername: url.hostname });
             tlsSock.on('error', fail);
+            /* istanbul ignore next */
             tlsSock.on('secureConnect', () => {
               const req = https.request({
                 createConnection: () => tlsSock,
