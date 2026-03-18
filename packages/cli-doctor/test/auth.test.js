@@ -75,23 +75,23 @@ describe('checkAuth', () => {
 
   // ── Token presence ────────────────────────────────────────────────────────
 
-  it('returns PERCY-DR-001 fail when PERCY_TOKEN is not set', async () => {
+  it('returns token_missing fail when PERCY_TOKEN is not set', async () => {
     const findings = await withEnv({ PERCY_TOKEN: undefined }, () => checkAuth());
     expect(findings.length).toBe(1);
-    expect(findings[0].code).toBe('PERCY-DR-001');
+    expect(findings[0].category).toBe('token_missing');
     expect(findings[0].status).toBe('fail');
     expect(findings[0].message).toContain('PERCY_TOKEN is not set');
   });
 
-  it('returns PERCY-DR-001 fail when PERCY_TOKEN is empty string', async () => {
+  it('returns token_missing fail when PERCY_TOKEN is empty string', async () => {
     const findings = await withEnv({ PERCY_TOKEN: '' }, () => checkAuth());
-    expect(findings[0].code).toBe('PERCY-DR-001');
+    expect(findings[0].category).toBe('token_missing');
     expect(findings[0].status).toBe('fail');
   });
 
-  it('returns PERCY-DR-001 fail when PERCY_TOKEN is whitespace only', async () => {
+  it('returns token_missing fail when PERCY_TOKEN is whitespace only', async () => {
     const findings = await withEnv({ PERCY_TOKEN: '   ' }, () => checkAuth());
-    expect(findings[0].code).toBe('PERCY-DR-001');
+    expect(findings[0].category).toBe('token_missing');
     expect(findings[0].status).toBe('fail');
   });
 
@@ -103,10 +103,10 @@ describe('checkAuth', () => {
 
   // ── Successful authentication (200) ──────────────────────────────────────
 
-  it('returns PERCY-DR-002 info and PERCY-DR-003 pass for web/master token', async () => {
+  it('returns token_type_info info and token_auth_pass pass for web/master token', async () => {
     const findings = await check('web_master');
-    const info = findings.find(f => f.code === 'PERCY-DR-002');
-    const pass = findings.find(f => f.code === 'PERCY-DR-003');
+    const info = findings.find(f => f.category === 'token_type_info');
+    const pass = findings.find(f => f.category === 'token_auth_pass');
     expect(info).toBeDefined();
     expect(info.status).toBe('info');
     expect(info.message).toContain('web');
@@ -119,20 +119,20 @@ describe('checkAuth', () => {
 
   it('DR-002 suggests percy exec for web token type', async () => {
     const findings = await check('web_master');
-    const info = findings.find(f => f.code === 'PERCY-DR-002');
+    const info = findings.find(f => f.category === 'token_type_info');
     expect(info.message).toContain('percy exec');
   });
 
   it('DR-002 suggests percy app:exec for app token type', async () => {
     const findings = await check('app_master');
-    const info = findings.find(f => f.code === 'PERCY-DR-002');
+    const info = findings.find(f => f.category === 'token_type_info');
     expect(info.message).toContain('percy app:exec');
     expect(info.metadata.projectTokenType).toBe('app');
   });
 
   it('DR-002 reports automate project type', async () => {
     const findings = await check('auto_master');
-    const info = findings.find(f => f.code === 'PERCY-DR-002');
+    const info = findings.find(f => f.category === 'token_type_info');
     expect(info.metadata.projectTokenType).toBe('automate');
     expect(info.metadata.role).toBe('master');
   });
@@ -141,7 +141,7 @@ describe('checkAuth', () => {
 
   it('DR-003 pass with read_only role includes warning suggestion', async () => {
     const findings = await check('web_read_only');
-    const pass = findings.find(f => f.code === 'PERCY-DR-003');
+    const pass = findings.find(f => f.category === 'token_auth_pass');
     expect(pass).toBeDefined();
     expect(pass.status).toBe('pass');
     expect(pass.message).toContain('role: read_only');
@@ -151,7 +151,7 @@ describe('checkAuth', () => {
 
   it('DR-003 pass with write_only role includes informational suggestion', async () => {
     const findings = await check('web_write_only');
-    const pass = findings.find(f => f.code === 'PERCY-DR-003');
+    const pass = findings.find(f => f.category === 'token_auth_pass');
     expect(pass).toBeDefined();
     expect(pass.status).toBe('pass');
     expect(pass.message).toContain('role: write_only');
@@ -161,25 +161,25 @@ describe('checkAuth', () => {
 
   it('DR-003 pass with master role has no suggestions', async () => {
     const findings = await check('web_master');
-    const pass = findings.find(f => f.code === 'PERCY-DR-003');
+    const pass = findings.find(f => f.category === 'token_auth_pass');
     expect(pass).toBeDefined();
     expect(pass.suggestions).toBeUndefined();
   });
 
   // ── Authentication failures ───────────────────────────────────────────────
 
-  it('returns PERCY-DR-004 fail when token gets 401', async () => {
+  it('returns token_auth_fail fail when token gets 401', async () => {
     const findings = await check('invalid_token');
-    const fail = findings.find(f => f.code === 'PERCY-DR-004');
+    const fail = findings.find(f => f.category === 'token_auth_fail');
     expect(fail).toBeDefined();
     expect(fail.status).toBe('fail');
     expect(fail.message).toContain('401');
     expect(fail.suggestions.length).toBeGreaterThan(0);
   });
 
-  it('returns PERCY-DR-004 fail when token gets 403', async () => {
+  it('returns token_auth_fail fail when token gets 403', async () => {
     const findings = await check('forbidden_token');
-    const fail = findings.find(f => f.code === 'PERCY-DR-004');
+    const fail = findings.find(f => f.category === 'token_auth_fail');
     expect(fail).toBeDefined();
     expect(fail.status).toBe('fail');
     expect(fail.message).toContain('403');
@@ -187,25 +187,25 @@ describe('checkAuth', () => {
 
   it('includes suggestions for 401 auth failure', async () => {
     const findings = await check('invalid_token');
-    const fail = findings.find(f => f.code === 'PERCY-DR-004');
+    const fail = findings.find(f => f.category === 'token_auth_fail');
     expect(fail.suggestions.some(s => s.includes('expired'))).toBe(true);
     expect(fail.suggestions.some(s => s.includes('Project Settings'))).toBe(true);
   });
 
-  it('returns PERCY-DR-005 warn for unexpected HTTP status', async () => {
+  it('returns token_auth_unexpected_status warn for unexpected HTTP status', async () => {
     const findings = await check('weird_token');
-    const warn = findings.find(f => f.code === 'PERCY-DR-005');
+    const warn = findings.find(f => f.category === 'token_auth_unexpected_status');
     expect(warn).toBeDefined();
     expect(warn.status).toBe('warn');
     expect(warn.message).toContain('unexpected HTTP');
   });
 
-  it('returns PERCY-DR-006 warn when API is unreachable', async () => {
+  it('returns token_auth_network_error warn when API is unreachable', async () => {
     const findings = await withEnv(
       { PERCY_TOKEN: 'web_test_token' },
       () => checkAuth({ timeout: 1000, apiBaseUrl: 'http://127.0.0.1:1' })
     );
-    const networkWarn = findings.find(f => f.code === 'PERCY-DR-006');
+    const networkWarn = findings.find(f => f.category === 'token_auth_network_error');
     expect(networkWarn).toBeDefined();
     expect(networkWarn.status).toBe('warn');
     expect(networkWarn.message).toContain('could not reach Percy API');
@@ -214,10 +214,10 @@ describe('checkAuth', () => {
 
   it('handles malformed JSON body gracefully — still passes auth', async () => {
     const findings = await check('malformed_body_token');
-    const pass = findings.find(f => f.code === 'PERCY-DR-003');
+    const pass = findings.find(f => f.category === 'token_auth_pass');
     expect(pass).toBeDefined();
     expect(pass.status).toBe('pass');
-    const info = findings.find(f => f.code === 'PERCY-DR-002');
+    const info = findings.find(f => f.category === 'token_type_info');
     expect(info.metadata.projectTokenType).toBe('unknown');
     expect(info.metadata.role).toBe('unknown');
   });
@@ -249,13 +249,13 @@ describe('checkAuth', () => {
 
   // ── Outer catch — prober throws unexpectedly ──────────────────────────────
 
-  it('returns PERCY-DR-006 warn when probeUrl throws instead of returning', async () => {
+  it('returns token_auth_network_error warn when probeUrl throws instead of returning', async () => {
     spyOn(HttpProber.prototype, 'probeUrl').and.rejectWith(new Error('socket hang up'));
     const findings = await withEnv(
       { PERCY_TOKEN: 'any_token' },
       () => checkAuth()
     );
-    const warn = findings.find(f => f.code === 'PERCY-DR-006');
+    const warn = findings.find(f => f.category === 'token_auth_network_error');
     expect(warn).toBeDefined();
     expect(warn.status).toBe('warn');
     expect(warn.message).toContain('could not reach Percy API');

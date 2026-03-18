@@ -19,7 +19,7 @@ export async function checkConfig(options = {}) {
     result = searchFn();
   } catch (err) {
     findings.push({
-      code: 'PERCY-DR-104',
+      category: 'config_parse_error',
       status: 'fail',
       message: `Config file could not be loaded: ${err.message}`,
       suggestions: [
@@ -32,7 +32,7 @@ export async function checkConfig(options = {}) {
 
   if (!result?.config) {
     findings.push({
-      code: 'PERCY-DR-100',
+      category: 'config_not_found',
       status: 'info',
       message: 'No Percy configuration file detected.',
       suggestions: [
@@ -45,7 +45,7 @@ export async function checkConfig(options = {}) {
 
   // 2. Config file found
   findings.push({
-    code: 'PERCY-DR-101',
+    category: 'config_found',
     status: 'pass',
     message: `Configuration file found: ${result.filepath}`
   });
@@ -54,14 +54,14 @@ export async function checkConfig(options = {}) {
   const version = parseInt(result.config.version, 10);
   if (Number.isNaN(version)) {
     findings.push({
-      code: 'PERCY-DR-102',
+      category: 'config_version_invalid',
       status: 'warn',
       message: 'Configuration file has missing or invalid version.',
       suggestions: ['Add `version: 2` to the top of your Percy config file.']
     });
   } else if (version < 2) {
     findings.push({
-      code: 'PERCY-DR-103',
+      category: 'config_version_outdated',
       status: 'warn',
       message: `Configuration file uses an outdated format (version ${version}).`,
       suggestions: ['Run: percy config:migrate to update to the latest format.']
@@ -90,7 +90,7 @@ export async function checkConfig(options = {}) {
       const mismatched = automateOnlyKeys.filter(k => snapshotConfig[k] !== undefined);
       if (mismatched.length > 0) {
         findings.push({
-          code: 'PERCY-DR-105',
+          category: 'config_key_automate_only',
           status: 'warn',
           message: `Config keys only supported for Automate projects: ${mismatched.join(', ')}. Your token is for "${projectType}" project type.`,
           suggestions: [
@@ -105,7 +105,7 @@ export async function checkConfig(options = {}) {
       const mismatched = webOnlyKeys.filter(k => snapshotConfig[k] !== undefined);
       if (mismatched.length > 0) {
         findings.push({
-          code: 'PERCY-DR-106',
+          category: 'config_key_web_only',
           status: 'warn',
           message: `Config keys only supported for Web projects: ${mismatched.join(', ')}. Your token is for "${projectType}" project type.`,
           suggestions: [

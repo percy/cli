@@ -32,7 +32,7 @@ export async function checkAuth(options = {}) {
   // 1. Presence check
   if (!token) {
     findings.push({
-      code: 'PERCY-DR-001',
+      category: 'token_missing',
       status: 'fail',
       message: 'PERCY_TOKEN is not set.',
       suggestions: [
@@ -81,7 +81,7 @@ export async function checkAuth(options = {}) {
 
       // DR-002: token type info (NEVER emit the token value)
       findings.push({
-        code: 'PERCY-DR-002',
+        category: 'token_type_info',
         status: 'info',
         message: `Token type: ${projectTokenType}. Use \`${cmd}\` to run snapshots.`,
         metadata: { projectTokenType, role }
@@ -96,14 +96,14 @@ export async function checkAuth(options = {}) {
       }
 
       findings.push({
-        code: 'PERCY-DR-003',
+        category: 'token_auth_pass',
         status: 'pass',
         message: `Token authentication successful — role: ${role}.`,
         ...(suggestions.length > 0 && { suggestions })
       });
     } else if (httpStatus === 401) {
       findings.push({
-        code: 'PERCY-DR-004',
+        category: 'token_auth_fail',
         status: 'fail',
         message: 'Token authentication failed (HTTP 401 Unauthorized).',
         suggestions: [
@@ -114,7 +114,7 @@ export async function checkAuth(options = {}) {
       });
     } else if (httpStatus === 403) {
       findings.push({
-        code: 'PERCY-DR-004',
+        category: 'token_auth_fail',
         status: 'fail',
         message: 'Token access denied (HTTP 403 Forbidden).',
         suggestions: [
@@ -126,7 +126,7 @@ export async function checkAuth(options = {}) {
     } else if (!httpStatus || httpStatus === 0) {
       // Network error — couldn't reach the API at all
       findings.push({
-        code: 'PERCY-DR-006',
+        category: 'token_auth_network_error',
         status: 'warn',
         message: `Token auth check could not reach Percy API: ${sanitizeError(result.error)}`,
         suggestions: [
@@ -137,7 +137,7 @@ export async function checkAuth(options = {}) {
     } else {
       // Unexpected status code
       findings.push({
-        code: 'PERCY-DR-005',
+        category: 'token_auth_unexpected_status',
         status: 'warn',
         message: `Token auth returned unexpected HTTP ${httpStatus}.`,
         suggestions: [
@@ -148,7 +148,7 @@ export async function checkAuth(options = {}) {
     }
   } catch (err) {
     findings.push({
-      code: 'PERCY-DR-006',
+      category: 'token_auth_network_error',
       status: 'warn',
       message: `Token auth check could not reach Percy API: ${sanitizeError(err.message)}`,
       suggestions: [

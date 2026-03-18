@@ -387,7 +387,7 @@ export async function runDiagnostics({
     report.checks.auth = {
       status: 'skip',
       findings: [{
-        code: 'PERCY-DR-007',
+        category: 'check_skipped',
         status: 'skip',
         message: 'Token validation skipped — percy.io is unreachable.',
         suggestions: ['Fix connectivity issues first, then re-run percy doctor.']

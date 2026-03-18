@@ -18,13 +18,13 @@ import cp from 'child_process';
 
 // ── Mock helpers ──────────────────────────────────────────────────────────────
 
-/** Monitoring mock that skips real syscalls and returns null (no PERCY-DR-302). */
+/** Monitoring mock that skips real syscalls and returns null (no env_system_info). */
 const nullMonitoring = {
   getPercyEnv: () => ({}),
   logSystemInfo: async () => null
 };
 
-/** Monitoring mock that returns a fixed system info object (emits PERCY-DR-302). */
+/** Monitoring mock that returns a fixed system info object (emits env_system_info). */
 const mockSystemInfo = {
   os: { platform: 'linux', type: 'Linux', release: '5.15.0' },
   cpu: { name: 'Intel Xeon', arch: 'x64', cores: 4 },
@@ -98,14 +98,14 @@ function run(envOverrides = {}, percyEnvOverride = noCI, monOverride = nullMonit
   );
 }
 
-// ── System info (PERCY-DR-302) ───────────────────────────────────────────────
+// ── System info (env_system_info) ───────────────────────────────────────────────
 
 describe('checkEnvAndCI — system info', () => {
-  it('emits PERCY-DR-302 info when monitoring.logSystemInfo returns data', async () => {
+  it('emits env_system_info info when monitoring.logSystemInfo returns data', async () => {
     const findings = await withEnv(CLEAN_PERCY_ENV, () =>
       checkEnvAndCI({ monitoringInstance: systemMonitoring, percyEnv: noCI })
     );
-    const f = findings.find(f => f.code === 'PERCY-DR-302');
+    const f = findings.find(f => f.category === 'env_system_info');
     expect(f).toBeDefined();
     expect(f.status).toBe('info');
     expect(f.message).toContain('linux');
@@ -115,18 +115,18 @@ describe('checkEnvAndCI — system info', () => {
     expect(f.metadata.memory.totalGb).toBe(8.0);
   });
 
-  it('skips PERCY-DR-302 when monitoring.logSystemInfo returns null', async () => {
+  it('skips env_system_info when monitoring.logSystemInfo returns null', async () => {
     const findings = await run(CLEAN_PERCY_ENV);
-    expect(findings.find(f => f.code === 'PERCY-DR-302')).toBeUndefined();
+    expect(findings.find(f => f.category === 'env_system_info')).toBeUndefined();
   });
 
-  it('skips PERCY-DR-302 when monitoring.logSystemInfo throws', async () => {
+  it('skips env_system_info when monitoring.logSystemInfo throws', async () => {
     const findings = await withEnv(CLEAN_PERCY_ENV, () =>
       checkEnvAndCI({ monitoringInstance: failingMonitoring, percyEnv: noCI })
     );
-    expect(findings.find(f => f.code === 'PERCY-DR-302')).toBeUndefined();
+    expect(findings.find(f => f.category === 'env_system_info')).toBeUndefined();
     // Should still return env-audit findings
-    expect(findings.find(f => f.code === 'PERCY-DR-300')).toBeDefined();
+    expect(findings.find(f => f.category === 'env_no_percy_vars')).toBeDefined();
   });
 
   it('uses systemInfo.percyEnvs from logSystemInfo as the Percy env source', async () => {
@@ -140,7 +140,7 @@ describe('checkEnvAndCI — system info', () => {
     const findings = await withEnv(CLEAN_PERCY_ENV, () =>
       checkEnvAndCI({ monitoringInstance: monitoring, percyEnv: noCI })
     );
-    const listing = findings.find(f => f.code === 'PERCY-DR-301');
+    const listing = findings.find(f => f.category === 'env_vars_listed');
     expect(listing).toBeDefined();
     expect(listing.message).toContain('PERCY_DEBUG');
     expect(listing.message).toContain('PERCY_LOGLEVEL');
@@ -149,20 +149,20 @@ describe('checkEnvAndCI — system info', () => {
   });
 });
 
-// ── No Percy vars (PERCY-DR-300) ─────────────────────────────────────────────
+// ── No Percy vars (env_no_percy_vars) ─────────────────────────────────────────────
 
 describe('checkEnvAndCI — env var listing', () => {
-  it('returns PERCY-DR-300 info when no Percy vars are set', async () => {
+  it('returns env_no_percy_vars info when no Percy vars are set', async () => {
     const findings = await run(CLEAN_PERCY_ENV);
-    const f = findings.find(f => f.code === 'PERCY-DR-300');
+    const f = findings.find(f => f.category === 'env_no_percy_vars');
     expect(f).toBeDefined();
     expect(f.status).toBe('info');
     expect(f.message).toContain('No Percy-specific environment variables detected');
   });
 
-  it('returns PERCY-DR-301 listing set vars', async () => {
+  it('returns env_vars_listed listing set vars', async () => {
     const findings = await run({ ...CLEAN_PERCY_ENV, PERCY_TOKEN: 'test', PERCY_DEBUG: 'true' });
-    const f = findings.find(f => f.code === 'PERCY-DR-301');
+    const f = findings.find(f => f.category === 'env_vars_listed');
     expect(f).toBeDefined();
     expect(f.status).toBe('info');
     expect(f.message).toContain('PERCY_TOKEN');
@@ -171,46 +171,46 @@ describe('checkEnvAndCI — env var listing', () => {
 
   it('includes PERCY_AUTO_DOCTOR in listed vars', async () => {
     const findings = await run({ ...CLEAN_PERCY_ENV, PERCY_AUTO_DOCTOR: 'true' });
-    const f = findings.find(f => f.code === 'PERCY-DR-301');
+    const f = findings.find(f => f.category === 'env_vars_listed');
     expect(f).toBeDefined();
     expect(f.message).toContain('PERCY_AUTO_DOCTOR');
   });
 
   // ── PERCY_PARALLEL_TOTAL validation ────────────────────────────────────────
 
-  it('returns PERCY-DR-303 fail when PERCY_PARALLEL_TOTAL is not a valid integer', async () => {
+  it('returns env_parallel_total_invalid fail when PERCY_PARALLEL_TOTAL is not a valid integer', async () => {
     const findings = await run({ ...CLEAN_PERCY_ENV, PERCY_PARALLEL_TOTAL: 'abc' });
-    const f = findings.find(f => f.code === 'PERCY-DR-303');
+    const f = findings.find(f => f.category === 'env_parallel_total_invalid');
     expect(f).toBeDefined();
     expect(f.status).toBe('fail');
     expect(f.message).toContain('PERCY_PARALLEL_TOTAL');
   });
 
-  it('returns PERCY-DR-303 fail when PERCY_PARALLEL_TOTAL is zero', async () => {
+  it('returns env_parallel_total_invalid fail when PERCY_PARALLEL_TOTAL is zero', async () => {
     const findings = await run({ ...CLEAN_PERCY_ENV, PERCY_PARALLEL_TOTAL: '0' });
-    expect(findings.find(f => f.code === 'PERCY-DR-303')).toBeDefined();
+    expect(findings.find(f => f.category === 'env_parallel_total_invalid')).toBeDefined();
   });
 
-  it('returns PERCY-DR-303 fail when PERCY_PARALLEL_TOTAL is negative', async () => {
+  it('returns env_parallel_total_invalid fail when PERCY_PARALLEL_TOTAL is negative', async () => {
     const findings = await run({ ...CLEAN_PERCY_ENV, PERCY_PARALLEL_TOTAL: '-3' });
-    expect(findings.find(f => f.code === 'PERCY-DR-303')).toBeDefined();
+    expect(findings.find(f => f.category === 'env_parallel_total_invalid')).toBeDefined();
   });
 
-  it('returns PERCY-DR-303 fail when PERCY_PARALLEL_TOTAL is a float', async () => {
+  it('returns env_parallel_total_invalid fail when PERCY_PARALLEL_TOTAL is a float', async () => {
     const findings = await run({ ...CLEAN_PERCY_ENV, PERCY_PARALLEL_TOTAL: '4.5' });
-    expect(findings.find(f => f.code === 'PERCY-DR-303')).toBeDefined();
+    expect(findings.find(f => f.category === 'env_parallel_total_invalid')).toBeDefined();
   });
 
   it('does not fail when PERCY_PARALLEL_TOTAL is a valid positive integer', async () => {
     const findings = await run({ ...CLEAN_PERCY_ENV, PERCY_PARALLEL_TOTAL: '4' });
-    expect(findings.find(f => f.code === 'PERCY-DR-303')).toBeUndefined();
+    expect(findings.find(f => f.category === 'env_parallel_total_invalid')).toBeUndefined();
   });
 
   // ── Manual overrides ────────────────────────────────────────────────────────
 
-  it('returns PERCY-DR-304 info when manual overrides are active', async () => {
+  it('returns env_manual_overrides info when manual overrides are active', async () => {
     const findings = await run({ ...CLEAN_PERCY_ENV, PERCY_COMMIT: 'abc123', PERCY_BRANCH: 'main' });
-    const f = findings.find(f => f.code === 'PERCY-DR-304');
+    const f = findings.find(f => f.category === 'env_manual_overrides');
     expect(f).toBeDefined();
     expect(f.status).toBe('info');
     expect(f.message).toContain('PERCY_COMMIT');
@@ -220,14 +220,14 @@ describe('checkEnvAndCI — env var listing', () => {
 
   it('does not warn about overrides when none are set', async () => {
     const findings = await run({ ...CLEAN_PERCY_ENV, PERCY_TOKEN: 'test' });
-    expect(findings.find(f => f.code === 'PERCY-DR-304')).toBeUndefined();
+    expect(findings.find(f => f.category === 'env_manual_overrides')).toBeUndefined();
   });
 
   // ── NODE_TLS_REJECT_UNAUTHORIZED ───────────────────────────────────────────
 
-  it('returns PERCY-DR-305 warn when NODE_TLS_REJECT_UNAUTHORIZED=0', async () => {
+  it('returns env_tls_disabled warn when NODE_TLS_REJECT_UNAUTHORIZED=0', async () => {
     const findings = await run({ ...CLEAN_PERCY_ENV, NODE_TLS_REJECT_UNAUTHORIZED: '0' });
-    const f = findings.find(f => f.code === 'PERCY-DR-305');
+    const f = findings.find(f => f.category === 'env_tls_disabled');
     expect(f).toBeDefined();
     expect(f.status).toBe('warn');
     expect(f.message).toContain('NODE_TLS_REJECT_UNAUTHORIZED=0');
@@ -236,12 +236,12 @@ describe('checkEnvAndCI — env var listing', () => {
 
   it('does not warn when NODE_TLS_REJECT_UNAUTHORIZED is 1', async () => {
     const findings = await run({ ...CLEAN_PERCY_ENV, NODE_TLS_REJECT_UNAUTHORIZED: '1' });
-    expect(findings.find(f => f.code === 'PERCY-DR-305')).toBeUndefined();
+    expect(findings.find(f => f.category === 'env_tls_disabled')).toBeUndefined();
   });
 
   it('does not warn when NODE_TLS_REJECT_UNAUTHORIZED is unset', async () => {
     const findings = await run({ ...CLEAN_PERCY_ENV, NODE_TLS_REJECT_UNAUTHORIZED: undefined });
-    expect(findings.find(f => f.code === 'PERCY-DR-305')).toBeUndefined();
+    expect(findings.find(f => f.category === 'env_tls_disabled')).toBeUndefined();
   });
 
   // ── SECURITY: no env var values in output ──────────────────────────────────
@@ -261,38 +261,38 @@ describe('checkEnvAndCI — env var listing', () => {
 // ── CI check (merged from ci.js) ─────────────────────────────────────────────
 
 describe('checkEnvAndCI — CI section', () => {
-  it('adds PERCY-DR-200 when not in CI and no CI check results follow', async () => {
+  it('adds ci_not_detected when not in CI and no CI check results follow', async () => {
     const findings = await run(CLEAN_PERCY_ENV, noCI);
-    expect(findings.find(f => f.code === 'PERCY-DR-200')).toBeDefined();
+    expect(findings.find(f => f.category === 'ci_not_detected')).toBeDefined();
     // CI-specific findings must not appear
-    expect(findings.find(f => f.code === 'PERCY-DR-201')).toBeUndefined();
-    expect(findings.find(f => f.code === 'PERCY-DR-202')).toBeUndefined();
+    expect(findings.find(f => f.category === 'ci_detected')).toBeUndefined();
+    expect(findings.find(f => f.category === 'ci_commit_missing')).toBeUndefined();
   });
 
-  it('adds PERCY-DR-201 when CI is detected', async () => {
+  it('adds ci_detected when CI is detected', async () => {
     const findings = await run(CLEAN_PERCY_ENV, ciEnv());
-    const f = findings.find(f => f.code === 'PERCY-DR-201');
+    const f = findings.find(f => f.category === 'ci_detected');
     expect(f).toBeDefined();
     expect(f.status).toBe('pass');
     expect(f.message).toContain('github');
   });
 
-  it('adds PERCY-DR-203 when commit is present', async () => {
+  it('adds ci_commit_found when commit is present', async () => {
     const findings = await run(CLEAN_PERCY_ENV, ciEnv({ commit: 'deadbeef1234' }));
-    const f = findings.find(f => f.code === 'PERCY-DR-203');
+    const f = findings.find(f => f.category === 'ci_commit_found');
     expect(f).toBeDefined();
     expect(f.message).toContain('deadbeef1234');
   });
 
-  it('adds PERCY-DR-202 when commit is null', async () => {
+  it('adds ci_commit_missing when commit is null', async () => {
     const findings = await run(CLEAN_PERCY_ENV, ciEnv({ commit: null }));
-    expect(findings.find(f => f.code === 'PERCY-DR-202')).toBeDefined();
-    expect(findings.find(f => f.code === 'PERCY-DR-203')).toBeUndefined();
+    expect(findings.find(f => f.category === 'ci_commit_missing')).toBeDefined();
+    expect(findings.find(f => f.category === 'ci_commit_found')).toBeUndefined();
   });
 
-  it('adds PERCY-DR-204 when branch is null', async () => {
+  it('adds ci_branch_missing when branch is null', async () => {
     const findings = await run(CLEAN_PERCY_ENV, ciEnv({ branch: null }));
-    expect(findings.find(f => f.code === 'PERCY-DR-204')).toBeDefined();
+    expect(findings.find(f => f.category === 'ci_branch_missing')).toBeDefined();
   });
 
   it('combines env-audit findings with CI findings in one call', async () => {
@@ -301,67 +301,67 @@ describe('checkEnvAndCI — CI section', () => {
       ciEnv()
     );
     // Env audit findings
-    expect(findings.find(f => f.code === 'PERCY-DR-301')).toBeDefined(); // vars listed
-    expect(findings.find(f => f.code === 'PERCY-DR-305')).toBeDefined(); // TLS warn
+    expect(findings.find(f => f.category === 'env_vars_listed')).toBeDefined(); // vars listed
+    expect(findings.find(f => f.category === 'env_tls_disabled')).toBeDefined(); // TLS warn
     // CI findings
-    expect(findings.find(f => f.code === 'PERCY-DR-201')).toBeDefined(); // CI detected
-    expect(findings.find(f => f.code === 'PERCY-DR-203')).toBeDefined(); // commit present
+    expect(findings.find(f => f.category === 'ci_detected')).toBeDefined(); // CI detected
+    expect(findings.find(f => f.category === 'ci_commit_found')).toBeDefined(); // commit present
   });
 
   // ── Parallel config (DR-205 / DR-206) ──────────────────────────────────────
 
-  it('adds PERCY-DR-205 warn when PERCY_PARALLEL_TOTAL is set without PERCY_PARALLEL_NONCE in CI', async () => {
+  it('adds ci_parallel_nonce_missing warn when PERCY_PARALLEL_TOTAL is set without PERCY_PARALLEL_NONCE in CI', async () => {
     const findings = await run(
       { ...CLEAN_PERCY_ENV, PERCY_PARALLEL_TOTAL: '4', PERCY_PARALLEL_NONCE: undefined },
       ciEnv()
     );
-    const warn = findings.find(f => f.code === 'PERCY-DR-205');
+    const warn = findings.find(f => f.category === 'ci_parallel_nonce_missing');
     expect(warn).toBeDefined();
     expect(warn.status).toBe('warn');
     expect(warn.message).toContain('PERCY_PARALLEL_NONCE');
-    expect(findings.find(f => f.code === 'PERCY-DR-206')).toBeUndefined();
+    expect(findings.find(f => f.category === 'ci_parallel_config_valid')).toBeUndefined();
   });
 
-  it('adds PERCY-DR-206 pass when both PERCY_PARALLEL_TOTAL and PERCY_PARALLEL_NONCE are set in CI', async () => {
+  it('adds ci_parallel_config_valid pass when both PERCY_PARALLEL_TOTAL and PERCY_PARALLEL_NONCE are set in CI', async () => {
     const findings = await run(
       { ...CLEAN_PERCY_ENV, PERCY_PARALLEL_TOTAL: '4', PERCY_PARALLEL_NONCE: 'build-42' },
       ciEnv()
     );
-    const pass = findings.find(f => f.code === 'PERCY-DR-206');
+    const pass = findings.find(f => f.category === 'ci_parallel_config_valid');
     expect(pass).toBeDefined();
     expect(pass.status).toBe('pass');
     expect(pass.message).toContain('PERCY_PARALLEL_TOTAL');
     expect(pass.message).toContain('PERCY_PARALLEL_NONCE');
-    expect(findings.find(f => f.code === 'PERCY-DR-205')).toBeUndefined();
+    expect(findings.find(f => f.category === 'ci_parallel_nonce_missing')).toBeUndefined();
   });
 
   // ── Git availability (DR-207 / DR-208 / DR-209) ────────────────────────────
 
-  it('adds PERCY-DR-208 info when git is unavailable and PERCY_SKIP_GIT_CHECK=true', async () => {
+  it('adds ci_git_check_skipped info when git is unavailable and PERCY_SKIP_GIT_CHECK=true', async () => {
     spyOn(cp, 'execSync').and.throwError('git: command not found');
     const findings = await run(
       { ...CLEAN_PERCY_ENV, PERCY_SKIP_GIT_CHECK: 'true' },
       ciEnv()
     );
-    const info = findings.find(f => f.code === 'PERCY-DR-208');
+    const info = findings.find(f => f.category === 'ci_git_check_skipped');
     expect(info).toBeDefined();
     expect(info.status).toBe('info');
     expect(info.message).toContain('PERCY_SKIP_GIT_CHECK=true');
-    expect(findings.find(f => f.code === 'PERCY-DR-207')).toBeUndefined();
-    expect(findings.find(f => f.code === 'PERCY-DR-209')).toBeUndefined();
+    expect(findings.find(f => f.category === 'ci_git_available')).toBeUndefined();
+    expect(findings.find(f => f.category === 'ci_git_unavailable')).toBeUndefined();
   });
 
-  it('adds PERCY-DR-209 warn when git is unavailable and PERCY_SKIP_GIT_CHECK is not set', async () => {
+  it('adds ci_git_unavailable warn when git is unavailable and PERCY_SKIP_GIT_CHECK is not set', async () => {
     spyOn(cp, 'execSync').and.throwError('git: command not found');
     const findings = await run(
       { ...CLEAN_PERCY_ENV, PERCY_SKIP_GIT_CHECK: undefined },
       ciEnv()
     );
-    const warn = findings.find(f => f.code === 'PERCY-DR-209');
+    const warn = findings.find(f => f.category === 'ci_git_unavailable');
     expect(warn).toBeDefined();
     expect(warn.status).toBe('warn');
     expect(warn.message).toContain('Git is not available');
-    expect(findings.find(f => f.code === 'PERCY-DR-207')).toBeUndefined();
-    expect(findings.find(f => f.code === 'PERCY-DR-208')).toBeUndefined();
+    expect(findings.find(f => f.category === 'ci_git_available')).toBeUndefined();
+    expect(findings.find(f => f.category === 'ci_git_check_skipped')).toBeUndefined();
   });
 });

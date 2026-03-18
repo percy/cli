@@ -53,6 +53,16 @@ Detects and validates Percy configuration files (`.percy.yml`, `.percy.yaml`, `p
 - Warns on missing or outdated `version` field (recommends version 2)
 - Detects project-type/config mismatches (e.g., automate-only keys like `fullPage` used with a web token)
 
+| Category | Meaning |
+|---|---|
+| `config_not_found` | No Percy config file detected |
+| `config_found` | Config file located and loaded |
+| `config_parse_error` | Config file has YAML/JSON syntax errors |
+| `config_version_invalid` | `version` field is missing or non-numeric |
+| `config_version_outdated` | Config uses an outdated version (< 2) |
+| `config_key_automate_only` | Config contains Automate-only keys but token is not Automate |
+| `config_key_web_only` | Config contains Web-only keys but token is not a Web token |
+
 ### 2 · CI Environment Detection
 
 Detects your CI provider and validates CI-related settings:
@@ -60,6 +70,19 @@ Detects your CI provider and validates CI-related settings:
 - Identifies 10+ CI systems (GitHub Actions, GitLab CI, Jenkins, CircleCI, Travis, etc.)
 - Validates git availability for commit/branch detection
 - Checks parallel build configuration (`PERCY_PARALLEL_TOTAL` + `PERCY_PARALLEL_NONCE`)
+
+| Category | Meaning |
+|---|---|
+| `ci_not_detected` | Not running in a CI environment |
+| `ci_detected` | CI system identified |
+| `ci_commit_missing` | Commit SHA could not be detected |
+| `ci_commit_found` | Commit SHA available |
+| `ci_branch_missing` | Branch name could not be detected |
+| `ci_parallel_nonce_missing` | `PERCY_PARALLEL_TOTAL` set without `PERCY_PARALLEL_NONCE` |
+| `ci_parallel_config_valid` | Both parallel env vars are set correctly |
+| `ci_git_available` | Git repository detected |
+| `ci_git_check_skipped` | Git check suppressed via `PERCY_SKIP_GIT_CHECK=true` |
+| `ci_git_unavailable` | Git not installed or not in a git repository |
 
 ### 3 · Environment Variable Audit
 
@@ -69,6 +92,15 @@ Inventories all Percy-specific environment variables:
 - Validates `PERCY_PARALLEL_TOTAL` is a positive integer
 - Flags manual overrides (`PERCY_COMMIT`, `PERCY_BRANCH`, `PERCY_PULL_REQUEST`)
 - Warns when `NODE_TLS_REJECT_UNAUTHORIZED=0` disables SSL validation
+
+| Category | Meaning |
+|---|---|
+| `env_system_info` | OS, Node version, CPU, and RAM summary |
+| `env_no_percy_vars` | No `PERCY_*` environment variables detected |
+| `env_vars_listed` | Lists names of all set `PERCY_*` variables |
+| `env_parallel_total_invalid` | `PERCY_PARALLEL_TOTAL` is not a valid positive integer |
+| `env_manual_overrides` | Manual override vars active (e.g. `PERCY_COMMIT`, `PERCY_BRANCH`) |
+| `env_tls_disabled` | `NODE_TLS_REJECT_UNAUTHORIZED=0` — SSL validation globally disabled |
 
 ### 4 · Network Connectivity
 
@@ -139,6 +171,16 @@ Validates the `PERCY_TOKEN` environment variable:
 - **Authentication**: Makes a live API call to `percy.io/api/v1/tokens` to verify the token is valid (uses proxy if one was discovered in earlier checks)
 
 Token values are **never** included in output — only the project type and pass/fail status.
+
+| Category | Meaning |
+|---|---|
+| `token_missing` | `PERCY_TOKEN` is not set or is blank |
+| `token_type_info` | Token prefix decoded — project type and suggested CLI command |
+| `token_auth_pass` | Token authenticated successfully; role shown |
+| `token_auth_fail` | Token rejected (HTTP 401 or 403) |
+| `token_auth_unexpected_status` | Percy API returned an unexpected HTTP status |
+| `token_auth_network_error` | Could not reach Percy API to validate token |
+| `check_skipped` | Token validation skipped because percy.io is unreachable |
 
 ### 9 · Browser Network (Chrome CDP)
 

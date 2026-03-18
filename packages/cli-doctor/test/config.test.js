@@ -21,29 +21,29 @@ function throwingSearch(message) {
 describe('checkConfig', () => {
   // ── No config file ──────────────────────────────────────────────────────────
 
-  it('returns PERCY-DR-100 info when no config file is found', async () => {
+  it('returns config_not_found info when no config file is found', async () => {
     const findings = await checkConfig({ searchFn: mockSearch(null) });
     expect(findings.length).toBe(1);
-    expect(findings[0].code).toBe('PERCY-DR-100');
+    expect(findings[0].category).toBe('config_not_found');
     expect(findings[0].status).toBe('info');
     expect(findings[0].message).toContain('No Percy configuration file detected');
   });
 
-  it('returns PERCY-DR-100 info when search returns empty config', async () => {
+  it('returns config_not_found info when search returns empty config', async () => {
     const findings = await checkConfig({ searchFn: mockSearch({ config: null, filepath: '' }) });
     expect(findings.length).toBe(1);
-    expect(findings[0].code).toBe('PERCY-DR-100');
+    expect(findings[0].category).toBe('config_not_found');
     expect(findings[0].status).toBe('info');
   });
 
   // ── Config load error ───────────────────────────────────────────────────────
 
-  it('returns PERCY-DR-104 fail when config file has syntax errors', async () => {
+  it('returns config_parse_error fail when config file has syntax errors', async () => {
     const findings = await checkConfig({
       searchFn: throwingSearch('YAML parse error: unexpected token at line 5')
     });
     expect(findings.length).toBe(1);
-    expect(findings[0].code).toBe('PERCY-DR-104');
+    expect(findings[0].category).toBe('config_parse_error');
     expect(findings[0].status).toBe('fail');
     expect(findings[0].message).toContain('YAML parse error');
     expect(findings[0].suggestions).toBeDefined();
@@ -52,63 +52,63 @@ describe('checkConfig', () => {
 
   // ── Config file found ───────────────────────────────────────────────────────
 
-  it('returns PERCY-DR-101 pass when config file is found', async () => {
+  it('returns config_found pass when config file is found', async () => {
     const findings = await withEnv({ PERCY_TOKEN: undefined }, () =>
       checkConfig({
         searchFn: mockSearch({ config: { version: 2 }, filepath: '/project/.percy.yml' })
       })
     );
     expect(findings.length).toBe(1);
-    expect(findings[0].code).toBe('PERCY-DR-101');
+    expect(findings[0].category).toBe('config_found');
     expect(findings[0].status).toBe('pass');
     expect(findings[0].message).toContain('.percy.yml');
   });
 
   // ── Version validation ──────────────────────────────────────────────────────
 
-  it('returns PERCY-DR-102 warn when version is missing', async () => {
+  it('returns config_version_invalid warn when version is missing', async () => {
     const findings = await withEnv({ PERCY_TOKEN: undefined }, () =>
       checkConfig({
         searchFn: mockSearch({ config: {}, filepath: '/project/.percy.yml' })
       })
     );
-    const versionFinding = findings.find(f => f.code === 'PERCY-DR-102');
+    const versionFinding = findings.find(f => f.category === 'config_version_invalid');
     expect(versionFinding).toBeDefined();
     expect(versionFinding.status).toBe('warn');
     expect(versionFinding.message).toContain('missing or invalid version');
   });
 
-  it('returns PERCY-DR-102 warn when version is non-numeric', async () => {
+  it('returns config_version_invalid warn when version is non-numeric', async () => {
     const findings = await withEnv({ PERCY_TOKEN: undefined }, () =>
       checkConfig({
         searchFn: mockSearch({ config: { version: 'abc' }, filepath: '/project/.percy.yml' })
       })
     );
-    const versionFinding = findings.find(f => f.code === 'PERCY-DR-102');
+    const versionFinding = findings.find(f => f.category === 'config_version_invalid');
     expect(versionFinding).toBeDefined();
     expect(versionFinding.status).toBe('warn');
   });
 
-  it('returns PERCY-DR-103 warn when config uses version 1', async () => {
+  it('returns config_version_outdated warn when config uses version 1', async () => {
     const findings = await withEnv({ PERCY_TOKEN: undefined }, () =>
       checkConfig({
         searchFn: mockSearch({ config: { version: 1 }, filepath: '/project/.percy.yml' })
       })
     );
-    const versionFinding = findings.find(f => f.code === 'PERCY-DR-103');
+    const versionFinding = findings.find(f => f.category === 'config_version_outdated');
     expect(versionFinding).toBeDefined();
     expect(versionFinding.status).toBe('warn');
     expect(versionFinding.message).toContain('outdated format (version 1)');
     expect(versionFinding.suggestions).toContain('Run: percy config:migrate to update to the latest format.');
   });
 
-  it('returns PERCY-DR-103 warn with correct version number for version 0', async () => {
+  it('returns config_version_outdated warn with correct version number for version 0', async () => {
     const findings = await withEnv({ PERCY_TOKEN: undefined }, () =>
       checkConfig({
         searchFn: mockSearch({ config: { version: 0 }, filepath: '/project/.percy.yml' })
       })
     );
-    const versionFinding = findings.find(f => f.code === 'PERCY-DR-103');
+    const versionFinding = findings.find(f => f.category === 'config_version_outdated');
     expect(versionFinding).toBeDefined();
     expect(versionFinding.message).toContain('outdated format (version 0)');
   });
@@ -120,14 +120,14 @@ describe('checkConfig', () => {
       })
     );
     const versionWarns = findings.filter(f =>
-      f.code === 'PERCY-DR-102' || f.code === 'PERCY-DR-103'
+      f.category === 'config_version_invalid' || f.category === 'config_version_outdated'
     );
     expect(versionWarns.length).toBe(0);
   });
 
   // ── Project-type config mismatches ──────────────────────────────────────────
 
-  it('returns PERCY-DR-105 warn for automate-only keys with web token', async () => {
+  it('returns config_key_automate_only warn for automate-only keys with web token', async () => {
     const findings = await withEnv({ PERCY_TOKEN: 'web_abc123' }, () =>
       checkConfig({
         searchFn: mockSearch({
@@ -136,7 +136,7 @@ describe('checkConfig', () => {
         })
       })
     );
-    const mismatch = findings.find(f => f.code === 'PERCY-DR-105');
+    const mismatch = findings.find(f => f.category === 'config_key_automate_only');
     expect(mismatch).toBeDefined();
     expect(mismatch.status).toBe('warn');
     expect(mismatch.message).toContain('fullPage');
@@ -144,7 +144,7 @@ describe('checkConfig', () => {
     expect(mismatch.message).toContain('web');
   });
 
-  it('returns PERCY-DR-105 warn for automate-only keys with app token', async () => {
+  it('returns config_key_automate_only warn for automate-only keys with app token', async () => {
     const findings = await withEnv({ PERCY_TOKEN: 'app_abc123' }, () =>
       checkConfig({
         searchFn: mockSearch({
@@ -153,13 +153,13 @@ describe('checkConfig', () => {
         })
       })
     );
-    const mismatch = findings.find(f => f.code === 'PERCY-DR-105');
+    const mismatch = findings.find(f => f.category === 'config_key_automate_only');
     expect(mismatch).toBeDefined();
     expect(mismatch.message).toContain('ignoreRegions');
     expect(mismatch.message).toContain('app');
   });
 
-  it('does NOT return PERCY-DR-105 for automate-only keys with auto token', async () => {
+  it('does NOT return config_key_automate_only for automate-only keys with auto token', async () => {
     const findings = await withEnv({ PERCY_TOKEN: 'auto_abc123' }, () =>
       checkConfig({
         searchFn: mockSearch({
@@ -168,11 +168,11 @@ describe('checkConfig', () => {
         })
       })
     );
-    const mismatch = findings.find(f => f.code === 'PERCY-DR-105');
+    const mismatch = findings.find(f => f.category === 'config_key_automate_only');
     expect(mismatch).toBeUndefined();
   });
 
-  it('returns PERCY-DR-106 warn for web-only keys with automate token', async () => {
+  it('returns config_key_web_only warn for web-only keys with automate token', async () => {
     const findings = await withEnv({ PERCY_TOKEN: 'auto_abc123' }, () =>
       checkConfig({
         searchFn: mockSearch({
@@ -181,7 +181,7 @@ describe('checkConfig', () => {
         })
       })
     );
-    const mismatch = findings.find(f => f.code === 'PERCY-DR-106');
+    const mismatch = findings.find(f => f.category === 'config_key_web_only');
     expect(mismatch).toBeDefined();
     expect(mismatch.status).toBe('warn');
     expect(mismatch.message).toContain('waitForTimeout');
@@ -189,7 +189,7 @@ describe('checkConfig', () => {
     expect(mismatch.message).toContain('automate');
   });
 
-  it('returns PERCY-DR-106 warn for web-only keys with app token', async () => {
+  it('returns config_key_web_only warn for web-only keys with app token', async () => {
     const findings = await withEnv({ PERCY_TOKEN: 'app_abc123' }, () =>
       checkConfig({
         searchFn: mockSearch({
@@ -198,12 +198,12 @@ describe('checkConfig', () => {
         })
       })
     );
-    const mismatch = findings.find(f => f.code === 'PERCY-DR-106');
+    const mismatch = findings.find(f => f.category === 'config_key_web_only');
     expect(mismatch).toBeDefined();
     expect(mismatch.message).toContain('app');
   });
 
-  it('does NOT return PERCY-DR-106 for web-only keys with web token', async () => {
+  it('does NOT return config_key_web_only for web-only keys with web token', async () => {
     const findings = await withEnv({ PERCY_TOKEN: 'web_abc123' }, () =>
       checkConfig({
         searchFn: mockSearch({
@@ -212,11 +212,11 @@ describe('checkConfig', () => {
         })
       })
     );
-    const mismatch = findings.find(f => f.code === 'PERCY-DR-106');
+    const mismatch = findings.find(f => f.category === 'config_key_web_only');
     expect(mismatch).toBeUndefined();
   });
 
-  it('returns PERCY-DR-106 warn for web-only keys with ss_ (generic) token', async () => {
+  it('returns config_key_web_only warn for web-only keys with ss_ (generic) token', async () => {
     const findings = await withEnv({ PERCY_TOKEN: 'ss_abc123' }, () =>
       checkConfig({
         searchFn: mockSearch({
@@ -225,12 +225,12 @@ describe('checkConfig', () => {
         })
       })
     );
-    const mismatch = findings.find(f => f.code === 'PERCY-DR-106');
+    const mismatch = findings.find(f => f.category === 'config_key_web_only');
     expect(mismatch).toBeDefined();
     expect(mismatch.message).toContain('generic');
   });
 
-  it('returns PERCY-DR-105 with correct type for ss_ (generic) token', async () => {
+  it('returns config_key_automate_only with correct type for ss_ (generic) token', async () => {
     const findings = await withEnv({ PERCY_TOKEN: 'ss_abc123' }, () =>
       checkConfig({
         searchFn: mockSearch({
@@ -239,12 +239,12 @@ describe('checkConfig', () => {
         })
       })
     );
-    const mismatch = findings.find(f => f.code === 'PERCY-DR-105');
+    const mismatch = findings.find(f => f.category === 'config_key_automate_only');
     expect(mismatch).toBeDefined();
     expect(mismatch.message).toContain('generic');
   });
 
-  it('returns PERCY-DR-105 with correct type for vmw_ (visual_scanner) token', async () => {
+  it('returns config_key_automate_only with correct type for vmw_ (visual_scanner) token', async () => {
     const findings = await withEnv({ PERCY_TOKEN: 'vmw_abc123' }, () =>
       checkConfig({
         searchFn: mockSearch({
@@ -253,12 +253,12 @@ describe('checkConfig', () => {
         })
       })
     );
-    const mismatch = findings.find(f => f.code === 'PERCY-DR-105');
+    const mismatch = findings.find(f => f.category === 'config_key_automate_only');
     expect(mismatch).toBeDefined();
     expect(mismatch.message).toContain('visual_scanner');
   });
 
-  it('returns PERCY-DR-105 with correct type for res_ (responsive_scanner) token', async () => {
+  it('returns config_key_automate_only with correct type for res_ (responsive_scanner) token', async () => {
     const findings = await withEnv({ PERCY_TOKEN: 'res_abc123' }, () =>
       checkConfig({
         searchFn: mockSearch({
@@ -267,7 +267,7 @@ describe('checkConfig', () => {
         })
       })
     );
-    const mismatch = findings.find(f => f.code === 'PERCY-DR-105');
+    const mismatch = findings.find(f => f.category === 'config_key_automate_only');
     expect(mismatch).toBeDefined();
     expect(mismatch.message).toContain('responsive_scanner');
   });
@@ -281,7 +281,7 @@ describe('checkConfig', () => {
       })
     );
     const mismatches = findings.filter(f =>
-      f.code === 'PERCY-DR-105' || f.code === 'PERCY-DR-106'
+      f.category === 'config_key_automate_only' || f.category === 'config_key_web_only'
     );
     expect(mismatches.length).toBe(0);
   });

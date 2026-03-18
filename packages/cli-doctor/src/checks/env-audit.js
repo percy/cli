@@ -7,7 +7,7 @@ import Monitoring from '@percy/monitoring';
  *
  * - Percy env vars are captured via @percy/monitoring (getPercyEnv / logSystemInfo).
  * - System info (OS, CPU, memory, disk) is captured via monitoring.logSystemInfo()
- *   and surfaced as a PERCY-DR-302 finding.
+ *   and surfaced as a env_system_info finding.
  * - CI detection and validation (commit SHA, branch, parallel config, git) is
  *   merged in from the former ci.js — call ONE function for the whole analysis.
  *
@@ -58,7 +58,7 @@ export async function checkEnvAndCI({ monitoringInstance, percyEnv: percyEnvArg 
     ? ['PERCY_TOKEN', ...nonTokenPercyVarNames]
     : nonTokenPercyVarNames;
 
-  // PERCY-DR-302: System info (sourced from monitoring.logSystemInfo return value)
+  // env_system_info: System info (sourced from monitoring.logSystemInfo return value)
   /* istanbul ignore if */
   if (systemInfo) {
     const memGb = systemInfo.memory?.totalGb != null
@@ -68,7 +68,7 @@ export async function checkEnvAndCI({ monitoringInstance, percyEnv: percyEnvArg 
     const platform = systemInfo.os?.platform ?? process.platform;
     const release = systemInfo.os?.release ?? 'N/A';
     findings.push({
-      code: 'PERCY-DR-302',
+      category: 'env_system_info',
       status: 'info',
       message: `System: ${platform} ${release}, Node ${process.version}, ${cores} CPU core(s), ${memGb}GB RAM`,
       metadata: {
@@ -81,27 +81,27 @@ export async function checkEnvAndCI({ monitoringInstance, percyEnv: percyEnvArg 
     });
   }
 
-  // PERCY-DR-300/301: Percy env var listing
+  // env_no_percy_vars/301: Percy env var listing
   if (allSetVarNames.length === 0) {
     findings.push({
-      code: 'PERCY-DR-300',
+      category: 'env_no_percy_vars',
       status: 'info',
       message: 'No Percy-specific environment variables detected (only PERCY_TOKEN is required).'
     });
   } else {
     findings.push({
-      code: 'PERCY-DR-301',
+      category: 'env_vars_listed',
       status: 'info',
       message: `Percy environment variables set: ${allSetVarNames.join(', ')}`
     });
   }
 
-  // PERCY-DR-303: Validate PERCY_PARALLEL_TOTAL format
+  // env_parallel_total_invalid: Validate PERCY_PARALLEL_TOTAL format
   if (process.env.PERCY_PARALLEL_TOTAL) {
     const val = Number(process.env.PERCY_PARALLEL_TOTAL);
     if (!Number.isInteger(val) || val <= 0) {
       findings.push({
-        code: 'PERCY-DR-303',
+        category: 'env_parallel_total_invalid',
         status: 'fail',
         message: 'PERCY_PARALLEL_TOTAL is not a valid positive integer.',
         suggestions: [
@@ -112,7 +112,7 @@ export async function checkEnvAndCI({ monitoringInstance, percyEnv: percyEnvArg 
     }
   }
 
-  // PERCY-DR-304: Warn about manual overrides
+  // env_manual_overrides: Warn about manual overrides
   const overrideVars = [
     'PERCY_COMMIT', 'PERCY_BRANCH', 'PERCY_PULL_REQUEST',
     'PERCY_TARGET_COMMIT', 'PERCY_TARGET_BRANCH'
@@ -120,16 +120,16 @@ export async function checkEnvAndCI({ monitoringInstance, percyEnv: percyEnvArg 
   const activeOverrides = overrideVars.filter(k => process.env[k]);
   if (activeOverrides.length > 0) {
     findings.push({
-      code: 'PERCY-DR-304',
+      category: 'env_manual_overrides',
       status: 'info',
       message: `Manual overrides active: ${activeOverrides.join(', ')} — these override CI-detected values.`
     });
   }
 
-  // PERCY-DR-305: Detect NODE_TLS_REJECT_UNAUTHORIZED=0
+  // env_tls_disabled: Detect NODE_TLS_REJECT_UNAUTHORIZED=0
   if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
     findings.push({
-      code: 'PERCY-DR-305',
+      category: 'env_tls_disabled',
       status: 'warn',
       message: 'NODE_TLS_REJECT_UNAUTHORIZED=0 — SSL certificate validation is globally disabled.',
       suggestions: [
@@ -147,10 +147,10 @@ export async function checkEnvAndCI({ monitoringInstance, percyEnv: percyEnvArg 
 
   const env = percyEnvArg ?? new PercyEnv();
 
-  // PERCY-DR-200: Not in CI
+  // ci_not_detected: Not in CI
   if (!env.ci) {
     findings.push({
-      code: 'PERCY-DR-200',
+      category: 'ci_not_detected',
       status: 'info',
       message: 'Not running in a CI environment (local machine).',
       suggestions: ['Percy doctor is most useful when run in your CI pipeline.']
@@ -158,18 +158,18 @@ export async function checkEnvAndCI({ monitoringInstance, percyEnv: percyEnvArg 
     return findings;
   }
 
-  // PERCY-DR-201: CI system detected
+  // ci_detected: CI system detected
   findings.push({
-    code: 'PERCY-DR-201',
+    category: 'ci_detected',
     status: 'pass',
     message: `CI system detected: ${env.ci}`
   });
 
-  // PERCY-DR-202/203: Commit SHA
+  // ci_commit_missing/203: Commit SHA
   const commit = env.commit;
   if (!commit) {
     findings.push({
-      code: 'PERCY-DR-202',
+      category: 'ci_commit_missing',
       status: 'warn',
       message: 'Could not detect commit SHA from CI environment.',
       suggestions: [
@@ -179,28 +179,28 @@ export async function checkEnvAndCI({ monitoringInstance, percyEnv: percyEnvArg 
     });
   } else {
     findings.push({
-      code: 'PERCY-DR-203',
+      category: 'ci_commit_found',
       status: 'pass',
       message: `Commit SHA: ${commit.slice(0, 12)}...`
     });
   }
 
-  // PERCY-DR-204: Branch
+  // ci_branch_missing: Branch
   const branch = env.branch;
   if (!branch) {
     findings.push({
-      code: 'PERCY-DR-204',
+      category: 'ci_branch_missing',
       status: 'warn',
       message: 'Could not detect branch name from CI environment.',
       suggestions: ['Set PERCY_BRANCH=<branch-name> as a fallback.']
     });
   }
 
-  // PERCY-DR-205/206: Parallel config
+  // ci_parallel_nonce_missing/206: Parallel config
   if (process.env.PERCY_PARALLEL_TOTAL) {
     if (!process.env.PERCY_PARALLEL_NONCE) {
       findings.push({
-        code: 'PERCY-DR-205',
+        category: 'ci_parallel_nonce_missing',
         status: 'warn',
         message: 'PERCY_PARALLEL_TOTAL is set but PERCY_PARALLEL_NONCE is missing.',
         suggestions: [
@@ -210,31 +210,31 @@ export async function checkEnvAndCI({ monitoringInstance, percyEnv: percyEnvArg 
       });
     } else {
       findings.push({
-        code: 'PERCY-DR-206',
+        category: 'ci_parallel_config_valid',
         status: 'pass',
         message: 'Parallel build configuration detected (PERCY_PARALLEL_TOTAL and PERCY_PARALLEL_NONCE are set).'
       });
     }
   }
 
-  // PERCY-DR-207/208/209: Git availability
+  // ci_git_available/208/209: Git availability
   try {
     cp.execSync('git rev-parse --is-inside-work-tree', { timeout: 5000, stdio: 'pipe' });
     findings.push({
-      code: 'PERCY-DR-207',
+      category: 'ci_git_available',
       status: 'pass',
       message: 'Git repository detected.'
     });
   } catch {
     if (process.env.PERCY_SKIP_GIT_CHECK === 'true') {
       findings.push({
-        code: 'PERCY-DR-208',
+        category: 'ci_git_check_skipped',
         status: 'info',
         message: 'PERCY_SKIP_GIT_CHECK=true — git validation skipped.'
       });
     } else {
       findings.push({
-        code: 'PERCY-DR-209',
+        category: 'ci_git_unavailable',
         status: 'warn',
         message: 'Git is not available or not in a git repository.',
         suggestions: [
