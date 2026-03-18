@@ -99,29 +99,6 @@ describe('serialize-pseudo-classes', () => {
         // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
         ctx.dom.body.innerHTML = orginalBody;
       });
-
-      it('opens and restores popover state while capturing styles', () => {
-        withExample('<div id="p1" popover="auto"></div>');
-        ctx.clone = document.implementation.createHTMLDocument('Clone');
-        ctx.pseudoClassEnabledElements = { id: ['p1'] };
-        markPseudoClassElements(ctx, ctx.pseudoClassEnabledElements);
-        // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
-        ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
-
-        const popover = document.getElementById('p1');
-        popover.showPopover = jasmine.createSpy('showPopover');
-        popover.hidePopover = jasmine.createSpy('hidePopover');
-
-        // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
-        ctx.clone.head.innerHTML = '';
-        serializePseudoClasses(ctx);
-
-        expect(popover.showPopover).toHaveBeenCalled();
-        expect(popover.hidePopover).toHaveBeenCalled();
-        const style = ctx.clone.head.querySelector('style[data-percy-pseudo-class-styles="true"]');
-        expect(style).not.toBeNull();
-      });
-
       describe('handles getComputedStyle errors gracefully', () => {
         let origGetComputedStyle;
         beforeEach(() => {
@@ -318,6 +295,7 @@ describe('serialize-pseudo-classes', () => {
         markPseudoClassElements(ctx, { id: ['p1'] });
         const el = document.getElementById('p1');
         expect(el.hasAttribute('data-percy-popover-open')).toBe(true);
+        expect(el.getAttribute('data-percy-popover-open')).toBe('true');
         expect(el.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
       });
 
@@ -326,6 +304,7 @@ describe('serialize-pseudo-classes', () => {
         markPseudoClassElements(ctx, { className: ['popover-el'] });
         const el = document.getElementsByClassName('popover-el')[0];
         expect(el.hasAttribute('data-percy-popover-open')).toBe(true);
+        expect(el.getAttribute('data-percy-popover-open')).toBe('true');
         expect(el.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
       });
 
@@ -334,6 +313,7 @@ describe('serialize-pseudo-classes', () => {
         markPseudoClassElements(ctx, { xpath: ['//*[@id="p1"]'] });
         const el = document.getElementById('p1');
         expect(el.hasAttribute('data-percy-popover-open')).toBe(true);
+        expect(el.getAttribute('data-percy-popover-open')).toBe('true');
         expect(el.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
       });
 
@@ -344,6 +324,7 @@ describe('serialize-pseudo-classes', () => {
         const el = document.getElementById('p1');
         // attribute should still be present (idempotent), not duplicated or cleared
         expect(el.hasAttribute('data-percy-popover-open')).toBe(true);
+        expect(el.getAttribute('data-percy-popover-open')).toBe('true');
       });
 
       it('does NOT stamp data-percy-popover-open on non-popover elements', () => {
@@ -364,8 +345,10 @@ describe('serialize-pseudo-classes', () => {
       const p2 = document.getElementById('p2');
       expect(p1.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
       expect(p1.hasAttribute('data-percy-popover-open')).toBe(true);
+      expect(p1.getAttribute('data-percy-popover-open')).toBe('true');
       expect(p2.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
       expect(p2.hasAttribute('data-percy-popover-open')).toBe(true);
+      expect(p2.getAttribute('data-percy-popover-open')).toBe('true');
     });
 
     it('marks all matched elements including non-popover ones', () => {

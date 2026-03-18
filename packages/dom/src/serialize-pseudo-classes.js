@@ -12,7 +12,7 @@ function markElementIfNeeded(element, markWithId) {
   // If this is a popover element, also stamp data-percy-popover-open so the
   // renderer knows to call showPopover() to restore native top-layer state.
   if (element.hasAttribute('popover') && !element.hasAttribute(POPOVER_OPEN_ATTR)) {
-    element.setAttribute(POPOVER_OPEN_ATTR, '');
+    element.setAttribute(POPOVER_OPEN_ATTR, 'true');
   }
   // Always stamp the pseudo-element-id so serializePseudoClasses can freeze styles.
   if (markWithId && !element.getAttribute(PSEDUO_ELEMENT_MARKER_ATTR)) {
@@ -131,14 +131,6 @@ function stylesToCSSText(styles) {
   return cssProperties.join(' ');
 }
 
-function isPopoverOpen(element) {
-  try {
-    return element.matches(':popover-open');
-  } catch (err) {
-    return false;
-  }
-}
-
 /**
  * Process pseudo-class elements and add percy-pseudo-class CSS
  * @param {Object} ctx - Serialization context
@@ -165,32 +157,14 @@ export function serializePseudoClasses(ctx) {
       continue;
     }
 
-    const isPopoverElement = element.hasAttribute('popover');
-    const wasPopoverOpen = isPopoverElement && isPopoverOpen(element);
-
     try {
-      if (isPopoverElement && !wasPopoverOpen && typeof element.showPopover === 'function') {
-        element.showPopover();
-      }
-
       // Get all computed styles including pseudo-classes
       const computedStyles = window.getComputedStyle(element);
       const cssText = stylesToCSSText(computedStyles);
       const selector = `[${PSEDUO_ELEMENT_MARKER_ATTR}="${percyElementId}"]`;
       cssRules.push(`${selector} { ${cssText} }`);
-
-      if (isPopoverElement && !wasPopoverOpen && typeof element.hidePopover === 'function') {
-        element.hidePopover();
-      }
     } catch (err) {
       console.warn('Could not get computed styles for element', element, err);
-      if (isPopoverElement && !wasPopoverOpen && typeof element.hidePopover === 'function') {
-        try {
-          element.hidePopover();
-        } catch (hideError) {
-          console.warn('Could not restore popover state for element', element, hideError);
-        }
-      }
     }
   }
 
