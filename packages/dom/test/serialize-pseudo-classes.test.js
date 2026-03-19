@@ -293,16 +293,17 @@ describe('serialize-pseudo-classes', () => {
     it('stamps data-percy-popover-open only when popover is actually open', () => {
       withExample('<div id="p1" popover="auto"></div>');
       const el = document.getElementById('p1');
-      // Open the popover
-      if (typeof el.showPopover === 'function') {
-        el.showPopover();
-        markPseudoClassElements(ctx, { id: ['p1'] });
-        expect(el.hasAttribute('data-percy-popover-open')).toBe(true);
-        expect(el.getAttribute('data-percy-popover-open')).toBe('true');
-        expect(el.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
-        // Clean up
-        if (typeof el.hidePopover === 'function') el.hidePopover();
+      if (typeof el.showPopover !== 'function') {
+        pending('Popover API not supported in this environment');
+        return;
       }
+      el.showPopover();
+      markPseudoClassElements(ctx, { id: ['p1'] });
+      expect(el.hasAttribute('data-percy-popover-open')).toBe(true);
+      expect(el.getAttribute('data-percy-popover-open')).toBe('true');
+      expect(el.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
+
+      if (typeof el.hidePopover === 'function') el.hidePopover();
     });
 
     it('does NOT stamp data-percy-popover-open when popover is closed', () => {
@@ -317,13 +318,15 @@ describe('serialize-pseudo-classes', () => {
     it('does NOT stamp any attributes when markWithId is false', () => {
       withExample('<div id="p1" popover="auto"></div>');
       const el = document.getElementById('p1');
-      if (typeof el.showPopover === 'function') {
-        el.showPopover();
-        getElementsToProcess(ctx, { id: ['p1'] }, false);
-        expect(el.hasAttribute('data-percy-popover-open')).toBe(false);
-        expect(el.hasAttribute('data-percy-pseudo-element-id')).toBe(false);
-        if (typeof el.hidePopover === 'function') el.hidePopover();
+      if (typeof el.showPopover !== 'function') {
+        pending('Popover API not supported in this environment');
+        return;
       }
+      el.showPopover();
+      getElementsToProcess(ctx, { id: ['p1'] }, false);
+      expect(el.hasAttribute('data-percy-popover-open')).toBe(false);
+      expect(el.hasAttribute('data-percy-pseudo-element-id')).toBe(false);
+      if (typeof el.hidePopover === 'function') el.hidePopover();
     });
 
     it('does NOT stamp data-percy-popover-open on non-popover elements', () => {
@@ -341,20 +344,22 @@ describe('serialize-pseudo-classes', () => {
       const p1 = document.getElementById('p1');
       const p2 = document.getElementById('p2');
       // Open both popovers
-      if (typeof p1.showPopover === 'function' && typeof p2.showPopover === 'function') {
-        p1.showPopover();
-        p2.showPopover();
-        markPseudoClassElements(ctx, { selector: ['[popover]'] });
-        expect(p1.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
-        expect(p1.hasAttribute('data-percy-popover-open')).toBe(true);
-        expect(p1.getAttribute('data-percy-popover-open')).toBe('true');
-        expect(p2.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
-        expect(p2.hasAttribute('data-percy-popover-open')).toBe(true);
-        expect(p2.getAttribute('data-percy-popover-open')).toBe('true');
-        // Clean up
-        if (typeof p1.hidePopover === 'function') p1.hidePopover();
-        if (typeof p2.hidePopover === 'function') p2.hidePopover();
+      if (typeof p1.showPopover !== 'function' || typeof p2.showPopover !== 'function') {
+        pending('Popover API not supported in this environment');
+        return;
       }
+      p1.showPopover();
+      p2.showPopover();
+      markPseudoClassElements(ctx, { selector: ['[popover]'] });
+      expect(p1.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
+      expect(p1.hasAttribute('data-percy-popover-open')).toBe(true);
+      expect(p1.getAttribute('data-percy-popover-open')).toBe('true');
+      expect(p2.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
+      expect(p2.hasAttribute('data-percy-popover-open')).toBe(true);
+      expect(p2.getAttribute('data-percy-popover-open')).toBe('true');
+
+      if (typeof p1.hidePopover === 'function') p1.hidePopover();
+      if (typeof p2.hidePopover === 'function') p2.hidePopover();
     });
 
     it('marks all matched elements including non-popover ones', () => {
