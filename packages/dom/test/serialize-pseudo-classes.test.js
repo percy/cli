@@ -290,6 +290,17 @@ describe('serialize-pseudo-classes', () => {
   });
 
   describe('popover element handling via markPseudoClassElements', () => {
+    it('gracefully handles unsupported :popover-open selector checks', () => {
+      withExample('<div id="p1" popover="auto"></div>');
+      const el = document.getElementById('p1');
+
+      spyOn(el, 'matches').and.throwError('Unsupported selector');
+
+      expect(() => markPseudoClassElements(ctx, { id: ['p1'] })).not.toThrow();
+      expect(el.hasAttribute('data-percy-popover-open')).toBe(false);
+      expect(el.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
+    });
+
     it('stamps data-percy-popover-open only when popover is actually open', () => {
       withExample('<div id="p1" popover="auto"></div>');
       const el = document.getElementById('p1');
