@@ -99,6 +99,7 @@ describe('serialize-pseudo-classes', () => {
         // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
         ctx.dom.body.innerHTML = orginalBody;
       });
+
       describe('handles getComputedStyle errors gracefully', () => {
         let origGetComputedStyle;
         beforeEach(() => {
