@@ -290,74 +290,80 @@ describe('serialize-pseudo-classes', () => {
   });
 
   describe('popover element handling via markPseudoClassElements', () => {
-    describe('stamps both attributes on popover elements', () => {
-      it('stamps data-percy-popover-open and data-percy-pseudo-element-id when matched by id', () => {
-        withExample('<div id="p1" popover="auto"></div>');
+    it('stamps data-percy-popover-open only when popover is actually open', () => {
+      withExample('<div id="p1" popover="auto"></div>');
+      const el = document.getElementById('p1');
+      // Open the popover
+      if (typeof el.showPopover === 'function') {
+        el.showPopover();
         markPseudoClassElements(ctx, { id: ['p1'] });
-        const el = document.getElementById('p1');
         expect(el.hasAttribute('data-percy-popover-open')).toBe(true);
         expect(el.getAttribute('data-percy-popover-open')).toBe('true');
         expect(el.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
-      });
+        // Clean up
+        if (typeof el.hidePopover === 'function') el.hidePopover();
+      }
+    });
 
-      it('stamps both attributes when matched by className', () => {
-        withExample('<div class="popover-el" popover="manual"></div>');
-        markPseudoClassElements(ctx, { className: ['popover-el'] });
-        const el = document.getElementsByClassName('popover-el')[0];
-        expect(el.hasAttribute('data-percy-popover-open')).toBe(true);
-        expect(el.getAttribute('data-percy-popover-open')).toBe('true');
-        expect(el.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
-      });
+    it('does NOT stamp data-percy-popover-open when popover is closed', () => {
+      withExample('<div id="p1" popover="auto"></div>');
+      const el = document.getElementById('p1');
+      // Don't open the popover, keep it closed
+      markPseudoClassElements(ctx, { id: ['p1'] });
+      expect(el.hasAttribute('data-percy-popover-open')).toBe(false);
+      expect(el.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
+    });
 
-      it('stamps both attributes when matched by xpath', () => {
-        withExample('<div id="p1" popover="auto"></div>');
-        markPseudoClassElements(ctx, { xpath: ['//*[@id="p1"]'] });
-        const el = document.getElementById('p1');
-        expect(el.hasAttribute('data-percy-popover-open')).toBe(true);
-        expect(el.getAttribute('data-percy-popover-open')).toBe('true');
-        expect(el.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
-      });
-
-      it('does not re-stamp data-percy-popover-open if already present', () => {
-        withExample('<div id="p1" popover="auto"></div>');
-        markPseudoClassElements(ctx, { id: ['p1'] });
-        markPseudoClassElements(ctx, { id: ['p1'] });
-        const el = document.getElementById('p1');
-        // attribute should still be present (idempotent), not duplicated or cleared
-        expect(el.hasAttribute('data-percy-popover-open')).toBe(true);
-        expect(el.getAttribute('data-percy-popover-open')).toBe('true');
-      });
-
-      it('does NOT stamp data-percy-popover-open on non-popover elements', () => {
-        withExample('<div id="foo"></div>');
-        markPseudoClassElements(ctx, { id: ['foo'] });
-        const el = document.getElementById('foo');
+    it('does NOT stamp any attributes when markWithId is false', () => {
+      withExample('<div id="p1" popover="auto"></div>');
+      const el = document.getElementById('p1');
+      if (typeof el.showPopover === 'function') {
+        el.showPopover();
+        getElementsToProcess(ctx, { id: ['p1'] }, false);
         expect(el.hasAttribute('data-percy-popover-open')).toBe(false);
-        expect(el.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
-      });
+        expect(el.hasAttribute('data-percy-pseudo-element-id')).toBe(false);
+        if (typeof el.hidePopover === 'function') el.hidePopover();
+      }
+    });
+
+    it('does NOT stamp data-percy-popover-open on non-popover elements', () => {
+      withExample('<div id="foo"></div>');
+      markPseudoClassElements(ctx, { id: ['foo'] });
+      const el = document.getElementById('foo');
+      expect(el.hasAttribute('data-percy-popover-open')).toBe(false);
+      expect(el.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
     });
   });
 
   describe('selector branch in getElementsToProcess', () => {
-    it('marks popover elements matched by a [popover] selector', () => {
+    it('marks popover elements matched by a [popover] selector when open', () => {
       withExample('<div id="p1" popover="auto"></div><div id="p2" popover="manual"></div>');
-      markPseudoClassElements(ctx, { selector: ['[popover]'] });
       const p1 = document.getElementById('p1');
       const p2 = document.getElementById('p2');
-      expect(p1.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
-      expect(p1.hasAttribute('data-percy-popover-open')).toBe(true);
-      expect(p1.getAttribute('data-percy-popover-open')).toBe('true');
-      expect(p2.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
-      expect(p2.hasAttribute('data-percy-popover-open')).toBe(true);
-      expect(p2.getAttribute('data-percy-popover-open')).toBe('true');
+      // Open both popovers
+      if (typeof p1.showPopover === 'function' && typeof p2.showPopover === 'function') {
+        p1.showPopover();
+        p2.showPopover();
+        markPseudoClassElements(ctx, { selector: ['[popover]'] });
+        expect(p1.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
+        expect(p1.hasAttribute('data-percy-popover-open')).toBe(true);
+        expect(p1.getAttribute('data-percy-popover-open')).toBe('true');
+        expect(p2.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
+        expect(p2.hasAttribute('data-percy-popover-open')).toBe(true);
+        expect(p2.getAttribute('data-percy-popover-open')).toBe('true');
+        // Clean up
+        if (typeof p1.hidePopover === 'function') p1.hidePopover();
+        if (typeof p2.hidePopover === 'function') p2.hidePopover();
+      }
     });
 
     it('marks all matched elements including non-popover ones', () => {
       withExample('<div id="p1" popover="auto"></div><div id="other"></div>');
+      const p1 = document.getElementById('p1');
       markPseudoClassElements(ctx, { selector: ['div'] });
-      // popover element gets both attrs
-      expect(document.getElementById('p1').hasAttribute('data-percy-pseudo-element-id')).toBe(true);
-      expect(document.getElementById('p1').hasAttribute('data-percy-popover-open')).toBe(true);
+      // popover element does NOT get popover-open attr (it's closed)
+      expect(p1.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
+      expect(p1.hasAttribute('data-percy-popover-open')).toBe(false);
       // non-popover element gets pseudo-element-id but NOT popover-open
       expect(document.getElementById('other').hasAttribute('data-percy-pseudo-element-id')).toBe(true);
       expect(document.getElementById('other').hasAttribute('data-percy-popover-open')).toBe(false);

@@ -8,14 +8,32 @@ import { uid } from './prepare-dom';
 const PSEDUO_ELEMENT_MARKER_ATTR = 'data-percy-pseudo-element-id';
 const POPOVER_OPEN_ATTR = 'data-percy-popover-open';
 
+/**
+ * Check if an element's popover is currently open using :popover-open pseudo-class.
+ * Falls back to false if the pseudo-class is not supported.
+ * @param {Element} element
+ * @returns {boolean} true if popover is open, false otherwise
+ */
+function isPopoverOpen(element) {
+  try {
+    return element.matches(':popover-open');
+  } catch (err) {
+    // :popover-open not supported in this browser
+    return false;
+  }
+}
+
 function markElementIfNeeded(element, markWithId) {
-  // If this is a popover element, also stamp data-percy-popover-open so the
-  // renderer knows to call showPopover() to restore native top-layer state.
-  if (element.hasAttribute('popover') && !element.hasAttribute(POPOVER_OPEN_ATTR)) {
+  // Only stamp attributes when markWithId is true to avoid unintended DOM mutations.
+  if (!markWithId) return;
+
+  // If this is a popover element and it's currently open, stamp data-percy-popover-open
+  // so the renderer knows to call showPopover() to restore native top-layer state.
+  if (element.hasAttribute('popover') && isPopoverOpen(element) && !element.hasAttribute(POPOVER_OPEN_ATTR)) {
     element.setAttribute(POPOVER_OPEN_ATTR, 'true');
   }
-  // Always stamp the pseudo-element-id so serializePseudoClasses can freeze styles.
-  if (markWithId && !element.getAttribute(PSEDUO_ELEMENT_MARKER_ATTR)) {
+  // Stamp the pseudo-element-id so serializePseudoClasses can freeze styles.
+  if (!element.getAttribute(PSEDUO_ELEMENT_MARKER_ATTR)) {
     element.setAttribute(PSEDUO_ELEMENT_MARKER_ATTR, uid());
   }
 }
@@ -92,12 +110,12 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
           continue;
         }
 
-        matched.forEach((el, index) => {
+        matched.forEach((el) => {
           markElementIfNeeded(el, markWithId);
           elements.push(el);
         });
       } catch (err) {
-        ctx.warnings.add(`Invalid selector "${selector}". Error: ${err.message}`);
+        console.warn(`Invalid selector "${selector}". Error: ${err.message}`);
       }
     }
   }
