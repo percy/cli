@@ -8,12 +8,6 @@ import { uid } from './prepare-dom';
 const PSEDUO_ELEMENT_MARKER_ATTR = 'data-percy-pseudo-element-id';
 const POPOVER_OPEN_ATTR = 'data-percy-popover-open';
 
-/**
- * Check if an element's popover is currently open using :popover-open pseudo-class.
- * Falls back to false if the pseudo-class is not supported.
- * @param {Element} element
- * @returns {boolean} true if popover is open, false otherwise
- */
 function isPopoverOpen(element) {
   try {
     return element.matches(':popover-open');
@@ -24,15 +18,12 @@ function isPopoverOpen(element) {
 }
 
 function markElementIfNeeded(element, markWithId) {
-  // Only stamp attributes when markWithId is true to avoid unintended DOM mutations.
   if (!markWithId) return;
 
-  // If this is a popover element and it's currently open, stamp data-percy-popover-open
-  // so the renderer knows to call showPopover() to restore native top-layer state.
   if (element.hasAttribute('popover') && isPopoverOpen(element) && !element.hasAttribute(POPOVER_OPEN_ATTR)) {
     element.setAttribute(POPOVER_OPEN_ATTR, 'true');
   }
-  // Stamp the pseudo-element-id so serializePseudoClasses can freeze styles.
+
   if (!element.getAttribute(PSEDUO_ELEMENT_MARKER_ATTR)) {
     element.setAttribute(PSEDUO_ELEMENT_MARKER_ATTR, uid());
   }
