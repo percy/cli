@@ -86,6 +86,7 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
 
         markElementIfNeeded(element, markWithId);
       } catch (err) {
+        ctx.warnings.add(`Invalid XPath expression "${xpathExpression}" for pseudo-class serialization. Error: ${err.message}`);
         console.warn(`Invalid XPath expression "${xpathExpression}". Error: ${err.message}`);
       }
     }
@@ -106,6 +107,7 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
           elements.push(el);
         });
       } catch (err) {
+        ctx.warnings.add(`Invalid selector "${selector}" for pseudo-class serialization. Error: ${err.message}`);
         console.warn(`Invalid selector "${selector}". Error: ${err.message}`);
       }
     }
