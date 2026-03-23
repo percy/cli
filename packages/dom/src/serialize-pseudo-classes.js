@@ -8,19 +8,19 @@ import { uid } from './prepare-dom';
 const PSEDUO_ELEMENT_MARKER_ATTR = 'data-percy-pseudo-element-id';
 const POPOVER_OPEN_ATTR = 'data-percy-popover-open';
 
-function isPopoverOpen(element) {
+function isPopoverOpen(ctx, element) {
   try {
     return element.matches(':popover-open');
   } catch (err) {
-    // :popover-open not supported in this browser
+    ctx.warnings.add('Browser does not support :popover-open pseudo-class.');
     return false;
   }
 }
 
-function markElementIfNeeded(element, markWithId) {
+function markElementIfNeeded(ctx, element, markWithId) {
   if (!markWithId) return;
 
-  if (element.hasAttribute('popover') && isPopoverOpen(element) && !element.hasAttribute(POPOVER_OPEN_ATTR)) {
+  if (element.hasAttribute('popover') && isPopoverOpen(ctx, element) && !element.hasAttribute(POPOVER_OPEN_ATTR)) {
     element.setAttribute(POPOVER_OPEN_ATTR, 'true');
   }
 
@@ -48,7 +48,7 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
         continue;
       }
 
-      markElementIfNeeded(element, markWithId);
+      markElementIfNeeded(ctx, element, markWithId);
       elements.push(element);
     }
   }
@@ -63,7 +63,7 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
       }
 
       const element = elementCollection[0];
-      markElementIfNeeded(element, markWithId);
+      markElementIfNeeded(ctx, element, markWithId);
       elements.push(element);
     }
   }
@@ -84,7 +84,7 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
           continue;
         }
 
-        markElementIfNeeded(element, markWithId);
+        markElementIfNeeded(ctx, element, markWithId);
       } catch (err) {
         ctx.warnings.add(`Invalid XPath expression "${xpathExpression}" for pseudo-class serialization. Error: ${err.message}`);
         console.warn(`Invalid XPath expression "${xpathExpression}". Error: ${err.message}`);
@@ -103,7 +103,7 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
         }
 
         matched.forEach((el) => {
-          markElementIfNeeded(el, markWithId);
+          markElementIfNeeded(ctx, el, markWithId);
           elements.push(el);
         });
       } catch (err) {
