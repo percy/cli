@@ -6,8 +6,25 @@
 import { uid } from './prepare-dom';
 
 const PSEDUO_ELEMENT_MARKER_ATTR = 'data-percy-pseudo-element-id';
-function markElementIfNeeded(element, markWithId) {
-  if (markWithId && !element.getAttribute(PSEDUO_ELEMENT_MARKER_ATTR)) {
+const POPOVER_OPEN_ATTR = 'data-percy-popover-open';
+
+function isPopoverOpen(ctx, element) {
+  try {
+    return element.matches(':popover-open');
+  } catch (err) {
+    ctx.warnings.add('Browser does not support :popover-open pseudo-class.');
+    return false;
+  }
+}
+
+function markElementIfNeeded(ctx, element, markWithId) {
+  if (!markWithId) return;
+
+  if (element.hasAttribute('popover') && isPopoverOpen(ctx, element) && !element.hasAttribute(POPOVER_OPEN_ATTR)) {
+    element.setAttribute(POPOVER_OPEN_ATTR, 'true');
+  }
+
+  if (!element.getAttribute(PSEDUO_ELEMENT_MARKER_ATTR)) {
     element.setAttribute(PSEDUO_ELEMENT_MARKER_ATTR, uid());
   }
 }
@@ -31,7 +48,7 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
         continue;
       }
 
-      markElementIfNeeded(element, markWithId);
+      markElementIfNeeded(ctx, element, markWithId);
       elements.push(element);
     }
   }
@@ -46,7 +63,7 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
       }
 
       const element = elementCollection[0];
-      markElementIfNeeded(element, markWithId);
+      markElementIfNeeded(ctx, element, markWithId);
       elements.push(element);
     }
   }
@@ -67,13 +84,34 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
           continue;
         }
 
-        markElementIfNeeded(element, markWithId);
+        markElementIfNeeded(ctx, element, markWithId);
       } catch (err) {
+        ctx.warnings.add(`Invalid XPath expression "${xpathExpression}" for pseudo-class serialization. Error: ${err.message}`);
         console.warn(`Invalid XPath expression "${xpathExpression}". Error: ${err.message}`);
       }
     }
   }
 
+  if (config.selector && Array.isArray(config.selector)) {
+    for (const selector of config.selector) {
+      try {
+        const matched = Array.from(dom.querySelectorAll(selector));
+
+        if (!matched.length) {
+          ctx.warnings.add(`No element found for selector: ${selector} for pseudo-class serialization`);
+          continue;
+        }
+
+        matched.forEach((el) => {
+          markElementIfNeeded(ctx, el, markWithId);
+          elements.push(el);
+        });
+      } catch (err) {
+        ctx.warnings.add(`Invalid selector "${selector}" for pseudo-class serialization. Error: ${err.message}`);
+        console.warn(`Invalid selector "${selector}". Error: ${err.message}`);
+      }
+    }
+  }
   return elements;
 }
 
