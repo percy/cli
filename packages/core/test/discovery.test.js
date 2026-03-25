@@ -1939,13 +1939,22 @@ describe('Discovery', () => {
     it('should not accumulate cookies across multiple snapshots', async () => {
       await percy.stop();
 
+      // Use a second image so the discovery browser must fetch a fresh resource
+      // for the second snapshot (img.gif is cached from the first)
+      let testDOM2 = testDOM.replace('img.gif', 'img2.gif');
+
+      server.reply('/img2.gif', req => {
+        cookie = req.headers.cookie;
+        return [200, 'image/gif', pixel];
+      });
+
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
         snapshot: { widths: [1000] },
         discovery: { concurrency: 1 }
       });
 
-      // First snapshot with cookie-a on a shared domain
+      // First snapshot with cookie-a
       await percy.snapshot({
         name: 'snapshot one',
         url: 'http://localhost:8000',
@@ -1960,12 +1969,13 @@ describe('Discovery', () => {
       // Reset cookie capture for next request
       cookie = null;
 
-      // Second snapshot with cookie-b — cookie-a should NOT carry over
+      // Second snapshot with cookie-b and a different resource URL
+      // so it is not served from cache — cookie-a should NOT carry over
       await percy.snapshot({
         name: 'snapshot two',
         url: 'http://localhost:8000',
         domSnapshot: {
-          html: testDOM,
+          html: testDOM2,
           cookies: [{ name: 'cookie-b', value: 'value-b', domain: 'localhost' }]
         }
       });
