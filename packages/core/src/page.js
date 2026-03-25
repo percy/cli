@@ -83,6 +83,10 @@ export class Page {
         let defaultDomain = hostname(url);
         cookies = this.mergeCookies(userPassedCookie, cookies);
 
+        // Clear stale cookies from previous snapshot navigations to prevent
+        // cookie accumulation across snapshots sharing the same browser context
+        await this.session.send('Network.clearBrowserCookies');
+
         await this.session.send('Network.setCookies', {
           // spread is used to make a shallow copy of the cookie
           cookies: cookies.map(({ ...cookie }) => {
