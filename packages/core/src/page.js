@@ -35,7 +35,7 @@ export class Page {
     let browser = this.session.browser;
     await this.session.close();
 
-    if (this.browserContextId) {
+    if (this.browserContextId && browser) {
       await browser.send('Target.disposeBrowserContext', {
         browserContextId: this.browserContextId
       }).catch(() => {});
