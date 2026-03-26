@@ -36,6 +36,7 @@ export class Page {
     await this.session.close();
 
     if (this.browserContextId && browser) {
+      /* istanbul ignore next: safety net for already-disposed contexts */
       await browser.send('Target.disposeBrowserContext', {
         browserContextId: this.browserContextId
       }).catch(() => {});
