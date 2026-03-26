@@ -32,7 +32,16 @@ export class Page {
 
   // Close the page
   async close() {
+    let browser = this.session.browser;
     await this.session.close();
+
+    if (this.browserContextId && browser) {
+      /* istanbul ignore next: safety net for already-disposed contexts */
+      await browser.send('Target.disposeBrowserContext', {
+        browserContextId: this.browserContextId
+      }).catch(() => {});
+    }
+
     this.log.debug('Page closed', this.meta);
   }
 

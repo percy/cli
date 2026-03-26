@@ -223,9 +223,16 @@ export class Browser extends EventEmitter {
       await this.restart();
     }
 
-    let { targetId } = await this.send('Target.createTarget', { url: '' });
+    // Create an isolated browser context per page so cookies/storage
+    // don't leak between concurrent snapshot discovery pages
+    let { browserContextId } = await this.send(
+      'Target.createBrowserContext', { disposeOnDetach: true }
+    );
+
+    let { targetId } = await this.send('Target.createTarget', { url: '', browserContextId });
     let { sessionId } = await this.send('Target.attachToTarget', { targetId, flatten: true });
     let page = new Page(this.sessions.get(sessionId), options);
+    page.browserContextId = browserContextId;
     await page._handleAttachedToTarget();
     return page;
   }

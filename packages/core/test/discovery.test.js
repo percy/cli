@@ -1935,6 +1935,59 @@ describe('Discovery', () => {
       expect(cookie).toEqual(undefined);
       delete process.env.PERCY_DO_NOT_USE_CAPTURED_COOKIES;
     });
+
+    it('should not accumulate cookies across multiple snapshots', async () => {
+      await percy.stop();
+
+      // Use a second image so the discovery browser must fetch a fresh resource
+      // for the second snapshot (img.gif is cached from the first)
+      let testDOM2 = testDOM.replace('img.gif', 'img2.gif');
+
+      server.reply('/img2.gif', req => {
+        cookie = req.headers.cookie;
+        return [200, 'image/gif', pixel];
+      });
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      // First snapshot with cookie-a
+      await percy.snapshot({
+        name: 'snapshot one',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM,
+          cookies: [{ name: 'cookie-a', value: 'value-a', domain: 'localhost' }]
+        }
+      });
+
+      expect(cookie).toEqual('cookie-a=value-a');
+
+      // Reset cookie capture for next request
+      cookie = null;
+
+      // Second snapshot with cookie-b and a different resource URL
+      // so it is not served from cache — cookie-a should NOT carry over
+      await percy.snapshot({
+        name: 'snapshot two',
+        url: 'http://localhost:8000',
+        domSnapshot: {
+          html: testDOM2,
+          cookies: [{ name: 'cookie-b', value: 'value-b', domain: 'localhost' }]
+        }
+      });
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Snapshot taken: snapshot one',
+        '[percy] Snapshot taken: snapshot two'
+      ]));
+
+      // cookie-a from the first snapshot should not be present
+      expect(cookie).toEqual('cookie-b=value-b');
+    });
   });
 
   describe('Dom serialisation', () => {
