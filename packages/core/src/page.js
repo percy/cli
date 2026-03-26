@@ -32,7 +32,15 @@ export class Page {
 
   // Close the page
   async close() {
+    let browser = this.session.browser;
     await this.session.close();
+
+    if (this.browserContextId) {
+      await browser.send('Target.disposeBrowserContext', {
+        browserContextId: this.browserContextId
+      }).catch(() => {});
+    }
+
     this.log.debug('Page closed', this.meta);
   }
 
@@ -82,10 +90,6 @@ export class Page {
       if (!skipCookies && (userPassedCookie.length || cookies)) {
         let defaultDomain = hostname(url);
         cookies = this.mergeCookies(userPassedCookie, cookies);
-
-        // Clear stale cookies from previous snapshot navigations to prevent
-        // cookie accumulation across snapshots sharing the same browser context
-        await this.session.send('Network.clearBrowserCookies');
 
         await this.session.send('Network.setCookies', {
           // spread is used to make a shallow copy of the cookie
