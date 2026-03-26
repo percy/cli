@@ -210,13 +210,14 @@ export function createPercyServer(percy, port) {
 
         bb.on('file', (fieldname, stream, info) => {
           let chunks = [];
-          let truncated = false;
           stream.on('data', (chunk) => chunks.push(chunk));
-          stream.on('limit', () => { truncated = true; });
+          stream.on('limit', () => {
+            // File exceeds size limit — reject immediately
+            reject(new ServerError(413, 'File size exceeds maximum of 50MB'));
+          });
           stream.on('end', () => {
             if (fieldname === 'screenshot') {
               fileBuffer = Buffer.concat(chunks);
-              if (truncated) fileBuffer = null; // will trigger size error below
             }
           });
         });
@@ -240,11 +241,6 @@ export function createPercyServer(percy, port) {
       // Validate screenshot file was provided
       if (!fileBuffer) {
         throw new ServerError(400, 'Missing required file part: screenshot');
-      }
-
-      // Validate file size (also catches Busboy truncation)
-      if (!fileBuffer || fileBuffer.length > MAX_FILE_SIZE) {
-        throw new ServerError(413, 'File size exceeds maximum of 50MB');
       }
 
       // Validate PNG magic bytes
