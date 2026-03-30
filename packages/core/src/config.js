@@ -306,7 +306,7 @@ export const configSchema = {
               type: 'string'
             }
           },
-          selector: {
+          selectors: {
             type: 'array',
             items: {
               type: 'string'
