@@ -361,7 +361,7 @@ describe('serialize-pseudo-classes', () => {
       }
       p1.showPopover();
       p2.showPopover();
-      markPseudoClassElements(ctx, { selector: ['[popover]'] });
+      markPseudoClassElements(ctx, { selectors: ['[popover]'] });
       expect(p1.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
       expect(p1.hasAttribute('data-percy-popover-open')).toBe(true);
       expect(p1.getAttribute('data-percy-popover-open')).toBe('true');
@@ -376,7 +376,7 @@ describe('serialize-pseudo-classes', () => {
     it('marks all matched elements including non-popover ones', () => {
       withExample('<div id="p1" popover="auto"></div><div id="other"></div>');
       const p1 = document.getElementById('p1');
-      markPseudoClassElements(ctx, { selector: ['div'] });
+      markPseudoClassElements(ctx, { selectors: ['div'] });
       // popover element does NOT get popover-open attr (it's closed)
       expect(p1.hasAttribute('data-percy-pseudo-element-id')).toBe(true);
       expect(p1.hasAttribute('data-percy-popover-open')).toBe(false);
@@ -387,7 +387,7 @@ describe('serialize-pseudo-classes', () => {
 
     it('warns when selector matches nothing', () => {
       withExample('<div id="foo"></div>');
-      markPseudoClassElements(ctx, { selector: ['[popover]'] });
+      markPseudoClassElements(ctx, { selectors: ['[popover]'] });
       const warnings = Array.from(ctx.warnings);
       expect(warnings.some(w => w.includes('No element found for selector'))).toBe(true);
     });
@@ -395,7 +395,7 @@ describe('serialize-pseudo-classes', () => {
     it('warns on invalid selector and does not throw', () => {
       spyOn(console, 'warn');
       withExample('<div id="foo" popover="auto"></div>');
-      expect(() => markPseudoClassElements(ctx, { selector: ['[invalid(('] })).not.toThrow();
+      expect(() => markPseudoClassElements(ctx, { selectors: ['[invalid(('] })).not.toThrow();
       expect(console.warn).toHaveBeenCalled();
       const callArgs = console.warn.calls.mostRecent().args;
       expect(callArgs[0]).toContain('Invalid selector');
@@ -403,7 +403,7 @@ describe('serialize-pseudo-classes', () => {
 
     it('does not mark elements when markWithId is false', () => {
       withExample('<div id="p1" popover="auto"></div>');
-      getElementsToProcess(ctx, { selector: ['[popover]'] }, false);
+      getElementsToProcess(ctx, { selectors: ['[popover]'] }, false);
       expect(document.getElementById('p1').hasAttribute('data-percy-pseudo-element-id')).toBe(false);
     });
   });

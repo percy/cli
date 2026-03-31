@@ -92,8 +92,8 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
     }
   }
 
-  if (config.selector && Array.isArray(config.selector)) {
-    for (const selector of config.selector) {
+  if (config.selectors && Array.isArray(config.selectors)) {
+    for (const selector of config.selectors) {
       try {
         const matched = Array.from(dom.querySelectorAll(selector));
 
