@@ -1341,9 +1341,6 @@ describe('Snapshot', () => {
     await waitFor(() => !!percy.browser.sessions.size);
     let [session] = percy.browser.sessions.values();
     await session.send('Page.crash').catch(() => {});
-    // Ensure pending callbacks are rejected since the browser may not
-    // send Target.detachedFromTarget for a crashed target
-    session._handleClose();
     await snap;
 
     expect(logger.stderr).toEqual([
