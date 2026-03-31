@@ -89,7 +89,6 @@ export class Session extends EventEmitter {
 
   _handleTargetCrashed = () => {
     this.closedReason = 'Session crashed!';
-    this._handleClose();
     this.close();
   }
 
