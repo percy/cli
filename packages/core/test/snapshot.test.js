@@ -1340,7 +1340,12 @@ describe('Snapshot', () => {
 
     await waitFor(() => !!percy.browser.sessions.size);
     let [session] = percy.browser.sessions.values();
-    await session.send('Page.crash').catch(() => {});
+    // Emit the crash event directly instead of sending Page.crash to Chrome,
+    // which hangs if Chrome never sends Target.detachedFromTarget for the
+    // crashed target. This triggers _handleTargetCrashed (sets closedReason).
+    session.emit('Inspector.targetCrashed');
+    // Reject pending callbacks since the browser won't detach a crashed target
+    session._handleClose();
     await snap;
 
     expect(logger.stderr).toEqual([
