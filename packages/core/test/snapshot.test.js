@@ -1340,13 +1340,7 @@ describe('Snapshot', () => {
 
     await waitFor(() => !!percy.browser.sessions.size);
     let [session] = percy.browser.sessions.values();
-
-    // Directly simulate a session crash: set the closed reason then reject all
-    // in-flight CDP callbacks via _handleClose(). This avoids using Page.crash
-    // whose response (and follow-up events) arrive at unpredictable times across
-    // Chrome versions, causing the await to hang indefinitely.
-    session.closedReason = 'Session crashed!';
-    session._handleClose();
+    await session.send('Page.crash').catch(() => {});
     await snap;
 
     expect(logger.stderr).toEqual([
