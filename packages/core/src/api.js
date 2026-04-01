@@ -296,6 +296,89 @@ export function createPercyServer(percy, port) {
 
       return res.json(200, { success: true, link });
     })
+  // post a comparison by reading a Maestro screenshot from disk
+    .route('post', '/percy/maestro-screenshot', async (req, res) => {
+      let { name, sessionId } = req.body || {};
+
+      if (!name) throw new ServerError(400, 'Missing required field: name');
+      if (!sessionId) throw new ServerError(400, 'Missing required field: sessionId');
+
+      // Sanitize inputs to prevent path traversal
+      if (name.includes('..') || name.includes('/') || name.includes('\\')) {
+        throw new ServerError(400, 'Invalid screenshot name');
+      }
+      if (sessionId.includes('..') || sessionId.includes('/') || sessionId.includes('\\')) {
+        throw new ServerError(400, 'Invalid sessionId');
+      }
+
+      // Find the screenshot file on disk
+      let searchPattern = `/tmp/${sessionId}_test_suite/logs/*/screenshots/${name}.png`;
+      let files;
+      try {
+        let { default: glob } = await import('fast-glob');
+        files = await glob(searchPattern);
+      } catch {
+        // Fallback: manual directory search
+        let baseDir = `/tmp/${sessionId}_test_suite/logs`;
+        files = [];
+        try {
+          let logDirs = await fs.promises.readdir(baseDir);
+          for (let dir of logDirs) {
+            let screenshotPath = path.join(baseDir, dir, 'screenshots', `${name}.png`);
+            try {
+              await fs.promises.access(screenshotPath);
+              files.push(screenshotPath);
+            } catch { /* not found, continue */ }
+          }
+        } catch { /* base dir not found */ }
+      }
+
+      if (!files || files.length === 0) {
+        throw new ServerError(404, `Screenshot not found: ${name}.png (searched ${searchPattern})`);
+      }
+
+      // Read and base64-encode the screenshot
+      let fileContent = await fs.promises.readFile(files[0]);
+      let base64Content = fileContent.toString('base64');
+
+      // Build tag from optional request body fields
+      let tag = req.body.tag || { name: 'Unknown Device', osName: 'Android' };
+
+      // Construct comparison payload
+      let payload = {
+        name,
+        tag,
+        tiles: [{
+          content: base64Content,
+          statusBarHeight: 0,
+          navBarHeight: 0,
+          headerHeight: 0,
+          footerHeight: 0,
+          fullscreen: false
+        }],
+        clientInfo: req.body.clientInfo || 'percy-maestro/0.1.0',
+        environmentInfo: req.body.environmentInfo || 'percy-maestro'
+      };
+
+      if (req.body.testCase) payload.testCase = req.body.testCase;
+      if (req.body.labels) payload.labels = req.body.labels;
+
+      // Upload via percy
+      let upload = percy.upload(payload, null, 'app');
+      if (req.url.searchParams.has('await')) await upload;
+
+      // Generate redirect link
+      var _pb = percy.build;
+      let link = [
+        percy.client.apiUrl, '/comparisons/redirect?',
+        encodeURLSearchParams(normalize({
+          buildId: _pb === null || _pb === void 0 ? void 0 : _pb.id,
+          snapshot: { name }, tag
+        }, { snake: true }))
+      ].join('');
+
+      return res.json(200, { success: true, link });
+    })
   // flushes one or more snapshots from the internal queue
     .route('post', '/percy/flush', async (req, res) => res.json(200, {
       success: await percy.flush(req.body).then(() => true)
