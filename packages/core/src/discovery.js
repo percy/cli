@@ -372,6 +372,30 @@ export async function* discoverSnapshotResources(queue, options, callback) {
   yield* yieldAll(snapshots.reduce((all, snapshot) => {
     debugSnapshotOptions(snapshot);
 
+    // R1 Part B: Auto-discover cross-origin iframe hosts for corsIframes
+    let domWarnings = [];
+    if (Array.isArray(snapshot.domSnapshot)) {
+      domWarnings = snapshot.domSnapshot.flatMap(s => s.warnings || []);
+    } else {
+      domWarnings = snapshot.domSnapshot?.warnings || [];
+    }
+
+    let log = logger('core:discovery');
+    for (const w of domWarnings) {
+      const match = w.match(/Cross-origin iframe could not be captured: (https?:\/\/[^\s]+)/);
+      if (match) {
+        try {
+          const iframeHost = new URL(match[1]).hostname;
+          if (!snapshot.discovery?.allowedHostnames?.includes(iframeHost)) {
+            snapshot.discovery = snapshot.discovery || {};
+            snapshot.discovery.allowedHostnames = snapshot.discovery.allowedHostnames || [];
+            snapshot.discovery.allowedHostnames.push(iframeHost);
+            log.debug(`Auto-added cross-origin iframe host: ${iframeHost}`, snapshot.meta);
+          }
+        } catch (e) { /* invalid URL, skip */ }
+      }
+    }
+
     if (skipDiscovery) {
       let { additionalSnapshots, ...baseSnapshot } = snapshot;
       additionalSnapshots = (dryRun && additionalSnapshots) || [];

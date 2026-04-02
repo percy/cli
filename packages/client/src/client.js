@@ -452,6 +452,7 @@ export class PercyClient {
     regions,
     algorithm,
     algorithmConfiguration,
+    captureCoverage,
     resources = [],
     meta
   } = {}) {
@@ -490,6 +491,7 @@ export class PercyClient {
           'enable-javascript': enableJavaScript || null,
           'enable-layout': enableLayout || false,
           'th-test-case-execution-id': thTestCaseExecutionId || null,
+          'capture-coverage': captureCoverage || null,
           browsers: normalizeBrowsers(browsers) || null
         },
         relationships: {

@@ -86,6 +86,30 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
 export function markPseudoClassElements(ctx, config) {
   if (!config) return;
   getElementsToProcess(ctx, config, true);
+
+  // Also traverse into shadow roots to find elements for pseudo-class marking (R7)
+  // getElementById/getElementsByClassName do not pierce shadow DOM boundaries,
+  // so we need to explicitly search inside open shadow roots
+  traverseShadowRootsForPseudoClassElements(ctx, config);
+}
+
+/**
+ * Recursively traverse shadow roots to find and mark pseudo-class elements
+ * that are inside shadow DOM boundaries (R7 fix)
+ */
+function traverseShadowRootsForPseudoClassElements(ctx, config) {
+  const { dom } = ctx;
+  // Only custom elements (tag contains '-') can have shadow roots
+  const elements = dom.querySelectorAll('*');
+  for (const el of elements) {
+    if (el.tagName?.includes('-') && el.shadowRoot) {
+      // Search inside this shadow root with a shadow-scoped context
+      const shadowCtx = { ...ctx, dom: el.shadowRoot };
+      getElementsToProcess(shadowCtx, config, true);
+      // Recurse for nested shadow roots
+      traverseShadowRootsForPseudoClassElements(shadowCtx, config);
+    }
+  }
 }
 
 /**
@@ -102,6 +126,47 @@ function stylesToCSSText(styles) {
   }
 
   return cssProperties.join(' ');
+}
+
+/**
+ * R8: Serialize custom element states via CSS :state() pseudo-class
+ * ElementInternals.states is private, but :state() selectors are observable
+ */
+function serializeCustomStates(ctx) {
+  const { customStateSelectors } = ctx;
+  if (!customStateSelectors) return;
+
+  const cssRules = [];
+
+  for (const [tagName, states] of Object.entries(customStateSelectors)) {
+    const elements = ctx.dom.querySelectorAll(tagName);
+    for (const element of elements) {
+      const percyId = element.getAttribute('data-percy-element-id');
+      if (!percyId) continue;
+
+      for (const state of states) {
+        try {
+          if (element.matches(`:state(${state})`)) {
+            const styles = window.getComputedStyle(element);
+            const cssText = stylesToCSSText(styles);
+            cssRules.push(
+              `[data-percy-element-id="${percyId}"] { ${cssText} }`
+            );
+          }
+        } catch (e) {
+          // :state() not supported or invalid — skip
+        }
+      }
+    }
+  }
+
+  if (cssRules.length > 0) {
+    const style = ctx.dom.createElement('style');
+    style.setAttribute('data-percy-custom-state-styles', 'true');
+    style.textContent = cssRules.join('\n');
+    const head = ctx.clone.head || ctx.clone.querySelector('head');
+    if (head) head.appendChild(style);
+  }
 }
 
 /**
@@ -154,4 +219,7 @@ export function serializePseudoClasses(ctx) {
       ctx.warnings.add('Could not inject pseudo-class styles: no <head> element found');
     }
   }
+
+  // R8: Also serialize custom element states
+  serializeCustomStates(ctx);
 }

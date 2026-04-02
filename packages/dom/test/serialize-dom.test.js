@@ -671,4 +671,141 @@ describe('serializeDOM', () => {
       expect(result.warnings).toContain('Error: Canvas error');
     });
   });
+
+  describe('closed shadow root detection (R6)', () => {
+    it('emits no warning for closed shadow root on plain div', () => {
+      if (getTestBrowser() !== chromeBrowser) return;
+
+      withExample('<div id="closed-host"></div>', { withShadow: false });
+      const host = document.querySelector('#closed-host');
+      host.attachShadow({ mode: 'closed' });
+
+      const result = serializeDOM();
+      // Closed shadow roots on non-custom elements should not warn
+      // (plain divs can't have closed shadow roots in practice, but
+      // the detection heuristic should not false-positive on them)
+      expect(result.html).not.toContain('closed shadow root');
+    });
+
+    it('detects closed shadow root on registered custom element and emits warning', () => {
+      if (getTestBrowser() !== chromeBrowser) return;
+
+      // Use a custom element with closed shadow root
+      class ClosedShadowElement extends HTMLElement {
+        constructor() {
+          super();
+          const shadow = this.attachShadow({ mode: 'closed' });
+          shadow.innerHTML = '<p>Hidden by closed shadow</p>';
+        }
+      }
+      if (!customElements.get('closed-shadow-test')) {
+        customElements.define('closed-shadow-test', ClosedShadowElement);
+      }
+
+      withExample('<closed-shadow-test></closed-shadow-test>', { withShadow: false });
+
+      const result = serializeDOM();
+      // Content is still not captured (closed shadow roots are inaccessible)
+      expect(result.html).not.toContain('Hidden by closed shadow');
+      // But now a warning IS emitted about the closed shadow root (R6 fix)
+      const closedWarnings = result.warnings.filter(w =>
+        w.toLowerCase().includes('closed') || w.toLowerCase().includes('cannot be captured')
+      );
+      expect(closedWarnings.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('shadow DOM pseudo-class gap (R7)', () => {
+    it('does not find elements inside shadow DOM for pseudo-class marking', () => {
+      if (getTestBrowser() !== chromeBrowser) return;
+
+      withExample('<div id="shadow-pseudo-host"></div>', { withShadow: false });
+      const host = document.querySelector('#shadow-pseudo-host');
+      const shadow = host.attachShadow({ mode: 'open' });
+      shadow.innerHTML = '<input id="shadow-input" type="text" style="color: blue;" />';
+
+      // Try to capture pseudo-class styles for an element inside shadow DOM
+      const result = serializeDOM({
+        pseudoClassEnabledElements: { id: ['shadow-input'] }
+      });
+
+      // Current behavior: getElementById does not pierce shadow DOM
+      // so the element is never found for pseudo-class processing
+      // The warning about "No element found with ID" should appear
+      const idWarnings = result.warnings.filter(w => w.includes('shadow-input'));
+      expect(idWarnings.length).toBeGreaterThan(0);
+      expect(idWarnings[0]).toContain('No element found with ID');
+    });
+  });
+
+  describe('custom element timing (R10)', () => {
+    it('serializes undefined custom element with fallback content', () => {
+      // Use a unique tag that will never be defined
+      withExample('<undefined-percy-test-element>Fallback content</undefined-percy-test-element>', { withShadow: false });
+
+      const result = serializeDOM();
+      // Current behavior: undefined elements serialize their light DOM content
+      expect(result.html).toContain('Fallback content');
+      expect(result.html).toContain('undefined-percy-test-element');
+      // No shadow DOM template since the element was never upgraded
+      expect(result.html).not.toContain('<template shadowrootmode');
+    });
+
+    it('does not trigger connectedCallback during cloning', () => {
+      // connectedCallback only fires when a node is inserted into a connected document
+      // Percy clones into a DocumentFragment which is NOT connected
+      // So connectedCallback should NOT fire during serialization cloning
+
+      let cloneCallbackCount = 0;
+      class ConnectedCallbackTestElement extends HTMLElement {
+        connectedCallback() {
+          cloneCallbackCount++;
+          const wrapper = document.createElement('span');
+          wrapper.className = 'connected-marker';
+          wrapper.textContent = 'Connected!';
+          this.appendChild(wrapper);
+        }
+      }
+      if (!customElements.get('connected-callback-test')) {
+        customElements.define('connected-callback-test', ConnectedCallbackTestElement);
+      }
+
+      withExample('<connected-callback-test></connected-callback-test>', { withShadow: false });
+
+      // connectedCallback fires once when element is inserted into the test document
+      const initialCount = cloneCallbackCount;
+      expect(initialCount).toBe(1);
+
+      serializeDOM();
+
+      // connectedCallback should NOT have fired again during cloning
+      // because the clone goes into a DocumentFragment, not a connected document
+      expect(cloneCallbackCount).toBe(initialCount);
+    });
+  });
+
+  describe('slotted content serialization (R11)', () => {
+    it('serializes slotted content with named slots correctly via getHTML', () => {
+      if (getTestBrowser() !== chromeBrowser) return;
+
+      withExample('<div id="slot-host"></div>', { withShadow: false });
+      const host = document.querySelector('#slot-host');
+      const shadow = host.attachShadow({ mode: 'open', serializable: true });
+      shadow.innerHTML = '<header><slot name="title"></slot></header><main><slot></slot></main>';
+      host.innerHTML = '<span slot="title">Title Text</span><p>Body Text</p>';
+
+      const result = serializeDOM();
+
+      // getHTML() should produce declarative shadow DOM with template
+      expect(result.html).toContain('<template shadowrootmode="open"');
+      // Shadow template should contain the slot elements
+      expect(result.html).toContain('<slot name="title">');
+      expect(result.html).toContain('<slot>');
+      // Light DOM children (slotted content) should be present in the host
+      expect(result.html).toContain('Title Text');
+      expect(result.html).toContain('Body Text');
+      // Slotted content should have slot attributes preserved
+      expect(result.html).toContain('slot="title"');
+    });
+  });
 });

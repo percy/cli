@@ -22,6 +22,12 @@ function doctype(dom) {
   return `<!DOCTYPE ${name}${deprecated}>`;
 }
 
+// R9b: Normalize browser-specific differences in serialized HTML
+function normalizeHTML(html) {
+  return html
+    .replace(/ \/>/g, '>');           // self-closing: <br /> → <br>
+}
+
 // Serializes and returns the cloned DOM as an HTML string
 function serializeHTML(ctx) {
   let html = getOuterHTML(ctx.clone.documentElement, { shadowRootElements: ctx.shadowRootElements, forceShadowAsLightDOM: ctx.forceShadowAsLightDOM });
@@ -30,7 +36,7 @@ function serializeHTML(ctx) {
   // replace serialized data attributes with real attributes
   html = html.replace(/ data-percy-serialized-attribute-(\w+?)=/ig, ' $1=');
   // include the doctype with the html string
-  return doctype(ctx.dom) + html;
+  return doctype(ctx.dom) + normalizeHTML(html);
 }
 
 function serializeElements(ctx) {

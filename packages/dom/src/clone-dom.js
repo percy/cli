@@ -61,7 +61,7 @@ export function cloneNodeAndShadow(ctx) {
       }
 
       // mark the node before cloning
-      markElement(node, disableShadowDOM, forceShadowAsLightDOM);
+      markElement(node, disableShadowDOM, forceShadowAsLightDOM, ctx);
 
       let clone = cloneElementWithoutLifecycle(node);
 
@@ -153,8 +153,6 @@ export function getOuterHTML(docElement, { shadowRootElements, forceShadowAsLigh
     // All major browsers in latest versions supports getHTML API to get serialized DOM
     // https://developer.mozilla.org/en-US/docs/Web/API/Element/getHTML
     innerHTML = docElement.getHTML({ serializableShadowRoots: true, shadowRoots: shadowRootElements });
-  } else if (docElement.getInnerHTML) {
-    innerHTML = docElement.getInnerHTML({ includeShadowRoots: true });
   } else {
     // old firefox doesn't serialize shadow DOM, we're awaiting API's by firefox to become ready and are not polyfilling it.
     // new firefox from 128 onwards serializes it using getHTML

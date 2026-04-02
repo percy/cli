@@ -307,6 +307,29 @@ export const configSchema = {
             }
           }
         }
+      },
+      waitForCustomElements: {
+        oneOf: [
+          { type: 'boolean' },
+          { type: 'integer', minimum: 100, maximum: 5000 }
+        ]
+      },
+      waitForSelectorPierceShadow: {
+        type: 'boolean',
+        default: false
+      },
+      waitForHydration: {
+        oneOf: [
+          { type: 'boolean' },
+          { type: 'integer', minimum: 100, maximum: 5000 }
+        ]
+      },
+      customStateSelectors: {
+        type: 'object',
+        additionalProperties: {
+          type: 'array',
+          items: { type: 'string' }
+        }
       }
     }
   },
@@ -447,6 +470,10 @@ export const configSchema = {
       autoConfigureAllowedHostnames: {
         type: 'boolean',
         default: true
+      },
+      excludeIframeSelectors: {
+        type: 'array',
+        items: { type: 'string' }
       }
     }
   },

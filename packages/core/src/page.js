@@ -187,10 +187,31 @@ export class Page {
       await sleep(waitForTimeout);
     }
 
-    // wait for any specified selector
+    // Wait for any specified selector
     if (waitForSelector) {
       this.log.debug(`Wait for selector: ${waitForSelector}`, this.meta);
-      await this.eval(`await waitForSelector(${JSON.stringify(waitForSelector)}, ${Page.TIMEOUT})`);
+      if (snapshot.waitForSelectorPierceShadow) {
+        // R12b: Search inside shadow roots too
+        await this.eval(`
+          await (async () => {
+            const findDeep = (sel) => {
+              if (document.querySelector(sel)) return true;
+              for (const el of document.querySelectorAll('*')) {
+                if (el.shadowRoot?.querySelector(sel)) return true;
+              }
+              return false;
+            };
+            const timeout = ${Page.TIMEOUT || 30000};
+            const start = Date.now();
+            while (!findDeep(${JSON.stringify(waitForSelector)})) {
+              if (Date.now() - start > timeout) throw new Error('waitForSelector shadow pierce timeout');
+              await new Promise(r => setTimeout(r, 100));
+            }
+          })()
+        `);
+      } else {
+        await this.eval(`await waitForSelector(${JSON.stringify(waitForSelector)}, ${Page.TIMEOUT})`);
+      }
     }
 
     // execute any javascript
@@ -201,6 +222,46 @@ export class Page {
 
     // wait for any final network activity before capturing the dom snapshot
     await this.network.idle();
+
+    // R10: Wait for custom elements to be defined (opt-in)
+    if (snapshot.waitForCustomElements) {
+      this.log.debug('Wait for custom elements to be defined', this.meta);
+      await this.eval(`
+        await (async () => {
+          const undefinedEls = document.querySelectorAll(':not(:defined)');
+          const tags = [...new Set(Array.from(undefinedEls).map(e => e.tagName.toLowerCase()))].slice(0, 50);
+          if (tags.length) {
+            await Promise.race([
+              Promise.all(tags.map(t => customElements.whenDefined(t))),
+              new Promise(r => setTimeout(r, ${snapshot.waitForCustomElements === true ? 500 : snapshot.waitForCustomElements}))
+            ]);
+          }
+        })()
+      `);
+    }
+
+    // R-new3: Wait for framework hydration signals
+    if (snapshot.waitForHydration) {
+      this.log.debug('Wait for framework hydration', this.meta);
+      await this.eval(`
+        await (async () => {
+          const timeout = ${typeof snapshot.waitForHydration === 'number' ? snapshot.waitForHydration : 1000};
+          await Promise.race([
+            new Promise(resolve => {
+              // Astro hydration
+              if (document.querySelector('astro-island')) {
+                document.addEventListener('astro:load', resolve, { once: true });
+              } else {
+                resolve();
+              }
+            }),
+            new Promise(r => setTimeout(r, timeout))
+          ]);
+          // Settle time for any post-hydration rendering
+          await new Promise(r => setTimeout(r, 100));
+        })()
+      `);
+    }
 
     await this.insertPercyDom();
 

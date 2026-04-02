@@ -220,6 +220,23 @@ export function validateSnapshotOptions(options) {
     log.warn('Encountered snapshot serialization warnings:');
     for (let w of domWarnings) log.warn(`- ${w}`);
   }
+
+  // Extract capture coverage from warnings for API transmission
+  let captureWarnings = domWarnings.filter(w =>
+    w.includes('Cross-origin iframe') ||
+    w.includes('closed shadow root') ||
+    w.includes('cannot be captured') ||
+    w.includes('data-percy-ignore') ||
+    w.includes('Failed to serialize iframe')
+  );
+
+  if (captureWarnings.length > 0) {
+    migrated.captureCoverage = {
+      complete: false,
+      skippedCount: captureWarnings.length,
+      warnings: captureWarnings
+    };
+  }
   // warn on validation errors
   let errors = PercyConfig.validate(migrated, schema);
   if (errors?.length > 0) {
