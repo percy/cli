@@ -2245,6 +2245,8 @@ describe('Snapshot readiness options', () => {
   });
 
   afterEach(async () => {
+    let { Page } = await import('../src/page.js');
+    Page._globalReadinessConfig = null;
     await percy?.stop();
     await server?.close();
     delete process.env.PERCY_FORCE_PKG_VALUE;

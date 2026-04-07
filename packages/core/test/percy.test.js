@@ -2213,6 +2213,11 @@ describe('Percy', () => {
   });
 
   describe('Readiness gate', () => {
+    afterEach(async () => {
+      let { Page } = await import('../src/page.js');
+      Page._globalReadinessConfig = null;
+    });
+
     it('sets Page._globalReadinessConfig from config', async () => {
       let { Page } = await import('../src/page.js');
       percy = new Percy({

@@ -5022,6 +5022,12 @@ describe('Discovery', () => {
   });
 
   describe('Readiness V2 re-capture', () => {
+    afterEach(async () => {
+      // Reset global readiness config to prevent leaking into other tests
+      let { Page } = await import('../src/page.js');
+      Page._globalReadinessConfig = null;
+    });
+
     it('does not re-capture when readiness is disabled', async () => {
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
@@ -5054,7 +5060,8 @@ describe('Discovery', () => {
         token: 'PERCY_TOKEN',
         snapshot: {
           widths: [1000],
-          readiness: { preset: 'fast' }
+          // Use disabled preset to avoid running readiness gate in page.snapshot()
+          readiness: { preset: 'disabled' }
         },
         discovery: { concurrency: 1 }
       });
