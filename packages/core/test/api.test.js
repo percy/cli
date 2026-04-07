@@ -1008,4 +1008,27 @@ describe('API Server', () => {
       });
     });
   });
+
+  describe('POST /percy/snapshot — _fromSDK flag', () => {
+    it('adds _fromSDK to snapshots posted via API', async () => {
+      await percy.start();
+
+      let receivedOptions;
+      spyOn(percy, 'snapshot').and.callFake((opts) => {
+        receivedOptions = opts;
+        return Promise.resolve();
+      });
+
+      await request('/percy/snapshot', {
+        method: 'POST',
+        body: {
+          name: 'sdk test',
+          url: 'http://localhost:8000',
+          domSnapshot: '<html></html>'
+        }
+      });
+
+      expect(receivedOptions._fromSDK).toBe(true);
+    });
+  });
 });

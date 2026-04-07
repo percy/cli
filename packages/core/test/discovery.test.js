@@ -5020,4 +5020,130 @@ describe('Discovery', () => {
       expect(largeImageResource).toBeDefined('Large image resource should be captured');
     });
   });
+
+  describe('Readiness V2 re-capture', () => {
+    let readinessServer;
+
+    beforeEach(async () => {
+      // Server that serves a page with delayed content loading
+      readinessServer = await createTestServer({
+        '/': () => [200, 'text/html', dedent`
+          <html><body>
+            <div class="skeleton">Loading...</div>
+            <script>
+              setTimeout(function() {
+                document.querySelector('.skeleton').remove();
+                document.body.innerHTML += '<div class="loaded">Content ready</div>';
+              }, 1000);
+            </script>
+          </body></html>
+        `]
+      });
+    });
+
+    afterEach(async () => {
+      await readinessServer?.close();
+    });
+
+    it('re-captures from URL when _fromSDK and readiness enabled', async () => {
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: {
+          widths: [1000],
+          readiness: { preset: 'fast', stabilityWindowMs: 200, timeoutMs: 5000, notPresentSelectors: ['.skeleton'] }
+        },
+        discovery: { concurrency: 1 }
+      });
+
+      // Simulate SDK sending domSnapshot via the local API
+      let response = await fetch(`http://localhost:${percy.port}/percy/snapshot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'readiness re-capture test',
+          url: readinessServer.address,
+          domSnapshot: '<html><body><div class="skeleton">Loading...</div></body></html>',
+          widths: [1000]
+        })
+      });
+
+      expect(response.status).toBe(200);
+      await percy.idle();
+
+      // Verify the snapshot was captured (resource was submitted to API)
+      expect(captured.length).toBeGreaterThan(0);
+
+      // Verify re-capture log
+      expect(logger.stderr).toEqual(
+        jasmine.arrayContaining([
+          jasmine.stringMatching(/Readiness enabled \(SDK snapshot\): re-capturing from URL/)
+        ])
+      );
+    });
+
+    it('uses SDK domSnapshot when readiness is disabled', async () => {
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: {
+          widths: [1000],
+          readiness: { preset: 'disabled' }
+        },
+        discovery: { concurrency: 1 }
+      });
+
+      let response = await fetch(`http://localhost:${percy.port}/percy/snapshot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'disabled readiness test',
+          url: readinessServer.address,
+          domSnapshot: '<html><body><div class="skeleton">SDK Skeleton</div></body></html>',
+          widths: [1000]
+        })
+      });
+
+      expect(response.status).toBe(200);
+      await percy.idle();
+
+      // Should NOT have re-capture log
+      expect(logger.stderr).not.toEqual(
+        jasmine.arrayContaining([
+          jasmine.stringMatching(/re-capturing from URL/)
+        ])
+      );
+    });
+
+    it('does not re-capture for non-SDK snapshots (CLI percy snapshot)', async () => {
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: {
+          widths: [1000],
+          readiness: { preset: 'fast', stabilityWindowMs: 100, timeoutMs: 3000 }
+        },
+        discovery: { concurrency: 1 }
+      });
+
+      // Direct call (not through API — no _fromSDK flag)
+      await percy.snapshot({
+        name: 'direct URL snapshot',
+        url: readinessServer.address
+      });
+
+      await percy.idle();
+
+      // Should NOT log "SDK snapshot" re-capture
+      expect(logger.stderr).not.toEqual(
+        jasmine.arrayContaining([
+          jasmine.stringMatching(/SDK snapshot/)
+        ])
+      );
+
+      // But readiness should still run in page.snapshot()
+      expect(logger.stderr).toEqual(
+        jasmine.arrayContaining([
+          jasmine.stringMatching(/Running readiness checks/)
+        ])
+      );
+    });
+  });
 });

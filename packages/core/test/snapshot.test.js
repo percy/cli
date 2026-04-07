@@ -2224,3 +2224,88 @@ describe('runDoctorOnFailure', () => {
     expect(runDiagnostics).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('Snapshot readiness options', () => {
+  let percy, server;
+
+  beforeEach(async () => {
+    process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
+    process.env.PERCY_DISABLE_SYSTEM_MONITORING = 'true';
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 150000;
+    await setupTest();
+
+    api.reply('/builds/123/snapshots', () => [201, { data: { id: '4567' } }]);
+    api.reply('/snapshots/4567/finalize', () => [200, {}]);
+    api.reply('/builds/123/resources', () => [200, {}]);
+    api.reply('/project-domain-configs/cli-test-id', () => [200, { data: { type: 'projects', id: '123', attributes: {} } }]);
+
+    server = await createTestServer({
+      '/': () => [200, 'text/html', '<html><body><p>Test</p></body></html>']
+    });
+  });
+
+  afterEach(async () => {
+    await percy?.stop();
+    await server?.close();
+    delete process.env.PERCY_FORCE_PKG_VALUE;
+    delete process.env.PERCY_DISABLE_SYSTEM_MONITORING;
+  });
+
+  it('accepts readiness config in snapshot options', async () => {
+    percy = await Percy.start({
+      token: 'PERCY_TOKEN',
+      snapshot: { widths: [1000] },
+      discovery: { concurrency: 1 }
+    });
+
+    await percy.snapshot({
+      name: 'readiness test',
+      url: server.address,
+      readiness: { preset: 'fast', stabilityWindowMs: 100, timeoutMs: 3000 }
+    });
+
+    await percy.idle();
+    expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Invalid snapshot options/)
+    ]));
+  });
+
+  it('logs warning for invalid readiness preset in snapshot options', async () => {
+    percy = await Percy.start({
+      token: 'PERCY_TOKEN',
+      snapshot: { widths: [1000] },
+      discovery: { concurrency: 1 }
+    });
+
+    await percy.snapshot({
+      name: 'bad preset test',
+      url: server.address,
+      readiness: { preset: 'turbo' }
+    });
+
+    await percy.idle();
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Invalid snapshot options/)
+    ]));
+  });
+
+  it('accepts readiness disabled at snapshot level', async () => {
+    percy = await Percy.start({
+      token: 'PERCY_TOKEN',
+      snapshot: { widths: [1000], readiness: { preset: 'strict' } },
+      discovery: { concurrency: 1 }
+    });
+
+    await percy.snapshot({
+      name: 'override disabled test',
+      url: server.address,
+      readiness: { preset: 'disabled' }
+    });
+
+    await percy.idle();
+    // Readiness should be skipped — no readiness logs
+    expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Running readiness checks/)
+    ]));
+  });
+});
