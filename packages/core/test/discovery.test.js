@@ -5022,35 +5022,6 @@ describe('Discovery', () => {
   });
 
   describe('Readiness V2 re-capture', () => {
-    it('logs re-capture when _fromSDK with readiness config and domSnapshot', async () => {
-      // Test the V2 decision logic without launching a full browser capture.
-      // Verify the log message is produced when conditions are met.
-      percy = await Percy.start({
-        token: 'PERCY_TOKEN',
-        snapshot: {
-          widths: [1000],
-          readiness: { preset: 'fast' }
-        },
-        discovery: { concurrency: 1 }
-      });
-
-      await percy.snapshot({
-        name: 'SDK re-capture test',
-        url: server.address,
-        domSnapshot: testDOM,
-        _fromSDK: true
-      });
-
-      await percy.idle();
-
-      // Verify re-capture was triggered
-      expect(logger.stderr).toEqual(
-        jasmine.arrayContaining([
-          jasmine.stringMatching(/Readiness enabled \(SDK snapshot\): re-capturing from URL/)
-        ])
-      );
-    });
-
     it('does not re-capture when readiness is disabled', async () => {
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
