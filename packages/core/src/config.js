@@ -517,6 +517,7 @@ export const snapshotSchema = {
         ignoreStyleSheetSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreStyleSheetSerializationErrors' },
         pseudoClassEnabledElements: { $ref: '/config/snapshot#/properties/pseudoClassEnabledElements' },
         readiness: { $ref: '/config/snapshot#/properties/readiness' },
+        skipReadiness: { type: 'boolean' },
         discovery: {
           type: 'object',
           additionalProperties: false,
@@ -667,6 +668,7 @@ export const snapshotSchema = {
         name: { type: 'string' },
         width: { $ref: '/config/snapshot#/properties/widths/items' },
         readiness_diagnostics: { type: 'object', additionalProperties: true },
+        skipReadiness: { type: 'boolean' },
         domSnapshot: {
           oneOf: [{ type: 'string' }, {
             type: 'object',
