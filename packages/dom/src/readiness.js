@@ -39,14 +39,12 @@ function isLayoutMutation(mutation) {
   if (mutation.type === 'attributes') {
     let attr = mutation.attributeName;
     if (attr.startsWith('data-') || attr.startsWith('aria-')) return false;
-    if (LAYOUT_ATTRIBUTES.has(attr)) {
-      if (attr === 'style') {
-        let oldStyle = mutation.oldValue || '';
-        let newStyle = mutation.target.getAttribute('style') || '';
-        return hasLayoutStyleChange(oldStyle, newStyle);
-      }
-      return true;
+    if (attr === 'style') {
+      let oldStyle = mutation.oldValue || '';
+      let newStyle = mutation.target.getAttribute('style') || '';
+      return hasLayoutStyleChange(oldStyle, newStyle);
     }
+    if (LAYOUT_ATTRIBUTES.has(attr)) return true;
   }
   return false;
 }
