@@ -157,13 +157,13 @@ describe('waitForReady', () => {
     expect(typeof result.total_duration_ms).toBe('number');
   });
 
-  it('detects layout-affecting style mutations (width change)', async () => {
-    withExample('<div id="style-test" style="width:100px"></div>', { withShadow: false });
+  it('detects layout-affecting attribute mutations (class change)', async () => {
+    withExample('<div id="class-test" class="narrow"></div>', { withShadow: false });
 
-    // Change a layout-affecting style property after a short delay
+    // Change a layout-affecting attribute after a short delay
     setTimeout(() => {
-      let el = document.getElementById('style-test');
-      if (el) el.style.width = '200px';
+      let el = document.getElementById('class-test');
+      if (el) el.setAttribute('class', 'wide');
     }, 50);
 
     let result = await waitForReady({
