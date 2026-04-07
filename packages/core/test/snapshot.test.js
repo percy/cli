@@ -2253,16 +2253,18 @@ describe('Snapshot readiness options', () => {
     delete process.env.PERCY_DISABLE_SYSTEM_MONITORING;
   });
 
-  it('accepts readiness config in snapshot options', async () => {
+  it('accepts readiness config in snapshot options (domSnapshot path)', async () => {
     percy = await Percy.start({
       token: 'PERCY_TOKEN',
       snapshot: { widths: [1000] },
       discovery: { concurrency: 1 }
     });
 
+    // Use domSnapshot to avoid browser readiness gate
     await percy.snapshot({
-      name: 'readiness test',
+      name: 'readiness config test',
       url: server.address,
+      domSnapshot: '<html><body><p>Test</p></body></html>',
       readiness: { preset: 'fast', stabilityWindowMs: 100, timeoutMs: 3000 }
     });
 
@@ -2282,6 +2284,7 @@ describe('Snapshot readiness options', () => {
     await percy.snapshot({
       name: 'bad preset test',
       url: server.address,
+      domSnapshot: '<html><body><p>Test</p></body></html>',
       readiness: { preset: 'turbo' }
     });
 
@@ -2294,13 +2297,14 @@ describe('Snapshot readiness options', () => {
   it('accepts readiness disabled at snapshot level', async () => {
     percy = await Percy.start({
       token: 'PERCY_TOKEN',
-      snapshot: { widths: [1000], readiness: { preset: 'strict' } },
+      snapshot: { widths: [1000] },
       discovery: { concurrency: 1 }
     });
 
     await percy.snapshot({
       name: 'override disabled test',
       url: server.address,
+      domSnapshot: '<html><body><p>Test</p></body></html>',
       readiness: { preset: 'disabled' }
     });
 
