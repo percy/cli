@@ -5055,10 +5055,10 @@ describe('Discovery', () => {
         discovery: { concurrency: 1 }
       });
 
-      // Simulate SDK sending domSnapshot via the local API
-      let response = await fetch(`http://localhost:${percy.port}/percy/snapshot`, {
+      // Simulate SDK sending domSnapshot via the local API (uses _fromSDK internally)
+      let { request: req } = await import('./helpers/request.js');
+      await req(new URL('/percy/snapshot', `http://localhost:${percy.port}`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: 'readiness re-capture test',
           url: readinessServer.address,
@@ -5067,7 +5067,6 @@ describe('Discovery', () => {
         })
       });
 
-      expect(response.status).toBe(200);
       await percy.idle();
 
       // Verify the snapshot was captured (resource was submitted to API)
@@ -5091,9 +5090,9 @@ describe('Discovery', () => {
         discovery: { concurrency: 1 }
       });
 
-      let response = await fetch(`http://localhost:${percy.port}/percy/snapshot`, {
+      let { request: req } = await import('./helpers/request.js');
+      await req(new URL('/percy/snapshot', `http://localhost:${percy.port}`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: 'disabled readiness test',
           url: readinessServer.address,
@@ -5102,7 +5101,6 @@ describe('Discovery', () => {
         })
       });
 
-      expect(response.status).toBe(200);
       await percy.idle();
 
       // Should NOT have re-capture log

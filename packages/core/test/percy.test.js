@@ -2240,19 +2240,10 @@ describe('Percy', () => {
     it('preserves _fromSDK flag through snapshot validation', async () => {
       await percy.start();
 
-      let validatedOptions;
-      let origSnapshot = percy.yield.snapshot;
-      // Intercept the generator to capture options after validation
-      spyOn(percy, 'snapshot').and.callFake(async (options) => {
-        validatedOptions = options;
-        // Don't actually run the snapshot
-      });
+      spyOn(percy, 'snapshot').and.callFake(async () => {});
 
-      // Simulate SDK call with _fromSDK
       await percy.snapshot({ url: server.address, name: 'test', domSnapshot: '<html></html>', _fromSDK: true });
 
-      // The flag should survive
-      // Note: percy.snapshot is spied, so we check what was passed
       expect(percy.snapshot).toHaveBeenCalledWith(
         jasmine.objectContaining({ _fromSDK: true })
       );

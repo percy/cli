@@ -41,11 +41,13 @@ export async function waitForReadiness(page, options = {}) {
   let result;
   try {
     /* istanbul ignore next: no instrumenting injected code */
+    /* istanbul ignore next: no instrumenting injected code */
     result = await page.eval((_, readinessConfig) => {
-      /* eslint-disable-next-line no-undef */
-      if (typeof PercyDOM.waitForReady !== 'function') {
+      // eslint-disable-next-line no-undef
+      if (typeof PercyDOM === 'undefined' || typeof PercyDOM.waitForReady !== 'function') {
         return { passed: true, error: 'waitForReady not available', checks: {} };
       }
+      // eslint-disable-next-line no-undef
       return PercyDOM.waitForReady(readinessConfig);
     }, config);
   } catch (error) {

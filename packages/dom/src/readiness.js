@@ -1,3 +1,7 @@
+/* eslint-disable no-undef */
+// Browser globals (performance, MutationObserver, document, window, getComputedStyle)
+// are available in the browser execution context where this code runs.
+
 // Readiness check presets
 const PRESETS = {
   balanced: {
@@ -90,7 +94,12 @@ function checkDOMStability(stabilityWindowMs) {
 
     function settle() {
       observer.disconnect();
-      resolve({ passed: true, duration_ms: Math.round(performance.now() - startTime), mutations_observed: mutationCount, last_mutation_type: lastMutationType });
+      resolve({
+        passed: true,
+        duration_ms: Math.round(performance.now() - startTime),
+        mutations_observed: mutationCount,
+        last_mutation_type: lastMutationType
+      });
     }
 
     observer.observe(document.documentElement, {

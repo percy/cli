@@ -156,4 +156,92 @@ describe('waitForReady', () => {
     expect(result.checks).toBeDefined();
     expect(typeof result.total_duration_ms).toBe('number');
   });
+
+  it('detects layout-affecting style mutations (width change)', async () => {
+    withExample('<div id="style-test" style="width:100px"></div>', { withShadow: false });
+
+    // Change a layout-affecting style property after a short delay
+    setTimeout(() => {
+      let el = document.getElementById('style-test');
+      if (el) el.style.width = '200px';
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200, timeout_ms: 3000,
+      image_ready: false, font_ready: false, network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBeGreaterThan(0);
+  });
+
+  it('ignores non-layout style mutations (opacity change)', async () => {
+    withExample('<div id="opacity-test" style="opacity:1"></div>', { withShadow: false });
+
+    // Change a visual-only style property
+    setTimeout(() => {
+      let el = document.getElementById('opacity-test');
+      if (el) el.style.opacity = '0.5';
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200, timeout_ms: 3000,
+      image_ready: false, font_ready: false, network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    // opacity change should NOT count as a layout mutation
+    expect(result.checks.dom_stability.mutations_observed).toBe(0);
+  });
+
+  it('handles image loading in viewport', async () => {
+    // Create a visible image that is "loading"
+    withExample('<img id="test-img" width="100" height="100" style="display:block">', { withShadow: false });
+    let img = document.getElementById('test-img');
+
+    // Set src after a delay to simulate loading
+    setTimeout(() => {
+      if (img) {
+        img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
+      }
+    }, 100);
+
+    let result = await waitForReady({
+      stability_window_ms: 50, timeout_ms: 5000,
+      image_ready: true, font_ready: false, network_idle_window_ms: 50
+    });
+
+    expect(result.checks.image_ready).toBeDefined();
+    expect(result.checks.image_ready.passed).toBe(true);
+  });
+
+  it('uses max_timeout_ms when provided (WebDriver buffer)', async () => {
+    withExample('<div id="forever2"></div>', { withShadow: false });
+    let interval = setInterval(() => {
+      let el = document.getElementById('forever2');
+      if (el) { let s = document.createElement('span'); el.appendChild(s); if (el.children.length > 5) el.removeChild(el.firstChild); }
+    }, 30);
+
+    let result = await waitForReady({
+      stability_window_ms: 200, timeout_ms: 10000,
+      max_timeout_ms: 800, // Should cap at 800ms, not 10000ms
+      image_ready: false, font_ready: false, network_idle_window_ms: 50
+    });
+
+    clearInterval(interval);
+    expect(result.timed_out).toBe(true);
+    expect(result.total_duration_ms).toBeLessThan(2000); // Should be ~800ms, not 10s
+  });
+
+  it('uses unknown preset name and falls back to balanced', async () => {
+    withExample('<p>Fallback</p>', { withShadow: false });
+    let result = await waitForReady({
+      preset: 'nonexistent',
+      timeout_ms: 2000, stability_window_ms: 50,
+      image_ready: false, font_ready: false, network_idle_window_ms: 50
+    });
+
+    // Should still resolve (uses balanced defaults as fallback)
+    expect(result.passed).toBe(true);
+  });
 });
