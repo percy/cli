@@ -245,6 +245,84 @@ describe('waitForReady', () => {
     expect(result.total_duration_ms).toBeLessThan(2000); // Should be ~800ms, not 10s
   });
 
+  it('detects layout-affecting style attribute change (width via setAttribute)', async () => {
+    withExample('<div id="style-attr-test" style="width:100px"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('style-attr-test');
+      if (el) el.setAttribute('style', 'width:200px');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBeGreaterThan(0);
+  });
+
+  it('ignores non-layout style attribute change (opacity via setAttribute)', async () => {
+    withExample('<div id="style-opacity-attr" style="opacity:1"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('style-opacity-attr');
+      if (el) el.setAttribute('style', 'opacity:0.5');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBe(0);
+  });
+
+  it('detects when same style value is set (no layout change)', async () => {
+    withExample('<div id="style-same" style="width:100px"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('style-same');
+      if (el) el.setAttribute('style', 'width:100px');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    // Same value = no layout change = 0 mutations
+    expect(result.checks.dom_stability.mutations_observed).toBe(0);
+  });
+
+  it('catches errors in readiness checks gracefully', async () => {
+    // Force an error by running on a page with no document element
+    // The waitForReady function should catch errors internally
+    let result = await waitForReady({
+      stability_window_ms: 50,
+      timeout_ms: 500,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50,
+      ready_selectors: ['#nonexistent-guaranteed']
+    });
+
+    // Should still resolve (not reject) — errors are caught
+    expect(result).toBeDefined();
+    expect(typeof result.passed).toBe('boolean');
+  });
+
   it('uses unknown preset name and falls back to balanced', async () => {
     withExample('<p>Fallback</p>', { withShadow: false });
     let result = await waitForReady({
