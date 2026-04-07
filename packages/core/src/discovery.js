@@ -433,8 +433,10 @@ export function createDiscoveryQueue(percy) {
 
         // V2 Readiness: For SDK-provided snapshots (_fromSDK), discard domSnapshot
         // and re-capture from the live URL so the readiness gate can run.
-        let readinessPreset = snapshot.readiness?.preset ?? percy.config?.snapshot?.readiness?.preset ?? 'balanced';
-        if (snapshot._fromSDK && snapshot.domSnapshot && snapshot.url && readinessPreset !== 'disabled') {
+        // Only triggers when readiness is explicitly configured (not by default).
+        let readinessConfig = snapshot.readiness || percy.config?.snapshot?.readiness;
+        let readinessPreset = readinessConfig?.preset;
+        if (snapshot._fromSDK && snapshot.domSnapshot && snapshot.url && readinessConfig && readinessPreset !== 'disabled') {
           percy.log.debug('Readiness enabled (SDK snapshot): re-capturing from URL', snapshot.meta);
           let extractedCookies = snapshot.domSnapshot?.cookies || snapshot.domSnapshot?.[0]?.cookies;
           if (extractedCookies) snapshot._extractedCookies = extractedCookies;

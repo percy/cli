@@ -217,11 +217,11 @@ export class Page {
 
     await this.insertPercyDom();
 
-    // Run readiness checks before capturing.
+    // Run readiness checks before capturing — only when explicitly configured.
     // Config priority: per-snapshot > per-page > global (from Percy constructor)
     let readinessDiagnostics = null;
     let effectiveReadiness = snapshot.readiness || this._readinessConfig || Page._globalReadinessConfig;
-    if (effectiveReadiness?.preset !== 'disabled') {
+    if (effectiveReadiness && effectiveReadiness.preset !== 'disabled') {
       readinessDiagnostics = await waitForReadiness(this, { ...snapshot, readiness: effectiveReadiness });
     }
 
