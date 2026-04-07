@@ -7,6 +7,9 @@ export const configSchema = {
       deferUploads: {
         type: 'boolean'
       },
+      archivePath: {
+        type: 'string'
+      },
       useSystemProxy: {
         type: 'boolean',
         default: false

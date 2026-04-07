@@ -58,6 +58,8 @@ export class Percy {
   constructor({
     // initial log level
     loglevel,
+    // path to save snapshot data to disk
+    archivePath,
     // process uploads before the next snapshot
     delayUploads,
     // process uploads after all snapshots
@@ -107,6 +109,7 @@ export class Percy {
     this.skipDiscovery = this.dryRun || !!skipDiscovery;
     this.delayUploads = this.skipUploads || !!delayUploads;
     this.deferUploads = this.skipUploads || !!deferUploads;
+    this.archivePath = this.skipUploads && archivePath ? archivePath : null;
     this.labels = labels;
     this.suggestionsCallCounter = suggestionsCallCounter;
 
@@ -136,7 +139,7 @@ export class Percy {
     };
 
     // generator methods are wrapped to autorun and return promises
-    for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot', 'upload']) {
+    for (let m of ['start', 'stop', 'flush', 'idle', 'snapshot', 'upload', 'replaySnapshot']) {
       // the original generator can be referenced with percy.yield.<method>
       let method = (this.yield ||= {})[m] = this[m].bind(this);
       this[m] = (...args) => generatePromise(method(...args));
@@ -238,6 +241,13 @@ export class Percy {
       // This ensures pre-approved domains are loaded before discovery starts
       if (!this.skipUploads && !this.skipDiscovery) {
         await this.loadAutoConfiguredHostnames();
+      }
+
+      // validate and log archive path if configured
+      if (this.archivePath) {
+        let { validateArchivePath } = await import('./archive.js');
+        this.archivePath = validateArchivePath(this.archivePath);
+        this.log.info(`Archiving snapshots to: ${this.archivePath}`);
       }
 
       // start the snapshots queue immediately when not delayed or deferred
@@ -351,6 +361,11 @@ export class Percy {
       // if dry-running, log the total number of snapshots
       if (this.dryRun && this.#snapshots.size) {
         this.log.info(info('Found', this.#snapshots.size));
+      }
+
+      // log archive summary
+      if (this.archivePath && this.#snapshots.size) {
+        this.log.info(`Archived ${this.#snapshots.size} snapshot(s) to: ${this.archivePath}`);
       }
 
       // Save domain validation config before closing
@@ -490,6 +505,15 @@ export class Percy {
             config: this.config
           })
         }, snapshot => {
+          // archive snapshot to disk if configured
+          if (this.archivePath) {
+            import('./archive.js').then(({ archiveSnapshot }) => {
+              archiveSnapshot(this.archivePath, snapshot);
+            }).catch(err => {
+              this.log.error(`Failed to archive snapshot "${snapshot.name}": ${err.message}`);
+            });
+          }
+
           // attaching promise resolve reject so to wait for snapshot to complete
           if (this.syncMode(snapshot)) {
             snapshotPromise[snapshot.name] = new Promise((resolve, reject) => {
@@ -566,6 +590,23 @@ export class Percy {
         throw error;
       }
     }.call(this));
+  }
+
+  // Pushes a pre-built snapshot directly to the upload queue without discovery.
+  // Used by the replay command to upload previously archived snapshots.
+  *replaySnapshot(snapshot) {
+    if (this.readyState !== 1) {
+      throw new Error('Not running');
+    } else if (this.build?.error) {
+      throw new Error(this.build.error);
+    }
+
+    snapshot.meta = {
+      snapshot: { name: snapshot.name, testCase: snapshot.testCase }
+    };
+
+    this.log.info(`Replaying snapshot: ${snapshot.name}`, snapshot.meta);
+    this.#snapshots.push(snapshot);
   }
 
   shouldSkipAssetDiscovery(tokenType) {
