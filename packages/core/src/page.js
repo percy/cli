@@ -2,6 +2,7 @@ import fs from 'fs';
 import logger from '@percy/logger';
 import Network from './network.js';
 import { PERCY_DOM } from './api.js';
+import { waitForReadiness } from './readiness.js';
 import {
   hostname,
   waitFor,
@@ -11,6 +12,9 @@ import {
 
 export class Page {
   static TIMEOUT = undefined;
+  // Global readiness config set by Percy constructor, accessible by all page instances.
+  // Needed for Storybook which calls page.snapshot() without readiness in options.
+  static _globalReadinessConfig = null;
 
   log = logger('core:page');
 
@@ -213,6 +217,14 @@ export class Page {
 
     await this.insertPercyDom();
 
+    // Run readiness checks before capturing.
+    // Config priority: per-snapshot > per-page > global (from Percy constructor)
+    let readinessDiagnostics = null;
+    let effectiveReadiness = snapshot.readiness || this._readinessConfig || Page._globalReadinessConfig;
+    if (effectiveReadiness?.preset !== 'disabled') {
+      readinessDiagnostics = await waitForReadiness(this, { ...snapshot, readiness: effectiveReadiness });
+    }
+
     // serialize and capture a DOM snapshot
     this.log.debug('Serialize DOM', this.meta);
 
@@ -223,6 +235,7 @@ export class Page {
       url: document.URL
     }), { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements });
 
+    if (readinessDiagnostics) capture.readiness_diagnostics = readinessDiagnostics;
     return { ...snapshot, ...capture };
   }
 

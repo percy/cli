@@ -431,6 +431,20 @@ export function createDiscoveryQueue(percy) {
       await logger.measure('asset-discovery', snapshot.name, snapshot.meta, async () => {
         percy.log.debug(`Discovering resources: ${snapshot.name}`, snapshot.meta);
 
+        // V2 Readiness: For SDK-provided snapshots (_fromSDK), discard domSnapshot
+        // and re-capture from the live URL so the readiness gate can run.
+        let readinessPreset = snapshot.readiness?.preset ?? percy.config?.snapshot?.readiness?.preset ?? 'balanced';
+        if (snapshot._fromSDK && snapshot.domSnapshot && snapshot.url && readinessPreset !== 'disabled') {
+          percy.log.debug('Readiness enabled (SDK snapshot): re-capturing from URL', snapshot.meta);
+          let extractedCookies = snapshot.domSnapshot?.cookies || snapshot.domSnapshot?.[0]?.cookies;
+          if (extractedCookies) snapshot._extractedCookies = extractedCookies;
+          delete snapshot.domSnapshot;
+          // Clear cached root HTML so the browser fetches the live page
+          for (let [key, val] of snapshot.resources) {
+            if (Array.isArray(val) && val[0]?.root) snapshot.resources.delete(key);
+          }
+        }
+
         // expectation explained in tests
         /* istanbul ignore next: tested, but coverage is stripped */
         let assetDiscoveryPageEnableJS = (snapshot.cliEnableJavaScript && !snapshot.domSnapshot) || (snapshot.enableJavaScript ?? !snapshot.domSnapshot);
@@ -482,6 +496,9 @@ export function createDiscoveryQueue(percy) {
               }
             }
           });
+
+          // Set readiness config on page for Storybook (which calls page.snapshot() without readiness in options)
+          page._readinessConfig = snapshot.readiness || percy.config?.snapshot?.readiness;
 
           try {
             yield* captureSnapshotResources(page, snapshot, {

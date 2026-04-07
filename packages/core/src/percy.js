@@ -3,6 +3,7 @@ import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
 import { getProxy } from '@percy/client/utils';
 import Browser from './browser.js';
+import { Page } from './page.js';
 import Pako from 'pako';
 import {
   base64encode,
@@ -95,6 +96,11 @@ export class Percy {
     deferUploads ??= config.percy?.deferUploads;
     this.config = config;
     this.cliStartTime = null;
+
+    // Set global readiness config for all Page instances
+    if (config.snapshot?.readiness) {
+      Page._globalReadinessConfig = config.snapshot.readiness;
+    }
 
     if (testing) loglevel = 'silent';
     if (loglevel) this.loglevel(loglevel);
@@ -448,8 +454,12 @@ export class Percy {
         : { url: options };
     }
 
+    // preserve internal flags stripped by validation
+    let fromSDK = options._fromSDK;
+
     // validate options and add client & environment info
     options = validateSnapshotOptions(options);
+    if (fromSDK) options._fromSDK = true;
     // process CORS iframes in domSnapshot before validation
     if (options.domSnapshot) {
       options.domSnapshot = processCorsIframes(options.domSnapshot);

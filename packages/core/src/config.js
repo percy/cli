@@ -132,6 +132,20 @@ export const configSchema = {
       sync: {
         type: 'boolean'
       },
+      readiness: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          preset: { type: 'string', enum: ['balanced', 'strict', 'fast', 'disabled'], default: 'balanced' },
+          stabilityWindowMs: { type: 'integer', minimum: 50, maximum: 30000 },
+          networkIdleWindowMs: { type: 'integer', minimum: 50, maximum: 10000 },
+          timeoutMs: { type: 'integer', minimum: 1000, maximum: 60000 },
+          imageReady: { type: 'boolean' },
+          fontReady: { type: 'boolean' },
+          readySelectors: { type: 'array', items: { type: 'string' } },
+          notPresentSelectors: { type: 'array', items: { type: 'string' } }
+        }
+      },
       responsiveSnapshotCapture: {
         type: 'boolean',
         default: false
@@ -502,6 +516,7 @@ export const snapshotSchema = {
         ignoreCanvasSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreCanvasSerializationErrors' },
         ignoreStyleSheetSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreStyleSheetSerializationErrors' },
         pseudoClassEnabledElements: { $ref: '/config/snapshot#/properties/pseudoClassEnabledElements' },
+        readiness: { $ref: '/config/snapshot#/properties/readiness' },
         discovery: {
           type: 'object',
           additionalProperties: false,
@@ -651,6 +666,7 @@ export const snapshotSchema = {
         url: { type: 'string' },
         name: { type: 'string' },
         width: { $ref: '/config/snapshot#/properties/widths/items' },
+        readiness_diagnostics: { type: 'object', additionalProperties: true },
         domSnapshot: {
           oneOf: [{ type: 'string' }, {
             type: 'object',
