@@ -103,7 +103,10 @@ function checkDOMStability(stabilityWindowMs) {
     }
 
     observer.observe(document.documentElement, {
-      childList: true, attributes: true, attributeOldValue: true, subtree: true,
+      childList: true,
+      attributes: true,
+      attributeOldValue: true,
+      subtree: true,
       attributeFilter: [...LAYOUT_ATTRIBUTES, 'style']
     });
     timer = setTimeout(settle, stabilityWindowMs);
