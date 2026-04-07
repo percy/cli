@@ -95,6 +95,7 @@ export class Percy {
 
     labels ??= config.percy?.labels;
     deferUploads ??= config.percy?.deferUploads;
+    if (archivePath) skipUploads = skipUploads != null ? skipUploads : true;
     this.config = config;
     this.cliStartTime = null;
 

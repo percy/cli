@@ -6,14 +6,6 @@ const ARCHIVE_VERSION = 1;
 const MAX_FILENAME_LENGTH = 200;
 const UNSAFE_CHARS = /[/\\:*?"<>|]/g;
 
-// Snapshot fields that should be archived (serializable metadata)
-const SNAPSHOT_FIELDS = [
-  'name', 'url', 'widths', 'minHeight', 'domSnapshot', 'percyCSS',
-  'enableJavaScript', 'cliEnableJavaScript', 'disableShadowDOM',
-  'scope', 'scopeOptions', 'testCase', 'labels', 'sync',
-  'responsiveSnapshotCapture', 'discovery'
-];
-
 // Validates the archive path to prevent path traversal attacks.
 // Returns the resolved absolute path.
 export function validateArchivePath(archivePath) {
@@ -45,37 +37,15 @@ export function sanitizeFilename(name) {
 // Serializes a snapshot into a JSON-safe object for archiving.
 // Resources have their binary content base64-encoded.
 export function serializeSnapshot(snapshot) {
-  let snapshotData = {};
-
-  for (let field of SNAPSHOT_FIELDS) {
-    if (snapshot[field] !== undefined) {
-      snapshotData[field] = snapshot[field];
-    }
-  }
-
-  let resources = [];
-
-  if (Array.isArray(snapshot.resources)) {
-    for (let resource of snapshot.resources) {
-      resources.push({
-        url: resource.url,
-        sha: resource.sha,
-        mimetype: resource.mimetype,
-        root: resource.root || false,
-        widths: resource.widths,
-        log: resource.log || false,
-        provided: resource.provided || false,
-        content: resource.content
-          ? Buffer.from(resource.content).toString('base64')
-          : null
-      });
-    }
-  }
+  let { resources, ...snapshotData } = snapshot;
 
   return {
     version: ARCHIVE_VERSION,
     snapshot: snapshotData,
-    resources
+    resources: (resources || []).map(r => ({
+      ...r,
+      content: r.content ? Buffer.from(r.content).toString('base64') : null
+    }))
   };
 }
 
@@ -98,28 +68,12 @@ export function deserializeSnapshot(data) {
     throw new Error('Invalid archive: missing or empty resources');
   }
 
-  let resources = [];
-
-  for (let resource of data.resources) {
-    if (!resource.url || !resource.sha || !resource.mimetype) {
-      throw new Error(`Invalid resource: missing required fields (url, sha, mimetype)`);
-    }
-
-    resources.push({
-      url: resource.url,
-      sha: resource.sha,
-      mimetype: resource.mimetype,
-      root: resource.root || false,
-      widths: resource.widths,
-      log: resource.log || false,
-      provided: resource.provided || false,
-      content: resource.content ? Buffer.from(resource.content, 'base64') : null
-    });
-  }
-
   return {
     ...data.snapshot,
-    resources
+    resources: data.resources.map(r => ({
+      ...r,
+      content: r.content ? Buffer.from(r.content, 'base64') : null
+    }))
   };
 }
 

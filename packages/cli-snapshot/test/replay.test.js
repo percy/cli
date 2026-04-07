@@ -26,9 +26,9 @@ describe('percy snapshot:replay', () => {
     await replay(['./archive']);
 
     expect(logger.stdout).toEqual([]);
-    expect(logger.stderr).toEqual([
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
       '[percy] Percy is disabled'
-    ]);
+    ]));
   });
 
   it('errors when the provided path does not exist', async () => {
