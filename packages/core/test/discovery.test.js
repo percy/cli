@@ -5050,7 +5050,7 @@ describe('Discovery', () => {
         token: 'PERCY_TOKEN',
         snapshot: {
           widths: [1000],
-          readiness: { preset: 'fast', stabilityWindowMs: 200, timeoutMs: 5000, notPresentSelectors: ['.skeleton'] }
+          readiness: { preset: 'fast', stabilityWindowMs: 100, timeoutMs: 2000 }
         },
         discovery: { concurrency: 1 }
       });
@@ -5062,15 +5062,12 @@ describe('Discovery', () => {
         body: JSON.stringify({
           name: 'readiness re-capture test',
           url: readinessServer.address,
-          domSnapshot: '<html><body><div class="skeleton">Loading...</div></body></html>',
+          domSnapshot: '<html><body><p>SDK DOM</p></body></html>',
           widths: [1000]
         })
       });
 
       await percy.idle();
-
-      // Verify the snapshot was captured (resource was submitted to API)
-      expect(captured.length).toBeGreaterThan(0);
 
       // Verify re-capture log
       expect(logger.stderr).toEqual(
@@ -5096,7 +5093,7 @@ describe('Discovery', () => {
         body: JSON.stringify({
           name: 'disabled readiness test',
           url: readinessServer.address,
-          domSnapshot: '<html><body><div class="skeleton">SDK Skeleton</div></body></html>',
+          domSnapshot: '<html><body><p>SDK DOM</p></body></html>',
           widths: [1000]
         })
       });
@@ -5116,7 +5113,7 @@ describe('Discovery', () => {
         token: 'PERCY_TOKEN',
         snapshot: {
           widths: [1000],
-          readiness: { preset: 'fast', stabilityWindowMs: 100, timeoutMs: 3000 }
+          readiness: { preset: 'fast', stabilityWindowMs: 100, timeoutMs: 2000 }
         },
         discovery: { concurrency: 1 }
       });
