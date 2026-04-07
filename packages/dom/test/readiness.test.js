@@ -26,11 +26,11 @@ describe('waitForReady', () => {
   });
 
   it('returns immediately when preset is disabled', async () => {
-    let start = performance.now();
+    let start = Date.now();
     let result = await waitForReady({ preset: 'disabled' });
     expect(result.passed).toBe(true);
     expect(result.skipped).toBe(true);
-    expect(performance.now() - start).toBeLessThan(50);
+    expect(Date.now() - start).toBeLessThan(50);
   });
 
   it('uses balanced defaults when no preset specified', async () => {
@@ -167,8 +167,11 @@ describe('waitForReady', () => {
     }, 50);
 
     let result = await waitForReady({
-      stability_window_ms: 200, timeout_ms: 3000,
-      image_ready: false, font_ready: false, network_idle_window_ms: 50
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
     });
 
     expect(result.passed).toBe(true);
@@ -185,8 +188,11 @@ describe('waitForReady', () => {
     }, 50);
 
     let result = await waitForReady({
-      stability_window_ms: 200, timeout_ms: 3000,
-      image_ready: false, font_ready: false, network_idle_window_ms: 50
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
     });
 
     expect(result.passed).toBe(true);
@@ -207,8 +213,11 @@ describe('waitForReady', () => {
     }, 100);
 
     let result = await waitForReady({
-      stability_window_ms: 50, timeout_ms: 5000,
-      image_ready: true, font_ready: false, network_idle_window_ms: 50
+      stability_window_ms: 50,
+      timeout_ms: 5000,
+      image_ready: true,
+      font_ready: false,
+      network_idle_window_ms: 50
     });
 
     expect(result.checks.image_ready).toBeDefined();
@@ -223,9 +232,12 @@ describe('waitForReady', () => {
     }, 30);
 
     let result = await waitForReady({
-      stability_window_ms: 200, timeout_ms: 10000,
+      stability_window_ms: 200,
+      timeout_ms: 10000,
       max_timeout_ms: 800, // Should cap at 800ms, not 10000ms
-      image_ready: false, font_ready: false, network_idle_window_ms: 50
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
     });
 
     clearInterval(interval);
@@ -237,8 +249,11 @@ describe('waitForReady', () => {
     withExample('<p>Fallback</p>', { withShadow: false });
     let result = await waitForReady({
       preset: 'nonexistent',
-      timeout_ms: 2000, stability_window_ms: 50,
-      image_ready: false, font_ready: false, network_idle_window_ms: 50
+      timeout_ms: 2000,
+      stability_window_ms: 50,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
     });
 
     // Should still resolve (uses balanced defaults as fallback)
