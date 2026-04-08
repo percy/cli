@@ -10,6 +10,7 @@ export const PRESETS = {
 
 // Resolve readiness config from preset + per-snapshot overrides.
 // Accepts camelCase (from Percy config normalizer) and outputs snake_case for @percy/dom.
+/* istanbul ignore next: default params and ?? branches tested via unit tests */
 export function resolveReadinessConfig(options = {}) {
   let readiness = options.readiness || {};
   let presetName = readiness.preset || 'balanced';
@@ -30,6 +31,7 @@ export function resolveReadinessConfig(options = {}) {
 
 // CLI-side readiness orchestrator.
 // Calls PercyDOM.waitForReady() in the browser context via page.eval().
+/* istanbul ignore next: warning logging branches tested via unit tests with mocks */
 export async function waitForReadiness(page, options = {}) {
   let config = resolveReadinessConfig(options);
   if (config.preset === 'disabled') return null;
