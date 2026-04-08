@@ -750,4 +750,97 @@ describe('waitForReady', () => {
     expect(result.passed).toBe(true);
     expect(result.checks.dom_stability.mutations_observed).toBeGreaterThan(0);
   });
+
+  // --- Branch coverage: runAllChecks config-gated checks ---
+
+  it('does not pass ready_selectors for hidden elements (offsetParent null)', async () => {
+    withExample('<div id="hidden-container" style="display:none"><div class="hidden-content">Hidden</div></div>', { withShadow: false });
+
+    let result = await waitForReady({
+      stability_window_ms: 50,
+      timeout_ms: 1000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50,
+      ready_selectors: ['.hidden-content']
+    });
+
+    // Element exists but is hidden (display:none makes offsetParent null) — should time out
+    expect(result.timed_out).toBe(true);
+  });
+
+  it('passes ready_selectors for fixed-position elements (offsetParent null but visible)', async () => {
+    withExample('<div id="fixed-el" style="position:fixed;top:0;left:0">Fixed</div>', { withShadow: false });
+
+    let result = await waitForReady({
+      stability_window_ms: 50,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50,
+      ready_selectors: ['#fixed-el']
+    });
+
+    expect(result.checks.ready_selectors.passed).toBe(true);
+  });
+
+  it('skips dom_stability check when stability_window_ms is 0', async () => {
+    withExample('<p>Skip stability</p>', { withShadow: false });
+
+    let result = await waitForReady({
+      stability_window_ms: 0,
+      timeout_ms: 2000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability).toBeUndefined();
+  });
+
+  it('skips network_idle check when network_idle_window_ms is 0', async () => {
+    withExample('<p>Skip network</p>', { withShadow: false });
+
+    let result = await waitForReady({
+      stability_window_ms: 50,
+      timeout_ms: 2000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 0
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.network_idle).toBeUndefined();
+  });
+
+  it('skips font check when font_ready is false', async () => {
+    withExample('<p>Skip fonts</p>', { withShadow: false });
+
+    let result = await waitForReady({
+      stability_window_ms: 50,
+      timeout_ms: 2000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.font_ready).toBeUndefined();
+  });
+
+  it('passes ready_selectors for sticky-position elements', async () => {
+    withExample('<div id="sticky-el" style="position:sticky;top:0">Sticky</div>', { withShadow: false });
+
+    let result = await waitForReady({
+      stability_window_ms: 50,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50,
+      ready_selectors: ['#sticky-el']
+    });
+
+    expect(result.checks.ready_selectors.passed).toBe(true);
+  });
 });
