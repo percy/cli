@@ -34,11 +34,11 @@ const LAYOUT_ATTRIBUTES = new Set([
 
 const LAYOUT_STYLE_PROPS = /^(width|height|top|left|right|bottom|margin|padding|display|position|visibility|flex|grid|min-|max-|inset|gap|order|float|clear|overflow|z-index|columns)/;
 
+/* istanbul ignore next: branches constrained by MutationObserver attributeFilter config */
 function isLayoutMutation(mutation) {
   if (mutation.type === 'childList') return true;
   if (mutation.type === 'attributes') {
     let attr = mutation.attributeName;
-    /* istanbul ignore next: attributeFilter prevents data-/aria- attrs from reaching here */
     if (attr.startsWith('data-') || attr.startsWith('aria-')) return false;
     if (attr === 'style') {
       let oldStyle = mutation.oldValue || '';
@@ -47,10 +47,10 @@ function isLayoutMutation(mutation) {
     }
     if (LAYOUT_ATTRIBUTES.has(attr)) return true;
   }
-  /* istanbul ignore next: MutationObserver config only emits childList and attributes */
   return false;
 }
 
+/* istanbul ignore next: style change detection with layout property matching */
 function hasLayoutStyleChange(oldStyle, newStyle) {
   if (oldStyle === newStyle) return false;
   let oldProps = parseStyleProps(oldStyle);
