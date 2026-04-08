@@ -369,8 +369,9 @@ export class Percy {
       await this.#discovery.end();
       await this.#snapshots.end();
 
-      // mark instance as stopped
+      // mark instance as stopped and reset global readiness config
       this.readyState = 3;
+      Page._globalReadinessConfig = null;
     } catch (err) {
       this.log.error(err);
       throw err;
