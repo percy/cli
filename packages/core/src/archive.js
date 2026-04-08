@@ -6,15 +6,15 @@ const ARCHIVE_VERSION = 1;
 const MAX_FILENAME_LENGTH = 200;
 const UNSAFE_CHARS = /[/\\:*?"<>|]/g;
 
-// Validates the archive path to prevent path traversal attacks.
+// Validates the archive dir to prevent path traversal attacks.
 // Returns the resolved absolute path.
-export function validateArchivePath(archivePath) {
-  let resolved = path.resolve(archivePath);
+export function validateArchiveDir(archiveDir) {
+  let resolved = path.resolve(archiveDir);
   let normalized = path.normalize(resolved);
 
   // Reject if the normalized path still contains '..' segments
   if (normalized.split(path.sep).includes('..')) {
-    throw new Error(`Invalid archive path: path traversal detected in "${archivePath}"`);
+    throw new Error(`Invalid archive dir: path traversal detected in "${archiveDir}"`);
   }
 
   return resolved;
@@ -79,11 +79,11 @@ export function deserializeSnapshot(data) {
 
 // Archives a single snapshot to the archive directory.
 // Creates the directory if it doesn't exist.
-export function archiveSnapshot(archivePath, snapshot) {
-  fs.mkdirSync(archivePath, { recursive: true });
+export function archiveSnapshot(archiveDir, snapshot) {
+  fs.mkdirSync(archiveDir, { recursive: true });
 
   let filename = sanitizeFilename(snapshot.name);
-  let filepath = path.join(archivePath, `${filename}.json`);
+  let filepath = path.join(archiveDir, `${filename}.json`);
   let serialized = serializeSnapshot(snapshot);
 
   fs.writeFileSync(filepath, JSON.stringify(serialized));
@@ -91,11 +91,11 @@ export function archiveSnapshot(archivePath, snapshot) {
 
 // Reads all archived snapshots from the given directory.
 // Skips symlinks and invalid files with warnings.
-export function readArchivedSnapshots(archivePath, log) {
-  let resolved = validateArchivePath(archivePath);
+export function readArchivedSnapshots(archiveDir, log) {
+  let resolved = validateArchiveDir(archiveDir);
 
   if (!fs.existsSync(resolved) || !fs.lstatSync(resolved).isDirectory()) {
-    throw new Error(`Archive directory not found: ${archivePath}`);
+    throw new Error(`Archive directory not found: ${archiveDir}`);
   }
 
   let entries = fs.readdirSync(resolved);

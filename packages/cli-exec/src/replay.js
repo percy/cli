@@ -1,16 +1,16 @@
 import fs from 'fs';
 import command from '@percy/cli-command';
 
-export const replay = command('snapshot:replay', {
+export const replay = command('replay', {
   description: 'Upload archived snapshots to Percy',
   args: [{
-    name: 'archive-path',
+    name: 'archive-dir',
     description: 'Directory containing archived snapshots',
     required: true,
     attribute: val => {
       if (!fs.existsSync(val)) throw new Error(`Not found: ${val}`);
       if (!fs.lstatSync(val).isDirectory()) throw new Error(`Not a directory: ${val}`);
-      return 'archivePath';
+      return 'archiveDir';
     }
   }],
 
@@ -26,7 +26,7 @@ export const replay = command('snapshot:replay', {
   if (!percy) exit(0, 'Percy is disabled');
 
   let { readArchivedSnapshots } = await import('@percy/core/archive');
-  let snapshots = readArchivedSnapshots(args.archivePath, log);
+  let snapshots = readArchivedSnapshots(args.archiveDir, log);
 
   if (!snapshots.length) {
     throw new Error('No valid snapshots found in archive');

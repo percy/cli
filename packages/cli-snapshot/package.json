@@ -29,8 +29,7 @@
   },
   "@percy/cli": {
     "commands": [
-      "./dist/snapshot.js",
-      "./dist/replay.js"
+      "./dist/snapshot.js"
     ]
   },
   "dependencies": {

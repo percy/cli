@@ -59,7 +59,7 @@ export class Percy {
     // initial log level
     loglevel,
     // path to save snapshot data to disk
-    archivePath,
+    archiveDir,
     // process uploads before the next snapshot
     delayUploads,
     // process uploads after all snapshots
@@ -95,7 +95,7 @@ export class Percy {
 
     labels ??= config.percy?.labels;
     deferUploads ??= config.percy?.deferUploads;
-    if (archivePath) skipUploads = skipUploads != null ? skipUploads : true;
+    if (archiveDir) skipUploads = skipUploads != null ? skipUploads : true;
     this.config = config;
     this.cliStartTime = null;
 
@@ -110,7 +110,7 @@ export class Percy {
     this.skipDiscovery = this.dryRun || !!skipDiscovery;
     this.delayUploads = this.skipUploads || !!delayUploads;
     this.deferUploads = this.skipUploads || !!deferUploads;
-    this.archivePath = this.skipUploads && archivePath ? archivePath : null;
+    this.archiveDir = this.skipUploads && archiveDir ? archiveDir : null;
     this.labels = labels;
     this.suggestionsCallCounter = suggestionsCallCounter;
 
@@ -244,11 +244,11 @@ export class Percy {
         await this.loadAutoConfiguredHostnames();
       }
 
-      // validate and log archive path if configured
-      if (this.archivePath) {
-        let { validateArchivePath } = await import('./archive.js');
-        this.archivePath = validateArchivePath(this.archivePath);
-        this.log.info(`Archiving snapshots to: ${this.archivePath}`);
+      // validate and log archive dir if configured
+      if (this.archiveDir) {
+        let { validateArchiveDir } = await import('./archive.js');
+        this.archiveDir = validateArchiveDir(this.archiveDir);
+        this.log.info(`Archiving snapshots to: ${this.archiveDir}`);
       }
 
       // start the snapshots queue immediately when not delayed or deferred
@@ -365,8 +365,8 @@ export class Percy {
       }
 
       // log archive summary
-      if (this.archivePath && this.#snapshots.size) {
-        this.log.info(`Archived ${this.#snapshots.size} snapshot(s) to: ${this.archivePath}`);
+      if (this.archiveDir && this.#snapshots.size) {
+        this.log.info(`Archived ${this.#snapshots.size} snapshot(s) to: ${this.archiveDir}`);
       }
 
       // Save domain validation config before closing
@@ -507,9 +507,9 @@ export class Percy {
           })
         }, snapshot => {
           // archive snapshot to disk if configured
-          if (this.archivePath) {
+          if (this.archiveDir) {
             import('./archive.js').then(({ archiveSnapshot }) => {
-              archiveSnapshot(this.archivePath, snapshot);
+              archiveSnapshot(this.archiveDir, snapshot);
             }).catch(err => {
               this.log.error(`Failed to archive snapshot "${snapshot.name}": ${err.message}`);
             });

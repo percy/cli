@@ -1,6 +1,6 @@
 import { fs } from '@percy/cli-command/test/helpers';
 import {
-  validateArchivePath,
+  validateArchiveDir,
   sanitizeFilename,
   serializeSnapshot,
   deserializeSnapshot,
@@ -9,14 +9,14 @@ import {
 } from '../../src/archive.js';
 
 describe('Unit / Archive', () => {
-  describe('validateArchivePath', () => {
+  describe('validateArchiveDir', () => {
     it('resolves a valid path', () => {
-      let result = validateArchivePath('/tmp/percy-archive');
+      let result = validateArchiveDir('/tmp/percy-archive');
       expect(result).toBe('/tmp/percy-archive');
     });
 
     it('resolves a relative path to absolute', () => {
-      let result = validateArchivePath('./percy-archive');
+      let result = validateArchiveDir('./percy-archive');
       expect(result).toMatch(/\/percy-archive$/);
       expect(result).not.toContain('..');
     });
@@ -139,21 +139,21 @@ describe('Unit / Archive', () => {
         }]
       };
 
-      let archivePath = '.test-archive';
-      archiveSnapshot(archivePath, snapshot);
+      let archiveDir = '.test-archive';
+      archiveSnapshot(archiveDir, snapshot);
 
-      let results = readArchivedSnapshots(archivePath, log);
+      let results = readArchivedSnapshots(archiveDir, log);
       expect(results).toHaveSize(1);
       expect(results[0].name).toBe('My Snapshot');
       expect(results[0].resources[0].content).toEqual(Buffer.from('<p>Hello</p>'));
     });
 
     it('skips invalid files with warnings', () => {
-      let archivePath = '.test-archive-invalid';
-      fs.mkdirSync(archivePath, { recursive: true });
-      fs.writeFileSync(`${archivePath}/bad.json`, '{ "not": "valid" }');
+      let archiveDir = '.test-archive-invalid';
+      fs.mkdirSync(archiveDir, { recursive: true });
+      fs.writeFileSync(`${archiveDir}/bad.json`, '{ "not": "valid" }');
 
-      let results = readArchivedSnapshots(archivePath, log);
+      let results = readArchivedSnapshots(archiveDir, log);
       expect(results).toHaveSize(0);
       expect(log.warn).toHaveBeenCalledWith(
         jasmine.stringMatching(/Skipping invalid archive file/)
