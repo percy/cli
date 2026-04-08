@@ -337,4 +337,417 @@ describe('waitForReady', () => {
     // Should still resolve (uses balanced defaults as fallback)
     expect(result.passed).toBe(true);
   });
+
+  // --- Page stability: DOM mutation filter edge cases ---
+
+  it('detects src attribute change on images as layout-affecting', async () => {
+    withExample('<img id="src-test" src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" width="100" height="100">', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('src-test');
+      if (el) el.setAttribute('src', 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBeGreaterThan(0);
+  });
+
+  it('detects href attribute change as layout-affecting', async () => {
+    withExample('<a id="href-test" href="/page1">Link</a>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('href-test');
+      if (el) el.setAttribute('href', '/page2');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBeGreaterThan(0);
+  });
+
+  it('detects width attribute change as layout-affecting', async () => {
+    withExample('<div id="width-attr-test" width="100"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('width-attr-test');
+      if (el) el.setAttribute('width', '200');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBeGreaterThan(0);
+  });
+
+  it('detects height attribute change as layout-affecting', async () => {
+    withExample('<div id="height-attr-test" height="100"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('height-attr-test');
+      if (el) el.setAttribute('height', '200');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBeGreaterThan(0);
+  });
+
+  it('detects display property change via style attribute as layout-affecting', async () => {
+    withExample('<div id="display-test" style="display:block"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('display-test');
+      if (el) el.setAttribute('style', 'display:none');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBeGreaterThan(0);
+  });
+
+  it('detects margin change via style attribute as layout-affecting', async () => {
+    withExample('<div id="margin-test" style="margin:0"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('margin-test');
+      if (el) el.setAttribute('style', 'margin:20px');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBeGreaterThan(0);
+  });
+
+  it('detects padding change via style attribute as layout-affecting', async () => {
+    withExample('<div id="padding-test" style="padding:0"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('padding-test');
+      if (el) el.setAttribute('style', 'padding:10px');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBeGreaterThan(0);
+  });
+
+  it('detects position change via style attribute as layout-affecting', async () => {
+    withExample('<div id="position-test" style="position:static"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('position-test');
+      if (el) el.setAttribute('style', 'position:absolute');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBeGreaterThan(0);
+  });
+
+  it('ignores transform style change as non-layout', async () => {
+    withExample('<div id="transform-test" style="transform:none"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('transform-test');
+      if (el) el.setAttribute('style', 'transform:translateX(10px)');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBe(0);
+  });
+
+  it('ignores background style change as non-layout', async () => {
+    withExample('<div id="bg-test" style="background:white"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('bg-test');
+      if (el) el.setAttribute('style', 'background:red');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBe(0);
+  });
+
+  it('ignores box-shadow style change as non-layout', async () => {
+    withExample('<div id="shadow-test" style="box-shadow:none"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('shadow-test');
+      if (el) el.setAttribute('style', 'box-shadow:0 2px 4px rgba(0,0,0,0.5)');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBe(0);
+  });
+
+  it('detects layout property among mixed layout+non-layout style changes', async () => {
+    withExample('<div id="mixed-test" style="width:100px;opacity:1"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('mixed-test');
+      if (el) el.setAttribute('style', 'width:200px;opacity:0.5');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    // width changed — should count as layout mutation even though opacity also changed
+    expect(result.checks.dom_stability.mutations_observed).toBeGreaterThan(0);
+  });
+
+  it('ignores title attribute mutations as non-layout', async () => {
+    withExample('<div id="title-test" title="old"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('title-test');
+      if (el) el.setAttribute('title', 'new tooltip');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    // title is not in LAYOUT_ATTRIBUTES — should not be counted
+    expect(result.checks.dom_stability.mutations_observed).toBe(0);
+  });
+
+  it('detects multiple rapid childList mutations then stabilizes', async () => {
+    withExample('<ul id="rapid-list"></ul>', { withShadow: false });
+    let count = 0;
+    let interval = setInterval(() => {
+      let ul = document.getElementById('rapid-list');
+      if (ul && count++ < 5) {
+        let li = document.createElement('li');
+        li.textContent = `Item ${count}`;
+        ul.appendChild(li);
+      } else {
+        clearInterval(interval);
+      }
+    }, 40);
+
+    let result = await waitForReady({
+      stability_window_ms: 300,
+      timeout_ms: 5000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBeGreaterThanOrEqual(5);
+  });
+
+  it('detects flex property change via style attribute as layout-affecting', async () => {
+    withExample('<div id="flex-test" style="flex:0"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('flex-test');
+      if (el) el.setAttribute('style', 'flex:1');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBeGreaterThan(0);
+  });
+
+  it('detects overflow property change via style attribute as layout-affecting', async () => {
+    withExample('<div id="overflow-test" style="overflow:visible"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('overflow-test');
+      if (el) el.setAttribute('style', 'overflow:hidden');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBeGreaterThan(0);
+  });
+
+  it('handles multiple not_present_selectors all disappearing', async () => {
+    withExample('<div id="multi-loader"><div class="spinner">...</div><div class="skeleton">...</div></div>', { withShadow: false });
+    setTimeout(() => { document.querySelector('.spinner')?.remove(); }, 100);
+    setTimeout(() => { document.querySelector('.skeleton')?.remove(); }, 200);
+
+    let result = await waitForReady({
+      stability_window_ms: 50,
+      timeout_ms: 5000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50,
+      not_present_selectors: ['.spinner', '.skeleton']
+    });
+
+    expect(result.checks.not_present_selectors.passed).toBe(true);
+  });
+
+  it('handles multiple ready_selectors all appearing', async () => {
+    withExample('<div id="multi-ready"></div>', { withShadow: false });
+    setTimeout(() => {
+      let container = document.getElementById('multi-ready');
+      if (container) {
+        let a = document.createElement('div');
+        a.className = 'section-a';
+        container.appendChild(a);
+        let b = document.createElement('div');
+        b.className = 'section-b';
+        container.appendChild(b);
+      }
+    }, 100);
+
+    let result = await waitForReady({
+      stability_window_ms: 50,
+      timeout_ms: 5000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50,
+      ready_selectors: ['.section-a', '.section-b']
+    });
+
+    expect(result.checks.ready_selectors.passed).toBe(true);
+  });
+
+  it('visibility attribute change is detected as layout-affecting', async () => {
+    withExample('<div id="vis-test" visibility="visible"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('vis-test');
+      if (el) el.setAttribute('visibility', 'hidden');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBeGreaterThan(0);
+  });
+
+  it('detects visibility change via style as layout-affecting', async () => {
+    withExample('<div id="vis-style-test" style="visibility:visible"></div>', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('vis-style-test');
+      if (el) el.setAttribute('style', 'visibility:hidden');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.dom_stability.mutations_observed).toBeGreaterThan(0);
+  });
 });
