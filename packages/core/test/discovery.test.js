@@ -4010,7 +4010,7 @@ describe('Discovery', () => {
         await percy.snapshot({
           name: 'test snapshot',
           url: 'http://localhost:8000',
-          domSnapshot: ''
+          domSnapshot: testDOM
         });
 
         await percy.idle();
@@ -4018,7 +4018,7 @@ describe('Discovery', () => {
         expect(logger.stderr).toEqual(jasmine.arrayContaining([
           '[percy:core:snapshot] - enableJavaScript: false',
           '[percy:core:snapshot] - cliEnableJavaScript: false',
-          '[percy:core:snapshot] - domSnapshot: false',
+          '[percy:core:snapshot] - domSnapshot: true',
           '[percy:core] Asset discovery Browser Page enable JS: false'
         ]));
       });
