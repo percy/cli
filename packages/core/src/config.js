@@ -136,7 +136,7 @@ export const configSchema = {
         type: 'object',
         additionalProperties: false,
         properties: {
-          preset: { type: 'string', enum: ['balanced', 'strict', 'fast', 'disabled'], default: 'balanced' },
+          preset: { type: 'string', enum: ['balanced', 'strict', 'fast', 'disabled'] },
           stabilityWindowMs: { type: 'integer', minimum: 50, maximum: 30000 },
           networkIdleWindowMs: { type: 'integer', minimum: 50, maximum: 10000 },
           timeoutMs: { type: 'integer', minimum: 1000, maximum: 60000 },

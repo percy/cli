@@ -4934,6 +4934,7 @@ describe('Discovery', () => {
       await percy.snapshot({
         name: 'js disabled scroll test',
         url: 'http://localhost:8080',
+        domSnapshot: testDOM,
         cliEnableJavaScript: false,
         discovery: {
           scrollToBottom: true
