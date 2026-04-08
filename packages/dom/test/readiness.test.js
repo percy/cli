@@ -16,6 +16,13 @@ describe('waitForReady', () => {
     expect(result instanceof Promise).toBe(true);
   });
 
+  it('works when called with no arguments (uses defaults)', async () => {
+    withExample('<p>Default</p>', { withShadow: false });
+    let result = await waitForReady();
+    expect(result).toBeDefined();
+    expect(result.preset).toBe('balanced');
+  });
+
   it('resolves with diagnostic result on stable page', async () => {
     withExample('<p>Stable</p>', { withShadow: false });
     let result = await waitForReady({ stability_window_ms: 100, timeout_ms: 3000, image_ready: false, network_idle_window_ms: 50 });
