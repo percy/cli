@@ -4256,6 +4256,7 @@ describe('Discovery', () => {
       await percy.snapshot({
         name: 'test discovery 2',
         url: 'http://localhost:8000',
+        domSnapshot: testDOM,
         cliEnableJavaScript: false,
         discovery: {
           waitForTimeout: 100,
