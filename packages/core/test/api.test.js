@@ -179,7 +179,7 @@ describe('API Server', () => {
 
     expect(percy.client.getSnapshotDetails).not.toHaveBeenCalled();
     expect(percy.snapshot).toHaveBeenCalledOnceWith(
-      { 'test-me': true, me_too: true }, {}
+      { 'test-me': true, me_too: true, _fromSDK: true }, {}
     );
   });
 
@@ -200,7 +200,7 @@ describe('API Server', () => {
 
     expect(percy.client.getSnapshotDetails).toHaveBeenCalled();
     expect(percy.snapshot).toHaveBeenCalledOnceWith(
-      { name: 'test', me_too: true, sync: true },
+      { name: 'test', me_too: true, sync: true, _fromSDK: true },
       jasmine.objectContaining({})
     );
   });
