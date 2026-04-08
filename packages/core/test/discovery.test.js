@@ -5031,6 +5031,9 @@ describe('Discovery', () => {
     });
 
     it('does not re-capture when readiness is disabled', async () => {
+      // Stop the outer percy instance before starting a new one with readiness config
+      await percy?.stop(true);
+
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
         snapshot: {
@@ -5042,7 +5045,7 @@ describe('Discovery', () => {
 
       await percy.snapshot({
         name: 'disabled readiness test',
-        url: server.address,
+        url: server.address(),
         domSnapshot: testDOM,
         _fromSDK: true
       });
@@ -5058,6 +5061,9 @@ describe('Discovery', () => {
     });
 
     it('does not re-capture for non-SDK snapshots', async () => {
+      // Stop the outer percy instance before starting a new one with readiness config
+      await percy?.stop(true);
+
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
         snapshot: {
@@ -5071,7 +5077,7 @@ describe('Discovery', () => {
       // Direct call without _fromSDK (like CLI percy snapshot)
       await percy.snapshot({
         name: 'direct snapshot',
-        url: server.address,
+        url: server.address(),
         domSnapshot: testDOM
       });
 

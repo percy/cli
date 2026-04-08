@@ -2263,7 +2263,7 @@ describe('Snapshot readiness options', () => {
     // Use domSnapshot to avoid browser readiness gate
     await percy.snapshot({
       name: 'readiness config test',
-      url: server.address,
+      url: server.address(),
       domSnapshot: '<html><body><p>Test</p></body></html>',
       readiness: { preset: 'fast', stabilityWindowMs: 100, timeoutMs: 3000 }
     });
@@ -2283,7 +2283,7 @@ describe('Snapshot readiness options', () => {
 
     await percy.snapshot({
       name: 'bad preset test',
-      url: server.address,
+      url: server.address(),
       domSnapshot: '<html><body><p>Test</p></body></html>',
       readiness: { preset: 'turbo' }
     });
@@ -2303,7 +2303,7 @@ describe('Snapshot readiness options', () => {
 
     await percy.snapshot({
       name: 'override disabled test',
-      url: server.address,
+      url: server.address(),
       domSnapshot: '<html><body><p>Test</p></body></html>',
       readiness: { preset: 'disabled' }
     });
