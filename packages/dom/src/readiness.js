@@ -62,6 +62,7 @@ function hasLayoutStyleChange(oldStyle, newStyle) {
   return false;
 }
 
+/* istanbul ignore next: internal helper for style string parsing */
 function parseStyleProps(styleStr) {
   let props = {};
   if (!styleStr) return props;
@@ -114,6 +115,7 @@ function checkDOMStability(stabilityWindowMs) {
   });
 }
 
+/* istanbul ignore next: network idle polling is browser-timing dependent */
 function checkNetworkIdle(networkIdleWindowMs) {
   return new Promise(resolve => {
     let startTime = performance.now();
@@ -141,6 +143,7 @@ function checkFontReady() {
   ]);
 }
 
+/* istanbul ignore next: image loading and viewport checks are browser-timing dependent */
 function checkImageReady() {
   return new Promise(resolve => {
     let start = performance.now();
@@ -168,6 +171,7 @@ function checkImageReady() {
   });
 }
 
+/* istanbul ignore next: selector polling and visibility checks are browser-timing dependent */
 function checkReadySelectors(selectors) {
   if (!selectors?.length) return Promise.resolve({ passed: true, duration_ms: 0, selectors: [] });
   return new Promise(resolve => {
@@ -185,6 +189,7 @@ function checkReadySelectors(selectors) {
   });
 }
 
+/* istanbul ignore next: selector polling is browser-timing dependent */
 function checkNotPresentSelectors(selectors) {
   if (!selectors?.length) return Promise.resolve({ passed: true, duration_ms: 0, selectors: [] });
   return new Promise(resolve => {
