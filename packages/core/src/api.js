@@ -343,18 +343,19 @@ export function createPercyServer(percy, port) {
 
       // Build tag from optional request body fields
       let tag = req.body.tag || { name: 'Unknown Device', osName: 'Android' };
+      if (!tag.name) tag.name = 'Unknown Device';
 
-      // Construct comparison payload
+      // Construct comparison payload with tile metadata from request
       let payload = {
         name,
         tag,
         tiles: [{
           content: base64Content,
-          statusBarHeight: 0,
-          navBarHeight: 0,
+          statusBarHeight: req.body.statusBarHeight || 0,
+          navBarHeight: req.body.navBarHeight || 0,
           headerHeight: 0,
           footerHeight: 0,
-          fullscreen: false
+          fullscreen: req.body.fullscreen || false
         }],
         clientInfo: req.body.clientInfo || 'percy-maestro/0.1.0',
         environmentInfo: req.body.environmentInfo || 'percy-maestro'
@@ -362,17 +363,64 @@ export function createPercyServer(percy, port) {
 
       if (req.body.testCase) payload.testCase = req.body.testCase;
       if (req.body.labels) payload.labels = req.body.labels;
+      if (req.body.thTestCaseExecutionId) payload.thTestCaseExecutionId = req.body.thTestCaseExecutionId;
 
-      // Upload via percy
+      // Transform and forward regions if present
+      if (req.body.regions && Array.isArray(req.body.regions)) {
+        let resolvedRegions = [];
+        for (let region of req.body.regions) {
+          let resolved = null;
+          if (region.top != null && region.bottom != null && region.left != null && region.right != null) {
+            // Coordinate-based region: transform {top,bottom,left,right} to {elementSelector:{boundingBox:{x,y,width,height}}}
+            resolved = {
+              elementSelector: {
+                boundingBox: {
+                  x: region.left,
+                  y: region.top,
+                  width: region.right - region.left,
+                  height: region.bottom - region.top
+                }
+              },
+              algorithm: region.algorithm || 'ignore'
+            };
+          } else if (region.element) {
+            // Element-based region: pass through for future ADB resolution
+            // For now, log a warning and skip — element resolution will be added in a follow-up
+            percy.log.warn(`Element-based region selectors are not yet supported, skipping region`);
+            continue;
+          } else {
+            percy.log.warn(`Invalid region format, skipping`);
+            continue;
+          }
+          // Pass through optional configuration, padding, assertion
+          if (region.configuration) resolved.configuration = region.configuration;
+          if (region.padding) resolved.padding = region.padding;
+          if (region.assertion) resolved.assertion = region.assertion;
+          resolvedRegions.push(resolved);
+        }
+        if (resolvedRegions.length > 0) {
+          payload.regions = resolvedRegions;
+        }
+      }
+
+      // Upload via percy — sync or fire-and-forget
+      if (req.body.sync === true) payload.sync = true;
+
+      let data;
+      if (percy.syncMode(payload)) {
+        const snapshotPromise = new Promise((resolve, reject) => percy.upload(payload, { resolve, reject }, 'app'));
+        data = await handleSyncJob(snapshotPromise, percy, 'comparison');
+        return res.json(200, { success: true, data });
+      }
+
       let upload = percy.upload(payload, null, 'app');
       if (req.url.searchParams.has('await')) await upload;
 
       // Generate redirect link
-      var _pb = percy.build;
       let link = [
         percy.client.apiUrl, '/comparisons/redirect?',
         encodeURLSearchParams(normalize({
-          buildId: _pb === null || _pb === void 0 ? void 0 : _pb.id,
+          buildId: percy.build?.id,
           snapshot: { name }, tag
         }, { snake: true }))
       ].join('');
