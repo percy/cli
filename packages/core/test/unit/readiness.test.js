@@ -454,7 +454,7 @@ describe('Unit / Readiness', () => {
           timed_out: true,
           total_duration_ms: 10000,
           checks: {
-            js_idle: { passed: false, duration_ms: 10000, pending_timers_at_start: 5 }
+            js_idle: { passed: false, duration_ms: 10000, long_tasks_observed: 12 }
           }
         })
       };

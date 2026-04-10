@@ -73,7 +73,7 @@ export async function waitForReadiness(page, options = {}) {
         dom_stability: 'Try adding notPresentSelectors for loading indicators, or increase stabilityWindowMs.',
         network_idle: 'Check for long-polling or analytics. Try adding endpoints to disallowedHostnames.',
         image_ready: 'Images still loading. Try imageReady: false if images load lazily.',
-        js_idle: 'JavaScript still executing (pending timers/callbacks). Try increasing timeoutMs or set jsIdle: false for pages with continuous JS.',
+        js_idle: 'JavaScript still executing (long tasks detected on main thread). Try increasing timeoutMs or set jsIdle: false for pages with continuous JS.',
         ready_selectors: 'Required selector(s) not found. Verify selectors exist on the page.',
         not_present_selectors: 'Loading indicators still present. These may be skeleton loaders or spinners.'
       };

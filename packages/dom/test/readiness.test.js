@@ -866,6 +866,7 @@ describe('waitForReady', () => {
 
     expect(result.checks.js_idle).toBeDefined();
     expect(result.checks.js_idle.passed).toBe(true);
+    expect(typeof result.checks.js_idle.long_tasks_observed).toBe('number');
   });
 
   it('skips js_idle check when js_idle is false', async () => {
@@ -884,7 +885,7 @@ describe('waitForReady', () => {
     expect(result.checks.js_idle).toBeUndefined();
   });
 
-  it('js_idle passes on a page with no pending timers', async () => {
+  it('js_idle passes on a page with no long tasks', async () => {
     withExample('<p>Static content</p>', { withShadow: false });
 
     let result = await waitForReady({
@@ -898,5 +899,7 @@ describe('waitForReady', () => {
 
     expect(result.checks.js_idle.passed).toBe(true);
     expect(result.checks.js_idle.duration_ms).toBeDefined();
+    expect(typeof result.checks.js_idle.idle_callback_used).toBe('boolean');
+    expect(result.checks.js_idle.long_tasks_observed).toBe(0);
   });
 });

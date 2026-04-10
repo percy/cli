@@ -205,77 +205,85 @@ function checkNotPresentSelectors(selectors) {
 
 /* istanbul ignore next: JS idle detection depends on browser runtime timing */
 function checkJSIdle(idleWindowMs) {
-  // Detect if JS is still executing by monitoring for pending timers/rAF callbacks.
-  // Uses a double-requestAnimationFrame + setTimeout pattern:
-  // If after two animation frames and the idle window, no new resource loading
-  // or DOM mutations have occurred, JS is considered idle.
-  // This catches: setTimeout-based rendering, requestAnimationFrame loops,
-  // Promise chains, async/await completions, and React/Vue render cycles.
+  // Three-tier JS idle detection — purely observational, no monkey-patching:
+  // Tier 1: Long Task API (PerformanceObserver) — detects main-thread tasks >50ms
+  // Tier 2: requestIdleCallback — confirms browser idle (fallback: setTimeout 200ms)
+  // Tier 3: Double-requestAnimationFrame — ensures render/paint cycle is complete
   return new Promise(resolve => {
     let start = performance.now();
-    let pendingTimers = 0;
-    let originalSetTimeout = window.setTimeout;
-    let originalClearTimeout = window.clearTimeout;
-    let trackedTimers = new Set();
+    let longTaskCount = 0;
+    let idleTimer = null;
+    let observer = null;
     let settled = false;
+    let observing = false;
 
-    // Monkey-patch setTimeout to track pending callbacks
-    window.setTimeout = function(fn, delay, ...args) {
-      let id = originalSetTimeout.call(window, function() {
-        trackedTimers.delete(id);
-        pendingTimers = trackedTimers.size;
-        if (typeof fn === 'function') fn.apply(this, args);
-      }, delay, ...args);
-      // Only track short timers (< 5s) — long ones are likely intervals/polling
-      if ((delay || 0) < 5000) {
-        trackedTimers.add(id);
-        pendingTimers = trackedTimers.size;
-      }
-      return id;
-    };
-
-    window.clearTimeout = function(id) {
-      trackedTimers.delete(id);
-      pendingTimers = trackedTimers.size;
-      return originalClearTimeout.call(window, id);
-    };
-
-    function restore() {
-      window.setTimeout = originalSetTimeout;
-      window.clearTimeout = originalClearTimeout;
-      settled = true;
+    // Tier 1: Long Task API — reset idle timer on each observed long task
+    try {
+      observer = new PerformanceObserver(list => {
+        if (!observing || settled) return;
+        for (let entry of list.getEntries()) {
+          if (entry.entryType === 'longtask') {
+            longTaskCount++;
+            if (idleTimer) clearTimeout(idleTimer);
+            idleTimer = setTimeout(confirmIdle, idleWindowMs);
+          }
+        }
+      });
+      observer.observe({ type: 'longtask', buffered: false });
+    } catch (e) {
+      // Long Task API not available — degrade to rIC/rAF-only path
+      observer = null;
     }
 
-    function settle() {
-      // Double-rAF: wait for two animation frames to ensure render cycle is complete
+    function cleanup() {
+      settled = true;
+      if (observer) observer.disconnect();
+    }
+
+    function done(idleCallbackUsed) {
+      if (settled) return;
+      cleanup();
+      resolve({
+        passed: true,
+        duration_ms: Math.round(performance.now() - start),
+        long_tasks_observed: longTaskCount,
+        idle_callback_used: idleCallbackUsed
+      });
+    }
+
+    // Tier 2: requestIdleCallback confirmation (or fallback)
+    function confirmIdle() {
+      if (settled) return;
+      if (typeof requestIdleCallback === 'function') {
+        // Secondary timeout: if rIC never fires (heavy page or Percy's own polling),
+        // fall back to double-rAF only
+        let ricTimer = setTimeout(() => doubleRAF(false), idleWindowMs * 2);
+        requestIdleCallback(() => {
+          clearTimeout(ricTimer);
+          doubleRAF(true);
+        });
+      } else {
+        // Fallback: no rIC available (older Safari)
+        setTimeout(() => doubleRAF(false), 200);
+      }
+    }
+
+    // Tier 3: Double-rAF render gate
+    function doubleRAF(usedRIC) {
+      if (settled) return;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          // After two frames, check if any short timers are still pending
-          originalSetTimeout.call(window, () => {
-            if (settled) return;
-            let remaining = trackedTimers.size;
-            restore();
-            resolve({
-              passed: true,
-              duration_ms: Math.round(performance.now() - start),
-              pending_timers_at_start: pendingTimers,
-              pending_timers_at_end: remaining
-            });
-          }, idleWindowMs);
+          done(usedRIC);
         });
       });
     }
 
-    // Start the idle check after one animation frame
-    // to let any immediate JS run first
+    // Start: skip first frame to avoid detecting Percy's own insertPercyDom() setup,
+    // then begin idle window
     requestAnimationFrame(() => {
-      settle();
+      observing = true;
+      idleTimer = setTimeout(confirmIdle, idleWindowMs);
     });
-
-    // Safety: restore patches after timeout to prevent leaks
-    originalSetTimeout.call(window, () => {
-      if (!settled) restore();
-    }, Math.max(idleWindowMs * 3, 5000));
   });
 }
 
