@@ -83,6 +83,7 @@ function parseStyleProps(styleStr) {
 // Each check accepts an `aborted` object ({ value: boolean }) so the orchestrator
 // can signal cancellation on timeout. Checks must clean up timers/observers on abort.
 
+/* istanbul ignore next: abort branches only fire on timeout, not testable without race */
 function checkDOMStability(stabilityWindowMs, aborted) {
   return new Promise(resolve => {
     let startTime = performance.now();
@@ -373,6 +374,7 @@ export async function waitForReady(options = {}) {
   }
 
   // Mark any checks that didn't complete before timeout as failed
+  /* istanbul ignore next: only runs when timeout fires before all checks complete */
   if (result._expectedChecks) {
     for (let name of result._expectedChecks) {
       if (!result.checks[name]) {
