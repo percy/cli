@@ -402,7 +402,8 @@ describe('Unit / Readiness', () => {
         network_idle_window_ms: 200,
         timeout_ms: 10000,
         image_ready: true,
-        font_ready: true
+        font_ready: true,
+        js_idle: true
       });
     });
 
@@ -413,6 +414,62 @@ describe('Unit / Readiness', () => {
 
     it('fast preset disables image_ready', () => {
       expect(PRESETS.fast.image_ready).toBe(false);
+    });
+
+    it('all presets enable js_idle by default', () => {
+      expect(PRESETS.balanced.js_idle).toBe(true);
+      expect(PRESETS.strict.js_idle).toBe(true);
+      expect(PRESETS.fast.js_idle).toBe(true);
+    });
+  });
+
+  describe('resolveReadinessConfig — jsIdle', () => {
+    it('includes js_idle from preset defaults', () => {
+      let config = resolveReadinessConfig({});
+      expect(config.js_idle).toBe(true);
+    });
+
+    it('allows disabling js_idle via camelCase', () => {
+      let config = resolveReadinessConfig({ readiness: { jsIdle: false } });
+      expect(config.js_idle).toBe(false);
+    });
+
+    it('allows disabling js_idle via snake_case', () => {
+      let config = resolveReadinessConfig({ readiness: { js_idle: false } });
+      expect(config.js_idle).toBe(false);
+    });
+
+    it('prefers camelCase jsIdle over snake_case', () => {
+      let config = resolveReadinessConfig({ readiness: { jsIdle: false, js_idle: true } });
+      expect(config.js_idle).toBe(false);
+    });
+  });
+
+  describe('waitForReadiness — js_idle tip', () => {
+    it('logs tip for js_idle failure', async () => {
+      let mockPage = {
+        insertPercyDom: async () => {},
+        eval: async () => ({
+          passed: false,
+          timed_out: true,
+          total_duration_ms: 10000,
+          checks: {
+            js_idle: { passed: false, duration_ms: 10000, pending_timers_at_start: 5 }
+          }
+        })
+      };
+
+      await waitForReadiness(mockPage, {
+        name: 'JS Heavy Page',
+        readiness: { preset: 'balanced' }
+      });
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/js_idle: FAILED/)
+      ]));
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Tip:.*JavaScript still executing/)
+      ]));
     });
   });
 });

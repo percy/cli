@@ -850,4 +850,53 @@ describe('waitForReady', () => {
 
     expect(result.checks.ready_selectors.passed).toBe(true);
   });
+
+  // --- JS idle check ---
+
+  it('includes js_idle check by default', async () => {
+    withExample('<p>JS idle test</p>', { withShadow: false });
+
+    let result = await waitForReady({
+      stability_window_ms: 50,
+      timeout_ms: 5000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.checks.js_idle).toBeDefined();
+    expect(result.checks.js_idle.passed).toBe(true);
+  });
+
+  it('skips js_idle check when js_idle is false', async () => {
+    withExample('<p>No JS idle</p>', { withShadow: false });
+
+    let result = await waitForReady({
+      stability_window_ms: 50,
+      timeout_ms: 2000,
+      image_ready: false,
+      font_ready: false,
+      js_idle: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.js_idle).toBeUndefined();
+  });
+
+  it('js_idle passes on a page with no pending timers', async () => {
+    withExample('<p>Static content</p>', { withShadow: false });
+
+    let result = await waitForReady({
+      stability_window_ms: 50,
+      timeout_ms: 5000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50,
+      js_idle: true
+    });
+
+    expect(result.checks.js_idle.passed).toBe(true);
+    expect(result.checks.js_idle.duration_ms).toBeDefined();
+  });
 });

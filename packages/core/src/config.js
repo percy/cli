@@ -142,6 +142,7 @@ export const configSchema = {
           timeoutMs: { type: 'integer', minimum: 1000, maximum: 60000 },
           imageReady: { type: 'boolean' },
           fontReady: { type: 'boolean' },
+          jsIdle: { type: 'boolean' },
           readySelectors: { type: 'array', items: { type: 'string' } },
           notPresentSelectors: { type: 'array', items: { type: 'string' } }
         }

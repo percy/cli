@@ -503,9 +503,24 @@ export function createDiscoveryQueue(percy) {
           page._readinessConfig = snapshot.readiness || percy.config?.snapshot?.readiness;
 
           try {
+            // Wrap callback to intercept readiness diagnostics for smart debugging
+            let captureWithDiagnostics = (captured) => {
+              if (captured?.readiness_diagnostics && !captured.readiness_diagnostics.passed) {
+                let diag = captured.readiness_diagnostics;
+                let failedChecks = Object.entries(diag.checks || {})
+                  .filter(([, c]) => !c.passed)
+                  .map(([name]) => name);
+                percy.suggestionsForFix(
+                  `Snapshot "${captured.name}" readiness timed out after ${diag.total_duration_ms}ms. Failed checks: ${failedChecks.join(', ')}`,
+                  { snapshotLevel: true, snapshotName: captured.name }
+                );
+              }
+              callback(captured);
+            };
+
             yield* captureSnapshotResources(page, snapshot, {
               captureWidths: !snapshot.domSnapshot && percy.deferUploads,
-              capture: callback,
+              capture: captureWithDiagnostics,
               captureForDevices: percy.deviceDetails || []
             });
           } finally {

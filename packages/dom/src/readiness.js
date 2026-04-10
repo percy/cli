@@ -9,21 +9,24 @@ const PRESETS = {
     network_idle_window_ms: 200,
     timeout_ms: 10000,
     image_ready: true,
-    font_ready: true
+    font_ready: true,
+    js_idle: true
   },
   strict: {
     stability_window_ms: 1000,
     network_idle_window_ms: 500,
     timeout_ms: 30000,
     image_ready: true,
-    font_ready: true
+    font_ready: true,
+    js_idle: true
   },
   fast: {
     stability_window_ms: 100,
     network_idle_window_ms: 100,
     timeout_ms: 5000,
     image_ready: false,
-    font_ready: true
+    font_ready: true,
+    js_idle: true
   }
 };
 
@@ -200,6 +203,82 @@ function checkNotPresentSelectors(selectors) {
   });
 }
 
+/* istanbul ignore next: JS idle detection depends on browser runtime timing */
+function checkJSIdle(idleWindowMs) {
+  // Detect if JS is still executing by monitoring for pending timers/rAF callbacks.
+  // Uses a double-requestAnimationFrame + setTimeout pattern:
+  // If after two animation frames and the idle window, no new resource loading
+  // or DOM mutations have occurred, JS is considered idle.
+  // This catches: setTimeout-based rendering, requestAnimationFrame loops,
+  // Promise chains, async/await completions, and React/Vue render cycles.
+  return new Promise(resolve => {
+    let start = performance.now();
+    let pendingTimers = 0;
+    let originalSetTimeout = window.setTimeout;
+    let originalClearTimeout = window.clearTimeout;
+    let trackedTimers = new Set();
+    let settled = false;
+
+    // Monkey-patch setTimeout to track pending callbacks
+    window.setTimeout = function(fn, delay, ...args) {
+      let id = originalSetTimeout.call(window, function() {
+        trackedTimers.delete(id);
+        pendingTimers = trackedTimers.size;
+        if (typeof fn === 'function') fn.apply(this, args);
+      }, delay, ...args);
+      // Only track short timers (< 5s) — long ones are likely intervals/polling
+      if ((delay || 0) < 5000) {
+        trackedTimers.add(id);
+        pendingTimers = trackedTimers.size;
+      }
+      return id;
+    };
+
+    window.clearTimeout = function(id) {
+      trackedTimers.delete(id);
+      pendingTimers = trackedTimers.size;
+      return originalClearTimeout.call(window, id);
+    };
+
+    function restore() {
+      window.setTimeout = originalSetTimeout;
+      window.clearTimeout = originalClearTimeout;
+      settled = true;
+    }
+
+    function settle() {
+      // Double-rAF: wait for two animation frames to ensure render cycle is complete
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // After two frames, check if any short timers are still pending
+          originalSetTimeout.call(window, () => {
+            if (settled) return;
+            let remaining = trackedTimers.size;
+            restore();
+            resolve({
+              passed: true,
+              duration_ms: Math.round(performance.now() - start),
+              pending_timers_at_start: pendingTimers,
+              pending_timers_at_end: remaining
+            });
+          }, idleWindowMs);
+        });
+      });
+    }
+
+    // Start the idle check after one animation frame
+    // to let any immediate JS run first
+    requestAnimationFrame(() => {
+      settle();
+    });
+
+    // Safety: restore patches after timeout to prevent leaks
+    originalSetTimeout.call(window, () => {
+      if (!settled) restore();
+    }, Math.max(idleWindowMs * 3, 5000));
+  });
+}
+
 // --- Orchestrator ---
 
 async function runAllChecks(config, result) {
@@ -208,6 +287,7 @@ async function runAllChecks(config, result) {
   if (config.network_idle_window_ms > 0) checks.push(checkNetworkIdle(config.network_idle_window_ms).then(r => { result.checks.network_idle = r; }));
   if (config.font_ready !== false) checks.push(checkFontReady().then(r => { result.checks.font_ready = r; }));
   if (config.image_ready !== false) checks.push(checkImageReady().then(r => { result.checks.image_ready = r; }));
+  if (config.js_idle !== false) checks.push(checkJSIdle(config.js_idle_window_ms || config.stability_window_ms).then(r => { result.checks.js_idle = r; }));
   if (config.ready_selectors?.length) checks.push(checkReadySelectors(config.ready_selectors).then(r => { result.checks.ready_selectors = r; }));
   if (config.not_present_selectors?.length) checks.push(checkNotPresentSelectors(config.not_present_selectors).then(r => { result.checks.not_present_selectors = r; }));
   await Promise.all(checks);

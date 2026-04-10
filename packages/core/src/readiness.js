@@ -3,9 +3,9 @@ import logger from '@percy/logger';
 const log = logger('core:readiness');
 
 export const PRESETS = {
-  balanced: { stability_window_ms: 300, network_idle_window_ms: 200, timeout_ms: 10000, image_ready: true, font_ready: true },
-  strict: { stability_window_ms: 1000, network_idle_window_ms: 500, timeout_ms: 30000, image_ready: true, font_ready: true },
-  fast: { stability_window_ms: 100, network_idle_window_ms: 100, timeout_ms: 5000, image_ready: false, font_ready: true }
+  balanced: { stability_window_ms: 300, network_idle_window_ms: 200, timeout_ms: 10000, image_ready: true, font_ready: true, js_idle: true },
+  strict: { stability_window_ms: 1000, network_idle_window_ms: 500, timeout_ms: 30000, image_ready: true, font_ready: true, js_idle: true },
+  fast: { stability_window_ms: 100, network_idle_window_ms: 100, timeout_ms: 5000, image_ready: false, font_ready: true, js_idle: true }
 };
 
 // Resolve readiness config from preset + per-snapshot overrides.
@@ -24,6 +24,7 @@ export function resolveReadinessConfig(options = {}) {
     timeout_ms: (readiness.timeoutMs ?? readiness.timeout_ms) ?? preset.timeout_ms,
     image_ready: (readiness.imageReady ?? readiness.image_ready) ?? preset.image_ready,
     font_ready: (readiness.fontReady ?? readiness.font_ready) ?? preset.font_ready,
+    js_idle: (readiness.jsIdle ?? readiness.js_idle) ?? preset.js_idle,
     ...((readiness.readySelectors ?? readiness.ready_selectors) && { ready_selectors: readiness.readySelectors ?? readiness.ready_selectors }),
     ...((readiness.notPresentSelectors ?? readiness.not_present_selectors) && { not_present_selectors: readiness.notPresentSelectors ?? readiness.not_present_selectors })
   };
@@ -72,6 +73,7 @@ export async function waitForReadiness(page, options = {}) {
         dom_stability: 'Try adding notPresentSelectors for loading indicators, or increase stabilityWindowMs.',
         network_idle: 'Check for long-polling or analytics. Try adding endpoints to disallowedHostnames.',
         image_ready: 'Images still loading. Try imageReady: false if images load lazily.',
+        js_idle: 'JavaScript still executing (pending timers/callbacks). Try increasing timeoutMs or set jsIdle: false for pages with continuous JS.',
         ready_selectors: 'Required selector(s) not found. Verify selectors exist on the page.',
         not_present_selectors: 'Loading indicators still present. These may be skeleton loaders or spinners.'
       };
