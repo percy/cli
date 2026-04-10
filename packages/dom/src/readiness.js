@@ -80,8 +80,10 @@ function parseStyleProps(styleStr) {
 }
 
 // --- Individual Checks ---
+// Each check accepts an `aborted` object ({ value: boolean }) so the orchestrator
+// can signal cancellation on timeout. Checks must clean up timers/observers on abort.
 
-function checkDOMStability(stabilityWindowMs) {
+function checkDOMStability(stabilityWindowMs, aborted) {
   return new Promise(resolve => {
     let startTime = performance.now();
     let timer = null;
@@ -89,6 +91,7 @@ function checkDOMStability(stabilityWindowMs) {
     let lastMutationType = null;
 
     let observer = new MutationObserver(mutations => {
+      if (aborted.value) return;
       let hasLayout = false;
       for (let m of mutations) {
         if (isLayoutMutation(m)) { hasLayout = true; mutationCount++; lastMutationType = m.type; }
@@ -115,16 +118,23 @@ function checkDOMStability(stabilityWindowMs) {
       attributeFilter: [...LAYOUT_ATTRIBUTES, 'style']
     });
     timer = setTimeout(settle, stabilityWindowMs);
+
+    // Cleanup on abort
+    aborted.onAbort(() => {
+      if (timer) clearTimeout(timer);
+      observer.disconnect();
+    });
   });
 }
 
 /* istanbul ignore next: network idle polling is browser-timing dependent */
-function checkNetworkIdle(networkIdleWindowMs) {
+function checkNetworkIdle(networkIdleWindowMs, aborted) {
   return new Promise(resolve => {
     let startTime = performance.now();
     let lastCount = performance.getEntriesByType('resource').length;
     let timer = null;
     let interval = setInterval(() => {
+      if (aborted.value) { clearInterval(interval); return; }
       let count = performance.getEntriesByType('resource').length;
       /* istanbul ignore next: timer is always set before interval fires */
       if (count !== lastCount) { lastCount = count; if (timer) clearTimeout(timer); timer = setTimeout(settle, networkIdleWindowMs); }
@@ -132,6 +142,8 @@ function checkNetworkIdle(networkIdleWindowMs) {
 
     function settle() { clearInterval(interval); resolve({ passed: true, duration_ms: Math.round(performance.now() - startTime) }); }
     timer = setTimeout(settle, networkIdleWindowMs);
+
+    aborted.onAbort(() => { clearInterval(interval); if (timer) clearTimeout(timer); });
   });
 }
 
@@ -147,7 +159,7 @@ function checkFontReady() {
 }
 
 /* istanbul ignore next: image loading and viewport checks are browser-timing dependent */
-function checkImageReady() {
+function checkImageReady(aborted) {
   return new Promise(resolve => {
     let start = performance.now();
     let vh = window.innerHeight;
@@ -166,45 +178,19 @@ function checkImageReady() {
     let incStart = getIncomplete().length;
     if (incStart === 0) { resolve({ passed: true, duration_ms: 0, images_checked: total, images_incomplete_at_start: 0 }); return; }
     let interval = setInterval(() => {
+      if (aborted.value) { clearInterval(interval); return; }
       if (getIncomplete().length === 0) {
         clearInterval(interval);
         resolve({ passed: true, duration_ms: Math.round(performance.now() - start), images_checked: total, images_incomplete_at_start: incStart });
       }
     }, 100);
-  });
-}
 
-/* istanbul ignore next: selector polling and visibility checks are browser-timing dependent */
-function checkReadySelectors(selectors) {
-  if (!selectors?.length) return Promise.resolve({ passed: true, duration_ms: 0, selectors: [] });
-  return new Promise(resolve => {
-    let start = performance.now();
-    function check() {
-      for (let s of selectors) {
-        let el = document.querySelector(s);
-        if (!el) return false;
-        if (el.offsetParent === null && getComputedStyle(el).position !== 'fixed' && getComputedStyle(el).position !== 'sticky') return false;
-      }
-      return true;
-    }
-    if (check()) { resolve({ passed: true, duration_ms: 0, selectors }); return; }
-    let interval = setInterval(() => { if (check()) { clearInterval(interval); resolve({ passed: true, duration_ms: Math.round(performance.now() - start), selectors }); } }, 100);
-  });
-}
-
-/* istanbul ignore next: selector polling is browser-timing dependent */
-function checkNotPresentSelectors(selectors) {
-  if (!selectors?.length) return Promise.resolve({ passed: true, duration_ms: 0, selectors: [] });
-  return new Promise(resolve => {
-    let start = performance.now();
-    function check() { for (let s of selectors) { if (document.querySelector(s)) return false; } return true; }
-    if (check()) { resolve({ passed: true, duration_ms: 0, selectors }); return; }
-    let interval = setInterval(() => { if (check()) { clearInterval(interval); resolve({ passed: true, duration_ms: Math.round(performance.now() - start), selectors }); } }, 100);
+    aborted.onAbort(() => clearInterval(interval));
   });
 }
 
 /* istanbul ignore next: JS idle detection depends on browser runtime timing */
-function checkJSIdle(idleWindowMs) {
+function checkJSIdle(idleWindowMs, aborted) {
   // Three-tier JS idle detection — purely observational, no monkey-patching:
   // Tier 1: Long Task API (PerformanceObserver) — detects main-thread tasks >50ms
   // Tier 2: requestIdleCallback — confirms browser idle (fallback: setTimeout 200ms)
@@ -220,7 +206,7 @@ function checkJSIdle(idleWindowMs) {
     // Tier 1: Long Task API — reset idle timer on each observed long task
     try {
       observer = new PerformanceObserver(list => {
-        if (!observing || settled) return;
+        if (!observing || settled || aborted.value) return;
         for (let entry of list.getEntries()) {
           if (entry.entryType === 'longtask') {
             longTaskCount++;
@@ -238,10 +224,11 @@ function checkJSIdle(idleWindowMs) {
     function cleanup() {
       settled = true;
       if (observer) observer.disconnect();
+      if (idleTimer) clearTimeout(idleTimer);
     }
 
     function done(idleCallbackUsed) {
-      if (settled) return;
+      if (settled || aborted.value) return;
       cleanup();
       resolve({
         passed: true,
@@ -253,24 +240,23 @@ function checkJSIdle(idleWindowMs) {
 
     // Tier 2: requestIdleCallback confirmation (or fallback)
     function confirmIdle() {
-      if (settled) return;
+      if (settled || aborted.value) return;
       if (typeof requestIdleCallback === 'function') {
-        // Secondary timeout: if rIC never fires (heavy page or Percy's own polling),
-        // fall back to double-rAF only
         let ricTimer = setTimeout(() => doubleRAF(false), idleWindowMs * 2);
         requestIdleCallback(() => {
           clearTimeout(ricTimer);
           doubleRAF(true);
         });
+        aborted.onAbort(() => clearTimeout(ricTimer));
       } else {
-        // Fallback: no rIC available (older Safari)
-        setTimeout(() => doubleRAF(false), 200);
+        let fallbackTimer = setTimeout(() => doubleRAF(false), 200);
+        aborted.onAbort(() => clearTimeout(fallbackTimer));
       }
     }
 
     // Tier 3: Double-rAF render gate
     function doubleRAF(usedRIC) {
-      if (settled) return;
+      if (settled || aborted.value) return;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           done(usedRIC);
@@ -281,23 +267,80 @@ function checkJSIdle(idleWindowMs) {
     // Start: skip first frame to avoid detecting Percy's own insertPercyDom() setup,
     // then begin idle window
     requestAnimationFrame(() => {
+      if (aborted.value) return;
       observing = true;
       idleTimer = setTimeout(confirmIdle, idleWindowMs);
     });
+
+    aborted.onAbort(() => cleanup());
+  });
+}
+
+/* istanbul ignore next: selector polling and visibility checks are browser-timing dependent */
+function checkReadySelectors(selectors, aborted) {
+  if (!selectors?.length) return Promise.resolve({ passed: true, duration_ms: 0, selectors: [] });
+  return new Promise(resolve => {
+    let start = performance.now();
+    function check() {
+      for (let s of selectors) {
+        let el = document.querySelector(s);
+        if (!el) return false;
+        if (el.offsetParent === null && getComputedStyle(el).position !== 'fixed' && getComputedStyle(el).position !== 'sticky') return false;
+      }
+      return true;
+    }
+    if (check()) { resolve({ passed: true, duration_ms: 0, selectors }); return; }
+    let interval = setInterval(() => {
+      if (aborted.value) { clearInterval(interval); return; }
+      if (check()) { clearInterval(interval); resolve({ passed: true, duration_ms: Math.round(performance.now() - start), selectors }); }
+    }, 100);
+
+    aborted.onAbort(() => clearInterval(interval));
+  });
+}
+
+/* istanbul ignore next: selector polling is browser-timing dependent */
+function checkNotPresentSelectors(selectors, aborted) {
+  if (!selectors?.length) return Promise.resolve({ passed: true, duration_ms: 0, selectors: [] });
+  return new Promise(resolve => {
+    let start = performance.now();
+    function check() { for (let s of selectors) { if (document.querySelector(s)) return false; } return true; }
+    if (check()) { resolve({ passed: true, duration_ms: 0, selectors }); return; }
+    let interval = setInterval(() => {
+      if (aborted.value) { clearInterval(interval); return; }
+      if (check()) { clearInterval(interval); resolve({ passed: true, duration_ms: Math.round(performance.now() - start), selectors }); }
+    }, 100);
+
+    aborted.onAbort(() => clearInterval(interval));
   });
 }
 
 // --- Orchestrator ---
 
-async function runAllChecks(config, result) {
+// Simple abort controller for browser context (no AbortController dependency)
+function createAbortHandle() {
+  let callbacks = [];
+  return {
+    value: false,
+    onAbort(fn) { callbacks.push(fn); },
+    abort() { this.value = true; callbacks.forEach(fn => fn()); callbacks = []; }
+  };
+}
+
+// All expected check names — used to fill missing checks on timeout
+const ALL_CHECKS = ['dom_stability', 'network_idle', 'font_ready', 'image_ready', 'js_idle', 'ready_selectors', 'not_present_selectors'];
+
+async function runAllChecks(config, result, aborted) {
   let checks = [];
-  if (config.stability_window_ms > 0) checks.push(checkDOMStability(config.stability_window_ms).then(r => { result.checks.dom_stability = r; }));
-  if (config.network_idle_window_ms > 0) checks.push(checkNetworkIdle(config.network_idle_window_ms).then(r => { result.checks.network_idle = r; }));
-  if (config.font_ready !== false) checks.push(checkFontReady().then(r => { result.checks.font_ready = r; }));
-  if (config.image_ready !== false) checks.push(checkImageReady().then(r => { result.checks.image_ready = r; }));
-  if (config.js_idle !== false) checks.push(checkJSIdle(config.js_idle_window_ms || config.stability_window_ms).then(r => { result.checks.js_idle = r; }));
-  if (config.ready_selectors?.length) checks.push(checkReadySelectors(config.ready_selectors).then(r => { result.checks.ready_selectors = r; }));
-  if (config.not_present_selectors?.length) checks.push(checkNotPresentSelectors(config.not_present_selectors).then(r => { result.checks.not_present_selectors = r; }));
+  let expected = [];
+  if (config.stability_window_ms > 0) { expected.push('dom_stability'); checks.push(checkDOMStability(config.stability_window_ms, aborted).then(r => { result.checks.dom_stability = r; })); }
+  if (config.network_idle_window_ms > 0) { expected.push('network_idle'); checks.push(checkNetworkIdle(config.network_idle_window_ms, aborted).then(r => { result.checks.network_idle = r; })); }
+  if (config.font_ready !== false) { expected.push('font_ready'); checks.push(checkFontReady().then(r => { result.checks.font_ready = r; })); }
+  if (config.image_ready !== false) { expected.push('image_ready'); checks.push(checkImageReady(aborted).then(r => { result.checks.image_ready = r; })); }
+  if (config.js_idle !== false) { expected.push('js_idle'); checks.push(checkJSIdle(config.stability_window_ms, aborted).then(r => { result.checks.js_idle = r; })); }
+  if (config.ready_selectors?.length) { expected.push('ready_selectors'); checks.push(checkReadySelectors(config.ready_selectors, aborted).then(r => { result.checks.ready_selectors = r; })); }
+  if (config.not_present_selectors?.length) { expected.push('not_present_selectors'); checks.push(checkNotPresentSelectors(config.not_present_selectors, aborted).then(r => { result.checks.not_present_selectors = r; })); }
+  result._expectedChecks = expected;
   await Promise.all(checks);
 }
 
@@ -312,15 +355,33 @@ export async function waitForReady(options = {}) {
   let startTime = performance.now();
   let result = { passed: false, timed_out: false, preset: presetName, checks: {} };
   let settled = false;
+  let aborted = createAbortHandle();
 
   try {
     await Promise.race([
-      runAllChecks(config, result).then(() => { settled = true; }),
-      new Promise(resolve => setTimeout(() => { if (!settled) result.timed_out = true; resolve(); }, effectiveTimeout))
+      runAllChecks(config, result, aborted).then(() => { settled = true; }),
+      new Promise(resolve => setTimeout(() => {
+        if (!settled) {
+          result.timed_out = true;
+          // Abort all running checks — clears intervals, disconnects observers
+          aborted.abort();
+        }
+        resolve();
+      }, effectiveTimeout))
     ]);
   } catch (error) {
     /* istanbul ignore next: safety net for unexpected errors in readiness checks */
     result.error = error.message || String(error);
+  }
+
+  // Mark any checks that didn't complete before timeout as failed
+  if (result._expectedChecks) {
+    for (let name of result._expectedChecks) {
+      if (!result.checks[name]) {
+        result.checks[name] = { passed: false, timed_out: true };
+      }
+    }
+    delete result._expectedChecks;
   }
 
   result.total_duration_ms = Math.round(performance.now() - startTime);

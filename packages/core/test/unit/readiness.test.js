@@ -136,23 +136,19 @@ describe('Unit / Readiness', () => {
       expect(result).toBeNull();
     });
 
-    it('calls insertPercyDom and page.eval', async () => {
+    it('calls page.eval with readiness config', async () => {
       let evalCalled = false;
-      let insertCalled = false;
       let mockPage = {
-        insertPercyDom: async () => { insertCalled = true; },
         eval: async () => { evalCalled = true; return { passed: true, total_duration_ms: 50, checks: {} }; }
       };
 
       let result = await waitForReadiness(mockPage, { readiness: { preset: 'fast' } });
-      expect(insertCalled).toBe(true);
       expect(evalCalled).toBe(true);
       expect(result.passed).toBe(true);
     });
 
     it('logs warning when checks fail', async () => {
       let mockPage = {
-        insertPercyDom: async () => {},
         eval: async () => ({
           passed: false,
           timed_out: true,
@@ -176,7 +172,6 @@ describe('Unit / Readiness', () => {
 
     it('logs tip for dom_stability failure', async () => {
       let mockPage = {
-        insertPercyDom: async () => {},
         eval: async () => ({
           passed: false,
           timed_out: true,
@@ -202,7 +197,6 @@ describe('Unit / Readiness', () => {
 
     it('logs tip for network_idle failure', async () => {
       let mockPage = {
-        insertPercyDom: async () => {},
         eval: async () => ({
           passed: false,
           timed_out: true,
@@ -225,7 +219,6 @@ describe('Unit / Readiness', () => {
 
     it('logs tip for image_ready failure', async () => {
       let mockPage = {
-        insertPercyDom: async () => {},
         eval: async () => ({
           passed: false,
           timed_out: true,
@@ -248,7 +241,6 @@ describe('Unit / Readiness', () => {
 
     it('logs tip for ready_selectors failure', async () => {
       let mockPage = {
-        insertPercyDom: async () => {},
         eval: async () => ({
           passed: false,
           timed_out: true,
@@ -271,7 +263,6 @@ describe('Unit / Readiness', () => {
 
     it('logs tip for not_present_selectors failure', async () => {
       let mockPage = {
-        insertPercyDom: async () => {},
         eval: async () => ({
           passed: false,
           timed_out: true,
@@ -294,7 +285,6 @@ describe('Unit / Readiness', () => {
 
     it('logs passed check status correctly', async () => {
       let mockPage = {
-        insertPercyDom: async () => {},
         eval: async () => ({
           passed: false,
           timed_out: true,
@@ -321,7 +311,6 @@ describe('Unit / Readiness', () => {
 
     it('handles page.eval errors gracefully', async () => {
       let mockPage = {
-        insertPercyDom: async () => {},
         eval: async () => { throw new Error('Session closed'); }
       };
 
@@ -336,7 +325,6 @@ describe('Unit / Readiness', () => {
 
     it('logs debug when checks pass', async () => {
       let mockPage = {
-        insertPercyDom: async () => {},
         eval: async () => ({
           passed: true,
           timed_out: false,
@@ -358,7 +346,6 @@ describe('Unit / Readiness', () => {
 
     it('uses snapshot name "unknown" when name not provided', async () => {
       let mockPage = {
-        insertPercyDom: async () => {},
         eval: async () => ({
           passed: false,
           timed_out: true,
@@ -376,7 +363,6 @@ describe('Unit / Readiness', () => {
 
     it('handles result with PercyDOM not available', async () => {
       let mockPage = {
-        insertPercyDom: async () => {},
         eval: async () => ({
           passed: true,
           error: 'waitForReady not available',
@@ -448,7 +434,6 @@ describe('Unit / Readiness', () => {
   describe('waitForReadiness — js_idle tip', () => {
     it('logs tip for js_idle failure', async () => {
       let mockPage = {
-        insertPercyDom: async () => {},
         eval: async () => ({
           passed: false,
           timed_out: true,

@@ -39,7 +39,8 @@ export async function waitForReadiness(page, options = {}) {
 
   log.debug(`Running readiness checks: preset=${config.preset}, not_present=${JSON.stringify(config.not_present_selectors || [])}`);
 
-  await page.insertPercyDom();
+  // Note: insertPercyDom() is already called by the caller in page.snapshot() (line 218)
+  // before waitForReadiness is invoked — no need to call it again here.
 
   let result;
   try {

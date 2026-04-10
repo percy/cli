@@ -441,6 +441,9 @@ export function createDiscoveryQueue(percy) {
           percy.log.debug('Readiness enabled (SDK snapshot): re-capturing from URL', snapshot.meta);
           let extractedCookies = snapshot.domSnapshot?.cookies || snapshot.domSnapshot?.[0]?.cookies;
           if (extractedCookies) snapshot._extractedCookies = extractedCookies;
+          // Preserve original enableJavaScript before deleting domSnapshot,
+          // since downstream code derives JS flag from !snapshot.domSnapshot
+          snapshot.enableJavaScript = snapshot.enableJavaScript ?? false;
           delete snapshot.domSnapshot;
           // Clear cached root HTML so the browser fetches the live page
           for (let [key, val] of snapshot.resources) {
