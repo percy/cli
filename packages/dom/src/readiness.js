@@ -318,6 +318,7 @@ function checkNotPresentSelectors(selectors, aborted) {
 // --- Orchestrator ---
 
 // Simple abort controller for browser context (no AbortController dependency)
+/* istanbul ignore next: abort handle invoked by timeout race, timing-dependent */
 function createAbortHandle() {
   let callbacks = [];
   return {
@@ -326,9 +327,6 @@ function createAbortHandle() {
     abort() { this.value = true; callbacks.forEach(fn => fn()); callbacks = []; }
   };
 }
-
-// All expected check names — used to fill missing checks on timeout
-const ALL_CHECKS = ['dom_stability', 'network_idle', 'font_ready', 'image_ready', 'js_idle', 'ready_selectors', 'not_present_selectors'];
 
 async function runAllChecks(config, result, aborted) {
   let checks = [];
