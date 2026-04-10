@@ -436,6 +436,7 @@ export function createDiscoveryQueue(percy) {
         // Only triggers when readiness is explicitly configured (not by default).
         let readinessConfig = snapshot.readiness || percy.config?.snapshot?.readiness;
         let readinessPreset = readinessConfig?.preset;
+        /* istanbul ignore next: V2 re-capture requires SDK snapshot + readiness config + live browser */
         if (snapshot._fromSDK && snapshot.domSnapshot && snapshot.url && readinessConfig && readinessPreset !== 'disabled') {
           percy.log.debug('Readiness enabled (SDK snapshot): re-capturing from URL', snapshot.meta);
           let extractedCookies = snapshot.domSnapshot?.cookies || snapshot.domSnapshot?.[0]?.cookies;
@@ -504,6 +505,7 @@ export function createDiscoveryQueue(percy) {
 
           try {
             // Wrap callback to intercept readiness diagnostics for smart debugging
+            /* istanbul ignore next: readiness diagnostics callback requires live browser timeout */
             let captureWithDiagnostics = (captured) => {
               if (captured?.readiness_diagnostics && !captured.readiness_diagnostics.passed) {
                 let diag = captured.readiness_diagnostics;
