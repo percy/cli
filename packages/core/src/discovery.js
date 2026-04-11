@@ -194,6 +194,9 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   let domWarnings = domSnapshot?.warnings?.filter(w => w.startsWith('[fidelity]')) || [];
   for (let w of domWarnings) log.info(w);
 
+  // extract fidelity regions for API upload
+  let fidelityRegions = domSnapshot?.fidelityRegions || domSnapshot?.[0]?.fidelityRegions || [];
+
   // find any root resource matching the provided dom snapshot
   // since root resources are stored as array
   let roots = resources.find(r => Array.isArray(r));
@@ -236,7 +239,7 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
     }
   }
 
-  return { ...snapshot, resources };
+  return { ...snapshot, resources, fidelityRegions };
 }
 
 // Triggers the capture of resource requests for a page by iterating over snapshot widths to resize
