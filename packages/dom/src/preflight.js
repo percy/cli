@@ -7,10 +7,10 @@
   window.__percyPreflightActive = true;
 
   // --- Intercept closed shadow roots ---
-  var closedShadowRoots = new WeakMap();
-  var origAttachShadow = Element.prototype.attachShadow;
-  Element.prototype.attachShadow = function(init) {
-    var root = origAttachShadow.call(this, init);
+  let closedShadowRoots = new WeakMap();
+  let origAttachShadow = window.Element.prototype.attachShadow;
+  window.Element.prototype.attachShadow = function(init) {
+    let root = origAttachShadow.call(this, init);
     if (init && init.mode === 'closed') {
       closedShadowRoots.set(this, root);
     }
@@ -19,11 +19,11 @@
   window.__percyClosedShadowRoots = closedShadowRoots;
 
   // --- Intercept ElementInternals for :state() capture ---
-  if (typeof HTMLElement.prototype.attachInternals === 'function') {
-    var internalsMap = new WeakMap();
-    var origAttachInternals = HTMLElement.prototype.attachInternals;
-    HTMLElement.prototype.attachInternals = function() {
-      var internals = origAttachInternals.call(this);
+  if (typeof window.HTMLElement.prototype.attachInternals === 'function') {
+    let internalsMap = new WeakMap();
+    let origAttachInternals = window.HTMLElement.prototype.attachInternals;
+    window.HTMLElement.prototype.attachInternals = function() {
+      let internals = origAttachInternals.call(this);
       internalsMap.set(this, internals);
       return internals;
     };
