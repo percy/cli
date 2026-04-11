@@ -301,6 +301,49 @@ describe('serializeFrames', () => {
       expect($('#frame-inject')).toHaveSize(0);
     });
 
+    it(`${platform}: warns for fully sandboxed iframes`, () => {
+      withExample(`<iframe id="frame-sandbox-full" sandbox srcdoc="<p>test</p>"></iframe>`);
+
+      let result = serializeDOM();
+      expect(result.warnings).toContain(
+        jasmine.stringMatching(/Sandboxed iframe.*frame-sandbox-full.*has no permissions/)
+      );
+    });
+
+    it(`${platform}: warns for sandboxed iframe without allow-scripts`, () => {
+      withExample(`<iframe id="frame-sandbox-no-scripts" sandbox="allow-same-origin" srcdoc="<p>test</p>"></iframe>`);
+
+      let result = serializeDOM();
+      expect(result.warnings).toContain(
+        jasmine.stringMatching(/Sandboxed iframe.*frame-sandbox-no-scripts.*scripts disabled/)
+      );
+    });
+
+    it(`${platform}: warns for sandboxed iframe without allow-same-origin`, () => {
+      withExample(`<iframe id="frame-sandbox-no-origin" sandbox="allow-scripts" srcdoc="<p>test</p>"></iframe>`);
+
+      let result = serializeDOM();
+      expect(result.warnings).toContain(
+        jasmine.stringMatching(/Sandboxed iframe.*frame-sandbox-no-origin.*allow-same-origin/)
+      );
+    });
+
+    it(`${platform}: does not warn for sandbox with allow-scripts and allow-same-origin`, () => {
+      withExample(`<iframe id="frame-sandbox-ok" sandbox="allow-scripts allow-same-origin" srcdoc="<p>test</p>"></iframe>`);
+
+      let result = serializeDOM();
+      let sandboxWarnings = result.warnings.filter(w => w.includes('frame-sandbox-ok'));
+      expect(sandboxWarnings).toEqual([]);
+    });
+
+    it(`${platform}: does not warn for iframes without sandbox attribute`, () => {
+      withExample(`<iframe id="frame-no-sandbox" srcdoc="<p>test</p>"></iframe>`);
+
+      let result = serializeDOM();
+      let sandboxWarnings = result.warnings.filter(w => w.includes('Sandboxed iframe'));
+      expect(sandboxWarnings).toEqual([]);
+    });
+
     if (platform === 'plain') {
       it('uses Trusted Types policy to create srcdoc when available', () => {
         let createHTML = jasmine.createSpy('createHTML').and.callFake(html => html);

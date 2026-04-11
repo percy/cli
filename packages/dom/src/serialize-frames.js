@@ -48,6 +48,24 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
     let percyElementId = frame.getAttribute('data-percy-element-id');
     let cloneEl = clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
     let builtWithJs = !frame.srcdoc && (!frame.src || frame.src.split(':')[0] === 'javascript');
+    let sandboxAttr = frame.getAttribute('sandbox');
+
+    // Warn about sandboxed iframes
+    if (sandboxAttr !== null) {
+      let frameLabel = frame.id || frame.src || percyElementId || 'unknown';
+      let tokens = sandboxAttr.split(/\s+/).filter(Boolean);
+
+      if (tokens.length === 0) {
+        warnings.add(`Sandboxed iframe "${frameLabel}" has no permissions — content may not render with full fidelity in Percy`);
+      } else {
+        if (!tokens.includes('allow-scripts')) {
+          warnings.add(`Sandboxed iframe "${frameLabel}" has scripts disabled — JS-dependent content will not render in Percy`);
+        }
+        if (!tokens.includes('allow-same-origin')) {
+          warnings.add(`Sandboxed iframe "${frameLabel}" lacks allow-same-origin — styles and resources may not load correctly in Percy`);
+        }
+      }
+    }
 
     // delete frames within the head since they usually break pages when
     // rerendered and do not effect the visuals of a page
