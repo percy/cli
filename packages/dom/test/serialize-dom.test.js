@@ -9,7 +9,8 @@ describe('serializeDOM', () => {
       userAgent: jasmine.any(String),
       warnings: jasmine.any(Array),
       resources: jasmine.any(Array),
-      hints: jasmine.any(Array)
+      hints: jasmine.any(Array),
+      fidelityRegions: jasmine.any(Array)
     });
   });
 
@@ -30,7 +31,7 @@ describe('serializeDOM', () => {
 
   it('optionally returns a stringified response', () => {
     expect(serializeDOM({ stringifyResponse: true }))
-      .toMatch('{"html":".*","cookies":".*","userAgent":".*","warnings":\\[.*\\],"resources":\\[\\],"hints":\\[\\]}');
+      .toMatch('{"html":".*","cookies":".*","userAgent":".*","warnings":\\[.*\\],"resources":\\[\\],"hints":\\[\\],"fidelityRegions":\\[.*\\]}');
   });
 
   it('always has a doctype', () => {
@@ -69,6 +70,25 @@ describe('serializeDOM', () => {
     const $ = parseDOM(serializeDOM().html);
 
     expect($('h2.callback').length).toEqual(1);
+  });
+
+  it('handles getBoundingClientRect failure in inaccessible shadow root detection', () => {
+    if (!window.customElements.get('percy-bad-rect')) {
+      class PercyBadRect extends window.HTMLElement {
+        connectedCallback() { this.innerHTML = '<span>bad rect</span>'; }
+      }
+      window.customElements.define('percy-bad-rect', PercyBadRect);
+    }
+    withExample('<percy-bad-rect id="pbr"></percy-bad-rect>', { withShadow: false });
+    let el = document.getElementById('pbr');
+    Object.defineProperty(el, 'getBoundingClientRect', {
+      value: () => { throw new Error('not supported'); },
+      configurable: true
+    });
+
+    let result = serializeDOM();
+    // Should not crash — shadow root detection skips this element's rect
+    expect(result.fidelityRegions).toBeDefined();
   });
 
   it('handles __percyInternals with empty iterable states during cloning', () => {

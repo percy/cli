@@ -190,6 +190,10 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   let log = logger('core:snapshot');
   resources = [...(resources?.values() ?? [])];
 
+  // log fidelity warnings from dom serialization
+  let domWarnings = domSnapshot?.warnings?.filter(w => w.startsWith('[fidelity]')) || [];
+  for (let w of domWarnings) log.info(w);
+
   // find any root resource matching the provided dom snapshot
   // since root resources are stored as array
   let roots = resources.find(r => Array.isArray(r));

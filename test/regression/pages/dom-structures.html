@@ -25,13 +25,13 @@
   <div class="section">
     <div class="section-title">data-percy-ignore: Direct Attribute</div>
     <iframe data-percy-ignore srcdoc="<p style='padding:12px;color:red;'>This iframe should be IGNORED by Percy</p>" width="400" height="80" style="border:1px solid #cc3333;"></iframe>
-    <div class="test-box ignored-section">The iframe above has data-percy-ignore and should NOT appear in the snapshot.</div>
+    <div class="test-box ignored-section">The iframe above has data-percy-ignore. It will be removed from the snapshot but its position is captured for the fidelity overlay.</div>
   </div>
 
   <div class="section">
     <div class="section-title">ignoreIframeSelectors: CSS Selector Match</div>
     <iframe class="ad-frame" srcdoc="<p style='padding:12px;color:red;'>This iframe matches .ad-frame selector</p>" width="400" height="80" style="border:1px solid #cc3333;"></iframe>
-    <div class="test-box ignored-section">The iframe above matches the .ad-frame selector configured in ignoreIframeSelectors.</div>
+    <div class="test-box ignored-section">The iframe above matches .ad-frame selector. Removed from snapshot, position captured for fidelity overlay.</div>
   </div>
 
   <div class="section">

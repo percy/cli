@@ -42,8 +42,25 @@ function setBaseURI(dom, warnings) {
   dom.querySelector('head')?.prepend($base);
 }
 
+// Capture bounding rect from original DOM element before removing from clone
+function captureFidelityRegion(frame, reason, fidelityRegions) {
+  let rect;
+  try {
+    rect = frame.getBoundingClientRect();
+  } catch (e) {
+    rect = null;
+  }
+  if (!rect || rect.width <= 0 || rect.height <= 0) return;
+  fidelityRegions.push({
+    reason,
+    tag: 'iframe',
+    selector: frame.id || frame.className || 'iframe',
+    rect: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) }
+  });
+}
+
 // Recursively serializes iframe documents into srcdoc attributes.
-export function serializeFrames({ dom, clone, warnings, resources, enableJavaScript, disableShadowDOM, ignoreIframeSelectors }) {
+export function serializeFrames({ dom, clone, warnings, resources, fidelityRegions, enableJavaScript, disableShadowDOM, ignoreIframeSelectors }) {
   let iframeTotal = 0;
   let captured = 0;
   let corsExcluded = 0;
@@ -60,6 +77,7 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
       ignoreIframeSelectors.some(sel => { try { return frame.matches(sel); } catch { return false; } });
     if (frame.hasAttribute('data-percy-ignore') || matchesSelector) {
       ignored++;
+      captureFidelityRegion(frame, 'user-ignored', fidelityRegions);
       cloneEl?.remove();
       continue;
     }
@@ -74,9 +92,11 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
 
       if (tokens.length === 0) {
         warnings.add(`Sandboxed iframe "${frameLabel}" has no permissions — content may not render with full fidelity in Percy`);
+        captureFidelityRegion(frame, 'sandboxed-restricted', fidelityRegions);
       } else {
         if (!tokens.includes('allow-scripts')) {
           warnings.add(`Sandboxed iframe "${frameLabel}" has scripts disabled — JS-dependent content will not render in Percy`);
+          captureFidelityRegion(frame, 'sandboxed-restricted', fidelityRegions);
         }
         if (!tokens.includes('allow-same-origin')) {
           warnings.add(`Sandboxed iframe "${frameLabel}" lacks allow-same-origin — styles and resources may not load correctly in Percy`);
@@ -123,10 +143,12 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
       // delete inaccessible frames built with js when js is disabled because they
       // break asset discovery by creating non-captured requests that hang
     } else if (!enableJavaScript && builtWithJs) {
+      captureFidelityRegion(frame, 'js-inaccessible', fidelityRegions);
       cloneEl.remove();
     } else {
       // frame.contentDocument is null or empty — cross-origin or otherwise inaccessible
       corsExcluded++;
+      captureFidelityRegion(frame, 'cross-origin-excluded', fidelityRegions);
     }
   }
 

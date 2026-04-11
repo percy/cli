@@ -102,6 +102,7 @@ export function serializeDOM(options) {
     resources: new Set(),
     warnings: new Set(),
     hints: new Set(),
+    fidelityRegions: [],
     cache: new Map(),
     shadowRootElements: [],
     enableJavaScript,
@@ -120,10 +121,33 @@ export function serializeDOM(options) {
 
   serializeElements(ctx);
 
-  // Shadow root fidelity warning
+  // Detect potentially inaccessible shadow roots
+  let inaccessibleShadowCount = 0;
+  for (let origEl of ctx.dom.querySelectorAll('*')) {
+    if (!origEl.tagName?.includes('-')) continue;
+    if (origEl.hasAttribute('data-percy-shadow-host')) continue;
+    inaccessibleShadowCount++;
+    let rect;
+    try {
+      rect = origEl.getBoundingClientRect();
+    } catch (e) {
+      rect = null;
+    }
+    if (rect && rect.width > 0 && rect.height > 0) {
+      ctx.fidelityRegions.push({
+        reason: 'potentially-inaccessible-shadow',
+        tag: origEl.tagName.toLowerCase(),
+        selector: origEl.id || origEl.tagName.toLowerCase(),
+        rect: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) }
+      });
+    }
+  }
+
+  // Shadow root fidelity warning with totals
   let shadowHosts = ctx.clone.querySelectorAll('[data-percy-shadow-host]');
-  if (shadowHosts.length > 0) {
-    ctx.warnings.add(`[fidelity] ${shadowHosts.length} shadow root(s) captured`);
+  let totalShadowRoots = shadowHosts.length + inaccessibleShadowCount;
+  if (totalShadowRoots > 0) {
+    ctx.warnings.add(`[fidelity] ${totalShadowRoots} shadow root(s): ${shadowHosts.length} captured, ${inaccessibleShadowCount} potentially inaccessible`);
   }
 
   serializePseudoClasses(ctx);
@@ -167,7 +191,8 @@ export function serializeDOM(options) {
     userAgent: navigator.userAgent,
     warnings: Array.from(ctx.warnings),
     resources: Array.from(ctx.resources),
-    hints: Array.from(ctx.hints)
+    hints: Array.from(ctx.hints),
+    fidelityRegions: ctx.fidelityRegions
   };
 
   return stringifyResponse
