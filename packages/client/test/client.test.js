@@ -1169,7 +1169,8 @@ describe('PercyClient', () => {
               'enable-javascript': true,
               'enable-layout': true,
               'th-test-case-execution-id': 'random-uuid',
-              browsers: ['chrome', 'firefox', 'safari_on_iphone']
+              browsers: ['chrome', 'firefox', 'safari_on_iphone'],
+              'fidelity-regions': null
             },
             relationships: {
               resources: {
