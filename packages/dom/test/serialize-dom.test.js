@@ -71,6 +71,49 @@ describe('serializeDOM', () => {
     expect($('h2.callback').length).toEqual(1);
   });
 
+  it('handles __percyInternals with empty iterable states during cloning', () => {
+    if (!window.customElements.get('percy-empty-state')) {
+      class PercyEmptyState extends window.HTMLElement {
+        connectedCallback() { this.innerHTML = '<span>empty</span>'; }
+      }
+      window.customElements.define('percy-empty-state', PercyEmptyState);
+    }
+    withExample('<percy-empty-state id="pes"></percy-empty-state>', { withShadow: false });
+
+    let el = document.getElementById('pes');
+    if (!window.__percyInternals) window.__percyInternals = new WeakMap();
+    // size > 0 but iteration yields nothing (tricky edge case)
+    window.__percyInternals.set(el, { states: { size: 1, [Symbol.iterator]: function*() {} } });
+
+    let result = serializeDOM();
+    // Should not crash, and should not add the attribute since no states iterated
+    expect(result.html).not.toContain('data-percy-custom-state');
+    window.__percyInternals.delete(el);
+  });
+
+  it('sets data-percy-custom-state from __percyInternals during cloning', () => {
+    if (!window.customElements.get('percy-internals-test')) {
+      class PercyInternalsTest extends window.HTMLElement {
+        connectedCallback() {
+          this.innerHTML = '<span>internals test</span>';
+        }
+      }
+      window.customElements.define('percy-internals-test', PercyInternalsTest);
+    }
+    withExample('<percy-internals-test id="pit"></percy-internals-test>', { withShadow: false });
+
+    let el = document.getElementById('pit');
+    // Simulate preflight having captured internals states
+    if (!window.__percyInternals) window.__percyInternals = new WeakMap();
+    window.__percyInternals.set(el, { states: new Set(['open', 'loading']) });
+
+    let result = serializeDOM();
+    expect(result.html).toContain('data-percy-custom-state="open loading"');
+
+    // Cleanup
+    window.__percyInternals.delete(el);
+  });
+
   it('applies default dom transformations', () => {
     withExample('<img loading="lazy" src="http://some-url"/><iframe loading="lazy" src="">');
 

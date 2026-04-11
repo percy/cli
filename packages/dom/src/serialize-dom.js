@@ -93,6 +93,7 @@ export function serializeDOM(options) {
     ignoreCanvasSerializationErrors = options?.ignore_canvas_serialization_errors,
     ignoreStyleSheetSerializationErrors = options?.ignore_style_sheet_serialization_errors,
     forceShadowAsLightDOM = options?.force_shadow_dom_as_light_dom,
+    ignoreIframeSelectors = options?.ignore_iframe_selectors,
     pseudoClassEnabledElements = options?.pseudo_class_enabled_elements
   } = options || {};
 
@@ -108,6 +109,7 @@ export function serializeDOM(options) {
     ignoreCanvasSerializationErrors,
     ignoreStyleSheetSerializationErrors,
     forceShadowAsLightDOM,
+    ignoreIframeSelectors,
     pseudoClassEnabledElements
   };
 

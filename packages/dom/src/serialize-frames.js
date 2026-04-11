@@ -43,23 +43,33 @@ function setBaseURI(dom, warnings) {
 }
 
 // Recursively serializes iframe documents into srcdoc attributes.
-export function serializeFrames({ dom, clone, warnings, resources, enableJavaScript, disableShadowDOM }) {
+export function serializeFrames({ dom, clone, warnings, resources, enableJavaScript, disableShadowDOM, ignoreIframeSelectors }) {
   let iframeTotal = 0;
   let captured = 0;
   let corsExcluded = 0;
   let sandboxWarned = 0;
+  let ignored = 0;
 
   for (let frame of dom.querySelectorAll('iframe')) {
     iframeTotal++;
     let percyElementId = frame.getAttribute('data-percy-element-id');
     let cloneEl = clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
+
+    // Skip iframes with data-percy-ignore attribute or matching configured selectors
+    let matchesSelector = ignoreIframeSelectors?.length &&
+      ignoreIframeSelectors.some(sel => { try { return frame.matches(sel); } catch { return false; } });
+    if (frame.hasAttribute('data-percy-ignore') || matchesSelector) {
+      ignored++;
+      cloneEl?.remove();
+      continue;
+    }
     let builtWithJs = !frame.srcdoc && (!frame.src || frame.src.split(':')[0] === 'javascript');
     let sandboxAttr = frame.getAttribute('sandbox');
 
     // Warn about sandboxed iframes
     if (sandboxAttr !== null) {
       sandboxWarned++;
-      let frameLabel = frame.id || frame.src || percyElementId || 'unknown';
+      let frameLabel = frame.id || frame.src || percyElementId;
       let tokens = sandboxAttr.split(/\s+/).filter(Boolean);
 
       if (tokens.length === 0) {
@@ -121,7 +131,9 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
   }
 
   if (iframeTotal > 0) {
-    warnings.add(`[fidelity] ${iframeTotal} iframe(s): ${captured} captured, ${corsExcluded} cross-origin excluded, ${sandboxWarned} sandboxed`);
+    let parts = [`${captured} captured`, `${corsExcluded} cross-origin excluded`, `${sandboxWarned} sandboxed`];
+    if (ignored > 0) parts.push(`${ignored} ignored via data-percy-ignore`);
+    warnings.add(`[fidelity] ${iframeTotal} iframe(s): ${parts.join(', ')}`);
   }
 }
 

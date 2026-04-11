@@ -203,7 +203,7 @@ export class Page {
     execute,
     ...snapshot
   }) {
-    let { name, width, enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements } = snapshot;
+    let { name, width, enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, ignoreIframeSelectors, pseudoClassEnabledElements } = snapshot;
     this.log.debug(`Taking snapshot: ${name}${width ? ` @${width}px` : ''}`, this.meta);
 
     // wait for any specified timeout
@@ -227,6 +227,21 @@ export class Page {
     // wait for any final network activity before capturing the dom snapshot
     await this.network.idle();
 
+    // wait for custom elements to be defined before capturing
+    /* istanbul ignore next: no instrumenting injected code */
+    await this.eval(function() {
+      let undefinedEls = document.querySelectorAll(':not(:defined)');
+      if (!undefinedEls.length) return Promise.resolve();
+      return Promise.race([
+        Promise.all(
+          Array.from(undefinedEls).map(function(el) {
+            return window.customElements.whenDefined(el.localName);
+          })
+        ),
+        new Promise(function(r) { setTimeout(r, 5000); })
+      ]);
+    });
+
     await this.insertPercyDom();
 
     // serialize and capture a DOM snapshot
@@ -237,7 +252,7 @@ export class Page {
       /* eslint-disable-next-line no-undef */
       domSnapshot: PercyDOM.serialize(options),
       url: document.URL
-    }), { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements });
+    }), { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, ignoreIframeSelectors, pseudoClassEnabledElements });
 
     return { ...snapshot, ...capture };
   }

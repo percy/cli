@@ -189,8 +189,8 @@ export function markPseudoClassElements(ctx, config) {
  */
 function markInteractiveStatesInRoot(ctx, root) {
   // Mark focused element by ID
-  if (ctx._focusedElementId) {
-    let focusedEl = root.querySelector ? root.querySelector(`[data-percy-element-id="${ctx._focusedElementId}"]`) : null;
+  if (ctx._focusedElementId && root.querySelector) {
+    let focusedEl = root.querySelector(`[data-percy-element-id="${ctx._focusedElementId}"]`);
     if (focusedEl && !focusedEl.hasAttribute(FOCUS_ATTR)) {
       focusedEl.setAttribute(FOCUS_ATTR, 'true');
     }
@@ -249,12 +249,17 @@ function queryShadowAll(root, selector) {
   try {
     results = [...root.querySelectorAll(selector)];
   } catch (e) {
-    // Some selectors may not be supported
+    // Some selectors may not be supported or querySelectorAll unavailable
+    return results;
   }
-  let hosts = root.querySelectorAll ? root.querySelectorAll('[data-percy-shadow-host]') : [];
-  for (let host of hosts) {
-    let shadow = host.shadowRoot || window.__percyClosedShadowRoots?.get(host);
-    if (shadow) results.push(...queryShadowAll(shadow, selector));
+  try {
+    let hosts = root.querySelectorAll('[data-percy-shadow-host]');
+    for (let host of hosts) {
+      let shadow = host.shadowRoot || window.__percyClosedShadowRoots?.get(host);
+      if (shadow) results.push(...queryShadowAll(shadow, selector));
+    }
+  } catch (e) {
+    // Shadow traversal may fail
   }
   return results;
 }
@@ -262,11 +267,19 @@ function queryShadowAll(root, selector) {
 /**
  * Recursively walk CSS rules, yielding style rules from nested @media/@layer blocks
  */
-function* walkCSSRules(ruleList) {
-  for (let rule of ruleList) {
-    if (rule.cssRules) yield* walkCSSRules(rule.cssRules);
-    if (rule.selectorText) yield rule;
+function walkCSSRules(ruleList, depth) {
+  depth = depth || 0;
+  let result = [];
+  for (let i = 0; i < ruleList.length; i++) {
+    let rule = ruleList[i];
+    let hasNested = !!(rule.cssRules && rule.cssRules.length);
+    if (hasNested) {
+      let nested = walkCSSRules(rule.cssRules, depth + 1);
+      for (let j = 0; j < nested.length; j++) result.push(nested[j]);
+    }
+    if (rule.selectorText) result.push(rule);
   }
+  return result;
 }
 
 /**
@@ -524,6 +537,22 @@ export function rewriteCustomStateCSS(ctx) {
 }
 
 /**
+ * Try matching an element against :state(name) and legacy :--name syntax.
+ * Returns true if either matches.
+ */
+function safeMatchesState(el, name) {
+  let selectors = [`:state(${name})`, `:--${name}`];
+  for (let sel of selectors) {
+    try {
+      if (el.matches(sel)) return true;
+    } catch (e) {
+      // selector syntax not supported in this browser
+    }
+  }
+  return false;
+}
+
+/**
  * For each custom element in the DOM, test if it matches any :state() pseudo-class
  * and add data-percy-custom-state attribute to the corresponding clone element.
  * This is the fallback path when preflight/WeakMap is unavailable (SDK path).
@@ -542,21 +571,8 @@ function addCustomStateAttributes(ctx, stateNames) {
 
     let matchedStates = [];
     for (let name of stateNames) {
-      try {
-        if (el.matches(`:state(${name})`)) {
-          matchedStates.push(name.replace(/["\\}\]]/g, '\\$&'));
-        }
-      } catch (e) {
-        // :state() not supported or invalid name
-      }
-      // Also try legacy :--name syntax
-      try {
-        if (el.matches(`:--${name}`)) {
-          matchedStates.push(name.replace(/["\\}\]]/g, '\\$&'));
-        }
-      } catch (e) {
-        // legacy syntax not supported
-      }
+      let matched = safeMatchesState(el, name);
+      if (matched) matchedStates.push(name.replace(/["\\}\]]/g, '\\$&'));
     }
 
     if (matchedStates.length > 0) {

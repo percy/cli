@@ -52,3 +52,9 @@
 - name: Responsive
   url: /responsive.html
   widths: [375, 768, 1280]
+
+- name: DOM Structures Coverage
+  url: /dom-structures.html
+  widths: [1280]
+  ignoreIframeSelectors:
+    - '.ad-frame'
