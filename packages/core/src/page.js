@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import logger from '@percy/logger';
 import Network from './network.js';
 import { PERCY_DOM } from './api.js';
@@ -8,6 +9,21 @@ import {
   waitForTimeout as sleep,
   serializeFunction
 } from './utils.js';
+
+// Cached preflight script for closed shadow root and ElementInternals interception
+let _preflightScript = null;
+async function getPreflightScript() {
+  if (!_preflightScript) {
+    let pkgRoot = path.resolve(path.dirname(PERCY_DOM), '..');
+    let preflightPath = path.join(pkgRoot, 'src', 'preflight.js');
+    try {
+      _preflightScript = await fs.promises.readFile(preflightPath, 'utf-8');
+    } catch {
+      _preflightScript = ''; // graceful fallback if file not found
+    }
+  }
+  return _preflightScript;
+}
 
 export class Page {
   static TIMEOUT = undefined;
@@ -247,6 +263,13 @@ export class Page {
           waitForDebuggerOnStart: false,
           autoAttach: true,
           flatten: true
+        }),
+        // inject preflight script to intercept closed shadow roots and ElementInternals
+        // before any page scripts run
+        getPreflightScript().then(script => {
+          if (script) {
+            return session.send('Page.addScriptToEvaluateOnNewDocument', { source: script });
+          }
         }));
     }
 

@@ -3,7 +3,7 @@ import serializeFrames from './serialize-frames';
 import serializeCSSOM from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
-import { serializePseudoClasses, markPseudoClassElements } from './serialize-pseudo-classes';
+import { serializePseudoClasses, markPseudoClassElements, rewriteCustomStateCSS } from './serialize-pseudo-classes';
 import { cloneNodeAndShadow, getOuterHTML } from './clone-dom';
 
 // Returns a copy or new doctype for a document.
@@ -47,13 +47,14 @@ function serializeElements(ctx) {
     for (const shadowHost of ctx.dom.querySelectorAll('[data-percy-shadow-host]')) {
       let percyElementId = shadowHost.getAttribute('data-percy-element-id');
       let cloneShadowHost = ctx.clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
-      if (shadowHost.shadowRoot && cloneShadowHost.shadowRoot) {
+      let origShadow = shadowHost.shadowRoot || window.__percyClosedShadowRoots?.get(shadowHost);
+      if (origShadow && cloneShadowHost.shadowRoot) {
         // getHTML requires shadowRoot to be passed explicitly
         // to serialize the shadow elements properly
         ctx.shadowRootElements.push(cloneShadowHost.shadowRoot);
         serializeElements({
           ...ctx,
-          dom: shadowHost.shadowRoot,
+          dom: origShadow,
           clone: cloneShadowHost.shadowRoot
         });
       } else {
@@ -111,13 +112,20 @@ export function serializeDOM(options) {
   };
 
   ctx.dom = dom;
+
   markPseudoClassElements(ctx, pseudoClassEnabledElements);
   ctx.clone = cloneNodeAndShadow(ctx);
 
   serializeElements(ctx);
 
-  // STEP 4: Process pseudo-class enabled elements
+  // Shadow root fidelity warning
+  let shadowHosts = ctx.clone.querySelectorAll('[data-percy-shadow-host]');
+  if (shadowHosts.length > 0) {
+    ctx.warnings.add(`[fidelity] ${shadowHosts.length} shadow root(s) captured`);
+  }
+
   serializePseudoClasses(ctx);
+  rewriteCustomStateCSS(ctx);
 
   if (domTransformation) {
     try {

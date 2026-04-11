@@ -246,7 +246,7 @@ describe('serializeCSSOM', () => {
         const baseContent = document.querySelector('#content');
         baseContent.innerHTML = '<input type="text>';
         const serialized = serializeDOM();
-        expect(serialized.warnings).toEqual(['Skipping `styleSheets` as it is not supported.']);
+        expect(serialized.warnings).toContain('Skipping `styleSheets` as it is not supported.');
       });
     });
   });

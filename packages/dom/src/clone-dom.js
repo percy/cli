@@ -16,13 +16,17 @@ import { handleErrors } from './utils';
 const ignoreTags = ['NOSCRIPT'];
 
 /**
- * if a custom element has attribute callback then cloneNode calls a callback that can
- * increase CPU load or some other change.
- * So we want to make sure that it is not called when doing serialization.
-*/
+ * Clone an element without triggering custom element lifecycle callbacks.
+ * Custom elements with callbacks or closed shadow roots are cloned as proxy elements
+ * to prevent constructors from running (which could call attachShadow, fetch data, etc).
+ */
 function cloneElementWithoutLifecycle(element) {
-  if (!(element.attributeChangedCallback) || !element.tagName.includes('-')) {
-    return element.cloneNode(); // Standard clone for non-custom elements
+  let isCustomElement = element.tagName?.includes('-');
+  let hasClosedShadow = isCustomElement && window.__percyClosedShadowRoots?.has(element);
+  let hasCallbacks = isCustomElement && element.attributeChangedCallback;
+
+  if (!isCustomElement || (!hasCallbacks && !hasClosedShadow)) {
+    return element.cloneNode();
   }
 
   const cloned = document.createElement('data-percy-custom-element-' + element.tagName);
@@ -65,6 +69,23 @@ export function cloneNodeAndShadow(ctx) {
 
       let clone = cloneElementWithoutLifecycle(node);
 
+      // After cloning and before shadow DOM handling, detect custom states
+      let percyInternals = window.__percyInternals?.get(node);
+      if (percyInternals?.states?.size > 0) {
+        let states = [];
+        try {
+          for (let state of percyInternals.states) {
+            // CSS-escape the state value to prevent injection
+            states.push(state.replace(/["\\}\]]/g, '\\$&'));
+          }
+          if (states.length > 0) {
+            clone.setAttribute('data-percy-custom-state', states.join(' '));
+          }
+        } catch (e) {
+          // graceful no-op if states not iterable
+        }
+      }
+
       // Handle <style> tag specifically for media queries
       if (node.nodeName === 'STYLE' && !enableJavaScript) {
         let cssText = node.textContent?.trim() || '';
@@ -98,11 +119,12 @@ export function cloneNodeAndShadow(ctx) {
         Array.from(clone.children).forEach((child) => clone.removeChild(child));
       }
 
-      // clone shadow DOM
-      if (node.shadowRoot && !disableShadowDOM) {
+      // clone shadow DOM (including closed shadow roots intercepted by preflight)
+      let nodeShadowRoot = node.shadowRoot || window.__percyClosedShadowRoots?.get(node);
+      if (nodeShadowRoot && !disableShadowDOM) {
         if (forceShadowAsLightDOM) {
           // When forceShadowAsLightDOM is true, treat shadow content as normal DOM
-          walkTree(node.shadowRoot.firstChild, clone);
+          walkTree(nodeShadowRoot.firstChild, clone);
         } else {
           // create shadowRoot
           if (clone.shadowRoot) {
@@ -115,7 +137,7 @@ export function cloneNodeAndShadow(ctx) {
             });
           }
           // clone dom elements
-          walkTree(node.shadowRoot.firstChild, clone.shadowRoot);
+          walkTree(nodeShadowRoot.firstChild, clone.shadowRoot);
         }
       }
 

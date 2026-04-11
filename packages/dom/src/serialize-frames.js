@@ -44,7 +44,13 @@ function setBaseURI(dom, warnings) {
 
 // Recursively serializes iframe documents into srcdoc attributes.
 export function serializeFrames({ dom, clone, warnings, resources, enableJavaScript, disableShadowDOM }) {
+  let iframeTotal = 0;
+  let captured = 0;
+  let corsExcluded = 0;
+  let sandboxWarned = 0;
+
   for (let frame of dom.querySelectorAll('iframe')) {
+    iframeTotal++;
     let percyElementId = frame.getAttribute('data-percy-element-id');
     let cloneEl = clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
     let builtWithJs = !frame.srcdoc && (!frame.src || frame.src.split(':')[0] === 'javascript');
@@ -52,6 +58,7 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
 
     // Warn about sandboxed iframes
     if (sandboxAttr !== null) {
+      sandboxWarned++;
       let frameLabel = frame.id || frame.src || percyElementId || 'unknown';
       let tokens = sandboxAttr.split(/\s+/).filter(Boolean);
 
@@ -80,6 +87,8 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
       // the frame has yet to load and wasn't built with js, it is unsafe to serialize
       if (!builtWithJs && !frame.contentWindow.performance.timing.loadEventEnd) continue;
 
+      captured++;
+
       // recersively serialize contents
       let serialized = serializeDOM({
         domTransformation: (dom) => setBaseURI(dom, warnings),
@@ -105,7 +114,14 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
       // break asset discovery by creating non-captured requests that hang
     } else if (!enableJavaScript && builtWithJs) {
       cloneEl.remove();
+    } else {
+      // frame.contentDocument is null or empty — cross-origin or otherwise inaccessible
+      corsExcluded++;
     }
+  }
+
+  if (iframeTotal > 0) {
+    warnings.add(`[fidelity] ${iframeTotal} iframe(s): ${captured} captured, ${corsExcluded} cross-origin excluded, ${sandboxWarned} sandboxed`);
   }
 }
 
