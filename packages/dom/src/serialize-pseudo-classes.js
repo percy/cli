@@ -188,12 +188,21 @@ export function markPseudoClassElements(ctx, config) {
  * Runs on ALL elements, not just those in pseudoClassEnabledElements config.
  */
 function markInteractiveStatesInRoot(ctx, root) {
-  // Mark focused element by ID
+  // Mark focused element by ID (captured from document.activeElement before cloning)
   if (ctx._focusedElementId && root.querySelector) {
     let focusedEl = root.querySelector(`[data-percy-element-id="${ctx._focusedElementId}"]`);
     if (focusedEl && !focusedEl.hasAttribute(FOCUS_ATTR)) {
       focusedEl.setAttribute(FOCUS_ATTR, 'true');
     }
+  }
+
+  // Also mark activeElement directly if it's within this root and not yet marked
+  // This covers elements that don't have data-percy-element-id yet
+  let active = ctx.dom.activeElement;
+  if (active && active !== ctx.dom.body && active !== ctx.dom.documentElement &&
+      active.hasAttribute && !active.hasAttribute(FOCUS_ATTR) &&
+      root.contains && root.contains(active)) {
+    active.setAttribute(FOCUS_ATTR, 'true');
   }
 
   // Mark :checked elements
@@ -210,18 +219,6 @@ function markInteractiveStatesInRoot(ctx, root) {
     if (!el.hasAttribute(DISABLED_ATTR)) {
       el.setAttribute(DISABLED_ATTR, 'true');
     }
-  }
-
-  // Mark :focus elements (in case activeElement detection missed any)
-  try {
-    let focusedEls = queryShadowAll(root, ':focus');
-    for (let el of focusedEls) {
-      if (!el.hasAttribute(FOCUS_ATTR)) {
-        el.setAttribute(FOCUS_ATTR, 'true');
-      }
-    }
-  } catch (e) {
-    // :focus query may fail in some contexts
   }
 }
 

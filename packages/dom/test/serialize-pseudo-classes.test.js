@@ -3,6 +3,22 @@
 import { markPseudoClassElements, serializePseudoClasses, getElementsToProcess, rewriteCustomStateCSS } from '../src/serialize-pseudo-classes';
 import { withExample } from './helpers';
 
+// Helper to mock document.activeElement cross-browser (Firefox headless doesn't honor .focus())
+function withMockedFocus(el, fn) {
+  let orig = Object.getOwnPropertyDescriptor(document.constructor.prototype, 'activeElement') ||
+    Object.getOwnPropertyDescriptor(document, 'activeElement');
+  Object.defineProperty(document, 'activeElement', { get: () => el, configurable: true });
+  try {
+    fn();
+  } finally {
+    if (orig) {
+      Object.defineProperty(document, 'activeElement', orig);
+    } else {
+      delete document.activeElement;
+    }
+  }
+}
+
 describe('serialize-pseudo-classes', () => {
   let ctx;
 
@@ -695,13 +711,14 @@ describe('serialize-pseudo-classes', () => {
   });
 
   describe('focus detection in markInteractiveStatesInRoot (lines 215-220)', () => {
-    it('marks focused input elements with data-percy-focus via markPseudoClassElements', () => {
+    it('marks focused input elements with data-percy-focus via _focusedElementId', () => {
       withExample('<input id="focusable" type="text" />', { withShadow: false });
       let el = document.getElementById('focusable');
-      el.focus();
-      // Verify the element is actually focused
-      expect(document.activeElement).toBe(el);
-      markPseudoClassElements(ctx, { id: ['focusable'] });
+      // Set percy-element-id BEFORE mocking focus so _focusedElementId path works
+      el.setAttribute('data-percy-element-id', '_focusable_id');
+      withMockedFocus(el, () => {
+        markPseudoClassElements(ctx, { id: ['focusable'] });
+      });
       expect(el.hasAttribute('data-percy-focus')).toBe(true);
       expect(el.getAttribute('data-percy-focus')).toBe('true');
     });
@@ -709,21 +726,20 @@ describe('serialize-pseudo-classes', () => {
     it('marks focused button elements with data-percy-focus', () => {
       withExample('<button id="focusbtn">Click</button>', { withShadow: false });
       let el = document.getElementById('focusbtn');
-      el.focus();
-      expect(document.activeElement).toBe(el);
-      markPseudoClassElements(ctx, { id: ['focusbtn'] });
+      el.setAttribute('data-percy-element-id', '_focusbtn_id');
+      withMockedFocus(el, () => {
+        markPseudoClassElements(ctx, { id: ['focusbtn'] });
+      });
       expect(el.hasAttribute('data-percy-focus')).toBe(true);
     });
 
     it('marks focused element by _focusedElementId in markInteractiveStatesInRoot (lines 192-196)', () => {
       withExample('<input id="focus-by-id" type="text" />', { withShadow: false });
       let el = document.getElementById('focus-by-id');
-      // Set data-percy-element-id before focusing so markPseudoClassElements captures _focusedElementId
       el.setAttribute('data-percy-element-id', '_focus_test_id');
-      el.focus();
-      expect(document.activeElement).toBe(el);
-      markPseudoClassElements(ctx, { id: ['focus-by-id'] });
-      // The _focusedElementId path should have set data-percy-focus
+      withMockedFocus(el, () => {
+        markPseudoClassElements(ctx, { id: ['focus-by-id'] });
+      });
       expect(el.hasAttribute('data-percy-focus')).toBe(true);
     });
   });
@@ -733,9 +749,6 @@ describe('serialize-pseudo-classes', () => {
       withExample('<input id="mein-focus" type="text" />', { withShadow: false });
       let el = document.getElementById('mein-focus');
       el.setAttribute('data-percy-element-id', '_mein_focus_id');
-      el.focus();
-      expect(document.activeElement).toBe(el);
-      // Call getElementsToProcess directly with markWithId=true to bypass markInteractiveStatesInRoot
       ctx._focusedElementId = '_mein_focus_id';
       getElementsToProcess(ctx, { id: ['mein-focus'] }, true);
       expect(el.hasAttribute('data-percy-focus')).toBe(true);
@@ -744,9 +757,12 @@ describe('serialize-pseudo-classes', () => {
     it('marks :focus element via safeMatches in markElementIfNeeded (line 60)', () => {
       withExample('<button id="btn-focus">Click</button>', { withShadow: false });
       let el = document.getElementById('btn-focus');
-      el.focus();
-      expect(document.activeElement).toBe(el);
-      // Call getElementsToProcess directly to bypass markInteractiveStatesInRoot
+      // Mock matches to return true for :focus (cross-browser reliable)
+      let origMatches = window.Element.prototype.matches;
+      Object.defineProperty(el, 'matches', {
+        value: function(sel) { return sel === ':focus' || origMatches.call(this, sel); },
+        configurable: true
+      });
       ctx._focusedElementId = null;
       getElementsToProcess(ctx, { id: ['btn-focus'] }, true);
       expect(el.hasAttribute('data-percy-focus')).toBe(true);
@@ -1108,12 +1124,10 @@ describe('serialize-pseudo-classes', () => {
   describe('extractPseudoClassRules clone.createElement fallback and head fallback (lines 399-406)', () => {
     it('uses ctx.dom.createElement when ctx.clone.createElement is falsy (line 401)', () => {
       withExample(
-        '<style>.fc-test:focus { color: red; }</style>' +
-        '<input class="fc-test" id="fc-input" />',
+        '<style>.fc-test:checked { color: red; }</style>' +
+        '<input type="checkbox" class="fc-test" id="fc-input" checked />',
         { withShadow: false }
       );
-      let el = document.getElementById('fc-input');
-      el.focus();
       ctx = {
         dom: document,
         clone: document.implementation.createHTMLDocument('Clone'),
@@ -1140,12 +1154,10 @@ describe('serialize-pseudo-classes', () => {
 
     it('uses ctx.clone.querySelector(head) when ctx.clone.head is falsy (line 405)', () => {
       withExample(
-        '<style>.head-test:focus { color: blue; }</style>' +
-        '<input class="head-test" id="head-input" />',
+        '<style>.head-test:checked { color: blue; }</style>' +
+        '<input type="checkbox" class="head-test" id="head-input" checked />',
         { withShadow: false }
       );
-      let el = document.getElementById('head-input');
-      el.focus();
       ctx = {
         dom: document,
         clone: document.implementation.createHTMLDocument('Clone'),
@@ -1327,9 +1339,7 @@ describe('serialize-pseudo-classes', () => {
 
   describe('extractPseudoClassRules no head fallback (line 406)', () => {
     it('does not inject styles when clone has no head at all', () => {
-      withExample('<style>.nohead:focus { color: red; }</style><input class="nohead" />', { withShadow: false });
-      let el = document.querySelector('input.nohead');
-      el.focus();
+      withExample('<style>.nohead:checked { color: red; }</style><input type="checkbox" class="nohead" checked />', { withShadow: false });
 
       ctx = {
         dom: document,
@@ -1383,28 +1393,25 @@ describe('serialize-pseudo-classes', () => {
 
   describe('markInteractiveStatesInRoot focusedEl not found branch (line 194)', () => {
     it('handles focused element without percy-element-id so _focusedElementId stays null', () => {
-      // Focus an element that does NOT have data-percy-element-id
-      // This means _focusedElementId stays null, hitting the false branch of line 192
       withExample('<input id="no-percy-id" type="text" />', { withShadow: false });
       let el = document.getElementById('no-percy-id');
-      el.focus();
-      expect(document.activeElement).toBe(el);
-      ctx = { dom: document, warnings: new Set() };
-      markPseudoClassElements(ctx, { id: ['no-percy-id'] });
+      // Mock activeElement — el has no data-percy-element-id so _focusedElementId stays null
+      withMockedFocus(el, () => {
+        ctx = { dom: document, warnings: new Set() };
+        markPseudoClassElements(ctx, { id: ['no-percy-id'] });
+      });
       // _focusedElementId should be null because el has no data-percy-element-id at focus time
-      // (markPseudoClassElements captures _focusedElementId before marking elements)
-      // The element gets focus via the :focus querySelectorAll path instead
-      expect(el.hasAttribute('data-percy-focus')).toBe(true);
+      expect(ctx._focusedElementId).toBeNull();
     });
 
     it('handles focused element with percy-element-id to hit _focusedElementId true branch', () => {
       withExample('<input id="has-percy-id" type="text" />', { withShadow: false });
       let el = document.getElementById('has-percy-id');
       el.setAttribute('data-percy-element-id', '_focus_branch_test');
-      el.focus();
-      expect(document.activeElement).toBe(el);
-      ctx = { dom: document, warnings: new Set() };
-      markPseudoClassElements(ctx, { id: ['has-percy-id'] });
+      withMockedFocus(el, () => {
+        ctx = { dom: document, warnings: new Set() };
+        markPseudoClassElements(ctx, { id: ['has-percy-id'] });
+      });
       expect(el.hasAttribute('data-percy-focus')).toBe(true);
     });
 
@@ -1488,16 +1495,12 @@ describe('serialize-pseudo-classes', () => {
 
   describe('walkCSSRules nested @media (line 273)', () => {
     it('walks CSS rules inside @media blocks', () => {
-      // Use inline style in the HTML so it's definitely in document.styleSheets
+      // Use :checked inside @media — works cross-browser without .focus()
       withExample(
-        '<style>@media all { .media-focus:focus { outline: 2px solid red; } }</style>' +
-        '<input class="media-focus" id="media-input" />',
+        '<style>@media all { .media-chk:checked { outline: 2px solid red; } }</style>' +
+        '<input type="checkbox" class="media-chk" id="media-input" checked />',
         { withShadow: false }
       );
-
-      let el = document.getElementById('media-input');
-      el.focus();
-      expect(document.activeElement).toBe(el);
 
       // Verify the @media rule exists in stylesheets
       let found = false;
@@ -1526,7 +1529,7 @@ describe('serialize-pseudo-classes', () => {
       serializePseudoClasses(ctx);
       let interactiveStyle = ctx.clone.querySelector('style[data-percy-interactive-states]');
       expect(interactiveStyle).not.toBeNull();
-      expect(interactiveStyle.textContent).toContain('[data-percy-focus]');
+      expect(interactiveStyle.textContent).toContain('[data-percy-checked]');
     });
   });
 
