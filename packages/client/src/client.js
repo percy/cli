@@ -492,7 +492,7 @@ export class PercyClient {
           'enable-layout': enableLayout || false,
           'th-test-case-execution-id': thTestCaseExecutionId || null,
           browsers: normalizeBrowsers(browsers) || null,
-          'fidelity-regions': fidelityRegions?.length ? fidelityRegions : null
+          'fidelity-regions': fidelityRegions || null
         },
         relationships: {
           resources: {
