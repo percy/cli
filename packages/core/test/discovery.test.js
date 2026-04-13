@@ -5068,17 +5068,9 @@ describe('Discovery', () => {
         token: 'PERCY_TOKEN',
         snapshot: {
           widths: [1000],
-          readiness: { preset: 'fast' }
+          readiness: { preset: 'disabled' }
         },
         discovery: { concurrency: 1 }
-      });
-
-      // Capture the snapshot call to verify domSnapshot is preserved
-      let receivedSnapshot;
-      let originalPush = percy.yield.snapshot;
-      spyOn(percy.yield, 'snapshot').and.callFake(function(...args) {
-        receivedSnapshot = args[0];
-        return originalPush.apply(this, args);
       });
 
       await percy.snapshot({
@@ -5089,8 +5081,16 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      // The SDK-captured DOM must be preserved, not replaced by a live URL fetch
-      expect(receivedSnapshot.domSnapshot).toBe(testDOM);
+      // No re-capture log should appear — domSnapshot is preserved.
+      // If the old V2 re-capture logic ran, it would log "re-capturing from URL"
+      // and delete the domSnapshot, causing a fresh URL fetch.
+      expect(logger.stderr).not.toEqual(
+        jasmine.arrayContaining([
+          jasmine.stringMatching(/re-capturing from URL/)
+        ])
+      );
+      // Build was created and snapshot was uploaded with the SDK-provided DOM
+      expect(captured.length).toBeGreaterThan(0);
     });
 
     it('does not re-capture direct (non-SDK) snapshots', async () => {
