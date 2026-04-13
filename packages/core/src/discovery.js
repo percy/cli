@@ -1,6 +1,7 @@
 import logger from '@percy/logger';
 import Queue from './queue.js';
 import Page from './page.js';
+import { waitForReadiness } from './readiness.js';
 import {
   normalizeURL,
   hostnameMatches,
@@ -359,7 +360,28 @@ async function* captureSnapshotResources(page, snapshot, options) {
     yield waitForFontLoading(page);
     yield waitForDiscoveryNetworkIdle(page, discovery);
     yield* captureResponsiveAssets();
-    capture(processSnapshotResources(snapshot));
+
+    // Run readiness gate diagnostically on the loaded domSnapshot.
+    // Unlike the URL-capture path, we can't "wait for stability" here —
+    // the domSnapshot is already serialized. Instead, we check whether
+    // the provided DOM is stable and attach diagnostics so users know
+    // if their SDK captured too early. This also triggers smart debugging.
+    /* istanbul ignore next: readiness on domSnapshot requires live browser + readiness config */
+    let readinessConfig = snapshot.readiness || page._readinessConfig;
+    /* istanbul ignore next: readiness on domSnapshot requires live browser + readiness config */
+    if (readinessConfig && readinessConfig.preset !== 'disabled') {
+      try {
+        yield page.insertPercyDom();
+        let diagnostics = yield waitForReadiness(page, { ...snapshot, readiness: readinessConfig });
+        if (diagnostics) snapshot.readiness_diagnostics = diagnostics;
+      } catch (err) {
+        log.debug(`Readiness diagnostic failed on domSnapshot: ${err.message}`);
+      }
+    }
+
+    let processed = processSnapshotResources(snapshot);
+    if (snapshot.readiness_diagnostics) processed.readiness_diagnostics = snapshot.readiness_diagnostics;
+    capture(processed);
   }
 }
 
@@ -431,26 +453,6 @@ export function createDiscoveryQueue(percy) {
       await logger.measure('asset-discovery', snapshot.name, snapshot.meta, async () => {
         percy.log.debug(`Discovering resources: ${snapshot.name}`, snapshot.meta);
 
-        // V2 Readiness: For SDK-provided snapshots (_fromSDK), discard domSnapshot
-        // and re-capture from the live URL so the readiness gate can run.
-        // Only triggers when readiness is explicitly configured (not by default).
-        let readinessConfig = snapshot.readiness || percy.config?.snapshot?.readiness;
-        let readinessPreset = readinessConfig?.preset;
-        /* istanbul ignore next: V2 re-capture requires SDK snapshot + readiness config + live browser */
-        if (snapshot._fromSDK && snapshot.domSnapshot && snapshot.url && readinessConfig && readinessPreset !== 'disabled') {
-          percy.log.debug('Readiness enabled (SDK snapshot): re-capturing from URL', snapshot.meta);
-          let extractedCookies = snapshot.domSnapshot?.cookies || snapshot.domSnapshot?.[0]?.cookies;
-          if (extractedCookies) snapshot._extractedCookies = extractedCookies;
-          // Preserve original enableJavaScript before deleting domSnapshot,
-          // since downstream code derives JS flag from !snapshot.domSnapshot
-          snapshot.enableJavaScript = snapshot.enableJavaScript ?? false;
-          delete snapshot.domSnapshot;
-          // Clear cached root HTML so the browser fetches the live page
-          for (let [key, val] of snapshot.resources) {
-            if (Array.isArray(val) && val[0]?.root) snapshot.resources.delete(key);
-          }
-        }
-
         // expectation explained in tests
         /* istanbul ignore next: tested, but coverage is stripped */
         let assetDiscoveryPageEnableJS = (snapshot.cliEnableJavaScript && !snapshot.domSnapshot) || (snapshot.enableJavaScript ?? !snapshot.domSnapshot);
@@ -507,8 +509,8 @@ export function createDiscoveryQueue(percy) {
           page._readinessConfig = snapshot.readiness || percy.config?.snapshot?.readiness;
 
           try {
-            // Wrap callback to intercept readiness diagnostics for smart debugging
-            /* istanbul ignore next: readiness diagnostics callback requires live browser timeout */
+            // Wrap callback to send failed readiness diagnostics to smart debugging
+            /* istanbul ignore next: diagnostic callback requires live browser readiness timeout */
             let captureWithDiagnostics = (captured) => {
               if (captured?.readiness_diagnostics && !captured.readiness_diagnostics.passed) {
                 let diag = captured.readiness_diagnostics;

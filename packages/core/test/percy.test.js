@@ -2242,16 +2242,5 @@ describe('Percy', () => {
       expect(Page._globalReadinessConfig).toBeNull();
     });
 
-    it('preserves _fromSDK flag through snapshot validation', async () => {
-      await percy.start();
-
-      spyOn(percy, 'snapshot').and.callFake(async () => {});
-
-      await percy.snapshot({ url: server.address, name: 'test', domSnapshot: '<html></html>', _fromSDK: true });
-
-      expect(percy.snapshot).toHaveBeenCalledWith(
-        jasmine.objectContaining({ _fromSDK: true })
-      );
-    });
   });
 });

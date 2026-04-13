@@ -455,12 +455,8 @@ export class Percy {
         : { url: options };
     }
 
-    // preserve internal flags stripped by validation
-    let fromSDK = options._fromSDK;
-
     // validate options and add client & environment info
     options = validateSnapshotOptions(options);
-    if (fromSDK) options._fromSDK = true;
     // process CORS iframes in domSnapshot before validation
     if (options.domSnapshot) {
       options.domSnapshot = processCorsIframes(options.domSnapshot);

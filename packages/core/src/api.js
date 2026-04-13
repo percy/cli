@@ -141,7 +141,7 @@ export function createPercyServer(percy, port) {
     .route('post', '/percy/snapshot', async (req, res) => {
       let data;
       const snapshotPromise = {};
-      const snapshot = percy.snapshot({ ...req.body, _fromSDK: true }, snapshotPromise);
+      const snapshot = percy.snapshot(req.body, snapshotPromise);
       if (!req.url.searchParams.has('async')) await snapshot;
 
       if (percy.syncMode(req.body)) data = await handleSyncJob(snapshotPromise[req.body.name], percy, 'snapshot');

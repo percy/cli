@@ -5023,15 +5023,14 @@ describe('Discovery', () => {
     });
   });
 
-  describe('Readiness V2 re-capture', () => {
+  describe('Readiness on SDK-provided domSnapshot', () => {
     afterEach(async () => {
       // Reset global readiness config to prevent leaking into other tests
       let { Page } = await import('../src/page.js');
       Page._globalReadinessConfig = null;
     });
 
-    it('does not re-capture when readiness is disabled', async () => {
-      // Stop the outer percy instance before starting a new one with readiness config
+    it('preserves the provided domSnapshot when readiness is disabled', async () => {
       await percy?.stop(true);
 
       percy = await Percy.start({
@@ -5046,13 +5045,12 @@ describe('Discovery', () => {
       await percy.snapshot({
         name: 'disabled readiness test',
         url: server.address(),
-        domSnapshot: testDOM,
-        _fromSDK: true
+        domSnapshot: testDOM
       });
 
       await percy.idle();
 
-      // Should NOT re-capture
+      // Should NOT re-capture, should NOT delete domSnapshot
       expect(logger.stderr).not.toEqual(
         jasmine.arrayContaining([
           jasmine.stringMatching(/re-capturing from URL/)
@@ -5060,21 +5058,54 @@ describe('Discovery', () => {
       );
     });
 
-    it('does not re-capture for non-SDK snapshots', async () => {
-      // Stop the outer percy instance before starting a new one with readiness config
+    it('preserves the provided domSnapshot when readiness is configured', async () => {
+      // Critical: the domSnapshot must NOT be dropped — this preserves
+      // modal state and supports localhost testing where re-navigation
+      // would lose the captured page state.
       await percy?.stop(true);
 
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
         snapshot: {
           widths: [1000],
-          // Use disabled preset to avoid running readiness gate in page.snapshot()
+          readiness: { preset: 'fast' }
+        },
+        discovery: { concurrency: 1 }
+      });
+
+      // Capture the snapshot call to verify domSnapshot is preserved
+      let receivedSnapshot;
+      let originalPush = percy.yield.snapshot;
+      spyOn(percy.yield, 'snapshot').and.callFake(function(...args) {
+        receivedSnapshot = args[0];
+        return originalPush.apply(this, args);
+      });
+
+      await percy.snapshot({
+        name: 'preserved domSnapshot test',
+        url: server.address(),
+        domSnapshot: testDOM
+      });
+
+      await percy.idle();
+
+      // The SDK-captured DOM must be preserved, not replaced by a live URL fetch
+      expect(receivedSnapshot.domSnapshot).toBe(testDOM);
+    });
+
+    it('does not re-capture direct (non-SDK) snapshots', async () => {
+      await percy?.stop(true);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: {
+          widths: [1000],
           readiness: { preset: 'disabled' }
         },
         discovery: { concurrency: 1 }
       });
 
-      // Direct call without _fromSDK (like CLI percy snapshot)
+      // Direct percy.snapshot call (simulating CLI or Storybook)
       await percy.snapshot({
         name: 'direct snapshot',
         url: server.address(),
@@ -5083,10 +5114,10 @@ describe('Discovery', () => {
 
       await percy.idle();
 
-      // Should NOT re-capture (no _fromSDK flag)
+      // No re-capture happens — no SDK detection logic needed
       expect(logger.stderr).not.toEqual(
         jasmine.arrayContaining([
-          jasmine.stringMatching(/SDK snapshot/)
+          jasmine.stringMatching(/re-capturing from URL/)
         ])
       );
     });

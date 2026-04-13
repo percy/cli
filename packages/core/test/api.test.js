@@ -179,7 +179,7 @@ describe('API Server', () => {
 
     expect(percy.client.getSnapshotDetails).not.toHaveBeenCalled();
     expect(percy.snapshot).toHaveBeenCalledOnceWith(
-      { 'test-me': true, me_too: true, _fromSDK: true }, {}
+      { 'test-me': true, me_too: true }, {}
     );
   });
 
@@ -200,7 +200,7 @@ describe('API Server', () => {
 
     expect(percy.client.getSnapshotDetails).toHaveBeenCalled();
     expect(percy.snapshot).toHaveBeenCalledOnceWith(
-      { name: 'test', me_too: true, sync: true, _fromSDK: true },
+      { name: 'test', me_too: true, sync: true },
       jasmine.objectContaining({})
     );
   });
@@ -1009,8 +1009,8 @@ describe('API Server', () => {
     });
   });
 
-  describe('POST /percy/snapshot — _fromSDK flag', () => {
-    it('adds _fromSDK to snapshots posted via API', async () => {
+  describe('POST /percy/snapshot — passes options unchanged', () => {
+    it('forwards snapshot options to percy.snapshot without adding internal flags', async () => {
       await percy.start();
 
       let receivedOptions;
@@ -1028,7 +1028,12 @@ describe('API Server', () => {
         }
       });
 
-      expect(receivedOptions._fromSDK).toBe(true);
+      expect(receivedOptions).toEqual({
+        name: 'sdk test',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>'
+      });
+      expect(receivedOptions._fromSDK).toBeUndefined();
     });
   });
 });
