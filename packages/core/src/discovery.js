@@ -1,7 +1,6 @@
 import logger from '@percy/logger';
 import Queue from './queue.js';
 import Page from './page.js';
-import { waitForReadiness } from './readiness.js';
 import {
   normalizeURL,
   hostnameMatches,
@@ -360,28 +359,12 @@ async function* captureSnapshotResources(page, snapshot, options) {
     yield waitForFontLoading(page);
     yield waitForDiscoveryNetworkIdle(page, discovery);
     yield* captureResponsiveAssets();
-
-    // Run readiness gate diagnostically on the loaded domSnapshot.
-    // Unlike the URL-capture path, we can't "wait for stability" here —
-    // the domSnapshot is already serialized. Instead, we check whether
-    // the provided DOM is stable and attach diagnostics so users know
-    // if their SDK captured too early. This also triggers smart debugging.
-    /* istanbul ignore next: readiness on domSnapshot requires live browser + readiness config */
-    let readinessConfig = snapshot.readiness || page._readinessConfig;
-    /* istanbul ignore next: readiness on domSnapshot requires live browser + readiness config */
-    if (readinessConfig && readinessConfig.preset !== 'disabled') {
-      try {
-        yield page.insertPercyDom();
-        let diagnostics = yield waitForReadiness(page, { ...snapshot, readiness: readinessConfig });
-        if (diagnostics) snapshot.readiness_diagnostics = diagnostics;
-      } catch (err) {
-        log.debug(`Readiness diagnostic failed on domSnapshot: ${err.message}`);
-      }
-    }
-
-    let processed = processSnapshotResources(snapshot);
-    if (snapshot.readiness_diagnostics) processed.readiness_diagnostics = snapshot.readiness_diagnostics;
-    capture(processed);
+    // Readiness does NOT run on SDK-provided domSnapshots. The DOM is already
+    // serialized at this point — running readiness cannot modify it. Preserving
+    // the domSnapshot maintains modal state, post-interaction state, and supports
+    // localhost testing. SDK users who need fully-loaded snapshots should wait
+    // for page stability in their test code before calling percySnapshot().
+    capture(processSnapshotResources(snapshot));
   }
 }
 
