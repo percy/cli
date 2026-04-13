@@ -2241,6 +2241,5 @@ describe('Percy', () => {
 
       expect(Page._globalReadinessConfig).toBeNull();
     });
-
   });
 });
