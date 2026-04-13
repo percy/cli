@@ -236,6 +236,7 @@ export class Page {
       url: document.URL
     }), { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements });
 
+    /* istanbul ignore next: readinessDiagnostics only set when readiness runs (requires live browser) */
     if (readinessDiagnostics) capture.readiness_diagnostics = readinessDiagnostics;
     return { ...snapshot, ...capture };
   }
