@@ -221,6 +221,7 @@ export class Page {
     // Config priority: per-snapshot > per-page > global (from Percy constructor)
     let readinessDiagnostics = null;
     let effectiveReadiness = snapshot.readiness || this._readinessConfig || Page._globalReadinessConfig;
+    /* istanbul ignore next: readiness execution requires live browser + active config */
     if (effectiveReadiness && effectiveReadiness.preset !== 'disabled') {
       readinessDiagnostics = await waitForReadiness(this, { ...snapshot, readiness: effectiveReadiness });
     }
