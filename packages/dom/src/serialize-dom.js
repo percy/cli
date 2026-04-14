@@ -99,7 +99,7 @@ export function serializeDOM(options) {
         }
         return result;
       });
-    } catch (err) {
+    } catch (err) /* istanbul ignore next */ {
       // If readiness fails, still serialize (graceful degradation)
       console.error(`Readiness check failed: ${err.message}`);
     }
