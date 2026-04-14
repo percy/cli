@@ -80,8 +80,37 @@ export function waitForResize() {
   window.resizeCount = 0;
 }
 
-// Internal sync serialization — called after readiness (if any) completes.
-function serializeDOMSync(options) {
+// Serializes a document and returns the resulting DOM string.
+// When readiness config is provided, waits for the page to be stable
+// before serializing. This works identically for both URL-based captures
+// (CLI percy snapshot, Storybook) and SDK captures (Cypress, Selenium,
+// Puppeteer) since serialize is the common entry point for both paths.
+export function serializeDOM(options) {
+  let readiness = options?.readiness;
+
+  // If readiness is configured and not disabled, wait for page stability
+  // before serializing. Returns a Promise in this case.
+  if (readiness && readiness.preset !== 'disabled') {
+    try {
+      return waitForReady(readiness).then(diagnostics => {
+        let result = _serialize(options);
+        if (typeof result === 'object' && diagnostics) {
+          result.readiness_diagnostics = diagnostics;
+        }
+        return result;
+      });
+    } catch (err) {
+      // If readiness fails, still serialize (graceful degradation)
+      console.error(`Readiness check failed: ${err.message}`);
+    }
+  }
+
+  // No readiness or disabled — serialize synchronously (backward compatible)
+  return _serialize(options);
+}
+
+// Core serialization logic — always synchronous.
+function _serialize(options) {
   let {
     dom = document,
     // allow snake_case or camelCase
@@ -164,32 +193,6 @@ function serializeDOMSync(options) {
   return stringifyResponse
     ? JSON.stringify(result)
     : result;
-}
-
-// Serializes a document and returns the resulting DOM string.
-// When readiness config is provided, waits for the page to be stable
-// before serializing. This works identically for both URL-based captures
-// (CLI percy snapshot, Storybook) and SDK captures (Cypress, Selenium,
-// Puppeteer) since serialize is the common entry point for both paths.
-export function serializeDOM(options) {
-  let readiness = options?.readiness;
-
-  // No readiness config — serialize synchronously (backward compatible)
-  if (!readiness || readiness.preset === 'disabled') {
-    return serializeDOMSync(options);
-  }
-
-  // Readiness configured — wait for page stability then serialize.
-  // Returns a Promise so callers must await. page.eval() uses
-  // awaitPromise: true which handles this automatically.
-  return waitForReady(readiness).then(diagnostics => {
-    let result = serializeDOMSync(options);
-    // Attach readiness diagnostics to the serialized result
-    if (typeof result === 'object' && diagnostics) {
-      result.readiness_diagnostics = diagnostics;
-    }
-    return result;
-  });
 }
 
 export default serializeDOM;
