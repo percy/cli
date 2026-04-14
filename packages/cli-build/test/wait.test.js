@@ -213,17 +213,26 @@ describe('percy build:wait', () => {
 
     let waiting = wait(['--build=123']);
 
-    // wait a moment before terminating
-    await new Promise(r => setTimeout(r, 100));
+    // Wait for the first poll to actually log its progress before
+    // emitting SIGTERM. A fixed setTimeout was racing the poll on slow
+    // Windows runners — the log would land *after* the test snapshotted
+    // logger.stdout (failure mode A) or bleed into the next test's
+    // logger snapshot (failure mode B).
+    let expected = '[percy] Processing 18 snapshots - 0 of 72 comparisons finished...';
+    let deadline = Date.now() + 5000;
+    while (!logger.stdout.includes(expected)) {
+      if (Date.now() >= deadline) {
+        throw new Error(`timed out waiting for processing log; saw: ${JSON.stringify(logger.stdout)}`);
+      }
+      await new Promise(r => setTimeout(r, 25));
+    }
     await expectAsync(waiting).toBePending();
 
     process.emit('SIGTERM');
     await waiting;
 
     expect(logger.stderr).toEqual([]);
-    expect(logger.stdout).toEqual([
-      '[percy] Processing 18 snapshots - 0 of 72 comparisons finished...'
-    ]);
+    expect(logger.stdout).toEqual([expected]);
   });
 
   describe('failure messages', () => {
