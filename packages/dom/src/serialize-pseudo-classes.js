@@ -168,9 +168,14 @@ export function getElementsToProcess(ctx, config, markWithId = false) {
  * @param {Object} config - Configuration with id and xpath arrays
  */
 export function markPseudoClassElements(ctx, config) {
-  // Capture which element is focused before cloning steals focus
+  // Capture which element is focused before cloning steals focus.
+  // Traverse into shadow roots to find the deepest focused element,
+  // since document.activeElement only returns the shadow host.
   ctx._focusedElementId = null;
   let focused = ctx.dom.activeElement;
+  while (focused?.shadowRoot?.activeElement) {
+    focused = focused.shadowRoot.activeElement;
+  }
   if (focused && focused !== ctx.dom.body && focused !== ctx.dom.documentElement) {
     let id = focused.getAttribute('data-percy-element-id');
     if (id) ctx._focusedElementId = id;
@@ -196,12 +201,15 @@ function markInteractiveStatesInRoot(ctx, root) {
     }
   }
 
-  // Also mark activeElement directly if it's within this root and not yet marked
-  // This covers elements that don't have data-percy-element-id yet
+  // Also mark activeElement directly if it's within this root and not yet marked.
+  // This covers elements that don't have data-percy-element-id yet.
+  // Traverse shadow roots to find the deepest focused element.
   let active = ctx.dom.activeElement;
+  while (active?.shadowRoot?.activeElement) {
+    active = active.shadowRoot.activeElement;
+  }
   if (active && active !== ctx.dom.body && active !== ctx.dom.documentElement &&
-      active.hasAttribute && !active.hasAttribute(FOCUS_ATTR) &&
-      root.contains && root.contains(active)) {
+      active.hasAttribute && !active.hasAttribute(FOCUS_ATTR)) {
     active.setAttribute(FOCUS_ATTR, 'true');
   }
 
@@ -303,10 +311,15 @@ function rewritePseudoSelector(selectorText) {
 /**
  * Collect all stylesheets from a document, including shadow roots
  */
-function collectStyleSheets(doc) {
-  let sheets = [];
+function collectStyleSheets(doc, owner = null) {
+  // Returns array of { sheet, owner } where owner is the shadow host element
+  // (null for document-level sheets). This lets us inject rewritten rules
+  // back into the correct shadow root clone.
+  let entries = [];
   try {
-    sheets = [...doc.styleSheets];
+    for (let sheet of doc.styleSheets) {
+      entries.push({ sheet, owner });
+    }
   } catch (e) {
     // May fail in some contexts
   }
@@ -317,15 +330,17 @@ function collectStyleSheets(doc) {
     if (shadow) {
       try {
         if (shadow.styleSheets) {
-          sheets = sheets.concat([...shadow.styleSheets]);
+          for (let sheet of shadow.styleSheets) {
+            entries.push({ sheet, owner: host });
+          }
         }
       } catch (e) {
         // ignore
       }
-      sheets = sheets.concat(collectStyleSheets(shadow));
+      entries = entries.concat(collectStyleSheets(shadow, host));
     }
   }
-  return sheets;
+  return entries;
 }
 
 /**
@@ -346,13 +361,14 @@ function selectorHasAutoDetectPseudo(selectorText) {
  * @param {Object} ctx - Serialization context
  */
 function extractPseudoClassRules(ctx) {
-  let sheets = collectStyleSheets(ctx.dom);
-  let rewrittenRules = [];
+  let sheetEntries = collectStyleSheets(ctx.dom);
+  // Group rewritten rules by their owner (null = document, element = shadow host)
+  let rulesByOwner = new Map();
 
   // Build a set of configured element selectors for hover/active matching
   let configuredSelectors = buildConfiguredSelectors(ctx);
 
-  for (let sheet of sheets) {
+  for (let { sheet, owner } of sheetEntries) {
     let rules;
     try {
       rules = sheet.cssRules;
@@ -399,22 +415,33 @@ function extractPseudoClassRules(ctx) {
 
       let rewrittenSelector = rewritePseudoSelector(selectorText);
       if (rewrittenSelector !== selectorText) {
-        rewrittenRules.push(`${rewrittenSelector} { ${rule.style.cssText} }`);
+        if (!rulesByOwner.has(owner)) rulesByOwner.set(owner, []);
+        rulesByOwner.get(owner).push(`${rewrittenSelector} { ${rule.style.cssText} }`);
       }
     }
   }
 
-  // Inject rewritten rules into the clone
-  if (rewrittenRules.length > 0) {
+  // Inject rewritten rules into the correct location in the clone
+  for (let [owner, rewrittenRules] of rulesByOwner) {
+    if (rewrittenRules.length === 0) continue;
+
     let styleElement = ctx.clone.createElement
       ? ctx.clone.createElement('style')
       : ctx.dom.createElement('style');
     styleElement.setAttribute('data-percy-interactive-states', 'true');
     styleElement.textContent = rewrittenRules.join('\n');
 
-    let head = ctx.clone.head || ctx.clone.querySelector('head');
-    if (head) {
-      head.appendChild(styleElement);
+    if (owner === null) {
+      // Document-level rules — inject into <head>
+      let head = ctx.clone.head || ctx.clone.querySelector('head');
+      if (head) head.appendChild(styleElement);
+    } else {
+      // Shadow DOM rules — inject into the corresponding shadow root clone
+      let percyId = owner.getAttribute('data-percy-element-id');
+      let cloneHost = ctx.clone.querySelector(`[data-percy-element-id="${percyId}"]`);
+      if (cloneHost?.shadowRoot) {
+        cloneHost.shadowRoot.appendChild(styleElement);
+      }
     }
   }
 }
