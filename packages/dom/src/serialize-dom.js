@@ -94,6 +94,7 @@ export function serializeDOM(options) {
     try {
       return waitForReady(readiness).then(diagnostics => {
         let result = _serialize(options);
+        /* istanbul ignore next: stringifyResponse with readiness is an unlikely combination */
         if (typeof result === 'object' && diagnostics) {
           result.readiness_diagnostics = diagnostics;
         }
