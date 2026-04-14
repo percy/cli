@@ -214,14 +214,23 @@ export class Page {
     await this.insertPercyDom();
 
     // serialize and capture a DOM snapshot
+    // Readiness config is passed to PercyDOM.serialize() so that readiness
+    // checks run BEFORE serialization — in both URL-based and SDK paths.
+    // The readiness config comes from per-snapshot options or the global
+    // Percy config (injected as window.__PERCY__.config.snapshot.readiness).
+    let readiness = snapshot.readiness || this.browser?.percy?.config?.snapshot?.readiness;
     this.log.debug('Serialize DOM', this.meta);
 
     /* istanbul ignore next: no instrumenting injected code */
-    let capture = await this.eval((_, options) => ({
+    let capture = await this.eval((_, options) => {
       /* eslint-disable-next-line no-undef */
-      domSnapshot: PercyDOM.serialize(options),
-      url: document.URL
-    }), { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements });
+      let result = PercyDOM.serialize(options);
+      // serialize may return a Promise when readiness is configured
+      if (result && typeof result.then === 'function') {
+        return result.then(r => ({ domSnapshot: r, url: document.URL }));
+      }
+      return { domSnapshot: result, url: document.URL };
+    }, { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements, readiness });
 
     return { ...snapshot, ...capture };
   }

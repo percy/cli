@@ -132,6 +132,21 @@ export const configSchema = {
       sync: {
         type: 'boolean'
       },
+      readiness: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          preset: { type: 'string', enum: ['balanced', 'strict', 'fast', 'disabled'] },
+          stabilityWindowMs: { type: 'integer', minimum: 50, maximum: 30000 },
+          networkIdleWindowMs: { type: 'integer', minimum: 50, maximum: 10000 },
+          timeoutMs: { type: 'integer', minimum: 1000, maximum: 60000 },
+          imageReady: { type: 'boolean' },
+          fontReady: { type: 'boolean' },
+          jsIdle: { type: 'boolean' },
+          readySelectors: { type: 'array', items: { type: 'string' } },
+          notPresentSelectors: { type: 'array', items: { type: 'string' } }
+        }
+      },
       responsiveSnapshotCapture: {
         type: 'boolean',
         default: false
@@ -489,6 +504,7 @@ export const snapshotSchema = {
         domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
         enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
         sync: { $ref: '/config/snapshot#/properties/sync' },
+        readiness: { $ref: '/config/snapshot#/properties/readiness' },
         responsiveSnapshotCapture: { $ref: '/config/snapshot#/properties/responsiveSnapshotCapture' },
         testCase: { $ref: '/config/snapshot#/properties/testCase' },
         labels: { $ref: '/config/snapshot#/properties/labels' },
