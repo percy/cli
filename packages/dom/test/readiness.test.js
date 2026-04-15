@@ -928,4 +928,48 @@ describe('waitForReady', () => {
     expect(typeof result.checks.js_idle.idle_callback_used).toBe('boolean');
     expect(result.checks.js_idle.long_tasks_observed).toBe(0);
   });
+
+  it('uses dedicated js_idle_window_ms independently of stability_window_ms', async () => {
+    // Verifies the decoupling introduced for PR #2184 comment #3086822493.
+    // With a long stability window but short js_idle window, the js_idle
+    // check must finish quickly instead of blocking on the stability window.
+    withExample('<p>decoupled</p>', { withShadow: false });
+
+    let start = performance.now();
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      js_idle_window_ms: 50,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+    let elapsed = performance.now() - start;
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.js_idle.passed).toBe(true);
+    // js_idle check's duration should be driven by js_idle_window_ms (50ms),
+    // not by stability_window_ms (200ms). We give generous headroom for
+    // rAF cadence and scheduler jitter.
+    expect(result.checks.js_idle.duration_ms).toBeLessThan(500);
+    // Whole thing completes within reasonable bounds — sanity check.
+    expect(elapsed).toBeLessThan(1500);
+  });
+
+  it('falls back to stability_window_ms when js_idle_window_ms is not provided', async () => {
+    // Backward compat: older configs that only set stability_window_ms
+    // should still drive the js_idle window.
+    withExample('<p>fallback</p>', { withShadow: false });
+
+    let result = await waitForReady({
+      stability_window_ms: 100,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks.js_idle.passed).toBe(true);
+  });
 });

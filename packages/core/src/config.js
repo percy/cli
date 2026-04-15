@@ -138,6 +138,7 @@ export const configSchema = {
         properties: {
           preset: { type: 'string', enum: ['balanced', 'strict', 'fast', 'disabled'] },
           stabilityWindowMs: { type: 'integer', minimum: 50, maximum: 30000 },
+          jsIdleWindowMs: { type: 'integer', minimum: 50, maximum: 30000 },
           networkIdleWindowMs: { type: 'integer', minimum: 50, maximum: 10000 },
           timeoutMs: { type: 'integer', minimum: 1000, maximum: 60000 },
           imageReady: { type: 'boolean' },

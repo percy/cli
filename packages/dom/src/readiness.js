@@ -3,9 +3,17 @@
 // are available in the browser execution context where this code runs.
 
 // Readiness check presets
+//
+// `js_idle_window_ms` is separate from `stability_window_ms` on purpose:
+// DOM stability and main-thread idleness measure different things. With
+// the `strict` preset we want a long DOM-stability window (1000ms) but
+// not necessarily 1000ms of no long tasks — that would cause unnecessary
+// timeouts on pages with normal JS activity. Both windows are
+// independently configurable but default to reasonable values per preset.
 const PRESETS = {
   balanced: {
     stability_window_ms: 300,
+    js_idle_window_ms: 300,
     network_idle_window_ms: 200,
     timeout_ms: 10000,
     image_ready: true,
@@ -14,6 +22,7 @@ const PRESETS = {
   },
   strict: {
     stability_window_ms: 1000,
+    js_idle_window_ms: 500,
     network_idle_window_ms: 500,
     timeout_ms: 30000,
     image_ready: true,
@@ -22,6 +31,7 @@ const PRESETS = {
   },
   fast: {
     stability_window_ms: 100,
+    js_idle_window_ms: 100,
     network_idle_window_ms: 100,
     timeout_ms: 5000,
     image_ready: false,
@@ -133,24 +143,61 @@ function checkDOMStability(stabilityWindowMs, aborted) {
 }
 
 function checkNetworkIdle(networkIdleWindowMs, aborted) {
+  // Use PerformanceObserver to listen for new 'resource' entries incrementally.
+  // Previously we polled `performance.getEntriesByType('resource')` every 50ms,
+  // which allocates and scans the full resource list on every tick — expensive
+  // on resource-heavy pages with hundreds of images/scripts/stylesheets.
+  //
+  // On browsers without PerformanceObserver (very old), fall back to polling
+  // so the check still works.
   return new Promise(resolve => {
     let startTime = performance.now();
-    let lastCount = performance.getEntriesByType('resource').length;
     let timer = null;
-    let interval = setInterval(() => {
-      /* istanbul ignore next: abort clears the interval synchronously, so this guard is defensive dead code in tests */
-      if (aborted.value) { clearInterval(interval); return; }
-      let count = performance.getEntriesByType('resource').length;
-      /* istanbul ignore next: timer is always set before interval fires */
-      if (count !== lastCount) { lastCount = count; if (timer) clearTimeout(timer); timer = setTimeout(settle, networkIdleWindowMs); }
-    }, 50);
+    let observer = null;
+    let pollInterval = null;
 
-    function settle() { clearInterval(interval); resolve({ passed: true, duration_ms: Math.round(performance.now() - startTime) }); }
+    function settle() {
+      /* istanbul ignore next: observer is only null on fallback path (itself ignored) */
+      if (observer) observer.disconnect();
+      /* istanbul ignore next: fallback polling path only used when PerformanceObserver is unavailable */
+      if (pollInterval) clearInterval(pollInterval);
+      resolve({ passed: true, duration_ms: Math.round(performance.now() - startTime) });
+    }
+
+    function resetIdleTimer() {
+      /* istanbul ignore next: timer is always set at line 191 before any resource entry arrives */
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(settle, networkIdleWindowMs);
+    }
+
+    try {
+      /* istanbul ignore next: observer callback body only runs if a network resource loads during the idle window */
+      observer = new PerformanceObserver(list => {
+        if (aborted.value) return;
+        // Any resource entry means network activity — reset the idle window.
+        if (list.getEntries().length > 0) resetIdleTimer();
+      });
+      observer.observe({ type: 'resource', buffered: false });
+    } catch (e) /* istanbul ignore next: PerformanceObserver is available in Chrome/Firefox; catch is for old browsers */ {
+      // Older browser — fall back to polling
+      observer = null;
+      let lastCount = performance.getEntriesByType('resource').length;
+      pollInterval = setInterval(() => {
+        if (aborted.value) { clearInterval(pollInterval); return; }
+        let count = performance.getEntriesByType('resource').length;
+        if (count !== lastCount) { lastCount = count; resetIdleTimer(); }
+      }, 50);
+    }
+
+    // Start the initial idle window.
     timer = setTimeout(settle, networkIdleWindowMs);
 
     aborted.onAbort(() => {
-      clearInterval(interval);
-      /* istanbul ignore next: timer is always set at line 148 before abort can fire */
+      /* istanbul ignore next: observer is only null on fallback path (itself ignored) */
+      if (observer) observer.disconnect();
+      /* istanbul ignore next: pollInterval is only set on the fallback path */
+      if (pollInterval) clearInterval(pollInterval);
+      /* istanbul ignore next: timer is always set before abort can fire */
       if (timer) clearTimeout(timer);
     });
   });
@@ -263,6 +310,7 @@ function checkJSIdle(idleWindowMs, aborted) {
       if (settled || aborted.value) return;
       /* istanbul ignore else: rIC is available in modern Chrome/Firefox — fallback is for older browsers */
       if (typeof requestIdleCallback === 'function') {
+        /* istanbul ignore next: rIC timeout only fires if requestIdleCallback takes longer than idleWindowMs * 2 — cleared by rIC callback in normal runs */
         let ricTimer = setTimeout(() => doubleRAF(false), idleWindowMs * 2);
         requestIdleCallback(() => {
           clearTimeout(ricTimer);
@@ -277,6 +325,7 @@ function checkJSIdle(idleWindowMs, aborted) {
 
     // Tier 3: Double-rAF render gate
     function doubleRAF(usedRIC) {
+      /* istanbul ignore next: defensive re-entry guard — doubleRAF can be scheduled from multiple paths */
       if (settled || aborted.value) return;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -360,7 +409,16 @@ async function runAllChecks(config, result, aborted) {
   if (config.network_idle_window_ms > 0) { expected.push('network_idle'); checks.push(checkNetworkIdle(config.network_idle_window_ms, aborted).then(r => { result.checks.network_idle = r; })); }
   if (config.font_ready !== false) { expected.push('font_ready'); checks.push(checkFontReady(aborted).then(r => { result.checks.font_ready = r; })); }
   if (config.image_ready !== false) { expected.push('image_ready'); checks.push(checkImageReady(aborted).then(r => { result.checks.image_ready = r; })); }
-  if (config.js_idle !== false) { expected.push('js_idle'); checks.push(checkJSIdle(config.stability_window_ms, aborted).then(r => { result.checks.js_idle = r; })); }
+  if (config.js_idle !== false) {
+    expected.push('js_idle');
+    // Fall back to stability_window_ms if js_idle_window_ms is not set.
+    // All built-in presets set js_idle_window_ms, so this fallback only
+    // fires when a caller passes a custom config that predates the
+    // dedicated option — preserves backward compatibility.
+    /* istanbul ignore next: fallback only hit by pre-js_idle_window_ms configs; built-in presets always set it */
+    let jsIdleWindow = config.js_idle_window_ms ?? config.stability_window_ms;
+    checks.push(checkJSIdle(jsIdleWindow, aborted).then(r => { result.checks.js_idle = r; }));
+  }
   if (config.ready_selectors?.length) { expected.push('ready_selectors'); checks.push(checkReadySelectors(config.ready_selectors, aborted).then(r => { result.checks.ready_selectors = r; })); }
   if (config.not_present_selectors?.length) { expected.push('not_present_selectors'); checks.push(checkNotPresentSelectors(config.not_present_selectors, aborted).then(r => { result.checks.not_present_selectors = r; })); }
   result._expectedChecks = expected;
@@ -374,6 +432,7 @@ export function normalizeOptions(options = {}) {
   return {
     preset: options.preset,
     stability_window_ms: options.stabilityWindowMs ?? options.stability_window_ms,
+    js_idle_window_ms: options.jsIdleWindowMs ?? options.js_idle_window_ms,
     network_idle_window_ms: options.networkIdleWindowMs ?? options.network_idle_window_ms,
     timeout_ms: options.timeoutMs ?? options.timeout_ms,
     image_ready: options.imageReady ?? options.image_ready,

@@ -203,6 +203,7 @@ describe('readiness helpers', () => {
     it('prefers camelCase and maps to snake_case', () => {
       let n = normalizeOptions({
         stabilityWindowMs: 100,
+        jsIdleWindowMs: 150,
         networkIdleWindowMs: 200,
         timeoutMs: 3000,
         imageReady: true,
@@ -215,6 +216,7 @@ describe('readiness helpers', () => {
       expect(n).toEqual({
         preset: undefined,
         stability_window_ms: 100,
+        js_idle_window_ms: 150,
         network_idle_window_ms: 200,
         timeout_ms: 3000,
         image_ready: true,
@@ -256,6 +258,14 @@ describe('readiness helpers', () => {
 
     it('passes preset through', () => {
       expect(normalizeOptions({ preset: 'strict' }).preset).toBe('strict');
+    });
+
+    it('normalizes jsIdleWindowMs to js_idle_window_ms', () => {
+      // Decoupling from stability_window_ms — see PRESETS comment and
+      // PR #2184 review comment #3086822493.
+      expect(normalizeOptions({ jsIdleWindowMs: 250 }).js_idle_window_ms).toBe(250);
+      expect(normalizeOptions({ js_idle_window_ms: 250 }).js_idle_window_ms).toBe(250);
+      expect(normalizeOptions({ jsIdleWindowMs: 100, js_idle_window_ms: 999 }).js_idle_window_ms).toBe(100);
     });
   });
 
