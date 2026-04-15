@@ -367,12 +367,38 @@ describe('waitForReady', () => {
     expect(result.checks.dom_stability.mutations_observed).toBeGreaterThan(0);
   });
 
-  it('detects href attribute change as layout-affecting', async () => {
+  it('ignores href attribute change on <a> elements (not layout-affecting)', async () => {
+    // href on <a> tags is a navigation target, not a layout property —
+    // changing it does not re-render the page, so it should NOT count
+    // as a layout mutation.
     withExample('<a id="href-test" href="/page1">Link</a>', { withShadow: false });
 
     setTimeout(() => {
       let el = document.getElementById('href-test');
       if (el) el.setAttribute('href', '/page2');
+    }, 50);
+
+    let result = await waitForReady({
+      stability_window_ms: 200,
+      timeout_ms: 3000,
+      image_ready: false,
+      font_ready: false,
+      network_idle_window_ms: 50
+    });
+
+    expect(result.passed).toBe(true);
+    // <a href> changes should NOT be counted as layout mutations
+    expect(result.checks.dom_stability.mutations_observed).toBe(0);
+  });
+
+  it('detects href attribute change on <link> elements as layout-affecting', async () => {
+    // href on <link rel="stylesheet"> IS layout-affecting because it loads
+    // a new stylesheet that can restyle the page.
+    withExample('<link id="css-test" rel="stylesheet" href="data:text/css,.x{color:red}">', { withShadow: false });
+
+    setTimeout(() => {
+      let el = document.getElementById('css-test');
+      if (el) el.setAttribute('href', 'data:text/css,.x{color:blue}');
     }, 50);
 
     let result = await waitForReady({

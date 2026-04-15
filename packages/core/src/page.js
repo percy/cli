@@ -221,15 +221,15 @@ export class Page {
     let readiness = snapshot.readiness || this.browser?.percy?.config?.snapshot?.readiness;
     this.log.debug('Serialize DOM', this.meta);
 
+    // Use serializeDOMWithReadiness so readiness runs BEFORE serialize in the
+    // URL-capture path. Existing SDKs continue calling the sync serializeDOM.
+    // page.eval uses CDP awaitPromise: true, which auto-awaits the returned Promise.
     /* istanbul ignore next: no instrumenting injected code */
-    let capture = await this.eval((_, options) => {
+    let capture = await this.eval(async (_, options) => {
       /* eslint-disable-next-line no-undef */
-      let result = PercyDOM.serialize(options);
-      // serialize may return a Promise when readiness is configured
-      if (result && typeof result.then === 'function') {
-        return result.then(r => ({ domSnapshot: r, url: document.URL }));
-      }
-      return { domSnapshot: result, url: document.URL };
+      let fn = (PercyDOM.serializeDOMWithReadiness || PercyDOM.serialize);
+      let domSnapshot = await fn(options);
+      return { domSnapshot, url: document.URL };
     }, { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements, readiness });
 
     return { ...snapshot, ...capture };

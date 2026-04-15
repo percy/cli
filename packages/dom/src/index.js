@@ -3,6 +3,7 @@ export {
   serializeDOM,
   // namespace alias
   serializeDOM as serialize,
+  serializeDOMWithReadiness,
   waitForResize
 } from './serialize-dom';
 

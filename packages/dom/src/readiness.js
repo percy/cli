@@ -32,7 +32,7 @@ const PRESETS = {
 
 const LAYOUT_ATTRIBUTES = new Set([
   'class', 'width', 'height', 'display', 'visibility',
-  'position', 'src', 'href'
+  'position', 'src'
 ]);
 
 const LAYOUT_STYLE_PROPS = /^(width|height|top|left|right|bottom|margin|padding|display|position|visibility|flex|grid|min-|max-|inset|gap|order|float|clear|overflow|z-index|columns)/;
@@ -48,6 +48,9 @@ function isLayoutMutation(mutation) {
       let newStyle = mutation.target.getAttribute('style') || '';
       return hasLayoutStyleChange(oldStyle, newStyle);
     }
+    // href is only layout-affecting on <link> elements (stylesheets).
+    // On <a> tags changing href is a no-op for layout.
+    if (attr === 'href') return mutation.target.tagName === 'LINK';
     if (LAYOUT_ATTRIBUTES.has(attr)) return true;
   }
   return false;
@@ -116,7 +119,7 @@ function checkDOMStability(stabilityWindowMs, aborted) {
       attributes: true,
       attributeOldValue: true,
       subtree: true,
-      attributeFilter: [...LAYOUT_ATTRIBUTES, 'style']
+      attributeFilter: [...LAYOUT_ATTRIBUTES, 'style', 'href']
     });
     timer = setTimeout(settle, stabilityWindowMs);
 
@@ -148,15 +151,19 @@ function checkNetworkIdle(networkIdleWindowMs, aborted) {
   });
 }
 
-function checkFontReady() {
+function checkFontReady(aborted) {
   let start = performance.now();
   /* istanbul ignore next: cannot mock document.fonts API in browser tests */
   if (!document.fonts?.ready) return Promise.resolve({ passed: true, duration_ms: 0, skipped: true });
-  return Promise.race([
+  let fontTimer;
+  let result = Promise.race([
     document.fonts.ready.then(() => ({ passed: true, duration_ms: Math.round(performance.now() - start) })),
     /* istanbul ignore next: font timeout requires 5s delay, impractical in tests */
-    new Promise(r => setTimeout(() => r({ passed: false, duration_ms: 5000, timed_out: true }), 5000))
+    new Promise(r => { fontTimer = setTimeout(() => r({ passed: false, duration_ms: 5000, timed_out: true }), 5000); })
   ]);
+  /* istanbul ignore next: abort path not deterministically testable */
+  if (aborted) aborted.onAbort(() => { if (fontTimer) clearTimeout(fontTimer); });
+  return result;
 }
 
 /* istanbul ignore next: image loading and viewport checks are browser-timing dependent */
@@ -334,7 +341,7 @@ async function runAllChecks(config, result, aborted) {
   let expected = [];
   if (config.stability_window_ms > 0) { expected.push('dom_stability'); checks.push(checkDOMStability(config.stability_window_ms, aborted).then(r => { result.checks.dom_stability = r; })); }
   if (config.network_idle_window_ms > 0) { expected.push('network_idle'); checks.push(checkNetworkIdle(config.network_idle_window_ms, aborted).then(r => { result.checks.network_idle = r; })); }
-  if (config.font_ready !== false) { expected.push('font_ready'); checks.push(checkFontReady().then(r => { result.checks.font_ready = r; })); }
+  if (config.font_ready !== false) { expected.push('font_ready'); checks.push(checkFontReady(aborted).then(r => { result.checks.font_ready = r; })); }
   if (config.image_ready !== false) { expected.push('image_ready'); checks.push(checkImageReady(aborted).then(r => { result.checks.image_ready = r; })); }
   if (config.js_idle !== false) { expected.push('js_idle'); checks.push(checkJSIdle(config.stability_window_ms, aborted).then(r => { result.checks.js_idle = r; })); }
   if (config.ready_selectors?.length) { expected.push('ready_selectors'); checks.push(checkReadySelectors(config.ready_selectors, aborted).then(r => { result.checks.ready_selectors = r; })); }
@@ -343,12 +350,35 @@ async function runAllChecks(config, result, aborted) {
   await Promise.all(checks);
 }
 
+// Normalize camelCase config keys (from .percy.yml / SDK options) to the
+// snake_case keys used internally. Accepts either naming.
+function normalizeOptions(options = {}) {
+  return {
+    preset: options.preset,
+    stability_window_ms: options.stabilityWindowMs ?? options.stability_window_ms,
+    network_idle_window_ms: options.networkIdleWindowMs ?? options.network_idle_window_ms,
+    timeout_ms: options.timeoutMs ?? options.timeout_ms,
+    image_ready: options.imageReady ?? options.image_ready,
+    font_ready: options.fontReady ?? options.font_ready,
+    js_idle: options.jsIdle ?? options.js_idle,
+    ready_selectors: options.readySelectors ?? options.ready_selectors,
+    not_present_selectors: options.notPresentSelectors ?? options.not_present_selectors,
+    max_timeout_ms: options.maxTimeoutMs ?? options.max_timeout_ms
+  };
+}
+
 export async function waitForReady(options = {}) {
   let presetName = options.preset || 'balanced';
   if (presetName === 'disabled') return { passed: true, timed_out: false, skipped: true, checks: {} };
 
   let preset = PRESETS[presetName] || PRESETS.balanced;
-  let config = { ...preset, ...options };
+  // Normalize user options to snake_case, then merge. Only overrides
+  // where user explicitly provided a value (undefined keys don't overwrite).
+  let userOptions = normalizeOptions(options);
+  let config = { ...preset };
+  for (let key of Object.keys(userOptions)) {
+    if (userOptions[key] !== undefined) config[key] = userOptions[key];
+  }
   let effectiveTimeout = config.max_timeout_ms ? Math.min(config.timeout_ms, config.max_timeout_ms) : config.timeout_ms;
 
   let startTime = performance.now();

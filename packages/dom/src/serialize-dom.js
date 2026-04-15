@@ -81,32 +81,42 @@ export function waitForResize() {
 }
 
 // Serializes a document and returns the resulting DOM string.
-// When readiness config is provided, waits for the page to be stable
-// before serializing. This works identically for both URL-based captures
-// (CLI percy snapshot, Storybook) and SDK captures (Cypress, Selenium,
-// Puppeteer) since serialize is the common entry point for both paths.
+//
+// This function is SYNCHRONOUS and always returns a plain object — preserving
+// backward compatibility with existing SDKs (@percy/cypress, @percy/puppeteer,
+// @percy/selenium-webdriver, etc.) that call `PercyDOM.serialize(options)`
+// without awaiting the result.
+//
+// To enable readiness-gated serialization, callers must explicitly opt in by
+// calling `serializeDOMWithReadiness()` (which returns a Promise) or by
+// awaiting `serializeDOM()` after calling `waitForReady()` separately.
 export function serializeDOM(options) {
+  return _serialize(options);
+}
+
+// Async variant that runs readiness checks before serializing. Returns a
+// Promise. Used by:
+//   - CLI URL-capture path (page.js calls this via page.eval)
+//   - New SDK versions that opt into readiness-gated capture
+// Existing SDKs are unaffected as they call serializeDOM() directly.
+export async function serializeDOMWithReadiness(options) {
   let readiness = options?.readiness;
 
-  // If readiness is configured and not disabled, wait for page stability
-  // before serializing. Returns a Promise in this case.
   if (readiness && readiness.preset !== 'disabled') {
     try {
-      return waitForReady(readiness).then(diagnostics => {
-        let result = _serialize(options);
-        /* istanbul ignore next: stringifyResponse with readiness is an unlikely combination */
-        if (typeof result === 'object' && diagnostics) {
-          result.readiness_diagnostics = diagnostics;
-        }
-        return result;
-      });
+      let diagnostics = await waitForReady(readiness);
+      let result = _serialize(options);
+      /* istanbul ignore next: stringifyResponse with readiness is an unlikely combination */
+      if (typeof result === 'object' && diagnostics) {
+        result.readiness_diagnostics = diagnostics;
+      }
+      return result;
     } catch (err) /* istanbul ignore next */ {
       // If readiness fails, still serialize (graceful degradation)
       console.error(`Readiness check failed: ${err.message}`);
     }
   }
 
-  // No readiness or disabled — serialize synchronously (backward compatible)
   return _serialize(options);
 }
 
