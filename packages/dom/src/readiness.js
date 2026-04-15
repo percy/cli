@@ -37,8 +37,10 @@ const LAYOUT_ATTRIBUTES = new Set([
 
 const LAYOUT_STYLE_PROPS = /^(width|height|top|left|right|bottom|margin|padding|display|position|visibility|flex|grid|min-|max-|inset|gap|order|float|clear|overflow|z-index|columns)/;
 
-/* istanbul ignore next: branches constrained by MutationObserver attributeFilter config */
-function isLayoutMutation(mutation) {
+// Exported for direct unit testing — logic is deterministic and does not
+// depend on browser timing, so it should not be covered only indirectly
+// through MutationObserver-driven integration tests.
+export function isLayoutMutation(mutation) {
   if (mutation.type === 'childList') return true;
   if (mutation.type === 'attributes') {
     let attr = mutation.attributeName;
@@ -56,8 +58,7 @@ function isLayoutMutation(mutation) {
   return false;
 }
 
-/* istanbul ignore next: style change detection with layout property matching */
-function hasLayoutStyleChange(oldStyle, newStyle) {
+export function hasLayoutStyleChange(oldStyle, newStyle) {
   if (oldStyle === newStyle) return false;
   let oldProps = parseStyleProps(oldStyle);
   let newProps = parseStyleProps(newStyle);
@@ -68,8 +69,7 @@ function hasLayoutStyleChange(oldStyle, newStyle) {
   return false;
 }
 
-/* istanbul ignore next: internal helper for style string parsing */
-function parseStyleProps(styleStr) {
+export function parseStyleProps(styleStr) {
   let props = {};
   if (!styleStr) return props;
   for (let part of styleStr.split(';')) {
@@ -86,7 +86,6 @@ function parseStyleProps(styleStr) {
 // Each check accepts an `aborted` object ({ value: boolean }) so the orchestrator
 // can signal cancellation on timeout. Checks must clean up timers/observers on abort.
 
-/* istanbul ignore next: abort branches only fire on timeout, not testable without race */
 function checkDOMStability(stabilityWindowMs, aborted) {
   return new Promise(resolve => {
     let startTime = performance.now();
@@ -95,6 +94,7 @@ function checkDOMStability(stabilityWindowMs, aborted) {
     let lastMutationType = null;
 
     let observer = new MutationObserver(mutations => {
+      /* istanbul ignore next: abort disconnects the observer synchronously, defensive dead code in tests */
       if (aborted.value) return;
       let hasLayout = false;
       for (let m of mutations) {
@@ -125,19 +125,20 @@ function checkDOMStability(stabilityWindowMs, aborted) {
 
     // Cleanup on abort
     aborted.onAbort(() => {
+      /* istanbul ignore next: timer is always set at line 124 before abort can fire */
       if (timer) clearTimeout(timer);
       observer.disconnect();
     });
   });
 }
 
-/* istanbul ignore next: network idle polling is browser-timing dependent */
 function checkNetworkIdle(networkIdleWindowMs, aborted) {
   return new Promise(resolve => {
     let startTime = performance.now();
     let lastCount = performance.getEntriesByType('resource').length;
     let timer = null;
     let interval = setInterval(() => {
+      /* istanbul ignore next: abort clears the interval synchronously, so this guard is defensive dead code in tests */
       if (aborted.value) { clearInterval(interval); return; }
       let count = performance.getEntriesByType('resource').length;
       /* istanbul ignore next: timer is always set before interval fires */
@@ -147,7 +148,11 @@ function checkNetworkIdle(networkIdleWindowMs, aborted) {
     function settle() { clearInterval(interval); resolve({ passed: true, duration_ms: Math.round(performance.now() - startTime) }); }
     timer = setTimeout(settle, networkIdleWindowMs);
 
-    aborted.onAbort(() => { clearInterval(interval); if (timer) clearTimeout(timer); });
+    aborted.onAbort(() => {
+      clearInterval(interval);
+      /* istanbul ignore next: timer is always set at line 148 before abort can fire */
+      if (timer) clearTimeout(timer);
+    });
   });
 }
 
@@ -166,7 +171,6 @@ function checkFontReady(aborted) {
   return result;
 }
 
-/* istanbul ignore next: image loading and viewport checks are browser-timing dependent */
 function checkImageReady(aborted) {
   return new Promise(resolve => {
     let start = performance.now();
@@ -176,6 +180,7 @@ function checkImageReady(aborted) {
       let incomplete = [];
       for (let img of imgs) {
         let r = img.getBoundingClientRect();
+        /* istanbul ignore else: test images are always placed in the viewport with non-zero dimensions */
         if (r.top < vh && r.bottom > 0 && r.width > 0 && r.height > 0) {
           if (!img.complete || img.naturalWidth === 0) incomplete.push(img);
         }
@@ -186,18 +191,20 @@ function checkImageReady(aborted) {
     let incStart = getIncomplete().length;
     if (incStart === 0) { resolve({ passed: true, duration_ms: 0, images_checked: total, images_incomplete_at_start: 0 }); return; }
     let interval = setInterval(() => {
+      /* istanbul ignore next: abort clears the interval synchronously, defensive dead code in tests */
       if (aborted.value) { clearInterval(interval); return; }
+      /* istanbul ignore next: requires network latency — images load synchronously in tests with data: URLs */
       if (getIncomplete().length === 0) {
         clearInterval(interval);
         resolve({ passed: true, duration_ms: Math.round(performance.now() - start), images_checked: total, images_incomplete_at_start: incStart });
       }
     }, 100);
 
+    /* istanbul ignore next: abort-on-timeout path; only fires when images never load in time */
     aborted.onAbort(() => clearInterval(interval));
   });
 }
 
-/* istanbul ignore next: JS idle detection depends on browser runtime timing */
 function checkJSIdle(idleWindowMs, aborted) {
   // Three-tier JS idle detection — purely observational, no monkey-patching:
   // Tier 1: Long Task API (PerformanceObserver) — detects main-thread tasks >50ms
@@ -213,6 +220,7 @@ function checkJSIdle(idleWindowMs, aborted) {
 
     // Tier 1: Long Task API — reset idle timer on each observed long task
     try {
+      /* istanbul ignore next: longtask callback fires only on CPU-heavy >50ms tasks, not reliable in tests */
       observer = new PerformanceObserver(list => {
         if (!observing || settled || aborted.value) return;
         for (let entry of list.getEntries()) {
@@ -224,18 +232,21 @@ function checkJSIdle(idleWindowMs, aborted) {
         }
       });
       observer.observe({ type: 'longtask', buffered: false });
-    } catch (e) {
+    } catch (e) /* istanbul ignore next: Long Task API is available in Chrome/Firefox, catch is for older browsers */ {
       // Long Task API not available — degrade to rIC/rAF-only path
       observer = null;
     }
 
     function cleanup() {
       settled = true;
+      /* istanbul ignore next: defensive — observer is always set except when Long Task API fails (itself ignored) */
       if (observer) observer.disconnect();
+      /* istanbul ignore next: defensive — idleTimer may be null between cleanup calls from multiple abort paths */
       if (idleTimer) clearTimeout(idleTimer);
     }
 
     function done(idleCallbackUsed) {
+      /* istanbul ignore next: defensive — re-entry guard for race between done/cleanup/abort */
       if (settled || aborted.value) return;
       cleanup();
       resolve({
@@ -248,7 +259,9 @@ function checkJSIdle(idleWindowMs, aborted) {
 
     // Tier 2: requestIdleCallback confirmation (or fallback)
     function confirmIdle() {
+      /* istanbul ignore next: defensive re-entry guard — confirmIdle can be scheduled multiple times */
       if (settled || aborted.value) return;
+      /* istanbul ignore else: rIC is available in modern Chrome/Firefox — fallback is for older browsers */
       if (typeof requestIdleCallback === 'function') {
         let ricTimer = setTimeout(() => doubleRAF(false), idleWindowMs * 2);
         requestIdleCallback(() => {
@@ -275,6 +288,7 @@ function checkJSIdle(idleWindowMs, aborted) {
     // Start: skip first frame to avoid detecting Percy's own insertPercyDom() setup,
     // then begin idle window
     requestAnimationFrame(() => {
+      /* istanbul ignore next: abort only fires during timeout race, not on first rAF in tests */
       if (aborted.value) return;
       observing = true;
       idleTimer = setTimeout(confirmIdle, idleWindowMs);
@@ -284,8 +298,8 @@ function checkJSIdle(idleWindowMs, aborted) {
   });
 }
 
-/* istanbul ignore next: selector polling and visibility checks are browser-timing dependent */
 function checkReadySelectors(selectors, aborted) {
+  /* istanbul ignore next: orchestrator only calls this when selectors.length > 0; defensive for direct callers */
   if (!selectors?.length) return Promise.resolve({ passed: true, duration_ms: 0, selectors: [] });
   return new Promise(resolve => {
     let start = performance.now();
@@ -299,6 +313,7 @@ function checkReadySelectors(selectors, aborted) {
     }
     if (check()) { resolve({ passed: true, duration_ms: 0, selectors }); return; }
     let interval = setInterval(() => {
+      /* istanbul ignore next: abort clears the interval synchronously, defensive dead code in tests */
       if (aborted.value) { clearInterval(interval); return; }
       if (check()) { clearInterval(interval); resolve({ passed: true, duration_ms: Math.round(performance.now() - start), selectors }); }
     }, 100);
@@ -307,27 +322,29 @@ function checkReadySelectors(selectors, aborted) {
   });
 }
 
-/* istanbul ignore next: selector polling is browser-timing dependent */
 function checkNotPresentSelectors(selectors, aborted) {
+  /* istanbul ignore next: orchestrator only calls this when selectors.length > 0; defensive for direct callers */
   if (!selectors?.length) return Promise.resolve({ passed: true, duration_ms: 0, selectors: [] });
   return new Promise(resolve => {
     let start = performance.now();
     function check() { for (let s of selectors) { if (document.querySelector(s)) return false; } return true; }
     if (check()) { resolve({ passed: true, duration_ms: 0, selectors }); return; }
     let interval = setInterval(() => {
+      /* istanbul ignore next: abort clears the interval synchronously, defensive dead code in tests */
       if (aborted.value) { clearInterval(interval); return; }
       if (check()) { clearInterval(interval); resolve({ passed: true, duration_ms: Math.round(performance.now() - start), selectors }); }
     }, 100);
 
+    /* istanbul ignore next: abort-on-timeout path; only fires when the excluded selector never disappears */
     aborted.onAbort(() => clearInterval(interval));
   });
 }
 
 // --- Orchestrator ---
 
-// Simple abort controller for browser context (no AbortController dependency)
-/* istanbul ignore next: abort handle invoked by timeout race, timing-dependent */
-function createAbortHandle() {
+// Simple abort controller for browser context (no AbortController dependency).
+// Exported for direct unit testing.
+export function createAbortHandle() {
   let callbacks = [];
   return {
     value: false,
@@ -352,7 +369,8 @@ async function runAllChecks(config, result, aborted) {
 
 // Normalize camelCase config keys (from .percy.yml / SDK options) to the
 // snake_case keys used internally. Accepts either naming.
-function normalizeOptions(options = {}) {
+// Exported for direct unit testing.
+export function normalizeOptions(options = {}) {
   return {
     preset: options.preset,
     stability_window_ms: options.stabilityWindowMs ?? options.stability_window_ms,
@@ -403,8 +421,10 @@ export async function waitForReady(options = {}) {
     result.error = error.message || String(error);
   }
 
-  // Mark any checks that didn't complete before timeout as failed
-  /* istanbul ignore next: only runs when timeout fires before all checks complete */
+  // Mark any checks that didn't complete before timeout as failed.
+  // `_expectedChecks` is always set by runAllChecks, but coverage here
+  // depends on whether any expected check was skipped due to timeout.
+  /* istanbul ignore next: only falsy when the catch block above fires before runAllChecks sets _expectedChecks */
   if (result._expectedChecks) {
     for (let name of result._expectedChecks) {
       if (!result.checks[name]) {
