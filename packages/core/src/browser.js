@@ -16,6 +16,15 @@ export class Browser extends EventEmitter {
   readyState = null;
   closed = false;
 
+  // Shared browser process for test environments. When enabled via
+  // PERCY_BROWSER_REUSE=true, the first launch() spawns Chromium and
+  // subsequent launches reconnect to the same process via its DevTools
+  // WebSocket URL. close() disconnects the socket but leaves the
+  // process alive. Call Browser.closeShared() to actually terminate it.
+  static _sharedAddress = null;
+  static _sharedProcess = null;
+  static _sharedProfile = null;
+
   #callbacks = new Map();
   #lastid = 0;
 
@@ -85,6 +94,24 @@ export class Browser extends EventEmitter {
     this.cookies = Array.isArray(cookies) ? cookies : (
       Object.entries(cookies).map(([name, value]) => ({ name, value })));
 
+    // Reuse a shared browser process when PERCY_BROWSER_REUSE is enabled.
+    // This avoids re-spawning Chromium on every Percy.start()/stop() cycle,
+    // saving ~15-25s per launch on Windows and ~3-5s on Linux.
+    let reuse = process.env.PERCY_BROWSER_REUSE === 'true';
+    if (reuse && Browser._sharedAddress && Browser._sharedProcess && !Browser._sharedProcess.exitCode) {
+      this.process = Browser._sharedProcess;
+      this.profile = Browser._sharedProfile;
+      this.address = Browser._sharedAddress;
+      this.log.debug('Reusing shared browser process');
+      this.ws = new WebSocket(this.address, { perMessageDeflate: false });
+      await new Promise(resolve => this.ws.once('open', resolve));
+      this.ws.on('message', data => this._handleMessage(data));
+      this.version = await this.send('Browser.getVersion');
+      this.log.debug(`Browser reconnected [${this.process.pid}]: ${this.version.product}`);
+      this.readyState = 1;
+      return;
+    }
+
     // check if any provided executable exists
     if (executable && !fs.existsSync(executable)) {
       this.log.error(`Browser executable not found: ${executable}`);
@@ -114,6 +141,42 @@ export class Browser extends EventEmitter {
 
     this.log.debug(`Browser connected [${this.process.pid}]: ${this.version.product}`);
     this.readyState = 1;
+
+    // Save references for subsequent reuse and register exit cleanup
+    if (reuse && !Browser._sharedAddress) {
+      Browser._sharedAddress = this.address;
+      Browser._sharedProcess = this.process;
+      Browser._sharedProfile = this.profile;
+      Browser._registerExitCleanup();
+    }
+  }
+
+  // Terminate the shared browser process. Called automatically on process
+  // exit (registered on first shared-mode launch).
+  static async closeShared() {
+    if (Browser._sharedProcess && !Browser._sharedProcess.exitCode) {
+      try { Browser._sharedProcess.kill('SIGKILL'); } catch {}
+      if (Browser._sharedProfile) {
+        await new Promise(r => rimraf(Browser._sharedProfile, () => r())).catch(() => {});
+      }
+    }
+    Browser._sharedAddress = null;
+    Browser._sharedProcess = null;
+    Browser._sharedProfile = null;
+  }
+
+  static _exitHandlerRegistered = false;
+  static _registerExitCleanup() {
+    if (Browser._exitHandlerRegistered) return;
+    Browser._exitHandlerRegistered = true;
+    let cleanup = () => {
+      if (Browser._sharedProcess && !Browser._sharedProcess.exitCode) {
+        try { Browser._sharedProcess.kill('SIGKILL'); } catch {}
+      }
+    };
+    process.once('exit', cleanup);
+    process.once('SIGINT', () => { cleanup(); process.exit(130); });
+    process.once('SIGTERM', () => { cleanup(); process.exit(143); });
   }
 
   isConnected() {
@@ -147,6 +210,28 @@ export class Browser extends EventEmitter {
     if (!force && this.percy.config.discovery?.launchOptions?.closeBrowser === false) {
       this.log.debug('Skipping browser close due to closeBrowser:false option');
       return true;
+    }
+
+    // When reusing a shared browser, disconnect the WebSocket but keep
+    // the process alive for the next Percy instance to reconnect to.
+    let reuse = process.env.PERCY_BROWSER_REUSE === 'true';
+    if (reuse && Browser._sharedProcess && this.process === Browser._sharedProcess && !force) {
+      this.log.debug('Disconnecting from shared browser (process kept alive)');
+      // close all browser contexts to avoid state leaking between tests
+      try {
+        let { browserContextIds } = await this.send('Target.getBrowserContexts');
+        for (let id of (browserContextIds || [])) {
+          await this.send('Target.disposeBrowserContext', { browserContextId: id }).catch(() => {});
+        }
+      } catch (e) { /* browser may already be disconnecting */ }
+
+      for (let session of this.sessions.values()) session._handleClose();
+      this.#callbacks.clear();
+      this.sessions.clear();
+      this.ws?.close();
+      this.readyState = null;
+      this._closed = null;
+      return;
     }
 
     // not running, already closed, or closing
