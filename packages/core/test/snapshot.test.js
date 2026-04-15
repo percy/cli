@@ -1257,101 +1257,110 @@ describe('Snapshot', () => {
     });
   });
 
-  it('handles the browser closing early', async () => {
-    // close the browser after a page target is created
-    spyOn(percy.browser, 'send').and.callFake((...args) => {
-      let send = percy.browser.send.and.originalFn.apply(percy.browser, args);
-      if (args[0] === 'Target.createTarget') percy.browser.close();
-      return send;
+  // These tests intentionally kill/crash the browser to verify error
+  // handling. They must opt out of browser reuse to avoid destroying the
+  // shared Chromium process for subsequent tests.
+  describe('browser error handling', () => {
+    let savedReuse;
+    beforeAll(() => { savedReuse = process.env.PERCY_BROWSER_REUSE; process.env.PERCY_BROWSER_REUSE = 'false'; });
+    afterAll(() => { process.env.PERCY_BROWSER_REUSE = savedReuse; });
+
+    it('handles the browser closing early', async () => {
+      // close the browser after a page target is created
+      spyOn(percy.browser, 'send').and.callFake((...args) => {
+        let send = percy.browser.send.and.originalFn.apply(percy.browser, args);
+        if (args[0] === 'Target.createTarget') percy.browser.close();
+        return send;
+      });
+
+      await percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000'
+      });
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        '[percy] Encountered an error taking snapshot: test snapshot',
+        jasmine.stringMatching('Protocol error \\(Target\\.createTarget\\): Browser closed')
+      ]));
     });
 
-    await percy.snapshot({
-      name: 'test snapshot',
-      url: 'http://localhost:8000'
+    it('handles the page closing early', async () => {
+      let accessed = 0;
+
+      testDOM += '<link rel="stylesheet" href="/style.css"/>';
+      server.reply('/style.css', () => new Promise(resolve => {
+        if (!accessed++) return resolve([200, 'text/css', '']);
+        setTimeout(resolve, 500, [200, 'text/css', '']);
+      }));
+
+      let snap = percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        discovery: { retry: false }
+      });
+
+      // wait until an asset has at least been requested
+      await waitFor(() => accessed);
+      percy.browser.close();
+      await snap;
+
+      expect(logger.stderr).toEqual([
+        '[percy] Encountered an error taking snapshot: test snapshot',
+        jasmine.stringMatching('Session closed')
+      ]);
     });
 
-    expect(logger.stderr).toEqual(jasmine.arrayContaining([
-      '[percy] Encountered an error taking snapshot: test snapshot',
-      jasmine.stringMatching('Protocol error \\(Target\\.createTarget\\): Browser closed')
-    ]));
-  });
+    it('handles closing during network idle', async () => {
+      let accessed;
 
-  it('handles the page closing early', async () => {
-    let accessed = 0;
+      server.reply('/img.png', () => new Promise(resolve => {
+        setTimeout(resolve, 500, [500, 'text/plain', 'Server Error']);
+        accessed = true;
+      }));
 
-    testDOM += '<link rel="stylesheet" href="/style.css"/>';
-    server.reply('/style.css', () => new Promise(resolve => {
-      if (!accessed++) return resolve([200, 'text/css', '']);
-      setTimeout(resolve, 500, [200, 'text/css', '']);
-    }));
+      let snap = percy.snapshot({
+        name: 'test snapshot',
+        url: 'http://localhost:8000',
+        execute: () => {
+          document.body.innerHTML += '<img src="/img.png"/>';
+        },
+        discovery: { retry: false }
+      });
 
-    let snap = percy.snapshot({
-      name: 'test snapshot',
-      url: 'http://localhost:8000',
-      discovery: { retry: false }
+      // wait until the asset is requested before exiting
+      await waitFor(() => accessed);
+      percy.browser.close();
+      await snap;
+
+      expect(logger.stderr).toEqual([
+        '[percy] Encountered an error taking snapshot: test snapshot',
+        jasmine.stringMatching('Network error: Session closed.')
+      ]);
     });
 
-    // wait until an asset has at least been requested
-    await waitFor(() => accessed);
-    percy.browser.close();
-    await snap;
+    it('handles page crashes', async () => {
+      let snap = percy.snapshot({
+        name: 'crash snapshot',
+        url: 'http://localhost:8000',
+        execute: () => new Promise(r => setTimeout(r, 1000)),
+        discovery: { retry: false }
+      });
 
-    expect(logger.stderr).toEqual([
-      '[percy] Encountered an error taking snapshot: test snapshot',
-      jasmine.stringMatching('Session closed')
-    ]);
-  });
+      await waitFor(() => !!percy.browser.sessions.size);
+      let [session] = percy.browser.sessions.values();
+      // Emit the crash event directly instead of sending Page.crash to Chrome,
+      // which hangs if Chrome never sends Target.detachedFromTarget for the
+      // crashed target. This triggers _handleTargetCrashed (sets closedReason).
+      session.emit('Inspector.targetCrashed');
+      // Reject pending callbacks since the browser won't detach a crashed target
+      session._handleClose();
+      await snap;
 
-  it('handles closing during network idle', async () => {
-    let accessed;
-
-    server.reply('/img.png', () => new Promise(resolve => {
-      setTimeout(resolve, 500, [500, 'text/plain', 'Server Error']);
-      accessed = true;
-    }));
-
-    let snap = percy.snapshot({
-      name: 'test snapshot',
-      url: 'http://localhost:8000',
-      execute: () => {
-        document.body.innerHTML += '<img src="/img.png"/>';
-      },
-      discovery: { retry: false }
+      expect(logger.stderr).toEqual([
+        '[percy] Encountered an error taking snapshot: crash snapshot',
+        jasmine.stringMatching('Session crashed!')
+      ]);
     });
-
-    // wait until the asset is requested before exiting
-    await waitFor(() => accessed);
-    percy.browser.close();
-    await snap;
-
-    expect(logger.stderr).toEqual([
-      '[percy] Encountered an error taking snapshot: test snapshot',
-      jasmine.stringMatching('Network error: Session closed.')
-    ]);
-  });
-
-  it('handles page crashes', async () => {
-    let snap = percy.snapshot({
-      name: 'crash snapshot',
-      url: 'http://localhost:8000',
-      execute: () => new Promise(r => setTimeout(r, 1000)),
-      discovery: { retry: false }
-    });
-
-    await waitFor(() => !!percy.browser.sessions.size);
-    let [session] = percy.browser.sessions.values();
-    // Emit the crash event directly instead of sending Page.crash to Chrome,
-    // which hangs if Chrome never sends Target.detachedFromTarget for the
-    // crashed target. This triggers _handleTargetCrashed (sets closedReason).
-    session.emit('Inspector.targetCrashed');
-    // Reject pending callbacks since the browser won't detach a crashed target
-    session._handleClose();
-    await snap;
-
-    expect(logger.stderr).toEqual([
-      '[percy] Encountered an error taking snapshot: crash snapshot',
-      jasmine.stringMatching('Session crashed!')
-    ]);
   });
 
   describe('without an existing dom snapshot', () => {

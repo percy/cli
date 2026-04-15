@@ -3593,6 +3593,12 @@ describe('Discovery', () => {
   });
 
   describe('with launch options', () => {
+    // These tests exercise closeBrowser config and force-close the browser.
+    // Disable browser reuse so shared process isn't killed.
+    let savedReuse;
+    beforeAll(() => { savedReuse = process.env.PERCY_BROWSER_REUSE; process.env.PERCY_BROWSER_REUSE = 'false'; });
+    afterAll(() => { process.env.PERCY_BROWSER_REUSE = savedReuse; });
+
     beforeEach(async () => {
       // ensure a new percy instance is used for each test
       await percy?.stop(true);
@@ -3751,6 +3757,12 @@ describe('Discovery', () => {
 
   describe('Browser restart on disconnection', () => {
     let testDOM;
+
+    // These tests force-close and restart the browser to verify reconnection.
+    // Disable reuse so they get fresh disposable browser processes.
+    let savedReuse;
+    beforeAll(() => { savedReuse = process.env.PERCY_BROWSER_REUSE; process.env.PERCY_BROWSER_REUSE = 'false'; });
+    afterAll(() => { process.env.PERCY_BROWSER_REUSE = savedReuse; });
 
     beforeEach(async () => {
       testDOM = '<html><body><p>Test</p></body></html>';
