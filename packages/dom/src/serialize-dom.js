@@ -3,6 +3,7 @@ import serializeFrames from './serialize-frames';
 import serializeCSSOM from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
+import serializeDialogs from './serialize-dialog';
 import { serializePseudoClasses, markPseudoClassElements } from './serialize-pseudo-classes';
 import { cloneNodeAndShadow, getOuterHTML } from './clone-dom';
 
@@ -37,6 +38,7 @@ function serializeElements(ctx) {
   serializeInputs(ctx);
   serializeFrames(ctx);
   serializeVideos(ctx);
+  serializeDialogs(ctx);
 
   if (!ctx.enableJavaScript) {
     serializeCSSOM(ctx);
