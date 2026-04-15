@@ -1738,13 +1738,23 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
-  describe('shadow DOM style injection (lines 440-443)', () => {
+  describe('shadow DOM style injection (lines 426, 440-443)', () => {
     it('injects rewritten CSS rules into shadow root clone', () => {
       withExample('<div id="sh-style-host" data-percy-shadow-host>host</div>', { withShadow: false });
       let host = document.getElementById('sh-style-host');
       host.setAttribute('data-percy-element-id', '_sh_style_1');
       let shadow = host.attachShadow({ mode: 'open' });
-      shadow.innerHTML = '<style>.inner:focus { outline: 2px solid blue; }</style><input class="inner" type="text" />';
+
+      // Add a stylesheet via CSSOM so styleSheets is guaranteed populated
+      let style = document.createElement('style');
+      shadow.appendChild(style);
+      style.sheet.insertRule('.inner:focus { outline: 2px solid blue; }', 0);
+
+      let input = document.createElement('input');
+      input.className = 'inner';
+      input.type = 'text';
+      input.setAttribute('data-percy-element-id', '_sh_inner_1');
+      shadow.appendChild(input);
 
       // Build a clone that mirrors the shadow structure
       ctx = {
@@ -1761,10 +1771,7 @@ describe('serialize-pseudo-classes', () => {
       let cloneHost = ctx.clone.querySelector('[data-percy-element-id="_sh_style_1"]');
       cloneHost.attachShadow({ mode: 'open' });
 
-      // Mock focus on the inner input so it gets marked
-      let innerInput = shadow.querySelector('.inner');
-      innerInput.setAttribute('data-percy-element-id', '_sh_inner_1');
-      withMockedFocus(innerInput, () => {
+      withMockedFocus(input, () => {
         markPseudoClassElements(ctx, null);
         serializePseudoClasses(ctx);
       });
@@ -1772,9 +1779,44 @@ describe('serialize-pseudo-classes', () => {
       // The shadow root in the clone should have a <style> element with rewritten rules
       let cloneShadow = cloneHost.shadowRoot;
       let injectedStyle = cloneShadow.querySelector('style[data-percy-interactive-states]');
-      if (injectedStyle) {
-        expect(injectedStyle.textContent).toContain('data-percy-focus');
-      }
+      expect(injectedStyle).not.toBeNull();
+      expect(injectedStyle.textContent).toContain('data-percy-focus');
+    });
+
+    it('hits empty rewrittenRules guard (line 426)', () => {
+      // Exercise the rulesByOwner loop with a shadow host that has a stylesheet
+      // but no rules matching interactive pseudo-classes, so rewrittenRules stays empty
+      withExample('<div id="sh-empty-host" data-percy-shadow-host>host</div>', { withShadow: false });
+      let host = document.getElementById('sh-empty-host');
+      host.setAttribute('data-percy-element-id', '_sh_empty_1');
+      let shadow = host.attachShadow({ mode: 'open' });
+
+      // Add a stylesheet with a non-interactive rule only
+      let style = document.createElement('style');
+      shadow.appendChild(style);
+      style.sheet.insertRule('.noop { color: red; }', 0);
+
+      ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: []
+      };
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = '<div id="sh-empty-host" data-percy-shadow-host data-percy-element-id="_sh_empty_1"></div>';
+      let cloneHost = ctx.clone.querySelector('[data-percy-element-id="_sh_empty_1"]');
+      cloneHost.attachShadow({ mode: 'open' });
+
+      markPseudoClassElements(ctx, null);
+      serializePseudoClasses(ctx);
+
+      // No interactive styles should be injected
+      let cloneShadow = cloneHost.shadowRoot;
+      let injectedStyle = cloneShadow.querySelector('style[data-percy-interactive-states]');
+      expect(injectedStyle).toBeNull();
     });
   });
 });
