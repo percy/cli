@@ -89,6 +89,8 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
       - name: Run tests
         run: yarn workspace ${{ matrix.package }} test:coverage --colors
+        env:
+          PERCY_BROWSER_REUSE: 'true'
 
   regression:
     name: Regression
