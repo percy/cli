@@ -1790,5 +1790,46 @@ describe('serialize-pseudo-classes', () => {
       expect(injectedStyle).not.toBeNull();
       expect(injectedStyle.textContent).toContain('data-percy-focus');
     });
+
+    it('skips injection when clone host has no shadow root (line 440)', () => {
+      withExample('<div id="sh-noshadow-host" data-percy-shadow-host>host</div>', { withShadow: false });
+      let host = document.getElementById('sh-noshadow-host');
+      host.setAttribute('data-percy-element-id', '_sh_noshadow_1');
+      let shadow = host.attachShadow({ mode: 'open' });
+
+      let style = document.createElement('style');
+      shadow.appendChild(style);
+      style.sheet.insertRule('.inner:focus { outline: 2px solid blue; }', 0);
+
+      let input = document.createElement('input');
+      input.className = 'inner';
+      input.type = 'text';
+      input.setAttribute('data-percy-element-id', '_sh_noshadow_inner_1');
+      shadow.appendChild(input);
+
+      ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: []
+      };
+      // Clone host exists but WITHOUT a shadow root attached
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = '<div id="sh-noshadow-host" data-percy-shadow-host data-percy-element-id="_sh_noshadow_1"></div>';
+
+      withMockedFocus(input, () => {
+        markPseudoClassElements(ctx, null);
+        // Should not throw even though clone host has no shadow root
+        expect(() => serializePseudoClasses(ctx)).not.toThrow();
+      });
+
+      // No style should be injected anywhere since there's no shadow root on the clone
+      let cloneHost = ctx.clone.querySelector('[data-percy-element-id="_sh_noshadow_1"]');
+      expect(cloneHost).not.toBeNull();
+      expect(cloneHost.shadowRoot).toBeNull();
+    });
   });
 });
