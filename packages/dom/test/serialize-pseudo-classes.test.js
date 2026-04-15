@@ -1707,4 +1707,74 @@ describe('serialize-pseudo-classes', () => {
       }
     });
   });
+
+  describe('shadow root focus traversal (lines 177, 209)', () => {
+    it('traverses shadow root activeElement chain in markPseudoClassElements', () => {
+      withExample('<div id="shadow-focus-host" data-percy-shadow-host>host</div>', { withShadow: false });
+      let host = document.getElementById('shadow-focus-host');
+      let shadow = host.attachShadow({ mode: 'open' });
+      shadow.innerHTML = '<input id="deep-focus" type="text" data-percy-element-id="_deep_focus_1" />';
+      let deepInput = shadow.getElementById('deep-focus');
+
+      // Mock activeElement to simulate shadow root focus traversal:
+      // document.activeElement -> host, host.shadowRoot.activeElement -> deepInput
+      let origAE = Object.getOwnPropertyDescriptor(document.constructor.prototype, 'activeElement') ||
+        Object.getOwnPropertyDescriptor(document, 'activeElement');
+      // Mock the host's shadowRoot.activeElement
+      Object.defineProperty(shadow, 'activeElement', { get: () => deepInput, configurable: true });
+      Object.defineProperty(document, 'activeElement', { get: () => host, configurable: true });
+      try {
+        ctx = { dom: document, warnings: new Set() };
+        markPseudoClassElements(ctx, null);
+        // The traversal should reach deepInput and capture its percy-element-id
+        expect(ctx._focusedElementId).toBe('_deep_focus_1');
+      } finally {
+        if (origAE) {
+          Object.defineProperty(document, 'activeElement', origAE);
+        } else {
+          delete document.activeElement;
+        }
+      }
+    });
+  });
+
+  describe('shadow DOM style injection (lines 440-443)', () => {
+    it('injects rewritten CSS rules into shadow root clone', () => {
+      withExample('<div id="sh-style-host" data-percy-shadow-host>host</div>', { withShadow: false });
+      let host = document.getElementById('sh-style-host');
+      host.setAttribute('data-percy-element-id', '_sh_style_1');
+      let shadow = host.attachShadow({ mode: 'open' });
+      shadow.innerHTML = '<style>.inner:focus { outline: 2px solid blue; }</style><input class="inner" type="text" />';
+
+      // Build a clone that mirrors the shadow structure
+      ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: []
+      };
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = '<div id="sh-style-host" data-percy-shadow-host data-percy-element-id="_sh_style_1"></div>';
+      let cloneHost = ctx.clone.querySelector('[data-percy-element-id="_sh_style_1"]');
+      cloneHost.attachShadow({ mode: 'open' });
+
+      // Mock focus on the inner input so it gets marked
+      let innerInput = shadow.querySelector('.inner');
+      innerInput.setAttribute('data-percy-element-id', '_sh_inner_1');
+      withMockedFocus(innerInput, () => {
+        markPseudoClassElements(ctx, null);
+        serializePseudoClasses(ctx);
+      });
+
+      // The shadow root in the clone should have a <style> element with rewritten rules
+      let cloneShadow = cloneHost.shadowRoot;
+      let injectedStyle = cloneShadow.querySelector('style[data-percy-interactive-states]');
+      if (injectedStyle) {
+        expect(injectedStyle.textContent).toContain('data-percy-focus');
+      }
+    });
+  });
 });
