@@ -437,7 +437,7 @@ function extractPseudoClassRules(ctx) {
       // Shadow DOM rules — inject into the corresponding shadow root clone
       let percyId = owner.getAttribute('data-percy-element-id');
       let cloneHost = ctx.clone.querySelector(`[data-percy-element-id="${percyId}"]`);
-      if (cloneHost?.shadowRoot) {
+      if (cloneHost && cloneHost.shadowRoot) {
         cloneHost.shadowRoot.appendChild(styleElement);
       }
     }
