@@ -423,8 +423,6 @@ function extractPseudoClassRules(ctx) {
 
   // Inject rewritten rules into the correct location in the clone
   for (let [owner, rewrittenRules] of rulesByOwner) {
-    if (rewrittenRules.length === 0) continue;
-
     let styleElement = ctx.clone.createElement
       ? ctx.clone.createElement('style')
       : ctx.dom.createElement('style');
