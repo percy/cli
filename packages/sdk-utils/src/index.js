@@ -10,6 +10,7 @@ import postBuildEvents from './post-build-event.js';
 import flushSnapshots from './flush-snapshots.js';
 import captureAutomateScreenshot from './post-screenshot.js';
 import getResponsiveWidths from './get-responsive-widths.js';
+import { serializeScript, buildSerializeOptions } from './serialize-dom.js';
 
 export {
   logger,
@@ -23,7 +24,9 @@ export {
   flushSnapshots,
   captureAutomateScreenshot,
   postBuildEvents,
-  getResponsiveWidths
+  getResponsiveWidths,
+  serializeScript,
+  buildSerializeOptions
 };
 
 // export the namespace by default

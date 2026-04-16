@@ -145,7 +145,8 @@ export const configSchema = {
           fontReady: { type: 'boolean' },
           jsIdle: { type: 'boolean' },
           readySelectors: { type: 'array', items: { type: 'string' } },
-          notPresentSelectors: { type: 'array', items: { type: 'string' } }
+          notPresentSelectors: { type: 'array', items: { type: 'string' } },
+          maxTimeoutMs: { type: 'integer', minimum: 1000, maximum: 60000 }
         }
       },
       responsiveSnapshotCapture: {
@@ -698,6 +699,10 @@ export const snapshotSchema = {
               hints: {
                 type: 'array',
                 items: { type: 'string' }
+              },
+              readiness_diagnostics: {
+                type: 'object',
+                description: 'Diagnostics from readiness checks run before serialization'
               },
               corsIframes: {
                 type: 'array',
