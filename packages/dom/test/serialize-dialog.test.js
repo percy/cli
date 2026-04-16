@@ -1,5 +1,6 @@
 import { withExample, parseDOM, platforms, platformDOM } from './helpers';
 import serializeDOM from '@percy/dom';
+import serializeDialogs from '../src/serialize-dialog';
 
 describe('serializeDialogs', () => {
   let cache = { shadow: {}, plain: {} };
@@ -138,6 +139,38 @@ describe('serializeDialogs', () => {
 
         dialog.matches = origMatches;
       });
+    });
+  });
+
+  describe('guard branches', () => {
+    it('should skip dialog without data-percy-element-id', () => {
+      let dom = document.createElement('div');
+      let dialog = document.createElement('dialog');
+      dialog.setAttribute('open', '');
+      dom.appendChild(dialog);
+
+      let clone = dom.cloneNode(true);
+      let cloneDialog = clone.querySelector('dialog');
+
+      serializeDialogs({ dom, clone });
+
+      expect(cloneDialog.hasAttribute('data-percy-dialog-modal')).toBe(false);
+    });
+
+    it('should skip dialog when clone element is not found', () => {
+      let dom = document.createElement('div');
+      let dialog = document.createElement('dialog');
+      dialog.setAttribute('open', '');
+      dialog.setAttribute('data-percy-element-id', '_missing123');
+      dom.appendChild(dialog);
+
+      // Clone without the matching element
+      let clone = document.createElement('div');
+
+      serializeDialogs({ dom, clone });
+
+      // No error thrown, function skips gracefully
+      expect(clone.querySelector('[data-percy-dialog-modal]')).toBeNull();
     });
   });
 
