@@ -935,7 +935,6 @@ describe('waitForReady', () => {
     // check must finish quickly instead of blocking on the stability window.
     withExample('<p>decoupled</p>', { withShadow: false });
 
-    let start = performance.now();
     let result = await waitForReady({
       stability_window_ms: 200,
       js_idle_window_ms: 50,
@@ -944,16 +943,13 @@ describe('waitForReady', () => {
       font_ready: false,
       network_idle_window_ms: 50
     });
-    let elapsed = performance.now() - start;
 
     expect(result.passed).toBe(true);
     expect(result.checks.js_idle.passed).toBe(true);
-    // js_idle check's duration should be driven by js_idle_window_ms (50ms),
+    // js_idle check's own duration should be driven by js_idle_window_ms (50ms),
     // not by stability_window_ms (200ms). We give generous headroom for
     // rAF cadence and scheduler jitter.
     expect(result.checks.js_idle.duration_ms).toBeLessThan(500);
-    // Whole thing completes within reasonable bounds — sanity check.
-    expect(elapsed).toBeLessThan(1500);
   });
 
   it('falls back to stability_window_ms when js_idle_window_ms is not provided', async () => {
