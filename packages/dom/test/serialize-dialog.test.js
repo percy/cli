@@ -112,6 +112,35 @@ describe('serializeDialogs', () => {
     });
   });
 
+  describe('error handling', () => {
+    beforeEach(() => {
+      withExample(`
+        <dialog id="error-dialog">
+          <p>Error dialog content</p>
+        </dialog>
+      `);
+    });
+
+    platforms.forEach((platform) => {
+      it(`should handle errors during dialog serialization [${platform}]`, () => {
+        const dom = platformDOM(platform);
+        const dialog = dom.querySelector('#error-dialog');
+        dialog.setAttribute('open', '');
+
+        // Override matches to throw an error
+        const origMatches = dialog.matches;
+        dialog.matches = () => { throw new Error('test error'); };
+
+        expect(() => serializeDOM()).toThrowMatching((error) => {
+          return error.message.includes('Error serializing dialog element:') &&
+            error.message.includes('DIALOG');
+        });
+
+        dialog.matches = origMatches;
+      });
+    });
+  });
+
   describe('multiple dialogs with mixed open methods', () => {
     beforeEach(() => {
       withExample(`

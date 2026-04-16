@@ -19,10 +19,6 @@ export function serializeDialogs(ctx) {
       let cloneEl = clone.querySelector(`[data-percy-element-id="${dialogId}"]`);
       if (!cloneEl) continue;
 
-      if (!cloneEl.hasAttribute('open')) {
-        cloneEl.setAttribute('open', '');
-      }
-
       // Detect showModal() vs show()/setAttribute:
       // :modal pseudo-class matches only dialogs in the top layer (opened via showModal())
       if (!elem.matches(':modal')) continue;
