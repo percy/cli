@@ -174,6 +174,41 @@ describe('serializeDialogs', () => {
     });
   });
 
+  describe('nested dialogs opened via showModal()', () => {
+    beforeEach(() => {
+      withExample(`
+        <dialog id="outer-dialog">
+          <p>Outer modal</p>
+          <dialog id="inner-dialog">
+            <p>Inner modal</p>
+          </dialog>
+        </dialog>
+      `);
+
+      platforms.forEach((platform) => {
+        const dom = platformDOM(platform);
+        // Open outer first, then inner — both via showModal()
+        dom.querySelector('#outer-dialog').showModal();
+        dom.querySelector('#inner-dialog').showModal();
+        cache[platform].$ = parseDOM(serializeDOM(), platform);
+      });
+    });
+
+    platforms.forEach((platform) => {
+      it(`should stamp data-percy-dialog-modal on both nested showModal() dialogs [${platform}]`, () => {
+        const $ = cache[platform].$;
+
+        const outer = $('dialog#outer-dialog');
+        expect(outer[0].getAttribute('data-percy-dialog-modal')).toBe('true');
+        expect(outer[0].hasAttribute('open')).toBe(true);
+
+        const inner = $('dialog#inner-dialog');
+        expect(inner[0].getAttribute('data-percy-dialog-modal')).toBe('true');
+        expect(inner[0].hasAttribute('open')).toBe(true);
+      });
+    });
+  });
+
   describe('multiple dialogs with mixed open methods', () => {
     beforeEach(() => {
       withExample(`
