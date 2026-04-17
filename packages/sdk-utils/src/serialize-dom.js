@@ -15,15 +15,6 @@ export function isReadinessDisabled(snapshotOptions = {}) {
   return config?.preset === 'disabled';
 }
 
-// Build the serialize options object that SDKs pass into the browser.
-// Merges per-snapshot readiness overrides with the global readiness config.
-export function buildSerializeOptions(snapshotOptions = {}) {
-  let readiness = getReadinessConfig(snapshotOptions);
-  let options = { ...snapshotOptions };
-  if (readiness) options.readiness = readiness;
-  return options;
-}
-
 // Returns a JavaScript code string that SDKs evaluate in the browser
 // to run readiness checks BEFORE serialize.
 //
@@ -37,7 +28,7 @@ export function buildSerializeOptions(snapshotOptions = {}) {
 //   await page.evaluate(waitForReadyScript(config));
 //
 //   // Selenium (executeAsyncScript with callback):
-//   driver.execute_async_script(waitForReadyScript(config, { callback: true }), config);
+//   driver.execute_async_script(waitForReadyScript(config, { callback: true }));
 //
 // Graceful degradation:
 //   - If PercyDOM.waitForReady is not available (old CLI): resolves immediately
@@ -45,12 +36,6 @@ export function buildSerializeOptions(snapshotOptions = {}) {
 //   - If readiness times out: waitForReady resolves with { timed_out: true }
 export function waitForReadyScript(readinessConfig = {}, { callback = false } = {}) {
   let config = JSON.stringify(readinessConfig);
-
-  let core = `
-    if (typeof PercyDOM !== 'undefined' && typeof PercyDOM.waitForReady === 'function') {
-      return PercyDOM.waitForReady(${config});
-    }
-  `;
 
   if (callback) {
     // For executeAsyncScript — last argument is the callback
@@ -66,33 +51,9 @@ export function waitForReadyScript(readinessConfig = {}, { callback = false } = 
 
   // For page.evaluate (auto-await Promises)
   return `
-    ${core}
-  `;
-}
-
-// Legacy helper that combines readiness + serialize into one script.
-// Kept for backward compatibility with SDKs that adopted the prior pattern.
-export function serializeScript(options = {}, { callback = false } = {}) {
-  let opts = JSON.stringify(buildSerializeOptions(options));
-
-  let core = `
-    var fn = (typeof PercyDOM.serializeDOMWithReadiness === 'function')
-      ? PercyDOM.serializeDOMWithReadiness
-      : PercyDOM.serialize;
-    var result = Promise.resolve(fn(${opts}));
-  `;
-
-  if (callback) {
-    return `
-      ${core}
-      var done = arguments[arguments.length - 1];
-      result.then(done).catch(function() { done(PercyDOM.serialize(${opts})); });
-    `;
-  }
-
-  return `
-    ${core}
-    return result;
+    if (typeof PercyDOM !== 'undefined' && typeof PercyDOM.waitForReady === 'function') {
+      return PercyDOM.waitForReady(${config});
+    }
   `;
 }
 

@@ -5,7 +5,6 @@ import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
 import { serializePseudoClasses, markPseudoClassElements } from './serialize-pseudo-classes';
 import { cloneNodeAndShadow, getOuterHTML } from './clone-dom';
-import { waitForReady } from './readiness';
 
 // Returns a copy or new doctype for a document.
 function doctype(dom) {
@@ -82,41 +81,16 @@ export function waitForResize() {
 
 // Serializes a document and returns the resulting DOM string.
 //
-// This function is SYNCHRONOUS and always returns a plain object — preserving
-// backward compatibility with existing SDKs (@percy/cypress, @percy/puppeteer,
-// @percy/selenium-webdriver, etc.) that call `PercyDOM.serialize(options)`
-// without awaiting the result.
+// This function is SYNCHRONOUS and always returns a plain object.
+// All SDKs and the CLI call this function for DOM serialization.
 //
-// To enable readiness-gated serialization, callers must explicitly opt in by
-// calling `serializeDOMWithReadiness()` (which returns a Promise) or by
-// awaiting `serializeDOM()` after calling `waitForReady()` separately.
+// Readiness checks (DOM stability, network idle, fonts, images, JS idle)
+// run BEFORE this function via a separate `PercyDOM.waitForReady()` call.
+// This two-call pattern keeps serialize sync (zero SDK breakage) while
+// isolating the async readiness into its own step:
+//   1. await PercyDOM.waitForReady(config)  — async, page stabilizes
+//   2. PercyDOM.serialize(options)           — sync, captures stable DOM
 export function serializeDOM(options) {
-  return _serialize(options);
-}
-
-// Async variant that runs readiness checks before serializing. Returns a
-// Promise. Used by:
-//   - CLI URL-capture path (page.js calls this via page.eval)
-//   - New SDK versions that opt into readiness-gated capture
-// Existing SDKs are unaffected as they call serializeDOM() directly.
-export async function serializeDOMWithReadiness(options) {
-  let readiness = options?.readiness;
-
-  if (readiness && readiness.preset !== 'disabled') {
-    try {
-      let diagnostics = await waitForReady(readiness);
-      let result = _serialize(options);
-      /* istanbul ignore next: stringifyResponse with readiness is an unlikely combination */
-      if (typeof result === 'object' && diagnostics) {
-        result.readiness_diagnostics = diagnostics;
-      }
-      return result;
-    } catch (err) /* istanbul ignore next */ {
-      // If readiness fails, still serialize (graceful degradation)
-      console.error(`Readiness check failed: ${err.message}`);
-    }
-  }
-
   return _serialize(options);
 }
 

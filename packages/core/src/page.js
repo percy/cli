@@ -213,24 +213,31 @@ export class Page {
 
     await this.insertPercyDom();
 
-    // serialize and capture a DOM snapshot
-    // Readiness config is passed to PercyDOM.serialize() so that readiness
-    // checks run BEFORE serialization — in both URL-based and SDK paths.
-    // The readiness config comes from per-snapshot options or the global
-    // Percy config (injected as window.__PERCY__.config.snapshot.readiness).
+    // Run readiness checks before serializing — wait for page stability
     let readiness = snapshot.readiness || this.browser?.percy?.config?.snapshot?.readiness;
-    this.log.debug('Serialize DOM', this.meta);
 
-    // Use serializeDOMWithReadiness so readiness runs BEFORE serialize in the
-    // URL-capture path. Existing SDKs continue calling the sync serializeDOM.
-    // page.eval uses CDP awaitPromise: true, which auto-awaits the returned Promise.
+    if (readiness && readiness.preset !== 'disabled') {
+      this.log.debug('Waiting for readiness', this.meta);
+      /* istanbul ignore next: no instrumenting injected code */
+      let diagnostics = await this.eval(async (_, config) => {
+        // eslint-disable-next-line no-undef
+        if (typeof PercyDOM?.waitForReady === 'function') return PercyDOM.waitForReady(config);
+      }, readiness).catch(e => {
+        this.log.debug(`Readiness check failed: ${e}`, this.meta);
+      });
+
+      if (diagnostics?.timed_out) {
+        this.log.debug('Readiness timed out, capturing anyway', this.meta);
+      }
+    }
+
+    // Serialize the DOM — always sync
+    this.log.debug('Serialize DOM', this.meta);
     /* istanbul ignore next: no instrumenting injected code */
-    let capture = await this.eval(async (_, options) => {
+    let capture = await this.eval((_, options) => {
       /* eslint-disable-next-line no-undef */
-      let fn = (PercyDOM.serializeDOMWithReadiness || PercyDOM.serialize);
-      let domSnapshot = await fn(options);
-      return { domSnapshot, url: document.URL };
-    }, { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements, readiness });
+      return { domSnapshot: PercyDOM.serialize(options), url: document.URL };
+    }, { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements });
 
     return { ...snapshot, ...capture };
   }
