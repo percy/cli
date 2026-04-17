@@ -558,7 +558,7 @@ async function makeDirectRequest(network, request, session) {
     'sec-fetch-site': 'same-origin',
     'sec-fetch-mode': 'cors',
     'sec-fetch-dest': 'font',
-    'sec-ch-ua': '"Chromium";v="123", "Google Chrome";v="123", "Not?A_Brand";v="99"',
+    'sec-ch-ua': '"Chromium";v="143", "Google Chrome";v="143", "Not?A_Brand";v="99"',
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"macOS"',
     'sec-fetch-user': '?1',
