@@ -20,8 +20,10 @@ export class Browser extends EventEmitter {
   #lastid = 0;
 
   args = [
-    // disable the translate popup and optimization downloads
-    '--disable-features=Translate,OptimizationGuideModelDownloading',
+    // disable the translate popup, optimization downloads, baseline site
+    // isolation (so cross-origin sub-resources and worker fetches stay in
+    // the main renderer for interception), and HTTPS-first navigation blocking
+    '--disable-features=Translate,OptimizationGuideModelDownloading,IsolateOrigins,site-per-process,HttpsFirstBalancedModeAutoEnable',
     // disable several subsystems which run network requests in the background
     '--disable-background-networking',
     // disable task throttling of timer tasks from background pages
