@@ -121,11 +121,16 @@ export function serializeDOM(options) {
 
   serializeElements(ctx);
 
-  // Detect potentially inaccessible shadow roots
+  // Detect potentially inaccessible shadow roots — only flag custom elements
+  // that are known to have called attachShadow({ mode: 'closed' }) but whose
+  // shadow root was not captured (not in the WeakMap or not marked as shadow host)
   let inaccessibleShadowCount = 0;
+  let closedShadowMap = window.__percyClosedShadowRoots;
   for (let origEl of ctx.dom.querySelectorAll('*')) {
     if (!origEl.tagName?.includes('-')) continue;
     if (origEl.hasAttribute('data-percy-shadow-host')) continue;
+    // Only count elements that are confirmed closed shadow hosts
+    if (!closedShadowMap?.has(origEl)) continue;
     inaccessibleShadowCount++;
     let rect;
     try {

@@ -10,8 +10,8 @@
   let closedShadowRoots = new WeakMap();
   let origAttachShadow = window.Element.prototype.attachShadow;
   window.Element.prototype.attachShadow = function(init) {
-    let root = origAttachShadow.call(this, init);
-    if (init && init.mode === 'closed') {
+    let root = origAttachShadow.apply(this, arguments);
+    if (init?.mode === 'closed') {
       closedShadowRoots.set(this, root);
     }
     return root;
@@ -23,7 +23,7 @@
     let internalsMap = new WeakMap();
     let origAttachInternals = window.HTMLElement.prototype.attachInternals;
     window.HTMLElement.prototype.attachInternals = function() {
-      let internals = origAttachInternals.call(this);
+      let internals = origAttachInternals.apply(this, arguments);
       internalsMap.set(this, internals);
       return internals;
     };

@@ -195,6 +195,9 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   for (let w of domWarnings) log.info(w);
 
   // extract fidelity regions for API upload
+  // Only the first domSnapshot's fidelity regions are used — for responsive captures
+  // with multiple widths, regions are width-independent (same DOM structure), so
+  // the first entry is representative
   let fidelityRegions = domSnapshot?.fidelityRegions || domSnapshot?.[0]?.fidelityRegions || [];
 
   // find any root resource matching the provided dom snapshot

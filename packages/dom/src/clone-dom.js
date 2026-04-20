@@ -75,8 +75,9 @@ export function cloneNodeAndShadow(ctx) {
         let states = [];
         try {
           for (let state of percyInternals.states) {
-            // CSS-escape the state value to prevent injection
-            states.push(state.replace(/["\\}\]]/g, '\\$&'));
+            // Skip invalid state values (spec requires <dashed-ident>)
+            if (!/^[-\w]+$/.test(state)) continue;
+            states.push(state);
           }
           if (states.length > 0) {
             clone.setAttribute('data-percy-custom-state', states.join(' '));

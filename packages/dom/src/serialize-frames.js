@@ -87,16 +87,14 @@ export function serializeFrames({ dom, clone, warnings, resources, fidelityRegio
     // Warn about sandboxed iframes
     if (sandboxAttr !== null) {
       sandboxWarned++;
-      let frameLabel = frame.id || frame.src || percyElementId;
+      let frameLabel = frame.id || frame.src || frame.getAttribute('name') || '<unnamed iframe>';
       let tokens = sandboxAttr.split(/\s+/).filter(Boolean);
 
       if (tokens.length === 0) {
         warnings.add(`Sandboxed iframe "${frameLabel}" has no permissions — content may not render with full fidelity in Percy`);
-        captureFidelityRegion(frame, 'sandboxed-restricted', fidelityRegions);
       } else {
         if (!tokens.includes('allow-scripts')) {
           warnings.add(`Sandboxed iframe "${frameLabel}" has scripts disabled — JS-dependent content will not render in Percy`);
-          captureFidelityRegion(frame, 'sandboxed-restricted', fidelityRegions);
         }
         if (!tokens.includes('allow-same-origin')) {
           warnings.add(`Sandboxed iframe "${frameLabel}" lacks allow-same-origin — styles and resources may not load correctly in Percy`);

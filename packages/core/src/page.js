@@ -15,11 +15,21 @@ let _preflightScript = null;
 async function getPreflightScript() {
   if (!_preflightScript) {
     let pkgRoot = path.resolve(path.dirname(PERCY_DOM), '..');
-    let preflightPath = path.join(pkgRoot, 'src', 'preflight.js');
-    try {
-      _preflightScript = await fs.promises.readFile(preflightPath, 'utf-8');
-    } catch {
-      _preflightScript = ''; // graceful fallback if file not found
+    let candidates = [
+      path.join(pkgRoot, 'src', 'preflight.js'),
+      path.join(pkgRoot, 'dist', 'preflight.js'),
+      path.join(path.dirname(PERCY_DOM), 'preflight.js')
+    ];
+    for (let candidate of candidates) {
+      try {
+        _preflightScript = await fs.promises.readFile(candidate, 'utf-8');
+        break;
+      } catch {
+        // try next candidate
+      }
+    }
+    if (!_preflightScript) {
+      _preflightScript = ''; // graceful fallback if file not found in any location
     }
   }
   return _preflightScript;
@@ -238,7 +248,7 @@ export class Page {
             return window.customElements.whenDefined(el.localName);
           })
         ),
-        new Promise(function(r) { setTimeout(r, 5000); })
+        new Promise(function(r) { setTimeout(r, 500); })
       ]);
     });
 
@@ -269,8 +279,22 @@ export class Page {
     if (session.isDocument) {
       session.on('Target.attachedToTarget', this._handleAttachedToTarget);
 
+      // Chain preflight injection after Page.enable to ensure the Page domain
+      // is ready before addScriptToEvaluateOnNewDocument
+      let pageEnablePromise = session.send('Page.enable');
       commands.push(
-        session.send('Page.enable'),
+        pageEnablePromise.then(() => {
+          return getPreflightScript().then(script => {
+            if (script) {
+              return session.send('Page.addScriptToEvaluateOnNewDocument', { source: script })
+                .catch(err => {
+                  if (!err.message?.includes('closed') && !err.message?.includes('destroyed')) {
+                    logger('core:page').debug('Preflight script injection failed:', err.message);
+                  }
+                });
+            }
+          });
+        }),
         session.send('Page.setLifecycleEventsEnabled', { enabled: true }),
         session.send('Security.setIgnoreCertificateErrors', { ignore: true }),
         session.send('Emulation.setScriptExecutionDisabled', { value: !this.enableJavaScript }),
@@ -278,13 +302,6 @@ export class Page {
           waitForDebuggerOnStart: false,
           autoAttach: true,
           flatten: true
-        }),
-        // inject preflight script to intercept closed shadow roots and ElementInternals
-        // before any page scripts run
-        getPreflightScript().then(script => {
-          if (script) {
-            return session.send('Page.addScriptToEvaluateOnNewDocument', { source: script });
-          }
         }));
     }
 
