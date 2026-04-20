@@ -303,32 +303,68 @@ export function createPercyServer(percy, port) {
       if (!name) throw new ServerError(400, 'Missing required field: name');
       if (!sessionId) throw new ServerError(400, 'Missing required field: sessionId');
 
-      // Sanitize inputs to prevent path traversal
-      if (name.includes('..') || name.includes('/') || name.includes('\\')) {
+      // Strict character-class validation — rejects path separators, shell metacharacters,
+      // NUL, newlines, and anything else that could confuse the glob or the filesystem.
+      const SAFE_ID = /^[a-zA-Z0-9_-]+$/;
+      if (!SAFE_ID.test(name)) {
         throw new ServerError(400, 'Invalid screenshot name');
       }
-      if (sessionId.includes('..') || sessionId.includes('/') || sessionId.includes('\\')) {
+      if (!SAFE_ID.test(sessionId)) {
         throw new ServerError(400, 'Invalid sessionId');
       }
 
-      // Find the screenshot file on disk
-      let searchPattern = `/tmp/${sessionId}_test_suite/logs/*/screenshots/${name}.png`;
+      // Resolve platform signal: strict whitelist on `platform` when present; default Android when absent.
+      // Backward compatible with SDK v0.2.0 (no platform field → Android glob).
+      let platform = 'android';
+      if (req.body.platform !== undefined) {
+        if (typeof req.body.platform !== 'string') {
+          throw new ServerError(400, 'Invalid platform: must be a string');
+        }
+        let normalized = req.body.platform.toLowerCase();
+        if (normalized !== 'ios' && normalized !== 'android') {
+          throw new ServerError(400, `Invalid platform: must be "ios" or "android", got "${req.body.platform}"`);
+        }
+        platform = normalized;
+      }
+
+      // Find the screenshot file on disk. Pattern depends on platform:
+      //   Android (BrowserStack mobile): /tmp/{sid}_test_suite/logs/*/screenshots/{name}.png
+      //   iOS (BrowserStack realmobile): /tmp/{sid}/*_maestro_debug_*/{name}.png
+      //     (wildcard matches per-flow debug dirs; exact {name}.png match filters out
+      //      Maestro's emoji-prefixed debug frames)
+      let searchPattern = platform === 'ios'
+        ? `/tmp/${sessionId}/*_maestro_debug_*/${name}.png`
+        : `/tmp/${sessionId}_test_suite/logs/*/screenshots/${name}.png`;
+
       let files;
       try {
         let { default: glob } = await import('fast-glob');
         files = await glob(searchPattern);
       } catch {
         // Fallback: manual directory search
-        let baseDir = `/tmp/${sessionId}_test_suite/logs`;
         files = [];
         try {
-          let logDirs = await fs.promises.readdir(baseDir);
-          for (let dir of logDirs) {
-            let screenshotPath = path.join(baseDir, dir, 'screenshots', `${name}.png`);
-            try {
-              await fs.promises.access(screenshotPath);
-              files.push(screenshotPath);
-            } catch { /* not found, continue */ }
+          if (platform === 'ios') {
+            let sessionDir = `/tmp/${sessionId}`;
+            let entries = await fs.promises.readdir(sessionDir);
+            for (let entry of entries) {
+              if (!entry.includes('_maestro_debug_')) continue;
+              let screenshotPath = path.join(sessionDir, entry, `${name}.png`);
+              try {
+                await fs.promises.access(screenshotPath);
+                files.push(screenshotPath);
+              } catch { /* not found, continue */ }
+            }
+          } else {
+            let baseDir = `/tmp/${sessionId}_test_suite/logs`;
+            let logDirs = await fs.promises.readdir(baseDir);
+            for (let dir of logDirs) {
+              let screenshotPath = path.join(baseDir, dir, 'screenshots', `${name}.png`);
+              try {
+                await fs.promises.access(screenshotPath);
+                files.push(screenshotPath);
+              } catch { /* not found, continue */ }
+            }
           }
         } catch { /* base dir not found */ }
       }
@@ -337,8 +373,39 @@ export function createPercyServer(percy, port) {
         throw new ServerError(404, `Screenshot not found: ${name}.png (searched ${searchPattern})`);
       }
 
+      // If multiple files match (iOS — same name reused across flows), pick the most recently modified
+      // for determinism.
+      let chosenFile;
+      if (files.length === 1) {
+        chosenFile = files[0];
+      } else {
+        let mtimes = await Promise.all(files.map(async f => {
+          try { return { f, mtime: (await fs.promises.stat(f)).mtimeMs }; } catch { return { f, mtime: 0 }; }
+        }));
+        mtimes.sort((a, b) => b.mtime - a.mtime);
+        chosenFile = mtimes[0].f;
+      }
+
+      // Canonicalize and confirm the resolved path still lives under the sessionId-owned dir.
+      // Defeats symlink swaps where a sessionId-named dir points elsewhere.
+      // We resolve both the file and the expected prefix because /tmp is a symlink on macOS
+      // (iOS hosts run macOS, where /tmp → /private/tmp).
+      let expectedSessionRoot = platform === 'ios'
+        ? `/tmp/${sessionId}`
+        : `/tmp/${sessionId}_test_suite`;
+      let realPath, realPrefix;
+      try {
+        realPath = await fs.promises.realpath(chosenFile);
+        realPrefix = await fs.promises.realpath(expectedSessionRoot);
+      } catch {
+        throw new ServerError(404, `Screenshot not found: ${name}.png (path resolution failed)`);
+      }
+      if (!realPath.startsWith(`${realPrefix}/`)) {
+        throw new ServerError(404, `Screenshot not found: ${name}.png (resolved outside session dir)`);
+      }
+
       // Read and base64-encode the screenshot
-      let fileContent = await fs.promises.readFile(files[0]);
+      let fileContent = await fs.promises.readFile(realPath);
       let base64Content = fileContent.toString('base64');
 
       // Build tag from optional request body fields
