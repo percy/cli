@@ -4,6 +4,7 @@ import serializeCSSOM from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
 import { serializePseudoClasses, markPseudoClassElements, rewriteCustomStateCSS } from './serialize-pseudo-classes';
+import serializeDialogs from './serialize-dialog';
 import { cloneNodeAndShadow, getOuterHTML } from './clone-dom';
 
 // Returns a copy or new doctype for a document.
@@ -37,6 +38,7 @@ function serializeElements(ctx) {
   serializeInputs(ctx);
   serializeFrames(ctx);
   serializeVideos(ctx);
+  serializeDialogs(ctx);
 
   if (!ctx.enableJavaScript) {
     serializeCSSOM(ctx);

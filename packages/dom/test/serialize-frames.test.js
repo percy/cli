@@ -6,11 +6,16 @@ import { resetPolicy } from '../src/serialize-frames';
 describe('serializeFrames', () => {
   let serialized, cache = { shadow: {}, plain: {} };
 
-  const getFrame = (id, dom = document) => when(() => {
+  const getFrame = (id, dom = document, ready = null) => when(() => {
     let $frame = dom.getElementById(id);
     let accessible = !!$frame.contentDocument;
     let loaded = accessible && $frame.contentWindow.performance.timing.loadEventEnd;
-    assert(!accessible || loaded, `#${id} did not load in time`);
+    // For srcdoc iframes in Firefox, `loadEventEnd` can fire for the placeholder
+    // about:blank document before the srcdoc content commits. A caller-supplied
+    // `ready(contentDocument)` predicate closes that race by waiting for the
+    // expected post-srcdoc content (e.g. an <input/>) to actually be queryable.
+    let contentReady = !ready || (accessible && ready($frame.contentDocument));
+    assert(!accessible || (loaded && contentReady), `#${id} did not load in time`);
     return $frame;
   }, 5000);
 
@@ -33,15 +38,15 @@ describe('serializeFrames', () => {
 
     for (const platform of platforms) {
       let dom = platformDOM(platform);
-      let $frameInput = await getFrame('frame-input', dom);
+      let $frameInput = await getFrame('frame-input', dom, d => d.querySelector('input'));
       $frameInput.contentDocument.querySelector('input').value = 'iframe with an input';
 
-      let $frameJS = await getFrame('frame-js-no-src', dom);
+      let $frameJS = await getFrame('frame-js-no-src', dom, d => d.body);
       $frameJS.contentDocument.body.innerHTML = '<p>generated iframe</p><canvas id="canvas"/>';
       let $ctx = $frameJS.contentDocument.getElementById('canvas').getContext('2d');
       $ctx.fillRect(0, 0, 10, 10);
 
-      let $frameEmpty = await getFrame('frame-empty', dom);
+      let $frameEmpty = await getFrame('frame-empty', dom, d => d.querySelector('input'));
       $frameEmpty.contentDocument.querySelector('input').value = 'no document element';
       Object.defineProperty($frameEmpty.contentDocument, 'documentElement', { value: null });
 

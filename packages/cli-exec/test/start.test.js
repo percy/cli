@@ -71,6 +71,14 @@ describe('percy exec:start', () => {
 
   it('can start on an alternate port', async () => {
     start(['--quiet', '--port=4567']);
+    // `start(...)` resolves on process exit, not on listen. Mirror the
+    // beforeEach's proven pattern — give the server a moment to bind, then
+    // let `ping` confirm reachability. This closes the race that caused
+    // ECONNREFUSED on Windows and, on dual-stack Node 18+ runners, an
+    // AggregateError from Happy-Eyeballs that `request` does not retry
+    // (the wrapping error has no `.code`).
+    await new Promise(r => setTimeout(r, 1000));
+    await ping(['--port=4567']);
     let response = await request('http://localhost:4567/percy/healthcheck');
     expect(response).toHaveProperty('success', true);
   });
