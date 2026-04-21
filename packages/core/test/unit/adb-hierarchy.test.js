@@ -233,6 +233,24 @@ describe('Unit / adb-hierarchy', () => {
       expect(res.kind).toBe('dump-error');
     });
 
+    it('retries the fallback dump once on exit 137 (SIGKILL) before giving up', async () => {
+      let fileDumpCalls = 0;
+      const execAdb = async args => {
+        if (args[0] === 'devices') return okDevices;
+        if (args.includes('exec-out') && args.includes('/dev/tty')) return { stdout: '', stderr: '', exitCode: 1 };
+        if (args.includes('shell') && args.includes('uiautomator')) {
+          fileDumpCalls += 1;
+          if (fileDumpCalls === 1) return { stdout: '', stderr: '', exitCode: 137 };
+          return { stdout: 'UI hierarchy dumped to: /sdcard/window_dump.xml\n', stderr: '', exitCode: 0 };
+        }
+        if (args.includes('exec-out') && args.includes('cat')) return { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 };
+        throw new Error('unexpected adb args: ' + args.join(' '));
+      };
+      const res = await dump({ execAdb, getEnv: () => 'emulator-5554' });
+      expect(fileDumpCalls).toBe(2);
+      expect(res.kind).toBe('hierarchy');
+    });
+
     it('returns dump-error when stdout lacks an XML envelope (no retry for terminal errors)', async () => {
       // Non-zero exit triggers fallback; fallback also returns garbage → terminal dump-error.
       const execAdb = async args => {
