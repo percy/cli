@@ -1,6 +1,6 @@
 {
   "name": "@percy/cli-doctor",
-  "version": "1.31.12-beta.0",
+  "version": "1.31.12",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -9,7 +9,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "beta"
+    "tag": "latest"
   },
   "engines": {
     "node": ">=14"
@@ -35,13 +35,13 @@
     ]
   },
   "dependencies": {
-    "@percy/cli-command": "1.31.12-beta.0",
-    "@percy/client": "1.31.12-beta.0",
-    "@percy/config": "1.31.12-beta.0",
-    "@percy/core": "1.31.12-beta.0",
-    "@percy/env": "1.31.12-beta.0",
-    "@percy/logger": "1.31.12-beta.0",
-    "@percy/monitoring": "1.31.12-beta.0",
+    "@percy/cli-command": "1.31.12",
+    "@percy/client": "1.31.12",
+    "@percy/config": "1.31.12",
+    "@percy/core": "1.31.12",
+    "@percy/env": "1.31.12",
+    "@percy/logger": "1.31.12",
+    "@percy/monitoring": "1.31.12",
     "minimatch": "^9.0.0",
     "ws": "^8.17.1"
   }
