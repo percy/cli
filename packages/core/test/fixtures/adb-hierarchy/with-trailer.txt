@@ -1,0 +1,5 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node class="android.widget.TextView" bounds="[0,0][100,100]" resource-id="com.example:id/ok" text="" content-desc=""/>
+</hierarchy>
+UI hierarchy dumped to: /dev/tty
