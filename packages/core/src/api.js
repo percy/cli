@@ -6,6 +6,7 @@ import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHan
 import { ServerError } from './server.js';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { handleSyncJob } from './snapshot.js';
+import { dump as adbDump, firstMatch as adbFirstMatch, SELECTOR_KEYS_WHITELIST } from './adb-hierarchy.js';
 import Busboy from 'busboy';
 import { Readable } from 'stream';
 // Previously, we used `createRequire(import.meta.url).resolve` to resolve the path to the module.
@@ -327,13 +328,49 @@ export function createPercyServer(percy, port) {
         platform = normalized;
       }
 
+      // Validate regions input shape early (before file I/O and ADB work) so
+      // malformed requests don't consume resolver/relay work.
+      if (req.body.regions !== undefined) {
+        if (!Array.isArray(req.body.regions)) {
+          throw new ServerError(400, 'regions must be an array');
+        }
+        if (req.body.regions.length > 50) {
+          throw new ServerError(400, 'regions exceeds maximum of 50');
+        }
+        for (let [idx, region] of req.body.regions.entries()) {
+          if (region && region.element !== undefined) {
+            if (typeof region.element !== 'object' || region.element === null || Array.isArray(region.element)) {
+              throw new ServerError(400, `regions[${idx}].element must be an object`);
+            }
+            let keys = Object.keys(region.element);
+            if (keys.length !== 1) {
+              throw new ServerError(400, `regions[${idx}].element must have exactly one selector key`);
+            }
+            let [key] = keys;
+            if (!SELECTOR_KEYS_WHITELIST.includes(key)) {
+              throw new ServerError(400, `regions[${idx}].element: unsupported selector key "${key}" (allowed: ${SELECTOR_KEYS_WHITELIST.join(', ')})`);
+            }
+            let value = region.element[key];
+            if (typeof value !== 'string' || value.length === 0) {
+              throw new ServerError(400, `regions[${idx}].element.${key} must be a non-empty string`);
+            }
+            if (value.length > 512) {
+              throw new ServerError(400, `regions[${idx}].element.${key} exceeds maximum length of 512`);
+            }
+          }
+        }
+      }
+
       // Find the screenshot file on disk. Pattern depends on platform:
       //   Android (BrowserStack mobile): /tmp/{sid}_test_suite/logs/*/screenshots/{name}.png
-      //   iOS (BrowserStack realmobile): /tmp/{sid}/*_maestro_debug_*/{name}.png
-      //     (wildcard matches per-flow debug dirs; exact {name}.png match filters out
-      //      Maestro's emoji-prefixed debug frames)
+      //   iOS (BrowserStack realmobile): /tmp/{sid}/<maestro_debug_dir>/**/{name}.png
+      //     realmobile builds SCREENSHOTS_DIR with literal slashes from the flow-path
+      //     concatenation, causing Maestro to mkdir a deeply nested structure under the
+      //     {device}_maestro_debug_ root. The `**` recursive match handles any depth.
+      //     Exact {name}.png match at the leaf filters out Maestro's emoji-prefixed
+      //     debug frames (e.g., `screenshot-❌-<timestamp>-(flow).png`).
       let searchPattern = platform === 'ios'
-        ? `/tmp/${sessionId}/*_maestro_debug_*/${name}.png`
+        ? `/tmp/${sessionId}/*_maestro_debug_*/**/${name}.png`
         : `/tmp/${sessionId}_test_suite/logs/*/screenshots/${name}.png`;
 
       let files;
@@ -341,20 +378,25 @@ export function createPercyServer(percy, port) {
         let { default: glob } = await import('fast-glob');
         files = await glob(searchPattern);
       } catch {
-        // Fallback: manual directory search
+        // Fallback: manual directory walk (depth-limited to defeat malicious deep nesting).
         files = [];
         try {
           if (platform === 'ios') {
             let sessionDir = `/tmp/${sessionId}`;
-            let entries = await fs.promises.readdir(sessionDir);
-            for (let entry of entries) {
-              if (!entry.includes('_maestro_debug_')) continue;
-              let screenshotPath = path.join(sessionDir, entry, `${name}.png`);
-              try {
-                await fs.promises.access(screenshotPath);
-                files.push(screenshotPath);
-              } catch { /* not found, continue */ }
-            }
+            let walk = async (dir, depth) => {
+              if (depth > 15) return; // sanity cap
+              let entries;
+              try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return; }
+              for (let entry of entries) {
+                let full = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                  await walk(full, depth + 1);
+                } else if (entry.isFile() && entry.name === `${name}.png` && full.includes('_maestro_debug_')) {
+                  files.push(full);
+                }
+              }
+            };
+            await walk(sessionDir, 0);
           } else {
             let baseDir = `/tmp/${sessionId}_test_suite/logs`;
             let logDirs = await fs.promises.readdir(baseDir);
@@ -432,13 +474,21 @@ export function createPercyServer(percy, port) {
       if (req.body.labels) payload.labels = req.body.labels;
       if (req.body.thTestCaseExecutionId) payload.thTestCaseExecutionId = req.body.thTestCaseExecutionId;
 
-      // Transform and forward regions if present
+      // Transform and forward regions if present.
+      // Element regions on Android: resolve via one ADB view-hierarchy dump per request
+      // (memoized locally below). Element regions on iOS: warn-and-skip — resolver is
+      // Android-only. Coordinate regions: transform to boundingBox as before.
       if (req.body.regions && Array.isArray(req.body.regions)) {
         let resolvedRegions = [];
+        let elementRegionCount = req.body.regions.filter(r => r && r.element).length;
+        let cachedDump = null; // request-local memoization (incl. error classes)
+        let elementSkipWarned = false;
+
         for (let region of req.body.regions) {
           let resolved = null;
+
           if (region.top != null && region.bottom != null && region.left != null && region.right != null) {
-            // Coordinate-based region: transform {top,bottom,left,right} to {elementSelector:{boundingBox:{x,y,width,height}}}
+            // Coordinate-based region
             resolved = {
               elementSelector: {
                 boundingBox: {
@@ -451,20 +501,44 @@ export function createPercyServer(percy, port) {
               algorithm: region.algorithm || 'ignore'
             };
           } else if (region.element) {
-            // Element-based region: pass through for future ADB resolution
-            // For now, log a warning and skip — element resolution will be added in a follow-up
-            percy.log.warn(`Element-based region selectors are not yet supported, skipping region`);
-            continue;
+            if (platform === 'ios') {
+              // Match existing stub behavior — no breaking change for iOS callers.
+              percy.log.warn('Element-based region selectors are not yet supported on iOS, skipping region');
+              continue;
+            }
+            // Android: lazy dump + memoize result (including errors).
+            if (cachedDump === null) {
+              cachedDump = await adbDump();
+            }
+            if (cachedDump.kind !== 'hierarchy') {
+              if (!elementSkipWarned) {
+                percy.log.warn(
+                  `Element-region resolver ${cachedDump.kind} (${cachedDump.reason}) — skipping ${elementRegionCount} element regions`
+                );
+                elementSkipWarned = true;
+              }
+              continue;
+            }
+            let bbox = adbFirstMatch(cachedDump.nodes, region.element);
+            if (!bbox) {
+              percy.log.warn(`Element region not found: ${JSON.stringify(region.element)} — skipping`);
+              continue;
+            }
+            resolved = {
+              elementSelector: { boundingBox: bbox },
+              algorithm: region.algorithm || 'ignore'
+            };
           } else {
-            percy.log.warn(`Invalid region format, skipping`);
+            percy.log.warn('Invalid region format, skipping');
             continue;
           }
-          // Pass through optional configuration, padding, assertion
+
           if (region.configuration) resolved.configuration = region.configuration;
           if (region.padding) resolved.padding = region.padding;
           if (region.assertion) resolved.assertion = region.assertion;
           resolvedRegions.push(resolved);
         }
+
         if (resolvedRegions.length > 0) {
           payload.regions = resolvedRegions;
         }

@@ -1008,4 +1008,154 @@ describe('API Server', () => {
       });
     });
   });
+
+  describe('/percy/maestro-screenshot', () => {
+    const SID = 'testsession';
+    const SS_NAME = 'HomeScreen';
+    const ANDROID_DIR = `/tmp/${SID}_test_suite/logs/run1/screenshots`;
+    const IOS_DIR = `/tmp/${SID}/emu_maestro_debug_abc/flow_x`;
+
+    beforeEach(async () => {
+      fs.mkdirSync(ANDROID_DIR, { recursive: true });
+      fs.writeFileSync(path.join(ANDROID_DIR, `${SS_NAME}.png`), 'PNGBYTES-ANDROID');
+      fs.mkdirSync(IOS_DIR, { recursive: true });
+      fs.writeFileSync(path.join(IOS_DIR, `${SS_NAME}.png`), 'PNGBYTES-IOS');
+    });
+
+    async function postMaestro(body) {
+      return request('/percy/maestro-screenshot', { method: 'POST', body });
+    }
+
+    it('rejects missing name with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ sessionId: SID })).toBeRejectedWithError(/Missing required field: name/);
+    });
+
+    it('rejects missing sessionId with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: SS_NAME })).toBeRejectedWithError(/Missing required field: sessionId/);
+    });
+
+    it('rejects invalid platform with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, platform: 'web' }))
+        .toBeRejectedWithError(/Invalid platform/);
+    });
+
+    it('rejects non-array regions with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, regions: 'not-array' }))
+        .toBeRejectedWithError(/regions must be an array/);
+    });
+
+    it('rejects too-many regions with 400', async () => {
+      await percy.start();
+      let regions = new Array(51).fill({ top: 0, bottom: 10, left: 0, right: 10 });
+      await expectAsync(postMaestro({ name: SS_NAME, sessionId: SID, regions }))
+        .toBeRejectedWithError(/regions exceeds maximum of 50/);
+    });
+
+    it('rejects element region with unsupported selector key', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        regions: [{ element: { xpath: '//foo' }, algorithm: 'ignore' }]
+      })).toBeRejectedWithError(/unsupported selector key/);
+    });
+
+    it('rejects element region with multiple selector keys', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        regions: [{ element: { 'resource-id': 'a', text: 'b' } }]
+      })).toBeRejectedWithError(/exactly one selector key/);
+    });
+
+    it('rejects element selector value longer than 512 chars', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        regions: [{ element: { 'resource-id': 'a'.repeat(513) } }]
+      })).toBeRejectedWithError(/exceeds maximum length of 512/);
+    });
+
+    it('rejects element region with empty selector value', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        regions: [{ element: { 'resource-id': '' } }]
+      })).toBeRejectedWithError(/must be a non-empty string/);
+    });
+
+    it('accepts a coordinate-only android request and forwards a transformed region', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        regions: [{ top: 0, bottom: 50, left: 0, right: 100, algorithm: 'ignore' }]
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.regions).toEqual([{
+        elementSelector: { boundingBox: { x: 0, y: 0, width: 100, height: 50 } },
+        algorithm: 'ignore'
+      }]);
+    });
+
+    it('skips element regions on iOS with a warning (no 400, no breaking change)', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      let response = await postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'ios',
+        regions: [
+          { element: { 'resource-id': 'com.example:id/foo' }, algorithm: 'ignore' },
+          { top: 0, bottom: 20, left: 0, right: 20, algorithm: 'ignore' }
+        ]
+      });
+
+      expect(response).toEqual(jasmine.objectContaining({ success: true }));
+      let [payload] = percy.upload.calls.mostRecent().args;
+      // Coord region still forwarded; element region dropped
+      expect(payload.regions).toEqual([{
+        elementSelector: { boundingBox: { x: 0, y: 0, width: 20, height: 20 } },
+        algorithm: 'ignore'
+      }]);
+      expect(logger.stderr.join('\n')).toContain('Element-based region selectors are not yet supported on iOS');
+    });
+
+    it('forwards testCase, labels, thTestCaseExecutionId, tile metadata, and sync mode', async () => {
+      spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
+      spyOn(percy, 'upload').and.callFake((_, callback) => callback.resolve());
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
+        tag: { name: 'Pixel 7', osName: 'Android', osVersion: '14', width: 1080, height: 2400, orientation: 'portrait' },
+        testCase: 'smoke-tests',
+        labels: 'nightly,smoke',
+        thTestCaseExecutionId: 'TH-42',
+        statusBarHeight: 50,
+        navBarHeight: 48,
+        fullscreen: true,
+        sync: true
+      })).toBeResolvedTo(jasmine.objectContaining({ data: getSnapshotDetailsResponse }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.testCase).toBe('smoke-tests');
+      expect(payload.labels).toBe('nightly,smoke');
+      expect(payload.thTestCaseExecutionId).toBe('TH-42');
+      expect(payload.tiles[0]).toEqual(jasmine.objectContaining({ statusBarHeight: 50, navBarHeight: 48, fullscreen: true }));
+      expect(payload.sync).toBe(true);
+    });
+
+    it('returns 404 when the screenshot file is missing', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({ name: 'DoesNotExist', sessionId: SID, platform: 'android' }))
+        .toBeRejectedWithError(/Screenshot not found/);
+    });
+  });
 });
