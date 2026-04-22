@@ -403,6 +403,10 @@ export const CACHE_STATS_KEY = Symbol('resource-cache-stats');
 const BYTES_PER_MB = 1_000_000;
 const MAX_RESOURCE_SIZE_MB = 25;
 const MIN_REASONABLE_CAP_MB = 50;
+// Default warn threshold when no cap is set: nudge the user toward
+// --max-cache-ram before their CI runner OOMs. Override via
+// PERCY_CACHE_WARN_THRESHOLD_BYTES for post-ship tuning.
+const DEFAULT_WARN_THRESHOLD_BYTES = 500 * BYTES_PER_MB;
 
 function makeCacheStats() {
   return {
@@ -411,6 +415,11 @@ function makeCacheStats() {
     warningFired: false,
     unsetModeBytes: 0
   };
+}
+
+function warnThresholdBytes() {
+  const raw = Number(process.env.PERCY_CACHE_WARN_THRESHOLD_BYTES);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_WARN_THRESHOLD_BYTES;
 }
 
 // Creates an asset discovery queue that uses the percy browser instance to create a page for each
@@ -553,6 +562,25 @@ export function createDiscoveryQueue(percy) {
                   cache.set(r.url, r, size);
                 } else {
                   cache.set(r.url, r);
+                  // Unset-cap path: track running bytes and fire a one-shot
+                  // warning at the threshold. Fires at warn level so users on
+                  // --quiet still see it before they OOM.
+                  const stats = percy[CACHE_STATS_KEY];
+                  if (stats && !stats.warningFired) {
+                    stats.unsetModeBytes += entrySize(r);
+                    if (stats.unsetModeBytes >= warnThresholdBytes()) {
+                      stats.warningFired = true;
+                      const bytes = stats.unsetModeBytes;
+                      const pretty = bytes >= BYTES_PER_MB
+                        ? `${(bytes / BYTES_PER_MB).toFixed(1)}MB`
+                        : `${Math.round(bytes / 1000)}KB`;
+                      percy.log.warn(
+                        `Percy cache is using ${pretty}. If your CI is ` +
+                        'memory-constrained, set --max-cache-ram. ' +
+                        'See https://www.browserstack.com/docs/percy/cli/managing-cache-memory'
+                      );
+                    }
+                  }
                 }
               }
             }
