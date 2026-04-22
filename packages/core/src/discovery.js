@@ -16,6 +16,7 @@ import {
   isGzipped,
   maybeScrollToBottom
 } from './utils.js';
+import { ByteLRU, entrySize } from './cache/byte-lru.js';
 import {
   sha256hash
 } from '@percy/client/utils';
@@ -393,6 +394,24 @@ export async function* discoverSnapshotResources(queue, options, callback) {
 
 // Used to cache resources across core instances
 export const RESOURCE_CACHE_KEY = Symbol('resource-cache');
+// Per-run cache stats (hits/misses/evictions/peak + telemetry-gate flags).
+export const CACHE_STATS_KEY = Symbol('resource-cache-stats');
+
+// MAX_RESOURCE_SIZE in network.js is 25MB; a cap below that dooms every
+// resource to be skipped. MIN_REASONABLE_CAP_MB warns users picking a
+// silently-useless cap.
+const BYTES_PER_MB = 1_000_000;
+const MAX_RESOURCE_SIZE_MB = 25;
+const MIN_REASONABLE_CAP_MB = 50;
+
+function makeCacheStats() {
+  return {
+    oversizeSkipped: 0,
+    firstEvictionEventFired: false,
+    warningFired: false,
+    unsetModeBytes: 0
+  };
+}
 
 // Creates an asset discovery queue that uses the percy browser instance to create a page for each
 // snapshot which is used to intercept and capture snapshot resource requests.
@@ -400,12 +419,53 @@ export function createDiscoveryQueue(percy) {
   let { concurrency } = percy.config.discovery;
   let queue = new Queue('discovery');
   let cache;
+  // Bytes cap (null = unbounded). Validated at queue start.
+  let capBytes = null;
 
   return queue
     .set({ concurrency })
   // on start, launch the browser and run the queue
     .handle('start', async () => {
-      cache = percy[RESOURCE_CACHE_KEY] = new Map();
+      const maxCacheRamMB = percy.config.discovery.maxCacheRam;
+
+      // Startup validation. Runs once per Percy run.
+      if (maxCacheRamMB != null) {
+        if (maxCacheRamMB < MAX_RESOURCE_SIZE_MB) {
+          throw new Error(
+            `--max-cache-ram must be at least ${MAX_RESOURCE_SIZE_MB}MB ` +
+            '(individual resources up to 25MB are otherwise dropped). ' +
+            `Received: ${maxCacheRamMB}MB.`
+          );
+        }
+        if (maxCacheRamMB < MIN_REASONABLE_CAP_MB) {
+          percy.log.warn(
+            `--max-cache-ram=${maxCacheRamMB}MB is very small; ` +
+            'most resources will not fit and hit rate will be near zero.'
+          );
+        }
+        if (percy.config.discovery.disableCache) {
+          percy.log.info('--max-cache-ram is ignored because --disable-cache is set.');
+        }
+        capBytes = maxCacheRamMB * BYTES_PER_MB;
+      }
+
+      percy[CACHE_STATS_KEY] = makeCacheStats();
+
+      if (capBytes != null) {
+        cache = percy[RESOURCE_CACHE_KEY] = new ByteLRU(capBytes, {
+          onEvict: (key, reason) => {
+            if (reason === 'lru') {
+              percy.log.debug(
+                `cache eviction: evicted ${key} ` +
+                `(cache now ${Math.round(cache.calculatedSize / BYTES_PER_MB)}` +
+                `/${maxCacheRamMB} MB)`
+              );
+            }
+          }
+        });
+      } else {
+        cache = percy[RESOURCE_CACHE_KEY] = new Map();
+      }
 
       // If browser.launch() fails it will get captured in
       // *percy.start()
@@ -476,7 +536,22 @@ export function createDiscoveryQueue(percy) {
                   return;
                 }
                 snapshot.resources.set(r.url, r);
-                if (!snapshot.discovery.disableCache) {
+                if (snapshot.discovery.disableCache) return;
+
+                if (capBytes != null) {
+                  // Bounded ByteLRU mode — compute size, skip oversized entries
+                  // so a single big resource cannot thrash the cache.
+                  const size = entrySize(r);
+                  if (size > capBytes) {
+                    percy[CACHE_STATS_KEY].oversizeSkipped++;
+                    percy.log.debug(
+                      `Skipping cache for resource ${r.url} ` +
+                      `(${size} bytes > cap ${capBytes})`
+                    );
+                    return;
+                  }
+                  cache.set(r.url, r, size);
+                } else {
                   cache.set(r.url, r);
                 }
               }
