@@ -449,18 +449,19 @@ export function createDiscoveryQueue(percy) {
     .set({ concurrency })
   // on start, launch the browser and run the queue
     .handle('start', async () => {
-      const maxCacheRamMB = percy.config.discovery.maxCacheRam;
+      let maxCacheRamMB = percy.config.discovery.maxCacheRam;
 
       // Startup validation. Runs once per Percy run.
       if (maxCacheRamMB != null) {
         if (maxCacheRamMB < MAX_RESOURCE_SIZE_MB) {
-          throw new Error(
-            `--max-cache-ram must be at least ${MAX_RESOURCE_SIZE_MB}MB ` +
-            '(individual resources up to 25MB are otherwise dropped). ' +
-            `Received: ${maxCacheRamMB}MB.`
+          percy.log.warn(
+            `--max-cache-ram=${maxCacheRamMB}MB is below the ${MAX_RESOURCE_SIZE_MB}MB minimum ` +
+            '(individual resources up to 25MB would otherwise be dropped). ' +
+            `Continuing with the minimum: ${MAX_RESOURCE_SIZE_MB}MB.`
           );
-        }
-        if (maxCacheRamMB < MIN_REASONABLE_CAP_MB) {
+          maxCacheRamMB = MAX_RESOURCE_SIZE_MB;
+          percy.config.discovery.maxCacheRam = MAX_RESOURCE_SIZE_MB;
+        } else if (maxCacheRamMB < MIN_REASONABLE_CAP_MB) {
           percy.log.warn(
             `--max-cache-ram=${maxCacheRamMB}MB is very small; ` +
             'most resources will not fit and hit rate will be near zero.'

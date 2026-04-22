@@ -2343,13 +2343,13 @@ describe('Discovery', () => {
       expect(percy[RESOURCE_CACHE_KEY] instanceof Map).toBe(true);
     });
 
-    it('rejects a cap below the 25MB resource-size floor', async () => {
-      await percy.stop(true);
-      await expectAsync(Percy.start({
-        token: 'PERCY_TOKEN',
-        snapshot: { widths: [1000] },
-        discovery: { concurrency: 1, maxCacheRam: 10 }
-      })).toBeRejectedWithError(/must be at least 25MB/);
+    it('clamps a cap below the 25MB resource-size floor and warns', async () => {
+      await startPercyWith({ maxCacheRam: 10 });
+      expect(percy[RESOURCE_CACHE_KEY].constructor.name).toEqual('ByteLRU');
+      expect(percy.config.discovery.maxCacheRam).toEqual(25);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('--max-cache-ram=10MB is below the 25MB minimum')
+      ]));
     });
 
     it('emits an info log when cap and --disable-cache are both set', async () => {
