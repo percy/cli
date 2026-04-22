@@ -26,7 +26,9 @@ import {
 } from './snapshot.js';
 import {
   discoverSnapshotResources,
-  createDiscoveryQueue
+  createDiscoveryQueue,
+  RESOURCE_CACHE_KEY,
+  CACHE_STATS_KEY
 } from './discovery.js';
 import Monitoring from '@percy/monitoring';
 import { WaitForJob } from './wait-for-job.js';
@@ -376,7 +378,43 @@ export class Percy {
       // This issue doesn't comes under regular error logs,
       // it's detected if we just and stop percy server
       await this.checkForNoSnapshotCommandError();
+      await this.sendCacheSummary();
       await this.sendBuildLogs();
+    }
+  }
+
+  async sendCacheSummary() {
+    // Fire-and-forget end-of-run summary of asset-discovery cache usage.
+    // Feeds the Amplitude dashboard (adoption, hit rate, peak bytes).
+    // Never blocks or fails percy.stop().
+    try {
+      if (!this.build?.id) return;
+      const cache = this[RESOURCE_CACHE_KEY];
+      const stats = this[CACHE_STATS_KEY];
+      if (!cache || !stats) return;
+
+      const cacheStats = typeof cache.stats === 'object' ? cache.stats : null;
+      const budgetMB = this.config?.discovery?.maxCacheRam ?? null;
+
+      const extra = {
+        cache_budget_ram_mb: budgetMB,
+        hits: cacheStats?.hits ?? 0,
+        misses: cacheStats?.misses ?? 0,
+        evictions: cacheStats?.evictions ?? 0,
+        peak_bytes: cacheStats?.peakBytes ?? stats.unsetModeBytes,
+        final_bytes: cache.calculatedSize ?? stats.unsetModeBytes,
+        entry_count: cache.size ?? 0,
+        oversize_skipped: stats.oversizeSkipped
+      };
+
+      await this.client.sendBuildEvents(this.build.id, {
+        message: 'cache_summary',
+        cliVersion: this.client.cliVersion,
+        clientInfo: this.clientInfo,
+        extra
+      });
+    } catch (err) {
+      this.log.debug('cache_summary telemetry failed', err);
     }
   }
 

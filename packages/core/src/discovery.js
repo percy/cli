@@ -422,6 +422,20 @@ function warnThresholdBytes() {
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_WARN_THRESHOLD_BYTES;
 }
 
+// Fire-and-forget send-events telemetry. Never blocks discovery, never
+// surfaces errors to the user — telemetry loss must not fail a build.
+function fireCacheEventSafe(percy, message, extra) {
+  if (!percy.build?.id) return;
+  Promise.resolve()
+    .then(() => percy.client.sendBuildEvents(percy.build.id, {
+      message,
+      cliVersion: percy.client.cliVersion,
+      clientInfo: percy.clientInfo,
+      extra
+    }))
+    .catch(err => percy.log.debug(`${message} telemetry failed`, err));
+}
+
 // Creates an asset discovery queue that uses the percy browser instance to create a page for each
 // snapshot which is used to intercept and capture snapshot resource requests.
 export function createDiscoveryQueue(percy) {
@@ -463,12 +477,23 @@ export function createDiscoveryQueue(percy) {
       if (capBytes != null) {
         cache = percy[RESOURCE_CACHE_KEY] = new ByteLRU(capBytes, {
           onEvict: (key, reason) => {
-            if (reason === 'lru') {
-              percy.log.debug(
-                `cache eviction: evicted ${key} ` +
-                `(cache now ${Math.round(cache.calculatedSize / BYTES_PER_MB)}` +
-                `/${maxCacheRamMB} MB)`
+            if (reason !== 'lru') return;
+            percy.log.debug(
+              `cache eviction: evicted ${key} ` +
+              `(cache now ${Math.round(cache.calculatedSize / BYTES_PER_MB)}` +
+              `/${maxCacheRamMB} MB)`
+            );
+            const stats = percy[CACHE_STATS_KEY];
+            if (stats && !stats.firstEvictionEventFired) {
+              stats.firstEvictionEventFired = true;
+              percy.log.info(
+                'Cache eviction active — cap reached, oldest entries being dropped.'
               );
+              fireCacheEventSafe(percy, 'cache_eviction_started', {
+                cache_budget_ram_mb: maxCacheRamMB,
+                cache_peak_bytes_seen: cache.stats.peakBytes,
+                eviction_count: cache.stats.evictions
+              });
             }
           }
         });
