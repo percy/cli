@@ -12,7 +12,10 @@ const log = logger('core:adb-hierarchy');
 const DUMP_TIMEOUT_MS = 2000;
 const MAX_DUMP_BYTES = 5 * 1024 * 1024;
 const SIGKILL_EXIT = 137; // 128 + SIGKILL; uiautomator often hits this under device contention
-const SIGKILL_RETRY_DELAY_MS = 300;
+// Backoff delays for the SIGKILL retry loop — covers a ~3.5s window total, which is
+// long enough to outlast most Maestro takeScreenshot → uiautomator-settle windows
+// while staying within a reasonable per-screenshot budget.
+const SIGKILL_RETRY_DELAYS_MS = [500, 1000, 2000];
 const SELECTOR_KEYS = ['resource-id', 'text', 'content-desc', 'class'];
 const BOUNDS_RE = /^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$/;
 const UNAVAILABLE_STDERR_RE = /no devices|unauthorized|device offline/i;
@@ -211,11 +214,13 @@ export async function dump({ execAdb = defaultExecAdb, getEnv = defaultGetEnv } 
   if (isRetryableDumpError) {
     log.debug(`primary dump returned ${result.reason}, trying fallback`);
     let dumpToFile = await execAdb(['-s', serial, 'shell', 'uiautomator', 'dump', '/sdcard/window_dump.xml']);
-    // uiautomator frequently exits 137 (SIGKILL) under device contention (Maestro / screen
-    // recording / other session activity). One short-delay retry recovers most of these.
-    if ((dumpToFile.exitCode ?? 1) === SIGKILL_EXIT) {
-      log.debug(`fallback dump was killed (exit ${SIGKILL_EXIT}), retrying once after ${SIGKILL_RETRY_DELAY_MS}ms`);
-      await new Promise(r => setTimeout(r, SIGKILL_RETRY_DELAY_MS));
+    // uiautomator frequently exits 137 (SIGKILL) under device contention (Maestro holding
+    // the hierarchy lock during takeScreenshot, device-logger, screen recording, etc.).
+    // Exponential backoff up to 3 retries gives the lock time to release.
+    for (const delay of SIGKILL_RETRY_DELAYS_MS) {
+      if ((dumpToFile.exitCode ?? 1) !== SIGKILL_EXIT) break;
+      log.debug(`fallback dump was killed (exit ${SIGKILL_EXIT}), retrying after ${delay}ms`);
+      await new Promise(r => setTimeout(r, delay));
       dumpToFile = await execAdb(['-s', serial, 'shell', 'uiautomator', 'dump', '/sdcard/window_dump.xml']);
     }
     const dumpFail = classifyAdbFailure(dumpToFile);
