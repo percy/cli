@@ -1179,21 +1179,25 @@ describe('Percy', () => {
 
       percy.log.info('cli_test');
       percy.log.info('ci_test', {}, true);
-      const logsObject = {
-        clilogs: Array.from(logger.instance.messages)
-      };
 
-      const content = base64encode(Pako.gzip(JSON.stringify(logsObject)));
+      // PER-7809: sendBuildLogs now streams entries via logger.readBack()
+      // from the on-disk JSONL. We can't reproduce byte-for-byte here
+      // without replicating the same iteration, but the contract we care
+      // about is: the POST is made, the entries that went in appear in
+      // the (decoded) body, and only CLI logs (not CI) are included when
+      // PERCY_CLIENT_ERROR_LOGS=false.
       await expectAsync(percy.sendBuildLogs()).toBeResolved();
       expect(api.requests['/logs']).toBeDefined();
       expect(api.requests['/logs'][0].method).toBe('POST');
-      expect(api.requests['/logs'][0].body).toEqual({
-        data: {
-          content: content,
-          service_name: 'cli',
-          base64encoded: true
-        }
-      });
+      const body = api.requests['/logs'][0].body;
+      expect(body.data.service_name).toBe('cli');
+      expect(body.data.base64encoded).toBe(true);
+      expect(typeof body.data.content).toBe('string');
+      // Decode + decompress to validate contents.
+      const raw = Pako.ungzip(Buffer.from(body.data.content, 'base64'), { to: 'string' });
+      const decoded = JSON.parse(raw);
+      expect(decoded.cilogs).toBeUndefined();
+      expect(decoded.clilogs.some(e => e.message === 'cli_test')).toBeTrue();
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
         "[percy] Build's CLI logs sent successfully. Please share this log ID with Percy team in case of any issues - random_sha"
       ]));

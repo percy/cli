@@ -1,0 +1,1000 @@
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544549}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: about","meta":{},"timestamp":1776896544550}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: checkout","meta":{},"timestamp":1776896544551}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: product-123","meta":{},"timestamp":1776896544552}
+{"debug":"core:discovery","level":"debug","message":"Build #4 created: https://percy.io/test/test/4","meta":{},"timestamp":1776896544553}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544554}
+{"debug":"core:discovery","level":"info","message":"finalized build #6","meta":{},"timestamp":1776896544555}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544556}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 8 resources for snapshot about","meta":{},"timestamp":1776896544557}
+{"debug":"core:discovery","level":"info","message":"download progress: 9%","meta":{},"timestamp":1776896544558}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544559}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1920","meta":{},"timestamp":1776896544560}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: dashboard in 12ms","meta":{},"timestamp":1776896544561}
+{"debug":"core:discovery","level":"debug","message":"Received 13 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544562}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544563}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544564}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: checkout","meta":{},"timestamp":1776896544565}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: product-123","meta":{},"timestamp":1776896544566}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: user-profile","meta":{},"timestamp":1776896544567}
+{"debug":"core:discovery","level":"debug","message":"Build #19 created: https://percy.io/test/test/19","meta":{},"timestamp":1776896544568}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544569}
+{"debug":"core:discovery","level":"info","message":"finalized build #21","meta":{},"timestamp":1776896544570}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544571}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 23 resources for snapshot checkout","meta":{},"timestamp":1776896544572}
+{"debug":"core:discovery","level":"info","message":"download progress: 24%","meta":{},"timestamp":1776896544573}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544574}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1280","meta":{},"timestamp":1776896544575}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: settings in 27ms","meta":{},"timestamp":1776896544576}
+{"debug":"core:discovery","level":"debug","message":"Received 28 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544577}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544578}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544579}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: product-123","meta":{},"timestamp":1776896544580}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: user-profile","meta":{},"timestamp":1776896544581}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: dashboard","meta":{},"timestamp":1776896544582}
+{"debug":"core:discovery","level":"debug","message":"Build #34 created: https://percy.io/test/test/34","meta":{},"timestamp":1776896544583}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544584}
+{"debug":"core:discovery","level":"info","message":"finalized build #36","meta":{},"timestamp":1776896544585}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544586}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 38 resources for snapshot product-123","meta":{},"timestamp":1776896544587}
+{"debug":"core:discovery","level":"info","message":"download progress: 39%","meta":{},"timestamp":1776896544588}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544589}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 768","meta":{},"timestamp":1776896544590}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: home in 42ms","meta":{},"timestamp":1776896544591}
+{"debug":"core:discovery","level":"debug","message":"Received 43 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544592}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544593}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544594}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: user-profile","meta":{},"timestamp":1776896544595}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: dashboard","meta":{},"timestamp":1776896544596}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: settings","meta":{},"timestamp":1776896544597}
+{"debug":"core:discovery","level":"debug","message":"Build #49 created: https://percy.io/test/test/49","meta":{},"timestamp":1776896544598}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544599}
+{"debug":"core:discovery","level":"info","message":"finalized build #51","meta":{},"timestamp":1776896544600}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544601}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 53 resources for snapshot user-profile","meta":{},"timestamp":1776896544602}
+{"debug":"core:discovery","level":"info","message":"download progress: 54%","meta":{},"timestamp":1776896544603}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544604}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 375","meta":{},"timestamp":1776896544605}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: about in 57ms","meta":{},"timestamp":1776896544606}
+{"debug":"core:discovery","level":"debug","message":"Received 58 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544607}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544608}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544609}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: dashboard","meta":{},"timestamp":1776896544610}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: settings","meta":{},"timestamp":1776896544611}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: home","meta":{},"timestamp":1776896544612}
+{"debug":"core:discovery","level":"debug","message":"Build #64 created: https://percy.io/test/test/64","meta":{},"timestamp":1776896544613}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544614}
+{"debug":"core:discovery","level":"info","message":"finalized build #66","meta":{},"timestamp":1776896544615}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544616}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 68 resources for snapshot dashboard","meta":{},"timestamp":1776896544617}
+{"debug":"core:discovery","level":"info","message":"download progress: 69%","meta":{},"timestamp":1776896544618}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544619}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1920","meta":{},"timestamp":1776896544620}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: checkout in 72ms","meta":{},"timestamp":1776896544621}
+{"debug":"core:discovery","level":"debug","message":"Received 73 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544622}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544623}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544624}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: settings","meta":{},"timestamp":1776896544625}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: home","meta":{},"timestamp":1776896544626}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: about","meta":{},"timestamp":1776896544627}
+{"debug":"core:discovery","level":"debug","message":"Build #79 created: https://percy.io/test/test/79","meta":{},"timestamp":1776896544628}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544629}
+{"debug":"core:discovery","level":"info","message":"finalized build #81","meta":{},"timestamp":1776896544630}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544631}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 83 resources for snapshot settings","meta":{},"timestamp":1776896544632}
+{"debug":"core:discovery","level":"info","message":"download progress: 84%","meta":{},"timestamp":1776896544633}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544634}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1280","meta":{},"timestamp":1776896544635}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: product-123 in 87ms","meta":{},"timestamp":1776896544636}
+{"debug":"core:discovery","level":"debug","message":"Received 88 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544637}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544638}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544639}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: home","meta":{},"timestamp":1776896544640}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: about","meta":{},"timestamp":1776896544641}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: checkout","meta":{},"timestamp":1776896544642}
+{"debug":"core:discovery","level":"debug","message":"Build #94 created: https://percy.io/test/test/94","meta":{},"timestamp":1776896544643}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544644}
+{"debug":"core:discovery","level":"info","message":"finalized build #96","meta":{},"timestamp":1776896544645}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544646}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 98 resources for snapshot home","meta":{},"timestamp":1776896544647}
+{"debug":"core:discovery","level":"info","message":"download progress: 99%","meta":{},"timestamp":1776896544648}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544649}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 768","meta":{},"timestamp":1776896544650}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: user-profile in 102ms","meta":{},"timestamp":1776896544651}
+{"debug":"core:discovery","level":"debug","message":"Received 103 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544652}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544653}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544654}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: about","meta":{},"timestamp":1776896544655}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: checkout","meta":{},"timestamp":1776896544656}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: product-123","meta":{},"timestamp":1776896544657}
+{"debug":"core:discovery","level":"debug","message":"Build #109 created: https://percy.io/test/test/109","meta":{},"timestamp":1776896544658}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544659}
+{"debug":"core:discovery","level":"info","message":"finalized build #111","meta":{},"timestamp":1776896544660}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544661}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 13 resources for snapshot about","meta":{},"timestamp":1776896544662}
+{"debug":"core:discovery","level":"info","message":"download progress: 14%","meta":{},"timestamp":1776896544663}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544664}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 375","meta":{},"timestamp":1776896544665}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: dashboard in 117ms","meta":{},"timestamp":1776896544666}
+{"debug":"core:discovery","level":"debug","message":"Received 118 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544667}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544668}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544669}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: checkout","meta":{},"timestamp":1776896544670}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: product-123","meta":{},"timestamp":1776896544671}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: user-profile","meta":{},"timestamp":1776896544672}
+{"debug":"core:discovery","level":"debug","message":"Build #124 created: https://percy.io/test/test/124","meta":{},"timestamp":1776896544673}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544674}
+{"debug":"core:discovery","level":"info","message":"finalized build #126","meta":{},"timestamp":1776896544675}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544676}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 28 resources for snapshot checkout","meta":{},"timestamp":1776896544677}
+{"debug":"core:discovery","level":"info","message":"download progress: 29%","meta":{},"timestamp":1776896544678}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544679}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1920","meta":{},"timestamp":1776896544680}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: settings in 132ms","meta":{},"timestamp":1776896544681}
+{"debug":"core:discovery","level":"debug","message":"Received 133 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544682}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544683}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544684}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: product-123","meta":{},"timestamp":1776896544685}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: user-profile","meta":{},"timestamp":1776896544686}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: dashboard","meta":{},"timestamp":1776896544687}
+{"debug":"core:discovery","level":"debug","message":"Build #139 created: https://percy.io/test/test/139","meta":{},"timestamp":1776896544688}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544689}
+{"debug":"core:discovery","level":"info","message":"finalized build #141","meta":{},"timestamp":1776896544690}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544691}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 43 resources for snapshot product-123","meta":{},"timestamp":1776896544692}
+{"debug":"core:discovery","level":"info","message":"download progress: 44%","meta":{},"timestamp":1776896544693}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544694}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1280","meta":{},"timestamp":1776896544695}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: home in 147ms","meta":{},"timestamp":1776896544696}
+{"debug":"core:discovery","level":"debug","message":"Received 148 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544697}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544698}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544699}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: user-profile","meta":{},"timestamp":1776896544700}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: dashboard","meta":{},"timestamp":1776896544701}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: settings","meta":{},"timestamp":1776896544702}
+{"debug":"core:discovery","level":"debug","message":"Build #154 created: https://percy.io/test/test/154","meta":{},"timestamp":1776896544703}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544704}
+{"debug":"core:discovery","level":"info","message":"finalized build #156","meta":{},"timestamp":1776896544705}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544706}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 58 resources for snapshot user-profile","meta":{},"timestamp":1776896544707}
+{"debug":"core:discovery","level":"info","message":"download progress: 59%","meta":{},"timestamp":1776896544708}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544709}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 768","meta":{},"timestamp":1776896544710}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: about in 162ms","meta":{},"timestamp":1776896544711}
+{"debug":"core:discovery","level":"debug","message":"Received 163 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544712}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544713}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544714}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: dashboard","meta":{},"timestamp":1776896544715}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: settings","meta":{},"timestamp":1776896544716}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: home","meta":{},"timestamp":1776896544717}
+{"debug":"core:discovery","level":"debug","message":"Build #169 created: https://percy.io/test/test/169","meta":{},"timestamp":1776896544718}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544719}
+{"debug":"core:discovery","level":"info","message":"finalized build #171","meta":{},"timestamp":1776896544720}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544721}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 73 resources for snapshot dashboard","meta":{},"timestamp":1776896544722}
+{"debug":"core:discovery","level":"info","message":"download progress: 74%","meta":{},"timestamp":1776896544723}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544724}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 375","meta":{},"timestamp":1776896544725}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: checkout in 177ms","meta":{},"timestamp":1776896544726}
+{"debug":"core:discovery","level":"debug","message":"Received 178 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544727}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544728}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544729}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: settings","meta":{},"timestamp":1776896544730}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: home","meta":{},"timestamp":1776896544731}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: about","meta":{},"timestamp":1776896544732}
+{"debug":"core:discovery","level":"debug","message":"Build #184 created: https://percy.io/test/test/184","meta":{},"timestamp":1776896544733}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544734}
+{"debug":"core:discovery","level":"info","message":"finalized build #186","meta":{},"timestamp":1776896544735}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544736}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 88 resources for snapshot settings","meta":{},"timestamp":1776896544737}
+{"debug":"core:discovery","level":"info","message":"download progress: 89%","meta":{},"timestamp":1776896544738}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544739}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1920","meta":{},"timestamp":1776896544740}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: product-123 in 192ms","meta":{},"timestamp":1776896544741}
+{"debug":"core:discovery","level":"debug","message":"Received 193 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544742}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544743}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544744}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: home","meta":{},"timestamp":1776896544745}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: about","meta":{},"timestamp":1776896544746}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: checkout","meta":{},"timestamp":1776896544747}
+{"debug":"core:discovery","level":"debug","message":"Build #199 created: https://percy.io/test/test/199","meta":{},"timestamp":1776896544748}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544749}
+{"debug":"core:discovery","level":"info","message":"finalized build #201","meta":{},"timestamp":1776896544750}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544751}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 3 resources for snapshot home","meta":{},"timestamp":1776896544752}
+{"debug":"core:discovery","level":"info","message":"download progress: 4%","meta":{},"timestamp":1776896544753}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544754}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1280","meta":{},"timestamp":1776896544755}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: user-profile in 207ms","meta":{},"timestamp":1776896544756}
+{"debug":"core:discovery","level":"debug","message":"Received 208 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544757}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544758}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544759}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: about","meta":{},"timestamp":1776896544760}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: checkout","meta":{},"timestamp":1776896544761}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: product-123","meta":{},"timestamp":1776896544762}
+{"debug":"core:discovery","level":"debug","message":"Build #214 created: https://percy.io/test/test/214","meta":{},"timestamp":1776896544763}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544764}
+{"debug":"core:discovery","level":"info","message":"finalized build #216","meta":{},"timestamp":1776896544765}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544766}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 18 resources for snapshot about","meta":{},"timestamp":1776896544767}
+{"debug":"core:discovery","level":"info","message":"download progress: 19%","meta":{},"timestamp":1776896544768}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544769}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 768","meta":{},"timestamp":1776896544770}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: dashboard in 222ms","meta":{},"timestamp":1776896544771}
+{"debug":"core:discovery","level":"debug","message":"Received 223 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544772}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544773}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544774}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: checkout","meta":{},"timestamp":1776896544775}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: product-123","meta":{},"timestamp":1776896544776}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: user-profile","meta":{},"timestamp":1776896544777}
+{"debug":"core:discovery","level":"debug","message":"Build #229 created: https://percy.io/test/test/229","meta":{},"timestamp":1776896544778}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544779}
+{"debug":"core:discovery","level":"info","message":"finalized build #231","meta":{},"timestamp":1776896544780}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544781}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 33 resources for snapshot checkout","meta":{},"timestamp":1776896544782}
+{"debug":"core:discovery","level":"info","message":"download progress: 34%","meta":{},"timestamp":1776896544783}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544784}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 375","meta":{},"timestamp":1776896544785}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: settings in 237ms","meta":{},"timestamp":1776896544786}
+{"debug":"core:discovery","level":"debug","message":"Received 238 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544787}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544788}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544789}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: product-123","meta":{},"timestamp":1776896544790}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: user-profile","meta":{},"timestamp":1776896544791}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: dashboard","meta":{},"timestamp":1776896544792}
+{"debug":"core:discovery","level":"debug","message":"Build #244 created: https://percy.io/test/test/244","meta":{},"timestamp":1776896544793}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544794}
+{"debug":"core:discovery","level":"info","message":"finalized build #246","meta":{},"timestamp":1776896544795}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544796}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 48 resources for snapshot product-123","meta":{},"timestamp":1776896544797}
+{"debug":"core:discovery","level":"info","message":"download progress: 49%","meta":{},"timestamp":1776896544798}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544799}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1920","meta":{},"timestamp":1776896544800}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: home in 252ms","meta":{},"timestamp":1776896544801}
+{"debug":"core:discovery","level":"debug","message":"Received 253 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544802}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544803}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544804}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: user-profile","meta":{},"timestamp":1776896544805}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: dashboard","meta":{},"timestamp":1776896544806}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: settings","meta":{},"timestamp":1776896544807}
+{"debug":"core:discovery","level":"debug","message":"Build #259 created: https://percy.io/test/test/259","meta":{},"timestamp":1776896544808}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544809}
+{"debug":"core:discovery","level":"info","message":"finalized build #261","meta":{},"timestamp":1776896544810}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544811}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 63 resources for snapshot user-profile","meta":{},"timestamp":1776896544812}
+{"debug":"core:discovery","level":"info","message":"download progress: 64%","meta":{},"timestamp":1776896544813}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544814}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1280","meta":{},"timestamp":1776896544815}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: about in 267ms","meta":{},"timestamp":1776896544816}
+{"debug":"core:discovery","level":"debug","message":"Received 268 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544817}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544818}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544819}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: dashboard","meta":{},"timestamp":1776896544820}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: settings","meta":{},"timestamp":1776896544821}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: home","meta":{},"timestamp":1776896544822}
+{"debug":"core:discovery","level":"debug","message":"Build #274 created: https://percy.io/test/test/274","meta":{},"timestamp":1776896544823}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544824}
+{"debug":"core:discovery","level":"info","message":"finalized build #276","meta":{},"timestamp":1776896544825}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544826}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 78 resources for snapshot dashboard","meta":{},"timestamp":1776896544827}
+{"debug":"core:discovery","level":"info","message":"download progress: 79%","meta":{},"timestamp":1776896544828}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544829}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 768","meta":{},"timestamp":1776896544830}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: checkout in 282ms","meta":{},"timestamp":1776896544831}
+{"debug":"core:discovery","level":"debug","message":"Received 283 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544832}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544833}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544834}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: settings","meta":{},"timestamp":1776896544835}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: home","meta":{},"timestamp":1776896544836}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: about","meta":{},"timestamp":1776896544837}
+{"debug":"core:discovery","level":"debug","message":"Build #289 created: https://percy.io/test/test/289","meta":{},"timestamp":1776896544838}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544839}
+{"debug":"core:discovery","level":"info","message":"finalized build #291","meta":{},"timestamp":1776896544840}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544841}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 93 resources for snapshot settings","meta":{},"timestamp":1776896544842}
+{"debug":"core:discovery","level":"info","message":"download progress: 94%","meta":{},"timestamp":1776896544843}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544844}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 375","meta":{},"timestamp":1776896544845}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: product-123 in 297ms","meta":{},"timestamp":1776896544846}
+{"debug":"core:discovery","level":"debug","message":"Received 298 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544847}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544848}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544849}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: home","meta":{},"timestamp":1776896544850}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: about","meta":{},"timestamp":1776896544851}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: checkout","meta":{},"timestamp":1776896544852}
+{"debug":"core:discovery","level":"debug","message":"Build #304 created: https://percy.io/test/test/304","meta":{},"timestamp":1776896544853}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544854}
+{"debug":"core:discovery","level":"info","message":"finalized build #306","meta":{},"timestamp":1776896544855}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544856}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 8 resources for snapshot home","meta":{},"timestamp":1776896544857}
+{"debug":"core:discovery","level":"info","message":"download progress: 9%","meta":{},"timestamp":1776896544858}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544859}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1920","meta":{},"timestamp":1776896544860}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: user-profile in 312ms","meta":{},"timestamp":1776896544861}
+{"debug":"core:discovery","level":"debug","message":"Received 313 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544862}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544863}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544864}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: about","meta":{},"timestamp":1776896544865}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: checkout","meta":{},"timestamp":1776896544866}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: product-123","meta":{},"timestamp":1776896544867}
+{"debug":"core:discovery","level":"debug","message":"Build #319 created: https://percy.io/test/test/319","meta":{},"timestamp":1776896544868}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544869}
+{"debug":"core:discovery","level":"info","message":"finalized build #321","meta":{},"timestamp":1776896544870}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544871}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 23 resources for snapshot about","meta":{},"timestamp":1776896544872}
+{"debug":"core:discovery","level":"info","message":"download progress: 24%","meta":{},"timestamp":1776896544873}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544874}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1280","meta":{},"timestamp":1776896544875}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: dashboard in 327ms","meta":{},"timestamp":1776896544876}
+{"debug":"core:discovery","level":"debug","message":"Received 328 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544877}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544878}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544879}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: checkout","meta":{},"timestamp":1776896544880}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: product-123","meta":{},"timestamp":1776896544881}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: user-profile","meta":{},"timestamp":1776896544882}
+{"debug":"core:discovery","level":"debug","message":"Build #334 created: https://percy.io/test/test/334","meta":{},"timestamp":1776896544883}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544884}
+{"debug":"core:discovery","level":"info","message":"finalized build #336","meta":{},"timestamp":1776896544885}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544886}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 38 resources for snapshot checkout","meta":{},"timestamp":1776896544887}
+{"debug":"core:discovery","level":"info","message":"download progress: 39%","meta":{},"timestamp":1776896544888}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544889}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 768","meta":{},"timestamp":1776896544890}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: settings in 342ms","meta":{},"timestamp":1776896544891}
+{"debug":"core:discovery","level":"debug","message":"Received 343 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544892}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544893}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544894}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: product-123","meta":{},"timestamp":1776896544895}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: user-profile","meta":{},"timestamp":1776896544896}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: dashboard","meta":{},"timestamp":1776896544897}
+{"debug":"core:discovery","level":"debug","message":"Build #349 created: https://percy.io/test/test/349","meta":{},"timestamp":1776896544898}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544899}
+{"debug":"core:discovery","level":"info","message":"finalized build #351","meta":{},"timestamp":1776896544900}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544901}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 53 resources for snapshot product-123","meta":{},"timestamp":1776896544902}
+{"debug":"core:discovery","level":"info","message":"download progress: 54%","meta":{},"timestamp":1776896544903}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544904}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 375","meta":{},"timestamp":1776896544905}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: home in 357ms","meta":{},"timestamp":1776896544906}
+{"debug":"core:discovery","level":"debug","message":"Received 358 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544907}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544908}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544909}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: user-profile","meta":{},"timestamp":1776896544910}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: dashboard","meta":{},"timestamp":1776896544911}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: settings","meta":{},"timestamp":1776896544912}
+{"debug":"core:discovery","level":"debug","message":"Build #364 created: https://percy.io/test/test/364","meta":{},"timestamp":1776896544913}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544914}
+{"debug":"core:discovery","level":"info","message":"finalized build #366","meta":{},"timestamp":1776896544915}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544916}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 68 resources for snapshot user-profile","meta":{},"timestamp":1776896544917}
+{"debug":"core:discovery","level":"info","message":"download progress: 69%","meta":{},"timestamp":1776896544918}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544919}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1920","meta":{},"timestamp":1776896544920}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: about in 372ms","meta":{},"timestamp":1776896544921}
+{"debug":"core:discovery","level":"debug","message":"Received 373 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544922}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544923}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544924}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: dashboard","meta":{},"timestamp":1776896544925}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: settings","meta":{},"timestamp":1776896544926}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: home","meta":{},"timestamp":1776896544927}
+{"debug":"core:discovery","level":"debug","message":"Build #379 created: https://percy.io/test/test/379","meta":{},"timestamp":1776896544928}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544929}
+{"debug":"core:discovery","level":"info","message":"finalized build #381","meta":{},"timestamp":1776896544930}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544931}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 83 resources for snapshot dashboard","meta":{},"timestamp":1776896544932}
+{"debug":"core:discovery","level":"info","message":"download progress: 84%","meta":{},"timestamp":1776896544933}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544934}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1280","meta":{},"timestamp":1776896544935}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: checkout in 387ms","meta":{},"timestamp":1776896544936}
+{"debug":"core:discovery","level":"debug","message":"Received 388 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544937}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544938}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544939}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: settings","meta":{},"timestamp":1776896544940}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: home","meta":{},"timestamp":1776896544941}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: about","meta":{},"timestamp":1776896544942}
+{"debug":"core:discovery","level":"debug","message":"Build #394 created: https://percy.io/test/test/394","meta":{},"timestamp":1776896544943}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544944}
+{"debug":"core:discovery","level":"info","message":"finalized build #396","meta":{},"timestamp":1776896544945}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544946}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 98 resources for snapshot settings","meta":{},"timestamp":1776896544947}
+{"debug":"core:discovery","level":"info","message":"download progress: 99%","meta":{},"timestamp":1776896544948}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544949}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 768","meta":{},"timestamp":1776896544950}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: product-123 in 402ms","meta":{},"timestamp":1776896544951}
+{"debug":"core:discovery","level":"debug","message":"Received 403 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544952}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544953}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544954}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: home","meta":{},"timestamp":1776896544955}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: about","meta":{},"timestamp":1776896544956}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: checkout","meta":{},"timestamp":1776896544957}
+{"debug":"core:discovery","level":"debug","message":"Build #409 created: https://percy.io/test/test/409","meta":{},"timestamp":1776896544958}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544959}
+{"debug":"core:discovery","level":"info","message":"finalized build #411","meta":{},"timestamp":1776896544960}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544961}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 13 resources for snapshot home","meta":{},"timestamp":1776896544962}
+{"debug":"core:discovery","level":"info","message":"download progress: 14%","meta":{},"timestamp":1776896544963}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544964}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 375","meta":{},"timestamp":1776896544965}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: user-profile in 417ms","meta":{},"timestamp":1776896544966}
+{"debug":"core:discovery","level":"debug","message":"Received 418 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544967}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544968}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544969}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: about","meta":{},"timestamp":1776896544970}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: checkout","meta":{},"timestamp":1776896544971}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: product-123","meta":{},"timestamp":1776896544972}
+{"debug":"core:discovery","level":"debug","message":"Build #424 created: https://percy.io/test/test/424","meta":{},"timestamp":1776896544973}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544974}
+{"debug":"core:discovery","level":"info","message":"finalized build #426","meta":{},"timestamp":1776896544975}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544976}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 28 resources for snapshot about","meta":{},"timestamp":1776896544977}
+{"debug":"core:discovery","level":"info","message":"download progress: 29%","meta":{},"timestamp":1776896544978}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544979}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1920","meta":{},"timestamp":1776896544980}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: dashboard in 432ms","meta":{},"timestamp":1776896544981}
+{"debug":"core:discovery","level":"debug","message":"Received 433 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544982}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544983}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544984}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: checkout","meta":{},"timestamp":1776896544985}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: product-123","meta":{},"timestamp":1776896544986}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: user-profile","meta":{},"timestamp":1776896544987}
+{"debug":"core:discovery","level":"debug","message":"Build #439 created: https://percy.io/test/test/439","meta":{},"timestamp":1776896544988}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896544989}
+{"debug":"core:discovery","level":"info","message":"finalized build #441","meta":{},"timestamp":1776896544990}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896544991}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 43 resources for snapshot checkout","meta":{},"timestamp":1776896544992}
+{"debug":"core:discovery","level":"info","message":"download progress: 44%","meta":{},"timestamp":1776896544993}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896544994}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1280","meta":{},"timestamp":1776896544995}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: settings in 447ms","meta":{},"timestamp":1776896544996}
+{"debug":"core:discovery","level":"debug","message":"Received 448 snapshots; dry-run mode: false","meta":{},"timestamp":1776896544997}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896544998}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896544999}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: product-123","meta":{},"timestamp":1776896545000}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: user-profile","meta":{},"timestamp":1776896545001}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: dashboard","meta":{},"timestamp":1776896545002}
+{"debug":"core:discovery","level":"debug","message":"Build #454 created: https://percy.io/test/test/454","meta":{},"timestamp":1776896545003}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545004}
+{"debug":"core:discovery","level":"info","message":"finalized build #456","meta":{},"timestamp":1776896545005}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545006}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 58 resources for snapshot product-123","meta":{},"timestamp":1776896545007}
+{"debug":"core:discovery","level":"info","message":"download progress: 59%","meta":{},"timestamp":1776896545008}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545009}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 768","meta":{},"timestamp":1776896545010}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: home in 462ms","meta":{},"timestamp":1776896545011}
+{"debug":"core:discovery","level":"debug","message":"Received 463 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545012}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545013}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545014}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: user-profile","meta":{},"timestamp":1776896545015}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: dashboard","meta":{},"timestamp":1776896545016}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: settings","meta":{},"timestamp":1776896545017}
+{"debug":"core:discovery","level":"debug","message":"Build #469 created: https://percy.io/test/test/469","meta":{},"timestamp":1776896545018}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545019}
+{"debug":"core:discovery","level":"info","message":"finalized build #471","meta":{},"timestamp":1776896545020}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545021}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 73 resources for snapshot user-profile","meta":{},"timestamp":1776896545022}
+{"debug":"core:discovery","level":"info","message":"download progress: 74%","meta":{},"timestamp":1776896545023}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545024}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 375","meta":{},"timestamp":1776896545025}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: about in 477ms","meta":{},"timestamp":1776896545026}
+{"debug":"core:discovery","level":"debug","message":"Received 478 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545027}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545028}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545029}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: dashboard","meta":{},"timestamp":1776896545030}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: settings","meta":{},"timestamp":1776896545031}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: home","meta":{},"timestamp":1776896545032}
+{"debug":"core:discovery","level":"debug","message":"Build #484 created: https://percy.io/test/test/484","meta":{},"timestamp":1776896545033}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545034}
+{"debug":"core:discovery","level":"info","message":"finalized build #486","meta":{},"timestamp":1776896545035}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545036}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 88 resources for snapshot dashboard","meta":{},"timestamp":1776896545037}
+{"debug":"core:discovery","level":"info","message":"download progress: 89%","meta":{},"timestamp":1776896545038}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545039}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1920","meta":{},"timestamp":1776896545040}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: checkout in 492ms","meta":{},"timestamp":1776896545041}
+{"debug":"core:discovery","level":"debug","message":"Received 493 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545042}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545043}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545044}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: settings","meta":{},"timestamp":1776896545045}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: home","meta":{},"timestamp":1776896545046}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: about","meta":{},"timestamp":1776896545047}
+{"debug":"core:discovery","level":"debug","message":"Build #499 created: https://percy.io/test/test/499","meta":{},"timestamp":1776896545048}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545049}
+{"debug":"core:discovery","level":"info","message":"finalized build #501","meta":{},"timestamp":1776896545050}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545051}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 3 resources for snapshot settings","meta":{},"timestamp":1776896545052}
+{"debug":"core:discovery","level":"info","message":"download progress: 4%","meta":{},"timestamp":1776896545053}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545054}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1280","meta":{},"timestamp":1776896545055}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: product-123 in 507ms","meta":{},"timestamp":1776896545056}
+{"debug":"core:discovery","level":"debug","message":"Received 508 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545057}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545058}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545059}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: home","meta":{},"timestamp":1776896545060}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: about","meta":{},"timestamp":1776896545061}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: checkout","meta":{},"timestamp":1776896545062}
+{"debug":"core:discovery","level":"debug","message":"Build #514 created: https://percy.io/test/test/514","meta":{},"timestamp":1776896545063}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545064}
+{"debug":"core:discovery","level":"info","message":"finalized build #516","meta":{},"timestamp":1776896545065}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545066}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 18 resources for snapshot home","meta":{},"timestamp":1776896545067}
+{"debug":"core:discovery","level":"info","message":"download progress: 19%","meta":{},"timestamp":1776896545068}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545069}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 768","meta":{},"timestamp":1776896545070}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: user-profile in 522ms","meta":{},"timestamp":1776896545071}
+{"debug":"core:discovery","level":"debug","message":"Received 523 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545072}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545073}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545074}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: about","meta":{},"timestamp":1776896545075}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: checkout","meta":{},"timestamp":1776896545076}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: product-123","meta":{},"timestamp":1776896545077}
+{"debug":"core:discovery","level":"debug","message":"Build #529 created: https://percy.io/test/test/529","meta":{},"timestamp":1776896545078}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545079}
+{"debug":"core:discovery","level":"info","message":"finalized build #531","meta":{},"timestamp":1776896545080}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545081}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 33 resources for snapshot about","meta":{},"timestamp":1776896545082}
+{"debug":"core:discovery","level":"info","message":"download progress: 34%","meta":{},"timestamp":1776896545083}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545084}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 375","meta":{},"timestamp":1776896545085}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: dashboard in 537ms","meta":{},"timestamp":1776896545086}
+{"debug":"core:discovery","level":"debug","message":"Received 538 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545087}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545088}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545089}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: checkout","meta":{},"timestamp":1776896545090}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: product-123","meta":{},"timestamp":1776896545091}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: user-profile","meta":{},"timestamp":1776896545092}
+{"debug":"core:discovery","level":"debug","message":"Build #544 created: https://percy.io/test/test/544","meta":{},"timestamp":1776896545093}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545094}
+{"debug":"core:discovery","level":"info","message":"finalized build #546","meta":{},"timestamp":1776896545095}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545096}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 48 resources for snapshot checkout","meta":{},"timestamp":1776896545097}
+{"debug":"core:discovery","level":"info","message":"download progress: 49%","meta":{},"timestamp":1776896545098}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545099}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1920","meta":{},"timestamp":1776896545100}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: settings in 552ms","meta":{},"timestamp":1776896545101}
+{"debug":"core:discovery","level":"debug","message":"Received 553 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545102}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545103}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545104}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: product-123","meta":{},"timestamp":1776896545105}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: user-profile","meta":{},"timestamp":1776896545106}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: dashboard","meta":{},"timestamp":1776896545107}
+{"debug":"core:discovery","level":"debug","message":"Build #559 created: https://percy.io/test/test/559","meta":{},"timestamp":1776896545108}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545109}
+{"debug":"core:discovery","level":"info","message":"finalized build #561","meta":{},"timestamp":1776896545110}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545111}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 63 resources for snapshot product-123","meta":{},"timestamp":1776896545112}
+{"debug":"core:discovery","level":"info","message":"download progress: 64%","meta":{},"timestamp":1776896545113}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545114}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1280","meta":{},"timestamp":1776896545115}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: home in 567ms","meta":{},"timestamp":1776896545116}
+{"debug":"core:discovery","level":"debug","message":"Received 568 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545117}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545118}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545119}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: user-profile","meta":{},"timestamp":1776896545120}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: dashboard","meta":{},"timestamp":1776896545121}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: settings","meta":{},"timestamp":1776896545122}
+{"debug":"core:discovery","level":"debug","message":"Build #574 created: https://percy.io/test/test/574","meta":{},"timestamp":1776896545123}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545124}
+{"debug":"core:discovery","level":"info","message":"finalized build #576","meta":{},"timestamp":1776896545125}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545126}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 78 resources for snapshot user-profile","meta":{},"timestamp":1776896545127}
+{"debug":"core:discovery","level":"info","message":"download progress: 79%","meta":{},"timestamp":1776896545128}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545129}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 768","meta":{},"timestamp":1776896545130}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: about in 582ms","meta":{},"timestamp":1776896545131}
+{"debug":"core:discovery","level":"debug","message":"Received 583 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545132}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545133}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545134}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: dashboard","meta":{},"timestamp":1776896545135}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: settings","meta":{},"timestamp":1776896545136}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: home","meta":{},"timestamp":1776896545137}
+{"debug":"core:discovery","level":"debug","message":"Build #589 created: https://percy.io/test/test/589","meta":{},"timestamp":1776896545138}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545139}
+{"debug":"core:discovery","level":"info","message":"finalized build #591","meta":{},"timestamp":1776896545140}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545141}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 93 resources for snapshot dashboard","meta":{},"timestamp":1776896545142}
+{"debug":"core:discovery","level":"info","message":"download progress: 94%","meta":{},"timestamp":1776896545143}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545144}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 375","meta":{},"timestamp":1776896545145}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: checkout in 597ms","meta":{},"timestamp":1776896545146}
+{"debug":"core:discovery","level":"debug","message":"Received 598 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545147}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545148}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545149}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: settings","meta":{},"timestamp":1776896545150}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: home","meta":{},"timestamp":1776896545151}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: about","meta":{},"timestamp":1776896545152}
+{"debug":"core:discovery","level":"debug","message":"Build #604 created: https://percy.io/test/test/604","meta":{},"timestamp":1776896545153}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545154}
+{"debug":"core:discovery","level":"info","message":"finalized build #606","meta":{},"timestamp":1776896545155}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545156}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 8 resources for snapshot settings","meta":{},"timestamp":1776896545157}
+{"debug":"core:discovery","level":"info","message":"download progress: 9%","meta":{},"timestamp":1776896545158}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545159}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1920","meta":{},"timestamp":1776896545160}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: product-123 in 612ms","meta":{},"timestamp":1776896545161}
+{"debug":"core:discovery","level":"debug","message":"Received 613 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545162}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545163}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545164}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: home","meta":{},"timestamp":1776896545165}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: about","meta":{},"timestamp":1776896545166}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: checkout","meta":{},"timestamp":1776896545167}
+{"debug":"core:discovery","level":"debug","message":"Build #619 created: https://percy.io/test/test/619","meta":{},"timestamp":1776896545168}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545169}
+{"debug":"core:discovery","level":"info","message":"finalized build #621","meta":{},"timestamp":1776896545170}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545171}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 23 resources for snapshot home","meta":{},"timestamp":1776896545172}
+{"debug":"core:discovery","level":"info","message":"download progress: 24%","meta":{},"timestamp":1776896545173}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545174}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1280","meta":{},"timestamp":1776896545175}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: user-profile in 627ms","meta":{},"timestamp":1776896545176}
+{"debug":"core:discovery","level":"debug","message":"Received 628 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545177}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545178}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545179}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: about","meta":{},"timestamp":1776896545180}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: checkout","meta":{},"timestamp":1776896545181}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: product-123","meta":{},"timestamp":1776896545182}
+{"debug":"core:discovery","level":"debug","message":"Build #634 created: https://percy.io/test/test/634","meta":{},"timestamp":1776896545183}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545184}
+{"debug":"core:discovery","level":"info","message":"finalized build #636","meta":{},"timestamp":1776896545185}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545186}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 38 resources for snapshot about","meta":{},"timestamp":1776896545187}
+{"debug":"core:discovery","level":"info","message":"download progress: 39%","meta":{},"timestamp":1776896545188}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545189}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 768","meta":{},"timestamp":1776896545190}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: dashboard in 642ms","meta":{},"timestamp":1776896545191}
+{"debug":"core:discovery","level":"debug","message":"Received 643 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545192}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545193}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545194}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: checkout","meta":{},"timestamp":1776896545195}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: product-123","meta":{},"timestamp":1776896545196}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: user-profile","meta":{},"timestamp":1776896545197}
+{"debug":"core:discovery","level":"debug","message":"Build #649 created: https://percy.io/test/test/649","meta":{},"timestamp":1776896545198}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545199}
+{"debug":"core:discovery","level":"info","message":"finalized build #651","meta":{},"timestamp":1776896545200}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545201}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 53 resources for snapshot checkout","meta":{},"timestamp":1776896545202}
+{"debug":"core:discovery","level":"info","message":"download progress: 54%","meta":{},"timestamp":1776896545203}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545204}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 375","meta":{},"timestamp":1776896545205}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: settings in 657ms","meta":{},"timestamp":1776896545206}
+{"debug":"core:discovery","level":"debug","message":"Received 658 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545207}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545208}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545209}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: product-123","meta":{},"timestamp":1776896545210}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: user-profile","meta":{},"timestamp":1776896545211}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: dashboard","meta":{},"timestamp":1776896545212}
+{"debug":"core:discovery","level":"debug","message":"Build #664 created: https://percy.io/test/test/664","meta":{},"timestamp":1776896545213}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545214}
+{"debug":"core:discovery","level":"info","message":"finalized build #666","meta":{},"timestamp":1776896545215}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545216}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 68 resources for snapshot product-123","meta":{},"timestamp":1776896545217}
+{"debug":"core:discovery","level":"info","message":"download progress: 69%","meta":{},"timestamp":1776896545218}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545219}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1920","meta":{},"timestamp":1776896545220}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: home in 672ms","meta":{},"timestamp":1776896545221}
+{"debug":"core:discovery","level":"debug","message":"Received 673 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545222}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545223}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545224}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: user-profile","meta":{},"timestamp":1776896545225}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: dashboard","meta":{},"timestamp":1776896545226}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: settings","meta":{},"timestamp":1776896545227}
+{"debug":"core:discovery","level":"debug","message":"Build #679 created: https://percy.io/test/test/679","meta":{},"timestamp":1776896545228}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545229}
+{"debug":"core:discovery","level":"info","message":"finalized build #681","meta":{},"timestamp":1776896545230}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545231}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 83 resources for snapshot user-profile","meta":{},"timestamp":1776896545232}
+{"debug":"core:discovery","level":"info","message":"download progress: 84%","meta":{},"timestamp":1776896545233}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545234}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1280","meta":{},"timestamp":1776896545235}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: about in 687ms","meta":{},"timestamp":1776896545236}
+{"debug":"core:discovery","level":"debug","message":"Received 688 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545237}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545238}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545239}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: dashboard","meta":{},"timestamp":1776896545240}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: settings","meta":{},"timestamp":1776896545241}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: home","meta":{},"timestamp":1776896545242}
+{"debug":"core:discovery","level":"debug","message":"Build #694 created: https://percy.io/test/test/694","meta":{},"timestamp":1776896545243}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545244}
+{"debug":"core:discovery","level":"info","message":"finalized build #696","meta":{},"timestamp":1776896545245}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545246}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 98 resources for snapshot dashboard","meta":{},"timestamp":1776896545247}
+{"debug":"core:discovery","level":"info","message":"download progress: 99%","meta":{},"timestamp":1776896545248}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545249}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 768","meta":{},"timestamp":1776896545250}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: checkout in 702ms","meta":{},"timestamp":1776896545251}
+{"debug":"core:discovery","level":"debug","message":"Received 703 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545252}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545253}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545254}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: settings","meta":{},"timestamp":1776896545255}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: home","meta":{},"timestamp":1776896545256}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: about","meta":{},"timestamp":1776896545257}
+{"debug":"core:discovery","level":"debug","message":"Build #709 created: https://percy.io/test/test/709","meta":{},"timestamp":1776896545258}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545259}
+{"debug":"core:discovery","level":"info","message":"finalized build #711","meta":{},"timestamp":1776896545260}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545261}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 13 resources for snapshot settings","meta":{},"timestamp":1776896545262}
+{"debug":"core:discovery","level":"info","message":"download progress: 14%","meta":{},"timestamp":1776896545263}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545264}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 375","meta":{},"timestamp":1776896545265}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: product-123 in 717ms","meta":{},"timestamp":1776896545266}
+{"debug":"core:discovery","level":"debug","message":"Received 718 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545267}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545268}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545269}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: home","meta":{},"timestamp":1776896545270}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: about","meta":{},"timestamp":1776896545271}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: checkout","meta":{},"timestamp":1776896545272}
+{"debug":"core:discovery","level":"debug","message":"Build #724 created: https://percy.io/test/test/724","meta":{},"timestamp":1776896545273}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545274}
+{"debug":"core:discovery","level":"info","message":"finalized build #726","meta":{},"timestamp":1776896545275}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545276}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 28 resources for snapshot home","meta":{},"timestamp":1776896545277}
+{"debug":"core:discovery","level":"info","message":"download progress: 29%","meta":{},"timestamp":1776896545278}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545279}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1920","meta":{},"timestamp":1776896545280}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: user-profile in 732ms","meta":{},"timestamp":1776896545281}
+{"debug":"core:discovery","level":"debug","message":"Received 733 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545282}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545283}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545284}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: about","meta":{},"timestamp":1776896545285}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: checkout","meta":{},"timestamp":1776896545286}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: product-123","meta":{},"timestamp":1776896545287}
+{"debug":"core:discovery","level":"debug","message":"Build #739 created: https://percy.io/test/test/739","meta":{},"timestamp":1776896545288}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545289}
+{"debug":"core:discovery","level":"info","message":"finalized build #741","meta":{},"timestamp":1776896545290}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545291}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 43 resources for snapshot about","meta":{},"timestamp":1776896545292}
+{"debug":"core:discovery","level":"info","message":"download progress: 44%","meta":{},"timestamp":1776896545293}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545294}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1280","meta":{},"timestamp":1776896545295}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: dashboard in 747ms","meta":{},"timestamp":1776896545296}
+{"debug":"core:discovery","level":"debug","message":"Received 748 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545297}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545298}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545299}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: checkout","meta":{},"timestamp":1776896545300}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: product-123","meta":{},"timestamp":1776896545301}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: user-profile","meta":{},"timestamp":1776896545302}
+{"debug":"core:discovery","level":"debug","message":"Build #754 created: https://percy.io/test/test/754","meta":{},"timestamp":1776896545303}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545304}
+{"debug":"core:discovery","level":"info","message":"finalized build #756","meta":{},"timestamp":1776896545305}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545306}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 58 resources for snapshot checkout","meta":{},"timestamp":1776896545307}
+{"debug":"core:discovery","level":"info","message":"download progress: 59%","meta":{},"timestamp":1776896545308}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545309}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 768","meta":{},"timestamp":1776896545310}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: settings in 762ms","meta":{},"timestamp":1776896545311}
+{"debug":"core:discovery","level":"debug","message":"Received 763 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545312}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545313}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545314}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: product-123","meta":{},"timestamp":1776896545315}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: user-profile","meta":{},"timestamp":1776896545316}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: dashboard","meta":{},"timestamp":1776896545317}
+{"debug":"core:discovery","level":"debug","message":"Build #769 created: https://percy.io/test/test/769","meta":{},"timestamp":1776896545318}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545320}
+{"debug":"core:discovery","level":"info","message":"finalized build #771","meta":{},"timestamp":1776896545321}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545322}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 73 resources for snapshot product-123","meta":{},"timestamp":1776896545323}
+{"debug":"core:discovery","level":"info","message":"download progress: 74%","meta":{},"timestamp":1776896545324}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545325}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 375","meta":{},"timestamp":1776896545326}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: home in 777ms","meta":{},"timestamp":1776896545327}
+{"debug":"core:discovery","level":"debug","message":"Received 778 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545328}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545329}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545330}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: user-profile","meta":{},"timestamp":1776896545331}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: dashboard","meta":{},"timestamp":1776896545332}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: settings","meta":{},"timestamp":1776896545333}
+{"debug":"core:discovery","level":"debug","message":"Build #784 created: https://percy.io/test/test/784","meta":{},"timestamp":1776896545334}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545335}
+{"debug":"core:discovery","level":"info","message":"finalized build #786","meta":{},"timestamp":1776896545336}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545337}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 88 resources for snapshot user-profile","meta":{},"timestamp":1776896545338}
+{"debug":"core:discovery","level":"info","message":"download progress: 89%","meta":{},"timestamp":1776896545339}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545340}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1920","meta":{},"timestamp":1776896545341}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: about in 792ms","meta":{},"timestamp":1776896545342}
+{"debug":"core:discovery","level":"debug","message":"Received 793 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545343}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545344}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545345}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: dashboard","meta":{},"timestamp":1776896545346}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: settings","meta":{},"timestamp":1776896545347}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: home","meta":{},"timestamp":1776896545348}
+{"debug":"core:discovery","level":"debug","message":"Build #799 created: https://percy.io/test/test/799","meta":{},"timestamp":1776896545349}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545350}
+{"debug":"core:discovery","level":"info","message":"finalized build #801","meta":{},"timestamp":1776896545351}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545352}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 3 resources for snapshot dashboard","meta":{},"timestamp":1776896545353}
+{"debug":"core:discovery","level":"info","message":"download progress: 4%","meta":{},"timestamp":1776896545354}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545355}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1280","meta":{},"timestamp":1776896545356}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: checkout in 807ms","meta":{},"timestamp":1776896545357}
+{"debug":"core:discovery","level":"debug","message":"Received 808 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545358}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545359}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545360}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: settings","meta":{},"timestamp":1776896545361}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: home","meta":{},"timestamp":1776896545362}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: about","meta":{},"timestamp":1776896545363}
+{"debug":"core:discovery","level":"debug","message":"Build #814 created: https://percy.io/test/test/814","meta":{},"timestamp":1776896545364}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545365}
+{"debug":"core:discovery","level":"info","message":"finalized build #816","meta":{},"timestamp":1776896545366}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545367}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 18 resources for snapshot settings","meta":{},"timestamp":1776896545368}
+{"debug":"core:discovery","level":"info","message":"download progress: 19%","meta":{},"timestamp":1776896545369}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545370}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 768","meta":{},"timestamp":1776896545371}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: product-123 in 822ms","meta":{},"timestamp":1776896545372}
+{"debug":"core:discovery","level":"debug","message":"Received 823 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545373}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545374}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545375}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: home","meta":{},"timestamp":1776896545376}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: about","meta":{},"timestamp":1776896545377}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: checkout","meta":{},"timestamp":1776896545378}
+{"debug":"core:discovery","level":"debug","message":"Build #829 created: https://percy.io/test/test/829","meta":{},"timestamp":1776896545379}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545380}
+{"debug":"core:discovery","level":"info","message":"finalized build #831","meta":{},"timestamp":1776896545381}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545382}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 33 resources for snapshot home","meta":{},"timestamp":1776896545383}
+{"debug":"core:discovery","level":"info","message":"download progress: 34%","meta":{},"timestamp":1776896545384}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545385}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 375","meta":{},"timestamp":1776896545386}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: user-profile in 837ms","meta":{},"timestamp":1776896545387}
+{"debug":"core:discovery","level":"debug","message":"Received 838 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545388}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545389}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545390}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: about","meta":{},"timestamp":1776896545391}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: checkout","meta":{},"timestamp":1776896545392}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: product-123","meta":{},"timestamp":1776896545393}
+{"debug":"core:discovery","level":"debug","message":"Build #844 created: https://percy.io/test/test/844","meta":{},"timestamp":1776896545394}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545395}
+{"debug":"core:discovery","level":"info","message":"finalized build #846","meta":{},"timestamp":1776896545396}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545397}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 48 resources for snapshot about","meta":{},"timestamp":1776896545398}
+{"debug":"core:discovery","level":"info","message":"download progress: 49%","meta":{},"timestamp":1776896545399}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545400}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1920","meta":{},"timestamp":1776896545401}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: dashboard in 852ms","meta":{},"timestamp":1776896545402}
+{"debug":"core:discovery","level":"debug","message":"Received 853 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545403}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545404}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545405}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: checkout","meta":{},"timestamp":1776896545406}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: product-123","meta":{},"timestamp":1776896545407}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: user-profile","meta":{},"timestamp":1776896545408}
+{"debug":"core:discovery","level":"debug","message":"Build #859 created: https://percy.io/test/test/859","meta":{},"timestamp":1776896545409}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545410}
+{"debug":"core:discovery","level":"info","message":"finalized build #861","meta":{},"timestamp":1776896545411}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545412}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 63 resources for snapshot checkout","meta":{},"timestamp":1776896545413}
+{"debug":"core:discovery","level":"info","message":"download progress: 64%","meta":{},"timestamp":1776896545414}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545415}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1280","meta":{},"timestamp":1776896545416}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: settings in 867ms","meta":{},"timestamp":1776896545417}
+{"debug":"core:discovery","level":"debug","message":"Received 868 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545418}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545419}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545420}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: product-123","meta":{},"timestamp":1776896545421}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: user-profile","meta":{},"timestamp":1776896545422}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: dashboard","meta":{},"timestamp":1776896545423}
+{"debug":"core:discovery","level":"debug","message":"Build #874 created: https://percy.io/test/test/874","meta":{},"timestamp":1776896545424}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545425}
+{"debug":"core:discovery","level":"info","message":"finalized build #876","meta":{},"timestamp":1776896545426}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545427}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 78 resources for snapshot product-123","meta":{},"timestamp":1776896545428}
+{"debug":"core:discovery","level":"info","message":"download progress: 79%","meta":{},"timestamp":1776896545429}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545430}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 768","meta":{},"timestamp":1776896545431}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: home in 882ms","meta":{},"timestamp":1776896545432}
+{"debug":"core:discovery","level":"debug","message":"Received 883 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545433}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545434}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545435}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: user-profile","meta":{},"timestamp":1776896545436}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: dashboard","meta":{},"timestamp":1776896545437}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: settings","meta":{},"timestamp":1776896545438}
+{"debug":"core:discovery","level":"debug","message":"Build #889 created: https://percy.io/test/test/889","meta":{},"timestamp":1776896545439}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545440}
+{"debug":"core:discovery","level":"info","message":"finalized build #891","meta":{},"timestamp":1776896545441}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545442}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 93 resources for snapshot user-profile","meta":{},"timestamp":1776896545443}
+{"debug":"core:discovery","level":"info","message":"download progress: 94%","meta":{},"timestamp":1776896545444}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545445}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 375","meta":{},"timestamp":1776896545446}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: about in 897ms","meta":{},"timestamp":1776896545447}
+{"debug":"core:discovery","level":"debug","message":"Received 898 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545448}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545449}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545450}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: dashboard","meta":{},"timestamp":1776896545451}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: settings","meta":{},"timestamp":1776896545452}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: home","meta":{},"timestamp":1776896545453}
+{"debug":"core:discovery","level":"debug","message":"Build #904 created: https://percy.io/test/test/904","meta":{},"timestamp":1776896545454}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545455}
+{"debug":"core:discovery","level":"info","message":"finalized build #906","meta":{},"timestamp":1776896545456}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545457}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 8 resources for snapshot dashboard","meta":{},"timestamp":1776896545458}
+{"debug":"core:discovery","level":"info","message":"download progress: 9%","meta":{},"timestamp":1776896545459}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545460}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1920","meta":{},"timestamp":1776896545461}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: checkout in 912ms","meta":{},"timestamp":1776896545462}
+{"debug":"core:discovery","level":"debug","message":"Received 913 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545463}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545464}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545465}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: settings","meta":{},"timestamp":1776896545466}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: home","meta":{},"timestamp":1776896545467}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: about","meta":{},"timestamp":1776896545468}
+{"debug":"core:discovery","level":"debug","message":"Build #919 created: https://percy.io/test/test/919","meta":{},"timestamp":1776896545469}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545470}
+{"debug":"core:discovery","level":"info","message":"finalized build #921","meta":{},"timestamp":1776896545471}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545472}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 23 resources for snapshot settings","meta":{},"timestamp":1776896545473}
+{"debug":"core:discovery","level":"info","message":"download progress: 24%","meta":{},"timestamp":1776896545474}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545475}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1280","meta":{},"timestamp":1776896545476}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: product-123 in 927ms","meta":{},"timestamp":1776896545477}
+{"debug":"core:discovery","level":"debug","message":"Received 928 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545478}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545479}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545480}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: home","meta":{},"timestamp":1776896545481}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: about","meta":{},"timestamp":1776896545482}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: checkout","meta":{},"timestamp":1776896545483}
+{"debug":"core:discovery","level":"debug","message":"Build #934 created: https://percy.io/test/test/934","meta":{},"timestamp":1776896545484}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545485}
+{"debug":"core:discovery","level":"info","message":"finalized build #936","meta":{},"timestamp":1776896545486}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545487}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 38 resources for snapshot home","meta":{},"timestamp":1776896545488}
+{"debug":"core:discovery","level":"info","message":"download progress: 39%","meta":{},"timestamp":1776896545489}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545490}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 768","meta":{},"timestamp":1776896545491}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: user-profile in 942ms","meta":{},"timestamp":1776896545492}
+{"debug":"core:discovery","level":"debug","message":"Received 943 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545493}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545494}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545495}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: about","meta":{},"timestamp":1776896545496}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: checkout","meta":{},"timestamp":1776896545497}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: product-123","meta":{},"timestamp":1776896545498}
+{"debug":"core:discovery","level":"debug","message":"Build #949 created: https://percy.io/test/test/949","meta":{},"timestamp":1776896545499}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545500}
+{"debug":"core:discovery","level":"info","message":"finalized build #951","meta":{},"timestamp":1776896545501}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545502}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 53 resources for snapshot about","meta":{},"timestamp":1776896545503}
+{"debug":"core:discovery","level":"info","message":"download progress: 54%","meta":{},"timestamp":1776896545504}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545505}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 375","meta":{},"timestamp":1776896545506}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: dashboard in 957ms","meta":{},"timestamp":1776896545507}
+{"debug":"core:discovery","level":"debug","message":"Received 958 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545508}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545509}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545510}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: checkout","meta":{},"timestamp":1776896545511}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: product-123","meta":{},"timestamp":1776896545512}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: user-profile","meta":{},"timestamp":1776896545513}
+{"debug":"core:discovery","level":"debug","message":"Build #964 created: https://percy.io/test/test/964","meta":{},"timestamp":1776896545514}
+{"debug":"core:discovery","level":"warn","message":"[percy:core] asset discovery starting for 4 widths","meta":{},"timestamp":1776896545515}
+{"debug":"core:discovery","level":"info","message":"finalized build #966","meta":{},"timestamp":1776896545516}
+{"debug":"core:discovery","level":"debug","message":"waiting for page load...","meta":{},"timestamp":1776896545517}
+{"debug":"core:discovery","level":"warn","message":"asset-discovery: found 68 resources for snapshot checkout","meta":{},"timestamp":1776896545518}
+{"debug":"core:discovery","level":"info","message":"download progress: 69%","meta":{},"timestamp":1776896545519}
+{"debug":"core:discovery","level":"debug","message":"Navigating to https://example.com/api/v1/data","meta":{},"timestamp":1776896545520}
+{"debug":"core:discovery","level":"warn","message":"Capturing at width 1920","meta":{},"timestamp":1776896545521}
+{"debug":"core:discovery","level":"info","message":"Uploaded snapshot: settings in 972ms","meta":{},"timestamp":1776896545522}
+{"debug":"core:discovery","level":"debug","message":"Received 973 snapshots; dry-run mode: false","meta":{},"timestamp":1776896545523}
+{"debug":"core:discovery","level":"warn","message":"Config loaded from .percy.yml","meta":{},"timestamp":1776896545524}
+{"debug":"core:discovery","level":"info","message":"Percy has started!","meta":{},"timestamp":1776896545525}
+{"debug":"core:discovery","level":"debug","message":"Received snapshot: product-123","meta":{},"timestamp":1776896545526}
+{"debug":"core:discovery","level":"warn","message":"Discovering resources: user-profile","meta":{},"timestamp":1776896545527}
+{"debug":"core:discovery","level":"info","message":"Snapshot taken: dashboard","meta":{},"timestamp":1776896545528}
+{"debug":"core:discovery","level":"debug","message":"Build #979 created: https://percy.io/test/test/979","meta":{},"timestamp":1776896545529}
+{"debug":"core:discovery","level":"info","message":"aws_key=AKIAIOSFODNN7EXAMPLE other=0","meta":{},"timestamp":1776896545550}
+{"debug":"core:discovery","level":"info","message":"Token leaked: ghp_ExampleGithubTokenForTesting1XXXXXXXXXXXXXXX","meta":{},"timestamp":1776896545551}
+{"debug":"core:discovery","level":"info","message":"auth: Bearer xoxb-fake-2-abcdefg-notreal","meta":{},"timestamp":1776896545552}
+{"debug":"core:discovery","level":"info","message":"arn:aws:iam::1234567890:user/test-3","meta":{},"timestamp":1776896545553}
+{"debug":"core:discovery","level":"info","message":"aws_key=AKIAIOSFODNN7EXAMPLE other=4","meta":{},"timestamp":1776896545554}
+{"debug":"core:discovery","level":"info","message":"Token leaked: ghp_ExampleGithubTokenForTesting5XXXXXXXXXXXXXXX","meta":{},"timestamp":1776896545555}
+{"debug":"core:discovery","level":"info","message":"auth: Bearer xoxb-fake-6-abcdefg-notreal","meta":{},"timestamp":1776896545556}
+{"debug":"core:discovery","level":"info","message":"arn:aws:iam::1234567890:user/test-7","meta":{},"timestamp":1776896545557}
+{"debug":"core:discovery","level":"info","message":"aws_key=AKIAIOSFODNN7EXAMPLE other=8","meta":{},"timestamp":1776896545558}
+{"debug":"core:discovery","level":"info","message":"Token leaked: ghp_ExampleGithubTokenForTesting9XXXXXXXXXXXXXXX","meta":{},"timestamp":1776896545559}
+{"debug":"core:discovery","level":"info","message":"auth: Bearer xoxb-fake-10-abcdefg-notreal","meta":{},"timestamp":1776896545560}
+{"debug":"core:discovery","level":"info","message":"arn:aws:iam::1234567890:user/test-11","meta":{},"timestamp":1776896545561}
+{"debug":"core:discovery","level":"info","message":"aws_key=AKIAIOSFODNN7EXAMPLE other=12","meta":{},"timestamp":1776896545562}
+{"debug":"core:discovery","level":"info","message":"Token leaked: ghp_ExampleGithubTokenForTesting13XXXXXXXXXXXXXXX","meta":{},"timestamp":1776896545563}
+{"debug":"core:discovery","level":"info","message":"auth: Bearer xoxb-fake-14-abcdefg-notreal","meta":{},"timestamp":1776896545564}
+{"debug":"core:discovery","level":"info","message":"arn:aws:iam::1234567890:user/test-15","meta":{},"timestamp":1776896545565}
+{"debug":"core:discovery","level":"info","message":"aws_key=AKIAIOSFODNN7EXAMPLE other=16","meta":{},"timestamp":1776896545566}
+{"debug":"core:discovery","level":"info","message":"Token leaked: ghp_ExampleGithubTokenForTesting17XXXXXXXXXXXXXXX","meta":{},"timestamp":1776896545567}
+{"debug":"core:discovery","level":"info","message":"auth: Bearer xoxb-fake-18-abcdefg-notreal","meta":{},"timestamp":1776896545568}
+{"debug":"core:discovery","level":"info","message":"arn:aws:iam::1234567890:user/test-19","meta":{},"timestamp":1776896545569}

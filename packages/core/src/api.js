@@ -228,9 +228,14 @@ export function createPercyServer(percy, port) {
       body = Buffer.isBuffer(body) ? body.toString() : body;
 
       if (cmd === 'reset') {
-        // the reset command will reset testing mode and clear any logs
+        // the reset command will reset testing mode and clear any logs.
+        // logger.instance.reset() is async; fire-and-forget because the
+        // HTTP handler must return synchronously. The writer close + spill
+        // dir removal happens in the background.
         percy.testing = {};
-        logger.instance.messages.clear();
+        percy._percyStartedObserved = false;
+        percy._snapshotTakenObserved = false;
+        void logger.instance.reset();
       } else if (cmd === 'version') {
         // the version command will update the api version header for testing
         percy.testing.version = body;
@@ -260,9 +265,13 @@ export function createPercyServer(percy, port) {
     .route('get', '/test/requests', (req, res) => res.json(200, {
       requests: percy.testing.requests
     }))
-  // returns an array of raw logs from the logger
+  // returns an array of raw logs from the logger (in-memory view: global
+  // ring + live per-snapshot buckets). For a full disk-backed enumeration
+  // (including entries for snapshots already evicted), consumers need to
+  // call logger.readBack() directly; the test-only endpoint returns the
+  // in-memory set for compatibility with existing assertions.
     .route('get', '/test/logs', (req, res) => res.json(200, {
-      logs: Array.from(logger.instance.messages)
+      logs: logger.toArray()
     }))
   // serves a very basic html page for testing snapshots
     .route('get', '/test/snapshot', (req, res) => {

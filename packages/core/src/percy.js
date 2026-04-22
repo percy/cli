@@ -1,6 +1,7 @@
 import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
+import { readBack } from '@percy/logger/internal';
 import { getProxy } from '@percy/client/utils';
 import Browser from './browser.js';
 import Pako from 'pako';
@@ -9,11 +10,12 @@ import {
   generatePromise,
   yieldAll,
   yieldTo,
-  redactSecrets,
   detectSystemProxyAndLog,
   checkSDKVersion,
   processCorsIframes
 } from './utils.js';
+// Note: redactSecrets no longer imported — redaction moved to write-time
+// inside @percy/logger (DPR-6).
 
 import {
   createPercyServer,
@@ -256,6 +258,11 @@ export class Percy {
       this.syncQueue = new WaitForJob(snapshotType, this);
       // log and mark this instance as started
       this.log.info('Percy has started!');
+      // DPR-10: sentinel owned by the Percy instance, set at the call site
+      // next to the log — refactoring the message requires updating both in
+      // the same file, eliminating the silent-drift risk of a logger-owned
+      // substring scan.
+      this._percyStartedObserved = true;
       this.readyState = 1;
     } catch (error) {
       // on error, close any running server and end queues
@@ -598,16 +605,12 @@ export class Percy {
 
   // This specific error will be hard coded
   async checkForNoSnapshotCommandError() {
-    let isPercyStarted = false;
-    let containsSnapshotTaken = false;
-    logger.query((item) => {
-      isPercyStarted ||= item?.message?.includes('Percy has started');
-      containsSnapshotTaken ||= item?.message?.includes('Snapshot taken');
-
-      // This case happens when you directly upload it using cli-upload
-      containsSnapshotTaken ||= item?.message?.includes('Snapshot uploaded');
-      return item;
-    });
+    // DPR-10: O(1) sentinel check. Flags are set at the call sites in
+    // percy.js and snapshot.js where the corresponding log messages are
+    // emitted, so this routine does not depend on log retention or
+    // substring scanning after per-snapshot bucket eviction.
+    const isPercyStarted = !!this._percyStartedObserved;
+    const containsSnapshotTaken = !!this._snapshotTakenObserved;
 
     if (isPercyStarted && !containsSnapshotTaken) {
       // This is the case for No snapshot command called
@@ -682,16 +685,28 @@ export class Percy {
   async sendBuildLogs() {
     if (!process.env.PERCY_TOKEN) return;
     try {
-      const logsObject = {
-        clilogs: logger.query(log => !['ci'].includes(log.debug))
-      };
-
-      // Only add CI logs if not disabled voluntarily.
+      // DPR-8: single-pass stream over the on-disk JSONL (or in-memory
+      // fallback when the store transitioned to memory-only) into two
+      // accumulator arrays. Redaction already happened at write-time
+      // (DPR-6), so no upload-time redactSecrets call is needed.
+      //
+      // This preserves insertion order within each of clilogs/cilogs and
+      // avoids the previous O(total_logs) double-filter over an in-memory
+      // Set; memory consumed is only the serialized POST body, not a full
+      // uncompressed copy of every entry.
+      const clilogs = [];
+      const cilogs = [];
       const sendCILogs = process.env.PERCY_CLIENT_ERROR_LOGS !== 'false';
-      if (sendCILogs) {
-        const redactedContent = redactSecrets(logger.query(log => ['ci'].includes(log.debug)));
-        logsObject.cilogs = redactedContent;
+
+      for await (const entry of readBack()) {
+        if (entry.debug === 'ci') {
+          if (sendCILogs) cilogs.push(entry);
+        } else {
+          clilogs.push(entry);
+        }
       }
+
+      const logsObject = sendCILogs ? { clilogs, cilogs } : { clilogs };
       const content = base64encode(Pako.gzip(JSON.stringify(logsObject)));
       const referenceId = this.build?.id ? `build_${this.build?.id}` : this.build?.id;
       const eventObject = {

@@ -46,13 +46,13 @@ describe('logger', () => {
       meta
     });
 
-    expect(inst.messages).toEqual(new Set([
+    expect(inst.toArray()).toEqual([
       entry('info', 'Info log', { foo: 'bar' }),
       entry('warn', 'Warn log', { bar: 'baz' }),
       entry('error', 'Error log', { to: 'be' }),
       entry('debug', 'Debug log', { not: 'to be' }),
       entry('warn', 'Warning: Deprecation log', { test: 'me' })
-    ]));
+    ]);
   });
 
   it('writes info logs to stdout', () => {
@@ -88,7 +88,7 @@ describe('logger', () => {
     let error = new Error('test');
     log.error(error);
 
-    expect(inst.messages).toContain({
+    expect(inst.toArray()).toContain({
       debug: 'test',
       level: 'error',
       message: error.stack,
@@ -564,6 +564,61 @@ describe('logger', () => {
         expect(mlog.meta.errorMsg).toEqual('Error');
         expect(mlog.meta.errorStack).toEqual(jasmine.stringContaining('Error: Error'));
       });
+    });
+  });
+
+  describe('hybrid store APIs (PER-7809)', () => {
+    it('reset() clears all in-memory entries', async () => {
+      log.info('first');
+      log.warn('second');
+      expect(inst.toArray().length).toBeGreaterThan(0);
+
+      await inst.reset();
+      expect(inst.toArray().length).toBe(0);
+    });
+
+    it('evictSnapshot drops only the matching bucket', () => {
+      log.info('global only');
+      log.debug('a', { snapshot: { name: 'home' } });
+      log.debug('b', { snapshot: { name: 'about' } });
+
+      inst.evictSnapshot(' home');
+
+      expect(inst.query(e => e.meta?.snapshot?.name === 'home').length).toBe(0);
+      expect(inst.query(e => e.meta?.snapshot?.name === 'about').length).toBe(1);
+      // global entry unaffected
+      expect(inst.query(e => e.message === 'global only').length).toBe(1);
+    });
+
+    it('toArray returns ring + bucket entries', () => {
+      log.info('global');
+      log.debug('snap-entry', { snapshot: { name: 'checkout' } });
+      const all = inst.toArray();
+      const messages = all.map(e => e.message);
+      expect(messages).toContain('global');
+      expect(messages).toContain('snap-entry');
+    });
+
+    it('readBack yields every persisted entry', async () => {
+      log.info('one');
+      log.info('two');
+      // Give the write stream a tick in case of disk mode
+      await new Promise(r => setTimeout(r, 50));
+
+      const back = [];
+      for await (const e of inst.readBack()) back.push(e);
+      const messages = back.map(e => e.message);
+      expect(messages).toContain('one');
+      expect(messages).toContain('two');
+    });
+
+    it('in-memory mode forced by PERCY_LOGS_IN_MEMORY=1', async () => {
+      process.env.PERCY_LOGS_IN_MEMORY = '1';
+      await helpers.reset();
+      await helpers.mock({ ansi: true, isTTY: true });
+      const fresh = logger.instance;
+      expect(fresh.inMemoryOnly).toBe(true);
+      delete process.env.PERCY_LOGS_IN_MEMORY;
     });
   });
 });

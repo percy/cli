@@ -1,4 +1,5 @@
 import logger from '@percy/logger';
+import { evictSnapshot, snapshotKey } from '@percy/logger/internal';
 import PercyConfig from '@percy/config';
 import micromatch from 'micromatch';
 import { configSchema } from './config.js';
@@ -424,8 +425,17 @@ export function createSnapshotsQueue(percy) {
       let { name, meta } = snapshot;
 
       // log immediately when not deferred or dry-running
-      if (!percy.deferUploads) percy.log.info(`Snapshot taken: ${snapshotLogName(name, meta)}`, meta);
-      if (percy.dryRun) percy.log.info(`Snapshot found: ${snapshotLogName(name, meta)}`, meta);
+      if (!percy.deferUploads) {
+        percy.log.info(`Snapshot taken: ${snapshotLogName(name, meta)}`, meta);
+        // DPR-10: sentinel for checkForNoSnapshotCommandError; owned by
+        // the Percy instance, not by logger, so the substring scan does
+        // not live inside the logger package.
+        percy._snapshotTakenObserved = true;
+      }
+      if (percy.dryRun) {
+        percy.log.info(`Snapshot found: ${snapshotLogName(name, meta)}`, meta);
+        percy._snapshotTakenObserved = true;
+      }
 
       // immediately flush when uploads are delayed but not skipped
       if (percy.delayUploads && !percy.deferUploads) queue.flush();
@@ -437,36 +447,56 @@ export function createSnapshotsQueue(percy) {
     // send snapshots to be uploaded to the build
     .handle('task', async function*({ resources, ...snapshot }) {
       let { name, meta } = snapshot;
+      // Eviction key captured up-front so try/finally can always run it
+      // regardless of which branch below throws. (DPR-9, DPR-12)
+      const evictKey = snapshotKey(snapshot?.meta);
 
-      if (percy.client.screenshotFlow === 'automate' && percy.client.buildType !== 'automate') {
-        throw new Error(`Cannot run automate screenshots in ${percy.client.buildType} project. Please use automate project token`);
-      } else if (percy.client.screenshotFlow === 'app' && percy.client.buildType !== 'app') {
-        throw new Error(`Cannot run App Percy screenshots in ${percy.client.buildType} project. Please use App Percy project token`);
+      try {
+        if (percy.client.screenshotFlow === 'automate' && percy.client.buildType !== 'automate') {
+          throw new Error(`Cannot run automate screenshots in ${percy.client.buildType} project. Please use automate project token`);
+        } else if (percy.client.screenshotFlow === 'app' && percy.client.buildType !== 'app') {
+          throw new Error(`Cannot run App Percy screenshots in ${percy.client.buildType} project. Please use App Percy project token`);
+        }
+        // yield to evaluated snapshot resources
+        snapshot.resources = typeof resources === 'function'
+          ? yield* yieldTo(resources())
+          : resources;
+
+        // upload the snapshot and log when deferred
+        let send = 'tag' in snapshot ? 'sendComparison' : 'sendSnapshot';
+        let response = yield percy.client[send](build.id, snapshot);
+        if (percy.deferUploads) {
+          percy.log.info(`Snapshot uploaded: ${name}`, meta);
+          // DPR-10: mark sentinel on deferred-upload confirmation too,
+          // since defer suppresses the "Snapshot taken" log at push().
+          percy._snapshotTakenObserved = true;
+        }
+
+        // Pushing to syncQueue, that will check for
+        // snapshot processing status, and will resolve once done
+        if (snapshot.sync) {
+          percy.log.info(`Waiting for snapshot '${name}' to be completed`, meta);
+          const data = new JobData(response.data.id, null, snapshot.resolve, snapshot.reject);
+          percy.syncQueue.push(data);
+        }
+
+        return { ...snapshot, response };
+      } finally {
+        // DPR-5/DPR-9: evict the snapshot's hot bucket after the POST
+        // completes — covers success, errors, and BYOS (skipDiscovery) paths
+        // uniformly. Map.delete is idempotent so the error handler's call
+        // is a harmless belt-and-braces.
+        evictSnapshot(evictKey);
       }
-      // yield to evaluated snapshot resources
-      snapshot.resources = typeof resources === 'function'
-        ? yield* yieldTo(resources())
-        : resources;
-
-      // upload the snapshot and log when deferred
-      let send = 'tag' in snapshot ? 'sendComparison' : 'sendSnapshot';
-      let response = yield percy.client[send](build.id, snapshot);
-      if (percy.deferUploads) percy.log.info(`Snapshot uploaded: ${name}`, meta);
-
-      // Pushing to syncQueue, that will check for
-      // snapshot processing status, and will resolve once done
-      if (snapshot.sync) {
-        percy.log.info(`Waiting for snapshot '${name}' to be completed`, meta);
-        const data = new JobData(response.data.id, null, snapshot.resolve, snapshot.reject);
-        percy.syncQueue.push(data);
-      }
-
-      return { ...snapshot, response };
     })
     // handle possible build errors returned by the API
     .handle('error', async (snapshot, error) => {
       let result = { ...snapshot, error };
       let { name, meta } = snapshot;
+
+      // Safety net in case the task handler's try/finally did not run
+      // (should never happen in practice, but idempotent so no harm).
+      evictSnapshot(snapshotKey(snapshot?.meta));
 
       if (error.name === 'QueueClosedError') return result;
       if (error.name === 'AbortError') return result;

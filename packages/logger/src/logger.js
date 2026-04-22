@@ -1,11 +1,20 @@
 import { colors } from './utils.js';
+import { HybridLogStore } from './hybrid-log-store.js';
+import { sweepOrphans } from './orphan-cleanup.js';
 
 const LINE_PAD_REGEXP = /^(\n*)(.*?)(\n*)$/s;
 const URL_REGEXP = /https?:\/\/[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,4}\b([-a-zA-Z0-9@:;%_+.~#?&//=[\]]*)/i;
 const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 
-// A PercyLogger instance retains logs in-memory for quick lookups while also writing log
-// messages to stdout and stderr depending on the log level and debug string.
+// Module-level guard: orphan sweep runs exactly once per process lifetime,
+// regardless of how many logger resets or constructor re-entries occur.
+let orphanSweepInflight = null;
+
+// A PercyLogger instance retains logs in a bounded in-memory cache backed by
+// a disk JSONL file. See docs/plans/2026-04-23-001-feat-disk-backed-hybrid-log-store-plan.md
+// for the full storage model. In-memory `query()` returns entries from the
+// ring (global) and hot buckets (per-snapshot), not from disk; use
+// `readBack()` for a full disk-backed iteration at end-of-build.
 export class PercyLogger {
   // default log level
   level = 'info';
@@ -16,11 +25,14 @@ export class PercyLogger {
     exclude: [/^ci$/, /^sdk$/]
   };
 
-  // in-memory store for logs and meta info
-  messages = new Set();
+  // bounded hybrid store — lazily initialized once per singleton
+  #store = null;
 
   // track deprecations to limit noisy logging
   deprecations = new Set();
+
+  // once-per-logger warning that the disk fallback has kicked in (R7/R11)
+  _memoryFallbackWarned = false;
 
   // static vars can be overriden for testing
   static stdout = process.stdout;
@@ -37,6 +49,25 @@ export class PercyLogger {
     }
 
     this.constructor.instance = instance;
+
+    // One-time per-process: initialize the hybrid store and kick off an
+    // orphan sweep on the first real logger construction. Subsequent
+    // constructor calls return the existing singleton.
+    if (!instance.#store) {
+      const forceInMemory = process.env.PERCY_LOGS_IN_MEMORY === '1';
+      instance.#store = new HybridLogStore({ forceInMemory });
+
+      if (!orphanSweepInflight) {
+        orphanSweepInflight = sweepOrphans().then(res => {
+          if (res && res.removed > 0) {
+            instance.log('logger:memory', 'debug', 'orphan-cleanup', {
+              removed_count: res.removed, bytes_reclaimed: res.bytes
+            });
+          }
+        }).catch(() => {});
+      }
+    }
+
     return instance;
   }
 
@@ -89,9 +120,50 @@ export class PercyLogger {
       });
   }
 
-  // Query for a set of logs by filtering the in-memory store
+  // Query for a set of logs in memory. Serves from the global ring and every
+  // live per-snapshot bucket. Returns synchronously — existing callers
+  // expecting an Array are unaffected.
   query(filter) {
-    return Array.from(this.messages).filter(filter);
+    return this.#store ? this.#store.query(filter) : [];
+  }
+
+  // Public API surfaced via @percy/logger/internal for use by @percy/core.
+  // Evicts a per-snapshot bucket after the snapshot has been POSTed; called
+  // from the snapshot queue's task/error handler in packages/core/src/snapshot.js.
+  evictSnapshot(key) {
+    if (this.#store) this.#store.evictSnapshot(key);
+  }
+
+  // Async iterator over every persisted entry. Used by sendBuildLogs() to
+  // stream the full log set at end-of-build without re-materializing every
+  // entry in memory.
+  readBack() {
+    return this.#store
+      ? this.#store.readBack()
+      : (async function * () {})();
+  }
+
+  // Returns a plain Array of the currently in-memory entries. Replaces the
+  // former `Array.from(logger.instance.messages)` pattern at
+  // packages/core/src/api.js:265 (the `/test/logs` test endpoint).
+  toArray() {
+    return this.query(() => true);
+  }
+
+  // Public reset — clears in-memory caches, closes the disk writer, deletes
+  // the spill directory, and re-initializes disk storage on the next log
+  // call. Replaces the former `logger.instance.messages.clear()` call at
+  // packages/core/src/api.js:233 (the `/test/api/reset` endpoint) and is
+  // also used by test helpers.
+  async reset() {
+    if (this.#store) await this.#store.reset();
+    this.deprecations.clear();
+    this._memoryFallbackWarned = false;
+  }
+
+  // True if the store fell back to memory-only (disk unavailable or disabled).
+  get inMemoryOnly() {
+    return this.#store ? this.#store.inMemoryOnly : true;
   }
 
   // Formats messages before they are logged to stdio
@@ -186,7 +258,22 @@ export class PercyLogger {
     let timestamp = Date.now();
     message = err ? (message.stack || err) : message.toString();
     let entry = { debug, level, message, meta, timestamp, error: !!err };
-    this.messages.add(entry);
+
+    if (this.#store) {
+      this.#store.push(entry);
+      // If the store just transitioned to fallback mode, surface it once.
+      if (this.#store.inMemoryOnly && !this._memoryFallbackWarned && !(process.env.PERCY_LOGS_IN_MEMORY === '1')) {
+        this._memoryFallbackWarned = true;
+        const err = this.#store.lastFallbackError;
+        const reason = err?.code || err?.message || 'unknown';
+        // Inline recursion-safe: route directly to stdio without another store push
+        this.write({
+          debug: 'logger:memory', level: 'warn',
+          message: `logger fell back to in-memory mode: ${reason}`,
+          timestamp, error: false
+        });
+      }
+    }
 
     // maybe write the message to stdio
     if (this.shouldLog(debug, level)) {
@@ -214,6 +301,13 @@ export class PercyLogger {
     if (!this._progress?.persist) delete this._progress;
     else if (progress) stdout.write(progress.message);
   }
+}
+
+// Test-only: reset the module-level orphan-sweep guard so a fresh process
+// simulation (e.g. helpers.reset(true) followed by a new constructor) can
+// exercise the sweep-on-init path. Do not call from production code.
+export function __resetOrphanSweepGuard() {
+  orphanSweepInflight = null;
 }
 
 export default PercyLogger;

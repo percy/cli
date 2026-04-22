@@ -43,7 +43,7 @@ const helpers = {
   },
 
   async mock(options = {}) {
-    helpers.reset();
+    await helpers.reset();
 
     if (options.level) {
       logger.loglevel(options.level);
@@ -77,9 +77,20 @@ const helpers = {
     }
   },
 
-  reset(soft) {
-    if (soft) logger.loglevel('info');
-    else delete logger.constructor.instance;
+  // Async: awaits the store's writer close + spill-dir cleanup before
+  // replacing the singleton so tests don't leak tmpdirs.
+  async reset(soft) {
+    if (soft) {
+      logger.loglevel('info');
+    } else {
+      // Close writer + rm spill dir before detaching the instance. Swallow
+      // any error — test isolation must not be blocked by a disk race.
+      const existing = logger.constructor.instance;
+      if (existing && typeof existing.reset === 'function') {
+        try { await existing.reset(); } catch (_) {}
+      }
+      delete logger.constructor.instance;
+    }
 
     helpers.stdout.length = 0;
     helpers.stderr.length = 0;
@@ -92,7 +103,7 @@ const helpers = {
   },
 
   dump() {
-    let msgs = Array.from(logger.instance.messages);
+    let msgs = logger.instance.toArray ? logger.instance.toArray() : [];
     if (!msgs.length) return;
 
     let log = m => process.env.__PERCY_BROWSERIFIED__ ? (
