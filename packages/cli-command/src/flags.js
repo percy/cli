@@ -94,6 +94,16 @@ export const disableCache = {
   group: 'Percy'
 };
 
+export const maxCacheRam = {
+  name: 'max-cache-ram',
+  description: 'Cap asset-discovery cache memory in MB (e.g. 300)',
+  env: 'PERCY_MAX_CACHE_RAM',
+  percyrc: 'discovery.maxCacheRam',
+  type: 'integer',
+  parse: Number,
+  group: 'Percy'
+};
+
 export const debug = {
   name: 'debug',
   description: 'Debug asset discovery and do not upload snapshots',
@@ -134,6 +144,7 @@ export const DISCOVERY = [
   disallowedHostnames,
   networkIdleTimeout,
   disableCache,
+  maxCacheRam,
   debug
 ];
 
