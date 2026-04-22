@@ -127,6 +127,14 @@ describe('Unit / ByteLRU', () => {
       c.set('a', 'A', 100);
       expect(c.calculatedSize).toEqual(300);
     });
+
+    it('returns false when the key is not in the cache', () => {
+      const c = new ByteLRU(1000);
+      c.set('a', 'A', 100);
+      expect(c.delete('missing')).toBe(false);
+      // existing entry untouched
+      expect(c.calculatedSize).toEqual(100);
+    });
   });
 
   describe('stats', () => {
@@ -199,6 +207,16 @@ describe('Unit / entrySize', () => {
   it('tolerates missing content field', () => {
     expect(entrySize({})).toEqual(512);
     expect(entrySize(null)).toEqual(512);
+  });
+
+  it('tolerates null entries and missing content fields inside an array', () => {
+    // Covers the optional-chain branches in the reduce callback.
+    const arr = [
+      null,
+      {}, // no content
+      { content: Buffer.alloc(100) } // populated
+    ];
+    expect(entrySize(arr)).toEqual(100 + 3 * 512);
   });
 
   it('accepts custom overhead', () => {

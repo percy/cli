@@ -2389,6 +2389,50 @@ describe('Discovery', () => {
       ]));
     });
 
+    it('fireCacheEventSafe debug-logs and swallows pager rejections', async () => {
+      await logger.mock({ level: 'debug' });
+      await startPercyWith({ maxCacheRam: 25 });
+      percy.build = { id: '123' };
+      spyOn(percy.client, 'sendBuildEvents').and.rejectWith(new Error('pager down'));
+      const cache = percy[RESOURCE_CACHE_KEY];
+      const capBytes = 25 * 1_000_000;
+      const chunk = Math.floor(capBytes / 3);
+      cache.set('a', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('b', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('c', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('d', { content: Buffer.alloc(chunk) }, chunk + 512);
+      // fireCacheEventSafe is fire-and-forget — wait a microtask tick for the
+      // catch handler to run.
+      await new Promise(r => setImmediate(r));
+      expect(percy.client.sendBuildEvents).toHaveBeenCalled();
+    });
+
+    it('saveResource debug-logs and increments oversize_skipped for real oversize resources', async () => {
+      await startPercyWith({ maxCacheRam: 25 });
+      await logger.mock({ level: 'debug' });
+      // Serve a resource exactly at the per-resource 25MB ceiling. entrySize
+      // adds 512B overhead so the ByteLRU path sees it as > cap and takes
+      // the oversize-skip branch in saveResource.
+      server = await createTestServer({
+        '/': () => [200, 'text/html', dedent`
+          <html><head></head><body>
+            <img src="/big.bin" alt="big" />
+          </body></html>
+        `],
+        '/big.bin': () => [200, 'application/octet-stream', Buffer.alloc(25_000_000, 'x')]
+      });
+      await percy.snapshot({
+        name: 'oversize resource',
+        url: 'http://localhost:8000',
+        widths: [1000]
+      });
+      await percy.idle();
+      expect(percy[CACHE_STATS_KEY].oversizeSkipped).toBeGreaterThan(0);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('Skipping cache for resource')
+      ]));
+    });
+
     it('records oversize_skipped in stats when an entry is bigger than cap', async () => {
       await startPercyWith({ maxCacheRam: 25 });
       const cache = percy[RESOURCE_CACHE_KEY];
@@ -2488,6 +2532,23 @@ describe('Discovery', () => {
       const spy = spyOn(percy.client, 'sendBuildEvents');
       await percy.sendCacheSummary();
       expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('sendCacheSummary falls back to 0 when cache has no size field', async () => {
+      percy.build = { id: '123' };
+      // Defensive-path cache shape with no .size — exercises the `?? 0`
+      // fallback on entry_count.
+      percy[RESOURCE_CACHE_KEY] = { stats: {} };
+      percy[CACHE_STATS_KEY] = {
+        effectiveMaxCacheRamMB: 25,
+        oversizeSkipped: 0,
+        unsetModeBytes: 0
+      };
+      const spy = spyOn(percy.client, 'sendBuildEvents').and.resolveTo();
+      await percy.sendCacheSummary();
+      expect(spy).toHaveBeenCalledWith('123', jasmine.objectContaining({
+        extra: jasmine.objectContaining({ entry_count: 0 })
+      }));
     });
 
     it('keeps incrementing unsetModeBytes after the warning has fired', async () => {
