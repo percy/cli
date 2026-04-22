@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import logger from '@percy/logger';
 import Network from './network.js';
 import { PERCY_DOM } from './api.js';
@@ -8,6 +9,31 @@ import {
   waitForTimeout as sleep,
   serializeFunction
 } from './utils.js';
+
+// Cached preflight script for closed shadow root and ElementInternals interception
+let _preflightScript = null;
+async function getPreflightScript() {
+  if (!_preflightScript) {
+    let pkgRoot = path.resolve(path.dirname(PERCY_DOM), '..');
+    let candidates = [
+      path.join(pkgRoot, 'src', 'preflight.js'),
+      path.join(pkgRoot, 'dist', 'preflight.js'),
+      path.join(path.dirname(PERCY_DOM), 'preflight.js')
+    ];
+    for (let candidate of candidates) {
+      try {
+        _preflightScript = await fs.promises.readFile(candidate, 'utf-8');
+        break;
+      } catch {
+        // try next candidate
+      }
+    }
+    if (!_preflightScript) {
+      _preflightScript = ''; // graceful fallback if file not found in any location
+    }
+  }
+  return _preflightScript;
+}
 
 export class Page {
   static TIMEOUT = undefined;
@@ -187,7 +213,7 @@ export class Page {
     execute,
     ...snapshot
   }) {
-    let { name, width, enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements } = snapshot;
+    let { name, width, enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, ignoreIframeSelectors, pseudoClassEnabledElements } = snapshot;
     this.log.debug(`Taking snapshot: ${name}${width ? ` @${width}px` : ''}`, this.meta);
 
     // wait for any specified timeout
@@ -211,6 +237,21 @@ export class Page {
     // wait for any final network activity before capturing the dom snapshot
     await this.network.idle();
 
+    // wait for custom elements to be defined before capturing
+    /* istanbul ignore next: no instrumenting injected code */
+    await this.eval(function() {
+      let undefinedEls = document.querySelectorAll(':not(:defined)');
+      if (!undefinedEls.length) return Promise.resolve();
+      return Promise.race([
+        Promise.all(
+          Array.from(undefinedEls).map(function(el) {
+            return window.customElements.whenDefined(el.localName);
+          })
+        ),
+        new Promise(function(r) { setTimeout(r, 500); })
+      ]);
+    });
+
     await this.insertPercyDom();
 
     // serialize and capture a DOM snapshot
@@ -221,7 +262,7 @@ export class Page {
       /* eslint-disable-next-line no-undef */
       domSnapshot: PercyDOM.serialize(options),
       url: document.URL
-    }), { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements });
+    }), { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, ignoreIframeSelectors, pseudoClassEnabledElements });
 
     return { ...snapshot, ...capture };
   }
@@ -238,8 +279,22 @@ export class Page {
     if (session.isDocument) {
       session.on('Target.attachedToTarget', this._handleAttachedToTarget);
 
+      // Chain preflight injection after Page.enable to ensure the Page domain
+      // is ready before addScriptToEvaluateOnNewDocument
+      let pageEnablePromise = session.send('Page.enable');
       commands.push(
-        session.send('Page.enable'),
+        pageEnablePromise.then(() => {
+          return getPreflightScript().then(script => {
+            if (script) {
+              return session.send('Page.addScriptToEvaluateOnNewDocument', { source: script })
+                .catch(err => {
+                  if (!err.message?.includes('closed') && !err.message?.includes('destroyed')) {
+                    logger('core:page').debug('Preflight script injection failed:', err.message);
+                  }
+                });
+            }
+          });
+        }),
         session.send('Page.setLifecycleEventsEnabled', { enabled: true }),
         session.send('Security.setIgnoreCertificateErrors', { ignore: true }),
         session.send('Emulation.setScriptExecutionDisabled', { value: !this.enableJavaScript }),

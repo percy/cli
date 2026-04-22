@@ -190,6 +190,16 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   let log = logger('core:snapshot');
   resources = [...(resources?.values() ?? [])];
 
+  // log fidelity warnings from dom serialization
+  let domWarnings = domSnapshot?.warnings?.filter(w => w.startsWith('[fidelity]')) || [];
+  for (let w of domWarnings) log.info(w);
+
+  // extract fidelity regions for API upload
+  // Only the first domSnapshot's fidelity regions are used — for responsive captures
+  // with multiple widths, regions are width-independent (same DOM structure), so
+  // the first entry is representative
+  let fidelityRegions = domSnapshot?.fidelityRegions || domSnapshot?.[0]?.fidelityRegions || [];
+
   // find any root resource matching the provided dom snapshot
   // since root resources are stored as array
   let roots = resources.find(r => Array.isArray(r));
@@ -232,7 +242,7 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
     }
   }
 
-  return { ...snapshot, resources };
+  return { ...snapshot, resources, fidelityRegions };
 }
 
 // Triggers the capture of resource requests for a page by iterating over snapshot widths to resize

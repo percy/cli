@@ -306,6 +306,147 @@ describe('serializeFrames', () => {
       expect($('#frame-inject')).toHaveSize(0);
     });
 
+    it(`${platform}: warns for fully sandboxed iframes`, () => {
+      withExample('<iframe id="frame-sandbox-full" sandbox srcdoc="<p>test</p>"></iframe>');
+
+      let result = serializeDOM();
+      expect(result.warnings).toContain(
+        jasmine.stringMatching(/Sandboxed iframe.*frame-sandbox-full.*has no permissions/)
+      );
+    });
+
+    it(`${platform}: warns for sandboxed iframe without allow-scripts`, () => {
+      withExample('<iframe id="frame-sandbox-no-scripts" sandbox="allow-same-origin" srcdoc="<p>test</p>"></iframe>');
+
+      let result = serializeDOM();
+      expect(result.warnings).toContain(
+        jasmine.stringMatching(/Sandboxed iframe.*frame-sandbox-no-scripts.*scripts disabled/)
+      );
+    });
+
+    it(`${platform}: warns for sandboxed iframe without allow-same-origin`, () => {
+      withExample('<iframe id="frame-sandbox-no-origin" sandbox="allow-scripts" srcdoc="<p>test</p>"></iframe>');
+
+      let result = serializeDOM();
+      expect(result.warnings).toContain(
+        jasmine.stringMatching(/Sandboxed iframe.*frame-sandbox-no-origin.*allow-same-origin/)
+      );
+    });
+
+    it(`${platform}: does not warn for sandbox with allow-scripts and allow-same-origin`, () => {
+      withExample('<iframe id="frame-sandbox-ok" sandbox="allow-scripts allow-same-origin" srcdoc="<p>test</p>"></iframe>');
+
+      let result = serializeDOM();
+      let sandboxWarnings = result.warnings.filter(w => w.includes('frame-sandbox-ok'));
+      expect(sandboxWarnings).toEqual([]);
+    });
+
+    it(`${platform}: does not warn for iframes without sandbox attribute`, () => {
+      withExample('<iframe id="frame-no-sandbox" srcdoc="<p>test</p>"></iframe>');
+
+      let result = serializeDOM();
+      let sandboxWarnings = result.warnings.filter(w => w.includes('Sandboxed iframe'));
+      expect(sandboxWarnings).toEqual([]);
+    });
+
+    it(`${platform}: warns for sandboxed iframe without id using src as label`, () => {
+      withExample('<iframe src="about:blank" sandbox srcdoc="<p>test</p>"></iframe>');
+
+      let result = serializeDOM();
+      expect(result.warnings).toContain(
+        jasmine.stringMatching(/Sandboxed iframe.*has no permissions/)
+      );
+    });
+
+    it(`${platform}: warns for sandboxed iframe without id or src using percyElementId or unknown as label`, () => {
+      withExample('<iframe sandbox srcdoc="<p>test</p>"></iframe>');
+
+      let result = serializeDOM();
+      expect(result.warnings).toContain(
+        jasmine.stringMatching(/Sandboxed iframe.*has no permissions/)
+      );
+    });
+
+    it(`${platform}: removes iframes with data-percy-ignore and captures fidelity region`, () => {
+      withExample('<iframe id="frame-ignored" data-percy-ignore srcdoc="<p>ignored</p>"></iframe>' +
+        '<iframe id="frame-kept" srcdoc="<p>kept</p>"></iframe>');
+
+      let result = serializeDOM();
+      let $parsed = parseDOM(result.html, platform);
+      expect($parsed('#frame-ignored')).toHaveSize(0);
+      expect($parsed('#frame-kept')).toHaveSize(1);
+      // fidelityRegions should contain the ignored iframe's position
+      expect(result.fidelityRegions.length).toBeGreaterThan(0);
+      expect(result.fidelityRegions.some(r => r.reason === 'user-ignored')).toBe(true);
+    });
+
+    it(`${platform}: removes iframes matching ignoreIframeSelectors and captures fidelity regions`, () => {
+      withExample('<iframe id="frame-ad" class="ad-frame" srcdoc="<p>ad</p>"></iframe>' +
+        '<iframe id="frame-track" data-tracking="true" srcdoc="<p>track</p>"></iframe>' +
+        '<iframe id="frame-normal" srcdoc="<p>normal</p>"></iframe>');
+
+      let result = serializeDOM({ ignoreIframeSelectors: ['.ad-frame', '[data-tracking]'] });
+      let $parsed = parseDOM(result.html, platform);
+      expect($parsed('#frame-ad')).toHaveSize(0);
+      expect($parsed('#frame-track')).toHaveSize(0);
+      expect($parsed('#frame-normal')).toHaveSize(1);
+      let ignoredRegions = result.fidelityRegions.filter(r => r.reason === 'user-ignored');
+      expect(ignoredRegions.length).toBeGreaterThanOrEqual(2);
+    });
+
+    if (platform === 'plain') {
+      it('handles getBoundingClientRect failure gracefully for fidelity capture', () => {
+        withExample('<iframe id="frame-bad-rect" data-percy-ignore srcdoc="<p>bad</p>"></iframe>', { withShadow: false });
+        // Mock on HTMLIFrameElement prototype to ensure all iframe references throw
+        let origFn = window.HTMLIFrameElement.prototype.getBoundingClientRect;
+        window.HTMLIFrameElement.prototype.getBoundingClientRect = function() {
+          if (this.id === 'frame-bad-rect') throw new Error('not supported');
+          return origFn.call(this);
+        };
+
+        let result;
+        try {
+          result = serializeDOM();
+        } finally {
+          window.HTMLIFrameElement.prototype.getBoundingClientRect = origFn;
+        }
+        let $parsed = parseDOM(result.html, platform);
+        expect($parsed('#frame-bad-rect')).toHaveSize(0);
+        let badRegions = result.fidelityRegions.filter(r => r.selector === 'frame-bad-rect');
+        expect(badRegions.length).toBe(0);
+      });
+    }
+
+    it(`${platform}: handles invalid selectors in ignoreIframeSelectors gracefully`, () => {
+      withExample('<iframe id="frame-ok" srcdoc="<p>ok</p>"></iframe>');
+
+      let result = serializeDOM({ ignoreIframeSelectors: ['[invalid==='] });
+      let $parsed = parseDOM(result.html, platform);
+      expect($parsed('#frame-ok')).toHaveSize(1);
+    });
+
+    it(`${platform}: does not remove iframes without data-percy-ignore`, () => {
+      withExample('<div data-percy-ignore>' +
+        '<iframe id="frame-inside-ignore-div" srcdoc="<p>kept</p>"></iframe>' +
+        '</div>' +
+        '<iframe id="frame-outside" srcdoc="<p>kept</p>"></iframe>');
+
+      let result = serializeDOM();
+      let $parsed = parseDOM(result.html, platform);
+      expect($parsed('#frame-inside-ignore-div')).toHaveSize(1);
+      expect($parsed('#frame-outside')).toHaveSize(1);
+    });
+
+    it(`${platform}: includes ignored iframe count in fidelity warning`, () => {
+      withExample('<iframe id="frame-ig1" data-percy-ignore srcdoc="<p>a</p>"></iframe>' +
+        '<iframe id="frame-ig2" data-percy-ignore srcdoc="<p>b</p>"></iframe>' +
+        '<iframe id="frame-normal" srcdoc="<p>c</p>"></iframe>');
+
+      let result = serializeDOM();
+      let fidelityWarning = result.warnings.find(w => w.startsWith('[fidelity]'));
+      expect(fidelityWarning).toContain('2 ignored via data-percy-ignore');
+    });
+
     if (platform === 'plain') {
       it('uses Trusted Types policy to create srcdoc when available', () => {
         let createHTML = jasmine.createSpy('createHTML').and.callFake(html => html);

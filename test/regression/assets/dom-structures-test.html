@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Percy DOM Structures Coverage Test</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; padding: 24px; background: #f5f5f5; }
+    h1 { font-size: 20px; margin-bottom: 16px; color: #1a1a1a; }
+    h2 { font-size: 16px; margin: 24px 0 8px; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+    .section { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .label { font-size: 12px; color: #666; margin-bottom: 4px; }
+    .status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .pass { background: #d4edda; color: #155724; }
+    .fail { background: #f8d7da; color: #721c24; }
+    .warn { background: #fff3cd; color: #856404; }
+
+    /* Styles for interactive states */
+    .focus-test:focus { outline: 3px solid #4a90d9; background: #e8f0fe; }
+    .focus-test:focus-within { border-color: #4a90d9; }
+    .hover-test:hover { background: #ffeeba; color: #856404; }
+    .checked-label input:checked + span { color: #28a745; font-weight: bold; }
+    .disabled-test:disabled { opacity: 0.5; background: #e9ecef; }
+    .active-test:active { background: #c82333; color: white; }
+  </style>
+</head>
+<body>
+
+<h1>Percy DOM Structures Coverage Test Page</h1>
+<p style="margin-bottom:16px;color:#666;">Open this in a browser and snapshot with Percy to verify capture fidelity.</p>
+
+<!-- ============================================ -->
+<!-- S2+S3: Interactive States                    -->
+<!-- ============================================ -->
+<h2>S2+S3: Interactive States (:focus, :checked, :disabled, :active)</h2>
+
+<div class="section" id="interactive-states">
+  <div class="label">:focus state</div>
+  <input type="text" class="focus-test" id="focus-input" value="I should be focused"
+         style="padding:8px;border:2px solid #ccc;border-radius:4px;margin-bottom:12px;display:block;width:300px;">
+
+  <div class="label">:focus-within state</div>
+  <div class="focus-test" id="focus-within-container"
+       style="padding:12px;border:2px solid #ccc;border-radius:4px;margin-bottom:12px;">
+    <input type="text" id="inner-focus-input" value="Focus me to trigger :focus-within on parent"
+           style="padding:6px;border:1px solid #999;border-radius:4px;width:280px;">
+  </div>
+
+  <div class="label">:checked state</div>
+  <div style="margin-bottom:12px;">
+    <label class="checked-label" style="margin-right:16px;">
+      <input type="checkbox" id="check1" checked> <span>Checked checkbox</span>
+    </label>
+    <label class="checked-label" style="margin-right:16px;">
+      <input type="checkbox" id="check2"> <span>Unchecked checkbox</span>
+    </label>
+    <label class="checked-label" style="margin-right:16px;">
+      <input type="radio" name="radio-group" id="radio1" checked> <span>Selected radio</span>
+    </label>
+    <label class="checked-label">
+      <input type="radio" name="radio-group" id="radio2"> <span>Unselected radio</span>
+    </label>
+  </div>
+
+  <div class="label">:disabled state</div>
+  <div style="margin-bottom:12px;">
+    <input type="text" class="disabled-test" disabled value="I am disabled"
+           style="padding:8px;border:1px solid #ccc;border-radius:4px;margin-right:8px;">
+    <button class="disabled-test" disabled
+            style="padding:8px 16px;border:1px solid #ccc;border-radius:4px;">Disabled Button</button>
+    <select class="disabled-test" disabled style="padding:8px;border:1px solid #ccc;border-radius:4px;">
+      <option>Disabled Select</option>
+    </select>
+  </div>
+
+  <div class="label">:active state (click and hold)</div>
+  <button class="active-test" id="active-btn"
+          style="padding:8px 16px;background:#dc3545;color:white;border:none;border-radius:4px;cursor:pointer;">
+    Click & Hold Me
+  </button>
+</div>
+
+<!-- ============================================ -->
+<!-- S4: Hover State                              -->
+<!-- ============================================ -->
+<h2>S4: Hover Forced State</h2>
+
+<div class="section" id="hover-states">
+  <div class="label">:hover state (hover over these)</div>
+  <div style="display:flex;gap:12px;margin-top:8px;">
+    <div class="hover-test" style="padding:16px;border:1px solid #ddd;border-radius:4px;cursor:pointer;">
+      Hover Card 1
+    </div>
+    <div class="hover-test" style="padding:16px;border:1px solid #ddd;border-radius:4px;cursor:pointer;">
+      Hover Card 2
+    </div>
+    <a href="#" class="hover-test" style="padding:16px;border:1px solid #ddd;border-radius:4px;text-decoration:none;color:#333;">
+      Hover Link
+    </a>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- S1: Open Shadow DOM                          -->
+<!-- ============================================ -->
+<h2>S1: Open Shadow DOM</h2>
+
+<div class="section" id="open-shadow-dom">
+  <div class="label">Open shadow root with styles</div>
+  <open-shadow-card id="open-card-1"></open-shadow-card>
+
+  <div class="label" style="margin-top:12px;">Open shadow root with form inputs (tests S2+S3 inside shadow)</div>
+  <shadow-form-element id="shadow-form-1"></shadow-form-element>
+</div>
+
+<!-- ============================================ -->
+<!-- S1: Closed Shadow DOM                        -->
+<!-- ============================================ -->
+<h2>S1: Closed Shadow DOM</h2>
+
+<div class="section" id="closed-shadow-dom">
+  <div class="label">Closed shadow root (should NOT be captured without monkey-patch)</div>
+  <closed-shadow-card id="closed-card-1"></closed-shadow-card>
+
+  <div class="label" style="margin-top:12px;">Closed shadow root with dynamic content</div>
+  <closed-dynamic-card id="closed-dynamic-1"></closed-dynamic-card>
+</div>
+
+<!-- ============================================ -->
+<!-- S1: Nested Shadow DOM                        -->
+<!-- ============================================ -->
+<h2>S1: Nested Shadow DOM (shadow inside shadow)</h2>
+
+<div class="section" id="nested-shadow-dom">
+  <div class="label">3 levels deep: outer > middle > inner</div>
+  <nested-shadow-outer id="nested-outer-1"></nested-shadow-outer>
+</div>
+
+<!-- ============================================ -->
+<!-- S1: Closed Shadow Inside Open Shadow         -->
+<!-- ============================================ -->
+<h2>S1: Closed Shadow Root Inside Open Shadow Root</h2>
+
+<div class="section" id="closed-inside-open">
+  <div class="label">Open shadow root containing a child with a closed shadow root</div>
+  <open-with-closed-child id="open-closed-1"></open-with-closed-child>
+</div>
+
+<!-- ============================================ -->
+<!-- S1: Nested Closed Shadow Roots               -->
+<!-- ============================================ -->
+<h2>S1: Nested Closed Shadow Roots (closed inside closed)</h2>
+
+<div class="section" id="nested-closed">
+  <div class="label">Outer closed shadow containing inner closed shadow</div>
+  <closed-outer-wrapper id="closed-nested-1"></closed-outer-wrapper>
+</div>
+
+<!-- ============================================ -->
+<!-- S5: ElementInternals Custom States           -->
+<!-- ============================================ -->
+<h2>S5: ElementInternals Custom States</h2>
+
+<div class="section" id="custom-states">
+  <div class="label">Custom element with :state(active) and :state(loading)</div>
+  <custom-state-element id="state-el-1" data-state="active"></custom-state-element>
+
+  <div class="label" style="margin-top:12px;">Custom element with :state(error)</div>
+  <custom-state-element id="state-el-2" data-state="error"></custom-state-element>
+
+  <div class="label" style="margin-top:12px;">Custom element with no custom state</div>
+  <custom-state-element id="state-el-3" data-state="idle"></custom-state-element>
+</div>
+
+<!-- ============================================ -->
+<!-- W1: Web Components with Slots & Templates    -->
+<!-- ============================================ -->
+<h2>W1: Web Components — Slots, Templates, whenDefined()</h2>
+
+<div class="section" id="web-components-slots">
+  <div class="label">Named slots (content should appear in projected position)</div>
+  <slotted-card id="slot-card-1">
+    <span slot="title">Card Title via Slot</span>
+    <span slot="body">This body content is slotted from light DOM into shadow DOM.</span>
+    <span slot="footer">Footer: Slotted</span>
+  </slotted-card>
+
+  <div class="label" style="margin-top:12px;">Default slot (fallback content)</div>
+  <slotted-card id="slot-card-2">
+    <!-- no slotted content — should show fallback -->
+  </slotted-card>
+</div>
+
+<div class="section" id="web-components-lazy">
+  <div class="label">Lazy-defined element (defined after 2s delay — tests whenDefined())</div>
+  <lazy-defined-widget id="lazy-widget-1" data-message="I was defined late!"></lazy-defined-widget>
+  <div id="lazy-status" class="status warn" style="margin-top:8px;">Waiting for definition...</div>
+</div>
+
+<!-- ============================================ -->
+<!-- W1: Async / Lazy-Load Web Component          -->
+<!-- ============================================ -->
+<h2>W1: Async Data-Fetching Component</h2>
+
+<div class="section" id="async-component">
+  <div class="label">Component that fetches data in connectedCallback (simulated 1s delay)</div>
+  <async-data-card id="async-card-1" data-endpoint="users"></async-data-card>
+</div>
+
+<!-- ============================================ -->
+<!-- Combined: Shadow DOM + Adopted Stylesheets   -->
+<!-- ============================================ -->
+<h2>Combined: Adopted Stylesheets in Shadow DOM</h2>
+
+<div class="section" id="adopted-styles">
+  <div class="label">Shadow root using adoptedStyleSheets API</div>
+  <adopted-style-card id="adopted-card-1"></adopted-style-card>
+</div>
+
+<!-- ============================================ -->
+<!-- Edge Case: Shadow DOM with :host styles      -->
+<!-- ============================================ -->
+<h2>Edge Case: :host and ::slotted() CSS</h2>
+
+<div class="section" id="host-slotted-css">
+  <div class="label">:host selector + ::slotted() pseudo-element</div>
+  <host-styled-card id="host-card-1">
+    <span slot="highlight">This text styled via ::slotted()</span>
+  </host-styled-card>
+</div>
+
+<!-- ============================================ -->
+<!-- Fidelity Reference: Plain HTML baseline      -->
+<!-- ============================================ -->
+<h2>F1: Fidelity Reference — Plain HTML (should always capture 100%)</h2>
+
+<div class="section" id="fidelity-baseline">
+  <p style="color:#333;">This plain HTML section is the baseline. If Percy can't capture this, something is broken.</p>
+  <div style="display:flex;gap:8px;margin-top:8px;">
+    <div style="width:80px;height:80px;background:#4a90d9;border-radius:4px;"></div>
+    <div style="width:80px;height:80px;background:#d94a4a;border-radius:4px;"></div>
+    <div style="width:80px;height:80px;background:#4ad97a;border-radius:4px;"></div>
+  </div>
+</div>
+
+
+<!-- ============================================ -->
+<!-- SCRIPTS: Define all custom elements          -->
+<!-- ============================================ -->
+<script>
+// ---- Open Shadow DOM Card ----
+class OpenShadowCard extends HTMLElement {
+  constructor() {
+    super();
+    const shadow = this.attachShadow({ mode: 'open' });
+    shadow.innerHTML = `
+      <style>
+        :host { display: block; border: 2px solid #4a90d9; border-radius: 8px; padding: 16px; margin-top: 8px; }
+        .title { font-weight: bold; color: #4a90d9; margin-bottom: 8px; }
+        .content { color: #333; }
+        .badge { display: inline-block; background: #4a90d9; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; }
+      </style>
+      <div class="title">Open Shadow Card <span class="badge">shadow</span></div>
+      <div class="content">This content lives inside an open shadow root. Percy should capture this.</div>
+    `;
+  }
+}
+customElements.define('open-shadow-card', OpenShadowCard);
+
+// ---- Shadow Form Element (interactive states inside shadow DOM) ----
+class ShadowFormElement extends HTMLElement {
+  constructor() {
+    super();
+    const shadow = this.attachShadow({ mode: 'open' });
+    shadow.innerHTML = `
+      <style>
+        :host { display: block; border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-top: 8px; }
+        input[type="text"]:focus { outline: 3px solid #4a90d9; background: #e8f0fe; }
+        input[type="checkbox"]:checked + label { color: #28a745; font-weight: bold; }
+        input:disabled { opacity: 0.5; background: #e9ecef; }
+        .row { margin-bottom: 8px; }
+      </style>
+      <div class="row">
+        <input type="text" id="shadow-text" value="Focus me (inside shadow)" style="padding:6px;border:1px solid #ccc;border-radius:4px;">
+      </div>
+      <div class="row">
+        <input type="checkbox" id="shadow-check" checked>
+        <label for="shadow-check">Checked inside shadow DOM</label>
+      </div>
+      <div class="row">
+        <input type="text" disabled value="Disabled inside shadow" style="padding:6px;border:1px solid #ccc;border-radius:4px;">
+      </div>
+      <div class="row">
+        <select id="shadow-select">
+          <option>Option A</option>
+          <option selected>Option B (selected)</option>
+          <option>Option C</option>
+        </select>
+      </div>
+    `;
+  }
+}
+customElements.define('shadow-form-element', ShadowFormElement);
+
+// ---- Closed Shadow DOM Card ----
+class ClosedShadowCard extends HTMLElement {
+  constructor() {
+    super();
+    const shadow = this.attachShadow({ mode: 'closed' });
+    shadow.innerHTML = `
+      <style>
+        :host { display: block; border: 2px solid #dc3545; border-radius: 8px; padding: 16px; margin-top: 8px; }
+        .title { font-weight: bold; color: #dc3545; }
+        .content { color: #333; margin-top: 8px; }
+        .badge { display: inline-block; background: #dc3545; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; }
+      </style>
+      <div class="title">Closed Shadow Card <span class="badge">closed</span></div>
+      <div class="content">This content is inside a CLOSED shadow root. Percy cannot capture this without attachShadow monkey-patching.</div>
+    `;
+  }
+}
+customElements.define('closed-shadow-card', ClosedShadowCard);
+
+// ---- Closed Dynamic Card ----
+class ClosedDynamicCard extends HTMLElement {
+  constructor() {
+    super();
+    this._shadow = this.attachShadow({ mode: 'closed' });
+    this._shadow.innerHTML = `
+      <style>
+        :host { display: block; border: 2px dashed #dc3545; border-radius: 8px; padding: 16px; margin-top: 8px; }
+        .counter { font-size: 24px; font-weight: bold; color: #dc3545; }
+      </style>
+      <div class="counter">Count: <span id="count">0</span></div>
+      <div>Dynamic closed shadow content — updates every second</div>
+    `;
+    let count = 0;
+    setInterval(() => {
+      count++;
+      this._shadow.getElementById('count').textContent = count;
+    }, 1000);
+  }
+}
+customElements.define('closed-dynamic-card', ClosedDynamicCard);
+
+// ---- Nested Shadow DOM (3 levels) ----
+class NestedShadowOuter extends HTMLElement {
+  constructor() {
+    super();
+    const shadow = this.attachShadow({ mode: 'open' });
+    shadow.innerHTML = `
+      <style>
+        :host { display: block; border: 2px solid #6f42c1; border-radius: 8px; padding: 16px; margin-top: 8px; }
+        .level { font-size: 12px; color: #6f42c1; font-weight: bold; }
+      </style>
+      <div class="level">Level 1 (Outer Shadow)</div>
+      <nested-shadow-middle></nested-shadow-middle>
+    `;
+  }
+}
+
+class NestedShadowMiddle extends HTMLElement {
+  constructor() {
+    super();
+    const shadow = this.attachShadow({ mode: 'open' });
+    shadow.innerHTML = `
+      <style>
+        :host { display: block; border: 2px solid #e83e8c; border-radius: 6px; padding: 12px; margin-top: 8px; }
+        .level { font-size: 12px; color: #e83e8c; font-weight: bold; }
+      </style>
+      <div class="level">Level 2 (Middle Shadow)</div>
+      <nested-shadow-inner></nested-shadow-inner>
+    `;
+  }
+}
+
+class NestedShadowInner extends HTMLElement {
+  constructor() {
+    super();
+    const shadow = this.attachShadow({ mode: 'open' });
+    shadow.innerHTML = `
+      <style>
+        :host { display: block; border: 2px solid #fd7e14; border-radius: 4px; padding: 8px; margin-top: 8px; }
+        .level { font-size: 12px; color: #fd7e14; font-weight: bold; }
+        .deep-content { color: #333; margin-top: 4px; }
+      </style>
+      <div class="level">Level 3 (Inner Shadow)</div>
+      <div class="deep-content">Deepest nested shadow content. Percy must capture all 3 levels.</div>
+    `;
+  }
+}
+
+customElements.define('nested-shadow-inner', NestedShadowInner);
+customElements.define('nested-shadow-middle', NestedShadowMiddle);
+customElements.define('nested-shadow-outer', NestedShadowOuter);
+
+// ---- Closed Shadow Inside Open Shadow ----
+class OpenWithClosedChild extends HTMLElement {
+  constructor() {
+    super();
+    const shadow = this.attachShadow({ mode: 'open' });
+    shadow.innerHTML = `
+      <style>
+        :host { display: block; border: 2px solid #17a2b8; border-radius: 8px; padding: 16px; margin-top: 8px; }
+        .label { font-weight: bold; color: #17a2b8; margin-bottom: 8px; }
+      </style>
+      <div class="label">Open Shadow (parent)</div>
+      <div>This is inside an open shadow root.</div>
+      <closed-inner-child></closed-inner-child>
+    `;
+  }
+}
+
+class ClosedInnerChild extends HTMLElement {
+  constructor() {
+    super();
+    const shadow = this.attachShadow({ mode: 'closed' });
+    shadow.innerHTML = `
+      <style>
+        :host { display: block; border: 2px solid #dc3545; border-radius: 4px; padding: 12px; margin-top: 8px; }
+        .inner { color: #dc3545; font-weight: bold; }
+      </style>
+      <div class="inner">Closed shadow INSIDE open shadow. Percy must capture this too.</div>
+    `;
+  }
+}
+
+customElements.define('closed-inner-child', ClosedInnerChild);
+customElements.define('open-with-closed-child', OpenWithClosedChild);
+
+// ---- Nested Closed Shadow Roots (closed inside closed) ----
+class ClosedOuterWrapper extends HTMLElement {
+  constructor() {
+    super();
+    const shadow = this.attachShadow({ mode: 'closed' });
+    shadow.innerHTML = `
+      <style>
+        :host { display: block; border: 2px solid #856404; border-radius: 8px; padding: 16px; margin-top: 8px; }
+        .label { font-weight: bold; color: #856404; margin-bottom: 8px; }
+      </style>
+      <div class="label">Outer Closed Shadow</div>
+      <closed-inner-nested></closed-inner-nested>
+    `;
+  }
+}
+
+class ClosedInnerNested extends HTMLElement {
+  constructor() {
+    super();
+    const shadow = this.attachShadow({ mode: 'closed' });
+    shadow.innerHTML = `
+      <style>
+        :host { display: block; border: 2px dashed #856404; border-radius: 4px; padding: 12px; margin-top: 8px; }
+        .deep { color: #856404; font-style: italic; }
+      </style>
+      <div class="deep">Inner closed shadow nested inside outer closed shadow.</div>
+    `;
+  }
+}
+
+customElements.define('closed-inner-nested', ClosedInnerNested);
+customElements.define('closed-outer-wrapper', ClosedOuterWrapper);
+
+// ---- ElementInternals Custom States ----
+class CustomStateElement extends HTMLElement {
+  static get formAssociated() { return true; }
+
+  constructor() {
+    super();
+    this._internals = this.attachInternals();
+    const shadow = this.attachShadow({ mode: 'open' });
+    shadow.innerHTML = `
+      <style>
+        :host { display: block; border: 1px solid #ccc; border-radius: 8px; padding: 16px; margin-top: 8px; transition: all 0.2s; }
+        :host(:state(active)) { border-color: #28a745; background: #d4edda; }
+        :host(:state(loading)) { border-color: #ffc107; background: #fff3cd; }
+        :host(:state(error)) { border-color: #dc3545; background: #f8d7da; }
+        .state-label { font-weight: bold; font-size: 14px; }
+        .state-value { font-size: 12px; color: #666; margin-top: 4px; }
+      </style>
+      <div class="state-label">Custom State Element</div>
+      <div class="state-value" id="state-display">State: initializing...</div>
+    `;
+  }
+
+  connectedCallback() {
+    const state = this.getAttribute('data-state') || 'idle';
+    if (state !== 'idle') {
+      try {
+        this._internals.states.add(state);
+      } catch (e) {
+        // Fallback for browsers without CustomStateSet
+        console.warn('ElementInternals.states not supported:', e.message);
+      }
+    }
+    this.shadowRoot.getElementById('state-display').textContent = `State: ${state}`;
+  }
+}
+customElements.define('custom-state-element', CustomStateElement);
+
+// ---- Slotted Card (named slots) ----
+class SlottedCard extends HTMLElement {
+  constructor() {
+    super();
+    const shadow = this.attachShadow({ mode: 'open' });
+    shadow.innerHTML = `
+      <style>
+        :host { display: block; border: 1px solid #17a2b8; border-radius: 8px; overflow: hidden; margin-top: 8px; }
+        .header { background: #17a2b8; color: white; padding: 12px 16px; font-weight: bold; }
+        .body { padding: 16px; color: #333; }
+        .footer { background: #f8f9fa; padding: 8px 16px; font-size: 12px; color: #666; border-top: 1px solid #ddd; }
+        ::slotted(span) { display: block; }
+        .fallback { color: #999; font-style: italic; }
+      </style>
+      <div class="header"><slot name="title"><span class="fallback">Default Title</span></slot></div>
+      <div class="body"><slot name="body"><span class="fallback">Default body content — no slot provided.</span></slot></div>
+      <div class="footer"><slot name="footer"><span class="fallback">Default Footer</span></slot></div>
+    `;
+  }
+}
+customElements.define('slotted-card', SlottedCard);
+
+// ---- Lazy-Defined Widget (defined after 2s delay) ----
+setTimeout(() => {
+  class LazyDefinedWidget extends HTMLElement {
+    constructor() {
+      super();
+      const shadow = this.attachShadow({ mode: 'open' });
+      const msg = this.getAttribute('data-message') || 'No message';
+      shadow.innerHTML = `
+        <style>
+          :host { display: block; border: 2px solid #20c997; border-radius: 8px; padding: 16px; margin-top: 8px; }
+          .title { font-weight: bold; color: #20c997; }
+          .msg { margin-top: 8px; color: #333; }
+        </style>
+        <div class="title">Lazy Widget (defined after 2s)</div>
+        <div class="msg">${msg}</div>
+      `;
+    }
+
+    connectedCallback() {
+      document.getElementById('lazy-status').textContent = 'Defined!';
+      document.getElementById('lazy-status').className = 'status pass';
+    }
+  }
+  customElements.define('lazy-defined-widget', LazyDefinedWidget);
+}, 2000);
+
+// ---- Async Data Card (simulated fetch) ----
+class AsyncDataCard extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host { display: block; border: 1px solid #6610f2; border-radius: 8px; padding: 16px; margin-top: 8px; }
+        .loading { color: #6610f2; font-style: italic; }
+        .loaded { color: #333; }
+        .title { font-weight: bold; color: #6610f2; margin-bottom: 8px; }
+        .user { padding: 4px 0; border-bottom: 1px solid #eee; }
+      </style>
+      <div class="title">Async Data Card</div>
+      <div id="content" class="loading">Loading data...</div>
+    `;
+  }
+
+  connectedCallback() {
+    // Simulate async data fetch with 1s delay
+    setTimeout(() => {
+      const users = [
+        { name: 'Alice Johnson', role: 'Engineer' },
+        { name: 'Bob Smith', role: 'Designer' },
+        { name: 'Carol White', role: 'PM' }
+      ];
+      const content = this.shadowRoot.getElementById('content');
+      content.className = 'loaded';
+      content.innerHTML = users.map(u =>
+        `<div class="user"><strong>${u.name}</strong> — ${u.role}</div>`
+      ).join('');
+    }, 1000);
+  }
+}
+customElements.define('async-data-card', AsyncDataCard);
+
+// ---- Adopted Stylesheets Card ----
+class AdoptedStyleCard extends HTMLElement {
+  constructor() {
+    super();
+    const shadow = this.attachShadow({ mode: 'open' });
+
+    // Use adoptedStyleSheets API
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(`
+      :host { display: block; border: 2px solid #007bff; border-radius: 8px; padding: 16px; margin-top: 8px; }
+      .title { font-weight: bold; color: #007bff; margin-bottom: 8px; }
+      .content { color: #333; }
+      .badge { display: inline-block; background: #007bff; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; }
+    `);
+    shadow.adoptedStyleSheets = [sheet];
+
+    shadow.innerHTML = `
+      <div class="title">Adopted Stylesheet Card <span class="badge">adoptedStyleSheets</span></div>
+      <div class="content">Styled via adoptedStyleSheets API, not inline &lt;style&gt; tags. Percy must serialize this.</div>
+    `;
+  }
+}
+customElements.define('adopted-style-card', AdoptedStyleCard);
+
+// ---- Host-Styled Card (:host + ::slotted) ----
+class HostStyledCard extends HTMLElement {
+  constructor() {
+    super();
+    const shadow = this.attachShadow({ mode: 'open' });
+    shadow.innerHTML = `
+      <style>
+        :host {
+          display: block;
+          border: 2px solid #e83e8c;
+          border-radius: 8px;
+          padding: 16px;
+          margin-top: 8px;
+          background: linear-gradient(135deg, #fff5f7, #fff);
+        }
+        :host(:hover) {
+          border-color: #c2185b;
+          box-shadow: 0 2px 8px rgba(232,62,140,0.2);
+        }
+        .title { font-weight: bold; color: #e83e8c; margin-bottom: 8px; }
+        ::slotted(span) {
+          color: #c2185b;
+          font-weight: bold;
+          font-size: 16px;
+          text-decoration: underline;
+        }
+      </style>
+      <div class="title">:host + ::slotted() CSS</div>
+      <slot name="highlight"><span style="color:#999;">No slotted content</span></slot>
+    `;
+  }
+}
+customElements.define('host-styled-card', HostStyledCard);
+
+// ---- Auto-focus the focus test input ----
+window.addEventListener('load', () => {
+  document.getElementById('focus-input').focus();
+});
+</script>
+
+</body>
+</html>

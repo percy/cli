@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DOM Structures Coverage Test</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <style>
+    .test-box {
+      padding: 12px;
+      margin: 8px 0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-family: sans-serif;
+    }
+    .ignored-section { background: #fff0f0; border-color: #cc3333; }
+    .kept-section { background: #f0fff0; border-color: #33cc33; }
+    .custom-el-section { background: #f0f0ff; border-color: #3333cc; }
+  </style>
+</head>
+<body>
+  <h1>DOM Structures Coverage</h1>
+
+  <!-- Item 1: data-percy-ignore on iframes -->
+  <div class="section">
+    <div class="section-title">data-percy-ignore: Direct Attribute</div>
+    <iframe data-percy-ignore srcdoc="<p style='padding:12px;color:red;'>This iframe should be IGNORED by Percy</p>" width="400" height="80" style="border:1px solid #cc3333;"></iframe>
+    <div class="test-box ignored-section">The iframe above has data-percy-ignore. It will be removed from the snapshot but its position is captured for the fidelity overlay.</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">ignoreIframeSelectors: CSS Selector Match</div>
+    <iframe class="ad-frame" srcdoc="<p style='padding:12px;color:red;'>This iframe matches .ad-frame selector</p>" width="400" height="80" style="border:1px solid #cc3333;"></iframe>
+    <div class="test-box ignored-section">The iframe above matches .ad-frame selector. Removed from snapshot, position captured for fidelity overlay.</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Normal Iframe (should be captured)</div>
+    <iframe srcdoc="<p style='padding:12px;color:green;'>This iframe should be CAPTURED by Percy</p>" width="400" height="80" style="border:1px solid #33cc33;"></iframe>
+    <div class="test-box kept-section">The iframe above does NOT have data-percy-ignore and should appear in the snapshot.</div>
+  </div>
+
+  <!-- Item 2: Custom elements (customElements.whenDefined) -->
+  <div class="section">
+    <div class="section-title">Custom Elements: Defined Synchronously</div>
+    <percy-status-badge></percy-status-badge>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Custom Elements: Defined with Delay</div>
+    <percy-delayed-card></percy-delayed-card>
+  </div>
+
+  <script>
+    // Synchronous custom element — defined immediately
+    class PercyStatusBadge extends HTMLElement {
+      connectedCallback() {
+        this.innerHTML = '<div class="test-box custom-el-section">' +
+          '<strong>Status:</strong> Custom element defined and rendered &#10003;</div>';
+      }
+    }
+    customElements.define('percy-status-badge', PercyStatusBadge);
+
+    // Delayed custom element — defined after 500ms to test whenDefined() wait
+    setTimeout(() => {
+      class PercyDelayedCard extends HTMLElement {
+        connectedCallback() {
+          this.innerHTML = '<div class="test-box custom-el-section">' +
+            '<strong>Delayed Card:</strong> This element was defined after 500ms. ' +
+            'Percy should wait for customElements.whenDefined() before snapshot.</div>';
+        }
+      }
+      customElements.define('percy-delayed-card', PercyDelayedCard);
+    }, 500);
+  </script>
+</body>
+</html>

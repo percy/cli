@@ -11,8 +11,9 @@ export function markElement(domElement, disableShadowDOM, forceShadowAsLightDOM)
     }
   }
 
-  // add special marker for shadow host
-  if (!disableShadowDOM && domElement.shadowRoot) {
+  // add special marker for shadow host (including closed shadow roots intercepted by preflight)
+  let shadowRoot = domElement.shadowRoot || window.__percyClosedShadowRoots?.get(domElement);
+  if (!disableShadowDOM && shadowRoot) {
     // When forceShadowAsLightDOM is true, don't mark as shadow host
     if (!forceShadowAsLightDOM) {
       domElement.setAttribute('data-percy-shadow-host', '');

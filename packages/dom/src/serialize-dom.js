@@ -3,7 +3,7 @@ import serializeFrames from './serialize-frames';
 import serializeCSSOM from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
-import { serializePseudoClasses, markPseudoClassElements } from './serialize-pseudo-classes';
+import { serializePseudoClasses, markPseudoClassElements, rewriteCustomStateCSS } from './serialize-pseudo-classes';
 import serializeDialogs from './serialize-dialog';
 import { cloneNodeAndShadow, getOuterHTML } from './clone-dom';
 
@@ -49,13 +49,14 @@ function serializeElements(ctx) {
     for (const shadowHost of ctx.dom.querySelectorAll('[data-percy-shadow-host]')) {
       let percyElementId = shadowHost.getAttribute('data-percy-element-id');
       let cloneShadowHost = ctx.clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
-      if (shadowHost.shadowRoot && cloneShadowHost.shadowRoot) {
+      let origShadow = shadowHost.shadowRoot || window.__percyClosedShadowRoots?.get(shadowHost);
+      if (origShadow && cloneShadowHost.shadowRoot) {
         // getHTML requires shadowRoot to be passed explicitly
         // to serialize the shadow elements properly
         ctx.shadowRootElements.push(cloneShadowHost.shadowRoot);
         serializeElements({
           ...ctx,
-          dom: shadowHost.shadowRoot,
+          dom: origShadow,
           clone: cloneShadowHost.shadowRoot
         });
       } else {
@@ -94,6 +95,7 @@ export function serializeDOM(options) {
     ignoreCanvasSerializationErrors = options?.ignore_canvas_serialization_errors,
     ignoreStyleSheetSerializationErrors = options?.ignore_style_sheet_serialization_errors,
     forceShadowAsLightDOM = options?.force_shadow_dom_as_light_dom,
+    ignoreIframeSelectors = options?.ignore_iframe_selectors,
     pseudoClassEnabledElements = options?.pseudo_class_enabled_elements
   } = options || {};
 
@@ -102,6 +104,7 @@ export function serializeDOM(options) {
     resources: new Set(),
     warnings: new Set(),
     hints: new Set(),
+    fidelityRegions: [],
     cache: new Map(),
     shadowRootElements: [],
     enableJavaScript,
@@ -109,17 +112,53 @@ export function serializeDOM(options) {
     ignoreCanvasSerializationErrors,
     ignoreStyleSheetSerializationErrors,
     forceShadowAsLightDOM,
+    ignoreIframeSelectors,
     pseudoClassEnabledElements
   };
 
   ctx.dom = dom;
+
   markPseudoClassElements(ctx, pseudoClassEnabledElements);
   ctx.clone = cloneNodeAndShadow(ctx);
 
   serializeElements(ctx);
 
-  // STEP 4: Process pseudo-class enabled elements
+  // Detect potentially inaccessible shadow roots — only flag custom elements
+  // that are known to have called attachShadow({ mode: 'closed' }) but whose
+  // shadow root was not captured (not in the WeakMap or not marked as shadow host)
+  let inaccessibleShadowCount = 0;
+  let closedShadowMap = window.__percyClosedShadowRoots;
+  for (let origEl of ctx.dom.querySelectorAll('*')) {
+    if (!origEl.tagName?.includes('-')) continue;
+    if (origEl.hasAttribute('data-percy-shadow-host')) continue;
+    // Only count elements that are confirmed closed shadow hosts
+    if (!closedShadowMap?.has(origEl)) continue;
+    inaccessibleShadowCount++;
+    let rect;
+    try {
+      rect = origEl.getBoundingClientRect();
+    } catch (e) {
+      rect = null;
+    }
+    if (rect && rect.width > 0 && rect.height > 0) {
+      ctx.fidelityRegions.push({
+        reason: 'potentially-inaccessible-shadow',
+        tag: origEl.tagName.toLowerCase(),
+        selector: origEl.id || origEl.tagName.toLowerCase(),
+        rect: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) }
+      });
+    }
+  }
+
+  // Shadow root fidelity warning with totals
+  let shadowHosts = ctx.clone.querySelectorAll('[data-percy-shadow-host]');
+  let totalShadowRoots = shadowHosts.length + inaccessibleShadowCount;
+  if (totalShadowRoots > 0) {
+    ctx.warnings.add(`[fidelity] ${totalShadowRoots} shadow root(s): ${shadowHosts.length} captured, ${inaccessibleShadowCount} potentially inaccessible`);
+  }
+
   serializePseudoClasses(ctx);
+  rewriteCustomStateCSS(ctx);
 
   if (domTransformation) {
     try {
@@ -159,7 +198,8 @@ export function serializeDOM(options) {
     userAgent: navigator.userAgent,
     warnings: Array.from(ctx.warnings),
     resources: Array.from(ctx.resources),
-    hints: Array.from(ctx.hints)
+    hints: Array.from(ctx.hints),
+    fidelityRegions: ctx.fidelityRegions
   };
 
   return stringifyResponse

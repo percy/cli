@@ -9,7 +9,8 @@ describe('serializeDOM', () => {
       userAgent: jasmine.any(String),
       warnings: jasmine.any(Array),
       resources: jasmine.any(Array),
-      hints: jasmine.any(Array)
+      hints: jasmine.any(Array),
+      fidelityRegions: jasmine.any(Array)
     });
   });
 
@@ -30,7 +31,7 @@ describe('serializeDOM', () => {
 
   it('optionally returns a stringified response', () => {
     expect(serializeDOM({ stringifyResponse: true }))
-      .toMatch('{"html":".*","cookies":".*","userAgent":".*","warnings":\\[\\],"resources":\\[\\],"hints":\\[\\]}');
+      .toMatch('{"html":".*","cookies":".*","userAgent":".*","warnings":\\[.*\\],"resources":\\[\\],"hints":\\[\\],"fidelityRegions":\\[.*\\]}');
   });
 
   it('always has a doctype', () => {
@@ -69,6 +70,68 @@ describe('serializeDOM', () => {
     const $ = parseDOM(serializeDOM().html);
 
     expect($('h2.callback').length).toEqual(1);
+  });
+
+  it('handles getBoundingClientRect failure in inaccessible shadow root detection', () => {
+    if (!window.customElements.get('percy-bad-rect')) {
+      class PercyBadRect extends window.HTMLElement {
+        connectedCallback() { this.innerHTML = '<span>bad rect</span>'; }
+      }
+      window.customElements.define('percy-bad-rect', PercyBadRect);
+    }
+    withExample('<percy-bad-rect id="pbr"></percy-bad-rect>', { withShadow: false });
+    let el = document.getElementById('pbr');
+    Object.defineProperty(el, 'getBoundingClientRect', {
+      value: () => { throw new Error('not supported'); },
+      configurable: true
+    });
+
+    let result = serializeDOM();
+    // Should not crash — shadow root detection skips this element's rect
+    expect(result.fidelityRegions).toBeDefined();
+  });
+
+  it('handles __percyInternals with empty iterable states during cloning', () => {
+    if (!window.customElements.get('percy-empty-state')) {
+      class PercyEmptyState extends window.HTMLElement {
+        connectedCallback() { this.innerHTML = '<span>empty</span>'; }
+      }
+      window.customElements.define('percy-empty-state', PercyEmptyState);
+    }
+    withExample('<percy-empty-state id="pes"></percy-empty-state>', { withShadow: false });
+
+    let el = document.getElementById('pes');
+    if (!window.__percyInternals) window.__percyInternals = new WeakMap();
+    // size > 0 but iteration yields nothing (tricky edge case)
+    window.__percyInternals.set(el, { states: { size: 1, [Symbol.iterator]: function*() {} } });
+
+    let result = serializeDOM();
+    // Should not crash, and should not add the attribute since no states iterated
+    expect(result.html).not.toContain('data-percy-custom-state');
+    window.__percyInternals.delete(el);
+  });
+
+  it('sets data-percy-custom-state from __percyInternals during cloning', () => {
+    if (!window.customElements.get('percy-internals-test')) {
+      class PercyInternalsTest extends window.HTMLElement {
+        connectedCallback() {
+          this.innerHTML = '<span>internals test</span>';
+        }
+      }
+      window.customElements.define('percy-internals-test', PercyInternalsTest);
+    }
+    withExample('<percy-internals-test id="pit"></percy-internals-test>', { withShadow: false });
+
+    let el = document.getElementById('pit');
+    // Simulate preflight having captured internals states
+    if (!window.__percyInternals) window.__percyInternals = new WeakMap();
+    window.__percyInternals.set(el, { states: new Set(['open', 'loading']) });
+
+    let result = serializeDOM();
+    expect(result.html).toContain('data-percy-custom-state="open loading"');
+
+    // Cleanup
+    window.__percyInternals.delete(el);
   });
 
   it('applies default dom transformations', () => {
@@ -299,7 +362,7 @@ describe('serializeDOM', () => {
       const baseContent = document.querySelector('#content');
       baseContent.innerHTML = '<input type="text>';
       const serialized = serializeDOM();
-      expect(serialized.warnings).toEqual(['data-percy-shadow-host does not have shadowRoot']);
+      expect(serialized.warnings).toContain('data-percy-shadow-host does not have shadowRoot');
     });
 
     it('renders slot template with shadowrootmode open', () => {
@@ -669,6 +732,145 @@ describe('serializeDOM', () => {
       expect(result.html).toContain('data-percy-canvas-serialized');
       expect(result.warnings).toContain('Canvas Serialization failed, Replaced canvas with empty Image');
       expect(result.warnings).toContain('Error: Canvas error');
+    });
+  });
+
+  describe('closed shadow root capture', () => {
+    it('captures closed shadow root content when preflight WeakMap is populated', () => {
+      if (getTestBrowser() !== chromeBrowser) return;
+
+      // Simulate preflight: set up the WeakMap
+      let map = new WeakMap();
+      let origMap = window.__percyClosedShadowRoots;
+      window.__percyClosedShadowRoots = map;
+
+      let el = document.createElement('div');
+      el.id = 'closed-host';
+      // Manually create a closed shadow root and store in WeakMap
+      let shadow = el.attachShadow({ mode: 'closed' });
+      shadow.innerHTML = '<p>closed content</p>';
+      map.set(el, shadow);
+
+      document.getElementById('test')?.remove();
+      let $test = document.createElement('div');
+      $test.id = 'test';
+      $test.appendChild(el);
+      document.body.appendChild($test);
+
+      let result = serializeDOM();
+      expect(result.html).toContain('closed content');
+
+      // Cleanup
+      window.__percyClosedShadowRoots = origMap;
+    });
+
+    it('marks closed shadow hosts with data-percy-shadow-host', () => {
+      if (getTestBrowser() !== chromeBrowser) return;
+
+      let map = new WeakMap();
+      let origMap = window.__percyClosedShadowRoots;
+      window.__percyClosedShadowRoots = map;
+
+      let el = document.createElement('div');
+      let shadow = el.attachShadow({ mode: 'closed' });
+      shadow.innerHTML = '<span>test</span>';
+      map.set(el, shadow);
+
+      document.getElementById('test')?.remove();
+      let $test = document.createElement('div');
+      $test.id = 'test';
+      $test.appendChild(el);
+      document.body.appendChild($test);
+
+      serializeDOM();
+      expect(el.hasAttribute('data-percy-shadow-host')).toBe(true);
+
+      window.__percyClosedShadowRoots = origMap;
+    });
+  });
+
+  describe('interactive state CSS capture', () => {
+    it('marks checked inputs with data-percy-checked', () => {
+      withExample('<input type="checkbox" id="cb" checked>', { withShadow: false });
+      let result = serializeDOM();
+      expect(result.html).toContain('data-percy-checked="true"');
+    });
+
+    it('marks disabled inputs with data-percy-disabled', () => {
+      withExample('<input type="text" id="dis" disabled>', { withShadow: false });
+      let result = serializeDOM();
+      expect(result.html).toContain('data-percy-disabled="true"');
+    });
+
+    it('extracts :checked CSS rules and injects as attribute selectors', () => {
+      withExample('<label><input type="checkbox" checked><span>text</span></label>', { withShadow: false });
+      // Add a CSS rule with :checked
+      let style = document.createElement('style');
+      style.textContent = 'input:checked + span { color: green; }';
+      document.head.appendChild(style);
+
+      let result = serializeDOM();
+      expect(result.html).toContain('data-percy-interactive-states');
+      expect(result.html).toContain('[data-percy-checked]');
+
+      style.remove();
+    });
+
+    it('extracts :disabled CSS rules', () => {
+      withExample('<input type="text" disabled>', { withShadow: false });
+      let style = document.createElement('style');
+      style.textContent = 'input:disabled { opacity: 0.5; }';
+      document.head.appendChild(style);
+
+      let result = serializeDOM();
+      expect(result.html).toContain('[data-percy-disabled]');
+
+      style.remove();
+    });
+  });
+
+  describe(':state() CSS rewriting', () => {
+    it('rewrites :state() selectors to attribute selectors in shadow DOM styles', () => {
+      if (getTestBrowser() !== chromeBrowser) return;
+
+      withExample('', { withShadow: false });
+      let el = document.createElement('div');
+      let shadow = el.attachShadow({ mode: 'open' });
+      shadow.innerHTML = '<style>:host(:state(active)) { color: green; }</style><p>content</p>';
+      document.getElementById('test').appendChild(el);
+
+      let result = serializeDOM();
+      expect(result.html).toContain('[data-percy-custom-state~="active"]');
+      expect(result.html).not.toContain(':state(active)');
+    });
+
+    it('rewrites legacy :--state selectors', () => {
+      if (getTestBrowser() !== chromeBrowser) return;
+
+      withExample('', { withShadow: false });
+      let el = document.createElement('div');
+      let shadow = el.attachShadow({ mode: 'open' });
+      shadow.innerHTML = '<style>:host(:--loading) { opacity: 0.5; }</style><p>content</p>';
+      document.getElementById('test').appendChild(el);
+
+      let result = serializeDOM();
+      expect(result.html).toContain('[data-percy-custom-state~="loading"]');
+      expect(result.html).not.toContain(':--loading');
+    });
+  });
+
+  describe('fidelity warnings', () => {
+    it('adds shadow root fidelity warning when shadow hosts exist', () => {
+      if (getTestBrowser() !== chromeBrowser) return;
+
+      withExample('', { withShadow: false });
+      let el = document.createElement('div');
+      let shadow = el.attachShadow({ mode: 'open' });
+      shadow.innerHTML = '<p>shadow content</p>';
+      document.getElementById('test').appendChild(el);
+
+      let result = serializeDOM();
+      expect(result.warnings.some(w => w.includes('[fidelity]') && w.includes('shadow root'))).toBe(true);
     });
   });
 });

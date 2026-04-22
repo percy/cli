@@ -581,6 +581,7 @@ export class PercyClient {
     regions,
     algorithm,
     algorithmConfiguration,
+    fidelityRegions,
     resources = [],
     meta
   } = {}) {
@@ -619,7 +620,8 @@ export class PercyClient {
           'enable-javascript': enableJavaScript || null,
           'enable-layout': enableLayout || false,
           'th-test-case-execution-id': thTestCaseExecutionId || null,
-          browsers: normalizeBrowsers(browsers) || null
+          browsers: normalizeBrowsers(browsers) || null,
+          'fidelity-regions': fidelityRegions || null
         },
         relationships: {
           resources: {
