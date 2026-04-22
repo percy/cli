@@ -2,6 +2,16 @@
 //
 // Android-only. Caller is responsible for platform gating.
 // Reads process.env.ANDROID_SERIAL — never accepts device serial from user input.
+//
+// Primary mechanism: `maestro --udid <serial> hierarchy` — Maestro's own JSON-emitting
+// command reuses its existing gRPC connection to the device-side dev.mobile.maestro
+// app, which is the only mechanism that works during a live Maestro flow. The adb /
+// uiautomator path fails because Maestro holds the uiautomator lock throughout a flow,
+// so concurrent dumps from a second client get SIGKILLed.
+//
+// Fallback: `adb exec-out uiautomator dump` / file dump. Kept for environments where
+// the maestro binary is not on PATH (e.g., CLI used outside BrowserStack) and for
+// idle-device diagnostics.
 
 import spawn from 'cross-spawn';
 import { XMLParser } from 'fast-xml-parser';
@@ -10,6 +20,7 @@ import logger from '@percy/logger';
 const log = logger('core:adb-hierarchy');
 
 const DUMP_TIMEOUT_MS = 2000;
+const MAESTRO_TIMEOUT_MS = 15000; // JVM cold start is ~9s; +6s headroom
 const MAX_DUMP_BYTES = 5 * 1024 * 1024;
 const SIGKILL_EXIT = 137; // 128 + SIGKILL; uiautomator often hits this under device contention
 // Backoff delays for the SIGKILL retry loop — covers a ~3.5s window total, which is
@@ -19,6 +30,7 @@ const SIGKILL_RETRY_DELAYS_MS = [500, 1000, 2000];
 const SELECTOR_KEYS = ['resource-id', 'text', 'content-desc', 'class'];
 const BOUNDS_RE = /^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$/;
 const UNAVAILABLE_STDERR_RE = /no devices|unauthorized|device offline/i;
+const MAESTRO_UNAVAILABLE_STDERR_RE = /No connected devices|Device not found|Could not connect/i;
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -29,8 +41,72 @@ const parser = new XMLParser({
   allowBooleanAttributes: false
 });
 
-// Default spawn wrapper — mirrors the async spawn + timeout + cleanup pattern
-// from browser.js:256-297. Returns { stdout, stderr, exitCode, timedOut, spawnError }.
+// Generic spawn-with-timeout wrapper used by both the maestro and adb code paths.
+// Mirrors the async spawn + timeout + cleanup pattern from browser.js:256-297.
+// Returns { stdout, stderr, exitCode, timedOut, spawnError, oversize }.
+function spawnWithTimeout(cmd, args, { timeoutMs } = {}) {
+  return new Promise(resolve => {
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    let settled = false;
+
+    let proc;
+    try {
+      proc = spawn(cmd, args);
+    } catch (err) {
+      resolve({ spawnError: err });
+      return;
+    }
+
+    const settle = result => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      proc.stdout?.off('data', onStdout);
+      proc.stderr?.off('data', onStderr);
+      proc.off('exit', onExit);
+      proc.off('error', onError);
+      resolve(result);
+    };
+
+    const onStdout = chunk => {
+      stdout += chunk.toString();
+      if (stdout.length > MAX_DUMP_BYTES) {
+        try { proc.kill('SIGKILL'); } catch { /* already dead */ }
+        settle({ stdout: '', stderr, exitCode: 1, oversize: true });
+      }
+    };
+    const onStderr = chunk => { stderr += chunk.toString(); };
+    const onExit = code => settle({ stdout, stderr, exitCode: code ?? 1, timedOut });
+    const onError = err => settle({ spawnError: err });
+
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      try { proc.kill('SIGKILL'); } catch { /* already dead */ }
+      settle({ stdout, stderr, exitCode: null, timedOut: true });
+    }, timeoutMs ?? DUMP_TIMEOUT_MS);
+
+    proc.stdout?.on('data', onStdout);
+    proc.stderr?.on('data', onStderr);
+    proc.on('exit', onExit);
+    proc.on('error', onError);
+  });
+}
+
+// Maestro CLI path: honor MAESTRO_BIN env var (mobile-repo or deploy config sets this),
+// fall back to plain `maestro` on PATH. Never accepts a path from untrusted input.
+function defaultMaestroBin(getEnv) {
+  return getEnv('MAESTRO_BIN') || 'maestro';
+}
+
+async function defaultExecMaestro(args, getEnv) {
+  const bin = defaultMaestroBin(getEnv);
+  return spawnWithTimeout(bin, args, { timeoutMs: MAESTRO_TIMEOUT_MS });
+}
+
+// Preserved for the adb fallback code path (signature unchanged — existing tests
+// pass a fake execAdb and assert -s <serial> is forwarded).
 async function defaultExecAdb(args) {
   return new Promise(resolve => {
     let stdout = '';
@@ -193,7 +269,77 @@ async function runDump(args, execAdb) {
   }
 }
 
-export async function dump({ execAdb = defaultExecAdb, getEnv = defaultGetEnv } = {}) {
+// Classify a maestro hierarchy invocation result.
+// Maestro exits 0 on success, non-zero on device-not-found / connection-error / etc.
+function classifyMaestroFailure(result) {
+  if (result.spawnError) {
+    const code = result.spawnError.code;
+    if (code === 'ENOENT') return { kind: 'unavailable', reason: 'maestro-not-found' };
+    return { kind: 'unavailable', reason: `maestro-spawn-error:${code || 'unknown'}` };
+  }
+  if (result.timedOut) return { kind: 'unavailable', reason: 'maestro-timeout' };
+  if (result.oversize) return { kind: 'dump-error', reason: 'maestro-oversize' };
+  const stderr = result.stderr || '';
+  if (MAESTRO_UNAVAILABLE_STDERR_RE.test(stderr)) {
+    return { kind: 'unavailable', reason: 'maestro-no-device' };
+  }
+  return null;
+}
+
+// Flatten a maestro JSON tree into the same node shape our firstMatch() expects.
+// Maps accessibilityText → content-desc; passes through other selector attrs.
+function flattenMaestroNodes(root) {
+  const nodes = [];
+  const walk = obj => {
+    if (!obj || typeof obj !== 'object') return;
+    const attrs = obj.attributes;
+    if (attrs && typeof attrs === 'object') {
+      const node = {
+        'resource-id': attrs['resource-id'],
+        text: attrs.text,
+        'content-desc': attrs.accessibilityText,
+        class: attrs.class,
+        bounds: attrs.bounds
+      };
+      if (node['resource-id'] || node.text || node['content-desc'] || node.class) {
+        nodes.push(node);
+      }
+    }
+    const children = obj.children;
+    if (Array.isArray(children)) {
+      for (const child of children) walk(child);
+    }
+  };
+  walk(root);
+  return nodes;
+}
+
+async function runMaestroDump(serial, execMaestro, getEnv) {
+  const result = await execMaestro(['--udid', serial, 'hierarchy'], getEnv);
+  const fail = classifyMaestroFailure(result);
+  if (fail) return fail;
+  if ((result.exitCode ?? 1) !== 0) {
+    return { kind: 'dump-error', reason: `maestro-exit-${result.exitCode}` };
+  }
+  // Maestro prints the JSON to stdout; sometimes CLI prefixes a banner/notice line.
+  // Slice from the first '{' to be safe.
+  const stdout = result.stdout || '';
+  const start = stdout.indexOf('{');
+  if (start < 0) return { kind: 'dump-error', reason: 'maestro-no-json' };
+  try {
+    const parsed = JSON.parse(stdout.slice(start));
+    const nodes = flattenMaestroNodes(parsed);
+    return { kind: 'hierarchy', nodes };
+  } catch (err) {
+    return { kind: 'dump-error', reason: `maestro-parse-error:${err.message}` };
+  }
+}
+
+export async function dump({
+  execAdb = defaultExecAdb,
+  execMaestro = defaultExecMaestro,
+  getEnv = defaultGetEnv
+} = {}) {
   const started = Date.now();
 
   const { serial, classification } = await resolveSerial({ execAdb, getEnv });
@@ -202,21 +348,30 @@ export async function dump({ execAdb = defaultExecAdb, getEnv = defaultGetEnv } 
     return classification;
   }
 
-  // Primary: exec-out streams the dump to stdout (no PTY, binary-safe).
+  // Primary: `maestro --udid <serial> hierarchy`. Works during a live Maestro flow
+  // (maestro reuses its existing gRPC connection to dev.mobile.maestro on the device).
+  const maestroResult = await runMaestroDump(serial, execMaestro, getEnv);
+  if (maestroResult.kind === 'hierarchy') {
+    log.debug(`dump took ${Date.now() - started}ms via maestro (${maestroResult.nodes.length} nodes)`);
+    return maestroResult;
+  }
+
+  // Fallback: adb exec-out uiautomator dump. Only useful when the maestro binary is
+  // absent (maestro-not-found) — if maestro is present but reports unavailable, the
+  // device genuinely isn't reachable and adb would hit the same wall. If maestro is
+  // present but returned dump-error (e.g., session collision), adb is less likely to
+  // succeed than maestro but still worth one try.
+  const fellBackFromMaestro = maestroResult.kind;
+  log.debug(`maestro path returned ${fellBackFromMaestro} (${maestroResult.reason}); falling back to adb uiautomator`);
+
   let result = await runDump(['-s', serial, 'exec-out', 'uiautomator', 'dump', '/dev/tty'], execAdb);
 
-  // Fallback: file-based dump for devices/images where exec-out /dev/tty is stubbed.
-  // Only retry on wrong-mechanism signals (exit-N / no-xml-envelope).
-  // Skip retry on terminal signals (oversize / parse-error) — retrying would
-  // either amplify attack load or repeat the same parse failure.
+  // File-based fallback: for devices/images where exec-out /dev/tty is stubbed.
   const isRetryableDumpError = result.kind === 'dump-error' &&
     (result.reason === 'no-xml-envelope' || /^exit-/.test(result.reason));
   if (isRetryableDumpError) {
-    log.debug(`primary dump returned ${result.reason}, trying fallback`);
+    log.debug(`adb primary dump returned ${result.reason}, trying file dump`);
     let dumpToFile = await execAdb(['-s', serial, 'shell', 'uiautomator', 'dump', '/sdcard/window_dump.xml']);
-    // uiautomator frequently exits 137 (SIGKILL) under device contention (Maestro holding
-    // the hierarchy lock during takeScreenshot, device-logger, screen recording, etc.).
-    // Exponential backoff up to 3 retries gives the lock time to release.
     for (const delay of SIGKILL_RETRY_DELAYS_MS) {
       if ((dumpToFile.exitCode ?? 1) !== SIGKILL_EXIT) break;
       log.debug(`fallback dump was killed (exit ${SIGKILL_EXIT}), retrying after ${delay}ms`);
@@ -231,7 +386,7 @@ export async function dump({ execAdb = defaultExecAdb, getEnv = defaultGetEnv } 
     result = await runDump(['-s', serial, 'exec-out', 'cat', '/sdcard/window_dump.xml'], execAdb);
   }
 
-  log.debug(`dump took ${Date.now() - started}ms (kind=${result.kind})`);
+  log.debug(`dump took ${Date.now() - started}ms via adb (kind=${result.kind})`);
   return result;
 }
 

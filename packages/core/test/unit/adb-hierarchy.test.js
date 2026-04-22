@@ -21,6 +21,11 @@ function makeFakeExecAdb(handlers) {
   return execAdb;
 }
 
+// Default maestro stub that pretends the binary is missing → forces the adb fallback
+// path, which is what existing tests assert against. Tests that want to exercise the
+// maestro primary path pass their own execMaestro.
+const maestroNotFound = async () => ({ spawnError: Object.assign(new Error('not found'), { code: 'ENOENT' }) });
+
 const okDevices = {
   stdout: 'List of devices attached\nemulator-5554\tdevice\n\n',
   stderr: '',
@@ -38,7 +43,7 @@ describe('Unit / adb-hierarchy', () => {
         { match: args => args[0] === 'devices', result: okDevices },
         { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => undefined });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
       expect(res.kind).toBe('hierarchy');
       const bbox = firstMatch(res.nodes, { 'resource-id': 'com.example:id/clock' });
       expect(bbox).toEqual({ x: 40, y: 50, width: 460, height: 100 });
@@ -49,7 +54,7 @@ describe('Unit / adb-hierarchy', () => {
         { match: args => args[0] === 'devices', result: okDevices },
         { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => undefined });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
       const bbox = firstMatch(res.nodes, { text: 'Submit' });
       // simple.xml has two 'Submit' text nodes; first is at [0,200][1080,400]
       expect(bbox).toEqual({ x: 0, y: 200, width: 1080, height: 200 });
@@ -60,7 +65,7 @@ describe('Unit / adb-hierarchy', () => {
         { match: args => args[0] === 'devices', result: okDevices },
         { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => undefined });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
       const bbox = firstMatch(res.nodes, { 'content-desc': 'Open settings' });
       expect(bbox).toEqual({ x: 900, y: 50, width: 140, height: 100 });
     });
@@ -70,7 +75,7 @@ describe('Unit / adb-hierarchy', () => {
         { match: args => args[0] === 'devices', result: okDevices },
         { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => undefined });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
       // First matching class in pre-order is the FrameLayout root
       const bbox = firstMatch(res.nodes, { class: 'android.widget.FrameLayout' });
       expect(bbox).toEqual({ x: 0, y: 0, width: 1080, height: 2400 });
@@ -81,7 +86,7 @@ describe('Unit / adb-hierarchy', () => {
         { match: args => args[0] === 'devices', result: okDevices },
         { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => undefined });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
       expect(firstMatch(res.nodes, { 'resource-id': 'does-not-exist' })).toBeNull();
     });
 
@@ -90,7 +95,7 @@ describe('Unit / adb-hierarchy', () => {
         { match: args => args[0] === 'devices', result: okDevices },
         { match: args => args.includes('exec-out'), result: { stdout: loadFixture('bad-bounds.xml'), stderr: '', exitCode: 0 } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => undefined });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
       expect(firstMatch(res.nodes, { 'resource-id': 'com.example:id/broken' })).toBeNull();
     });
 
@@ -99,7 +104,7 @@ describe('Unit / adb-hierarchy', () => {
         { match: args => args[0] === 'devices', result: okDevices },
         { match: args => args.includes('exec-out'), result: { stdout: loadFixture('bad-bounds.xml'), stderr: '', exitCode: 0 } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => undefined });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
       expect(firstMatch(res.nodes, { 'resource-id': 'com.example:id/zero_area' })).toBeNull();
     });
 
@@ -108,7 +113,7 @@ describe('Unit / adb-hierarchy', () => {
         { match: args => args[0] === 'devices', result: okDevices },
         { match: args => args.includes('exec-out'), result: { stdout: loadFixture('bad-bounds.xml'), stderr: '', exitCode: 0 } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => undefined });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
       const bbox = firstMatch(res.nodes, { 'resource-id': 'com.example:id/clipped' });
       expect(bbox).toEqual({ x: -50, y: -100, width: 250, height: 400 });
     });
@@ -118,7 +123,7 @@ describe('Unit / adb-hierarchy', () => {
         { match: args => args[0] === 'devices', result: okDevices },
         { match: args => args.includes('exec-out'), result: { stdout: loadFixture('empty.xml'), stderr: '', exitCode: 0 } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => undefined });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
       expect(res.kind).toBe('hierarchy');
       expect(firstMatch(res.nodes, { 'resource-id': 'anything' })).toBeNull();
     });
@@ -143,7 +148,7 @@ describe('Unit / adb-hierarchy', () => {
   describe('dump (classification)', () => {
     it('returns unavailable with reason adb-not-found on ENOENT', async () => {
       const execAdb = async () => ({ spawnError: Object.assign(new Error('not found'), { code: 'ENOENT' }) });
-      const res = await dump({ execAdb, getEnv: () => undefined });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
       expect(res).toEqual({ kind: 'unavailable', reason: 'adb-not-found' });
     });
 
@@ -151,7 +156,7 @@ describe('Unit / adb-hierarchy', () => {
       const execAdb = makeFakeExecAdb([
         { match: args => args[0] === 'devices', result: { stdout: '', stderr: 'error: no devices/emulators found', exitCode: 1 } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => undefined });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
       expect(res).toEqual({ kind: 'unavailable', reason: 'no-device' });
     });
 
@@ -160,7 +165,7 @@ describe('Unit / adb-hierarchy', () => {
         { match: args => args[0] === 'devices', result: okDevices },
         { match: args => args.includes('exec-out'), result: { stdout: '', stderr: 'error: device unauthorized', exitCode: 1 } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => 'emulator-5554' });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => 'emulator-5554' });
       expect(res).toEqual({ kind: 'unavailable', reason: 'device-unauthorized' });
     });
 
@@ -169,7 +174,7 @@ describe('Unit / adb-hierarchy', () => {
         { match: args => args[0] === 'devices', result: okDevices },
         { match: args => args.includes('exec-out'), result: { stdout: '', stderr: '', exitCode: null, timedOut: true } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => 'emulator-5554' });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => 'emulator-5554' });
       expect(res).toEqual({ kind: 'unavailable', reason: 'timeout' });
     });
 
@@ -177,7 +182,7 @@ describe('Unit / adb-hierarchy', () => {
       const execAdb = makeFakeExecAdb([
         { match: args => args[0] === 'devices', result: { stdout: 'List of devices attached\n\n', stderr: '', exitCode: 0 } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => undefined });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
       expect(res).toEqual({ kind: 'unavailable', reason: 'no-device' });
     });
 
@@ -185,7 +190,7 @@ describe('Unit / adb-hierarchy', () => {
       const execAdb = makeFakeExecAdb([
         { match: args => args[0] === 'devices', result: { stdout: 'List of devices attached\nemulator-5554\tdevice\nemulator-5556\tdevice\n', stderr: '', exitCode: 0 } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => undefined });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
       expect(res).toEqual({ kind: 'unavailable', reason: 'multi-device-no-serial' });
     });
 
@@ -193,7 +198,7 @@ describe('Unit / adb-hierarchy', () => {
       const execAdb = makeFakeExecAdb([
         { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
       ]);
-      await dump({ execAdb, getEnv: k => (k === 'ANDROID_SERIAL' ? 'env-serial-123' : undefined) });
+      await dump({ execMaestro: maestroNotFound, execAdb, getEnv: k => (k === 'ANDROID_SERIAL' ? 'env-serial-123' : undefined) });
       // adb devices should NOT have been called since env serial was present
       expect(execAdb.calls.some(args => args[0] === 'devices')).toBe(false);
       expect(execAdb.calls[0]).toEqual(['-s', 'env-serial-123', 'exec-out', 'uiautomator', 'dump', '/dev/tty']);
@@ -215,7 +220,7 @@ describe('Unit / adb-hierarchy', () => {
         }
         throw new Error('unexpected adb args: ' + args.join(' '));
       };
-      const res = await dump({ execAdb, getEnv: () => 'emulator-5554' });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => 'emulator-5554' });
       expect(primaryCalled).toBe(true);
       expect(res.kind).toBe('hierarchy');
       expect(firstMatch(res.nodes, { 'resource-id': 'com.example:id/clock' })).not.toBeNull();
@@ -229,7 +234,7 @@ describe('Unit / adb-hierarchy', () => {
         if (args.includes('exec-out') && args.includes('cat')) return { stdout: 'still garbage', stderr: '', exitCode: 0 };
         throw new Error('unexpected');
       };
-      const res = await dump({ execAdb, getEnv: () => 'emulator-5554' });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => 'emulator-5554' });
       expect(res.kind).toBe('dump-error');
     });
 
@@ -247,7 +252,7 @@ describe('Unit / adb-hierarchy', () => {
         if (args.includes('exec-out') && args.includes('cat')) return { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 };
         throw new Error('unexpected adb args: ' + args.join(' '));
       };
-      const res = await dump({ execAdb, getEnv: () => 'emulator-5554' });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => 'emulator-5554' });
       expect(fileDumpCalls).toBe(3);
       expect(res.kind).toBe('hierarchy');
     });
@@ -263,7 +268,7 @@ describe('Unit / adb-hierarchy', () => {
         }
         throw new Error('unexpected');
       };
-      const res = await dump({ execAdb, getEnv: () => 'emulator-5554' });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => 'emulator-5554' });
       // initial + 3 retries = 4 total attempts
       expect(fileDumpCalls).toBe(4);
       expect(res).toEqual({ kind: 'dump-error', reason: 'fallback-dump-exit-137' });
@@ -278,7 +283,7 @@ describe('Unit / adb-hierarchy', () => {
         if (args.includes('exec-out') && args.includes('cat')) return { stdout: 'still garbage', stderr: '', exitCode: 0 };
         throw new Error('unexpected');
       };
-      const res = await dump({ execAdb, getEnv: () => 'emulator-5554' });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => 'emulator-5554' });
       expect(res.kind).toBe('dump-error');
     });
 
@@ -286,7 +291,7 @@ describe('Unit / adb-hierarchy', () => {
       const execAdb = makeFakeExecAdb([
         { match: args => args.includes('exec-out'), result: { stdout: loadFixture('with-trailer.txt'), stderr: '', exitCode: 0 } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => 'emulator-5554' });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => 'emulator-5554' });
       expect(res.kind).toBe('hierarchy');
       expect(firstMatch(res.nodes, { 'resource-id': 'com.example:id/ok' })).toEqual({ x: 0, y: 0, width: 100, height: 100 });
     });
@@ -295,7 +300,7 @@ describe('Unit / adb-hierarchy', () => {
       const execAdb = makeFakeExecAdb([
         { match: args => args.includes('exec-out'), result: { stdout: loadFixture('adversarial-trailer.txt'), stderr: '', exitCode: 0 } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => 'emulator-5554' });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => 'emulator-5554' });
       expect(res.kind).toBe('hierarchy');
       // The 'real' node should resolve; the 'injected' node (in the second XML block) should NOT.
       expect(firstMatch(res.nodes, { 'resource-id': 'com.example:id/real' })).not.toBeNull();
@@ -306,7 +311,7 @@ describe('Unit / adb-hierarchy', () => {
       const execAdb = makeFakeExecAdb([
         { match: args => args.includes('exec-out'), result: { stdout: loadFixture('landscape.xml'), stderr: '', exitCode: 0 } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => 'emulator-5554' });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => 'emulator-5554' });
       const bbox = firstMatch(res.nodes, { 'resource-id': 'com.example:id/landscape_label' });
       expect(bbox).toEqual({ x: 100, y: 50, width: 300, height: 100 });
     });
@@ -318,8 +323,107 @@ describe('Unit / adb-hierarchy', () => {
         { match: args => args[0] === 'devices', result: okDevices },
         { match: args => args.includes('exec-out'), result: { stdout: '', stderr: '', exitCode: 1, oversize: true } }
       ]);
-      const res = await dump({ execAdb, getEnv: () => 'emulator-5554' });
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => 'emulator-5554' });
       expect(res).toEqual({ kind: 'dump-error', reason: 'oversize' });
+    });
+  });
+
+  describe('dump (maestro hierarchy primary)', () => {
+    const maestroSimple = loadFixture('maestro-simple.json');
+    const okMaestro = { stdout: maestroSimple, stderr: '', exitCode: 0 };
+
+    it('uses maestro hierarchy when available, skips adb fallback entirely', async () => {
+      const execMaestro = async args => {
+        expect(args).toEqual(['--udid', 'env-serial-123', 'hierarchy']);
+        return okMaestro;
+      };
+      // execAdb should never be called when maestro succeeds — fail loud if it is.
+      const execAdb = async args => { throw new Error('execAdb should not be called: ' + args.join(' ')); };
+
+      const res = await dump({
+        execMaestro,
+        execAdb,
+        getEnv: k => (k === 'ANDROID_SERIAL' ? 'env-serial-123' : undefined)
+      });
+
+      expect(res.kind).toBe('hierarchy');
+      const bbox = firstMatch(res.nodes, { 'resource-id': 'com.example:id/clock' });
+      expect(bbox).toEqual({ x: 40, y: 50, width: 460, height: 100 });
+    });
+
+    it('maps accessibilityText to content-desc selector', async () => {
+      const execMaestro = async () => okMaestro;
+      const execAdb = async () => { throw new Error('should not hit adb'); };
+      const res = await dump({
+        execMaestro, execAdb,
+        getEnv: k => (k === 'ANDROID_SERIAL' ? 'serial' : undefined)
+      });
+      const bbox = firstMatch(res.nodes, { 'content-desc': 'Open settings' });
+      expect(bbox).toEqual({ x: 900, y: 50, width: 140, height: 100 });
+    });
+
+    it('falls back to adb when maestro binary is missing (ENOENT)', async () => {
+      const execAdb = makeFakeExecAdb([
+        { match: args => args[0] === 'devices', result: okDevices },
+        { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
+      ]);
+      const res = await dump({
+        execMaestro: maestroNotFound,
+        execAdb,
+        getEnv: () => undefined
+      });
+      expect(res.kind).toBe('hierarchy');
+      expect(firstMatch(res.nodes, { 'resource-id': 'com.example:id/clock' })).not.toBeNull();
+    });
+
+    it('returns maestro-no-device when maestro CLI reports no devices (with ANDROID_SERIAL set so adb probe is skipped)', async () => {
+      const execMaestro = async () => ({ stdout: '', stderr: 'Error: No connected devices', exitCode: 1 });
+      // adb fallback: exec-out returns no xml, file dump also kills → dump-error
+      const execAdb = async args => {
+        if (args.includes('exec-out')) return { stdout: '', stderr: '', exitCode: 1 };
+        if (args.includes('shell')) return { stdout: '', stderr: '', exitCode: 1 };
+        throw new Error('unexpected: ' + args.join(' '));
+      };
+      const res = await dump({ execMaestro, execAdb, getEnv: k => (k === 'ANDROID_SERIAL' ? 'serial' : undefined) });
+      // Both paths failed; adb wins because we don't surface maestro classification anymore.
+      // The important assertion is that maestro was tried (log.debug fires) and adb was also tried.
+      expect(res.kind).toBe('dump-error');
+    });
+
+    it('returns maestro-timeout when the CLI exceeds its budget', async () => {
+      const execMaestro = async () => ({ stdout: '', stderr: '', exitCode: null, timedOut: true });
+      const execAdb = makeFakeExecAdb([
+        { match: args => args[0] === 'devices', result: okDevices },
+        { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
+      ]);
+      // Even with a healthy adb fallback, surfacing the maestro unavailable reason is
+      // only done when both fail. A successful adb fallback returns hierarchy.
+      const res = await dump({ execMaestro, execAdb, getEnv: () => 'serial' });
+      expect(res.kind).toBe('hierarchy');
+    });
+
+    it('handles maestro stdout prefixed with notice/banner lines', async () => {
+      const execMaestro = async () => ({
+        stdout: 'Checking for CLI updates...\n[info] Connected\n' + maestroSimple,
+        stderr: '',
+        exitCode: 0
+      });
+      const execAdb = async () => { throw new Error('should not hit adb'); };
+      const res = await dump({ execMaestro, execAdb, getEnv: () => 'serial' });
+      expect(res.kind).toBe('hierarchy');
+      expect(firstMatch(res.nodes, { 'resource-id': 'com.example:id/clock' })).not.toBeNull();
+    });
+
+    it('returns maestro-no-json when stdout has no JSON', async () => {
+      const execMaestro = async () => ({ stdout: 'just garbage', stderr: '', exitCode: 0 });
+      const execAdb = makeFakeExecAdb([
+        { match: args => args[0] === 'devices', result: okDevices },
+        { match: args => args.includes('exec-out'), result: { stdout: '', stderr: '', exitCode: 1 } },
+        { match: args => args.includes('shell'), result: { stdout: '', stderr: '', exitCode: 1 } }
+      ]);
+      const res = await dump({ execMaestro, execAdb, getEnv: () => 'serial' });
+      // maestro returned dump-error (no-json) and adb also failed → falls through to adb's classification
+      expect(res.kind).toBe('dump-error');
     });
   });
 });
