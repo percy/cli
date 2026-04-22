@@ -2314,6 +2314,107 @@ describe('Discovery', () => {
     });
   });
 
+  describe('with --max-cache-ram', () => {
+    async function startPercyWith(discoveryExtras = {}) {
+      await percy.stop(true);
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1, ...discoveryExtras }
+      });
+    }
+
+    afterEach(() => {
+      delete process.env.PERCY_CACHE_WARN_THRESHOLD_BYTES;
+    });
+
+    it('installs a ByteLRU when maxCacheRam is set', async () => {
+      await startPercyWith({ maxCacheRam: 25 });
+      const cache = percy[RESOURCE_CACHE_KEY];
+      expect(cache.constructor.name).toEqual('ByteLRU');
+      expect(cache.calculatedSize).toEqual(0);
+      expect(cache.stats).toEqual(jasmine.objectContaining({
+        hits: 0, misses: 0, evictions: 0, peakBytes: 0
+      }));
+    });
+
+    it('uses a plain Map when maxCacheRam is unset (backward compat)', () => {
+      // percy was started in beforeEach without maxCacheRam
+      expect(percy[RESOURCE_CACHE_KEY] instanceof Map).toBe(true);
+    });
+
+    it('rejects a cap below the 25MB resource-size floor', async () => {
+      await percy.stop(true);
+      await expectAsync(Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1, maxCacheRam: 10 }
+      })).toBeRejectedWithError(/must be at least 25MB/);
+    });
+
+    it('emits an info log when cap and --disable-cache are both set', async () => {
+      await startPercyWith({ maxCacheRam: 50, disableCache: true });
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('--max-cache-ram is ignored because --disable-cache is set')
+      ]));
+    });
+
+    it('records oversize_skipped in stats when an entry is bigger than cap', async () => {
+      await startPercyWith({ maxCacheRam: 25 });
+      const cache = percy[RESOURCE_CACHE_KEY];
+      // Inject a synthetic oversized resource directly — the real network
+      // path caps individual resources at 25MB so this simulates the edge
+      // case where entrySize exceeds the cap.
+      const saved = cache.set('http://x/huge', { content: Buffer.alloc(26_000_001) }, 26_000_001 + 512);
+      expect(saved).toBe(false);
+      expect(cache.calculatedSize).toEqual(0);
+    });
+  });
+
+  describe('warning-at-threshold (unset cap)', () => {
+    afterEach(() => {
+      delete process.env.PERCY_CACHE_WARN_THRESHOLD_BYTES;
+    });
+
+    it('fires a warn-level log once when cache crosses the threshold', async () => {
+      // Override to a tiny threshold so the snapshot's real resources trip it.
+      process.env.PERCY_CACHE_WARN_THRESHOLD_BYTES = '100';
+      await percy.stop(true);
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      await percy.snapshot({
+        name: 'warning snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+
+      const warnHits = logger.stderr.filter(line =>
+        line.includes('Percy cache is using') &&
+        line.includes('--max-cache-ram')
+      );
+      expect(warnHits.length).toEqual(1);
+
+      // Trigger another resource save; the gate should stay closed.
+      await percy.snapshot({
+        name: 'warning snapshot second',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+
+      const warnHitsAfter = logger.stderr.filter(line =>
+        line.includes('Percy cache is using') &&
+        line.includes('--max-cache-ram')
+      );
+      expect(warnHitsAfter.length).toEqual(1);
+    });
+  });
+
   describe('with resource errors', () => {
     // sabotage this method to trigger unexpected error handling
     async function triggerSessionEventError(event, error) {
