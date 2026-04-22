@@ -53,6 +53,7 @@ The following options can also be defined within a Percy config file
   - `requestHeaders` — Request headers used when discovering snapshot assets
   - `authorization` — Basic auth `username` and `password` for protected snapshot assets
   - `disableCache` — Disable asset caching (**default** `false`)
+  - `maxCacheRam` — Cap the asset-discovery cache at this many MB (**default** unset/unbounded). When set, least-recently-used resources are evicted to stay within the cap. The cap measures cache body bytes only; process RSS is typically 1.5–2× the cap due to Node's Buffer slab allocator. Minimum 25 MB (floor — below this, the 25 MB per-resource ceiling would reject every resource). Also settable via the `--max-cache-ram <MB>` CLI flag or the `PERCY_MAX_CACHE_RAM` env var
   - `userAgent` — Custom user-agent string used when requesting assets
   - `cookies` — Browser cookies to use when requesting assets
   - `networkIdleTimeout` — Milliseconds to wait for the network to idle (**default** `100`)
