@@ -369,6 +369,10 @@ export const configSchema = {
       disableCache: {
         type: 'boolean'
       },
+      maxCacheRam: {
+        type: ['integer', 'null'],
+        minimum: 0
+      },
       captureMockedServiceWorker: {
         type: 'boolean',
         default: false
