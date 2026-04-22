@@ -32,14 +32,16 @@ export class ByteLRU {
   set(key, value, size) {
     if (!Number.isFinite(size) || size < 0) return false;
 
-    if (this.#map.has(key)) {
-      this.#bytes -= this.#map.get(key).size;
-      this.#map.delete(key);
-    }
-
+    // Reject oversize BEFORE touching any existing entry — a failed oversize
+    // set on an existing key must not evict the prior (valid) entry.
     if (this.#max !== undefined && size > this.#max) {
       if (this.onEvict) this.onEvict(key, 'too-big');
       return false;
+    }
+
+    if (this.#map.has(key)) {
+      this.#bytes -= this.#map.get(key).size;
+      this.#map.delete(key);
     }
 
     this.#map.set(key, { value, size });

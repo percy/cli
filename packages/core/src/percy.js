@@ -378,15 +378,18 @@ export class Percy {
       // This issue doesn't comes under regular error logs,
       // it's detected if we just and stop percy server
       await this.checkForNoSnapshotCommandError();
-      await this.sendCacheSummary();
+      // sendBuildLogs goes first — it's the primary egress. cache_summary is
+      // analytics, ordered after so a slow pager hop cannot delay the logs.
       await this.sendBuildLogs();
+      await this.sendCacheSummary();
     }
   }
 
   async sendCacheSummary() {
     // Fire-and-forget end-of-run summary of asset-discovery cache usage.
     // Feeds the Amplitude dashboard (adoption, hit rate, peak bytes).
-    // Never blocks or fails percy.stop().
+    // Never blocks or fails percy.stop(); telemetry loss is preferable to a
+    // failed stop.
     try {
       if (!this.build?.id) return;
       const cache = this[RESOURCE_CACHE_KEY];
@@ -394,10 +397,10 @@ export class Percy {
       if (!cache || !stats) return;
 
       const cacheStats = typeof cache.stats === 'object' ? cache.stats : null;
-      const budgetMB = this.config?.discovery?.maxCacheRam ?? null;
 
       const extra = {
-        cache_budget_ram_mb: budgetMB,
+        // Report the effective cap (post-clamp), not the raw config value.
+        cache_budget_ram_mb: stats.effectiveMaxCacheRamMB,
         hits: cacheStats?.hits ?? 0,
         misses: cacheStats?.misses ?? 0,
         evictions: cacheStats?.evictions ?? 0,

@@ -1,7 +1,8 @@
 import { sha256hash } from '@percy/client/utils';
 import { logger, api, setupTest, createTestServer, dedent, mockRequests } from './helpers/index.js';
 import Percy from '@percy/core';
-import { RESOURCE_CACHE_KEY } from '../src/discovery.js';
+import { RESOURCE_CACHE_KEY, CACHE_STATS_KEY } from '../src/discovery.js';
+import { ByteLRU } from '../src/cache/byte-lru.js';
 import Session from '../src/session.js';
 import Pako from 'pako';
 import * as CoreConfig from '@percy/core/config';
@@ -2331,7 +2332,7 @@ describe('Discovery', () => {
     it('installs a ByteLRU when maxCacheRam is set', async () => {
       await startPercyWith({ maxCacheRam: 25 });
       const cache = percy[RESOURCE_CACHE_KEY];
-      expect(cache.constructor.name).toEqual('ByteLRU');
+      expect(cache instanceof ByteLRU).toBe(true);
       expect(cache.calculatedSize).toEqual(0);
       expect(cache.stats).toEqual(jasmine.objectContaining({
         hits: 0, misses: 0, evictions: 0, peakBytes: 0
@@ -2343,10 +2344,12 @@ describe('Discovery', () => {
       expect(percy[RESOURCE_CACHE_KEY] instanceof Map).toBe(true);
     });
 
-    it('clamps a cap below the 25MB resource-size floor and warns', async () => {
+    it('clamps a cap below the 25MB floor, warns, and leaves user config intact', async () => {
       await startPercyWith({ maxCacheRam: 10 });
-      expect(percy[RESOURCE_CACHE_KEY].constructor.name).toEqual('ByteLRU');
-      expect(percy.config.discovery.maxCacheRam).toEqual(25);
+      expect(percy[RESOURCE_CACHE_KEY] instanceof ByteLRU).toBe(true);
+      // User config is NOT mutated — the effective value lives on stats.
+      expect(percy.config.discovery.maxCacheRam).toEqual(10);
+      expect(percy[CACHE_STATS_KEY].effectiveMaxCacheRamMB).toEqual(25);
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         jasmine.stringContaining('--max-cache-ram=10MB is below the 25MB minimum')
       ]));
@@ -2356,6 +2359,33 @@ describe('Discovery', () => {
       await startPercyWith({ maxCacheRam: 50, disableCache: true });
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
         jasmine.stringContaining('--max-cache-ram is ignored because --disable-cache is set')
+      ]));
+    });
+
+    it('warns when cap is >= 25MB but below the reasonable floor', async () => {
+      // Between MAX_RESOURCE_SIZE_MB (25) and MIN_REASONABLE_CAP_MB (50).
+      // No clamp, but surface the likely-too-tight hit-rate warning.
+      await startPercyWith({ maxCacheRam: 30 });
+      expect(percy[CACHE_STATS_KEY].effectiveMaxCacheRamMB).toEqual(30);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('--max-cache-ram=30MB is very small')
+      ]));
+    });
+
+    it('fires cache_eviction_started info log + sets gate when an LRU eviction happens', async () => {
+      await startPercyWith({ maxCacheRam: 25 });
+      const cache = percy[RESOURCE_CACHE_KEY];
+      // Drive the cache past cap so onEvict fires the lru branch.
+      const capBytes = 25 * 1_000_000;
+      const chunk = Math.floor(capBytes / 3);
+      cache.set('a', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('b', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('c', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('d', { content: Buffer.alloc(chunk) }, chunk + 512);
+      expect(cache.stats.evictions).toBeGreaterThan(0);
+      expect(percy[CACHE_STATS_KEY].firstEvictionEventFired).toBe(true);
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('Cache eviction active')
       ]));
     });
 
@@ -2374,6 +2404,20 @@ describe('Discovery', () => {
   describe('warning-at-threshold (unset cap)', () => {
     afterEach(() => {
       delete process.env.PERCY_CACHE_WARN_THRESHOLD_BYTES;
+    });
+
+    it('emits a debug log when PERCY_CACHE_WARN_THRESHOLD_BYTES is overridden', async () => {
+      process.env.PERCY_CACHE_WARN_THRESHOLD_BYTES = '100';
+      await percy.stop(true);
+      await logger.mock({ level: 'debug' });
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('PERCY_CACHE_WARN_THRESHOLD_BYTES override active')
+      ]));
     });
 
     it('fires a warn-level log once when cache crosses the threshold', async () => {
@@ -2412,6 +2456,70 @@ describe('Discovery', () => {
         line.includes('--max-cache-ram')
       );
       expect(warnHitsAfter.length).toEqual(1);
+    });
+
+    it('sendCacheSummary swallows telemetry failures (never throws)', async () => {
+      // Ensure sendCacheSummary's early-return guards don't fire so the
+      // sendBuildEvents call actually runs and enters the catch.
+      percy.build = { id: '123' };
+      percy[RESOURCE_CACHE_KEY] = new Map();
+      percy[CACHE_STATS_KEY] = {
+        effectiveMaxCacheRamMB: null,
+        oversizeSkipped: 0,
+        unsetModeBytes: 0
+      };
+      const spy = spyOn(percy.client, 'sendBuildEvents')
+        .and.rejectWith(new Error('pager down'));
+      await expectAsync(percy.sendCacheSummary()).toBeResolved();
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('sendCacheSummary short-circuits when the build has not been created', async () => {
+      percy.build = undefined;
+      const spy = spyOn(percy.client, 'sendBuildEvents');
+      await percy.sendCacheSummary();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('sendCacheSummary short-circuits when the cache or stats are missing', async () => {
+      percy.build = { id: '123' };
+      percy[RESOURCE_CACHE_KEY] = undefined;
+      percy[CACHE_STATS_KEY] = undefined;
+      const spy = spyOn(percy.client, 'sendBuildEvents');
+      await percy.sendCacheSummary();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('keeps incrementing unsetModeBytes after the warning has fired', async () => {
+      // Regression: the byte counter used to freeze as soon as the warning
+      // flag flipped, so cache_summary.peak_bytes was always pinned to the
+      // threshold. Now it grows through the whole run.
+      process.env.PERCY_CACHE_WARN_THRESHOLD_BYTES = '100';
+      await percy.stop(true);
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      await percy.snapshot({
+        name: 'counter grows 1',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+      const afterFirst = percy[CACHE_STATS_KEY].unsetModeBytes;
+      expect(afterFirst).toBeGreaterThan(100);
+      expect(percy[CACHE_STATS_KEY].warningFired).toBe(true);
+
+      await percy.snapshot({
+        name: 'counter grows 2',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+      // Counter continues to climb even though warningFired is already true.
+      expect(percy[CACHE_STATS_KEY].unsetModeBytes).toBeGreaterThan(afterFirst);
     });
   });
 

@@ -410,6 +410,10 @@ const DEFAULT_WARN_THRESHOLD_BYTES = 500 * BYTES_PER_MB;
 
 function makeCacheStats() {
   return {
+    // The effective cap actually used this run, in MB (after any clamp to the
+    // 25MB floor). null when the flag was unset. Read by cache_summary telemetry
+    // so it reports what ran, not what the user typed.
+    effectiveMaxCacheRamMB: null,
     oversizeSkipped: 0,
     firstEvictionEventFired: false,
     warningFired: false,
@@ -417,7 +421,7 @@ function makeCacheStats() {
   };
 }
 
-function warnThresholdBytes() {
+function readWarnThresholdBytes() {
   const raw = Number(process.env.PERCY_CACHE_WARN_THRESHOLD_BYTES);
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_WARN_THRESHOLD_BYTES;
 }
@@ -445,35 +449,50 @@ export function createDiscoveryQueue(percy) {
   // Bytes cap (null = unbounded). Validated at queue start.
   let capBytes = null;
 
+  // Read the unset-cap warning threshold once per queue construction; this
+  // closure is consulted on every saveResource call, so we avoid reparsing
+  // process.env each time.
+  const warnThreshold = readWarnThresholdBytes();
+
   return queue
     .set({ concurrency })
   // on start, launch the browser and run the queue
     .handle('start', async () => {
-      let maxCacheRamMB = percy.config.discovery.maxCacheRam;
+      const configuredMaxCacheRamMB = percy.config.discovery.maxCacheRam;
+      let effectiveMaxCacheRamMB = configuredMaxCacheRamMB;
 
-      // Startup validation. Runs once per Percy run.
-      if (maxCacheRamMB != null) {
-        if (maxCacheRamMB < MAX_RESOURCE_SIZE_MB) {
+      // Startup validation. Runs once per Percy run. The user's config object
+      // is NOT mutated — the effective value lives on CACHE_STATS_KEY for the
+      // duration of the run.
+      if (configuredMaxCacheRamMB != null) {
+        if (configuredMaxCacheRamMB < MAX_RESOURCE_SIZE_MB) {
           percy.log.warn(
-            `--max-cache-ram=${maxCacheRamMB}MB is below the ${MAX_RESOURCE_SIZE_MB}MB minimum ` +
+            `--max-cache-ram=${configuredMaxCacheRamMB}MB is below the ${MAX_RESOURCE_SIZE_MB}MB minimum ` +
             '(individual resources up to 25MB would otherwise be dropped). ' +
             `Continuing with the minimum: ${MAX_RESOURCE_SIZE_MB}MB.`
           );
-          maxCacheRamMB = MAX_RESOURCE_SIZE_MB;
-          percy.config.discovery.maxCacheRam = MAX_RESOURCE_SIZE_MB;
-        } else if (maxCacheRamMB < MIN_REASONABLE_CAP_MB) {
+          effectiveMaxCacheRamMB = MAX_RESOURCE_SIZE_MB;
+        } else if (configuredMaxCacheRamMB < MIN_REASONABLE_CAP_MB) {
           percy.log.warn(
-            `--max-cache-ram=${maxCacheRamMB}MB is very small; ` +
+            `--max-cache-ram=${configuredMaxCacheRamMB}MB is very small; ` +
             'most resources will not fit and hit rate will be near zero.'
           );
         }
         if (percy.config.discovery.disableCache) {
           percy.log.info('--max-cache-ram is ignored because --disable-cache is set.');
         }
-        capBytes = maxCacheRamMB * BYTES_PER_MB;
+        capBytes = effectiveMaxCacheRamMB * BYTES_PER_MB;
+      }
+
+      if (warnThreshold !== DEFAULT_WARN_THRESHOLD_BYTES) {
+        percy.log.debug(
+          `PERCY_CACHE_WARN_THRESHOLD_BYTES override active: ${warnThreshold} bytes ` +
+          `(default ${DEFAULT_WARN_THRESHOLD_BYTES}).`
+        );
       }
 
       percy[CACHE_STATS_KEY] = makeCacheStats();
+      percy[CACHE_STATS_KEY].effectiveMaxCacheRamMB = capBytes != null ? effectiveMaxCacheRamMB : null;
 
       if (capBytes != null) {
         cache = percy[RESOURCE_CACHE_KEY] = new ByteLRU(capBytes, {
@@ -482,7 +501,7 @@ export function createDiscoveryQueue(percy) {
             percy.log.debug(
               `cache eviction: evicted ${key} ` +
               `(cache now ${Math.round(cache.calculatedSize / BYTES_PER_MB)}` +
-              `/${maxCacheRamMB} MB)`
+              `/${effectiveMaxCacheRamMB} MB)`
             );
             const stats = percy[CACHE_STATS_KEY];
             if (stats && !stats.firstEvictionEventFired) {
@@ -491,7 +510,7 @@ export function createDiscoveryQueue(percy) {
                 'Cache eviction active — cap reached, oldest entries being dropped.'
               );
               fireCacheEventSafe(percy, 'cache_eviction_started', {
-                cache_budget_ram_mb: maxCacheRamMB,
+                cache_budget_ram_mb: effectiveMaxCacheRamMB,
                 cache_peak_bytes_seen: cache.stats.peakBytes,
                 eviction_count: cache.stats.evictions
               });
@@ -588,13 +607,13 @@ export function createDiscoveryQueue(percy) {
                   cache.set(r.url, r, size);
                 } else {
                   cache.set(r.url, r);
-                  // Unset-cap path: track running bytes and fire a one-shot
-                  // warning at the threshold. Fires at warn level so users on
-                  // --quiet still see it before they OOM.
+                  // Unset-cap path: track running bytes unconditionally so
+                  // cache_summary telemetry reports the true peak. Gate only
+                  // the one-shot warn-log emission on whether we've fired yet.
                   const stats = percy[CACHE_STATS_KEY];
-                  if (stats && !stats.warningFired) {
+                  if (stats) {
                     stats.unsetModeBytes += entrySize(r);
-                    if (stats.unsetModeBytes >= warnThresholdBytes()) {
+                    if (!stats.warningFired && stats.unsetModeBytes >= warnThreshold) {
                       stats.warningFired = true;
                       const bytes = stats.unsetModeBytes;
                       const pretty = bytes >= BYTES_PER_MB

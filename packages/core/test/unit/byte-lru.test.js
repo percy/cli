@@ -74,6 +74,23 @@ describe('Unit / ByteLRU', () => {
       expect(c.has('a')).toBe(true);
       expect(c.calculatedSize).toEqual(50);
     });
+
+    it('onEvict fires with reason "too-big" on oversize', () => {
+      const reasons = [];
+      const c = new ByteLRU(100, { onEvict: (k, r) => reasons.push({ k, r }) });
+      c.set('huge', 'HUGE', 200);
+      expect(reasons).toEqual([{ k: 'huge', r: 'too-big' }]);
+    });
+
+    it('oversized re-set of an existing key leaves the prior entry intact', () => {
+      const c = new ByteLRU(100);
+      c.set('k', 'small', 50);
+      const ok = c.set('k', 'huge', 200);
+      expect(ok).toBe(false);
+      expect(c.has('k')).toBe(true);
+      expect(c.get('k')).toEqual('small');
+      expect(c.calculatedSize).toEqual(50);
+    });
   });
 
   describe('.values()', () => {
@@ -84,6 +101,18 @@ describe('Unit / ByteLRU', () => {
       c.set('c', { root: true }, 100);
       const rootResources = Array.from(c.values()).filter(r => !!r.root);
       expect(rootResources.length).toEqual(2);
+    });
+  });
+
+  describe('.clear()', () => {
+    it('resets bytes and map', () => {
+      const c = new ByteLRU(1000);
+      c.set('a', 'A', 100);
+      c.set('b', 'B', 200);
+      c.clear();
+      expect(c.size).toEqual(0);
+      expect(c.calculatedSize).toEqual(0);
+      expect(c.has('a')).toBe(false);
     });
   });
 
