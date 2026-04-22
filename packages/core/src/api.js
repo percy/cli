@@ -7,6 +7,7 @@ import { ServerError } from './server.js';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { handleSyncJob } from './snapshot.js';
 import { dump as adbDump, firstMatch as adbFirstMatch, SELECTOR_KEYS_WHITELIST } from './adb-hierarchy.js';
+import { PNG_MAGIC_BYTES } from './png-dimensions.js';
 import Busboy from 'busboy';
 import { Readable } from 'stream';
 // Previously, we used `createRequire(import.meta.url).resolve` to resolve the path to the module.
@@ -187,7 +188,6 @@ export function createPercyServer(percy, port) {
   // post a comparison via multipart file upload
     .route('post', '/percy/comparison/upload', async (req, res) => {
       const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-      const PNG_MAGIC_BYTES = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
 
       let contentType = req.headers['content-type'] || '';
       if (!contentType.startsWith('multipart/form-data')) {
