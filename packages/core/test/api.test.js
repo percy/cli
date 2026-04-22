@@ -1008,4 +1008,32 @@ describe('API Server', () => {
       });
     });
   });
+
+  describe('POST /percy/snapshot — passes options unchanged', () => {
+    it('forwards snapshot options to percy.snapshot without adding internal flags', async () => {
+      await percy.start();
+
+      let receivedOptions;
+      spyOn(percy, 'snapshot').and.callFake((opts) => {
+        receivedOptions = opts;
+        return Promise.resolve();
+      });
+
+      await request('/percy/snapshot', {
+        method: 'POST',
+        body: {
+          name: 'sdk test',
+          url: 'http://localhost:8000',
+          domSnapshot: '<html></html>'
+        }
+      });
+
+      expect(receivedOptions).toEqual({
+        name: 'sdk test',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>'
+      });
+      expect(receivedOptions._fromSDK).toBeUndefined();
+    });
+  });
 });

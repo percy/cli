@@ -360,4 +360,67 @@ describe('Project config', () => {
     const errors = PercyConfig.validate(config, '/config');
     expect(errors).toBe(undefined);
   });
+
+  describe('readiness config', () => {
+    it('accepts valid readiness preset', () => {
+      const errors = PercyConfig.validate({
+        snapshot: { readiness: { preset: 'strict' } }
+      }, '/config');
+      expect(errors).toBe(undefined);
+    });
+
+    it('accepts disabled preset', () => {
+      const errors = PercyConfig.validate({
+        snapshot: { readiness: { preset: 'disabled' } }
+      }, '/config');
+      expect(errors).toBe(undefined);
+    });
+
+    it('accepts readiness with overrides', () => {
+      const errors = PercyConfig.validate({
+        snapshot: {
+          readiness: {
+            preset: 'balanced',
+            stabilityWindowMs: 500,
+            networkIdleWindowMs: 300,
+            timeoutMs: 15000,
+            imageReady: true,
+            fontReady: true,
+            notPresentSelectors: ['.skeleton'],
+            readySelectors: ['[data-loaded]']
+          }
+        }
+      }, '/config');
+      expect(errors).toBe(undefined);
+    });
+
+    it('rejects invalid preset value', () => {
+      const errors = PercyConfig.validate({
+        snapshot: { readiness: { preset: 'turbo' } }
+      }, '/config');
+      expect(errors?.length).toBeGreaterThan(0);
+    });
+
+    it('rejects stabilityWindowMs below minimum', () => {
+      const errors = PercyConfig.validate({
+        snapshot: { readiness: { stabilityWindowMs: 10 } }
+      }, '/config');
+      expect(errors?.length).toBeGreaterThan(0);
+    });
+
+    it('rejects timeoutMs above maximum', () => {
+      const errors = PercyConfig.validate({
+        snapshot: { readiness: { timeoutMs: 100000 } }
+      }, '/config');
+      expect(errors?.length).toBeGreaterThan(0);
+    });
+
+    it('accepts readiness in per-snapshot options', () => {
+      const errors = PercyConfig.validate({
+        url: 'http://localhost:8000',
+        readiness: { preset: 'fast' }
+      }, '/snapshot');
+      expect(errors).toBe(undefined);
+    });
+  });
 });

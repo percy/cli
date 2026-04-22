@@ -2211,4 +2211,35 @@ describe('Percy', () => {
       ]));
     });
   });
+
+  describe('Readiness gate', () => {
+    afterEach(async () => {
+      let { Page } = await import('../src/page.js');
+      Page._globalReadinessConfig = null;
+    });
+
+    it('sets Page._globalReadinessConfig from config', async () => {
+      let { Page } = await import('../src/page.js');
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000], readiness: { preset: 'strict' } },
+        discovery: { concurrency: 1 }
+      });
+
+      expect(Page._globalReadinessConfig).toEqual(jasmine.objectContaining({ preset: 'strict' }));
+    });
+
+    it('does not set globalReadinessConfig when readiness is absent', async () => {
+      let { Page } = await import('../src/page.js');
+      Page._globalReadinessConfig = null;
+
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
+
+      expect(Page._globalReadinessConfig).toBeNull();
+    });
+  });
 });
