@@ -7,7 +7,10 @@ import { ServerError } from './server.js';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { handleSyncJob } from './snapshot.js';
 import { dump as adbDump, firstMatch as adbFirstMatch, SELECTOR_KEYS_WHITELIST } from './adb-hierarchy.js';
-import { PNG_MAGIC_BYTES } from './png-dimensions.js';
+import { PNG_MAGIC_BYTES, parsePngDimensions, isPortrait as isPortraitByAspect } from './png-dimensions.js';
+import { resolveWdaSession } from './wda-session-resolver.js';
+import { resolveIosRegions } from './wda-hierarchy.js';
+import { request as percyRequest } from '@percy/client/utils';
 import Busboy from 'busboy';
 import { Readable } from 'stream';
 // Previously, we used `createRequire(import.meta.url).resolve` to resolve the path to the module.
@@ -476,13 +479,43 @@ export function createPercyServer(percy, port) {
 
       // Transform and forward regions if present.
       // Element regions on Android: resolve via one ADB view-hierarchy dump per request
-      // (memoized locally below). Element regions on iOS: warn-and-skip — resolver is
-      // Android-only. Coordinate regions: transform to boundingBox as before.
+      // (memoized locally below). Element regions on iOS: resolve via wda-hierarchy
+      // source-dump resolver (Units B2+B3). Coordinate regions: transform to boundingBox
+      // as before.
       if (req.body.regions && Array.isArray(req.body.regions)) {
         let resolvedRegions = [];
         let elementRegionCount = req.body.regions.filter(r => r && r.element).length;
-        let cachedDump = null; // request-local memoization (incl. error classes)
+        let cachedDump = null; // Android request-local memoization (incl. error classes)
         let elementSkipWarned = false;
+        let iosResult = null; // iOS — resolved in one call, shared by all element regions
+
+        // Resolve iOS element regions up front (one source-dump + scale fetch per request).
+        if (platform === 'ios' && elementRegionCount > 0) {
+          try {
+            // PNG parse — reuse the already-read buffer (avoids a second read).
+            const dims = parsePngDimensions(fileContent);
+            iosResult = await resolveIosRegions({
+              regions: req.body.regions,
+              sessionId,
+              pngWidth: dims.width,
+              pngHeight: dims.height,
+              isPortrait: isPortraitByAspect(dims),
+              deps: {
+                httpClient: percyRequest,
+                readWdaMeta: sid => resolveWdaSession({ sessionId: sid })
+              }
+            });
+          } catch (err) {
+            // Parse failure (invalid-png / truncated) — warn and skip all element regions.
+            percy.log.warn(`iOS element regions skipped — ${err.message || 'png-parse-error'}`);
+            iosResult = { resolvedRegions: [], warnings: ['png-unparseable'] };
+          }
+          // Surface warnings to the caller-visible log stream.
+          for (const w of (iosResult.warnings || [])) {
+            percy.log.warn(`iOS element region warn-skip: ${w}`);
+          }
+        }
+        let iosIndex = 0;
 
         for (let region of req.body.regions) {
           let resolved = null;
@@ -502,32 +535,37 @@ export function createPercyServer(percy, port) {
             };
           } else if (region.element) {
             if (platform === 'ios') {
-              // Match existing stub behavior — no breaking change for iOS callers.
-              percy.log.warn('Element-based region selectors are not yet supported on iOS, skipping region');
-              continue;
-            }
-            // Android: lazy dump + memoize result (including errors).
-            if (cachedDump === null) {
-              cachedDump = await adbDump();
-            }
-            if (cachedDump.kind !== 'hierarchy') {
-              if (!elementSkipWarned) {
-                percy.log.warn(
-                  `Element-region resolver ${cachedDump.kind} (${cachedDump.reason}) — skipping ${elementRegionCount} element regions`
-                );
-                elementSkipWarned = true;
+              // iosResult.resolvedRegions is a dense array of successfully resolved element
+              // regions in input order. Warnings (zero-match, class-not-allowlisted, etc.)
+              // were already logged; we just forward each resolved region by positional
+              // index.
+              const r = iosResult && iosResult.resolvedRegions[iosIndex++];
+              if (!r) continue;
+              resolved = r;
+            } else {
+              // Android: lazy dump + memoize result (including errors).
+              if (cachedDump === null) {
+                cachedDump = await adbDump();
               }
-              continue;
+              if (cachedDump.kind !== 'hierarchy') {
+                if (!elementSkipWarned) {
+                  percy.log.warn(
+                    `Element-region resolver ${cachedDump.kind} (${cachedDump.reason}) — skipping ${elementRegionCount} element regions`
+                  );
+                  elementSkipWarned = true;
+                }
+                continue;
+              }
+              let bbox = adbFirstMatch(cachedDump.nodes, region.element);
+              if (!bbox) {
+                percy.log.warn(`Element region not found: ${JSON.stringify(region.element)} — skipping`);
+                continue;
+              }
+              resolved = {
+                elementSelector: { boundingBox: bbox },
+                algorithm: region.algorithm || 'ignore'
+              };
             }
-            let bbox = adbFirstMatch(cachedDump.nodes, region.element);
-            if (!bbox) {
-              percy.log.warn(`Element region not found: ${JSON.stringify(region.element)} — skipping`);
-              continue;
-            }
-            resolved = {
-              elementSelector: { boundingBox: bbox },
-              algorithm: region.algorithm || 'ignore'
-            };
           } else {
             percy.log.warn('Invalid region format, skipping');
             continue;

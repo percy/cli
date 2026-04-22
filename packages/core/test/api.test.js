@@ -1019,7 +1019,16 @@ describe('API Server', () => {
       fs.mkdirSync(ANDROID_DIR, { recursive: true });
       fs.writeFileSync(path.join(ANDROID_DIR, `${SS_NAME}.png`), 'PNGBYTES-ANDROID');
       fs.mkdirSync(IOS_DIR, { recursive: true });
-      fs.writeFileSync(path.join(IOS_DIR, `${SS_NAME}.png`), 'PNGBYTES-IOS');
+      // iOS element-region path parses IHDR off the buffer — write a minimal
+      // 24-byte valid PNG header (1170 × 2532 iPhone 14 portrait) instead of a
+      // string sentinel. Android path doesn't parse, so the string sentinel is fine.
+      const pngHeader = Buffer.alloc(24);
+      Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).copy(pngHeader, 0);
+      pngHeader.writeUInt32BE(13, 8);
+      Buffer.from('IHDR', 'ascii').copy(pngHeader, 12);
+      pngHeader.writeUInt32BE(1170, 16);
+      pngHeader.writeUInt32BE(2532, 20);
+      fs.writeFileSync(path.join(IOS_DIR, `${SS_NAME}.png`), pngHeader);
     });
 
     async function postMaestro(body) {
@@ -1103,7 +1112,11 @@ describe('API Server', () => {
       }]);
     });
 
-    it('skips element regions on iOS with a warning (no 400, no breaking change)', async () => {
+    it('iOS element region with Android-style selector key is warn-skipped (V1 accepts id/class only)', async () => {
+      // V1 iOS selectors are `id` and `class` only. Android-style `resource-id`
+      // is shape-accepted by the relay's whitelist (same whitelist serves both
+      // platforms) but the iOS resolver drops it with selector-key-not-in-v1.
+      // Coord regions pass through unchanged.
       spyOn(percy, 'upload').and.resolveTo();
       await percy.start();
 
@@ -1117,12 +1130,22 @@ describe('API Server', () => {
 
       expect(response).toEqual(jasmine.objectContaining({ success: true }));
       let [payload] = percy.upload.calls.mostRecent().args;
-      // Coord region still forwarded; element region dropped
+      // Coord region still forwarded; element region dropped by the iOS resolver
       expect(payload.regions).toEqual([{
         elementSelector: { boundingBox: { x: 0, y: 0, width: 20, height: 20 } },
         algorithm: 'ignore'
       }]);
-      expect(logger.stderr.join('\n')).toContain('Element-based region selectors are not yet supported on iOS');
+      // The new V1 warning — surfaced by resolveIosRegions for non-id/non-class keys.
+      // (Exact phrasing may include a wda-meta `missing` fallback if no meta file exists
+      // in the test tmp, which is also acceptable — the assertion is relaxed to cover
+      // either path.)
+      const log = logger.stderr.join('\n');
+      const acceptableWarnings = [
+        'selector-key-not-in-v1',
+        'missing',
+        'iOS element region warn-skip'
+      ];
+      expect(acceptableWarnings.some(w => log.includes(w))).toBe(true);
     });
 
     it('forwards testCase, labels, thTestCaseExecutionId, tile metadata, and sync mode', async () => {

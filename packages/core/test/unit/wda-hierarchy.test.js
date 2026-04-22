@@ -81,7 +81,8 @@ describe('Unit / wda-hierarchy', () => {
         regions: [{ element: { id: 'submit-btn' } }],
         sessionId: VALID_SID, pngWidth: 2532, pngHeight: 1170, isPortrait: false, deps
       });
-      expect(res.resolvedRegions).toEqual([]);
+      // Sparse array — 1 input element region, all null (skipped)
+      expect(res.resolvedRegions).toEqual([null]);
       expect(res.warnings).toContain('landscape-or-ambiguous');
       expect(deps.httpClient.calls.length).toBe(0);
     });
@@ -93,7 +94,7 @@ describe('Unit / wda-hierarchy', () => {
         regions: [{ element: { id: 'submit-btn' } }],
         sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
       });
-      expect(res.resolvedRegions).toEqual([]);
+      expect(res.resolvedRegions).toEqual([null]);
       expect(res.warnings).toContain('kill-switch-engaged');
       expect(deps.httpClient.calls.length).toBe(0);
     });
@@ -106,7 +107,7 @@ describe('Unit / wda-hierarchy', () => {
         sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true,
         deps: { httpClient, readWdaMeta }
       });
-      expect(res.resolvedRegions).toEqual([]);
+      expect(res.resolvedRegions).toEqual([null]);
       expect(res.warnings).toContain('missing');
       expect(httpClient.calls.length).toBe(0);
     });
@@ -117,6 +118,7 @@ describe('Unit / wda-hierarchy', () => {
         regions: [{ top: 0, left: 0, right: 100, bottom: 100 }], // coord-only
         sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
       });
+      // 0 element regions in input → sparse array of length 0
       expect(res.resolvedRegions).toEqual([]);
       expect(deps.httpClient.calls.length).toBe(0);
     });
@@ -129,9 +131,8 @@ describe('Unit / wda-hierarchy', () => {
         regions: [{ element: { id: 'submit-btn' }, algorithm: 'ignore' }],
         sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
       });
-      expect(res.resolvedRegions.length).toBe(1);
-      // submit-btn is at (20, 100, 200, 50) in points; scale 3 → (60, 300, 600, 150) in pixels
-      // as {left, top, right, bottom}: left=60, top=300, right=660, bottom=450
+      expect(res.resolvedRegions.filter(Boolean).length).toBe(1);
+      // submit-btn is at (20, 100, 200, 50) in points; scale 3 → (60, 300, 660, 450) in pixels
       expect(res.resolvedRegions[0]).toEqual(jasmine.objectContaining({
         boundingBox: jasmine.objectContaining({ left: 60, top: 300, right: 660, bottom: 450 }),
         algorithm: 'ignore'
@@ -144,8 +145,7 @@ describe('Unit / wda-hierarchy', () => {
         regions: [{ element: { class: 'Button' } }],
         sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
       });
-      // First Button (submit-btn) at (20,100,200,50) → scaled (60,300,660,450)
-      expect(res.resolvedRegions.length).toBe(1);
+      expect(res.resolvedRegions.filter(Boolean).length).toBe(1);
       expect(res.resolvedRegions[0].boundingBox).toEqual({ left: 60, top: 300, right: 660, bottom: 450 });
     });
 
@@ -182,7 +182,7 @@ describe('Unit / wda-hierarchy', () => {
         ],
         sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
       });
-      expect(res.resolvedRegions.length).toBe(2);
+      expect(res.resolvedRegions.filter(Boolean).length).toBe(2);
       // /source should be fetched once, not twice (per-screenshot cache)
       const sourceCalls = deps.httpClient.calls.filter(c => c.url.endsWith('/source'));
       expect(sourceCalls.length).toBe(1);
@@ -196,7 +196,7 @@ describe('Unit / wda-hierarchy', () => {
         regions: [{ element: { class: 'NotARealClass' } }],
         sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
       });
-      expect(res.resolvedRegions).toEqual([]);
+      expect(res.resolvedRegions.filter(Boolean).length).toBe(0);
       expect(res.warnings).toContain('class-not-allowlisted');
     });
 
@@ -207,7 +207,7 @@ describe('Unit / wda-hierarchy', () => {
         regions: [{ element: { id: longVal } }],
         sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
       });
-      expect(res.resolvedRegions).toEqual([]);
+      expect(res.resolvedRegions.filter(Boolean).length).toBe(0);
       expect(res.warnings).toContain('selector-too-long');
     });
 
@@ -217,7 +217,7 @@ describe('Unit / wda-hierarchy', () => {
         regions: [{ element: { text: 'Submit' } }],
         sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
       });
-      expect(res.resolvedRegions).toEqual([]);
+      expect(res.resolvedRegions.filter(Boolean).length).toBe(0);
       expect(res.warnings).toContain('selector-key-not-in-v1');
     });
 
@@ -236,7 +236,7 @@ describe('Unit / wda-hierarchy', () => {
         regions: [{ element: { id: 'does-not-exist-here-xyz' } }],
         sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
       });
-      expect(res.resolvedRegions).toEqual([]);
+      expect(res.resolvedRegions.filter(Boolean).length).toBe(0);
       expect(res.warnings).toContain('zero-match');
       const joined = [...(logger.stderr || []), ...(logger.stdout || [])].join('\n');
       expect(joined).not.toContain('does-not-exist-here-xyz');
@@ -253,7 +253,7 @@ describe('Unit / wda-hierarchy', () => {
         sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
       });
       expect(res.warnings).toContain('source-oversize');
-      expect(res.resolvedRegions).toEqual([]);
+      expect(res.resolvedRegions).toEqual([null]);
     });
 
     it('source with <!DOCTYPE … [ENTITY … ]> → warn-skip xml-rejected (pre-parse guard)', async () => {
@@ -266,7 +266,7 @@ describe('Unit / wda-hierarchy', () => {
         sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
       });
       expect(res.warnings).toContain('xml-rejected');
-      expect(res.resolvedRegions).toEqual([]);
+      expect(res.resolvedRegions).toEqual([null]);
     });
 
     it('WDA HTTP error on /source → warn-skip wda-error', async () => {
@@ -284,7 +284,7 @@ describe('Unit / wda-hierarchy', () => {
         deps: { httpClient, readWdaMeta }
       });
       expect(res.warnings).toContain('wda-error');
-      expect(res.resolvedRegions).toEqual([]);
+      expect(res.resolvedRegions).toEqual([null]);
     });
   });
 
@@ -300,7 +300,7 @@ describe('Unit / wda-hierarchy', () => {
         sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
       });
       expect(res.warnings).toContain('bbox-out-of-bounds');
-      expect(res.resolvedRegions).toEqual([]);
+      expect(res.resolvedRegions).toEqual([null]);
     });
 
     it('bbox zero-area (< 4×4 px) → warn-skip bbox-too-small', async () => {
@@ -313,7 +313,7 @@ describe('Unit / wda-hierarchy', () => {
         sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
       });
       expect(res.warnings).toContain('bbox-too-small');
-      expect(res.resolvedRegions).toEqual([]);
+      expect(res.resolvedRegions).toEqual([null]);
     });
   });
 

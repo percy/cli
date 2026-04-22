@@ -86,7 +86,15 @@ const scaleCache = new Map();
 const inflight = new Set();
 
 // Main entry point — called from the api.js iOS branch.
-// Returns { resolvedRegions: Array<{elementSelector, boundingBox, algorithm}>, warnings: Array<string> }
+// Returns:
+//   {
+//     resolvedRegions: Array<{elementSelector, boundingBox, algorithm} | null>,
+//     warnings: Array<string>
+//   }
+// `resolvedRegions` is a SPARSE array with one entry per input element region (in
+// input order). A `null` entry means that region was skipped (corresponding
+// warning is in `warnings`). This preserves input ordering so the caller can
+// interleave coord and element regions correctly.
 export async function resolveIosRegions({
   regions = [],
   sessionId,
@@ -96,10 +104,10 @@ export async function resolveIosRegions({
   deps = {}
 } = {}) {
   const warnings = [];
-  const resolvedRegions = [];
-
-  // Filter element regions only; coord regions are handled by the caller.
   const elementRegions = regions.filter(r => r && r.element);
+  // Sparse array: length matches elementRegions count; caller walks by index
+  const resolvedRegions = new Array(elementRegions.length).fill(null);
+
   if (elementRegions.length === 0) {
     return { resolvedRegions, warnings };
   }
@@ -155,8 +163,9 @@ export async function resolveIosRegions({
   }
   const nodes = sourceResult.nodes;
 
-  // Per-region resolution.
-  for (const region of elementRegions) {
+  // Per-region resolution. `resolvedRegions[i] = null` means skipped.
+  for (let i = 0; i < elementRegions.length; i++) {
+    const region = elementRegions[i];
     const { element } = region;
     const key = pickSelectorKey(element);
     if (!key) {
@@ -205,14 +214,14 @@ export async function resolveIosRegions({
       continue;
     }
 
-    resolvedRegions.push({
+    resolvedRegions[i] = {
       // Use the post-normalization value so customers get a canonical
       // elementSelector on the Percy dashboard regardless of whether they
       // typed the short or long class form.
       elementSelector: { [key]: value },
       boundingBox: bbox,
       algorithm: region.algorithm || 'ignore'
-    });
+    };
   }
 
   return { resolvedRegions, warnings };
