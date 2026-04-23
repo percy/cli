@@ -1364,11 +1364,11 @@ describe('Discovery', () => {
           logs: [
             {
               message: 'Encountered an error taking snapshot: test idle',
-              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1, baselineCommitSha: null }, snapshot: { name: 'test idle' } }
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             },
             {
               message: 'Timed out waiting for network requests to idle.',
-              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1, baselineCommitSha: null }, snapshot: { name: 'test idle' } }
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             }
           ]
         }
@@ -1414,11 +1414,11 @@ describe('Discovery', () => {
           logs: [
             {
               message: 'Encountered an error taking snapshot: test idle',
-              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1, baselineCommitSha: null }, snapshot: { name: 'test idle' } }
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             },
             {
               message: 'Timed out waiting for network requests to idle.\nWhile capturing responsive assets try setting PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS to true.\n\n  Active requests:\n  - http://localhost:8000/img-fromsrcset.png\n',
-              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1, baselineCommitSha: null }, snapshot: { name: 'test idle' } }
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             }
           ]
         }
@@ -1633,11 +1633,11 @@ describe('Discovery', () => {
           logs: [
             {
               message: 'Encountered an error taking snapshot: test navigation timeout',
-              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1, baselineCommitSha: null }, snapshot: { name: 'test navigation timeout' } }
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test navigation timeout' } }
             },
             {
               message: 'Navigation failed: Timed out waiting for the page load event',
-              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1, baselineCommitSha: null }, snapshot: { name: 'test navigation timeout' } }
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test navigation timeout' } }
             }
           ]
         }
@@ -1687,11 +1687,11 @@ describe('Discovery', () => {
           logs: [
             {
               message: 'Encountered an error taking snapshot: navigation idle',
-              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1, baselineCommitSha: null }, snapshot: { name: 'navigation idle' } }
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'navigation idle' } }
             },
             {
               message: 'Navigation failed: Timed out waiting for the page load event\n\n  Active requests:\n  - http://localhost:8000/img.gif\n',
-              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1, baselineCommitSha: null }, snapshot: { name: 'navigation idle' } }
+              meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'navigation idle' } }
             }
           ]
         }
