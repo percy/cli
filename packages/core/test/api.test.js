@@ -615,6 +615,74 @@ describe('API Server', () => {
     expect(sdkLogs[1].meta).toEqual(message2.meta);
   });
 
+  describe('/percy/turbosnap', () => {
+    it('returns 400 when there is no active build', async () => {
+      await percy.start();
+      // explicitly drop the active build to simulate "no build yet"
+      percy.build = null;
+
+      let [data, res] = await request('/percy/turbosnap', {
+        method: 'POST',
+        body: { changedFiles: ['a.js'] }
+      }, true);
+
+      expect(res.statusCode).toBe(400);
+      expect(data).toEqual(jasmine.objectContaining({
+        error: 'No active build',
+        success: false
+      }));
+    });
+
+    it('forwards the request to the client and returns the API response', async () => {
+      let turboResponse = {
+        data: {
+          id: '123',
+          type: 'turbosnap-results',
+          attributes: { 'affected-file-paths': ['src/Button.jsx'] }
+        }
+      };
+      let spy = spyOn(percy.client, 'turbosnap').and.resolveTo(turboResponse);
+      await percy.start();
+
+      await expectAsync(request('/percy/turbosnap', {
+        method: 'POST',
+        body: {
+          changedFiles: ['src/Button.jsx'],
+          webpackStatsGz: 'H4sIAAAA',
+          componentFilePaths: ['src/Button.jsx', 'src/Input.jsx']
+        }
+      })).toBeResolvedTo(turboResponse);
+
+      expect(spy).toHaveBeenCalledWith('123', jasmine.objectContaining({
+        changedFiles: ['src/Button.jsx'],
+        webpackStatsGz: 'H4sIAAAA',
+        componentFilePaths: ['src/Button.jsx', 'src/Input.jsx']
+      }));
+    });
+
+    it('returns 200 with bail envelope when the client throws', async () => {
+      spyOn(percy.client, 'turbosnap').and.rejectWith(new Error('boom'));
+      await percy.start();
+
+      let [data, res] = await request('/percy/turbosnap', {
+        method: 'POST',
+        body: { changedFiles: [] }
+      }, true);
+
+      expect(res.statusCode).toBe(200);
+      expect(data).toEqual({
+        data: {
+          id: '123',
+          type: 'turbosnap-results',
+          attributes: { bail: true, 'bail-reason': 'API request failed' }
+        }
+      });
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/TurboSnap API error: boom\. Falling back to full snapshot\./)
+      ]));
+    });
+  });
+
   it('returns a 500 error when an endpoint throws', async () => {
     spyOn(percy, 'snapshot').and.rejectWith(new Error('test error'));
     await percy.start();
