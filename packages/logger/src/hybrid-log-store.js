@@ -224,7 +224,7 @@ export class HybridLogStore {
   #initDisk() {
     try {
       const tmp = os.tmpdir();
-      // Some Windows CI runners expose world-readable C:\Windows\Temp.
+      /* istanbul ignore if: Windows-only safety check against world-readable C:\Windows\Temp */
       if (IS_WINDOWS && /^[A-Z]:\\Windows\\Temp$/i.test(tmp)) {
         throw Object.assign(
           new Error('tmpdir not user-scoped on Windows; refusing to spill'),
@@ -253,6 +253,9 @@ export class HybridLogStore {
 
   #writeDisk(entry) {
     if (this.#inMemoryOnly || !this.#writer) return;
+    /* istanbul ignore next: kernel backpressure beyond 1 MB buffer — cannot
+       be triggered deterministically from tests without replacing the
+       WriteStream; the in-memory copy is always made before this call. */
     if (this.#needsDrain || this.#writer.writableLength > MAX_STREAM_BUFFER) {
       this.#needsDrain = true;
       return;
@@ -264,6 +267,9 @@ export class HybridLogStore {
         this.#lastDiskTimestamp = entry.timestamp;
       }
     } catch (err) {
+      /* istanbul ignore next: write() on a Node WriteStream does not throw
+         synchronously — errors surface via the 'error' event handled in
+         #initDisk. This branch is a defensive fallthrough. */
       this.#transitionToMemory(err);
     }
   }
@@ -282,6 +288,9 @@ export class HybridLogStore {
     // Windows AV scanners can hang end(); race it with a destroy.
     await Promise.race([
       new Promise(resolve => { w.end(resolve); }),
+      // Windows AV scanners can hang end(); race it with a 2s destroy.
+      // The hang is environment-specific and not simulable in unit tests.
+      /* istanbul ignore next */
       new Promise(resolve => setTimeout(() => {
         try { w.destroy(); } catch (_) {} resolve();
       }, CLOSE_TIMEOUT_MS))

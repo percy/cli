@@ -618,5 +618,16 @@ describe('logger', () => {
       expect(logger.instance.inMemoryOnly).toBe(true);
       delete process.env.PERCY_LOGS_IN_MEMORY;
     });
+
+    it('exposes reset / clearMemory / toArray on the module surface', async () => {
+      log.info('a');
+      log.warn('b');
+      expect(logger.toArray().length).toBeGreaterThan(0);
+      logger.clearMemory();
+      expect(logger.toArray().length).toBe(0);
+      log.info('again');
+      await logger.reset();
+      expect(logger.toArray().length).toBe(0);
+    });
   });
 });

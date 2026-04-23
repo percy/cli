@@ -231,9 +231,4 @@ export class PercyLogger {
   }
 }
 
-// Test-only: reset the module-level orphan-sweep guard.
-export function __resetOrphanSweepGuard() {
-  orphanSweepInflight = null;
-}
-
 export default PercyLogger;

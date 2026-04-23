@@ -1,6 +1,7 @@
 import {
   redactString, redactSecrets,
   extractLiteralMarkers, escapeForRegex,
+  createRedactor,
   PATTERNS_COUNT, MARKER_COUNT
 } from '@percy/logger/redact';
 
@@ -57,6 +58,49 @@ describe('redact', () => {
     it('passes primitives through unchanged', () => {
       expect(redactSecrets(42)).toBe(42);
       expect(redactSecrets(null)).toBe(null);
+    });
+
+    it('leaves an object without a message untouched', () => {
+      const obj = { something: 'else' };
+      expect(redactSecrets(obj)).toBe(obj);
+    });
+  });
+
+  describe('createRedactor', () => {
+    it('is a no-op when the pattern set is empty', () => {
+      const r = createRedactor([]);
+      expect(r.patternsCount).toBe(0);
+      expect(r.markerCount).toBe(0);
+      expect(r.redactString('AKIAIOSFODNN7EXAMPLE')).toBe('AKIAIOSFODNN7EXAMPLE');
+      expect(r.redactSecrets('plain')).toBe('plain');
+      expect(r.redactSecrets({ message: 'anything' })).toEqual({ message: 'anything' });
+    });
+
+    it('runs only anchored patterns when no entropy patterns exist', () => {
+      const r = createRedactor([{ pattern: { regex: 'AKIA[A-Z0-9]{10}' } }]);
+      expect(r.redactString('prefix AKIABCDEFGHIJK suffix')).toBe('prefix [REDACTED] suffix');
+      expect(r.redactString('no marker here')).toBe('no marker here');
+    });
+
+    it('runs only entropy patterns when no anchored patterns exist', () => {
+      const r = createRedactor([{ pattern: { regex: '\\b[a-f0-9]{32}\\b' } }]);
+      expect(r.redactString('hash a1b2c3d4e5f60718293a4b5c6d7e8f90 end'))
+        .toBe('hash [REDACTED] end');
+    });
+
+    it('skips patterns that fail to compile', () => {
+      const r = createRedactor([
+        { pattern: { regex: '(invalid' } },
+        { pattern: { regex: 'VALID_MARKER_XYZ' } }
+      ]);
+      expect(r.redactString('hit VALID_MARKER_XYZ here')).toBe('hit [REDACTED] here');
+    });
+
+    it('handles empty / non-string input on a custom redactor', () => {
+      const r = createRedactor([]);
+      expect(r.redactString('')).toBe('');
+      expect(r.redactString(null)).toBe(null);
+      expect(r.redactString(42)).toBe(42);
     });
   });
 });
@@ -133,6 +177,20 @@ describe('extractLiteralMarkers', () => {
   it('survives a `{n,m}` quantifier', () => {
     expect(extractLiteralMarkers('prefix[0-9]{3,5}suffix'))
       .toEqual(['prefix', 'suffix']);
+  });
+
+  it('handles (?<named>) capture groups', () => {
+    expect(extractLiteralMarkers('(?<tag>alpha)beta'))
+      .toEqual(['alpha', 'beta']);
+  });
+
+  it('handles (?P<named>) Python-style capture groups', () => {
+    expect(extractLiteralMarkers('(?P<tag>alpha)beta'))
+      .toEqual(['alpha', 'beta']);
+  });
+
+  it('does not hang on an unterminated (?<name> group', () => {
+    expect(() => extractLiteralMarkers('(?<never')).not.toThrow();
   });
 });
 

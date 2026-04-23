@@ -149,6 +149,42 @@ describe('HybridLogStore', () => {
       for await (const e of store.readBack()) back.push(e);
       expect(back.map(e => e.message)).toEqual(['x', 'y']);
     });
+
+    it('falls back to in-memory when the spill file cannot be read', async () => {
+      store = new HybridLogStore({});
+      store.push(mkEntry({ message: 'pre-unlink', timestamp: Date.now() }));
+      await wait(50);
+      await fsp.unlink(path.join(store.spillDir, 'build.log.jsonl'));
+      store.push(mkEntry({ message: 'post-unlink', timestamp: Date.now() + 1 }));
+
+      const back = [];
+      for await (const e of store.readBack()) back.push(e);
+      const messages = back.map(e => e.message);
+      expect(messages).toContain('pre-unlink');
+      expect(messages).toContain('post-unlink');
+    });
+  });
+
+  describe('disk-mode failure paths', () => {
+    it('falls back to in-memory when initDisk fails', async () => {
+      // Force os.tmpdir() to resolve to a non-existent path. mkdtempSync
+      // throws ENOENT, the constructor's catch calls transitionToMemory,
+      // and the store is usable in memory-only mode.
+      const oldTmp = process.env.TMPDIR;
+      process.env.TMPDIR = '/no/such/dir/per-7809-' + Date.now();
+      try {
+        const s = new HybridLogStore({});
+        expect(s.inMemoryOnly).toBeTrue();
+        expect(s.spillDir).toBeNull();
+        expect(s.lastFallbackError).toBeDefined();
+        s.push(mkEntry({ message: 'memory-only' }));
+        expect(s.query(() => true).length).toBe(1);
+        await s.dispose();
+      } finally {
+        if (oldTmp == null) delete process.env.TMPDIR;
+        else process.env.TMPDIR = oldTmp;
+      }
+    });
   });
 });
 
@@ -199,6 +235,16 @@ describe('safeStringify', () => {
   it('encodes Buffer as base64', () => {
     const parsed = JSON.parse(safeStringify({ b: Buffer.from('hello') }));
     expect(parsed.b).toEqual({ type: 'Buffer', base64: 'aGVsbG8=' });
+  });
+
+  it('encodes a top-level Buffer via the Buffer.isBuffer fallback', () => {
+    // When a Buffer is not the value of a key, its toJSON() still fires
+    // and yields {type, data}. We also handle the defensive case where
+    // someone passes a raw Buffer whose toJSON has been stripped.
+    const bareBuffer = Buffer.from('raw');
+    Object.defineProperty(bareBuffer, 'toJSON', { value: undefined, configurable: true });
+    const out = JSON.parse(safeStringify({ b: bareBuffer }));
+    expect(out.b).toEqual({ type: 'Buffer', base64: 'cmF3' });
   });
 
   it('stringifies BigInt', () => {
