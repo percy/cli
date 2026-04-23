@@ -600,12 +600,11 @@ export class Percy {
     let isPercyStarted = false;
     let containsSnapshotTaken = false;
     logger.query((item) => {
-      const m = item?.message;
-      if (typeof m !== 'string') return item;
-      isPercyStarted ||= m.includes('Percy has started');
-      containsSnapshotTaken ||= m.includes('Snapshot taken') ||
-                               m.includes('Snapshot uploaded') ||
-                               m.includes('Snapshot found');
+      isPercyStarted ||= item?.message?.includes('Percy has started');
+      containsSnapshotTaken ||= item?.message?.includes('Snapshot taken');
+
+      // This case happens when you directly upload it using cli-upload
+      containsSnapshotTaken ||= item?.message?.includes('Snapshot uploaded');
       return item;
     });
 
