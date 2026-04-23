@@ -1,12 +1,11 @@
 import EventEmitter from 'events';
 import { sha256hash, request } from '@percy/client/utils';
 import { camelcase, merge } from '@percy/config/utils';
-import YAML from 'yaml';
-import path from 'path';
-import url from 'url';
-import { readFileSync } from 'fs';
 import logger from '@percy/logger';
 import DetectProxy from '@percy/client/detect-proxy';
+
+// Redaction lives in @percy/logger/redact — re-exported here for back-compat.
+export { redactSecrets } from '@percy/logger/redact';
 
 export {
   request,
@@ -547,25 +546,6 @@ export async function withRetries(fn, { count, onRetry, signal, throwOn }) {
       throw e;
     }
   }
-}
-
-export function redactSecrets(data) {
-  const filepath = path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml');
-  const secretPatterns = YAML.parse(readFileSync(filepath, 'utf-8'));
-
-  if (Array.isArray(data)) {
-    // Process each item in the array
-    return data.map(item => redactSecrets(item));
-  } else if (typeof data === 'object' && data !== null) {
-    // Process each key-value pair in the object
-    data.message = redactSecrets(data.message);
-  }
-  if (typeof data === 'string') {
-    for (const pattern of secretPatterns.patterns) {
-      data = data.replace(new RegExp(pattern.pattern.regex, 'g'), '[REDACTED]');
-    }
-  }
-  return data;
 }
 
 // Returns a base64 encoding of a string or buffer.

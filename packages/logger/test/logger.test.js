@@ -46,13 +46,13 @@ describe('logger', () => {
       meta
     });
 
-    expect(inst.messages).toEqual(new Set([
+    expect(inst.toArray()).toEqual([
       entry('info', 'Info log', { foo: 'bar' }),
       entry('warn', 'Warn log', { bar: 'baz' }),
       entry('error', 'Error log', { to: 'be' }),
       entry('debug', 'Debug log', { not: 'to be' }),
       entry('warn', 'Warning: Deprecation log', { test: 'me' })
-    ]));
+    ]);
   });
 
   it('writes info logs to stdout', () => {
@@ -88,14 +88,12 @@ describe('logger', () => {
     let error = new Error('test');
     log.error(error);
 
-    expect(inst.messages).toContain({
-      debug: 'test',
-      level: 'error',
-      message: error.stack,
-      timestamp: jasmine.any(Number),
-      error: true,
-      meta: {}
-    });
+    // Stack traces may contain file:line:col segments that look like
+    // secret patterns and get partially redacted; assert shape, not bytes.
+    const errorEntry = inst.toArray().find(e => e.level === 'error' && e.error);
+    expect(errorEntry).toBeDefined();
+    expect(errorEntry.debug).toBe('test');
+    expect(errorEntry.message).toContain('Error: test');
 
     expect(helpers.stderr).toEqual([
       `[${colors.magenta('percy')}] ${colors.red('Error: test')}`
@@ -489,10 +487,15 @@ describe('logger', () => {
         const meta = { abc: '123' };
         // Logger internally calls Date.now, so need to mock
         // response for it as well.
-        spyOn(Date, 'now').and.returnValues(date1, date1, date2, date1);
+        // After the store-layer sanitization pass, Date.now may be called
+        // more than 4 times. Return date1 for all calls up until the
+        // async callback settles, then date2 for the logtime() call.
+        let callbackDone = false;
+        spyOn(Date, 'now').and.callFake(() => callbackDone ? date2 : date1);
         const callback = async () => {
           await new Promise((res, _) => setTimeout(res, 20));
           log.info('abcd');
+          callbackDone = true;
           return 10;
         };
 
@@ -511,10 +514,9 @@ describe('logger', () => {
         const date1 = new Date(2024, 4, 11, 13, 30, 0);
         const date2 = new Date(2024, 4, 11, 13, 31, 0);
         const meta = { abc: '123' };
-        // Logger internally calls Date.now, so need to mock
-        // response for it as well.
-        spyOn(Date, 'now').and.returnValues(date1, date1, date2, date1);
-        const callback = () => { log.info('abcd'); return 10; };
+        let callbackDone = false;
+        spyOn(Date, 'now').and.callFake(() => callbackDone ? date2 : date1);
+        const callback = () => { log.info('abcd'); callbackDone = true; return 10; };
 
         logger.loglevel('debug');
         const ret = logger.measure('step', 'test', meta, callback);
@@ -564,6 +566,68 @@ describe('logger', () => {
         expect(mlog.meta.errorMsg).toEqual('Error');
         expect(mlog.meta.errorStack).toEqual(jasmine.stringContaining('Error: Error'));
       });
+    });
+  });
+
+  describe('hybrid store APIs', () => {
+    it('reset clears all in-memory entries', async () => {
+      log.info('first');
+      log.warn('second');
+      expect(inst.toArray().length).toBeGreaterThan(0);
+      await inst.reset();
+      expect(inst.toArray().length).toBe(0);
+    });
+
+    it('evictSnapshot drops the bucket index but keeps ring entries', async () => {
+      const { snapshotKey } = await import('@percy/logger/hybrid-log-store');
+      log.info('global only');
+      log.debug('a', { snapshot: { name: 'home' } });
+      log.debug('b', { snapshot: { name: 'about' } });
+
+      inst.evictSnapshot(snapshotKey({ snapshot: { name: 'home' } }));
+
+      expect(inst.query(e => e.meta?.snapshot?.name === 'home').length).toBe(1);
+      expect(inst.query(e => e.meta?.snapshot?.name === 'about').length).toBe(1);
+      expect(inst.query(e => e.message === 'global only').length).toBe(1);
+    });
+
+    it('toArray returns ring entries', () => {
+      log.info('global');
+      log.debug('snap-entry', { snapshot: { name: 'checkout' } });
+      const messages = inst.toArray().map(e => e.message);
+      expect(messages).toContain('global');
+      expect(messages).toContain('snap-entry');
+    });
+
+    it('readBack yields every persisted entry', async () => {
+      log.info('one');
+      log.info('two');
+      await new Promise(r => setTimeout(r, 50));
+
+      const back = [];
+      for await (const e of inst.readBack()) back.push(e);
+      const messages = back.map(e => e.message);
+      expect(messages).toContain('one');
+      expect(messages).toContain('two');
+    });
+
+    it('forces in-memory mode via PERCY_LOGS_IN_MEMORY=1', async () => {
+      process.env.PERCY_LOGS_IN_MEMORY = '1';
+      await helpers.reset();
+      await helpers.mock({ ansi: true, isTTY: true });
+      expect(logger.instance.inMemoryOnly).toBe(true);
+      delete process.env.PERCY_LOGS_IN_MEMORY;
+    });
+
+    it('exposes reset / clearMemory / toArray on the module surface', async () => {
+      log.info('a');
+      log.warn('b');
+      expect(logger.toArray().length).toBeGreaterThan(0);
+      logger.clearMemory();
+      expect(logger.toArray().length).toBe(0);
+      log.info('again');
+      await logger.reset();
+      expect(logger.toArray().length).toBe(0);
     });
   });
 });

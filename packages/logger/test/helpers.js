@@ -77,9 +77,22 @@ const helpers = {
     }
   },
 
+  // Sync hard/soft reset. Clearing memory before detaching the singleton
+  // closes a race where a group bound to the old instance (e.g. percy.log
+  // captured at construction time) pushes entries after the detach.
   reset(soft) {
-    if (soft) logger.loglevel('info');
-    else delete logger.constructor.instance;
+    if (soft) {
+      logger.loglevel('info');
+    } else {
+      const existing = logger.constructor.instance;
+      if (existing) {
+        try { existing.clearMemory?.(); } catch (_) {}
+        // Fire-and-forget disk cleanup; the process-exit registry is the
+        // ultimate backstop.
+        existing.dispose?.().catch(() => {});
+      }
+      delete logger.constructor.instance;
+    }
 
     helpers.stdout.length = 0;
     helpers.stderr.length = 0;
@@ -92,7 +105,7 @@ const helpers = {
   },
 
   dump() {
-    let msgs = Array.from(logger.instance.messages);
+    let msgs = logger.instance.toArray ? logger.instance.toArray() : [];
     if (!msgs.length) return;
 
     let log = m => process.env.__PERCY_BROWSERIFIED__ ? (

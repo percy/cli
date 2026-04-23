@@ -14,7 +14,10 @@ Object.defineProperties(logger, {
   format: { value: (...args) => logger.instance.format(...args) },
   loglevel: { value: (...args) => logger.instance.loglevel(...args) },
   timeit: { get: () => new TimeIt(logger.instance.group('timer')) },
-  measure: { value: (...args) => logger.timeit.measure(...args) }
+  measure: { value: (...args) => logger.timeit.measure(...args) },
+  reset: { value: (...args) => logger.instance.reset(...args) },
+  clearMemory: { value: () => logger.instance.clearMemory() },
+  toArray: { value: () => logger.instance.toArray() }
 });
 
 export default logger;

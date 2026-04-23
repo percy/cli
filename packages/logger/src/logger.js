@@ -1,32 +1,28 @@
 import { colors } from './utils.js';
+import { HybridLogStore, sweepOrphans } from './hybrid-log-store.js';
 
 const LINE_PAD_REGEXP = /^(\n*)(.*?)(\n*)$/s;
 const URL_REGEXP = /https?:\/\/[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,4}\b([-a-zA-Z0-9@:;%_+.~#?&//=[\]]*)/i;
 const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 
-// A PercyLogger instance retains logs in-memory for quick lookups while also writing log
-// messages to stdout and stderr depending on the log level and debug string.
+// Runs the orphan sweep at most once per process lifetime.
+let orphanSweepInflight = null;
+
 export class PercyLogger {
-  // default log level
   level = 'info';
 
-  // namespace regular expressions used to determine which debug logs to write
   namespaces = {
     include: [/^.*?$/],
     exclude: [/^ci$/, /^sdk$/]
   };
 
-  // in-memory store for logs and meta info
-  messages = new Set();
+  #store = null;
 
-  // track deprecations to limit noisy logging
   deprecations = new Set();
 
-  // static vars can be overriden for testing
   static stdout = process.stdout;
   static stderr = process.stderr;
 
-  // Handles setting env var values and returns a singleton
   constructor() {
     let { instance = this } = this.constructor;
 
@@ -37,17 +33,24 @@ export class PercyLogger {
     }
 
     this.constructor.instance = instance;
+
+    if (!instance.#store) {
+      const forceInMemory = process.env.PERCY_LOGS_IN_MEMORY === '1';
+      instance.#store = new HybridLogStore({ forceInMemory });
+
+      if (!orphanSweepInflight) {
+        orphanSweepInflight = sweepOrphans().catch(() => {});
+      }
+    }
+
     return instance;
   }
 
-  // Change log level at any time or return the current log level
   loglevel(level) {
     if (level) this.level = level;
     return this.level;
   }
 
-  // Change namespaces by generating an array of namespace regular expressions from a
-  // comma separated debug string
   debug(namespaces) {
     if (this.namespaces.string === namespaces) return;
     this.namespaces.string = namespaces;
@@ -73,7 +76,6 @@ export class PercyLogger {
     });
   }
 
-  // Creates a new log group and returns level specific functions for logging
   group(name) {
     return Object.keys(LOG_LEVELS)
       .reduce((group, level) => Object.assign(group, {
@@ -89,61 +91,83 @@ export class PercyLogger {
       });
   }
 
-  // Query for a set of logs by filtering the in-memory store
   query(filter) {
-    return Array.from(this.messages).filter(filter);
+    return this.#store ? this.#store.query(filter) : [];
   }
 
-  // Formats messages before they are logged to stdio
+  evictSnapshot(key) {
+    if (this.#store) this.#store.evictSnapshot(key);
+  }
+
+  readBack() {
+    return this.#store
+      ? this.#store.readBack()
+      : (async function*() {})();
+  }
+
+  toArray() {
+    return this.query(() => true);
+  }
+
+  // Full teardown — closes the disk writer and removes the spill directory.
+  async reset() {
+    if (this.#store) await this.#store.reset();
+    this.deprecations.clear();
+  }
+
+  // Sync in-memory clear without touching the disk writer. Used by the
+  // /test/api/reset HTTP handler which must return synchronously.
+  clearMemory() {
+    if (this.#store) this.#store.clearMemory();
+    this.deprecations.clear();
+  }
+
+  async dispose() {
+    if (this.#store) await this.#store.dispose();
+  }
+
+  get inMemoryOnly() {
+    return this.#store ? this.#store.inMemoryOnly : true;
+  }
+
   format(debug, level, message, elapsed) {
     let color = (n, m) => this.isTTY ? colors[n](m) : m;
     let begin, end, suffix = '';
     let label = 'percy';
 
     if (arguments.length === 1) {
-      // format(message)
       [debug, message] = [null, debug];
     } else if (arguments.length === 2) {
-      // format(debug, message)
       [level, message] = [null, level];
     }
 
-    // do not format leading or trailing newlines
     [, begin, message, end] = message.match(LINE_PAD_REGEXP);
 
-    // include debug information
     if (this.level === 'debug') {
       if (debug) label += `:${debug}`;
 
-      // include elapsed time since last log
       if (elapsed != null) {
         suffix = ' ' + color('grey', `(${elapsed}ms)`);
       }
     }
 
-    // add colors
     label = color('magenta', label);
 
     if (level === 'error') {
-      // red errors
       message = color('red', message);
     } else if (level === 'warn') {
-      // yellow warnings
       message = color('yellow', message);
     } else if (level === 'info' || level === 'debug') {
-      // blue info and debug URLs
       message = message.replace(URL_REGEXP, color('blue', '$&'));
     }
 
     return `${begin}[${label}] ${message}${suffix}${end}`;
   }
 
-  // True if stdout is a TTY interface
   get isTTY() {
     return !!this.constructor.stdout.isTTY;
   }
 
-  // Replaces the current line with a log message
   progress(debug, message, persist) {
     if (!this.shouldLog(debug, 'info')) return;
     let { stdout } = this.constructor;
@@ -159,7 +183,6 @@ export class PercyLogger {
     this._progress = !!message && { message, persist };
   }
 
-  // Returns true or false if the level and debug group can write messages to stdio
   shouldLog(debug, level) {
     return LOG_LEVELS[level] != null &&
       LOG_LEVELS[level] >= LOG_LEVELS[this.level] &&
@@ -167,7 +190,6 @@ export class PercyLogger {
       this.namespaces.include.some(ns => ns.test(debug));
   }
 
-  // Ensures that deprecation messages are not logged more than once
   deprecated(debug, message, meta) {
     if (this.deprecations.has(message)) return;
     this.deprecations.add(message);
@@ -175,36 +197,29 @@ export class PercyLogger {
     this.log(debug, 'warn', `Warning: ${message}`, meta);
   }
 
-  // Generic log method accepts a debug group, log level, log message, and optional meta
-  // information to store with the message and other info
   log(debug, level, message, meta = {}) {
-    // message might be an error-like object
     let err = typeof message !== 'string' && (level === 'debug' || level === 'error');
     err &&= message.message ? Error.prototype.toString.call(message) : message.toString();
 
-    // save log entries
     let timestamp = Date.now();
     message = err ? (message.stack || err) : message.toString();
     let entry = { debug, level, message, meta, timestamp, error: !!err };
-    this.messages.add(entry);
 
-    // maybe write the message to stdio
+    if (this.#store) this.#store.push(entry);
+
     if (this.shouldLog(debug, level)) {
-      // unless the loglevel is debug, write shorter error messages
       if (err && this.level !== 'debug') message = err;
       this.write({ ...entry, message });
       this.lastlog = timestamp;
     }
   }
 
-  // Writes a log entry to stdio based on the loglevel
   write({ debug, level, message, timestamp, error }) {
     let elapsed = timestamp - (this.lastlog || timestamp);
     let msg = this.format(debug, error ? 'error' : level, message, elapsed);
     let progress = this.isTTY && this._progress;
     let { stdout, stderr } = this.constructor;
 
-    // clear any logged progress
     if (progress) {
       stdout.cursorTo(0);
       stdout.clearLine(0);

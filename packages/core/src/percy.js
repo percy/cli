@@ -1,6 +1,7 @@
 import PercyClient from '@percy/client';
 import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
+import { readBack } from '@percy/logger/internal';
 import { getProxy } from '@percy/client/utils';
 import Browser from './browser.js';
 import Pako from 'pako';
@@ -9,7 +10,6 @@ import {
   generatePromise,
   yieldAll,
   yieldTo,
-  redactSecrets,
   detectSystemProxyAndLog,
   checkSDKVersion,
   processCorsIframes
@@ -596,7 +596,6 @@ export class Percy {
     return syncMode;
   }
 
-  // This specific error will be hard coded
   async checkForNoSnapshotCommandError() {
     let isPercyStarted = false;
     let containsSnapshotTaken = false;
@@ -682,16 +681,22 @@ export class Percy {
   async sendBuildLogs() {
     if (!process.env.PERCY_TOKEN) return;
     try {
-      const logsObject = {
-        clilogs: logger.query(log => !['ci'].includes(log.debug))
-      };
-
-      // Only add CI logs if not disabled voluntarily.
+      // Stream directly from the on-disk JSONL (or memory fallback) so the
+      // POST body is the only unbounded-in-memory object, not a full copy
+      // of every entry. Redaction already happened at write-time.
+      const clilogs = [];
+      const cilogs = [];
       const sendCILogs = process.env.PERCY_CLIENT_ERROR_LOGS !== 'false';
-      if (sendCILogs) {
-        const redactedContent = redactSecrets(logger.query(log => ['ci'].includes(log.debug)));
-        logsObject.cilogs = redactedContent;
+
+      for await (const entry of readBack()) {
+        if (entry.debug === 'ci') {
+          if (sendCILogs) cilogs.push(entry);
+        } else {
+          clilogs.push(entry);
+        }
       }
+
+      const logsObject = sendCILogs ? { clilogs, cilogs } : { clilogs };
       const content = base64encode(Pako.gzip(JSON.stringify(logsObject)));
       const referenceId = this.build?.id ? `build_${this.build?.id}` : this.build?.id;
       const eventObject = {
@@ -701,7 +706,6 @@ export class Percy {
         service_name: 'cli',
         base64encoded: true
       };
-      // Ignore this will update once I implement logs controller.
       const logsSHA = await this.client.sendBuildLogs(eventObject);
       this.log.info(`Build's CLI${sendCILogs ? ' and CI' : ''} logs sent successfully. Please share this log ID with Percy team in case of any issues - ${logsSHA}`);
     } catch (err) {

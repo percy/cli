@@ -12,7 +12,7 @@
     "tag": "latest"
   },
   "engines": {
-    "node": ">=14"
+    "node": ">=14.14.0"
   },
   "files": [
     "dist",
@@ -22,6 +22,9 @@
   "type": "module",
   "exports": {
     ".": "./dist/index.js",
+    "./internal": "./dist/internal.js",
+    "./redact": "./dist/redact.js",
+    "./hybrid-log-store": "./dist/hybrid-log-store.js",
     "./utils": "./dist/utils.js",
     "./test/helpers": "./test/helpers.js",
     "./test/client": "./test/client.js"

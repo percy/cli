@@ -228,9 +228,11 @@ export function createPercyServer(percy, port) {
       body = Buffer.isBuffer(body) ? body.toString() : body;
 
       if (cmd === 'reset') {
-        // the reset command will reset testing mode and clear any logs
+        // Sync clearMemory — the HTTP handler must return synchronously
+        // and tearing down the disk writer mid-request would race with
+        // concurrent log writes.
         percy.testing = {};
-        logger.instance.messages.clear();
+        logger.clearMemory();
       } else if (cmd === 'version') {
         // the version command will update the api version header for testing
         percy.testing.version = body;
@@ -260,9 +262,9 @@ export function createPercyServer(percy, port) {
     .route('get', '/test/requests', (req, res) => res.json(200, {
       requests: percy.testing.requests
     }))
-  // returns an array of raw logs from the logger
+  // in-memory view only; callers needing disk-backed enumeration use readBack()
     .route('get', '/test/logs', (req, res) => res.json(200, {
-      logs: Array.from(logger.instance.messages)
+      logs: logger.toArray()
     }))
   // serves a very basic html page for testing snapshots
     .route('get', '/test/snapshot', (req, res) => {
