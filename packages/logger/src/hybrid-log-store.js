@@ -146,10 +146,14 @@ export class HybridLogStore {
     let diskFailed = false;
     if (this.#spillFilePath) {
       try {
-        const rl = createInterface({
-          input: createReadStream(this.#spillFilePath),
-          crlfDelay: Infinity
-        });
+        const stream = createReadStream(this.#spillFilePath);
+        // Swallow the readable's error locally so an ENOENT emitted
+        // asynchronously (systemd-tmpfiles unlinked the path; Linux
+        // Node 14 surfaces it before the iterator attaches) does not
+        // escape as an uncaught exception. The iterator's rejection
+        // still routes through the catch below.
+        stream.on('error', () => {});
+        const rl = createInterface({ input: stream, crlfDelay: Infinity });
         for await (const line of rl) {
           if (!line) continue;
           try {
