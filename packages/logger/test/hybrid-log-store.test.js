@@ -1,15 +1,22 @@
 import os from 'os';
 import path from 'path';
 import { promises as fsp } from 'fs';
-import { HybridLogStore } from '@percy/logger/hybrid-log-store';
-import { snapshotKey } from '@percy/logger/internal-utils';
+import {
+  HybridLogStore, snapshotKey, safeStringify, sanitizeMeta,
+  sweepOrphans, __resetOrphanGuard, DIR_PREFIX
+} from '@percy/logger/hybrid-log-store';
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
-function mkEntry (over = {}) {
+function mkEntry(over = {}) {
   return {
-    debug: 'test', level: 'info', message: 'hello', meta: {},
-    timestamp: Date.now(), error: false, ...over
+    debug: 'test',
+    level: 'info',
+    message: 'hello',
+    meta: {},
+    timestamp: Date.now(),
+    error: false,
+    ...over
   };
 }
 
@@ -32,12 +39,12 @@ describe('HybridLogStore', () => {
       expect(results[1].message).toBe('two');
     });
 
-    it('routes snapshot-tagged entries to buckets', () => {
+    it('routes snapshot-tagged entries to buckets and keeps them in the ring', () => {
       store = new HybridLogStore({ forceInMemory: true });
       store.push(mkEntry({ meta: { snapshot: { name: 'home' } } }));
       store.push(mkEntry({ meta: { snapshot: { name: 'home' } } }));
       store.push(mkEntry({ meta: { snapshot: { name: 'about' } } }));
-      store.push(mkEntry({ message: 'global' })); // no snapshot
+      store.push(mkEntry({ message: 'global' }));
 
       expect(store.query(e => e.meta?.snapshot?.name === 'home').length).toBe(2);
       expect(store.query(e => e.meta?.snapshot?.name === 'about').length).toBe(1);
@@ -54,16 +61,11 @@ describe('HybridLogStore', () => {
   });
 
   describe('evictSnapshot', () => {
-    it('deletes the targeted bucket index', () => {
-      // NOTE: every routed entry also lives in the global ring for
-      // post-eviction visibility via query(), so query() continues to
-      // return the snapshot-tagged entry after evictSnapshot. The bucket
-      // deletion frees the per-snapshot index without affecting the ring.
+    it('deletes the bucket index but leaves ring entries visible', () => {
       store = new HybridLogStore({ forceInMemory: true });
       store.push(mkEntry({ meta: { snapshot: { name: 'a' } } }));
       store.push(mkEntry({ meta: { snapshot: { name: 'b' } } }));
       store.evictSnapshot(snapshotKey({ snapshot: { name: 'a' } }));
-      // Both entries are still in the ring — query() reflects that.
       expect(store.query(e => e.meta?.snapshot?.name === 'a').length).toBe(1);
       expect(store.query(e => e.meta?.snapshot?.name === 'b').length).toBe(1);
     });
@@ -71,6 +73,7 @@ describe('HybridLogStore', () => {
     it('is idempotent on unknown key', () => {
       store = new HybridLogStore({ forceInMemory: true });
       expect(() => store.evictSnapshot('never-existed')).not.toThrow();
+      expect(() => store.evictSnapshot(null)).not.toThrow();
     });
   });
 
@@ -86,13 +89,22 @@ describe('HybridLogStore', () => {
     });
   });
 
-  describe('reset', () => {
-    it('clears in-memory state', async () => {
+  describe('reset and dispose', () => {
+    it('reset clears in-memory state', async () => {
       store = new HybridLogStore({ forceInMemory: true });
       store.push(mkEntry());
       expect(store.query(() => true).length).toBe(1);
       await store.reset();
       expect(store.query(() => true).length).toBe(0);
+    });
+
+    it('dispose tears down without reinit', async () => {
+      store = new HybridLogStore({ forceInMemory: true });
+      store.push(mkEntry());
+      await store.dispose();
+      expect(store.query(() => true).length).toBe(0);
+      expect(store.inMemoryOnly).toBeTrue();
+      store = null;
     });
   });
 
@@ -102,40 +114,34 @@ describe('HybridLogStore', () => {
       store.push(mkEntry({ message: 'a' }));
       store.push(mkEntry({ message: 'b' }));
       store.push(mkEntry({ message: 'c' }));
-
-      // Give the WriteStream a tick to flush
       await wait(50);
 
       const back = [];
       for await (const e of store.readBack()) back.push(e);
       expect(back.map(e => e.message).sort()).toEqual(['a', 'b', 'c']);
 
-      // spill dir should exist and contain build.log.jsonl
       const files = await fsp.readdir(store.spillDir);
       expect(files).toContain('build.log.jsonl');
       expect(files).toContain('pid');
     });
 
-    it('refuses disk on Windows Temp path (DPR-5)', () => {
-      // Simulate — we can't literally change os.tmpdir(), but we can verify
-      // forceInMemory produces the no-disk outcome equivalent to the Windows
-      // refusal code path.
+    it('forceInMemory skips disk entirely', () => {
       store = new HybridLogStore({ forceInMemory: true });
       expect(store.inMemoryOnly).toBeTrue();
       expect(store.spillDir).toBeNull();
     });
   });
 
-  describe('memory-first reliability invariant (DPR-2)', () => {
-    it('in-memory copy exists even when disk is off', () => {
+  describe('memory-first invariant', () => {
+    it('keeps the in-memory copy even when disk is off', () => {
       store = new HybridLogStore({ forceInMemory: true });
       store.push(mkEntry({ message: 'must-survive' }));
       expect(store.query(e => e.message === 'must-survive').length).toBe(1);
     });
   });
 
-  describe('readBack in fallback mode (DPR-3)', () => {
-    it('yields all in-memory entries when disk is unavailable', async () => {
+  describe('readBack fallback', () => {
+    it('yields in-memory entries when disk is unavailable', async () => {
       store = new HybridLogStore({ forceInMemory: true });
       store.push(mkEntry({ message: 'x' }));
       store.push(mkEntry({ message: 'y' }));
@@ -143,5 +149,174 @@ describe('HybridLogStore', () => {
       for await (const e of store.readBack()) back.push(e);
       expect(back.map(e => e.message)).toEqual(['x', 'y']);
     });
+  });
+});
+
+describe('snapshotKey', () => {
+  it('returns null when meta is missing', () => {
+    expect(snapshotKey()).toBe(null);
+    expect(snapshotKey(null)).toBe(null);
+    expect(snapshotKey({})).toBe(null);
+    expect(snapshotKey({ snapshot: {} })).toBe(null);
+  });
+
+  it('returns a key when name is present', () => {
+    expect(snapshotKey({ snapshot: { name: 'home' } })).toBe(' home');
+  });
+
+  it('includes testCase when present', () => {
+    expect(snapshotKey({ snapshot: { testCase: 'auth', name: 'login' } }))
+      .toBe('auth login');
+  });
+
+  it('treats null and empty testCase equivalently', () => {
+    expect(snapshotKey({ snapshot: { testCase: null, name: 'x' } }))
+      .toBe(snapshotKey({ snapshot: { testCase: '', name: 'x' } }));
+  });
+
+  it('is stable across equal meta shapes', () => {
+    const k1 = snapshotKey({ snapshot: { testCase: 'a', name: 'b' } });
+    const k2 = snapshotKey({ snapshot: { testCase: 'a', name: 'b' } });
+    expect(k1).toBe(k2);
+  });
+});
+
+describe('safeStringify', () => {
+  it('survives circular references', () => {
+    const a = { name: 'root' };
+    a.self = a;
+    expect(safeStringify(a)).toBe('{"name":"root","self":"[Circular]"}');
+  });
+
+  it('flattens Error instances', () => {
+    const err = new TypeError('boom');
+    const parsed = JSON.parse(safeStringify({ err }));
+    expect(parsed.err.name).toBe('TypeError');
+    expect(parsed.err.message).toBe('boom');
+    expect(typeof parsed.err.stack).toBe('string');
+  });
+
+  it('encodes Buffer as base64', () => {
+    const parsed = JSON.parse(safeStringify({ b: Buffer.from('hello') }));
+    expect(parsed.b).toEqual({ type: 'Buffer', base64: 'aGVsbG8=' });
+  });
+
+  it('stringifies BigInt', () => {
+    expect(safeStringify({ n: BigInt(42) })).toBe('{"n":"42"}');
+  });
+
+  it('drops Function and Symbol', () => {
+    expect(safeStringify({ f: () => 1, s: Symbol('x'), ok: 1 }))
+      .toBe('{"ok":1}');
+  });
+
+  it('redacts secrets in deeply nested strings', () => {
+    const out = JSON.parse(safeStringify({
+      request: { headers: { Authorization: 'Bearer AKIAIOSFODNN7EXAMPLE' } }
+    }));
+    expect(out.request.headers.Authorization).not.toContain('AKIAIOSFODNN7EXAMPLE');
+    expect(out.request.headers.Authorization).toContain('[REDACTED]');
+  });
+});
+
+describe('sanitizeMeta', () => {
+  it('returns primitives unchanged', () => {
+    expect(sanitizeMeta(null)).toBe(null);
+    expect(sanitizeMeta(undefined)).toBe(undefined);
+    expect(sanitizeMeta(5)).toBe(5);
+  });
+
+  it('returns a plain redacted clone', () => {
+    const out = sanitizeMeta({ token: 'AKIAIOSFODNN7EXAMPLE', name: 'home' });
+    expect(out.token).toBe('[REDACTED]');
+    expect(out.name).toBe('home');
+  });
+
+  it('handles circular without throwing', () => {
+    const a = { name: 'x' }; a.self = a;
+    expect(() => sanitizeMeta(a)).not.toThrow();
+  });
+});
+
+describe('sweepOrphans', () => {
+  let base;
+  beforeEach(async () => {
+    __resetOrphanGuard();
+    base = await fsp.mkdtemp(path.join(os.tmpdir(), 'percy-sweep-test-'));
+  });
+  afterEach(async () => {
+    try { await fsp.rm(base, { recursive: true, force: true }); } catch (_) {}
+  });
+
+  async function mkSpillDir(name, { mtime, pid, withPidFile = true } = {}) {
+    const dir = path.join(base, name);
+    await fsp.mkdir(dir, { recursive: true });
+    await fsp.writeFile(path.join(dir, 'build.log.jsonl'), 'x'.repeat(100));
+    if (withPidFile) await fsp.writeFile(path.join(dir, 'pid'), String(pid ?? 999999999));
+    if (mtime) await fsp.utimes(dir, mtime, mtime);
+    return dir;
+  }
+
+  it('removes directories older than 24h', async () => {
+    const old = await mkSpillDir(`${DIR_PREFIX}old-aaaa`, {
+      mtime: new Date(Date.now() - 48 * 3600 * 1000)
+    });
+    const fresh = await mkSpillDir(`${DIR_PREFIX}fresh-bbbb`, { mtime: new Date() });
+
+    const res = await sweepOrphans(base);
+    expect(res.removed).toBe(1);
+    await expectAsync(fsp.stat(old)).toBeRejected();
+    await expectAsync(fsp.stat(fresh)).toBeResolved();
+  });
+
+  it('ignores non-matching directories', async () => {
+    const other = path.join(base, 'other-dir');
+    await fsp.mkdir(other, { recursive: true });
+    await fsp.utimes(other, new Date(Date.now() - 48 * 3600 * 1000), new Date(Date.now() - 48 * 3600 * 1000));
+    const res = await sweepOrphans(base);
+    expect(res.removed).toBe(0);
+    await expectAsync(fsp.stat(other)).toBeResolved();
+  });
+
+  it('skips directories whose pid file names a live process', async () => {
+    const mine = await mkSpillDir(`${DIR_PREFIX}mine-cccc`, {
+      mtime: new Date(Date.now() - 48 * 3600 * 1000),
+      pid: process.pid
+    });
+    const res = await sweepOrphans(base);
+    expect(res.removed).toBe(0);
+    await expectAsync(fsp.stat(mine)).toBeResolved();
+  });
+
+  it('runs at most once per process', async () => {
+    await mkSpillDir(`${DIR_PREFIX}old-dddd`, {
+      mtime: new Date(Date.now() - 48 * 3600 * 1000)
+    });
+    await sweepOrphans(base);
+    const second = await sweepOrphans(base);
+    expect(second.skipped).toBeTrue();
+  });
+
+  it('returns zero when tmpdir is missing', async () => {
+    const res = await sweepOrphans(path.join(base, 'does-not-exist'));
+    expect(res).toEqual({ removed: 0, bytes: 0 });
+  });
+
+  it('reports bytes reclaimed', async () => {
+    await mkSpillDir(`${DIR_PREFIX}old-eeee`, {
+      mtime: new Date(Date.now() - 48 * 3600 * 1000)
+    });
+    const res = await sweepOrphans(base);
+    expect(res.removed).toBe(1);
+    expect(res.bytes).toBeGreaterThan(0);
+  });
+
+  it('skips entries that vanish mid-sweep', async () => {
+    await mkSpillDir(`${DIR_PREFIX}vanish-ffff`, {
+      mtime: new Date(Date.now() - 48 * 3600 * 1000),
+      withPidFile: false
+    });
+    const res = await sweepOrphans(base);
+    expect(res.removed).toBeGreaterThanOrEqual(0);
   });
 });

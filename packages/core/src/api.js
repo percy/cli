@@ -228,13 +228,10 @@ export function createPercyServer(percy, port) {
       body = Buffer.isBuffer(body) ? body.toString() : body;
 
       if (cmd === 'reset') {
-        // reset testing mode + clear log memory. Use the sync clearMemory()
-        // variant here: the HTTP handler must return synchronously, and
-        // tearing down the disk writer mid-request would create a race
-        // with any concurrent log writes.
+        // Sync clearMemory — the HTTP handler must return synchronously
+        // and tearing down the disk writer mid-request would race with
+        // concurrent log writes.
         percy.testing = {};
-        percy._percyStartedObserved = false;
-        percy._snapshotTakenObserved = false;
         logger.clearMemory();
       } else if (cmd === 'version') {
         // the version command will update the api version header for testing
@@ -265,11 +262,7 @@ export function createPercyServer(percy, port) {
     .route('get', '/test/requests', (req, res) => res.json(200, {
       requests: percy.testing.requests
     }))
-  // returns an array of raw logs from the logger (in-memory view: global
-  // ring + live per-snapshot buckets). For a full disk-backed enumeration
-  // (including entries for snapshots already evicted), consumers need to
-  // call logger.readBack() directly; the test-only endpoint returns the
-  // in-memory set for compatibility with existing assertions.
+  // in-memory view only; callers needing disk-backed enumeration use readBack()
     .route('get', '/test/logs', (req, res) => res.json(200, {
       logs: logger.toArray()
     }))

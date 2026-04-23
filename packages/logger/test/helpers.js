@@ -77,34 +77,19 @@ const helpers = {
     }
   },
 
-  // Synchronous hard/soft reset. A hard reset clears the in-memory state
-  // and detaches the singleton in the SAME TICK to match pre-PER-7809
-  // behavior — async disposal here introduced a gap where logs emitted
-  // between ring-clear and singleton-delete would land on the detached
-  // instance and go invisible to later logger.query() calls.
-  //
-  // The detached instance's disk writer + spill directory are reclaimed
-  // by the process-exit registry (HybridLogStore keeps itself in
-  // activeStores until the process exits) and by the 24h orphan sweep.
-  // In-process test-to-test teardown does not need to await IO.
+  // Sync hard/soft reset. Clearing memory before detaching the singleton
+  // closes a race where a group bound to the old instance (e.g. percy.log
+  // captured at construction time) pushes entries after the detach.
   reset(soft) {
     if (soft) {
       logger.loglevel('info');
     } else {
       const existing = logger.constructor.instance;
       if (existing) {
-        // Synchronously clear memory so the detached instance yields nothing
-        // to any lingering reference (e.g. percy.log captured the group at
-        // Percy construction time; it stays bound to this instance).
-        if (typeof existing.clearMemory === 'function') {
-          try { existing.clearMemory(); } catch (_) {}
-        }
-        // Fire-and-forget the disk cleanup so the spill directory is
-        // eventually removed without blocking test execution. Errors are
-        // swallowed; the process-exit handler is the ultimate backstop.
-        if (typeof existing.dispose === 'function') {
-          Promise.resolve().then(() => existing.dispose()).catch(() => {});
-        }
+        try { existing.clearMemory?.(); } catch (_) {}
+        // Fire-and-forget disk cleanup; the process-exit registry is the
+        // ultimate backstop.
+        existing.dispose?.().catch(() => {});
       }
       delete logger.constructor.instance;
     }

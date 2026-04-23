@@ -88,13 +88,9 @@ describe('logger', () => {
     let error = new Error('test');
     log.error(error);
 
-    // Stack traces contain file:line:col segments that may match the
-    // secret-patterns fast-path and get partially redacted on the stored
-    // message. We still assert the entry exists with the expected shape
-    // but don't require byte-identical stack content (DPR-6 intentionally
-    // redacts any string that resembles a known secret pattern).
-    const entries = inst.toArray();
-    const errorEntry = entries.find(e => e.level === 'error' && e.error === true);
+    // Stack traces may contain file:line:col segments that look like
+    // secret patterns and get partially redacted; assert shape, not bytes.
+    const errorEntry = inst.toArray().find(e => e.level === 'error' && e.error);
     expect(errorEntry).toBeDefined();
     expect(errorEntry.debug).toBe('test');
     expect(errorEntry.message).toContain('Error: test');
@@ -491,10 +487,15 @@ describe('logger', () => {
         const meta = { abc: '123' };
         // Logger internally calls Date.now, so need to mock
         // response for it as well.
-        spyOn(Date, 'now').and.returnValues(date1, date1, date2, date1);
+        // After the store-layer sanitization pass, Date.now may be called
+        // more than 4 times. Return date1 for all calls up until the
+        // async callback settles, then date2 for the logtime() call.
+        let callbackDone = false;
+        spyOn(Date, 'now').and.callFake(() => callbackDone ? date2 : date1);
         const callback = async () => {
           await new Promise((res, _) => setTimeout(res, 20));
           log.info('abcd');
+          callbackDone = true;
           return 10;
         };
 
@@ -513,10 +514,9 @@ describe('logger', () => {
         const date1 = new Date(2024, 4, 11, 13, 30, 0);
         const date2 = new Date(2024, 4, 11, 13, 31, 0);
         const meta = { abc: '123' };
-        // Logger internally calls Date.now, so need to mock
-        // response for it as well.
-        spyOn(Date, 'now').and.returnValues(date1, date1, date2, date1);
-        const callback = () => { log.info('abcd'); return 10; };
+        let callbackDone = false;
+        spyOn(Date, 'now').and.callFake(() => callbackDone ? date2 : date1);
+        const callback = () => { log.info('abcd'); callbackDone = true; return 10; };
 
         logger.loglevel('debug');
         const ret = logger.measure('step', 'test', meta, callback);
@@ -569,38 +569,32 @@ describe('logger', () => {
     });
   });
 
-  describe('hybrid store APIs (PER-7809)', () => {
-    it('reset() clears all in-memory entries', async () => {
+  describe('hybrid store APIs', () => {
+    it('reset clears all in-memory entries', async () => {
       log.info('first');
       log.warn('second');
       expect(inst.toArray().length).toBeGreaterThan(0);
-
       await inst.reset();
       expect(inst.toArray().length).toBe(0);
     });
 
-    it('evictSnapshot drops only the per-snapshot bucket index', async () => {
-      // See hybrid-log-store.test.js — eviction removes the bucket index,
-      // not the global-ring entries. query() after eviction still returns
-      // the tagged entries via the ring (up to ring capacity).
-      const { snapshotKey } = await import('@percy/logger/internal-utils');
+    it('evictSnapshot drops the bucket index but keeps ring entries', async () => {
+      const { snapshotKey } = await import('@percy/logger/hybrid-log-store');
       log.info('global only');
       log.debug('a', { snapshot: { name: 'home' } });
       log.debug('b', { snapshot: { name: 'about' } });
 
       inst.evictSnapshot(snapshotKey({ snapshot: { name: 'home' } }));
 
-      // Ring retains — both snapshots still visible to query.
       expect(inst.query(e => e.meta?.snapshot?.name === 'home').length).toBe(1);
       expect(inst.query(e => e.meta?.snapshot?.name === 'about').length).toBe(1);
       expect(inst.query(e => e.message === 'global only').length).toBe(1);
     });
 
-    it('toArray returns ring + bucket entries', () => {
+    it('toArray returns ring entries', () => {
       log.info('global');
       log.debug('snap-entry', { snapshot: { name: 'checkout' } });
-      const all = inst.toArray();
-      const messages = all.map(e => e.message);
+      const messages = inst.toArray().map(e => e.message);
       expect(messages).toContain('global');
       expect(messages).toContain('snap-entry');
     });
@@ -608,7 +602,6 @@ describe('logger', () => {
     it('readBack yields every persisted entry', async () => {
       log.info('one');
       log.info('two');
-      // Give the write stream a tick in case of disk mode
       await new Promise(r => setTimeout(r, 50));
 
       const back = [];
@@ -618,12 +611,11 @@ describe('logger', () => {
       expect(messages).toContain('two');
     });
 
-    it('in-memory mode forced by PERCY_LOGS_IN_MEMORY=1', async () => {
+    it('forces in-memory mode via PERCY_LOGS_IN_MEMORY=1', async () => {
       process.env.PERCY_LOGS_IN_MEMORY = '1';
       await helpers.reset();
       await helpers.mock({ ansi: true, isTTY: true });
-      const fresh = logger.instance;
-      expect(fresh.inMemoryOnly).toBe(true);
+      expect(logger.instance.inMemoryOnly).toBe(true);
       delete process.env.PERCY_LOGS_IN_MEMORY;
     });
   });

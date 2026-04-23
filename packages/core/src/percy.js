@@ -14,8 +14,6 @@ import {
   checkSDKVersion,
   processCorsIframes
 } from './utils.js';
-// Note: redactSecrets no longer imported — redaction moved to write-time
-// inside @percy/logger (DPR-6).
 
 import {
   createPercyServer,
@@ -598,18 +596,7 @@ export class Percy {
     return syncMode;
   }
 
-  // This specific error will be hard coded
   async checkForNoSnapshotCommandError() {
-    // Scan the in-memory log ring for the markers that indicate a snapshot
-    // reached the queue. logger.query now returns entries from the global
-    // ring (which captures every routed entry up to the ring cap, including
-    // snapshot-tagged entries whose buckets have been evicted), so this
-    // works equivalently to the pre-PER-7809 unbounded-Set implementation
-    // for the size of build where this detection is meaningful.
-    //
-    // logger.reset() clears the ring, which correctly causes this check to
-    // see no prior state (matches pre-refactor behavior where messages.clear
-    // also made the scan return empty).
     let isPercyStarted = false;
     let containsSnapshotTaken = false;
     logger.query((item) => {
@@ -695,15 +682,9 @@ export class Percy {
   async sendBuildLogs() {
     if (!process.env.PERCY_TOKEN) return;
     try {
-      // DPR-8: single-pass stream over the on-disk JSONL (or in-memory
-      // fallback when the store transitioned to memory-only) into two
-      // accumulator arrays. Redaction already happened at write-time
-      // (DPR-6), so no upload-time redactSecrets call is needed.
-      //
-      // This preserves insertion order within each of clilogs/cilogs and
-      // avoids the previous O(total_logs) double-filter over an in-memory
-      // Set; memory consumed is only the serialized POST body, not a full
-      // uncompressed copy of every entry.
+      // Stream directly from the on-disk JSONL (or memory fallback) so the
+      // POST body is the only unbounded-in-memory object, not a full copy
+      // of every entry. Redaction already happened at write-time.
       const clilogs = [];
       const cilogs = [];
       const sendCILogs = process.env.PERCY_CLIENT_ERROR_LOGS !== 'false';
@@ -726,7 +707,6 @@ export class Percy {
         service_name: 'cli',
         base64encoded: true
       };
-      // Ignore this will update once I implement logs controller.
       const logsSHA = await this.client.sendBuildLogs(eventObject);
       this.log.info(`Build's CLI${sendCILogs ? ' and CI' : ''} logs sent successfully. Please share this log ID with Percy team in case of any issues - ${logsSHA}`);
     } catch (err) {

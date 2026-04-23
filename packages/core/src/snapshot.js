@@ -424,9 +424,6 @@ export function createSnapshotsQueue(percy) {
     .handle('push', (snapshot, existing) => {
       let { name, meta } = snapshot;
 
-      // log immediately when not deferred or dry-running. The log strings
-      // themselves are what checkForNoSnapshotCommandError scans for, so
-      // no explicit sentinel bookkeeping is needed here.
       if (!percy.deferUploads) {
         percy.log.info(`Snapshot taken: ${snapshotLogName(name, meta)}`, meta);
       }
@@ -444,8 +441,7 @@ export function createSnapshotsQueue(percy) {
     // send snapshots to be uploaded to the build
     .handle('task', async function*({ resources, ...snapshot }) {
       let { name, meta } = snapshot;
-      // Eviction key captured up-front so try/finally can always run it
-      // regardless of which branch below throws. (DPR-9, DPR-12)
+      // Captured up-front so the finally block runs regardless of branch.
       const evictKey = snapshotKey(snapshot?.meta);
 
       try {
@@ -476,10 +472,9 @@ export function createSnapshotsQueue(percy) {
 
         return { ...snapshot, response };
       } finally {
-        // DPR-5/DPR-9: evict the snapshot's hot bucket after the POST
-        // completes — covers success, errors, and BYOS (skipDiscovery) paths
-        // uniformly. Map.delete is idempotent so the error handler's call
-        // is a harmless belt-and-braces.
+        // Evict the bucket after POST so memory is bounded by in-flight
+        // concurrency rather than total build size. Idempotent with the
+        // 'error' handler's call below.
         evictSnapshot(evictKey);
       }
     })
@@ -488,8 +483,6 @@ export function createSnapshotsQueue(percy) {
       let result = { ...snapshot, error };
       let { name, meta } = snapshot;
 
-      // Safety net in case the task handler's try/finally did not run
-      // (should never happen in practice, but idempotent so no harm).
       evictSnapshot(snapshotKey(snapshot?.meta));
 
       if (error.name === 'QueueClosedError') return result;

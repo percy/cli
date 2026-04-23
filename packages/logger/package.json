@@ -23,12 +23,8 @@
   "exports": {
     ".": "./dist/index.js",
     "./internal": "./dist/internal.js",
-    "./internal-utils": "./dist/internal-utils.js",
     "./redact": "./dist/redact.js",
-    "./redact/extract-markers": "./dist/redact/extract-markers.js",
-    "./safe-stringify": "./dist/safe-stringify.js",
     "./hybrid-log-store": "./dist/hybrid-log-store.js",
-    "./orphan-cleanup": "./dist/orphan-cleanup.js",
     "./utils": "./dist/utils.js",
     "./test/helpers": "./test/helpers.js",
     "./test/client": "./test/client.js"

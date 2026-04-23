@@ -15,8 +15,6 @@ Object.defineProperties(logger, {
   loglevel: { value: (...args) => logger.instance.loglevel(...args) },
   timeit: { get: () => new TimeIt(logger.instance.group('timer')) },
   measure: { value: (...args) => logger.timeit.measure(...args) },
-
-  // public — stable API consumers can rely on
   reset: { value: (...args) => logger.instance.reset(...args) },
   clearMemory: { value: () => logger.instance.clearMemory() },
   toArray: { value: () => logger.instance.toArray() }

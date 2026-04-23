@@ -4,9 +4,7 @@ import { camelcase, merge } from '@percy/config/utils';
 import logger from '@percy/logger';
 import DetectProxy from '@percy/client/detect-proxy';
 
-// redactSecrets moved to @percy/logger/redact as part of PER-7809 so that
-// redaction can happen at write time (DPR-6). Re-exported here for any
-// external consumer still importing it from core utils.
+// Redaction lives in @percy/logger/redact — re-exported here for back-compat.
 export { redactSecrets } from '@percy/logger/redact';
 
 export {
