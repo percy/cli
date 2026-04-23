@@ -19,19 +19,10 @@ describe('Cloudflare Pages', () => {
     expect(env).toHaveProperty('branch', 'cf-branch');
     // Cloudflare Pages does not natively expose PR info
     expect(env).toHaveProperty('pullRequest', null);
-    expect(env).toHaveProperty(
-      'parallel.nonce',
-      'cf-commit-sha-https://abc123.my-project.pages.dev'
-    );
-    expect(env).toHaveProperty('parallel.total', -1);
-  });
-
-  it('falls back to commit-only nonce when CF_PAGES_URL is absent', () => {
-    env = new PercyEnv({
-      ...env.vars,
-      CF_PAGES_URL: undefined
-    });
+    // Nonce is commit SHA alone — earlier composite (commit + URL) exceeded
+    // Percy's 64-char nonce limit and caused build creation to fail.
     expect(env).toHaveProperty('parallel.nonce', 'cf-commit-sha');
+    expect(env).toHaveProperty('parallel.total', -1);
   });
 
   it('returns null nonce when CF_PAGES_COMMIT_SHA is absent (never emits "undefined")', () => {

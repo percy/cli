@@ -67,6 +67,10 @@ export class PercyEnv {
       return 'gocd';
     } else if (this.vars.BUILD_ID && this.vars.PROJECT_ID && !this.vars.JENKINS_URL) {
       return 'gcb';
+    } else if (this.vars.TEKTON_PIPELINE_RUN) {
+      return 'tekton';
+    } else if (this.vars.ARGO_WORKFLOW_NAME) {
+      return 'argo-workflows';
     } else if (this.vars.CI) {
       return 'CI/unknown';
     } else {
@@ -149,6 +153,10 @@ export class PercyEnv {
           return this.vars.GO_REVISION;
         case 'gcb':
           return this.vars.COMMIT_SHA;
+        case 'tekton':
+          return this.vars.TEKTON_COMMIT_SHA;
+        case 'argo-workflows':
+          return this.vars.ARGO_COMMIT_SHA;
       }
     })();
 
@@ -213,6 +221,10 @@ export class PercyEnv {
           return this.vars.CF_PAGES_BRANCH;
         case 'gcb':
           return this.vars.BRANCH_NAME;
+        case 'tekton':
+          return this.vars.TEKTON_BRANCH;
+        case 'argo-workflows':
+          return this.vars.ARGO_BRANCH;
       }
     })();
 
@@ -273,6 +285,10 @@ export class PercyEnv {
           return this.vars.VERCEL_GIT_PULL_REQUEST_ID;
         case 'gcb':
           return this.vars._PR_NUMBER;
+        case 'tekton':
+          return this.vars.TEKTON_PULL_REQUEST;
+        case 'argo-workflows':
+          return this.vars.ARGO_PULL_REQUEST;
       }
     })();
 
@@ -346,17 +362,17 @@ export class PercyEnv {
         case 'vercel':
           return this.vars.VERCEL_DEPLOYMENT_ID;
         case 'cloudflare-pages':
-          return this.vars.CF_PAGES_COMMIT_SHA
-            ? (this.vars.CF_PAGES_URL
-                ? `${this.vars.CF_PAGES_COMMIT_SHA}-${this.vars.CF_PAGES_URL}`
-                : this.vars.CF_PAGES_COMMIT_SHA)
-            : null;
+          return this.vars.CF_PAGES_COMMIT_SHA || null;
         case 'gocd':
           return this.vars.GO_PIPELINE_COUNTER && this.vars.GO_STAGE_COUNTER
             ? `${this.vars.GO_PIPELINE_COUNTER}.${this.vars.GO_STAGE_COUNTER}`
             : this.vars.GO_PIPELINE_COUNTER;
         case 'gcb':
           return this.vars.BUILD_ID;
+        case 'tekton':
+          return this.vars.TEKTON_PIPELINE_RUN;
+        case 'argo-workflows':
+          return this.vars.ARGO_WORKFLOW_UID || this.vars.ARGO_WORKFLOW_NAME;
       }
     })();
 
