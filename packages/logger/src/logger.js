@@ -152,13 +152,35 @@ export class PercyLogger {
 
   // Public reset — clears in-memory caches, closes the disk writer, deletes
   // the spill directory, and re-initializes disk storage on the next log
-  // call. Replaces the former `logger.instance.messages.clear()` call at
-  // packages/core/src/api.js:233 (the `/test/api/reset` endpoint) and is
-  // also used by test helpers.
+  // call. Use for full test-teardown scenarios where the logger instance is
+  // being replaced (e.g. `helpers.reset()`).
   async reset() {
     if (this.#store) await this.#store.reset();
     this.deprecations.clear();
     this._memoryFallbackWarned = false;
+  }
+
+  // Sync in-memory clear — discards ring + buckets + deprecations WITHOUT
+  // closing the disk writer or deleting the spill directory. Suitable for
+  // synchronous callers (the /test/api/reset HTTP endpoint, test beforeEach
+  // hooks) that just want to wipe what's currently visible via query() /
+  // toArray() without tearing down the store. Replaces the former
+  // `logger.instance.messages.clear()` pattern.
+  clearMemory() {
+    if (this.#store && typeof this.#store.clearMemory === 'function') {
+      this.#store.clearMemory();
+    }
+    this.deprecations.clear();
+  }
+
+  // Used by test helpers when the singleton is being discarded permanently
+  // (e.g. `delete logger.constructor.instance`). Tears down the underlying
+  // store: closes writer, removes spill dir, deregisters from the exit
+  // handler registry. The instance is no longer usable after dispose.
+  async dispose() {
+    if (this.#store && typeof this.#store.dispose === 'function') {
+      await this.#store.dispose();
+    }
   }
 
   // True if the store fell back to memory-only (disk unavailable or disabled).
@@ -261,16 +283,22 @@ export class PercyLogger {
 
     if (this.#store) {
       this.#store.push(entry);
-      // If the store just transitioned to fallback mode, surface it once.
-      if (this.#store.inMemoryOnly && !this._memoryFallbackWarned && !(process.env.PERCY_LOGS_IN_MEMORY === '1')) {
+      // If the store just transitioned to fallback mode, record it as a
+      // debug entry so it appears in the /logs upload for field diagnosis
+      // but does NOT print to stderr (which would break tests that assert
+      // on exact stdio content and isn't useful for end users). Gated on
+      // PERCY_LOGS_IN_MEMORY env var to avoid firing for intentional
+      // in-memory mode.
+      if (this.#store.inMemoryOnly && !this._memoryFallbackWarned && process.env.PERCY_LOGS_IN_MEMORY !== '1') {
         this._memoryFallbackWarned = true;
-        const err = this.#store.lastFallbackError;
-        const reason = err?.code || err?.message || 'unknown';
-        // Inline recursion-safe: route directly to stdio without another store push
-        this.write({
-          debug: 'logger:memory', level: 'warn',
+        const sErr = this.#store.lastFallbackError;
+        const reason = sErr?.code || sErr?.message || 'unknown';
+        // Record in the in-memory store only — don't re-route to stdio
+        // and don't recurse into push's transition check.
+        this.#store.push({
+          debug: 'logger:memory', level: 'debug',
           message: `logger fell back to in-memory mode: ${reason}`,
-          timestamp, error: false
+          meta: {}, timestamp, error: false
         });
       }
     }

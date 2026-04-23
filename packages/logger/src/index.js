@@ -18,6 +18,7 @@ Object.defineProperties(logger, {
 
   // public — stable API consumers can rely on
   reset: { value: (...args) => logger.instance.reset(...args) },
+  clearMemory: { value: () => logger.instance.clearMemory() },
   toArray: { value: () => logger.instance.toArray() }
 });
 

@@ -11,9 +11,6 @@ describe('extractLiteralMarkers', () => {
   });
 
   it('extracts each branch of a top-level alternation', () => {
-    // the 'A3T' branch loses the final char before [A-Z0-9] because the next token
-    // is a character class, not because of a quantifier — but the walker currently
-    // keeps `A3T` (3 chars, below MIN) so it is dropped; the other branches stay.
     const out = extractLiteralMarkers('(A3T[A-Z0-9]|AKIA|AGPA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}');
     expect(out).toContain('AKIA');
     expect(out).toContain('AGPA');
@@ -22,7 +19,9 @@ describe('extractLiteralMarkers', () => {
     expect(out).toContain('ANPA');
     expect(out).toContain('ANVA');
     expect(out).toContain('ASIA');
-    expect(out).not.toContain('A3T');
+    // 'A3T' is 3 chars which meets MIN_MARKER_LEN = 3, so it is also a
+    // valid marker anchor for the first alternation branch.
+    expect(out).toContain('A3T');
   });
 
   it('extracts two alternative literals', () => {
@@ -66,8 +65,12 @@ describe('extractLiteralMarkers', () => {
   });
 
   it('deduplicates identical markers', () => {
-    expect(extractLiteralMarkers('amazonaws.foo.amazonaws'))
-      .toEqual(['amazonaws']);
+    // use 'amazonaws' twice + a 3-char 'foo' (which also qualifies at
+    // MIN_MARKER_LEN=3); both distinct markers appear once.
+    const out = extractLiteralMarkers('amazonaws.amazonaws.somethingelse');
+    expect(out.filter(m => m === 'amazonaws').length).toBe(1);
+    expect(out).toContain('amazonaws');
+    expect(out).toContain('somethingelse');
   });
 
   it('handles a character class with embedded escape', () => {

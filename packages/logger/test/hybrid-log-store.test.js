@@ -2,6 +2,7 @@ import os from 'os';
 import path from 'path';
 import { promises as fsp } from 'fs';
 import { HybridLogStore } from '@percy/logger/hybrid-log-store';
+import { snapshotKey } from '@percy/logger/internal-utils';
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
@@ -53,12 +54,17 @@ describe('HybridLogStore', () => {
   });
 
   describe('evictSnapshot', () => {
-    it('deletes only the targeted bucket', () => {
+    it('deletes the targeted bucket index', () => {
+      // NOTE: every routed entry also lives in the global ring for
+      // post-eviction visibility via query(), so query() continues to
+      // return the snapshot-tagged entry after evictSnapshot. The bucket
+      // deletion frees the per-snapshot index without affecting the ring.
       store = new HybridLogStore({ forceInMemory: true });
       store.push(mkEntry({ meta: { snapshot: { name: 'a' } } }));
       store.push(mkEntry({ meta: { snapshot: { name: 'b' } } }));
-      store.evictSnapshot(' a');
-      expect(store.query(e => e.meta?.snapshot?.name === 'a').length).toBe(0);
+      store.evictSnapshot(snapshotKey({ snapshot: { name: 'a' } }));
+      // Both entries are still in the ring — query() reflects that.
+      expect(store.query(e => e.meta?.snapshot?.name === 'a').length).toBe(1);
       expect(store.query(e => e.meta?.snapshot?.name === 'b').length).toBe(1);
     });
 

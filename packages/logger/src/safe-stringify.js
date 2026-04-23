@@ -32,6 +32,13 @@ export function safeReplacer () {
       // message + stack strings run through redactString on the next pass.
       return { name: value.name, message: value.message, stack: value.stack };
     }
+    // Buffer.toJSON() fires BEFORE the replacer in JSON.stringify, yielding
+    // { type: 'Buffer', data: [...bytes] }. Convert that shape to base64.
+    if (value && value.type === 'Buffer' && Array.isArray(value.data)) {
+      return { type: 'Buffer', base64: Buffer.from(value.data).toString('base64') };
+    }
+    // Defense-in-depth: if we ever get a real Buffer here (e.g. caller
+    // passed it as the top-level value and no toJSON fired), handle it.
     if (typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) {
       return { type: 'Buffer', base64: value.toString('base64') };
     }

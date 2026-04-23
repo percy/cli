@@ -424,17 +424,14 @@ export function createSnapshotsQueue(percy) {
     .handle('push', (snapshot, existing) => {
       let { name, meta } = snapshot;
 
-      // log immediately when not deferred or dry-running
+      // log immediately when not deferred or dry-running. The log strings
+      // themselves are what checkForNoSnapshotCommandError scans for, so
+      // no explicit sentinel bookkeeping is needed here.
       if (!percy.deferUploads) {
         percy.log.info(`Snapshot taken: ${snapshotLogName(name, meta)}`, meta);
-        // DPR-10: sentinel for checkForNoSnapshotCommandError; owned by
-        // the Percy instance, not by logger, so the substring scan does
-        // not live inside the logger package.
-        percy._snapshotTakenObserved = true;
       }
       if (percy.dryRun) {
         percy.log.info(`Snapshot found: ${snapshotLogName(name, meta)}`, meta);
-        percy._snapshotTakenObserved = true;
       }
 
       // immediately flush when uploads are delayed but not skipped
@@ -467,9 +464,6 @@ export function createSnapshotsQueue(percy) {
         let response = yield percy.client[send](build.id, snapshot);
         if (percy.deferUploads) {
           percy.log.info(`Snapshot uploaded: ${name}`, meta);
-          // DPR-10: mark sentinel on deferred-upload confirmation too,
-          // since defer suppresses the "Snapshot taken" log at push().
-          percy._snapshotTakenObserved = true;
         }
 
         // Pushing to syncQueue, that will check for

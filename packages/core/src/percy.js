@@ -258,11 +258,6 @@ export class Percy {
       this.syncQueue = new WaitForJob(snapshotType, this);
       // log and mark this instance as started
       this.log.info('Percy has started!');
-      // DPR-10: sentinel owned by the Percy instance, set at the call site
-      // next to the log — refactoring the message requires updating both in
-      // the same file, eliminating the silent-drift risk of a logger-owned
-      // substring scan.
-      this._percyStartedObserved = true;
       this.readyState = 1;
     } catch (error) {
       // on error, close any running server and end queues
@@ -605,12 +600,27 @@ export class Percy {
 
   // This specific error will be hard coded
   async checkForNoSnapshotCommandError() {
-    // DPR-10: O(1) sentinel check. Flags are set at the call sites in
-    // percy.js and snapshot.js where the corresponding log messages are
-    // emitted, so this routine does not depend on log retention or
-    // substring scanning after per-snapshot bucket eviction.
-    const isPercyStarted = !!this._percyStartedObserved;
-    const containsSnapshotTaken = !!this._snapshotTakenObserved;
+    // Scan the in-memory log ring for the markers that indicate a snapshot
+    // reached the queue. logger.query now returns entries from the global
+    // ring (which captures every routed entry up to the ring cap, including
+    // snapshot-tagged entries whose buckets have been evicted), so this
+    // works equivalently to the pre-PER-7809 unbounded-Set implementation
+    // for the size of build where this detection is meaningful.
+    //
+    // logger.reset() clears the ring, which correctly causes this check to
+    // see no prior state (matches pre-refactor behavior where messages.clear
+    // also made the scan return empty).
+    let isPercyStarted = false;
+    let containsSnapshotTaken = false;
+    logger.query((item) => {
+      const m = item?.message;
+      if (typeof m !== 'string') return item;
+      isPercyStarted ||= m.includes('Percy has started');
+      containsSnapshotTaken ||= m.includes('Snapshot taken') ||
+                               m.includes('Snapshot uploaded') ||
+                               m.includes('Snapshot found');
+      return item;
+    });
 
     if (isPercyStarted && !containsSnapshotTaken) {
       // This is the case for No snapshot command called

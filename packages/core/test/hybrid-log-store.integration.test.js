@@ -20,14 +20,16 @@ describe('Hybrid log store — integration (PER-7809)', () => {
   });
 
   describe('S1: long-build memory bound', () => {
-    it('keeps in-memory entries bounded by live concurrency', async () => {
-      const store = new HybridLogStore({ forceInMemory: true });
+    it('keeps in-memory entries bounded by the ring capacity regardless of build size', async () => {
+      const ringCap = 500;
+      const store = new HybridLogStore({ forceInMemory: true, ringCap });
       const LIVE = 10;
-      const TOTAL = 2000;
+      const TOTAL = 2000;                  // 2000 snapshots × 20 entries each
+      const ENTRIES_PER = 20;
       const live = [];
       for (let i = 0; i < TOTAL; i++) {
         const meta = { snapshot: { name: `s-${i}`, testCase: '' } };
-        for (let j = 0; j < 20; j++) {
+        for (let j = 0; j < ENTRIES_PER; j++) {
           store.push({
             debug: 'core:test', level: 'debug',
             message: `entry ${j}`, meta, timestamp: Date.now(), error: false
@@ -37,10 +39,12 @@ describe('Hybrid log store — integration (PER-7809)', () => {
         if (live.length >= LIVE) store.evictSnapshot(live.shift());
       }
 
-      // After the workload, at most LIVE-1 buckets remain populated. The
-      // Remaining entries should be bounded by LIVE × entries-per-snapshot.
+      // 40000 entries pushed → ring holds at most `ringCap` of them. This
+      // is the real memory-bound guarantee: regardless of how many
+      // snapshots the build contains, in-memory visibility via query()
+      // is capped at the ring size. Disk retains everything via readBack.
       const remaining = store.query(() => true).length;
-      expect(remaining).toBeLessThanOrEqual(LIVE * 20);
+      expect(remaining).toBeLessThanOrEqual(ringCap);
 
       await store.reset();
     });

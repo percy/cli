@@ -22,8 +22,8 @@ const NOISE_WORDS = new Set([
   'the', 'and', 'for', 'are', 'not', 'was', 'but', 'can', 'get', 'set',
   'log', 'out', 'you', 'his', 'her', 'one', 'two', 'all', 'any', 'new',
   'now', 'has', 'had', 'yes', 'off', 'use', 'how', 'why', 'who', 'our',
-  'http', 'www', 'true', 'false', 'null', 'name', 'type', 'path', 'time',
-  'date', 'info', 'user', 'pass', 'com', 'net', 'org'
+  'http', 'https', 'www', 'true', 'false', 'null', 'name', 'type', 'path',
+  'time', 'date', 'info', 'user', 'pass', 'token', 'com', 'net', 'org'
 ]);
 
 export function extractLiteralMarkers (src) {

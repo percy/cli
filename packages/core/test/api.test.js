@@ -667,10 +667,11 @@ describe('API Server', () => {
     beforeEach(async () => {
       process.env.PERCY_TOKEN = 'TEST_TOKEN';
       percy = await Percy.start({ testing: true });
-      // PER-7809: messages.clear() replaced by the async logger.reset().
-      // Fire-and-forget here to preserve the synchronous beforeEach
-      // signature; the reset state is observable by the next log call.
-      void logger.instance.reset();
+      // PER-7809: messages.clear() replaced by the sync clearMemory().
+      // Discards any log entries that accumulated during Percy.start()
+      // without touching the on-disk writer (which Percy needs open for
+      // the duration of the test).
+      logger.instance.clearMemory();
     });
 
     afterEach(() => {

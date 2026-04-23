@@ -44,6 +44,24 @@ const MAX_STREAM_BUFFER = 1 * 1024 * 1024; // 1 MB soft cap on WriteStream's int
 const CLOSE_TIMEOUT_MS = 2000;
 const IS_WINDOWS = process.platform === 'win32';
 
+// Module-level store registry so process-wide exit handlers are registered
+// exactly once, regardless of how many HybridLogStore instances the process
+// creates (each test typically creates a fresh singleton after reset). Without
+// this, Node hits MaxListeners=10 after ~4 test cases.
+const activeStores = new Set();
+let processHandlersRegistered = false;
+function ensureProcessHandlers () {
+  if (processHandlersRegistered) return;
+  processHandlersRegistered = true;
+  const syncAll = () => {
+    for (const store of activeStores) store._syncCleanup();
+  };
+  process.on('exit', syncAll);
+  const signalExit = () => { syncAll(); process.exit(130); };
+  process.once('SIGINT', signalExit);
+  process.once('SIGTERM', signalExit);
+}
+
 export class HybridLogStore {
   #ring;
   #ringCap;
@@ -59,7 +77,6 @@ export class HybridLogStore {
 
   #inMemoryOnly;
   #forcedInMemory;
-  #exitHandlersInstalled = false;
 
   lastFallbackError = null;
 
@@ -69,7 +86,8 @@ export class HybridLogStore {
     this.#inMemoryOnly = forceInMemory;
     this.#ring = new Array(ringCap);
     if (!forceInMemory) this.#initDisk();
-    this.#installExitHandlers();
+    activeStores.add(this);
+    ensureProcessHandlers();
   }
 
   // ── public API ────────────────────────────────────────────────────
@@ -77,21 +95,32 @@ export class HybridLogStore {
   // RELIABILITY INVARIANT: memory first, disk second. Any entry that enters
   // push() is at least in the in-memory cache, even if an async WriteStream
   // error fires between write() and the handler.
+  //
+  // SECURITY INVARIANT: the entry is sanitized in place BEFORE routing so
+  // the in-memory cache never holds unredacted strings. This makes DPR-6
+  // (redact-on-write) end-to-end — query() and toArray() can never expose
+  // a raw secret, matching the on-disk JSONL's contents.
   push (entry) {
-    if (entry.meta != null) entry.meta = sanitizeMeta(entry.meta);
-    this.#routeInMemory(entry);
-    this.#writeDisk(entry);
+    // Round-trip through safeReplacer for deep redaction of all string
+    // values anywhere in the entry (message, meta.*). sanitizeMeta's
+    // JSON round-trip drops non-serializable values (Function, Symbol)
+    // and encodes Buffer/Error/BigInt in their serializable forms.
+    const sanitized = sanitizeMeta(entry) || entry;
+    this.#routeInMemory(sanitized);
+    this.#writeDisk(sanitized);
   }
 
   query (filter) {
+    // Ring holds every routed entry (including snapshot-tagged entries;
+    // routeInMemory appends to both ring AND bucket). Buckets are an
+    // eviction index, not a query source — iterating them here would
+    // double-count. The ring's bounded size means very old entries age
+    // out of memory for query(), but they remain on disk for readBack().
     const results = [];
     for (let i = 0; i < this.#ringSize; i++) {
       const idx = (this.#ringHead - this.#ringSize + i + this.#ringCap) % this.#ringCap;
       const e = this.#ring[idx];
       if (filter(e)) results.push(e);
-    }
-    for (const entries of this.#buckets.values()) {
-      for (const e of entries) if (filter(e)) results.push(e);
     }
     return results;
   }
@@ -100,12 +129,25 @@ export class HybridLogStore {
     if (key != null) this.#buckets.delete(key);
   }
 
+  // Sync in-memory clear. Does NOT touch the disk writer or spill directory,
+  // so it is safe to call on a hot logger without closing-and-reopening the
+  // writer. Intended for test-endpoint resets that want to discard prior
+  // log entries but keep the instance running.
+  clearMemory () {
+    this.#ring = new Array(this.#ringCap);
+    this.#ringHead = 0;
+    this.#ringSize = 0;
+    this.#buckets.clear();
+  }
+
   // Async iterator over every persisted entry. Reads disk first; in fallback
   // mode, appends in-memory entries whose timestamps post-date the last
   // successfully flushed disk entry. Guarantees no silent data loss when the
   // store transitioned to inMemoryOnly mid-build.
   async * readBack () {
     let lastTs = 0;
+    let diskYielded = false;
+    let diskFailed = false;
     if (this.#spillFilePath) {
       try {
         const rl = createInterface({
@@ -119,15 +161,26 @@ export class HybridLogStore {
             if (typeof entry.timestamp === 'number' && entry.timestamp > lastTs) {
               lastTs = entry.timestamp;
             }
+            diskYielded = true;
             yield entry;
           } catch (_) { /* malformed tail (crash-truncated) — skip */ }
         }
       } catch (_) {
         // disk read failed (systemd-tmpfiles unlinked, EACCES after
         // permissions change, tmpdir unmounted) — fall through to memory.
+        diskFailed = true;
       }
     }
-    if (this.#inMemoryOnly || !this.#spillFilePath) {
+    // Fall back to in-memory under any of: no spill path, in-memory mode
+    // (store transitioned mid-build), or disk read failed (DPR-20 —
+    // unlinked spill file). In the fallback cases we yield EVERY memory
+    // entry to avoid dropping pre-failure entries; in the normal case
+    // (disk read succeeded) we skip memory since disk is a superset.
+    const shouldYieldMemory = this.#inMemoryOnly ||
+                              !this.#spillFilePath ||
+                              diskFailed ||
+                              !diskYielded;
+    if (shouldYieldMemory) {
       for (const e of this.query(() => true)) {
         if (typeof e.timestamp !== 'number' || e.timestamp > lastTs) yield e;
       }
@@ -154,21 +207,48 @@ export class HybridLogStore {
     }
   }
 
+  // Terminal teardown — closes the writer, removes the spill directory,
+  // clears in-memory state, and deregisters from the process-exit registry.
+  // Unlike reset(), does NOT re-initialize the disk store, so the instance
+  // is no longer usable after dispose. Intended for test teardown where the
+  // singleton is about to be replaced.
+  async dispose () {
+    this.#ring = new Array(this.#ringCap);
+    this.#ringHead = 0;
+    this.#ringSize = 0;
+    this.#buckets.clear();
+    this.#needsDrain = false;
+    this.#lastDiskTimestamp = 0;
+
+    await this.#closeWriter();
+    await this.#cleanupSpillDir();
+    this.#spillDir = null;
+    this.#spillFilePath = null;
+    this.#inMemoryOnly = true;
+    activeStores.delete(this);
+  }
+
   get inMemoryOnly () { return this.#inMemoryOnly; }
   get spillDir () { return this.#spillDir; }
 
   // ── internals ─────────────────────────────────────────────────────
 
   #routeInMemory (entry) {
+    // Every entry lands in the ring for post-eviction visibility via query().
+    // Snapshot-tagged entries are ALSO indexed by key so discovery.js:220's
+    // per-snapshot filter stays O(bucket) during the snapshot's in-flight
+    // window. Once the snapshot's bucket is evicted, the ring still serves
+    // stale queries up to its capacity, which matches pre-refactor
+    // behavior where the unbounded Set kept everything.
+    this.#ring[this.#ringHead] = entry;
+    this.#ringHead = (this.#ringHead + 1) % this.#ringCap;
+    if (this.#ringSize < this.#ringCap) this.#ringSize++;
+
     const key = snapshotKey(entry.meta);
     if (key) {
       let bucket = this.#buckets.get(key);
       if (!bucket) { bucket = []; this.#buckets.set(key, bucket); }
       bucket.push(entry);
-    } else {
-      this.#ring[this.#ringHead] = entry;
-      this.#ringHead = (this.#ringHead + 1) % this.#ringCap;
-      if (this.#ringSize < this.#ringCap) this.#ringSize++;
     }
   }
 
@@ -261,24 +341,15 @@ export class HybridLogStore {
     } catch (_) {}
   }
 
-  // Sync-only cleanup for 'exit' event (async ops can't run there).
-  // Also registered on SIGINT/SIGTERM via a wrapper that calls process.exit.
-  #installExitHandlers () {
-    if (this.#exitHandlersInstalled) return;
-    this.#exitHandlersInstalled = true;
-
-    const syncCleanup = () => {
-      try { if (this.#writer) this.#writer.end(); } catch (_) {}
-      try {
-        if (this.#spillDir) {
-          rmSync(this.#spillDir, { recursive: true, force: true, maxRetries: 3 });
-        }
-      } catch (_) {}
-    };
-
-    process.on('exit', syncCleanup);
-    const signalExit = () => { syncCleanup(); process.exit(130); };
-    process.once('SIGINT', signalExit);
-    process.once('SIGTERM', signalExit);
+  // Sync cleanup invoked by the module-level process handlers on exit or
+  // signals. Never throws. Exposed (underscore-prefixed) for the registry
+  // to call, not intended as public API.
+  _syncCleanup () {
+    try { if (this.#writer) this.#writer.end(); } catch (_) {}
+    try {
+      if (this.#spillDir) {
+        rmSync(this.#spillDir, { recursive: true, force: true, maxRetries: 3 });
+      }
+    } catch (_) {}
   }
 }

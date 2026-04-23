@@ -228,14 +228,14 @@ export function createPercyServer(percy, port) {
       body = Buffer.isBuffer(body) ? body.toString() : body;
 
       if (cmd === 'reset') {
-        // the reset command will reset testing mode and clear any logs.
-        // logger.instance.reset() is async; fire-and-forget because the
-        // HTTP handler must return synchronously. The writer close + spill
-        // dir removal happens in the background.
+        // reset testing mode + clear log memory. Use the sync clearMemory()
+        // variant here: the HTTP handler must return synchronously, and
+        // tearing down the disk writer mid-request would create a race
+        // with any concurrent log writes.
         percy.testing = {};
         percy._percyStartedObserved = false;
         percy._snapshotTakenObserved = false;
-        void logger.instance.reset();
+        logger.clearMemory();
       } else if (cmd === 'version') {
         // the version command will update the api version header for testing
         percy.testing.version = body;
