@@ -3,7 +3,8 @@ import path from 'path';
 import { promises as fsp } from 'fs';
 import {
   HybridLogStore, snapshotKey, safeStringify, sanitizeMeta,
-  sweepOrphans, __resetOrphanGuard, DIR_PREFIX
+  sweepOrphans, __resetOrphanGuard, DIR_PREFIX,
+  isUnsafeWindowsTmpdir, raceEndAgainstDestroy, tryDiskWrite
 } from '@percy/logger/hybrid-log-store';
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -185,6 +186,109 @@ describe('HybridLogStore', () => {
         else process.env.TMPDIR = oldTmp;
       }
     });
+  });
+});
+
+describe('isUnsafeWindowsTmpdir', () => {
+  it('returns false on non-Windows regardless of path shape', () => {
+    expect(isUnsafeWindowsTmpdir('C:\\Windows\\Temp', false)).toBeFalse();
+    expect(isUnsafeWindowsTmpdir('/tmp', false)).toBeFalse();
+  });
+
+  it('flags C:\\Windows\\Temp on Windows (case-insensitive)', () => {
+    expect(isUnsafeWindowsTmpdir('C:\\Windows\\Temp', true)).toBeTrue();
+    expect(isUnsafeWindowsTmpdir('c:\\windows\\temp', true)).toBeTrue();
+    expect(isUnsafeWindowsTmpdir('D:\\Windows\\Temp', true)).toBeTrue();
+  });
+
+  it('allows any other path on Windows', () => {
+    expect(isUnsafeWindowsTmpdir('C:\\Users\\me\\AppData\\Local\\Temp', true)).toBeFalse();
+    expect(isUnsafeWindowsTmpdir('C:\\tmp', true)).toBeFalse();
+  });
+});
+
+describe('tryDiskWrite', () => {
+  function fakeWriter({ writableLength = 0, writeReturns = true, throwOnWrite = null } = {}) {
+    return {
+      writableLength,
+      written: [],
+      write(chunk) {
+        if (throwOnWrite) throw throwOnWrite;
+        this.written.push(chunk);
+        return writeReturns;
+      }
+    };
+  }
+
+  it('writes straight through when under the buffer cap', () => {
+    const w = fakeWriter({ writableLength: 0 });
+    const res = tryDiskWrite(w, { message: 'x' }, { needsDrain: false, maxBuffer: 1024 });
+    expect(res.needsDrain).toBeFalse();
+    expect(res.queuedOnly).toBeUndefined();
+    expect(res.err).toBeUndefined();
+    expect(w.written.length).toBe(1);
+  });
+
+  it('skips disk and flips needsDrain once writableLength exceeds the cap', () => {
+    const w = fakeWriter({ writableLength: 2048 });
+    const res = tryDiskWrite(w, { message: 'x' }, { needsDrain: false, maxBuffer: 1024 });
+    expect(res.needsDrain).toBeTrue();
+    expect(res.queuedOnly).toBeTrue();
+    expect(w.written.length).toBe(0);
+  });
+
+  it('stays queuedOnly when needsDrain was already true', () => {
+    const w = fakeWriter({ writableLength: 0 });
+    const res = tryDiskWrite(w, { message: 'x' }, { needsDrain: true, maxBuffer: 1024 });
+    expect(res.needsDrain).toBeTrue();
+    expect(res.queuedOnly).toBeTrue();
+    expect(w.written.length).toBe(0);
+  });
+
+  it('flips needsDrain when write() returns false (kernel pushback)', () => {
+    const w = fakeWriter({ writableLength: 0, writeReturns: false });
+    const res = tryDiskWrite(w, { message: 'x' }, { needsDrain: false, maxBuffer: 1024 });
+    expect(res.needsDrain).toBeTrue();
+    expect(res.queuedOnly).toBeUndefined();
+    expect(w.written.length).toBe(1);
+  });
+
+  it('captures a sync write() exception in the err field', () => {
+    const boom = new Error('boom');
+    const w = fakeWriter({ throwOnWrite: boom });
+    const res = tryDiskWrite(w, { message: 'x' }, { needsDrain: false, maxBuffer: 1024 });
+    expect(res.err).toBe(boom);
+    expect(w.written.length).toBe(0);
+  });
+});
+
+describe('raceEndAgainstDestroy', () => {
+  it('resolves on the first end() callback', async () => {
+    let destroyed = false;
+    const writer = {
+      end(cb) { setImmediate(cb); },
+      destroy() { destroyed = true; }
+    };
+    await raceEndAgainstDestroy(writer, 200);
+    expect(destroyed).toBeFalse();
+  });
+
+  it('calls destroy() when end() hangs past the timeout', async () => {
+    let destroyed = false;
+    const writer = {
+      end() { /* never call the callback */ },
+      destroy() { destroyed = true; }
+    };
+    await raceEndAgainstDestroy(writer, 10);
+    expect(destroyed).toBeTrue();
+  });
+
+  it('swallows destroy() errors', async () => {
+    const writer = {
+      end() { /* never */ },
+      destroy() { throw new Error('destroy failed'); }
+    };
+    await expectAsync(raceEndAgainstDestroy(writer, 10)).toBeResolved();
   });
 });
 

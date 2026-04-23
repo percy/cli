@@ -224,8 +224,7 @@ export class HybridLogStore {
   #initDisk() {
     try {
       const tmp = os.tmpdir();
-      /* istanbul ignore if: Windows-only safety check against world-readable C:\Windows\Temp */
-      if (IS_WINDOWS && /^[A-Z]:\\Windows\\Temp$/i.test(tmp)) {
+      if (isUnsafeWindowsTmpdir(tmp)) {
         throw Object.assign(
           new Error('tmpdir not user-scoped on Windows; refusing to spill'),
           { code: 'PERCY_UNSAFE_TMPDIR' }
@@ -253,24 +252,15 @@ export class HybridLogStore {
 
   #writeDisk(entry) {
     if (this.#inMemoryOnly || !this.#writer) return;
-    /* istanbul ignore next: kernel backpressure beyond 1 MB buffer — cannot
-       be triggered deterministically from tests without replacing the
-       WriteStream; the in-memory copy is always made before this call. */
-    if (this.#needsDrain || this.#writer.writableLength > MAX_STREAM_BUFFER) {
-      this.#needsDrain = true;
-      return;
-    }
-    try {
-      const ok = this.#writer.write(safeStringify(entry) + '\n');
-      if (!ok) this.#needsDrain = true;
-      if (typeof entry.timestamp === 'number' && entry.timestamp > this.#lastDiskTimestamp) {
-        this.#lastDiskTimestamp = entry.timestamp;
-      }
-    } catch (err) {
-      /* istanbul ignore next: write() on a Node WriteStream does not throw
-         synchronously — errors surface via the 'error' event handled in
-         #initDisk. This branch is a defensive fallthrough. */
-      this.#transitionToMemory(err);
+    const result = tryDiskWrite(this.#writer, entry, {
+      needsDrain: this.#needsDrain,
+      maxBuffer: MAX_STREAM_BUFFER
+    });
+    this.#needsDrain = result.needsDrain;
+    if (result.err) { this.#transitionToMemory(result.err); return; }
+    if (result.queuedOnly) return;
+    if (typeof entry.timestamp === 'number' && entry.timestamp > this.#lastDiskTimestamp) {
+      this.#lastDiskTimestamp = entry.timestamp;
     }
   }
 
@@ -286,15 +276,7 @@ export class HybridLogStore {
     this.#writer = null;
     if (!w) return;
     // Windows AV scanners can hang end(); race it with a destroy.
-    await Promise.race([
-      new Promise(resolve => { w.end(resolve); }),
-      // Windows AV scanners can hang end(); race it with a 2s destroy.
-      // The hang is environment-specific and not simulable in unit tests.
-      /* istanbul ignore next */
-      new Promise(resolve => setTimeout(() => {
-        try { w.destroy(); } catch (_) {} resolve();
-      }, CLOSE_TIMEOUT_MS))
-    ]);
+    await raceEndAgainstDestroy(w, CLOSE_TIMEOUT_MS);
   }
 
   async #cleanupSpillDir() {
@@ -314,6 +296,46 @@ export class HybridLogStore {
       }
     } catch (_) {}
   }
+}
+
+// Pure-function helpers — exported so their edge-case branches can be
+// exercised without spinning up a full HybridLogStore.
+
+// True when the given tmpdir is the world-readable Windows system temp.
+// Some CI runners expose C:\Windows\Temp; disk spill there leaks secrets.
+export function isUnsafeWindowsTmpdir(tmp, isWindows = IS_WINDOWS) {
+  return isWindows && /^[A-Z]:\\Windows\\Temp$/i.test(tmp);
+}
+
+// Attempts a single write to a WriteStream. Returns a plain object so the
+// caller can update state without leaking stream internals. Captures the
+// two failure modes independently of #HybridLogStore:
+//   - Backpressure: writableLength already over cap → queuedOnly = true
+//   - Sync throw (writer destroyed or invalid chunk) → err populated
+export function tryDiskWrite(writer, entry, opts) {
+  const state = { needsDrain: !!opts.needsDrain };
+  if (state.needsDrain || writer.writableLength > opts.maxBuffer) {
+    state.needsDrain = true;
+    return { ...state, queuedOnly: true };
+  }
+  try {
+    const ok = writer.write(safeStringify(entry) + '\n');
+    if (!ok) state.needsDrain = true;
+    return state;
+  } catch (err) {
+    return { ...state, err };
+  }
+}
+
+// Race end() against a destroy-timer. Exported for testing the timeout
+// branch without waiting for a real Windows AV scanner to hang end().
+export function raceEndAgainstDestroy(writer, timeoutMs) {
+  return Promise.race([
+    new Promise(resolve => { writer.end(resolve); }),
+    new Promise(resolve => setTimeout(() => {
+      try { writer.destroy(); } catch (_) {} resolve();
+    }, timeoutMs))
+  ]);
 }
 
 // Canonical per-snapshot bucket key. Must match discovery.js's equality
