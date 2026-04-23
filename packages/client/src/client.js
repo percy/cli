@@ -241,6 +241,25 @@ export class PercyClient {
     });
   }
 
+  // Requests a TurboSnap affected-components filter for the active build.
+  // Forwards changed files, gzipped webpack module edges, and component file
+  // paths to the Percy API. The response is JSONAPI and includes either the
+  // affected file paths or a bail signal telling the SDK to snapshot all.
+  async turbosnap(buildId, { changedFiles, webpackStatsGz, componentFilePaths } = {}) {
+    validateId('build', buildId);
+    this.log.debug(`Requesting TurboSnap filter for build ${buildId}...`);
+    return this.post(`builds/${buildId}/turbosnap`, {
+      data: {
+        type: 'turbosnap-requests',
+        attributes: {
+          'changed-files': changedFiles,
+          'webpack-stats-gz': webpackStatsGz,
+          'component-file-paths': componentFilePaths
+        }
+      }
+    }, { identifier: 'build.turbosnap' });
+  }
+
   // Finalizes the active build. When `all` is true, `all-shards=true` is
   // added as a query param so the API finalizes all other build shards.
   async finalizeBuild(buildId, { all = false } = {}) {

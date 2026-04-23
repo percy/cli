@@ -897,6 +897,61 @@ describe('PercyClient', () => {
     });
   });
 
+  describe('#turbosnap()', () => {
+    it('throws when missing a build id', async () => {
+      await expectAsync(client.turbosnap())
+        .toBeRejectedWithError('Missing build ID');
+      await expectAsync(client.turbosnap({ changedFiles: [] }))
+        .toBeRejectedWithError('Invalid build ID');
+    });
+
+    it('posts turbosnap data and returns the API response', async () => {
+      api.reply('/builds/123/turbosnap', () => [200, {
+        data: {
+          id: '123',
+          type: 'turbosnap-results',
+          attributes: { 'affected-file-paths': ['src/Button.jsx'] }
+        }
+      }]);
+
+      await expectAsync(client.turbosnap(123, {
+        changedFiles: ['src/Button.jsx'],
+        webpackStatsGz: 'H4sIAAAA',
+        componentFilePaths: ['src/Button.jsx', 'src/Input.jsx']
+      })).toBeResolvedTo({
+        data: {
+          id: '123',
+          type: 'turbosnap-results',
+          attributes: { 'affected-file-paths': ['src/Button.jsx'] }
+        }
+      });
+
+      expect(api.requests['/builds/123/turbosnap'][0].body).toEqual({
+        data: {
+          type: 'turbosnap-requests',
+          attributes: {
+            'changed-files': ['src/Button.jsx'],
+            'webpack-stats-gz': 'H4sIAAAA',
+            'component-file-paths': ['src/Button.jsx', 'src/Input.jsx']
+          }
+        }
+      });
+    });
+
+    it('omits missing body fields', async () => {
+      await expectAsync(client.turbosnap(123)).toBeResolved();
+
+      // undefined attributes are dropped by JSON.stringify so the posted body
+      // contains just the type marker.
+      expect(api.requests['/builds/123/turbosnap'][0].body).toEqual({
+        data: {
+          type: 'turbosnap-requests',
+          attributes: {}
+        }
+      });
+    });
+  });
+
   describe('#uploadResource()', () => {
     it('throws when missing a build id', async () => {
       await expectAsync(client.uploadResource())
