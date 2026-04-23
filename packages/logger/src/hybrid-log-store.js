@@ -149,8 +149,12 @@ export class HybridLogStore {
     // hanging; checking up-front avoids that state entirely.
     let spillAccessible = false;
     if (this.#spillFilePath) {
-      try { await fsp.access(this.#spillFilePath); spillAccessible = true; }
-      catch (_) { diskFailed = true; }
+      try {
+        await fsp.access(this.#spillFilePath);
+        spillAccessible = true;
+      } catch (_) {
+        diskFailed = true;
+      }
     }
     if (spillAccessible) {
       try {
