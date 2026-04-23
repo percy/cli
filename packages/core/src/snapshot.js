@@ -374,12 +374,23 @@ export function createSnapshotsQueue(percy) {
     .handle('start', async () => {
       try {
         build = percy.build = {};
-        let { data } = await percy.client.createBuild({ projectType: percy.projectType, cliStartTime: percy.cliStartTime });
+        let { data, included } = await percy.client.createBuild({ projectType: percy.projectType, cliStartTime: percy.cliStartTime });
         let url = data.attributes['web-url'];
         let number = data.attributes['build-number'];
         let usageWarning = data.attributes['usage-warning'];
         percy.client.buildType = data.attributes?.type;
-        Object.assign(build, { id: data.id, url, number });
+
+        // Extract baseline commit SHA from the JSONAPI `included` array so
+        // TurboSnap-capable SDKs can compute a changed-file set relative to
+        // the baseline. Missing → null (first build in a project).
+        let baseBuildStrategy = included?.find(r => r.type === 'base-build-strategies');
+        let baselineCommitSha = baseBuildStrategy?.attributes?.['baseline-context']?.['base_build_commit_sha'];
+
+        Object.assign(build, { id: data.id, url, number, baselineCommitSha: baselineCommitSha ?? null });
+
+        if (baselineCommitSha) {
+          percy.log.debug(`TurboSnap: baseline commit ${baselineCommitSha.slice(0, 7)}`);
+        }
 
         // Display usage warning if present
         if (usageWarning) {

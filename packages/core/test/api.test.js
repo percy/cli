@@ -65,7 +65,8 @@ describe('API Server', () => {
       build: {
         id: '123',
         number: 1,
-        url: 'https://percy.io/test/test/123'
+        url: 'https://percy.io/test/test/123',
+        baselineCommitSha: null
       },
       type: percy.client.tokenType()
     });
@@ -391,7 +392,7 @@ describe('API Server', () => {
     expect(captureScreenshotSpy).toHaveBeenCalledOnceWith(jasmine.objectContaining({
       clientInfo: 'client',
       environmentInfo: 'environment',
-      buildInfo: { id: '123', url: 'https://percy.io/test/test/123', number: 1 },
+      buildInfo: { id: '123', url: 'https://percy.io/test/test/123', number: 1, baselineCommitSha: null },
       options: {
         fullPage: true,
         freezeAnimatedImage: true,
@@ -448,7 +449,7 @@ describe('API Server', () => {
     expect(captureScreenshotSpy).toHaveBeenCalledOnceWith(jasmine.objectContaining({
       clientInfo: 'client',
       environmentInfo: 'environment',
-      buildInfo: { id: '123', url: 'https://percy.io/test/test/123', number: 1 },
+      buildInfo: { id: '123', url: 'https://percy.io/test/test/123', number: 1, baselineCommitSha: null },
       options: {
         sync: true,
         fullPage: true,
