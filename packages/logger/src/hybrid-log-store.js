@@ -144,15 +144,17 @@ export class HybridLogStore {
     let lastTs = 0;
     let diskYielded = false;
     let diskFailed = false;
+    // Pre-flight the path. On Linux, createReadStream on a missing path
+    // emits 'error' asynchronously which can leave the readline iterator
+    // hanging; checking up-front avoids that state entirely.
+    let spillAccessible = false;
     if (this.#spillFilePath) {
+      try { await fsp.access(this.#spillFilePath); spillAccessible = true; }
+      catch (_) { diskFailed = true; }
+    }
+    if (spillAccessible) {
       try {
         const stream = createReadStream(this.#spillFilePath);
-        // Swallow the readable's error locally so an ENOENT emitted
-        // asynchronously (systemd-tmpfiles unlinked the path; Linux
-        // Node 14 surfaces it before the iterator attaches) does not
-        // escape as an uncaught exception. The iterator's rejection
-        // still routes through the catch below.
-        stream.on('error', () => {});
         const rl = createInterface({ input: stream, crlfDelay: Infinity });
         for await (const line of rl) {
           if (!line) continue;
