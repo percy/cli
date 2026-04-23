@@ -28,7 +28,8 @@ import {
   discoverSnapshotResources,
   createDiscoveryQueue,
   RESOURCE_CACHE_KEY,
-  CACHE_STATS_KEY
+  CACHE_STATS_KEY,
+  DISK_SPILL_KEY
 } from './discovery.js';
 import Monitoring from '@percy/monitoring';
 import { WaitForJob } from './wait-for-job.js';
@@ -385,11 +386,9 @@ export class Percy {
     }
   }
 
+  // Fire-and-forget cache-usage summary. Telemetry loss is preferable to a
+  // failed stop, so errors are swallowed.
   async sendCacheSummary() {
-    // Fire-and-forget end-of-run summary of asset-discovery cache usage.
-    // Feeds the Amplitude dashboard (adoption, hit rate, peak bytes).
-    // Never blocks or fails percy.stop(); telemetry loss is preferable to a
-    // failed stop.
     try {
       if (!this.build?.id) return;
       const cache = this[RESOURCE_CACHE_KEY];
@@ -397,24 +396,31 @@ export class Percy {
       if (!cache || !stats) return;
 
       const cacheStats = typeof cache.stats === 'object' ? cache.stats : null;
-
-      const extra = {
-        // Report the effective cap (post-clamp), not the raw config value.
-        cache_budget_ram_mb: stats.effectiveMaxCacheRamMB,
-        hits: cacheStats?.hits ?? 0,
-        misses: cacheStats?.misses ?? 0,
-        evictions: cacheStats?.evictions ?? 0,
-        peak_bytes: cacheStats?.peakBytes ?? stats.unsetModeBytes,
-        final_bytes: cache.calculatedSize ?? stats.unsetModeBytes,
-        entry_count: cache.size ?? 0,
-        oversize_skipped: stats.oversizeSkipped
-      };
+      const diskStore = this[DISK_SPILL_KEY];
+      const diskStats = diskStore?.stats;
 
       await this.client.sendBuildEvents(this.build.id, {
         message: 'cache_summary',
         cliVersion: this.client.cliVersion,
         clientInfo: this.clientInfo,
-        extra
+        extra: {
+          cache_budget_ram_mb: stats.effectiveMaxCacheRamMB,
+          hits: cacheStats?.hits ?? 0,
+          misses: cacheStats?.misses ?? 0,
+          evictions: cacheStats?.evictions ?? 0,
+          peak_bytes: cacheStats?.peakBytes ?? stats.unsetModeBytes,
+          final_bytes: cache.calculatedSize ?? stats.unsetModeBytes,
+          entry_count: cache.size ?? 0,
+          oversize_skipped: stats.oversizeSkipped,
+          disk_spill_enabled: !!diskStore?.ready,
+          disk_spilled_count: diskStats?.spilled ?? 0,
+          disk_restored_count: diskStats?.restored ?? 0,
+          disk_spill_failures: diskStats?.spillFailures ?? 0,
+          disk_read_failures: diskStats?.readFailures ?? 0,
+          disk_peak_bytes: diskStats?.peakBytes ?? 0,
+          disk_final_bytes: diskStats?.currentBytes ?? 0,
+          disk_final_entries: diskStats?.entries ?? 0
+        }
       });
     } catch (err) {
       this.log.debug('cache_summary telemetry failed', err);

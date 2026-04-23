@@ -1,7 +1,15 @@
-// Hand-rolled byte-budget LRU cache. Map insertion order is LRU order;
-// .get() deletes and re-sets to move an entry to MRU. Synchronous by design —
-// no logger calls, no awaits inside mutation paths, so callers can log
-// after .set() returns without risking a mid-state event-loop yield.
+// Two-tier cache used by asset discovery:
+//   ByteLRU — byte-budget in-memory LRU; Map insertion order = LRU order.
+//   DiskSpillStore — on-disk overflow tier. RAM evictions spill here; lookups
+//   fall back to disk before refetching from origin.
+// All operations are synchronous; callers (network intercept, ByteLRU.set)
+// cannot yield to the event loop mid-op. Per-entry size is capped at 25MB
+// upstream so disk I/O latency is bounded.
+
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import crypto from 'crypto';
 
 const DEFAULT_PER_ENTRY_OVERHEAD = 512;
 
@@ -32,10 +40,10 @@ export class ByteLRU {
   set(key, value, size) {
     if (!Number.isFinite(size) || size < 0) return false;
 
-    // Reject oversize BEFORE touching any existing entry — a failed oversize
-    // set on an existing key must not evict the prior (valid) entry.
+    // Reject oversize BEFORE touching any existing entry — a failed set on an
+    // existing key must not evict the prior (valid) entry.
     if (this.#max !== undefined && size > this.#max) {
-      if (this.onEvict) this.onEvict(key, 'too-big');
+      if (this.onEvict) this.onEvict(key, 'too-big', value);
       return false;
     }
 
@@ -54,7 +62,7 @@ export class ByteLRU {
       this.#bytes -= rec.size;
       this.#map.delete(oldestKey);
       this.#stats.evictions++;
-      if (this.onEvict) this.onEvict(oldestKey, 'lru');
+      if (this.onEvict) this.onEvict(oldestKey, 'lru', rec.value);
     }
 
     return true;
@@ -89,12 +97,128 @@ export class ByteLRU {
   get stats() { return { ...this.#stats, currentBytes: this.#bytes }; }
 }
 
-// Compute the byte size attributable to a cache entry. Handles the two Percy
-// shapes: a single resource object, or an array of resources (root-resource
-// captured at multiple widths per discovery.js:465).
+// Handles the two Percy cache-entry shapes: single resource, or array of
+// roots captured at multiple widths (see discovery.js parseDomResources).
 export function entrySize(resource, overhead = DEFAULT_PER_ENTRY_OVERHEAD) {
   if (Array.isArray(resource)) {
     return resource.reduce((n, r) => n + (r?.content?.length ?? 0) + overhead, 0);
   }
   return (resource?.content?.length ?? 0) + overhead;
+}
+
+export class DiskSpillStore {
+  #index = new Map();
+  #bytes = 0;
+  #peakBytes = 0;
+  #stats = { spilled: 0, restored: 0, spillFailures: 0, readFailures: 0 };
+  #counter = 0;
+  #ready = false;
+
+  constructor(dir, { log } = {}) {
+    this.dir = dir;
+    this.log = log;
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      this.#ready = true;
+    } catch (err) {
+      this.log?.debug?.(`disk-spill init failed for ${dir}: ${err.message}`);
+    }
+  }
+
+  // Returns true on success; false on any failure so caller falls back to drop.
+  // Overwrites prior spill for the same URL — a fresh discovery write wins.
+  set(url, resource) {
+    if (!this.#ready) return false;
+
+    let content = resource?.content;
+    if (content == null) return false;
+    if (!Buffer.isBuffer(content)) {
+      try { content = Buffer.from(content); } catch { return false; }
+    }
+
+    // Counter-based filename keeps URL-derived data out of path.join —
+    // avoids any path-traversal surface even though sha256 would be safe.
+    const filepath = path.join(this.dir, String(++this.#counter));
+
+    try {
+      fs.writeFileSync(filepath, content);
+    } catch (err) {
+      this.#stats.spillFailures++;
+      this.log?.debug?.(`disk-spill write failed for ${url}: ${err.message}`);
+      return false;
+    }
+
+    if (this.#index.has(url)) {
+      const prev = this.#index.get(url);
+      this.#bytes -= prev.size;
+      try { fs.unlinkSync(prev.path); } catch { /* best-effort */ }
+    }
+
+    const meta = { ...resource };
+    delete meta.content;
+    this.#index.set(url, { path: filepath, size: content.length, meta });
+    this.#bytes += content.length;
+    if (this.#bytes > this.#peakBytes) this.#peakBytes = this.#bytes;
+    this.#stats.spilled++;
+    return true;
+  }
+
+  get(url) {
+    const entry = this.#index.get(url);
+    if (!entry) return undefined;
+    let content;
+    try {
+      content = fs.readFileSync(entry.path);
+    } catch (err) {
+      this.#stats.readFailures++;
+      this.log?.debug?.(`disk-spill read failed for ${url}: ${err.message}`);
+      this.#removeEntry(url, entry);
+      return undefined;
+    }
+    this.#stats.restored++;
+    return { ...entry.meta, content };
+  }
+
+  has(url) { return this.#index.has(url); }
+
+  delete(url) {
+    const entry = this.#index.get(url);
+    if (!entry) return false;
+    this.#removeEntry(url, entry);
+    return true;
+  }
+
+  destroy() {
+    try {
+      if (this.#ready) fs.rmSync(this.dir, { recursive: true, force: true });
+    } catch (err) {
+      this.log?.debug?.(`disk-spill cleanup failed for ${this.dir}: ${err.message}`);
+    }
+    this.#index.clear();
+    this.#bytes = 0;
+    this.#ready = false;
+  }
+
+  get size() { return this.#index.size; }
+  get bytes() { return this.#bytes; }
+  get ready() { return this.#ready; }
+  get stats() {
+    return {
+      ...this.#stats,
+      currentBytes: this.#bytes,
+      peakBytes: this.#peakBytes,
+      entries: this.#index.size
+    };
+  }
+
+  #removeEntry(url, entry) {
+    this.#bytes -= entry.size;
+    this.#index.delete(url);
+    try { fs.unlinkSync(entry.path); } catch { /* best-effort */ }
+  }
+}
+
+export function createSpillDir() {
+  const suffix = `${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
+  return path.join(os.tmpdir(), `percy-cache-${suffix}`);
 }

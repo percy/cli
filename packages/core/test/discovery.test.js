@@ -1,8 +1,9 @@
 import { sha256hash } from '@percy/client/utils';
 import { logger, api, setupTest, createTestServer, dedent, mockRequests } from './helpers/index.js';
 import Percy from '@percy/core';
-import { RESOURCE_CACHE_KEY, CACHE_STATS_KEY } from '../src/discovery.js';
-import { ByteLRU } from '../src/cache/byte-lru.js';
+import { RESOURCE_CACHE_KEY, CACHE_STATS_KEY, DISK_SPILL_KEY } from '../src/discovery.js';
+import { ByteLRU, DiskSpillStore } from '../src/cache/byte-lru.js';
+import fs from 'fs';
 import Session from '../src/session.js';
 import Pako from 'pako';
 import * as CoreConfig from '@percy/core/config';
@@ -2385,8 +2386,21 @@ describe('Discovery', () => {
       expect(cache.stats.evictions).toBeGreaterThan(0);
       expect(percy[CACHE_STATS_KEY].firstEvictionEventFired).toBe(true);
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
-        jasmine.stringContaining('Cache eviction active')
+        jasmine.stringContaining('Cache eviction active — cap reached, oldest entries spilling to disk')
       ]));
+    });
+
+    it('fireCacheEventSafe short-circuits when percy.build is not yet set', async () => {
+      await startPercyWith({ maxCacheRam: 25 });
+      percy.build = undefined;
+      const spy = spyOn(percy.client, 'sendBuildEvents');
+      const cache = percy[RESOURCE_CACHE_KEY];
+      const chunk = Math.floor(25_000_000 / 3);
+      cache.set('a', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('b', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('c', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('d', { content: Buffer.alloc(chunk) }, chunk + 512);
+      expect(spy).not.toHaveBeenCalled();
     });
 
     it('fireCacheEventSafe debug-logs and swallows pager rejections', async () => {
@@ -2407,41 +2421,140 @@ describe('Discovery', () => {
       expect(percy.client.sendBuildEvents).toHaveBeenCalled();
     });
 
-    it('saveResource debug-logs and increments oversize_skipped for real oversize resources', async () => {
-      await startPercyWith({ maxCacheRam: 25 });
+    it('records oversize_skipped in stats and logs when an entry is bigger than cap', async () => {
       await logger.mock({ level: 'debug' });
-      // Serve a resource exactly at the per-resource 25MB ceiling. entrySize
-      // adds 512B overhead so the ByteLRU path sees it as > cap and takes
-      // the oversize-skip branch in saveResource.
-      server = await createTestServer({
-        '/': () => [200, 'text/html', dedent`
-          <html><head></head><body>
-            <img src="/big.bin" alt="big" />
-          </body></html>
-        `],
-        '/big.bin': () => [200, 'application/octet-stream', Buffer.alloc(25_000_000, 'x')]
-      });
-      await percy.snapshot({
-        name: 'oversize resource',
-        url: 'http://localhost:8000',
-        widths: [1000]
-      });
-      await percy.idle();
-      expect(percy[CACHE_STATS_KEY].oversizeSkipped).toBeGreaterThan(0);
-      expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        jasmine.stringContaining('Skipping cache for resource')
-      ]));
-    });
-
-    it('records oversize_skipped in stats when an entry is bigger than cap', async () => {
       await startPercyWith({ maxCacheRam: 25 });
       const cache = percy[RESOURCE_CACHE_KEY];
-      // Inject a synthetic oversized resource directly — the real network
-      // path caps individual resources at 25MB so this simulates the edge
-      // case where entrySize exceeds the cap.
+      // Oversize path: ByteLRU fires onEvict('too-big') which increments
+      // the stat and logs — upstream network caps at ~16.5MB so this is
+      // the only way to exercise the branch from core code.
       const saved = cache.set('http://x/huge', { content: Buffer.alloc(26_000_001) }, 26_000_001 + 512);
       expect(saved).toBe(false);
       expect(cache.calculatedSize).toEqual(0);
+      expect(percy[CACHE_STATS_KEY].oversizeSkipped).toEqual(1);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('cache skip (oversize): http://x/huge')
+      ]));
+    });
+  });
+
+  describe('with --max-cache-ram disk-spill tier', () => {
+    async function startWith(discoveryExtras = {}) {
+      await percy.stop(true);
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1, ...discoveryExtras }
+      });
+    }
+
+    it('installs a DiskSpillStore alongside ByteLRU when cap is set', async () => {
+      await startWith({ maxCacheRam: 25 });
+      expect(percy[DISK_SPILL_KEY] instanceof DiskSpillStore).toBe(true);
+      expect(percy[DISK_SPILL_KEY].ready).toBe(true);
+      expect(fs.existsSync(percy[DISK_SPILL_KEY].dir)).toBe(true);
+    });
+
+    it('does not install a DiskSpillStore when no cap is set', () => {
+      // percy was started in beforeEach without maxCacheRam
+      expect(percy[DISK_SPILL_KEY]).toBeUndefined();
+    });
+
+    it('spills an LRU-evicted resource to disk instead of dropping it', async () => {
+      await logger.mock({ level: 'debug' });
+      await startWith({ maxCacheRam: 25 });
+      const cache = percy[RESOURCE_CACHE_KEY];
+      const disk = percy[DISK_SPILL_KEY];
+      const chunk = Math.floor(25_000_000 / 3);
+      cache.set('http://x/a', { url: 'http://x/a', content: Buffer.alloc(chunk, 0xaa) }, chunk + 512);
+      cache.set('http://x/b', { url: 'http://x/b', content: Buffer.alloc(chunk, 0xbb) }, chunk + 512);
+      cache.set('http://x/c', { url: 'http://x/c', content: Buffer.alloc(chunk, 0xcc) }, chunk + 512);
+      cache.set('http://x/d', { url: 'http://x/d', content: Buffer.alloc(chunk, 0xdd) }, chunk + 512);
+
+      expect(cache.has('http://x/a')).toBe(false);
+      expect(disk.has('http://x/a')).toBe(true);
+      expect(disk.stats.spilled).toBeGreaterThan(0);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('cache spill: http://x/a')
+      ]));
+    });
+
+    it('rehydrates a spilled resource byte-for-byte on disk-hit', async () => {
+      await startWith({ maxCacheRam: 25 });
+      const disk = percy[DISK_SPILL_KEY];
+      const content = Buffer.from([0, 1, 2, 3, 254, 255, 128]);
+      disk.set('http://x/spilled', {
+        url: 'http://x/spilled', mimetype: 'image/png', sha: 'abc', content
+      });
+      const got = disk.get('http://x/spilled');
+      expect(got.content.equals(content)).toBe(true);
+      expect(got.sha).toEqual('abc');
+    });
+
+    it('falls back to drop when disk write fails and emits cache evict debug log', async () => {
+      await logger.mock({ level: 'debug' });
+      await startWith({ maxCacheRam: 25 });
+      const cache = percy[RESOURCE_CACHE_KEY];
+      const disk = percy[DISK_SPILL_KEY];
+      spyOn(fs, 'writeFileSync').and.throwError(new Error('ENOSPC'));
+      const chunk = Math.floor(25_000_000 / 3);
+      cache.set('http://x/a', { url: 'http://x/a', content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('http://x/b', { url: 'http://x/b', content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('http://x/c', { url: 'http://x/c', content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('http://x/d', { url: 'http://x/d', content: Buffer.alloc(chunk) }, chunk + 512);
+
+      expect(cache.has('http://x/a')).toBe(false);
+      expect(disk.has('http://x/a')).toBe(false);
+      expect(disk.stats.spillFailures).toBeGreaterThan(0);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('cache evict:')
+      ]));
+    });
+
+    it('saveResource clears a stale disk entry so fresh writes are not shadowed', async () => {
+      await startWith({ maxCacheRam: 25 });
+      const disk = percy[DISK_SPILL_KEY];
+      disk.set('http://localhost:8000/style.css', {
+        url: 'http://localhost:8000/style.css',
+        mimetype: 'text/css',
+        content: Buffer.from('STALE')
+      });
+      expect(disk.has('http://localhost:8000/style.css')).toBe(true);
+
+      await percy.snapshot({
+        name: 'stale disk test',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+
+      expect(disk.has('http://localhost:8000/style.css')).toBe(false);
+    });
+
+    it('calls diskStore.destroy and clears the key in the queue end handler', async () => {
+      await startWith({ maxCacheRam: 25 });
+      const disk = percy[DISK_SPILL_KEY];
+      const destroySpy = spyOn(disk, 'destroy').and.callThrough();
+      await percy.stop();
+      expect(destroySpy).toHaveBeenCalled();
+      expect(percy[DISK_SPILL_KEY]).toBeUndefined();
+    });
+
+    it('gracefully handles a DiskSpillStore that fails to init', async () => {
+      spyOn(fs, 'mkdirSync').and.throwError(new Error('EACCES'));
+      await startWith({ maxCacheRam: 25 });
+      const disk = percy[DISK_SPILL_KEY];
+      expect(disk.ready).toBe(false);
+      const cache = percy[RESOURCE_CACHE_KEY];
+      const chunk = Math.floor(25_000_000 / 3);
+      expect(() => {
+        cache.set('http://x/a', { url: 'http://x/a', content: Buffer.alloc(chunk) }, chunk + 512);
+        cache.set('http://x/b', { url: 'http://x/b', content: Buffer.alloc(chunk) }, chunk + 512);
+        cache.set('http://x/c', { url: 'http://x/c', content: Buffer.alloc(chunk) }, chunk + 512);
+        cache.set('http://x/d', { url: 'http://x/d', content: Buffer.alloc(chunk) }, chunk + 512);
+      }).not.toThrow();
+      expect(cache.has('http://x/a')).toBe(false);
+      expect(disk.has('http://x/a')).toBe(false);
     });
   });
 
@@ -2548,6 +2661,69 @@ describe('Discovery', () => {
       await percy.sendCacheSummary();
       expect(spy).toHaveBeenCalledWith('123', jasmine.objectContaining({
         extra: jasmine.objectContaining({ entry_count: 0 })
+      }));
+    });
+
+    it('sendCacheSummary reports disk-tier stats when a DiskSpillStore is present', async () => {
+      percy.build = { id: '123' };
+      percy[RESOURCE_CACHE_KEY] = new Map();
+      percy[CACHE_STATS_KEY] = {
+        effectiveMaxCacheRamMB: 25,
+        oversizeSkipped: 0,
+        unsetModeBytes: 0
+      };
+      // destroy is a no-op so the afterEach percy.stop(true) 'end' handler
+      // does not TypeError when it reaches diskStore.destroy().
+      percy[DISK_SPILL_KEY] = {
+        ready: true,
+        destroy: () => {},
+        stats: {
+          spilled: 3,
+          restored: 2,
+          spillFailures: 1,
+          readFailures: 0,
+          currentBytes: 4096,
+          peakBytes: 8192,
+          entries: 2
+        }
+      };
+      const spy = spyOn(percy.client, 'sendBuildEvents').and.resolveTo();
+      await percy.sendCacheSummary();
+      expect(spy).toHaveBeenCalledWith('123', jasmine.objectContaining({
+        extra: jasmine.objectContaining({
+          disk_spill_enabled: true,
+          disk_spilled_count: 3,
+          disk_restored_count: 2,
+          disk_spill_failures: 1,
+          disk_read_failures: 0,
+          disk_peak_bytes: 8192,
+          disk_final_bytes: 4096,
+          disk_final_entries: 2
+        })
+      }));
+    });
+
+    it('sendCacheSummary reports zeroed disk-tier fields when no DiskSpillStore is present', async () => {
+      percy.build = { id: '123' };
+      percy[RESOURCE_CACHE_KEY] = new Map();
+      percy[CACHE_STATS_KEY] = {
+        effectiveMaxCacheRamMB: null,
+        oversizeSkipped: 0,
+        unsetModeBytes: 0
+      };
+      const spy = spyOn(percy.client, 'sendBuildEvents').and.resolveTo();
+      await percy.sendCacheSummary();
+      expect(spy).toHaveBeenCalledWith('123', jasmine.objectContaining({
+        extra: jasmine.objectContaining({
+          disk_spill_enabled: false,
+          disk_spilled_count: 0,
+          disk_restored_count: 0,
+          disk_spill_failures: 0,
+          disk_read_failures: 0,
+          disk_peak_bytes: 0,
+          disk_final_bytes: 0,
+          disk_final_entries: 0
+        })
       }));
     });
 

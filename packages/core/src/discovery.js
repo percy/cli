@@ -16,7 +16,7 @@ import {
   isGzipped,
   maybeScrollToBottom
 } from './utils.js';
-import { ByteLRU, entrySize } from './cache/byte-lru.js';
+import { ByteLRU, entrySize, DiskSpillStore, createSpillDir } from './cache/byte-lru.js';
 import {
   sha256hash
 } from '@percy/client/utils';
@@ -392,27 +392,19 @@ export async function* discoverSnapshotResources(queue, options, callback) {
   }, []));
 }
 
-// Used to cache resources across core instances
 export const RESOURCE_CACHE_KEY = Symbol('resource-cache');
-// Per-run cache stats (hits/misses/evictions/peak + telemetry-gate flags).
 export const CACHE_STATS_KEY = Symbol('resource-cache-stats');
+export const DISK_SPILL_KEY = Symbol('resource-cache-disk-spill');
 
-// MAX_RESOURCE_SIZE in network.js is 25MB; a cap below that dooms every
-// resource to be skipped. MIN_REASONABLE_CAP_MB warns users picking a
-// silently-useless cap.
 const BYTES_PER_MB = 1_000_000;
+// MAX_RESOURCE_SIZE in network.js is 25MB; caps below that would skip every
+// resource, so we clamp. MIN_REASONABLE_CAP_MB warns on near-useless caps.
 const MAX_RESOURCE_SIZE_MB = 25;
 const MIN_REASONABLE_CAP_MB = 50;
-// Default warn threshold when no cap is set: nudge the user toward
-// --max-cache-ram before their CI runner OOMs. Override via
-// PERCY_CACHE_WARN_THRESHOLD_BYTES for post-ship tuning.
 const DEFAULT_WARN_THRESHOLD_BYTES = 500 * BYTES_PER_MB;
 
 function makeCacheStats() {
   return {
-    // The effective cap actually used this run, in MB (after any clamp to the
-    // 25MB floor). null when the flag was unset. Read by cache_summary telemetry
-    // so it reports what ran, not what the user typed.
     effectiveMaxCacheRamMB: null,
     oversizeSkipped: 0,
     firstEvictionEventFired: false,
@@ -426,8 +418,30 @@ function readWarnThresholdBytes() {
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_WARN_THRESHOLD_BYTES;
 }
 
-// Fire-and-forget send-events telemetry. Never blocks discovery, never
-// surfaces errors to the user — telemetry loss must not fail a build.
+// Cache lookup shared by the network intercept path. RAM miss falls through
+// to the disk tier; read failures return undefined so the browser refetches.
+// Also resolves the array-valued root-resource shape used for multi-width
+// DOM snapshots, regardless of which tier returned it.
+export function lookupCacheResource(percy, snapshotResources, cache, url, width) {
+  let resource = snapshotResources.get(url) || cache.get(url);
+  const disk = percy[DISK_SPILL_KEY];
+  if (!resource && disk) {
+    resource = disk.get(url);
+    if (resource) {
+      percy.log.debug(
+        `cache disk-hit: ${url} (disk=${disk.size}/` +
+        `${Math.round(disk.bytes / BYTES_PER_MB)}MB)`
+      );
+    }
+  }
+  if (resource && Array.isArray(resource) && resource[0].root) {
+    const rootResource = resource.find(r => r.widths?.includes(width));
+    resource = rootResource || resource[0];
+  }
+  return resource;
+}
+
+// Fire-and-forget: telemetry loss must not fail a build.
 function fireCacheEventSafe(percy, message, extra) {
   if (!percy.build?.id) return;
   Promise.resolve()
@@ -446,24 +460,17 @@ export function createDiscoveryQueue(percy) {
   let { concurrency } = percy.config.discovery;
   let queue = new Queue('discovery');
   let cache;
-  // Bytes cap (null = unbounded). Validated at queue start.
   let capBytes = null;
-
-  // Read the unset-cap warning threshold once per queue construction; this
-  // closure is consulted on every saveResource call, so we avoid reparsing
-  // process.env each time.
+  // Read once: saveResource consults this on every call.
   const warnThreshold = readWarnThresholdBytes();
 
   return queue
     .set({ concurrency })
-  // on start, launch the browser and run the queue
     .handle('start', async () => {
       const configuredMaxCacheRamMB = percy.config.discovery.maxCacheRam;
       let effectiveMaxCacheRamMB = configuredMaxCacheRamMB;
 
-      // Startup validation. Runs once per Percy run. The user's config object
-      // is NOT mutated — the effective value lives on CACHE_STATS_KEY for the
-      // duration of the run.
+      // User's config is not mutated; the post-clamp value lives on stats.
       if (configuredMaxCacheRamMB != null) {
         if (configuredMaxCacheRamMB < MAX_RESOURCE_SIZE_MB) {
           percy.log.warn(
@@ -495,24 +502,36 @@ export function createDiscoveryQueue(percy) {
       percy[CACHE_STATS_KEY].effectiveMaxCacheRamMB = capBytes != null ? effectiveMaxCacheRamMB : null;
 
       if (capBytes != null) {
+        // Overflow tier: RAM evictions spill here. diskStore.set returns
+        // false on any I/O failure → caller falls back to drop automatically.
+        const diskStore = new DiskSpillStore(createSpillDir(), { log: percy.log });
+        percy[DISK_SPILL_KEY] = diskStore;
+
         cache = percy[RESOURCE_CACHE_KEY] = new ByteLRU(capBytes, {
-          onEvict: (key, reason) => {
-            if (reason !== 'lru') return;
+          onEvict: (key, reason, value) => {
+            if (reason === 'too-big') {
+              percy[CACHE_STATS_KEY].oversizeSkipped++;
+              percy.log.debug(`cache skip (oversize): ${key}`);
+              return;
+            }
+            const spilled = diskStore.set(key, value);
             percy.log.debug(
-              `cache eviction: evicted ${key} ` +
-              `(cache now ${Math.round(cache.calculatedSize / BYTES_PER_MB)}` +
-              `/${effectiveMaxCacheRamMB} MB)`
+              `cache ${spilled ? 'spill' : 'evict'}: ${key} ` +
+              `(cache ${Math.round(cache.calculatedSize / BYTES_PER_MB)}` +
+              `/${effectiveMaxCacheRamMB}MB, entries=${cache.size}, ` +
+              `disk=${diskStore.size}/${Math.round(diskStore.bytes / BYTES_PER_MB)}MB)`
             );
             const stats = percy[CACHE_STATS_KEY];
             if (stats && !stats.firstEvictionEventFired) {
               stats.firstEvictionEventFired = true;
               percy.log.info(
-                'Cache eviction active — cap reached, oldest entries being dropped.'
+                'Cache eviction active — cap reached, oldest entries spilling to disk.'
               );
               fireCacheEventSafe(percy, 'cache_eviction_started', {
                 cache_budget_ram_mb: effectiveMaxCacheRamMB,
                 cache_peak_bytes_seen: cache.stats.peakBytes,
-                eviction_count: cache.stats.evictions
+                eviction_count: cache.stats.evictions,
+                disk_spill_enabled: diskStore.ready
               });
             }
           }
@@ -521,14 +540,16 @@ export function createDiscoveryQueue(percy) {
         cache = percy[RESOURCE_CACHE_KEY] = new Map();
       }
 
-      // If browser.launch() fails it will get captured in
-      // *percy.start()
       await percy.browser.launch();
       queue.run();
     })
-  // on end, close the browser
     .handle('end', async () => {
       await percy.browser.close();
+      const diskStore = percy[DISK_SPILL_KEY];
+      if (diskStore) {
+        diskStore.destroy();
+        delete percy[DISK_SPILL_KEY];
+      }
     })
   // snapshots are unique by name and testCase; when deferred also by widths
     .handle('find', ({ name, testCase, widths }, snapshot) => (
@@ -574,14 +595,9 @@ export function createDiscoveryQueue(percy) {
               disableCache: snapshot.discovery.disableCache,
               allowedHostnames: snapshot.discovery.allowedHostnames,
               disallowedHostnames: snapshot.discovery.disallowedHostnames,
-              getResource: (u, width = null) => {
-                let resource = snapshot.resources.get(u) || cache.get(u);
-                if (resource && Array.isArray(resource) && resource[0].root) {
-                  const rootResource = resource.find(r => r.widths?.includes(width));
-                  resource = rootResource || resource[0];
-                }
-                return resource;
-              },
+              getResource: (u, width = null) => (
+                lookupCacheResource(percy, snapshot.resources, cache, u, width)
+              ),
               saveResource: r => {
                 const limitResources = process.env.LIMIT_SNAPSHOT_RESOURCES || false;
                 const MAX_RESOURCES = Number(process.env.MAX_SNAPSHOT_RESOURCES) || 749;
@@ -592,39 +608,29 @@ export function createDiscoveryQueue(percy) {
                 snapshot.resources.set(r.url, r);
                 if (snapshot.discovery.disableCache) return;
 
+                // Fresh write supersedes any prior spill — prevents races
+                // where getResource could serve a stale disk copy.
+                if (percy[DISK_SPILL_KEY]?.has(r.url)) {
+                  percy[DISK_SPILL_KEY].delete(r.url);
+                }
+
                 if (capBytes != null) {
-                  // Bounded ByteLRU mode — compute size, skip oversized entries
-                  // so a single big resource cannot thrash the cache.
-                  const size = entrySize(r);
-                  if (size > capBytes) {
-                    percy[CACHE_STATS_KEY].oversizeSkipped++;
-                    percy.log.debug(
-                      `Skipping cache for resource ${r.url} ` +
-                      `(${size} bytes > cap ${capBytes})`
-                    );
-                    return;
-                  }
-                  cache.set(r.url, r, size);
+                  // ByteLRU fires onEvict('too-big') for oversize entries;
+                  // the oversize_skipped stat + debug log live there.
+                  cache.set(r.url, r, entrySize(r));
                 } else {
                   cache.set(r.url, r);
-                  // Unset-cap path: track running bytes unconditionally so
-                  // cache_summary telemetry reports the true peak. Gate only
-                  // the one-shot warn-log emission on whether we've fired yet.
+                  // Track bytes unconditionally so peak is accurate;
+                  // one-shot warn emission is gated by warningFired.
                   const stats = percy[CACHE_STATS_KEY];
-                  if (stats) {
-                    stats.unsetModeBytes += entrySize(r);
-                    if (!stats.warningFired && stats.unsetModeBytes >= warnThreshold) {
-                      stats.warningFired = true;
-                      const bytes = stats.unsetModeBytes;
-                      const pretty = bytes >= BYTES_PER_MB
-                        ? `${(bytes / BYTES_PER_MB).toFixed(1)}MB`
-                        : `${Math.round(bytes / 1000)}KB`;
-                      percy.log.warn(
-                        `Percy cache is using ${pretty}. If your CI is ` +
-                        'memory-constrained, set --max-cache-ram. ' +
-                        'See https://www.browserstack.com/docs/percy/cli/managing-cache-memory'
-                      );
-                    }
+                  stats.unsetModeBytes += entrySize(r);
+                  if (!stats.warningFired && stats.unsetModeBytes >= warnThreshold) {
+                    stats.warningFired = true;
+                    percy.log.warn(
+                      `Percy cache is using ${(stats.unsetModeBytes / BYTES_PER_MB).toFixed(1)}MB. ` +
+                      'If your CI is memory-constrained, set --max-cache-ram. ' +
+                      'See https://www.browserstack.com/docs/percy/cli/managing-cache-memory'
+                    );
                   }
                 }
               }
