@@ -383,6 +383,98 @@ describe('Snapshot', () => {
     });
   });
 
+  describe('baseline commit extraction', () => {
+    it('extracts baselineCommitSha from the createBuild `included` array', async () => {
+      await percy.stop(true);
+      await api.mock();
+
+      const sha = 'abcdef1234567890abcdef1234567890abcdef12';
+      api.reply('/builds', () => [201, {
+        data: {
+          id: '123',
+          attributes: {
+            'build-number': 1,
+            'web-url': 'https://percy.io/test/test/123'
+          }
+        },
+        included: [{
+          type: 'base-build-strategies',
+          attributes: {
+            'baseline-context': { base_build_commit_sha: sha }
+          }
+        }]
+      }]);
+
+      logger.reset();
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        loglevel: 'debug',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info',
+        server: false,
+        projectType: 'web'
+      });
+
+      await percy.snapshot({
+        url: 'http://localhost:8000',
+        domSnapshot: '<p>Test</p>'
+      });
+      await percy.idle();
+
+      expect(percy.build.baselineCommitSha).toBe(sha);
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/TurboSnap: baseline commit abcdef1/)
+      ]));
+    });
+
+    it('defaults baselineCommitSha to null when `included` is absent', async () => {
+      await percy.snapshot({
+        url: 'http://localhost:8000',
+        domSnapshot: '<p>Test</p>'
+      });
+      await percy.idle();
+
+      expect(percy.build.baselineCommitSha).toBeNull();
+    });
+
+    it('defaults baselineCommitSha to null when no base-build-strategies entry present', async () => {
+      await percy.stop(true);
+      await api.mock();
+
+      api.reply('/builds', () => [201, {
+        data: {
+          id: '123',
+          attributes: {
+            'build-number': 1,
+            'web-url': 'https://percy.io/test/test/123'
+          }
+        },
+        included: [{ type: 'some-other-thing', attributes: {} }]
+      }]);
+
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 },
+        clientInfo: 'client-info',
+        environmentInfo: 'env-info',
+        server: false,
+        projectType: 'web'
+      });
+
+      await percy.snapshot({
+        url: 'http://localhost:8000',
+        domSnapshot: '<p>Test</p>'
+      });
+      await percy.idle();
+
+      expect(percy.build.baselineCommitSha).toBeNull();
+    });
+  });
+
   it('uploads snapshots before the next one when delayed', async () => {
     // stop and recreate a percy instance with the desired option
     await percy.stop(true);
