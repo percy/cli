@@ -547,6 +547,12 @@ export function createDiscoveryQueue(percy) {
       await percy.browser.close();
       const diskStore = percy[DISK_SPILL_KEY];
       if (diskStore) {
+        // Snapshot final stats before destroy() clears them — sendCacheSummary
+        // runs after this handler, and reads from stats.finalDiskStats.
+        const stats = percy[CACHE_STATS_KEY];
+        if (stats) {
+          stats.finalDiskStats = { ...diskStore.stats, ready: diskStore.ready };
+        }
         diskStore.destroy();
         delete percy[DISK_SPILL_KEY];
       }

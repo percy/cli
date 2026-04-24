@@ -396,9 +396,11 @@ export class Percy {
       if (!cache || !stats) return;
 
       const cacheStats = typeof cache.stats === 'object' ? cache.stats : null;
+      // diskStore is destroyed by discovery 'end' before this runs, so fall
+      // back to the snapshot captured in stats.finalDiskStats.
       const diskStore = this[DISK_SPILL_KEY];
-      const diskStats = diskStore?.stats;
-
+      const diskSnap = diskStore?.stats ?? stats.finalDiskStats;
+      const diskReady = diskStore ? diskStore.ready : !!stats.finalDiskStats?.ready;
       await this.client.sendBuildEvents(this.build.id, {
         message: 'cache_summary',
         cliVersion: this.client.cliVersion,
@@ -412,14 +414,14 @@ export class Percy {
           final_bytes: cache.calculatedSize ?? stats.unsetModeBytes,
           entry_count: cache.size ?? 0,
           oversize_skipped: stats.oversizeSkipped,
-          disk_spill_enabled: !!diskStore?.ready,
-          disk_spilled_count: diskStats?.spilled ?? 0,
-          disk_restored_count: diskStats?.restored ?? 0,
-          disk_spill_failures: diskStats?.spillFailures ?? 0,
-          disk_read_failures: diskStats?.readFailures ?? 0,
-          disk_peak_bytes: diskStats?.peakBytes ?? 0,
-          disk_final_bytes: diskStats?.currentBytes ?? 0,
-          disk_final_entries: diskStats?.entries ?? 0
+          disk_spill_enabled: diskReady,
+          disk_spilled_count: diskSnap?.spilled ?? 0,
+          disk_restored_count: diskSnap?.restored ?? 0,
+          disk_spill_failures: diskSnap?.spillFailures ?? 0,
+          disk_read_failures: diskSnap?.readFailures ?? 0,
+          disk_peak_bytes: diskSnap?.peakBytes ?? 0,
+          disk_final_bytes: diskSnap?.currentBytes ?? 0,
+          disk_final_entries: diskSnap?.entries ?? 0
         }
       });
     } catch (err) {
