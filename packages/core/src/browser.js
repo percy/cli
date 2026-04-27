@@ -20,14 +20,10 @@ export class Browser extends EventEmitter {
   #lastid = 0;
 
   args = [
-    // disable: translate popup, optimization downloads, baseline site
-    // isolation (so cross-origin sub-resources and worker fetches stay in
-    // the main renderer for interception), HTTPS-first navigation blocking,
-    // and Local Network Access permission checks (Chrome 143+ blocks
-    // sub-resource requests to *.localhost / 127.0.0.1 / RFC1918 with
-    // `LocalNetworkAccessPermissionDenied` when the document was served
-    // via Fetch.fulfillRequest from asset discovery — there is no permission
-    // prompt available in headless to grant the access).
+    // Disable Chrome features that break asset discovery in v143 new-headless:
+    // site/origin isolation (so cross-origin events stay on the page session),
+    // HTTPS-first auto-upgrade (would block HTTP discovery), and Local Network
+    // Access permission checks (would block sub-resources to localhost/RFC1918).
     '--disable-features=Translate,OptimizationGuideModelDownloading,IsolateOrigins,site-per-process,HttpsFirstBalancedModeAutoEnable,LocalNetworkAccessChecks',
     // disable several subsystems which run network requests in the background
     '--disable-background-networking',

@@ -175,7 +175,8 @@ export function chromium({
   });
 }
 
-// default chromium revisions corresponds to v143.0.7499.169
+// Chrome 143.0.7499.169 (base position 1536371) — closest per-platform
+// revision from https://commondatastorage.googleapis.com/chromium-browser-snapshots/
 chromium.revisions = {
   linux: '1536366',
   win64: '1536376',

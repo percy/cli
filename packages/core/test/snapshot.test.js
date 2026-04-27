@@ -1535,9 +1535,9 @@ describe('Snapshot', () => {
 
       await percy.idle();
 
-      // srcdoc HTML attribute serialization: pre-Chrome-128 left `<` `>` literal
-      // inside attribute values; Chrome >=128 entity-escapes them per HTML5 spec.
-      // Accept either form.
+      // Chrome >=128 entity-escapes `<`/`>` inside attribute values per HTML5
+      // spec; pre-128 left them literal. Accept either form (e.g.
+      // `srcdoc="<p>Foo</p>"` or `srcdoc="&lt;p&gt;Foo&lt;/p&gt;"`).
       expect(Buffer.from((
         api.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
