@@ -4,6 +4,10 @@ import mime from 'mime-types';
 import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, executeDomainValidation } from './utils.js';
 
 const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
+// How long to wait for Network.loadingFinished after a Fetch response-stage
+// pause before giving up on the request. Long enough to swallow normal jitter,
+// short enough that it doesn't dominate a request's idle wait.
+const RESPONSE_STAGE_BACKSTOP_MS = 1000;
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
@@ -205,6 +209,16 @@ export class Network {
   _handleRequestPaused = async (session, event) => {
     let { networkId: requestId, requestId: interceptId, resourceType } = event;
 
+    // Response-stage interception: Fetch.continueRequest with interceptResponse:true
+    // pauses the request a second time once response headers are available. We use
+    // this to guard against responses that Chrome 143 may never finish loading
+    // (e.g. malformed Content-Length), which would otherwise hang the page's
+    // load event waiting for a stylesheet body that never arrives.
+    if (event.responseStatusCode != null || event.responseErrorReason != null) {
+      await this._handleResponsePaused(session, event);
+      return;
+    }
+
     // wait for request to be sent
     await this.#requestsLifeCycleHandler.get(requestId).requestWillBeSent;
     let pending = this.#pending.get(requestId);
@@ -215,6 +229,107 @@ export class Network {
     pending?.request.url === event.request.url &&
     pending.request.method === event.request.method &&
     await this._handleRequest(session, { ...pending, resourceType, interceptId });
+  }
+
+  // Called when a request that was continued with interceptResponse:true is
+  // paused a second time at the response stage. Three jobs:
+  //
+  //   1. If the browser already errored the response (server abort, DNS, etc.),
+  //      confirm the failure so _handleLoadingFailed can log it.
+  //
+  //   2. If Content-Length says the response is oversized or malformed, fail
+  //      the request before the body streams. This guards against Chrome 143
+  //      never emitting Network.loadingFinished for malformed Content-Length
+  //      responses, which would otherwise hang the page's load event waiting
+  //      for a stylesheet body that never arrives.
+  //
+  //   3. Otherwise, schedule a backstop cleanup. In Chrome 143, worker scripts
+  //      fetched by the page never emit Network.loadingFinished on the page
+  //      session — those events fire on the worker session under a fresh
+  //      requestId. Without the backstop the page-session request entry would
+  //      stay pending forever and block idle(). For all other requests the
+  //      existing loadingFinished / loadingFailed handlers forget the request
+  //      first and the backstop is a no-op.
+  _handleResponsePaused = async (session, event) => {
+    let { networkId: requestId, requestId: interceptId, responseHeaders, responseStatusCode, responseErrorReason } = event;
+    let request = this.#requests.get(requestId);
+    let url = request ? originURL(request) : event.request?.url;
+    let headersObj = headersArrayToObject(responseHeaders);
+    let { tooLarge, malformed, rawValue } = inspectContentLength(headersObj);
+
+    // Network-error responses (server abort, DNS failure, etc.). Just confirm
+    // the failure and let _handleLoadingFailed log the error and clean up.
+    if (responseErrorReason) {
+      try {
+        await this.send(session, 'Fetch.failRequest', {
+          requestId: interceptId,
+          errorReason: responseErrorReason
+        });
+      } catch (error) {
+        /* istanbul ignore next: race with abort/close */
+        this.log.debug(`Failed to fail errored response for ${url}: ${error.message}`);
+      }
+      return;
+    }
+
+    if (tooLarge || malformed) {
+      let meta = { ...this.meta, url, responseStatus: responseStatusCode };
+      logAssetInstrumentation(this.log, 'asset_not_uploaded', 'resource_too_large', {
+        url,
+        size: rawValue,
+        snapshot: meta.snapshot
+      });
+      this.log.debug('- Skipping resource larger than 25MB', meta);
+
+      if (request) {
+        this._forgetRequest(request);
+        this.#requestsLifeCycleHandler.get(requestId).resolveResponseReceived();
+      }
+      try {
+        await this.send(session, 'Fetch.failRequest', {
+          requestId: interceptId,
+          errorReason: 'Aborted'
+        });
+      } catch (error) {
+        /* istanbul ignore next: race with abort/close */
+        this.log.debug(`Failed to abort oversized response for ${url}: ${error.message}`);
+      }
+      return;
+    }
+
+    // For redirect responses (3xx), don't process here — the redirect chain
+    // is constructed by _handleRequest when the next Fetch.requestPaused
+    // (request stage) fires for the same requestId with redirectResponse set.
+    // We just continue the response so the browser follows the redirect.
+    let isRedirect = responseStatusCode >= 300 && responseStatusCode < 400;
+
+    // Schedule a backstop cleanup for requests where Network.loadingFinished /
+    // Network.loadingFailed will never fire on this session. The motivating
+    // case is Chrome 143 worker scripts loaded by the page: Fetch intercepts
+    // them on the page session, but the corresponding Network events fire on
+    // the worker session under a fresh requestId — so without this backstop
+    // the page-session entry would stay pending and block idle(). For all
+    // other requests, the existing loadingFinished / loadingFailed handlers
+    // forget the request first and this timer is a no-op.
+    if (!isRedirect && request) {
+      let backstop = setTimeout(() => {
+        if (this.#requests.has(requestId)) {
+          this.log.debug(`Forgetting request without loadingFinished: ${url}`, { ...this.meta, url });
+          this._forgetRequest(request);
+          this.#requestsLifeCycleHandler.get(requestId).resolveResponseReceived();
+        }
+      }, RESPONSE_STAGE_BACKSTOP_MS);
+      // don't keep the process alive on this timer
+      backstop.unref?.();
+    }
+
+    try {
+      await this.send(session, 'Fetch.continueResponse', { requestId: interceptId });
+    } catch (error) {
+      /* istanbul ignore next: race with abort/close */
+      if (error.message === ABORTED_MESSAGE || error.message.includes('Invalid InterceptionId')) return;
+      this.log.debug(`Failed to continue response for ${url}: ${error.message}`);
+    }
   }
 
   // Called when a request will be sent. If the request has already been intercepted, handle it;
@@ -434,6 +549,28 @@ function originURL(request) {
   return normalizeURL((request.redirectChain[0] || request).url);
 }
 
+// Convert Fetch.requestPaused responseHeaders (array of {name,value}) to a
+// case-preserving header object for inspection.
+function headersArrayToObject(arr) {
+  let out = {};
+  if (!Array.isArray(arr)) return out;
+  for (let { name, value } of arr) out[name] = value;
+  return out;
+}
+
+// Inspect a response's Content-Length header. Returns:
+//   - tooLarge:  header parsed as finite number > MAX_RESOURCE_SIZE
+//   - malformed: header is present and non-empty but does not parse to a finite number
+//   - rawValue:  the raw header value (for logging)
+function inspectContentLength(headers) {
+  let key = headers && Object.keys(headers).find(k => k.toLowerCase() === 'content-length');
+  let rawValue = key ? headers[key] : undefined;
+  let parsed = parseInt(rawValue);
+  let tooLarge = Number.isFinite(parsed) && parsed > MAX_RESOURCE_SIZE;
+  let malformed = rawValue !== undefined && rawValue !== null && String(rawValue).length > 0 && !Number.isFinite(parsed);
+  return { tooLarge, malformed, rawValue };
+}
+
 // Validate domain for auto-allowlisting feature
 // Only validates domains that returned 200 status
 async function validateDomainForAllowlist(network, hostname, url, statusCode) {
@@ -512,8 +649,12 @@ async function sendResponseResource(network, request, session) {
           .map(([k, v]) => ({ name: k.toLowerCase(), value: String(v) }))
       });
     } else {
+      // interceptResponse:true pauses the request again at the response stage
+      // so we can guard against oversized or malformed responses before the
+      // browser tries to stream the body. See _handleResponsePaused.
       await send('Fetch.continueRequest', {
-        requestId: request.interceptId
+        requestId: request.interceptId,
+        interceptResponse: true
       });
     }
   } catch (error) {
