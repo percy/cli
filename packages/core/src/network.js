@@ -1,12 +1,19 @@
 import { request as makeRequest } from '@percy/client/utils';
 import logger from '@percy/logger';
 import mime from 'mime-types';
-import { DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, executeDomainValidation } from './utils.js';
+import { AbortError, DefaultMap, createResource, hostnameMatches, normalizeURL, waitFor, decodeAndEncodeURLWithLogging, handleIncorrectFontMimeType, executeDomainValidation } from './utils.js';
 
 const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for accounting for base64 encoding
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
+
+// Stable, machine-readable codes for abort errors thrown from this module.
+// Consumers should prefer `error.code` over string matching on `error.message`.
+export const AbortCodes = Object.freeze({
+  ABORTED: 'ABORTED',
+  TIMEOUT_NETWORK_IDLE: 'TIMEOUT_NETWORK_IDLE'
+});
 
 // RequestLifeCycleHandler handles life cycle of a requestId
 // Ideal flow:          requestWillBeSent -> requestPaused -> responseReceived -> loadingFinished / loadingFailed
@@ -22,8 +29,6 @@ class RequestLifeCycleHandler {
 // The Interceptor class creates common handlers for dealing with intercepting asset requests
 // for a given page using various devtools protocol events and commands.
 export class Network {
-  static TIMEOUT = undefined;
-
   log = logger('core:discovery');
 
   #requestsLifeCycleHandler = new DefaultMap(() => new RequestLifeCycleHandler());
@@ -101,11 +106,13 @@ export class Network {
 
       return requests.length === 0;
     }, {
-      timeout: Network.TIMEOUT,
+      timeout: this.networkIdleWaitTimeout,
       idle: timeout
     }).catch(error => {
       if (error.message.startsWith('Timeout')) {
-        let message = 'Timed out waiting for network requests to idle.';
+        let message = 'Timed out waiting for network requests to idle.\n' +
+          'Hint: set PERCY_NETWORK_IDLE_WAIT_TIMEOUT to increase the budget, ' +
+          'or allowlist slow domains via the discovery config.';
         if (captureResponsiveAssetsEnabled) message += '\nWhile capturing responsive assets try setting PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS to true.';
         this._throwTimeoutError(message, filter);
       } else {
@@ -135,7 +142,10 @@ export class Network {
     if (params.requestId) {
       /* istanbul ignore if: race condition, very hard to mock this */
       if (this.isAborted(params.requestId)) {
-        throw new Error(ABORTED_MESSAGE);
+        throw new AbortError(ABORTED_MESSAGE, {
+          code: AbortCodes.ABORTED,
+          reason: 'browser-aborted'
+        });
       }
     }
 
@@ -166,7 +176,14 @@ export class Network {
       return;
     }
 
-    throw new Error(msg);
+    // Use a plain Error (NOT AbortError) so this does not trip
+    // `error.name === 'AbortError'` consumers in discovery.js:520,
+    // percy.js:347, snapshot.js:472 — those treat AbortError as
+    // "snapshot was aborted" and would silently drop the timeout.
+    let err = new Error(msg);
+    err.code = AbortCodes.TIMEOUT_NETWORK_IDLE;
+    err.reason = 'network-idle-timeout';
+    throw err;
   }
 
   // Called when a request should be removed from various trackers
@@ -384,11 +401,11 @@ export class Network {
   }
 
   _initializeNetworkIdleWaitTimeout() {
-    if (Network.TIMEOUT) return;
+    // Per-instance timeout so concurrent pages with different env values
+    // (or env values changed mid-run by tests) don't stomp each other.
+    this.networkIdleWaitTimeout = parseInt(process.env.PERCY_NETWORK_IDLE_WAIT_TIMEOUT) || 30000;
 
-    Network.TIMEOUT = parseInt(process.env.PERCY_NETWORK_IDLE_WAIT_TIMEOUT) || 30000;
-
-    if (Network.TIMEOUT > 60000) {
+    if (this.networkIdleWaitTimeout > 60000) {
       this.log.warn('Setting PERCY_NETWORK_IDLE_WAIT_TIMEOUT over 60000ms is not recommended. ' +
         'If your page needs more than 60000ms to idle due to CPU/Network load, ' +
         'its recommended to increase CI resources where this cli is running.');
@@ -526,7 +543,7 @@ async function sendResponseResource(network, request, session) {
     // Note: its not a necessity that we would get aborted callback in a tick, its just that if we
     // already have it then we can safely ignore this error
     // Its very hard to test it as this function should be called and request should get cancelled before
-    if (error.message === ABORTED_MESSAGE || error.message.includes('Invalid InterceptionId')) {
+    if (error.code === AbortCodes.ABORTED || error.message === ABORTED_MESSAGE || error.message.includes('Invalid InterceptionId')) {
       // defer this to the end of queue to make sure that any incoming aborted messages were
       // handled and network.#aborted is updated
       await new Promise((res, _) => process.nextTick(res));
