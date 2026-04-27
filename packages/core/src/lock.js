@@ -1,0 +1,135 @@
+// Per-port lock file for Percy agent processes (PER-7855 Phase 2).
+//
+// Why: a stale ~/.percy directory after a crash currently surfaces as a
+// late, opaque EADDRINUSE on the next `percy start`. The lock file lets
+// us short-circuit at command entry with a clear, actionable refusal
+// message and lets us auto-reclaim a stale lock whose recorded pid is
+// dead.
+//
+// Cross-platform note: `fs.renameSync` over an existing target is
+// unreliable on Node 14 Windows (Percy's Windows CI is pinned to
+// node-version: 14, see .github/workflows/windows.yml). We therefore
+// reclaim via unlink + retry-`wx` rather than rename-based reclaim.
+
+import { mkdirSync, writeFileSync, readFileSync, unlinkSync } from 'fs';
+import { join } from 'path';
+// Use a default import so tests can `spyOn(os, 'homedir')` to redirect
+// the lock dir into a tmpdir without touching the user's $HOME.
+// (Babel's namespace import is frozen and not spy-able.)
+import os from 'os';
+
+const LOCK_DIR_MODE = 0o700;
+const LOCK_FILE_MODE = 0o600;
+
+export class LockHeldError extends Error {
+  constructor(meta, lockPath) {
+    super(
+      `Percy is already running on port ${meta.port} ` +
+      `(pid ${meta.pid}, started ${meta.startedAt}).\n` +
+      `If you believe this is stale, remove ${lockPath} and try again.`
+    );
+    this.name = 'LockHeldError';
+    this.meta = meta;
+    this.lockPath = lockPath;
+  }
+}
+
+export function lockPathFor(port) {
+  return join(os.homedir(), '.percy', `agent-${port}.lock`);
+}
+
+// `process.kill(pid, 0)` returns truthy for living processes, throws
+// ESRCH if the pid is gone, and throws EPERM if the pid exists but
+// belongs to another user (treat as alive — we cannot reclaim it).
+function livenessCheck(pid) {
+  try {
+    process.kill(pid, 0);
+    return 'alive';
+  } catch (err) {
+    if (err.code === 'ESRCH') return 'dead';
+    if (err.code === 'EPERM') return 'alive';
+    /* istanbul ignore next: defensive — every other Node error code
+       (ENOSYS, EINVAL, …) implies we cannot determine liveness, so
+       refusing to reclaim is the safer default. */
+    return 'alive';
+  }
+}
+
+// Acquire a per-port lock. On success, returns a handle whose `path`
+// the caller must eventually pass to `releaseLockSync`. Throws
+// `LockHeldError` if another live process holds the lock.
+export function acquireLock({ port }) {
+  const dir = join(os.homedir(), '.percy');
+  const path = lockPathFor(port);
+  const payload = JSON.stringify({
+    pid: process.pid,
+    port,
+    startedAt: new Date().toISOString()
+  });
+
+  mkdirSync(dir, { recursive: true, mode: LOCK_DIR_MODE });
+
+  // Fast path: atomic exclusive create.
+  try {
+    writeFileSync(path, payload, { flag: 'wx', mode: LOCK_FILE_MODE });
+    return { path, payload };
+  } catch (err) {
+    /* istanbul ignore if: any non-EEXIST error from `wx` is unexpected
+       (e.g. EACCES on a read-only $HOME) — propagate. */
+    if (err.code !== 'EEXIST') throw err;
+  }
+
+  // Lock exists. Inspect, then either refuse or reclaim once.
+  let existing;
+  try {
+    existing = JSON.parse(readFileSync(path, 'utf-8'));
+  } catch (parseErr) {
+    // Corrupt or truncated payload (a previous process was killed
+    // mid-write): treat as stale, unlink, and retry.
+    existing = null;
+  }
+
+  // A lock recorded with OUR pid means we leaked a previous lock from
+  // the same process (e.g., a test that forgot to release in afterEach,
+  // or a code path that bypassed the normal stop). Reclaiming is safe
+  // because we are that process — we cannot conflict with ourselves.
+  if (existing && existing.pid !== process.pid && livenessCheck(existing.pid) === 'alive') {
+    throw new LockHeldError(existing, path);
+  }
+
+  // Stale (or corrupt). Unlink and retry exclusive create. If a third
+  // process raced in and won, the second `wx` fails with EEXIST and
+  // we surface their info — their lock is the legitimate one.
+  try {
+    unlinkSync(path);
+  } catch (e) {
+    /* istanbul ignore next: race window — another reclaimer beat us
+       to the unlink. */
+    if (e.code !== 'ENOENT') throw e;
+  }
+
+  try {
+    writeFileSync(path, payload, { flag: 'wx', mode: LOCK_FILE_MODE });
+    return { path, payload };
+  } catch (err) {
+    /* istanbul ignore else */
+    if (err.code === 'EEXIST') {
+      const winner = JSON.parse(readFileSync(path, 'utf-8'));
+      throw new LockHeldError(winner, path);
+    }
+    throw err;
+  }
+}
+
+// Synchronous release for use in normal teardown AND in
+// `process.on('exit')` (which only runs synchronous handlers).
+export function releaseLockSync(handle) {
+  if (!handle?.path) return;
+  try {
+    unlinkSync(handle.path);
+  } catch (e) {
+    /* istanbul ignore next: lock already gone (manually removed,
+       race with another reclaimer) — nothing to do. */
+    if (e.code !== 'ENOENT') throw e;
+  }
+}
