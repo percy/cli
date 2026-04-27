@@ -12,6 +12,13 @@ export function mockfs(initial) {
       path.resolve(url.fileURLToPath(import.meta.url), '/../../../dom/dist/bundle.js'),
       path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml'),
       p => p.includes?.('.local-chromium'),
+      // PER-7855 Phase 2: per-port lockfiles live under ~/.percy/. They
+      // are infrastructure (not test fixture data), so route them through
+      // the real fs. Tests on a developer machine may briefly see lock
+      // files appear under ~/.percy/ during a run; they are cleaned up in
+      // Percy.stop() and are guarded against same-process collision by
+      // the self-pid stale optimization in lock.js.
+      p => typeof p === 'string' && p.includes('/.percy/agent-'),
       ...(initial?.$bypass ?? [])
     ]
   });
