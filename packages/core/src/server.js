@@ -145,11 +145,50 @@ export class Server extends http.Server {
   }
 
   // return a promise that resolves when the server closes
-  close() {
-    return new Promise(resolve => {
+  //
+  // PER-7855 Phase 3: graceful drain. By default, stop accepting new
+  // connections, reap idle keep-alives, and let in-flight requests
+  // finish for up to `drainMs` (5s) before forcibly destroying any
+  // remaining sockets. Pass `{ drainMs: 0 }` for the legacy abrupt
+  // behavior. Uses Node 18.2+ `closeIdleConnections` /
+  // `closeAllConnections` when available, falling back to manual
+  // socket-set iteration on Node 14 (Windows CI is pinned there per
+  // .github/workflows/windows.yml).
+  async close({ drainMs = 5_000 } = {}) {
+    this.draining = true;
+    let closed = new Promise(resolve => super.close(resolve));
+
+    // Reap idle keep-alives now so they don't hold the close() callback.
+    /* istanbul ignore else: Node 18.2+ is the default; fallback is for Node 14 CI */
+    if (typeof this.closeIdleConnections === 'function') {
+      this.closeIdleConnections();
+    } else {
+      // Node 14 fallback: best-effort destroy of sockets without an
+      // active response. http.Server doesn't expose idleness here, so
+      // we conservatively destroy nothing in this branch and rely on
+      // the drain timeout below.
+    }
+
+    if (drainMs <= 0) {
       this.#sockets.forEach(socket => socket.destroy());
-      super.close(resolve);
-    });
+      await closed;
+      return;
+    }
+
+    let forced = new Promise(resolve => setTimeout(() => {
+      /* istanbul ignore else: Node 18.2+ default */
+      if (typeof this.closeAllConnections === 'function') {
+        this.closeAllConnections();
+      } else {
+        this.#sockets.forEach(socket => socket.destroy());
+      }
+      resolve();
+    }, drainMs).unref());
+
+    await Promise.race([closed, forced]);
+    // Ensure the 'close' event has fully fired even if `forced` won
+    // the race (we still need super.close()'s callback to resolve).
+    await closed;
   }
 
   // initial routes include cors and 404 handling

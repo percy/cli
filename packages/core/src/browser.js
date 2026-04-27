@@ -1,6 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { execSync } from 'child_process';
 import spawn from 'cross-spawn';
 import EventEmitter from 'events';
 import WebSocket from 'ws';
@@ -203,9 +204,29 @@ export class Browser extends EventEmitter {
     /* istanbul ignore next:
      *   difficult to test failure here without mocking private properties */
     if (this.process?.pid && !this.process.killed) {
-      // always force close the browser process
-      try { this.process.kill('SIGKILL'); } catch (error) {
-        throw new Error(`Unable to close the browser: ${error.stack}`);
+      // PER-7855 Phase 3 (bonus): force-close the entire browser
+      // process tree, not just the lead pid. Chromium spawns
+      // renderer/utility/zygote children; targeting only the lead pid
+      // (the previous behavior) leaked them on every kill.
+      //
+      // Convention matches Puppeteer / Playwright: shell out to
+      // `taskkill /T /F` on Windows; on POSIX the spawn at line ~266
+      // sets `detached: true` so child.pid === pgid and a negative
+      // pid signals the entire process group.
+      try {
+        if (process.platform === 'win32') {
+          execSync(`taskkill /pid ${this.process.pid} /T /F`, { stdio: 'ignore' });
+        } else {
+          process.kill(-this.process.pid, 'SIGKILL');
+        }
+      } catch (error) {
+        // taskkill returns 128 if the process is already gone; the
+        // POSIX branch may also throw ESRCH for the same reason. Fall
+        // back to the lead-pid kill so a missing process doesn't
+        // wedge `_closed`.
+        try { this.process.kill('SIGKILL'); } catch (fallbackErr) {
+          throw new Error(`Unable to close the browser: ${error.stack}`);
+        }
       }
     }
 
