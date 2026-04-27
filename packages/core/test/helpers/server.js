@@ -28,11 +28,13 @@ export function createTestServer({ default: defaultReply, ...replies }, port = 8
   server.route(async (req, res, next) => {
     let pathname = req.url.pathname;
     if (req.url.search) pathname += req.url.search;
-    // skip favicon.ico — Chrome >=128 new headless auto-requests it, but it's
-    // not part of any test's asset graph. Filter here to avoid per-test churn.
-    if (req.url.pathname !== '/favicon.ico') {
-      server.requests.push(req.body ? [pathname, req.body, req.headers] : [pathname, req.headers]);
+    // Chrome >=128 new headless auto-requests /favicon.ico for every navigation.
+    // Reply 204 so the browser doesn't capture it as a snapshot resource, and
+    // skip it from the requests log so per-test request assertions stay stable.
+    if (req.url.pathname === '/favicon.ico') {
+      return res.writeHead(204).end();
     }
+    server.requests.push(req.body ? [pathname, req.body, req.headers] : [pathname, req.headers]);
     let reply = replies[pathname] || defaultReply;
     return reply ? await reply(req, res) : next();
   });

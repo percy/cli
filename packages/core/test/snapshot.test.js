@@ -1535,10 +1535,13 @@ describe('Snapshot', () => {
 
       await percy.idle();
 
+      // srcdoc HTML attribute serialization: pre-Chrome-128 left `<` `>` literal
+      // inside attribute values; Chrome >=128 entity-escapes them per HTML5 spec.
+      // Accept either form.
       expect(Buffer.from((
         api.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
-      ), 'base64').toString()).toMatch(/<iframe.*srcdoc=".*<p>Foo<\/p>/);
+      ), 'base64').toString()).toMatch(/<iframe.*srcdoc=".*(?:<p>Foo<\/p>|&lt;p&gt;Foo&lt;\/p&gt;)/);
     });
 
     it('errors if execute cannot be serialized', async () => {
