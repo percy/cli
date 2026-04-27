@@ -20,10 +20,15 @@ export class Browser extends EventEmitter {
   #lastid = 0;
 
   args = [
-    // disable the translate popup, optimization downloads, baseline site
+    // disable: translate popup, optimization downloads, baseline site
     // isolation (so cross-origin sub-resources and worker fetches stay in
-    // the main renderer for interception), and HTTPS-first navigation blocking
-    '--disable-features=Translate,OptimizationGuideModelDownloading,IsolateOrigins,site-per-process,HttpsFirstBalancedModeAutoEnable',
+    // the main renderer for interception), HTTPS-first navigation blocking,
+    // and Local Network Access permission checks (Chrome 143+ blocks
+    // sub-resource requests to *.localhost / 127.0.0.1 / RFC1918 with
+    // `LocalNetworkAccessPermissionDenied` when the document was served
+    // via Fetch.fulfillRequest from asset discovery — there is no permission
+    // prompt available in headless to grant the access).
+    '--disable-features=Translate,OptimizationGuideModelDownloading,IsolateOrigins,site-per-process,HttpsFirstBalancedModeAutoEnable,LocalNetworkAccessChecks',
     // disable several subsystems which run network requests in the background
     '--disable-background-networking',
     // disable task throttling of timer tasks from background pages
