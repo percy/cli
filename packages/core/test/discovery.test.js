@@ -1328,11 +1328,7 @@ describe('Discovery', () => {
   });
 
   describe('idle timeout', () => {
-    let Network;
-
     beforeEach(async () => {
-      ({ Network } = await import('../src/network.js'));
-      Network.TIMEOUT = undefined;
       process.env.PERCY_NETWORK_IDLE_WAIT_TIMEOUT = 500;
 
       // some async request that takes a while
@@ -1344,7 +1340,6 @@ describe('Discovery', () => {
     });
 
     afterEach(() => {
-      Network.TIMEOUT = undefined;
       process.env.PERCY_NETWORK_IDLE_WAIT_TIMEOUT = undefined;
       process.env.PERCY_IGNORE_TIMEOUT_ERROR = undefined;
     });
@@ -1356,7 +1351,11 @@ describe('Discovery', () => {
       });
 
       expect(logger.stderr).toContain(
-        '[percy] Error: Timed out waiting for network requests to idle.'
+        jasmine.stringContaining('[percy] Error: Timed out waiting for network requests to idle.')
+      );
+      // R7: actionable hint surfaces in the same error message.
+      expect(logger.stderr).toContain(
+        jasmine.stringContaining('PERCY_NETWORK_IDLE_WAIT_TIMEOUT')
       );
 
       let expectedRequestBody = {
@@ -1367,7 +1366,7 @@ describe('Discovery', () => {
               meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             },
             {
-              message: 'Timed out waiting for network requests to idle.',
+              message: jasmine.stringContaining('Timed out waiting for network requests to idle.'),
               meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             }
           ]
@@ -1401,6 +1400,7 @@ describe('Discovery', () => {
 
       expect(logger.stderr).toContain(jasmine.stringMatching([
         '^\\[percy:core] Error: Timed out waiting for network requests to idle.',
+        'Hint: set PERCY_NETWORK_IDLE_WAIT_TIMEOUT to increase the budget, or allowlist slow domains via the discovery config.',
         'While capturing responsive assets try setting PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS to true.',
         '',
         '  Active requests:',
@@ -1417,7 +1417,7 @@ describe('Discovery', () => {
               meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             },
             {
-              message: 'Timed out waiting for network requests to idle.\nWhile capturing responsive assets try setting PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS to true.\n\n  Active requests:\n  - http://localhost:8000/img-fromsrcset.png\n',
+              message: 'Timed out waiting for network requests to idle.\nHint: set PERCY_NETWORK_IDLE_WAIT_TIMEOUT to increase the budget, or allowlist slow domains via the discovery config.\nWhile capturing responsive assets try setting PERCY_DO_NOT_CAPTURE_RESPONSIVE_ASSETS to true.\n\n  Active requests:\n  - http://localhost:8000/img-fromsrcset.png\n',
               meta: { build: { id: '123', url: 'https://percy.io/test/test/123', number: 1 }, snapshot: { name: 'test idle' } }
             }
           ]
@@ -1496,6 +1496,7 @@ describe('Discovery', () => {
 
         expect(logger.stderr).not.toContain(jasmine.stringMatching([
           '^\\[percy:core] Error: Timed out waiting for network requests to idle.',
+          'Hint: set PERCY_NETWORK_IDLE_WAIT_TIMEOUT to increase the budget, or allowlist slow domains via the discovery config.',
           '',
           '  Active requests:',
           '  - http://localhost:8000/img.gif',
