@@ -2421,6 +2421,28 @@ describe('Discovery', () => {
       expect(percy.client.sendBuildEvents).toHaveBeenCalled();
     });
 
+    it('fireCacheEventSafe trailing .catch silences sendCacheTelemetry rejections', async () => {
+      // Defensive path: sendCacheTelemetry already catches pager errors, but
+      // if it ever returns a rejected promise (e.g. the inner catch arm
+      // throws on a broken logger), the trailing .catch on the microtask
+      // chain in discovery.js silences it so we never hit Node's
+      // unhandled-rejection fatal mode.
+      await startPercyWith({ maxCacheRam: 25 });
+      percy.build = { id: '123' };
+      spyOn(percy, 'sendCacheTelemetry').and.rejectWith(new Error('boom'));
+      const cache = percy[RESOURCE_CACHE_KEY];
+      const chunk = Math.floor(25_000_000 / 3);
+      cache.set('a', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('b', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('c', { content: Buffer.alloc(chunk) }, chunk + 512);
+      cache.set('d', { content: Buffer.alloc(chunk) }, chunk + 512);
+      // Two ticks: one for the Promise.resolve().then microtask (which calls
+      // sendCacheTelemetry), one for the trailing .catch.
+      await new Promise(r => setImmediate(r));
+      await new Promise(r => setImmediate(r));
+      expect(percy.sendCacheTelemetry).toHaveBeenCalled();
+    });
+
     it('records oversize_skipped in stats and logs when an entry is bigger than cap', async () => {
       await logger.mock({ level: 'debug' });
       await startPercyWith({ maxCacheRam: 25 });
