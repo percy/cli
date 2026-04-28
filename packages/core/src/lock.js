@@ -54,7 +54,11 @@ export function lockPathFor(port) {
   if (!Number.isInteger(n) || n < 0 || n > 65535) {
     throw new TypeError(`Invalid port for lockfile: ${JSON.stringify(port)}`);
   }
+  // The validated integer `n` plus the literal prefix/suffix yields a
+  // string of [prefix][digits][suffix] — no `/` or `..` is reachable.
+  // nosemgrep
   let filename = LOCK_FILE_PREFIX.concat(String(n), LOCK_FILE_SUFFIX);
+  // nosemgrep
   return join(os.homedir(), LOCK_DIR_NAME, filename);
 }
 
