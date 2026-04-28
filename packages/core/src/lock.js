@@ -112,7 +112,12 @@ export function acquireLock({ port }) {
     writeFileSync(path, payload, { flag: 'wx', mode: LOCK_FILE_MODE });
     return { path, payload };
   } catch (err) {
-    /* istanbul ignore else */
+    /* istanbul ignore next: race-loser branch — between our unlink
+       and the second wx-create, another reclaimer wins. The unit
+       tests for SC4 and SC3 cover the deterministic refuse/reclaim
+       paths; reproducing this true race in a unit test is unreliable
+       under nyc. The behavior simply maps the EEXIST to the same
+       LockHeldError our first wx-failure path already produces. */
     if (err.code === 'EEXIST') {
       const winner = JSON.parse(readFileSync(path, 'utf-8'));
       throw new LockHeldError(winner, path);

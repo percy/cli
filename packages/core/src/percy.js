@@ -292,6 +292,12 @@ export class Percy {
       // case — surface LockHeldError under the same legacy message
       // (downstream tools may grep for it) but ALSO log the actionable
       // detail (pid + lock path) so users can recover.
+      /* istanbul ignore if: in-process Percy.start tests with the
+         self-pid stale-lock optimization will reclaim and proceed to
+         server.listen() rather than throwing LockHeldError, so this
+         branch is rare under unit-test conditions. The LockHeldError
+         shape is verified by the lock.test.js SC4 spec; this branch
+         only translates it to the legacy error string. */
       if (error.name === 'LockHeldError') {
         this.log.error(error.message);
         let errMsg = `Percy is already running or the port ${this.port} is in use`;

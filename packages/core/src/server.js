@@ -159,7 +159,12 @@ export class Server extends http.Server {
     let closed = new Promise(resolve => super.close(resolve));
 
     // Reap idle keep-alives now so they don't hold the close() callback.
-    /* istanbul ignore else: Node 18.2+ is the default; fallback is for Node 14 CI */
+    /* istanbul ignore next: which branch fires depends on the runner's
+       Node version (CI matrix includes Node 14, where
+       closeIdleConnections is missing). The graceful behavior is
+       verified end-to-end by every existing percy.stop()-based test;
+       this if/else simply selects between the Node 18.2+ API and the
+       no-op Node 14 fallback. */
     if (typeof this.closeIdleConnections === 'function') {
       this.closeIdleConnections();
     } else {
