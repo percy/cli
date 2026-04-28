@@ -13,12 +13,15 @@ export function mockfs(initial) {
       path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml'),
       p => p.includes?.('.local-chromium'),
       // PER-7855 Phase 2: per-port lockfiles live under ~/.percy/. They
-      // are infrastructure (not test fixture data), so route them through
-      // the real fs. Tests on a developer machine may briefly see lock
-      // files appear under ~/.percy/ during a run; they are cleaned up in
-      // Percy.stop() and are guarded against same-process collision by
-      // the self-pid stale optimization in lock.js.
-      p => typeof p === 'string' && p.includes('/.percy/agent-'),
+      // are infrastructure (not test fixture data), so route the entire
+      // directory (mkdir, writeFile, readFile, unlink) through the real
+      // fs. Matching only `/.percy/agent-` lets `writeFileSync` pass but
+      // routes `mkdirSync` for the parent through memfs, leaving the
+      // parent directory non-existent on the real fs and producing
+      // ENOENT cascades on CI. Match both POSIX `/` and Windows `\`
+      // separators because the Windows runner normalizes paths
+      // inconsistently across mkdir/writeFile/unlink.
+      p => typeof p === 'string' && /[/\\]\.percy(?:[/\\]|$)/.test(p),
       ...(initial?.$bypass ?? [])
     ]
   });
