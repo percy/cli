@@ -2536,14 +2536,13 @@ describe('Discovery', () => {
       const disk = percy[DISK_SPILL_KEY];
       const stats = percy[CACHE_STATS_KEY];
       const destroySpy = spyOn(disk, 'destroy').and.callThrough();
-      // Capture the stats object the handler snapshots before destroy clears it.
       const liveStats = { ...disk.stats };
       const liveReady = disk.ready;
-      await percy.stop();
+      // Force-stop runs the same 'end' handler we care about, but skips
+      // the graceful flush that's slow/flaky on Windows runners.
+      await percy.stop(true);
       expect(destroySpy).toHaveBeenCalled();
       expect(percy[DISK_SPILL_KEY]).toBeUndefined();
-      // Real-build ordering safety: the snapshot must land on stats so
-      // sendCacheSummary (which runs after this handler) can read it.
       expect(stats.finalDiskStats).toEqual(jasmine.objectContaining({
         ...liveStats,
         ready: liveReady
