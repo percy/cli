@@ -39,7 +39,17 @@ const SIGKILL_EXIT = 137; // 128 + SIGKILL; uiautomator often hits this under de
 // long enough to outlast most Maestro takeScreenshot → uiautomator-settle windows
 // while staying within a reasonable per-screenshot budget.
 const SIGKILL_RETRY_DELAYS_MS = [500, 1000, 2000];
-const SELECTOR_KEYS = ['resource-id', 'text', 'content-desc', 'class'];
+// Android-side V1 selector vocabulary plus `id` as alias for `resource-id`
+// (R1 vocabulary parity). The iOS branch uses `id` and `class` only in V1.
+// Customers see one whitelist; firstMatch dispatches per-platform via the node
+// shape (Android nodes have resource-id; iOS nodes have identifier surfaced
+// as `id`).
+const ANDROID_SELECTOR_KEYS = ['resource-id', 'text', 'content-desc', 'class', 'id'];
+const IOS_SELECTOR_KEYS = ['id', 'class'];
+// Union whitelist exported for api.js handler-side validation. firstMatch
+// itself uses node-shape lookups so the per-platform divergence is implicit.
+const SELECTOR_KEYS_UNION = ['resource-id', 'text', 'content-desc', 'class', 'id'];
+
 const BOUNDS_RE = /^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$/;
 const UNAVAILABLE_STDERR_RE = /no devices|unauthorized|device offline/i;
 const MAESTRO_UNAVAILABLE_STDERR_RE = /No connected devices|Device not found|Could not connect/i;
@@ -298,22 +308,29 @@ function classifyMaestroFailure(result) {
   return null;
 }
 
-// Flatten a maestro JSON tree into the same node shape our firstMatch() expects.
-// Maps accessibilityText → content-desc; passes through other selector attrs.
+// Flatten a maestro JSON tree (Android shape) into the canonical node shape.
+// Maps accessibilityText → content-desc; surfaces resource-id under both
+// `resource-id` and `id` for R1 vocabulary parity (customers writing
+// `{element: {id: "X"}}` resolve the same node as `{element: {resource-id: "X"}}`).
 function flattenMaestroNodes(root) {
   const nodes = [];
   const walk = obj => {
     if (!obj || typeof obj !== 'object') return;
     const attrs = obj.attributes;
     if (attrs && typeof attrs === 'object') {
+      const resourceId = attrs['resource-id'];
       const node = {
-        'resource-id': attrs['resource-id'],
+        'resource-id': resourceId,
+        // Android `id` alias: same value as resource-id; lets cross-platform
+        // selector vocabulary work without forcing customers to know the
+        // platform-specific key name. Per R1 of the 2026-04-27 plan.
+        id: resourceId,
         text: attrs.text,
         'content-desc': attrs.accessibilityText,
         class: attrs.class,
         bounds: attrs.bounds
       };
-      if (node['resource-id'] || node.text || node['content-desc'] || node.class) {
+      if (resourceId || node.text || node['content-desc'] || node.class) {
         nodes.push(node);
       }
     }
@@ -324,6 +341,32 @@ function flattenMaestroNodes(root) {
   };
   walk(root);
   return nodes;
+}
+
+// FIXME-PHASE-0.5 — iOS hierarchy resolver stub.
+//
+// Unit 2a (Phase 1) lands the platform-dispatch scaffolding; the real iOS
+// branch lives in Unit 2b, blocked on Phase 0.5 capturing a live
+// `maestro hierarchy` JSON sample on iOS. The Maestro Swift source
+// (`maestro-ios-xctest-runner/MaestroDriverLib/Sources/MaestroDriverLib/Models/AXElement.swift`)
+// indicates the JSON shape uses `attributes.identifier`,
+// `attributes.elementType` (integer raw value of XCUIElement.ElementType),
+// and `attributes.frame = {x, y, width, height}` floats in points — but
+// the CLI's JSON-emit layer is a different code path that may re-key or
+// re-shape before stdout. Don't implement against the assumed shape; wait
+// for the live fixture or do an explicit dual-source verification of the
+// Maestro CLI source.
+//
+// Returns `{ kind: 'unavailable', reason: 'env-missing' }` when the
+// realmobile-injected env vars are absent. Returns
+// `{ kind: 'unavailable', reason: 'not-implemented' }` when env vars are
+// present but the stub hasn't been replaced yet.
+async function runMaestroIosDump(udid, driverHostPort, execMaestro, getEnv) {
+  // Surface the dispatch reached this branch in debug logs so a
+  // PERCY_IOS_RESOLVER=maestro-hierarchy customer in the wild sees the
+  // FIXME path tag and can correlate with the plan's Phase 0.5 status.
+  log.debug(`iOS branch FIXME-PHASE-0.5: udid=<set:${udid.length}> driver_port=${driverHostPort}`);
+  return { kind: 'unavailable', reason: 'not-implemented' };
 }
 
 async function runMaestroDump(serial, execMaestro, getEnv) {
@@ -348,12 +391,28 @@ async function runMaestroDump(serial, execMaestro, getEnv) {
 }
 
 export async function dump({
+  platform = 'android',
   execAdb = defaultExecAdb,
   execMaestro = defaultExecMaestro,
   getEnv = defaultGetEnv
 } = {}) {
   const started = Date.now();
 
+  if (platform === 'ios') {
+    // iOS dispatch: read realmobile-injected env vars; warn-skip if absent.
+    // Real implementation in Unit 2b; this branch is the scaffolding.
+    const udid = getEnv('PERCY_IOS_DEVICE_UDID');
+    const driverHostPort = getEnv('PERCY_IOS_DRIVER_HOST_PORT');
+    if (!udid || !driverHostPort) {
+      log.warn(`iOS resolver env-missing: udid=${udid ? 'set' : 'unset'} driver_port=${driverHostPort ? 'set' : 'unset'}`);
+      return { kind: 'unavailable', reason: 'env-missing' };
+    }
+    const iosResult = await runMaestroIosDump(udid, driverHostPort, execMaestro, getEnv);
+    log.debug(`dump took ${Date.now() - started}ms via maestro-ios (kind=${iosResult.kind})`);
+    return iosResult;
+  }
+
+  // Android (default).
   const { serial, classification } = await resolveSerial({ execAdb, getEnv });
   if (classification) {
     log.warn(`adb unavailable: ${classification.reason}`);
@@ -419,7 +478,7 @@ export function firstMatch(nodes, selector) {
   const keys = Object.keys(selector);
   if (keys.length !== 1) return null;
   const key = keys[0];
-  if (!SELECTOR_KEYS.includes(key)) return null;
+  if (!SELECTOR_KEYS_UNION.includes(key)) return null;
   const value = selector[key];
   if (typeof value !== 'string' || value.length === 0) return null;
 
@@ -431,5 +490,10 @@ export function firstMatch(nodes, selector) {
   return null;
 }
 
-// Exposed for tests — the constants drive handler-side validation in api.js.
-export const SELECTOR_KEYS_WHITELIST = SELECTOR_KEYS;
+// Exposed for tests + handler-side validation in api.js. Union of platform
+// keys; per-platform validation is implicit in the node shape returned by
+// dump() — Android nodes carry resource-id/text/content-desc/class plus the
+// `id` alias; iOS nodes (Phase 1+ once Unit 2b lands) carry id/class only.
+export const SELECTOR_KEYS_WHITELIST = SELECTOR_KEYS_UNION;
+export const ANDROID_SELECTOR_KEYS_WHITELIST = ANDROID_SELECTOR_KEYS;
+export const IOS_SELECTOR_KEYS_WHITELIST = IOS_SELECTOR_KEYS;
