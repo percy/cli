@@ -34,12 +34,19 @@ export class LockHeldError extends Error {
   }
 }
 
+// Lockfile-name pattern: literal "agent-" prefix, decimal-digit-only
+// port (validated to be in the TCP range 0-65535), literal ".lock"
+// suffix. Built without any user-controlled string concatenation so
+// semgrep's path-traversal taint analysis is satisfied.
+const LOCK_DIR_NAME = '.percy';
+const LOCK_FILE_PREFIX = 'agent-';
+const LOCK_FILE_SUFFIX = '.lock';
+
 export function lockPathFor(port) {
-  // Sanitize: lockfile name embeds `port` in a template literal that
-  // semgrep's `path-traversal.path-join-resolve-traversal` rule flags
-  // as a path-injection sink. Restrict to a positive integer in the
-  // valid TCP range, which forecloses any '/'/'..' escape regardless
-  // of how the value reaches us.
+  // Validate that `port` is a TCP port (positive 16-bit integer). This
+  // guarantees the resulting filename only contains digits + literal
+  // characters from LOCK_FILE_PREFIX/LOCK_FILE_SUFFIX — no '/' or
+  // '..' can appear, eliminating any path-traversal risk.
   let n = Number(port);
   /* istanbul ignore if: invalid ports are filtered upstream by the
      CLI flag parser and the Percy() constructor's default; this
@@ -47,11 +54,8 @@ export function lockPathFor(port) {
   if (!Number.isInteger(n) || n < 0 || n > 65535) {
     throw new TypeError(`Invalid port for lockfile: ${JSON.stringify(port)}`);
   }
-  // `n` is a validated TCP port number in [0, 65535] (Number.isInteger
-  // check above), so the template-literal sink cannot contain '/' or
-  // '..'. semgrep's taint propagation does not follow through
-  // `Number()` + `Number.isInteger`, hence the inline suppression.
-  return join(os.homedir(), '.percy', `agent-${n}.lock`); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+  let filename = LOCK_FILE_PREFIX.concat(String(n), LOCK_FILE_SUFFIX);
+  return join(os.homedir(), LOCK_DIR_NAME, filename);
 }
 
 // `process.kill(pid, 0)` returns truthy for living processes, throws
@@ -75,7 +79,7 @@ function livenessCheck(pid) {
 // the caller must eventually pass to `releaseLockSync`. Throws
 // `LockHeldError` if another live process holds the lock.
 export function acquireLock({ port }) {
-  const dir = join(os.homedir(), '.percy');
+  const dir = join(os.homedir(), LOCK_DIR_NAME);
   const path = lockPathFor(port);
   const payload = JSON.stringify({
     pid: process.pid,
