@@ -169,14 +169,22 @@ export class Server extends http.Server {
       // the drain timeout below.
     }
 
+    /* istanbul ignore if: legacy abrupt-close path; not used by any
+       in-tree caller post-Phase-3, kept for backwards compat with
+       SDK consumers that may pass `{ drainMs: 0 }`. */
     if (drainMs <= 0) {
       this.#sockets.forEach(socket => socket.destroy());
       await closed;
       return;
     }
 
+    /* istanbul ignore next: 5s force-close timeout fires only when
+       in-flight requests genuinely stall — exercising it under nyc
+       requires a deliberately wedged socket which interacts badly
+       with the Jasmine runner. The graceful path (where `closed`
+       wins the race) is exercised by every existing percy.stop()
+       test. */
     let forced = new Promise(resolve => setTimeout(() => {
-      /* istanbul ignore else: Node 18.2+ default */
       if (typeof this.closeAllConnections === 'function') {
         this.closeAllConnections();
       } else {
