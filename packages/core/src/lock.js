@@ -71,11 +71,14 @@ function livenessCheck(pid) {
     process.kill(pid, 0);
     return 'alive';
   } catch (err) {
+    /* istanbul ignore else: ESRCH is the only "dead" signal we
+       reclaim on. Every other code (EPERM = exists-but-foreign,
+       ENOSYS / EINVAL = exotic platform) means we cannot safely
+       claim the lock and must treat it as "alive". The else branch
+       collapses these cases — it's exercised by the EPERM test in
+       lock.test.js but not all error codes are individually
+       reproducible under nyc. */
     if (err.code === 'ESRCH') return 'dead';
-    if (err.code === 'EPERM') return 'alive';
-    /* istanbul ignore next: defensive — every other Node error code
-       (ENOSYS, EINVAL, …) implies we cannot determine liveness, so
-       refusing to reclaim is the safer default. */
     return 'alive';
   }
 }
