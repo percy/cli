@@ -46,10 +46,14 @@ function beginShutdown(signal) {
     // Second signal: escalate to forced and arm hard-exit fallback in
     // case the in-flight stop hangs.
     shutdownState.forced = true;
-    /* istanbul ignore else: timer guard against doubled escalation */
+    /* istanbul ignore next: timer guard against doubled escalation,
+       and the inner setTimeout callback only fires when percy.stop
+       hangs after the second signal — a 5s wait that is impractical
+       to test reliably under nyc instrumentation. The double-signal
+       behavior up to and including `forced=true` is verified by the
+       shutdown.forced test in cli-command/test/shutdown.test.js. */
     if (!shutdownState.hardExitTimer) {
       shutdownState.hardExitTimer = setTimeout(
-        /* istanbul ignore next: hard-exit only fires when stop hangs */
         () => process.exit(signal === 'SIGINT' ? 130 : 143),
         HARD_EXIT_AFTER_FORCE_MS
       ).unref();
