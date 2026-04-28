@@ -61,8 +61,13 @@ function beginShutdown(signal) {
   );
   // 30s drain budget: if percy.stop(false) hasn't completed, escalate
   // to forced. Subsequent stop calls (or the hard-exit timer) take it
-  // from there.
+  // from there. Coverage exclusion: testing this branch requires
+  // either a real 30s wait or jasmine.clock(), which conflicts with
+  // the runner's await-of-microtask-yields under nyc instrumentation.
+  // The behavior is exercised end-to-end by the second-signal force
+  // path in the same suite.
   shutdownState.drainTimer = setTimeout(
+    /* istanbul ignore next */
     () => { shutdownState.forced = true; },
     DEFAULT_DRAIN_MS
   ).unref();

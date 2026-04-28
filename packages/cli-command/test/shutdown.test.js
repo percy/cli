@@ -113,5 +113,28 @@ describe('Phase 3: shutdown + unhandled-rejection + exit codes', () => {
       expect(combined).toContain('[REDACTED]');
       expect(combined).not.toContain(leakedAwsKey);
     });
+
+    // Coverage: the runner re-throws a synthetic exit-1 error when a
+    // command completes successfully but a global rejection set
+    // ctx.runFailed=true mid-run. Verifies the post-success branch.
+    it('throws a synthetic exit-1 error when runFailed is set mid-run', async () => {
+      // A command that completes successfully but pretends an
+      // unhandled rejection set runFailed during its run.
+      let runner = command('completes-with-runfailed', {}, async function*({ shutdown }) {
+        // Reach into module-level activeContext via the
+        // unhandledRejection handler entry point — same code path
+        // production uses.
+        let listeners = process.listeners('unhandledRejection');
+        if (listeners.length) listeners[listeners.length - 1](new Error('flaky cdp'));
+        yield 0;
+      });
+
+      let err;
+      try { await runner(); } catch (e) { err = e; }
+      expect(err).toBeDefined();
+      expect(err.exitCode).toBe(1);
+      expect(err.message).toMatch(/Run failed/);
+    });
   });
+
 });
