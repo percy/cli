@@ -446,9 +446,12 @@ export function lookupCacheResource(percy, snapshotResources, cache, url, width)
 // pre-await synchronous work (header construction, payload serialization) off
 // the eviction-loop hot path.
 function fireCacheEventSafe(percy, message, extra) {
-  // sendCacheTelemetry short-circuits when build.id is missing and swallows
-  // pager rejections; the unhandled-promise chain here is intentional.
-  Promise.resolve().then(() => percy.sendCacheTelemetry(message, extra));
+  // sendCacheTelemetry already swallows pager errors. The trailing .catch is
+  // belt-and-suspenders against Node 14's unhandled-rejection-as-fatal mode
+  // if the catch arm itself ever throws (e.g. log.debug stub explodes).
+  Promise.resolve()
+    .then(() => percy.sendCacheTelemetry(message, extra))
+    .catch(() => {});
 }
 
 // Creates an asset discovery queue that uses the percy browser instance to create a page for each
