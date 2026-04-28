@@ -287,23 +287,31 @@ describe('Unit / DiskSpillStore', () => {
 
     it('swallows mkdir failure and marks itself not-ready', () => {
       const log = makeLog();
-      store = new DiskSpillStore('/dev/null/cannot-mkdir-here', { log });
-      expect(store.ready).toBe(false);
-      expect(log.calls.some(m => m.includes('init failed'))).toBe(true);
+      const spy = spyOn(fs, 'mkdirSync').and.throwError(new Error('ENOTDIR'));
+      try {
+        store = new DiskSpillStore(path.join(os.tmpdir(), 'percy-cache-mkdir-fail-1'), { log });
+        expect(store.ready).toBe(false);
+        expect(log.calls.some(m => m.includes('init failed'))).toBe(true);
+      } finally { spy.and.callThrough(); }
     });
 
     it('short-circuits set() when not ready', () => {
-      store = new DiskSpillStore('/dev/null/cannot-mkdir-here');
-      expect(store.set('http://x/a', makeResource('http://x/a', 'A'))).toBe(false);
-      expect(store.stats.spillFailures).toEqual(0);
+      const spy = spyOn(fs, 'mkdirSync').and.throwError(new Error('ENOTDIR'));
+      try {
+        store = new DiskSpillStore(path.join(os.tmpdir(), 'percy-cache-mkdir-fail-2'));
+        expect(store.set('http://x/a', makeResource('http://x/a', 'A'))).toBe(false);
+        expect(store.stats.spillFailures).toEqual(0);
+      } finally { spy.and.callThrough(); }
     });
 
     it('works without a log option', () => {
       // Covers the optional-chain branches on this.log?.debug?.() calls.
-      const badDir = '/dev/null/cannot-mkdir-here';
-      const silent = new DiskSpillStore(badDir);
-      expect(silent.ready).toBe(false);
-      expect(silent.set('http://x/a', makeResource('http://x/a', 'A'))).toBe(false);
+      const spy = spyOn(fs, 'mkdirSync').and.throwError(new Error('ENOTDIR'));
+      try {
+        const silent = new DiskSpillStore(path.join(os.tmpdir(), 'percy-cache-mkdir-fail-3'));
+        expect(silent.ready).toBe(false);
+        expect(silent.set('http://x/a', makeResource('http://x/a', 'A'))).toBe(false);
+      } finally { spy.and.callThrough(); }
     });
   });
 
@@ -477,7 +485,9 @@ describe('Unit / DiskSpillStore', () => {
     });
 
     it('destroy is a no-op when the store was not ready', () => {
-      const notReady = new DiskSpillStore('/dev/null/cannot-mkdir-here');
+      const mkdirSpy = spyOn(fs, 'mkdirSync').and.throwError(new Error('ENOTDIR'));
+      const notReady = new DiskSpillStore(path.join(os.tmpdir(), 'percy-cache-mkdir-fail-4'));
+      mkdirSpy.and.callThrough();
       const rmSpy = spyOn(fs, 'rmSync');
       try {
         notReady.destroy();
