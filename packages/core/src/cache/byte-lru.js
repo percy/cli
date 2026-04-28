@@ -81,17 +81,6 @@ export class ByteLRU {
     this.#bytes = 0;
   }
 
-  values() {
-    const iter = this.#map.values();
-    return {
-      next: () => {
-        const r = iter.next();
-        return r.done ? r : { value: r.value.value, done: false };
-      },
-      [Symbol.iterator]() { return this; }
-    };
-  }
-
   get size() { return this.#map.size; }
   get calculatedSize() { return this.#bytes; }
   get stats() { return { ...this.#stats, currentBytes: this.#bytes }; }
@@ -118,7 +107,10 @@ export class DiskSpillStore {
     this.dir = dir;
     this.log = log;
     try {
-      fs.mkdirSync(dir, { recursive: true });
+      // mode 0o700: spilled bytes are origin-fetchable so the threat model is
+      // small, but on shared-tenant CI hosts other users on the same box
+      // shouldn't be able to read them.
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
       this.#ready = true;
     } catch (err) {
       this.log?.debug?.(`disk-spill init failed for ${dir}: ${err.message}`);

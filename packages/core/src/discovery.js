@@ -441,17 +441,12 @@ export function lookupCacheResource(percy, snapshotResources, cache, url, width)
   return resource;
 }
 
-// Fire-and-forget: telemetry loss must not fail a build.
+// Fire-and-forget wrapper around the shared telemetry egress on Percy.
+// onEvict callbacks are sync, so this must not block the eviction loop.
 function fireCacheEventSafe(percy, message, extra) {
-  if (!percy.build?.id) return;
-  Promise.resolve()
-    .then(() => percy.client.sendBuildEvents(percy.build.id, {
-      message,
-      cliVersion: percy.client.cliVersion,
-      clientInfo: percy.clientInfo,
-      extra
-    }))
-    .catch(err => percy.log.debug(`${message} telemetry failed`, err));
+  // sendCacheTelemetry already short-circuits when build.id is missing and
+  // swallows pager rejections; the unhandled-promise here is intentional.
+  percy.sendCacheTelemetry(message, extra);
 }
 
 // Creates an asset discovery queue that uses the percy browser instance to create a page for each
@@ -544,18 +539,21 @@ export function createDiscoveryQueue(percy) {
       queue.run();
     })
     .handle('end', async () => {
-      await percy.browser.close();
-      const diskStore = percy[DISK_SPILL_KEY];
-      if (diskStore) {
-        // Snapshot final stats before destroy() clears them — sendCacheSummary
-        // runs after this handler, and reads from stats.finalDiskStats.
-        // CACHE_STATS_KEY is always set alongside DISK_SPILL_KEY in 'start'.
-        percy[CACHE_STATS_KEY].finalDiskStats = {
-          ...diskStore.stats,
-          ready: diskStore.ready
-        };
-        diskStore.destroy();
-        delete percy[DISK_SPILL_KEY];
+      // Disk-spill cleanup must run even if browser.close() throws — otherwise
+      // the per-run temp dir under os.tmpdir() leaks. CACHE_STATS_KEY is set
+      // alongside DISK_SPILL_KEY in 'start', so the snapshot is always safe.
+      try {
+        await percy.browser.close();
+      } finally {
+        const diskStore = percy[DISK_SPILL_KEY];
+        if (diskStore) {
+          percy[CACHE_STATS_KEY].finalDiskStats = {
+            ...diskStore.stats,
+            ready: diskStore.ready
+          };
+          diskStore.destroy();
+          delete percy[DISK_SPILL_KEY];
+        }
       }
     })
   // snapshots are unique by name and testCase; when deferred also by widths

@@ -386,47 +386,56 @@ export class Percy {
     }
   }
 
-  // Fire-and-forget cache-usage summary. Telemetry loss is preferable to a
-  // failed stop, so errors are swallowed.
-  async sendCacheSummary() {
+  // Single egress point for cache-tier telemetry. Used by sendCacheSummary
+  // (awaited at stop) and discovery's fire-and-forget eviction event. Returns
+  // early if no build is associated, swallows pager rejections — telemetry
+  // loss must never fail a build.
+  async sendCacheTelemetry(message, extra) {
+    if (!this.build?.id) return;
     try {
-      if (!this.build?.id) return;
-      const cache = this[RESOURCE_CACHE_KEY];
-      const stats = this[CACHE_STATS_KEY];
-      if (!cache || !stats) return;
-
-      const cacheStats = typeof cache.stats === 'object' ? cache.stats : null;
-      // diskStore is destroyed by discovery 'end' before this runs, so fall
-      // back to the snapshot captured in stats.finalDiskStats.
-      const diskStore = this[DISK_SPILL_KEY];
-      const diskSnap = diskStore?.stats ?? stats.finalDiskStats;
-      const diskReady = diskStore ? diskStore.ready : !!stats.finalDiskStats?.ready;
       await this.client.sendBuildEvents(this.build.id, {
-        message: 'cache_summary',
+        message,
         cliVersion: this.client.cliVersion,
         clientInfo: this.clientInfo,
-        extra: {
-          cache_budget_ram_mb: stats.effectiveMaxCacheRamMB,
-          hits: cacheStats?.hits ?? 0,
-          misses: cacheStats?.misses ?? 0,
-          evictions: cacheStats?.evictions ?? 0,
-          peak_bytes: cacheStats?.peakBytes ?? stats.unsetModeBytes,
-          final_bytes: cache.calculatedSize ?? stats.unsetModeBytes,
-          entry_count: cache.size ?? 0,
-          oversize_skipped: stats.oversizeSkipped,
-          disk_spill_enabled: diskReady,
-          disk_spilled_count: diskSnap?.spilled ?? 0,
-          disk_restored_count: diskSnap?.restored ?? 0,
-          disk_spill_failures: diskSnap?.spillFailures ?? 0,
-          disk_read_failures: diskSnap?.readFailures ?? 0,
-          disk_peak_bytes: diskSnap?.peakBytes ?? 0,
-          disk_final_bytes: diskSnap?.currentBytes ?? 0,
-          disk_final_entries: diskSnap?.entries ?? 0
-        }
+        extra
       });
     } catch (err) {
-      this.log.debug('cache_summary telemetry failed', err);
+      this.log.debug(`${message} telemetry failed`, err);
     }
+  }
+
+  // Cache-usage summary fired at stop. Telemetry loss is preferable to a
+  // failed stop — sendCacheTelemetry handles that.
+  async sendCacheSummary() {
+    const cache = this[RESOURCE_CACHE_KEY];
+    const stats = this[CACHE_STATS_KEY];
+    if (!cache || !stats) return;
+
+    const cacheStats = typeof cache.stats === 'object' ? cache.stats : null;
+    // diskStore is destroyed by discovery 'end' before this runs, so fall
+    // back to the snapshot captured in stats.finalDiskStats.
+    const diskStore = this[DISK_SPILL_KEY];
+    const diskSnap = diskStore?.stats ?? stats.finalDiskStats;
+    const diskReady = diskStore ? diskStore.ready : !!stats.finalDiskStats?.ready;
+
+    await this.sendCacheTelemetry('cache_summary', {
+      cache_budget_ram_mb: stats.effectiveMaxCacheRamMB,
+      hits: cacheStats?.hits ?? 0,
+      misses: cacheStats?.misses ?? 0,
+      evictions: cacheStats?.evictions ?? 0,
+      peak_bytes: cacheStats?.peakBytes ?? stats.unsetModeBytes,
+      final_bytes: cache.calculatedSize ?? stats.unsetModeBytes,
+      entry_count: cache.size ?? 0,
+      oversize_skipped: stats.oversizeSkipped,
+      disk_spill_enabled: diskReady,
+      disk_spilled_count: diskSnap?.spilled ?? 0,
+      disk_restored_count: diskSnap?.restored ?? 0,
+      disk_spill_failures: diskSnap?.spillFailures ?? 0,
+      disk_read_failures: diskSnap?.readFailures ?? 0,
+      disk_peak_bytes: diskSnap?.peakBytes ?? 0,
+      disk_final_bytes: diskSnap?.currentBytes ?? 0,
+      disk_final_entries: diskSnap?.entries ?? 0
+    });
   }
 
   checkAndUpdateConcurrency() {

@@ -117,17 +117,6 @@ describe('Unit / ByteLRU', () => {
     });
   });
 
-  describe('.values()', () => {
-    it('iterates yielding plain values', () => {
-      const c = new ByteLRU();
-      c.set('a', { root: true }, 100);
-      c.set('b', { root: false }, 100);
-      c.set('c', { root: true }, 100);
-      const rootResources = Array.from(c.values()).filter(r => !!r.root);
-      expect(rootResources.length).toEqual(2);
-    });
-  });
-
   describe('.clear()', () => {
     it('resets bytes and map', () => {
       const c = new ByteLRU(1000);
@@ -405,6 +394,21 @@ describe('Unit / DiskSpillStore', () => {
       } finally { spy.and.callThrough(); }
       expect(store.get('http://x/a').content.toString()).toEqual('B');
     });
+
+    it('handles back-to-back saves of the same URL without doubling the index or bytes', () => {
+      // Regression guard: today saveResource is sync, but if discovery ever
+      // parallelises captures that target the same asset, the disk index must
+      // collapse to one entry per URL and the on-disk byte total must match.
+      for (let i = 0; i < 5; i++) {
+        store.set('http://x/dupe', makeResource('http://x/dupe', Buffer.alloc(800)));
+      }
+      expect(store.size).toEqual(1);
+      expect(store.bytes).toEqual(800);
+      // Only the latest spill file remains on disk; counter advances by 5
+      // but every previous file was unlinked.
+      expect(fs.readdirSync(dir).length).toEqual(1);
+      expect(store.stats.spilled).toEqual(5);
+    });
   });
 
   describe('failure handling', () => {
@@ -548,6 +552,24 @@ describe('Unit / lookupCacheResource', () => {
   it('returns undefined on full miss', () => {
     const { percy } = makePercy(undefined);
     expect(lookupCacheResource(percy, new Map(), new ByteLRU(), 'missing')).toBeUndefined();
+  });
+
+  it('returns undefined when a disk-indexed entry fails to read, so the caller refetches', () => {
+    // Combined-path coverage: lookup → snapshot miss → RAM miss → disk index
+    // hit → readFileSync throws → DiskSpillStore self-heals (#removeEntry)
+    // → lookupCacheResource returns undefined → caller treats this as a
+    // cache miss and lets the network layer refetch the asset.
+    const dir = path.join(os.tmpdir(), `lookup-readfail-${process.pid}-${Math.random().toString(36).slice(2, 8)}`);
+    const disk = new DiskSpillStore(dir);
+    try {
+      disk.set('a', { url: 'a', mimetype: 'text/css', content: Buffer.from('DISK') });
+      spyOn(fs, 'readFileSync').and.throwError(new Error('EIO'));
+      const { percy } = makePercy(disk);
+      const got = lookupCacheResource(percy, new Map(), new ByteLRU(), 'a');
+      expect(got).toBeUndefined();
+      expect(disk.has('a')).toBe(false);
+      expect(disk.stats.readFailures).toBeGreaterThan(0);
+    } finally { disk.destroy(); }
   });
 
   it('returns undefined when disk is present but url is absent', () => {
