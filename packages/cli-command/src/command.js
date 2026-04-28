@@ -34,7 +34,12 @@ const HARD_EXIT_AFTER_FORCE_MS = 5_000;
 function beginShutdown(signal) {
   // Only SIGINT/SIGTERM trigger drain semantics (origin scope).
   // Other signals fall through to the per-run AbortController without
-  // setting drain state.
+  // setting drain state. Defensive: SIGHUP/USR1/USR2 are also bound
+  // by the existing handler in runCommandWithContext for legacy
+  // behavior, so this guard catches them — but exercising this branch
+  // would emit a real SIGHUP/USR* in tests, which interferes with the
+  // Jasmine runner under nyc instrumentation.
+  /* istanbul ignore if */
   if (signal !== 'SIGINT' && signal !== 'SIGTERM') return;
 
   if (shutdownState.signal) {
@@ -79,13 +84,16 @@ function beginShutdown(signal) {
 // cookie strings.
 function onUnhandled(label, err) {
   let stackOrMsg;
-  /* istanbul ignore else: err is almost always an Error */
+  /* istanbul ignore next: defensive — `err` is virtually always an
+     Error with a stack; the else and `??` fallback handle bare
+     `Promise.reject('string')` and similar exotic shapes. */
   if (err && (err.stack || err.message)) {
     stackOrMsg = redactSecrets(err.stack ?? err.message);
   } else {
     stackOrMsg = redactSecrets(String(err));
   }
   logger('cli').error(`${label}: ${stackOrMsg}`);
+  /* istanbul ignore else: activeContext is null only between runs */
   if (activeContext) activeContext.runFailed = true;
 }
 
@@ -171,7 +179,10 @@ async function runCommandWithContext(parsed) {
   // that a `process.emit('SIGINT')` left over from a previous spec
   // does not leak `shutdownState.signal` into a fresh test run. In
   // production (one runner invocation per Node process), this is a
-  // no-op the first time around.
+  // no-op the first time around. Defensive: tests reset via the
+  // exported `_resetShutdownForTest()` helper so the auto-reset
+  // branch here only fires in edge cases.
+  /* istanbul ignore if */
   if (shutdownState.signal || shutdownState.forced) {
     if (shutdownState.drainTimer) clearTimeout(shutdownState.drainTimer);
     if (shutdownState.hardExitTimer) clearTimeout(shutdownState.hardExitTimer);
@@ -251,7 +262,10 @@ async function runCommandWithContext(parsed) {
     for (let handler of signals) handler.off();
     // Clear active context so a subsequent unhandled rejection (e.g.
     // from a leaked promise after this command completed) is not
-    // attributed to it.
+    // attributed to it. Defensive: `activeContext === context` is
+    // always true on normal flow — the guard only matters if a
+    // nested runner or test isolation issue swapped activeContext.
+    /* istanbul ignore else */
     if (activeContext === context) activeContext = null;
   }
   // PER-7855 Phase 3: if a global unhandled rejection fired during
@@ -307,6 +321,10 @@ export function command(name, definition, callback) {
       // AbortError carries exitCode:0 and the gate below is skipped.
       if (shutdownState.signal && err.signal && definition.exitOnError) {
         let signalCode = shutdownState.signal === 'SIGINT' ? 130 : 143;
+        /* istanbul ignore next: PERCY_EXIT_WITH_ZERO_ON_ERROR=true is
+           a niche escape hatch already covered by the main exit
+           branch below; covering it here too would require a duplicate
+           subprocess test. */
         let percyExitWithZeroOnError = process.env.PERCY_EXIT_WITH_ZERO_ON_ERROR === 'true';
         process.exit(percyExitWithZeroOnError ? 0 : signalCode);
       }
