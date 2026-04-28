@@ -47,6 +47,12 @@ export function lockPathFor(port) {
   if (!Number.isInteger(n) || n < 0 || n > 65535) {
     throw new TypeError(`Invalid port for lockfile: ${JSON.stringify(port)}`);
   }
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+  // `n` is a validated TCP port number in [0, 65535] (Number.isInteger
+  // check above), so the template-literal sink cannot contain '/' or
+  // '..'. The static analyzer's taint propagation does not follow
+  // through `Number()` + `Number.isInteger`, hence the explicit
+  // suppression with this justification.
   return join(os.homedir(), '.percy', `agent-${n}.lock`);
 }
 
