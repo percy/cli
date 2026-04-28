@@ -2531,13 +2531,23 @@ describe('Discovery', () => {
       expect(disk.has('http://localhost:8000/style.css')).toBe(false);
     });
 
-    it('calls diskStore.destroy and clears the key in the queue end handler', async () => {
+    it('calls diskStore.destroy, snapshots stats.finalDiskStats, and clears the key in the queue end handler', async () => {
       await startWith({ maxCacheRam: 25 });
       const disk = percy[DISK_SPILL_KEY];
+      const stats = percy[CACHE_STATS_KEY];
       const destroySpy = spyOn(disk, 'destroy').and.callThrough();
+      // Capture the stats object the handler snapshots before destroy clears it.
+      const liveStats = { ...disk.stats };
+      const liveReady = disk.ready;
       await percy.stop();
       expect(destroySpy).toHaveBeenCalled();
       expect(percy[DISK_SPILL_KEY]).toBeUndefined();
+      // Real-build ordering safety: the snapshot must land on stats so
+      // sendCacheSummary (which runs after this handler) can read it.
+      expect(stats.finalDiskStats).toEqual(jasmine.objectContaining({
+        ...liveStats,
+        ready: liveReady
+      }));
     });
 
     it('gracefully handles a DiskSpillStore that fails to init', async () => {
@@ -2739,41 +2749,6 @@ describe('Discovery', () => {
           disk_final_entries: 0
         })
       }));
-    });
-
-    it('discovery end handler snapshots diskStore.stats onto stats.finalDiskStats before destroy', async () => {
-      // Ensures the fix covering the sendCacheSummary ordering is wired into
-      // the discovery queue's 'end' handler so real builds preserve the data.
-      await percy.stop(true);
-      percy = await Percy.start({
-        token: 'PERCY_TOKEN',
-        snapshot: { widths: [1000] },
-        discovery: { concurrency: 1, maxCacheRam: 25 }
-      });
-      const stats = percy[CACHE_STATS_KEY];
-      const disk = percy[DISK_SPILL_KEY];
-      spyOn(disk, 'destroy').and.callThrough();
-      // Seed fake stats onto the disk store so we can verify snapshot copies them.
-      disk._testStats = { spilled: 5, restored: 3, peakBytes: 1234 };
-      Object.defineProperty(disk, 'stats', {
-        configurable: true,
-        get: () => ({
-          ...disk._testStats,
-          spillFailures: 0,
-          readFailures: 0,
-          currentBytes: 0,
-          entries: 0
-        })
-      });
-      await percy.stop();
-      expect(stats.finalDiskStats).toEqual(jasmine.objectContaining({
-        ready: true,
-        spilled: 5,
-        restored: 3,
-        peakBytes: 1234
-      }));
-      expect(disk.destroy).toHaveBeenCalled();
-      expect(percy[DISK_SPILL_KEY]).toBeUndefined();
     });
 
     it('sendCacheSummary reports zeroed disk-tier fields when no DiskSpillStore is present', async () => {
