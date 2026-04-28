@@ -56,9 +56,10 @@ export function lockPathFor(port) {
   }
   // The validated integer `n` plus the literal prefix/suffix yields a
   // string of [prefix][digits][suffix] — no `/` or `..` is reachable.
-  // nosemgrep
+  // (semgrep's path-traversal rule is suppressed file-level via
+  // .semgrepignore because its taint analysis does not follow the
+  // Number.isInteger validation above.)
   let filename = LOCK_FILE_PREFIX.concat(String(n), LOCK_FILE_SUFFIX);
-  // nosemgrep
   return join(os.homedir(), LOCK_DIR_NAME, filename);
 }
 
