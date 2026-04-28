@@ -136,5 +136,4 @@ describe('Phase 3: shutdown + unhandled-rejection + exit codes', () => {
       expect(err.message).toMatch(/Run failed/);
     });
   });
-
 });
