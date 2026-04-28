@@ -257,17 +257,20 @@ export class Network {
     let headersObj = headersArrayToObject(responseHeaders);
     let { tooLarge, malformed, rawValue } = inspectContentLength(headersObj);
 
-    // Network-error responses (server abort, DNS failure, etc.). Just confirm
-    // the failure and let _handleLoadingFailed log the error and clean up.
+    // Network-error responses (server abort, DNS failure, etc.). Continue the
+    // response so Chrome's natural Network.loadingFailed propagates the
+    // *original* errorText (e.g. net::ERR_EMPTY_RESPONSE) to
+    // _handleLoadingFailed. Calling Fetch.failRequest here would synthesize a
+    // new errorText derived from `responseErrorReason`, and a generic
+    // `Failed` collapses to net::ERR_FAILED which the asset_load_missing log
+    // path explicitly excludes — losing the instrumentation.
     if (responseErrorReason) {
       try {
-        await this.send(session, 'Fetch.failRequest', {
-          requestId: interceptId,
-          errorReason: responseErrorReason
-        });
+        await this.send(session, 'Fetch.continueResponse', { requestId: interceptId });
       } catch (error) {
         /* istanbul ignore next: race with abort/close */
-        this.log.debug(`Failed to fail errored response for ${url}: ${error.message}`);
+        if (error.message === ABORTED_MESSAGE || error.message.includes('Invalid InterceptionId')) return;
+        this.log.debug(`Failed to continue errored response for ${url}: ${error.message}`);
       }
       return;
     }
