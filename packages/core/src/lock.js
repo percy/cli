@@ -35,7 +35,19 @@ export class LockHeldError extends Error {
 }
 
 export function lockPathFor(port) {
-  return join(os.homedir(), '.percy', `agent-${port}.lock`);
+  // Sanitize: lockfile name embeds `port` in a template literal that
+  // semgrep's `path-traversal.path-join-resolve-traversal` rule flags
+  // as a path-injection sink. Restrict to a positive integer in the
+  // valid TCP range, which forecloses any '/'/'..' escape regardless
+  // of how the value reaches us.
+  let n = Number(port);
+  /* istanbul ignore if: invalid ports are filtered upstream by the
+     CLI flag parser and the Percy() constructor's default; this
+     guard is defensive against pathological direct callers. */
+  if (!Number.isInteger(n) || n < 0 || n > 65535) {
+    throw new TypeError(`Invalid port for lockfile: ${JSON.stringify(port)}`);
+  }
+  return join(os.homedir(), '.percy', `agent-${n}.lock`);
 }
 
 // `process.kill(pid, 0)` returns truthy for living processes, throws
@@ -122,6 +134,8 @@ export function acquireLock({ port }) {
       const winner = JSON.parse(readFileSync(path, 'utf-8'));
       throw new LockHeldError(winner, path);
     }
+    /* istanbul ignore next: surfaces non-EEXIST fs errors (EACCES,
+       ENOSPC, etc.) that aren't producible in unit tests. */
     throw err;
   }
 }
