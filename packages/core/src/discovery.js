@@ -442,11 +442,13 @@ export function lookupCacheResource(percy, snapshotResources, cache, url, width)
 }
 
 // Fire-and-forget wrapper around the shared telemetry egress on Percy.
-// onEvict callbacks are sync, so this must not block the eviction loop.
+// onEvict callbacks are sync; the microtask hop keeps even sendCacheTelemetry's
+// pre-await synchronous work (header construction, payload serialization) off
+// the eviction-loop hot path.
 function fireCacheEventSafe(percy, message, extra) {
-  // sendCacheTelemetry already short-circuits when build.id is missing and
-  // swallows pager rejections; the unhandled-promise here is intentional.
-  percy.sendCacheTelemetry(message, extra);
+  // sendCacheTelemetry short-circuits when build.id is missing and swallows
+  // pager rejections; the unhandled-promise chain here is intentional.
+  Promise.resolve().then(() => percy.sendCacheTelemetry(message, extra));
 }
 
 // Creates an asset discovery queue that uses the percy browser instance to create a page for each
