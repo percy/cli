@@ -457,6 +457,26 @@ describe('Discovery', () => {
     ]));
   });
 
+  it('captures favicon when the server provides one', async () => {
+    server.reply('/favicon.ico', () => [200, 'image/x-icon', pixel]);
+
+    await percy.snapshot({
+      name: 'favicon snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/favicon.ico'
+        })
+      })
+    ]));
+  });
+
   it('does not capture event-stream requests', async () => {
     let eventStreamDOM = dedent`<!DOCTYPE html><html><head></head><body><script>
       new EventSource('/event-stream').onmessage = event => {
