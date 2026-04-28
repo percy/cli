@@ -2641,6 +2641,31 @@ describe('Discovery', () => {
       expect(spy).toHaveBeenCalled();
     });
 
+    it('sendCacheSummary swallows payload-construction errors', async () => {
+      // The outer try/catch must cover the payload block, not just the
+      // egress — otherwise a throwing getter (e.g. a future stats field
+      // that lazy-computes) could fail percy.stop().
+      await logger.mock({ level: 'debug' });
+      percy.build = { id: '123' };
+      percy[CACHE_STATS_KEY] = {
+        effectiveMaxCacheRamMB: 25,
+        oversizeSkipped: 0,
+        unsetModeBytes: 0
+      };
+      const exploding = {
+        get stats() { throw new Error('stats getter failed'); },
+        calculatedSize: 0,
+        size: 0
+      };
+      percy[RESOURCE_CACHE_KEY] = exploding;
+      const spy = spyOn(percy.client, 'sendBuildEvents');
+      await expectAsync(percy.sendCacheSummary()).toBeResolved();
+      expect(spy).not.toHaveBeenCalled();
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringContaining('cache_summary build failed')
+      ]));
+    });
+
     it('sendCacheSummary short-circuits when the build has not been created', async () => {
       percy.build = undefined;
       const spy = spyOn(percy.client, 'sendBuildEvents');
