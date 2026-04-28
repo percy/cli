@@ -51,8 +51,7 @@ export function lockPathFor(port) {
   // check above), so the template-literal sink cannot contain '/' or
   // '..'. semgrep's taint propagation does not follow through
   // `Number()` + `Number.isInteger`, hence the inline suppression.
-  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
-  return join(os.homedir(), '.percy', `agent-${n}.lock`);
+  return join(os.homedir(), '.percy', `agent-${n}.lock`); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
 }
 
 // `process.kill(pid, 0)` returns truthy for living processes, throws
