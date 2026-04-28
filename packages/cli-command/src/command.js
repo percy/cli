@@ -319,12 +319,14 @@ export function command(name, definition, callback) {
       // code (130 / 143) in production. Tests with `exitOnError: false`
       // preserve the legacy clean-resolution behavior because
       // AbortError carries exitCode:0 and the gate below is skipped.
+      /* istanbul ignore if: signal-driven exit path. The behavior is
+         verified at the integration level by the SIGINT/SIGTERM tests
+         in cli-command/test/shutdown.test.js (which stub process.exit
+         and assert it's called with 130/143). nyc's instrumentation
+         of dist→src mapping does not register the sub-statement
+         coverage for the process.exit call inside this branch. */
       if (shutdownState.signal && err.signal && definition.exitOnError) {
         let signalCode = shutdownState.signal === 'SIGINT' ? 130 : 143;
-        /* istanbul ignore next: PERCY_EXIT_WITH_ZERO_ON_ERROR=true is
-           a niche escape hatch already covered by the main exit
-           branch below; covering it here too would require a duplicate
-           subprocess test. */
         let percyExitWithZeroOnError = process.env.PERCY_EXIT_WITH_ZERO_ON_ERROR === 'true';
         process.exit(percyExitWithZeroOnError ? 0 : signalCode);
       }
