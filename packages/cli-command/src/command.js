@@ -108,6 +108,10 @@ let _processHandlersAttached = false;
 function ensureProcessHandlers() {
   if (_processHandlersAttached) return;
   process.on('unhandledRejection', err => onUnhandled('Unhandled promise rejection', err));
+  /* istanbul ignore next: uncaughtException is a defensive backstop;
+     synthesizing one in a test crashes Jasmine before assertions run.
+     The handler delegates to the same `onUnhandled` function that the
+     unhandledRejection path covers in shutdown.test.js. */
   process.on('uncaughtException', err => onUnhandled('Uncaught exception', err));
   _processHandlersAttached = true;
 }
