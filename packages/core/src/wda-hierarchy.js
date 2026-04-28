@@ -141,13 +141,20 @@ export async function resolveIosRegions({
     return { resolvedRegions, warnings };
   }
 
+  // WDA's session-scoped endpoints (/session/:sid/source) require WDA's internal
+  // session UUID, which differs from the SDK-provided sessionId (Maestro's
+  // automate_session_id). Contract v1.1.0+ surfaces it via meta.wdaSessionId;
+  // older writers left it absent — in that case we fall back to the SDK sessionId
+  // and accept that /source may 404 (→ graceful warn-skip).
+  const wdaSid = typeof meta.wdaSessionId === 'string' ? meta.wdaSessionId : sessionId;
+
   // Scale factor — cache per session. On first resolve, fetch /wda/screen.
   let scale = scaleCache.get(sessionId);
   if (typeof scale !== 'number') {
     const scaleResult = await fetchScale(port, sessionId, pngWidth, deps.httpClient);
     if (!scaleResult.ok) {
       warnings.push(scaleResult.reason);
-      log.debug(`wda-hierarchy: ${scaleResult.reason}`);
+      log.debug(`wda-hierarchy: fetchScale failed: ${scaleResult.reason}`);
       return { resolvedRegions, warnings };
     }
     scale = scaleResult.scale;
@@ -155,10 +162,10 @@ export async function resolveIosRegions({
   }
 
   // Source dump — single fetch per screenshot; parsed once and reused across regions.
-  const sourceResult = await fetchAndParseSource(port, sessionId, deps.httpClient);
+  const sourceResult = await fetchAndParseSource(port, wdaSid, deps.httpClient);
   if (!sourceResult.ok) {
     warnings.push(sourceResult.reason);
-    log.debug(`wda-hierarchy: ${sourceResult.reason}`);
+    log.debug(`wda-hierarchy: fetchAndParseSource failed: ${sourceResult.reason}`);
     return { resolvedRegions, warnings };
   }
   const nodes = sourceResult.nodes;
@@ -335,6 +342,10 @@ async function fetchScale(port, sessionId, pngWidth, httpClient) {
     response = await callWda(httpClient, url, { timeout: WDA_TIMEOUT_MS });
   } catch (err) {
     if (err && err.__abort) return { ok: false, reason: 'wda-timeout' };
+    const status = err && err.response && err.response.statusCode;
+    const body = err && err.response && err.response.body;
+    const bodyPreview = body ? JSON.stringify(body).slice(0, 200) : '(no body)';
+    log.debug(`wda-hierarchy: /wda/screen threw name=${err?.name} message=${String(err?.message || '').slice(0,200)} code=${err?.code} status=${status} aborted=${err?.aborted} body=${bodyPreview}`);
     return { ok: false, reason: 'wda-error' };
   }
   const body = typeof response === 'string' ? safeJson(response) : response;
@@ -354,8 +365,39 @@ async function fetchScale(port, sessionId, pngWidth, httpClient) {
   return { ok: false, reason: 'scale-out-of-range' };
 }
 
+// Fetches /session/:sid/source and parses. Handles one layer of "stale-sid" retry:
+// WDA's /status returns the LAST-CREATED sessionId, but Maestro spawns a new
+// WDA session per xctest run — so the sid realmobile captured at write_wda_meta
+// time may already be terminated by the time Percy CLI queries.
+//
+// WDA's "invalid session id" error response includes a top-level `sessionId`
+// field carrying the currently-active sid. We extract that and retry. If the
+// response has no such field (shouldn't happen on current WDA builds), we fall
+// back to probing /status for a fresh sid.
 async function fetchAndParseSource(port, sessionId, httpClient) {
   if (!httpClient) return { ok: false, reason: 'no-http-client' };
+
+  const first = await tryFetchSource(port, sessionId, httpClient);
+  if (first.ok || !first.staleSession) return first;
+
+  // Stale-sid recovery path. Prefer the sid WDA itself returned in the error
+  // envelope — that's the authoritative "currently active" sid at this instant.
+  // Only fall back to /status if the error response didn't carry one.
+  let freshSid = first.wdaReportedSid || null;
+  if (!freshSid) {
+    freshSid = await fetchCurrentWdaSessionId(port, httpClient);
+  }
+  if (!freshSid || freshSid === sessionId) {
+    log.debug('wda-hierarchy: stale-session, no fresh sid available');
+    return { ok: false, reason: 'wda-error' };
+  }
+  log.debug('wda-hierarchy: retrying /source with fresh sid');
+  const retry = await tryFetchSource(port, freshSid, httpClient);
+  if (retry.ok) return retry;
+  return { ok: false, reason: retry.reason || 'wda-error' };
+}
+
+async function tryFetchSource(port, sessionId, httpClient) {
   const url = `http://127.0.0.1:${port}/session/${encodeURIComponent(sessionId)}/source`;
   if (!isLoopback(url)) return { ok: false, reason: 'loopback-required' };
 
@@ -364,7 +406,33 @@ async function fetchAndParseSource(port, sessionId, httpClient) {
     raw = await callWda(httpClient, url, { timeout: WDA_TIMEOUT_MS });
   } catch (err) {
     if (err && err.__abort) return { ok: false, reason: 'wda-timeout' };
+    // @percy/client/utils#request rejects on non-2xx. WDA returns 404 with a
+    // JSON error envelope on stale sessions; the body is preserved on
+    // err.response.body. Inspect it before giving up.
+    const body = err && err.response && err.response.body;
+    const status = err && err.response && err.response.statusCode;
+    const bodyPreview = body ? JSON.stringify(body).slice(0, 200) : '(no body)';
+    log.debug(`wda-hierarchy: /source threw status=${status} body=${bodyPreview}`);
+    if (isStaleSessionError(body)) {
+      return {
+        ok: false,
+        reason: 'wda-error',
+        staleSession: true,
+        wdaReportedSid: extractTopLevelSessionId(body)
+      };
+    }
     return { ok: false, reason: 'wda-error' };
+  }
+
+  if (isStaleSessionError(raw)) {
+    // WDA embeds the active sid at the top-level of every response, including
+    // error envelopes. Surface it for the retry path.
+    return {
+      ok: false,
+      reason: 'wda-error',
+      staleSession: true,
+      wdaReportedSid: extractTopLevelSessionId(raw)
+    };
   }
 
   // Some WDA builds return source as a top-level JSON envelope {value: "<xml>"}
@@ -388,6 +456,40 @@ async function fetchAndParseSource(port, sessionId, httpClient) {
   return { ok: true, nodes };
 }
 
+// WDA returns an error envelope like:
+//   { "value": { "error": "invalid session id", "message": "Session does not exist" },
+//     "sessionId": "<active-sid>" }
+// when queried with a terminated sid. Both keys are stable across the WDA builds
+// deployed on BS hosts.
+function isStaleSessionError(raw) {
+  if (!raw || typeof raw !== 'object') return false;
+  const v = raw.value;
+  if (!v || typeof v !== 'object') return false;
+  return v.error === 'invalid session id';
+}
+
+// Accepts a WDA response object (possibly a string JSON body) and returns the
+// top-level `sessionId` if it's a well-formed UUID-ish string.
+function extractTopLevelSessionId(raw) {
+  const body = typeof raw === 'string' ? safeJson(raw) : raw;
+  if (!body || typeof body !== 'object') return null;
+  const sid = body.sessionId;
+  if (typeof sid !== 'string' || !/^[A-Fa-f0-9-]{16,64}$/.test(sid)) return null;
+  return sid;
+}
+
+async function fetchCurrentWdaSessionId(port, httpClient) {
+  const url = `http://127.0.0.1:${port}/status`;
+  if (!isLoopback(url)) return null;
+  let raw;
+  try {
+    raw = await callWda(httpClient, url, { timeout: WDA_TIMEOUT_MS });
+  } catch {
+    return null;
+  }
+  return extractTopLevelSessionId(raw);
+}
+
 function extractXmlString(raw) {
   if (typeof raw === 'string') return raw;
   if (raw && typeof raw === 'object' && typeof raw.value === 'string') return raw.value;
@@ -395,25 +497,35 @@ function extractXmlString(raw) {
 }
 
 async function callWda(httpClient, url, { timeout } = {}) {
-  const controller = new AbortController();
-  inflight.add(controller);
-  const timer = setTimeout(() => {
-    try { controller.abort(); } catch { /* already aborted */ }
-  }, timeout);
+  // Node 14 on BS iOS hosts doesn't have a global AbortController (added in
+  // Node 15). Feature-detect and fall back to Promise.race — the request will
+  // still be bounded, just without early-abort of the underlying socket.
+  const HasAbortController = typeof globalThis.AbortController === 'function';
+  const controller = HasAbortController ? new globalThis.AbortController() : null;
+  if (controller) inflight.add(controller);
+
+  let timedOut = false;
+  let timer;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      if (controller) { try { controller.abort(); } catch { /* already aborted */ } }
+      reject(Object.assign(new Error('wda-timeout'), { __abort: true }));
+    }, timeout);
+  });
+
   try {
-    return await httpClient(url, {
-      signal: controller.signal,
-      retries: 0,
-      interval: 10
-    });
+    const requestOpts = { retries: 0, interval: 10 };
+    if (controller) requestOpts.signal = controller.signal;
+    return await Promise.race([httpClient(url, requestOpts), timeoutPromise]);
   } catch (err) {
-    if (controller.signal.aborted) {
+    if (timedOut || (controller && controller.signal.aborted)) {
       throw Object.assign(new Error('wda-timeout'), { __abort: true });
     }
     throw err;
   } finally {
     clearTimeout(timer);
-    inflight.delete(controller);
+    if (controller) inflight.delete(controller);
   }
 }
 

@@ -1,7 +1,8 @@
-// Reader side of the realmobile ↔ Percy CLI wda-meta.json contract (v1.0.0).
+// Reader side of the realmobile ↔ Percy CLI wda-meta.json contract (v1.x).
 // See: percy-maestro/docs/contracts/realmobile-wda-meta.md
 //
-// Resolves a Maestro sessionId to its WDA port by reading
+// Resolves a Maestro sessionId to its WDA port (and optionally WDA's internal
+// session UUID as of v1.1.0) by reading
 //   /tmp/<sid>/wda-meta.json
 // and validating per contract §8. TOCTOU-safe (SEI CERT POS35-C ordering:
 // open(O_NOFOLLOW) + fstat — never lstat prefix).
@@ -20,10 +21,18 @@ const WDA_PORT_MIN = 8400;
 const WDA_PORT_MAX = 8410;
 const FRESHNESS_TOLERANCE_MS = 5 * 60 * 1000; // 5 minutes
 const SESSION_ID_REGEX = /^[A-Za-z0-9_-]{16,64}$/;
+// WDA's internal session id is a UUID (hex + hyphens). Keep the bounds generous
+// so we tolerate format variations across WDA versions.
+const WDA_SESSION_ID_REGEX = /^[A-Fa-f0-9-]{16,64}$/;
 const REGULAR_FILE_MODE_0600 = 0o100600;
 
-// Resolves /tmp/<sessionId>/wda-meta.json → { ok: true, port }
+// Resolves /tmp/<sessionId>/wda-meta.json → { ok: true, port, wdaSessionId? }
 // or { ok: false, reason }.
+//
+// wdaSessionId is populated only when the meta file's schema is v1.1.0+ and
+// includes a well-formed WDA UUID; otherwise it is omitted and callers fall
+// back to SDK sessionId (which v1.0.0 writers cannot distinguish from WDA's
+// internal session).
 //
 // Params:
 //   sessionId — the Maestro session id from the relay request
@@ -136,7 +145,13 @@ export function resolveWdaSession({ sessionId, baseDir = '/tmp', deps = {} } = {
       return { ok: false, reason: 'stale-timestamp' };
     }
 
-    return { ok: true, port: meta.wdaPort };
+    // Step 7: v1.1.0+ optional wdaSessionId. Ignore silently if malformed —
+    // callers treat absence the same as presence of an invalid value.
+    const result = { ok: true, port: meta.wdaPort };
+    if (typeof meta.wdaSessionId === 'string' && WDA_SESSION_ID_REGEX.test(meta.wdaSessionId)) {
+      result.wdaSessionId = meta.wdaSessionId;
+    }
+    return result;
   } catch (err) {
     log.debug('wda-session: read-error');
     return { ok: false, reason: 'read-error' };

@@ -71,6 +71,28 @@ describe('Unit / wda-session-resolver', () => {
       const res = resolveWdaSession({ sessionId: sid, baseDir, deps: deps() });
       expect(res).toEqual({ ok: true, port: 8408 });
     });
+
+    it('surfaces wdaSessionId when schema v1.1.0 provides it', () => {
+      const sid = 'wdasidmeta1234567890abcdef123456';
+      const wdaSid = '079FB256-3ADD-43A3-A5FB-F9B85269F84C';
+      writeMeta(baseDir, sid, happyMeta(sid, { schema_version: '1.1.0', wdaSessionId: wdaSid }));
+      const res = resolveWdaSession({ sessionId: sid, baseDir, deps: deps() });
+      expect(res).toEqual({ ok: true, port: 8408, wdaSessionId: wdaSid });
+    });
+
+    it('omits wdaSessionId when the writer left it absent (v1.0.0 compat)', () => {
+      const sid = 'nowdasid12345678901234567890abcd';
+      writeMeta(baseDir, sid, happyMeta(sid));
+      const res = resolveWdaSession({ sessionId: sid, baseDir, deps: deps() });
+      expect(res).toEqual({ ok: true, port: 8408 });
+    });
+
+    it('ignores a malformed wdaSessionId silently (no wdaSessionId in result)', () => {
+      const sid = 'badwdasid1234567890abcdefabcdef1';
+      writeMeta(baseDir, sid, happyMeta(sid, { schema_version: '1.1.0', wdaSessionId: 'nope not a uuid!' }));
+      const res = resolveWdaSession({ sessionId: sid, baseDir, deps: deps() });
+      expect(res).toEqual({ ok: true, port: 8408 });
+    });
   });
 
   describe('file-level validation (contract §4, §8)', () => {

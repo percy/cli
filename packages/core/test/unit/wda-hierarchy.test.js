@@ -42,8 +42,10 @@ const WDA_SCREEN_OK = {
   }
 };
 
-function stdDeps({ wdaPort = 8408, sourceXml = SIMPLE_SOURCE, extraHandlers = [] } = {}) {
-  const readWdaMeta = () => ({ ok: true, port: wdaPort });
+function stdDeps({ wdaPort = 8408, wdaSessionId, sourceXml = SIMPLE_SOURCE, extraHandlers = [] } = {}) {
+  const meta = { ok: true, port: wdaPort };
+  if (wdaSessionId) meta.wdaSessionId = wdaSessionId;
+  const readWdaMeta = () => meta;
   const httpClient = makeFakeHttpClient([
     { match: url => url.endsWith('/wda/screen'), respond: WDA_SCREEN_OK },
     { match: url => /\/session\/[^/]+\/source$/.test(url), respond: sourceXml },
@@ -121,6 +123,179 @@ describe('Unit / wda-hierarchy', () => {
       // 0 element regions in input → sparse array of length 0
       expect(res.resolvedRegions).toEqual([]);
       expect(deps.httpClient.calls.length).toBe(0);
+    });
+  });
+
+  describe('wda-session-id routing (contract v1.1.0)', () => {
+    const WDA_SID = '079FB256-3ADD-43A3-A5FB-F9B85269F84C';
+    const FRESH_WDA_SID = '0FD8A4F7-6AF2-49D8-96FA-28832EADD879';
+    const STALE_SESSION_ERR = { value: { error: 'invalid session id', message: 'Session does not exist' } };
+
+    it('uses meta.wdaSessionId — not the SDK sessionId — for /source', async () => {
+      const deps = stdDeps({ wdaSessionId: WDA_SID });
+      await resolveIosRegions({
+        regions: [{ element: { id: 'submit-btn' } }],
+        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+      });
+      const sourceCall = deps.httpClient.calls.find(c => /\/source$/.test(c.url));
+      expect(sourceCall).toBeDefined();
+      expect(sourceCall.url).toContain(`/session/${WDA_SID}/source`);
+      expect(sourceCall.url).not.toContain(VALID_SID);
+    });
+
+    it('falls back to SDK sessionId when meta.wdaSessionId is absent (v1.0.0)', async () => {
+      const deps = stdDeps(); // no wdaSessionId
+      await resolveIosRegions({
+        regions: [{ element: { id: 'submit-btn' } }],
+        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+      });
+      const sourceCall = deps.httpClient.calls.find(c => /\/source$/.test(c.url));
+      expect(sourceCall).toBeDefined();
+      expect(sourceCall.url).toContain(`/session/${VALID_SID}/source`);
+    });
+
+    it('on stale sid, retries /source with the active sid carried in the error body', async () => {
+      // Current WDA builds embed the active sessionId at the top-level of every
+      // response, including error envelopes. This is the preferred recovery path
+      // — no extra /status call needed.
+      const staleWithActiveSid = { ...STALE_SESSION_ERR, sessionId: FRESH_WDA_SID };
+      const httpClient = makeFakeHttpClient([
+        { match: url => url.endsWith('/wda/screen'), respond: WDA_SCREEN_OK },
+        // First /source hit (with stale sid) returns the envelope that carries the active sid.
+        {
+          match: url => url.includes(`/session/${WDA_SID}/source`),
+          respond: staleWithActiveSid
+        },
+        // Retry hit (with fresh sid) returns a valid XML body.
+        {
+          match: url => url.includes(`/session/${FRESH_WDA_SID}/source`),
+          respond: SIMPLE_SOURCE
+        }
+      ]);
+      const readWdaMeta = () => ({ ok: true, port: 8408, wdaSessionId: WDA_SID });
+
+      const res = await resolveIosRegions({
+        regions: [{ element: { id: 'submit-btn' } }],
+        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true,
+        deps: { httpClient, readWdaMeta }
+      });
+
+      const sourceCalls = httpClient.calls.filter(c => /\/source$/.test(c.url));
+      const statusCalls = httpClient.calls.filter(c => c.url.endsWith('/status'));
+      expect(sourceCalls.length).toBe(2);
+      expect(sourceCalls[0].url).toContain(WDA_SID);
+      expect(sourceCalls[1].url).toContain(FRESH_WDA_SID);
+      // /status is NOT called when the error body already carries the active sid.
+      expect(statusCalls.length).toBe(0);
+
+      // Retry succeeds → region resolves.
+      expect(res.resolvedRegions.filter(Boolean).length).toBe(1);
+      expect(res.warnings).not.toContain('wda-error');
+    });
+
+    it('extracts active sid from err.response.body when the HTTP client rejects non-2xx', async () => {
+      // @percy/client/utils#request throws on non-2xx, attaching the parsed body
+      // to err.response.body. The retry path must still find the active sid.
+      const staleWithActiveSid = { ...STALE_SESSION_ERR, sessionId: FRESH_WDA_SID };
+      const httpErr = Object.assign(new Error('404 Not Found'), {
+        response: { statusCode: 404, headers: {}, body: staleWithActiveSid }
+      });
+
+      const httpClient = makeFakeHttpClient([
+        { match: url => url.endsWith('/wda/screen'), respond: WDA_SCREEN_OK },
+        {
+          match: url => url.includes(`/session/${WDA_SID}/source`),
+          respond: httpErr
+        },
+        {
+          match: url => url.includes(`/session/${FRESH_WDA_SID}/source`),
+          respond: SIMPLE_SOURCE
+        }
+      ]);
+      const readWdaMeta = () => ({ ok: true, port: 8408, wdaSessionId: WDA_SID });
+
+      const res = await resolveIosRegions({
+        regions: [{ element: { id: 'submit-btn' } }],
+        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true,
+        deps: { httpClient, readWdaMeta }
+      });
+
+      const sourceCalls = httpClient.calls.filter(c => /\/source$/.test(c.url));
+      expect(sourceCalls.length).toBe(2);
+      expect(sourceCalls[1].url).toContain(FRESH_WDA_SID);
+      expect(res.resolvedRegions.filter(Boolean).length).toBe(1);
+    });
+
+    it('falls back to /status when the stale-session error has no top-level sid', async () => {
+      const staleNoSid = STALE_SESSION_ERR; // no top-level sessionId
+      const httpClient = makeFakeHttpClient([
+        { match: url => url.endsWith('/wda/screen'), respond: WDA_SCREEN_OK },
+        { match: url => url.endsWith('/status'), respond: { value: { ready: true }, sessionId: FRESH_WDA_SID } },
+        {
+          match: url => url.includes(`/session/${WDA_SID}/source`),
+          respond: staleNoSid
+        },
+        {
+          match: url => url.includes(`/session/${FRESH_WDA_SID}/source`),
+          respond: SIMPLE_SOURCE
+        }
+      ]);
+      const readWdaMeta = () => ({ ok: true, port: 8408, wdaSessionId: WDA_SID });
+
+      const res = await resolveIosRegions({
+        regions: [{ element: { id: 'submit-btn' } }],
+        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true,
+        deps: { httpClient, readWdaMeta }
+      });
+
+      const sourceCalls = httpClient.calls.filter(c => /\/source$/.test(c.url));
+      const statusCalls = httpClient.calls.filter(c => c.url.endsWith('/status'));
+      expect(sourceCalls.length).toBe(2);
+      expect(statusCalls.length).toBe(1);
+      expect(res.resolvedRegions.filter(Boolean).length).toBe(1);
+    });
+
+    it('returns wda-error when /status probe also fails', async () => {
+      const httpClient = makeFakeHttpClient([
+        { match: url => url.endsWith('/wda/screen'), respond: WDA_SCREEN_OK },
+        // /status returns junk without sessionId.
+        { match: url => url.endsWith('/status'), respond: { value: { ready: false } } },
+        { match: url => /\/source$/.test(url), respond: STALE_SESSION_ERR }
+      ]);
+      const readWdaMeta = () => ({ ok: true, port: 8408, wdaSessionId: WDA_SID });
+
+      const res = await resolveIosRegions({
+        regions: [{ element: { id: 'submit-btn' } }],
+        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true,
+        deps: { httpClient, readWdaMeta }
+      });
+
+      // Only one /source call (no retry) because /status couldn't supply a fresh sid.
+      const sourceCalls = httpClient.calls.filter(c => /\/source$/.test(c.url));
+      expect(sourceCalls.length).toBe(1);
+      expect(res.warnings).toContain('wda-error');
+      expect(res.resolvedRegions[0]).toBeNull();
+    });
+
+    it('returns wda-error without retry when /status returns the same stale sid', async () => {
+      const httpClient = makeFakeHttpClient([
+        { match: url => url.endsWith('/wda/screen'), respond: WDA_SCREEN_OK },
+        // /status returns the same sid Percy CLI just rejected.
+        { match: url => url.endsWith('/status'), respond: { sessionId: WDA_SID } },
+        { match: url => /\/source$/.test(url), respond: STALE_SESSION_ERR }
+      ]);
+      const readWdaMeta = () => ({ ok: true, port: 8408, wdaSessionId: WDA_SID });
+
+      const res = await resolveIosRegions({
+        regions: [{ element: { id: 'submit-btn' } }],
+        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true,
+        deps: { httpClient, readWdaMeta }
+      });
+
+      // No retry (same sid would hit the same error).
+      const sourceCalls = httpClient.calls.filter(c => /\/source$/.test(c.url));
+      expect(sourceCalls.length).toBe(1);
+      expect(res.warnings).toContain('wda-error');
     });
   });
 
