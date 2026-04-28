@@ -6,7 +6,7 @@ import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHan
 import { ServerError } from './server.js';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { handleSyncJob } from './snapshot.js';
-import { dump as adbDump, firstMatch as adbFirstMatch, SELECTOR_KEYS_WHITELIST } from './adb-hierarchy.js';
+import { dump as adbDump, firstMatch as adbFirstMatch, SELECTOR_KEYS_WHITELIST } from './maestro-hierarchy.js';
 import { PNG_MAGIC_BYTES, parsePngDimensions, isPortrait as isPortraitByAspect } from './png-dimensions.js';
 import { resolveWdaSession } from './wda-session-resolver.js';
 import { resolveIosRegions } from './wda-hierarchy.js';

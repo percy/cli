@@ -1,10 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import url from 'url';
-import { dump, firstMatch } from '../../src/adb-hierarchy.js';
+import { dump, firstMatch } from '../../src/maestro-hierarchy.js';
 import { logger, setupTest } from '../helpers/index.js';
 
-const fixtureDir = path.resolve(url.fileURLToPath(import.meta.url), '../../fixtures/adb-hierarchy');
+const fixtureDir = path.resolve(url.fileURLToPath(import.meta.url), '../../fixtures/maestro-hierarchy');
 const loadFixture = name => fs.readFileSync(path.join(fixtureDir, name), 'utf8');
 
 function makeFakeExecAdb(handlers) {
@@ -32,7 +32,7 @@ const okDevices = {
   exitCode: 0
 };
 
-describe('Unit / adb-hierarchy', () => {
+describe('Unit / maestro-hierarchy', () => {
   beforeEach(async () => {
     await setupTest();
   });
