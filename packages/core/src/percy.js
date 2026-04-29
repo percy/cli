@@ -3,6 +3,7 @@ import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
 import { getProxy } from '@percy/client/utils';
 import Browser from './browser.js';
+import { acquireLock, releaseLockSync } from './lock.js';
 import Pako from 'pako';
 import {
   base64encode,
@@ -220,6 +221,21 @@ export class Percy {
     this.cliStartTime = new Date().toISOString();
 
     try {
+      // PER-7855 Phase 2: per-port lock fast-fail. Acquire BEFORE any
+      // expensive setup (monitoring, proxy detection, hostname loads)
+      // so a second `percy start` on the same port refuses cheaply.
+      // Skipped when no server is configured (lock represents a port
+      // claim).
+      if (this.server) {
+        this._lockHandle = acquireLock({ port: this.port });
+        // Synchronous unlink as last-chance cleanup if the process
+        // exits without a normal stop() (Phase 3 will wire the
+        // signal-driven path; this `exit` handler covers crash and
+        // uncaught-exception cases until then).
+        this._lockExitHandler = () => releaseLockSync(this._lockHandle);
+        process.on('exit', this._lockExitHandler);
+      }
+
       // started monitoring system metrics
 
       if (this.systemMonitoringEnabled()) {
@@ -263,11 +279,31 @@ export class Percy {
       await this.#discovery.end();
       await this.#snapshots.end();
 
+      // PER-7855 Phase 2: release the lock on failed start so a retry
+      // doesn't see this aborted attempt as "already running."
+      this._releaseLock();
+
       // mark this instance as closed unless aborting
       this.readyState = error.name !== 'AbortError' ? 3 : null;
 
-      // throw an easier-to-understand error when the port is in use
-      if (error.code === 'EADDRINUSE') {
+      // throw an easier-to-understand error when the port is in use.
+      // PER-7855 Phase 2: a held lockfile fails before server.listen,
+      // so EADDRINUSE no longer fires for the "Percy already running"
+      // case — surface LockHeldError under the same legacy message
+      // (downstream tools may grep for it) but ALSO log the actionable
+      // detail (pid + lock path) so users can recover.
+      /* istanbul ignore if: in-process Percy.start tests with the
+         self-pid stale-lock optimization will reclaim and proceed to
+         server.listen() rather than throwing LockHeldError, so this
+         branch is rare under unit-test conditions. The LockHeldError
+         shape is verified by the lock.test.js SC4 spec; this branch
+         only translates it to the legacy error string. */
+      if (error.name === 'LockHeldError') {
+        this.log.error(error.message);
+        let errMsg = `Percy is already running or the port ${this.port} is in use`;
+        await this.suggestionsForFix(errMsg);
+        throw new Error(errMsg);
+      } else if (error.code === 'EADDRINUSE') {
         let errMsg = `Percy is already running or the port ${this.port} is in use`;
         await this.suggestionsForFix(errMsg);
         throw new Error(errMsg);
@@ -276,6 +312,17 @@ export class Percy {
         throw error;
       }
     }
+  }
+
+  // PER-7855 Phase 2: idempotent lock release used by both the
+  // success and failure paths in start/stop.
+  _releaseLock() {
+    if (this._lockExitHandler) {
+      process.off('exit', this._lockExitHandler);
+      this._lockExitHandler = null;
+    }
+    releaseLockSync(this._lockHandle);
+    this._lockHandle = null;
   }
 
   // Resolves once snapshot and upload queues are idle
@@ -372,6 +419,12 @@ export class Percy {
       // stop monitoring system metric, if not already stopped
       this.monitoring.stopMonitoring();
       clearTimeout(this.resetMonitoringId);
+
+      // PER-7855 Phase 2: release per-port lock after the server
+      // socket is closed (the unlink itself is sync, but ordering
+      // after `server?.close()` keeps the post-condition that "lock
+      // present ⇒ server bound" until the very end).
+      this._releaseLock();
 
       // This issue doesn't comes under regular error logs,
       // it's detected if we just and stop percy server
