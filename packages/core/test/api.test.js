@@ -667,7 +667,7 @@ describe('API Server', () => {
     beforeEach(async () => {
       process.env.PERCY_TOKEN = 'TEST_TOKEN';
       percy = await Percy.start({ testing: true });
-      logger.instance.messages.clear();
+      logger.instance.reset();
     });
 
     afterEach(() => {

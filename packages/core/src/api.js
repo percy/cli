@@ -230,7 +230,7 @@ export function createPercyServer(percy, port) {
       if (cmd === 'reset') {
         // the reset command will reset testing mode and clear any logs
         percy.testing = {};
-        logger.instance.messages.clear();
+        logger.instance.reset();
       } else if (cmd === 'version') {
         // the version command will update the api version header for testing
         percy.testing.version = body;
@@ -262,7 +262,7 @@ export function createPercyServer(percy, port) {
     }))
   // returns an array of raw logs from the logger
     .route('get', '/test/logs', (req, res) => res.json(200, {
-      logs: Array.from(logger.instance.messages)
+      logs: logger.instance.query(() => true)
     }))
   // serves a very basic html page for testing snapshots
     .route('get', '/test/snapshot', (req, res) => {
