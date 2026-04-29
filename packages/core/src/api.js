@@ -478,19 +478,29 @@ export function createPercyServer(percy, port) {
       if (req.body.thTestCaseExecutionId) payload.thTestCaseExecutionId = req.body.thTestCaseExecutionId;
 
       // Transform and forward regions if present.
-      // Element regions on Android: resolve via one ADB view-hierarchy dump per request
-      // (memoized locally below). Element regions on iOS: resolve via wda-hierarchy
-      // source-dump resolver (Units B2+B3). Coordinate regions: transform to boundingBox
-      // as before.
+      //
+      // Resolver dispatch:
+      //   Android — `maestroDump({ platform: 'android' })` + per-region `firstMatch`
+      //   iOS (default — `PERCY_IOS_RESOLVER` unset/'wda-direct') — wda-hierarchy
+      //     source-dump resolver (existing path; gated for deletion in Phase 4 of
+      //     the 2026-04-27 plan once Phase 0.5 empirical probe passes).
+      //   iOS (new — `PERCY_IOS_RESOLVER=maestro-hierarchy`) — `maestroDump` +
+      //     per-region `firstMatch` (Phase 1 Unit 3 of the plan; the iOS branch of
+      //     the resolver is currently a Unit 2a stub returning 'not-implemented'
+      //     until Unit 2b lands the real attribute mapping post Phase 0.5).
+      // Coordinate regions: transform to boundingBox as before.
       if (req.body.regions && Array.isArray(req.body.regions)) {
+        const useMaestroHierarchyForIos = process.env.PERCY_IOS_RESOLVER === 'maestro-hierarchy';
         let resolvedRegions = [];
         let elementRegionCount = req.body.regions.filter(r => r && r.element).length;
-        let cachedDump = null; // Android request-local memoization (incl. error classes)
+        let cachedDump = null; // request-local lazy dump (Android always; iOS when env switch on)
         let elementSkipWarned = false;
-        let iosResult = null; // iOS — resolved in one call, shared by all element regions
+        let iosResult = null; // iOS WDA-direct path — resolved in one call, shared by all element regions
 
-        // Resolve iOS element regions up front (one source-dump + scale fetch per request).
-        if (platform === 'ios' && elementRegionCount > 0) {
+        // iOS WDA-direct path (legacy; Phase 4 deletes when Phase 0.5 PASSes).
+        // Skipped entirely when the maestro-hierarchy env switch is on — that
+        // path uses the Android-style lazy + per-region pattern in the loop below.
+        if (platform === 'ios' && elementRegionCount > 0 && !useMaestroHierarchyForIos) {
           try {
             // PNG parse — reuse the already-read buffer (avoids a second read).
             const dims = parsePngDimensions(fileContent);
@@ -534,18 +544,19 @@ export function createPercyServer(percy, port) {
               algorithm: region.algorithm || 'ignore'
             };
           } else if (region.element) {
-            if (platform === 'ios') {
-              // iosResult.resolvedRegions is a dense array of successfully resolved element
-              // regions in input order. Warnings (zero-match, class-not-allowlisted, etc.)
-              // were already logged; we just forward each resolved region by positional
-              // index.
+            if (platform === 'ios' && !useMaestroHierarchyForIos) {
+              // Legacy iOS WDA-direct: iosResult.resolvedRegions is a dense array of
+              // successfully resolved element regions in input order. Warnings
+              // (zero-match, class-not-allowlisted, etc.) were already logged; we just
+              // forward each resolved region by positional index.
               const r = iosResult && iosResult.resolvedRegions[iosIndex++];
               if (!r) continue;
               resolved = r;
             } else {
-              // Android: lazy dump + memoize result (including errors).
+              // Cross-platform path (Android always; iOS when PERCY_IOS_RESOLVER=maestro-hierarchy):
+              // lazy dump + memoize result (including errors), then per-region firstMatch.
               if (cachedDump === null) {
-                cachedDump = await adbDump();
+                cachedDump = await adbDump({ platform });
               }
               if (cachedDump.kind !== 'hierarchy') {
                 if (!elementSkipWarned) {
