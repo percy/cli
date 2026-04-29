@@ -175,13 +175,14 @@ export function chromium({
   });
 }
 
-// default chromium revisions corresponds to v126.0.6478.184
+// Chrome 143.0.7499.169 (base position 1536371) — closest per-platform
+// revision from https://commondatastorage.googleapis.com/chromium-browser-snapshots/
 chromium.revisions = {
-  linux: '1300309',
-  win64: '1300297',
-  win32: '1300295',
-  darwin: '1300293',
-  darwinArm: '1300314'
+  linux: '1536366',
+  win64: '1536376',
+  win32: '1536377',
+  darwin: '1536380',
+  darwinArm: '1536376'
 };
 
 // export the namespace by default

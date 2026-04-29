@@ -457,6 +457,27 @@ describe('Discovery', () => {
     ]));
   });
 
+  it('captures favicon when the server provides one', async () => {
+    server.reply('/favicon.ico', () => [200, 'image/x-icon', pixel]);
+    let faviconDOM = testDOM.replace('</head>', '<link rel="icon" href="/favicon.ico"></head>');
+
+    await percy.snapshot({
+      name: 'favicon snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: faviconDOM
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/favicon.ico'
+        })
+      })
+    ]));
+  });
+
   it('does not capture event-stream requests', async () => {
     let eventStreamDOM = dedent`<!DOCTYPE html><html><head></head><body><script>
       new EventSource('/event-stream').onmessage = event => {
@@ -2352,7 +2373,7 @@ describe('Discovery', () => {
 
     it('logs unhandled response errors gracefully', async () => {
       let err = new Error('some unhandled request error');
-      await triggerSessionEventError('Network.getResponseBody', err);
+      await triggerSessionEventError('Fetch.getResponseBody', err);
 
       await percy.snapshot({
         name: 'test snapshot',

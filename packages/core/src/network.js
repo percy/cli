@@ -205,6 +205,13 @@ export class Network {
   _handleRequestPaused = async (session, event) => {
     let { networkId: requestId, requestId: interceptId, resourceType } = event;
 
+    // Response-stage events arrive here when Fetch.continueRequest was called
+    // with interceptResponse:true (see sendResponseResource).
+    if (event.responseStatusCode != null || event.responseErrorReason != null) {
+      await this._handleResponsePaused(session, event);
+      return;
+    }
+
     // wait for request to be sent
     await this.#requestsLifeCycleHandler.get(requestId).requestWillBeSent;
     let pending = this.#pending.get(requestId);
@@ -215,6 +222,95 @@ export class Network {
     pending?.request.url === event.request.url &&
     pending.request.method === event.request.method &&
     await this._handleRequest(session, { ...pending, resourceType, interceptId });
+  }
+
+  // Reads the body via Fetch.getResponseBody, saves the resource, and forgets
+  // the request — so the lifecycle is complete before Chrome dispatches
+  // Network.loadingFinished. This handles Chrome 143's split-session worker
+  // scripts (Network events fire on the worker session under a different
+  // requestId) and aborts oversized or malformed Content-Length responses
+  // before the body streams.
+  _handleResponsePaused = async (session, event) => {
+    let { networkId: requestId, requestId: interceptId, responseHeaders, responseStatusCode, responseErrorReason } = event;
+    let request = this.#requests.get(requestId);
+    let url = request ? originURL(request) : event.request?.url;
+    let headersObj = headersArrayToObject(responseHeaders);
+    let mimeType = headersObj['Content-Type'] || headersObj['content-type'] || '';
+    let { tooLarge, malformed, rawValue } = inspectContentLength(headersObj);
+
+    // Errored response: continue so Chrome's natural Network.loadingFailed
+    // propagates the original errorText to _handleLoadingFailed.
+    if (responseErrorReason) {
+      return this._continueResponse(session, interceptId, url);
+    }
+
+    // Oversized or malformed Content-Length: abort before body streams.
+    if (tooLarge || malformed) {
+      let meta = { ...this.meta, url, responseStatus: responseStatusCode };
+      logAssetInstrumentation(this.log, 'asset_not_uploaded', 'resource_too_large', {
+        url, size: rawValue, snapshot: meta.snapshot
+      });
+      this.log.debug('- Skipping resource larger than 25MB', meta);
+      if (request) {
+        this._forgetRequest(request);
+        this.#requestsLifeCycleHandler.get(requestId).resolveResponseReceived();
+      }
+      try {
+        await this.send(session, 'Fetch.failRequest', { requestId: interceptId, errorReason: 'Aborted' });
+      } catch (error) {
+        /* istanbul ignore next: race with abort/close */
+        this.log.debug(`Failed to abort oversized response for ${url}: ${error.message}`);
+      }
+      return;
+    }
+
+    // Redirect: skip — _handleRequest builds the redirect chain on the next request stage.
+    if (responseStatusCode >= 300 && responseStatusCode < 400) {
+      return this._continueResponse(session, interceptId, url);
+    }
+
+    // Streaming responses (SSE) where the body never completes — would hang Fetch.getResponseBody.
+    if (mimeType.includes('text/event-stream')) {
+      return this._continueResponse(session, interceptId, url);
+    }
+
+    // Normal response: read body now, save the resource, forget the request.
+    if (request) {
+      let meta = { ...this.meta, url };
+      try {
+        let result = await this.send(session, 'Fetch.getResponseBody', { requestId: interceptId });
+        let bodyBuffer = Buffer.from(result.body, result.base64Encoded ? 'base64' : 'utf-8');
+
+        request.response = {
+          url: event.request?.url,
+          status: responseStatusCode,
+          statusText: event.responseStatusText,
+          mimeType,
+          headers: headersObj,
+          buffer: async () => bodyBuffer
+        };
+        this.#requestsLifeCycleHandler.get(requestId).resolveResponseReceived();
+        await saveResponseResource(this, request, session);
+      } catch (error) {
+        this.log.debug(`Encountered an error processing resource: ${url}`, meta);
+        this.log.debug(error, meta);
+      }
+      this._forgetRequest(request);
+    }
+
+    await this._continueResponse(session, interceptId, url);
+  }
+
+  // Tell the browser to continue the paused response, swallowing expected
+  // races (request already aborted, interception ID no longer valid).
+  _continueResponse = async (session, interceptId, url) => {
+    try {
+      await this.send(session, 'Fetch.continueResponse', { requestId: interceptId });
+    } catch (error) {
+      /* istanbul ignore next: race with abort/close */
+      if (error.message === ABORTED_MESSAGE || error.message.includes('Invalid InterceptionId')) return;
+      this.log.debug(`Failed to continue response for ${url}: ${error.message}`);
+    }
   }
 
   // Called when a request will be sent. If the request has already been intercepted, handle it;
@@ -434,6 +530,24 @@ function originURL(request) {
   return normalizeURL((request.redirectChain[0] || request).url);
 }
 
+// Convert Fetch event responseHeaders ([{name, value}, …]) to a header object.
+function headersArrayToObject(arr) {
+  let out = {};
+  if (!Array.isArray(arr)) return out;
+  for (let { name, value } of arr) out[name] = value;
+  return out;
+}
+
+// Returns { tooLarge, malformed, rawValue } for Content-Length classification.
+function inspectContentLength(headers) {
+  let key = headers && Object.keys(headers).find(k => k.toLowerCase() === 'content-length');
+  let rawValue = key ? headers[key] : undefined;
+  let parsed = parseInt(rawValue);
+  let tooLarge = Number.isFinite(parsed) && parsed > MAX_RESOURCE_SIZE;
+  let malformed = rawValue !== undefined && rawValue !== null && String(rawValue).length > 0 && !Number.isFinite(parsed);
+  return { tooLarge, malformed, rawValue };
+}
+
 // Validate domain for auto-allowlisting feature
 // Only validates domains that returned 200 status
 async function validateDomainForAllowlist(network, hostname, url, statusCode) {
@@ -512,8 +626,10 @@ async function sendResponseResource(network, request, session) {
           .map(([k, v]) => ({ name: k.toLowerCase(), value: String(v) }))
       });
     } else {
+      // interceptResponse:true triggers a second pause at the response stage. See _handleResponsePaused.
       await send('Fetch.continueRequest', {
-        requestId: request.interceptId
+        requestId: request.interceptId,
+        interceptResponse: true
       });
     }
   } catch (error) {
@@ -558,7 +674,7 @@ async function makeDirectRequest(network, request, session) {
     'sec-fetch-site': 'same-origin',
     'sec-fetch-mode': 'cors',
     'sec-fetch-dest': 'font',
-    'sec-ch-ua': '"Chromium";v="123", "Google Chrome";v="123", "Not?A_Brand";v="99"',
+    'sec-ch-ua': '"Chromium";v="143", "Google Chrome";v="143", "Not?A_Brand";v="99"',
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"macOS"',
     'sec-fetch-user': '?1',

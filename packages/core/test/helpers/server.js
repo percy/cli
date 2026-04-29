@@ -28,8 +28,14 @@ export function createTestServer({ default: defaultReply, ...replies }, port = 8
   server.route(async (req, res, next) => {
     let pathname = req.url.pathname;
     if (req.url.search) pathname += req.url.search;
-    server.requests.push(req.body ? [pathname, req.body, req.headers] : [pathname, req.headers]);
     let reply = replies[pathname] || defaultReply;
+    // Chrome >=128 auto-fetches /favicon.ico on every navigation; reply 204
+    // by default so it doesn't pollute snapshot resources. Tests can still
+    // override via `server.reply('/favicon.ico', ...)`.
+    if (req.url.pathname === '/favicon.ico' && !replies['/favicon.ico']) {
+      return res.writeHead(204).end();
+    }
+    server.requests.push(req.body ? [pathname, req.body, req.headers] : [pathname, req.headers]);
     return reply ? await reply(req, res) : next();
   });
 
