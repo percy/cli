@@ -217,9 +217,8 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
   resources = resources.flat();
 
   // include associated snapshot logs matched by meta information
-  resources.push(createLogResource(logger.query(log => (
-    log.meta.snapshot?.testCase === snapshot.meta.snapshot.testCase && log.meta.snapshot?.name === snapshot.meta.snapshot.name
-  ))));
+  resources.push(createLogResource(logger.snapshotLogs(snapshot.meta.snapshot)));
+  logger.evictSnapshot(snapshot.meta.snapshot);
 
   if (process.env.PERCY_GZIP) {
     for (let index = 0; index < resources.length; index++) {

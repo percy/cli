@@ -23,6 +23,13 @@ export async function setupTest({
   loggerTTY,
   apiDelay
 } = {}) {
+  // Why: downstream packages (cli-exec, cli-snapshot, percy core, etc.) use
+  // mockfs as their default fs sandbox, and the disk-backed logger flakes
+  // ENOENT against mockfs's volume mid-flush — which leaks the fallback
+  // warning into another test's captured stderr. Keep these tests in
+  // unbounded in-memory mode (master parity) — the disk path has its own
+  // dedicated coverage in logger.test.js.
+  process.env.PERCY_LOGS_IN_MEMORY = '1';
   await api.mock({ delay: apiDelay });
   await logger.mock({ isTTY: loggerTTY });
   await resetPercyConfig(resetConfig);
