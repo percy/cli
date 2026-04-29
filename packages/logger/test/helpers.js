@@ -78,8 +78,13 @@ const helpers = {
   },
 
   reset(soft) {
-    if (soft) logger.loglevel('info');
-    else delete logger.constructor.instance;
+    if (soft) {
+      logger.loglevel('info');
+    } else {
+      // tear down the prior instance's disk artifacts before swapping it out
+      try { logger.constructor.instance?.reset(); } catch { /* tolerate */ }
+      delete logger.constructor.instance;
+    }
 
     helpers.stdout.length = 0;
     helpers.stderr.length = 0;
@@ -92,7 +97,7 @@ const helpers = {
   },
 
   dump() {
-    let msgs = Array.from(logger.instance.messages);
+    let msgs = logger.instance.query(() => true);
     if (!msgs.length) return;
 
     let log = m => process.env.__PERCY_BROWSERIFIED__ ? (

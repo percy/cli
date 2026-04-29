@@ -1,3 +1,6 @@
+import fs, { existsSync, readFileSync, readdirSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join, sep, dirname } from 'path';
 import helpers from './helpers.js';
 import { colors } from '@percy/logger/utils';
 import logger from '@percy/logger';
@@ -46,13 +49,13 @@ describe('logger', () => {
       meta
     });
 
-    expect(inst.messages).toEqual(new Set([
+    expect(inst.query(() => true)).toEqual([
       entry('info', 'Info log', { foo: 'bar' }),
       entry('warn', 'Warn log', { bar: 'baz' }),
       entry('error', 'Error log', { to: 'be' }),
       entry('debug', 'Debug log', { not: 'to be' }),
       entry('warn', 'Warning: Deprecation log', { test: 'me' })
-    ]));
+    ]);
   });
 
   it('writes info logs to stdout', () => {
@@ -88,7 +91,7 @@ describe('logger', () => {
     let error = new Error('test');
     log.error(error);
 
-    expect(inst.messages).toContain({
+    expect(inst.query(() => true)).toContain({
       debug: 'test',
       level: 'error',
       message: error.stack,
@@ -564,6 +567,449 @@ describe('logger', () => {
         expect(mlog.meta.errorMsg).toEqual('Error');
         expect(mlog.meta.errorStack).toEqual(jasmine.stringContaining('Error: Error'));
       });
+    });
+  });
+
+  describe('disk-backed storage', () => {
+    let percyLogsDir = join(tmpdir(), 'percy-logs', String(process.pid));
+
+    beforeEach(async () => {
+      delete process.env.PERCY_LOGS_IN_MEMORY;
+      try { rmSync(percyLogsDir, { recursive: true, force: true }); } catch { /* tolerate */ }
+      await helpers.mock();
+      delete process.env.PERCY_LOGS_IN_MEMORY;
+      logger.instance.reset();
+    });
+
+    afterEach(() => {
+      logger.instance.reset();
+      try { rmSync(percyLogsDir, { recursive: true, force: true }); } catch { /* tolerate */ }
+    });
+
+    it('round-trips entries through disk', () => {
+      let group = logger('disk');
+      for (let i = 0; i < 50; i++) group.info(`entry ${i}`, { i });
+
+      let entries = logger.query(() => true);
+      expect(entries.length).toEqual(50);
+      expect(entries[0]).toEqual(jasmine.objectContaining({ message: 'entry 0', meta: { i: 0 } }));
+      expect(entries[49]).toEqual(jasmine.objectContaining({ message: 'entry 49', meta: { i: 49 } }));
+    });
+
+    it('writes a JSONL file under percy-logs', () => {
+      logger('disk').info('hello');
+      logger.query(() => true); // forces flush
+
+      let files = readdirSync(percyLogsDir).filter(f => f.endsWith('.jsonl'));
+      expect(files.length).toEqual(1);
+      let content = readFileSync(join(percyLogsDir, files[0]), 'utf8');
+      let line = content.trim().split('\n')[0];
+      expect(JSON.parse(line)).toEqual(jasmine.objectContaining({
+        debug: 'disk', level: 'info', message: 'hello', error: false
+      }));
+    });
+
+    it('serves snapshotLogs from in-memory cache, not disk', () => {
+      let group = logger('core:snapshot');
+      group.info('A1', { snapshot: { testCase: 'tc', name: 'A' } });
+      group.info('B1', { snapshot: { testCase: 'tc', name: 'B' } });
+      group.info('A2', { snapshot: { testCase: 'tc', name: 'A' } });
+
+      let logsA = logger.snapshotLogs({ testCase: 'tc', name: 'A' });
+      expect(logsA.length).toEqual(2);
+      expect(logsA.map(l => l.message)).toEqual(['A1', 'A2']);
+
+      let logsB = logger.snapshotLogs({ testCase: 'tc', name: 'B' });
+      expect(logsB.length).toEqual(1);
+      expect(logsB[0].message).toEqual('B1');
+    });
+
+    it('lets late entries after evictSnapshot repopulate the cache (retry-friendly)', () => {
+      let group = logger('core:snapshot');
+      group.info('A1', { snapshot: { testCase: 'tc', name: 'A' } });
+
+      // upload happens, snapshot is evicted
+      expect(logger.snapshotLogs({ testCase: 'tc', name: 'A' }).length).toEqual(1);
+      logger.evictSnapshot({ testCase: 'tc', name: 'A' });
+
+      // a late deferred handler — or a discovery retry that re-snapshots the
+      // same meta — logs against the same snapshot
+      group.info('A2 (late)', { snapshot: { testCase: 'tc', name: 'A' } });
+
+      // snapshotLogs must surface the late entry (master parity)
+      let logsA = logger.snapshotLogs({ testCase: 'tc', name: 'A' });
+      expect(logsA.length).toEqual(1);
+      expect(logsA[0].message).toEqual('A2 (late)');
+      // disk still keeps the entry for the global /logs payload
+      expect(logger.query(() => true).find(e => e.message === 'A2 (late)')).toBeDefined();
+    });
+
+    it('evictSnapshot drops cache but disk still has the entries', () => {
+      let group = logger('core:snapshot');
+      group.info('hi', { snapshot: { testCase: 'tc', name: 'A' } });
+
+      expect(logger.snapshotLogs({ testCase: 'tc', name: 'A' }).length).toEqual(1);
+      logger.evictSnapshot({ testCase: 'tc', name: 'A' });
+      expect(logger.snapshotLogs({ testCase: 'tc', name: 'A' }).length).toEqual(0);
+
+      // disk still has it for sendBuildLogs
+      let all = logger.query(() => true);
+      expect(all.find(e => e.message === 'hi')).toBeDefined();
+    });
+
+    it('flushes the buffer when query is called', () => {
+      // 5 entries; below the 500 size cap and faster than the 100ms timer.
+      let group = logger('disk');
+      for (let i = 0; i < 5; i++) group.info(`x${i}`);
+
+      // query forces a flush, so entries become visible on disk
+      let result = logger.query(() => true);
+      expect(result.length).toEqual(5);
+    });
+
+    it('reset() clears state and removes the disk file', () => {
+      logger('disk').info('temporary');
+      logger.query(() => true);
+
+      let files = readdirSync(percyLogsDir).filter(f => f.endsWith('.jsonl'));
+      expect(files.length).toEqual(1);
+      let path = join(percyLogsDir, files[0]);
+      expect(existsSync(path)).toBeTrue();
+
+      logger.instance.reset();
+      expect(existsSync(path)).toBeFalse();
+      expect(logger.query(() => true).length).toEqual(0);
+    });
+
+    it('survives circular references in meta', () => {
+      let circular = {};
+      circular.self = circular;
+      logger('disk').error('round and round', { circle: circular });
+
+      let entries = logger.query(() => true);
+      expect(entries.length).toEqual(1);
+      expect(entries[0].meta).toEqual({ unserializable: true });
+    });
+
+    it('preserves snapshot key when meta has circular references', () => {
+      let circular = {};
+      circular.self = circular;
+      logger('disk').error('boom', { snapshot: { name: 'A' }, circle: circular });
+
+      // The entry should still route to snapshotLogs even after meta sanitization.
+      let logs = logger.snapshotLogs({ name: 'A' });
+      expect(logs.length).toEqual(1);
+      expect(logs[0].meta).toEqual({ unserializable: true, snapshot: { name: 'A' } });
+    });
+
+    it('falls back to in-memory mode when PERCY_LOGS_IN_MEMORY=1', () => {
+      logger.instance.reset();
+      process.env.PERCY_LOGS_IN_MEMORY = '1';
+      // force a fresh instance so the env is re-read
+      delete logger.constructor.instance;
+
+      logger('mem').info('no disk for me');
+
+      let files;
+      try { files = readdirSync(percyLogsDir).filter(f => f.endsWith('.jsonl')); } catch { files = []; }
+      expect(files.length).toEqual(0);
+
+      let entries = logger.query(() => true);
+      expect(entries.length).toEqual(1);
+      expect(entries[0].message).toEqual('no disk for me');
+    });
+
+    it('snapshotLogs filters from the in-memory Set in memory mode', () => {
+      logger.instance.reset();
+      process.env.PERCY_LOGS_IN_MEMORY = '1';
+      delete logger.constructor.instance;
+
+      let group = logger('core:snapshot');
+      group.info('A1', { snapshot: { testCase: 'tc', name: 'A' } });
+      group.info('B1', { snapshot: { testCase: 'tc', name: 'B' } });
+      group.info('untagged');
+
+      // First call: mode is still 'disk' at entry, _flushSync flips it to memory.
+      let logsA = logger.snapshotLogs({ testCase: 'tc', name: 'A' });
+      expect(logsA.length).toEqual(1);
+      expect(logsA[0].message).toEqual('A1');
+
+      // Add another tagged entry — goes directly into the fallback Set now.
+      group.info('A2', { snapshot: { testCase: 'tc', name: 'A' } });
+
+      // Second call: mode is 'memory' at entry — covers the top-of-method memory branch.
+      let logsA2 = logger.snapshotLogs({ testCase: 'tc', name: 'A' });
+      expect(logsA2.length).toEqual(2);
+
+      // also covers the top-of-method memory branch in query()
+      let all = logger.query(() => true);
+      expect(all.length).toEqual(4);
+
+      // empty meta returns []
+      expect(logger.snapshotLogs({}).length).toEqual(0);
+    });
+
+    it('falls back to memory when appendFileSync throws', () => {
+      let calls = 0;
+      let real = fs.appendFileSync;
+      let spy = spyOn(fs, 'appendFileSync').and.callFake((...args) => {
+        calls++;
+        if (calls === 1) throw Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' });
+        return real.apply(fs, args);
+      });
+
+      logger('disk').info('first entry');
+      // forces a flush, which triggers the appendFileSync failure
+      let entries = logger.query(() => true);
+
+      expect(spy).toHaveBeenCalled();
+      expect(entries.length).toEqual(1);
+      expect(entries[0].message).toEqual('first entry');
+      // after fallback, no disk file should exist
+      let files = [];
+      try { files = readdirSync(percyLogsDir); } catch { /* ok */ }
+      expect(files.filter(f => f.endsWith('.jsonl')).length).toEqual(0);
+    });
+
+    it('falls back to memory when mkdirSync throws', () => {
+      spyOn(fs, 'mkdirSync').and.throwError(Object.assign(new Error('EACCES'), { code: 'EACCES' }));
+
+      logger('disk').info('cannot create dir');
+      let entries = logger.query(() => true);
+
+      expect(entries.length).toEqual(1);
+      expect(entries[0].message).toEqual('cannot create dir');
+    });
+
+    it('drains pre-fallback buffer entries into memory', () => {
+      spyOn(fs, 'appendFileSync').and.callFake(() => {
+        throw Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' });
+      });
+
+      let group = logger('disk');
+      group.info('one');
+      group.info('two');
+      group.info('three');
+
+      let entries = logger.query(() => true);
+      expect(entries.length).toEqual(3);
+      expect(entries.map(e => e.message)).toEqual(['one', 'two', 'three']);
+    });
+
+    it('reads existing disk content into memory when fallback fires mid-build', () => {
+      let original = fs.appendFileSync;
+      let failAfter = 1;
+      let calls = 0;
+      spyOn(fs, 'appendFileSync').and.callFake((...args) => {
+        calls++;
+        if (calls > failAfter) throw Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' });
+        return original.apply(fs, args);
+      });
+
+      let group = logger('disk');
+      group.info('on disk');
+      logger.query(() => true); // flush #1 — succeeds, on disk
+
+      group.info('after fallback');
+      let entries = logger.query(() => true); // flush #2 — fails, fallback fires
+
+      expect(entries.length).toEqual(2);
+      expect(entries.map(e => e.message).sort()).toEqual(['after fallback', 'on disk']);
+    });
+
+    it('evictSnapshot with empty meta is a no-op', () => {
+      logger.instance.evictSnapshot({});
+      logger.instance.evictSnapshot();
+      expect(logger.query(() => true).length).toEqual(0);
+    });
+
+    it('snapshotKey works with only name or only testCase set', () => {
+      let group = logger('partial');
+      group.info('only-name', { snapshot: { name: 'A' } });
+      group.info('only-testcase', { snapshot: { testCase: 'tc' } });
+      group.info('both', { snapshot: { testCase: 'tc', name: 'A' } });
+
+      expect(logger.snapshotLogs({ name: 'A' }).length).toEqual(1);
+      expect(logger.snapshotLogs({ testCase: 'tc' }).length).toEqual(1);
+      expect(logger.snapshotLogs({ testCase: 'tc', name: 'A' }).length).toEqual(1);
+    });
+
+    it('query filter rejects non-matching entries', () => {
+      let g = logger('disk');
+      g.info('keep-me');
+      g.info('drop-me');
+      let kept = logger.query(e => e.message === 'keep-me');
+      expect(kept.length).toEqual(1);
+      expect(kept[0].message).toEqual('keep-me');
+    });
+
+    it('logger.reset() (public wrapper) clears the logger', () => {
+      logger('disk').info('temporary');
+      expect(logger.query(() => true).length).toEqual(1);
+      logger.reset();
+      expect(logger.query(() => true).length).toEqual(0);
+    });
+
+    it('the 100ms timer flushes the buffer on its own', async () => {
+      logger('timer').info('lazy');
+      // Wait past the FLUSH_TIMER_MS window so the timer callback fires
+      // without us forcing a flush via query().
+      await new Promise(r => setTimeout(r, 150));
+      // Now query() should find the entry already on disk; the buffer is
+      // empty, so no extra flush happens here.
+      expect(logger.query(() => true).length).toEqual(1);
+    });
+
+    it('auto-flushes when the buffer hits the entry cap', () => {
+      let group = logger('cap');
+      // FLUSH_AT_ENTRIES = 500. Push more than that to trigger the size-cap flush.
+      for (let i = 0; i < 510; i++) group.info(`x${i}`);
+      let entries = logger.query(() => true);
+      expect(entries.length).toEqual(510);
+    });
+
+    it('skips untagged entries while building the snapshot cache from disk', () => {
+      let group = logger('mix');
+      group.info('untagged-1');
+      group.info('tagged-1', { snapshot: { name: 'A' } });
+      group.info('untagged-2');
+      // first snapshotLogs call triggers cache build from disk delta
+      let logsA = logger.snapshotLogs({ name: 'A' });
+      expect(logsA.length).toEqual(1);
+      expect(logsA[0].message).toEqual('tagged-1');
+    });
+
+    it('disk-fail warning falls back to err.message when no code is present', () => {
+      let warnSpy = jasmine.createSpy('write');
+      let originalStderr = logger.constructor.stderr;
+      logger.constructor.stderr = { write: warnSpy };
+
+      spyOn(fs, 'appendFileSync').and.throwError(new Error('something broke'));
+
+      logger('msg').info('one');
+      logger.query(() => true);
+
+      logger.constructor.stderr = originalStderr;
+      expect(warnSpy.calls.allArgs().some(a => /something broke/.test(a[0]))).toBeTrue();
+    });
+
+    it('disk-fail warning shows "unknown" when err has neither code nor message', () => {
+      let warnSpy = jasmine.createSpy('write');
+      let originalStderr = logger.constructor.stderr;
+      logger.constructor.stderr = { write: warnSpy };
+
+      // bare object — no .code, no .message — exercises the 'unknown' branch
+      // eslint-disable-next-line no-throw-literal
+      spyOn(fs, 'appendFileSync').and.callFake(() => { throw {}; });
+
+      logger('unk').info('one');
+      logger.query(() => true);
+
+      logger.constructor.stderr = originalStderr;
+      expect(warnSpy.calls.allArgs().some(a => /\(unknown\)/.test(a[0]))).toBeTrue();
+    });
+
+    it('fires the disk-write-failed stderr warning exactly once', () => {
+      let warnSpy = jasmine.createSpy('write');
+      let originalStderr = logger.constructor.stderr;
+      logger.constructor.stderr = { write: warnSpy };
+
+      spyOn(fs, 'appendFileSync').and.throwError(Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' }));
+
+      logger('warn1').info('one');
+      logger.query(() => true);
+      logger('warn2').info('two');
+      logger.query(() => true);
+
+      logger.constructor.stderr = originalStderr;
+      expect(warnSpy.calls.allArgs().filter(a => /disk write failed/.test(a[0])).length).toEqual(1);
+    });
+
+    it('cleans up the disk file when the process exit hook fires', () => {
+      logger('exit').info('hello');
+      logger.query(() => true); // ensure file exists
+      let files = readdirSync(percyLogsDir).filter(f => f.endsWith('.jsonl'));
+      expect(files.length).toEqual(1);
+      let path = join(percyLogsDir, files[0]);
+
+      // Manually invoke the registered exit listener — simulating process.emit('exit')
+      // would also fire other test-suite listeners which we don't want.
+      let listeners = process.listeners('exit');
+      for (let listener of listeners.slice(-1)) listener();
+
+      expect(existsSync(path)).toBeFalse();
+    });
+
+    it('writes the JSONL into the per-pid subdir', () => {
+      logger('pid').info('one');
+      logger.query(() => true);
+
+      let pidDir = join(tmpdir(), 'percy-logs', String(process.pid));
+      let files = readdirSync(pidDir).filter(f => f.endsWith('.jsonl'));
+      expect(files.length).toEqual(1);
+      // diskPath itself sits under the pid subdir
+      expect(logger.instance.diskPath.includes(`${sep}${process.pid}${sep}`)).toBeTrue();
+    });
+
+    it('process[Symbol.for(@percy/logger.exitHooksInstalled)] is the dedupe latch', () => {
+      logger('latch').info('one');
+      logger.query(() => true);
+      expect(process[Symbol.for('@percy/logger.exitHooksInstalled')]).toBeTrue();
+      // Active-instance Set holds the live logger, so it survives module reloads
+      expect(process[Symbol.for('@percy/logger.activeInstances')].has(logger.instance)).toBeTrue();
+    });
+
+    it('exit-hook cleanup iterates every active logger instance', () => {
+      // The current singleton + a sibling instance held off-thread (we can't
+      // construct two live PercyLogger via the singleton getter, so we add
+      // a stub directly to the active set to mirror the multi-instance case).
+      logger('a').info('one');
+      logger.query(() => true);
+      let firstPath = logger.instance.diskPath;
+
+      let stub = {
+        diskPath: join(percyLogsDir, '99999-stub.jsonl'),
+        _flushSync() {},
+        _cleanup: logger.constructor.prototype._cleanup
+      };
+      // create the stub's file so we can verify cleanup unlinks it
+      fs.writeFileSync(stub.diskPath, '');
+      process[Symbol.for('@percy/logger.activeInstances')].add(stub);
+
+      let listeners = process.listeners('exit');
+      for (let listener of listeners.slice(-1)) listener();
+
+      expect(existsSync(firstPath)).toBeFalse();
+      expect(existsSync(stub.diskPath)).toBeFalse();
+      // tidy up our manual injection
+      process[Symbol.for('@percy/logger.activeInstances')].delete(stub);
+    });
+
+    it('rmdir best-effort tolerates a non-empty pid subdir', () => {
+      logger('rm').info('hi');
+      logger.query(() => true);
+      let diskPath = logger.instance.diskPath;
+      let pidDir = dirname(diskPath);
+      // peer file in the same pid subdir
+      let peer = join(pidDir, 'peer.txt');
+      fs.writeFileSync(peer, 'peer');
+
+      logger.instance.reset();
+
+      // peer survived because rmdir is best-effort and the dir is non-empty
+      expect(existsSync(peer)).toBeTrue();
+      // our jsonl is gone
+      expect(existsSync(diskPath)).toBeFalse();
+      fs.unlinkSync(peer);
+    });
+  });
+
+  describe('PERCY_LOGLEVEL', () => {
+    it('honors the env var on construction', () => {
+      delete logger.constructor.instance;
+      process.env.PERCY_LOGLEVEL = 'error';
+      expect(logger.loglevel()).toEqual('error');
+      delete process.env.PERCY_LOGLEVEL;
     });
   });
 });
