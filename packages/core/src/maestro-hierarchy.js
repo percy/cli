@@ -252,14 +252,17 @@ function flattenNodes(parsed) {
     }
     // Attribute keys are prefixed with '@_'; a node with any attributes
     // (we only keep the four selector attrs + bounds) is a candidate.
+    const resourceId = obj['@_resource-id'];
     const node = {
-      'resource-id': obj['@_resource-id'],
+      'resource-id': resourceId,
+      // Android `id` alias for R1 vocabulary parity — same value as resource-id.
+      id: resourceId,
       text: obj['@_text'],
       'content-desc': obj['@_content-desc'],
       class: obj['@_class'],
       bounds: obj['@_bounds']
     };
-    if (node['resource-id'] || node.text || node['content-desc'] || node.class) {
+    if (resourceId || node.text || node['content-desc'] || node.class) {
       nodes.push(node);
     }
     // Recurse into children — any non-'@_' key is a nested element or array of elements.
