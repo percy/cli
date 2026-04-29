@@ -41,7 +41,7 @@ export class Network {
     this.captureMockedServiceWorker = options.captureMockedServiceWorker ?? false;
     this.userAgent = options.userAgent ??
       // by default, emulate a non-headless browser
-      page.session.browser.version.userAgent.replace('Headless', '');
+      page.session.browser?.version?.userAgent?.replace('Headless', '');
     this.fontDomains = options.fontDomains || [];
     this.intercept = options.intercept;
     this.meta = options.meta;
