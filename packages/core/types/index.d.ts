@@ -28,6 +28,13 @@ interface ScopeOptions {
   scroll?: boolean;
 }
 
+interface PseudoClassEnabledElements {
+  id?: string[];
+  className?: string[];
+  xpath?: string[];
+  selectors?: string[];
+}
+
 interface DiscoveryLaunchOptions {
   executable?: string;
   args?: string[];
@@ -59,6 +66,7 @@ interface CommonSnapshotOptions {
   devicePixelRatio?: number;
   scopeOptions?: ScopeOptions;
   browsers?: string[];
+  pseudoClassEnabledElements?: PseudoClassEnabledElements;
 }
 // Region support for TypeScript
 interface BoundingBox {
