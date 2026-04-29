@@ -1,0 +1,41 @@
+{
+  "attributes": {},
+  "children": [
+    {
+      "attributes": {"ignoreBoundsFiltering": "false"},
+      "children": [
+        {
+          "attributes": {
+            "resource-id": "com.example:id/header",
+            "text": "",
+            "accessibilityText": "Header",
+            "class": "android.widget.LinearLayout",
+            "bounds": "[0,0][1080,200]"
+          },
+          "children": [
+            {
+              "attributes": {
+                "resource-id": "com.example:id/clock",
+                "text": "12:34",
+                "accessibilityText": "Current time",
+                "class": "android.widget.TextView",
+                "bounds": "[40,50][500,150]"
+              },
+              "children": []
+            },
+            {
+              "attributes": {
+                "resource-id": "com.example:id/settings_btn",
+                "text": "Settings",
+                "accessibilityText": "Open settings",
+                "class": "android.widget.Button",
+                "bounds": "[900,50][1040,150]"
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

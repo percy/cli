@@ -15,6 +15,8 @@ import {
   processCorsIframes
 } from './utils.js';
 
+import { shutdown as wdaHierarchyShutdown } from './wda-hierarchy.js';
+
 import {
   createPercyServer,
   createStaticServer
@@ -357,6 +359,12 @@ export class Percy {
       if (!this.skipUploads && !this.skipDiscovery) {
         await this.saveHostnamesToAutoConfigure();
       }
+
+      // Abort any in-flight WDA HTTP calls from the iOS element-region resolver
+      // before closing inbound sockets. http.request has no SIGKILL analog, so
+      // without this a slow WDA /source call would keep the event loop alive
+      // past server.close() and block graceful shutdown.
+      try { wdaHierarchyShutdown(); } catch { /* best-effort */ }
 
       // close server and end queues
       await this.server?.close();

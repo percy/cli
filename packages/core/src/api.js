@@ -3,8 +3,16 @@ import path, { dirname, resolve } from 'path';
 import logger from '@percy/logger';
 import { normalize } from '@percy/config/utils';
 import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHandler, computeResponsiveWidths } from './utils.js';
+import { ServerError } from './server.js';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { handleSyncJob } from './snapshot.js';
+import { dump as adbDump, firstMatch as adbFirstMatch, SELECTOR_KEYS_WHITELIST } from './adb-hierarchy.js';
+import { PNG_MAGIC_BYTES, parsePngDimensions, isPortrait as isPortraitByAspect } from './png-dimensions.js';
+import { resolveWdaSession } from './wda-session-resolver.js';
+import { resolveIosRegions } from './wda-hierarchy.js';
+import { request as percyRequest } from '@percy/client/utils';
+import Busboy from 'busboy';
+import { Readable } from 'stream';
 // Previously, we used `createRequire(import.meta.url).resolve` to resolve the path to the module.
 // This approach relied on `createRequire`, which is Node.js-specific and less compatible with modern ESM (ECMAScript Module) standards.
 // This was leading to hard coded paths when CLI is used as a dependency in another project.
@@ -44,8 +52,11 @@ export function createPercyServer(percy, port) {
   let server = Server.createServer({ port })
   // general middleware
     .route((req, res, next) => {
-      // treat all request bodies as json
-      if (req.body) try { req.body = JSON.parse(req.body); } catch {}
+      // treat all request bodies as json (skip for multipart form data)
+      let contentType = req.headers['content-type'] || '';
+      if (req.body && !contentType.startsWith('multipart/form-data')) {
+        try { req.body = JSON.parse(req.body); } catch {}
+      }
 
       // add version header
       res.setHeader('Access-Control-Expose-Headers', '*, X-Percy-Core-Version');
@@ -176,6 +187,424 @@ export function createPercyServer(percy, port) {
         }
       }
       return res.json(200, response);
+    })
+  // post a comparison via multipart file upload
+    .route('post', '/percy/comparison/upload', async (req, res) => {
+      const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
+      let contentType = req.headers['content-type'] || '';
+      if (!contentType.startsWith('multipart/form-data')) {
+        throw new ServerError(400, 'Content-Type must be multipart/form-data');
+      }
+
+      // Guard against empty request body
+      if (!req.body) {
+        throw new ServerError(400, 'Empty request body');
+      }
+
+      // Parse multipart form data from the raw body buffer
+      let fields = Object.create(null);
+      let fileBuffer = null;
+
+      await new Promise((resolve, reject) => {
+        let bb = Busboy({
+          headers: req.headers,
+          limits: { fileSize: MAX_FILE_SIZE }
+        });
+
+        bb.on('file', (fieldname, stream, info) => {
+          let chunks = [];
+          stream.on('data', (chunk) => chunks.push(chunk));
+          stream.on('limit', () => {
+            // File exceeds size limit — reject immediately
+            reject(new ServerError(413, 'File size exceeds maximum of 50MB'));
+          });
+          stream.on('end', () => {
+            if (fieldname === 'screenshot') {
+              fileBuffer = Buffer.concat(chunks);
+            }
+          });
+        });
+
+        bb.on('field', (fieldname, value) => {
+          // Only accept known field names to prevent prototype pollution
+          if (['name', 'tag', 'clientInfo', 'environmentInfo', 'testCase', 'labels'].includes(fieldname)) {
+            fields[fieldname] = value;
+          }
+        });
+
+        bb.on('close', resolve);
+        bb.on('error', reject);
+
+        // Feed the already-collected body buffer into busboy
+        let stream = Readable.from(req.body);
+        stream.on('error', reject);
+        stream.pipe(bb);
+      });
+
+      // Validate screenshot file was provided
+      if (!fileBuffer) {
+        throw new ServerError(400, 'Missing required file part: screenshot');
+      }
+
+      // Validate PNG magic bytes
+      if (fileBuffer.length < 8 || !fileBuffer.subarray(0, 8).equals(PNG_MAGIC_BYTES)) {
+        throw new ServerError(400, 'File is not a valid PNG image');
+      }
+
+      // Validate required fields
+      if (!fields.name) throw new ServerError(400, 'Missing required field: name');
+      if (!fields.tag) throw new ServerError(400, 'Missing required field: tag');
+
+      // Parse tag JSON
+      let tag;
+      try {
+        tag = JSON.parse(fields.tag);
+      } catch {
+        throw new ServerError(400, 'Invalid JSON in tag field');
+      }
+
+      // Base64-encode the PNG file
+      let base64Content = fileBuffer.toString('base64');
+
+      // Construct comparison payload
+      let payload = {
+        name: fields.name,
+        tag,
+        tiles: [{
+          content: base64Content,
+          statusBarHeight: 0,
+          navBarHeight: 0,
+          headerHeight: 0,
+          footerHeight: 0,
+          fullscreen: false
+        }],
+        clientInfo: fields.clientInfo || '',
+        environmentInfo: fields.environmentInfo || ''
+      };
+
+      if (fields.testCase) payload.testCase = fields.testCase;
+      if (fields.labels) payload.labels = fields.labels;
+
+      // Upload via percy
+      let upload = percy.upload(payload, null, 'app');
+      if (req.url.searchParams.has('await')) await upload;
+
+      // Generate redirect link
+      let link = [
+        percy.client.apiUrl, '/comparisons/redirect?',
+        encodeURLSearchParams(normalize({
+          buildId: percy.build?.id, snapshot: { name: payload.name }, tag
+        }, { snake: true }))
+      ].join('');
+
+      return res.json(200, { success: true, link });
+    })
+  // post a comparison by reading a Maestro screenshot from disk
+    .route('post', '/percy/maestro-screenshot', async (req, res) => {
+      let { name, sessionId } = req.body || {};
+
+      if (!name) throw new ServerError(400, 'Missing required field: name');
+      if (!sessionId) throw new ServerError(400, 'Missing required field: sessionId');
+
+      // Strict character-class validation — rejects path separators, shell metacharacters,
+      // NUL, newlines, and anything else that could confuse the glob or the filesystem.
+      const SAFE_ID = /^[a-zA-Z0-9_-]+$/;
+      if (!SAFE_ID.test(name)) {
+        throw new ServerError(400, 'Invalid screenshot name');
+      }
+      if (!SAFE_ID.test(sessionId)) {
+        throw new ServerError(400, 'Invalid sessionId');
+      }
+
+      // Resolve platform signal: strict whitelist on `platform` when present; default Android when absent.
+      // Backward compatible with SDK v0.2.0 (no platform field → Android glob).
+      let platform = 'android';
+      if (req.body.platform !== undefined) {
+        if (typeof req.body.platform !== 'string') {
+          throw new ServerError(400, 'Invalid platform: must be a string');
+        }
+        let normalized = req.body.platform.toLowerCase();
+        if (normalized !== 'ios' && normalized !== 'android') {
+          throw new ServerError(400, `Invalid platform: must be "ios" or "android", got "${req.body.platform}"`);
+        }
+        platform = normalized;
+      }
+
+      // Validate regions input shape early (before file I/O and ADB work) so
+      // malformed requests don't consume resolver/relay work.
+      if (req.body.regions !== undefined) {
+        if (!Array.isArray(req.body.regions)) {
+          throw new ServerError(400, 'regions must be an array');
+        }
+        if (req.body.regions.length > 50) {
+          throw new ServerError(400, 'regions exceeds maximum of 50');
+        }
+        for (let [idx, region] of req.body.regions.entries()) {
+          if (region && region.element !== undefined) {
+            if (typeof region.element !== 'object' || region.element === null || Array.isArray(region.element)) {
+              throw new ServerError(400, `regions[${idx}].element must be an object`);
+            }
+            let keys = Object.keys(region.element);
+            if (keys.length !== 1) {
+              throw new ServerError(400, `regions[${idx}].element must have exactly one selector key`);
+            }
+            let [key] = keys;
+            if (!SELECTOR_KEYS_WHITELIST.includes(key)) {
+              throw new ServerError(400, `regions[${idx}].element: unsupported selector key "${key}" (allowed: ${SELECTOR_KEYS_WHITELIST.join(', ')})`);
+            }
+            let value = region.element[key];
+            if (typeof value !== 'string' || value.length === 0) {
+              throw new ServerError(400, `regions[${idx}].element.${key} must be a non-empty string`);
+            }
+            if (value.length > 512) {
+              throw new ServerError(400, `regions[${idx}].element.${key} exceeds maximum length of 512`);
+            }
+          }
+        }
+      }
+
+      // Find the screenshot file on disk. Pattern depends on platform:
+      //   Android (BrowserStack mobile): /tmp/{sid}_test_suite/logs/*/screenshots/{name}.png
+      //   iOS (BrowserStack realmobile): /tmp/{sid}/<maestro_debug_dir>/**/{name}.png
+      //     realmobile builds SCREENSHOTS_DIR with literal slashes from the flow-path
+      //     concatenation, causing Maestro to mkdir a deeply nested structure under the
+      //     {device}_maestro_debug_ root. The `**` recursive match handles any depth.
+      //     Exact {name}.png match at the leaf filters out Maestro's emoji-prefixed
+      //     debug frames (e.g., `screenshot-❌-<timestamp>-(flow).png`).
+      let searchPattern = platform === 'ios'
+        ? `/tmp/${sessionId}/*_maestro_debug_*/**/${name}.png`
+        : `/tmp/${sessionId}_test_suite/logs/*/screenshots/${name}.png`;
+
+      let files;
+      try {
+        let { default: glob } = await import('fast-glob');
+        files = await glob(searchPattern);
+      } catch {
+        // Fallback: manual directory walk (depth-limited to defeat malicious deep nesting).
+        files = [];
+        try {
+          if (platform === 'ios') {
+            let sessionDir = `/tmp/${sessionId}`;
+            let walk = async (dir, depth) => {
+              if (depth > 15) return; // sanity cap
+              let entries;
+              try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return; }
+              for (let entry of entries) {
+                let full = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                  await walk(full, depth + 1);
+                } else if (entry.isFile() && entry.name === `${name}.png` && full.includes('_maestro_debug_')) {
+                  files.push(full);
+                }
+              }
+            };
+            await walk(sessionDir, 0);
+          } else {
+            let baseDir = `/tmp/${sessionId}_test_suite/logs`;
+            let logDirs = await fs.promises.readdir(baseDir);
+            for (let dir of logDirs) {
+              let screenshotPath = path.join(baseDir, dir, 'screenshots', `${name}.png`);
+              try {
+                await fs.promises.access(screenshotPath);
+                files.push(screenshotPath);
+              } catch { /* not found, continue */ }
+            }
+          }
+        } catch { /* base dir not found */ }
+      }
+
+      if (!files || files.length === 0) {
+        throw new ServerError(404, `Screenshot not found: ${name}.png (searched ${searchPattern})`);
+      }
+
+      // If multiple files match (iOS — same name reused across flows), pick the most recently modified
+      // for determinism.
+      let chosenFile;
+      if (files.length === 1) {
+        chosenFile = files[0];
+      } else {
+        let mtimes = await Promise.all(files.map(async f => {
+          try { return { f, mtime: (await fs.promises.stat(f)).mtimeMs }; } catch { return { f, mtime: 0 }; }
+        }));
+        mtimes.sort((a, b) => b.mtime - a.mtime);
+        chosenFile = mtimes[0].f;
+      }
+
+      // Canonicalize and confirm the resolved path still lives under the sessionId-owned dir.
+      // Defeats symlink swaps where a sessionId-named dir points elsewhere.
+      // We resolve both the file and the expected prefix because /tmp is a symlink on macOS
+      // (iOS hosts run macOS, where /tmp → /private/tmp).
+      let expectedSessionRoot = platform === 'ios'
+        ? `/tmp/${sessionId}`
+        : `/tmp/${sessionId}_test_suite`;
+      let realPath, realPrefix;
+      try {
+        realPath = await fs.promises.realpath(chosenFile);
+        realPrefix = await fs.promises.realpath(expectedSessionRoot);
+      } catch {
+        throw new ServerError(404, `Screenshot not found: ${name}.png (path resolution failed)`);
+      }
+      if (!realPath.startsWith(`${realPrefix}/`)) {
+        throw new ServerError(404, `Screenshot not found: ${name}.png (resolved outside session dir)`);
+      }
+
+      // Read and base64-encode the screenshot
+      let fileContent = await fs.promises.readFile(realPath);
+      let base64Content = fileContent.toString('base64');
+
+      // Build tag from optional request body fields
+      let tag = req.body.tag || { name: 'Unknown Device', osName: 'Android' };
+      if (!tag.name) tag.name = 'Unknown Device';
+
+      // Construct comparison payload with tile metadata from request
+      let payload = {
+        name,
+        tag,
+        tiles: [{
+          content: base64Content,
+          statusBarHeight: req.body.statusBarHeight || 0,
+          navBarHeight: req.body.navBarHeight || 0,
+          headerHeight: 0,
+          footerHeight: 0,
+          fullscreen: req.body.fullscreen || false
+        }],
+        clientInfo: req.body.clientInfo || 'percy-maestro/0.1.0',
+        environmentInfo: req.body.environmentInfo || 'percy-maestro'
+      };
+
+      if (req.body.testCase) payload.testCase = req.body.testCase;
+      if (req.body.labels) payload.labels = req.body.labels;
+      if (req.body.thTestCaseExecutionId) payload.thTestCaseExecutionId = req.body.thTestCaseExecutionId;
+
+      // Transform and forward regions if present.
+      // Element regions on Android: resolve via one ADB view-hierarchy dump per request
+      // (memoized locally below). Element regions on iOS: resolve via wda-hierarchy
+      // source-dump resolver (Units B2+B3). Coordinate regions: transform to boundingBox
+      // as before.
+      if (req.body.regions && Array.isArray(req.body.regions)) {
+        let resolvedRegions = [];
+        let elementRegionCount = req.body.regions.filter(r => r && r.element).length;
+        let cachedDump = null; // Android request-local memoization (incl. error classes)
+        let elementSkipWarned = false;
+        let iosResult = null; // iOS — resolved in one call, shared by all element regions
+
+        // Resolve iOS element regions up front (one source-dump + scale fetch per request).
+        if (platform === 'ios' && elementRegionCount > 0) {
+          try {
+            // PNG parse — reuse the already-read buffer (avoids a second read).
+            const dims = parsePngDimensions(fileContent);
+            iosResult = await resolveIosRegions({
+              regions: req.body.regions,
+              sessionId,
+              pngWidth: dims.width,
+              pngHeight: dims.height,
+              isPortrait: isPortraitByAspect(dims),
+              deps: {
+                httpClient: percyRequest,
+                readWdaMeta: sid => resolveWdaSession({ sessionId: sid })
+              }
+            });
+          } catch (err) {
+            // Parse failure (invalid-png / truncated) — warn and skip all element regions.
+            percy.log.warn(`iOS element regions skipped — ${err.message || 'png-parse-error'}`);
+            iosResult = { resolvedRegions: [], warnings: ['png-unparseable'] };
+          }
+          // Surface warnings to the caller-visible log stream.
+          for (const w of (iosResult.warnings || [])) {
+            percy.log.warn(`iOS element region warn-skip: ${w}`);
+          }
+        }
+        let iosIndex = 0;
+
+        for (let region of req.body.regions) {
+          let resolved = null;
+
+          if (region.top != null && region.bottom != null && region.left != null && region.right != null) {
+            // Coordinate-based region
+            resolved = {
+              elementSelector: {
+                boundingBox: {
+                  x: region.left,
+                  y: region.top,
+                  width: region.right - region.left,
+                  height: region.bottom - region.top
+                }
+              },
+              algorithm: region.algorithm || 'ignore'
+            };
+          } else if (region.element) {
+            if (platform === 'ios') {
+              // iosResult.resolvedRegions is a dense array of successfully resolved element
+              // regions in input order. Warnings (zero-match, class-not-allowlisted, etc.)
+              // were already logged; we just forward each resolved region by positional
+              // index.
+              const r = iosResult && iosResult.resolvedRegions[iosIndex++];
+              if (!r) continue;
+              resolved = r;
+            } else {
+              // Android: lazy dump + memoize result (including errors).
+              if (cachedDump === null) {
+                cachedDump = await adbDump();
+              }
+              if (cachedDump.kind !== 'hierarchy') {
+                if (!elementSkipWarned) {
+                  percy.log.warn(
+                    `Element-region resolver ${cachedDump.kind} (${cachedDump.reason}) — skipping ${elementRegionCount} element regions`
+                  );
+                  elementSkipWarned = true;
+                }
+                continue;
+              }
+              let bbox = adbFirstMatch(cachedDump.nodes, region.element);
+              if (!bbox) {
+                percy.log.warn(`Element region not found: ${JSON.stringify(region.element)} — skipping`);
+                continue;
+              }
+              resolved = {
+                elementSelector: { boundingBox: bbox },
+                algorithm: region.algorithm || 'ignore'
+              };
+            }
+          } else {
+            percy.log.warn('Invalid region format, skipping');
+            continue;
+          }
+
+          if (region.configuration) resolved.configuration = region.configuration;
+          if (region.padding) resolved.padding = region.padding;
+          if (region.assertion) resolved.assertion = region.assertion;
+          resolvedRegions.push(resolved);
+        }
+
+        if (resolvedRegions.length > 0) {
+          payload.regions = resolvedRegions;
+        }
+      }
+
+      // Upload via percy — sync or fire-and-forget
+      if (req.body.sync === true) payload.sync = true;
+
+      let data;
+      if (percy.syncMode(payload)) {
+        const snapshotPromise = new Promise((resolve, reject) => percy.upload(payload, { resolve, reject }, 'app'));
+        data = await handleSyncJob(snapshotPromise, percy, 'comparison');
+        return res.json(200, { success: true, data });
+      }
+
+      let upload = percy.upload(payload, null, 'app');
+      if (req.url.searchParams.has('await')) await upload;
+
+      // Generate redirect link
+      let link = [
+        percy.client.apiUrl, '/comparisons/redirect?',
+        encodeURLSearchParams(normalize({
+          buildId: percy.build?.id,
+          snapshot: { name }, tag
+        }, { snake: true }))
+      ].join('');
+
+      return res.json(200, { success: true, link });
     })
   // flushes one or more snapshots from the internal queue
     .route('post', '/percy/flush', async (req, res) => res.json(200, {
