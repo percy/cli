@@ -1060,6 +1060,24 @@ describe('Snapshot', () => {
     ]));
   });
 
+  it('falls back to "custom" preset label when readiness timeout omits the preset', async () => {
+    await percy.snapshot({
+      name: 'Readiness Timed Out Custom',
+      url: 'http://localhost:8000/',
+      domSnapshot: JSON.stringify({
+        html: testDOM,
+        readiness_diagnostics: {
+          timed_out: true,
+          total_duration_ms: 9999
+        }
+      })
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Readiness timed out after 9999ms (preset: custom)'
+    ]));
+  });
+
   it('debug logs readiness diagnostics when readiness passes', async () => {
     percy.loglevel('debug');
 
