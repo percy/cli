@@ -220,6 +220,17 @@ export function validateSnapshotOptions(options) {
     log.warn('Encountered snapshot serialization warnings:');
     for (let w of domWarnings) log.warn(`- ${w}`);
   }
+
+  // log readiness diagnostics when present (SDK-submitted snapshots with readiness enabled)
+  let readinessDiag = migrated.domSnapshot?.readiness_diagnostics;
+  if (readinessDiag) {
+    if (readinessDiag.timed_out) {
+      log.warn(`Readiness timed out after ${readinessDiag.total_duration_ms}ms (preset: ${readinessDiag.preset || 'custom'})`);
+    } else {
+      log.debug(`Readiness passed in ${readinessDiag.total_duration_ms}ms (preset: ${readinessDiag.preset || 'custom'})`);
+    }
+  }
+
   // warn on validation errors
   let errors = PercyConfig.validate(migrated, schema);
   if (errors?.length > 0) {

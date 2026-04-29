@@ -110,6 +110,7 @@ describe('Percy', () => {
     });
 
     // expect required arguments are passed to PercyDOM.serialize
+    // readiness is now a separate waitForReady call, not part of serialize options
     expect(evalSpy.calls.allArgs()[3]).toEqual(jasmine.arrayContaining([jasmine.anything(), { enableJavaScript: undefined, disableShadowDOM: true, domTransformation: undefined, reshuffleInvalidTags: undefined, ignoreCanvasSerializationErrors: undefined, ignoreStyleSheetSerializationErrors: undefined, forceShadowAsLightDOM: undefined, pseudoClassEnabledElements: undefined }]));
 
     expect(snapshot.url).toEqual('http://localhost:8000/');
@@ -118,6 +119,95 @@ describe('Percy', () => {
         `<p>Hello there, Percy!</p>${img}`
       ) + '</body></html>'
     }));
+  });
+
+  it('runs readiness check before serializing when readiness option is set', async () => {
+    server.reply('/', () => [200, 'text/html', '<p>Hello Percy!</p>']);
+
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    await page.goto('http://localhost:8000');
+
+    percy.loglevel('debug');
+
+    let snapshot = await page.snapshot({
+      readiness: { preset: 'fast', timeoutMs: 1000 }
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Waiting for readiness/)
+    ]));
+    expect(snapshot.url).toEqual('http://localhost:8000/');
+  });
+
+  it('skips readiness check when readiness preset is disabled', async () => {
+    server.reply('/', () => [200, 'text/html', '<p>Hello Percy!</p>']);
+
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    await page.goto('http://localhost:8000');
+
+    percy.loglevel('debug');
+
+    let snapshot = await page.snapshot({
+      readiness: { preset: 'disabled' }
+    });
+
+    expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Waiting for readiness/)
+    ]));
+    expect(snapshot.url).toEqual('http://localhost:8000/');
+  });
+
+  it('logs when readiness times out and continues to capture', async () => {
+    server.reply('/', () => [200, 'text/html', '<p>Hello Percy!</p>']);
+
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    await page.goto('http://localhost:8000');
+
+    percy.loglevel('debug');
+
+    // Force the readiness eval to resolve with a timed_out diagnostics
+    // payload while letting all other eval calls (PercyDOM injection,
+    // serialize, etc.) pass through untouched. The readiness eval is the
+    // only call whose first arg is a config object containing `preset`.
+    let originalEval = page.eval.bind(page);
+    spyOn(page, 'eval').and.callFake((fn, ...args) => {
+      if (args[0] && typeof args[0] === 'object' && 'preset' in args[0]) {
+        return Promise.resolve({ timed_out: true, total_duration_ms: 1234 });
+      }
+      return originalEval(fn, ...args);
+    });
+
+    let snapshot = await page.snapshot({
+      readiness: { preset: 'balanced' }
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Waiting for readiness/),
+      jasmine.stringMatching(/Readiness timed out, capturing anyway/)
+    ]));
+    expect(snapshot.url).toEqual('http://localhost:8000/');
+  });
+
+  it('falls back to the percy config readiness when none is set per snapshot', async () => {
+    server.reply('/', () => [200, 'text/html', '<p>Hello Percy!</p>']);
+
+    percy.config.snapshot.readiness = { preset: 'fast', timeoutMs: 1000 };
+
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    await page.goto('http://localhost:8000');
+
+    percy.loglevel('debug');
+
+    let snapshot = await page.snapshot({});
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Waiting for readiness/)
+    ]));
+    expect(snapshot.url).toEqual('http://localhost:8000/');
   });
 
   describe('.start()', () => {

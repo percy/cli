@@ -213,15 +213,31 @@ export class Page {
 
     await this.insertPercyDom();
 
-    // serialize and capture a DOM snapshot
-    this.log.debug('Serialize DOM', this.meta);
+    // Run readiness checks before serializing — wait for page stability
+    let readiness = snapshot.readiness || this.browser?.percy?.config?.snapshot?.readiness;
 
+    if (readiness && readiness.preset !== 'disabled') {
+      this.log.debug('Waiting for readiness', this.meta);
+      /* istanbul ignore next: no instrumenting injected code */
+      let diagnostics = await this.eval(async (_, config) => {
+        // eslint-disable-next-line no-undef
+        if (typeof PercyDOM?.waitForReady === 'function') return PercyDOM.waitForReady(config);
+      }, readiness).catch(e => {
+        this.log.debug(`Readiness check failed: ${e}`, this.meta);
+      });
+
+      if (diagnostics?.timed_out) {
+        this.log.debug('Readiness timed out, capturing anyway', this.meta);
+      }
+    }
+
+    // Serialize the DOM — always sync
+    this.log.debug('Serialize DOM', this.meta);
     /* istanbul ignore next: no instrumenting injected code */
-    let capture = await this.eval((_, options) => ({
+    let capture = await this.eval((_, options) => {
       /* eslint-disable-next-line no-undef */
-      domSnapshot: PercyDOM.serialize(options),
-      url: document.URL
-    }), { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements });
+      return { domSnapshot: PercyDOM.serialize(options), url: document.URL };
+    }, { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements });
 
     return { ...snapshot, ...capture };
   }

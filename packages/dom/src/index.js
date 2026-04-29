@@ -7,3 +7,5 @@ export {
 } from './serialize-dom';
 
 export { loadAllSrcsetLinks } from './serialize-image-srcset';
+
+export { waitForReady } from './readiness';

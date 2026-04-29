@@ -1036,6 +1036,68 @@ describe('Snapshot', () => {
     expect(uploads[2]).toEqual(Buffer.from(textResource.content).toString('base64'));
   });
 
+  it('warns when readiness diagnostics indicate a timeout', async () => {
+    // domSnapshot is sent as a JSON string by SDKs, which preserves snake_case
+    // keys like readiness_diagnostics through option normalization.
+    await percy.snapshot({
+      name: 'Readiness Timed Out',
+      url: 'http://localhost:8000/',
+      domSnapshot: JSON.stringify({
+        html: testDOM,
+        readiness_diagnostics: {
+          timed_out: true,
+          total_duration_ms: 12345,
+          preset: 'balanced'
+        }
+      })
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Readiness timed out after 12345ms (preset: balanced)'
+    ]));
+    expect(logger.stdout).toEqual(jasmine.arrayContaining([
+      '[percy] Snapshot taken: Readiness Timed Out'
+    ]));
+  });
+
+  it('falls back to "custom" preset label when readiness timeout omits the preset', async () => {
+    await percy.snapshot({
+      name: 'Readiness Timed Out Custom',
+      url: 'http://localhost:8000/',
+      domSnapshot: JSON.stringify({
+        html: testDOM,
+        readiness_diagnostics: {
+          timed_out: true,
+          total_duration_ms: 9999
+        }
+      })
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Readiness timed out after 9999ms (preset: custom)'
+    ]));
+  });
+
+  it('debug logs readiness diagnostics when readiness passes', async () => {
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'Readiness Passed',
+      url: 'http://localhost:8000/',
+      domSnapshot: JSON.stringify({
+        html: testDOM,
+        readiness_diagnostics: {
+          timed_out: false,
+          total_duration_ms: 250
+        }
+      })
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy:core:snapshot] Readiness passed in 250ms (preset: custom)'
+    ]));
+  });
+
   it('handles duplicate snapshots when testCase is not passed', async () => {
     await percy.snapshot([{
       url: 'http://localhost:8000/foobar',
