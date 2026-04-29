@@ -1,10 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import url from 'url';
-import { dump, firstMatch } from '../../src/adb-hierarchy.js';
+import { dump, firstMatch } from '../../src/maestro-hierarchy.js';
 import { logger, setupTest } from '../helpers/index.js';
 
-const fixtureDir = path.resolve(url.fileURLToPath(import.meta.url), '../../fixtures/adb-hierarchy');
+const fixtureDir = path.resolve(url.fileURLToPath(import.meta.url), '../../fixtures/maestro-hierarchy');
 const loadFixture = name => fs.readFileSync(path.join(fixtureDir, name), 'utf8');
 
 function makeFakeExecAdb(handlers) {
@@ -32,7 +32,7 @@ const okDevices = {
   exitCode: 0
 };
 
-describe('Unit / adb-hierarchy', () => {
+describe('Unit / maestro-hierarchy', () => {
   beforeEach(async () => {
     await setupTest();
   });
@@ -424,6 +424,105 @@ describe('Unit / adb-hierarchy', () => {
       const res = await dump({ execMaestro, execAdb, getEnv: () => 'serial' });
       // maestro returned dump-error (no-json) and adb also failed → falls through to adb's classification
       expect(res.kind).toBe('dump-error');
+    });
+  });
+
+  describe('R1 vocabulary parity — Android `id` alias for `resource-id`', () => {
+    it('resolves the same node when selector key is `id` vs `resource-id`', async () => {
+      const execAdb = makeFakeExecAdb([
+        { match: args => args[0] === 'devices', result: okDevices },
+        { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
+      ]);
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
+      expect(res.kind).toBe('hierarchy');
+
+      const viaResourceId = firstMatch(res.nodes, { 'resource-id': 'com.example:id/clock' });
+      const viaIdAlias = firstMatch(res.nodes, { id: 'com.example:id/clock' });
+      expect(viaResourceId).toEqual({ x: 40, y: 50, width: 460, height: 100 });
+      expect(viaIdAlias).toEqual(viaResourceId);
+    });
+
+    it('exposes id alias on every node that has resource-id', async () => {
+      const execAdb = makeFakeExecAdb([
+        { match: args => args[0] === 'devices', result: okDevices },
+        { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
+      ]);
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
+      const nodesWithResourceId = res.nodes.filter(n => n['resource-id']);
+      expect(nodesWithResourceId.length).toBeGreaterThan(0);
+      // Every resource-id node also exposes id with the same value
+      for (const node of nodesWithResourceId) {
+        expect(node.id).toBe(node['resource-id']);
+      }
+    });
+
+    it('returns null for `id` selector when no resource-id matches', async () => {
+      const execAdb = makeFakeExecAdb([
+        { match: args => args[0] === 'devices', result: okDevices },
+        { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
+      ]);
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
+      expect(firstMatch(res.nodes, { id: 'does-not-exist' })).toBeNull();
+    });
+  });
+
+  describe('iOS branch (Phase 1 scaffolding — Unit 2a stub)', () => {
+    it('returns env-missing when PERCY_IOS_DEVICE_UDID is unset', async () => {
+      const getEnv = key => {
+        if (key === 'PERCY_IOS_DRIVER_HOST_PORT') return '11100';
+        return undefined;
+      };
+      const res = await dump({ platform: 'ios', getEnv });
+      expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
+    });
+
+    it('returns env-missing when PERCY_IOS_DRIVER_HOST_PORT is unset', async () => {
+      const getEnv = key => {
+        if (key === 'PERCY_IOS_DEVICE_UDID') return '00008110-000065081404401E';
+        return undefined;
+      };
+      const res = await dump({ platform: 'ios', getEnv });
+      expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
+    });
+
+    it('returns env-missing when both env vars are unset', async () => {
+      const res = await dump({ platform: 'ios', getEnv: () => undefined });
+      expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
+    });
+
+    it('returns not-implemented (FIXME-PHASE-0.5) when env vars are present', async () => {
+      // Stub stays in place until Unit 2b lands the real iOS hierarchy parser
+      // against a Phase 0.5 fixture or Maestro CLI source dual-source verification.
+      const getEnv = key => {
+        if (key === 'PERCY_IOS_DEVICE_UDID') return '00008110-000065081404401E';
+        if (key === 'PERCY_IOS_DRIVER_HOST_PORT') return '11100';
+        return undefined;
+      };
+      const res = await dump({ platform: 'ios', getEnv });
+      expect(res).toEqual({ kind: 'unavailable', reason: 'not-implemented' });
+    });
+
+    it('does not invoke adb on iOS dispatch', async () => {
+      const execAdb = async () => { throw new Error('should not hit adb on iOS'); };
+      const getEnv = key => {
+        if (key === 'PERCY_IOS_DEVICE_UDID') return '00008110-000065081404401E';
+        if (key === 'PERCY_IOS_DRIVER_HOST_PORT') return '11100';
+        return undefined;
+      };
+      const res = await dump({ platform: 'ios', execAdb, getEnv });
+      expect(res.kind).toBe('unavailable');
+    });
+
+    it('Android dispatch is unchanged when platform is omitted', async () => {
+      // Default platform is 'android' — preserves backwards compatibility for
+      // existing callers (api.js Android path) that pre-date the platform arg.
+      const execAdb = makeFakeExecAdb([
+        { match: args => args[0] === 'devices', result: okDevices },
+        { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
+      ]);
+      const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
+      expect(res.kind).toBe('hierarchy');
+      expect(res.nodes.length).toBeGreaterThan(0);
     });
   });
 });
