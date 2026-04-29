@@ -478,6 +478,27 @@ describe('Discovery', () => {
     ]));
   });
 
+  it('captures auto-fetched favicon when the page does not declare one', async () => {
+    percy.set({ discovery: { networkIdleTimeout: 1000 } });
+    server.reply('/favicon.ico', () => [200, 'image/x-icon', pixel]);
+
+    await percy.snapshot({
+      name: 'auto-fetch favicon snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/favicon.ico'
+        })
+      })
+    ]));
+  });
+
   it('does not capture event-stream requests', async () => {
     let eventStreamDOM = dedent`<!DOCTYPE html><html><head></head><body><script>
       new EventSource('/event-stream').onmessage = event => {
@@ -2389,6 +2410,33 @@ describe('Discovery', () => {
         `[percy:core:discovery] ${err.stack}`,
         '[percy:core:discovery] Encountered an error processing resource: http://localhost:8000/img.gif',
         `[percy:core:discovery] ${err.stack}`
+      ]));
+    });
+
+    it('logs gracefully when direct font request fails', async () => {
+      server.reply('/style.css', () => [200, 'text/css', [
+        '@font-face { font-family: "test"; src: url("/font.woff") format("woff"); }',
+        'body { font-family: "test", "sans-serif"; }'
+      ].join('')]);
+
+      // First hit (browser): octet-stream forces font fallback path.
+      // Second hit (makeDirectRequest): 400 makes the direct fetch throw without retrying.
+      let callCount = 0;
+      server.reply('/font.woff', () => {
+        if (++callCount === 1) return [200, 'application/octet-stream', '<font>'];
+        return [400, 'text/plain', 'bad request'];
+      });
+
+      await percy.snapshot({
+        name: 'font error snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching('Encountered an error processing resource: http://localhost:8000/font.woff')
       ]));
     });
   });
