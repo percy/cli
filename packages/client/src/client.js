@@ -419,6 +419,60 @@ export class PercyClient {
     return this.get(`job_status?sync=true&type=${type}&id=${ids.join()}`);
   }
 
+  async getSmartsnapSnapshotNameToCommit(buildId, snapshotNames) {
+    validateId('build', buildId);
+    this.log.debug(`Smartsnap: looking up baselines for build ${buildId}...`);
+    const qs = new URLSearchParams();
+    qs.append('build_id', buildId);
+    for (const name of (snapshotNames || [])) qs.append('snapshot_names[]', name);
+    return this.get(
+      `smartsnap/snapshot-name-to-commit?${qs.toString()}`,
+      { identifier: 'smartsnap.snapshot_name_to_commit' }
+    );
+  }
+
+  async generateSmartsnapGraph(buildId, {
+    files,
+    modules,
+    packageMapping,
+    storybookPaths,
+    affectedNodes
+  } = {}) {
+    validateId('build', buildId);
+    this.log.debug(`Smartsnap: enqueueing graph build for build ${buildId}...`);
+    return this.post('smartsnap/generate-graph', {
+      build_id: buildId,
+      files,
+      modules,
+      package_mapping: packageMapping,
+      storybook_paths: storybookPaths,
+      affected_nodes: affectedNodes
+    }, { identifier: 'smartsnap.generate_graph' });
+  }
+
+  async getSmartsnapGraphStatus(buildId) {
+    validateId('build', buildId);
+    this.log.debug(`Smartsnap: polling graph status for build ${buildId}...`);
+    return this.get(
+      `smartsnap/generate-graph/${buildId}`,
+      { identifier: 'smartsnap.graph_status' }
+    );
+  }
+
+  async getSmartsnapGraphData(buildId, { trace = false } = {}) {
+    validateId('build', buildId);
+    this.log.debug(`Smartsnap: fetching graph data for build ${buildId}...`);
+    const qs = new URLSearchParams();
+    if (trace) qs.append('trace', 'true');
+    const query = qs.toString();
+    return this.get(
+      query
+        ? `smartsnap/generate-graph/${buildId}/data?${query}`
+        : `smartsnap/generate-graph/${buildId}/data`,
+      { identifier: 'smartsnap.graph_data' }
+    );
+  }
+
   // Returns device details enabled on project associated with given token
   async getDeviceDetails(buildId) {
     try {
