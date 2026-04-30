@@ -183,22 +183,31 @@ export class Server extends http.Server {
       return;
     }
 
+    // Capture the force-close timer so we can clear it after the
+    // race — otherwise it fires `drainMs` later (calling
+    // closeAllConnections / socket.destroy on an already-closed
+    // server) which is a no-op in normal cases but can throw on
+    // edge-case socket states.
     /* istanbul ignore next: 5s force-close timeout fires only when
        in-flight requests genuinely stall — exercising it under nyc
        requires a deliberately wedged socket which interacts badly
        with the Jasmine runner. The graceful path (where `closed`
        wins the race) is exercised by every existing percy.stop()
        test. */
-    let forced = new Promise(resolve => setTimeout(() => {
-      if (typeof this.closeAllConnections === 'function') {
-        this.closeAllConnections();
-      } else {
-        this.#sockets.forEach(socket => socket.destroy());
-      }
-      resolve();
-    }, drainMs).unref());
+    let forcedTimer;
+    let forced = new Promise(resolve => {
+      forcedTimer = setTimeout(() => {
+        if (typeof this.closeAllConnections === 'function') {
+          this.closeAllConnections();
+        } else {
+          this.#sockets.forEach(socket => socket.destroy());
+        }
+        resolve();
+      }, drainMs).unref();
+    });
 
     await Promise.race([closed, forced]);
+    clearTimeout(forcedTimer);
     // Ensure the 'close' event has fully fired even if `forced` won
     // the race (we still need super.close()'s callback to resolve).
     await closed;

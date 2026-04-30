@@ -1,7 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import spawn from 'cross-spawn';
 import EventEmitter from 'events';
 import WebSocket from 'ws';
@@ -215,7 +215,10 @@ export class Browser extends EventEmitter {
       // pid signals the entire process group.
       try {
         if (process.platform === 'win32') {
-          execSync(`taskkill /pid ${this.process.pid} /T /F`, { stdio: 'ignore' });
+          // Use execFileSync (no shell) so the pid argument is passed
+          // directly without interpolation — defense-in-depth against
+          // any future drift where this.process.pid isn't a clean int.
+          execFileSync('taskkill', ['/pid', String(this.process.pid), '/T', '/F'], { stdio: 'ignore' });
         } else {
           process.kill(-this.process.pid, 'SIGKILL');
         }

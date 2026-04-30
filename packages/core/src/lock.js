@@ -50,8 +50,12 @@ export function lockPathFor(port) {
   let n = Number(port);
   /* istanbul ignore if: invalid ports are filtered upstream by the
      CLI flag parser and the Percy() constructor's default; this
-     guard is defensive against pathological direct callers. */
-  if (!Number.isInteger(n) || n < 0 || n > 65535) {
+     guard is defensive against pathological direct callers. Port 0
+     is also rejected — it means "OS picks an ephemeral port", and a
+     lockfile keyed by 0 would not correspond to the actual bound
+     port (two callers requesting port 0 would contend on agent-0.lock
+     even though the OS hands them different ports). */
+  if (!Number.isInteger(n) || n <= 0 || n > 65535) {
     throw new TypeError(`Invalid port for lockfile: ${JSON.stringify(port)}`);
   }
   // The validated integer `n` plus the literal prefix/suffix yields a
@@ -147,7 +151,17 @@ export function acquireLock({ port }) {
        under nyc. The behavior simply maps the EEXIST to the same
        LockHeldError our first wx-failure path already produces. */
     if (err.code === 'EEXIST') {
-      const winner = JSON.parse(readFileSync(path, 'utf-8'));
+      // Defensive JSON.parse: the race winner could be mid-write
+      // (truncated bytes) or have already crashed (empty file). A
+      // bare JSON.parse here would surface as a SyntaxError instead
+      // of a graceful LockHeldError. Mirror the same try/catch the
+      // earlier stale-lock read uses.
+      let winner;
+      try {
+        winner = JSON.parse(readFileSync(path, 'utf-8'));
+      } catch {
+        winner = { pid: '?', port, startedAt: 'unknown' };
+      }
       throw new LockHeldError(winner, path);
     }
     /* istanbul ignore next: surfaces non-EEXIST fs errors (EACCES,

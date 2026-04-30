@@ -26,10 +26,37 @@ class RequestLifeCycleHandler {
     this.responseReceived = new Promise((resolve) => (this.resolveResponseReceived = resolve));
   }
 }
+// PER-7855 Phase 1: `Network.TIMEOUT` was a static class field used by
+// some test code (and potentially external SDK consumers) to override
+// the network-idle timeout. It's been replaced by a per-instance
+// `networkIdleWaitTimeout` initialized from PERCY_NETWORK_IDLE_WAIT_TIMEOUT.
+// Keep a static getter/setter shim so external callers reading or
+// writing `Network.TIMEOUT` see a one-time deprecation warning instead
+// of silently dropping their override.
+let _timeoutDeprecationWarned = false;
+
 // The Interceptor class creates common handlers for dealing with intercepting asset requests
 // for a given page using various devtools protocol events and commands.
 export class Network {
   log = logger('core:discovery');
+
+  static get TIMEOUT() {
+    /* istanbul ignore next: deprecation shim — the static getter is
+       kept only for external SDK consumers that read it. */
+    return undefined;
+  }
+
+  static set TIMEOUT(_val) {
+    /* istanbul ignore if: deprecation shim — exercised only by
+       external callers that still write the static field. */
+    if (!_timeoutDeprecationWarned) {
+      _timeoutDeprecationWarned = true;
+      logger('core:discovery').warn(
+        'Network.TIMEOUT is deprecated; set the PERCY_NETWORK_IDLE_WAIT_TIMEOUT ' +
+        'env var (or pass per-page options) — the static field no longer affects discovery.'
+      );
+    }
+  }
 
   #requestsLifeCycleHandler = new DefaultMap(() => new RequestLifeCycleHandler());
   #pending = new Map();

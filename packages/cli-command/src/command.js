@@ -323,20 +323,20 @@ export function command(name, definition, callback) {
       }
 
       // PER-7855 Phase 3: signal-driven shutdown — when SIGINT/SIGTERM
-      // was received during this run, exit with the signal-derived
-      // code (130 / 143) in production. Tests with `exitOnError: false`
+      // was received during this run, set the signal-derived exit code
+      // (130 SIGINT / 143 SIGTERM) and return. We deliberately set
+      // `process.exitCode` and unwind cleanly rather than calling
+      // `process.exit()`, so the surrounding catch's finally block (and
+      // the lockfile's `process.on('exit')` handler) still run. The
+      // event loop drains naturally because the unref'd drain/hard-exit
+      // timers don't keep it alive. Tests with `exitOnError: false`
       // preserve the legacy clean-resolution behavior because
       // AbortError carries exitCode:0 and the gate below is skipped.
-      /* istanbul ignore if: signal-driven exit path. The behavior is
-         verified at the integration level by the SIGINT/SIGTERM tests
-         in cli-command/test/shutdown.test.js (which stub process.exit
-         and assert it's called with 130/143). nyc's instrumentation
-         of dist→src mapping does not register the sub-statement
-         coverage for the process.exit call inside this branch. */
       if (shutdownState.signal && err.signal && definition.exitOnError) {
         let signalCode = shutdownState.signal === 'SIGINT' ? 130 : 143;
         let percyExitWithZeroOnError = process.env.PERCY_EXIT_WITH_ZERO_ON_ERROR === 'true';
-        process.exit(percyExitWithZeroOnError ? 0 : signalCode);
+        process.exitCode = percyExitWithZeroOnError ? 0 : signalCode;
+        return;
       }
 
       // exit when appropriate

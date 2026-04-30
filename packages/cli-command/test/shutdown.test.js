@@ -2,26 +2,23 @@ import logger from '@percy/logger/test/helpers';
 import command, { _resetShutdownForTest } from '@percy/cli-command';
 
 // PER-7855 Phase 3: signal handling, unhandled-rejection logging with
-// redaction, and exit-code precedence. Tests stub `process.exit` so
-// the runner's exit-code branch can be observed without actually
-// killing the test runner.
+// redaction, and exit-code precedence. The signal-driven path sets
+// `process.exitCode` and unwinds via `return` (so `finally` blocks run);
+// tests assert on `process.exitCode` rather than stubbing `process.exit`.
 describe('Phase 3: shutdown + unhandled-rejection + exit codes', () => {
-  let exitSpy;
+  let savedExitCode;
 
   beforeEach(async () => {
     await logger.mock();
     _resetShutdownForTest();
-    // Stub process.exit so the production-mode signal branch (which
-    // calls process.exit synchronously) returns instead of killing
-    // the test runner. Throwing a sentinel so the catch unwinds the
-    // command's try/catch as it would on a real exit.
-    exitSpy = spyOn(process, 'exit').and.callFake(code => {
-      throw Object.assign(new Error('SIMULATED_PROCESS_EXIT'), { exitCode: code, simulated: true });
-    });
+    savedExitCode = process.exitCode;
+    process.exitCode = undefined;
   });
 
   afterEach(() => {
     _resetShutdownForTest();
+    delete process.env.PERCY_EXIT_WITH_ZERO_ON_ERROR;
+    process.exitCode = savedExitCode;
   });
 
   describe('signal handling (exitOnError: true — production)', () => {
@@ -32,24 +29,39 @@ describe('Phase 3: shutdown + unhandled-rejection + exit codes', () => {
       });
     }
 
-    it('exits with 130 on SIGINT', async () => {
+    it('sets exitCode 130 on SIGINT', async () => {
       let runner = makeRunner();
       let promise = runner();
       await new Promise(r => setImmediate(r));
       process.emit('SIGINT');
       await promise.catch(() => {});
 
-      expect(exitSpy).toHaveBeenCalledWith(130);
+      expect(process.exitCode).toBe(130);
     });
 
-    it('exits with 143 on SIGTERM', async () => {
+    it('sets exitCode 143 on SIGTERM', async () => {
       let runner = makeRunner();
       let promise = runner();
       await new Promise(r => setImmediate(r));
       process.emit('SIGTERM');
       await promise.catch(() => {});
 
-      expect(exitSpy).toHaveBeenCalledWith(143);
+      expect(process.exitCode).toBe(143);
+    });
+
+    // Coverage for the PERCY_EXIT_WITH_ZERO_ON_ERROR override in the
+    // signal-driven exit branch. CI pipelines that want a green run
+    // even on Ctrl-C set this env var; ensure refactors don't silently
+    // drop it.
+    it('honors PERCY_EXIT_WITH_ZERO_ON_ERROR=true on SIGINT', async () => {
+      process.env.PERCY_EXIT_WITH_ZERO_ON_ERROR = 'true';
+      let runner = makeRunner();
+      let promise = runner();
+      await new Promise(r => setImmediate(r));
+      process.emit('SIGINT');
+      await promise.catch(() => {});
+
+      expect(process.exitCode).toBe(0);
     });
   });
 
