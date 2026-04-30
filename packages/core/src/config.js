@@ -370,8 +370,11 @@ export const configSchema = {
         type: 'boolean'
       },
       maxCacheRam: {
+        // 0 has no meaningful semantics — it's neither "unbounded" (use null)
+        // nor "disabled" (use --disable-cache). Reject it at schema time so the
+        // discovery clamp doesn't silently bump it to 25MB.
         type: ['integer', 'null'],
-        minimum: 0
+        minimum: 1
       },
       captureMockedServiceWorker: {
         type: 'boolean',

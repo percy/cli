@@ -422,6 +422,13 @@ function readWarnThresholdBytes() {
 // to the disk tier; read failures return undefined so the browser refetches.
 // Also resolves the array-valued root-resource shape used for multi-width
 // DOM snapshots, regardless of which tier returned it.
+//
+// Disk hits are promoted back to RAM so a hot URL that was evicted once does
+// not pay the readFileSync cost on every subsequent access — the typical
+// two-tier-cache promotion pattern. ByteLRU's own eviction will then re-spill
+// the actual coldest entry if needed. DISK_SPILL_KEY is only set when the
+// ByteLRU tier is active (see createDiscoveryQueue 'start' handler), so the
+// cache here is guaranteed to be a ByteLRU when we enter this branch.
 export function lookupCacheResource(percy, snapshotResources, cache, url, width) {
   let resource = snapshotResources.get(url) || cache.get(url);
   const disk = percy[DISK_SPILL_KEY];
@@ -432,6 +439,11 @@ export function lookupCacheResource(percy, snapshotResources, cache, url, width)
         `cache disk-hit: ${url} (disk=${disk.size}/` +
         `${Math.round(disk.bytes / BYTES_PER_MB)}MB)`
       );
+      // Promote back to RAM and drop the disk copy. cache.set may itself
+      // evict the LRU entry (which spills back to disk) — that's the
+      // intended LRU dance, not a bug.
+      cache.set(url, resource, entrySize(resource));
+      disk.delete(url);
     }
   }
   if (resource && Array.isArray(resource) && resource[0].root) {
@@ -629,10 +641,14 @@ export function createDiscoveryQueue(percy) {
                   // the oversize_skipped stat + debug log live there.
                   cache.set(r.url, r, entrySize(r));
                 } else {
-                  cache.set(r.url, r);
-                  // Track bytes unconditionally so peak is accurate;
-                  // one-shot warn emission is gated by warningFired.
+                  // Subtract the prior entry's footprint before overwriting so
+                  // the byte counter tracks current cache contents rather than
+                  // cumulative writes. Without this, the same shared CSS saved
+                  // across N snapshots would inflate unsetModeBytes by N×.
                   const stats = percy[CACHE_STATS_KEY];
+                  const prior = cache.get(r.url);
+                  if (prior) stats.unsetModeBytes -= entrySize(prior);
+                  cache.set(r.url, r);
                   stats.unsetModeBytes += entrySize(r);
                   if (!stats.warningFired && stats.unsetModeBytes >= warnThreshold) {
                     stats.warningFired = true;

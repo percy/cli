@@ -233,6 +233,23 @@ describe('Unit / entrySize', () => {
   it('accepts custom overhead', () => {
     expect(entrySize({ content: Buffer.alloc(100) }, 0)).toEqual(100);
   });
+
+  it('counts string content in UTF-8 bytes, not JS string units', () => {
+    // '\u{1F600}' (😀) is 2 string-units long but 4 UTF-8 bytes; '日本' is 2
+    // string-units long but 6 UTF-8 bytes. Without Buffer.byteLength the
+    // cache would undercount and let the byte budget drift past its cap.
+    expect(entrySize({ content: '\u{1F600}' }, 0)).toEqual(4);
+    expect(entrySize({ content: '日本' }, 0)).toEqual(6);
+    expect(entrySize({ content: 'ascii' }, 0)).toEqual(5);
+  });
+
+  it('counts UTF-8 bytes inside array-valued entries too', () => {
+    const arr = [
+      { content: 'ascii' },
+      { content: '\u{1F600}' }
+    ];
+    expect(entrySize(arr, 0)).toEqual(5 + 4);
+  });
 });
 
 describe('Unit / DiskSpillStore', () => {
@@ -358,6 +375,45 @@ describe('Unit / DiskSpillStore', () => {
       store.get('http://x/missing');
       expect(store.stats.spilled).toEqual(2);
       expect(store.stats.restored).toEqual(2);
+    });
+
+    it('spills and restores multi-width root arrays via JSON+base64', () => {
+      // Multi-width root snapshots arrive as an array; the array shape used to
+      // be silently dropped because resource.content is undefined on arrays.
+      // Now the whole array roundtrips, with binary contents preserved.
+      const arr = [
+        { root: true, widths: [375], mimetype: 'text/html', content: Buffer.from('<html-375>') },
+        { root: true, widths: [1280], mimetype: 'text/html', content: Buffer.from([0, 1, 2, 254, 255]) }
+      ];
+      expect(store.set('http://x/root', arr)).toBe(true);
+      const got = store.get('http://x/root');
+      expect(Array.isArray(got)).toBe(true);
+      expect(got.length).toEqual(2);
+      expect(got[0].root).toBe(true);
+      expect(got[0].widths).toEqual([375]);
+      expect(got[0].content.toString()).toEqual('<html-375>');
+      expect(Buffer.isBuffer(got[1].content)).toBe(true);
+      expect(got[1].content.equals(Buffer.from([0, 1, 2, 254, 255]))).toBe(true);
+    });
+
+    it('self-heals on array-decode failure', () => {
+      const arr = [{ root: true, content: Buffer.from('a') }];
+      store.set('http://x/bad', arr);
+      // Corrupt the spilled file so JSON.parse throws (use the imported
+      // ESM fs/path helpers, not CommonJS require).
+      const entryFile = fs.readdirSync(store.dir)[0];
+      fs.writeFileSync(path.join(store.dir, entryFile), 'not-json');
+      expect(store.get('http://x/bad')).toBeUndefined();
+      expect(store.has('http://x/bad')).toBe(false);
+      expect(store.stats.readFailures).toBeGreaterThan(0);
+    });
+
+    it('returns false when JSON.stringify on an array entry fails', () => {
+      // Circular ref makes JSON.stringify throw; spill must refuse cleanly.
+      const node = { root: true };
+      node.self = node;
+      expect(store.set('http://x/circ', [node])).toBe(false);
+      expect(store.has('http://x/circ')).toBe(false);
     });
   });
 
@@ -546,6 +602,30 @@ describe('Unit / lookupCacheResource', () => {
       const got = lookupCacheResource(percy, new Map(), new ByteLRU(), 'a');
       expect(got.content.toString()).toEqual('DISK');
       expect(logs.some(m => m.includes('cache disk-hit: a'))).toBe(true);
+    } finally { disk.destroy(); }
+  });
+
+  it('promotes a disk hit back to RAM and frees the disk slot', () => {
+    // Two-tier-cache promotion: a hot URL evicted once should not pay the
+    // readFileSync cost on every subsequent access. After lookupCacheResource
+    // returns from the disk tier, the entry must be in the RAM ByteLRU and
+    // gone from the DiskSpillStore.
+    const dir = path.join(os.tmpdir(), `lookup-promote-${process.pid}-${Math.random().toString(36).slice(2, 8)}`);
+    const disk = new DiskSpillStore(dir);
+    try {
+      disk.set('hot', { url: 'hot', mimetype: 'text/css', content: Buffer.from('PROMOTE') });
+      const ram = new ByteLRU(1_000_000);
+      const { percy } = makePercy(disk);
+      const first = lookupCacheResource(percy, new Map(), ram, 'hot');
+      expect(first.content.toString()).toEqual('PROMOTE');
+      // Promotion: disk entry is gone, RAM cache has it.
+      expect(disk.has('hot')).toBe(false);
+      expect(ram.has('hot')).toBe(true);
+      // Subsequent lookup is now a RAM hit (no further reads).
+      spyOn(fs, 'readFileSync').and.callThrough();
+      const second = lookupCacheResource(percy, new Map(), ram, 'hot');
+      expect(second.content.toString()).toEqual('PROMOTE');
+      expect(fs.readFileSync).not.toHaveBeenCalled();
     } finally { disk.destroy(); }
   });
 

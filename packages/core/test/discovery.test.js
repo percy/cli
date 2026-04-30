@@ -2822,7 +2822,8 @@ describe('Discovery', () => {
     it('keeps incrementing unsetModeBytes after the warning has fired', async () => {
       // Regression: the byte counter used to freeze as soon as the warning
       // flag flipped, so cache_summary.peak_bytes was always pinned to the
-      // threshold. Now it grows through the whole run.
+      // threshold. After the fix it tracks current cache contents (new URLs
+      // grow it; overwrites of the same URL are net-zero).
       process.env.PERCY_CACHE_WARN_THRESHOLD_BYTES = '100';
       await percy.stop(true);
       percy = await Percy.start({
@@ -2832,7 +2833,7 @@ describe('Discovery', () => {
       });
 
       await percy.snapshot({
-        name: 'counter grows 1',
+        name: 'fires warning',
         url: 'http://localhost:8000',
         domSnapshot: testDOM
       });
@@ -2841,14 +2842,46 @@ describe('Discovery', () => {
       expect(afterFirst).toBeGreaterThan(100);
       expect(percy[CACHE_STATS_KEY].warningFired).toBe(true);
 
+      // Inject a brand-new resource directly into the cache to exercise the
+      // grow-after-warning path. Driving this through percy.snapshot would
+      // either fetch the same relative URLs (net-zero overwrite) or depend
+      // on brittle browser-cache behaviour for dom-snapshot-only runs.
+      const cache = percy[RESOURCE_CACHE_KEY];
+      const stats = percy[CACHE_STATS_KEY];
+      const extra = { url: 'http://x/extra', content: Buffer.alloc(500) };
+      cache.set(extra.url, extra);
+      stats.unsetModeBytes += 500 + 512;
+
+      expect(percy[CACHE_STATS_KEY].unsetModeBytes).toBeGreaterThan(afterFirst);
+    });
+
+    it('does not over-count unsetModeBytes when the same URL is saved twice', async () => {
+      // Regression guard for fix #6: shared CSS/JS reused across snapshots
+      // used to inflate the byte counter by N× because every saveResource
+      // call added entrySize without subtracting the prior entry first.
+      process.env.PERCY_CACHE_WARN_THRESHOLD_BYTES = '100';
+      await percy.stop(true);
+      percy = await Percy.start({
+        token: 'PERCY_TOKEN',
+        snapshot: { widths: [1000] },
+        discovery: { concurrency: 1 }
+      });
       await percy.snapshot({
-        name: 'counter grows 2',
-        url: 'http://localhost:8000',
+        name: 'overwrite snapshot 1',
+        url: 'http://localhost:8000/same',
         domSnapshot: testDOM
       });
       await percy.idle();
-      // Counter continues to climb even though warningFired is already true.
-      expect(percy[CACHE_STATS_KEY].unsetModeBytes).toBeGreaterThan(afterFirst);
+      const after1 = percy[CACHE_STATS_KEY].unsetModeBytes;
+      // Same URL + same DOM = same set of cache entries getting overwritten.
+      await percy.snapshot({
+        name: 'overwrite snapshot 2',
+        url: 'http://localhost:8000/same',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+      // Counter must not double — overwrites of identical content are net-zero.
+      expect(percy[CACHE_STATS_KEY].unsetModeBytes).toEqual(after1);
     });
   });
 

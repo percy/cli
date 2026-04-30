@@ -86,13 +86,43 @@ export class ByteLRU {
   get stats() { return { ...this.#stats, currentBytes: this.#bytes }; }
 }
 
+// Returns the byte length of a resource's content. Buffer.byteLength is used
+// for strings so that multi-byte UTF-8 (CJK, emoji) is counted in bytes, not
+// JS string units, otherwise the cache budget can drift past its cap.
+function contentBytes(content) {
+  if (content == null) return 0;
+  if (Buffer.isBuffer(content)) return content.length;
+  if (typeof content === 'string') return Buffer.byteLength(content);
+  return content.length ?? 0;
+}
+
 // Handles the two Percy cache-entry shapes: single resource, or array of
 // roots captured at multiple widths (see discovery.js parseDomResources).
 export function entrySize(resource, overhead = DEFAULT_PER_ENTRY_OVERHEAD) {
   if (Array.isArray(resource)) {
-    return resource.reduce((n, r) => n + (r?.content?.length ?? 0) + overhead, 0);
+    return resource.reduce((n, r) => n + contentBytes(r?.content) + overhead, 0);
   }
-  return (resource?.content?.length ?? 0) + overhead;
+  return contentBytes(resource?.content) + overhead;
+}
+
+// Multi-width root arrays carry per-element binary content. Encode buffers as
+// base64 inside JSON so the whole array survives a disk roundtrip; null and
+// string content pass through as themselves.
+function encodeArrayElement(r) {
+  if (!r) return r;
+  const { content, ...rest } = r;
+  if (content == null) return { ...rest, content: null };
+  if (Buffer.isBuffer(content)) return { ...rest, content: { __buf: content.toString('base64') } };
+  return { ...rest, content: String(content) };
+}
+
+function decodeArrayElement(r) {
+  if (!r) return r;
+  const { content, ...rest } = r;
+  if (content && typeof content === 'object' && '__buf' in content) {
+    return { ...rest, content: Buffer.from(content.__buf, 'base64') };
+  }
+  return { ...rest, content };
 }
 
 export class DiskSpillStore {
@@ -119,13 +149,31 @@ export class DiskSpillStore {
 
   // Returns true on success; false on any failure so caller falls back to drop.
   // Overwrites prior spill for the same URL — a fresh discovery write wins.
+  // Two resource shapes are supported: a single resource with a binary
+  // .content, and a multi-width root array (see entrySize for the array
+  // shape). Arrays are JSON-encoded with base64 buffers so the whole array
+  // survives the disk roundtrip.
   set(url, resource) {
     if (!this.#ready) return false;
 
-    let content = resource?.content;
-    if (content == null) return false;
-    if (!Buffer.isBuffer(content)) {
-      try { content = Buffer.from(content); } catch { return false; }
+    let bytes;
+    let meta;
+    let isArray = false;
+
+    if (Array.isArray(resource)) {
+      isArray = true;
+      try {
+        bytes = Buffer.from(JSON.stringify(resource.map(encodeArrayElement)));
+      } catch { return false; }
+    } else {
+      let content = resource?.content;
+      if (content == null) return false;
+      if (!Buffer.isBuffer(content)) {
+        try { content = Buffer.from(content); } catch { return false; }
+      }
+      bytes = content;
+      meta = { ...resource };
+      delete meta.content;
     }
 
     // Counter-based filename keeps URL-derived data out of path.join —
@@ -133,7 +181,7 @@ export class DiskSpillStore {
     const filepath = path.join(this.dir, String(++this.#counter));
 
     try {
-      fs.writeFileSync(filepath, content);
+      fs.writeFileSync(filepath, bytes);
     } catch (err) {
       this.#stats.spillFailures++;
       this.log?.debug?.(`disk-spill write failed for ${url}: ${err.message}`);
@@ -146,10 +194,8 @@ export class DiskSpillStore {
       try { fs.unlinkSync(prev.path); } catch { /* best-effort */ }
     }
 
-    const meta = { ...resource };
-    delete meta.content;
-    this.#index.set(url, { path: filepath, size: content.length, meta });
-    this.#bytes += content.length;
+    this.#index.set(url, { path: filepath, size: bytes.length, isArray, meta });
+    this.#bytes += bytes.length;
     if (this.#bytes > this.#peakBytes) this.#peakBytes = this.#bytes;
     this.#stats.spilled++;
     return true;
@@ -158,17 +204,30 @@ export class DiskSpillStore {
   get(url) {
     const entry = this.#index.get(url);
     if (!entry) return undefined;
-    let content;
+    let raw;
     try {
-      content = fs.readFileSync(entry.path);
+      raw = fs.readFileSync(entry.path);
     } catch (err) {
       this.#stats.readFailures++;
       this.log?.debug?.(`disk-spill read failed for ${url}: ${err.message}`);
       this.#removeEntry(url, entry);
       return undefined;
     }
+    if (entry.isArray) {
+      let arr;
+      try {
+        arr = JSON.parse(raw.toString('utf8')).map(decodeArrayElement);
+      } catch (err) {
+        this.#stats.readFailures++;
+        this.log?.debug?.(`disk-spill array-decode failed for ${url}: ${err.message}`);
+        this.#removeEntry(url, entry);
+        return undefined;
+      }
+      this.#stats.restored++;
+      return arr;
+    }
     this.#stats.restored++;
-    return { ...entry.meta, content };
+    return { ...entry.meta, content: raw };
   }
 
   has(url) { return this.#index.has(url); }
