@@ -89,8 +89,15 @@ function livenessCheck(pid) {
 
 // Acquire a per-port lock. On success, returns a handle whose `path`
 // the caller must eventually pass to `releaseLockSync`. Throws
-// `LockHeldError` if another live process holds the lock.
+// `LockHeldError` if another live process holds the lock. Returns
+// `null` (no lock acquired) when `port === 0` — the lockfile is
+// keyed by the requested port, but port 0 means "OS picks an
+// ephemeral port", so the lockfile name wouldn't match the actual
+// bound port. Callers should treat a null handle as "no lock to
+// release" and the lockfile mechanism is effectively skipped for
+// ephemeral-port instances (e.g., parallel test fixtures).
 export function acquireLock({ port }) {
+  if (Number(port) === 0) return null;
   const dir = join(os.homedir(), LOCK_DIR_NAME);
   const path = lockPathFor(port);
   const payload = JSON.stringify({

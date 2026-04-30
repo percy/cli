@@ -227,13 +227,16 @@ export class Percy {
       // Skipped when no server is configured (lock represents a port
       // claim).
       if (this.server) {
+        // acquireLock returns null when port === 0 (ephemeral / test
+        // fixtures); skip the exit handler in that case since there's
+        // nothing to release.
         this._lockHandle = acquireLock({ port: this.port });
-        // Synchronous unlink as last-chance cleanup if the process
-        // exits without a normal stop() (Phase 3 will wire the
-        // signal-driven path; this `exit` handler covers crash and
-        // uncaught-exception cases until then).
-        this._lockExitHandler = () => releaseLockSync(this._lockHandle);
-        process.on('exit', this._lockExitHandler);
+        if (this._lockHandle) {
+          // Synchronous unlink as last-chance cleanup if the process
+          // exits without a normal stop().
+          this._lockExitHandler = () => releaseLockSync(this._lockHandle);
+          process.on('exit', this._lockExitHandler);
+        }
       }
 
       // started monitoring system metrics
