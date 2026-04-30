@@ -40,15 +40,16 @@ let _timeoutDeprecationWarned = false;
 export class Network {
   log = logger('core:discovery');
 
+  /* istanbul ignore next: deprecation shim — kept only for external
+     SDK consumers that read the field. Not reachable from test code. */
   static get TIMEOUT() {
-    /* istanbul ignore next: deprecation shim — the static getter is
-       kept only for external SDK consumers that read it. */
     return undefined;
   }
 
+  /* istanbul ignore next: deprecation shim — exercised only when
+     external callers still write the static field. The shim logs a
+     one-time warning pointing at PERCY_NETWORK_IDLE_WAIT_TIMEOUT. */
   static set TIMEOUT(_val) {
-    /* istanbul ignore if: deprecation shim — exercised only by
-       external callers that still write the static field. */
     if (!_timeoutDeprecationWarned) {
       _timeoutDeprecationWarned = true;
       logger('core:discovery').warn(

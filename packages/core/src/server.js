@@ -188,13 +188,14 @@ export class Server extends http.Server {
     // closeAllConnections / socket.destroy on an already-closed
     // server) which is a no-op in normal cases but can throw on
     // edge-case socket states.
+    let forcedTimer;
     /* istanbul ignore next: 5s force-close timeout fires only when
        in-flight requests genuinely stall — exercising it under nyc
        requires a deliberately wedged socket which interacts badly
        with the Jasmine runner. The graceful path (where `closed`
        wins the race) is exercised by every existing percy.stop()
-       test. */
-    let forcedTimer;
+       test, and `clearTimeout(forcedTimer)` after the race ensures
+       the inner callback never runs in normal teardown. */
     let forced = new Promise(resolve => {
       forcedTimer = setTimeout(() => {
         if (typeof this.closeAllConnections === 'function') {
