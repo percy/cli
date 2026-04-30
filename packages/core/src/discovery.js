@@ -359,6 +359,11 @@ async function* captureSnapshotResources(page, snapshot, options) {
     yield waitForFontLoading(page);
     yield waitForDiscoveryNetworkIdle(page, discovery);
     yield* captureResponsiveAssets();
+    // Readiness does NOT run on SDK-provided domSnapshots. The DOM is already
+    // serialized at this point — running readiness cannot modify it. Preserving
+    // the domSnapshot maintains modal state, post-interaction state, and supports
+    // localhost testing. SDK users who need fully-loaded snapshots should wait
+    // for page stability in their test code before calling percySnapshot().
     capture(processSnapshotResources(snapshot));
   }
 }
@@ -483,10 +488,29 @@ export function createDiscoveryQueue(percy) {
             }
           });
 
+          // Set readiness config on page for Storybook (which calls page.snapshot() without readiness in options)
+          page._readinessConfig = snapshot.readiness || percy.config?.snapshot?.readiness;
+
           try {
+            // Wrap callback to send failed readiness diagnostics to smart debugging
+            /* istanbul ignore next: diagnostic callback requires live browser readiness timeout */
+            let captureWithDiagnostics = (captured) => {
+              if (captured?.readiness_diagnostics && !captured.readiness_diagnostics.passed) {
+                let diag = captured.readiness_diagnostics;
+                let failedChecks = Object.entries(diag.checks || {})
+                  .filter(([, c]) => !c.passed)
+                  .map(([name]) => name);
+                percy.suggestionsForFix(
+                  `Snapshot "${captured.name}" readiness timed out after ${diag.total_duration_ms}ms. Failed checks: ${failedChecks.join(', ')}`,
+                  { snapshotLevel: true, snapshotName: captured.name }
+                );
+              }
+              callback(captured);
+            };
+
             yield* captureSnapshotResources(page, snapshot, {
               captureWidths: !snapshot.domSnapshot && percy.deferUploads,
-              capture: callback,
+              capture: captureWithDiagnostics,
               captureForDevices: percy.deviceDetails || []
             });
           } finally {
