@@ -221,13 +221,19 @@ export function validateSnapshotOptions(options) {
     for (let w of domWarnings) log.warn(`- ${w}`);
   }
 
-  // log readiness diagnostics when present (SDK-submitted snapshots with readiness enabled)
-  let readinessDiag = migrated.domSnapshot?.readiness_diagnostics;
+  // log readiness diagnostics when present (SDK-submitted snapshots with readiness enabled).
+  // The schema marks readiness_diagnostics with normalize: false to preserve the snake_case wire
+  // format. The dual-read fallback below is defensive — it keeps the log working even if a future
+  // SDK sends camelCase keys, or if a path in PercyConfig.migrate skips the normalize: false hint.
+  let readinessDiag = migrated.domSnapshot?.readiness_diagnostics ?? migrated.domSnapshot?.readinessDiagnostics;
   if (readinessDiag) {
-    if (readinessDiag.timed_out) {
-      log.warn(`Readiness timed out after ${readinessDiag.total_duration_ms}ms (preset: ${readinessDiag.preset || 'custom'})`);
+    let timedOut = readinessDiag.timed_out ?? readinessDiag.timedOut;
+    let durationMs = readinessDiag.total_duration_ms ?? readinessDiag.totalDurationMs;
+    let presetName = readinessDiag.preset || 'custom';
+    if (timedOut) {
+      log.warn(`Readiness timed out after ${durationMs}ms (preset: ${presetName})`);
     } else {
-      log.debug(`Readiness passed in ${readinessDiag.total_duration_ms}ms (preset: ${readinessDiag.preset || 'custom'})`);
+      log.debug(`Readiness passed in ${durationMs}ms (preset: ${presetName})`);
     }
   }
 

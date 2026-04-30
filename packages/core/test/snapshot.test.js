@@ -1098,6 +1098,53 @@ describe('Snapshot', () => {
     ]));
   });
 
+  // The previous three tests pass `domSnapshot` as a JSON-stringified string —
+  // a path that bypasses PercyConfig.migrate's recursive case-conversion of
+  // nested keys. Real SDKs (post-PR2184) submit `domSnapshot` as an OBJECT in
+  // the snapshot post body, so the normalize layer rewrites snake_case nested
+  // keys to camelCase. The schema marks readiness_diagnostics with
+  // `normalize: false` to preserve the wire shape; these regression tests
+  // pin both the schema flag and the snapshot.js dual-read fallback.
+  it('logs readiness timeout when domSnapshot is submitted as an object (real SDK wire shape)', async () => {
+    await percy.snapshot({
+      name: 'Readiness Timeout Object',
+      url: 'http://localhost:8000/',
+      domSnapshot: {
+        html: testDOM,
+        readiness_diagnostics: {
+          timed_out: true,
+          total_duration_ms: 4321,
+          preset: 'balanced'
+        }
+      }
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Readiness timed out after 4321ms (preset: balanced)'
+    ]));
+  });
+
+  it('logs readiness pass when domSnapshot is submitted as an object', async () => {
+    percy.loglevel('debug');
+
+    await percy.snapshot({
+      name: 'Readiness Passed Object',
+      url: 'http://localhost:8000/',
+      domSnapshot: {
+        html: testDOM,
+        readiness_diagnostics: {
+          timed_out: false,
+          total_duration_ms: 175,
+          preset: 'fast'
+        }
+      }
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy:core:snapshot] Readiness passed in 175ms (preset: fast)'
+    ]));
+  });
+
   it('handles duplicate snapshots when testCase is not passed', async () => {
     await percy.snapshot([{
       url: 'http://localhost:8000/foobar',

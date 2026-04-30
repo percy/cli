@@ -702,7 +702,10 @@ export const snapshotSchema = {
               },
               readiness_diagnostics: {
                 type: 'object',
-                description: 'Diagnostics from readiness checks run before serialization'
+                normalize: false,
+                description: 'Diagnostics from readiness checks run before serialization. ' +
+                  'normalize: false preserves the snake_case wire format the SDKs send (timed_out, ' +
+                  'total_duration_ms, etc.) instead of camelCasing inner keys at validate time.'
               },
               corsIframes: {
                 type: 'array',
