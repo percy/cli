@@ -176,7 +176,7 @@ export function chromium({
 }
 
 // Chrome 143.0.7499.169 (base position 1536371) — closest per-platform
-// revision from https://commondatastorage.googleapis.com/chromium-browser-snapshots/
+// revision from https://commondatastorage.googleapis.com/chromium-browser-snapshots/index.html
 chromium.revisions = {
   linux: '1536366',
   win64: '1536376',

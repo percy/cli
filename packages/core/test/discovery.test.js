@@ -1,4 +1,5 @@
 import { sha256hash } from '@percy/client/utils';
+import { waitFor } from '@percy/core/utils';
 import { logger, api, setupTest, createTestServer, dedent, mockRequests } from './helpers/index.js';
 import Percy from '@percy/core';
 import { RESOURCE_CACHE_KEY } from '../src/discovery.js';
@@ -2438,6 +2439,41 @@ describe('Discovery', () => {
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
         jasmine.stringMatching('Encountered an error processing resource: http://localhost:8000/font.woff')
       ]));
+    });
+
+    it('continues responses gracefully when the request is untracked', async () => {
+      let snap = percy.snapshot({
+        name: 'untracked snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await waitFor(() => percy.browser.sessions.size > 0);
+      let [session] = percy.browser.sessions.values();
+      let sentMethods = [];
+      let originalSend = session.send.bind(session);
+      spyOn(session, 'send').and.callFake((method, params) => {
+        sentMethods.push({ method, params });
+        return originalSend(method, params);
+      });
+
+      // Emit a response-stage Fetch.requestPaused for a request that was never
+      // tracked at the request stage — exercises the defensive null-request
+      // branch in _handleResponsePaused.
+      session.emit('Fetch.requestPaused', {
+        networkId: 'untracked-network-id',
+        requestId: 'untracked-intercept-id',
+        responseStatusCode: 200,
+        responseHeaders: [],
+        request: { url: 'http://example.com/orphan' }
+      });
+
+      await snap;
+
+      expect(sentMethods.some(c =>
+        c.method === 'Fetch.continueResponse' &&
+        c.params?.requestId === 'untracked-intercept-id'
+      )).toBe(true);
     });
   });
 
