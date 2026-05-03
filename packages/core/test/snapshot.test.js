@@ -886,6 +886,9 @@ describe('Snapshot', () => {
       domSnapshot: testDOM,
       sync: true
     }, promise);
+    // Attach a no-op catch so the rejection isn't reported as unhandled
+    // in the race window between snapshot returning and handleSyncJob attaching its handler
+    promise['test snapshot'].catch(() => {});
     const data = await handleSyncJob(promise['test snapshot'], percy, 'snapshot');
     expect(data).toEqual({ error: 'unexpected upload error' });
     await expectAsync(promise['test snapshot']).toBeRejectedWithError('unexpected upload error');

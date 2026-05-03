@@ -3297,10 +3297,16 @@ describe('Discovery', () => {
 
       let validationCallCount = 0;
       let validationResolver;
+      let firstCallResolver;
+      let firstCallPromise = new Promise(resolve => { firstCallResolver = resolve; });
 
       // Mock validation to hang so we can test concurrent requests
       validationMock.and.callFake(() => {
         validationCallCount++;
+        if (firstCallResolver) {
+          firstCallResolver();
+          firstCallResolver = null;
+        }
         return new Promise(resolve => {
           validationResolver = resolve;
         });
@@ -3330,13 +3336,8 @@ describe('Discovery', () => {
         widths: [1000]
       });
 
-      // Wait for validation to be called at least once
-      let attempts = 0;
-      // eslint-disable-next-line no-unmodified-loop-condition
-      while (validationCallCount === 0 && attempts < 50) {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        attempts++;
-      }
+      // Wait deterministically for the first validation call instead of polling
+      await firstCallPromise;
 
       // Validation should only be called once
       expect(validationCallCount).toBe(1);
