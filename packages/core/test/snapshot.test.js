@@ -879,16 +879,26 @@ describe('Snapshot', () => {
       errors: [{ detail: 'unexpected upload error' }]
     }]);
 
+    // Use a setter so a no-op catch is attached the moment percy.snapshot assigns
+    // the promise (percy.js:495). Without this, the upload can reject before the
+    // next line runs and Node reports an unhandled rejection.
     const promise = {};
+    let testSnapshotPromise;
+    Object.defineProperty(promise, 'test snapshot', {
+      configurable: true,
+      enumerable: true,
+      get() { return testSnapshotPromise; },
+      set(p) {
+        testSnapshotPromise = p;
+        p.catch(() => {});
+      }
+    });
     await percy.snapshot({
       name: 'test snapshot',
       url: 'http://localhost:8000',
       domSnapshot: testDOM,
       sync: true
     }, promise);
-    // Attach a no-op catch so the rejection isn't reported as unhandled
-    // in the race window between snapshot returning and handleSyncJob attaching its handler
-    promise['test snapshot'].catch(() => {});
     const data = await handleSyncJob(promise['test snapshot'], percy, 'snapshot');
     expect(data).toEqual({ error: 'unexpected upload error' });
     await expectAsync(promise['test snapshot']).toBeRejectedWithError('unexpected upload error');
