@@ -2553,6 +2553,33 @@ describe('Discovery', () => {
       expect(disk.has('http://localhost:8000/style.css')).toBe(false);
     });
 
+    it('saveResource clears a stale disk entry on the saveResource path itself (race window)', async () => {
+      // The lookup path also clears stale disk entries via promotion, so that
+      // path masks coverage of the saveResource-side guard. Force a lookup
+      // miss while leaving the entry on disk to prove the save-side branch
+      // fires, which is the actual race-window guard the comment describes.
+      await startWith({ maxCacheRam: 25 });
+      const disk = percy[DISK_SPILL_KEY];
+      disk.set('http://localhost:8000/style.css', {
+        url: 'http://localhost:8000/style.css',
+        mimetype: 'text/css',
+        content: Buffer.from('STALE')
+      });
+      // .has stays truthful so the saveResource guard sees the entry; .get
+      // returns undefined so the lookup-side promotion path is bypassed.
+      spyOn(disk, 'get').and.returnValue(undefined);
+      expect(disk.has('http://localhost:8000/style.css')).toBe(true);
+
+      await percy.snapshot({
+        name: 'race window test',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+      await percy.idle();
+
+      expect(disk.has('http://localhost:8000/style.css')).toBe(false);
+    });
+
     it('calls diskStore.destroy, snapshots stats.finalDiskStats, and clears the key in the queue end handler', async () => {
       await startWith({ maxCacheRam: 25 });
       const disk = percy[DISK_SPILL_KEY];
