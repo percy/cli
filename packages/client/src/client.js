@@ -419,11 +419,16 @@ export class PercyClient {
     return this.get(`job_status?sync=true&type=${type}&id=${ids.join()}`);
   }
 
-  async getSmartsnapSnapshotNameToCommit(buildId, snapshotNames) {
-    validateId('build', buildId);
-    this.log.debug(`Smartsnap: looking up baselines for build ${buildId}...`);
+  // SmartSnap endpoints authenticate against the project attached to the
+  // current Percy token (via the Authorization header). The three graph
+  // endpoints additionally take a `build_id` (sourced from the bundler-
+  // emitted stats file) so multiple concurrent storybook builds for the
+  // same project don't share Redis state. `snapshot-name-to-commit` is
+  // project-scoped only and takes no buildId.
+
+  async getSmartsnapSnapshotNameToCommit(snapshotNames) {
+    this.log.debug('Smartsnap: looking up baselines...');
     const qs = new URLSearchParams();
-    qs.append('build_id', buildId);
     for (const name of (snapshotNames || [])) qs.append('snapshot_names[]', name);
     return this.get(
       `smartsnap/snapshot-name-to-commit?${qs.toString()}`,
@@ -438,7 +443,6 @@ export class PercyClient {
     storybookPaths,
     affectedNodes
   } = {}) {
-    validateId('build', buildId);
     this.log.debug(`Smartsnap: enqueueing graph build for build ${buildId}...`);
     return this.post('smartsnap/generate-graph', {
       build_id: buildId,
@@ -451,24 +455,22 @@ export class PercyClient {
   }
 
   async getSmartsnapGraphStatus(buildId) {
-    validateId('build', buildId);
     this.log.debug(`Smartsnap: polling graph status for build ${buildId}...`);
+    const qs = new URLSearchParams();
+    qs.append('build_id', buildId);
     return this.get(
-      `smartsnap/generate-graph/${buildId}`,
+      `smartsnap/generate-graph?${qs.toString()}`,
       { identifier: 'smartsnap.graph_status' }
     );
   }
 
   async getSmartsnapGraphData(buildId, { trace = false } = {}) {
-    validateId('build', buildId);
     this.log.debug(`Smartsnap: fetching graph data for build ${buildId}...`);
     const qs = new URLSearchParams();
+    qs.append('build_id', buildId);
     if (trace) qs.append('trace', 'true');
-    const query = qs.toString();
     return this.get(
-      query
-        ? `smartsnap/generate-graph/${buildId}/data?${query}`
-        : `smartsnap/generate-graph/${buildId}/data`,
+      `smartsnap/generate-graph/data?${qs.toString()}`,
       { identifier: 'smartsnap.graph_data' }
     );
   }
