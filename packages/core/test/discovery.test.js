@@ -2475,6 +2475,41 @@ describe('Discovery', () => {
         c.params?.requestId === 'untracked-intercept-id'
       )).toBe(true);
     });
+
+    it('aborts oversized responses for untracked requests', async () => {
+      let snap = percy.snapshot({
+        name: 'untracked oversized snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await waitFor(() => percy.browser.sessions.size > 0);
+      let [session] = percy.browser.sessions.values();
+      let sentMethods = [];
+      let originalSend = session.send.bind(session);
+      spyOn(session, 'send').and.callFake((method, params) => {
+        sentMethods.push({ method, params });
+        return originalSend(method, params);
+      });
+
+      // Emit a response-stage Fetch.requestPaused with malformed Content-Length
+      // for a request that was never tracked at the request stage — exercises
+      // the `if (request)` false branch inside the oversized/malformed handler.
+      session.emit('Fetch.requestPaused', {
+        networkId: 'untracked-malformed-id',
+        requestId: 'untracked-malformed-intercept',
+        responseStatusCode: 200,
+        responseHeaders: [{ name: 'Content-Length', value: 'NaN' }],
+        request: { url: 'http://example.com/orphan-malformed' }
+      });
+
+      await snap;
+
+      expect(sentMethods.some(c =>
+        c.method === 'Fetch.failRequest' &&
+        c.params?.requestId === 'untracked-malformed-intercept'
+      )).toBe(true);
+    });
   });
 
   describe('with remote resources', () => {
@@ -3778,6 +3813,7 @@ describe('Discovery', () => {
 
       sharedExpectBlock(expectedBody);
     });
+
 
     it('does not close the browser when closeBrowser is false', async () => {
       percy = await Percy.start({
