@@ -208,13 +208,24 @@ function checkFontReady(aborted) {
   /* istanbul ignore next: cannot mock document.fonts API in browser tests */
   if (!document.fonts?.ready) return Promise.resolve({ passed: true, duration_ms: 0, skipped: true });
   let fontTimer;
+  let resolveAbort;
+  // Resolve deterministically on abort so the race is settled by the orchestrator's timeout
+  // path and doesn't get retroactively flipped to { passed: true } when document.fonts.ready
+  // settles late. Important if we ever begin reading checks.font_ready post-timeout.
+  let abortPromise = new Promise(r => { resolveAbort = r; });
   let result = Promise.race([
     document.fonts.ready.then(() => ({ passed: true, duration_ms: Math.round(performance.now() - start) })),
     /* istanbul ignore next: font timeout requires 5s delay, impractical in tests */
-    new Promise(r => { fontTimer = setTimeout(() => r({ passed: false, duration_ms: 5000, timed_out: true }), 5000); })
+    new Promise(r => { fontTimer = setTimeout(() => r({ passed: false, duration_ms: 5000, timed_out: true }), 5000); }),
+    abortPromise
   ]);
   /* istanbul ignore next: abort path not deterministically testable */
-  if (aborted) aborted.onAbort(() => { if (fontTimer) clearTimeout(fontTimer); });
+  if (aborted) {
+    aborted.onAbort(() => {
+      if (fontTimer) clearTimeout(fontTimer);
+      resolveAbort({ passed: false, duration_ms: Math.round(performance.now() - start), aborted: true });
+    });
+  }
   return result;
 }
 

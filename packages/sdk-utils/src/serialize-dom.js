@@ -34,8 +34,17 @@ export function isReadinessDisabled(snapshotOptions = {}) {
 //   - If PercyDOM.waitForReady is not available (old CLI): resolves immediately
 //   - If waitForReady throws: resolves immediately (catch swallows the error)
 //   - If readiness times out: waitForReady resolves with { timed_out: true }
+//
+// IMPORTANT: The output is intended for CDP / executeScript / executeAsyncScript channels.
+// Do NOT inline this string into HTML — `</script>` sequences in user config would break out
+// of a <script> tag. SDK authors must add HTML escaping before any HTML-inline use.
 export function waitForReadyScript(readinessConfig = {}, { callback = false } = {}) {
-  let config = JSON.stringify(readinessConfig);
+  // U+2028 (LINE SEPARATOR) and U+2029 (PARAGRAPH SEPARATOR) are valid in JSON strings but
+  // were illegal in JS source string literals before ES2019. Escaping them keeps the emitted
+  // script source legal on older engines that may host the SDK eval.
+  let config = JSON.stringify(readinessConfig)
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
 
   if (callback) {
     // For executeAsyncScript — last argument is the callback

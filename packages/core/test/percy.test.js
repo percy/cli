@@ -189,6 +189,41 @@ describe('Percy', () => {
       jasmine.stringMatching(/Readiness timed out, capturing anyway/)
     ]));
     expect(snapshot.url).toEqual('http://localhost:8000/');
+    // diagnostics should be attached to the captured DOM snapshot so the
+    // backend/UI can surface readiness metrics
+    expect(snapshot.domSnapshot).toEqual(jasmine.objectContaining({
+      readiness_diagnostics: { timed_out: true, total_duration_ms: 1234 }
+    }));
+  });
+
+  it('debug logs when the readiness eval rejects and continues to capture', async () => {
+    server.reply('/', () => [200, 'text/html', '<p>Hello Percy!</p>']);
+
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    await page.goto('http://localhost:8000');
+
+    percy.loglevel('debug');
+
+    // Reject only the readiness eval (its first arg is the readiness config
+    // object containing `preset`); all other evals pass through.
+    let originalEval = page.eval.bind(page);
+    spyOn(page, 'eval').and.callFake((fn, ...args) => {
+      if (args[0] && typeof args[0] === 'object' && 'preset' in args[0]) {
+        return Promise.reject(new Error('boom'));
+      }
+      return originalEval(fn, ...args);
+    });
+
+    let snapshot = await page.snapshot({
+      readiness: { preset: 'fast' }
+    });
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Readiness check failed: Error: boom/)
+    ]));
+    // serialize still runs after a readiness failure
+    expect(snapshot.url).toEqual('http://localhost:8000/');
   });
 
   it('falls back to the percy config readiness when none is set per snapshot', async () => {

@@ -683,6 +683,19 @@ describe('SDK Utils', () => {
       expect(script).toContain('return PercyDOM.waitForReady');
       expect(script).not.toContain('arguments[arguments.length - 1]');
     });
+
+    it('escapes U+2028 and U+2029 in interpolated config so older engines can parse the source', () => {
+      // U+2028 (LINE SEPARATOR) and U+2029 (PARAGRAPH SEPARATOR) are valid in JSON strings but
+      // were illegal in JS source string literals before ES2019.
+      let script = waitForReadyScript({
+        readySelectors: ['header\u2028footer', 'main\u2029aside']
+      });
+      expect(script).toContain('\\u2028');
+      expect(script).toContain('\\u2029');
+      // raw separators must not be present in the emitted source
+      expect(script.includes('\u2028')).toBe(false);
+      expect(script.includes('\u2029')).toBe(false);
+    });
   });
 
   describe('getReadinessConfig(snapshotOptions)', () => {
