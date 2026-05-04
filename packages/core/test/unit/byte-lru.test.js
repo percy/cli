@@ -250,6 +250,15 @@ describe('Unit / entrySize', () => {
     ];
     expect(entrySize(arr, 0)).toEqual(5 + 4);
   });
+
+  it('falls back to .length for non-Buffer non-string content (e.g. Uint8Array)', () => {
+    // Buffer.isBuffer returns false for a raw Uint8Array (Buffer is a subclass).
+    // Some upstream code paths can hand the cache a Uint8Array; the cache still
+    // needs a sensible byte count so its budget doesn't drift.
+    expect(entrySize({ content: new Uint8Array(10) }, 0)).toEqual(10);
+    // No .length at all (e.g. a number) → 0, not NaN.
+    expect(entrySize({ content: 42 }, 0)).toEqual(0);
+  });
 });
 
 describe('Unit / DiskSpillStore', () => {
@@ -394,6 +403,25 @@ describe('Unit / DiskSpillStore', () => {
       expect(got[0].content.toString()).toEqual('<html-375>');
       expect(Buffer.isBuffer(got[1].content)).toBe(true);
       expect(got[1].content.equals(Buffer.from([0, 1, 2, 254, 255]))).toBe(true);
+    });
+
+    it('round-trips a multi-width array with string and null content elements', () => {
+      // Covers the encode/decode fallthroughs: encodeArrayElement coerces
+      // non-Buffer non-null content to a string; decodeArrayElement passes
+      // null and string content through untouched (only __buf is decoded).
+      const arr = [
+        { root: true, widths: [375], mimetype: 'text/html', content: 'string-html' },
+        { root: true, widths: [768], mimetype: 'text/html', content: null },
+        { root: true, widths: [1280], mimetype: 'text/html', content: Buffer.from('bin') }
+      ];
+      expect(store.set('http://x/mixed', arr)).toBe(true);
+      const got = store.get('http://x/mixed');
+      expect(Array.isArray(got)).toBe(true);
+      expect(got.length).toEqual(3);
+      expect(got[0].content).toEqual('string-html');
+      expect(got[1].content).toBeNull();
+      expect(Buffer.isBuffer(got[2].content)).toBe(true);
+      expect(got[2].content.toString()).toEqual('bin');
     });
 
     it('self-heals on array-decode failure', () => {
