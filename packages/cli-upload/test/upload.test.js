@@ -201,8 +201,8 @@ describe('percy upload', () => {
     process.emit('SIGTERM');
     await up;
 
-    // PER-7855 Phase 3: drain announcement is logged on stderr; the
-    // legacy AbortError-as-error log no longer fires because Phase 3
+    // Drain announcement is logged on stderr; the legacy
+    // AbortError-as-error log no longer fires because the runner now
     // suppresses log.error for signal-driven aborts (err.signal truthy).
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       jasmine.stringContaining('SIGTERM received, draining'),
@@ -214,9 +214,9 @@ describe('percy upload', () => {
       '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
     ]));
 
-    // PER-7855 Phase 3: a single SIGTERM is now graceful (force=false),
-    // so the legacy "Stopping percy..." log — which fires only on
-    // Percy.stop(true) — no longer appears here.
+    // A single SIGTERM is now graceful (force=false), so the legacy
+    // "Stopping percy..." log — which fires only on Percy.stop(true) —
+    // no longer appears here.
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Uploading 3 snapshots...',

@@ -26,7 +26,7 @@ class RequestLifeCycleHandler {
     this.responseReceived = new Promise((resolve) => (this.resolveResponseReceived = resolve));
   }
 }
-// PER-7855 Phase 1: `Network.TIMEOUT` was a static class field used by
+// `Network.TIMEOUT` was a static class field used by
 // some test code (and potentially external SDK consumers) to override
 // the network-idle timeout. It's been replaced by a per-instance
 // `networkIdleWaitTimeout` initialized from PERCY_NETWORK_IDLE_WAIT_TIMEOUT.

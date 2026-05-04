@@ -221,7 +221,7 @@ export class Percy {
     this.cliStartTime = new Date().toISOString();
 
     try {
-      // PER-7855 Phase 2: per-port lock fast-fail. Acquire BEFORE any
+      // Per-port lock fast-fail. Acquire BEFORE any
       // expensive setup (monitoring, proxy detection, hostname loads)
       // so a second `percy start` on the same port refuses cheaply.
       // Skipped when no server is configured (lock represents a port
@@ -282,7 +282,7 @@ export class Percy {
       await this.#discovery.end();
       await this.#snapshots.end();
 
-      // PER-7855 Phase 2: release the lock on failed start so a retry
+      // Release the lock on failed start so a retry
       // doesn't see this aborted attempt as "already running."
       this._releaseLock();
 
@@ -290,7 +290,7 @@ export class Percy {
       this.readyState = error.name !== 'AbortError' ? 3 : null;
 
       // throw an easier-to-understand error when the port is in use.
-      // PER-7855 Phase 2: a held lockfile fails before server.listen,
+      // A held lockfile fails before server.listen,
       // so EADDRINUSE no longer fires for the "Percy already running"
       // case — surface LockHeldError under the same legacy message
       // (downstream tools may grep for it) but ALSO log the actionable
@@ -317,8 +317,8 @@ export class Percy {
     }
   }
 
-  // PER-7855 Phase 2: idempotent lock release used by both the
-  // success and failure paths in start/stop.
+  // Idempotent lock release used by both the success and failure paths
+  // in start/stop.
   _releaseLock() {
     if (this._lockExitHandler) {
       process.off('exit', this._lockExitHandler);
@@ -423,7 +423,7 @@ export class Percy {
       this.monitoring.stopMonitoring();
       clearTimeout(this.resetMonitoringId);
 
-      // PER-7855 Phase 2: release per-port lock after the server
+      // Release per-port lock after the server
       // socket is closed (the unlink itself is sync, but ordering
       // after `server?.close()` keeps the post-condition that "lock
       // present ⇒ server bound" until the very end).

@@ -12,7 +12,7 @@ export function mockfs(initial) {
       path.resolve(url.fileURLToPath(import.meta.url), '/../../../dom/dist/bundle.js'),
       path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml'),
       p => p.includes?.('.local-chromium'),
-      // PER-7855 Phase 2: per-port lockfiles live under ~/.percy/. They
+      // Per-port lockfiles live under ~/.percy/. They
       // are infrastructure (not test fixture data), so route the entire
       // directory (mkdir, writeFile, readFile, unlink) through the real
       // fs. Matching only `/.percy/agent-` lets `writeFileSync` pass but

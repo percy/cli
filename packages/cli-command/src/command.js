@@ -7,7 +7,7 @@ import * as builtInFlags from './flags.js';
 import formatHelp from './help.js';
 import parse from './parse.js';
 
-// PER-7855 Phase 3: module-level shutdown state for graceful drain on
+// Module-level shutdown state for graceful drain on
 // SIGINT/SIGTERM. Per-run signal handlers (registered in
 // runCommandWithContext below) delegate here so the state is accessible
 // to commands via ctx.shutdown without prop-drilling.
@@ -29,6 +29,10 @@ let activeContext = null;
 
 const DEFAULT_DRAIN_MS = 30_000;
 const HARD_EXIT_AFTER_FORCE_MS = 5_000;
+// POSIX-conventional signal exit codes: 128 + signal number.
+const EXIT_CODE_SIGINT = 130;
+const EXIT_CODE_SIGTERM = 143;
+const SIGNAL_EXIT_CODES = { SIGINT: EXIT_CODE_SIGINT, SIGTERM: EXIT_CODE_SIGTERM };
 
 // Begin or escalate drain. Idempotent on the same signal.
 function beginShutdown(signal) {
@@ -54,7 +58,7 @@ function beginShutdown(signal) {
        shutdown.forced test in cli-command/test/shutdown.test.js. */
     if (!shutdownState.hardExitTimer) {
       shutdownState.hardExitTimer = setTimeout(
-        () => process.exit(signal === 'SIGINT' ? 130 : 143),
+        () => process.exit(SIGNAL_EXIT_CODES[signal]),
         HARD_EXIT_AFTER_FORCE_MS
       ).unref();
     }
@@ -183,7 +187,7 @@ function exit(exitCode, reason = '', shouldOverrideExitCode = true) {
 // Runs the parsed command callback with a contextual argument consisting of specific parsed input
 // and other common command helpers and properties.
 async function runCommandWithContext(parsed) {
-  // PER-7855 Phase 3: reset shutdown state at the start of each run so
+  // Reset shutdown state at the start of each run so
   // that a `process.emit('SIGINT')` left over from a previous spec
   // does not leak `shutdownState.signal` into a fresh test run. In
   // production (one runner invocation per Node process), this is a
@@ -199,8 +203,8 @@ async function runCommandWithContext(parsed) {
 
   let { command, flags, args, argv, log } = parsed;
   // include flags, args, argv, logger, exit helper, and env info
-  // PER-7855 Phase 3: ctx.shutdown exposes the module-level shutdown
-  // state to commands so they can call `percy.stop(ctx.shutdown.forced)`
+  // ctx.shutdown exposes the module-level shutdown state to commands so
+  // they can call `percy.stop(ctx.shutdown.forced)`
   // for graceful-on-first-signal, force-on-second-signal behavior.
   let context = { flags, args, argv, log, exit, shutdown: shutdownState, runFailed: false };
   let env = context.env = process.env;
@@ -239,8 +243,8 @@ async function runCommandWithContext(parsed) {
     });
   }
 
-  // process signals will abort. PER-7855 Phase 3: SIGINT/SIGTERM also
-  // engage the module-level shutdown state for drain semantics; the
+  // process signals will abort. SIGINT/SIGTERM also engage the
+  // module-level shutdown state for drain semantics; the
   // existing AbortError unwind path is preserved unchanged so commands
   // that already catch AbortError keep working. AbortController.abort
   // is idempotent — re-entry on a second SIGINT during the same run
@@ -276,8 +280,8 @@ async function runCommandWithContext(parsed) {
     /* istanbul ignore else */
     if (activeContext === context) activeContext = null;
   }
-  // PER-7855 Phase 3: if a global unhandled rejection fired during
-  // this run (and the command did not itself throw), fail loudly at
+  // If a global unhandled rejection fired during this run (and the
+  // command did not itself throw), fail loudly at
   // the end so CI does not see a green build. Pre-existing thrown
   // errors are preserved by the fact that we only reach here on
   // success.
@@ -322,8 +326,8 @@ export function command(name, definition, callback) {
         else log.error(err);
       }
 
-      // PER-7855 Phase 3: signal-driven shutdown — when SIGINT/SIGTERM
-      // was received during this run, set the signal-derived exit code
+      // Signal-driven shutdown — when SIGINT/SIGTERM was received
+      // during this run, set the signal-derived exit code
       // (130 SIGINT / 143 SIGTERM) and return. We deliberately set
       // `process.exitCode` and unwind cleanly rather than calling
       // `process.exit()`, so the surrounding catch's finally block (and
@@ -333,7 +337,7 @@ export function command(name, definition, callback) {
       // preserve the legacy clean-resolution behavior because
       // AbortError carries exitCode:0 and the gate below is skipped.
       if (shutdownState.signal && err.signal && definition.exitOnError) {
-        let signalCode = shutdownState.signal === 'SIGINT' ? 130 : 143;
+        let signalCode = SIGNAL_EXIT_CODES[shutdownState.signal];
         let percyExitWithZeroOnError = process.env.PERCY_EXIT_WITH_ZERO_ON_ERROR === 'true';
         process.exitCode = percyExitWithZeroOnError ? 0 : signalCode;
         return;

@@ -322,7 +322,7 @@ describe('Command', () => {
     expect(test.state).toEqual('SIGINT');
 
     expect(logger.stdout).toEqual([]);
-    // PER-7855 Phase 3: signal handler announces drain on stderr.
+    // Signal handler announces drain on stderr.
     expect(logger.stderr).toEqual([
       jasmine.stringContaining('SIGINT received, draining')
     ]);

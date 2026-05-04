@@ -1,11 +1,11 @@
 import logger from '@percy/logger/test/helpers';
 import command, { _resetShutdownForTest } from '@percy/cli-command';
 
-// PER-7855 Phase 3: signal handling, unhandled-rejection logging with
-// redaction, and exit-code precedence. The signal-driven path sets
-// `process.exitCode` and unwinds via `return` (so `finally` blocks run);
-// tests assert on `process.exitCode` rather than stubbing `process.exit`.
-describe('Phase 3: shutdown + unhandled-rejection + exit codes', () => {
+// Signal handling, unhandled-rejection logging with redaction, and
+// exit-code precedence. The signal-driven path sets `process.exitCode`
+// and unwinds via `return` (so `finally` blocks run); tests assert on
+// `process.exitCode` rather than stubbing `process.exit`.
+describe('shutdown + unhandled-rejection + exit codes', () => {
   let savedExitCode;
 
   beforeEach(async () => {

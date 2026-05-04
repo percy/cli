@@ -231,7 +231,7 @@ describe('percy build:wait', () => {
     process.emit('SIGTERM');
     await waiting;
 
-    // PER-7855 Phase 3: signal handler announces drain on stderr.
+    // Signal handler announces drain on stderr.
     expect(logger.stderr).toEqual([
       jasmine.stringContaining('SIGTERM received, draining')
     ]);

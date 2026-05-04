@@ -146,7 +146,7 @@ export class Server extends http.Server {
 
   // return a promise that resolves when the server closes
   //
-  // PER-7855 Phase 3: graceful drain. By default, stop accepting new
+  // Graceful drain. By default, stop accepting new
   // connections, reap idle keep-alives, and let in-flight requests
   // finish for up to `drainMs` (5s) before forcibly destroying any
   // remaining sockets. Pass `{ drainMs: 0 }` for the legacy abrupt

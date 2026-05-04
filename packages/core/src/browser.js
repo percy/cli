@@ -204,8 +204,8 @@ export class Browser extends EventEmitter {
     /* istanbul ignore next:
      *   difficult to test failure here without mocking private properties */
     if (this.process?.pid && !this.process.killed) {
-      // PER-7855 Phase 3 (bonus): force-close the entire browser
-      // process tree, not just the lead pid. Chromium spawns
+      // Force-close the entire browser process tree, not just the lead
+      // pid. Chromium spawns
       // renderer/utility/zygote children; targeting only the lead pid
       // (the previous behavior) leaked them on every kill.
       //

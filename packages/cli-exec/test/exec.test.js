@@ -242,7 +242,7 @@ describe('percy exec', () => {
     // user termination is not considered an error
     await expectAsync(test).toBeResolved();
 
-    // PER-7855 Phase 3: signal handler announces drain on stderr.
+    // Signal handler announces drain on stderr.
     expect(logger.stderr).toEqual([
       jasmine.stringContaining('SIGTERM received, draining')
     ]);
@@ -303,9 +303,9 @@ describe('percy exec', () => {
       '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
     ]));
 
-    // PER-7855 Phase 3: a single SIGTERM is now a graceful drain (no
-    // forced stop), so the legacy "Stopping percy..." log — which
-    // fires only on `Percy.stop(true)` — no longer appears here.
+    // A single SIGTERM is now a graceful drain (no forced stop), so
+    // the legacy "Stopping percy..." log — which fires only on
+    // `Percy.stop(true)` — no longer appears here.
     // Verify instead that the drain announcement and a clean stop
     // both happened.
     expect(logger.stderr).toEqual(jasmine.arrayContaining([

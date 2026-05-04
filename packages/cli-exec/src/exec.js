@@ -87,8 +87,8 @@ export const exec = command('exec', {
   log.info(`Running "${[command, ...args].join(' ')}"`);
   let [status, error] = yield* spawn(command, args, percy);
 
-  // stop percy if running. PER-7855 Phase 3: when the spawn child was
-  // signaled (error.signal truthy from cross-spawn), respect the
+  // stop percy if running. When the spawn child was signaled
+  // (error.signal truthy from cross-spawn), respect the
   // graceful drain budget exposed via ctx.shutdown; otherwise, the
   // legacy "force-stop on any error" rule still applies.
   let force = error?.signal ? !!shutdown?.forced : !!error;

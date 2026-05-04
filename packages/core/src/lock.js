@@ -1,4 +1,4 @@
-// Per-port lock file for Percy agent processes (PER-7855 Phase 2).
+// Per-port lock file for Percy agent processes.
 //
 // Why: a stale ~/.percy directory after a crash currently surfaces as a
 // late, opaque EADDRINUSE on the next `percy start`. The lock file lets

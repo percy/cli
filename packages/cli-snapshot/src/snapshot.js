@@ -90,8 +90,8 @@ export const snapshot = command('snapshot', {
     yield* percy.yield.stop();
   } catch (error) {
     log.error(error);
-    // PER-7855 Phase 3: see start.js comment — graceful on first
-    // signal, force on second; non-signal errors force-stop as before.
+    // See start.js comment — graceful on first signal, force on second;
+    // non-signal errors force-stop as before.
     /* istanbul ignore next: the signal-driven branch (error.signal
        truthy → use shutdown.forced) is exercised at the integration
        level by the SIGINT/SIGTERM tests in
