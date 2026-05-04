@@ -224,27 +224,19 @@ export class Network {
     await this._handleRequest(session, { ...pending, resourceType, interceptId });
   }
 
-  // Reads the body via Fetch.getResponseBody, saves the resource, and forgets
-  // the request — so the lifecycle is complete before Chrome dispatches
-  // Network.loadingFinished. This handles Chrome 143's split-session worker
-  // scripts (Network events fire on the worker session under a different
-  // requestId) and aborts oversized or malformed Content-Length responses
-  // before the body streams.
+  // Response-stage interception is kept ONLY to detect oversized/malformed
+  // Content-Length and abort the request before Chrome streams a body it
+  // would never terminate (Chrome 143 quirk). For everything else we just
+  // continue — body capture happens later via Network.loadingFinished →
+  // Network.getResponseBody (the v126 path). Reading the body at this stage
+  // hangs worker-initiated fetches, so we don't.
   _handleResponsePaused = async (session, event) => {
-    let { networkId: requestId, requestId: interceptId, responseHeaders, responseStatusCode, responseErrorReason } = event;
+    let { networkId: requestId, requestId: interceptId, responseHeaders, responseStatusCode } = event;
     let request = this.#requests.get(requestId);
     let url = request ? originURL(request) : event.request?.url;
     let headersObj = headersArrayToObject(responseHeaders);
-    let mimeType = headersObj['Content-Type'] || headersObj['content-type'] || '';
     let { tooLarge, malformed, rawValue } = inspectContentLength(headersObj);
 
-    // Errored response: continue so Chrome's natural Network.loadingFailed
-    // propagates the original errorText to _handleLoadingFailed.
-    if (responseErrorReason) {
-      return this._continueResponse(session, interceptId, url);
-    }
-
-    // Oversized or malformed Content-Length: abort before body streams.
     if (tooLarge || malformed) {
       let meta = { ...this.meta, url, responseStatus: responseStatusCode };
       logAssetInstrumentation(this.log, 'asset_not_uploaded', 'resource_too_large', {
@@ -264,41 +256,7 @@ export class Network {
       return;
     }
 
-    // Redirect: skip — _handleRequest builds the redirect chain on the next request stage.
-    if (responseStatusCode >= 300 && responseStatusCode < 400) {
-      return this._continueResponse(session, interceptId, url);
-    }
-
-    // Streaming responses (SSE) where the body never completes — would hang Fetch.getResponseBody.
-    if (mimeType.includes('text/event-stream')) {
-      return this._continueResponse(session, interceptId, url);
-    }
-
-    // Normal response: read body now, save the resource, forget the request.
-    if (request) {
-      let meta = { ...this.meta, url };
-      try {
-        let result = await this.send(session, 'Fetch.getResponseBody', { requestId: interceptId });
-        let bodyBuffer = Buffer.from(result.body, result.base64Encoded ? 'base64' : 'utf-8');
-
-        request.response = {
-          url: event.request?.url,
-          status: responseStatusCode,
-          statusText: event.responseStatusText,
-          mimeType,
-          headers: headersObj,
-          buffer: async () => bodyBuffer
-        };
-        this.#requestsLifeCycleHandler.get(requestId).resolveResponseReceived();
-        await saveResponseResource(this, request, session);
-      } catch (error) {
-        this.log.debug(`Encountered an error processing resource: ${url}`, meta);
-        this.log.debug(error, meta);
-      }
-      this._forgetRequest(request);
-    }
-
-    await this._continueResponse(session, interceptId, url);
+    return this._continueResponse(session, interceptId, url);
   }
 
   // Tell the browser to continue the paused response, swallowing expected
@@ -402,11 +360,27 @@ export class Network {
   // callback. The request should have an associated response and be finished with any redirects.
   _handleLoadingFinished = async (session, event) => {
     let { requestId } = event;
-    // wait for upto 2 seconds or check if response has been sent
-    await this.#requestsLifeCycleHandler.get(requestId).responseReceived;
     let request = this.#requests.get(requestId);
     /* istanbul ignore if: race condition paranoia */
     if (!request) return;
+
+    // Wait for responseReceived to set request.response, but cap the wait —
+    // Chrome 143 doesn't fire Network.responseReceived for worker scripts
+    // (only requestWillBeSent and loadingFinished). Without the cap, the
+    // await would block forever and idle() would hang.
+    if (!request.response) {
+      await Promise.race([
+        this.#requestsLifeCycleHandler.get(requestId).responseReceived,
+        new Promise(resolve => setTimeout(resolve, 2000))
+      ]);
+    }
+
+    if (!request.response) {
+      // responseReceived never fired (e.g., v143 worker scripts) — clean up
+      // without saving. The body wasn't capturable from this session anyway.
+      this._forgetRequest(request);
+      return;
+    }
 
     await saveResponseResource(this, request, session);
     this._forgetRequest(request);

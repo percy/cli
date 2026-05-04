@@ -2395,7 +2395,7 @@ describe('Discovery', () => {
 
     it('logs unhandled response errors gracefully', async () => {
       let err = new Error('some unhandled request error');
-      await triggerSessionEventError('Fetch.getResponseBody', err);
+      await triggerSessionEventError('Network.getResponseBody', err);
 
       await percy.snapshot({
         name: 'test snapshot',
