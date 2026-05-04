@@ -237,6 +237,7 @@ export const __testing__ = {
   resetSchemaDriftForTests() {
     schemaDriftSeen = null;
   },
+  discoverGrpcPort: (...args) => discoverGrpcPort(...args),
   GRPC_HEALTHY_DEADLINE_MS,
   GRPC_CIRCUIT_BREAKER_MS
 };
@@ -384,6 +385,39 @@ function classifyAdbFailure(result) {
     return { kind: 'unavailable', reason: 'device-offline' };
   }
   return null;
+}
+
+// Discover the host-side TCP port forwarded to the device's gRPC server
+// (`dev.mobile.maestro` on tcp:6790). MAESTRO_GRPC_PORT env var preferred —
+// once mobile-repo's `cli_manager.rb` injects it, the probe shell-out is
+// skipped (~50-100ms saved per first dump). Until then, parse
+// `adb -s <serial> forward --list` for a `tcp:<host> tcp:6790` line.
+//
+// Adb forward --list output format: `<serial>\t tcp:<host> tcp:<device>` per
+// line. Whitespace between fields is tabs on most adb versions; allow any
+// whitespace to defend against macOS/Linux drift.
+async function discoverGrpcPort({ serial, execAdb, getEnv }) {
+  const fromEnv = getEnv('MAESTRO_GRPC_PORT');
+  if (fromEnv) {
+    const port = Number.parseInt(fromEnv, 10);
+    if (Number.isInteger(port) && port > 0) return { port };
+    // Non-positive integer or NaN — fall through to probe rather than crash.
+  }
+
+  const probe = await execAdb(['-s', serial, 'forward', '--list']);
+  if (probe.spawnError || probe.timedOut) {
+    return { kind: 'unavailable', reason: 'grpc-port-not-found' };
+  }
+  const stdout = probe.stdout || '';
+  // Match the device port (tcp:6790); the line may or may not start with the
+  // serial depending on adb version. Anchor the device-port at the line end.
+  const re = /tcp:(\d+)\s+tcp:6790\s*$/m;
+  const match = stdout.match(re);
+  if (match) {
+    const port = Number.parseInt(match[1], 10);
+    if (Number.isInteger(port) && port > 0) return { port };
+  }
+  return { kind: 'unavailable', reason: 'grpc-port-not-found' };
 }
 
 // Resolve device serial: prefer ANDROID_SERIAL env; else probe `adb devices`
@@ -547,7 +581,8 @@ async function runMaestroDump(serial, execMaestro, getEnv) {
 export async function dump({
   execAdb = defaultExecAdb,
   execMaestro = defaultExecMaestro,
-  getEnv = defaultGetEnv
+  getEnv = defaultGetEnv,
+  grpcClient = defaultGrpcClientFactory
 } = {}) {
   const started = Date.now();
 
@@ -557,8 +592,37 @@ export async function dump({
     return classification;
   }
 
-  // Primary: `maestro --udid <serial> hierarchy`. Works during a live Maestro flow
-  // (maestro reuses its existing gRPC connection to dev.mobile.maestro on the device).
+  // Primary: direct gRPC to dev.mobile.maestro on tcp:6790 (host-side via
+  // adb forward). Drops per-screenshot resolver latency from ~9s to <100ms.
+  // Maestro CLI shell-out preserved as fallback for local dev, schema drift,
+  // and connection-class errors.
+  //
+  // Kill switch (R9): PERCY_MAESTRO_GRPC=0 short-circuits to the maestro CLI
+  // path. Logged loudly on every dump so the rollback state is observable.
+  const killSwitch = getEnv('PERCY_MAESTRO_GRPC') === '0';
+  if (killSwitch) {
+    log.warn('PERCY_MAESTRO_GRPC kill switch active; using maestro CLI fallback');
+  } else {
+    const portResult = await discoverGrpcPort({ serial, execAdb, getEnv });
+    if (portResult.port) {
+      const grpcResult = await runGrpcDump({ host: '127.0.0.1', port: portResult.port, grpcClient });
+      if (grpcResult.kind === 'hierarchy') {
+        return grpcResult;
+      }
+      if (grpcResult.kind === 'dump-error') {
+        // Schema-class — already logged + dirty bit set inside runGrpcDump.
+        // Returning as-is bypasses the maestro CLI fallback per R3.
+        return grpcResult;
+      }
+      // connection-fail — fall through to the maestro CLI path.
+    } else {
+      log.debug('gRPC port not found; using maestro CLI fallback');
+    }
+  }
+
+  // Fallback: `maestro --udid <serial> hierarchy`. Works during a live
+  // Maestro flow (maestro reuses its existing gRPC connection to
+  // dev.mobile.maestro on the device).
   const maestroResult = await runMaestroDump(serial, execMaestro, getEnv);
   if (maestroResult.kind === 'hierarchy') {
     log.debug(`dump took ${Date.now() - started}ms via maestro (${maestroResult.nodes.length} nodes)`);

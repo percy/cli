@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import url from 'url';
 import {
+  dump,
   __testing__
 } from '../../src/maestro-hierarchy.js';
 import { setupTest } from '../helpers/index.js';
@@ -15,6 +16,7 @@ const {
   resetGrpcCacheForTests,
   getSchemaDriftSeen,
   resetSchemaDriftForTests,
+  discoverGrpcPort,
   GRPC_HEALTHY_DEADLINE_MS,
   GRPC_CIRCUIT_BREAKER_MS
 } = __testing__;
@@ -358,6 +360,285 @@ describe('Unit / maestro-hierarchy gRPC', () => {
       // Elapsed must be ≥ breaker time and not run forever (allow +/- 200ms slack)
       expect(elapsed).toBeGreaterThanOrEqual(GRPC_CIRCUIT_BREAKER_MS - 50);
       expect(elapsed).toBeLessThanOrEqual(GRPC_CIRCUIT_BREAKER_MS + 500);
+    });
+  });
+
+  describe('discoverGrpcPort', () => {
+    function makeFakeExecAdb(handlers) {
+      const callLog = [];
+      const execAdb = async args => {
+        callLog.push(args);
+        for (const { match, result } of handlers) {
+          if (match(args)) return typeof result === 'function' ? result(args) : result;
+        }
+        throw new Error(`No fake handler matched adb args: ${JSON.stringify(args)}`);
+      };
+      execAdb.calls = callLog;
+      return execAdb;
+    }
+
+    it('returns env var when MAESTRO_GRPC_PORT is set to a positive integer', async () => {
+      const execAdb = makeFakeExecAdb([]);
+      const res = await discoverGrpcPort({
+        serial: 'serial-1',
+        execAdb,
+        getEnv: k => (k === 'MAESTRO_GRPC_PORT' ? '8206' : undefined)
+      });
+      expect(res).toEqual({ port: 8206 });
+      expect(execAdb.calls.length).toBe(0);
+    });
+
+    it('falls back to adb forward --list when env var is absent', async () => {
+      const execAdb = makeFakeExecAdb([
+        {
+          match: args => args.includes('forward') && args.includes('--list'),
+          result: { stdout: 'serial-1\ttcp:8206 tcp:6790\n', stderr: '', exitCode: 0 }
+        }
+      ]);
+      const res = await discoverGrpcPort({
+        serial: 'serial-1',
+        execAdb,
+        getEnv: () => undefined
+      });
+      expect(res).toEqual({ port: 8206 });
+      expect(execAdb.calls[0]).toEqual(['-s', 'serial-1', 'forward', '--list']);
+    });
+
+    it('returns unavailable when probe stdout has no matching line', async () => {
+      const execAdb = makeFakeExecAdb([
+        {
+          match: args => args.includes('forward'),
+          result: { stdout: 'serial-1\ttcp:5037 tcp:1234\n', stderr: '', exitCode: 0 }
+        }
+      ]);
+      const res = await discoverGrpcPort({
+        serial: 'serial-1',
+        execAdb,
+        getEnv: () => undefined
+      });
+      expect(res).toEqual({ kind: 'unavailable', reason: 'grpc-port-not-found' });
+    });
+
+    it('returns unavailable on probe timeout', async () => {
+      const execAdb = makeFakeExecAdb([
+        {
+          match: args => args.includes('forward'),
+          result: { stdout: '', stderr: '', exitCode: null, timedOut: true }
+        }
+      ]);
+      const res = await discoverGrpcPort({
+        serial: 'serial-1',
+        execAdb,
+        getEnv: () => undefined
+      });
+      expect(res).toEqual({ kind: 'unavailable', reason: 'grpc-port-not-found' });
+    });
+
+    it('returns unavailable on probe spawn error (adb not found)', async () => {
+      const execAdb = async () => ({
+        spawnError: Object.assign(new Error('not found'), { code: 'ENOENT' })
+      });
+      const res = await discoverGrpcPort({
+        serial: 'serial-1',
+        execAdb,
+        getEnv: () => undefined
+      });
+      expect(res).toEqual({ kind: 'unavailable', reason: 'grpc-port-not-found' });
+    });
+
+    it('falls through to probe when MAESTRO_GRPC_PORT is non-numeric', async () => {
+      const execAdb = makeFakeExecAdb([
+        {
+          match: args => args.includes('forward'),
+          result: { stdout: 'serial-1\ttcp:8206 tcp:6790\n', stderr: '', exitCode: 0 }
+        }
+      ]);
+      const res = await discoverGrpcPort({
+        serial: 'serial-1',
+        execAdb,
+        getEnv: k => (k === 'MAESTRO_GRPC_PORT' ? 'not-a-number' : undefined)
+      });
+      expect(res).toEqual({ port: 8206 });
+    });
+
+    it('falls through to probe when MAESTRO_GRPC_PORT is non-positive', async () => {
+      const execAdb = makeFakeExecAdb([
+        {
+          match: args => args.includes('forward'),
+          result: { stdout: 'serial-1\ttcp:8206 tcp:6790\n', stderr: '', exitCode: 0 }
+        }
+      ]);
+      const res = await discoverGrpcPort({
+        serial: 'serial-1',
+        execAdb,
+        getEnv: k => (k === 'MAESTRO_GRPC_PORT' ? '-1' : undefined)
+      });
+      expect(res).toEqual({ port: 8206 });
+    });
+
+    it('picks the first tcp:6790 forward when multiple lines present', async () => {
+      const execAdb = makeFakeExecAdb([
+        {
+          match: args => args.includes('forward'),
+          result: {
+            stdout: 'serial-1\ttcp:5555 tcp:5037\nserial-1\ttcp:8206 tcp:6790\nserial-1\ttcp:9000 tcp:6790\n',
+            stderr: '',
+            exitCode: 0
+          }
+        }
+      ]);
+      const res = await discoverGrpcPort({
+        serial: 'serial-1',
+        execAdb,
+        getEnv: () => undefined
+      });
+      expect(res).toEqual({ port: 8206 });
+    });
+  });
+
+  describe('dump() — gRPC primary dispatch', () => {
+    const okMaestroResponse = { stdout: fs.readFileSync(path.join(fixtureDir, 'maestro-simple.json'), 'utf8'), stderr: '', exitCode: 0 };
+
+    function envFn(map) {
+      return key => map[key];
+    }
+
+    function adbWithForward(port) {
+      return async args => {
+        if (args.includes('forward') && args.includes('--list')) {
+          return port
+            ? { stdout: `serial\ttcp:${port} tcp:6790\n`, stderr: '', exitCode: 0 }
+            : { stdout: '', stderr: '', exitCode: 0 };
+        }
+        if (args[0] === 'devices') {
+          return { stdout: 'List of devices attached\nserial\tdevice\n\n', stderr: '', exitCode: 0 };
+        }
+        throw new Error('unexpected adb call: ' + args.join(' '));
+      };
+    }
+
+    it('returns hierarchy from gRPC; never invokes maestro CLI or adb dump when port discovered + gRPC succeeds', async () => {
+      let maestroCalled = false;
+      const execMaestro = async () => { maestroCalled = true; return { stdout: '', stderr: '', exitCode: 1 }; };
+      const grpcClient = makeFakeFactory(() =>
+        makeFixedClient({ response: { hierarchy: loadFixture('grpc-response.xml') } })
+      );
+
+      const res = await dump({
+        execMaestro,
+        execAdb: adbWithForward(8206),
+        getEnv: envFn({ ANDROID_SERIAL: 'serial' }),
+        grpcClient
+      });
+
+      expect(res.kind).toBe('hierarchy');
+      expect(maestroCalled).toBe(false);
+      expect(grpcClient.created.length).toBe(1);
+      expect(grpcClient.created[0].address).toBe('127.0.0.1:8206');
+    });
+
+    it('falls back to maestro CLI on gRPC connection-class failure (UNAVAILABLE)', async () => {
+      let maestroCalled = false;
+      const execMaestro = async () => { maestroCalled = true; return okMaestroResponse; };
+      const grpcClient = makeFakeFactory(() =>
+        makeFixedClient({ error: { code: GRPC_STATUS.UNAVAILABLE, message: 'down' } })
+      );
+
+      const res = await dump({
+        execMaestro,
+        execAdb: adbWithForward(8206),
+        getEnv: envFn({ ANDROID_SERIAL: 'serial' }),
+        grpcClient
+      });
+
+      expect(res.kind).toBe('hierarchy');
+      expect(maestroCalled).toBe(true);
+    });
+
+    it('returns dump-error directly on gRPC schema-class failure (UNIMPLEMENTED) — no maestro fallback', async () => {
+      let maestroCalled = false;
+      const execMaestro = async () => { maestroCalled = true; return okMaestroResponse; };
+      const grpcClient = makeFakeFactory(() =>
+        makeFixedClient({ error: { code: GRPC_STATUS.UNIMPLEMENTED, message: 'no rpc' } })
+      );
+
+      const res = await dump({
+        execMaestro,
+        execAdb: adbWithForward(8206),
+        getEnv: envFn({ ANDROID_SERIAL: 'serial' }),
+        grpcClient
+      });
+
+      expect(res.kind).toBe('dump-error');
+      expect(res.reason).toBe('grpc-schema-unimplemented');
+      expect(maestroCalled).toBe(false);
+    });
+
+    it('falls back to maestro CLI when gRPC port is not discoverable', async () => {
+      let maestroCalled = false;
+      let grpcCalled = false;
+      const execMaestro = async () => { maestroCalled = true; return okMaestroResponse; };
+      const grpcClient = makeFakeFactory(() => {
+        grpcCalled = true;
+        return makeFixedClient({ response: { hierarchy: loadFixture('grpc-response.xml') } });
+      });
+
+      const res = await dump({
+        execMaestro,
+        execAdb: adbWithForward(null), // no matching tcp:6790 line
+        getEnv: envFn({ ANDROID_SERIAL: 'serial' }),
+        grpcClient
+      });
+
+      expect(res.kind).toBe('hierarchy');
+      expect(maestroCalled).toBe(true);
+      expect(grpcCalled).toBe(false);
+    });
+
+    it('PERCY_MAESTRO_GRPC=0 kill switch routes directly to maestro CLI; gRPC and port probe are skipped', async () => {
+      let maestroCalled = false;
+      let grpcCalled = false;
+      let probeCalled = false;
+      const execMaestro = async () => { maestroCalled = true; return okMaestroResponse; };
+      const execAdb = async args => {
+        if (args.includes('forward')) probeCalled = true;
+        // Even if the probe is somehow called, return no port so the test
+        // still detects the bug via the maestroCalled assertion below.
+        return { stdout: '', stderr: '', exitCode: 0 };
+      };
+      const grpcClient = makeFakeFactory(() => {
+        grpcCalled = true;
+        return makeFixedClient({ response: { hierarchy: loadFixture('grpc-response.xml') } });
+      });
+
+      const res = await dump({
+        execMaestro,
+        execAdb,
+        getEnv: envFn({ ANDROID_SERIAL: 'serial', PERCY_MAESTRO_GRPC: '0' }),
+        grpcClient
+      });
+
+      expect(res.kind).toBe('hierarchy');
+      expect(maestroCalled).toBe(true);
+      expect(grpcCalled).toBe(false);
+      expect(probeCalled).toBe(false);
+    });
+
+    it('PERCY_MAESTRO_GRPC unset (or non-zero) takes the gRPC primary path normally', async () => {
+      const execMaestro = async () => { throw new Error('should not be called'); };
+      const grpcClient = makeFakeFactory(() =>
+        makeFixedClient({ response: { hierarchy: loadFixture('grpc-response.xml') } })
+      );
+
+      const res = await dump({
+        execMaestro,
+        execAdb: adbWithForward(8206),
+        getEnv: envFn({ ANDROID_SERIAL: 'serial', PERCY_MAESTRO_GRPC: '1' }),
+        grpcClient
+      });
+
+      expect(res.kind).toBe('hierarchy');
+      expect(grpcClient.created.length).toBe(1);
     });
   });
 
