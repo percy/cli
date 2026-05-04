@@ -85,10 +85,90 @@ describe('serializeDOM', () => {
       value: () => { throw new Error('not supported'); },
       configurable: true
     });
+    // Put element in closed-shadow map so it enters the inaccessible-shadow
+    // branch and exercises the getBoundingClientRect catch.
+    let origMap = window.__percyClosedShadowRoots;
+    let map = new WeakMap();
+    map.set(el, {});
+    window.__percyClosedShadowRoots = map;
+
+    let result = serializeDOM({ disableShadowDOM: true });
+    expect(result.fidelityRegions).toBeDefined();
+    // rect is null after the catch, so no fidelity region is pushed
+    expect(result.fidelityRegions.find(r => r.tag === 'percy-bad-rect')).toBeUndefined();
+
+    window.__percyClosedShadowRoots = origMap;
+  });
+
+  it('records fidelity region for inaccessible closed shadow custom element with bounding rect', () => {
+    if (!window.customElements.get('percy-inaccessible')) {
+      class PercyInaccessible extends window.HTMLElement {
+        connectedCallback() { this.innerHTML = '<span style="display:inline-block;width:80px;height:40px">inaccessible</span>'; }
+      }
+      window.customElements.define('percy-inaccessible', PercyInaccessible);
+    }
+    withExample('<percy-inaccessible id="pia"></percy-inaccessible>', { withShadow: false });
+    let el = document.getElementById('pia');
+    let origMap = window.__percyClosedShadowRoots;
+    let map = new WeakMap();
+    map.set(el, {});
+    window.__percyClosedShadowRoots = map;
+
+    // disableShadowDOM ensures markElement does not set data-percy-shadow-host
+    let result = serializeDOM({ disableShadowDOM: true });
+    let region = result.fidelityRegions.find(r => r.tag === 'percy-inaccessible');
+    expect(region).toBeDefined();
+    expect(region.reason).toBe('potentially-inaccessible-shadow');
+    expect(region.selector).toBe('pia');
+    expect(region.rect.width).toBeGreaterThan(0);
+    expect(region.rect.height).toBeGreaterThan(0);
+    expect(result.warnings.some(w => w.includes('[fidelity]') && w.includes('potentially inaccessible'))).toBe(true);
+
+    window.__percyClosedShadowRoots = origMap;
+  });
+
+  it('falls back to tagName as selector when inaccessible custom element has no id', () => {
+    if (!window.customElements.get('percy-noid')) {
+      class PercyNoId extends window.HTMLElement {
+        connectedCallback() { this.innerHTML = '<span style="display:inline-block;width:50px;height:30px">no id</span>'; }
+      }
+      window.customElements.define('percy-noid', PercyNoId);
+    }
+    withExample('<percy-noid></percy-noid>', { withShadow: false });
+    let el = document.querySelector('percy-noid');
+    let origMap = window.__percyClosedShadowRoots;
+    let map = new WeakMap();
+    map.set(el, {});
+    window.__percyClosedShadowRoots = map;
+
+    let result = serializeDOM({ disableShadowDOM: true });
+    let region = result.fidelityRegions.find(r => r.tag === 'percy-noid');
+    expect(region).toBeDefined();
+    expect(region.selector).toBe('percy-noid');
+
+    window.__percyClosedShadowRoots = origMap;
+  });
+
+  it('skips invalid custom state values during cloning', () => {
+    if (!window.customElements.get('percy-bad-state')) {
+      class PercyBadState extends window.HTMLElement {
+        connectedCallback() { this.innerHTML = '<span>bad state</span>'; }
+      }
+      window.customElements.define('percy-bad-state', PercyBadState);
+    }
+    withExample('<percy-bad-state id="pbs"></percy-bad-state>', { withShadow: false });
+
+    let el = document.getElementById('pbs');
+    if (!window.__percyInternals) window.__percyInternals = new WeakMap();
+    // mix valid and invalid (non-dashed-ident) state values; only valid ones survive
+    window.__percyInternals.set(el, { states: new Set(['valid', 'invalid state', 'bad!', 'also-valid', '']) });
 
     let result = serializeDOM();
-    // Should not crash — shadow root detection skips this element's rect
-    expect(result.fidelityRegions).toBeDefined();
+    expect(result.html).toContain('data-percy-custom-state="valid also-valid"');
+    expect(result.html).not.toContain('invalid state');
+    expect(result.html).not.toContain('bad!');
+
+    window.__percyInternals.delete(el);
   });
 
   it('handles __percyInternals with empty iterable states during cloning', () => {
