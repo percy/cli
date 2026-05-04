@@ -1,0 +1,27 @@
+# Maestro flow that holds the device's UiAutomator session continuously
+# for ~30s by polling `dumpWindowHierarchy` against an impossible selector.
+# The harness in ../../maestro-hierarchy-concurrent.harness.js runs against
+# this flow on a real Android device + active Maestro session — exercises
+# the concurrent-lock contention scenario that R6 guards against.
+#
+# Pause primitive: `extendedWaitUntil` with an impossible selector. Maestro's
+# Android driver implements extendedWaitUntil as a tight polling loop that
+# calls dumpWindowHierarchy on every iteration. With an unmatched selector
+# the loop runs the full configured timeout — every iteration acquires the
+# UiAutomator session (the contention we want).
+#
+# Maestro's expected behavior: the assertion fails on timeout, the flow
+# exits non-zero. The harness treats that exit as the "pause window ended"
+# signal and swallows it.
+#
+# DO NOT replace `extendedWaitUntil` with `waitForAnimationToEnd:30000` —
+# that command exits early on screen-settle and silently on timeout, which
+# is the wrong outcome for a regression test.
+
+appId: org.wikipedia.alpha   # Override at runtime via --env appId=<id> when needed
+---
+- runScript: scripts/percy-pause-sentinel.js
+- extendedWaitUntil:
+    visible:
+      id: "__percy_harness_never_matches__"
+    timeout: 30000
