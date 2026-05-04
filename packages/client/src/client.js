@@ -54,6 +54,133 @@ function makeRegions(regions, algorithm, algorithmConfiguration) {
   }));
 }
 
+const VISUAL_CONFIG_TOP_LEVEL_KEYS = new Set([
+  'enableLayout',
+  'percyCssValue',
+  'compareWithPreviousRun',
+  'diffIgnoreEnabled',
+  'diffIgnorePercentage',
+  'diffSensitivity',
+  'browsers',
+  'intelliIgnore'
+]);
+
+const VISUAL_CONFIG_INTELLI_IGNORE_KEYS = new Set([
+  'enabled',
+  'dynamic',
+  'ignoreAds',
+  'ignoreBanners',
+  'ignoreCarousels',
+  'ignoreCustomElementsEnabled',
+  'ignoreCustomElementsClasses',
+  'ignoreImages',
+  'diffIgnorePercentage'
+]);
+
+function validateBoolean(value, path) {
+  if (value != null && typeof value !== 'boolean') {
+    throw new Error(`Invalid PERCY_VISUAL_CONFIG: '${path}' must be a boolean`);
+  }
+}
+
+function validateNumberInRange(value, path) {
+  if (value == null) return;
+  if (typeof value !== 'number' || Number.isNaN(value) || value < 0 || value > 1) {
+    throw new Error(`Invalid PERCY_VISUAL_CONFIG: '${path}' must be a number between 0 and 1`);
+  }
+}
+
+function validateIntegerRange(value, path, min, max) {
+  if (value == null) return;
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new Error(
+      `Invalid PERCY_VISUAL_CONFIG: '${path}' must be an integer between ${min} and ${max}`
+    );
+  }
+}
+
+function parseVisualConfigFromEnv(log) {
+  let rawVisualConfig = process.env.PERCY_VISUAL_CONFIG;
+  if (!rawVisualConfig) return;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(rawVisualConfig);
+  } catch {
+    throw new Error('Invalid PERCY_VISUAL_CONFIG: value must be valid JSON');
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Invalid PERCY_VISUAL_CONFIG: value must be a JSON object');
+  }
+
+  let visualConfig = {};
+  for (let key of Object.keys(parsed)) {
+    if (!VISUAL_CONFIG_TOP_LEVEL_KEYS.has(key)) {
+      log.warn(`Ignoring unknown PERCY_VISUAL_CONFIG key: '${key}'`);
+      continue;
+    }
+    visualConfig[key] = parsed[key];
+  }
+
+  validateBoolean(visualConfig.enableLayout, 'enableLayout');
+  if (visualConfig.percyCssValue != null && typeof visualConfig.percyCssValue !== 'string') {
+    throw new Error("Invalid PERCY_VISUAL_CONFIG: 'percyCssValue' must be a string");
+  }
+  validateBoolean(visualConfig.compareWithPreviousRun, 'compareWithPreviousRun');
+  validateBoolean(visualConfig.diffIgnoreEnabled, 'diffIgnoreEnabled');
+  validateNumberInRange(visualConfig.diffIgnorePercentage, 'diffIgnorePercentage');
+  validateIntegerRange(visualConfig.diffSensitivity, 'diffSensitivity', 1, 5);
+
+  if (visualConfig.browsers != null) {
+    if (!Array.isArray(visualConfig.browsers) || !visualConfig.browsers.every(b => typeof b === 'string')) {
+      throw new Error("Invalid PERCY_VISUAL_CONFIG: 'browsers' must be an array of strings");
+    }
+    visualConfig.browsers = normalizeBrowsers(visualConfig.browsers);
+  }
+
+  if (visualConfig.intelliIgnore != null) {
+    if (!visualConfig.intelliIgnore || typeof visualConfig.intelliIgnore !== 'object' ||
+        Array.isArray(visualConfig.intelliIgnore)) {
+      throw new Error("Invalid PERCY_VISUAL_CONFIG: 'intelliIgnore' must be an object");
+    }
+
+    let sanitizedIntelliIgnore = {};
+    for (let key of Object.keys(visualConfig.intelliIgnore)) {
+      if (!VISUAL_CONFIG_INTELLI_IGNORE_KEYS.has(key)) {
+        log.warn(`Ignoring unknown PERCY_VISUAL_CONFIG intelliIgnore key: '${key}'`);
+        continue;
+      }
+      sanitizedIntelliIgnore[key] = visualConfig.intelliIgnore[key];
+    }
+
+    validateBoolean(sanitizedIntelliIgnore.enabled, 'intelliIgnore.enabled');
+    validateBoolean(sanitizedIntelliIgnore.dynamic, 'intelliIgnore.dynamic');
+    validateBoolean(sanitizedIntelliIgnore.ignoreAds, 'intelliIgnore.ignoreAds');
+    validateBoolean(sanitizedIntelliIgnore.ignoreBanners, 'intelliIgnore.ignoreBanners');
+    validateBoolean(sanitizedIntelliIgnore.ignoreCarousels, 'intelliIgnore.ignoreCarousels');
+    validateBoolean(
+      sanitizedIntelliIgnore.ignoreCustomElementsEnabled,
+      'intelliIgnore.ignoreCustomElementsEnabled'
+    );
+    if (sanitizedIntelliIgnore.ignoreCustomElementsClasses != null &&
+        typeof sanitizedIntelliIgnore.ignoreCustomElementsClasses !== 'string') {
+      throw new Error(
+        "Invalid PERCY_VISUAL_CONFIG: 'intelliIgnore.ignoreCustomElementsClasses' must be a string"
+      );
+    }
+    validateBoolean(sanitizedIntelliIgnore.ignoreImages, 'intelliIgnore.ignoreImages');
+    validateNumberInRange(
+      sanitizedIntelliIgnore.diffIgnorePercentage,
+      'intelliIgnore.diffIgnorePercentage'
+    );
+
+    visualConfig.intelliIgnore = sanitizedIntelliIgnore;
+  }
+
+  return visualConfig;
+}
+
 // Validate project path arguments
 function validateProjectPath(path) {
   if (!path) throw new Error('Missing project path');
@@ -188,6 +315,7 @@ export class PercyClient {
   // done more seamlessly without manually tracking build ids
   async createBuild({ resources = [], projectType, cliStartTime = null } = {}) {
     this.log.debug('Creating a new build...');
+    let visualConfig = parseVisualConfigFromEnv(this.log);
     let source = 'user_created';
 
     if (process.env.PERCY_ORIGINATED_SOURCE) {
@@ -222,7 +350,8 @@ export class PercyClient {
           source: source,
           'skip-base-build': this.config.percy?.skipBaseBuild,
           'testhub-build-uuid': this.env.testhubBuildUuid,
-          'testhub-build-run-id': this.env.testhubBuildRunId
+          'testhub-build-run-id': this.env.testhubBuildRunId,
+          ...(visualConfig ? { 'visual-config': visualConfig } : {})
         },
         relationships: {
           resources: {
