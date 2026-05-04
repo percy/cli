@@ -3814,7 +3814,6 @@ describe('Discovery', () => {
       sharedExpectBlock(expectedBody);
     });
 
-
     it('does not close the browser when closeBrowser is false', async () => {
       percy = await Percy.start({
         token: 'PERCY_TOKEN',
