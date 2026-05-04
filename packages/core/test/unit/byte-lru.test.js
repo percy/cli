@@ -405,23 +405,26 @@ describe('Unit / DiskSpillStore', () => {
       expect(got[1].content.equals(Buffer.from([0, 1, 2, 254, 255]))).toBe(true);
     });
 
-    it('round-trips a multi-width array with string and null content elements', () => {
-      // Covers the encode/decode fallthroughs: encodeArrayElement coerces
-      // non-Buffer non-null content to a string; decodeArrayElement passes
-      // null and string content through untouched (only __buf is decoded).
+    it('round-trips a multi-width array with string, null, and falsy-entry elements', () => {
+      // Covers the encode/decode fallthroughs and the falsy-entry early-return:
+      // encodeArrayElement coerces non-Buffer non-null content to a string;
+      // decodeArrayElement passes null and string content through untouched
+      // (only __buf is decoded); both short-circuit on falsy array entries.
       const arr = [
         { root: true, widths: [375], mimetype: 'text/html', content: 'string-html' },
         { root: true, widths: [768], mimetype: 'text/html', content: null },
-        { root: true, widths: [1280], mimetype: 'text/html', content: Buffer.from('bin') }
+        { root: true, widths: [1280], mimetype: 'text/html', content: Buffer.from('bin') },
+        null
       ];
       expect(store.set('http://x/mixed', arr)).toBe(true);
       const got = store.get('http://x/mixed');
       expect(Array.isArray(got)).toBe(true);
-      expect(got.length).toEqual(3);
+      expect(got.length).toEqual(4);
       expect(got[0].content).toEqual('string-html');
       expect(got[1].content).toBeNull();
       expect(Buffer.isBuffer(got[2].content)).toBe(true);
       expect(got[2].content.toString()).toEqual('bin');
+      expect(got[3]).toBeNull();
     });
 
     it('self-heals on array-decode failure', () => {
