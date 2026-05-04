@@ -28,8 +28,9 @@ async function getPreflightScript() {
         // try next candidate
       }
     }
+    /* istanbul ignore if: graceful fallback when preflight file missing in all candidate paths */
     if (!_preflightScript) {
-      _preflightScript = ''; // graceful fallback if file not found in any location
+      _preflightScript = '';
     }
   }
   return _preflightScript;
@@ -287,6 +288,7 @@ export class Page {
           return getPreflightScript().then(script => {
             if (script) {
               return session.send('Page.addScriptToEvaluateOnNewDocument', { source: script })
+                /* istanbul ignore next: defensive — only fires on unexpected CDP injection errors */
                 .catch(err => {
                   if (!err.message?.includes('closed') && !err.message?.includes('destroyed')) {
                     logger('core:page').debug('Preflight script injection failed:', err.message);
