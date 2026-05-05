@@ -20,9 +20,10 @@ async function getPreflightScript() {
   try {
     let here = path.dirname(url.fileURLToPath(import.meta.url));
     _preflightScript = await fs.promises.readFile(path.join(here, 'preflight.js'), 'utf-8');
-    /* istanbul ignore next: graceful fallback — closed-shadow capture degrades to no-op */
   } catch (err) {
+    /* istanbul ignore next: graceful fallback — closed-shadow capture degrades to no-op */
     logger('core:page').debug(`Preflight script unavailable: ${err.message}`);
+    /* istanbul ignore next: graceful fallback — closed-shadow capture degrades to no-op */
     _preflightScript = '';
   }
   return _preflightScript;
