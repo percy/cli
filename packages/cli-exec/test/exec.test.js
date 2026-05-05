@@ -242,7 +242,10 @@ describe('percy exec', () => {
     // user termination is not considered an error
     await expectAsync(test).toBeResolved();
 
-    expect(logger.stderr).toEqual([]);
+    // Signal handler announces drain on stderr.
+    expect(logger.stderr).toEqual([
+      jasmine.stringContaining('SIGTERM received, draining')
+    ]);
     expect(logger.stdout).not.toContain(
       '[percy] Running "node --eval "');
   });
@@ -300,9 +303,14 @@ describe('percy exec', () => {
       '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
     ]));
 
-    expect(logger.stdout).toContain(
-      '[percy] Stopping percy...'
-    );
+    // A single SIGTERM is now a graceful drain (no forced stop), so
+    // the legacy "Stopping percy..." log — which fires only on
+    // `Percy.stop(true)` — no longer appears here.
+    // Verify instead that the drain announcement and a clean stop
+    // both happened.
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringContaining('SIGTERM received, draining')
+    ]));
   });
 
   it('provides the child process with a percy server address env var', async () => {

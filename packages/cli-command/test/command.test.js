@@ -322,6 +322,9 @@ describe('Command', () => {
     expect(test.state).toEqual('SIGINT');
 
     expect(logger.stdout).toEqual([]);
-    expect(logger.stderr).toEqual([]);
+    // Signal handler announces drain on stderr.
+    expect(logger.stderr).toEqual([
+      jasmine.stringContaining('SIGINT received, draining')
+    ]);
   });
 });

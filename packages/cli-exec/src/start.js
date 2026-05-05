@@ -7,7 +7,7 @@ export const start = command('start', {
     server: true,
     projectType: 'web'
   }
-}, async function*({ percy, log, exit }) {
+}, async function*({ percy, log, exit, shutdown }) {
   if (!percy) exit(0, 'Percy is disabled');
   let { yieldFor } = await import('@percy/cli-command/utils');
   // Skip this for app because they are triggered as app:exec
@@ -27,7 +27,13 @@ export const start = command('start', {
     yield* yieldFor(() => percy.readyState >= 3);
   } catch (error) {
     log.error(error);
-    await percy.stop(true);
+    // On a signal-driven exit, respect the graceful drain budget —
+    // first SIGINT/SIGTERM stops with force=false so
+    // in-flight uploads finish; second signal (or 30s drain timeout)
+    // flips shutdown.forced to true and we hard-stop. Non-signal
+    // errors preserve the original force-stop behavior.
+    let force = error.signal ? !!shutdown?.forced : true;
+    await percy.stop(force);
     throw error;
   }
 });

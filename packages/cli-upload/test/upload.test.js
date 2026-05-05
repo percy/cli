@@ -201,20 +201,25 @@ describe('percy upload', () => {
     process.emit('SIGTERM');
     await up;
 
-    expect(logger.stderr).toEqual([
-      '[percy] AbortError: SIGTERM',
+    // Drain announcement is logged on stderr; the legacy
+    // AbortError-as-error log no longer fires because the runner now
+    // suppresses log.error for signal-driven aborts (err.signal truthy).
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringContaining('SIGTERM received, draining'),
       '[percy] Detected error for percy build',
       '[percy] Failure: Snapshot command was not called',
       '[percy] Failure Reason: Snapshot Command was not called. please check your CI for errors',
       '[percy] Suggestion: Try using percy snapshot command to take snapshots',
       '[percy] Refer to the below Doc Links for the same',
       '[percy] * https://www.browserstack.com/docs/percy/take-percy-snapshots/'
-    ]);
+    ]));
 
+    // A single SIGTERM is now graceful (force=false), so the legacy
+    // "Stopping percy..." log — which fires only on Percy.stop(true) —
+    // no longer appears here.
     expect(logger.stdout).toEqual(jasmine.arrayContaining([
       '[percy] Percy has started!',
       '[percy] Uploading 3 snapshots...',
-      '[percy] Stopping percy...',
       '[percy] Snapshot uploaded: test-1.png',
       '[percy] Finalized build #1: https://percy.io/test/test/123'
     ]));
