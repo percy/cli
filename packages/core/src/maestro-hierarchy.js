@@ -25,8 +25,12 @@
 // PERCY_IOS_DRIVER_HOST_PORT (iOS) — never accepts device addressing from user
 // input. Honors MAESTRO_BIN env var on both platforms.
 
+import path from 'path';
+import url from 'url';
 import spawn from 'cross-spawn';
 import { XMLParser } from 'fast-xml-parser';
+import * as grpc from '@grpc/grpc-js';
+import * as protoLoader from '@grpc/proto-loader';
 import logger from '@percy/logger';
 
 const log = logger('core:maestro-hierarchy');
@@ -53,6 +57,200 @@ const SELECTOR_KEYS_UNION = ['resource-id', 'text', 'content-desc', 'class', 'id
 const BOUNDS_RE = /^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$/;
 const UNAVAILABLE_STDERR_RE = /no devices|unauthorized|device offline/i;
 const MAESTRO_UNAVAILABLE_STDERR_RE = /No connected devices|Device not found|Could not connect/i;
+
+// gRPC tunables. Both deadlines are independent — see the plan's KTD section.
+// Healthy-call deadline is the p50 budget; circuit breaker bounds the
+// blast radius of grpc-node#2620 (~20s stuck CONNECTING) and #2285
+// (lying READY state after silent drop). Both are exposed for tests.
+const GRPC_HEALTHY_DEADLINE_MS = 250;
+const GRPC_CIRCUIT_BREAKER_MS = 2000;
+
+// Eager-load the maestro_android proto at module init so the ~15-40ms
+// proto-parse cost is paid during CLI cold start, not on the first request
+// path. The static-import chain percy.js → api.js → maestro-hierarchy.js
+// is load-bearing; if any link converts to dynamic import() the parse cost
+// lands on the first element-region screenshot per CLI process.
+//
+// Path resolution mirrors utils.js:553 (secretPatterns.yml) — works
+// identically under src/ (dev) and dist/ (publish) because Babel CLI's
+// copyFiles: true preserves the relative layout.
+const protoFilePath = path.resolve(
+  url.fileURLToPath(import.meta.url),
+  '../proto/maestro_android.proto'
+);
+const protoPackageDef = protoLoader.loadSync(protoFilePath, {
+  keepCase: true,
+  longs: String,
+  enums: String,
+  defaults: true,
+  oneofs: true
+});
+const MaestroDriverClient = grpc.loadPackageDefinition(protoPackageDef)
+  .maestro_android.MaestroDriver;
+
+// Module-scope client cache — single Client per (host, port). Eagerly
+// closed + evicted on any connection-class failure (see runGrpcDump).
+const grpcClientCache = new Map();
+// Healthcheck dirty bit. Set to a small object on first schema-class
+// failure; read by api.js's /percy/healthcheck handler. Closes the silent
+// schema-drift gap that bit PERCY_LABELS — see
+// docs/solutions/integration-issues/percy-labels-cli-schema-rejection-2026-04-23.md.
+let schemaDriftSeen = null;
+
+// Default factory: build a real gRPC client wrapping viewHierarchy in a
+// promise so the resolver code can await it uniformly. Tests inject a
+// factory that returns a stub with the same shape.
+function defaultGrpcClientFactory(address) {
+  const inner = new MaestroDriverClient(address, grpc.credentials.createInsecure());
+  return {
+    viewHierarchy: (req, options) => new Promise((resolve, reject) => {
+      inner.viewHierarchy(req, options || {}, (err, response) => {
+        if (err) reject(err); else resolve(response);
+      });
+    }),
+    close: () => inner.close()
+  };
+}
+
+function getOrCreateGrpcClient(address, factory) {
+  let client = grpcClientCache.get(address);
+  if (!client) {
+    client = factory(address);
+    grpcClientCache.set(address, client);
+  }
+  return client;
+}
+
+function evictGrpcClient(address) {
+  const client = grpcClientCache.get(address);
+  if (!client) return;
+  try { client.close(); } catch { /* swallow — already closed */ }
+  grpcClientCache.delete(address);
+}
+
+// Schema-class status codes: error states that indicate a contract mismatch
+// (request shape, response shape, or an unimplemented RPC). These bypass the
+// maestro CLI fallback because retrying via a different transport would not
+// fix the underlying schema problem.
+// Codes 3, 9, 11, 12, 15 — see plan KTD decision table.
+const GRPC_SCHEMA_CLASS_CODES = new Set([
+  grpc.status.INVALID_ARGUMENT,
+  grpc.status.FAILED_PRECONDITION,
+  grpc.status.OUT_OF_RANGE,
+  grpc.status.UNIMPLEMENTED,
+  grpc.status.DATA_LOSS
+]);
+
+function grpcStatusName(code) {
+  const entries = Object.entries(grpc.status);
+  for (const [name, value] of entries) {
+    if (value === code) return name.toLowerCase();
+  }
+  return `code-${code}`;
+}
+
+export function classifyGrpcFailure(err) {
+  if (!err) return null;
+  if (err.code === undefined) {
+    return { kind: 'dump-error', reason: 'grpc-decode' };
+  }
+  const name = grpcStatusName(err.code);
+  if (GRPC_SCHEMA_CLASS_CODES.has(err.code)) {
+    return { kind: 'dump-error', reason: `grpc-schema-${name}` };
+  }
+  return { kind: 'connection-fail', reason: `grpc-${name}` };
+}
+
+function recordSchemaDrift(code, reason) {
+  if (schemaDriftSeen) return; // first-seen wins
+  schemaDriftSeen = {
+    code,
+    reason,
+    firstSeenAt: new Date().toISOString()
+  };
+}
+
+export function getSchemaDriftSeen() {
+  return schemaDriftSeen;
+}
+
+export async function runGrpcDump({ host, port, grpcClient = defaultGrpcClientFactory }) {
+  const address = `${host}:${port}`;
+  const client = getOrCreateGrpcClient(address, grpcClient);
+  const start = Date.now();
+
+  let breakerTimer;
+  const callPromise = client.viewHierarchy({}, { deadline: Date.now() + GRPC_HEALTHY_DEADLINE_MS });
+  const breakerPromise = new Promise((_resolve, reject) => {
+    breakerTimer = setTimeout(() => {
+      const err = new Error('gRPC circuit-breaker fired');
+      err.code = grpc.status.DEADLINE_EXCEEDED;
+      reject(err);
+    }, GRPC_CIRCUIT_BREAKER_MS);
+  });
+
+  let response;
+  try {
+    response = await Promise.race([callPromise, breakerPromise]);
+  } catch (err) {
+    log.debug(`gRPC viewHierarchy failed: name=${err.name} message=${err.message} code=${err.code}`);
+    const classification = classifyGrpcFailure(err);
+    if (classification.kind === 'dump-error') {
+      log.warn(`gRPC viewHierarchy schema-class failure (${classification.reason}); skipping element regions for this request`);
+      recordSchemaDrift(err.code, classification.reason);
+    } else {
+      log.debug(`gRPC viewHierarchy connection-class failure (${classification.reason}); evicting client + falling back to maestro CLI`);
+      evictGrpcClient(address);
+    }
+    return classification;
+  } finally {
+    clearTimeout(breakerTimer);
+  }
+
+  const xml = response && typeof response.hierarchy === 'string' ? response.hierarchy : '';
+  const slice = sliceXmlEnvelope(xml);
+  if (!slice) {
+    log.warn('gRPC viewHierarchy returned no XML envelope; skipping element regions for this request');
+    recordSchemaDrift(undefined, 'grpc-no-xml-envelope');
+    return { kind: 'dump-error', reason: 'grpc-no-xml-envelope' };
+  }
+  let parsed;
+  try {
+    parsed = parser.parse(slice);
+  } catch (err) {
+    log.warn(`gRPC viewHierarchy parse error (${err.message}); skipping element regions for this request`);
+    recordSchemaDrift(undefined, 'grpc-parse-error');
+    return { kind: 'dump-error', reason: `grpc-parse-error:${err.message}` };
+  }
+  if (!parsed || !parsed.hierarchy) {
+    log.warn('gRPC viewHierarchy unexpected root tag; skipping element regions for this request');
+    recordSchemaDrift(undefined, 'grpc-unexpected-root');
+    return { kind: 'dump-error', reason: 'grpc-unexpected-root' };
+  }
+
+  const nodes = flattenNodes(parsed);
+  log.debug(`dump took ${Date.now() - start}ms via grpc (${nodes.length} nodes)`);
+  return { kind: 'hierarchy', nodes };
+}
+
+// Test seam — exposes module-scope state and reset hooks needed by
+// maestro-hierarchy-grpc.test.js. Not part of the public API.
+export const __testing__ = {
+  runGrpcDump,
+  classifyGrpcFailure,
+  getSchemaDriftSeen,
+  resetGrpcCacheForTests() {
+    for (const address of Array.from(grpcClientCache.keys())) {
+      evictGrpcClient(address);
+    }
+  },
+  resetSchemaDriftForTests() {
+    schemaDriftSeen = null;
+  },
+  discoverGrpcPort: (...args) => discoverGrpcPort(...args),
+  GRPC_HEALTHY_DEADLINE_MS,
+  GRPC_CIRCUIT_BREAKER_MS
+};
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -197,6 +395,39 @@ function classifyAdbFailure(result) {
     return { kind: 'unavailable', reason: 'device-offline' };
   }
   return null;
+}
+
+// Discover the host-side TCP port forwarded to the device's gRPC server
+// (`dev.mobile.maestro` on tcp:6790). MAESTRO_GRPC_PORT env var preferred —
+// once mobile-repo's `cli_manager.rb` injects it, the probe shell-out is
+// skipped (~50-100ms saved per first dump). Until then, parse
+// `adb -s <serial> forward --list` for a `tcp:<host> tcp:6790` line.
+//
+// Adb forward --list output format: `<serial>\t tcp:<host> tcp:<device>` per
+// line. Whitespace between fields is tabs on most adb versions; allow any
+// whitespace to defend against macOS/Linux drift.
+async function discoverGrpcPort({ serial, execAdb, getEnv }) {
+  const fromEnv = getEnv('MAESTRO_GRPC_PORT');
+  if (fromEnv) {
+    const port = Number.parseInt(fromEnv, 10);
+    if (Number.isInteger(port) && port > 0) return { port };
+    // Non-positive integer or NaN — fall through to probe rather than crash.
+  }
+
+  const probe = await execAdb(['-s', serial, 'forward', '--list']);
+  if (probe.spawnError || probe.timedOut) {
+    return { kind: 'unavailable', reason: 'grpc-port-not-found' };
+  }
+  const stdout = probe.stdout || '';
+  // Match the device port (tcp:6790); the line may or may not start with the
+  // serial depending on adb version. Anchor the device-port at the line end.
+  const re = /tcp:(\d+)\s+tcp:6790\s*$/m;
+  const match = stdout.match(re);
+  if (match) {
+    const port = Number.parseInt(match[1], 10);
+    if (Number.isInteger(port) && port > 0) return { port };
+  }
+  return { kind: 'unavailable', reason: 'grpc-port-not-found' };
 }
 
 // Resolve device serial: prefer ANDROID_SERIAL env; else probe `adb devices`
@@ -397,7 +628,8 @@ export async function dump({
   platform = 'android',
   execAdb = defaultExecAdb,
   execMaestro = defaultExecMaestro,
-  getEnv = defaultGetEnv
+  getEnv = defaultGetEnv,
+  grpcClient = defaultGrpcClientFactory
 } = {}) {
   const started = Date.now();
 
@@ -422,8 +654,37 @@ export async function dump({
     return classification;
   }
 
-  // Primary: `maestro --udid <serial> hierarchy`. Works during a live Maestro flow
-  // (maestro reuses its existing gRPC connection to dev.mobile.maestro on the device).
+  // Primary: direct gRPC to dev.mobile.maestro on tcp:6790 (host-side via
+  // adb forward). Drops per-screenshot resolver latency from ~9s to <100ms.
+  // Maestro CLI shell-out preserved as fallback for local dev, schema drift,
+  // and connection-class errors.
+  //
+  // Kill switch (R9): PERCY_MAESTRO_GRPC=0 short-circuits to the maestro CLI
+  // path. Logged loudly on every dump so the rollback state is observable.
+  const killSwitch = getEnv('PERCY_MAESTRO_GRPC') === '0';
+  if (killSwitch) {
+    log.warn('PERCY_MAESTRO_GRPC kill switch active; using maestro CLI fallback');
+  } else {
+    const portResult = await discoverGrpcPort({ serial, execAdb, getEnv });
+    if (portResult.port) {
+      const grpcResult = await runGrpcDump({ host: '127.0.0.1', port: portResult.port, grpcClient });
+      if (grpcResult.kind === 'hierarchy') {
+        return grpcResult;
+      }
+      if (grpcResult.kind === 'dump-error') {
+        // Schema-class — already logged + dirty bit set inside runGrpcDump.
+        // Returning as-is bypasses the maestro CLI fallback per R3.
+        return grpcResult;
+      }
+      // connection-fail — fall through to the maestro CLI path.
+    } else {
+      log.debug('gRPC port not found; using maestro CLI fallback');
+    }
+  }
+
+  // Fallback: `maestro --udid <serial> hierarchy`. Works during a live
+  // Maestro flow (maestro reuses its existing gRPC connection to
+  // dev.mobile.maestro on the device).
   const maestroResult = await runMaestroDump(serial, execMaestro, getEnv);
   if (maestroResult.kind === 'hierarchy') {
     log.debug(`dump took ${Date.now() - started}ms via maestro (${maestroResult.nodes.length} nodes)`);

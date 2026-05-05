@@ -9,10 +9,18 @@ const loadFixture = name => fs.readFileSync(path.join(fixtureDir, name), 'utf8')
 
 function makeFakeExecAdb(handlers) {
   // handlers: Array<{ match: (args) => boolean, result }> — ordered; first match wins per call.
+  // A default `forward --list` handler is appended so tests focused on the
+  // maestro+adb fallback chain don't need to stub the new gRPC port probe.
+  // Tests that exercise the probe directly should pass their own handler
+  // earlier in the list.
   const callLog = [];
+  const fullHandlers = [
+    ...handlers,
+    { match: args => args.includes('forward') && args.includes('--list'), result: { stdout: '', stderr: '', exitCode: 0 } }
+  ];
   const execAdb = async args => {
     callLog.push(args);
-    for (const { match, result } of handlers) {
+    for (const { match, result } of fullHandlers) {
       if (match(args)) return typeof result === 'function' ? result(args) : result;
     }
     throw new Error(`No fake handler matched adb args: ${JSON.stringify(args)}`);
@@ -201,13 +209,18 @@ describe('Unit / maestro-hierarchy', () => {
       await dump({ execMaestro: maestroNotFound, execAdb, getEnv: k => (k === 'ANDROID_SERIAL' ? 'env-serial-123' : undefined) });
       // adb devices should NOT have been called since env serial was present
       expect(execAdb.calls.some(args => args[0] === 'devices')).toBe(false);
-      expect(execAdb.calls[0]).toEqual(['-s', 'env-serial-123', 'exec-out', 'uiautomator', 'dump', '/dev/tty']);
+      // Both the gRPC port probe and the dump call must carry -s <serial>.
+      const dumpCall = execAdb.calls.find(args => args.includes('exec-out') && args.includes('/dev/tty'));
+      expect(dumpCall).toEqual(['-s', 'env-serial-123', 'exec-out', 'uiautomator', 'dump', '/dev/tty']);
+      const probeCall = execAdb.calls.find(args => args.includes('forward') && args.includes('--list'));
+      expect(probeCall).toEqual(['-s', 'env-serial-123', 'forward', '--list']);
     });
 
     it('invokes fallback on empty stdout and returns hierarchy when fallback succeeds', async () => {
       let primaryCalled = false;
       const execAdb = async args => {
         if (args[0] === 'devices') return okDevices;
+        if (args.includes('forward') && args.includes('--list')) return { stdout: '', stderr: '', exitCode: 0 };
         if (args.includes('exec-out') && args.includes('/dev/tty')) {
           primaryCalled = true;
           return { stdout: '', stderr: '', exitCode: 0 };
@@ -229,6 +242,7 @@ describe('Unit / maestro-hierarchy', () => {
     it('returns dump-error when both primary and fallback yield no XML', async () => {
       const execAdb = async args => {
         if (args[0] === 'devices') return okDevices;
+        if (args.includes('forward') && args.includes('--list')) return { stdout: '', stderr: '', exitCode: 0 };
         if (args.includes('exec-out') && args.includes('/dev/tty')) return { stdout: 'garbage not xml', stderr: '', exitCode: 0 };
         if (args.includes('shell') && args.includes('uiautomator')) return { stdout: '', stderr: '', exitCode: 0 };
         if (args.includes('exec-out') && args.includes('cat')) return { stdout: 'still garbage', stderr: '', exitCode: 0 };
@@ -242,6 +256,7 @@ describe('Unit / maestro-hierarchy', () => {
       let fileDumpCalls = 0;
       const execAdb = async args => {
         if (args[0] === 'devices') return okDevices;
+        if (args.includes('forward') && args.includes('--list')) return { stdout: '', stderr: '', exitCode: 0 };
         if (args.includes('exec-out') && args.includes('/dev/tty')) return { stdout: '', stderr: '', exitCode: 1 };
         if (args.includes('shell') && args.includes('uiautomator')) {
           fileDumpCalls += 1;
@@ -261,6 +276,7 @@ describe('Unit / maestro-hierarchy', () => {
       let fileDumpCalls = 0;
       const execAdb = async args => {
         if (args[0] === 'devices') return okDevices;
+        if (args.includes('forward') && args.includes('--list')) return { stdout: '', stderr: '', exitCode: 0 };
         if (args.includes('exec-out') && args.includes('/dev/tty')) return { stdout: '', stderr: '', exitCode: 1 };
         if (args.includes('shell') && args.includes('uiautomator')) {
           fileDumpCalls += 1;
@@ -278,6 +294,7 @@ describe('Unit / maestro-hierarchy', () => {
       // Non-zero exit triggers fallback; fallback also returns garbage → terminal dump-error.
       const execAdb = async args => {
         if (args[0] === 'devices') return okDevices;
+        if (args.includes('forward') && args.includes('--list')) return { stdout: '', stderr: '', exitCode: 0 };
         if (args.includes('exec-out') && args.includes('/dev/tty')) return { stdout: 'garbage', stderr: '', exitCode: 1 };
         if (args.includes('shell') && args.includes('uiautomator')) return { stdout: '', stderr: '', exitCode: 0 };
         if (args.includes('exec-out') && args.includes('cat')) return { stdout: 'still garbage', stderr: '', exitCode: 0 };
@@ -332,13 +349,17 @@ describe('Unit / maestro-hierarchy', () => {
     const maestroSimple = loadFixture('maestro-simple.json');
     const okMaestro = { stdout: maestroSimple, stderr: '', exitCode: 0 };
 
-    it('uses maestro hierarchy when available, skips adb fallback entirely', async () => {
+    it('uses maestro hierarchy fallback when gRPC port is not discoverable; skips adb dump entirely', async () => {
       const execMaestro = async args => {
         expect(args).toEqual(['--udid', 'env-serial-123', 'hierarchy']);
         return okMaestro;
       };
-      // execAdb should never be called when maestro succeeds — fail loud if it is.
-      const execAdb = async args => { throw new Error('execAdb should not be called: ' + args.join(' ')); };
+      // adb is touched only for the gRPC port probe (returns no port → fall through);
+      // exec-out / shell uiautomator must never be called.
+      const execAdb = async args => {
+        if (args.includes('forward') && args.includes('--list')) return { stdout: '', stderr: '', exitCode: 0 };
+        throw new Error('execAdb should only be called for forward --list: ' + args.join(' '));
+      };
 
       const res = await dump({
         execMaestro,
@@ -353,7 +374,10 @@ describe('Unit / maestro-hierarchy', () => {
 
     it('maps accessibilityText to content-desc selector', async () => {
       const execMaestro = async () => okMaestro;
-      const execAdb = async () => { throw new Error('should not hit adb'); };
+      const execAdb = async args => {
+        if (args.includes('forward') && args.includes('--list')) return { stdout: '', stderr: '', exitCode: 0 };
+        throw new Error('should not hit adb beyond forward probe: ' + args.join(' '));
+      };
       const res = await dump({
         execMaestro,
         execAdb,
@@ -381,6 +405,7 @@ describe('Unit / maestro-hierarchy', () => {
       const execMaestro = async () => ({ stdout: '', stderr: 'Error: No connected devices', exitCode: 1 });
       // adb fallback: exec-out returns no xml, file dump also kills → dump-error
       const execAdb = async args => {
+        if (args.includes('forward') && args.includes('--list')) return { stdout: '', stderr: '', exitCode: 0 };
         if (args.includes('exec-out')) return { stdout: '', stderr: '', exitCode: 1 };
         if (args.includes('shell')) return { stdout: '', stderr: '', exitCode: 1 };
         throw new Error('unexpected: ' + args.join(' '));
@@ -409,7 +434,10 @@ describe('Unit / maestro-hierarchy', () => {
         stderr: '',
         exitCode: 0
       });
-      const execAdb = async () => { throw new Error('should not hit adb'); };
+      const execAdb = async args => {
+        if (args.includes('forward') && args.includes('--list')) return { stdout: '', stderr: '', exitCode: 0 };
+        throw new Error('should not hit adb beyond forward probe: ' + args.join(' '));
+      };
       const res = await dump({ execMaestro, execAdb, getEnv: () => 'serial' });
       expect(res.kind).toBe('hierarchy');
       expect(firstMatch(res.nodes, { 'resource-id': 'com.example:id/clock' })).not.toBeNull();

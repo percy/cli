@@ -6,7 +6,7 @@ import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHan
 import { ServerError } from './server.js';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { handleSyncJob } from './snapshot.js';
-import { dump as adbDump, firstMatch as adbFirstMatch, SELECTOR_KEYS_WHITELIST } from './maestro-hierarchy.js';
+import { dump as adbDump, firstMatch as adbFirstMatch, SELECTOR_KEYS_WHITELIST, getSchemaDriftSeen as getMaestroHierarchyDrift } from './maestro-hierarchy.js';
 import { PNG_MAGIC_BYTES, parsePngDimensions, isPortrait as isPortraitByAspect } from './png-dimensions.js';
 import { resolveWdaSession } from './wda-session-resolver.js';
 import { resolveIosRegions } from './wda-hierarchy.js';
@@ -90,20 +90,30 @@ export function createPercyServer(percy, port) {
       }));
     })
   // healthcheck returns basic information
-    .route('get', '/percy/healthcheck', (req, res) => res.json(200, {
-      build: percy.testing?.build ?? percy.build,
-      loglevel: percy.loglevel(),
-      config: percy.config,
-      widths: {
-        // This is always needed even if width is passed
-        mobile: percy.deviceDetails ? percy.deviceDetails.map((d) => d.width) : [],
-        // This will only be used if width is not passed in options
-        config: percy.config.snapshot.widths
-      },
-      deviceDetails: percy.deviceDetails || [],
-      success: true,
-      type: percy.client.tokenType()
-    }))
+    .route('get', '/percy/healthcheck', (req, res) => {
+      // Schema-drift dirty bit for the maestro view-hierarchy resolver.
+      // Set inside maestro-hierarchy.js on the first schema-class gRPC failure.
+      // Surfaced here (vs. only in the debug log) to close the silent-drift gap
+      // that bit PERCY_LABELS — see
+      // docs/solutions/integration-issues/percy-labels-cli-schema-rejection-2026-04-23.md.
+      const drift = getMaestroHierarchyDrift();
+      const body = {
+        build: percy.testing?.build ?? percy.build,
+        loglevel: percy.loglevel(),
+        config: percy.config,
+        widths: {
+          // This is always needed even if width is passed
+          mobile: percy.deviceDetails ? percy.deviceDetails.map((d) => d.width) : [],
+          // This will only be used if width is not passed in options
+          config: percy.config.snapshot.widths
+        },
+        deviceDetails: percy.deviceDetails || [],
+        success: true,
+        type: percy.client.tokenType()
+      };
+      if (drift) body.maestroHierarchyDrift = drift;
+      return res.json(200, body);
+    })
   // compute widths configuration with heights
     .route('get', '/percy/widths-config', (req, res) => {
       // Parse widths from query parameters (e.g., ?widths=375,1280)
