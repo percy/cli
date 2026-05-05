@@ -13,7 +13,10 @@ const FOCUS_ATTR = 'data-percy-focus';
 const CHECKED_ATTR = 'data-percy-checked';
 const DISABLED_ATTR = 'data-percy-disabled';
 
-// Pseudo-class selectors we look for in CSS rules
+// Pseudo-class selectors we look for in CSS rules.
+// :hover and :active are config-only — captured for elements explicitly
+// listed in pseudoClassEnabledElements; auto-marking is intentionally not
+// performed since hover/active state is user-input-dependent.
 const INTERACTIVE_PSEUDO_CLASSES = [':focus', ':checked', ':disabled', ':hover', ':active'];
 
 // Map pseudo-classes to their data-attribute replacements

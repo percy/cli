@@ -42,25 +42,8 @@ function setBaseURI(dom, warnings) {
   dom.querySelector('head')?.prepend($base);
 }
 
-// Capture bounding rect from original DOM element before removing from clone
-function captureFidelityRegion(frame, reason, fidelityRegions) {
-  let rect;
-  try {
-    rect = frame.getBoundingClientRect();
-  } catch (e) {
-    rect = null;
-  }
-  if (!rect || rect.width <= 0 || rect.height <= 0) return;
-  fidelityRegions.push({
-    reason,
-    tag: 'iframe',
-    selector: frame.id || frame.className || 'iframe',
-    rect: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) }
-  });
-}
-
 // Recursively serializes iframe documents into srcdoc attributes.
-export function serializeFrames({ dom, clone, warnings, resources, fidelityRegions, enableJavaScript, disableShadowDOM, ignoreIframeSelectors }) {
+export function serializeFrames({ dom, clone, warnings, resources, enableJavaScript, disableShadowDOM, ignoreIframeSelectors, forceShadowAsLightDOM }) {
   let iframeTotal = 0;
   let captured = 0;
   let corsExcluded = 0;
@@ -77,7 +60,6 @@ export function serializeFrames({ dom, clone, warnings, resources, fidelityRegio
       ignoreIframeSelectors.some(sel => { try { return frame.matches(sel); } catch { return false; } });
     if (frame.hasAttribute('data-percy-ignore') || matchesSelector) {
       ignored++;
-      captureFidelityRegion(frame, 'user-ignored', fidelityRegions);
       cloneEl?.remove();
       continue;
     }
@@ -117,12 +99,16 @@ export function serializeFrames({ dom, clone, warnings, resources, fidelityRegio
 
       captured++;
 
-      // recersively serialize contents
+      // recersively serialize contents — propagate ignoreIframeSelectors and
+      // forceShadowAsLightDOM so nested iframes/shadow trees honor the same
+      // user options as the top-level capture.
       let serialized = serializeDOM({
         domTransformation: (dom) => setBaseURI(dom, warnings),
         dom: frame.contentDocument,
         enableJavaScript,
-        disableShadowDOM
+        disableShadowDOM,
+        forceShadowAsLightDOM,
+        ignoreIframeSelectors
       });
 
       // append serialized warnings and resources
@@ -141,12 +127,10 @@ export function serializeFrames({ dom, clone, warnings, resources, fidelityRegio
       // delete inaccessible frames built with js when js is disabled because they
       // break asset discovery by creating non-captured requests that hang
     } else if (!enableJavaScript && builtWithJs) {
-      captureFidelityRegion(frame, 'js-inaccessible', fidelityRegions);
       cloneEl.remove();
     } else {
       // frame.contentDocument is null or empty — cross-origin or otherwise inaccessible
       corsExcluded++;
-      captureFidelityRegion(frame, 'cross-origin-excluded', fidelityRegions);
     }
   }
 

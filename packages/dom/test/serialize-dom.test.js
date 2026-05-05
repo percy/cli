@@ -9,8 +9,7 @@ describe('serializeDOM', () => {
       userAgent: jasmine.any(String),
       warnings: jasmine.any(Array),
       resources: jasmine.any(Array),
-      hints: jasmine.any(Array),
-      fidelityRegions: jasmine.any(Array)
+      hints: jasmine.any(Array)
     });
   });
 
@@ -31,7 +30,7 @@ describe('serializeDOM', () => {
 
   it('optionally returns a stringified response', () => {
     expect(serializeDOM({ stringifyResponse: true }))
-      .toMatch('{"html":".*","cookies":".*","userAgent":".*","warnings":\\[.*\\],"resources":\\[\\],"hints":\\[\\],"fidelityRegions":\\[.*\\]}');
+      .toMatch('{"html":".*","cookies":".*","userAgent":".*","warnings":\\[.*\\],"resources":\\[\\],"hints":\\[\\]}');
   });
 
   it('always has a doctype', () => {
@@ -72,79 +71,22 @@ describe('serializeDOM', () => {
     expect($('h2.callback').length).toEqual(1);
   });
 
-  it('handles getBoundingClientRect failure in inaccessible shadow root detection', () => {
-    if (!window.customElements.get('percy-bad-rect')) {
-      class PercyBadRect extends window.HTMLElement {
-        connectedCallback() { this.innerHTML = '<span>bad rect</span>'; }
+  it('does not flag closed shadow roots as inaccessible when disableShadowDOM is set', () => {
+    if (!window.customElements.get('percy-opted-out')) {
+      class PercyOptedOut extends window.HTMLElement {
+        connectedCallback() { this.innerHTML = '<span>opted out</span>'; }
       }
-      window.customElements.define('percy-bad-rect', PercyBadRect);
+      window.customElements.define('percy-opted-out', PercyOptedOut);
     }
-    withExample('<percy-bad-rect id="pbr"></percy-bad-rect>', { withShadow: false });
-    let el = document.getElementById('pbr');
-    Object.defineProperty(el, 'getBoundingClientRect', {
-      value: () => { throw new Error('not supported'); },
-      configurable: true
-    });
-    // Put element in closed-shadow map so it enters the inaccessible-shadow
-    // branch and exercises the getBoundingClientRect catch.
+    withExample('<percy-opted-out id="poo"></percy-opted-out>', { withShadow: false });
+    let el = document.getElementById('poo');
     let origMap = window.__percyClosedShadowRoots;
     let map = new WeakMap();
     map.set(el, {});
     window.__percyClosedShadowRoots = map;
 
     let result = serializeDOM({ disableShadowDOM: true });
-    expect(result.fidelityRegions).toBeDefined();
-    // rect is null after the catch, so no fidelity region is pushed
-    expect(result.fidelityRegions.find(r => r.tag === 'percy-bad-rect')).toBeUndefined();
-
-    window.__percyClosedShadowRoots = origMap;
-  });
-
-  it('records fidelity region for inaccessible closed shadow custom element with bounding rect', () => {
-    if (!window.customElements.get('percy-inaccessible')) {
-      class PercyInaccessible extends window.HTMLElement {
-        connectedCallback() { this.innerHTML = '<span style="display:inline-block;width:80px;height:40px">inaccessible</span>'; }
-      }
-      window.customElements.define('percy-inaccessible', PercyInaccessible);
-    }
-    withExample('<percy-inaccessible id="pia"></percy-inaccessible>', { withShadow: false });
-    let el = document.getElementById('pia');
-    let origMap = window.__percyClosedShadowRoots;
-    let map = new WeakMap();
-    map.set(el, {});
-    window.__percyClosedShadowRoots = map;
-
-    // disableShadowDOM ensures markElement does not set data-percy-shadow-host
-    let result = serializeDOM({ disableShadowDOM: true });
-    let region = result.fidelityRegions.find(r => r.tag === 'percy-inaccessible');
-    expect(region).toBeDefined();
-    expect(region.reason).toBe('potentially-inaccessible-shadow');
-    expect(region.selector).toBe('pia');
-    expect(region.rect.width).toBeGreaterThan(0);
-    expect(region.rect.height).toBeGreaterThan(0);
-    expect(result.warnings.some(w => w.includes('[fidelity]') && w.includes('potentially inaccessible'))).toBe(true);
-
-    window.__percyClosedShadowRoots = origMap;
-  });
-
-  it('falls back to tagName as selector when inaccessible custom element has no id', () => {
-    if (!window.customElements.get('percy-noid')) {
-      class PercyNoId extends window.HTMLElement {
-        connectedCallback() { this.innerHTML = '<span style="display:inline-block;width:50px;height:30px">no id</span>'; }
-      }
-      window.customElements.define('percy-noid', PercyNoId);
-    }
-    withExample('<percy-noid></percy-noid>', { withShadow: false });
-    let el = document.querySelector('percy-noid');
-    let origMap = window.__percyClosedShadowRoots;
-    let map = new WeakMap();
-    map.set(el, {});
-    window.__percyClosedShadowRoots = map;
-
-    let result = serializeDOM({ disableShadowDOM: true });
-    let region = result.fidelityRegions.find(r => r.tag === 'percy-noid');
-    expect(region).toBeDefined();
-    expect(region.selector).toBe('percy-noid');
+    expect(result.warnings.some(w => w.includes('[fidelity]') && w.includes('potentially inaccessible'))).toBe(false);
 
     window.__percyClosedShadowRoots = origMap;
   });

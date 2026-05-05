@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import url from 'url';
 import logger from '@percy/logger';
 import Network from './network.js';
 import { PERCY_DOM } from './api.js';
@@ -10,28 +11,19 @@ import {
   serializeFunction
 } from './utils.js';
 
-// Cached preflight script for closed shadow root and ElementInternals interception
+// Cached preflight script for closed shadow root and ElementInternals interception.
+// preflight.js sits next to this file in core (src in dev, dist after publish),
+// so a single relative resolve works in both layouts.
 let _preflightScript = null;
 async function getPreflightScript() {
-  if (!_preflightScript) {
-    let pkgRoot = path.resolve(path.dirname(PERCY_DOM), '..');
-    let candidates = [
-      path.join(pkgRoot, 'src', 'preflight.js'),
-      path.join(pkgRoot, 'dist', 'preflight.js'),
-      path.join(path.dirname(PERCY_DOM), 'preflight.js')
-    ];
-    for (let candidate of candidates) {
-      try {
-        _preflightScript = await fs.promises.readFile(candidate, 'utf-8');
-        break;
-      } catch {
-        // try next candidate
-      }
-    }
-    /* istanbul ignore if: graceful fallback when preflight file missing in all candidate paths */
-    if (!_preflightScript) {
-      _preflightScript = '';
-    }
+  if (_preflightScript !== null) return _preflightScript;
+  try {
+    let here = path.dirname(url.fileURLToPath(import.meta.url));
+    _preflightScript = await fs.promises.readFile(path.join(here, 'preflight.js'), 'utf-8');
+  } catch (err) {
+    /* istanbul ignore next: graceful fallback — closed-shadow capture degrades to no-op */
+    logger('core:page').debug(`Preflight script unavailable: ${err.message}`);
+    _preflightScript = '';
   }
   return _preflightScript;
 }

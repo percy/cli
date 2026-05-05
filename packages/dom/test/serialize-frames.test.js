@@ -367,7 +367,7 @@ describe('serializeFrames', () => {
       );
     });
 
-    it(`${platform}: removes iframes with data-percy-ignore and captures fidelity region`, () => {
+    it(`${platform}: removes iframes with data-percy-ignore`, () => {
       withExample('<iframe id="frame-ignored" data-percy-ignore srcdoc="<p>ignored</p>"></iframe>' +
         '<iframe id="frame-kept" srcdoc="<p>kept</p>"></iframe>');
 
@@ -375,12 +375,9 @@ describe('serializeFrames', () => {
       let $parsed = parseDOM(result.html, platform);
       expect($parsed('#frame-ignored')).toHaveSize(0);
       expect($parsed('#frame-kept')).toHaveSize(1);
-      // fidelityRegions should contain the ignored iframe's position
-      expect(result.fidelityRegions.length).toBeGreaterThan(0);
-      expect(result.fidelityRegions.some(r => r.reason === 'user-ignored')).toBe(true);
     });
 
-    it(`${platform}: removes iframes matching ignoreIframeSelectors and captures fidelity regions`, () => {
+    it(`${platform}: removes iframes matching ignoreIframeSelectors`, () => {
       withExample('<iframe id="frame-ad" class="ad-frame" srcdoc="<p>ad</p>"></iframe>' +
         '<iframe id="frame-track" data-tracking="true" srcdoc="<p>track</p>"></iframe>' +
         '<iframe id="frame-normal" srcdoc="<p>normal</p>"></iframe>');
@@ -390,32 +387,7 @@ describe('serializeFrames', () => {
       expect($parsed('#frame-ad')).toHaveSize(0);
       expect($parsed('#frame-track')).toHaveSize(0);
       expect($parsed('#frame-normal')).toHaveSize(1);
-      let ignoredRegions = result.fidelityRegions.filter(r => r.reason === 'user-ignored');
-      expect(ignoredRegions.length).toBeGreaterThanOrEqual(2);
     });
-
-    if (platform === 'plain') {
-      it('handles getBoundingClientRect failure gracefully for fidelity capture', () => {
-        withExample('<iframe id="frame-bad-rect" data-percy-ignore srcdoc="<p>bad</p>"></iframe>', { withShadow: false });
-        // Mock on HTMLIFrameElement prototype to ensure all iframe references throw
-        let origFn = window.HTMLIFrameElement.prototype.getBoundingClientRect;
-        window.HTMLIFrameElement.prototype.getBoundingClientRect = function() {
-          if (this.id === 'frame-bad-rect') throw new Error('not supported');
-          return origFn.call(this);
-        };
-
-        let result;
-        try {
-          result = serializeDOM();
-        } finally {
-          window.HTMLIFrameElement.prototype.getBoundingClientRect = origFn;
-        }
-        let $parsed = parseDOM(result.html, platform);
-        expect($parsed('#frame-bad-rect')).toHaveSize(0);
-        let badRegions = result.fidelityRegions.filter(r => r.selector === 'frame-bad-rect');
-        expect(badRegions.length).toBe(0);
-      });
-    }
 
     it(`${platform}: handles invalid selectors in ignoreIframeSelectors gracefully`, () => {
       withExample('<iframe id="frame-ok" srcdoc="<p>ok</p>"></iframe>');

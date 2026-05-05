@@ -1076,8 +1076,7 @@ describe('PercyClient', () => {
             'enable-javascript': true,
             'enable-layout': true,
             'th-test-case-execution-id': 'random-uuid',
-            browsers: null,
-            'fidelity-regions': null
+            browsers: null
           },
           relationships: {
             resources: {
@@ -1169,8 +1168,7 @@ describe('PercyClient', () => {
               'enable-javascript': true,
               'enable-layout': true,
               'th-test-case-execution-id': 'random-uuid',
-              browsers: ['chrome', 'firefox', 'safari_on_iphone'],
-              'fidelity-regions': null
+              browsers: ['chrome', 'firefox', 'safari_on_iphone']
             },
             relationships: {
               resources: {
@@ -1221,8 +1219,7 @@ describe('PercyClient', () => {
             'enable-layout': false,
             regions: null,
             'th-test-case-execution-id': null,
-            browsers: null,
-            'fidelity-regions': null
+            browsers: null
           },
           relationships: {
             resources: {
@@ -1295,8 +1292,7 @@ describe('PercyClient', () => {
             regions: null,
             'enable-layout': false,
             'th-test-case-execution-id': null,
-            browsers: null,
-            'fidelity-regions': null
+            browsers: null
           },
           relationships: {
             resources: {
@@ -2074,8 +2070,7 @@ describe('PercyClient', () => {
               regions: null,
               'enable-layout': false,
               'th-test-case-execution-id': null,
-              browsers: null,
-              'fidelity-regions': null
+              browsers: null
             },
             relationships: {
               resources: {
