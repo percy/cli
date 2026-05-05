@@ -113,7 +113,7 @@ describe('Unit / png-dimensions', () => {
 
     it('accepts an override threshold', () => {
       // With threshold 1.1, near-square becomes portrait
-      expect(isPortrait({ width: 500, height: 550 }, 1.1)).toBe(false);  // 550 > 500*1.1 = 550 (not strict >)
+      expect(isPortrait({ width: 500, height: 550 }, 1.1)).toBe(false); // 550 > 500*1.1 = 550 (not strict >)
       expect(isPortrait({ width: 500, height: 551 }, 1.1)).toBe(true);
       expect(isLandscape({ width: 551, height: 500 }, 1.1)).toBe(true);
     });

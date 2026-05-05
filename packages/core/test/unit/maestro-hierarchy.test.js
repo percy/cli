@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import url from 'url';
 import { dump, firstMatch } from '../../src/maestro-hierarchy.js';
-import { logger, setupTest } from '../helpers/index.js';
+import { setupTest } from '../helpers/index.js';
 
 const fixtureDir = path.resolve(url.fileURLToPath(import.meta.url), '../../fixtures/maestro-hierarchy');
 const loadFixture = name => fs.readFileSync(path.join(fixtureDir, name), 'utf8');
@@ -355,7 +355,8 @@ describe('Unit / maestro-hierarchy', () => {
       const execMaestro = async () => okMaestro;
       const execAdb = async () => { throw new Error('should not hit adb'); };
       const res = await dump({
-        execMaestro, execAdb,
+        execMaestro,
+        execAdb,
         getEnv: k => (k === 'ANDROID_SERIAL' ? 'serial' : undefined)
       });
       const bbox = firstMatch(res.nodes, { 'content-desc': 'Open settings' });

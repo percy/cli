@@ -81,7 +81,11 @@ describe('Unit / wda-hierarchy', () => {
       const deps = stdDeps();
       const res = await resolveIosRegions({
         regions: [{ element: { id: 'submit-btn' } }],
-        sessionId: VALID_SID, pngWidth: 2532, pngHeight: 1170, isPortrait: false, deps
+        sessionId: VALID_SID,
+        pngWidth: 2532,
+        pngHeight: 1170,
+        isPortrait: false,
+        deps
       });
       // Sparse array — 1 input element region, all null (skipped)
       expect(res.resolvedRegions).toEqual([null]);
@@ -94,7 +98,11 @@ describe('Unit / wda-hierarchy', () => {
       const deps = stdDeps();
       const res = await resolveIosRegions({
         regions: [{ element: { id: 'submit-btn' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       expect(res.resolvedRegions).toEqual([null]);
       expect(res.warnings).toContain('kill-switch-engaged');
@@ -106,7 +114,10 @@ describe('Unit / wda-hierarchy', () => {
       const readWdaMeta = () => ({ ok: false, reason: 'missing' });
       const res = await resolveIosRegions({
         regions: [{ element: { id: 'submit-btn' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true,
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
         deps: { httpClient, readWdaMeta }
       });
       expect(res.resolvedRegions).toEqual([null]);
@@ -118,7 +129,11 @@ describe('Unit / wda-hierarchy', () => {
       const deps = stdDeps();
       const res = await resolveIosRegions({
         regions: [{ top: 0, left: 0, right: 100, bottom: 100 }], // coord-only
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       // 0 element regions in input → sparse array of length 0
       expect(res.resolvedRegions).toEqual([]);
@@ -135,7 +150,11 @@ describe('Unit / wda-hierarchy', () => {
       const deps = stdDeps({ wdaSessionId: WDA_SID });
       await resolveIosRegions({
         regions: [{ element: { id: 'submit-btn' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       const sourceCall = deps.httpClient.calls.find(c => /\/source$/.test(c.url));
       expect(sourceCall).toBeDefined();
@@ -147,7 +166,11 @@ describe('Unit / wda-hierarchy', () => {
       const deps = stdDeps(); // no wdaSessionId
       await resolveIosRegions({
         regions: [{ element: { id: 'submit-btn' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       const sourceCall = deps.httpClient.calls.find(c => /\/source$/.test(c.url));
       expect(sourceCall).toBeDefined();
@@ -176,7 +199,10 @@ describe('Unit / wda-hierarchy', () => {
 
       const res = await resolveIosRegions({
         regions: [{ element: { id: 'submit-btn' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true,
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
         deps: { httpClient, readWdaMeta }
       });
 
@@ -216,7 +242,10 @@ describe('Unit / wda-hierarchy', () => {
 
       const res = await resolveIosRegions({
         regions: [{ element: { id: 'submit-btn' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true,
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
         deps: { httpClient, readWdaMeta }
       });
 
@@ -244,7 +273,10 @@ describe('Unit / wda-hierarchy', () => {
 
       const res = await resolveIosRegions({
         regions: [{ element: { id: 'submit-btn' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true,
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
         deps: { httpClient, readWdaMeta }
       });
 
@@ -266,7 +298,10 @@ describe('Unit / wda-hierarchy', () => {
 
       const res = await resolveIosRegions({
         regions: [{ element: { id: 'submit-btn' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true,
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
         deps: { httpClient, readWdaMeta }
       });
 
@@ -288,7 +323,10 @@ describe('Unit / wda-hierarchy', () => {
 
       const res = await resolveIosRegions({
         regions: [{ element: { id: 'submit-btn' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true,
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
         deps: { httpClient, readWdaMeta }
       });
 
@@ -304,7 +342,11 @@ describe('Unit / wda-hierarchy', () => {
       const deps = stdDeps();
       const res = await resolveIosRegions({
         regions: [{ element: { id: 'submit-btn' }, algorithm: 'ignore' }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       expect(res.resolvedRegions.filter(Boolean).length).toBe(1);
       // submit-btn is at (20, 100, 200, 50) in points; scale 3 → (60, 300, 660, 450) in pixels
@@ -318,7 +360,11 @@ describe('Unit / wda-hierarchy', () => {
       const deps = stdDeps();
       const res = await resolveIosRegions({
         regions: [{ element: { class: 'Button' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       expect(res.resolvedRegions.filter(Boolean).length).toBe(1);
       expect(res.resolvedRegions[0].boundingBox).toEqual({ left: 60, top: 300, right: 660, bottom: 450 });
@@ -329,11 +375,19 @@ describe('Unit / wda-hierarchy', () => {
       const deps2 = stdDeps();
       const long = await resolveIosRegions({
         regions: [{ element: { class: 'XCUIElementTypeStaticText' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps: deps1
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps: deps1
       });
       const short = await resolveIosRegions({
         regions: [{ element: { class: 'StaticText' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps: deps2
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps: deps2
       });
       expect(long.resolvedRegions).toEqual(short.resolvedRegions);
     });
@@ -342,7 +396,11 @@ describe('Unit / wda-hierarchy', () => {
       const deps = stdDeps();
       const res = await resolveIosRegions({
         regions: [{ element: { class: 'Button' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       // submit-btn is first Button in tree order; bbox = (60,300,660,450)
       expect(res.resolvedRegions[0].boundingBox).toEqual({ left: 60, top: 300, right: 660, bottom: 450 });
@@ -355,7 +413,11 @@ describe('Unit / wda-hierarchy', () => {
           { element: { id: 'submit-btn' } },
           { element: { id: 'heading' } }
         ],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       expect(res.resolvedRegions.filter(Boolean).length).toBe(2);
       // /source should be fetched once, not twice (per-screenshot cache)
@@ -369,7 +431,11 @@ describe('Unit / wda-hierarchy', () => {
       const deps = stdDeps();
       const res = await resolveIosRegions({
         regions: [{ element: { class: 'NotARealClass' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       expect(res.resolvedRegions.filter(Boolean).length).toBe(0);
       expect(res.warnings).toContain('class-not-allowlisted');
@@ -380,7 +446,11 @@ describe('Unit / wda-hierarchy', () => {
       const longVal = 'x'.repeat(257);
       const res = await resolveIosRegions({
         regions: [{ element: { id: longVal } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       expect(res.resolvedRegions.filter(Boolean).length).toBe(0);
       expect(res.warnings).toContain('selector-too-long');
@@ -390,7 +460,11 @@ describe('Unit / wda-hierarchy', () => {
       const deps = stdDeps();
       const res = await resolveIosRegions({
         regions: [{ element: { text: 'Submit' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       expect(res.resolvedRegions.filter(Boolean).length).toBe(0);
       expect(res.warnings).toContain('selector-key-not-in-v1');
@@ -400,7 +474,11 @@ describe('Unit / wda-hierarchy', () => {
       const deps = stdDeps();
       const res = await resolveIosRegions({
         regions: [{ element: { xpath: '//button' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       expect(res.warnings).toContain('selector-key-not-in-v1');
     });
@@ -409,7 +487,11 @@ describe('Unit / wda-hierarchy', () => {
       const deps = stdDeps();
       const res = await resolveIosRegions({
         regions: [{ element: { id: 'does-not-exist-here-xyz' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       expect(res.resolvedRegions.filter(Boolean).length).toBe(0);
       expect(res.warnings).toContain('zero-match');
@@ -425,7 +507,11 @@ describe('Unit / wda-hierarchy', () => {
       const deps = stdDeps({ sourceXml: oversizeXml });
       const res = await resolveIosRegions({
         regions: [{ element: { id: 'submit-btn' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       expect(res.warnings).toContain('source-oversize');
       expect(res.resolvedRegions).toEqual([null]);
@@ -438,7 +524,11 @@ describe('Unit / wda-hierarchy', () => {
       const deps = stdDeps({ sourceXml: xxeXml });
       const res = await resolveIosRegions({
         regions: [{ element: { id: 'submit-btn' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       expect(res.warnings).toContain('xml-rejected');
       expect(res.resolvedRegions).toEqual([null]);
@@ -455,7 +545,10 @@ describe('Unit / wda-hierarchy', () => {
       ]);
       const res = await resolveIosRegions({
         regions: [{ element: { id: 'submit-btn' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true,
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
         deps: { httpClient, readWdaMeta }
       });
       expect(res.warnings).toContain('wda-error');
@@ -472,7 +565,11 @@ describe('Unit / wda-hierarchy', () => {
       const deps = stdDeps({ sourceXml: outXml });
       const res = await resolveIosRegions({
         regions: [{ element: { id: 'submit-btn' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       expect(res.warnings).toContain('bbox-out-of-bounds');
       expect(res.resolvedRegions).toEqual([null]);
@@ -485,7 +582,11 @@ describe('Unit / wda-hierarchy', () => {
       const deps = stdDeps({ sourceXml: smallXml });
       const res = await resolveIosRegions({
         regions: [{ element: { id: 'submit-btn' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       expect(res.warnings).toContain('bbox-too-small');
       expect(res.resolvedRegions).toEqual([null]);
@@ -497,12 +598,16 @@ describe('Unit / wda-hierarchy', () => {
       const deps = stdDeps();
       await resolveIosRegions({
         regions: [{ element: { id: 'submit-btn' } }],
-        sessionId: VALID_SID, pngWidth: 1170, pngHeight: 2532, isPortrait: true, deps
+        sessionId: VALID_SID,
+        pngWidth: 1170,
+        pngHeight: 2532,
+        isPortrait: true,
+        deps
       });
       const joined = [...(logger.stderr || []), ...(logger.stdout || [])].join('\n');
-      expect(joined).not.toContain('submit-btn');    // selector value
-      expect(joined).not.toContain('8408');          // WDA port
-      expect(joined).not.toContain(VALID_SID);        // raw sessionId
+      expect(joined).not.toContain('submit-btn'); // selector value
+      expect(joined).not.toContain('8408'); // WDA port
+      expect(joined).not.toContain(VALID_SID); // raw sessionId
       expect(joined).not.toContain('60,300,660,450'); // coords string
     });
   });

@@ -10,9 +10,8 @@
 // All failure paths return a scrubbed reason tag; no file contents, raw
 // sessionIds, port numbers, or paths are emitted to logs (contract §5).
 
-import fs from 'fs';
+import fs, { constants as fsConstants } from 'fs';
 import path from 'path';
-import { constants as fsConstants } from 'fs';
 import loggerFactory from '@percy/logger';
 
 const log = loggerFactory('core:wda-session');

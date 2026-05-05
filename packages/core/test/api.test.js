@@ -1067,7 +1067,9 @@ describe('API Server', () => {
     it('rejects element region with unsupported selector key', async () => {
       await percy.start();
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         regions: [{ element: { xpath: '//foo' }, algorithm: 'ignore' }]
       })).toBeRejectedWithError(/unsupported selector key/);
     });
@@ -1075,7 +1077,9 @@ describe('API Server', () => {
     it('rejects element region with multiple selector keys', async () => {
       await percy.start();
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         regions: [{ element: { 'resource-id': 'a', text: 'b' } }]
       })).toBeRejectedWithError(/exactly one selector key/);
     });
@@ -1083,7 +1087,9 @@ describe('API Server', () => {
     it('rejects element selector value longer than 512 chars', async () => {
       await percy.start();
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         regions: [{ element: { 'resource-id': 'a'.repeat(513) } }]
       })).toBeRejectedWithError(/exceeds maximum length of 512/);
     });
@@ -1091,7 +1097,9 @@ describe('API Server', () => {
     it('rejects element region with empty selector value', async () => {
       await percy.start();
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         regions: [{ element: { 'resource-id': '' } }]
       })).toBeRejectedWithError(/must be a non-empty string/);
     });
@@ -1101,7 +1109,9 @@ describe('API Server', () => {
       await percy.start();
 
       await expectAsync(postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'android',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'android',
         regions: [{ top: 0, bottom: 50, left: 0, right: 100, algorithm: 'ignore' }]
       })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
 
@@ -1121,7 +1131,9 @@ describe('API Server', () => {
       await percy.start();
 
       let response = await postMaestro({
-        name: SS_NAME, sessionId: SID, platform: 'ios',
+        name: SS_NAME,
+        sessionId: SID,
+        platform: 'ios',
         regions: [
           { element: { 'resource-id': 'com.example:id/foo' }, algorithm: 'ignore' },
           { top: 0, bottom: 20, left: 0, right: 20, algorithm: 'ignore' }

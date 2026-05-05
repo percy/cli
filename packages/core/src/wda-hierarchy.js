@@ -23,7 +23,6 @@
 
 import { XMLParser } from 'fast-xml-parser';
 import loggerFactory from '@percy/logger';
-import crypto from 'crypto';
 
 const log = loggerFactory('core:wda-hierarchy');
 
@@ -345,7 +344,7 @@ async function fetchScale(port, sessionId, pngWidth, httpClient) {
     const status = err && err.response && err.response.statusCode;
     const body = err && err.response && err.response.body;
     const bodyPreview = body ? JSON.stringify(body).slice(0, 200) : '(no body)';
-    log.debug(`wda-hierarchy: /wda/screen threw name=${err?.name} message=${String(err?.message || '').slice(0,200)} code=${err?.code} status=${status} aborted=${err?.aborted} body=${bodyPreview}`);
+    log.debug(`wda-hierarchy: /wda/screen threw name=${err?.name} message=${String(err?.message || '').slice(0, 200)} code=${err?.code} status=${status} aborted=${err?.aborted} body=${bodyPreview}`);
     return { ok: false, reason: 'wda-error' };
   }
   const body = typeof response === 'string' ? safeJson(response) : response;

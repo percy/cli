@@ -611,7 +611,8 @@ export function createPercyServer(percy, port) {
         percy.client.apiUrl, '/comparisons/redirect?',
         encodeURLSearchParams(normalize({
           buildId: percy.build?.id,
-          snapshot: { name }, tag
+          snapshot: { name },
+          tag
         }, { snake: true }))
       ].join('');
 
