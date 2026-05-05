@@ -20,8 +20,8 @@ async function getPreflightScript() {
   try {
     let here = path.dirname(url.fileURLToPath(import.meta.url));
     _preflightScript = await fs.promises.readFile(path.join(here, 'preflight.js'), 'utf-8');
-  } catch (err) {
     /* istanbul ignore next: graceful fallback — closed-shadow capture degrades to no-op */
+  } catch (err) {
     logger('core:page').debug(`Preflight script unavailable: ${err.message}`);
     _preflightScript = '';
   }
@@ -277,10 +277,10 @@ export class Page {
       let pageEnablePromise = session.send('Page.enable');
       commands.push(
         pageEnablePromise.then(() => {
+          /* istanbul ignore next: defensive CDP error handler — only fires on unexpected injection errors */
           return getPreflightScript().then(script => {
             if (script) {
               return session.send('Page.addScriptToEvaluateOnNewDocument', { source: script })
-                /* istanbul ignore next: defensive — only fires on unexpected CDP injection errors */
                 .catch(err => {
                   if (!err.message?.includes('closed') && !err.message?.includes('destroyed')) {
                     logger('core:page').debug('Preflight script injection failed:', err.message);
