@@ -3,8 +3,7 @@
 // re-declare the same lists and clamping logic.
 
 export const UNSUPPORTED_IFRAME_SRCS = [
-  'about:blank',
-  'about:srcdoc',
+  'about:',
   'javascript:',
   'data:',
   'blob:',
