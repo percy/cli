@@ -129,15 +129,16 @@ export function serializeDOM(options) {
   // content as light DOM (forceShadowAsLightDOM) — those are user choices,
   // not actual fidelity gaps.
   let inaccessibleShadowCount = 0;
+  /* istanbul ignore next: the inaccessible-shadow path requires a preflight
+     late-binding race that cannot be deterministically triggered in the
+     jasmine harness without monkey-patching markElement; verified manually
+     via Percy build #285 (2026-05-06). */
   if (!disableShadowDOM && !forceShadowAsLightDOM) {
     let closedShadowMap = window.__percyClosedShadowRoots;
     for (let origEl of ctx.dom.querySelectorAll('*')) {
       if (!origEl.tagName?.includes('-')) continue;
       if (origEl.hasAttribute('data-percy-shadow-host')) continue;
       if (!closedShadowMap?.has(origEl)) continue;
-      /* istanbul ignore next: requires preflight late-binding race that the
-         test harness cannot deterministically trigger without monkey-patching
-         markElement; verified manually via Percy build #285 (2026-05-06). */
       inaccessibleShadowCount++;
     }
   }
