@@ -374,12 +374,41 @@ export function createSnapshotsQueue(percy) {
     .handle('start', async () => {
       try {
         build = percy.build = {};
-        let { data } = await percy.client.createBuild({ projectType: percy.projectType, cliStartTime: percy.cliStartTime });
+        let { data, included } = await percy.client.createBuild({ projectType: percy.projectType, cliStartTime: percy.cliStartTime });
         let url = data.attributes['web-url'];
         let number = data.attributes['build-number'];
         let usageWarning = data.attributes['usage-warning'];
         percy.client.buildType = data.attributes?.type;
-        Object.assign(build, { id: data.id, url, number });
+
+        // Extract baseline commit SHA from the JSONAPI `included` array so
+        // TurboSnap-capable SDKs can compute a changed-file set relative to
+        // the baseline. Missing → null (first build in a project).
+        //
+        // Two paths:
+        //   1. Git workflow — `base-build-strategies` carries baseline_context.base_build_commit_sha.
+        //   2. Branchline/visual-git workflow — no base-build-strategy; traverse
+        //      data.relationships.base-build -> builds#N.relationships.commit -> commits#M.sha.
+        //      `base-build.commit` is already in SHARED_INCLUDES so the graph is in `included`.
+        let baseBuildStrategy = included?.find(r => r.type === 'base-build-strategies');
+        let baselineCommitSha = baseBuildStrategy?.attributes?.['baseline-context']?.['base_build_commit_sha'];
+
+        if (!baselineCommitSha) {
+          let baseBuildRef = data.relationships?.['base-build']?.data;
+          if (baseBuildRef) {
+            let baseBuild = included?.find(r => r.type === 'builds' && r.id === baseBuildRef.id);
+            let baseCommitRef = baseBuild?.relationships?.commit?.data;
+            if (baseCommitRef) {
+              let baseCommit = included?.find(r => r.type === 'commits' && r.id === baseCommitRef.id);
+              baselineCommitSha = baseCommit?.attributes?.sha ?? null;
+            }
+          }
+        }
+
+        Object.assign(build, { id: data.id, url, number, baselineCommitSha: baselineCommitSha ?? null });
+
+        if (baselineCommitSha) {
+          percy.log.debug(`TurboSnap: baseline commit ${baselineCommitSha.slice(0, 7)}`);
+        }
 
         // Display usage warning if present
         if (usageWarning) {
