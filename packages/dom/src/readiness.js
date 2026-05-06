@@ -200,6 +200,7 @@ function checkNetworkIdle(networkIdleWindowMs, aborted) {
     let pollInterval = null;
 
     function settle() {
+      /* istanbul ignore next: observer is only null on fallback path (itself ignored) */
       if (observer) observer.disconnect();
       /* istanbul ignore next: fallback polling path only used when PerformanceObserver is unavailable */
       if (pollInterval) clearInterval(pollInterval);
@@ -232,6 +233,7 @@ function checkNetworkIdle(networkIdleWindowMs, aborted) {
     timer = setTimeout(settle, networkIdleWindowMs);
 
     aborted.onAbort(() => {
+      /* istanbul ignore next: observer is only null on fallback path (itself ignored) */
       if (observer) observer.disconnect();
       /* istanbul ignore next: pollInterval is only set on the fallback path */
       if (pollInterval) clearInterval(pollInterval);
