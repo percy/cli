@@ -10,6 +10,11 @@ import postBuildEvents from './post-build-event.js';
 import flushSnapshots from './flush-snapshots.js';
 import captureAutomateScreenshot from './post-screenshot.js';
 import getResponsiveWidths from './get-responsive-widths.js';
+import {
+  DEFAULT_MAX_IFRAME_DEPTH,
+  HARD_MAX_IFRAME_DEPTH,
+  clampIframeDepth
+} from './iframe-utils.js';
 
 export {
   logger,
@@ -23,7 +28,10 @@ export {
   flushSnapshots,
   captureAutomateScreenshot,
   postBuildEvents,
-  getResponsiveWidths
+  getResponsiveWidths,
+  DEFAULT_MAX_IFRAME_DEPTH,
+  HARD_MAX_IFRAME_DEPTH,
+  clampIframeDepth
 };
 
 // export the namespace by default
