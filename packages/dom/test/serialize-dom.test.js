@@ -1,5 +1,6 @@
 import { withExample, replaceDoctype, createShadowEl, getTestBrowser, chromeBrowser, parseDOM, createAndAttachSlotTemplate } from './helpers';
 import serializeDOM, { waitForResize } from '@percy/dom';
+import { getClosedShadowRoot, hasClosedShadowRoot, getCustomStateInternals } from '../src/shadow-utils';
 
 describe('serializeDOM', () => {
   it('returns serialied html, warnings, and resources', () => {
@@ -893,6 +894,20 @@ describe('serializeDOM', () => {
 
       let result = serializeDOM();
       expect(result.warnings.some(w => w.includes('[fidelity]') && w.includes('shadow root'))).toBe(true);
+    });
+  });
+
+  describe('shadow-utils getRuntime fallback', () => {
+    it('falls back to window when the node has no ownerDocument.defaultView', () => {
+      // Exercises the `(typeof window !== 'undefined' ? window : null)` fallback
+      // branch in shadow-utils.getRuntime — fires when getClosedShadowRoot is
+      // called with a node that is null or has no resolvable runtime.
+      // null-host calls return null/false without throwing — they hit the
+      // fallback, then the optional chain on the missing WeakMap yields the
+      // expected absent value.
+      expect(getClosedShadowRoot(null)).toBeNull();
+      expect(hasClosedShadowRoot(null)).toBe(false);
+      expect(getCustomStateInternals(null)).toBeNull();
     });
   });
 });

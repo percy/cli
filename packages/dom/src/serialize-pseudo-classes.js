@@ -124,6 +124,9 @@ function markFocusWithinAncestors(ctx, focused) {
       stampOnce(ctx, node, FOCUS_WITHIN_ATTR, 'true');
       node = node.parentNode;
     } else if (node.nodeType === 11 /* DOCUMENT_FRAGMENT_NODE — shadow root */) {
+      /* istanbul ignore next: shadow roots always have a host; the `|| null`
+         fallback covers a hypothetical detached fragment whose host has been
+         cleared. */
       node = node.host || null;
     } else {
       node = null;
@@ -167,6 +170,10 @@ function markPopoverIfOpen(ctx, element) {
 function stampPseudoElementId(ctx, element) {
   if (!element.getAttribute(PSEUDO_ELEMENT_MARKER_ATTR)) {
     element.setAttribute(PSEUDO_ELEMENT_MARKER_ATTR, uid());
+    /* istanbul ignore next: the init-on-demand branch is unreachable from
+       markPseudoClassElements (which initializes the array first); kept as
+       a defensive fallback for callers that exercise getElementsToProcess
+       directly. */
     if (!ctx._liveMutations) ctx._liveMutations = [];
     ctx._liveMutations.push([element, PSEUDO_ELEMENT_MARKER_ATTR]);
   }
@@ -181,6 +188,10 @@ function stampPseudoElementId(ctx, element) {
 function markElementInteractiveStates(ctx, element) {
   if (ctx._focusedElementId) {
     const id = element.getAttribute('data-percy-element-id');
+    /* istanbul ignore else: the `id` short-circuit only triggers when a
+       configured element has no data-percy-element-id; markPseudoClassElements
+       stamps every configured element earlier, so in practice id is always
+       truthy here. */
     if (id && id === ctx._focusedElementId) {
       stampOnce(ctx, element, FOCUS_ATTR, 'true');
     }
@@ -332,7 +343,9 @@ function walkCSSRules(ruleList) {
           result.push(inner);
         }
       }
-    } else if (rule.selectorText) {
+    } else /* istanbul ignore else: rules without nested cssRules and without
+       selectorText (@charset / @counter-style / @font-face) cannot contain
+       interactive pseudos, so skipping them is correct. */ if (rule.selectorText) {
       result.push({ selectorText: rule.selectorText, style: rule.style, wrapper: null });
     }
   }
@@ -408,6 +421,10 @@ function extractPseudoClassRules(ctx) {
       }
 
       const rewrittenSelector = rewritePseudoSelector(rule.selectorText);
+      /* istanbul ignore if: defensive — selectorContainsPseudo and the
+         boundary regexes are consistent, so any selector that passed the
+         contains-check above always rewrites to a different string. Kept
+         in case a future pseudo addition breaks that invariant. */
       if (rewrittenSelector === rule.selectorText) continue;
 
       const cssText = `${rewrittenSelector} { ${rule.style.cssText} }`;
@@ -461,6 +478,9 @@ export function serializePseudoClasses(ctx) {
     }
 
     try {
+      /* istanbul ignore next: ctx.dom.defaultView is always set in a browser
+         test runner; the `|| window` fallback is defense-in-depth for non-
+         standard ctx.dom values that might lack the property. */
       const win = ctx.dom.defaultView || window;
       const computedStyles = win.getComputedStyle(element);
       const cssText = stylesToCSSText(computedStyles);

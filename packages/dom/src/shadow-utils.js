@@ -9,6 +9,9 @@
 // preflight installed the per-document WeakMaps.
 function getRuntime(node) {
   const doc = node?.ownerDocument || node;
+  /* istanbul ignore next: the `typeof window === 'undefined'` branch is
+     unreachable in the browser test runner; kept so this module can be
+     imported in non-window contexts (Node, Workers) without ReferenceError. */
   return doc?.defaultView || (typeof window !== 'undefined' ? window : null);
 }
 

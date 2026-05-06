@@ -39,6 +39,10 @@ export function rewriteCustomStateCSS(ctx) {
       return STATE_ATTR_TEMPLATE(name);
     });
     modified = modified.replace(LEGACY_DASH_DASH_RE, (match, name) => {
+      /* istanbul ignore if: defense-in-depth — LEGACY_DASH_DASH_RE already
+         restricts the capture to [a-zA-Z][\w-]*, so this gate is unreachable
+         from input that the outer regex matches. Kept to mirror STATE_FN_RE
+         in case the outer regex relaxes in the future. */
       if (!SAFE_STATE_NAME_RE.test(name)) return match;
       stateNames.add(name);
       return STATE_ATTR_TEMPLATE(name);

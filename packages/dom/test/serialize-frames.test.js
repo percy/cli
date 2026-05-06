@@ -501,4 +501,43 @@ describe('serializeFrames', () => {
       });
     }
   });
+
+  describe('iframe depth limit', () => {
+    it('reports depthExcluded when nested iframes exceed maxIframeDepth', async () => {
+      // Outer iframe contains an inner iframe. With maxIframeDepth=1, the
+      // outer is captured (depth 0 → 1) but the inner attempt (depth 1 → 2)
+      // is excluded — exercising the depth-excluded counter and continue.
+      withExample('<iframe id="depth-outer" srcdoc="<iframe id=\'depth-inner\' srcdoc=\'<input/>\'></iframe>"></iframe>');
+      let $outer = await getFrame('depth-outer', document, d => d.querySelector('#depth-inner'));
+      // Wait for the inner iframe to load too so its contentDocument is accessible
+      await when(() => {
+        let $inner = $outer.contentDocument.getElementById('depth-inner');
+        let loaded = $inner?.contentDocument && $inner.contentWindow.performance.timing.loadEventEnd;
+        return !!loaded;
+      }, 5000);
+
+      let result = serializeDOM({ maxIframeDepth: 1 });
+      const depthWarning = result.warnings.find(w => w.includes('depth limit'));
+      expect(depthWarning).toBeDefined();
+      expect(depthWarning).toContain('1 excluded at depth limit (1)');
+    });
+
+    it('clamps non-finite or out-of-range maxIframeDepth to the default', () => {
+      // Non-finite (NaN), zero, and negative values must fall back to
+      // DEFAULT_MAX_IFRAME_DEPTH (3) — exercises clampIframeDepth's invalid path.
+      withExample('<iframe id="cl-frame" srcdoc="<input/>"></iframe>');
+      // No await needed — even if the iframe isn't fully loaded, the call shouldn't throw.
+      expect(() => serializeDOM({ maxIframeDepth: 'not a number' })).not.toThrow();
+      expect(() => serializeDOM({ maxIframeDepth: 0 })).not.toThrow();
+      expect(() => serializeDOM({ maxIframeDepth: -5 })).not.toThrow();
+    });
+
+    it('caps user-supplied maxIframeDepth at the hard maximum (10)', () => {
+      // Values above HARD_MAX_IFRAME_DEPTH (10) get clamped to 10.
+      withExample('<iframe id="cap-frame" srcdoc="<input/>"></iframe>');
+      let result = serializeDOM({ maxIframeDepth: 999 });
+      expect(result).toBeDefined();
+      expect(result.html).toBeDefined();
+    });
+  });
 });

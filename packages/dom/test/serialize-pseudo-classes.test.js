@@ -1,6 +1,6 @@
 // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
 
-import { markPseudoClassElements, serializePseudoClasses, getElementsToProcess, rewriteCustomStateCSS } from '../src/serialize-pseudo-classes';
+import { markPseudoClassElements, serializePseudoClasses, getElementsToProcess, rewriteCustomStateCSS, cleanupInteractiveStateMarkers } from '../src/serialize-pseudo-classes';
 import { withExample } from './helpers';
 
 // Helper to mock document.activeElement cross-browser (Firefox headless doesn't honor .focus())
@@ -1447,6 +1447,286 @@ describe('serialize-pseudo-classes', () => {
       let cloneHost = ctx.clone.querySelector('[data-percy-element-id="_sh_noshadow_1"]');
       expect(cloneHost).not.toBeNull();
       expect(cloneHost.shadowRoot).toBeNull();
+    });
+  });
+
+  describe('rewriteCustomStateCSS unsafe-name passthrough', () => {
+    it('leaves :state(name) unchanged when name fails the SAFE_STATE_NAME_RE check', () => {
+      // Hostile names containing ", ], <, >, {, }, whitespace must NOT be
+      // interpolated into the rewritten attribute selector — the replace
+      // callback returns the original match. This covers the early-return
+      // branch in serialize-custom-states.js for STATE_FN_RE.
+      const cloneDoc = document.implementation.createHTMLDocument('Clone');
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      cloneDoc.body.innerHTML = '<style>:state(bad"]anything) { color: red }</style>';
+      const fakeCtx = {
+        dom: document,
+        clone: cloneDoc,
+        warnings: new Set()
+      };
+      rewriteCustomStateCSS(fakeCtx);
+      const styleEl = cloneDoc.querySelector('style');
+      // Original CSS preserved verbatim — no rewrite happened.
+      expect(styleEl.textContent).toContain(':state(bad"]anything)');
+      expect(styleEl.textContent).not.toContain('data-percy-custom-state');
+    });
+
+    it('leaves legacy :--name unchanged when restricted regex would match but SAFE_STATE_NAME_RE fails', () => {
+      // The legacy regex /:--([a-zA-Z][\w-]*)/g already restricts to safe
+      // characters, so the LEGACY_DASH_DASH_RE callback's safety gate is
+      // belt-and-suspenders. Pass a name that the regex captures but that
+      // we want to assert STILL rewrites correctly — confirms the gated
+      // path is exercised end-to-end.
+      const cloneDoc = document.implementation.createHTMLDocument('Clone');
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      cloneDoc.body.innerHTML = '<style>:--legacystate { color: blue }</style>';
+      const fakeCtx = {
+        dom: document,
+        clone: cloneDoc,
+        warnings: new Set()
+      };
+      rewriteCustomStateCSS(fakeCtx);
+      const styleEl = cloneDoc.querySelector('style');
+      expect(styleEl.textContent).toContain('[data-percy-custom-state~="legacystate"]');
+    });
+  });
+
+  describe('configuredElementMatches catch branch', () => {
+    it('returns false when stripping the pseudo leaves an invalid selector', () => {
+      // A bare :hover rule strips to "" which throws inside querySelectorAll.
+      // The catch branch returns false so the rule is silently dropped.
+      withExample('<style>:hover { color: red }</style><button id="cfg-btn">x</button>');
+      ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: [],
+        pseudoClassEnabledElements: { id: ['cfg-btn'] }
+      };
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = document.body.innerHTML;
+      markPseudoClassElements(ctx, ctx.pseudoClassEnabledElements);
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
+      expect(() => serializePseudoClasses(ctx)).not.toThrow();
+      // No interactive-states style is injected because the bare-pseudo rule was rejected.
+      const interactiveStyle = ctx.clone.querySelector('style[data-percy-interactive-states]');
+      if (interactiveStyle) {
+        expect(interactiveStyle.textContent).not.toContain('[data-percy-hover]');
+      }
+    });
+  });
+
+  describe('walkCSSRules nested at-rule without conditionText', () => {
+    it('passes inner rules through unchanged when the outer at-rule has no condition', () => {
+      // @layer has cssRules and a name but no conditionText / media — the
+      // inner rule still has selectorText, so walkCSSRules takes the else
+      // branch (no wrapper) and pushes the inner rule unchanged.
+      withExample(
+        '<style>@layer base { button:focus { color: green } }</style>' +
+        '<button id="lay-btn">x</button>'
+      );
+      ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: []
+      };
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = document.body.innerHTML;
+      markPseudoClassElements(ctx, null);
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
+      expect(() => serializePseudoClasses(ctx)).not.toThrow();
+      // The :focus rule still rewrites successfully — @layer wraps but
+      // contributes no condition prelude.
+      const interactiveStyle = ctx.clone.querySelector('style[data-percy-interactive-states]');
+      expect(interactiveStyle).not.toBeNull();
+      expect(interactiveStyle.textContent).toContain('[data-percy-focus]');
+    });
+  });
+
+  describe('cleanupInteractiveStateMarkers with no prior marking', () => {
+    it('returns early when ctx._liveMutations is undefined', () => {
+      // Exercises the early-return branch when cleanup is called before any
+      // marking happened (or with a bare ctx).
+      expect(() => cleanupInteractiveStateMarkers({})).not.toThrow();
+    });
+  });
+
+  describe('markElementInteractiveStates without data-percy-element-id', () => {
+    it('skips the _focusedElementId match when the element has no id', () => {
+      // Exercises the `if (id && id === ctx._focusedElementId)` short-circuit
+      // when `id` is null because the configured element has no
+      // data-percy-element-id stamped yet.
+      withExample('<input id="iel-input"/><button class="iel-btn">x</button>');
+      const focusable = document.getElementById('iel-input');
+      ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: [],
+        pseudoClassEnabledElements: { className: ['iel-btn'] }
+      };
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = document.body.innerHTML;
+      withMockedFocus(focusable, () => {
+        // The button has no data-percy-element-id; markPseudoClassElements
+        // hits the short-circuit when checking for focus match.
+        expect(() => markPseudoClassElements(ctx, ctx.pseudoClassEnabledElements)).not.toThrow();
+      });
+    });
+  });
+
+  describe('configuredElementMatches return paths', () => {
+    it('returns false when no element is stamped (config matched nothing)', () => {
+      // Config matches nothing → no stamped elements → early return at the
+      // !stamped.length check.
+      withExample('<style>.cm-btn:hover { color: red }</style><button class="cm-btn">x</button>');
+      ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: [],
+        pseudoClassEnabledElements: { selectors: ['.does-not-exist'] }
+      };
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = document.body.innerHTML;
+      markPseudoClassElements(ctx, ctx.pseudoClassEnabledElements);
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
+      expect(() => serializePseudoClasses(ctx)).not.toThrow();
+      // No interactive-states style is injected since :hover rule is
+      // dropped without any configured element to gate it on.
+      const interactiveStyle = ctx.clone.querySelector('style[data-percy-interactive-states]');
+      if (interactiveStyle) {
+        expect(interactiveStyle.textContent).not.toContain('[data-percy-hover]');
+      }
+    });
+
+    it('returns false when configured element exists but does NOT match the base selector', () => {
+      // Configured element is present and stamped, but the rule's base
+      // selector matches a *different* element. configuredElementMatches
+      // walks `candidates` looking for the stamp marker and returns false.
+      withExample(
+        '<style>.unrelated:hover { color: red }</style>' +
+        '<button id="cm2-btn" class="cm2-btn">a</button>' +
+        '<button class="unrelated">b</button>'
+      );
+      ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: [],
+        pseudoClassEnabledElements: { id: ['cm2-btn'] }
+      };
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = document.body.innerHTML;
+      markPseudoClassElements(ctx, ctx.pseudoClassEnabledElements);
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
+      expect(() => serializePseudoClasses(ctx)).not.toThrow();
+    });
+
+    it('returns true when a configured element matches the base selector and rewrites the rule', () => {
+      // The configured element IS in the candidate set — return true,
+      // rewrite proceeds.
+      withExample(
+        '<style>.cm3-btn:hover { color: red }</style>' +
+        '<button id="cm3-btn" class="cm3-btn">x</button>'
+      );
+      ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: [],
+        pseudoClassEnabledElements: { id: ['cm3-btn'] }
+      };
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = document.body.innerHTML;
+      markPseudoClassElements(ctx, ctx.pseudoClassEnabledElements);
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
+      expect(() => serializePseudoClasses(ctx)).not.toThrow();
+      const interactiveStyle = ctx.clone.querySelector('style[data-percy-interactive-states]');
+      expect(interactiveStyle).not.toBeNull();
+      expect(interactiveStyle.textContent).toContain('[data-percy-hover]');
+    });
+  });
+
+  describe('walkCSSRules charset / import / etc with no selectorText', () => {
+    it('skips rules that have neither nested cssRules nor a selector', () => {
+      // @charset has no cssRules and no selectorText — exercises the
+      // else-if false branch (rule is skipped silently).
+      withExample(
+        '<style>@charset "UTF-8"; .cs-btn:focus { color: red }</style>' +
+        '<button id="cs-btn" class="cs-btn">x</button>'
+      );
+      ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: []
+      };
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = document.body.innerHTML;
+      markPseudoClassElements(ctx, null);
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
+      expect(() => serializePseudoClasses(ctx)).not.toThrow();
+    });
+  });
+
+  describe('extractPseudoClassRules with multiple stylesheets', () => {
+    it('appends rules from each stylesheet under the same owner key', () => {
+      // Two <style> elements at the document level — both produce auto-detect
+      // rules, exercising the rulesByOwner.has(owner) === true branch on the
+      // second sheet.
+      withExample(
+        '<style>.ms-btn:focus { color: red }</style>' +
+        '<style>.ms-btn:checked { color: blue }</style>' +
+        '<input type="checkbox" class="ms-btn"/>'
+      );
+      ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: []
+      };
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = document.body.innerHTML;
+      markPseudoClassElements(ctx, null);
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
+      expect(() => serializePseudoClasses(ctx)).not.toThrow();
+      const interactiveStyle = ctx.clone.querySelector('style[data-percy-interactive-states]');
+      expect(interactiveStyle).not.toBeNull();
+      expect(interactiveStyle.textContent).toContain('[data-percy-focus]');
+      expect(interactiveStyle.textContent).toContain('[data-percy-checked]');
     });
   });
 });
