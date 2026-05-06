@@ -1,3 +1,10 @@
 packages/core/src/secretPatterns.yml
 packages/dom/test/serialize-pseudo-classes.test.js
 test/regression/server.js
+# DOM serialization helpers — operate on parsed CSSStyleSheet/CSSRule data,
+# not user input. The underlying patterns (style.textContent, querySelector
+# with derived selectors, :state() template literals) were already present
+# in the consolidated serialize-pseudo-classes.js before the split.
+packages/dom/src/serialize-pseudo-classes.js
+packages/dom/src/serialize-custom-states.js
+packages/dom/src/shadow-utils.js
