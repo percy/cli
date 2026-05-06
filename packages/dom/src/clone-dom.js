@@ -7,6 +7,11 @@ import markElement from './prepare-dom';
 import applyElementTransformations from './transform-dom';
 import serializeBase64 from './serialize-base64';
 import { handleErrors } from './utils';
+import {
+  getClosedShadowRoot,
+  getCustomStateInternals,
+  hasClosedShadowRoot
+} from './shadow-utils';
 
 /**
  * Deep clone a document while also preserving shadow roots
@@ -22,7 +27,7 @@ const ignoreTags = ['NOSCRIPT'];
  */
 function cloneElementWithoutLifecycle(element) {
   let isCustomElement = element.tagName?.includes('-');
-  let hasClosedShadow = isCustomElement && window.__percyClosedShadowRoots?.has(element);
+  let hasClosedShadow = isCustomElement && hasClosedShadowRoot(element);
   let hasCallbacks = isCustomElement && element.attributeChangedCallback;
 
   if (!isCustomElement || (!hasCallbacks && !hasClosedShadow)) {
@@ -70,20 +75,16 @@ export function cloneNodeAndShadow(ctx) {
       let clone = cloneElementWithoutLifecycle(node);
 
       // After cloning and before shadow DOM handling, detect custom states
-      let percyInternals = window.__percyInternals?.get(node);
+      let percyInternals = getCustomStateInternals(node);
       if (percyInternals?.states?.size > 0) {
         let states = [];
-        try {
-          for (let state of percyInternals.states) {
-            // Skip invalid state values (spec requires <dashed-ident>)
-            if (!/^[-\w]+$/.test(state)) continue;
-            states.push(state);
-          }
-          if (states.length > 0) {
-            clone.setAttribute('data-percy-custom-state', states.join(' '));
-          }
-        } catch (e) {
-          // graceful no-op if states not iterable
+        for (let state of percyInternals.states) {
+          // Skip invalid state values (spec requires <dashed-ident>)
+          if (!/^[-\w]+$/.test(state)) continue;
+          states.push(state);
+        }
+        if (states.length > 0) {
+          clone.setAttribute('data-percy-custom-state', states.join(' '));
         }
       }
 
@@ -121,7 +122,7 @@ export function cloneNodeAndShadow(ctx) {
       }
 
       // clone shadow DOM (including closed shadow roots intercepted by preflight)
-      let nodeShadowRoot = node.shadowRoot || window.__percyClosedShadowRoots?.get(node);
+      let nodeShadowRoot = node.shadowRoot || getClosedShadowRoot(node);
       if (nodeShadowRoot && !disableShadowDOM) {
         if (forceShadowAsLightDOM) {
           // When forceShadowAsLightDOM is true, treat shadow content as normal DOM

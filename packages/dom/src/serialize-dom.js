@@ -3,9 +3,10 @@ import serializeFrames from './serialize-frames';
 import serializeCSSOM from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
-import { serializePseudoClasses, markPseudoClassElements, rewriteCustomStateCSS } from './serialize-pseudo-classes';
+import { serializePseudoClasses, markPseudoClassElements, rewriteCustomStateCSS, cleanupInteractiveStateMarkers } from './serialize-pseudo-classes';
 import serializeDialogs from './serialize-dialog';
 import { cloneNodeAndShadow, getOuterHTML } from './clone-dom';
+import { getClosedShadowRoot } from './shadow-utils';
 
 // Returns a copy or new doctype for a document.
 function doctype(dom) {
@@ -49,7 +50,7 @@ function serializeElements(ctx) {
     for (const shadowHost of ctx.dom.querySelectorAll('[data-percy-shadow-host]')) {
       let percyElementId = shadowHost.getAttribute('data-percy-element-id');
       let cloneShadowHost = ctx.clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
-      let origShadow = shadowHost.shadowRoot || window.__percyClosedShadowRoots?.get(shadowHost);
+      let origShadow = shadowHost.shadowRoot || getClosedShadowRoot(shadowHost);
       if (origShadow && cloneShadowHost.shadowRoot) {
         // getHTML requires shadowRoot to be passed explicitly
         // to serialize the shadow elements properly
@@ -122,31 +123,9 @@ export function serializeDOM(options) {
 
   serializeElements(ctx);
 
-  // Detect potentially inaccessible shadow roots — flag custom elements
-  // that called attachShadow({ mode: 'closed' }) but whose shadow root
-  // was not captured (no data-percy-shadow-host marker). Skip when the
-  // user explicitly opted out (disableShadowDOM) or chose to inline shadow
-  // content as light DOM (forceShadowAsLightDOM) — those are user choices,
-  // not actual fidelity gaps.
-  let inaccessibleShadowCount = 0;
-  /* istanbul ignore next: the inaccessible-shadow path requires a preflight
-     late-binding race that cannot be deterministically triggered in the
-     jasmine harness without monkey-patching markElement; verified manually
-     via Percy build #285 (2026-05-06). */
-  if (!disableShadowDOM && !forceShadowAsLightDOM) {
-    let closedShadowMap = window.__percyClosedShadowRoots;
-    for (let origEl of ctx.dom.querySelectorAll('*')) {
-      if (!origEl.tagName?.includes('-')) continue;
-      if (origEl.hasAttribute('data-percy-shadow-host')) continue;
-      if (!closedShadowMap?.has(origEl)) continue;
-      inaccessibleShadowCount++;
-    }
-  }
-
   let shadowHosts = ctx.clone.querySelectorAll('[data-percy-shadow-host]');
-  let totalShadowRoots = shadowHosts.length + inaccessibleShadowCount;
-  if (totalShadowRoots > 0) {
-    ctx.warnings.add(`[fidelity] ${totalShadowRoots} shadow root(s): ${shadowHosts.length} captured, ${inaccessibleShadowCount} potentially inaccessible`);
+  if (shadowHosts.length > 0) {
+    ctx.warnings.add(`[fidelity] ${shadowHosts.length} shadow root(s) captured`);
   }
 
   serializePseudoClasses(ctx);
@@ -192,6 +171,10 @@ export function serializeDOM(options) {
     resources: Array.from(ctx.resources),
     hints: Array.from(ctx.hints)
   };
+
+  // Strip the data-attributes we wrote on the live DOM during marking so
+  // they don't leak into the page (SDK mode runs in the customer's tab).
+  cleanupInteractiveStateMarkers(ctx);
 
   return stringifyResponse
     ? JSON.stringify(result)

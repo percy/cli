@@ -22,7 +22,7 @@ async function getPreflightScript() {
     _preflightScript = await fs.promises.readFile(path.join(here, 'preflight.js'), 'utf-8');
   } catch (err) {
     /* istanbul ignore next: graceful fallback — closed-shadow capture degrades to no-op */
-    logger('core:page').debug(`Preflight script unavailable: ${err.message}`);
+    logger('core:page').warn(`[fidelity] Preflight script unavailable, closed shadow DOM and custom-element :state() capture disabled: ${err.message}`);
     /* istanbul ignore next: graceful fallback — closed-shadow capture degrades to no-op */
     _preflightScript = '';
   }
@@ -283,8 +283,11 @@ export class Page {
             if (script) {
               return session.send('Page.addScriptToEvaluateOnNewDocument', { source: script })
                 .catch(err => {
+                  // 'closed'/'destroyed' just mean the page tore down before
+                  // injection landed — not a fidelity issue. Anything else
+                  // disables closed-shadow capture for this snapshot, so warn.
                   if (!err.message?.includes('closed') && !err.message?.includes('destroyed')) {
-                    logger('core:page').debug('Preflight script injection failed:', err.message);
+                    logger('core:page').warn(`[fidelity] Preflight script injection failed, closed shadow DOM and custom-element :state() capture disabled: ${err.message}`);
                   }
                 });
             }

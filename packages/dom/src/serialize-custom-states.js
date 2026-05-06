@@ -19,6 +19,10 @@ import { walkShadowDOM } from './shadow-utils';
 const STATE_FN_RE = /:state\(([^)]+)\)/g;
 // Legacy :--name syntax (Chrome 90-124, before :state() shipped).
 const LEGACY_DASH_DASH_RE = /:--([a-zA-Z][\w-]*)/g;
+// State names that survive into the rewritten attribute selector. Anything
+// else (quotes, brackets, '</style>') would let a hostile page CSS escape
+// the rewritten <style> block or inject extra rules.
+const SAFE_STATE_NAME_RE = /^[-\w]+$/;
 const STATE_ATTR_TEMPLATE = name => `[data-percy-custom-state~="${name}"]`;
 
 export function rewriteCustomStateCSS(ctx) {
@@ -29,11 +33,13 @@ export function rewriteCustomStateCSS(ctx) {
     const css = style.textContent;
     if (!css) continue;
 
-    let modified = css.replace(STATE_FN_RE, (_, name) => {
+    let modified = css.replace(STATE_FN_RE, (match, name) => {
+      if (!SAFE_STATE_NAME_RE.test(name)) return match;
       stateNames.add(name);
       return STATE_ATTR_TEMPLATE(name);
     });
-    modified = modified.replace(LEGACY_DASH_DASH_RE, (_, name) => {
+    modified = modified.replace(LEGACY_DASH_DASH_RE, (match, name) => {
+      if (!SAFE_STATE_NAME_RE.test(name)) return match;
       stateNames.add(name);
       return STATE_ATTR_TEMPLATE(name);
     });
@@ -95,10 +101,6 @@ function addCustomStateAttributes(ctx, stateNames) {
 
     const matchedStates = [];
     for (const name of stateNames) {
-      // State names are dashed-idents; reject anything else to avoid
-      // surprising attribute-selector escapes later.
-      /* istanbul ignore if: defensive — CSS spec restricts :state() to dashed-idents */
-      if (!/^[-\w]+$/.test(name)) continue;
       if (elementInState(el, name)) matchedStates.push(name);
     }
 

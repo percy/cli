@@ -1,14 +1,37 @@
 // Shared traversal helpers for walking a document plus every shadow root
-// it contains (open or closed-via-preflight). Replaces the three near-
-// identical recursions that used to live across serialize-pseudo-classes,
-// serialize-custom-states, and clone/serialize callers.
+// it contains (open or closed-via-preflight). Centralizes access to the
+// preflight WeakMaps so each call site honors the *iframe's* runtime
+// window — a top-level `window.__percyClosedShadowRoots` lookup misses
+// shadow roots and ElementInternals stored by preflight inside iframes.
+
+// Resolve the runtime window for any node (Document/Element/ShadowRoot).
+// For a node inside an iframe, returns the iframe's window — which is where
+// preflight installed the per-document WeakMaps.
+function getRuntime(node) {
+  const doc = node?.ownerDocument || node;
+  return doc?.defaultView || (typeof window !== 'undefined' ? window : null);
+}
+
+// Closed-shadow-root WeakMap installed by preflight, scoped to the node's
+// owning document.
+export function getClosedShadowRoot(host) {
+  return getRuntime(host)?.__percyClosedShadowRoots?.get(host) || null;
+}
+
+export function hasClosedShadowRoot(host) {
+  return !!getRuntime(host)?.__percyClosedShadowRoots?.has(host);
+}
+
+// ElementInternals WeakMap installed by preflight.
+export function getCustomStateInternals(host) {
+  return getRuntime(host)?.__percyInternals?.get(host) || null;
+}
 
 // Resolve a shadow host's root, including closed roots intercepted by
 // preflight. Returns null when the host has no shadow root reachable.
 export function getShadowRoot(host) {
   if (host?.shadowRoot) return host.shadowRoot;
-  /* istanbul ignore next: window.__percyClosedShadowRoots only set in browser via preflight */
-  return window.__percyClosedShadowRoots?.get(host) || null;
+  return getClosedShadowRoot(host);
 }
 
 // Walk root + every shadow root descendant, calling visit(scope) on each.
@@ -29,7 +52,6 @@ export function walkShadowDOM(root, visit) {
 export function queryShadowAll(root, selector) {
   const results = [];
   walkShadowDOM(root, scope => {
-    /* istanbul ignore next: scope always exposes querySelectorAll, but selector may throw on syntax */
     try {
       for (const el of scope.querySelectorAll(selector)) results.push(el);
     } catch (e) {
