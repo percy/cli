@@ -39,6 +39,7 @@ export function rewriteCustomStateCSS(ctx) {
     });
 
     if (modified !== css) {
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       style.textContent = modified;
     }
   }
@@ -96,6 +97,7 @@ function addCustomStateAttributes(ctx, stateNames) {
     for (const name of stateNames) {
       // State names are dashed-idents; reject anything else to avoid
       // surprising attribute-selector escapes later.
+      /* istanbul ignore if: defensive — CSS spec restricts :state() to dashed-idents */
       if (!/^[-\w]+$/.test(name)) continue;
       if (elementInState(el, name)) matchedStates.push(name);
     }

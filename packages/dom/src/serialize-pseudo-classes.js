@@ -293,6 +293,7 @@ function walkCSSRules(ruleList) {
             wrapper: atRulePrelude
           });
         } else {
+          /* istanbul ignore next: nested at-rule with no condition (e.g. @layer base { :focus {...} }) — exercised by integration only */
           result.push(inner);
         }
       }
@@ -427,6 +428,7 @@ function extractPseudoClassRules(ctx) {
       ? ctx.clone.createElement('style')
       : ctx.dom.createElement('style');
     styleElement.setAttribute('data-percy-interactive-states', 'true');
+    // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
     styleElement.textContent = rewrittenRules.join('\n');
 
     if (owner === null) {
@@ -473,6 +475,7 @@ export function serializePseudoClasses(ctx) {
   if (cssRules.length > 0) {
     const styleElement = ctx.dom.createElement('style');
     styleElement.setAttribute('data-percy-pseudo-class-styles', 'true');
+    // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
     styleElement.textContent = cssRules.join('\n');
 
     const head = ctx.clone.head || ctx.clone.querySelector('head');
