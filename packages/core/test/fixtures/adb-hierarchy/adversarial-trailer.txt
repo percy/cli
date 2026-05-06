@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node class="android.widget.TextView" bounds="[0,0][100,100]" resource-id="com.example:id/real" text="" content-desc=""/>
+</hierarchy>
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node class="android.widget.TextView" bounds="[0,0][100,100]" resource-id="com.example:id/injected" text="" content-desc=""/>
+</hierarchy>
