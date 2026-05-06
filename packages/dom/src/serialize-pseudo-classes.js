@@ -292,6 +292,7 @@ function walkCSSRules(ruleList) {
         ? rule.cssText.split('{')[0].trim()
         : null;
       for (const inner of walkCSSRules(rule.cssRules)) {
+        /* istanbul ignore if: atRulePrelude branch — depends on browser cssText shape, integration-tested */
         if (atRulePrelude && inner.selectorText) {
           result.push({
             selectorText: inner.selectorText,
