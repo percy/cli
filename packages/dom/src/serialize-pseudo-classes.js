@@ -46,38 +46,42 @@ const PSEUDO_TO_ATTR = {
   ':active': '[data-percy-active]'
 };
 
-// Build a regex that matches a pseudo-class only when not followed by a
-// hyphen or word char (so `:focus-within`, `:focus-visible`, `:checkedfoo`
-// don't get rewritten). Used both for detection and rewriting so the two
-// halves of the module agree on what counts as a pseudo-class match.
-const PSEUDO_BOUNDARY_RES = INTERACTIVE_PSEUDO_CLASSES.map(pc => ({
-  pseudo: pc,
-  re: new RegExp(escapeRegExp(pc) + '(?![-\\w])', 'g')
-}));
-
-function escapeRegExp(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+// Pre-built boundary regexes for each interactive pseudo-class. The
+// `(?![-\w])` lookahead skips matches like :focus-within / :focus-visible /
+// :checkedfoo. Hardcoded literals (rather than `new RegExp(constant + ...)`)
+// because (a) the input set is closed and known at module load and (b) it
+// avoids tripping semgrep's detect-non-literal-regexp ReDoS warning even
+// though the inputs are constant.
+const PSEUDO_BOUNDARY_RES = {
+  ':focus': /:focus(?![-\w])/g,
+  ':checked': /:checked(?![-\w])/g,
+  ':disabled': /:disabled(?![-\w])/g,
+  ':hover': /:hover(?![-\w])/g,
+  ':active': /:active(?![-\w])/g
+};
 
 function selectorContainsPseudo(selectorText, pseudoList) {
   return pseudoList.some(pc => {
-    const escaped = escapeRegExp(pc);
-    return new RegExp(escaped + '(?![-\\w])').test(selectorText);
+    // Reset lastIndex on the global regex before .test() so calls don't
+    // depend on each other across .test() invocations.
+    const re = PSEUDO_BOUNDARY_RES[pc];
+    re.lastIndex = 0;
+    return re.test(selectorText);
   });
 }
 
 function rewritePseudoSelector(selectorText) {
   let rewritten = selectorText;
-  for (const { pseudo, re } of PSEUDO_BOUNDARY_RES) {
-    rewritten = rewritten.replace(re, PSEUDO_TO_ATTR[pseudo]);
+  for (const pseudo of INTERACTIVE_PSEUDO_CLASSES) {
+    rewritten = rewritten.replace(PSEUDO_BOUNDARY_RES[pseudo], PSEUDO_TO_ATTR[pseudo]);
   }
   return rewritten;
 }
 
 function stripInteractivePseudo(selectorText) {
   let stripped = selectorText;
-  for (const { re } of PSEUDO_BOUNDARY_RES) {
-    stripped = stripped.replace(re, '');
+  for (const pseudo of INTERACTIVE_PSEUDO_CLASSES) {
+    stripped = stripped.replace(PSEUDO_BOUNDARY_RES[pseudo], '');
   }
   return stripped;
 }
