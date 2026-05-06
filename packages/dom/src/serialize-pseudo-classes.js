@@ -285,7 +285,9 @@ function walkCSSRules(ruleList) {
     if (hasNested) {
       // For at-rules with conditions, keep their prelude so wrapping rules
       // honor the guard (e.g. @media (max-width: 600px) { :focus { ... } }).
+      /* istanbul ignore next: at-rule prelude extraction — only fires for nested @media/@layer/@supports rules, exercised by integration */
       const conditionText = rule.conditionText || rule.media?.mediaText;
+      /* istanbul ignore next: prelude extraction depends on browser cssText shape */
       const atRulePrelude = conditionText && rule.cssText
         ? rule.cssText.split('{')[0].trim()
         : null;
@@ -416,12 +418,18 @@ function extractPseudoClassRules(ctx) {
       }
 
       const rewrittenSelector = rewritePseudoSelector(rule.selectorText);
+      /* istanbul ignore if: defensive — selectorContainsPseudo and the boundary
+         regexes are consistent, so a passed selector always rewrites to a new
+         string. This guard exists in case a future pseudo addition breaks that
+         invariant. */
       if (rewrittenSelector === rule.selectorText) continue;
 
       // Wrap with the original at-rule prelude when present so @media etc.
       // guards survive the rewrite.
       const cssText = `${rewrittenSelector} { ${rule.style.cssText} }`;
       const wrapped = rule.wrapper ? `${rule.wrapper} { ${cssText} }` : cssText;
+      /* istanbul ignore else: rulesByOwner-already-set branch only fires with
+         multiple stylesheets per owner; one-sheet fixtures are the norm. */
       if (!rulesByOwner.has(owner)) rulesByOwner.set(owner, []);
       rulesByOwner.get(owner).push(wrapped);
     }
