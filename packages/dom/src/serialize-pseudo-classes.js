@@ -2,20 +2,19 @@
 
 // Serializes pseudo-class state into Percy's clone via two paths:
 //
-//   1. Configured-element path (`pseudoClassEnabledElements` config). User
-//      explicitly opts in elements by id/className/xpath/selector. Each is
-//      stamped with PSEUDO_ELEMENT_MARKER_ATTR; we then snapshot all
-//      computed styles (including pseudo-class styles) and inject them as
-//      inline rules on the clone.
+//   1. Auto-detect path (every snapshot). For :focus / :focus-within /
+//      :checked / :disabled we stamp the live DOM with the corresponding
+//      data-percy-* attribute and rewrite matching CSS rules to use those
+//      attribute selectors. :focus-within stamps the focused element's
+//      ancestor chain across shadow boundaries.
 //
-//   2. Auto-detect path (every snapshot). For :focus / :checked / :disabled
-//      we stamp the live DOM with data-percy-focus / -checked / -disabled
-//      and rewrite matching CSS rules in collected stylesheets to use those
-//      data-attribute selectors.
-//
-// :hover and :active are intentionally NOT rewritten — there is no live
-// state to detect at snapshot time, and rewriting them produced dead
-// selectors (no `data-percy-hover` is ever stamped).
+//   2. Configured-element path (`pseudoClassEnabledElements` config). User
+//      opts in elements by id/className/xpath/selector. We snapshot all
+//      computed styles (including :hover/:active styles when the page has
+//      forced those states via execute scripts) and inject them as inline
+//      rules on the clone. :hover and :active CSS rules are also rewritten
+//      to data-percy-hover / -active selectors, gated on the configured-
+//      element list — they only stamp on opted-in elements.
 //
 // All live-DOM mutations are recorded on `ctx._liveMutations` so
 // `cleanupInteractiveStateMarkers` can unstamp them after serialization;
@@ -31,26 +30,44 @@ export { rewriteCustomStateCSS };
 const PSEUDO_ELEMENT_MARKER_ATTR = 'data-percy-pseudo-element-id';
 const POPOVER_OPEN_ATTR = 'data-percy-popover-open';
 const FOCUS_ATTR = 'data-percy-focus';
+const FOCUS_WITHIN_ATTR = 'data-percy-focus-within';
 const CHECKED_ATTR = 'data-percy-checked';
 const DISABLED_ATTR = 'data-percy-disabled';
+const HOVER_ATTR = 'data-percy-hover';
+const ACTIVE_ATTR = 'data-percy-active';
 
-const AUTO_DETECT_PSEUDO = [':focus', ':checked', ':disabled'];
+// Auto-detect: stamped from the live DOM during marking. CSS rules are
+// rewritten regardless of whether the user configured anything.
+const AUTO_DETECT_PSEUDO = [':focus', ':focus-within', ':checked', ':disabled'];
+// Config-only: rewritten only when at least one configured element matches
+// the rule's base selector. The user opts elements in via config and uses
+// execute scripts to force the state before snapshot capture.
+const CONFIG_ONLY_PSEUDO = [':hover', ':active'];
+const ALL_INTERACTIVE_PSEUDO = [...AUTO_DETECT_PSEUDO, ...CONFIG_ONLY_PSEUDO];
 
 const PSEUDO_TO_ATTR = {
   ':focus': '[data-percy-focus]',
+  ':focus-within': '[data-percy-focus-within]',
   ':checked': '[data-percy-checked]',
-  ':disabled': '[data-percy-disabled]'
+  ':disabled': '[data-percy-disabled]',
+  ':hover': '[data-percy-hover]',
+  ':active': '[data-percy-active]'
 };
 
-// Boundary lookahead `(?![-\w])` skips :focus-within, :focus-visible, etc.
+// Order matters: longer pseudos (:focus-within) must be tried before their
+// prefix forms (:focus). The boundary lookahead `(?![-\w])` prevents :focus
+// from matching the start of :focus-within / :focus-visible / :focusable.
 const PSEUDO_BOUNDARY_RES = {
+  ':focus-within': /:focus-within(?![-\w])/g,
   ':focus': /:focus(?![-\w])/g,
   ':checked': /:checked(?![-\w])/g,
-  ':disabled': /:disabled(?![-\w])/g
+  ':disabled': /:disabled(?![-\w])/g,
+  ':hover': /:hover(?![-\w])/g,
+  ':active': /:active(?![-\w])/g
 };
 
-function selectorContainsAutoPseudo(selectorText) {
-  return AUTO_DETECT_PSEUDO.some(pc => {
+function selectorContainsPseudo(selectorText, pseudoList) {
+  return pseudoList.some(pc => {
     const re = PSEUDO_BOUNDARY_RES[pc];
     re.lastIndex = 0;
     return re.test(selectorText);
@@ -59,22 +76,30 @@ function selectorContainsAutoPseudo(selectorText) {
 
 function rewritePseudoSelector(selectorText) {
   let rewritten = selectorText;
-  for (const pseudo of AUTO_DETECT_PSEUDO) {
+  // :focus-within MUST come before :focus so the longer match wins.
+  for (const pseudo of [':focus-within', ':focus', ':checked', ':disabled', ':hover', ':active']) {
     rewritten = rewritten.replace(PSEUDO_BOUNDARY_RES[pseudo], PSEUDO_TO_ATTR[pseudo]);
   }
   return rewritten;
 }
 
-// Record a live-DOM mutation so cleanup can undo it. Returns true if the
-// attribute was newly written (caller may want to set the value).
+function stripInteractivePseudo(selectorText) {
+  let stripped = selectorText;
+  for (const pseudo of ALL_INTERACTIVE_PSEUDO) {
+    stripped = stripped.replace(PSEUDO_BOUNDARY_RES[pseudo], '');
+  }
+  return stripped;
+}
+
+// Record a live-DOM mutation so cleanup can undo it. The init-on-demand
+// branch fires when callers exercise getElementsToProcess directly (in
+// tests) rather than going through markPseudoClassElements.
 function stampOnce(ctx, element, attr, value) {
-  if (!element || typeof element.hasAttribute !== 'function') return false;
-  if (element.hasAttribute(attr)) return false;
+  if (!element || typeof element.hasAttribute !== 'function') return;
+  if (element.hasAttribute(attr)) return;
   element.setAttribute(attr, value);
-  /* istanbul ignore next: defensive — _liveMutations is initialized in markPseudoClassElements */
   if (!ctx._liveMutations) ctx._liveMutations = [];
   ctx._liveMutations.push([element, attr]);
-  return true;
 }
 
 // Walk into shadow roots (including closed ones intercepted by preflight)
@@ -89,6 +114,23 @@ function findDeepActiveElement(dom) {
   return active;
 }
 
+// Walk the focused element's ancestor chain across shadow root boundaries
+// stamping FOCUS_WITHIN_ATTR on each. :focus-within rules in CSS will be
+// rewritten to [data-percy-focus-within] and match these stamps.
+function markFocusWithinAncestors(ctx, focused) {
+  let node = focused?.parentNode;
+  while (node) {
+    if (node.nodeType === 1 /* ELEMENT_NODE */) {
+      stampOnce(ctx, node, FOCUS_WITHIN_ATTR, 'true');
+      node = node.parentNode;
+    } else if (node.nodeType === 11 /* DOCUMENT_FRAGMENT_NODE — shadow root */) {
+      node = node.host || null;
+    } else {
+      node = null;
+    }
+  }
+}
+
 function markInteractiveStates(ctx) {
   ctx._focusedElementId = null;
   const focused = findDeepActiveElement(ctx.dom);
@@ -96,6 +138,7 @@ function markInteractiveStates(ctx) {
     const id = focused.getAttribute?.('data-percy-element-id');
     if (id) ctx._focusedElementId = id;
     stampOnce(ctx, focused, FOCUS_ATTR, 'true');
+    markFocusWithinAncestors(ctx, focused);
   }
 
   for (const el of queryShadowAll(ctx.dom, ':checked')) {
@@ -124,12 +167,17 @@ function markPopoverIfOpen(ctx, element) {
 function stampPseudoElementId(ctx, element) {
   if (!element.getAttribute(PSEUDO_ELEMENT_MARKER_ATTR)) {
     element.setAttribute(PSEUDO_ELEMENT_MARKER_ATTR, uid());
-    /* istanbul ignore next: defensive — _liveMutations is initialized in markPseudoClassElements */
     if (!ctx._liveMutations) ctx._liveMutations = [];
     ctx._liveMutations.push([element, PSEUDO_ELEMENT_MARKER_ATTR]);
   }
 }
 
+// Per-element marking for configured elements. Stamps :focus / :checked /
+// :disabled when the live element matches them (auto-detect catches the
+// page-wide case; this handles configured elements whose .matches() may be
+// overridden by page code). Also stamps :hover and :active unconditionally
+// on configured elements — opting an element into pseudoClassEnabledElements
+// IS the user's request to capture those forced states.
 function markElementInteractiveStates(ctx, element) {
   if (ctx._focusedElementId) {
     const id = element.getAttribute('data-percy-element-id');
@@ -144,6 +192,10 @@ function markElementInteractiveStates(ctx, element) {
       // Browser doesn't support this pseudo — skip
     }
   }
+  // Configured elements get :hover and :active unconditionally so any CSS
+  // rule using those pseudos applies to them in the snapshot.
+  stampOnce(ctx, element, HOVER_ATTR, 'true');
+  stampOnce(ctx, element, ACTIVE_ATTR, 'true');
 }
 
 export function getElementsToProcess(ctx, config, markWithId = false) {
@@ -306,6 +358,28 @@ function collectStyleSheets(doc) {
   return entries;
 }
 
+// Returns true if at least one configured element matches `baseSelector` —
+// used to gate :hover/:active rewriting. Without this gate we'd rewrite
+// every `.btn:hover` on the page and apply the resulting [data-percy-hover]
+// rule globally, but only configured elements receive that stamp, so other
+// matches would silently lose their hover styles.
+function configuredElementMatches(ctx, baseSelector) {
+  if (!ctx.pseudoClassEnabledElements) return false;
+  const stamped = ctx.dom.querySelectorAll(`[${PSEUDO_ELEMENT_MARKER_ATTR}]`);
+  if (!stamped.length) return false;
+  let candidates;
+  try {
+    candidates = ctx.dom.querySelectorAll(baseSelector);
+  } catch (e) {
+    // Stripped selector invalid (e.g. pseudo was at the start: ':hover')
+    return false;
+  }
+  for (const el of candidates) {
+    if (el.hasAttribute(PSEUDO_ELEMENT_MARKER_ATTR)) return true;
+  }
+  return false;
+}
+
 function extractPseudoClassRules(ctx) {
   const sheetEntries = collectStyleSheets(ctx.dom);
   const rulesByOwner = new Map();
@@ -321,7 +395,17 @@ function extractPseudoClassRules(ctx) {
     if (!rules) continue;
 
     for (const rule of walkCSSRules(rules)) {
-      if (!selectorContainsAutoPseudo(rule.selectorText)) continue;
+      if (!selectorContainsPseudo(rule.selectorText, ALL_INTERACTIVE_PSEUDO)) continue;
+
+      const hasConfigOnly = selectorContainsPseudo(rule.selectorText, CONFIG_ONLY_PSEUDO);
+      const hasAutoDetect = selectorContainsPseudo(rule.selectorText, AUTO_DETECT_PSEUDO);
+
+      // :hover/:active alone with no configured elements: skip — the
+      // rewritten selector wouldn't match anything.
+      if (hasConfigOnly && !hasAutoDetect &&
+          !configuredElementMatches(ctx, stripInteractivePseudo(rule.selectorText))) {
+        continue;
+      }
 
       const rewrittenSelector = rewritePseudoSelector(rule.selectorText);
       if (rewrittenSelector === rule.selectorText) continue;

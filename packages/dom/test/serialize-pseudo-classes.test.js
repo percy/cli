@@ -542,7 +542,7 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
-  describe('focus detection in markInteractiveStatesInRoot (lines 215-220)', () => {
+  describe('focus detection in markInteractiveStates focus detection', () => {
     it('marks focused input elements with data-percy-focus via _focusedElementId', () => {
       withExample('<input id="focusable" type="text" />', { withShadow: false });
       let el = document.getElementById('focusable');
@@ -565,7 +565,7 @@ describe('serialize-pseudo-classes', () => {
       expect(el.hasAttribute('data-percy-focus')).toBe(true);
     });
 
-    it('marks focused element by _focusedElementId in markInteractiveStatesInRoot (lines 192-196)', () => {
+    it('marks focused element by _focusedElementId in markInteractiveStates by _focusedElementId', () => {
       withExample('<input id="focus-by-id" type="text" />', { withShadow: false });
       let el = document.getElementById('focus-by-id');
       el.setAttribute('data-percy-element-id', '_focus_test_id');
@@ -576,8 +576,8 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
-  describe('markElementIfNeeded interactive state branches (lines 56, 60, 65, 70)', () => {
-    it('marks focused element via _focusedElementId in markElementIfNeeded (line 56)', () => {
+  describe('markElementInteractiveStates branches', () => {
+    it('marks focused element via _focusedElementId in markElementInteractiveStates (focused element)', () => {
       withExample('<input id="mein-focus" type="text" />', { withShadow: false });
       let el = document.getElementById('mein-focus');
       el.setAttribute('data-percy-element-id', '_mein_focus_id');
@@ -586,7 +586,7 @@ describe('serialize-pseudo-classes', () => {
       expect(el.hasAttribute('data-percy-focus')).toBe(true);
     });
 
-    it('marks :focus element via safeMatches in markElementIfNeeded (line 60)', () => {
+    it('marks :focus element via safeMatches in markElementInteractiveStates (:focus)', () => {
       withExample('<button id="btn-focus">Click</button>', { withShadow: false });
       let el = document.getElementById('btn-focus');
       // Mock matches to return true for :focus (cross-browser reliable)
@@ -600,22 +600,22 @@ describe('serialize-pseudo-classes', () => {
       expect(el.hasAttribute('data-percy-focus')).toBe(true);
     });
 
-    it('marks :checked element in markElementIfNeeded (line 65)', () => {
+    it('marks :checked element in markElementInteractiveStates (:checked)', () => {
       withExample('<input id="chk" type="checkbox" checked />', { withShadow: false });
       let el = document.getElementById('chk');
       expect(el.checked).toBe(true);
-      // Call getElementsToProcess directly to bypass markInteractiveStatesInRoot
+      // Call getElementsToProcess directly to bypass markInteractiveStates
       ctx._focusedElementId = null;
       getElementsToProcess(ctx, { id: ['chk'] }, true);
       expect(el.hasAttribute('data-percy-checked')).toBe(true);
       expect(el.getAttribute('data-percy-checked')).toBe('true');
     });
 
-    it('marks :disabled element in markElementIfNeeded (line 70)', () => {
+    it('marks :disabled element in markElementInteractiveStates (:disabled)', () => {
       withExample('<input id="dis" type="text" disabled />', { withShadow: false });
       let el = document.getElementById('dis');
       expect(el.disabled).toBe(true);
-      // Call getElementsToProcess directly to bypass markInteractiveStatesInRoot
+      // Call getElementsToProcess directly to bypass markInteractiveStates
       ctx._focusedElementId = null;
       getElementsToProcess(ctx, { id: ['dis'] }, true);
       expect(el.hasAttribute('data-percy-disabled')).toBe(true);
@@ -983,7 +983,7 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
-  describe('markInteractiveStatesInRoot _focusedElementId falsy branch (line 193)', () => {
+  describe('markInteractiveStates _focusedElementId falsy branch', () => {
     it('skips _focusedElementId lookup when no element was focused', () => {
       withExample('<input id="unfocused" type="text" /><input id="chk2" type="checkbox" checked />', { withShadow: false });
       // Do NOT focus anything — _focusedElementId should be null/undefined
@@ -1008,7 +1008,7 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
-  describe('markInteractiveStatesInRoot focusedEl not found branch (line 194)', () => {
+  describe('markInteractiveStates focusedEl not found branch', () => {
     it('handles focused element without percy-element-id so _focusedElementId stays null', () => {
       withExample('<input id="no-percy-id" type="text" />', { withShadow: false });
       let el = document.getElementById('no-percy-id');
@@ -1055,7 +1055,7 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
-  describe('markInteractiveStatesInRoot disabled already marked branch (line 210)', () => {
+  describe('markInteractiveStates disabled already marked branch', () => {
     it('does not re-mark already disabled element', () => {
       withExample('<input id="dis-pre" type="text" disabled />', { withShadow: false });
       let el = document.getElementById('dis-pre');

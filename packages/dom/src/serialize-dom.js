@@ -118,67 +118,72 @@ export function serializeDOM(options) {
 
   ctx.dom = dom;
 
+  // markPseudoClassElements writes data-percy-* attributes onto the LIVE DOM.
+  // Wrap everything that follows in try/finally so cleanup runs even if any
+  // step (clone, serialize, transform, html) throws — otherwise the attributes
+  // leak into the customer's page (SDK mode runs in the customer's tab).
   markPseudoClassElements(ctx, pseudoClassEnabledElements);
-  ctx.clone = cloneNodeAndShadow(ctx);
 
-  serializeElements(ctx);
+  try {
+    ctx.clone = cloneNodeAndShadow(ctx);
 
-  let shadowHosts = ctx.clone.querySelectorAll('[data-percy-shadow-host]');
-  if (shadowHosts.length > 0) {
-    ctx.warnings.add(`[fidelity] ${shadowHosts.length} shadow root(s) captured`);
-  }
+    serializeElements(ctx);
 
-  serializePseudoClasses(ctx);
-  rewriteCustomStateCSS(ctx);
+    let shadowHosts = ctx.clone.querySelectorAll('[data-percy-shadow-host]');
+    if (shadowHosts.length > 0) {
+      ctx.warnings.add(`[fidelity] ${shadowHosts.length} shadow root(s) captured`);
+    }
 
-  if (domTransformation) {
+    serializePseudoClasses(ctx);
+    rewriteCustomStateCSS(ctx);
+
+    if (domTransformation) {
+      try {
+        // eslint-disable-next-line no-eval
+        if (typeof (domTransformation) === 'string') domTransformation = window.eval(domTransformation);
+        domTransformation(ctx.clone.documentElement);
+      } catch (err) {
+        let errorMessage = `Could not transform the dom: ${err.message}`;
+        ctx.warnings.add(errorMessage);
+        console.error(errorMessage);
+      }
+    }
+
+    if (reshuffleInvalidTags) {
+      let clonedBody = ctx.clone.body;
+      while (clonedBody.nextSibling) {
+        let sibling = clonedBody.nextSibling;
+        clonedBody.append(sibling);
+      }
+    } else if (ctx.clone.body?.nextSibling) {
+      ctx.hints.add('DOM elements found outside </body>');
+    }
+
+    let cookies = '';
+    // Collecting cookies fail for about://blank page
     try {
-      // eslint-disable-next-line no-eval
-      if (typeof (domTransformation) === 'string') domTransformation = window.eval(domTransformation);
-      domTransformation(ctx.clone.documentElement);
-    } catch (err) {
-      let errorMessage = `Could not transform the dom: ${err.message}`;
+      cookies = dom.cookie;
+    } catch (err) /* istanbul ignore next */ /* Tested this part in discovery.test.js with about:blank page */ {
+      const errorMessage = `Could not capture cookies: ${err.message}`;
       ctx.warnings.add(errorMessage);
       console.error(errorMessage);
     }
+
+    let result = {
+      html: serializeHTML(ctx),
+      cookies: cookies,
+      userAgent: navigator.userAgent,
+      warnings: Array.from(ctx.warnings),
+      resources: Array.from(ctx.resources),
+      hints: Array.from(ctx.hints)
+    };
+
+    return stringifyResponse
+      ? JSON.stringify(result)
+      : result;
+  } finally {
+    cleanupInteractiveStateMarkers(ctx);
   }
-
-  if (reshuffleInvalidTags) {
-    let clonedBody = ctx.clone.body;
-    while (clonedBody.nextSibling) {
-      let sibling = clonedBody.nextSibling;
-      clonedBody.append(sibling);
-    }
-  } else if (ctx.clone.body?.nextSibling) {
-    ctx.hints.add('DOM elements found outside </body>');
-  }
-
-  let cookies = '';
-  // Collecting cookies fail for about://blank page
-  try {
-    cookies = dom.cookie;
-  } catch (err) /* istanbul ignore next */ /* Tested this part in discovery.test.js with about:blank page */ {
-    const errorMessage = `Could not capture cookies: ${err.message}`;
-    ctx.warnings.add(errorMessage);
-    console.error(errorMessage);
-  }
-
-  let result = {
-    html: serializeHTML(ctx),
-    cookies: cookies,
-    userAgent: navigator.userAgent,
-    warnings: Array.from(ctx.warnings),
-    resources: Array.from(ctx.resources),
-    hints: Array.from(ctx.hints)
-  };
-
-  // Strip the data-attributes we wrote on the live DOM during marking so
-  // they don't leak into the page (SDK mode runs in the customer's tab).
-  cleanupInteractiveStateMarkers(ctx);
-
-  return stringifyResponse
-    ? JSON.stringify(result)
-    : result;
 }
 
 export default serializeDOM;
