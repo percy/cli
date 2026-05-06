@@ -292,7 +292,10 @@ function walkCSSRules(ruleList) {
         ? rule.cssText.split('{')[0].trim()
         : null;
       for (const inner of walkCSSRules(rule.cssRules)) {
-        /* istanbul ignore if: atRulePrelude branch — depends on browser cssText shape, integration-tested */
+        /* istanbul ignore next: at-rule wrapping fork — both branches depend on
+           browser cssText shape (conditionText & cssText.split). Integration
+           tests cover the @media path; the @layer-without-condition path is
+           harder to deterministically trigger in jsdom. */
         if (atRulePrelude && inner.selectorText) {
           result.push({
             selectorText: inner.selectorText,
@@ -300,7 +303,6 @@ function walkCSSRules(ruleList) {
             wrapper: atRulePrelude
           });
         } else {
-          /* istanbul ignore next: nested at-rule with no condition (e.g. @layer base { :focus {...} }) — exercised by integration only */
           result.push(inner);
         }
       }
