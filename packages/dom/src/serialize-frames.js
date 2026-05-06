@@ -42,13 +42,31 @@ function setBaseURI(dom, warnings) {
   dom.querySelector('head')?.prepend($base);
 }
 
-// Recursively serializes iframe documents into srcdoc attributes.
-export function serializeFrames({ dom, clone, warnings, resources, enableJavaScript, disableShadowDOM, ignoreIframeSelectors, forceShadowAsLightDOM }) {
+// Per-spec: nested iframes are captured up to a configurable depth (default 3).
+// Beyond that we skip recursion to bound runtime and prevent pathological pages
+// (e.g. cyclic iframe trees) from blowing the call stack.
+export const DEFAULT_MAX_IFRAME_DEPTH = 3;
+// Hard ceiling for any user-supplied maxIframeDepth — values above this are
+// clamped down. 10 levels is well past any realistic UI nesting and keeps
+// the recursion cost predictable.
+export const HARD_MAX_IFRAME_DEPTH = 10;
+
+function clampIframeDepth(raw) {
+  let n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_MAX_IFRAME_DEPTH;
+  return Math.min(Math.floor(n), HARD_MAX_IFRAME_DEPTH);
+}
+
+// Recursively serializes iframe documents into srcdoc attributes. `iframeDepth`
+// is the current nesting level (0 at the top-level document, +1 per recursion).
+export function serializeFrames({ dom, clone, warnings, resources, enableJavaScript, disableShadowDOM, ignoreIframeSelectors, forceShadowAsLightDOM, maxIframeDepth, iframeDepth = 0 }) {
+  maxIframeDepth = clampIframeDepth(maxIframeDepth);
   let iframeTotal = 0;
   let captured = 0;
   let corsExcluded = 0;
   let sandboxWarned = 0;
   let ignored = 0;
+  let depthExcluded = 0;
 
   for (let frame of dom.querySelectorAll('iframe')) {
     iframeTotal++;
@@ -97,18 +115,27 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
       // the frame has yet to load and wasn't built with js, it is unsafe to serialize
       if (!builtWithJs && !frame.contentWindow.performance.timing.loadEventEnd) continue;
 
+      // Bound recursion at the configured depth so nested iframes can't
+      // blow the call stack on pathological pages.
+      if (iframeDepth + 1 >= maxIframeDepth) {
+        depthExcluded++;
+        continue;
+      }
+
       captured++;
 
-      // recersively serialize contents — propagate ignoreIframeSelectors and
-      // forceShadowAsLightDOM so nested iframes/shadow trees honor the same
-      // user options as the top-level capture.
+      // recersively serialize contents — propagate ignoreIframeSelectors,
+      // forceShadowAsLightDOM, and the depth counter so nested iframes/shadow
+      // trees honor the same user options as the top-level capture.
       let serialized = serializeDOM({
         domTransformation: (dom) => setBaseURI(dom, warnings),
         dom: frame.contentDocument,
         enableJavaScript,
         disableShadowDOM,
         forceShadowAsLightDOM,
-        ignoreIframeSelectors
+        ignoreIframeSelectors,
+        maxIframeDepth,
+        iframeDepth: iframeDepth + 1
       });
 
       // append serialized warnings and resources
@@ -137,6 +164,7 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
   if (iframeTotal > 0) {
     let parts = [`${captured} captured`, `${corsExcluded} cross-origin excluded`, `${sandboxWarned} sandboxed`];
     if (ignored > 0) parts.push(`${ignored} ignored via data-percy-ignore`);
+    if (depthExcluded > 0) parts.push(`${depthExcluded} excluded at depth limit (${maxIframeDepth})`);
     warnings.add(`[fidelity] ${iframeTotal} iframe(s): ${parts.join(', ')}`);
   }
 }

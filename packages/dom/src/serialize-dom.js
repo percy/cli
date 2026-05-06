@@ -97,6 +97,8 @@ export function serializeDOM(options) {
     ignoreStyleSheetSerializationErrors = options?.ignore_style_sheet_serialization_errors,
     forceShadowAsLightDOM = options?.force_shadow_dom_as_light_dom,
     ignoreIframeSelectors = options?.ignore_iframe_selectors,
+    maxIframeDepth = options?.max_iframe_depth,
+    iframeDepth = options?.iframe_depth ?? 0,
     pseudoClassEnabledElements = options?.pseudo_class_enabled_elements
   } = options || {};
 
@@ -113,18 +115,21 @@ export function serializeDOM(options) {
     ignoreStyleSheetSerializationErrors,
     forceShadowAsLightDOM,
     ignoreIframeSelectors,
+    maxIframeDepth,
+    iframeDepth,
     pseudoClassEnabledElements
   };
 
   ctx.dom = dom;
 
   // markPseudoClassElements writes data-percy-* attributes onto the LIVE DOM.
-  // Wrap everything that follows in try/finally so cleanup runs even if any
-  // step (clone, serialize, transform, html) throws — otherwise the attributes
-  // leak into the customer's page (SDK mode runs in the customer's tab).
-  markPseudoClassElements(ctx, pseudoClassEnabledElements);
-
+  // Wrap it AND everything that follows in try/finally so cleanup runs even
+  // if any step (mark, clone, serialize, transform, html) throws — otherwise
+  // partially-stamped attributes leak into the customer's page (SDK mode
+  // runs in the customer's tab). _liveMutations is appended to incrementally
+  // by stampOnce, so cleanup finds whatever was stamped before the throw.
   try {
+    markPseudoClassElements(ctx, pseudoClassEnabledElements);
     ctx.clone = cloneNodeAndShadow(ctx);
 
     serializeElements(ctx);
