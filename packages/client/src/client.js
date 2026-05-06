@@ -439,7 +439,6 @@ export class PercyClient {
   async generateSmartsnapGraph(buildId, {
     files,
     modules,
-    packageMapping,
     storybookPaths,
     affectedNodes
   } = {}) {
@@ -448,7 +447,6 @@ export class PercyClient {
       build_id: buildId,
       files,
       modules,
-      package_mapping: packageMapping,
       storybook_paths: storybookPaths,
       affected_nodes: affectedNodes
     }, { identifier: 'smartsnap.generate_graph' });
