@@ -220,6 +220,27 @@ export function validateSnapshotOptions(options) {
     log.warn('Encountered snapshot serialization warnings:');
     for (let w of domWarnings) log.warn(`- ${w}`);
   }
+
+  // log readiness diagnostics when present.
+  // domSnapshot is a union of `string` (legacy SDK payload — HTML only) and `object`
+  // ({ html, warnings, readiness_diagnostics, ... }). Diagnostics only exist on the object form;
+  // gate explicitly on typeof so the intent is obvious to readers.
+  // The schema marks readiness_diagnostics with normalize: false to preserve the snake_case wire
+  // format. The dual-read fallback below is defensive — it keeps the log working even if a future
+  // SDK sends camelCase keys, or if a path in PercyConfig.migrate skips the normalize: false hint.
+  let domSnapshotObj = (migrated.domSnapshot && typeof migrated.domSnapshot === 'object') ? migrated.domSnapshot : null;
+  let readinessDiag = domSnapshotObj?.readiness_diagnostics ?? domSnapshotObj?.readinessDiagnostics;
+  if (readinessDiag) {
+    let timedOut = readinessDiag.timed_out ?? readinessDiag.timedOut;
+    let durationMs = readinessDiag.total_duration_ms ?? readinessDiag.totalDurationMs;
+    let presetName = readinessDiag.preset || 'custom';
+    if (timedOut) {
+      log.warn(`Readiness timed out after ${durationMs}ms (preset: ${presetName})`);
+    } else {
+      log.debug(`Readiness passed in ${durationMs}ms (preset: ${presetName})`);
+    }
+  }
+
   // warn on validation errors
   let errors = PercyConfig.validate(migrated, schema);
   if (errors?.length > 0) {

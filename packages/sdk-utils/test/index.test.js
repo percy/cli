@@ -648,4 +648,100 @@ describe('SDK Utils', () => {
       ]);
     });
   });
+
+  describe('waitForReadyScript(config[, flags])', () => {
+    let { waitForReadyScript } = utils;
+
+    it('returns JS code that calls PercyDOM.waitForReady with graceful fallback', () => {
+      let script = waitForReadyScript({ preset: 'balanced' });
+      expect(script).toContain('PercyDOM.waitForReady');
+      expect(script).toContain('"preset":"balanced"');
+    });
+
+    it('checks for PercyDOM.waitForReady existence before calling', () => {
+      let script = waitForReadyScript();
+      expect(script).toContain("typeof PercyDOM.waitForReady === 'function'");
+      expect(script).toContain("typeof PercyDOM !== 'undefined'");
+    });
+
+    it('generates callback variant for executeAsyncScript', () => {
+      let script = waitForReadyScript({ preset: 'fast' }, { callback: true });
+      expect(script).toContain('arguments[arguments.length - 1]');
+      expect(script).toContain('.then(');
+      expect(script).toContain('.catch(');
+      expect(script).toContain('done()');
+    });
+
+    it('callback variant catches errors gracefully', () => {
+      let script = waitForReadyScript({}, { callback: true });
+      expect(script).toContain('catch(function() { done(); })');
+      expect(script).toContain('} catch(e) { done(); }');
+    });
+
+    it('default variant returns the waitForReady result', () => {
+      let script = waitForReadyScript({ preset: 'strict' });
+      expect(script).toContain('return PercyDOM.waitForReady');
+      expect(script).not.toContain('arguments[arguments.length - 1]');
+    });
+
+    it('escapes U+2028 and U+2029 in interpolated config so older engines can parse the source', () => {
+      // U+2028 (LINE SEPARATOR) and U+2029 (PARAGRAPH SEPARATOR) are valid in JSON strings but
+      // were illegal in JS source string literals before ES2019.
+      let script = waitForReadyScript({
+        readySelectors: ['header\u2028footer', 'main\u2029aside']
+      });
+      expect(script).toContain('\\u2028');
+      expect(script).toContain('\\u2029');
+      // raw separators must not be present in the emitted source
+      expect(script.includes('\u2028')).toBe(false);
+      expect(script.includes('\u2029')).toBe(false);
+    });
+  });
+
+  describe('getReadinessConfig(snapshotOptions)', () => {
+    let { getReadinessConfig, percy } = utils;
+
+    it('returns empty object when no config exists (triggers balanced default)', () => {
+      percy.config = undefined;
+      expect(getReadinessConfig()).toEqual({});
+      expect(getReadinessConfig({})).toEqual({});
+    });
+
+    it('returns global readiness config from percy.config', () => {
+      percy.config = { snapshot: { readiness: { preset: 'strict' } } };
+      expect(getReadinessConfig()).toEqual({ preset: 'strict' });
+      percy.config = undefined;
+    });
+
+    it('returns per-snapshot readiness over global config', () => {
+      percy.config = { snapshot: { readiness: { preset: 'balanced' } } };
+      expect(getReadinessConfig({ readiness: { preset: 'fast' } })).toEqual({ preset: 'fast' });
+      percy.config = undefined;
+    });
+  });
+
+  describe('isReadinessDisabled(snapshotOptions)', () => {
+    let { isReadinessDisabled, percy } = utils;
+
+    it('returns false when no config (readiness is ON by default)', () => {
+      percy.config = undefined;
+      expect(isReadinessDisabled()).toBe(false);
+    });
+
+    it('returns true when preset is disabled', () => {
+      percy.config = { snapshot: { readiness: { preset: 'disabled' } } };
+      expect(isReadinessDisabled()).toBe(true);
+      percy.config = undefined;
+    });
+
+    it('returns true for per-snapshot disabled', () => {
+      expect(isReadinessDisabled({ readiness: { preset: 'disabled' } })).toBe(true);
+    });
+
+    it('returns false for any other preset', () => {
+      percy.config = { snapshot: { readiness: { preset: 'strict' } } };
+      expect(isReadinessDisabled()).toBe(false);
+      percy.config = undefined;
+    });
+  });
 });

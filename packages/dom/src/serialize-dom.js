@@ -81,8 +81,13 @@ export function waitForResize() {
   window.resizeCount = 0;
 }
 
-// Serializes a document and returns the resulting DOM string.
+// Synchronous DOM serializer. For readiness gating, call `PercyDOM.waitForReady(config)`
+// before this — see readiness.js.
 export function serializeDOM(options) {
+  return _serialize(options);
+}
+
+function _serialize(options) {
   let {
     dom = document,
     // allow snake_case or camelCase

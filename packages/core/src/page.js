@@ -213,15 +213,45 @@ export class Page {
 
     await this.insertPercyDom();
 
-    // serialize and capture a DOM snapshot
-    this.log.debug('Serialize DOM', this.meta);
+    // Run readiness checks before serializing — wait for page stability
+    let readiness = snapshot.readiness || this.browser?.percy?.config?.snapshot?.readiness;
+    let readinessDiagnostics;
 
-    /* istanbul ignore next: no instrumenting injected code */
-    let capture = await this.eval((_, options) => ({
-      /* eslint-disable-next-line no-undef */
-      domSnapshot: PercyDOM.serialize(options),
-      url: document.URL
-    }), { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements });
+    if (readiness && readiness.preset !== 'disabled') {
+      this.log.debug('Waiting for readiness', this.meta);
+      readinessDiagnostics = await this.eval(
+        /* istanbul ignore next: no instrumenting injected code */
+        async (_, config) => {
+          // eslint-disable-next-line no-undef
+          if (typeof PercyDOM?.waitForReady === 'function') return PercyDOM.waitForReady(config);
+        },
+        readiness
+      ).catch(e => {
+        this.log.debug(`Readiness check failed: ${e}`, this.meta);
+      });
+
+      if (readinessDiagnostics?.timed_out) {
+        this.log.debug('Readiness timed out, capturing anyway', this.meta);
+      }
+    }
+
+    // Serialize the DOM — always sync
+    this.log.debug('Serialize DOM', this.meta);
+    let capture = await this.eval(
+      /* istanbul ignore next: no instrumenting injected code */
+      (_, options) => {
+        /* eslint-disable-next-line no-undef */
+        return { domSnapshot: PercyDOM.serialize(options), url: document.URL };
+      },
+      { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements }
+    );
+
+    // Attach readiness diagnostics onto the captured DOM snapshot so the backend/UI can surface
+    // readiness metrics. Only valid when domSnapshot is the structured object form — the legacy
+    // string form (HTML only) has no place to embed diagnostics.
+    if (readinessDiagnostics && capture?.domSnapshot && typeof capture.domSnapshot === 'object') {
+      capture.domSnapshot.readiness_diagnostics = readinessDiagnostics;
+    }
 
     return { ...snapshot, ...capture };
   }

@@ -132,6 +132,47 @@ export const configSchema = {
       sync: {
         type: 'boolean'
       },
+      readiness: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          preset: { type: 'string', enum: ['balanced', 'strict', 'fast', 'disabled'] },
+          stabilityWindowMs: { type: 'integer', minimum: 50, maximum: 30000 },
+          jsIdleWindowMs: { type: 'integer', minimum: 50, maximum: 30000 },
+          networkIdleWindowMs: { type: 'integer', minimum: 50, maximum: 10000 },
+          timeoutMs: { type: 'integer', minimum: 1000, maximum: 60000 },
+          imageReady: { type: 'boolean' },
+          fontReady: { type: 'boolean' },
+          jsIdle: { type: 'boolean' },
+          readySelectors: {
+            type: 'array',
+            items: {
+              oneOf: [
+                { type: 'string' },
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: { css: { type: 'string' }, xpath: { type: 'string' } }
+                }
+              ]
+            }
+          },
+          notPresentSelectors: {
+            type: 'array',
+            items: {
+              oneOf: [
+                { type: 'string' },
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: { css: { type: 'string' }, xpath: { type: 'string' } }
+                }
+              ]
+            }
+          },
+          maxTimeoutMs: { type: 'integer', minimum: 1000, maximum: 60000 }
+        }
+      },
       responsiveSnapshotCapture: {
         type: 'boolean',
         default: false
@@ -489,6 +530,7 @@ export const snapshotSchema = {
         domTransformation: { $ref: '/config/snapshot#/properties/domTransformation' },
         enableLayout: { $ref: '/config/snapshot#/properties/enableLayout' },
         sync: { $ref: '/config/snapshot#/properties/sync' },
+        readiness: { $ref: '/config/snapshot#/properties/readiness' },
         responsiveSnapshotCapture: { $ref: '/config/snapshot#/properties/responsiveSnapshotCapture' },
         testCase: { $ref: '/config/snapshot#/properties/testCase' },
         labels: { $ref: '/config/snapshot#/properties/labels' },
@@ -681,6 +723,13 @@ export const snapshotSchema = {
               hints: {
                 type: 'array',
                 items: { type: 'string' }
+              },
+              readiness_diagnostics: {
+                type: 'object',
+                normalize: false,
+                description: 'Diagnostics from readiness checks run before serialization. ' +
+                  'normalize: false preserves the snake_case wire format the SDKs send (timed_out, ' +
+                  'total_duration_ms, etc.) instead of camelCasing inner keys at validate time.'
               },
               corsIframes: {
                 type: 'array',
