@@ -79,22 +79,12 @@ export function waitForResize() {
   window.resizeCount = 0;
 }
 
-// Serializes a document and returns the resulting DOM string.
-//
-// This function is SYNCHRONOUS and always returns a plain object.
-// All SDKs and the CLI call this function for DOM serialization.
-//
-// Readiness checks (DOM stability, network idle, fonts, images, JS idle)
-// run BEFORE this function via a separate `PercyDOM.waitForReady()` call.
-// This two-call pattern keeps serialize sync (zero SDK breakage) while
-// isolating the async readiness into its own step:
-//   1. await PercyDOM.waitForReady(config)  — async, page stabilizes
-//   2. PercyDOM.serialize(options)           — sync, captures stable DOM
+// Synchronous DOM serializer. For readiness gating, call `PercyDOM.waitForReady(config)`
+// before this — see readiness.js.
 export function serializeDOM(options) {
   return _serialize(options);
 }
 
-// Core serialization logic — always synchronous.
 function _serialize(options) {
   let {
     dom = document,

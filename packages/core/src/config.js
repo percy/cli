@@ -144,8 +144,32 @@ export const configSchema = {
           imageReady: { type: 'boolean' },
           fontReady: { type: 'boolean' },
           jsIdle: { type: 'boolean' },
-          readySelectors: { type: 'array', items: { type: 'string' } },
-          notPresentSelectors: { type: 'array', items: { type: 'string' } },
+          readySelectors: {
+            type: 'array',
+            items: {
+              oneOf: [
+                { type: 'string' },
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: { css: { type: 'string' }, xpath: { type: 'string' } }
+                }
+              ]
+            }
+          },
+          notPresentSelectors: {
+            type: 'array',
+            items: {
+              oneOf: [
+                { type: 'string' },
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: { css: { type: 'string' }, xpath: { type: 'string' } }
+                }
+              ]
+            }
+          },
           maxTimeoutMs: { type: 'integer', minimum: 1000, maximum: 60000 }
         }
       },

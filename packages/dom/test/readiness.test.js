@@ -123,6 +123,24 @@ describe('waitForReady', () => {
     expect(result.checks.not_present_selectors.passed).toBe(true);
   });
 
+  it('passes when ready_selectors are given as XPath', async () => {
+    withExample('<div id="app"><section id="ready-xp" class="loaded">ok</section></div>', { withShadow: false });
+    let result = await waitForReady({ stability_window_ms: 50, timeout_ms: 3000, image_ready: false, font_ready: false, network_idle_window_ms: 50, ready_selectors: ['//section[@id="ready-xp" and contains(@class,"loaded")]'] });
+    expect(result.checks.ready_selectors.passed).toBe(true);
+  });
+
+  it('passes when not_present_selectors are given as XPath', async () => {
+    withExample('<div id="app"><p>no spinner here</p></div>', { withShadow: false });
+    let result = await waitForReady({ stability_window_ms: 50, timeout_ms: 3000, image_ready: false, font_ready: false, network_idle_window_ms: 50, not_present_selectors: ['//div[contains(@class,"spinner")]'] });
+    expect(result.checks.not_present_selectors.passed).toBe(true);
+  });
+
+  it('accepts mixed CSS and XPath selectors via object form', async () => {
+    withExample('<div id="app"><section id="mix" class="loaded">ok</section><span class="ready"></span></div>', { withShadow: false });
+    let result = await waitForReady({ stability_window_ms: 50, timeout_ms: 3000, image_ready: false, font_ready: false, network_idle_window_ms: 50, ready_selectors: [{ css: '.ready' }, { xpath: '//section[@id="mix"]' }] });
+    expect(result.checks.ready_selectors.passed).toBe(true);
+  });
+
   it('checks fonts ready', async () => {
     withExample('<p>Text</p>', { withShadow: false });
     let result = await waitForReady({ stability_window_ms: 50, timeout_ms: 3000, image_ready: false, font_ready: true, network_idle_window_ms: 50 });

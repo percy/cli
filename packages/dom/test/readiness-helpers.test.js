@@ -10,7 +10,8 @@ import {
   hasLayoutStyleChange,
   parseStyleProps,
   normalizeOptions,
-  createAbortHandle
+  createAbortHandle,
+  resolveSelector
 } from '../src/readiness';
 
 describe('readiness helpers', () => {
@@ -303,6 +304,94 @@ describe('readiness helpers', () => {
       // and the handle's internal callbacks list was reset, so the late
       // callback is orphaned. This just asserts current behavior.
       expect(late).toBe(0);
+    });
+  });
+
+  describe('resolveSelector', () => {
+    let host;
+    beforeEach(() => {
+      host = document.createElement('div');
+      host.id = 'rs-host';
+      host.innerHTML = '<section id="main" data-role="main"><p class="hello">hi</p></section>';
+      document.body.appendChild(host);
+    });
+    afterEach(() => host.remove());
+
+    it('returns null for falsy / unsupported input', () => {
+      expect(resolveSelector(null)).toBe(null);
+      expect(resolveSelector(undefined)).toBe(null);
+      expect(resolveSelector('')).toBe(null);
+      expect(resolveSelector(42)).toBe(null);
+      expect(resolveSelector({})).toBe(null);
+    });
+
+    it('resolves a CSS string', () => {
+      let el = resolveSelector('#main .hello');
+      expect(el).not.toBe(null);
+      expect(el.textContent).toBe('hi');
+    });
+
+    it('returns null when CSS does not match', () => {
+      expect(resolveSelector('#nope')).toBe(null);
+    });
+
+    it('resolves an XPath string starting with //', () => {
+      let el = resolveSelector('//section[@id="main"]');
+      expect(el).not.toBe(null);
+      expect(el.id).toBe('main');
+    });
+
+    it('resolves an XPath string starting with /', () => {
+      let el = resolveSelector('/html/body//*[@id="rs-host"]');
+      expect(el).not.toBe(null);
+      expect(el.id).toBe('rs-host');
+    });
+
+    it('resolves an XPath string starting with ./', () => {
+      let el = resolveSelector('.//section[@id="main"]');
+      expect(el).not.toBe(null);
+      expect(el.id).toBe('main');
+    });
+
+    it('resolves an XPath string starting with (/', () => {
+      let el = resolveSelector('(//section)[1]');
+      expect(el).not.toBe(null);
+      expect(el.id).toBe('main');
+    });
+
+    it('returns null for malformed XPath', () => {
+      expect(resolveSelector('//section[unclosed')).toBe(null);
+    });
+
+    it('returns null when XPath resolves to a non-Element node', () => {
+      // Text node — has no offsetParent, must be filtered out
+      expect(resolveSelector('//p[@class="hello"]/text()')).toBe(null);
+    });
+
+    it('accepts explicit { css } object form', () => {
+      let el = resolveSelector({ css: '#main' });
+      expect(el).not.toBe(null);
+      expect(el.id).toBe('main');
+    });
+
+    it('accepts explicit { xpath } object form', () => {
+      let el = resolveSelector({ xpath: '//*[@data-role="main"]' });
+      expect(el).not.toBe(null);
+      expect(el.id).toBe('main');
+    });
+
+    it('prefers xpath over css when both keys are present', () => {
+      let el = resolveSelector({ xpath: '//section[@id="main"]', css: '#nope' });
+      expect(el).not.toBe(null);
+      expect(el.id).toBe('main');
+    });
+
+    it('returns null for object form with neither css nor xpath', () => {
+      expect(resolveSelector({ foo: 'bar' })).toBe(null);
+    });
+
+    it('returns null for invalid CSS in object form', () => {
+      expect(resolveSelector({ css: '!!not a selector' })).toBe(null);
     });
   });
 });

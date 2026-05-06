@@ -92,6 +92,57 @@ export function parseStyleProps(styleStr) {
   return props;
 }
 
+// Resolve a single ready/notPresent selector to a DOM Element. Accepts:
+//   - CSS string:                  '.app-loaded'
+//   - XPath string:                '//div[@id="root"]'  (sniffed by leading /, //, ./, (/, (./)
+//   - Object form (explicit):      { css: '.foo' } | { xpath: '//bar' }
+// Returns the matched Element, or null when no element matches, the
+// selector is malformed, or it resolves to a non-Element node.
+//
+// Exported for direct unit testing.
+const XPATH_SNIFF = /^\(?\.?\//;
+export function resolveSelector(selector) {
+  if (!selector) return null;
+  let xpath = null;
+  let css = null;
+  if (typeof selector === 'object') {
+    if (selector.xpath) xpath = selector.xpath;
+    else if (selector.css) css = selector.css;
+    else return null;
+  } else if (typeof selector === 'string') {
+    if (XPATH_SNIFF.test(selector)) xpath = selector;
+    else css = selector;
+  } else {
+    return null;
+  }
+  try {
+    let el = xpath
+      ? document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue
+      : document.querySelector(css);
+    return el instanceof Element ? el : null;
+  } catch (e) {
+    // Malformed XPath or invalid CSS — treat as no-match so the selector
+    // gate keeps polling rather than blowing up the entire readiness gate.
+    return null;
+  }
+}
+
+// Subscribe to PerformanceObserver entries of a given type. Returns the
+// observer (for the caller to disconnect) or null when PerformanceObserver
+// (or the requested entry type) is unavailable, so callers can fall back.
+//
+// Used by checkNetworkIdle (`resource`) and checkJSIdle (`longtask`) to
+// avoid duplicating the try/observe/disconnect boilerplate.
+function observePerformance(type, onEntries) {
+  try {
+    let observer = new PerformanceObserver(list => onEntries(list.getEntries()));
+    observer.observe({ type, buffered: false });
+    return observer;
+  } catch (e) /* istanbul ignore next: PerformanceObserver is available in Chrome/Firefox; catch is for old browsers */ {
+    return null;
+  }
+}
+
 // --- Individual Checks ---
 // Each check accepts an `aborted` object ({ value: boolean }) so the orchestrator
 // can signal cancellation on timeout. Checks must clean up timers/observers on abort.
@@ -143,21 +194,12 @@ function checkDOMStability(stabilityWindowMs, aborted) {
 }
 
 function checkNetworkIdle(networkIdleWindowMs, aborted) {
-  // Use PerformanceObserver to listen for new 'resource' entries incrementally.
-  // Previously we polled `performance.getEntriesByType('resource')` every 50ms,
-  // which allocates and scans the full resource list on every tick — expensive
-  // on resource-heavy pages with hundreds of images/scripts/stylesheets.
-  //
-  // On browsers without PerformanceObserver (very old), fall back to polling
-  // so the check still works.
   return new Promise(resolve => {
     let startTime = performance.now();
     let timer = null;
-    let observer = null;
     let pollInterval = null;
 
     function settle() {
-      /* istanbul ignore next: observer is only null on fallback path (itself ignored) */
       if (observer) observer.disconnect();
       /* istanbul ignore next: fallback polling path only used when PerformanceObserver is unavailable */
       if (pollInterval) clearInterval(pollInterval);
@@ -165,22 +207,19 @@ function checkNetworkIdle(networkIdleWindowMs, aborted) {
     }
 
     function resetIdleTimer() {
-      /* istanbul ignore next: timer is always set at line 191 before any resource entry arrives */
+      /* istanbul ignore next: timer is always set before any resource entry arrives */
       if (timer) clearTimeout(timer);
       timer = setTimeout(settle, networkIdleWindowMs);
     }
 
-    try {
-      /* istanbul ignore next: observer callback body only runs if a network resource loads during the idle window */
-      observer = new PerformanceObserver(list => {
-        if (aborted.value) return;
-        // Any resource entry means network activity — reset the idle window.
-        if (list.getEntries().length > 0) resetIdleTimer();
-      });
-      observer.observe({ type: 'resource', buffered: false });
-    } catch (e) /* istanbul ignore next: PerformanceObserver is available in Chrome/Firefox; catch is for old browsers */ {
-      // Older browser — fall back to polling
-      observer = null;
+    /* istanbul ignore next: observer callback body only runs if a network resource loads during the idle window */
+    let observer = observePerformance('resource', entries => {
+      if (aborted.value) return;
+      if (entries.length > 0) resetIdleTimer();
+    });
+
+    /* istanbul ignore next: PerformanceObserver fallback only triggers in older browsers */
+    if (!observer) {
       let lastCount = performance.getEntriesByType('resource').length;
       pollInterval = setInterval(() => {
         if (aborted.value) { clearInterval(pollInterval); return; }
@@ -193,7 +232,6 @@ function checkNetworkIdle(networkIdleWindowMs, aborted) {
     timer = setTimeout(settle, networkIdleWindowMs);
 
     aborted.onAbort(() => {
-      /* istanbul ignore next: observer is only null on fallback path (itself ignored) */
       if (observer) observer.disconnect();
       /* istanbul ignore next: pollInterval is only set on the fallback path */
       if (pollInterval) clearInterval(pollInterval);
@@ -276,24 +314,20 @@ function checkJSIdle(idleWindowMs, aborted) {
     let settled = false;
     let observing = false;
 
-    // Tier 1: Long Task API — reset idle timer on each observed long task
-    try {
-      /* istanbul ignore next: longtask callback fires only on CPU-heavy >50ms tasks, not reliable in tests */
-      observer = new PerformanceObserver(list => {
-        if (!observing || settled || aborted.value) return;
-        for (let entry of list.getEntries()) {
-          if (entry.entryType === 'longtask') {
-            longTaskCount++;
-            if (idleTimer) clearTimeout(idleTimer);
-            idleTimer = setTimeout(confirmIdle, idleWindowMs);
-          }
+    // Tier 1: Long Task API — reset idle timer on each observed long task.
+    // observePerformance returns null on older browsers; we degrade to the
+    // rIC/rAF-only path in that case.
+    /* istanbul ignore next: longtask callback fires only on CPU-heavy >50ms tasks, not reliable in tests */
+    observer = observePerformance('longtask', entries => {
+      if (!observing || settled || aborted.value) return;
+      for (let entry of entries) {
+        if (entry.entryType === 'longtask') {
+          longTaskCount++;
+          if (idleTimer) clearTimeout(idleTimer);
+          idleTimer = setTimeout(confirmIdle, idleWindowMs);
         }
-      });
-      observer.observe({ type: 'longtask', buffered: false });
-    } catch (e) /* istanbul ignore next: Long Task API is available in Chrome/Firefox, catch is for older browsers */ {
-      // Long Task API not available — degrade to rIC/rAF-only path
-      observer = null;
-    }
+      }
+    });
 
     function cleanup() {
       settled = true;
@@ -365,7 +399,7 @@ function checkReadySelectors(selectors, aborted) {
     let start = performance.now();
     function check() {
       for (let s of selectors) {
-        let el = document.querySelector(s);
+        let el = resolveSelector(s);
         if (!el) return false;
         if (el.offsetParent === null && getComputedStyle(el).position !== 'fixed' && getComputedStyle(el).position !== 'sticky') return false;
       }
@@ -387,7 +421,7 @@ function checkNotPresentSelectors(selectors, aborted) {
   if (!selectors?.length) return Promise.resolve({ passed: true, duration_ms: 0, selectors: [] });
   return new Promise(resolve => {
     let start = performance.now();
-    function check() { for (let s of selectors) { if (document.querySelector(s)) return false; } return true; }
+    function check() { for (let s of selectors) { if (resolveSelector(s)) return false; } return true; }
     if (check()) { resolve({ passed: true, duration_ms: 0, selectors }); return; }
     let interval = setInterval(() => {
       /* istanbul ignore next: abort clears the interval synchronously, defensive dead code in tests */
