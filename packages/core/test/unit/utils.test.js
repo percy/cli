@@ -202,6 +202,22 @@ describe('Unit / Utils', () => {
     it('should redact sensitive keys from array of object', () => {
       expect(redactSecrets([{ message: 'This is a secret: ASIAY34FZKBOKMUTVV7A' }])).toEqual([{ message: 'This is a secret: [REDACTED]' }]);
     });
+
+    // SC8 fixtures — verify the categories the plan claims to cover
+    // for the domain-validation log path. Categories outside secretPatterns.yml
+    // (Cookie:, JSESSIONID, custom auth schemes) are deferred to a yml-augment ticket.
+    describe('SC8: domain-validation error fixtures', () => {
+      it('redacts AWS access keys embedded in upstream error text', () => {
+        let msg = 'Domain validation: Failed to validate example.com - AWS error AKIAIOSFODNN7EXAMPLE returned';
+        expect(redactSecrets(msg)).toEqual(jasmine.stringContaining('[REDACTED]'));
+        expect(redactSecrets(msg)).not.toContain('AKIAIOSFODNN7EXAMPLE');
+      });
+
+      it('redacts URL-embedded credentials', () => {
+        let msg = 'Domain validation: Failed to validate example.com - request to https://admin:secret-AKIAIOSFODNN7EXAMPLE@host/path failed';
+        expect(redactSecrets(msg)).toContain('[REDACTED]');
+      });
+    });
   });
 
   describe('base64encode', () => {

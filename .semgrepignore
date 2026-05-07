@@ -1,3 +1,13 @@
 packages/core/src/secretPatterns.yml
 packages/dom/test/serialize-pseudo-classes.test.js
 test/regression/server.js
+
+# PER-7855 Phase 2: lock.js builds a per-port path of shape
+# ~/.percy/agent-<port>.lock after validating that <port> is an
+# integer in the TCP range [0, 65535]. semgrep's
+# javascript.lang.security.audit.path-traversal.path-join-resolve-traversal
+# rule does not follow the Number.isInteger validation chain and
+# flags the resulting path.join() as a sink. The guard is in place
+# upstream of the join — suppress at the file level with this
+# rationale.
+packages/core/src/lock.js

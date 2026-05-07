@@ -12,6 +12,16 @@ export function mockfs(initial) {
       path.resolve(url.fileURLToPath(import.meta.url), '/../../../dom/dist/bundle.js'),
       path.resolve(url.fileURLToPath(import.meta.url), '../secretPatterns.yml'),
       p => p.includes?.('.local-chromium'),
+      // Per-port lockfiles live under ~/.percy/. They
+      // are infrastructure (not test fixture data), so route the entire
+      // directory (mkdir, writeFile, readFile, unlink) through the real
+      // fs. Matching only `/.percy/agent-` lets `writeFileSync` pass but
+      // routes `mkdirSync` for the parent through memfs, leaving the
+      // parent directory non-existent on the real fs and producing
+      // ENOENT cascades on CI. Match both POSIX `/` and Windows `\`
+      // separators because the Windows runner normalizes paths
+      // inconsistently across mkdir/writeFile/unlink.
+      p => typeof p === 'string' && /[/\\]\.percy(?:[/\\]|$)/.test(p),
       ...(initial?.$bypass ?? [])
     ]
   });

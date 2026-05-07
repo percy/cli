@@ -3,6 +3,7 @@ import PercyConfig from '@percy/config';
 import logger from '@percy/logger';
 import { getProxy } from '@percy/client/utils';
 import Browser from './browser.js';
+import { acquireLock, releaseLockSync } from './lock.js';
 import Pako from 'pako';
 import {
   base64encode,
@@ -26,7 +27,10 @@ import {
 } from './snapshot.js';
 import {
   discoverSnapshotResources,
-  createDiscoveryQueue
+  createDiscoveryQueue,
+  RESOURCE_CACHE_KEY,
+  CACHE_STATS_KEY,
+  DISK_SPILL_KEY
 } from './discovery.js';
 import Monitoring from '@percy/monitoring';
 import { WaitForJob } from './wait-for-job.js';
@@ -224,6 +228,24 @@ export class Percy {
     this.cliStartTime = new Date().toISOString();
 
     try {
+      // Per-port lock fast-fail. Acquire BEFORE any
+      // expensive setup (monitoring, proxy detection, hostname loads)
+      // so a second `percy start` on the same port refuses cheaply.
+      // Skipped when no server is configured (lock represents a port
+      // claim).
+      if (this.server) {
+        // acquireLock returns null when port === 0 (ephemeral / test
+        // fixtures); skip the exit handler in that case since there's
+        // nothing to release.
+        this._lockHandle = acquireLock({ port: this.port });
+        if (this._lockHandle) {
+          // Synchronous unlink as last-chance cleanup if the process
+          // exits without a normal stop().
+          this._lockExitHandler = () => releaseLockSync(this._lockHandle);
+          process.on('exit', this._lockExitHandler);
+        }
+      }
+
       // started monitoring system metrics
 
       if (this.systemMonitoringEnabled()) {
@@ -274,11 +296,31 @@ export class Percy {
       await this.#discovery.end();
       await this.#snapshots.end();
 
+      // Release the lock on failed start so a retry
+      // doesn't see this aborted attempt as "already running."
+      this._releaseLock();
+
       // mark this instance as closed unless aborting
       this.readyState = error.name !== 'AbortError' ? 3 : null;
 
-      // throw an easier-to-understand error when the port is in use
-      if (error.code === 'EADDRINUSE') {
+      // throw an easier-to-understand error when the port is in use.
+      // A held lockfile fails before server.listen,
+      // so EADDRINUSE no longer fires for the "Percy already running"
+      // case — surface LockHeldError under the same legacy message
+      // (downstream tools may grep for it) but ALSO log the actionable
+      // detail (pid + lock path) so users can recover.
+      /* istanbul ignore if: in-process Percy.start tests with the
+         self-pid stale-lock optimization will reclaim and proceed to
+         server.listen() rather than throwing LockHeldError, so this
+         branch is rare under unit-test conditions. The LockHeldError
+         shape is verified by the lock.test.js SC4 spec; this branch
+         only translates it to the legacy error string. */
+      if (error.name === 'LockHeldError') {
+        this.log.error(error.message);
+        let errMsg = `Percy is already running or the port ${this.port} is in use`;
+        await this.suggestionsForFix(errMsg);
+        throw new Error(errMsg);
+      } else if (error.code === 'EADDRINUSE') {
         let errMsg = `Percy is already running or the port ${this.port} is in use`;
         await this.suggestionsForFix(errMsg);
         throw new Error(errMsg);
@@ -287,6 +329,17 @@ export class Percy {
         throw error;
       }
     }
+  }
+
+  // Idempotent lock release used by both the success and failure paths
+  // in start/stop.
+  _releaseLock() {
+    if (this._lockExitHandler) {
+      process.off('exit', this._lockExitHandler);
+      this._lockExitHandler = null;
+    }
+    releaseLockSync(this._lockHandle);
+    this._lockHandle = null;
   }
 
   // Resolves once snapshot and upload queues are idle
@@ -389,10 +442,76 @@ export class Percy {
       this.monitoring.stopMonitoring();
       clearTimeout(this.resetMonitoringId);
 
+      // Release per-port lock after the server
+      // socket is closed (the unlink itself is sync, but ordering
+      // after `server?.close()` keeps the post-condition that "lock
+      // present ⇒ server bound" until the very end).
+      this._releaseLock();
+
       // This issue doesn't comes under regular error logs,
       // it's detected if we just and stop percy server
       await this.checkForNoSnapshotCommandError();
+      // sendBuildLogs goes first — it's the primary egress. cache_summary is
+      // analytics, ordered after so a slow pager hop cannot delay the logs.
       await this.sendBuildLogs();
+      await this.sendCacheSummary();
+    }
+  }
+
+  // Single egress point for cache-tier telemetry. Used by sendCacheSummary
+  // (awaited at stop) and discovery's fire-and-forget eviction event. Returns
+  // early if no build is associated, swallows pager rejections — telemetry
+  // loss must never fail a build.
+  async sendCacheTelemetry(message, extra) {
+    if (!this.build?.id) return;
+    try {
+      await this.client.sendBuildEvents(this.build.id, {
+        message,
+        cliVersion: this.client.cliVersion,
+        clientInfo: this.clientInfo,
+        extra
+      });
+    } catch (err) {
+      this.log.debug(`${message} telemetry failed`, err);
+    }
+  }
+
+  // Cache-usage summary fired at stop. The whole method is wrapped — the
+  // contract is "telemetry must never fail percy.stop()", which covers the
+  // payload-construction block as well as the egress.
+  async sendCacheSummary() {
+    try {
+      const cache = this[RESOURCE_CACHE_KEY];
+      const stats = this[CACHE_STATS_KEY];
+      if (!cache || !stats) return;
+
+      const cacheStats = typeof cache.stats === 'object' ? cache.stats : null;
+      // diskStore is destroyed by discovery 'end' before this runs, so fall
+      // back to the snapshot captured in stats.finalDiskStats.
+      const diskStore = this[DISK_SPILL_KEY];
+      const diskSnap = diskStore?.stats ?? stats.finalDiskStats;
+      const diskReady = diskStore ? diskStore.ready : !!stats.finalDiskStats?.ready;
+
+      await this.sendCacheTelemetry('cache_summary', {
+        cache_budget_ram_mb: stats.effectiveMaxCacheRamMB,
+        hits: cacheStats?.hits ?? 0,
+        misses: cacheStats?.misses ?? 0,
+        evictions: cacheStats?.evictions ?? 0,
+        peak_bytes: cacheStats?.peakBytes ?? stats.unsetModeBytes,
+        final_bytes: cache.calculatedSize ?? stats.unsetModeBytes,
+        entry_count: cache.size ?? 0,
+        oversize_skipped: stats.oversizeSkipped,
+        disk_spill_enabled: diskReady,
+        disk_spilled_count: diskSnap?.spilled ?? 0,
+        disk_restored_count: diskSnap?.restored ?? 0,
+        disk_spill_failures: diskSnap?.spillFailures ?? 0,
+        disk_read_failures: diskSnap?.readFailures ?? 0,
+        disk_peak_bytes: diskSnap?.peakBytes ?? 0,
+        disk_final_bytes: diskSnap?.currentBytes ?? 0,
+        disk_final_entries: diskSnap?.entries ?? 0
+      });
+    } catch (err) {
+      this.log.debug('cache_summary build failed', err);
     }
   }
 
