@@ -71,7 +71,7 @@ const IOS_HTTP_CIRCUIT_BREAKER_MS = 5000;
 // WDA ports are 8400-8410 → driver host ports are 11100-11110.
 const IOS_DRIVER_HOST_PORT_MIN = 11100;
 const IOS_DRIVER_HOST_PORT_MAX = 11110;
-// HTTP response cap (matches wda-hierarchy.js SOURCE_MAX_BYTES).
+// HTTP response cap before parse — sized for WebView-heavy iOS apps.
 const IOS_HTTP_RESPONSE_MAX_BYTES = 20 * 1024 * 1024;
 
 // Two-slot drift bit (Unit 4). Records the first schema-class failure per

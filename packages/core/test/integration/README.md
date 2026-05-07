@@ -33,35 +33,6 @@ Paste the result block (with p50/p95/p99 + alive flag) into the PR
 description. Bump `IOS_HTTP_HEALTHY_DEADLINE_MS` to `p95 × 2` if the
 harness warns that p95 is within 10% of the deadline.
 
-### `maestro-ios-hierarchy-regression.harness.js` (Unit 6 — V3)
-
-WDA failure-class regression. Runs `fixtures/ios-aut-crash-regions.yaml`
-twice — once with `PERCY_IOS_RESOLVER=wda-direct` (legacy WDA path) and
-once with `PERCY_IOS_RESOLVER=maestro-hierarchy` (new HTTP path). The flow
-launches an AUT, crashes it via `killApp`, then takes an element-region
-screenshot. Verifies the WDA path silently skips the regions (the
-production failure being fixed) while the HTTP path resolves them.
-
-Required env:
-
-- `MAESTRO_IOS_TEST_DEVICE=<udid>`
-- `PERCY_SERVER=http://127.0.0.1:<port>` — running Percy CLI
-- `PERCY_IOS_DRIVER_HOST_PORT=<port>` — for the maestro-hierarchy run
-
-Run:
-
-```sh
-MAESTRO_IOS_TEST_DEVICE=<udid> \
-PERCY_SERVER=http://127.0.0.1:5338 \
-PERCY_IOS_DRIVER_HOST_PORT=<port> \
-node test/integration/maestro-ios-hierarchy-regression.harness.js
-```
-
-Open the two resulting Percy snapshots and verify visually that
-`WdaDirectAutCrash` lacks the region overlay while `MaestroHttpAutCrash`
-includes it. Paste the harness output + the two Percy build URLs into
-the PR description.
-
 ### `cross-platform-parity.harness.js` (Unit 5 — V2)
 
 Cross-platform R6 parity check. Runs `parity-flow-android.yaml` and
@@ -94,9 +65,6 @@ cover the same logical UI element on both platforms.
 `fixtures/pause-30s-flow-ios.yaml` — iOS pause flow used by the
 concurrent harness. Holds the device active via `extendedWaitUntil` +
 impossible selector for ~30s.
-
-`fixtures/ios-aut-crash-regions.yaml` — iOS AUT-crash regression flow:
-launch → killApp → takeScreenshot with element regions.
 
 `fixtures/parity-flow-android.yaml` + `fixtures/parity-flow-ios.yaml` —
 matched cross-platform flows resolving the same `id: "submitBtn"`

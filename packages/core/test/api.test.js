@@ -1114,133 +1114,32 @@ describe('API Server', () => {
       }]);
     });
 
-    it('iOS element region with Android-style selector key is warn-skipped (V1 accepts id/class only)', async () => {
-      // V1 iOS selectors are `id` and `class` only. Android-style `resource-id`
-      // is shape-accepted by the relay's whitelist (same whitelist serves both
-      // platforms) but the iOS resolver drops it with selector-key-not-in-v1.
-      // Coord regions pass through unchanged.
+    it('iOS element region resolves via maestro-hierarchy; coord regions still forwarded', async () => {
+      // The unified iOS path uses maestroDump → runIosHttpDump → maestro-CLI fallback.
+      // In the test env (no PERCY_IOS_DEVICE_UDID/PERCY_IOS_DRIVER_HOST_PORT and no
+      // maestro binary on PATH) the resolver returns env-missing, element regions
+      // are skipped with a warning, and the snapshot uploads with only the coord
+      // region forwarded.
       spyOn(percy, 'upload').and.resolveTo();
       await percy.start();
 
       let response = await postMaestro({
         name: SS_NAME, sessionId: SID, platform: 'ios',
         regions: [
-          { element: { 'resource-id': 'com.example:id/foo' }, algorithm: 'ignore' },
+          { element: { id: 'submitBtn' }, algorithm: 'ignore' },
           { top: 0, bottom: 20, left: 0, right: 20, algorithm: 'ignore' }
         ]
       });
 
       expect(response).toEqual(jasmine.objectContaining({ success: true }));
       let [payload] = percy.upload.calls.mostRecent().args;
-      // Coord region still forwarded; element region dropped by the iOS resolver
+      // Coord region forwarded; element region skipped (resolver unavailable in test env).
       expect(payload.regions).toEqual([{
         elementSelector: { boundingBox: { x: 0, y: 0, width: 20, height: 20 } },
         algorithm: 'ignore'
       }]);
-      // The new V1 warning — surfaced by resolveIosRegions for non-id/non-class keys.
-      // (Exact phrasing may include a wda-meta `missing` fallback if no meta file exists
-      // in the test tmp, which is also acceptable — the assertion is relaxed to cover
-      // either path.)
       const log = logger.stderr.join('\n');
-      const acceptableWarnings = [
-        'selector-key-not-in-v1',
-        'missing',
-        'iOS element region warn-skip'
-      ];
-      expect(acceptableWarnings.some(w => log.includes(w))).toBe(true);
-    });
-
-    describe('iOS resolver-choice cascade (Unit 3a)', () => {
-      // Save + restore PERCY_IOS_RESOLVER per-test so we don't leak state.
-      let savedEnv;
-      beforeEach(() => {
-        savedEnv = process.env.PERCY_IOS_RESOLVER;
-        delete process.env.PERCY_IOS_RESOLVER;
-      });
-      afterEach(() => {
-        if (savedEnv === undefined) delete process.env.PERCY_IOS_RESOLVER;
-        else process.env.PERCY_IOS_RESOLVER = savedEnv;
-      });
-
-      it('rejects body.resolver with unknown value (HTTP 400)', async () => {
-        await percy.start();
-        await expectAsync(postMaestro({
-          name: SS_NAME, sessionId: SID, platform: 'ios',
-          resolver: 'totally-bogus',
-          regions: [{ element: { id: 'submitBtn' }, algorithm: 'ignore' }]
-        })).toBeRejectedWithError(/Invalid resolver/);
-      });
-
-      it('default (env unset, body unset) uses legacy wda-direct path', async () => {
-        // Existing behavior preserved — Unit 3a does NOT flip the default.
-        spyOn(percy, 'upload').and.resolveTo();
-        await percy.start();
-        await postMaestro({
-          name: SS_NAME, sessionId: SID, platform: 'ios',
-          regions: [{ element: { id: 'submitBtn' }, algorithm: 'ignore' }]
-        });
-        // wda-direct path: resolveIosRegions logs `iOS element region warn-skip:`
-        // (commonly with `missing` reason in the test env where wda-meta.json doesn't exist).
-        const log = logger.stderr.join('\n');
-        expect(log).toMatch(/iOS element region warn-skip/);
-      });
-
-      it('PERCY_IOS_RESOLVER=maestro-hierarchy uses new HTTP/CLI dispatch (env-missing → skip in test env)', async () => {
-        process.env.PERCY_IOS_RESOLVER = 'maestro-hierarchy';
-        spyOn(percy, 'upload').and.resolveTo();
-        await percy.start();
-        await postMaestro({
-          name: SS_NAME, sessionId: SID, platform: 'ios',
-          regions: [{ element: { id: 'submitBtn' }, algorithm: 'ignore' }]
-        });
-        // New path goes through maestro-hierarchy.js dump() → returns env-missing
-        // because PERCY_IOS_DEVICE_UDID + PERCY_IOS_DRIVER_HOST_PORT aren't set.
-        // api.js's element-region-resolver-unavailable warning surfaces that.
-        const log = logger.stderr.join('\n');
-        expect(log).toMatch(/Element-region resolver unavailable \(env-missing\)/);
-      });
-
-      it('body.resolver=maestro-hierarchy overrides env=undefined (per-snapshot wins over default)', async () => {
-        spyOn(percy, 'upload').and.resolveTo();
-        await percy.start();
-        await postMaestro({
-          name: SS_NAME, sessionId: SID, platform: 'ios',
-          resolver: 'maestro-hierarchy',
-          regions: [{ element: { id: 'submitBtn' }, algorithm: 'ignore' }]
-        });
-        const log = logger.stderr.join('\n');
-        expect(log).toMatch(/Element-region resolver unavailable \(env-missing\)/);
-      });
-
-      it('body.resolver=wda-direct overrides env=maestro-hierarchy (per-snapshot wins over env)', async () => {
-        process.env.PERCY_IOS_RESOLVER = 'maestro-hierarchy';
-        spyOn(percy, 'upload').and.resolveTo();
-        await percy.start();
-        await postMaestro({
-          name: SS_NAME, sessionId: SID, platform: 'ios',
-          resolver: 'wda-direct',
-          regions: [{ element: { id: 'submitBtn' }, algorithm: 'ignore' }]
-        });
-        const log = logger.stderr.join('\n');
-        // Per-snapshot override forces wda-direct path; should NOT see the
-        // maestro-hierarchy env-missing warning.
-        expect(log).not.toMatch(/Element-region resolver unavailable \(env-missing\)/);
-        // Should see wda-direct path warning instead.
-        expect(log).toMatch(/iOS element region warn-skip/);
-      });
-
-      it('PERCY_IOS_RESOLVER=garbage defaults gracefully to wda-direct (graceful fallback)', async () => {
-        process.env.PERCY_IOS_RESOLVER = 'totally-invalid';
-        spyOn(percy, 'upload').and.resolveTo();
-        await percy.start();
-        await postMaestro({
-          name: SS_NAME, sessionId: SID, platform: 'ios',
-          regions: [{ element: { id: 'submitBtn' }, algorithm: 'ignore' }]
-        });
-        const log = logger.stderr.join('\n');
-        // Unknown env value: falls back to wda-direct.
-        expect(log).toMatch(/iOS element region warn-skip/);
-      });
+      expect(log).toMatch(/Element-region resolver unavailable/);
     });
 
     it('forwards testCase, labels, thTestCaseExecutionId, tile metadata, and sync mode', async () => {
