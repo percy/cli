@@ -1,0 +1,26 @@
+# iOS regression flow for the WDA failure-class fix (Unit 6).
+#
+# Reproduces the production failure mode: WDA's /session/:sid/source binds
+# to the AUT bundleId of the session-creation moment. When the AUT exits
+# (crash, killApp, app-switch) mid-flow, WDA returns
+# `[FBRoute raiseNoSessionException] : The application under test with bundle
+# id ... is not running, possibly crashed`, and Percy's element regions
+# silently fail.
+#
+# The harness runs this flow twice:
+#   1. PERCY_IOS_RESOLVER=wda-direct  → expect `iOS element region warn-skip`
+#      (regions silently dropped — the production failure being fixed).
+#   2. PERCY_IOS_RESOLVER=maestro-hierarchy → expect element regions resolve
+#      via the new HTTP path (Maestro's runner walks system UI without
+#      bundleId binding).
+#
+# Override appId at runtime: --env appId=<your-app-bundle-id>
+
+appId: com.example.calculator
+---
+- launchApp
+- runScript: scripts/percy-pause-sentinel.js
+- killApp
+# AUT is now gone. WDA's /session/:sid/source will fail.
+# Maestro's HTTP /viewHierarchy walks the system tree and succeeds.
+- takeScreenshot: ${SCREENSHOT_NAME:-AutCrashRegression}
