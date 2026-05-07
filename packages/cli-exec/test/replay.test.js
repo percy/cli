@@ -1,10 +1,10 @@
-import { fs, logger, setupTest, api } from '@percy/cli-command/test/helpers';
+import { fs, logger, setupTest } from '@percy/cli-command/test/helpers';
 import { serializeSnapshot } from '@percy/core/archive';
 import { replay } from '../src/replay.js';
 
-describe('percy snapshot:replay', () => {
+describe('percy replay', () => {
   beforeEach(async () => {
-    replay.packageInformation = { name: '@percy/cli-snapshot' };
+    replay.packageInformation = { name: '@percy/cli-exec' };
     process.env.PERCY_TOKEN = '<<PERCY_TOKEN>>';
     process.env.PERCY_FORCE_PKG_VALUE = JSON.stringify({ name: '@percy/client', version: '1.0.0' });
     process.env.PERCY_CLIENT_ERROR_LOGS = false;
