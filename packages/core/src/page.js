@@ -307,20 +307,18 @@ export class Page {
     if (session.isDocument) {
       session.on('Target.attachedToTarget', this._handleAttachedToTarget);
 
-      // Chain preflight injection after Page.enable. CDP processes commands
-      // FIFO per session — and since the preflight script was loaded
-      // synchronously at module import, no event-loop turn elapses between
-      // Page.enable's response and the addScript dispatch. Sent on every
+      // CDP processes commands in send-order per session, so the browser
+      // applies Page.enable first and then registers the preflight script.
+      // The preflight script was loaded synchronously at module import, so
+      // there's no event-loop turn between the two sends. Sent on every
       // attached document target so out-of-process iframes also receive
-      // the patches.
-      let pageEnablePromise = session.send('Page.enable');
+      // the patches. If PREFLIGHT_SCRIPT is empty (file missing — already
+      // warned at module load), CDP registers a no-op script which is
+      // harmless.
       commands.push(
-        PREFLIGHT_SCRIPT
-          ? pageEnablePromise.then(() =>
-            session.send('Page.addScriptToEvaluateOnNewDocument', { source: PREFLIGHT_SCRIPT })
-              .catch(handlePreflightInjectionError)
-          )
-          : pageEnablePromise,
+        session.send('Page.enable'),
+        session.send('Page.addScriptToEvaluateOnNewDocument', { source: PREFLIGHT_SCRIPT })
+          .catch(handlePreflightInjectionError),
         session.send('Page.setLifecycleEventsEnabled', { enabled: true }),
         session.send('Security.setIgnoreCertificateErrors', { ignore: true }),
         session.send('Emulation.setScriptExecutionDisabled', { value: !this.enableJavaScript }),
