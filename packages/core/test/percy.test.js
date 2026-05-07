@@ -2211,4 +2211,104 @@ describe('Percy', () => {
       ]));
     });
   });
+
+  describe('archive flow', () => {
+    it('validates and logs the archive directory when starting', async () => {
+      percy = new Percy({ token: 'PERCY_TOKEN', archiveDir: './percy-archive' });
+      await expectAsync(percy.start()).toBeResolved();
+
+      expect(percy.archiveDir).toMatch(/\/percy-archive$/);
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Archiving snapshots to: .*\/percy-archive/)
+      ]));
+    });
+
+    it('logs the archive summary when stopping with snapshots', async () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        archiveDir: './percy-archive',
+        skipDiscovery: true
+      });
+      await percy.start();
+
+      await percy.snapshot({
+        name: 'Archived Snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        widths: [1000]
+      });
+
+      await expectAsync(percy.stop()).toBeResolved();
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Archived 1 snapshot\(s\) to: .*\/percy-archive/)
+      ]));
+    });
+
+    it('logs an error when archiving a snapshot fails', async () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        archiveDir: './percy-archive',
+        skipDiscovery: true
+      });
+      await percy.start();
+
+      let archive = await import('../src/archive.js');
+      spyOn(archive, 'archiveSnapshot').and.throwError(new Error('disk full'));
+
+      await percy.snapshot({
+        name: 'Failing Snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        widths: [1000]
+      });
+
+      // wait a tick for the archive promise chain to settle
+      await new Promise(r => setImmediate(r));
+      await percy.stop();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Failed to archive snapshot "Failing Snapshot": disk full/)
+      ]));
+    });
+  });
+
+  describe('#replaySnapshot()', () => {
+    let archived;
+
+    beforeEach(() => {
+      archived = {
+        name: 'Replay Snapshot',
+        url: 'http://localhost:8000',
+        widths: [1000],
+        resources: []
+      };
+    });
+
+    it('throws when percy is not running', () => {
+      expect(() => [...percy.yield.replaySnapshot(archived)])
+        .toThrowError('Not running');
+    });
+
+    it('throws when the build has errored', async () => {
+      await percy.start();
+      percy.build.error = 'build error';
+
+      expect(() => [...percy.yield.replaySnapshot(archived)])
+        .toThrowError('build error');
+    });
+
+    it('logs and pushes the snapshot when running', async () => {
+      await percy.start();
+
+      [...percy.yield.replaySnapshot(archived)];
+
+      expect(archived.meta).toEqual({
+        snapshot: { name: 'Replay Snapshot', testCase: undefined }
+      });
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Replaying snapshot: Replay Snapshot'
+      ]));
+    });
+  });
 });

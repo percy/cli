@@ -1,3 +1,4 @@
+import path from 'path';
 import { fs } from '@percy/cli-command/test/helpers';
 import {
   validateArchiveDir,
@@ -19,6 +20,15 @@ describe('Unit / Archive', () => {
       let result = validateArchiveDir('./percy-archive');
       expect(result).toMatch(/\/percy-archive$/);
       expect(result).not.toContain('..');
+    });
+
+    it('rejects paths that resolve to traversal segments', () => {
+      let traversal = '/foo/../../etc';
+      spyOn(path, 'resolve').and.returnValue(traversal);
+      spyOn(path, 'normalize').and.returnValue(traversal);
+
+      expect(() => validateArchiveDir(traversal))
+        .toThrowError(/path traversal detected/);
     });
   });
 
@@ -163,6 +173,22 @@ describe('Unit / Archive', () => {
     it('throws when archive directory does not exist', () => {
       expect(() => readArchivedSnapshots('./nonexistent', log))
         .toThrowError(/Archive directory not found/);
+    });
+
+    it('skips symlink entries with a warning', () => {
+      let archiveDir = '.test-archive-symlink';
+      fs.mkdirSync(archiveDir, { recursive: true });
+      fs.writeFileSync(`${archiveDir}/target.json`, '{}');
+      fs.symlinkSync(
+        path.resolve(`${archiveDir}/target.json`),
+        path.resolve(`${archiveDir}/linked.json`)
+      );
+
+      let results = readArchivedSnapshots(archiveDir, log);
+      expect(results).toHaveSize(0);
+      expect(log.warn).toHaveBeenCalledWith(
+        jasmine.stringMatching(/Skipping symlink: linked\.json/)
+      );
     });
   });
 });
