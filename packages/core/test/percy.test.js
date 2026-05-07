@@ -2223,6 +2223,15 @@ describe('Percy', () => {
       ]));
     });
 
+    it('respects an explicit skipUploads when archiveDir is set', () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        archiveDir: './percy-archive',
+        skipUploads: false
+      });
+      expect(percy.skipUploads).toBe(false);
+    });
+
     it('logs the archive summary when stopping with snapshots', async () => {
       percy = new Percy({
         token: 'PERCY_TOKEN',

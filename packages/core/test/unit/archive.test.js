@@ -113,6 +113,12 @@ describe('Unit / Archive', () => {
       expect(serialized.resources).toEqual([]);
     });
 
+    it('defaults missing resources to an empty array', () => {
+      delete snapshot.resources;
+      let serialized = serializeSnapshot(snapshot);
+      expect(serialized.resources).toEqual([]);
+    });
+
     it('handles resources with null content', () => {
       snapshot.resources[0].content = null;
       let serialized = serializeSnapshot(snapshot);
@@ -173,6 +179,17 @@ describe('Unit / Archive', () => {
     it('throws when archive directory does not exist', () => {
       expect(() => readArchivedSnapshots('./nonexistent', log))
         .toThrowError(/Archive directory not found/);
+    });
+
+    it('skips non-json and non-file entries silently', () => {
+      let archiveDir = '.test-archive-mixed';
+      fs.mkdirSync(archiveDir, { recursive: true });
+      fs.writeFileSync(`${archiveDir}/notes.txt`, 'ignored');
+      fs.mkdirSync(`${archiveDir}/nested.json`, { recursive: true });
+
+      let results = readArchivedSnapshots(archiveDir, log);
+      expect(results).toHaveSize(0);
+      expect(log.warn).not.toHaveBeenCalled();
     });
 
     it('skips symlink entries with a warning', () => {
