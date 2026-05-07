@@ -1,4 +1,5 @@
 import { sha256hash } from '@percy/client/utils';
+import { waitFor } from '@percy/core/utils';
 import { logger, api, setupTest, createTestServer, dedent, mockRequests } from './helpers/index.js';
 import Percy from '@percy/core';
 import { RESOURCE_CACHE_KEY, CACHE_STATS_KEY, DISK_SPILL_KEY } from '../src/discovery.js';
@@ -454,6 +455,48 @@ describe('Discovery', () => {
       jasmine.objectContaining({
         attributes: jasmine.objectContaining({
           'resource-url': dataUrl.replace('data:', 'data://')
+        })
+      })
+    ]));
+  });
+
+  it('captures favicon when the server provides one', async () => {
+    server.reply('/favicon.ico', () => [200, 'image/x-icon', pixel]);
+    let faviconDOM = testDOM.replace('</head>', '<link rel="icon" href="/favicon.ico"></head>');
+
+    await percy.snapshot({
+      name: 'favicon snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: faviconDOM
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/favicon.ico'
+        })
+      })
+    ]));
+  });
+
+  it('captures auto-fetched favicon when the page does not declare one', async () => {
+    percy.set({ discovery: { networkIdleTimeout: 1000 } });
+    server.reply('/favicon.ico', () => [200, 'image/x-icon', pixel]);
+
+    await percy.snapshot({
+      name: 'auto-fetch favicon snapshot',
+      url: 'http://localhost:8000',
+      domSnapshot: testDOM
+    });
+
+    await percy.idle();
+
+    expect(captured[0]).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/favicon.ico'
         })
       })
     ]));
@@ -2969,6 +3012,103 @@ describe('Discovery', () => {
         `[percy:core:discovery] ${err.stack}`
       ]));
     });
+
+    it('logs gracefully when direct font request fails', async () => {
+      server.reply('/style.css', () => [200, 'text/css', [
+        '@font-face { font-family: "test"; src: url("/font.woff") format("woff"); }',
+        'body { font-family: "test", "sans-serif"; }'
+      ].join('')]);
+
+      // First hit (browser): octet-stream forces font fallback path.
+      // Second hit (makeDirectRequest): 400 makes the direct fetch throw without retrying.
+      let callCount = 0;
+      server.reply('/font.woff', () => {
+        if (++callCount === 1) return [200, 'application/octet-stream', '<font>'];
+        return [400, 'text/plain', 'bad request'];
+      });
+
+      await percy.snapshot({
+        name: 'font error snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching('Encountered an error processing resource: http://localhost:8000/font.woff')
+      ]));
+    });
+
+    it('continues responses gracefully when the request is untracked', async () => {
+      let snap = percy.snapshot({
+        name: 'untracked snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await waitFor(() => percy.browser.sessions.size > 0);
+      let [session] = percy.browser.sessions.values();
+      let sentMethods = [];
+      let originalSend = session.send.bind(session);
+      spyOn(session, 'send').and.callFake((method, params) => {
+        sentMethods.push({ method, params });
+        return originalSend(method, params);
+      });
+
+      // Emit a response-stage Fetch.requestPaused for a request that was never
+      // tracked at the request stage — exercises the defensive null-request
+      // branch in _handleResponsePaused.
+      session.emit('Fetch.requestPaused', {
+        networkId: 'untracked-network-id',
+        requestId: 'untracked-intercept-id',
+        responseStatusCode: 200,
+        responseHeaders: [],
+        request: { url: 'http://example.com/orphan' }
+      });
+
+      await snap;
+
+      expect(sentMethods.some(c =>
+        c.method === 'Fetch.continueResponse' &&
+        c.params?.requestId === 'untracked-intercept-id'
+      )).toBe(true);
+    });
+
+    it('aborts oversized responses for untracked requests', async () => {
+      let snap = percy.snapshot({
+        name: 'untracked oversized snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await waitFor(() => percy.browser.sessions.size > 0);
+      let [session] = percy.browser.sessions.values();
+      let sentMethods = [];
+      let originalSend = session.send.bind(session);
+      spyOn(session, 'send').and.callFake((method, params) => {
+        sentMethods.push({ method, params });
+        return originalSend(method, params);
+      });
+
+      // Emit a response-stage Fetch.requestPaused with malformed Content-Length
+      // for a request that was never tracked at the request stage — exercises
+      // the `if (request)` false branch inside the oversized/malformed handler.
+      session.emit('Fetch.requestPaused', {
+        networkId: 'untracked-malformed-id',
+        requestId: 'untracked-malformed-intercept',
+        responseStatusCode: 200,
+        responseHeaders: [{ name: 'Content-Length', value: 'NaN' }],
+        request: { url: 'http://example.com/orphan-malformed' }
+      });
+
+      await snap;
+
+      expect(sentMethods.some(c =>
+        c.method === 'Fetch.failRequest' &&
+        c.params?.requestId === 'untracked-malformed-intercept'
+      )).toBe(true);
+    });
   });
 
   describe('with remote resources', () => {
@@ -3791,10 +3931,16 @@ describe('Discovery', () => {
 
       let validationCallCount = 0;
       let validationResolver;
+      let firstCallResolver;
+      let firstCallPromise = new Promise(resolve => { firstCallResolver = resolve; });
 
       // Mock validation to hang so we can test concurrent requests
       validationMock.and.callFake(() => {
         validationCallCount++;
+        if (firstCallResolver) {
+          firstCallResolver();
+          firstCallResolver = null;
+        }
         return new Promise(resolve => {
           validationResolver = resolve;
         });
@@ -3824,13 +3970,8 @@ describe('Discovery', () => {
         widths: [1000]
       });
 
-      // Wait for validation to be called at least once
-      let attempts = 0;
-      // eslint-disable-next-line no-unmodified-loop-condition
-      while (validationCallCount === 0 && attempts < 50) {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        attempts++;
-      }
+      // Wait deterministically for the first validation call instead of polling
+      await firstCallPromise;
 
       // Validation should only be called once
       expect(validationCallCount).toBe(1);

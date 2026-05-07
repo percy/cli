@@ -21,8 +21,11 @@ export class Browser extends EventEmitter {
   #lastid = 0;
 
   args = [
-    // disable the translate popup and optimization downloads
-    '--disable-features=Translate,OptimizationGuideModelDownloading',
+    // Disable Chrome features that break asset discovery in v143 new-headless:
+    // site/origin isolation (so cross-origin events stay on the page session),
+    // HTTPS-first auto-upgrade (would block HTTP discovery), and Local Network
+    // Access permission checks (would block sub-resources to localhost/RFC1918).
+    '--disable-features=Translate,OptimizationGuideModelDownloading,IsolateOrigins,site-per-process,HttpsFirstBalancedModeAutoEnable,LocalNetworkAccessChecks',
     // disable several subsystems which run network requests in the background
     '--disable-background-networking',
     // disable task throttling of timer tasks from background pages
@@ -302,7 +305,7 @@ export class Browser extends EventEmitter {
 
       let handleExitClose = () => handleError();
       let handleError = error => cleanup(() => reject(new Error(
-        `Failed to launch browser. ${error?.message ?? ''}\n${stderr}'\n\n`
+        `Failed to launch browser. ${error && error.message ? error.message : ''}\n${stderr}'\n\n`
       )));
 
       let cleanup = callback => {

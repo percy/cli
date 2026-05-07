@@ -879,7 +879,20 @@ describe('Snapshot', () => {
       errors: [{ detail: 'unexpected upload error' }]
     }]);
 
+    // Use a setter so a no-op catch is attached the moment percy.snapshot assigns
+    // the promise (percy.js:495). Without this, the upload can reject before the
+    // next line runs and Node reports an unhandled rejection.
     const promise = {};
+    let testSnapshotPromise;
+    Object.defineProperty(promise, 'test snapshot', {
+      configurable: true,
+      enumerable: true,
+      get() { return testSnapshotPromise; },
+      set(p) {
+        testSnapshotPromise = p;
+        p.catch(() => {});
+      }
+    });
     await percy.snapshot({
       name: 'test snapshot',
       url: 'http://localhost:8000',
@@ -1535,10 +1548,13 @@ describe('Snapshot', () => {
 
       await percy.idle();
 
+      // Chrome >=128 entity-escapes `<`/`>` inside attribute values per HTML5
+      // spec; pre-128 left them literal. Accept either form (e.g.
+      // `srcdoc="<p>Foo</p>"` or `srcdoc="&lt;p&gt;Foo&lt;/p&gt;"`).
       expect(Buffer.from((
         api.requests['/builds/123/resources'][0]
           .body.data.attributes['base64-content']
-      ), 'base64').toString()).toMatch(/<iframe.*srcdoc=".*<p>Foo<\/p>/);
+      ), 'base64').toString()).toMatch(/<iframe.*srcdoc=".*(?:<p>Foo<\/p>|&lt;p&gt;Foo&lt;\/p&gt;)/);
     });
 
     it('errors if execute cannot be serialized', async () => {

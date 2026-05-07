@@ -74,7 +74,7 @@ export class Network {
     this.captureMockedServiceWorker = options.captureMockedServiceWorker ?? false;
     this.userAgent = options.userAgent ??
       // by default, emulate a non-headless browser
-      page.session.browser.version.userAgent.replace('Headless', '');
+      page.session.browser?.version?.userAgent?.replace('Headless', '');
     this.fontDomains = options.fontDomains || [];
     this.intercept = options.intercept;
     this.meta = options.meta;
@@ -250,6 +250,13 @@ export class Network {
   _handleRequestPaused = async (session, event) => {
     let { networkId: requestId, requestId: interceptId, resourceType } = event;
 
+    // Response-stage events arrive here when Fetch.continueRequest was called
+    // with interceptResponse:true (see sendResponseResource).
+    if (event.responseStatusCode != null || event.responseErrorReason != null) {
+      await this._handleResponsePaused(session, event);
+      return;
+    }
+
     // wait for request to be sent
     await this.#requestsLifeCycleHandler.get(requestId).requestWillBeSent;
     let pending = this.#pending.get(requestId);
@@ -260,6 +267,53 @@ export class Network {
     pending?.request.url === event.request.url &&
     pending.request.method === event.request.method &&
     await this._handleRequest(session, { ...pending, resourceType, interceptId });
+  }
+
+  // Response-stage interception is kept ONLY to detect oversized/malformed
+  // Content-Length and abort the request before Chrome streams a body it
+  // would never terminate (Chrome 143 quirk). For everything else we just
+  // continue — body capture happens later via Network.loadingFinished →
+  // Network.getResponseBody (the v126 path). Reading the body at this stage
+  // hangs worker-initiated fetches, so we don't.
+  _handleResponsePaused = async (session, event) => {
+    let { networkId: requestId, requestId: interceptId, responseHeaders, responseStatusCode } = event;
+    let request = this.#requests.get(requestId);
+    let url = request ? originURL(request) : event.request?.url;
+    let headersObj = headersArrayToObject(responseHeaders);
+    let { tooLarge, malformed, rawValue } = inspectContentLength(headersObj);
+
+    if (tooLarge || malformed) {
+      let meta = { ...this.meta, url, responseStatus: responseStatusCode };
+      logAssetInstrumentation(this.log, 'asset_not_uploaded', 'resource_too_large', {
+        url, size: rawValue, snapshot: meta.snapshot
+      });
+      this.log.debug('- Skipping resource larger than 25MB', meta);
+      if (request) {
+        this._forgetRequest(request);
+        this.#requestsLifeCycleHandler.get(requestId).resolveResponseReceived();
+      }
+      try {
+        await this.send(session, 'Fetch.failRequest', { requestId: interceptId, errorReason: 'Aborted' });
+      } catch (error) {
+        /* istanbul ignore next: race with abort/close */
+        this.log.debug(`Failed to abort oversized response for ${url}: ${error.message}`);
+      }
+      return;
+    }
+
+    return this._continueResponse(session, interceptId, url);
+  }
+
+  // Tell the browser to continue the paused response, swallowing expected
+  // races (request already aborted, interception ID no longer valid).
+  _continueResponse = async (session, interceptId, url) => {
+    try {
+      await this.send(session, 'Fetch.continueResponse', { requestId: interceptId });
+    } catch (error) {
+      /* istanbul ignore next: race with abort/close */
+      if (error.message === ABORTED_MESSAGE || error.message.includes('Invalid InterceptionId')) return;
+      this.log.debug(`Failed to continue response for ${url}: ${error.message}`);
+    }
   }
 
   // Called when a request will be sent. If the request has already been intercepted, handle it;
@@ -351,11 +405,27 @@ export class Network {
   // callback. The request should have an associated response and be finished with any redirects.
   _handleLoadingFinished = async (session, event) => {
     let { requestId } = event;
-    // wait for upto 2 seconds or check if response has been sent
-    await this.#requestsLifeCycleHandler.get(requestId).responseReceived;
     let request = this.#requests.get(requestId);
     /* istanbul ignore if: race condition paranoia */
     if (!request) return;
+
+    // Wait for responseReceived to set request.response, but cap the wait —
+    // Chrome 143 doesn't fire Network.responseReceived for worker scripts
+    // (only requestWillBeSent and loadingFinished). Without the cap, the
+    // await would block forever and idle() would hang.
+    if (!request.response) {
+      await Promise.race([
+        this.#requestsLifeCycleHandler.get(requestId).responseReceived,
+        new Promise(resolve => setTimeout(resolve, 2000))
+      ]);
+    }
+
+    if (!request.response) {
+      // responseReceived never fired (e.g., v143 worker scripts) — clean up
+      // without saving. The body wasn't capturable from this session anyway.
+      this._forgetRequest(request);
+      return;
+    }
 
     await saveResponseResource(this, request, session);
     this._forgetRequest(request);
@@ -479,6 +549,24 @@ function originURL(request) {
   return normalizeURL((request.redirectChain[0] || request).url);
 }
 
+// Convert Fetch event responseHeaders ([{name, value}, …]) to a header object.
+function headersArrayToObject(arr) {
+  let out = {};
+  if (!Array.isArray(arr)) return out;
+  for (let { name, value } of arr) out[name] = value;
+  return out;
+}
+
+// Returns { tooLarge, malformed, rawValue } for Content-Length classification.
+function inspectContentLength(headers) {
+  let key = headers && Object.keys(headers).find(k => k.toLowerCase() === 'content-length');
+  let rawValue = key ? headers[key] : undefined;
+  let parsed = parseInt(rawValue);
+  let tooLarge = Number.isFinite(parsed) && parsed > MAX_RESOURCE_SIZE;
+  let malformed = rawValue !== undefined && rawValue !== null && String(rawValue).length > 0 && !Number.isFinite(parsed);
+  return { tooLarge, malformed, rawValue };
+}
+
 // Validate domain for auto-allowlisting feature
 // Only validates domains that returned 200 status
 async function validateDomainForAllowlist(network, hostname, url, statusCode) {
@@ -557,8 +645,10 @@ async function sendResponseResource(network, request, session) {
           .map(([k, v]) => ({ name: k.toLowerCase(), value: String(v) }))
       });
     } else {
+      // interceptResponse:true triggers a second pause at the response stage. See _handleResponsePaused.
       await send('Fetch.continueRequest', {
-        requestId: request.interceptId
+        requestId: request.interceptId,
+        interceptResponse: true
       });
     }
   } catch (error) {
@@ -603,7 +693,7 @@ async function makeDirectRequest(network, request, session) {
     'sec-fetch-site': 'same-origin',
     'sec-fetch-mode': 'cors',
     'sec-fetch-dest': 'font',
-    'sec-ch-ua': '"Chromium";v="123", "Google Chrome";v="123", "Not?A_Brand";v="99"',
+    'sec-ch-ua': '"Chromium";v="143", "Google Chrome";v="143", "Not?A_Brand";v="99"',
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"macOS"',
     'sec-fetch-user': '?1',
@@ -635,19 +725,8 @@ async function saveResponseResource(network, request, session) {
     url,
     responseStatus: response?.status
   };
-  // Checking for content length more than 100MB, to prevent websocket error which is governed by
-  // maxPayload option of websocket defaulted to 100MB.
-  // If content-length is more than our allowed 25MB, no need to process that resouce we can return log.
-  let contentLength = response.headers?.[Object.keys(response.headers).find(key => key.toLowerCase() === 'content-length')];
-  contentLength = parseInt(contentLength);
-  if (contentLength > MAX_RESOURCE_SIZE) {
-    logAssetInstrumentation(log, 'asset_not_uploaded', 'resource_too_large', {
-      url,
-      size: contentLength,
-      snapshot: meta.snapshot
-    });
-    return log.debug('- Skipping resource larger than 25MB', meta);
-  }
+  // Oversized/malformed Content-Length is rejected earlier in _handleResponsePaused;
+  // the body.length check below still guards cached responses where headers may lie.
   let resource = network.intercept.getResource(url);
 
   if (!resource || (!resource.root && !resource.provided && disableCache)) {
