@@ -96,6 +96,40 @@ describe('percy replay', () => {
     ]));
   });
 
+  it('logs and stops percy when an upstream error is thrown', async () => {
+    let archived = serializeSnapshot({
+      name: 'Boom Snapshot',
+      url: 'http://localhost:8000',
+      widths: [1280],
+      minHeight: 1024,
+      resources: [{
+        url: 'http://localhost:8000/',
+        sha: 'abc123',
+        mimetype: 'text/html',
+        root: true,
+        content: Buffer.from('<p>Test</p>')
+      }]
+    });
+
+    await setupTest({
+      filesystem: {
+        'archive/Boom_Snapshot.json': JSON.stringify(archived)
+      }
+    });
+
+    let { Percy } = await import('@percy/core');
+    spyOn(Percy.prototype, 'replaySnapshot').and.callFake(() => ({
+      [Symbol.asyncIterator]() { return this; },
+      next() { return Promise.reject(new Error('boom')); }
+    }));
+
+    await expectAsync(replay(['./archive'])).toBeRejectedWithError('boom');
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      '[percy] Error: boom'
+    ]));
+  });
+
   it('skips invalid archive files with warnings', async () => {
     let valid = serializeSnapshot({
       name: 'Valid Snapshot',
