@@ -1,17 +1,13 @@
 // Serializes ElementInternals custom-element :state() into Percy's clone
 // via [data-percy-custom-state~="X"] attribute selectors.
 //
-// Two paths land state attributes on cloned elements:
-//   1. Preflight path (CLI runtime): preflight.js intercepts attachInternals
-//      and stores ElementInternals refs on a per-page WeakMap. clone-dom.js
-//      reads the WeakMap and writes data-percy-custom-state on each clone.
-//   2. Fallback path (legacy or preflight-failed): test live elements with
-//      element.matches(':state(name)') after the CSS has been parsed for
-//      state names, and write the attribute on the corresponding clone.
-//
 // rewriteCustomStateCSS is the only entry point — it walks <style> elements,
 // rewrites :state(X) and legacy :--X (Chrome 90-124) to the data-attribute
-// selector, and triggers the fallback if any state names were observed.
+// selector, then for each state name discovered in CSS tests live custom
+// elements with element.matches(':state(name)') and stamps
+// data-percy-custom-state on the corresponding clone. Only states with at
+// least one CSS rule are captured — states without CSS have no visual
+// effect, so the clone faithfully represents what the page renders.
 
 import { walkShadowDOM } from './shadow-utils';
 
@@ -153,9 +149,8 @@ function elementInState(el, name) {
   return false;
 }
 
-// Fallback: when clone-dom.js didn't pre-populate data-percy-custom-state
-// (preflight unavailable), test live elements against :state() and write
-// the attribute on the matching clone element.
+// Test live custom elements against :state(name) for each state name found
+// in CSS, and stamp data-percy-custom-state on the matching clone element.
 function addCustomStateAttributes(ctx, stateNames) {
   const customElements = [];
   walkShadowDOM(ctx.dom, scope => {

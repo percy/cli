@@ -9,7 +9,6 @@ import serializeBase64 from './serialize-base64';
 import { handleErrors } from './utils';
 import {
   getClosedShadowRoot,
-  getCustomStateInternals,
   hasClosedShadowRoot
 } from './shadow-utils';
 
@@ -74,19 +73,9 @@ export function cloneNodeAndShadow(ctx) {
 
       let clone = cloneElementWithoutLifecycle(node);
 
-      // After cloning and before shadow DOM handling, detect custom states
-      let percyInternals = getCustomStateInternals(node);
-      if (percyInternals?.states?.size > 0) {
-        let states = [];
-        for (let state of percyInternals.states) {
-          // Skip invalid state values (spec requires <dashed-ident>)
-          if (!/^[-\w]+$/.test(state)) continue;
-          states.push(state);
-        }
-        if (states.length > 0) {
-          clone.setAttribute('data-percy-custom-state', states.join(' '));
-        }
-      }
+      // Custom-element :state() is captured by the fallback path in
+      // serialize-custom-states.js (live el.matches against state names
+      // discovered in CSS) — no clone-time fast path remains.
 
       // Handle <style> tag specifically for media queries
       if (node.nodeName === 'STYLE' && !enableJavaScript) {
@@ -121,7 +110,8 @@ export function cloneNodeAndShadow(ctx) {
         Array.from(clone.children).forEach((child) => clone.removeChild(child));
       }
 
-      // clone shadow DOM (including closed shadow roots intercepted by preflight)
+      // clone shadow DOM (including closed shadow roots captured via CDP
+      // and stored on window.__percyClosedShadowRoots)
       let nodeShadowRoot = node.shadowRoot || getClosedShadowRoot(node);
       if (nodeShadowRoot && !disableShadowDOM) {
         if (forceShadowAsLightDOM) {

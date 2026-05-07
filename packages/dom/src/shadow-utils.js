@@ -1,13 +1,13 @@
 // Shared traversal helpers for walking a document plus every shadow root
-// it contains (open or closed-via-preflight). Centralizes access to the
-// preflight WeakMaps so each call site honors the *iframe's* runtime
+// it contains (open or closed-via-CDP). Centralizes access to the
+// closed-shadow WeakMap so each call site honors the *iframe's* runtime
 // window — a top-level `window.__percyClosedShadowRoots` lookup misses
-// shadow roots and ElementInternals stored by preflight inside iframes.
+// shadow roots stored on per-document WeakMaps inside iframes.
 
 // Resolve the runtime window for any node (Document/Element/ShadowRoot).
 // For a node inside an iframe, returns the iframe's window — which is where
-// preflight installed the per-document WeakMaps. Returns null when imported
-// outside a browser realm (Node/Worker) so callers can no-op cleanly.
+// the per-document closed-shadow WeakMap is installed. Returns null when
+// imported outside a browser realm (Node/Worker) so callers can no-op.
 export function getRuntime(node) {
   const doc = node?.ownerDocument || node;
   if (doc?.defaultView) return doc.defaultView;
@@ -18,8 +18,8 @@ export function getRuntime(node) {
   return typeof window !== 'undefined' ? window : null;
 }
 
-// Closed-shadow-root WeakMap installed by preflight, scoped to the node's
-// owning document.
+// Closed-shadow-root WeakMap installed by exposeClosedShadowRoots via CDP,
+// scoped to the node's owning document.
 export function getClosedShadowRoot(host) {
   return getRuntime(host)?.__percyClosedShadowRoots?.get(host) || null;
 }
@@ -28,13 +28,8 @@ export function hasClosedShadowRoot(host) {
   return !!getRuntime(host)?.__percyClosedShadowRoots?.has(host);
 }
 
-// ElementInternals WeakMap installed by preflight.
-export function getCustomStateInternals(host) {
-  return getRuntime(host)?.__percyInternals?.get(host) || null;
-}
-
-// Resolve a shadow host's root, including closed roots intercepted by
-// preflight. Returns null when the host has no shadow root reachable.
+// Resolve a shadow host's root, including closed roots captured via CDP.
+// Returns null when the host has no shadow root reachable.
 export function getShadowRoot(host) {
   if (host?.shadowRoot) return host.shadowRoot;
   return getClosedShadowRoot(host);

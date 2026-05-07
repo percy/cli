@@ -252,8 +252,8 @@ export class Page {
     await this.eval(WAIT_FOR_CUSTOM_ELEMENTS_BODY, waitTimeout);
 
     // Discover closed shadow roots via CDP and expose them to
-    // PercyDOM.serialize() through window.__percyClosedShadowRoots. Skip
-    // when the customer opted out of shadow DOM entirely.
+    // PercyDOM.serialize() through window.__percyClosedShadowRoots. Skip the
+    // CDP discovery hop when the customer opted out of shadow DOM.
     if (!disableShadowDOM) {
       await exposeClosedShadowRoots(this.session, msg => this.log.debug(msg, this.meta));
     }

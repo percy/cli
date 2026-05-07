@@ -178,8 +178,8 @@ function stampOnce(ctx, element, attr, value) {
   ctx._liveMutations.push([element, attr]);
 }
 
-// Walk into shadow roots (including closed ones intercepted by preflight)
-// to find the deepest focused element, so we can stamp it with FOCUS_ATTR.
+// Walk into shadow roots (including closed ones captured via CDP) to find
+// the deepest focused element, so we can stamp it with FOCUS_ATTR.
 function findDeepActiveElement(dom) {
   let active = dom.activeElement;
   let root = active && getShadowRoot(active);

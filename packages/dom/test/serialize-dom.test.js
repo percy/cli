@@ -1,6 +1,6 @@
 import { withExample, replaceDoctype, createShadowEl, getTestBrowser, chromeBrowser, parseDOM, createAndAttachSlotTemplate } from './helpers';
 import serializeDOM, { waitForResize } from '@percy/dom';
-import { getClosedShadowRoot, hasClosedShadowRoot, getCustomStateInternals } from '../src/shadow-utils';
+import { getClosedShadowRoot, hasClosedShadowRoot } from '../src/shadow-utils';
 
 describe('serializeDOM', () => {
   it('returns serialied html, warnings, and resources', () => {
@@ -90,71 +90,6 @@ describe('serializeDOM', () => {
     expect(result.warnings.some(w => w.includes('[capture]') && w.includes('potentially inaccessible'))).toBe(false);
 
     window.__percyClosedShadowRoots = origMap;
-  });
-
-  it('skips invalid custom state values during cloning', () => {
-    if (!window.customElements.get('percy-bad-state')) {
-      class PercyBadState extends window.HTMLElement {
-        connectedCallback() { this.innerHTML = '<span>bad state</span>'; }
-      }
-      window.customElements.define('percy-bad-state', PercyBadState);
-    }
-    withExample('<percy-bad-state id="pbs"></percy-bad-state>', { withShadow: false });
-
-    let el = document.getElementById('pbs');
-    if (!window.__percyInternals) window.__percyInternals = new WeakMap();
-    // mix valid and invalid (non-dashed-ident) state values; only valid ones survive
-    window.__percyInternals.set(el, { states: new Set(['valid', 'invalid state', 'bad!', 'also-valid', '']) });
-
-    let result = serializeDOM();
-    expect(result.html).toContain('data-percy-custom-state="valid also-valid"');
-    expect(result.html).not.toContain('invalid state');
-    expect(result.html).not.toContain('bad!');
-
-    window.__percyInternals.delete(el);
-  });
-
-  it('handles __percyInternals with empty iterable states during cloning', () => {
-    if (!window.customElements.get('percy-empty-state')) {
-      class PercyEmptyState extends window.HTMLElement {
-        connectedCallback() { this.innerHTML = '<span>empty</span>'; }
-      }
-      window.customElements.define('percy-empty-state', PercyEmptyState);
-    }
-    withExample('<percy-empty-state id="pes"></percy-empty-state>', { withShadow: false });
-
-    let el = document.getElementById('pes');
-    if (!window.__percyInternals) window.__percyInternals = new WeakMap();
-    // size > 0 but iteration yields nothing (tricky edge case)
-    window.__percyInternals.set(el, { states: { size: 1, [Symbol.iterator]: function*() {} } });
-
-    let result = serializeDOM();
-    // Should not crash, and should not add the attribute since no states iterated
-    expect(result.html).not.toContain('data-percy-custom-state');
-    window.__percyInternals.delete(el);
-  });
-
-  it('sets data-percy-custom-state from __percyInternals during cloning', () => {
-    if (!window.customElements.get('percy-internals-test')) {
-      class PercyInternalsTest extends window.HTMLElement {
-        connectedCallback() {
-          this.innerHTML = '<span>internals test</span>';
-        }
-      }
-      window.customElements.define('percy-internals-test', PercyInternalsTest);
-    }
-    withExample('<percy-internals-test id="pit"></percy-internals-test>', { withShadow: false });
-
-    let el = document.getElementById('pit');
-    // Simulate preflight having captured internals states
-    if (!window.__percyInternals) window.__percyInternals = new WeakMap();
-    window.__percyInternals.set(el, { states: new Set(['open', 'loading']) });
-
-    let result = serializeDOM();
-    expect(result.html).toContain('data-percy-custom-state="open loading"');
-
-    // Cleanup
-    window.__percyInternals.delete(el);
   });
 
   it('applies default dom transformations', () => {
@@ -907,7 +842,6 @@ describe('serializeDOM', () => {
       // expected absent value.
       expect(getClosedShadowRoot(null)).toBeNull();
       expect(hasClosedShadowRoot(null)).toBe(false);
-      expect(getCustomStateInternals(null)).toBeNull();
     });
   });
 });

@@ -19,7 +19,7 @@ export function markElement(domElement, disableShadowDOM, forceShadowAsLightDOM)
     }
   }
 
-  // add special marker for shadow host (including closed shadow roots intercepted by preflight)
+  // add special marker for shadow host (including closed shadow roots captured via CDP)
   let shadowRoot = getShadowRoot(domElement);
   if (!disableShadowDOM && shadowRoot) {
     // When forceShadowAsLightDOM is true, don't mark as shadow host

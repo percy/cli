@@ -2,7 +2,6 @@ import {
   getRuntime,
   getClosedShadowRoot,
   hasClosedShadowRoot,
-  getCustomStateInternals,
   getShadowRoot,
   walkShadowDOM,
   queryShadowAll
@@ -30,7 +29,7 @@ describe('shadow-utils', () => {
   });
 
   describe('getClosedShadowRoot / hasClosedShadowRoot', () => {
-    it('returns null when no preflight WeakMap is installed', () => {
+    it('returns null when no closed-shadow WeakMap is installed', () => {
       withExample('<div id="x"></div>', { withShadow: false });
       let el = document.getElementById('x');
       let prev = window.__percyClosedShadowRoots;
@@ -59,39 +58,6 @@ describe('shadow-utils', () => {
           window.__percyClosedShadowRoots = prev;
         } else {
           delete window.__percyClosedShadowRoots;
-        }
-      }
-    });
-  });
-
-  describe('getCustomStateInternals', () => {
-    it('returns null when no preflight WeakMap is installed', () => {
-      withExample('<div id="y"></div>', { withShadow: false });
-      let el = document.getElementById('y');
-      let prev = window.__percyInternals;
-      delete window.__percyInternals;
-      try {
-        expect(getCustomStateInternals(el)).toBeNull();
-      } finally {
-        if (prev) window.__percyInternals = prev;
-      }
-    });
-
-    it('reads from the WeakMap when present', () => {
-      withExample('<div id="y"></div>', { withShadow: false });
-      let el = document.getElementById('y');
-      let map = new WeakMap();
-      let fakeInternals = { states: new Set(['active']) };
-      map.set(el, fakeInternals);
-      let prev = window.__percyInternals;
-      window.__percyInternals = map;
-      try {
-        expect(getCustomStateInternals(el)).toBe(fakeInternals);
-      } finally {
-        if (prev) {
-          window.__percyInternals = prev;
-        } else {
-          delete window.__percyInternals;
         }
       }
     });
