@@ -449,16 +449,20 @@ function collectStyleSheets(doc) {
 // we'd rewrite every `.btn:hover` on the page and apply the resulting
 // [data-percy-hover] rule globally, but only configured elements receive
 // that stamp, so other matches would silently lose their hover styles.
-function someStampedMatches(dom, baseSelector, stampedSet) {
-  let candidates;
-  try {
-    candidates = dom.querySelectorAll(baseSelector);
-  } catch (e) {
-    // Stripped selector invalid (e.g. pseudo was at the start: ':hover')
-    return false;
-  }
-  for (const el of candidates) {
-    if (stampedSet.has(el)) return true;
+//
+// Iterates `stampedSet` (typically single digits — only configured
+// elements are stamped) and tests `el.matches(baseSelector)` per element,
+// rather than scanning the whole live tree per rule. For a design system
+// shipping hundreds of `.btn:hover` rules this is the difference between
+// O(R × T) and O(R × |stamped|).
+function someStampedMatches(baseSelector, stampedSet) {
+  for (const el of stampedSet) {
+    try {
+      if (el.matches(baseSelector)) return true;
+    } catch (e) {
+      // Stripped selector invalid in this scope (e.g. pseudo was at the
+      // start: ':hover') — skip and try the next element.
+    }
   }
   return false;
 }
@@ -485,6 +489,10 @@ function extractPseudoClassRules(ctx) {
     if (!rules) continue;
 
     for (const rule of walkCSSRules(rules)) {
+      // Cheapest possible filter: a selector with no `:` can't contain any
+      // interactive pseudo. Skips most rules on most stylesheets without
+      // touching the regex bank.
+      if (!rule.selectorText.includes(':')) continue;
       if (!selectorContainsPseudo(rule.selectorText, ALL_INTERACTIVE_PSEUDO)) continue;
 
       const hasConfigOnly = selectorContainsPseudo(rule.selectorText, CONFIG_ONLY_PSEUDO);
@@ -494,7 +502,7 @@ function extractPseudoClassRules(ctx) {
       // rewritten selector wouldn't match anything.
       if (hasConfigOnly && !hasAutoDetect) {
         if (!stampedSet || stampedSet.size === 0) continue;
-        if (!someStampedMatches(ctx.dom, stripInteractivePseudo(rule.selectorText), stampedSet)) continue;
+        if (!someStampedMatches(stripInteractivePseudo(rule.selectorText), stampedSet)) continue;
       }
 
       // selectorContainsPseudo and rewritePseudoSelector share the boundary

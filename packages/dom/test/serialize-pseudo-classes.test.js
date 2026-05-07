@@ -440,13 +440,7 @@ describe('serialize-pseudo-classes', () => {
         ctx.clone.head.appendChild(s.cloneNode(true));
       }
 
-      // Clear any preflight WeakMap so the fallback path runs
-      let saved = window.__percyInternals;
-      window.__percyInternals = undefined;
-
       rewriteCustomStateCSS(ctx);
-
-      window.__percyInternals = saved;
 
       // The :state(open) should have been rewritten in CSS
       let style = ctx.clone.head.querySelector('style');

@@ -36,7 +36,9 @@ describe('Unit / core / exposeClosedShadowRoots', () => {
     expect(cdp.calls.find(c => c[0] === 'DOM.disable')).toBeDefined();
   });
 
-  it('exposes closed shadow roots via Runtime.callFunctionOn', async () => {
+  it('exposes closed shadow roots via Runtime.callFunctionOn (per-realm install)', async () => {
+    // The stamp function body must reference ownerDocument.defaultView so
+    // hosts in any realm install the WeakMap on the right window.
     let cdp = makeCdp({
       'DOM.getDocument': () => Promise.resolve({
         root: {
@@ -48,13 +50,6 @@ describe('Unit / core / exposeClosedShadowRoots', () => {
                 { shadowRootType: 'closed', backendNodeId: 10, children: [] },
                 { shadowRootType: 'open', backendNodeId: 11, children: [] }
               ]
-            },
-            {
-              backendNodeId: 3,
-              children: [{
-                backendNodeId: 4,
-                shadowRoots: [{ shadowRootType: 'closed', backendNodeId: 20, children: [] }]
-              }]
             }
           ]
         }
@@ -65,43 +60,24 @@ describe('Unit / core / exposeClosedShadowRoots', () => {
     });
 
     let logs = [];
-    expect(await exposeClosedShadowRoots(cdp, msg => logs.push(msg))).toBe(2);
+    expect(await exposeClosedShadowRoots(cdp, msg => logs.push(msg))).toBe(1);
 
     let runtimeCalls = cdp.calls.filter(c => c[0] === 'Runtime.callFunctionOn');
-    expect(runtimeCalls.length).toBe(2);
-    let hostObjectIds = runtimeCalls.map(c => c[1].objectId).sort();
-    let shadowObjectIds = runtimeCalls.map(c => c[1].arguments[0].objectId).sort();
-    expect(hostObjectIds).toEqual(['obj-2', 'obj-4']);
-    expect(shadowObjectIds).toEqual(['obj-10', 'obj-20']);
-    expect(logs[0]).toContain('Found 2 closed shadow root');
+    expect(runtimeCalls.length).toBe(1);
+    expect(runtimeCalls[0][1].objectId).toBe('obj-2');
+    expect(runtimeCalls[0][1].arguments[0].objectId).toBe('obj-10');
+    expect(runtimeCalls[0][1].functionDeclaration).toContain('ownerDocument.defaultView');
+    expect(runtimeCalls[0][1].functionDeclaration).toContain('__percyClosedShadowRoots');
+
+    // No standalone Runtime.evaluate to install the WeakMap — install is
+    // bundled into the per-pair stamp now.
+    expect(cdp.calls.find(c => c[0] === 'Runtime.evaluate')).toBeUndefined();
+    expect(logs[0]).toContain('Found 1 closed shadow root');
   });
 
-  it('skips a single bad pair and continues with the rest', async () => {
-    let resolveCalls = 0;
-    let cdp = makeCdp({
-      'DOM.getDocument': () => Promise.resolve({
-        root: {
-          backendNodeId: 1,
-          shadowRoots: [
-            { shadowRootType: 'closed', backendNodeId: 100 },
-            { shadowRootType: 'closed', backendNodeId: 200 }
-          ]
-        }
-      }),
-      'DOM.resolveNode': () => {
-        resolveCalls++;
-        if (resolveCalls === 1) return Promise.reject(new Error('node detached'));
-        return Promise.resolve({ object: { objectId: `obj-${resolveCalls}` } });
-      }
-    });
-
-    let logs = [];
-    let result = await exposeClosedShadowRoots(cdp, msg => logs.push(msg));
-    expect(result).toBe(2);
-    expect(logs.some(m => m.includes('Skipping a closed shadow pair'))).toBe(true);
-  });
-
-  it('logs and continues when callFunctionOn rejects on one pair', async () => {
+  it('returns the count of successfully stamped pairs, not just discovered', async () => {
+    // 2 pairs discovered; second callFunctionOn rejects. Return value
+    // reflects only the 1 that succeeded.
     let cfoCalls = 0;
     let cdp = makeCdp({
       'DOM.getDocument': () => Promise.resolve({
@@ -123,8 +99,50 @@ describe('Unit / core / exposeClosedShadowRoots', () => {
       }
     });
     let logs = [];
-    expect(await exposeClosedShadowRoots(cdp, m => logs.push(m))).toBe(2);
+    expect(await exposeClosedShadowRoots(cdp, m => logs.push(m))).toBe(1);
     expect(logs.some(m => m.includes('Skipping a closed shadow pair: detached'))).toBe(true);
+  });
+
+  it('returns 0 when every stamp fails', async () => {
+    let cdp = makeCdp({
+      'DOM.getDocument': () => Promise.resolve({
+        root: {
+          backendNodeId: 1,
+          shadowRoots: [{ shadowRootType: 'closed', backendNodeId: 10 }]
+        }
+      }),
+      'DOM.resolveNode': ({ backendNodeId }) => Promise.resolve({
+        object: { objectId: `obj-${backendNodeId}` }
+      }),
+      'Runtime.callFunctionOn': () => Promise.reject(new Error('all bad'))
+    });
+    expect(await exposeClosedShadowRoots(cdp)).toBe(0);
+  });
+
+  it('skips a single bad resolveNode pair and continues with the rest', async () => {
+    let resolveCalls = 0;
+    let cdp = makeCdp({
+      'DOM.getDocument': () => Promise.resolve({
+        root: {
+          backendNodeId: 1,
+          shadowRoots: [
+            { shadowRootType: 'closed', backendNodeId: 100 },
+            { shadowRootType: 'closed', backendNodeId: 200 }
+          ]
+        }
+      }),
+      'DOM.resolveNode': () => {
+        resolveCalls++;
+        if (resolveCalls === 1) return Promise.reject(new Error('node detached'));
+        return Promise.resolve({ object: { objectId: `obj-${resolveCalls}` } });
+      }
+    });
+
+    let logs = [];
+    let result = await exposeClosedShadowRoots(cdp, msg => logs.push(msg));
+    // Only one pair survived resolveNode → 1 stamp succeeded.
+    expect(result).toBe(1);
+    expect(logs.some(m => m.includes('Skipping a closed shadow pair'))).toBe(true);
   });
 
   it('returns -1 and logs when DOM.enable / DOM.getDocument throws', async () => {
@@ -161,7 +179,7 @@ describe('Unit / core / exposeClosedShadowRoots', () => {
       'DOM.resolveNode': () => Promise.reject(nonErrorReason)
     });
     let logs = [];
-    expect(await exposeClosedShadowRoots(cdp, m => logs.push(m))).toBe(1);
+    expect(await exposeClosedShadowRoots(cdp, m => logs.push(m))).toBe(0);
     expect(logs.some(m => m.includes('Skipping a closed shadow pair: detached'))).toBe(true);
   });
 
@@ -178,16 +196,29 @@ describe('Unit / core / exposeClosedShadowRoots', () => {
       'Runtime.callFunctionOn': () => Promise.reject(nonErrorReason)
     });
     let logs = [];
-    expect(await exposeClosedShadowRoots(cdp, m => logs.push(m))).toBe(1);
+    expect(await exposeClosedShadowRoots(cdp, m => logs.push(m))).toBe(0);
     expect(logs.some(m => m.includes('Skipping a closed shadow pair: cfo-string'))).toBe(true);
   });
 
-  it('swallows DOM.disable errors in the finally cleanup', async () => {
+  it('logs (rather than swallowing silently) when DOM.disable rejects in finally', async () => {
     let cdp = makeCdp({
       'DOM.getDocument': () => Promise.resolve({ root: { backendNodeId: 1 } }),
       'DOM.disable': () => Promise.reject(new Error('disable failed'))
     });
-    expect(await exposeClosedShadowRoots(cdp)).toBe(0);
+    let logs = [];
+    expect(await exposeClosedShadowRoots(cdp, m => logs.push(m))).toBe(0);
+    expect(logs.some(m => m.includes('DOM.disable failed') && m.includes('disable failed'))).toBe(true);
+  });
+
+  it('tolerates a non-Error thrown by DOM.disable in finally', async () => {
+    const nonErrorReason = 'disable-string';
+    let cdp = makeCdp({
+      'DOM.getDocument': () => Promise.resolve({ root: { backendNodeId: 1 } }),
+      'DOM.disable': () => Promise.reject(nonErrorReason)
+    });
+    let logs = [];
+    expect(await exposeClosedShadowRoots(cdp, m => logs.push(m))).toBe(0);
+    expect(logs.some(m => m.includes('DOM.disable failed') && m.includes('disable-string'))).toBe(true);
   });
 
   it('processes more pairs than the batch size in multiple passes', async () => {
@@ -206,6 +237,40 @@ describe('Unit / core / exposeClosedShadowRoots', () => {
     expect(await exposeClosedShadowRoots(cdp)).toBe(20);
     let cfoCalls = cdp.calls.filter(c => c[0] === 'Runtime.callFunctionOn');
     expect(cfoCalls.length).toBe(20);
+  });
+
+  it('rejects concurrent invocations on the same session', async () => {
+    // First invocation parks at DOM.getDocument; second invocation arrives,
+    // sees the in-flight guard, and bails immediately with -1.
+    let release;
+    let getDocPromise = new Promise(resolve => { release = resolve; });
+    let cdp = makeCdp({
+      'DOM.getDocument': () => getDocPromise.then(() => ({
+        root: {
+          backendNodeId: 1,
+          shadowRoots: [{ shadowRootType: 'closed', backendNodeId: 10 }]
+        }
+      })),
+      'DOM.resolveNode': ({ backendNodeId }) => Promise.resolve({
+        object: { objectId: `obj-${backendNodeId}` }
+      })
+    });
+
+    let logs = [];
+    let first = exposeClosedShadowRoots(cdp, m => logs.push(m));
+    // Yield so the first call sets the in-flight guard before the second starts.
+    await Promise.resolve();
+    let second = exposeClosedShadowRoots(cdp, m => logs.push(m));
+    expect(await second).toBe(-1);
+    expect(logs.some(m => m.includes('Skipping concurrent closed-shadow CDP discovery'))).toBe(true);
+
+    release();
+    expect(await first).toBe(1);
+
+    // After the first call finishes, the guard is cleared — a fresh invocation
+    // proceeds normally.
+    let third = await exposeClosedShadowRoots(cdp);
+    expect(third).toBe(1);
   });
 });
 
@@ -262,10 +327,28 @@ describe('Unit / core / walkCDPNodes', () => {
     ]);
   });
 
-  it('caps recursion at MAX_SHADOW_DEPTH (10)', () => {
-    // Build a chain of nested closed shadow hosts. Without the depth cap a
-    // long chain would record one pair per level; with the cap recursion
-    // bottoms out and the tail of the chain is dropped.
+  it('does NOT count plain children toward the depth budget', () => {
+    // 30 plain children deep, then a closed shadow root at the bottom.
+    // Without the boundary-only depth rule a 10-level plain-child cap would
+    // miss this; the new rule only increments depth on shadow/iframe
+    // boundary crossings, so the shadow at the bottom is still captured.
+    let leaf = {
+      backendNodeId: 9999,
+      shadowRoots: [{ shadowRootType: 'closed', backendNodeId: 10000 }]
+    };
+    for (let i = 0; i < 30; i++) {
+      leaf = { backendNodeId: 1000 + i, children: [leaf] };
+    }
+    let pairs = [];
+    walkCDPNodes(leaf, pairs);
+    expect(pairs).toEqual([
+      { hostBackendNodeId: 9999, shadowBackendNodeId: 10000 }
+    ]);
+  });
+
+  it('caps shadow boundary recursion at MAX_SHADOW_DEPTH (10)', () => {
+    // Build a chain of nested closed shadow hosts. Each shadow boundary
+    // increments depth, so a 30-link chain truncates at 10 pairs.
     let leaf = { backendNodeId: 9999 };
     for (let i = 0; i < 30; i++) {
       leaf = {
@@ -279,7 +362,6 @@ describe('Unit / core / walkCDPNodes', () => {
     }
     let pairs = [];
     walkCDPNodes(leaf, pairs);
-    expect(pairs.length).toBeLessThanOrEqual(10);
-    expect(pairs.length).toBeGreaterThan(0);
+    expect(pairs.length).toBe(10);
   });
 });
