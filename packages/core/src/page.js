@@ -318,7 +318,7 @@ export class Page {
         PREFLIGHT_SCRIPT
           ? pageEnablePromise.then(() =>
             session.send('Page.addScriptToEvaluateOnNewDocument', { source: PREFLIGHT_SCRIPT })
-              .catch(err => handlePreflightInjectionError(err))
+              .catch(handlePreflightInjectionError)
           )
           : pageEnablePromise,
         session.send('Page.setLifecycleEventsEnabled', { enabled: true }),
