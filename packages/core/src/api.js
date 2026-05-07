@@ -331,6 +331,17 @@ export function createPercyServer(percy, port) {
         platform = normalized;
       }
 
+      // Validate per-snapshot resolver override (Unit 3a). Optional field;
+      // when present must be one of the allowlisted values. Unknown values
+      // are 400-rejected rather than silently ignored. SDK does not set this
+      // today (R8 in the plan); ops uses it for one-off curl diagnostics.
+      const RESOLVER_VALUES = new Set(['wda-direct', 'maestro-hierarchy']);
+      if (req.body.resolver !== undefined) {
+        if (typeof req.body.resolver !== 'string' || !RESOLVER_VALUES.has(req.body.resolver)) {
+          throw new ServerError(400, `Invalid resolver: must be one of ${[...RESOLVER_VALUES].join(', ')}, got ${JSON.stringify(req.body.resolver)}`);
+        }
+      }
+
       // Validate regions input shape early (before file I/O and ADB work) so
       // malformed requests don't consume resolver/relay work.
       if (req.body.regions !== undefined) {
@@ -479,18 +490,40 @@ export function createPercyServer(percy, port) {
 
       // Transform and forward regions if present.
       //
+      // iOS resolver-choice cascade (Unit 3a):
+      //   1. Per-snapshot override: `request.body.resolver` (validated above).
+      //   2. Process env: `PERCY_IOS_RESOLVER`. Allowlisted values; unknown
+      //      values warn + fall through to default.
+      //   3. Default: 'wda-direct' (Unit 3a is opt-in only — Unit 3b's
+      //      env-conditional flip lands in a separate follow-up PR).
+      //
       // Resolver dispatch:
-      //   Android — `maestroDump({ platform: 'android' })` + per-region `firstMatch`
-      //   iOS (default — `PERCY_IOS_RESOLVER` unset/'wda-direct') — wda-hierarchy
-      //     source-dump resolver (existing path; gated for deletion in Phase 4 of
-      //     the 2026-04-27 plan once Phase 0.5 empirical probe passes).
-      //   iOS (new — `PERCY_IOS_RESOLVER=maestro-hierarchy`) — `maestroDump` +
-      //     per-region `firstMatch` (Phase 1 Unit 3 of the plan; the iOS branch of
-      //     the resolver is currently a Unit 2a stub returning 'not-implemented'
-      //     until Unit 2b lands the real attribute mapping post Phase 0.5).
+      //   Android — `maestroDump({ platform: 'android', sessionId })` + per-region `firstMatch`
+      //   iOS resolver=wda-direct — wda-hierarchy source-dump (legacy).
+      //   iOS resolver=maestro-hierarchy — `maestroDump({platform: 'ios', sessionId})`
+      //     which routes to runIosHttpDump (HTTP primary) + runMaestroIosDump
+      //     (CLI fallback) per Unit 2.
       // Coordinate regions: transform to boundingBox as before.
       if (req.body.regions && Array.isArray(req.body.regions)) {
-        const useMaestroHierarchyForIos = process.env.PERCY_IOS_RESOLVER === 'maestro-hierarchy';
+        // Compute the iOS resolver choice via the cascade. For non-iOS
+        // platforms the choice is irrelevant (Android always uses maestroDump).
+        let iosResolver = 'wda-direct';
+        if (platform === 'ios') {
+          if (req.body.resolver !== undefined) {
+            // Already validated against the allowlist above; safe to use directly.
+            iosResolver = req.body.resolver;
+          } else if (process.env.PERCY_IOS_RESOLVER !== undefined) {
+            const envValue = process.env.PERCY_IOS_RESOLVER;
+            if (envValue === 'wda-direct' || envValue === 'maestro-hierarchy') {
+              iosResolver = envValue;
+            } else {
+              percy.log.warn(`PERCY_IOS_RESOLVER unknown value ${JSON.stringify(envValue)} — falling back to wda-direct`);
+              // iosResolver stays at 'wda-direct'.
+            }
+          }
+          // else: env unset, default 'wda-direct' (Unit 3a opt-in posture).
+        }
+        const useMaestroHierarchyForIos = iosResolver === 'maestro-hierarchy';
         let resolvedRegions = [];
         let elementRegionCount = req.body.regions.filter(r => r && r.element).length;
         let cachedDump = null; // request-local lazy dump (Android always; iOS when env switch on)
@@ -553,10 +586,12 @@ export function createPercyServer(percy, port) {
               if (!r) continue;
               resolved = r;
             } else {
-              // Cross-platform path (Android always; iOS when PERCY_IOS_RESOLVER=maestro-hierarchy):
+              // Cross-platform path (Android always; iOS when resolver === 'maestro-hierarchy'):
               // lazy dump + memoize result (including errors), then per-region firstMatch.
+              // sessionId is threaded through so the iOS HTTP path can scrub-log
+              // a correlation tag (sid prefix) without leaking the full id.
               if (cachedDump === null) {
-                cachedDump = await adbDump({ platform });
+                cachedDump = await adbDump({ platform, sessionId });
               }
               if (cachedDump.kind !== 'hierarchy') {
                 if (!elementSkipWarned) {

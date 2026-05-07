@@ -1148,6 +1148,99 @@ describe('API Server', () => {
       expect(acceptableWarnings.some(w => log.includes(w))).toBe(true);
     });
 
+    describe('iOS resolver-choice cascade (Unit 3a)', () => {
+      // Save + restore PERCY_IOS_RESOLVER per-test so we don't leak state.
+      let savedEnv;
+      beforeEach(() => {
+        savedEnv = process.env.PERCY_IOS_RESOLVER;
+        delete process.env.PERCY_IOS_RESOLVER;
+      });
+      afterEach(() => {
+        if (savedEnv === undefined) delete process.env.PERCY_IOS_RESOLVER;
+        else process.env.PERCY_IOS_RESOLVER = savedEnv;
+      });
+
+      it('rejects body.resolver with unknown value (HTTP 400)', async () => {
+        await percy.start();
+        await expectAsync(postMaestro({
+          name: SS_NAME, sessionId: SID, platform: 'ios',
+          resolver: 'totally-bogus',
+          regions: [{ element: { id: 'submitBtn' }, algorithm: 'ignore' }]
+        })).toBeRejectedWithError(/Invalid resolver/);
+      });
+
+      it('default (env unset, body unset) uses legacy wda-direct path', async () => {
+        // Existing behavior preserved — Unit 3a does NOT flip the default.
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+        await postMaestro({
+          name: SS_NAME, sessionId: SID, platform: 'ios',
+          regions: [{ element: { id: 'submitBtn' }, algorithm: 'ignore' }]
+        });
+        // wda-direct path: resolveIosRegions logs `iOS element region warn-skip:`
+        // (commonly with `missing` reason in the test env where wda-meta.json doesn't exist).
+        const log = logger.stderr.join('\n');
+        expect(log).toMatch(/iOS element region warn-skip/);
+      });
+
+      it('PERCY_IOS_RESOLVER=maestro-hierarchy uses new HTTP/CLI dispatch (env-missing → skip in test env)', async () => {
+        process.env.PERCY_IOS_RESOLVER = 'maestro-hierarchy';
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+        await postMaestro({
+          name: SS_NAME, sessionId: SID, platform: 'ios',
+          regions: [{ element: { id: 'submitBtn' }, algorithm: 'ignore' }]
+        });
+        // New path goes through maestro-hierarchy.js dump() → returns env-missing
+        // because PERCY_IOS_DEVICE_UDID + PERCY_IOS_DRIVER_HOST_PORT aren't set.
+        // api.js's element-region-resolver-unavailable warning surfaces that.
+        const log = logger.stderr.join('\n');
+        expect(log).toMatch(/Element-region resolver unavailable \(env-missing\)/);
+      });
+
+      it('body.resolver=maestro-hierarchy overrides env=undefined (per-snapshot wins over default)', async () => {
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+        await postMaestro({
+          name: SS_NAME, sessionId: SID, platform: 'ios',
+          resolver: 'maestro-hierarchy',
+          regions: [{ element: { id: 'submitBtn' }, algorithm: 'ignore' }]
+        });
+        const log = logger.stderr.join('\n');
+        expect(log).toMatch(/Element-region resolver unavailable \(env-missing\)/);
+      });
+
+      it('body.resolver=wda-direct overrides env=maestro-hierarchy (per-snapshot wins over env)', async () => {
+        process.env.PERCY_IOS_RESOLVER = 'maestro-hierarchy';
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+        await postMaestro({
+          name: SS_NAME, sessionId: SID, platform: 'ios',
+          resolver: 'wda-direct',
+          regions: [{ element: { id: 'submitBtn' }, algorithm: 'ignore' }]
+        });
+        const log = logger.stderr.join('\n');
+        // Per-snapshot override forces wda-direct path; should NOT see the
+        // maestro-hierarchy env-missing warning.
+        expect(log).not.toMatch(/Element-region resolver unavailable \(env-missing\)/);
+        // Should see wda-direct path warning instead.
+        expect(log).toMatch(/iOS element region warn-skip/);
+      });
+
+      it('PERCY_IOS_RESOLVER=garbage defaults gracefully to wda-direct (graceful fallback)', async () => {
+        process.env.PERCY_IOS_RESOLVER = 'totally-invalid';
+        spyOn(percy, 'upload').and.resolveTo();
+        await percy.start();
+        await postMaestro({
+          name: SS_NAME, sessionId: SID, platform: 'ios',
+          regions: [{ element: { id: 'submitBtn' }, algorithm: 'ignore' }]
+        });
+        const log = logger.stderr.join('\n');
+        // Unknown env value: falls back to wda-direct.
+        expect(log).toMatch(/iOS element region warn-skip/);
+      });
+    });
+
     it('forwards testCase, labels, thTestCaseExecutionId, tile metadata, and sync mode', async () => {
       spyOn(percy.client, 'getComparisonDetails').and.returnValue(getSnapshotDetailsResponse);
       spyOn(percy, 'upload').and.callFake((_, callback) => callback.resolve());
