@@ -29,7 +29,8 @@
   },
   "@percy/cli": {
     "commands": [
-      "./dist/exec.js"
+      "./dist/exec.js",
+      "./dist/replay.js"
     ]
   },
   "dependencies": {

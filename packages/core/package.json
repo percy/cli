@@ -30,6 +30,7 @@
     },
     "./utils": "./dist/utils.js",
     "./config": "./dist/config.js",
+    "./archive": "./dist/archive.js",
     "./install": "./dist/install.js",
     "./test/helpers": "./test/helpers/index.js",
     "./test/helpers/server": "./test/helpers/server.js"
