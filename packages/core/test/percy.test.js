@@ -1,4 +1,4 @@
-import { logger, api, setupTest, createTestServer } from './helpers/index.js';
+import { logger, api, setupTest, createTestServer, fs } from './helpers/index.js';
 import { generatePromise, AbortController, base64encode } from '../src/utils.js';
 import Percy from '@percy/core';
 import Pako from 'pako';
@@ -2253,8 +2253,13 @@ describe('Percy', () => {
       });
       await percy.start();
 
-      let archive = await import('../src/archive.js');
-      spyOn(archive, 'archiveSnapshot').and.throwError(new Error('disk full'));
+      // memfs spy is already in place; override it to fail for archive writes
+      fs.writeFileSync.and.callFake((p, ...rest) => {
+        if (typeof p === 'string' && p.includes('percy-archive')) {
+          throw new Error('disk full');
+        }
+        return fs.$vol.writeFileSync(p, ...rest);
+      });
 
       await percy.snapshot({
         name: 'Failing Snapshot',
@@ -2263,8 +2268,8 @@ describe('Percy', () => {
         widths: [1000]
       });
 
-      // wait a tick for the archive promise chain to settle
-      await new Promise(r => setImmediate(r));
+      // give the dynamic import + .catch chain a chance to settle
+      await new Promise(r => setTimeout(r, 50));
       await percy.stop();
 
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
@@ -2301,7 +2306,8 @@ describe('Percy', () => {
     it('logs and pushes the snapshot when running', async () => {
       await percy.start();
 
-      [...percy.yield.replaySnapshot(archived)];
+      let result = [...percy.yield.replaySnapshot(archived)];
+      expect(result).toEqual([]);
 
       expect(archived.meta).toEqual({
         snapshot: { name: 'Replay Snapshot', testCase: undefined }
