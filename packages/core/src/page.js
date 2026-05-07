@@ -255,7 +255,7 @@ export class Page {
     // PercyDOM.serialize() through window.__percyClosedShadowRoots. Skip the
     // CDP discovery hop when the customer opted out of shadow DOM.
     if (!disableShadowDOM) {
-      await exposeClosedShadowRoots(this.session, msg => this.log.debug(msg, this.meta));
+      await exposeClosedShadowRoots(this.session, this._logShadowDebug);
     }
 
     await this.insertPercyDom();
@@ -272,6 +272,11 @@ export class Page {
 
     return { ...snapshot, ...capture };
   }
+
+  // Logger for the closed-shadow CDP helper. Class-field arrow auto-binds
+  // to the instance, so we can hand it across the helper boundary without
+  // a per-call closure.
+  _logShadowDebug = msg => this.log.debug(msg, this.meta);
 
   // Initialize newly attached pages and iframes with page options
   _handleAttachedToTarget = event => {
