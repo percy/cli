@@ -4,6 +4,7 @@ import Percy from '@percy/core';
 import Pako from 'pako';
 import DetectProxy from '@percy/client/detect-proxy';
 import { validateSnapshotOptions } from '../src/snapshot.js';
+import { Page } from '../src/page.js';
 
 describe('Percy', () => {
   let percy, server;
@@ -136,6 +137,18 @@ describe('Percy', () => {
     await page.snapshot({ disableShadowDOM: true });
     let domGetDocSends = sendSpy.calls.allArgs().filter(a => a[0] === 'DOM.getDocument');
     expect(domGetDocSends.length).toBe(0);
+  });
+
+  it('Page._logShadowDebug forwards messages to log.debug with page meta', () => {
+    // Covers the class-field arrow Page passes to exposeClosedShadowRoots.
+    // Real snapshot tests don't fire it (no closed shadows in their HTML),
+    // so exercise the method directly with a stubbed log/meta.
+    let page = Object.create(Page.prototype);
+    let calls = [];
+    page.log = { debug: (msg, meta) => calls.push([msg, meta]) };
+    page.meta = { snapshot: { name: 'parity' } };
+    page._logShadowDebug('found 3 closed shadow root(s)');
+    expect(calls).toEqual([['found 3 closed shadow root(s)', page.meta]]);
   });
 
   describe('.start()', () => {
