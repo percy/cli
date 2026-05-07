@@ -1207,6 +1207,8 @@ describe('Discovery', () => {
   });
 
   it('captures requests from workers', async () => {
+    percy.loglevel('debug');
+
     // Fetch and Network events are inherently racey because they come from different processes. The
     // bug we are testing here happens specifically when the Network event comes after the Fetch
     // event. Using a stub, we can cause Network events to happen a few milliseconds later than they
@@ -1251,6 +1253,11 @@ describe('Discovery', () => {
           'resource-url': 'http://localhost:8000/img.gif'
         })
       })
+    ]));
+
+    // Asserts the v143 worker-script timeout fired so a regression of the hang-fix is observable.
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Skipping resource: responseReceived not received within 2000ms - http:\/\/localhost:8000\/worker\.js/)
     ]));
   });
 

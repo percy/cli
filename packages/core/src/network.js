@@ -7,6 +7,8 @@ const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for acco
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
+// Chrome 143 omits Network.responseReceived for worker scripts; cap the wait so loadingFinished can clean up.
+const RESPONSE_RECEIVED_TIMEOUT = 2000;
 
 // RequestLifeCycleHandler handles life cycle of a requestId
 // Ideal flow:          requestWillBeSent -> requestPaused -> responseReceived -> loadingFinished / loadingFailed
@@ -364,20 +366,17 @@ export class Network {
     /* istanbul ignore if: race condition paranoia */
     if (!request) return;
 
-    // Wait for responseReceived to set request.response, but cap the wait —
-    // Chrome 143 doesn't fire Network.responseReceived for worker scripts
-    // (only requestWillBeSent and loadingFinished). Without the cap, the
-    // await would block forever and idle() would hang.
     if (!request.response) {
+      let timerId;
       await Promise.race([
         this.#requestsLifeCycleHandler.get(requestId).responseReceived,
-        new Promise(resolve => setTimeout(resolve, 2000))
+        new Promise(resolve => { timerId = setTimeout(resolve, RESPONSE_RECEIVED_TIMEOUT); })
       ]);
+      clearTimeout(timerId);
     }
 
     if (!request.response) {
-      // responseReceived never fired (e.g., v143 worker scripts) — clean up
-      // without saving. The body wasn't capturable from this session anyway.
+      this.log.debug(`Skipping resource: responseReceived not received within ${RESPONSE_RECEIVED_TIMEOUT}ms - ${request.url}`);
       this._forgetRequest(request);
       return;
     }
