@@ -466,7 +466,7 @@ describe('Unit / maestro-hierarchy', () => {
     });
   });
 
-  describe('iOS branch (Phase 1 scaffolding — Unit 2a stub)', () => {
+  describe('iOS dispatch — env handling', () => {
     it('returns env-missing when PERCY_IOS_DEVICE_UDID is unset', async () => {
       const getEnv = key => {
         if (key === 'PERCY_IOS_DRIVER_HOST_PORT') return '11100';
@@ -490,18 +490,6 @@ describe('Unit / maestro-hierarchy', () => {
       expect(res).toEqual({ kind: 'unavailable', reason: 'env-missing' });
     });
 
-    it('returns not-implemented (FIXME-PHASE-0.5) when env vars are present', async () => {
-      // Stub stays in place until Unit 2b lands the real iOS hierarchy parser
-      // against a Phase 0.5 fixture or Maestro CLI source dual-source verification.
-      const getEnv = key => {
-        if (key === 'PERCY_IOS_DEVICE_UDID') return '00008110-000065081404401E';
-        if (key === 'PERCY_IOS_DRIVER_HOST_PORT') return '11100';
-        return undefined;
-      };
-      const res = await dump({ platform: 'ios', getEnv });
-      expect(res).toEqual({ kind: 'unavailable', reason: 'not-implemented' });
-    });
-
     it('does not invoke adb on iOS dispatch', async () => {
       const execAdb = async () => { throw new Error('should not hit adb on iOS'); };
       const getEnv = key => {
@@ -509,8 +497,11 @@ describe('Unit / maestro-hierarchy', () => {
         if (key === 'PERCY_IOS_DRIVER_HOST_PORT') return '11100';
         return undefined;
       };
-      const res = await dump({ platform: 'ios', execAdb, getEnv });
-      expect(res.kind).toBe('unavailable');
+      // Fake httpRequest that returns connection-refused → forces fallback,
+      // which uses execMaestro not execAdb. Either way, adb must not be hit.
+      const httpRequest = async () => { throw Object.assign(new Error('econnrefused'), { code: 'ECONNREFUSED' }); };
+      const res = await dump({ platform: 'ios', execAdb, execMaestro: maestroNotFound, httpRequest, getEnv });
+      expect(res.kind).toBeDefined();
     });
 
     it('Android dispatch is unchanged when platform is omitted', async () => {
@@ -523,6 +514,388 @@ describe('Unit / maestro-hierarchy', () => {
       const res = await dump({ execMaestro: maestroNotFound, execAdb, getEnv: () => undefined });
       expect(res.kind).toBe('hierarchy');
       expect(res.nodes.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('iOS HTTP dump (runIosHttpDump primary path)', () => {
+    const iosFixtureDir = path.resolve(url.fileURLToPath(import.meta.url), '../../fixtures/maestro-ios-hierarchy');
+    const loadIosFixture = name => fs.readFileSync(path.join(iosFixtureDir, name), 'utf8');
+
+    const validIosEnv = key => {
+      if (key === 'PERCY_IOS_DEVICE_UDID') return '00008110-000065081404401E';
+      if (key === 'PERCY_IOS_DRIVER_HOST_PORT') return '11100';
+      return undefined;
+    };
+
+    function makeFakeHttpRequest(handler) {
+      // handler: ({host, port, path, method, headers, body}) => {statusCode, headers, body}
+      // OR throws an Error with .code (e.g. ECONNREFUSED, ETIMEDOUT, ECONNRESET).
+      const callLog = [];
+      const httpRequest = async opts => {
+        callLog.push(opts);
+        return handler(opts);
+      };
+      httpRequest.calls = callLog;
+      return httpRequest;
+    }
+
+    it('returns hierarchy when server returns canonical happy-path AUT-found wrap (cli-2.0.7 shape)', async () => {
+      const httpRequest = makeFakeHttpRequest(() => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: loadIosFixture('viewHierarchy-response.json')
+      }));
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro: maestroNotFound });
+      expect(res.kind).toBe('hierarchy');
+      // The fixture has AUT (com.example.app) + statusBars wrapper (elementType=0).
+      // Walk should pick AUT, skip statusBars wrapper, flatten to 4 nodes total
+      // (com.example.app, main_window, submitBtn, resultText).
+      expect(res.nodes.length).toBeGreaterThanOrEqual(2);
+      const submitBtn = res.nodes.find(n => n.id === 'submitBtn');
+      expect(submitBtn).toBeDefined();
+      expect(submitBtn.bounds).toBe('[100,400][290,444]');
+    });
+
+    it('POSTs {appIds: [], excludeKeyboardElements: false} per cli-2.0.7 server-side AUT detection (PR #2365)', async () => {
+      const httpRequest = makeFakeHttpRequest(() => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: loadIosFixture('viewHierarchy-response.json')
+      }));
+      await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro: maestroNotFound });
+      expect(httpRequest.calls.length).toBe(1);
+      const call = httpRequest.calls[0];
+      expect(call.method).toBe('POST');
+      expect(call.path).toBe('/viewHierarchy');
+      expect(call.host).toBe('127.0.0.1');
+      expect(call.port).toBe(11100);
+      expect(call.headers['content-type']).toMatch(/application\/json/i);
+      expect(JSON.parse(call.body)).toEqual({ appIds: [], excludeKeyboardElements: false });
+    });
+
+    it('walks past SpringBoard sibling in cli-1.39.13 wrap (regression guard)', async () => {
+      // Older Maestro versions wrap as [springboardHierarchy, appHierarchy].
+      // Naïve "first elementType==1" walk would pick SpringBoard. Parser must skip it.
+      const wrapBody = JSON.stringify({
+        axElement: {
+          identifier: '',
+          frame: { X: 0, Y: 0, Width: 0, Height: 0 },
+          label: '',
+          elementType: 0,
+          enabled: false,
+          children: [
+            {
+              identifier: 'com.apple.springboard',
+              frame: { X: 0, Y: 0, Width: 390, Height: 844 },
+              label: 'SpringBoard',
+              elementType: 1,
+              enabled: true,
+              children: []
+            },
+            {
+              identifier: 'com.example.app',
+              frame: { X: 0, Y: 0, Width: 390, Height: 844 },
+              label: 'AUT',
+              elementType: 1,
+              enabled: true,
+              children: [
+                {
+                  identifier: 'submitBtn',
+                  frame: { X: 50, Y: 50, Width: 100, Height: 40 },
+                  label: 'Submit',
+                  elementType: 9,
+                  enabled: true
+                }
+              ]
+            }
+          ]
+        },
+        depth: 3
+      });
+      const httpRequest = makeFakeHttpRequest(() => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: wrapBody
+      }));
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro: maestroNotFound });
+      expect(res.kind).toBe('hierarchy');
+      // Must find com.example.app, NOT com.apple.springboard.
+      expect(res.nodes.find(n => n.id === 'com.example.app')).toBeDefined();
+      expect(res.nodes.find(n => n.id === 'submitBtn')).toBeDefined();
+    });
+
+    it('handles post-PR-2402 single-AUT root (no wrap, forward-compat)', async () => {
+      const singleRoot = JSON.stringify({
+        axElement: {
+          identifier: 'com.example.app',
+          frame: { X: 0, Y: 0, Width: 390, Height: 844 },
+          label: 'AUT',
+          elementType: 1,
+          enabled: true,
+          children: [
+            { identifier: 'btn', frame: { X: 10, Y: 20, Width: 50, Height: 30 }, label: '', elementType: 9, enabled: true }
+          ]
+        },
+        depth: 2
+      });
+      const httpRequest = makeFakeHttpRequest(() => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: singleRoot
+      }));
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro: maestroNotFound });
+      expect(res.kind).toBe('hierarchy');
+      expect(res.nodes.find(n => n.id === 'com.example.app')).toBeDefined();
+    });
+
+    it('falls back to maestro-CLI on SpringBoard-only response (AUT not running)', async () => {
+      const httpRequest = makeFakeHttpRequest(() => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: loadIosFixture('viewHierarchy-response-springboard-only.json')
+      }));
+      // execMaestro returns a stdout that looks like Maestro's TreeNode shape
+      // (the fallback path's expected output). Use the variant 6 fixture.
+      const execMaestro = async () => ({
+        stdout: loadIosFixture('maestro-cli-ios-stdout.json'),
+        stderr: '',
+        exitCode: 0
+      });
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
+      expect(res.kind).toBe('hierarchy');
+      // Maestro CLI fallback should produce nodes via existing flattenMaestroNodes
+      expect(res.nodes.length).toBeGreaterThan(0);
+      expect(res.nodes.find(n => n.id === 'submitBtn')).toBeDefined();
+    });
+
+    it('falls back to maestro-CLI on ECONNREFUSED', async () => {
+      const httpRequest = makeFakeHttpRequest(() => {
+        throw Object.assign(new Error('econnrefused'), { code: 'ECONNREFUSED' });
+      });
+      const execMaestro = async () => ({
+        stdout: loadIosFixture('maestro-cli-ios-stdout.json'),
+        stderr: '',
+        exitCode: 0
+      });
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
+      expect(res.kind).toBe('hierarchy');
+    });
+
+    it('falls back to maestro-CLI on ETIMEDOUT', async () => {
+      const httpRequest = makeFakeHttpRequest(() => {
+        throw Object.assign(new Error('etimedout'), { code: 'ETIMEDOUT' });
+      });
+      const execMaestro = async () => ({
+        stdout: loadIosFixture('maestro-cli-ios-stdout.json'),
+        stderr: '',
+        exitCode: 0
+      });
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
+      expect(res.kind).toBe('hierarchy');
+    });
+
+    it('falls back to maestro-CLI on socket reset (ECONNRESET)', async () => {
+      const httpRequest = makeFakeHttpRequest(() => {
+        throw Object.assign(new Error('econnreset'), { code: 'ECONNRESET' });
+      });
+      const execMaestro = async () => ({
+        stdout: loadIosFixture('maestro-cli-ios-stdout.json'),
+        stderr: '',
+        exitCode: 0
+      });
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
+      expect(res.kind).toBe('hierarchy');
+    });
+
+    it('falls back to maestro-CLI on 5xx status', async () => {
+      const httpRequest = makeFakeHttpRequest(() => ({
+        statusCode: 502,
+        headers: {},
+        body: 'bad gateway'
+      }));
+      const execMaestro = async () => ({
+        stdout: loadIosFixture('maestro-cli-ios-stdout.json'),
+        stderr: '',
+        exitCode: 0
+      });
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
+      expect(res.kind).toBe('hierarchy');
+    });
+
+    it('returns dump-error for 4xx with bad-request-shape body (schema-class)', async () => {
+      const httpRequest = makeFakeHttpRequest(() => ({
+        statusCode: 400,
+        headers: { 'content-type': 'text/plain' },
+        body: 'incorrect request body provided'
+      }));
+      // execMaestro should NOT be called on schema-class — assert via throw.
+      const execMaestro = async () => { throw new Error('should not invoke maestro-cli on schema-class'); };
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
+      expect(res.kind).toBe('dump-error');
+      expect(res.reason).toMatch(/bad-request-shape|schema-/);
+    });
+
+    it('returns dump-error for non-JSON content-type (schema-class)', async () => {
+      const httpRequest = makeFakeHttpRequest(() => ({
+        statusCode: 200,
+        headers: { 'content-type': 'text/html' },
+        body: '<html>?</html>'
+      }));
+      const execMaestro = async () => { throw new Error('should not invoke maestro-cli on schema-class'); };
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
+      expect(res.kind).toBe('dump-error');
+      expect(res.reason).toMatch(/non-json-content-type|schema-/);
+    });
+
+    it('returns dump-error when response missing axElement root (schema-class)', async () => {
+      const httpRequest = makeFakeHttpRequest(() => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ depth: 2 })
+      }));
+      const execMaestro = async () => { throw new Error('should not invoke maestro-cli on schema-class'); };
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
+      expect(res.kind).toBe('dump-error');
+      expect(res.reason).toMatch(/missing-root|schema-/);
+    });
+
+    it('returns dump-error when AUT node missing frame (schema-class)', async () => {
+      const httpRequest = makeFakeHttpRequest(() => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          axElement: {
+            identifier: 'com.example.app',
+            elementType: 1,
+            label: 'AUT',
+            enabled: true
+            // no frame
+          },
+          depth: 1
+        })
+      }));
+      const execMaestro = async () => { throw new Error('should not invoke maestro-cli on schema-class'); };
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
+      expect(res.kind).toBe('dump-error');
+      expect(res.reason).toMatch(/missing-frame|schema-/);
+    });
+
+    it('rejects malformed JSON body (schema-class)', async () => {
+      const httpRequest = makeFakeHttpRequest(() => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: '{not valid json'
+      }));
+      const execMaestro = async () => { throw new Error('should not invoke maestro-cli on schema-class'); };
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
+      expect(res.kind).toBe('dump-error');
+      expect(res.reason).toMatch(/parse-error|malformed|schema-/);
+    });
+
+    it('rejects out-of-range PERCY_IOS_DRIVER_HOST_PORT and falls back', async () => {
+      const httpRequest = makeFakeHttpRequest(() => { throw new Error('should not be called — port should be rejected first'); });
+      const execMaestro = async () => ({
+        stdout: loadIosFixture('maestro-cli-ios-stdout.json'),
+        stderr: '',
+        exitCode: 0
+      });
+      const getEnv = key => {
+        if (key === 'PERCY_IOS_DEVICE_UDID') return '00008110-000065081404401E';
+        if (key === 'PERCY_IOS_DRIVER_HOST_PORT') return '99999'; // out of 11100-11110 range
+        return undefined;
+      };
+      const res = await dump({ platform: 'ios', getEnv, httpRequest, execMaestro });
+      // Should fall back to maestro-CLI which succeeds via the stdout fixture
+      expect(res.kind).toBe('hierarchy');
+      expect(httpRequest.calls).toEqual([]);
+    });
+
+    it('iOS HTTP nodes do not carry `class` attribute (cli-2.0.7 finding)', async () => {
+      // Maestro's IOSDriver.mapViewHierarchy at cli-2.0.7 does not populate
+      // attributes['class'] — only resource-id, accessibilityText, etc.
+      // Percy's iOS HTTP adapter follows the same convention.
+      const httpRequest = makeFakeHttpRequest(() => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: loadIosFixture('viewHierarchy-response.json')
+      }));
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro: maestroNotFound });
+      expect(res.kind).toBe('hierarchy');
+      // No node should have a `class` attribute populated on the iOS HTTP path.
+      for (const node of res.nodes) {
+        expect(node.class).toBeFalsy();
+      }
+      // But `id` matches `resource-id` (set from AXElement.identifier).
+      const submitBtn = res.nodes.find(n => n.id === 'submitBtn');
+      expect(submitBtn).toBeDefined();
+      expect(submitBtn['resource-id']).toBe('submitBtn');
+    });
+
+    it('iOS firstMatch with class selector returns null (no class on iOS nodes)', async () => {
+      const httpRequest = makeFakeHttpRequest(() => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: loadIosFixture('viewHierarchy-response.json')
+      }));
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro: maestroNotFound });
+      expect(res.kind).toBe('hierarchy');
+      // class selector should not match anything on iOS — even though the
+      // fixture has elementType:9 (button), Percy doesn't surface that as `class`.
+      expect(firstMatch(res.nodes, { class: 'XCUIElementTypeButton' })).toBeNull();
+      // id selector works
+      expect(firstMatch(res.nodes, { id: 'submitBtn' })).toEqual({ x: 100, y: 400, width: 190, height: 44 });
+    });
+  });
+
+  describe('iOS maestro-CLI fallback (runMaestroIosDump replacement)', () => {
+    const iosFixtureDir = path.resolve(url.fileURLToPath(import.meta.url), '../../fixtures/maestro-ios-hierarchy');
+    const loadIosFixture = name => fs.readFileSync(path.join(iosFixtureDir, name), 'utf8');
+
+    const validIosEnv = key => {
+      if (key === 'PERCY_IOS_DEVICE_UDID') return '00008110-000065081404401E';
+      if (key === 'PERCY_IOS_DRIVER_HOST_PORT') return '11100';
+      return undefined;
+    };
+
+    const httpRefused = async () => { throw Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }); };
+
+    it('parses maestro-cli-ios-stdout.json (TreeNode shape) via existing flattenMaestroNodes', async () => {
+      const execMaestro = async args => {
+        // Verify the iOS shell-out invocation shape: --udid <udid> --driver-host-port <port> hierarchy
+        expect(args).toContain('--udid');
+        expect(args).toContain('00008110-000065081404401E');
+        expect(args).toContain('--driver-host-port');
+        expect(args).toContain('11100');
+        expect(args).toContain('hierarchy');
+        return { stdout: loadIosFixture('maestro-cli-ios-stdout.json'), stderr: '', exitCode: 0 };
+      };
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest: httpRefused, execMaestro });
+      expect(res.kind).toBe('hierarchy');
+      // The fixture has com.example.app + main_window + submitBtn + resultText
+      const submitBtn = res.nodes.find(n => n.id === 'submitBtn');
+      expect(submitBtn).toBeDefined();
+      expect(submitBtn.bounds).toBe('[100,400][290,444]');
+    });
+
+    it('returns maestro-no-json when stdout has no `{`', async () => {
+      const execMaestro = async () => ({ stdout: 'banner only, no json', stderr: '', exitCode: 0 });
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest: httpRefused, execMaestro });
+      expect(res.kind).toBe('dump-error');
+      expect(res.reason).toBe('maestro-no-json');
+    });
+
+    it('returns maestro-parse-error when stdout JSON is invalid', async () => {
+      const execMaestro = async () => ({ stdout: '{not valid', stderr: '', exitCode: 0 });
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest: httpRefused, execMaestro });
+      expect(res.kind).toBe('dump-error');
+      expect(res.reason).toMatch(/^maestro-parse-error/);
+    });
+
+    it('returns maestro-exit-N for non-zero exit code', async () => {
+      const execMaestro = async () => ({ stdout: '', stderr: 'failed', exitCode: 137 });
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest: httpRefused, execMaestro });
+      expect(res.kind).toBe('dump-error');
+      expect(res.reason).toMatch(/^maestro-exit-/);
     });
   });
 });

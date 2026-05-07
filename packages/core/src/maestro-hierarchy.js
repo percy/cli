@@ -2,29 +2,38 @@
 //
 // Caller dispatches by platform via `dump({ platform: 'android' | 'ios' })`. Same
 // public API for both; platform-specific attribute key mapping happens internally
-// in `flattenMaestroNodes`. Selector vocabulary in V1: Android keeps `resource-id`,
-// `text`, `content-desc`, `class`, plus `id` as alias for `resource-id` (R1
-// vocabulary parity); iOS supports `id` (→ `attributes.identifier`) and `class`
-// (→ XCUIElementType* via integer-to-name table). Bounds canonicalize to
-// `{x, y, width, height}` integer pixels regardless of platform.
+// in `flattenMaestroNodes` (Android TreeNode shape; iOS CLI fallback shape) or
+// `flattenIosAxElement` (iOS HTTP path raw AXElement shape).
 //
-// Android primary: `maestro --udid <serial> hierarchy` — Maestro's own
-// JSON-emitting command rides its existing gRPC connection to the device-side
-// dev.mobile.maestro app. Only mechanism that works during a live Maestro flow.
-// adb fallback: `adb exec-out uiautomator dump` for environments where the
-// maestro binary is not on PATH (e.g., CLI used outside BrowserStack).
+// Selector vocabulary in V1:
+//   Android — `resource-id`, `text`, `content-desc`, `class`, plus `id` as alias
+//             for `resource-id` (R1 vocabulary parity).
+//   iOS     — `id` only (maps to `resource-id` populated from AXElement.identifier).
+//             Maestro's own iOS TreeNode does not carry `class` (per
+//             IOSDriver.mapViewHierarchy at cli-2.0.7), so Percy keeps iOS
+//             selector vocabulary aligned with that capability.
 //
-// iOS primary (Phase 1 stub; real implementation in Unit 2b post Phase 0.5):
-// `maestro --udid <udid> --driver-host-port <P> hierarchy` where P is provided
-// by realmobile via `PERCY_IOS_DRIVER_HOST_PORT` env var (formula
-// `wda_port + 2700` is realmobile-owned per maestro_session.rb:831; Percy CLI
-// only reads the value). No adb fallback on iOS — graceful warn-skip if
-// env vars are absent.
+// Bounds canonicalize to a bracket-format string `[X,Y][X+W,Y+H]` regardless
+// of platform; firstMatch() parses to `{x, y, width, height}` integers.
+//
+// Android primary: `maestro --udid <serial> hierarchy` (rides Maestro's existing
+// gRPC connection to dev.mobile.maestro on the device).
+// adb fallback: `adb exec-out uiautomator dump` for environments without maestro.
+//
+// iOS primary: HTTP POST to Maestro's iOS XCTestRunner /viewHierarchy endpoint
+// at http://127.0.0.1:${PERCY_IOS_DRIVER_HOST_PORT}/viewHierarchy. Sends
+// `{appIds: [], excludeKeyboardElements: false}` — at cli-2.0.7+ the runner
+// detects the AUT itself via RunningApp.getForegroundApp() (Maestro PR #2365).
+// On older Maestro versions empty `appIds` returns SpringBoard; the parser
+// detects that and routes to the maestro-CLI fallback below.
+// iOS fallback: `maestro --udid <udid> --driver-host-port <P> hierarchy` —
+// CLI shell-out path (knows the AUT internally via Maestro flow context).
 //
 // Reads process.env.ANDROID_SERIAL (Android) or PERCY_IOS_DEVICE_UDID +
 // PERCY_IOS_DRIVER_HOST_PORT (iOS) — never accepts device addressing from user
 // input. Honors MAESTRO_BIN env var on both platforms.
 
+import http from 'http';
 import spawn from 'cross-spawn';
 import { XMLParser } from 'fast-xml-parser';
 import logger from '@percy/logger';
@@ -40,15 +49,30 @@ const SIGKILL_EXIT = 137; // 128 + SIGKILL; uiautomator often hits this under de
 // while staying within a reasonable per-screenshot budget.
 const SIGKILL_RETRY_DELAYS_MS = [500, 1000, 2000];
 // Android-side V1 selector vocabulary plus `id` as alias for `resource-id`
-// (R1 vocabulary parity). The iOS branch uses `id` and `class` only in V1.
-// Customers see one whitelist; firstMatch dispatches per-platform via the node
-// shape (Android nodes have resource-id; iOS nodes have identifier surfaced
-// as `id`).
+// (R1 vocabulary parity). The iOS branch uses `id` only — Maestro's iOS
+// TreeNode does not carry `class` (per IOSDriver.mapViewHierarchy at cli-2.0.7),
+// and Percy keeps iOS selector vocabulary aligned with that capability.
+// Customers see one union whitelist for handler-side validation; firstMatch
+// dispatches per-platform via the node shape (Android nodes have resource-id;
+// iOS nodes have identifier surfaced as `id` and `resource-id`).
 const ANDROID_SELECTOR_KEYS = ['resource-id', 'text', 'content-desc', 'class', 'id'];
-const IOS_SELECTOR_KEYS = ['id', 'class'];
+const IOS_SELECTOR_KEYS = ['id'];
 // Union whitelist exported for api.js handler-side validation. firstMatch
 // itself uses node-shape lookups so the per-platform divergence is implicit.
 const SELECTOR_KEYS_UNION = ['resource-id', 'text', 'content-desc', 'class', 'id'];
+
+// iOS HTTP transport tunables (mirrors PR #2210's gRPC pattern).
+// Healthy deadline is the per-call socket-timeout budget; circuit-breaker is
+// the Promise.race outer bound that protects against the runner stalling
+// past the socket timeout.
+const IOS_HTTP_HEALTHY_DEADLINE_MS = 1500;
+const IOS_HTTP_CIRCUIT_BREAKER_MS = 5000;
+// Maestro iOS driver-host-port is realmobile-derived as wda_port + 2700.
+// WDA ports are 8400-8410 → driver host ports are 11100-11110.
+const IOS_DRIVER_HOST_PORT_MIN = 11100;
+const IOS_DRIVER_HOST_PORT_MAX = 11110;
+// HTTP response cap (matches wda-hierarchy.js SOURCE_MAX_BYTES).
+const IOS_HTTP_RESPONSE_MAX_BYTES = 20 * 1024 * 1024;
 
 const BOUNDS_RE = /^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$/;
 const UNAVAILABLE_STDERR_RE = /no devices|unauthorized|device offline/i;
@@ -346,30 +370,266 @@ function flattenMaestroNodes(root) {
   return nodes;
 }
 
-// FIXME-PHASE-0.5 — iOS hierarchy resolver stub.
+// Default Node http.request wrapper. Returns
+//   { statusCode, headers, body }
+// on completed responses (any status code), or throws an Error with .code
+// (e.g. ECONNREFUSED, ETIMEDOUT, ECONNRESET) on transport failures.
 //
-// Unit 2a (Phase 1) lands the platform-dispatch scaffolding; the real iOS
-// branch lives in Unit 2b, blocked on Phase 0.5 capturing a live
-// `maestro hierarchy` JSON sample on iOS. The Maestro Swift source
-// (`maestro-ios-xctest-runner/MaestroDriverLib/Sources/MaestroDriverLib/Models/AXElement.swift`)
-// indicates the JSON shape uses `attributes.identifier`,
-// `attributes.elementType` (integer raw value of XCUIElement.ElementType),
-// and `attributes.frame = {x, y, width, height}` floats in points — but
-// the CLI's JSON-emit layer is a different code path that may re-key or
-// re-shape before stdout. Don't implement against the assumed shape; wait
-// for the live fixture or do an explicit dual-source verification of the
-// Maestro CLI source.
+// Tests inject a fake httpRequest with the same shape; see
+// makeFakeHttpRequest in maestro-hierarchy.test.js iOS HTTP describe block.
+function defaultHttpRequest({ host, port, method, path: requestPath, headers, body, timeoutMs }) {
+  return new Promise((resolve, reject) => {
+    let chunks = [];
+    let totalBytes = 0;
+
+    const req = http.request({ host, port, method, path: requestPath, headers, timeout: timeoutMs }, res => {
+      res.on('data', chunk => {
+        totalBytes += chunk.length;
+        if (totalBytes > IOS_HTTP_RESPONSE_MAX_BYTES) {
+          // Cap before parse — defensive against runaway responses.
+          chunks = null;
+          try { req.destroy(); } catch { /* already destroyed */ }
+          reject(Object.assign(new Error('response-too-large'), { code: 'EMSGSIZE' }));
+          return;
+        }
+        if (chunks) chunks.push(chunk);
+      });
+      res.on('end', () => {
+        if (!chunks) return; // already rejected for size
+        resolve({
+          statusCode: res.statusCode,
+          headers: res.headers,
+          body: Buffer.concat(chunks).toString('utf8')
+        });
+      });
+      res.on('error', reject);
+    });
+
+    req.on('timeout', () => {
+      try { req.destroy(); } catch { /* already destroyed */ }
+      reject(Object.assign(new Error('socket-timeout'), { code: 'ETIMEDOUT' }));
+    });
+    req.on('error', reject);
+
+    if (body !== undefined && body !== null) req.write(body);
+    req.end();
+  });
+}
+
+// Validate PERCY_IOS_DRIVER_HOST_PORT env value as integer in the realmobile
+// range (wda_port + 2700 = 11100-11110). Out-of-range values return null.
+function parseIosDriverHostPort(raw) {
+  if (raw === undefined || raw === null || raw === '') return null;
+  const n = Number(raw);
+  if (!Number.isInteger(n)) return null;
+  if (n < IOS_DRIVER_HOST_PORT_MIN || n > IOS_DRIVER_HOST_PORT_MAX) return null;
+  return n;
+}
+
+// Walk the AXElement tree from cli-2.0.7's HTTP /viewHierarchy response.
+// Find the AUT root: first node with `elementType === 1` (XCUI application)
+// whose `identifier !== 'com.apple.springboard'`. Returns the AUT subtree, OR
+// null if the only application is SpringBoard (AUT-not-running case).
 //
-// Returns `{ kind: 'unavailable', reason: 'env-missing' }` when the
-// realmobile-injected env vars are absent. Returns
-// `{ kind: 'unavailable', reason: 'not-implemented' }` when env vars are
-// present but the stub hasn't been replaced yet.
+// At cli-2.0.7 the wrap is `[appHierarchy, statusBarsContainer]` where the
+// statusBars container has `elementType: 0` (synthetic init). The AUT is the
+// first elementType==1 node and the rule selects it directly.
+//
+// At cli-1.39.13 the wrap was `[springboardHierarchy, appHierarchy]` where
+// both children have `elementType: 1`. The springboard-skip handles that.
+//
+// Post-PR-2402 forward-compat: when the response is a single-AUT root (no
+// wrap), the rule selects the root itself.
+function findAxAutRoot(axElement) {
+  if (!axElement || typeof axElement !== 'object') return null;
+  if (axElement.elementType === 1 && axElement.identifier !== 'com.apple.springboard') {
+    return axElement;
+  }
+  const children = axElement.children;
+  if (Array.isArray(children)) {
+    for (const child of children) {
+      const found = findAxAutRoot(child);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+// Adapter: walk an AXElement subtree (HTTP /viewHierarchy path) and emit nodes
+// in the canonical shape that firstMatch consumes for Android. Specifically:
+//   { 'resource-id': identifier, id: identifier, bounds: '[X,Y][X+W,Y+H]' }
+// Notably no `class` attribute — Maestro's iOS TreeNode doesn't expose
+// elementType→class either, and Percy keeps both iOS paths symmetric.
+//
+// Returns an array of nodes; throws if any frame is malformed (caught by
+// caller and surfaced as schema-class drift).
+function flattenIosAxElement(axRoot) {
+  const nodes = [];
+  const walk = obj => {
+    if (!obj || typeof obj !== 'object') return;
+    const identifier = typeof obj.identifier === 'string' ? obj.identifier : '';
+    const frame = obj.frame;
+    if (!frame || typeof frame !== 'object') {
+      throw new Error(`missing-frame on identifier=${JSON.stringify(identifier).slice(0, 64)}`);
+    }
+    const x = frame.X;
+    const y = frame.Y;
+    const w = frame.Width;
+    const h = frame.Height;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || !Number.isFinite(h)) {
+      throw new Error(`frame-key-case-mismatch on identifier=${JSON.stringify(identifier).slice(0, 64)}`);
+    }
+    const bounds = `[${Math.round(x)},${Math.round(y)}][${Math.round(x + w)},${Math.round(y + h)}]`;
+    if (identifier) {
+      nodes.push({
+        'resource-id': identifier,
+        id: identifier,
+        // text/content-desc/class deliberately undefined — iOS Maestro doesn't
+        // surface these as selector-relevant attributes (per IOSDriver.kt).
+        bounds
+      });
+    }
+    if (Array.isArray(obj.children)) {
+      for (const child of obj.children) walk(child);
+    }
+  };
+  walk(axRoot);
+  return nodes;
+}
+
+// Classify an iOS HTTP failure into connection-class (route to fallback) vs
+// schema-class (set drift bit, no fallback) vs no-aut-tree (route to
+// fallback because the Maestro CLI knows the AUT internally).
+function classifyIosHttpFailure(err) {
+  if (!err) return null;
+  const code = err.code;
+  // Connection-class errors — Maestro runner unreachable / unhealthy. Fall back.
+  if (code === 'ECONNREFUSED' || code === 'ETIMEDOUT' || code === 'ECONNRESET' ||
+      code === 'EHOSTUNREACH' || code === 'ENETUNREACH' || code === 'EPIPE' ||
+      code === 'ECONNABORTED' || code === 'EMSGSIZE') {
+    return { kind: 'connection-fail', reason: `http-${String(code).toLowerCase()}` };
+  }
+  // Default: treat unknown errors as connection-class so we fall back rather
+  // than silently skip element regions.
+  return { kind: 'connection-fail', reason: `http-${err.message?.slice(0, 64) || 'unknown'}` };
+}
+
+// iOS HTTP primary path. POSTs `{appIds: [], excludeKeyboardElements: false}`
+// to Maestro's iOS XCTestRunner /viewHierarchy endpoint. Returns
+//   { kind: 'hierarchy', nodes }     on success
+//   { kind: 'connection-fail', ... } on transport / 5xx / out-of-range port
+//   { kind: 'no-aut-tree', ... }     on SpringBoard-only response
+//   { kind: 'dump-error', ... }      on schema-class failures (no fallback)
+async function runIosHttpDump({ port, sessionId, httpRequest = defaultHttpRequest }) {
+  // Loopback-only guard. Hardcoded host; do not accept from caller input.
+  const host = '127.0.0.1';
+
+  let response;
+  const requestBody = JSON.stringify({ appIds: [], excludeKeyboardElements: false });
+  try {
+    response = await Promise.race([
+      httpRequest({
+        host,
+        port,
+        method: 'POST',
+        path: '/viewHierarchy',
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(requestBody)
+        },
+        body: requestBody,
+        timeoutMs: IOS_HTTP_HEALTHY_DEADLINE_MS
+      }),
+      new Promise((_, reject) => setTimeout(
+        () => reject(Object.assign(new Error('circuit-breaker'), { code: 'ETIMEDOUT' })),
+        IOS_HTTP_CIRCUIT_BREAKER_MS
+      ))
+    ]);
+  } catch (err) {
+    return classifyIosHttpFailure(err);
+  }
+
+  const { statusCode, headers, body } = response;
+
+  // 5xx → connection-class (server reachable but unhealthy).
+  if (statusCode >= 500) {
+    return { kind: 'connection-fail', reason: `http-${statusCode}` };
+  }
+  // 4xx → schema-class (request shape problem; fallback wouldn't help).
+  if (statusCode >= 400) {
+    return { kind: 'dump-error', reason: `http-${statusCode}-bad-request-shape` };
+  }
+  // 3xx → unexpected; treat as schema-class.
+  if (statusCode !== 200) {
+    return { kind: 'dump-error', reason: `http-unexpected-status-${statusCode}` };
+  }
+
+  // Content-type check.
+  const contentType = headers && (headers['content-type'] || headers['Content-Type']);
+  if (!contentType || !/application\/json/i.test(contentType)) {
+    return { kind: 'dump-error', reason: 'http-non-json-content-type' };
+  }
+
+  // Parse JSON.
+  let parsed;
+  try {
+    parsed = JSON.parse(body);
+  } catch (err) {
+    return { kind: 'dump-error', reason: `http-parse-error:${err.message?.slice(0, 64) || 'unknown'}` };
+  }
+
+  // Schema validation: require `axElement` root.
+  if (!parsed || typeof parsed !== 'object' || !parsed.axElement || typeof parsed.axElement !== 'object') {
+    return { kind: 'dump-error', reason: 'http-missing-root' };
+  }
+
+  // Find AUT root, skipping SpringBoard.
+  const aut = findAxAutRoot(parsed.axElement);
+  if (!aut) {
+    // Either the response is SpringBoard-only (AUT not running), or no
+    // application node at all. Either way, route to fallback.
+    return { kind: 'no-aut-tree', reason: 'springboard-only' };
+  }
+
+  // Flatten the AUT subtree to firstMatch's expected node shape.
+  let nodes;
+  try {
+    nodes = flattenIosAxElement(aut);
+  } catch (err) {
+    const msg = err.message || 'unknown';
+    if (/^missing-frame/.test(msg)) return { kind: 'dump-error', reason: 'http-missing-frame' };
+    if (/^frame-key-case-mismatch/.test(msg)) return { kind: 'dump-error', reason: 'http-frame-key-case-mismatch' };
+    return { kind: 'dump-error', reason: `http-flatten-error:${msg.slice(0, 64)}` };
+  }
+  // Suppress sessionId in log surface — only emit a hash-prefix so support can
+  // correlate without leaking the full id.
+  const sidTag = sessionId ? `sid=${String(sessionId).slice(0, 8)}…` : 'sid=none';
+  log.debug(`runIosHttpDump ok ${sidTag} nodes=${nodes.length}`);
+  return { kind: 'hierarchy', nodes };
+}
+
+// iOS maestro-CLI fallback path (replaces the iOS-WIP "Phase 0.5 stub").
+// Spawns `maestro --udid <udid> --driver-host-port <port> hierarchy` and
+// parses stdout (Maestro's normalized TreeNode shape, identical to Android).
+// Existing flattenMaestroNodes consumes TreeNode unchanged — no iOS-specific
+// branching needed on this path.
 async function runMaestroIosDump(udid, driverHostPort, execMaestro, getEnv) {
-  // Surface the dispatch reached this branch in debug logs so a
-  // PERCY_IOS_RESOLVER=maestro-hierarchy customer in the wild sees the
-  // FIXME path tag and can correlate with the plan's Phase 0.5 status.
-  log.debug(`iOS branch FIXME-PHASE-0.5: udid=<set:${udid.length}> driver_port=${driverHostPort}`);
-  return { kind: 'unavailable', reason: 'not-implemented' };
+  const result = await execMaestro(['--udid', udid, '--driver-host-port', String(driverHostPort), 'hierarchy'], getEnv);
+  const fail = classifyMaestroFailure(result);
+  if (fail) return fail;
+  if ((result.exitCode ?? 1) !== 0) {
+    return { kind: 'dump-error', reason: `maestro-exit-${result.exitCode}` };
+  }
+  const stdout = result.stdout || '';
+  const start = stdout.indexOf('{');
+  if (start < 0) return { kind: 'dump-error', reason: 'maestro-no-json' };
+  try {
+    const parsed = JSON.parse(stdout.slice(start));
+    const nodes = flattenMaestroNodes(parsed);
+    return { kind: 'hierarchy', nodes };
+  } catch (err) {
+    return { kind: 'dump-error', reason: `maestro-parse-error:${err.message}` };
+  }
 }
 
 async function runMaestroDump(serial, execMaestro, getEnv) {
@@ -395,24 +655,49 @@ async function runMaestroDump(serial, execMaestro, getEnv) {
 
 export async function dump({
   platform = 'android',
+  sessionId,
   execAdb = defaultExecAdb,
   execMaestro = defaultExecMaestro,
+  httpRequest = defaultHttpRequest,
   getEnv = defaultGetEnv
 } = {}) {
   const started = Date.now();
 
   if (platform === 'ios') {
     // iOS dispatch: read realmobile-injected env vars; warn-skip if absent.
-    // Real implementation in Unit 2b; this branch is the scaffolding.
     const udid = getEnv('PERCY_IOS_DEVICE_UDID');
-    const driverHostPort = getEnv('PERCY_IOS_DRIVER_HOST_PORT');
-    if (!udid || !driverHostPort) {
-      log.warn(`iOS resolver env-missing: udid=${udid ? 'set' : 'unset'} driver_port=${driverHostPort ? 'set' : 'unset'}`);
+    const driverHostPortRaw = getEnv('PERCY_IOS_DRIVER_HOST_PORT');
+    if (!udid || !driverHostPortRaw) {
+      log.warn(`iOS resolver env-missing: udid=${udid ? 'set' : 'unset'} driver_port=${driverHostPortRaw ? 'set' : 'unset'}`);
       return { kind: 'unavailable', reason: 'env-missing' };
     }
-    const iosResult = await runMaestroIosDump(udid, driverHostPort, execMaestro, getEnv);
-    log.debug(`dump took ${Date.now() - started}ms via maestro-ios (kind=${iosResult.kind})`);
-    return iosResult;
+
+    // Validate driver-host-port range before attempting HTTP. Out-of-range
+    // values skip the HTTP path entirely and fall through to maestro-CLI.
+    const driverHostPort = parseIosDriverHostPort(driverHostPortRaw);
+    let httpResult = null;
+    if (driverHostPort !== null) {
+      httpResult = await runIosHttpDump({ port: driverHostPort, sessionId, httpRequest });
+      if (httpResult.kind === 'hierarchy') {
+        log.debug(`dump took ${Date.now() - started}ms via maestro-http (${httpResult.nodes.length} nodes)`);
+        return httpResult;
+      }
+      if (httpResult.kind === 'dump-error') {
+        // Schema-class — no fallback per plan R4. Drift bit handling deferred
+        // to plan Unit 4 (cross-PR coordination with #2210); for now log only.
+        log.warn(`iOS HTTP schema-drift: ${httpResult.reason}`);
+        return httpResult;
+      }
+      // Otherwise (connection-fail or no-aut-tree): fall through to CLI.
+      log.debug(`iOS HTTP ${httpResult.kind} (${httpResult.reason}); falling back to maestro-cli`);
+    } else {
+      log.debug(`PERCY_IOS_DRIVER_HOST_PORT=${driverHostPortRaw} out of range [${IOS_DRIVER_HOST_PORT_MIN}-${IOS_DRIVER_HOST_PORT_MAX}]; using maestro-cli fallback`);
+    }
+
+    const cliResult = await runMaestroIosDump(udid, driverHostPort ?? driverHostPortRaw, execMaestro, getEnv);
+    const httpReason = httpResult ? `${httpResult.kind}/${httpResult.reason}` : 'out-of-range-port';
+    log.debug(`dump took ${Date.now() - started}ms via maestro-cli-fallback (${httpReason}) kind=${cliResult.kind}`);
+    return cliResult;
   }
 
   // Android (default).

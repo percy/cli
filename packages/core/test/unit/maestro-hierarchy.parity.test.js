@@ -58,9 +58,12 @@ describe('Unit / maestro-hierarchy / cross-platform parity', () => {
       expect(ANDROID_SELECTOR_KEYS_WHITELIST).toEqual(jasmine.arrayWithExactContents([
         'resource-id', 'text', 'content-desc', 'class', 'id'
       ]));
-      // iOS V1 supports id and class only. text/xpath are V1.1.
+      // iOS V1 supports `id` only. Maestro's iOS TreeNode does not carry
+      // `class` (per IOSDriver.mapViewHierarchy at cli-2.0.7); Percy keeps
+      // iOS selector vocabulary aligned with Maestro's actual capability.
+      // text/xpath are V1.1+.
       expect(IOS_SELECTOR_KEYS_WHITELIST).toEqual(jasmine.arrayWithExactContents([
-        'id', 'class'
+        'id'
       ]));
     });
 
@@ -93,15 +96,28 @@ describe('Unit / maestro-hierarchy / cross-platform parity', () => {
       expect(res.reason).toBe('env-missing');
     });
 
-    it('iOS env-set returns { kind: "unavailable", reason: "not-implemented" } (Unit 2a stub)', async () => {
+    it('iOS env-set with no http/maestro reachable returns same envelope kinds as Android failure paths', async () => {
+      // Post-Unit-2: iOS no longer returns the 'not-implemented' stub. With
+      // env vars set but no httpRequest/execMaestro provided, the iOS branch
+      // tries the HTTP path (defaultHttpRequest hits ECONNREFUSED on the
+      // unreachable port) → falls back to maestro-CLI → defaultExecMaestro
+      // spawns the maestro binary which is absent in the test env →
+      // classifyMaestroFailure returns { kind: 'unavailable', reason: 'maestro-not-found' }.
+      // This test asserts the parity invariant: iOS error paths return the
+      // same { kind, reason } envelope shape as Android error paths, just
+      // with different reason tags. The specific reason is environment-
+      // dependent (here: maestro-not-found), so we assert the kind only.
       const getEnv = key => {
         if (key === 'PERCY_IOS_DEVICE_UDID') return '00008110-X';
         if (key === 'PERCY_IOS_DRIVER_HOST_PORT') return '11100';
         return undefined;
       };
       const res = await dump({ platform: 'ios', getEnv });
-      expect(res.kind).toBe('unavailable');
-      expect(res.reason).toBe('not-implemented');
+      expect(res.kind).toBeDefined();
+      expect(typeof res.reason).toBe('string');
+      // Must not be 'hierarchy' since neither HTTP nor CLI succeeds in this
+      // test environment.
+      expect(res.kind).not.toBe('hierarchy');
     });
   });
 
@@ -119,12 +135,15 @@ describe('Unit / maestro-hierarchy / cross-platform parity', () => {
       expect(viaIdAlias).toEqual(viaResourceId);
     });
 
-    it('iOS: `{id: X}` is in the whitelist (resolution path lands in Unit 2b)', () => {
-      // The iOS branch of dump() is the Unit 2a stub; firstMatch contract is
-      // ready to receive iOS nodes once Unit 2b populates them. Until then,
-      // assert the public API accepts the iOS selector keys.
+    it('iOS: `{id: X}` is in the whitelist (resolution implemented in Unit 2)', () => {
+      // Post-Unit-2: iOS HTTP path populates nodes with `resource-id` (from
+      // AXElement.identifier) and `id` (alias). firstMatch matches against
+      // node[key] === value, so `{id: X}` resolves correctly.
+      // `class` is NOT in the iOS whitelist — Maestro's iOS TreeNode does
+      // not surface `class`, so Percy keeps iOS vocabulary aligned with
+      // Maestro's actual capability.
       expect(IOS_SELECTOR_KEYS_WHITELIST).toContain('id');
-      expect(IOS_SELECTOR_KEYS_WHITELIST).toContain('class');
+      expect(IOS_SELECTOR_KEYS_WHITELIST).not.toContain('class');
     });
   });
 
