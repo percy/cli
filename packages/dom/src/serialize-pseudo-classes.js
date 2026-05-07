@@ -444,24 +444,21 @@ function collectStyleSheets(doc) {
   return entries;
 }
 
-// Returns true if at least one configured element matches `baseSelector` —
-// used to gate :hover/:active rewriting. Without this gate we'd rewrite
-// every `.btn:hover` on the page and apply the resulting [data-percy-hover]
-// rule globally, but only configured elements receive that stamp, so other
-// matches would silently lose their hover styles.
-function configuredElementMatches(ctx, baseSelector) {
-  if (!ctx.pseudoClassEnabledElements) return false;
-  const stamped = ctx.dom.querySelectorAll(`[${PSEUDO_ELEMENT_MARKER_ATTR}]`);
-  if (!stamped.length) return false;
+// Returns true when at least one element in `stampedSet` matches the rule's
+// base selector. Used to gate :hover/:active rewriting — without this gate
+// we'd rewrite every `.btn:hover` on the page and apply the resulting
+// [data-percy-hover] rule globally, but only configured elements receive
+// that stamp, so other matches would silently lose their hover styles.
+function someStampedMatches(dom, baseSelector, stampedSet) {
   let candidates;
   try {
-    candidates = ctx.dom.querySelectorAll(baseSelector);
+    candidates = dom.querySelectorAll(baseSelector);
   } catch (e) {
     // Stripped selector invalid (e.g. pseudo was at the start: ':hover')
     return false;
   }
   for (const el of candidates) {
-    if (el.hasAttribute(PSEUDO_ELEMENT_MARKER_ATTR)) return true;
+    if (stampedSet.has(el)) return true;
   }
   return false;
 }
@@ -469,6 +466,13 @@ function configuredElementMatches(ctx, baseSelector) {
 function extractPseudoClassRules(ctx) {
   const sheetEntries = collectStyleSheets(ctx.dom);
   const rulesByOwner = new Map();
+
+  // Compute the stamped-element set once — it's invariant for this whole
+  // call and a per-rule querySelectorAll over the live tree balloons fast
+  // (every `.btn:hover` on a page hit this loop before).
+  const stampedSet = ctx.pseudoClassEnabledElements
+    ? new Set(ctx.dom.querySelectorAll(`[${PSEUDO_ELEMENT_MARKER_ATTR}]`))
+    : null;
 
   for (const { sheet, owner } of sheetEntries) {
     let rules;
@@ -488,9 +492,9 @@ function extractPseudoClassRules(ctx) {
 
       // :hover/:active alone with no configured elements: skip — the
       // rewritten selector wouldn't match anything.
-      if (hasConfigOnly && !hasAutoDetect &&
-          !configuredElementMatches(ctx, stripInteractivePseudo(rule.selectorText))) {
-        continue;
+      if (hasConfigOnly && !hasAutoDetect) {
+        if (!stampedSet || stampedSet.size === 0) continue;
+        if (!someStampedMatches(ctx.dom, stripInteractivePseudo(rule.selectorText), stampedSet)) continue;
       }
 
       // selectorContainsPseudo and rewritePseudoSelector share the boundary
@@ -508,6 +512,19 @@ function extractPseudoClassRules(ctx) {
     }
   }
 
+  // Build a percyId → cloneEl index once for shadow-host injection — only
+  // when there is at least one non-null owner in the collected rules.
+  let cloneByPercyId = null;
+  for (const owner of rulesByOwner.keys()) {
+    if (owner !== null) {
+      cloneByPercyId = new Map();
+      for (const el of ctx.clone.querySelectorAll('[data-percy-element-id]')) {
+        cloneByPercyId.set(el.getAttribute('data-percy-element-id'), el);
+      }
+      break;
+    }
+  }
+
   for (const [owner, rewrittenRules] of rulesByOwner) {
     const styleElement = ctx.clone.createElement
       ? ctx.clone.createElement('style')
@@ -521,7 +538,7 @@ function extractPseudoClassRules(ctx) {
       if (head) head.appendChild(styleElement);
     } else {
       const percyId = owner.getAttribute('data-percy-element-id');
-      const cloneHost = ctx.clone.querySelector(`[data-percy-element-id="${percyId}"]`);
+      const cloneHost = cloneByPercyId.get(percyId);
       if (cloneHost && cloneHost.shadowRoot) {
         cloneHost.shadowRoot.appendChild(styleElement);
       }
@@ -541,10 +558,17 @@ export function serializePseudoClasses(ctx) {
   const elements = ctx.dom.querySelectorAll(`[${PSEUDO_ELEMENT_MARKER_ATTR}]`);
   if (elements.length === 0) return;
 
+  // pseudoElementId → cloneEl index, built once. The previous shape did a
+  // ctx.clone.querySelector per element which is O(N × T).
+  const cloneByPseudoId = new Map();
+  for (const el of ctx.clone.querySelectorAll(`[${PSEUDO_ELEMENT_MARKER_ATTR}]`)) {
+    cloneByPseudoId.set(el.getAttribute(PSEUDO_ELEMENT_MARKER_ATTR), el);
+  }
+
   const cssRules = [];
   for (const element of elements) {
     const percyElementId = element.getAttribute(PSEUDO_ELEMENT_MARKER_ATTR);
-    const cloneElement = ctx.clone.querySelector(`[${PSEUDO_ELEMENT_MARKER_ATTR}="${percyElementId}"]`);
+    const cloneElement = cloneByPseudoId.get(percyElementId);
 
     if (!cloneElement) {
       ctx.warnings.add(`Element not found for pseudo-class serialization with percy-element-id: ${percyElementId}`);

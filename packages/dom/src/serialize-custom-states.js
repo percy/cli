@@ -151,29 +151,39 @@ function elementInState(el, name) {
 
 // Test live custom elements against :state(name) for each state name found
 // in CSS, and stamp data-percy-custom-state on the matching clone element.
+//
+// Builds a percyId → cloneEl Map in one walk over the clone tree so the
+// per-element lookup is O(1) — a naive per-element ctx.clone.querySelector
+// scan is O(N × T) for N custom elements and a tree of size T.
 function addCustomStateAttributes(ctx, stateNames) {
-  const customElements = [];
-  walkShadowDOM(ctx.dom, scope => {
-    if (!scope.querySelectorAll) return;
-    for (const el of scope.querySelectorAll('*')) {
-      if (el.tagName?.includes('-')) customElements.push(el);
+  // ctx.clone is a DocumentFragment we constructed ourselves and shadow
+  // roots always have querySelectorAll, so the visitor doesn't need the
+  // defensive guard the live-DOM walk (below) uses.
+  const cloneByPercyId = new Map();
+  walkShadowDOM(ctx.clone, scope => {
+    for (const el of scope.querySelectorAll('[data-percy-element-id]')) {
+      cloneByPercyId.set(el.getAttribute('data-percy-element-id'), el);
     }
   });
 
-  for (const el of customElements) {
-    const percyId = el.getAttribute('data-percy-element-id');
-    if (!percyId) continue;
+  walkShadowDOM(ctx.dom, scope => {
+    if (!scope.querySelectorAll) return;
+    for (const el of scope.querySelectorAll('*')) {
+      if (!el.tagName?.includes('-')) continue;
+      const percyId = el.getAttribute('data-percy-element-id');
+      if (!percyId) continue;
 
-    const cloneEl = ctx.clone.querySelector(`[data-percy-element-id="${percyId}"]`);
-    if (!cloneEl || cloneEl.hasAttribute('data-percy-custom-state')) continue;
+      const cloneEl = cloneByPercyId.get(percyId);
+      if (!cloneEl || cloneEl.hasAttribute('data-percy-custom-state')) continue;
 
-    const matchedStates = [];
-    for (const name of stateNames) {
-      if (elementInState(el, name)) matchedStates.push(name);
+      const matchedStates = [];
+      for (const name of stateNames) {
+        if (elementInState(el, name)) matchedStates.push(name);
+      }
+
+      if (matchedStates.length > 0) {
+        cloneEl.setAttribute('data-percy-custom-state', matchedStates.join(' '));
+      }
     }
-
-    if (matchedStates.length > 0) {
-      cloneEl.setAttribute('data-percy-custom-state', matchedStates.join(' '));
-    }
-  }
+  });
 }
