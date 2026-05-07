@@ -648,4 +648,49 @@ describe('SDK Utils', () => {
       ]);
     });
   });
+
+  describe('mergeSnapshotOptions(options)', () => {
+    let { mergeSnapshotOptions } = utils;
+
+    beforeEach(async () => {
+      await helpers.setupTest();
+      await utils.isPercyEnabled();
+    });
+
+    it('merges config snapshot options with per-snapshot options', () => {
+      const result = mergeSnapshotOptions({ enableJavaScript: true });
+      expect(result.enableJavaScript).toBe(true);
+      expect(result.widths).toEqual([375, 1280]);
+    });
+
+    it('gives per-snapshot options priority over config', () => {
+      const result = mergeSnapshotOptions({ widths: [768] });
+      expect(result.widths).toEqual([768]);
+    });
+
+    it('returns config options when no per-snapshot options are provided', () => {
+      const result = mergeSnapshotOptions();
+      expect(result.widths).toEqual([375, 1280]);
+    });
+
+    it('returns empty object when config.snapshot is undefined and no options given', () => {
+      const savedConfig = utils.percy.config;
+      utils.percy.config = { ...savedConfig, snapshot: undefined };
+
+      const result = mergeSnapshotOptions();
+      expect(result).toEqual({});
+
+      utils.percy.config = savedConfig;
+    });
+
+    it('returns only per-snapshot options when config.snapshot is undefined', () => {
+      const savedConfig = utils.percy.config;
+      utils.percy.config = { ...savedConfig, snapshot: undefined };
+
+      const result = mergeSnapshotOptions({ enableJavaScript: true });
+      expect(result).toEqual({ enableJavaScript: true });
+
+      utils.percy.config = savedConfig;
+    });
+  });
 });
