@@ -134,7 +134,6 @@ export function rewriteCustomStateSelectors(text, stateNames) {
 function collectStyleElements(root) {
   const styles = [];
   walkShadowDOM(root, scope => {
-    /* istanbul ignore next: defensive — every scope exposes querySelectorAll */
     if (!scope.querySelectorAll) return;
     for (const el of scope.querySelectorAll('style')) styles.push(el);
   });
@@ -160,7 +159,6 @@ function elementInState(el, name) {
 function addCustomStateAttributes(ctx, stateNames) {
   const customElements = [];
   walkShadowDOM(ctx.dom, scope => {
-    /* istanbul ignore next: defensive — every scope exposes querySelectorAll */
     if (!scope.querySelectorAll) return;
     for (const el of scope.querySelectorAll('*')) {
       if (el.tagName?.includes('-')) customElements.push(el);

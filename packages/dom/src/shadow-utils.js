@@ -6,13 +6,16 @@
 
 // Resolve the runtime window for any node (Document/Element/ShadowRoot).
 // For a node inside an iframe, returns the iframe's window — which is where
-// preflight installed the per-document WeakMaps.
-function getRuntime(node) {
+// preflight installed the per-document WeakMaps. Returns null when imported
+// outside a browser realm (Node/Worker) so callers can no-op cleanly.
+export function getRuntime(node) {
   const doc = node?.ownerDocument || node;
-  /* istanbul ignore next: the `typeof window === 'undefined'` branch is
-     unreachable in the browser test runner; kept so this module can be
-     imported in non-window contexts (Node, Workers) without ReferenceError. */
-  return doc?.defaultView || (typeof window !== 'undefined' ? window : null);
+  if (doc?.defaultView) return doc.defaultView;
+  /* istanbul ignore next: the global-window fallback only fires when this
+     module is imported outside a browser realm (Node/Worker). The karma
+     browser test runner always has a global window, so neither branch of
+     this final fallback is reachable from tests. */
+  return typeof window !== 'undefined' ? window : null;
 }
 
 // Closed-shadow-root WeakMap installed by preflight, scoped to the node's
@@ -41,7 +44,6 @@ export function getShadowRoot(host) {
 // `scope` is either the original root or a shadow root.
 export function walkShadowDOM(root, visit) {
   visit(root);
-  /* istanbul ignore if: defensive — roots passed in always have querySelectorAll */
   if (!root.querySelectorAll) return;
   for (const host of root.querySelectorAll('[data-percy-shadow-host]')) {
     const shadow = getShadowRoot(host);

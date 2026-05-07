@@ -1,7 +1,7 @@
 import { when } from 'interactor.js';
 import { assert, withExample, parseDOM, platforms, platformDOM, getTestBrowser, chromeBrowser, firefoxBrowser } from './helpers';
 import serializeDOM from '../src/serialize-dom';
-import { resetPolicy } from '../src/serialize-frames';
+import { resetPolicy, serializeFrames } from '../src/serialize-frames';
 
 describe('serializeFrames', () => {
   let serialized, cache = { shadow: {}, plain: {} };
@@ -538,6 +538,32 @@ describe('serializeFrames', () => {
       let result = serializeDOM({ maxIframeDepth: 999 });
       expect(result).toBeDefined();
       expect(result.html).toBeDefined();
+    });
+  });
+
+  describe('serializeFrames direct invocation', () => {
+    it('uses the iframeDepth=0 default when called without it', () => {
+      // serializeDOM always passes iframeDepth, but a direct caller (test, or
+      // future consumer) can omit it. The destructure default exists for
+      // exactly this case and must be reachable in tests.
+      withExample('', { withShadow: false });
+      let dom = document.implementation.createHTMLDocument('TopFrame');
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      dom.body.innerHTML = '<iframe id="dd" srcdoc="<p>x</p>" data-percy-element-id="_dd"></iframe>';
+      let clone = document.implementation.createHTMLDocument('Clone');
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      clone.body.innerHTML = dom.body.innerHTML;
+
+      // No iframeDepth in the args → exercises the `= 0` default.
+      expect(() => serializeFrames({
+        dom,
+        clone,
+        warnings: new Set(),
+        resources: new Set(),
+        enableJavaScript: false,
+        disableShadowDOM: false,
+        maxIframeDepth: 3
+      })).not.toThrow();
     });
   });
 });

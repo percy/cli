@@ -1731,6 +1731,151 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
+  describe('markElementInteractiveStates — id mismatch branch', () => {
+    it('does not stamp focus when configured element has a different percy-element-id', () => {
+      // Outer `if (ctx._focusedElementId)` is truthy; inner `===` is false
+      // because the configured element's id doesn't match. This exercises
+      // the implicit-else branch (skip the stampOnce).
+      withExample('<input id="not-focused" type="text" />', { withShadow: false });
+      let el = document.getElementById('not-focused');
+      el.setAttribute('data-percy-element-id', '_some_other_id');
+      let ctx2 = { dom: document, warnings: new Set(), _focusedElementId: '_focused_elsewhere' };
+      getElementsToProcess(ctx2, { id: ['not-focused'] }, true);
+      expect(el.hasAttribute('data-percy-focus')).toBe(false);
+      // Cleanup live-DOM mutations
+      el.removeAttribute('data-percy-element-id');
+      el.removeAttribute('data-percy-pseudo-element-id');
+      el.removeAttribute('data-percy-hover');
+      el.removeAttribute('data-percy-active');
+    });
+  });
+
+  describe('serializePseudoClasses — defaultView fallback', () => {
+    it('falls back to global window when ctx.dom has no defaultView', () => {
+      // serializePseudoClasses computes styles via ctx.dom.defaultView ||
+      // window. A synthetic ctx.dom that lacks defaultView exercises the
+      // fallback branch.
+      withExample('<div id="dv"></div>', { withShadow: false });
+      let realDom = document;
+      let realEl = document.getElementById('dv');
+      realEl.setAttribute('data-percy-pseudo-element-id', '_dv_id');
+
+      // Wrap ctx.dom in a Proxy that strips `defaultView` but forwards
+      // everything else (querySelectorAll, etc.) to the real document.
+      let stripped = new Proxy(realDom, {
+        get(target, prop) {
+          if (prop === 'defaultView') return undefined;
+          let v = target[prop];
+          return typeof v === 'function' ? v.bind(target) : v;
+        }
+      });
+
+      let clone = document.implementation.createHTMLDocument('Clone');
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      clone.body.innerHTML = '<div id="dv" data-percy-pseudo-element-id="_dv_id"></div>';
+      let ctx = {
+        dom: stripped,
+        clone,
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: [],
+        pseudoClassEnabledElements: { id: ['dv'] }
+      };
+      expect(() => serializePseudoClasses(ctx)).not.toThrow();
+      // Cleanup live-DOM mutation
+      realEl.removeAttribute('data-percy-pseudo-element-id');
+    });
+  });
+
+  describe('walkCSSRules — selectorText-less rules (@font-face)', () => {
+    it('skips rules without selectorText (covers the else branch)', () => {
+      // Mix a @font-face rule (no selectorText) with a style rule that has
+      // an interactive pseudo. walkCSSRules must yield only the style rule.
+      withExample(
+        '<style>' +
+        '@font-face { font-family: "X"; src: url("a.woff2"); }' +
+        '.btn:focus { color: red; }' +
+        '</style><button class="btn"></button>',
+        { withShadow: false });
+      let ctx = {
+        dom: document,
+        clone: document.implementation.createHTMLDocument('Clone'),
+        warnings: new Set(),
+        cache: new Map(),
+        resources: new Set(),
+        hints: new Set(),
+        shadowRootElements: []
+      };
+      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
+      ctx.clone.body.innerHTML = document.body.innerHTML;
+      expect(() => serializePseudoClasses(ctx)).not.toThrow();
+      // The :focus rule still got rewritten and injected; @font-face was
+      // skipped silently.
+      let s = ctx.clone.querySelector('style[data-percy-interactive-states]');
+      expect(s).not.toBeNull();
+      expect(s.textContent).toContain('[data-percy-focus]');
+    });
+  });
+
+  describe('stampPseudoElementId init-on-demand _liveMutations', () => {
+    it('initializes ctx._liveMutations when getElementsToProcess is called directly', () => {
+      // markPseudoClassElements initializes ctx._liveMutations before stamping;
+      // direct callers (tests, future consumers) may not. The init-on-demand
+      // branch in stampPseudoElementId must be reachable.
+      withExample('<div id="direct-stamp"></div>', { withShadow: false });
+      let ctx = { dom: document, warnings: new Set() };
+      // Pre-condition: no _liveMutations
+      expect(ctx._liveMutations).toBeUndefined();
+      getElementsToProcess(ctx, { id: ['direct-stamp'] }, true);
+      // Post: array initialized and contains the stamp
+      expect(Array.isArray(ctx._liveMutations)).toBe(true);
+      let el = document.getElementById('direct-stamp');
+      expect(ctx._liveMutations.some(([e, a]) =>
+        e === el && a === 'data-percy-pseudo-element-id'
+      )).toBe(true);
+      // Cleanup the live-DOM mutation we just made.
+      el.removeAttribute('data-percy-pseudo-element-id');
+    });
+  });
+
+  describe('rewriteCustomStateCSS defensive guards', () => {
+    it('returns early when ctx.clone has no querySelectorAll (collectStyleElements scope guard)', () => {
+      // walkShadowDOM passes the root to visit() before its own querySelectorAll
+      // guard, so the inner visit body must guard too. Pass a synthetic clone
+      // lacking querySelectorAll — collectStyleElements should return [] and
+      // rewriteCustomStateCSS exits without state-detection.
+      let ctx = {
+        dom: document,
+        clone: { /* no querySelectorAll */ },
+        warnings: new Set()
+      };
+      expect(() => rewriteCustomStateCSS(ctx)).not.toThrow();
+    });
+
+    it('handles an empty ctx.dom in addCustomStateAttributes scope guard', () => {
+      // Force the fallback path (state names captured but ctx.dom lacks
+      // querySelectorAll). rewriteCustomStateCSS first collects styles from
+      // ctx.clone (a real document), captures :state(active), then walks
+      // ctx.dom — which we pass as a bare object.
+      let realClone = document.implementation.createHTMLDocument('Clone');
+      let s = realClone.createElement('style');
+      s.textContent = ':state(active) { color: red }';
+      realClone.head.appendChild(s);
+
+      let ctx = {
+        dom: { /* no querySelectorAll */ },
+        clone: realClone,
+        warnings: new Set()
+      };
+      expect(() => rewriteCustomStateCSS(ctx)).not.toThrow();
+      // CSS rewrite still happens regardless of the dom-walk fallback.
+      expect(realClone.head.querySelector('style').textContent)
+        .toContain('[data-percy-custom-state~="active"]');
+    });
+  });
+
   // CSS-aware tokenizer coverage. The replacement strategy is a small lexer
   // that respects string and attribute-bracket literals so :focus appearing
   // inside `[value=":focus"]` or a quoted string is left intact. A naive

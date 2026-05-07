@@ -168,14 +168,13 @@ export function stripInteractivePseudo(selectorText) {
   return walkPseudoSelector(selectorText, () => '');
 }
 
-// Record a live-DOM mutation so cleanup can undo it. The init-on-demand
-// branch fires when callers exercise getElementsToProcess directly (in
-// tests) rather than going through markPseudoClassElements.
+// Record a live-DOM mutation so cleanup can undo it. Callers must ensure
+// ctx._liveMutations exists — markPseudoClassElements and getElementsToProcess
+// both initialize it upfront.
 function stampOnce(ctx, element, attr, value) {
   if (!element || typeof element.hasAttribute !== 'function') return;
   if (element.hasAttribute(attr)) return;
   element.setAttribute(attr, value);
-  if (!ctx._liveMutations) ctx._liveMutations = [];
   ctx._liveMutations.push([element, attr]);
 }
 
@@ -201,10 +200,10 @@ function markFocusWithinAncestors(ctx, focused) {
       stampOnce(ctx, node, FOCUS_WITHIN_ATTR, 'true');
       node = node.parentNode;
     } else if (node.nodeType === 11 /* DOCUMENT_FRAGMENT_NODE — shadow root */) {
-      /* istanbul ignore next: shadow roots always have a host; the `|| null`
-         fallback covers a hypothetical detached fragment whose host has been
-         cleared. */
-      node = node.host || null;
+      // Shadow roots always have a host per spec; if a future detached
+      // fragment ever lacked one, the next iteration's nodeType checks
+      // both fail and the else cascade nulls node anyway.
+      node = node.host;
     } else {
       node = null;
     }
@@ -247,11 +246,6 @@ function markPopoverIfOpen(ctx, element) {
 function stampPseudoElementId(ctx, element) {
   if (!element.getAttribute(PSEUDO_ELEMENT_MARKER_ATTR)) {
     element.setAttribute(PSEUDO_ELEMENT_MARKER_ATTR, uid());
-    /* istanbul ignore next: the init-on-demand branch is unreachable from
-       markPseudoClassElements (which initializes the array first); kept as
-       a defensive fallback for callers that exercise getElementsToProcess
-       directly. */
-    if (!ctx._liveMutations) ctx._liveMutations = [];
     ctx._liveMutations.push([element, PSEUDO_ELEMENT_MARKER_ATTR]);
   }
 }
@@ -264,12 +258,9 @@ function stampPseudoElementId(ctx, element) {
 // IS the user's request to capture those forced states.
 function markElementInteractiveStates(ctx, element) {
   if (ctx._focusedElementId) {
-    const id = element.getAttribute('data-percy-element-id');
-    /* istanbul ignore else: the `id` short-circuit only triggers when a
-       configured element has no data-percy-element-id; markPseudoClassElements
-       stamps every configured element earlier, so in practice id is always
-       truthy here. */
-    if (id && id === ctx._focusedElementId) {
+    // === naturally rejects null/undefined ids without needing a truthy
+    // short-circuit (ctx._focusedElementId is already truthy at this point).
+    if (element.getAttribute('data-percy-element-id') === ctx._focusedElementId) {
       stampOnce(ctx, element, FOCUS_ATTR, 'true');
     }
   }
@@ -289,6 +280,10 @@ function markElementInteractiveStates(ctx, element) {
 export function getElementsToProcess(ctx, config, markWithId = false) {
   const { dom } = ctx;
   const elements = [];
+  // Direct callers (tests, future consumers) may not have gone through
+  // markPseudoClassElements; initialize the mutation log so stampOnce and
+  // stampPseudoElementId can push without per-call guards.
+  if (!ctx._liveMutations) ctx._liveMutations = [];
 
   const stamp = (el) => {
     if (markWithId) {
@@ -420,9 +415,10 @@ function walkCSSRules(ruleList) {
           result.push(inner);
         }
       }
-    } else /* istanbul ignore else: rules without nested cssRules and without
-       selectorText (@charset / @counter-style / @font-face) cannot contain
-       interactive pseudos, so skipping them is correct. */ if (rule.selectorText) {
+    } else if (rule.selectorText) {
+      // Rules without nested cssRules and without selectorText (@font-face,
+      // @charset, @counter-style, etc.) are skipped — they can't contain
+      // interactive pseudos.
       result.push({ selectorText: rule.selectorText, style: rule.style, wrapper: null });
     }
   }
@@ -497,12 +493,13 @@ function extractPseudoClassRules(ctx) {
         continue;
       }
 
+      // selectorContainsPseudo and rewritePseudoSelector share the boundary
+      // regexes, so a selector that passes the contains-check always
+      // rewrites to a different string. Skipping the equality guard keeps
+      // a single source of truth — if the invariant ever breaks, the test
+      // suite will surface it via mismatched output rather than a silent
+      // skip.
       const rewrittenSelector = rewritePseudoSelector(rule.selectorText);
-      /* istanbul ignore if: defensive — selectorContainsPseudo and the
-         boundary regexes are consistent, so any selector that passed the
-         contains-check above always rewrites to a different string. Kept
-         in case a future pseudo addition breaks that invariant. */
-      if (rewrittenSelector === rule.selectorText) continue;
 
       const cssText = `${rewrittenSelector} { ${rule.style.cssText} }`;
       const wrapped = rule.wrapper ? `${rule.wrapper} { ${cssText} }` : cssText;
@@ -555,9 +552,9 @@ export function serializePseudoClasses(ctx) {
     }
 
     try {
-      /* istanbul ignore next: ctx.dom.defaultView is always set in a browser
-         test runner; the `|| window` fallback is defense-in-depth for non-
-         standard ctx.dom values that might lack the property. */
+      // ctx.dom.defaultView is the iframe's window for nested-frame contexts;
+      // fall back to the global window when ctx.dom is the top document or a
+      // synthetic root that doesn't expose defaultView (e.g. tests).
       const win = ctx.dom.defaultView || window;
       const computedStyles = win.getComputedStyle(element);
       const cssText = stylesToCSSText(computedStyles);

@@ -59,10 +59,8 @@ function clampIframeDepth(raw) {
 
 // Recursively serializes iframe documents into srcdoc attributes. `iframeDepth`
 // is the current nesting level (0 at the top-level document, +1 per recursion).
-// The `iframeDepth = 0` default fires only when serializeFrames is called
-// without going through serializeDOM (which always sets it on ctx) — kept
-// as a defensive fallback for direct callers.
-/* istanbul ignore next: iframeDepth default unreachable from serializeDOM */
+// The default fires for direct callers that don't set it (e.g. tests, or
+// any future caller that doesn't go through serializeDOM).
 export function serializeFrames({ dom, clone, warnings, resources, enableJavaScript, disableShadowDOM, ignoreIframeSelectors, forceShadowAsLightDOM, maxIframeDepth, iframeDepth = 0 }) {
   maxIframeDepth = clampIframeDepth(maxIframeDepth);
   let iframeTotal = 0;
