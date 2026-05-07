@@ -7,6 +7,11 @@ import markElement from './prepare-dom';
 import applyElementTransformations from './transform-dom';
 import serializeBase64 from './serialize-base64';
 import { handleErrors } from './utils';
+import {
+  getClosedShadowRoot,
+  getCustomStateInternals,
+  hasClosedShadowRoot
+} from './shadow-utils';
 
 /**
  * Deep clone a document while also preserving shadow roots
@@ -16,13 +21,17 @@ import { handleErrors } from './utils';
 const ignoreTags = ['NOSCRIPT'];
 
 /**
- * if a custom element has attribute callback then cloneNode calls a callback that can
- * increase CPU load or some other change.
- * So we want to make sure that it is not called when doing serialization.
-*/
+ * Clone an element without triggering custom element lifecycle callbacks.
+ * Custom elements with callbacks or closed shadow roots are cloned as proxy elements
+ * to prevent constructors from running (which could call attachShadow, fetch data, etc).
+ */
 function cloneElementWithoutLifecycle(element) {
-  if (!(element.attributeChangedCallback) || !element.tagName.includes('-')) {
-    return element.cloneNode(); // Standard clone for non-custom elements
+  let isCustomElement = element.tagName?.includes('-');
+  let hasClosedShadow = isCustomElement && hasClosedShadowRoot(element);
+  let hasCallbacks = isCustomElement && element.attributeChangedCallback;
+
+  if (!isCustomElement || (!hasCallbacks && !hasClosedShadow)) {
+    return element.cloneNode();
   }
 
   const cloned = document.createElement('data-percy-custom-element-' + element.tagName);
@@ -65,6 +74,20 @@ export function cloneNodeAndShadow(ctx) {
 
       let clone = cloneElementWithoutLifecycle(node);
 
+      // After cloning and before shadow DOM handling, detect custom states
+      let percyInternals = getCustomStateInternals(node);
+      if (percyInternals?.states?.size > 0) {
+        let states = [];
+        for (let state of percyInternals.states) {
+          // Skip invalid state values (spec requires <dashed-ident>)
+          if (!/^[-\w]+$/.test(state)) continue;
+          states.push(state);
+        }
+        if (states.length > 0) {
+          clone.setAttribute('data-percy-custom-state', states.join(' '));
+        }
+      }
+
       // Handle <style> tag specifically for media queries
       if (node.nodeName === 'STYLE' && !enableJavaScript) {
         let cssText = node.textContent?.trim() || '';
@@ -98,11 +121,12 @@ export function cloneNodeAndShadow(ctx) {
         Array.from(clone.children).forEach((child) => clone.removeChild(child));
       }
 
-      // clone shadow DOM
-      if (node.shadowRoot && !disableShadowDOM) {
+      // clone shadow DOM (including closed shadow roots intercepted by preflight)
+      let nodeShadowRoot = node.shadowRoot || getClosedShadowRoot(node);
+      if (nodeShadowRoot && !disableShadowDOM) {
         if (forceShadowAsLightDOM) {
           // When forceShadowAsLightDOM is true, treat shadow content as normal DOM
-          walkTree(node.shadowRoot.firstChild, clone);
+          walkTree(nodeShadowRoot.firstChild, clone);
         } else {
           // create shadowRoot
           if (clone.shadowRoot) {
@@ -115,7 +139,7 @@ export function cloneNodeAndShadow(ctx) {
             });
           }
           // clone dom elements
-          walkTree(node.shadowRoot.firstChild, clone.shadowRoot);
+          walkTree(nodeShadowRoot.firstChild, clone.shadowRoot);
         }
       }
 

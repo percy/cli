@@ -1,4 +1,6 @@
 import fs from 'fs';
+import path from 'path';
+import url from 'url';
 import logger from '@percy/logger';
 import Network from './network.js';
 import { PERCY_DOM } from './api.js';
@@ -8,6 +10,67 @@ import {
   waitForTimeout as sleep,
   serializeFunction
 } from './utils.js';
+
+// Default ceiling on the customElements wait. Users may override via the
+// snapshot option of the same name. Set high enough to cover lazy-defined
+// element cascades on slow networks; the loop exits early when no more
+// undefined elements remain.
+export const DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT = 1500;
+
+// Read preflight.js synchronously at module load. The build copies src to
+// dist and preflight.js sits next to this file in both layouts, so a single
+// relative resolve works in both. Synchronous load eliminates file I/O from
+// the critical CDP path so addScriptToEvaluateOnNewDocument dispatches in
+// the same event-loop tick as Page.enable's response.
+export function loadPreflightScript() {
+  try {
+    let here = path.dirname(url.fileURLToPath(import.meta.url));
+    return fs.readFileSync(path.join(here, 'preflight.js'), 'utf-8');
+  } catch (err) {
+    logger('core:page').warn(
+      `[fidelity] Preflight script unavailable, closed shadow DOM and custom-element :state() capture disabled: ${err.message}`
+    );
+    return '';
+  }
+}
+
+const PREFLIGHT_SCRIPT = loadPreflightScript();
+
+// Surfaces unexpected preflight injection failures at debug level. Errors
+// caused by the target being closed/destroyed mid-attach are quietly
+// swallowed since they are normal during teardown.
+export function handlePreflightInjectionError(err) {
+  let msg = err && err.message;
+  if (msg && (msg.includes('closed') || msg.includes('destroyed'))) return;
+  logger('core:page').debug(`Preflight script injection failed: ${msg || err}`);
+}
+
+// Body of the customElements wait. Kept as a JS string (not an inline
+// function) so nyc/istanbul does not instrument the body and we don't need
+// an istanbul-ignore. The body runs in the browser via Runtime.callFunctionOn.
+//
+// Re-polls on each tick so lazy-defined element cascades (one definition
+// triggering another via dynamic import) are awaited up to the deadline.
+export const WAIT_FOR_CUSTOM_ELEMENTS_BODY = [
+  'var deadline = Date.now() + (arguments[0] || 1500);',
+  'return new Promise(function(resolve) {',
+  '  function tick() {',
+  '    var undef = document.querySelectorAll(":not(:defined)");',
+  '    if (!undef.length) return resolve();',
+  '    if (Date.now() >= deadline) return resolve();',
+  '    var names = {};',
+  '    for (var i = 0; i < undef.length; i++) names[undef[i].localName] = true;',
+  '    var promises = Object.keys(names).map(function(n) {',
+  '      return window.customElements.whenDefined(n).catch(function(){});',
+  '    });',
+  '    Promise.race([',
+  '      Promise.all(promises),',
+  '      new Promise(function(r) { setTimeout(r, 100); })',
+  '    ]).then(tick);',
+  '  }',
+  '  tick();',
+  '});'
+].join('\n');
 
 export class Page {
   static TIMEOUT = undefined;
@@ -187,7 +250,7 @@ export class Page {
     execute,
     ...snapshot
   }) {
-    let { name, width, enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements } = snapshot;
+    let { name, width, enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, ignoreIframeSelectors, pseudoClassEnabledElements, waitForCustomElementsTimeout } = snapshot;
     this.log.debug(`Taking snapshot: ${name}${width ? ` @${width}px` : ''}`, this.meta);
 
     // wait for any specified timeout
@@ -211,6 +274,12 @@ export class Page {
     // wait for any final network activity before capturing the dom snapshot
     await this.network.idle();
 
+    // wait for custom elements to be defined before capturing. The body
+    // re-polls each tick so lazy-defined element cascades are awaited up
+    // to the user-configurable deadline.
+    let waitTimeout = waitForCustomElementsTimeout ?? DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT;
+    await this.eval(WAIT_FOR_CUSTOM_ELEMENTS_BODY, waitTimeout);
+
     await this.insertPercyDom();
 
     // serialize and capture a DOM snapshot
@@ -221,7 +290,7 @@ export class Page {
       /* eslint-disable-next-line no-undef */
       domSnapshot: PercyDOM.serialize(options),
       url: document.URL
-    }), { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements });
+    }), { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, ignoreIframeSelectors, pseudoClassEnabledElements, waitForCustomElementsTimeout });
 
     return { ...snapshot, ...capture };
   }
@@ -238,8 +307,20 @@ export class Page {
     if (session.isDocument) {
       session.on('Target.attachedToTarget', this._handleAttachedToTarget);
 
+      // Chain preflight injection after Page.enable. CDP processes commands
+      // FIFO per session — and since the preflight script was loaded
+      // synchronously at module import, no event-loop turn elapses between
+      // Page.enable's response and the addScript dispatch. Sent on every
+      // attached document target so out-of-process iframes also receive
+      // the patches.
+      let pageEnablePromise = session.send('Page.enable');
       commands.push(
-        session.send('Page.enable'),
+        PREFLIGHT_SCRIPT
+          ? pageEnablePromise.then(() =>
+            session.send('Page.addScriptToEvaluateOnNewDocument', { source: PREFLIGHT_SCRIPT })
+              .catch(err => handlePreflightInjectionError(err))
+          )
+          : pageEnablePromise,
         session.send('Page.setLifecycleEventsEnabled', { enabled: true }),
         session.send('Security.setIgnoreCertificateErrors', { ignore: true }),
         session.send('Emulation.setScriptExecutionDisabled', { value: !this.enableJavaScript }),

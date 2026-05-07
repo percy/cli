@@ -3,9 +3,10 @@ import serializeFrames from './serialize-frames';
 import serializeCSSOM from './serialize-cssom';
 import serializeCanvas from './serialize-canvas';
 import serializeVideos from './serialize-video';
-import { serializePseudoClasses, markPseudoClassElements } from './serialize-pseudo-classes';
+import { serializePseudoClasses, markPseudoClassElements, rewriteCustomStateCSS, cleanupInteractiveStateMarkers } from './serialize-pseudo-classes';
 import serializeDialogs from './serialize-dialog';
 import { cloneNodeAndShadow, getOuterHTML } from './clone-dom';
+import { getClosedShadowRoot } from './shadow-utils';
 
 // Returns a copy or new doctype for a document.
 function doctype(dom) {
@@ -49,13 +50,14 @@ function serializeElements(ctx) {
     for (const shadowHost of ctx.dom.querySelectorAll('[data-percy-shadow-host]')) {
       let percyElementId = shadowHost.getAttribute('data-percy-element-id');
       let cloneShadowHost = ctx.clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
-      if (shadowHost.shadowRoot && cloneShadowHost.shadowRoot) {
+      let origShadow = shadowHost.shadowRoot || getClosedShadowRoot(shadowHost);
+      if (origShadow && cloneShadowHost.shadowRoot) {
         // getHTML requires shadowRoot to be passed explicitly
         // to serialize the shadow elements properly
         ctx.shadowRootElements.push(cloneShadowHost.shadowRoot);
         serializeElements({
           ...ctx,
-          dom: shadowHost.shadowRoot,
+          dom: origShadow,
           clone: cloneShadowHost.shadowRoot
         });
       } else {
@@ -94,6 +96,9 @@ export function serializeDOM(options) {
     ignoreCanvasSerializationErrors = options?.ignore_canvas_serialization_errors,
     ignoreStyleSheetSerializationErrors = options?.ignore_style_sheet_serialization_errors,
     forceShadowAsLightDOM = options?.force_shadow_dom_as_light_dom,
+    ignoreIframeSelectors = options?.ignore_iframe_selectors,
+    maxIframeDepth = options?.max_iframe_depth,
+    iframeDepth = options?.iframe_depth ?? 0,
     pseudoClassEnabledElements = options?.pseudo_class_enabled_elements
   } = options || {};
 
@@ -109,62 +114,81 @@ export function serializeDOM(options) {
     ignoreCanvasSerializationErrors,
     ignoreStyleSheetSerializationErrors,
     forceShadowAsLightDOM,
+    ignoreIframeSelectors,
+    maxIframeDepth,
+    iframeDepth,
     pseudoClassEnabledElements
   };
 
   ctx.dom = dom;
-  markPseudoClassElements(ctx, pseudoClassEnabledElements);
-  ctx.clone = cloneNodeAndShadow(ctx);
 
-  serializeElements(ctx);
+  // markPseudoClassElements writes data-percy-* attributes onto the LIVE DOM.
+  // Wrap it AND everything that follows in try/finally so cleanup runs even
+  // if any step (mark, clone, serialize, transform, html) throws — otherwise
+  // partially-stamped attributes leak into the customer's page (SDK mode
+  // runs in the customer's tab). _liveMutations is appended to incrementally
+  // by stampOnce, so cleanup finds whatever was stamped before the throw.
+  try {
+    markPseudoClassElements(ctx, pseudoClassEnabledElements);
+    ctx.clone = cloneNodeAndShadow(ctx);
 
-  // STEP 4: Process pseudo-class enabled elements
-  serializePseudoClasses(ctx);
+    serializeElements(ctx);
 
-  if (domTransformation) {
+    let shadowHosts = ctx.clone.querySelectorAll('[data-percy-shadow-host]');
+    if (shadowHosts.length > 0) {
+      ctx.warnings.add(`[fidelity] ${shadowHosts.length} shadow root(s) captured`);
+    }
+
+    serializePseudoClasses(ctx);
+    rewriteCustomStateCSS(ctx);
+
+    if (domTransformation) {
+      try {
+        // eslint-disable-next-line no-eval
+        if (typeof (domTransformation) === 'string') domTransformation = window.eval(domTransformation);
+        domTransformation(ctx.clone.documentElement);
+      } catch (err) {
+        let errorMessage = `Could not transform the dom: ${err.message}`;
+        ctx.warnings.add(errorMessage);
+        console.error(errorMessage);
+      }
+    }
+
+    if (reshuffleInvalidTags) {
+      let clonedBody = ctx.clone.body;
+      while (clonedBody.nextSibling) {
+        let sibling = clonedBody.nextSibling;
+        clonedBody.append(sibling);
+      }
+    } else if (ctx.clone.body?.nextSibling) {
+      ctx.hints.add('DOM elements found outside </body>');
+    }
+
+    let cookies = '';
+    // Collecting cookies fail for about://blank page
     try {
-      // eslint-disable-next-line no-eval
-      if (typeof (domTransformation) === 'string') domTransformation = window.eval(domTransformation);
-      domTransformation(ctx.clone.documentElement);
-    } catch (err) {
-      let errorMessage = `Could not transform the dom: ${err.message}`;
+      cookies = dom.cookie;
+    } catch (err) /* istanbul ignore next */ /* Tested this part in discovery.test.js with about:blank page */ {
+      const errorMessage = `Could not capture cookies: ${err.message}`;
       ctx.warnings.add(errorMessage);
       console.error(errorMessage);
     }
+
+    let result = {
+      html: serializeHTML(ctx),
+      cookies: cookies,
+      userAgent: navigator.userAgent,
+      warnings: Array.from(ctx.warnings),
+      resources: Array.from(ctx.resources),
+      hints: Array.from(ctx.hints)
+    };
+
+    return stringifyResponse
+      ? JSON.stringify(result)
+      : result;
+  } finally {
+    cleanupInteractiveStateMarkers(ctx);
   }
-
-  if (reshuffleInvalidTags) {
-    let clonedBody = ctx.clone.body;
-    while (clonedBody.nextSibling) {
-      let sibling = clonedBody.nextSibling;
-      clonedBody.append(sibling);
-    }
-  } else if (ctx.clone.body?.nextSibling) {
-    ctx.hints.add('DOM elements found outside </body>');
-  }
-
-  let cookies = '';
-  // Collecting cookies fail for about://blank page
-  try {
-    cookies = dom.cookie;
-  } catch (err) /* istanbul ignore next */ /* Tested this part in discovery.test.js with about:blank page */ {
-    const errorMessage = `Could not capture cookies: ${err.message}`;
-    ctx.warnings.add(errorMessage);
-    console.error(errorMessage);
-  }
-
-  let result = {
-    html: serializeHTML(ctx),
-    cookies: cookies,
-    userAgent: navigator.userAgent,
-    warnings: Array.from(ctx.warnings),
-    resources: Array.from(ctx.resources),
-    hints: Array.from(ctx.hints)
-  };
-
-  return stringifyResponse
-    ? JSON.stringify(result)
-    : result;
 }
 
 export default serializeDOM;

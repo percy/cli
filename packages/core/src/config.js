@@ -284,6 +284,19 @@ export const configSchema = {
         type: 'boolean',
         default: false
       },
+      ignoreIframeSelectors: {
+        type: 'array',
+        default: [],
+        items: {
+          type: 'string'
+        }
+      },
+      waitForCustomElementsTimeout: {
+        type: 'integer',
+        default: 1500,
+        minimum: 0,
+        maximum: 10000
+      },
       pseudoClassEnabledElements: {
         type: 'object',
         additionalProperties: false,
@@ -508,6 +521,8 @@ export const snapshotSchema = {
         scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
         ignoreCanvasSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreCanvasSerializationErrors' },
         ignoreStyleSheetSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreStyleSheetSerializationErrors' },
+        ignoreIframeSelectors: { $ref: '/config/snapshot#/properties/ignoreIframeSelectors' },
+        waitForCustomElementsTimeout: { $ref: '/config/snapshot#/properties/waitForCustomElementsTimeout' },
         pseudoClassEnabledElements: { $ref: '/config/snapshot#/properties/pseudoClassEnabledElements' },
         discovery: {
           type: 'object',

@@ -648,4 +648,38 @@ describe('SDK Utils', () => {
       ]);
     });
   });
+
+  describe('iframe depth constants', () => {
+    let { DEFAULT_MAX_IFRAME_DEPTH, HARD_MAX_IFRAME_DEPTH, clampIframeDepth } = utils;
+
+    it('exposes the default and hard-cap depth values', () => {
+      expect(DEFAULT_MAX_IFRAME_DEPTH).toEqual(3);
+      expect(HARD_MAX_IFRAME_DEPTH).toEqual(10);
+    });
+
+    it('clamps a user-supplied depth to the hard cap', () => {
+      expect(clampIframeDepth(50)).toEqual(10);
+      expect(clampIframeDepth(11)).toEqual(10);
+      expect(clampIframeDepth(10)).toEqual(10);
+    });
+
+    it('passes through valid in-range values', () => {
+      expect(clampIframeDepth(1)).toEqual(1);
+      expect(clampIframeDepth(5)).toEqual(5);
+      expect(clampIframeDepth(9)).toEqual(9);
+    });
+
+    it('floors fractional values', () => {
+      expect(clampIframeDepth(3.7)).toEqual(3);
+    });
+
+    it('falls back to the default for invalid input', () => {
+      expect(clampIframeDepth(undefined)).toEqual(3);
+      expect(clampIframeDepth(null)).toEqual(3);
+      expect(clampIframeDepth(0)).toEqual(3);
+      expect(clampIframeDepth(-1)).toEqual(3);
+      expect(clampIframeDepth(NaN)).toEqual(3);
+      expect(clampIframeDepth('abc')).toEqual(3);
+    });
+  });
 });
