@@ -88,22 +88,31 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
     let builtWithJs = !frame.srcdoc && (!frame.src || frame.src.split(':')[0] === 'javascript');
     let sandboxAttr = frame.getAttribute('sandbox');
 
-    // Warn about sandboxed iframes
+    // Warn about sandboxed iframes lacking the permissions Percy needs to
+    // render with fidelity. Fully-permissive sandboxes (allow-scripts +
+    // allow-same-origin) capture fine and do NOT count toward the
+    // [fidelity] summary — counting them would inflate the user-visible
+    // "N sandboxed" number for safe configurations.
     if (sandboxAttr !== null) {
-      sandboxWarned++;
       let frameLabel = frame.id || frame.src || frame.getAttribute('name') || '<unnamed iframe>';
       let tokens = sandboxAttr.split(/\s+/).filter(Boolean);
+      let warned = false;
 
       if (tokens.length === 0) {
         warnings.add(`Sandboxed iframe "${frameLabel}" has no permissions — content may not render with full fidelity in Percy`);
+        warned = true;
       } else {
         if (!tokens.includes('allow-scripts')) {
           warnings.add(`Sandboxed iframe "${frameLabel}" has scripts disabled — JS-dependent content will not render in Percy`);
+          warned = true;
         }
         if (!tokens.includes('allow-same-origin')) {
           warnings.add(`Sandboxed iframe "${frameLabel}" lacks allow-same-origin — styles and resources may not load correctly in Percy`);
+          warned = true;
         }
       }
+
+      if (warned) sandboxWarned++;
     }
 
     // delete frames within the head since they usually break pages when

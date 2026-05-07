@@ -15,14 +15,13 @@
 
 import { walkShadowDOM } from './shadow-utils';
 
-// Match :state(NAME) — CSS Custom State Pseudo-Class spec.
-const STATE_FN_RE = /:state\(([^)]+)\)/g;
-// Legacy :--name syntax (Chrome 90-124, before :state() shipped).
-const LEGACY_DASH_DASH_RE = /:--([a-zA-Z][\w-]*)/g;
 // State names that survive into the rewritten attribute selector. Anything
 // else (quotes, brackets, '</style>') would let a hostile page CSS escape
 // the rewritten <style> block or inject extra rules.
 const SAFE_STATE_NAME_RE = /^[-\w]+$/;
+// Legacy :--name capture (Chrome 90-124, before :state() shipped). Matches
+// the `name` portion only.
+const LEGACY_DASH_DASH_NAME_RE = /^([a-zA-Z][\w-]*)/;
 const STATE_ATTR_TEMPLATE = name => `[data-percy-custom-state~="${name}"]`;
 
 export function rewriteCustomStateCSS(ctx) {
@@ -33,21 +32,7 @@ export function rewriteCustomStateCSS(ctx) {
     const css = style.textContent;
     if (!css) continue;
 
-    let modified = css.replace(STATE_FN_RE, (match, name) => {
-      if (!SAFE_STATE_NAME_RE.test(name)) return match;
-      stateNames.add(name);
-      return STATE_ATTR_TEMPLATE(name);
-    });
-    modified = modified.replace(LEGACY_DASH_DASH_RE, (match, name) => {
-      /* istanbul ignore if: defense-in-depth — LEGACY_DASH_DASH_RE already
-         restricts the capture to [a-zA-Z][\w-]*, so this gate is unreachable
-         from input that the outer regex matches. Kept to mirror STATE_FN_RE
-         in case the outer regex relaxes in the future. */
-      if (!SAFE_STATE_NAME_RE.test(name)) return match;
-      stateNames.add(name);
-      return STATE_ATTR_TEMPLATE(name);
-    });
-
+    const modified = rewriteCustomStateSelectors(css, stateNames);
     if (modified !== css) {
       // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
       style.textContent = modified;
@@ -57,6 +42,92 @@ export function rewriteCustomStateCSS(ctx) {
   if (stateNames.size > 0) {
     addCustomStateAttributes(ctx, stateNames);
   }
+}
+
+// CSS-aware rewriter for `:state(name)` and the legacy `:--name`. Walks the
+// CSS text token by token, skipping over string literals and attribute
+// brackets so :state() / :-- tokens appearing inside attribute values or
+// strings are left alone. A naive `/:state\(([^)]+)\)/g` over-consumes any
+// content up to the next `)` — including content inside `[attr=":state(x)"]`
+// or comments — and would let hostile state names escape the <style> block.
+//
+// State names are validated against SAFE_STATE_NAME_RE; non-conforming names
+// pass through unchanged so authors notice the bad input rather than getting
+// silent zero-match rules.
+export function rewriteCustomStateSelectors(text, stateNames) {
+  let out = '';
+  let i = 0;
+  const len = text.length;
+  while (i < len) {
+    const ch = text[i];
+    if (ch === '"' || ch === "'") {
+      const quote = ch;
+      out += ch; i++;
+      while (i < len && text[i] !== quote) {
+        if (text[i] === '\\' && i + 1 < len) {
+          out += text[i] + text[i + 1];
+          i += 2;
+        } else {
+          out += text[i++];
+        }
+      }
+      if (i < len) out += text[i++];
+      continue;
+    }
+    if (ch === '[') {
+      let depth = 1;
+      out += ch; i++;
+      while (i < len && depth > 0) {
+        const cc = text[i];
+        if (cc === '"' || cc === "'") {
+          const q = cc;
+          out += cc; i++;
+          while (i < len && text[i] !== q) {
+            if (text[i] === '\\' && i + 1 < len) {
+              out += text[i] + text[i + 1];
+              i += 2;
+            } else {
+              out += text[i++];
+            }
+          }
+          if (i < len) out += text[i++];
+        } else if (cc === '[') {
+          depth++; out += cc; i++;
+        } else if (cc === ']') {
+          depth--; out += cc; i++;
+        } else {
+          out += text[i++];
+        }
+      }
+      continue;
+    }
+    // :state(name) at top level
+    if (ch === ':' && text.startsWith(':state(', i)) {
+      const close = text.indexOf(')', i + 7);
+      if (close !== -1) {
+        const name = text.slice(i + 7, close).trim();
+        if (SAFE_STATE_NAME_RE.test(name)) {
+          stateNames.add(name);
+          out += STATE_ATTR_TEMPLATE(name);
+          i = close + 1;
+          continue;
+        }
+      }
+    }
+    // legacy :--name at top level
+    if (ch === ':' && text.startsWith(':--', i)) {
+      const m = LEGACY_DASH_DASH_NAME_RE.exec(text.slice(i + 3));
+      if (m) {
+        stateNames.add(m[1]);
+        out += STATE_ATTR_TEMPLATE(m[1]);
+        i += 3 + m[0].length;
+        continue;
+      }
+    }
+    out += ch;
+    i++;
+  }
+  return out;
 }
 
 // Collect <style> elements from the document and every shadow root.

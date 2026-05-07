@@ -1,32 +1,44 @@
 // Percy Pre-flight Script
-// Injected before page scripts to intercept closed shadow roots and ElementInternals.
-// This enables Percy to capture content inside closed shadow DOM and custom element states.
+// Injected before page scripts to intercept closed shadow roots and
+// ElementInternals. Lets Percy capture content inside closed shadow DOM and
+// custom-element :state(...) styling.
+//
+// Globals are installed as non-writable, non-configurable, non-enumerable
+// properties so page scripts can't trivially clobber them and they don't
+// surface in `for ... in window`. The maps remain reachable via the named
+// properties Percy looks up at serialize time.
 
 (function() {
   if (window.__percyPreflightActive) return;
-  window.__percyPreflightActive = true;
+  Object.defineProperty(window, '__percyPreflightActive', {
+    value: true, writable: false, configurable: false, enumerable: false
+  });
 
   // --- Intercept closed shadow roots ---
-  let closedShadowRoots = new WeakMap();
-  let origAttachShadow = window.Element.prototype.attachShadow;
+  var closedShadowRoots = new WeakMap();
+  var origAttachShadow = window.Element.prototype.attachShadow;
   window.Element.prototype.attachShadow = function(init) {
-    let root = origAttachShadow.apply(this, arguments);
-    if (init?.mode === 'closed') {
+    var root = origAttachShadow.apply(this, arguments);
+    if (init && init.mode === 'closed') {
       closedShadowRoots.set(this, root);
     }
     return root;
   };
-  window.__percyClosedShadowRoots = closedShadowRoots;
+  Object.defineProperty(window, '__percyClosedShadowRoots', {
+    value: closedShadowRoots, writable: false, configurable: false, enumerable: false
+  });
 
   // --- Intercept ElementInternals for :state() capture ---
   if (typeof window.HTMLElement.prototype.attachInternals === 'function') {
-    let internalsMap = new WeakMap();
-    let origAttachInternals = window.HTMLElement.prototype.attachInternals;
+    var internalsMap = new WeakMap();
+    var origAttachInternals = window.HTMLElement.prototype.attachInternals;
     window.HTMLElement.prototype.attachInternals = function() {
-      let internals = origAttachInternals.apply(this, arguments);
+      var internals = origAttachInternals.apply(this, arguments);
       internalsMap.set(this, internals);
       return internals;
     };
-    window.__percyInternals = internalsMap;
+    Object.defineProperty(window, '__percyInternals', {
+      value: internalsMap, writable: false, configurable: false, enumerable: false
+    });
   }
 })();

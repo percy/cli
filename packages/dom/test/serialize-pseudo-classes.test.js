@@ -1,6 +1,7 @@
 // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
 
-import { markPseudoClassElements, serializePseudoClasses, getElementsToProcess, rewriteCustomStateCSS, cleanupInteractiveStateMarkers } from '../src/serialize-pseudo-classes';
+import { markPseudoClassElements, serializePseudoClasses, getElementsToProcess, rewriteCustomStateCSS, cleanupInteractiveStateMarkers, rewritePseudoSelector, stripInteractivePseudo } from '../src/serialize-pseudo-classes';
+import { rewriteCustomStateSelectors } from '../src/serialize-custom-states';
 import { withExample } from './helpers';
 
 // Helper to mock document.activeElement cross-browser (Firefox headless doesn't honor .focus())
@@ -1727,6 +1728,212 @@ describe('serialize-pseudo-classes', () => {
       expect(interactiveStyle).not.toBeNull();
       expect(interactiveStyle.textContent).toContain('[data-percy-focus]');
       expect(interactiveStyle.textContent).toContain('[data-percy-checked]');
+    });
+  });
+
+  // CSS-aware tokenizer coverage. The replacement strategy is a small lexer
+  // that respects string and attribute-bracket literals so :focus appearing
+  // inside `[value=":focus"]` or a quoted string is left intact. A naive
+  // `/:focus(?![-\w])/g` would mangle those.
+  describe('rewritePseudoSelector — tokenizer edge cases', () => {
+    it('preserves :focus inside double-quoted attribute values', () => {
+      expect(rewritePseudoSelector('input[value=":focus"]:focus'))
+        .toBe('input[value=":focus"][data-percy-focus]');
+    });
+
+    it('preserves :checked inside single-quoted attribute values', () => {
+      expect(rewritePseudoSelector("[data-x=':checked']:checked"))
+        .toBe("[data-x=':checked'][data-percy-checked]");
+    });
+
+    it('preserves pseudo-class tokens in top-level quoted strings', () => {
+      // Hits the top-level string-literal branch (lines 99-110).
+      expect(rewritePseudoSelector('"a:focus":focus'))
+        .toBe('"a:focus"[data-percy-focus]');
+    });
+
+    it('preserves escape sequences inside top-level strings', () => {
+      expect(rewritePseudoSelector('"a\\":focus":focus'))
+        .toBe('"a\\":focus"[data-percy-focus]');
+    });
+
+    it('handles unterminated top-level string gracefully', () => {
+      expect(rewritePseudoSelector('"unterminated')).toBe('"unterminated');
+    });
+
+    it('preserves escape sequences inside attribute-bracket nested strings', () => {
+      // Hits the inner string-skip with escape (lines 122-128).
+      expect(rewritePseudoSelector('[x="a\\":focus"]:focus'))
+        .toBe('[x="a\\":focus"][data-percy-focus]');
+    });
+
+    it('handles single-quoted strings inside attribute brackets', () => {
+      expect(rewritePseudoSelector("[x='a:focus']:focus"))
+        .toBe("[x='a:focus'][data-percy-focus]");
+    });
+
+    it('handles nested attribute brackets via depth tracking', () => {
+      // Hits the depth++ / depth-- branches (lines 131-137).
+      expect(rewritePseudoSelector('[a[b]]:focus'))
+        .toBe('[a[b]][data-percy-focus]');
+    });
+
+    it('handles unterminated attribute bracket gracefully', () => {
+      expect(rewritePseudoSelector('[unterminated')).toBe('[unterminated');
+    });
+
+    it('handles unterminated string inside attribute bracket', () => {
+      // The inner string-skip loop reaches i==len before finding the
+      // closing quote, hitting the falsy branch of `if (i < len)` (line 130).
+      expect(rewritePseudoSelector('[x="abc')).toBe('[x="abc');
+    });
+
+    it('does not rewrite :focus-within or :focus-visible', () => {
+      expect(rewritePseudoSelector('.x:focus-within, .y:focus-visible'))
+        .toBe('.x[data-percy-focus-within], .y:focus-visible');
+    });
+
+    it('rewrites :not(:checked) correctly', () => {
+      expect(rewritePseudoSelector(':not(:checked)'))
+        .toBe(':not([data-percy-checked])');
+    });
+
+    it('rewrites multiple pseudo-classes in a single selector', () => {
+      expect(rewritePseudoSelector('.a:focus.b:checked.c:disabled'))
+        .toBe('.a[data-percy-focus].b[data-percy-checked].c[data-percy-disabled]');
+    });
+
+    it('returns selector unchanged when no pseudo-class is present', () => {
+      expect(rewritePseudoSelector('.foo .bar > .baz'))
+        .toBe('.foo .bar > .baz');
+    });
+
+    it('rewrites :focus-within to its data-attribute selector', () => {
+      expect(rewritePseudoSelector('.x:focus-within')).toBe('.x[data-percy-focus-within]');
+    });
+
+    it('rewrites :hover and :active', () => {
+      expect(rewritePseudoSelector('.btn:hover.btn2:active'))
+        .toBe('.btn[data-percy-hover].btn2[data-percy-active]');
+    });
+  });
+
+  describe('stripInteractivePseudo — tokenizer-based stripping', () => {
+    it('strips all interactive pseudos from a selector', () => {
+      expect(stripInteractivePseudo('.x:focus.y:checked'))
+        .toBe('.x.y');
+    });
+
+    it('preserves pseudo tokens inside string literals when stripping', () => {
+      expect(stripInteractivePseudo('input[value=":focus"]:focus'))
+        .toBe('input[value=":focus"]');
+    });
+
+    it('preserves attribute-bracket contents when stripping', () => {
+      expect(stripInteractivePseudo('[a[b]]:hover')).toBe('[a[b]]');
+    });
+  });
+
+  describe('rewriteCustomStateSelectors — tokenizer edge cases', () => {
+    function names(set) { return Array.from(set).sort(); }
+
+    it('rewrites a simple :state(name) selector', () => {
+      let s = new Set();
+      expect(rewriteCustomStateSelectors('my-el:state(active) { color: red }', s))
+        .toBe('my-el[data-percy-custom-state~="active"] { color: red }');
+      expect(names(s)).toEqual(['active']);
+    });
+
+    it('rewrites legacy :--name selectors', () => {
+      let s = new Set();
+      expect(rewriteCustomStateSelectors('my-el:--highlighted', s))
+        .toBe('my-el[data-percy-custom-state~="highlighted"]');
+      expect(names(s)).toEqual(['highlighted']);
+    });
+
+    it('preserves :state() text inside top-level quoted strings', () => {
+      let s = new Set();
+      expect(rewriteCustomStateSelectors('"keep :state(fake)":state(real)', s))
+        .toBe('"keep :state(fake)"[data-percy-custom-state~="real"]');
+      expect(names(s)).toEqual(['real']);
+    });
+
+    it('preserves :state() text inside attribute brackets', () => {
+      let s = new Set();
+      expect(rewriteCustomStateSelectors('[x=":state(fake)"]', s))
+        .toBe('[x=":state(fake)"]');
+      expect(s.size).toBe(0);
+    });
+
+    it('handles escape sequences inside top-level strings', () => {
+      let s = new Set();
+      expect(rewriteCustomStateSelectors('"a\\":state(x)":state(real)', s))
+        .toBe('"a\\":state(x)"[data-percy-custom-state~="real"]');
+      expect(names(s)).toEqual(['real']);
+    });
+
+    it('handles escape sequences inside attribute-bracket nested strings', () => {
+      let s = new Set();
+      expect(rewriteCustomStateSelectors('[x="a\\":state(fake)"]:state(real)', s))
+        .toBe('[x="a\\":state(fake)"][data-percy-custom-state~="real"]');
+      expect(names(s)).toEqual(['real']);
+    });
+
+    it('handles single-quoted strings inside attribute brackets', () => {
+      let s = new Set();
+      expect(rewriteCustomStateSelectors("[x='a:state(fake)']:state(real)", s))
+        .toBe("[x='a:state(fake)'][data-percy-custom-state~=\"real\"]");
+      expect(names(s)).toEqual(['real']);
+    });
+
+    it('handles nested attribute brackets', () => {
+      let s = new Set();
+      expect(rewriteCustomStateSelectors('[a[b]]:state(real)', s))
+        .toBe('[a[b]][data-percy-custom-state~="real"]');
+    });
+
+    it('rejects state names that fail validation', () => {
+      let s = new Set();
+      expect(rewriteCustomStateSelectors(':state(weird name)', s))
+        .toBe(':state(weird name)');
+      expect(s.size).toBe(0);
+    });
+
+    it('handles unterminated :state expressions gracefully', () => {
+      let s = new Set();
+      expect(rewriteCustomStateSelectors(':state(unfinished', s))
+        .toBe(':state(unfinished');
+    });
+
+    it('handles unterminated quoted strings gracefully', () => {
+      let s = new Set();
+      expect(rewriteCustomStateSelectors('"unterminated', s))
+        .toBe('"unterminated');
+    });
+
+    it('handles unterminated attribute brackets gracefully', () => {
+      let s = new Set();
+      expect(rewriteCustomStateSelectors('[unterminated', s))
+        .toBe('[unterminated');
+    });
+
+    it('handles unterminated string inside attribute bracket', () => {
+      // Hits the falsy branch of `if (i < len)` after the inner string
+      // skip runs out of input without finding the closing quote.
+      let s = new Set();
+      expect(rewriteCustomStateSelectors('[x="abc', s)).toBe('[x="abc');
+    });
+
+    it('returns text unchanged when no :state() / :-- is present', () => {
+      let s = new Set();
+      expect(rewriteCustomStateSelectors('.foo .bar', s)).toBe('.foo .bar');
+      expect(s.size).toBe(0);
+    });
+
+    it('rejects :-- with no following name (legacy regex miss)', () => {
+      let s = new Set();
+      expect(rewriteCustomStateSelectors(':--', s)).toBe(':--');
+      expect(s.size).toBe(0);
     });
   });
 });

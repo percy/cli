@@ -57,6 +57,8 @@ const PSEUDO_TO_ATTR = {
 // Order matters: longer pseudos (:focus-within) must be tried before their
 // prefix forms (:focus). The boundary lookahead `(?![-\w])` prevents :focus
 // from matching the start of :focus-within / :focus-visible / :focusable.
+// Used only by selectorContainsPseudo for cheap detection — rewriting
+// itself goes through walkPseudoSelector below, which is CSS-aware.
 const PSEUDO_BOUNDARY_RES = {
   ':focus-within': /:focus-within(?![-\w])/g,
   ':focus': /:focus(?![-\w])/g,
@@ -66,6 +68,10 @@ const PSEUDO_BOUNDARY_RES = {
   ':active': /:active(?![-\w])/g
 };
 
+// Priority order: longest pseudo first so ':focus-within' wins over ':focus'
+// at the same position.
+const PSEUDO_PRIORITY = [':focus-within', ':focus', ':checked', ':disabled', ':hover', ':active'];
+
 function selectorContainsPseudo(selectorText, pseudoList) {
   return pseudoList.some(pc => {
     const re = PSEUDO_BOUNDARY_RES[pc];
@@ -74,21 +80,92 @@ function selectorContainsPseudo(selectorText, pseudoList) {
   });
 }
 
-function rewritePseudoSelector(selectorText) {
-  let rewritten = selectorText;
-  // :focus-within MUST come before :focus so the longer match wins.
-  for (const pseudo of [':focus-within', ':focus', ':checked', ':disabled', ':hover', ':active']) {
-    rewritten = rewritten.replace(PSEUDO_BOUNDARY_RES[pseudo], PSEUDO_TO_ATTR[pseudo]);
+// CSS-aware rewriter: walks the selector text token-by-token, skipping over
+// string literals ('...' / "...") and attribute-bracket contents ([...]) so
+// that `:focus` appearing inside `[value=":focus"]` or a quoted string is
+// left alone. A naive global regex would corrupt those literals.
+//
+// `replace` receives `(pseudo)` and returns the replacement string. This
+// lets us implement both full rewrite (return PSEUDO_TO_ATTR[pseudo]) and
+// stripping (return '').
+function walkPseudoSelector(selectorText, replace) {
+  let out = '';
+  let i = 0;
+  let len = selectorText.length;
+  while (i < len) {
+    let ch = selectorText[i];
+    // Top-level string literal — copy verbatim through the closing quote.
+    if (ch === '"' || ch === "'") {
+      let quote = ch;
+      out += ch; i++;
+      while (i < len && selectorText[i] !== quote) {
+        if (selectorText[i] === '\\' && i + 1 < len) {
+          out += selectorText[i] + selectorText[i + 1];
+          i += 2;
+        } else {
+          out += selectorText[i++];
+        }
+      }
+      if (i < len) out += selectorText[i++];
+      continue;
+    }
+    // Attribute bracket — copy verbatim through the matching `]`. Handles
+    // nested brackets, single- and double-quoted strings inside.
+    if (ch === '[') {
+      let depth = 1;
+      out += ch; i++;
+      while (i < len && depth > 0) {
+        let cc = selectorText[i];
+        if (cc === '"' || cc === "'") {
+          let q = cc;
+          out += cc; i++;
+          while (i < len && selectorText[i] !== q) {
+            if (selectorText[i] === '\\' && i + 1 < len) {
+              out += selectorText[i] + selectorText[i + 1];
+              i += 2;
+            } else {
+              out += selectorText[i++];
+            }
+          }
+          if (i < len) out += selectorText[i++];
+        } else if (cc === '[') {
+          depth++; out += cc; i++;
+        } else if (cc === ']') {
+          depth--; out += cc; i++;
+        } else {
+          out += selectorText[i++];
+        }
+      }
+      continue;
+    }
+    // Top-level pseudo-class — try priority-ordered match.
+    if (ch === ':') {
+      let matched = false;
+      for (const pseudo of PSEUDO_PRIORITY) {
+        if (selectorText.startsWith(pseudo, i)) {
+          let nextCh = selectorText[i + pseudo.length];
+          if (!nextCh || !/[-\w]/.test(nextCh)) {
+            out += replace(pseudo);
+            i += pseudo.length;
+            matched = true;
+            break;
+          }
+        }
+      }
+      if (matched) continue;
+    }
+    out += ch;
+    i++;
   }
-  return rewritten;
+  return out;
 }
 
-function stripInteractivePseudo(selectorText) {
-  let stripped = selectorText;
-  for (const pseudo of ALL_INTERACTIVE_PSEUDO) {
-    stripped = stripped.replace(PSEUDO_BOUNDARY_RES[pseudo], '');
-  }
-  return stripped;
+export function rewritePseudoSelector(selectorText) {
+  return walkPseudoSelector(selectorText, pseudo => PSEUDO_TO_ATTR[pseudo]);
+}
+
+export function stripInteractivePseudo(selectorText) {
+  return walkPseudoSelector(selectorText, () => '');
 }
 
 // Record a live-DOM mutation so cleanup can undo it. The init-on-demand
