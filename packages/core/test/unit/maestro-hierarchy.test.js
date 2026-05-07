@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import url from 'url';
-import { dump, firstMatch } from '../../src/maestro-hierarchy.js';
+import { dump, firstMatch, getMaestroHierarchyDrift, __testing } from '../../src/maestro-hierarchy.js';
 import { logger, setupTest } from '../helpers/index.js';
 
 const fixtureDir = path.resolve(url.fileURLToPath(import.meta.url), '../../fixtures/maestro-hierarchy');
@@ -896,6 +896,98 @@ describe('Unit / maestro-hierarchy', () => {
       const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest: httpRefused, execMaestro });
       expect(res.kind).toBe('dump-error');
       expect(res.reason).toMatch(/^maestro-exit-/);
+    });
+  });
+
+  describe('maestroHierarchyDrift two-slot setter (Unit 4)', () => {
+    beforeEach(() => {
+      __testing.resetMaestroHierarchyDrift();
+    });
+
+    const validIosEnv = key => {
+      if (key === 'PERCY_IOS_DEVICE_UDID') return '00008110-000065081404401E';
+      if (key === 'PERCY_IOS_DRIVER_HOST_PORT') return '11100';
+      return undefined;
+    };
+
+    it('initial state: both slots null', () => {
+      expect(getMaestroHierarchyDrift()).toEqual({ android: null, ios: null });
+    });
+
+    it('iOS schema-class failure flips ios slot only; android stays null', async () => {
+      // Send a body that JSON.parses but lacks the axElement root → schema-drift.
+      const httpRequest = async () => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ depth: 2 })
+      });
+      const execMaestro = async () => { throw new Error('should not invoke maestro-cli on schema-class'); };
+      const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
+      expect(res.kind).toBe('dump-error');
+
+      const drift = getMaestroHierarchyDrift();
+      expect(drift.ios).toEqual(jasmine.objectContaining({ reason: 'http-missing-root' }));
+      expect(typeof drift.ios.firstSeenAt).toBe('string');
+      expect(drift.android).toBeNull();
+    });
+
+    it('first-seen-per-platform wins: subsequent same-platform write does not overwrite firstSeenAt', async () => {
+      const httpRequest = async () => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ depth: 2 })
+      });
+      const execMaestro = async () => { throw new Error('should not invoke maestro-cli'); };
+      // First failure
+      await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
+      const firstSeenAt = getMaestroHierarchyDrift().ios.firstSeenAt;
+      // Wait a tick so a second writer would observe a different timestamp.
+      await new Promise(r => setTimeout(r, 5));
+      // Second failure
+      await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
+      expect(getMaestroHierarchyDrift().ios.firstSeenAt).toBe(firstSeenAt);
+    });
+
+    it('connection-class failure does NOT flip the drift bit (only schema-class does)', async () => {
+      const httpRequest = async () => { throw Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }); };
+      const execMaestro = async () => ({ stdout: '', stderr: '', exitCode: 1 });
+      await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
+      expect(getMaestroHierarchyDrift().ios).toBeNull();
+    });
+
+    it('SpringBoard-only response does NOT flip the drift bit (no-aut-tree, not schema-drift)', async () => {
+      const springboardOnly = JSON.stringify({
+        axElement: {
+          identifier: 'com.apple.springboard',
+          frame: { X: 0, Y: 0, Width: 390, Height: 844 },
+          label: 'SpringBoard',
+          elementType: 1,
+          enabled: true,
+          children: []
+        },
+        depth: 1
+      });
+      const httpRequest = async () => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: springboardOnly
+      });
+      const execMaestro = async () => ({ stdout: '', stderr: '', exitCode: 1 });
+      await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
+      expect(getMaestroHierarchyDrift().ios).toBeNull();
+    });
+
+    it('reset helper clears both slots', async () => {
+      // Flip the iOS slot first
+      const httpRequest = async () => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ depth: 2 })
+      });
+      await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro: async () => ({ stdout: '', stderr: '', exitCode: 1 }) });
+      expect(getMaestroHierarchyDrift().ios).not.toBeNull();
+      __testing.resetMaestroHierarchyDrift();
+      expect(getMaestroHierarchyDrift()).toEqual({ android: null, ios: null });
     });
   });
 });

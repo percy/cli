@@ -74,6 +74,20 @@ const IOS_DRIVER_HOST_PORT_MAX = 11110;
 // HTTP response cap (matches wda-hierarchy.js SOURCE_MAX_BYTES).
 const IOS_HTTP_RESPONSE_MAX_BYTES = 20 * 1024 * 1024;
 
+// Two-slot drift bit (Unit 4). Records the first schema-class failure per
+// platform so /percy/healthcheck can surface contract drift to ops. Each
+// slot is monotonic — once set, only the first occurrence's `firstSeenAt`
+// is preserved. Future Android-side resolver work (e.g., PR #2210's gRPC
+// path) will populate the `android` slot via the same setter.
+//
+// Single-author note: this branch doesn't yet have PR #2210's
+// `recordSchemaDrift` code (#2210 sits on a sibling branch off PR #2202).
+// When #2210 merges to master and this PR rebases, the rebase will need
+// to retrofit #2210's Android-side schema-class call sites to use the
+// setter exported here. Companion artifact:
+// percy-maestro/docs/plans/2026-05-06-004-pr2210-coordination-comment.md.
+let maestroHierarchyDrift = { android: null, ios: null };
+
 const BOUNDS_RE = /^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$/;
 const UNAVAILABLE_STDERR_RE = /no devices|unauthorized|device offline/i;
 const MAESTRO_UNAVAILABLE_STDERR_RE = /No connected devices|Device not found|Could not connect/i;
@@ -369,6 +383,36 @@ function flattenMaestroNodes(root) {
   walk(root);
   return nodes;
 }
+
+// Drift-bit setter. First-seen-per-platform wins; subsequent same-platform
+// writes are no-ops to preserve the original `firstSeenAt`. Unknown platform
+// values are silently ignored — the setter is internal and the call sites
+// pass static literals.
+function setMaestroHierarchyDrift({ platform, code, reason }) {
+  if (platform !== 'android' && platform !== 'ios') return;
+  if (maestroHierarchyDrift[platform]) return;
+  maestroHierarchyDrift[platform] = {
+    code,
+    reason,
+    firstSeenAt: new Date().toISOString()
+  };
+}
+
+// Public reader for /percy/healthcheck. Always returns the full envelope;
+// both slots are `null` in steady state. Consumers (api.js healthcheck
+// handler, ops dashboards) must check both slots independently.
+export function getMaestroHierarchyDrift() {
+  return maestroHierarchyDrift;
+}
+
+// Test helper — resets both slots between specs. Not exported on the public
+// surface (consumers shouldn't reset module state in production). The default
+// export `__testing` namespace mirrors PR #2210's pattern.
+export const __testing = {
+  resetMaestroHierarchyDrift() {
+    maestroHierarchyDrift = { android: null, ios: null };
+  }
+};
 
 // Default Node http.request wrapper. Returns
 //   { statusCode, headers, body }
@@ -683,8 +727,10 @@ export async function dump({
         return httpResult;
       }
       if (httpResult.kind === 'dump-error') {
-        // Schema-class — no fallback per plan R4. Drift bit handling deferred
-        // to plan Unit 4 (cross-PR coordination with #2210); for now log only.
+        // Schema-class — no fallback per plan R4. Flip the iOS slot of the
+        // drift bit so /percy/healthcheck surfaces the contract mismatch
+        // for ops investigation. First-seen-per-platform wins.
+        setMaestroHierarchyDrift({ platform: 'ios', code: undefined, reason: httpResult.reason });
         log.warn(`iOS HTTP schema-drift: ${httpResult.reason}`);
         return httpResult;
       }

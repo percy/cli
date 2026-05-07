@@ -62,6 +62,8 @@ describe('API Server', () => {
       config: PercyConfig.getDefaults(),
       widths: { mobile: [], config: PercyConfig.getDefaults().snapshot.widths },
       deviceDetails: [],
+      // Two-slot drift envelope (Unit 4). Both slots null in steady state.
+      maestroHierarchyDrift: { android: null, ios: null },
       build: {
         id: '123',
         number: 1,

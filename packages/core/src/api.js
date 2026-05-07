@@ -6,7 +6,7 @@ import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHan
 import { ServerError } from './server.js';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { handleSyncJob } from './snapshot.js';
-import { dump as adbDump, firstMatch as adbFirstMatch, SELECTOR_KEYS_WHITELIST } from './maestro-hierarchy.js';
+import { dump as adbDump, firstMatch as adbFirstMatch, SELECTOR_KEYS_WHITELIST, getMaestroHierarchyDrift } from './maestro-hierarchy.js';
 import { PNG_MAGIC_BYTES, parsePngDimensions, isPortrait as isPortraitByAspect } from './png-dimensions.js';
 import { resolveWdaSession } from './wda-session-resolver.js';
 import { resolveIosRegions } from './wda-hierarchy.js';
@@ -101,6 +101,12 @@ export function createPercyServer(percy, port) {
         config: percy.config.snapshot.widths
       },
       deviceDetails: percy.deviceDetails || [],
+      // Two-slot drift envelope (Unit 4). Always emitted; both slots null
+      // in steady state. Ops uses this to detect Maestro upstream wire-format
+      // contract drift that would silently degrade element-region resolution.
+      // android slot is reserved for future Android-resolver schema-class
+      // calls (PR #2210's gRPC drift surface retrofits to use this setter).
+      maestroHierarchyDrift: getMaestroHierarchyDrift(),
       success: true,
       type: percy.client.tokenType()
     }))
