@@ -6,8 +6,7 @@ import { getPackageJSON, Server, percyAutomateRequestHandler, percyBuildEventHan
 import { ServerError } from './server.js';
 import WebdriverUtils from '@percy/webdriver-utils';
 import { handleSyncJob } from './snapshot.js';
-import { dump as adbDump, firstMatch as adbFirstMatch, SELECTOR_KEYS_WHITELIST, getMaestroHierarchyDrift } from './maestro-hierarchy.js';
-import { request as percyRequest } from '@percy/client/utils';
+import { dump as maestroDump, firstMatch as maestroFirstMatch, SELECTOR_KEYS_WHITELIST, getMaestroHierarchyDrift } from './maestro-hierarchy.js';
 import Busboy from 'busboy';
 import { Readable } from 'stream';
 // Previously, we used `createRequire(import.meta.url).resolve` to resolve the path to the module.
@@ -514,7 +513,7 @@ export function createPercyServer(percy, port) {
             // sessionId is threaded through so the iOS HTTP path can scrub-log
             // a correlation tag (sid prefix) without leaking the full id.
             if (cachedDump === null) {
-              cachedDump = await adbDump({ platform, sessionId });
+              cachedDump = await maestroDump({ platform, sessionId });
             }
             if (cachedDump.kind !== 'hierarchy') {
               if (!elementSkipWarned) {
@@ -525,7 +524,7 @@ export function createPercyServer(percy, port) {
               }
               continue;
             }
-            let bbox = adbFirstMatch(cachedDump.nodes, region.element);
+            let bbox = maestroFirstMatch(cachedDump.nodes, region.element);
             if (!bbox) {
               percy.log.warn(`Element region not found: ${JSON.stringify(region.element)} — skipping`);
               continue;

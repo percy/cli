@@ -652,9 +652,9 @@ async function runIosHttpDump({ port, sessionId, httpRequest = defaultHttpReques
   return { kind: 'hierarchy', nodes };
 }
 
-// iOS maestro-CLI fallback path (replaces the iOS-WIP "Phase 0.5 stub").
-// Spawns `maestro --udid <udid> --driver-host-port <port> hierarchy` and
-// parses stdout (Maestro's normalized TreeNode shape, identical to Android).
+// iOS maestro-CLI fallback path. Spawns
+// `maestro --udid <udid> --driver-host-port <port> hierarchy` and parses
+// stdout (Maestro's normalized TreeNode shape, identical to Android).
 // Existing flattenMaestroNodes consumes TreeNode unchanged — no iOS-specific
 // branching needed on this path.
 async function runMaestroIosDump(udid, driverHostPort, execMaestro, getEnv) {
@@ -827,7 +827,8 @@ export function firstMatch(nodes, selector) {
 // Exposed for tests + handler-side validation in api.js. Union of platform
 // keys; per-platform validation is implicit in the node shape returned by
 // dump() — Android nodes carry resource-id/text/content-desc/class plus the
-// `id` alias; iOS nodes (Phase 1+ once Unit 2b lands) carry id/class only.
+// `id` alias; iOS nodes carry `id` only (Maestro's iOS TreeNode does not
+// surface `class`).
 export const SELECTOR_KEYS_WHITELIST = SELECTOR_KEYS_UNION;
 export const ANDROID_SELECTOR_KEYS_WHITELIST = ANDROID_SELECTOR_KEYS;
 export const IOS_SELECTOR_KEYS_WHITELIST = IOS_SELECTOR_KEYS;
