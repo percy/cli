@@ -3770,12 +3770,13 @@ describe('Discovery', () => {
     });
 
     it('should fail to launch if the devtools address is not logged', async () => {
+      // --version makes Chrome print its version and exit 0 without opening DevTools
       await expectAsync(Percy.start({
         token: 'PERCY_TOKEN',
         snapshot: { widths: [1000] },
         discovery: {
           launchOptions: {
-            args: ['--remote-debugging-port=null']
+            args: ['--version']
           }
         }
       })).toBeRejectedWithError(

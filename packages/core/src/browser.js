@@ -279,9 +279,11 @@ export class Browser extends EventEmitter {
         if (match) cleanup(() => resolve(match[1]));
       };
 
-      let handleExitClose = () => handleError();
+      let handleExitClose = () => handleError(
+        new Error('Browser exited before devtools address')
+      );
       let handleError = error => cleanup(() => reject(new Error(
-        `Failed to launch browser. ${error && error.message ? error.message : ''}\n${stderr}'\n\n`
+        `Failed to launch browser. ${error.message}\n${stderr}'\n\n`
       )));
 
       let cleanup = callback => {
