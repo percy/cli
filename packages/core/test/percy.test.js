@@ -122,6 +122,22 @@ describe('Percy', () => {
     }));
   });
 
+  it('skips closed-shadow CDP discovery when snapshot.disableShadowDOM is set', async () => {
+    // When the per-snapshot disableShadowDOM flag is true, page.snapshot()
+    // skips the exposeClosedShadowRoots CDP call. Verify by inspecting
+    // session.send call args — the DOM.getDocument send (driven only by
+    // exposeClosedShadowRoots) must not appear during this snapshot.
+    server.reply('/', () => [200, 'text/html', '<p>hi</p>']);
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    let sendSpy = spyOn(page.session, 'send').and.callThrough();
+    await page.goto('http://localhost:8000');
+    sendSpy.calls.reset();
+    await page.snapshot({ disableShadowDOM: true });
+    let domGetDocSends = sendSpy.calls.allArgs().filter(a => a[0] === 'DOM.getDocument');
+    expect(domGetDocSends.length).toBe(0);
+  });
+
   describe('.start()', () => {
     // rather than stub prototypes, extend and mock
     class TestPercy extends Percy {

@@ -15,6 +15,7 @@ import {
   HARD_MAX_IFRAME_DEPTH,
   clampIframeDepth
 } from './iframe-utils.js';
+import exposeClosedShadowRoots, { walkCDPNodes } from './closed-shadow.js';
 
 export {
   logger,
@@ -31,7 +32,9 @@ export {
   getResponsiveWidths,
   DEFAULT_MAX_IFRAME_DEPTH,
   HARD_MAX_IFRAME_DEPTH,
-  clampIframeDepth
+  clampIframeDepth,
+  exposeClosedShadowRoots,
+  walkCDPNodes
 };
 
 // export the namespace by default

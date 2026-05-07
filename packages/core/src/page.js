@@ -1,8 +1,7 @@
 import fs from 'fs';
-import path from 'path';
-import url from 'url';
 import logger from '@percy/logger';
 import Network from './network.js';
+import { exposeClosedShadowRoots } from './closed-shadow.js';
 import { PERCY_DOM } from './api.js';
 import {
   hostname,
@@ -16,34 +15,6 @@ import {
 // element cascades on slow networks; the loop exits early when no more
 // undefined elements remain.
 export const DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT = 1500;
-
-// Read preflight.js synchronously at module load. The build copies src to
-// dist and preflight.js sits next to this file in both layouts, so a single
-// relative resolve works in both. Synchronous load eliminates file I/O from
-// the critical CDP path so addScriptToEvaluateOnNewDocument dispatches in
-// the same event-loop tick as Page.enable's response.
-export function loadPreflightScript() {
-  try {
-    let here = path.dirname(url.fileURLToPath(import.meta.url));
-    return fs.readFileSync(path.join(here, 'preflight.js'), 'utf-8');
-  } catch (err) {
-    logger('core:page').warn(
-      `[fidelity] Preflight script unavailable, closed shadow DOM and custom-element :state() capture disabled: ${err.message}`
-    );
-    return '';
-  }
-}
-
-const PREFLIGHT_SCRIPT = loadPreflightScript();
-
-// Surfaces unexpected preflight injection failures at debug level. Errors
-// caused by the target being closed/destroyed mid-attach are quietly
-// swallowed since they are normal during teardown.
-export function handlePreflightInjectionError(err) {
-  let msg = err && err.message;
-  if (msg && (msg.includes('closed') || msg.includes('destroyed'))) return;
-  logger('core:page').debug(`Preflight script injection failed: ${msg || err}`);
-}
 
 // Body of the customElements wait. Kept as a JS string (not an inline
 // function) so nyc/istanbul does not instrument the body and we don't need
@@ -280,6 +251,13 @@ export class Page {
     let waitTimeout = waitForCustomElementsTimeout ?? DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT;
     await this.eval(WAIT_FOR_CUSTOM_ELEMENTS_BODY, waitTimeout);
 
+    // Discover closed shadow roots via CDP and expose them to
+    // PercyDOM.serialize() through window.__percyClosedShadowRoots. Skip
+    // when the customer opted out of shadow DOM entirely.
+    if (!disableShadowDOM) {
+      await exposeClosedShadowRoots(this.session, msg => this.log.debug(msg, this.meta));
+    }
+
     await this.insertPercyDom();
 
     // serialize and capture a DOM snapshot
@@ -307,18 +285,8 @@ export class Page {
     if (session.isDocument) {
       session.on('Target.attachedToTarget', this._handleAttachedToTarget);
 
-      // CDP processes commands in send-order per session, so the browser
-      // applies Page.enable first and then registers the preflight script.
-      // The preflight script was loaded synchronously at module import, so
-      // there's no event-loop turn between the two sends. Sent on every
-      // attached document target so out-of-process iframes also receive
-      // the patches. If PREFLIGHT_SCRIPT is empty (file missing — already
-      // warned at module load), CDP registers a no-op script which is
-      // harmless.
       commands.push(
         session.send('Page.enable'),
-        session.send('Page.addScriptToEvaluateOnNewDocument', { source: PREFLIGHT_SCRIPT })
-          .catch(handlePreflightInjectionError),
         session.send('Page.setLifecycleEventsEnabled', { enabled: true }),
         session.send('Security.setIgnoreCertificateErrors', { ignore: true }),
         session.send('Emulation.setScriptExecutionDisabled', { value: !this.enableJavaScript }),

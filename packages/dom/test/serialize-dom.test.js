@@ -87,7 +87,7 @@ describe('serializeDOM', () => {
     window.__percyClosedShadowRoots = map;
 
     let result = serializeDOM({ disableShadowDOM: true });
-    expect(result.warnings.some(w => w.includes('[fidelity]') && w.includes('potentially inaccessible'))).toBe(false);
+    expect(result.warnings.some(w => w.includes('[capture]') && w.includes('potentially inaccessible'))).toBe(false);
 
     window.__percyClosedShadowRoots = origMap;
   });
@@ -882,8 +882,8 @@ describe('serializeDOM', () => {
     });
   });
 
-  describe('fidelity warnings', () => {
-    it('adds shadow root fidelity warning when shadow hosts exist', () => {
+  describe('capture-summary warnings', () => {
+    it('adds shadow-root capture warning when shadow hosts exist', () => {
       if (getTestBrowser() !== chromeBrowser) return;
 
       withExample('', { withShadow: false });
@@ -893,7 +893,7 @@ describe('serializeDOM', () => {
       document.getElementById('test').appendChild(el);
 
       let result = serializeDOM();
-      expect(result.warnings.some(w => w.includes('[fidelity]') && w.includes('shadow root'))).toBe(true);
+      expect(result.warnings.some(w => w.includes('[capture]') && w.includes('shadow root'))).toBe(true);
     });
   });
 

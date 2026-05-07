@@ -1,68 +1,12 @@
-import { setupTest, logger } from '../helpers/index.js';
+import { setupTest } from '../helpers/index.js';
 import {
-  loadPreflightScript,
-  handlePreflightInjectionError,
   DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT,
   WAIT_FOR_CUSTOM_ELEMENTS_BODY
 } from '../../src/page.js';
-import fs from 'fs';
 
 describe('Unit / Page module', () => {
   beforeEach(async () => {
     await setupTest();
-  });
-
-  describe('loadPreflightScript', () => {
-    it('returns the contents of preflight.js when it sits next to page.js', () => {
-      // Module-load already exercised the success path; calling again is
-      // independent and should still return a non-empty string.
-      let result = loadPreflightScript();
-      expect(typeof result).toBe('string');
-      expect(result).toContain('__percyPreflightActive');
-    });
-
-    it('logs at warn level and returns "" when the file is unavailable', () => {
-      logger.loglevel('warn');
-      spyOn(fs, 'readFileSync').and.throwError(
-        Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-      );
-      let result = loadPreflightScript();
-      expect(result).toBe('');
-      expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/\[fidelity\] Preflight script unavailable/)
-      ]));
-    });
-  });
-
-  describe('handlePreflightInjectionError', () => {
-    beforeEach(() => logger.loglevel('debug'));
-
-    it('swallows "closed"-style errors silently', () => {
-      handlePreflightInjectionError(new Error('Target was closed.'));
-      expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Preflight script injection failed/)
-      ]));
-    });
-
-    it('swallows "destroyed"-style errors silently', () => {
-      handlePreflightInjectionError(new Error('Frame destroyed before commit.'));
-      expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Preflight script injection failed/)
-      ]));
-    });
-
-    it('logs unexpected errors at debug', () => {
-      handlePreflightInjectionError(new Error('Permission denied'));
-      expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Preflight script injection failed: Permission denied/)
-      ]));
-    });
-
-    it('handles non-Error values without throwing', () => {
-      expect(() => handlePreflightInjectionError('plain string')).not.toThrow();
-      expect(() => handlePreflightInjectionError(undefined)).not.toThrow();
-      expect(() => handlePreflightInjectionError(null)).not.toThrow();
-    });
   });
 
   describe('DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT', () => {
@@ -127,7 +71,6 @@ describe('Unit / Page module', () => {
       let fn = make(doc, win);
       let start = Date.now();
       await fn(1500);
-      // Deadline is 1500ms; the late-define resolves well before.
       expect(Date.now() - start).toBeLessThan(1000);
     });
   });

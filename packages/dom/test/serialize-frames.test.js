@@ -409,14 +409,14 @@ describe('serializeFrames', () => {
       expect($parsed('#frame-outside')).toHaveSize(1);
     });
 
-    it(`${platform}: includes ignored iframe count in fidelity warning`, () => {
+    it(`${platform}: includes ignored iframe count in capture warning`, () => {
       withExample('<iframe id="frame-ig1" data-percy-ignore srcdoc="<p>a</p>"></iframe>' +
         '<iframe id="frame-ig2" data-percy-ignore srcdoc="<p>b</p>"></iframe>' +
         '<iframe id="frame-normal" srcdoc="<p>c</p>"></iframe>');
 
       let result = serializeDOM();
-      let fidelityWarning = result.warnings.find(w => w.startsWith('[fidelity]'));
-      expect(fidelityWarning).toContain('2 ignored via data-percy-ignore');
+      let captureWarning = result.warnings.find(w => w.startsWith('[capture]'));
+      expect(captureWarning).toContain('2 ignored via data-percy-ignore');
     });
 
     if (platform === 'plain') {

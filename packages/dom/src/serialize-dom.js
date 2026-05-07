@@ -136,7 +136,7 @@ export function serializeDOM(options) {
 
     let shadowHosts = ctx.clone.querySelectorAll('[data-percy-shadow-host]');
     if (shadowHosts.length > 0) {
-      ctx.warnings.add(`[fidelity] ${shadowHosts.length} shadow root(s) captured`);
+      ctx.warnings.add(`[capture] ${shadowHosts.length} shadow root(s) captured`);
     }
 
     serializePseudoClasses(ctx);

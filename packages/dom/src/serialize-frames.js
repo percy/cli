@@ -89,7 +89,7 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
     // Warn about sandboxed iframes lacking the permissions Percy needs to
     // render with fidelity. Fully-permissive sandboxes (allow-scripts +
     // allow-same-origin) capture fine and do NOT count toward the
-    // [fidelity] summary — counting them would inflate the user-visible
+    // [capture] summary — counting them would inflate the user-visible
     // "N sandboxed" number for safe configurations.
     if (sandboxAttr !== null) {
       let frameLabel = frame.id || frame.src || frame.getAttribute('name') || '<unnamed iframe>';
@@ -176,7 +176,7 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
     let parts = [`${captured} captured`, `${corsExcluded} cross-origin excluded`, `${sandboxWarned} sandboxed`];
     if (ignored > 0) parts.push(`${ignored} ignored via data-percy-ignore`);
     if (depthExcluded > 0) parts.push(`${depthExcluded} excluded at depth limit (${maxIframeDepth})`);
-    warnings.add(`[fidelity] ${iframeTotal} iframe(s): ${parts.join(', ')}`);
+    warnings.add(`[capture] ${iframeTotal} iframe(s): ${parts.join(', ')}`);
   }
 }
 
