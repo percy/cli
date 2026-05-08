@@ -1,11 +1,47 @@
-# Integration harnesses — iOS resolver validation
+# Integration harnesses — Android gRPC + iOS HTTP resolver validation
 
-Documented merge gates for the iOS HTTP view-hierarchy resolver work
-(plan: `percy-maestro/docs/plans/2026-05-06-004-feat-cross-platform-maestro-resolver-unification-plan.md`).
+Documented merge gates for the cross-platform view-hierarchy resolver work
+(plans: `percy-maestro/docs/plans/2026-05-06-004-feat-cross-platform-maestro-resolver-unification-plan.md`,
+`cli/docs/plans/2026-05-07-002-feat-android-grpc-direct-resolver-plan.md`).
 All harnesses are env-gated and skip cleanly in CI; they require a real
 device + Maestro CLI + a running Percy CLI.
 
 ## Harnesses
+
+### `maestro-hierarchy-concurrent.harness.js` (2026-05-07-002 plan Unit 6)
+
+Concurrent-access regression for the Android gRPC primary path. Calls
+`runAndroidGrpcDump` against Maestro's `dev.mobile.maestro` agent (via
+gRPC over the realmobile/mobile-injected `PERCY_ANDROID_GRPC_PORT`)
+while a real Maestro flow holds the device active. Asserts
+`{kind: 'hierarchy'}` on every iteration and records p50/p95/p99 timings.
+
+**Pre-merge gate (D11):** `p95 < 1200ms AND p99 < 2000ms` across 100
+iterations under live `tapOn` flow load. Failure means D11's deadline
+budget is wrong OR the device-side agent is contention-fragile —
+investigate before relaxing the threshold.
+
+Required env:
+
+- `MAESTRO_ANDROID_TEST_DEVICE=<serial>` — connected Android device
+- `PERCY_ANDROID_GRPC_PORT=<port>` — host port forwarded to device's
+  `dev.mobile.maestro` (`adb forward tcp:<host_port> tcp:7001`); typically
+  realmobile/mobile-injected, but for local validation set up the forward
+  manually
+- `MAESTRO_BIN=<path>` — optional; defaults to `maestro` on PATH
+
+Run from `cli/packages/core/`:
+
+```sh
+MAESTRO_ANDROID_TEST_DEVICE=<serial> \
+PERCY_ANDROID_GRPC_PORT=<port> \
+node test/integration/maestro-hierarchy-concurrent.harness.js
+```
+
+Paste the result block (with p50/p95/p99 + iteration count) into the PR
+description.
+
+
 
 ### `maestro-hierarchy-ios-http-concurrent.harness.js` (Unit 7 — V4.2)
 
