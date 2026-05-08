@@ -841,10 +841,16 @@ async function runIosHttpDump({ port, sessionId, httpRequest = defaultHttpReques
     return { kind: 'dump-error', reason: `http-unexpected-status-${statusCode}` };
   }
 
-  // Content-type check.
+  // Content-type is informational only — Maestro's upstream
+  // ViewHierarchyHandler.swift constructs `HTTPResponse(statusCode:.ok, body:body)`
+  // without setting Content-Type (FlyingFox HTTP server doesn't auto-set one).
+  // Body IS valid JSON regardless. Strict CT-required check would silently
+  // reject every response from real Maestro builds — relax to a soft warn
+  // and let JSON.parse decide. Schema-class drift only fires on actual
+  // parse failure or missing axElement root below.
   const contentType = headers && (headers['content-type'] || headers['Content-Type']);
   if (!contentType || !/application\/json/i.test(contentType)) {
-    return { kind: 'dump-error', reason: 'http-non-json-content-type' };
+    log.debug(`iOS HTTP response missing/non-JSON content-type (got ${contentType || 'none'}); attempting parse anyway`);
   }
 
   // Parse JSON.

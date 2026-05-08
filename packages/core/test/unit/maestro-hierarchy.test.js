@@ -743,7 +743,33 @@ describe('Unit / maestro-hierarchy', () => {
       expect(res.reason).toMatch(/bad-request-shape|schema-/);
     });
 
-    it('returns dump-error for non-JSON content-type (schema-class)', async () => {
+    it('falls through to JSON parse when content-type is missing or non-JSON (Maestro upstream omits CT)', async () => {
+      // Maestro's ViewHierarchyHandler.swift returns HTTPResponse(statusCode:.ok, body:body)
+      // without setting Content-Type. FlyingFox HTTP server doesn't auto-set one. Body is
+      // valid JSON regardless. Resolver must accept this.
+      const validBody = JSON.stringify({
+        axElement: {
+          identifier: 'com.example.app', frame: { X: 0, Y: 0, Width: 390, Height: 844 },
+          label: 'AUT', elementType: 1, enabled: true, children: []
+        },
+        depth: 1
+      });
+      // No content-type header at all (Maestro's actual behavior).
+      const httpRequestNoCT = makeFakeHttpRequest(() => ({
+        statusCode: 200, headers: {}, body: validBody
+      }));
+      const res1 = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest: httpRequestNoCT, execMaestro: async () => ({}) });
+      expect(res1.kind).toBe('hierarchy');
+
+      // text/json or other non-application/json — same forgiving behavior.
+      const httpRequestTextJson = makeFakeHttpRequest(() => ({
+        statusCode: 200, headers: { 'content-type': 'text/json' }, body: validBody
+      }));
+      const res2 = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest: httpRequestTextJson, execMaestro: async () => ({}) });
+      expect(res2.kind).toBe('hierarchy');
+    });
+
+    it('returns http-parse-error when body is not valid JSON regardless of content-type', async () => {
       const httpRequest = makeFakeHttpRequest(() => ({
         statusCode: 200,
         headers: { 'content-type': 'text/html' },
@@ -752,7 +778,7 @@ describe('Unit / maestro-hierarchy', () => {
       const execMaestro = async () => { throw new Error('should not invoke maestro-cli on schema-class'); };
       const res = await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
       expect(res.kind).toBe('dump-error');
-      expect(res.reason).toMatch(/non-json-content-type|schema-/);
+      expect(res.reason).toMatch(/http-parse-error/);
     });
 
     it('returns dump-error when response missing axElement root (schema-class)', async () => {
