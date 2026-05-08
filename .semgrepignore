@@ -11,3 +11,11 @@ test/regression/server.js
 # upstream of the join — suppress at the file level with this
 # rationale.
 packages/core/src/lock.js
+
+# archive.js owns its own path-traversal guard: validateArchiveDir
+# resolves and normalizes the input then rejects any `..` segments
+# before the join/resolve calls in archiveSnapshot/readArchivedSnapshots
+# run. The path-join-resolve-traversal rule does not follow the guard
+# (the resolve happens *inside* validateArchiveDir itself) so it flags
+# every join. Suppress at the file level with this rationale.
+packages/core/src/archive.js
