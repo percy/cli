@@ -1259,6 +1259,16 @@ describe('Discovery', () => {
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
       jasmine.stringMatching(/Skipping resource: responseReceived not received within 2000ms - http:\/\/localhost:8000\/worker\.js/)
     ]));
+
+    // Worker scripts must still appear in captured resources for enableJavaScript:true,
+    // courtesy of the direct-fetch fallback that runs when the timeout fires.
+    expect(captured).toContain(jasmine.arrayContaining([
+      jasmine.objectContaining({
+        attributes: jasmine.objectContaining({
+          'resource-url': 'http://localhost:8000/worker.js'
+        })
+      })
+    ]));
   });
 
   it('does not error on cancelled requests', async () => {

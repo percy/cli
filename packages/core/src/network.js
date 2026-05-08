@@ -377,6 +377,13 @@ export class Network {
 
     if (!request.response) {
       this.log.debug(`Skipping resource: responseReceived not received within ${RESPONSE_RECEIVED_TIMEOUT}ms - ${request.url}`);
+      // Chrome 143+ fetches dedicated worker scripts in the browser process
+      // (PlzDedicatedWorker) and never surfaces the response on any CDP
+      // session. For enableJavaScript:true snapshots the cloud renderer needs
+      // these bytes to construct the worker, so fall back to a direct HTTP fetch.
+      if (request.type === 'Script') {
+        await captureScriptDirectly(this, request, session);
+      }
       this._forgetRequest(request);
       return;
     }
@@ -665,6 +672,30 @@ async function makeDirectRequest(network, request, session) {
   }
 
   return makeRequest(request.url, { buffer: true, headers });
+}
+
+// Capture a resource via direct HTTP fetch when the browser-side response
+// never surfaces — Chrome 143+ fetches dedicated worker scripts in the browser
+// process (PlzDedicatedWorker) so loadingFinished fires without a body on CDP.
+async function captureScriptDirectly(network, request, session) {
+  let log = network.log;
+  let url = originURL(request);
+  let meta = { ...network.meta, url };
+
+  try {
+    log.debug('- Requesting worker script directly', meta);
+    let body = await makeDirectRequest(network, request, session);
+
+    let resource = createResource(url, body, 'application/javascript', {
+      status: 200,
+      headers: { 'content-type': ['application/javascript'] }
+    });
+
+    log.debug(`- Saving worker script (direct fallback) sha=${resource.sha}`, meta);
+    network.intercept.saveResource(resource);
+  } catch (error) {
+    log.debug(`Direct fetch failed for worker script: ${url} - ${error.message}`, meta);
+  }
 }
 
 // Save a resource from a request, skipping it if specific parameters are not met
