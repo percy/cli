@@ -430,6 +430,18 @@ export class PercyClient {
     this.log.debug('Smartsnap: looking up baselines...');
     const qs = new URLSearchParams();
     for (const name of (snapshotNames || [])) qs.append('snapshot_names[]', name);
+
+    // Same git/PR context `createBuild` sends — the API uses these to predict
+    // the base build that *would* be selected if we called createBuild now,
+    // without actually creating one. Any missing field means the API falls
+    // back through the same strategy chain it would on real build creation.
+    if (this.env.git?.branch) qs.append('branch', this.env.git.branch);
+    if (this.env.target?.branch) qs.append('target_branch', this.env.target.branch);
+    if (this.env.git?.sha) qs.append('commit_sha', this.env.git.sha);
+    if (this.env.target?.commit) qs.append('target_commit_sha', this.env.target.commit);
+    if (this.env.pullRequest != null) qs.append('pull_request_number', String(this.env.pullRequest));
+    if (this.env.partial) qs.append('partial', 'true');
+
     return this.get(
       `smartsnap/snapshot-name-to-commit?${qs.toString()}`,
       { identifier: 'smartsnap.snapshot_name_to_commit' }
