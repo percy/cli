@@ -513,7 +513,14 @@ export function createPercyServer(percy, port) {
             // sessionId is threaded through so the iOS HTTP path can scrub-log
             // a correlation tag (sid prefix) without leaking the full id.
             if (cachedDump === null) {
-              cachedDump = await maestroDump({ platform, sessionId });
+              // Thread the per-Percy gRPC client cache so the Android gRPC
+              // primary path can reuse channels across snapshots in the same
+              // session (D9 of 2026-05-07-002 plan). iOS path ignores it.
+              cachedDump = await maestroDump({
+                platform,
+                sessionId,
+                grpcClientCache: percy.grpcClientCache
+              });
             }
             if (cachedDump.kind !== 'hierarchy') {
               if (!elementSkipWarned) {
