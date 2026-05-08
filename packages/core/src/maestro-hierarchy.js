@@ -16,9 +16,21 @@
 // Bounds canonicalize to a bracket-format string `[X,Y][X+W,Y+H]` regardless
 // of platform; firstMatch() parses to `{x, y, width, height}` integers.
 //
-// Android primary: `maestro --udid <serial> hierarchy` (rides Maestro's existing
-// gRPC connection to dev.mobile.maestro on the device).
-// adb fallback: `adb exec-out uiautomator dump` for environments without maestro.
+// Android primary: direct gRPC to `MaestroDriver/viewHierarchy` on
+// `127.0.0.1:${PERCY_ANDROID_GRPC_PORT}` — talks the same gRPC transport
+// Maestro's CLI uses, but as a stateless RPC that doesn't open a parallel
+// flow context (avoids session-collision with the running Maestro test flow).
+// PERCY_ANDROID_GRPC_PORT is realmobile/mobile-injected; absence skips gRPC.
+// Kill switch: PERCY_MAESTRO_GRPC=0 force-skips gRPC (in-process emergency
+// rollback distinct from removing the env injection).
+// Android fallback chain (per error class):
+//   - schema-class                   → drift bit set; no fallback (return error)
+//   - channel-broken (UNAVAILABLE,
+//     INTERNAL, CANCELLED)           → evict client; maestro CLI shell-out → adb
+//   - contention-class (DEADLINE,
+//     RESOURCE_EXHAUSTED, ABORTED)   → keep client (timeout = backpressure,
+//                                      not channel-breakage); skip CLI; adb
+// Self-hosted (env unset): maestro CLI primary → adb fallback.
 //
 // iOS primary: HTTP POST to Maestro's iOS XCTestRunner /viewHierarchy endpoint
 // at http://127.0.0.1:${PERCY_IOS_DRIVER_HOST_PORT}/viewHierarchy. Sends
@@ -29,13 +41,25 @@
 // iOS fallback: `maestro --udid <udid> --driver-host-port <P> hierarchy` —
 // CLI shell-out path (knows the AUT internally via Maestro flow context).
 //
-// Reads process.env.ANDROID_SERIAL (Android) or PERCY_IOS_DEVICE_UDID +
-// PERCY_IOS_DRIVER_HOST_PORT (iOS) — never accepts device addressing from user
-// input. Honors MAESTRO_BIN env var on both platforms.
+// Reads process.env.ANDROID_SERIAL + PERCY_ANDROID_GRPC_PORT (Android) or
+// PERCY_IOS_DEVICE_UDID + PERCY_IOS_DRIVER_HOST_PORT (iOS) — never accepts
+// device addressing from user input. Honors MAESTRO_BIN env var on both platforms.
+//
+// State scoping (deliberate asymmetry):
+//   - `maestroHierarchyDrift` is module-scoped: drift is observability state,
+//     surfaced on /percy/healthcheck process-wide; multiple Percy instances in
+//     one process share the envelope, which is the correct behavior.
+//   - gRPC client cache is per-Percy-instance: channels hold open sockets,
+//     each Percy instance owns its lifecycle (constructor + stop()). The
+//     cache is passed via parameter from the public dump() signature.
 
+import path from 'path';
+import url from 'url';
 import http from 'http';
 import spawn from 'cross-spawn';
 import { XMLParser } from 'fast-xml-parser';
+import * as grpc from '@grpc/grpc-js';
+import * as protoLoader from '@grpc/proto-loader';
 import logger from '@percy/logger';
 
 const log = logger('core:maestro-hierarchy');
@@ -61,7 +85,7 @@ const IOS_SELECTOR_KEYS = ['id'];
 // itself uses node-shape lookups so the per-platform divergence is implicit.
 const SELECTOR_KEYS_UNION = ['resource-id', 'text', 'content-desc', 'class', 'id'];
 
-// iOS HTTP transport tunables (mirrors PR #2210's gRPC pattern).
+// iOS HTTP transport tunables.
 // Healthy deadline is the per-call socket-timeout budget; circuit-breaker is
 // the Promise.race outer bound that protects against the runner stalling
 // past the socket timeout.
@@ -74,18 +98,68 @@ const IOS_DRIVER_HOST_PORT_MAX = 11110;
 // HTTP response cap before parse — sized for WebView-heavy iOS apps.
 const IOS_HTTP_RESPONSE_MAX_BYTES = 20 * 1024 * 1024;
 
-// Two-slot drift bit (Unit 4). Records the first schema-class failure per
-// platform so /percy/healthcheck can surface contract drift to ops. Each
-// slot is monotonic — once set, only the first occurrence's `firstSeenAt`
-// is preserved. Future Android-side resolver work (e.g., PR #2210's gRPC
-// path) will populate the `android` slot via the same setter.
+// Android gRPC transport tunables. Symmetric with iOS HTTP (D11): same
+// healthy-deadline + circuit-breaker pair. gRPC's `deadline` option is
+// client-library-enforced, not kernel-enforced — the outer Promise.race is
+// defense-in-depth that bounds blast radius if the channel sticks past
+// the deadline (historically grpc-node#2620, fixed in 1.9.11; the wrapper
+// is cheap and stays as a guarantee).
+const GRPC_HEALTHY_DEADLINE_MS = 1500;
+const GRPC_CIRCUIT_BREAKER_MS = 5000;
+
+// Three-class gRPC error taxonomy (D10):
+//   - schema-class    → no fallback, drift bit set, return dump-error
+//   - channel-broken  → fallback runs, cache evicted (channel actually broken)
+//   - contention-class → fallback runs (skip CLI, go to adb), cache PRESERVED
+//                        (timeout is backpressure evidence, not channel breakage;
+//                         re-establishing the channel costs ~50-200ms for nothing)
+const GRPC_SCHEMA_CLASS_CODES = new Set([
+  grpc.status.INVALID_ARGUMENT,
+  grpc.status.FAILED_PRECONDITION,
+  grpc.status.OUT_OF_RANGE,
+  grpc.status.UNIMPLEMENTED,
+  grpc.status.DATA_LOSS
+]);
+const GRPC_CONTENTION_CLASS_CODES = new Set([
+  grpc.status.DEADLINE_EXCEEDED,
+  grpc.status.RESOURCE_EXHAUSTED,
+  grpc.status.ABORTED
+]);
+// Channel-broken codes: UNAVAILABLE, INTERNAL, CANCELLED (and any unmapped
+// code not in the above two sets — conservative default routes to fallback +
+// eviction).
+
+// Eager-load the maestro_android proto at module init. The ~15-40ms parse
+// cost lands on CLI cold start, not on the first dump request. Path
+// resolution mirrors utils.js's secretPatterns.yml — works under src/ (dev)
+// and dist/ (publish) because Babel CLI's copyFiles: true preserves the
+// relative layout.
+const protoFilePath = path.resolve(
+  url.fileURLToPath(import.meta.url),
+  '../proto/maestro_android.proto'
+);
+const protoPackageDef = protoLoader.loadSync(protoFilePath, {
+  keepCase: true,
+  longs: String,
+  enums: String,
+  defaults: true,
+  oneofs: true
+});
+const MaestroDriverClient = grpc.loadPackageDefinition(protoPackageDef)
+  .maestro_android.MaestroDriver;
+
+// Two-slot drift envelope. Records the first schema-class failure per platform
+// so /percy/healthcheck can surface contract drift to ops. Each slot is
+// monotonic — once set, only the first occurrence's `firstSeenAt` is preserved.
+// Both Android (gRPC) and iOS (HTTP) schema-class call sites flow through the
+// same setMaestroHierarchyDrift({platform}) setter below.
 //
-// Single-author note: this branch doesn't yet have PR #2210's
-// `recordSchemaDrift` code (#2210 sits on a sibling branch off PR #2202).
-// When #2210 merges to master and this PR rebases, the rebase will need
-// to retrofit #2210's Android-side schema-class call sites to use the
-// setter exported here. Companion artifact:
-// percy-maestro/docs/plans/2026-05-06-004-pr2210-coordination-comment.md.
+// Module-scoped is deliberate: drift is observability state — surfaced
+// process-wide on /percy/healthcheck. Multiple Percy instances in one process
+// share the envelope, which is the correct behavior for ops dashboards. The
+// gRPC channel cache (per-Percy-instance) follows a different ownership rule
+// because it holds transport state with per-session lifecycle. Two scopes,
+// two reasons — see Percy class constructor for the channel cache.
 let maestroHierarchyDrift = { android: null, ios: null };
 
 const BOUNDS_RE = /^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$/;
@@ -398,6 +472,164 @@ function setMaestroHierarchyDrift({ platform, code, reason }) {
   };
 }
 
+// ─── Android gRPC primary path ─────────────────────────────────────────────
+
+// Default factory: build a real gRPC client wrapping viewHierarchy in a
+// promise so the resolver code can await it uniformly. Tests inject a
+// factory that returns a stub with the same shape (see makeFakeFactory in
+// maestro-hierarchy-grpc.test.js).
+function defaultGrpcClientFactory(address) {
+  const inner = new MaestroDriverClient(address, grpc.credentials.createInsecure());
+  return {
+    viewHierarchy: (req, options) => new Promise((resolve, reject) => {
+      inner.viewHierarchy(req, options || {}, (err, response) => {
+        if (err) reject(err); else resolve(response);
+      });
+    }),
+    close: () => inner.close()
+  };
+}
+
+function getOrCreateGrpcClient(cache, address, factory) {
+  let client = cache.get(address);
+  if (!client) {
+    client = factory(address);
+    cache.set(address, client);
+  }
+  return client;
+}
+
+function evictGrpcClient(cache, address) {
+  const client = cache.get(address);
+  if (!client) return;
+  try { client.close(); } catch { /* swallow — already closed */ }
+  cache.delete(address);
+}
+
+// Close every client in a cache and clear the Map. Idempotent — second call
+// on the same cache is a no-op (empty Map). Called from percy.stop().
+export function closeGrpcClientCache(cache) {
+  if (!cache || typeof cache.keys !== 'function') return;
+  for (const address of Array.from(cache.keys())) {
+    evictGrpcClient(cache, address);
+  }
+}
+
+function grpcStatusName(code) {
+  for (const [name, value] of Object.entries(grpc.status)) {
+    if (value === code) return name.toLowerCase();
+  }
+  return `code-${code}`;
+}
+
+// Three-class classification per D10. Returns one of:
+//   { kind: 'dump-error',     reason: 'grpc-schema-<NAME>' | 'grpc-decode' }
+//   { kind: 'connection-fail', reason: 'grpc-contention-<NAME>' }
+//   { kind: 'connection-fail', reason: 'grpc-channel-broken-<NAME>' }
+// Decoder errors (no err.code) collapse to schema-class with reason 'grpc-decode'.
+// Unknown / unmapped codes default to channel-broken (conservative — fall
+// back, evict, retry elsewhere).
+export function classifyGrpcFailure(err) {
+  if (!err) return null;
+  if (err.code === undefined) {
+    return { kind: 'dump-error', reason: 'grpc-decode' };
+  }
+  const name = grpcStatusName(err.code);
+  if (GRPC_SCHEMA_CLASS_CODES.has(err.code)) {
+    return { kind: 'dump-error', reason: `grpc-schema-${name}` };
+  }
+  if (GRPC_CONTENTION_CLASS_CODES.has(err.code)) {
+    return { kind: 'connection-fail', reason: `grpc-contention-${name}` };
+  }
+  return { kind: 'connection-fail', reason: `grpc-channel-broken-${name}` };
+}
+
+// Returns true iff the failure is contention-class (caller must skip CLI
+// fallback AND keep the cached client). Returns false for channel-broken
+// (caller falls through to CLI AND evicts).
+function isContentionClass(reason) {
+  return typeof reason === 'string' && reason.startsWith('grpc-contention-');
+}
+
+export async function runAndroidGrpcDump({
+  host,
+  port,
+  grpcClient = defaultGrpcClientFactory,
+  cache,
+  shutdownInProgress
+}) {
+  const address = `${host}:${port}`;
+  const client = getOrCreateGrpcClient(cache, address, grpcClient);
+  const start = Date.now();
+
+  let breakerTimer;
+  const callPromise = client.viewHierarchy({}, { deadline: Date.now() + GRPC_HEALTHY_DEADLINE_MS });
+  const breakerPromise = new Promise((_resolve, reject) => {
+    breakerTimer = setTimeout(() => {
+      const err = new Error('gRPC circuit-breaker fired');
+      err.code = grpc.status.DEADLINE_EXCEEDED;
+      reject(err);
+    }, GRPC_CIRCUIT_BREAKER_MS);
+  });
+
+  let response;
+  try {
+    response = await Promise.race([callPromise, breakerPromise]);
+  } catch (err) {
+    log.debug(`gRPC viewHierarchy failed: name=${err.name} message=${err.message} code=${err.code}`);
+
+    // R-7: CANCELLED during shutdown. Special-case to avoid spawning the
+    // fallback chain on a process that's tearing down. The shutdown flag is
+    // set on the cache by closeGrpcClientCache's caller (see percy.js stop()).
+    if (shutdownInProgress && err.code === grpc.status.CANCELLED) {
+      return { kind: 'unavailable', reason: 'shutdown' };
+    }
+
+    const classification = classifyGrpcFailure(err);
+    if (classification.kind === 'dump-error') {
+      // Schema-class — drift bit + return immediately (no fallback per D10).
+      log.warn(`gRPC viewHierarchy schema-class failure (${classification.reason}); skipping element regions`);
+      setMaestroHierarchyDrift({ platform: 'android', code: err.code, reason: classification.reason });
+    } else if (isContentionClass(classification.reason)) {
+      // Contention-class — KEEP cached client (D10).
+      log.debug(`gRPC viewHierarchy contention-class (${classification.reason}); cache preserved; caller should skip CLI`);
+    } else {
+      // Channel-broken — evict cached client (D10).
+      log.debug(`gRPC viewHierarchy channel-broken (${classification.reason}); evicting cached client`);
+      evictGrpcClient(cache, address);
+    }
+    return classification;
+  } finally {
+    clearTimeout(breakerTimer);
+  }
+
+  // Success path — parse XML envelope from response.hierarchy.
+  const xml = response && typeof response.hierarchy === 'string' ? response.hierarchy : '';
+  const slice = sliceXmlEnvelope(xml);
+  if (!slice) {
+    log.warn('gRPC viewHierarchy returned no XML envelope; skipping element regions');
+    setMaestroHierarchyDrift({ platform: 'android', code: undefined, reason: 'grpc-no-xml-envelope' });
+    return { kind: 'dump-error', reason: 'grpc-no-xml-envelope' };
+  }
+  let parsed;
+  try {
+    parsed = parser.parse(slice);
+  } catch (err) {
+    log.warn(`gRPC viewHierarchy parse error (${err.message}); skipping element regions`);
+    setMaestroHierarchyDrift({ platform: 'android', code: undefined, reason: 'grpc-parse-error' });
+    return { kind: 'dump-error', reason: `grpc-parse-error:${err.message}` };
+  }
+  if (!parsed || !parsed.hierarchy) {
+    log.warn('gRPC viewHierarchy unexpected root tag; skipping element regions');
+    setMaestroHierarchyDrift({ platform: 'android', code: undefined, reason: 'grpc-unexpected-root' });
+    return { kind: 'dump-error', reason: 'grpc-unexpected-root' };
+  }
+
+  const nodes = flattenNodes(parsed);
+  log.debug(`dump took ${Date.now() - start}ms via grpc (${nodes.length} nodes)`);
+  return { kind: 'hierarchy', nodes };
+}
+
 // Public reader for /percy/healthcheck. Always returns the full envelope;
 // both slots are `null` in steady state. Consumers (api.js healthcheck
 // handler, ops dashboards) must check both slots independently.
@@ -405,9 +637,10 @@ export function getMaestroHierarchyDrift() {
   return maestroHierarchyDrift;
 }
 
-// Test helper — resets both slots between specs. Not exported on the public
-// surface (consumers shouldn't reset module state in production). The default
-// export `__testing` namespace mirrors PR #2210's pattern.
+// Test helper — resets the drift envelope between specs. Not exported on the
+// public surface (consumers shouldn't reset module state in production).
+// The gRPC client cache is per-Percy-instance; tests pass a fresh `Map()` per
+// spec rather than going through a module-state resetter.
 export const __testing = {
   resetMaestroHierarchyDrift() {
     maestroHierarchyDrift = { android: null, ios: null };
@@ -697,12 +930,43 @@ async function runMaestroDump(serial, execMaestro, getEnv) {
   }
 }
 
+// Adb fallback chain: exec-out uiautomator dump → file-based dump (with
+// SIGKILL retry loop) → cat from sdcard. Extracted from dump() so the gRPC
+// contention-class branch can jump straight here without going through
+// maestro CLI (which would queue behind the same Maestro flow that caused
+// the contention).
+async function runAdbFallback(serial, execAdb) {
+  let result = await runDump(['-s', serial, 'exec-out', 'uiautomator', 'dump', '/dev/tty'], execAdb);
+
+  const isRetryableDumpError = result.kind === 'dump-error' &&
+    (result.reason === 'no-xml-envelope' || /^exit-/.test(result.reason));
+  if (isRetryableDumpError) {
+    log.debug(`adb primary dump returned ${result.reason}, trying file dump`);
+    let dumpToFile = await execAdb(['-s', serial, 'shell', 'uiautomator', 'dump', '/sdcard/window_dump.xml']);
+    for (const delay of SIGKILL_RETRY_DELAYS_MS) {
+      if ((dumpToFile.exitCode ?? 1) !== SIGKILL_EXIT) break;
+      log.debug(`fallback dump was killed (exit ${SIGKILL_EXIT}), retrying after ${delay}ms`);
+      await new Promise(r => setTimeout(r, delay));
+      dumpToFile = await execAdb(['-s', serial, 'shell', 'uiautomator', 'dump', '/sdcard/window_dump.xml']);
+    }
+    const dumpFail = classifyAdbFailure(dumpToFile);
+    if (dumpFail) return dumpFail;
+    if ((dumpToFile.exitCode ?? 1) !== 0) {
+      return { kind: 'dump-error', reason: `fallback-dump-exit-${dumpToFile.exitCode}` };
+    }
+    result = await runDump(['-s', serial, 'exec-out', 'cat', '/sdcard/window_dump.xml'], execAdb);
+  }
+  return result;
+}
+
 export async function dump({
   platform = 'android',
   sessionId,
   execAdb = defaultExecAdb,
   execMaestro = defaultExecMaestro,
   httpRequest = defaultHttpRequest,
+  grpcClient = defaultGrpcClientFactory,
+  grpcClientCache,
   getEnv = defaultGetEnv
 } = {}) {
   const started = Date.now();
@@ -753,44 +1017,70 @@ export async function dump({
     return classification;
   }
 
-  // Primary: `maestro --udid <serial> hierarchy`. Works during a live Maestro flow
-  // (maestro reuses its existing gRPC connection to dev.mobile.maestro on the device).
-  const maestroResult = await runMaestroDump(serial, execMaestro, getEnv);
-  if (maestroResult.kind === 'hierarchy') {
-    log.debug(`dump took ${Date.now() - started}ms via maestro (${maestroResult.nodes.length} nodes)`);
-    return maestroResult;
+  // gRPC primary path (env-conditional + kill-switch-gated). Talks the same
+  // gRPC transport Maestro CLI uses, but as a stateless RPC that doesn't
+  // open a parallel Maestro flow context — avoids the session-collision
+  // failure mode the CLI shell-out hits during a live Maestro flow.
+  //
+  // D3 kill switch (PERCY_MAESTRO_GRPC=0): in-process emergency disable.
+  // Distinct from removing the env injection (which requires a coordinated
+  // mobile/realmobile deploy). Logged loudly so the rollback state is
+  // observable in CLI logs.
+  const killSwitch = getEnv('PERCY_MAESTRO_GRPC') === '0';
+  const grpcPortRaw = getEnv('PERCY_ANDROID_GRPC_PORT');
+  let skipMaestroCli = false;
+  if (killSwitch) {
+    log.warn('PERCY_MAESTRO_GRPC=0 kill switch active; skipping gRPC primary');
+  } else if (grpcPortRaw && grpcClientCache) {
+    const grpcPort = Number.parseInt(grpcPortRaw, 10);
+    if (Number.isInteger(grpcPort) && grpcPort > 0 && grpcPort <= 65535) {
+      const grpcResult = await runAndroidGrpcDump({
+        host: '127.0.0.1',
+        port: grpcPort,
+        grpcClient,
+        cache: grpcClientCache,
+        shutdownInProgress: grpcClientCache.shutdownInProgress
+      });
+      if (grpcResult.kind === 'hierarchy') {
+        log.debug(`dump took ${Date.now() - started}ms via grpc (${grpcResult.nodes.length} nodes)`);
+        return grpcResult;
+      }
+      if (grpcResult.kind === 'unavailable' && grpcResult.reason === 'shutdown') {
+        // R-7: shutdown-in-progress. Don't spawn fallback chain on a tearing-down process.
+        log.debug('gRPC dump cancelled by shutdown; skipping fallback chain');
+        return grpcResult;
+      }
+      if (grpcResult.kind === 'dump-error') {
+        // Schema-class — no fallback per D10. Drift bit set inside runAndroidGrpcDump.
+        return grpcResult;
+      }
+      // connection-fail: split contention-class vs channel-broken per D10.
+      if (isContentionClass(grpcResult.reason)) {
+        // Contention-class: skip maestro CLI (would queue behind same flow); jump to adb.
+        log.debug(`gRPC ${grpcResult.reason}; skipping CLI, going straight to adb`);
+        skipMaestroCli = true;
+      } else {
+        // Channel-broken: fall through to maestro CLI (CLI re-establishes the channel).
+        log.debug(`gRPC ${grpcResult.reason}; falling through to maestro CLI`);
+      }
+    } else {
+      log.debug(`PERCY_ANDROID_GRPC_PORT=${grpcPortRaw} invalid; skipping gRPC primary`);
+    }
   }
 
-  // Fallback: adb exec-out uiautomator dump. Only useful when the maestro binary is
-  // absent (maestro-not-found) — if maestro is present but reports unavailable, the
-  // device genuinely isn't reachable and adb would hit the same wall. If maestro is
-  // present but returned dump-error (e.g., session collision), adb is less likely to
-  // succeed than maestro but still worth one try.
-  const fellBackFromMaestro = maestroResult.kind;
-  log.debug(`maestro path returned ${fellBackFromMaestro} (${maestroResult.reason}); falling back to adb uiautomator`);
-
-  let result = await runDump(['-s', serial, 'exec-out', 'uiautomator', 'dump', '/dev/tty'], execAdb);
-
-  // File-based fallback: for devices/images where exec-out /dev/tty is stubbed.
-  const isRetryableDumpError = result.kind === 'dump-error' &&
-    (result.reason === 'no-xml-envelope' || /^exit-/.test(result.reason));
-  if (isRetryableDumpError) {
-    log.debug(`adb primary dump returned ${result.reason}, trying file dump`);
-    let dumpToFile = await execAdb(['-s', serial, 'shell', 'uiautomator', 'dump', '/sdcard/window_dump.xml']);
-    for (const delay of SIGKILL_RETRY_DELAYS_MS) {
-      if ((dumpToFile.exitCode ?? 1) !== SIGKILL_EXIT) break;
-      log.debug(`fallback dump was killed (exit ${SIGKILL_EXIT}), retrying after ${delay}ms`);
-      await new Promise(r => setTimeout(r, delay));
-      dumpToFile = await execAdb(['-s', serial, 'shell', 'uiautomator', 'dump', '/sdcard/window_dump.xml']);
+  // Maestro CLI primary (or fallback when gRPC channel-broken). Skipped on
+  // gRPC contention-class — that path goes straight to adb.
+  if (!skipMaestroCli) {
+    const maestroResult = await runMaestroDump(serial, execMaestro, getEnv);
+    if (maestroResult.kind === 'hierarchy') {
+      log.debug(`dump took ${Date.now() - started}ms via maestro (${maestroResult.nodes.length} nodes)`);
+      return maestroResult;
     }
-    const dumpFail = classifyAdbFailure(dumpToFile);
-    if (dumpFail) return dumpFail;
-    if ((dumpToFile.exitCode ?? 1) !== 0) {
-      return { kind: 'dump-error', reason: `fallback-dump-exit-${dumpToFile.exitCode}` };
-    }
-    result = await runDump(['-s', serial, 'exec-out', 'cat', '/sdcard/window_dump.xml'], execAdb);
+    log.debug(`maestro path returned ${maestroResult.kind} (${maestroResult.reason}); falling back to adb uiautomator`);
   }
 
+  // adb fallback (final).
+  const result = await runAdbFallback(serial, execAdb);
   log.debug(`dump took ${Date.now() - started}ms via adb (kind=${result.kind})`);
   return result;
 }
