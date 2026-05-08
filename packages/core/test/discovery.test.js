@@ -3777,13 +3777,14 @@ describe('Discovery', () => {
     });
 
     it('should fail to launch if the devtools address is not logged', async () => {
-      // --version makes Chrome print its version and exit 0 without opening DevTools
+      // --version exits cleanly on Linux Chrome 143; --remote-debugging-port=null still exits on Windows.
+      let earlyExitArg = process.platform === 'win32' ? '--remote-debugging-port=null' : '--version';
       await expectAsync(Percy.start({
         token: 'PERCY_TOKEN',
         snapshot: { widths: [1000] },
         discovery: {
           launchOptions: {
-            args: ['--version']
+            args: [earlyExitArg]
           }
         }
       })).toBeRejectedWithError(
