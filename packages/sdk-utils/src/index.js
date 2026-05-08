@@ -10,6 +10,7 @@ import postBuildEvents from './post-build-event.js';
 import flushSnapshots from './flush-snapshots.js';
 import captureAutomateScreenshot from './post-screenshot.js';
 import getResponsiveWidths from './get-responsive-widths.js';
+import mergeSnapshotOptions from './merge-snapshot-options.js';
 
 export {
   logger,
@@ -23,7 +24,8 @@ export {
   flushSnapshots,
   captureAutomateScreenshot,
   postBuildEvents,
-  getResponsiveWidths
+  getResponsiveWidths,
+  mergeSnapshotOptions
 };
 
 // export the namespace by default
