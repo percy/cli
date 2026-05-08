@@ -3,12 +3,13 @@ import logger from '@percy/logger';
 import start from './start.js';
 import stop from './stop.js';
 import ping from './ping.js';
+import replay from './replay.js';
 import { waitForTimeout } from '@percy/client/utils';
 
 export const exec = command('exec', {
   description: 'Start and stop Percy around a supplied command',
   usage: '[options] -- <command>',
-  commands: [start, stop, ping],
+  commands: [start, stop, ping, replay],
 
   flags: [{
     name: 'parallel',
@@ -18,6 +19,12 @@ export const exec = command('exec', {
     name: 'partial',
     description: 'Marks the build as a partial build',
     parse: () => !!(process.env.PERCY_PARTIAL_BUILD ||= '1')
+  }, {
+    name: 'archive-dir',
+    description: 'Save snapshot data to an archive directory for deferred upload',
+    percyrc: 'percy.archiveDir',
+    type: 'string',
+    group: 'Percy'
   }, {
     name: 'testing',
     percyrc: 'testing',
