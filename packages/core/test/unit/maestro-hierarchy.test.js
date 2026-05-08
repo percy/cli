@@ -1,7 +1,15 @@
 import fs from 'fs';
 import path from 'path';
 import url from 'url';
-import { dump, firstMatch, getMaestroHierarchyDrift, __testing } from '../../src/maestro-hierarchy.js';
+import {
+  dump,
+  firstMatch,
+  getMaestroHierarchyDrift,
+  runAndroidGrpcDump,
+  classifyGrpcFailure,
+  closeGrpcClientCache,
+  __testing
+} from '../../src/maestro-hierarchy.js';
 import { logger, setupTest } from '../helpers/index.js';
 
 const fixtureDir = path.resolve(url.fileURLToPath(import.meta.url), '../../fixtures/maestro-hierarchy');
@@ -988,6 +996,376 @@ describe('Unit / maestro-hierarchy', () => {
       expect(getMaestroHierarchyDrift().ios).not.toBeNull();
       __testing.resetMaestroHierarchyDrift();
       expect(getMaestroHierarchyDrift()).toEqual({ android: null, ios: null });
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  Android gRPC primary path (D10 three-class taxonomy + D11 timeouts).
+  //  Tests use factory injection — no real gRPC channels created.
+  // ─────────────────────────────────────────────────────────────────────────
+  describe('Android gRPC primary path', () => {
+    // Inlined gRPC status enum — mirrors @grpc/grpc-js, kept inline so
+    // classifier tests don't depend on the upstream runtime values.
+    const GRPC_STATUS = {
+      OK: 0, CANCELLED: 1, UNKNOWN: 2,
+      INVALID_ARGUMENT: 3, DEADLINE_EXCEEDED: 4, NOT_FOUND: 5,
+      ALREADY_EXISTS: 6, PERMISSION_DENIED: 7, RESOURCE_EXHAUSTED: 8,
+      FAILED_PRECONDITION: 9, ABORTED: 10, OUT_OF_RANGE: 11,
+      UNIMPLEMENTED: 12, INTERNAL: 13, UNAVAILABLE: 14,
+      DATA_LOSS: 15, UNAUTHENTICATED: 16
+    };
+
+    function makeFakeFactory(impl) {
+      const created = [];
+      const factory = address => {
+        const client = impl(address);
+        created.push({ address, client });
+        return client;
+      };
+      factory.created = created;
+      return factory;
+    }
+
+    function makeFixedClient({ response, error, closeSpy }) {
+      return {
+        viewHierarchy: () => error ? Promise.reject(error) : Promise.resolve(response),
+        close: () => { if (closeSpy) closeSpy(); }
+      };
+    }
+
+    function makeAndroidEnv(overrides = {}) {
+      return key => ({
+        ANDROID_SERIAL: 'env-serial',
+        PERCY_ANDROID_GRPC_PORT: '7100',
+        ...overrides
+      })[key];
+    }
+
+    // Sample XML envelope identical to simple.xml for parity with adb path.
+    const simpleXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<hierarchy rotation="0">' +
+      '<node resource-id="com.example:id/clock" bounds="[40,50][500,150]"/>' +
+      '</hierarchy>';
+
+    describe('classifyGrpcFailure (D10 three-class taxonomy)', () => {
+      it('schema-class: missing code → grpc-decode (no fallback, drift bit)', () => {
+        expect(classifyGrpcFailure(new Error('boom'))).toEqual({
+          kind: 'dump-error', reason: 'grpc-decode'
+        });
+      });
+
+      it('schema-class: INVALID_ARGUMENT', () => {
+        expect(classifyGrpcFailure({ code: GRPC_STATUS.INVALID_ARGUMENT })).toEqual({
+          kind: 'dump-error', reason: 'grpc-schema-invalid_argument'
+        });
+      });
+
+      it('schema-class: FAILED_PRECONDITION, OUT_OF_RANGE, UNIMPLEMENTED, DATA_LOSS', () => {
+        for (const code of [GRPC_STATUS.FAILED_PRECONDITION, GRPC_STATUS.OUT_OF_RANGE, GRPC_STATUS.UNIMPLEMENTED, GRPC_STATUS.DATA_LOSS]) {
+          expect(classifyGrpcFailure({ code }).kind).toBe('dump-error');
+          expect(classifyGrpcFailure({ code }).reason).toMatch(/^grpc-schema-/);
+        }
+      });
+
+      it('contention-class: DEADLINE_EXCEEDED (timeout = backpressure)', () => {
+        expect(classifyGrpcFailure({ code: GRPC_STATUS.DEADLINE_EXCEEDED })).toEqual({
+          kind: 'connection-fail', reason: 'grpc-contention-deadline_exceeded'
+        });
+      });
+
+      it('contention-class: RESOURCE_EXHAUSTED, ABORTED', () => {
+        for (const code of [GRPC_STATUS.RESOURCE_EXHAUSTED, GRPC_STATUS.ABORTED]) {
+          const r = classifyGrpcFailure({ code });
+          expect(r.kind).toBe('connection-fail');
+          expect(r.reason).toMatch(/^grpc-contention-/);
+        }
+      });
+
+      it('channel-broken: UNAVAILABLE, INTERNAL, CANCELLED', () => {
+        for (const code of [GRPC_STATUS.UNAVAILABLE, GRPC_STATUS.INTERNAL, GRPC_STATUS.CANCELLED]) {
+          const r = classifyGrpcFailure({ code });
+          expect(r.kind).toBe('connection-fail');
+          expect(r.reason).toMatch(/^grpc-channel-broken-/);
+        }
+      });
+
+      it('channel-broken (default): unmapped codes route to channel-broken', () => {
+        for (const code of [GRPC_STATUS.NOT_FOUND, GRPC_STATUS.PERMISSION_DENIED, GRPC_STATUS.UNAUTHENTICATED]) {
+          const r = classifyGrpcFailure({ code });
+          expect(r.kind).toBe('connection-fail');
+          expect(r.reason).toMatch(/^grpc-channel-broken-/);
+        }
+      });
+
+      it('returns null for falsy errors', () => {
+        expect(classifyGrpcFailure(null)).toBeNull();
+        expect(classifyGrpcFailure(undefined)).toBeNull();
+      });
+    });
+
+    describe('runAndroidGrpcDump (success path)', () => {
+      it('returns hierarchy with parsed nodes from gRPC response XML', async () => {
+        const cache = new Map();
+        const factory = makeFakeFactory(() => makeFixedClient({
+          response: { hierarchy: simpleXml }
+        }));
+        const res = await runAndroidGrpcDump({ host: '127.0.0.1', port: 7100, grpcClient: factory, cache });
+        expect(res.kind).toBe('hierarchy');
+        expect(firstMatch(res.nodes, { 'resource-id': 'com.example:id/clock' })).toEqual({
+          x: 40, y: 50, width: 460, height: 100
+        });
+      });
+    });
+
+    describe('runAndroidGrpcDump (failure paths)', () => {
+      it('schema-class UNIMPLEMENTED → drift bit set on android slot, no eviction', async () => {
+        __testing.resetMaestroHierarchyDrift();
+        const cache = new Map();
+        const closeSpy = jasmine.createSpy('close');
+        const factory = makeFakeFactory(() => makeFixedClient({
+          error: { code: GRPC_STATUS.UNIMPLEMENTED, message: 'no rpc' },
+          closeSpy
+        }));
+        const res = await runAndroidGrpcDump({ host: '127.0.0.1', port: 7100, grpcClient: factory, cache });
+        expect(res).toEqual({ kind: 'dump-error', reason: 'grpc-schema-unimplemented' });
+        expect(getMaestroHierarchyDrift().android).toEqual(jasmine.objectContaining({
+          code: GRPC_STATUS.UNIMPLEMENTED, reason: 'grpc-schema-unimplemented'
+        }));
+        expect(getMaestroHierarchyDrift().ios).toBeNull();
+        expect(cache.size).toBe(1); // not evicted on schema-class
+        expect(closeSpy).not.toHaveBeenCalled();
+      });
+
+      it('contention-class DEADLINE_EXCEEDED → cache PRESERVED', async () => {
+        const cache = new Map();
+        const closeSpy = jasmine.createSpy('close');
+        const factory = makeFakeFactory(() => makeFixedClient({
+          error: { code: GRPC_STATUS.DEADLINE_EXCEEDED, message: 'queued' },
+          closeSpy
+        }));
+        const res = await runAndroidGrpcDump({ host: '127.0.0.1', port: 7100, grpcClient: factory, cache });
+        expect(res).toEqual({ kind: 'connection-fail', reason: 'grpc-contention-deadline_exceeded' });
+        expect(cache.size).toBe(1); // contention = backpressure, not breakage
+        expect(closeSpy).not.toHaveBeenCalled();
+      });
+
+      it('channel-broken UNAVAILABLE → cache evicted, client.close() called', async () => {
+        const cache = new Map();
+        const closeSpy = jasmine.createSpy('close');
+        const factory = makeFakeFactory(() => makeFixedClient({
+          error: { code: GRPC_STATUS.UNAVAILABLE, message: 'gone' },
+          closeSpy
+        }));
+        const res = await runAndroidGrpcDump({ host: '127.0.0.1', port: 7100, grpcClient: factory, cache });
+        expect(res).toEqual({ kind: 'connection-fail', reason: 'grpc-channel-broken-unavailable' });
+        expect(cache.size).toBe(0);
+        expect(closeSpy).toHaveBeenCalledTimes(1);
+      });
+
+      it('CANCELLED-during-shutdown → unavailable/shutdown (no fallback, R-7)', async () => {
+        const cache = new Map();
+        const factory = makeFakeFactory(() => makeFixedClient({
+          error: { code: GRPC_STATUS.CANCELLED, message: 'shutting down' }
+        }));
+        const res = await runAndroidGrpcDump({
+          host: '127.0.0.1', port: 7100, grpcClient: factory, cache, shutdownInProgress: true
+        });
+        expect(res).toEqual({ kind: 'unavailable', reason: 'shutdown' });
+      });
+
+      it('CANCELLED outside shutdown → channel-broken (cache evicted)', async () => {
+        const cache = new Map();
+        const factory = makeFakeFactory(() => makeFixedClient({
+          error: { code: GRPC_STATUS.CANCELLED, message: 'cancelled' }
+        }));
+        const res = await runAndroidGrpcDump({ host: '127.0.0.1', port: 7100, grpcClient: factory, cache });
+        expect(res.reason).toBe('grpc-channel-broken-cancelled');
+        expect(cache.size).toBe(0);
+      });
+
+      it('schema-class: empty hierarchy field → grpc-no-xml-envelope drift', async () => {
+        __testing.resetMaestroHierarchyDrift();
+        const cache = new Map();
+        const factory = makeFakeFactory(() => makeFixedClient({ response: { hierarchy: '' } }));
+        const res = await runAndroidGrpcDump({ host: '127.0.0.1', port: 7100, grpcClient: factory, cache });
+        expect(res).toEqual({ kind: 'dump-error', reason: 'grpc-no-xml-envelope' });
+        expect(getMaestroHierarchyDrift().android.reason).toBe('grpc-no-xml-envelope');
+      });
+    });
+
+    describe('runAndroidGrpcDump (cache reuse + per-instance isolation)', () => {
+      it('reuses the same client for two calls to the same address', async () => {
+        const cache = new Map();
+        const factory = makeFakeFactory(() => makeFixedClient({ response: { hierarchy: simpleXml } }));
+        await runAndroidGrpcDump({ host: '127.0.0.1', port: 7100, grpcClient: factory, cache });
+        await runAndroidGrpcDump({ host: '127.0.0.1', port: 7100, grpcClient: factory, cache });
+        expect(factory.created.length).toBe(1);
+      });
+
+      it('two independent caches do not share clients', async () => {
+        const cacheA = new Map();
+        const cacheB = new Map();
+        const factory = makeFakeFactory(() => makeFixedClient({ response: { hierarchy: simpleXml } }));
+        await runAndroidGrpcDump({ host: '127.0.0.1', port: 7100, grpcClient: factory, cache: cacheA });
+        await runAndroidGrpcDump({ host: '127.0.0.1', port: 7100, grpcClient: factory, cache: cacheB });
+        expect(factory.created.length).toBe(2);
+        expect(cacheA.size).toBe(1);
+        expect(cacheB.size).toBe(1);
+      });
+
+      it('connection-fail in cache A does not invalidate cache B', async () => {
+        const cacheA = new Map();
+        const cacheB = new Map();
+        let callCount = 0;
+        const factory = makeFakeFactory(() => makeFixedClient({
+          error: callCount++ === 0 ? { code: GRPC_STATUS.UNAVAILABLE } : null,
+          response: { hierarchy: simpleXml }
+        }));
+        await runAndroidGrpcDump({ host: '127.0.0.1', port: 7100, grpcClient: factory, cache: cacheA });
+        const resB = await runAndroidGrpcDump({ host: '127.0.0.1', port: 7100, grpcClient: factory, cache: cacheB });
+        expect(cacheA.size).toBe(0); // evicted
+        expect(cacheB.size).toBe(1); // independent
+        expect(resB.kind).toBe('hierarchy');
+      });
+    });
+
+    describe('closeGrpcClientCache (Unit 5 helper)', () => {
+      it('closes every cached client and clears the map', () => {
+        const cache = new Map();
+        const closeA = jasmine.createSpy('closeA');
+        const closeB = jasmine.createSpy('closeB');
+        cache.set('127.0.0.1:7100', { close: closeA });
+        cache.set('127.0.0.1:7101', { close: closeB });
+        closeGrpcClientCache(cache);
+        expect(closeA).toHaveBeenCalledTimes(1);
+        expect(closeB).toHaveBeenCalledTimes(1);
+        expect(cache.size).toBe(0);
+      });
+
+      it('idempotent: second call on empty cache is a no-op', () => {
+        const cache = new Map();
+        closeGrpcClientCache(cache);
+        closeGrpcClientCache(cache);
+        expect(cache.size).toBe(0);
+      });
+
+      it('handles undefined / null cache gracefully (no throw)', () => {
+        expect(() => closeGrpcClientCache(undefined)).not.toThrow();
+        expect(() => closeGrpcClientCache(null)).not.toThrow();
+      });
+    });
+
+    describe('dump({platform:"android"}) dispatch (Unit 3)', () => {
+      it('env set + gRPC success: gRPC primary called, CLI/adb NOT called', async () => {
+        const cache = new Map();
+        const factory = makeFakeFactory(() => makeFixedClient({ response: { hierarchy: simpleXml } }));
+        const execMaestro = jasmine.createSpy('execMaestro');
+        const execAdb = jasmine.createSpy('execAdb');
+        const res = await dump({
+          platform: 'android', getEnv: makeAndroidEnv(), grpcClient: factory,
+          grpcClientCache: cache, execMaestro, execAdb
+        });
+        expect(res.kind).toBe('hierarchy');
+        expect(execMaestro).not.toHaveBeenCalled();
+        expect(execAdb).not.toHaveBeenCalled();
+      });
+
+      it('env set + gRPC schema-class: returns immediately, no fallback', async () => {
+        __testing.resetMaestroHierarchyDrift();
+        const cache = new Map();
+        const factory = makeFakeFactory(() => makeFixedClient({
+          error: { code: GRPC_STATUS.UNIMPLEMENTED }
+        }));
+        const execMaestro = jasmine.createSpy('execMaestro');
+        const execAdb = jasmine.createSpy('execAdb');
+        const res = await dump({
+          platform: 'android', getEnv: makeAndroidEnv(), grpcClient: factory,
+          grpcClientCache: cache, execMaestro, execAdb
+        });
+        expect(res.reason).toBe('grpc-schema-unimplemented');
+        expect(getMaestroHierarchyDrift().android).not.toBeNull();
+        expect(execMaestro).not.toHaveBeenCalled();
+        expect(execAdb).not.toHaveBeenCalled();
+      });
+
+      it('env set + contention-class: SKIPS maestro CLI, goes straight to adb', async () => {
+        const cache = new Map();
+        const factory = makeFakeFactory(() => makeFixedClient({
+          error: { code: GRPC_STATUS.DEADLINE_EXCEEDED }
+        }));
+        const execMaestro = jasmine.createSpy('execMaestro');
+        const execAdb = makeFakeExecAdb([
+          { match: args => args.includes('exec-out'), result: { stdout: simpleXml, stderr: '', exitCode: 0 } }
+        ]);
+        const res = await dump({
+          platform: 'android', getEnv: makeAndroidEnv(), grpcClient: factory,
+          grpcClientCache: cache, execMaestro, execAdb
+        });
+        expect(res.kind).toBe('hierarchy');
+        expect(execMaestro).not.toHaveBeenCalled(); // CLI skipped per D10/D5
+        expect(execAdb.calls.some(args => args.includes('exec-out'))).toBe(true);
+      });
+
+      it('env set + channel-broken: falls through to maestro CLI', async () => {
+        const cache = new Map();
+        const factory = makeFakeFactory(() => makeFixedClient({
+          error: { code: GRPC_STATUS.UNAVAILABLE }
+        }));
+        const maestroSimple = loadFixture('maestro-simple.json');
+        const execMaestro = async () => ({ stdout: maestroSimple, stderr: '', exitCode: 0 });
+        const execAdb = jasmine.createSpy('execAdb');
+        const res = await dump({
+          platform: 'android', getEnv: makeAndroidEnv(), grpcClient: factory,
+          grpcClientCache: cache, execMaestro, execAdb
+        });
+        expect(res.kind).toBe('hierarchy');
+        expect(execAdb).not.toHaveBeenCalled(); // CLI succeeded
+      });
+
+      it('kill switch PERCY_MAESTRO_GRPC=0: skips gRPC entirely', async () => {
+        const cache = new Map();
+        const factory = makeFakeFactory(() => { throw new Error('factory must not be called'); });
+        const maestroSimple = loadFixture('maestro-simple.json');
+        const execMaestro = async () => ({ stdout: maestroSimple, stderr: '', exitCode: 0 });
+        const res = await dump({
+          platform: 'android',
+          getEnv: makeAndroidEnv({ PERCY_MAESTRO_GRPC: '0' }),
+          grpcClient: factory, grpcClientCache: cache,
+          execMaestro, execAdb: () => Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
+        });
+        expect(res.kind).toBe('hierarchy');
+        expect(factory.created.length).toBe(0);
+      });
+
+      it('env absent: gRPC NOT attempted; maestro CLI primary; adb fallback', async () => {
+        const cache = new Map();
+        const factory = makeFakeFactory(() => { throw new Error('factory must not be called'); });
+        const maestroSimple = loadFixture('maestro-simple.json');
+        const execMaestro = async () => ({ stdout: maestroSimple, stderr: '', exitCode: 0 });
+        const res = await dump({
+          platform: 'android',
+          getEnv: makeAndroidEnv({ PERCY_ANDROID_GRPC_PORT: undefined }),
+          grpcClient: factory, grpcClientCache: cache, execMaestro,
+          execAdb: () => Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
+        });
+        expect(res.kind).toBe('hierarchy');
+        expect(factory.created.length).toBe(0);
+      });
+
+      it('malformed env (PERCY_ANDROID_GRPC_PORT=abc): falls through to maestro CLI', async () => {
+        const cache = new Map();
+        const factory = makeFakeFactory(() => { throw new Error('factory must not be called'); });
+        const maestroSimple = loadFixture('maestro-simple.json');
+        const execMaestro = async () => ({ stdout: maestroSimple, stderr: '', exitCode: 0 });
+        const res = await dump({
+          platform: 'android',
+          getEnv: makeAndroidEnv({ PERCY_ANDROID_GRPC_PORT: 'abc' }),
+          grpcClient: factory, grpcClientCache: cache, execMaestro,
+          execAdb: () => Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
+        });
+        expect(res.kind).toBe('hierarchy');
+        expect(factory.created.length).toBe(0);
+      });
     });
   });
 });
