@@ -49,6 +49,8 @@
     "@percy/logger": "1.31.11-beta.0",
     "@percy/monitoring": "1.31.11-beta.0",
     "@percy/webdriver-utils": "1.31.11-beta.0",
+    "@grpc/grpc-js": "^1.14.3",
+    "@grpc/proto-loader": "^0.8.0",
     "content-disposition": "^0.5.4",
     "cross-spawn": "^7.0.3",
     "extract-zip": "^2.0.1",
