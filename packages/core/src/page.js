@@ -1,7 +1,8 @@
 import fs from 'fs';
 import logger from '@percy/logger';
 import Network from './network.js';
-import { exposeClosedShadowRoots } from '@percy/sdk-utils';
+import sdkUtils from '@percy/sdk-utils';
+const { exposeClosedShadowRoots } = sdkUtils;
 import { PERCY_DOM } from './api.js';
 import {
   hostname,
