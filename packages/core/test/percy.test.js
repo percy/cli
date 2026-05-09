@@ -1,4 +1,4 @@
-import { logger, api, setupTest, createTestServer } from './helpers/index.js';
+import { logger, api, setupTest, createTestServer, fs } from './helpers/index.js';
 import { generatePromise, AbortController, base64encode } from '../src/utils.js';
 import Percy from '@percy/core';
 import Pako from 'pako';
@@ -1198,7 +1198,7 @@ describe('Percy', () => {
       percy.log.info('cli_test');
       percy.log.info('ci_test', {}, true);
       const logsObject = {
-        clilogs: Array.from(logger.instance.messages)
+        clilogs: logger.instance.query(() => true)
       };
 
       const content = base64encode(Pako.gzip(JSON.stringify(logsObject)));
@@ -2226,6 +2226,121 @@ describe('Percy', () => {
       // Should not contain "allowed domains" text
       expect(logger.stdout).not.toEqual(jasmine.arrayContaining([
         jasmine.stringMatching(/allowed domains/)
+      ]));
+    });
+  });
+
+  describe('archive flow', () => {
+    it('validates and logs the archive directory when starting', async () => {
+      percy = new Percy({ token: 'PERCY_TOKEN', archiveDir: './percy-archive' });
+      await expectAsync(percy.start()).toBeResolved();
+
+      expect(percy.archiveDir).toMatch(/\/percy-archive$/);
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Archiving snapshots to: .*\/percy-archive/)
+      ]));
+    });
+
+    it('respects an explicit skipUploads when archiveDir is set', () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        archiveDir: './percy-archive',
+        skipUploads: false
+      });
+      expect(percy.skipUploads).toBe(false);
+    });
+
+    it('logs the archive summary when stopping with snapshots', async () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        archiveDir: './percy-archive',
+        skipDiscovery: true
+      });
+      await percy.start();
+
+      await percy.snapshot({
+        name: 'Archived Snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        widths: [1000]
+      });
+
+      await expectAsync(percy.stop()).toBeResolved();
+
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Archived 1 snapshot\(s\) to: .*\/percy-archive/)
+      ]));
+    });
+
+    it('logs an error when archiving a snapshot fails', async () => {
+      percy = new Percy({
+        token: 'PERCY_TOKEN',
+        archiveDir: './percy-archive',
+        skipDiscovery: true
+      });
+      await percy.start();
+
+      // memfs spy is already in place; override it to fail for archive writes
+      fs.writeFileSync.and.callFake((p, ...rest) => {
+        if (typeof p === 'string' && p.includes('percy-archive')) {
+          throw new Error('disk full');
+        }
+        return fs.$vol.writeFileSync(p, ...rest);
+      });
+
+      await percy.snapshot({
+        name: 'Failing Snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: '<html></html>',
+        widths: [1000]
+      });
+
+      // give the dynamic import + .catch chain a chance to settle
+      await new Promise(r => setTimeout(r, 50));
+      await percy.stop();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Failed to archive snapshot "Failing Snapshot": disk full/)
+      ]));
+    });
+  });
+
+  describe('#replaySnapshot()', () => {
+    let archived;
+
+    beforeEach(() => {
+      archived = {
+        name: 'Replay Snapshot',
+        url: 'http://localhost:8000',
+        widths: [1000],
+        resources: []
+      };
+    });
+
+    it('throws when percy is not running', () => {
+      expect(() => [...percy.yield.replaySnapshot(archived)])
+        .toThrowError('Not running');
+    });
+
+    it('throws when the build has errored', async () => {
+      await percy.start();
+      percy.build.error = 'build error';
+
+      expect(() => [...percy.yield.replaySnapshot(archived)])
+        .toThrowError('build error');
+    });
+
+    it('logs and pushes the snapshot when running', async () => {
+      await percy.start();
+
+      let result = [...percy.yield.replaySnapshot(archived)];
+      expect(result).toEqual([]);
+
+      expect(archived.meta).toEqual({
+        snapshot: { name: 'Replay Snapshot', testCase: undefined }
+      });
+      expect(logger.stdout).toEqual(jasmine.arrayContaining([
+        '[percy] Replaying snapshot: Replay Snapshot'
       ]));
     });
   });

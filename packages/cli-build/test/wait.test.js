@@ -231,7 +231,10 @@ describe('percy build:wait', () => {
     process.emit('SIGTERM');
     await waiting;
 
-    expect(logger.stderr).toEqual([]);
+    // Signal handler announces drain on stderr.
+    expect(logger.stderr).toEqual([
+      jasmine.stringContaining('SIGTERM received, draining')
+    ]);
     expect(logger.stdout).toEqual([expected]);
   });
 

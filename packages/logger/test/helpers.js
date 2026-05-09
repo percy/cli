@@ -43,6 +43,14 @@ const helpers = {
   },
 
   async mock(options = {}) {
+    // Default to memory mode for downstream packages whose test setups don't
+    // explicitly select a mode. Logger tests that want disk mode set
+    // PERCY_LOGS_IN_MEMORY explicitly before calling mock(); the value here
+    // is only applied when the env hasn't already been pinned.
+    if (!('PERCY_LOGS_IN_MEMORY' in process.env)) {
+      process.env.PERCY_LOGS_IN_MEMORY = '1';
+    }
+
     helpers.reset();
 
     if (options.level) {
@@ -78,8 +86,13 @@ const helpers = {
   },
 
   reset(soft) {
-    if (soft) logger.loglevel('info');
-    else delete logger.constructor.instance;
+    if (soft) {
+      logger.loglevel('info');
+    } else {
+      // tear down the prior instance's disk artifacts before swapping it out
+      try { logger.constructor.instance?.reset(); } catch { /* tolerate */ }
+      delete logger.constructor.instance;
+    }
 
     helpers.stdout.length = 0;
     helpers.stderr.length = 0;
@@ -92,7 +105,7 @@ const helpers = {
   },
 
   dump() {
-    let msgs = Array.from(logger.instance.messages);
+    let msgs = logger.instance.query(() => true);
     if (!msgs.length) return;
 
     let log = m => process.env.__PERCY_BROWSERIFIED__ ? (

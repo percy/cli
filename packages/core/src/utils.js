@@ -197,7 +197,9 @@ export async function executeDomainValidation(network, hostname, url, domainVali
     // Worker returns 'accessible' field, not 'allowed'
     if (result?.error) {
       newErrorHosts.add(hostname);
-      network.log.debug(`Domain validation: ${hostname} validated as BLOCKED - ${result?.reason}`, network.meta);
+      // Redact upstream-derived `result.reason` — may contain credentials
+      // from response bodies the validation worker echoed.
+      network.log.debug(redactSecrets(`Domain validation: ${hostname} validated as BLOCKED - ${result?.reason}`), network.meta);
       processedDomains.set(hostname, false);
       return false;
     } else if (!result?.accessible) {
@@ -208,8 +210,10 @@ export async function executeDomainValidation(network, hostname, url, domainVali
     }
     return false;
   } catch (error) {
-    // On error, default to allowing (fail-open for better UX)
-    network.log.warn(`Domain validation: Failed to validate ${hostname} - ${error.message}`, network.meta);
+    // On error, default to allowing (fail-open for better UX).
+    // Redact `error.message` — upstream HTTP errors can include
+    // Authorization headers / URL credentials in the failed-request text.
+    network.log.warn(redactSecrets(`Domain validation: Failed to validate ${hostname} - ${error.message}`), network.meta);
     processedDomains.set(hostname, false);
     return false;
   } finally {

@@ -3,12 +3,13 @@ import logger from '@percy/logger';
 import start from './start.js';
 import stop from './stop.js';
 import ping from './ping.js';
+import replay from './replay.js';
 import { waitForTimeout } from '@percy/client/utils';
 
 export const exec = command('exec', {
   description: 'Start and stop Percy around a supplied command',
   usage: '[options] -- <command>',
-  commands: [start, stop, ping],
+  commands: [start, stop, ping, replay],
 
   flags: [{
     name: 'parallel',
@@ -18,6 +19,12 @@ export const exec = command('exec', {
     name: 'partial',
     description: 'Marks the build as a partial build',
     parse: () => !!(process.env.PERCY_PARTIAL_BUILD ||= '1')
+  }, {
+    name: 'archive-dir',
+    description: 'Save snapshot data to an archive directory for deferred upload',
+    percyrc: 'percy.archiveDir',
+    type: 'string',
+    group: 'Percy'
   }, {
     name: 'testing',
     percyrc: 'testing',
@@ -38,7 +45,7 @@ export const exec = command('exec', {
     server: true,
     projectType: 'web'
   }
-}, async function*({ flags, argv, env, percy, log, exit }) {
+}, async function*({ flags, argv, env, percy, log, exit, shutdown }) {
   let [command, ...args] = argv;
 
   // command is required
@@ -87,8 +94,12 @@ export const exec = command('exec', {
   log.info(`Running "${[command, ...args].join(' ')}"`);
   let [status, error] = yield* spawn(command, args, percy);
 
-  // stop percy if running (force stop if there is an error);
-  await percy?.stop(!!error);
+  // stop percy if running. When the spawn child was signaled
+  // (error.signal truthy from cross-spawn), respect the
+  // graceful drain budget exposed via ctx.shutdown; otherwise, the
+  // legacy "force-stop on any error" rule still applies.
+  let force = error?.signal ? !!shutdown?.forced : !!error;
+  await percy?.stop(force);
 
   log.info(`Command "${[command, ...args].join(' ')}" exited with status: ${status}`);
   // forward any returned status code
