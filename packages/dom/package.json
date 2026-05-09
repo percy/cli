@@ -14,8 +14,7 @@
   "main": "dist/bundle.js",
   "browser": "dist/bundle.js",
   "files": [
-    "dist",
-    "src/closed-shadow.mjs"
+    "dist"
   ],
   "scripts": {
     "build": "node ../../scripts/build",

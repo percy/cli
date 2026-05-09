@@ -1,7 +1,7 @@
 import fs from 'fs';
 import logger from '@percy/logger';
 import Network from './network.js';
-import { exposeClosedShadowRoots } from '@percy/dom/src/closed-shadow.mjs';
+import { exposeClosedShadowRoots } from '@percy/sdk-utils';
 import { PERCY_DOM } from './api.js';
 import {
   hostname,

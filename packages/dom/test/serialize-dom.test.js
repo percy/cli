@@ -817,7 +817,6 @@ describe('serializeDOM', () => {
     });
   });
 
-
   describe('shadow-utils getRuntime fallback', () => {
     it('falls back to window when the node has no ownerDocument.defaultView', () => {
       // Exercises the `(typeof window !== 'undefined' ? window : null)` fallback

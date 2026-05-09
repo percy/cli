@@ -1,4 +1,4 @@
-import exposeClosedShadowRoots, { walkCDPNodes } from '../src/closed-shadow.mjs';
+import exposeClosedShadowRoots, { walkCDPNodes } from '../src/closed-shadow.js';
 
 describe('exposeClosedShadowRoots', () => {
   function makeCdp(handlers) {
