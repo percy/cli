@@ -77,7 +77,6 @@ export function rewritePseudoSelector(selectorText) {
 // ctx._liveMutations exists — markPseudoClassElements and getElementsToProcess
 // both initialize it upfront.
 function stampOnce(ctx, element, attr, value) {
-  if (!element || typeof element.hasAttribute !== 'function') return;
   if (element.hasAttribute(attr)) return;
   element.setAttribute(attr, value);
   ctx._liveMutations.push([element, attr]);

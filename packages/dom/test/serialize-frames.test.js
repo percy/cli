@@ -510,6 +510,22 @@ describe('serializeFrames', () => {
       expect(result).toBeDefined();
       expect(result.html).toBeDefined();
     });
+
+    it('skips recursion into iframes past the depth limit', async () => {
+      // With maxIframeDepth=1, the very first iframe (depth 0) trips the
+      // iframeDepth+1 >= 1 guard and is skipped — its srcdoc is left as
+      // the original literal markup rather than being replaced with
+      // serialized HTML (which would contain a <!DOCTYPE>).
+      withExample('<iframe id="depth-skip" srcdoc="<p>untouched</p>"></iframe>');
+      await getFrame('depth-skip');
+      let result = serializeDOM({ maxIframeDepth: 1 });
+      // Recursion would have replaced srcdoc with serialized HTML; absence
+      // of <!DOCTYPE inside the iframe's srcdoc proves recursion was skipped.
+      let match = result.html.match(/id="depth-skip"\s+srcdoc="([^"]*)"/);
+      expect(match).not.toBeNull();
+      expect(match[1]).not.toContain('DOCTYPE');
+      expect(match[1]).toContain('untouched');
+    });
   });
 
   describe('serializeFrames direct invocation', () => {
