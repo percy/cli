@@ -242,17 +242,18 @@ export class Page {
     // wait for any final network activity before capturing the dom snapshot
     await this.network.idle();
 
-    // wait for custom elements to be defined before capturing. The body
-    // re-polls each tick so lazy-defined element cascades are awaited up
-    // to the user-configurable deadline.
-    let waitTimeout = waitForCustomElementsTimeout ?? DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT;
-    await this.eval(WAIT_FOR_CUSTOM_ELEMENTS_BODY, waitTimeout);
+    // Pre-snapshot best-effort steps: waiting for lazy custom elements and
+    // discovering closed shadow roots via CDP. Both target a fully-loaded
+    // page; if the session has already terminated, skip them so the proper
+    // crash/close error surfaces from the downstream insertPercyDom +
+    // serialize evals (which gate on the same session).
+    if (!this.session.closedReason) {
+      let waitTimeout = waitForCustomElementsTimeout ?? DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT;
+      await this.eval(WAIT_FOR_CUSTOM_ELEMENTS_BODY, waitTimeout);
 
-    // Discover closed shadow roots via CDP and expose them to
-    // PercyDOM.serialize() through window.__percyClosedShadowRoots. Skip the
-    // CDP discovery hop when the customer opted out of shadow DOM.
-    if (!disableShadowDOM) {
-      await exposeClosedShadowRoots(this.session, msg => this.log.debug(msg, this.meta));
+      if (!disableShadowDOM) {
+        await exposeClosedShadowRoots(this.session, msg => this.log.debug(msg, this.meta));
+      }
     }
 
     await this.insertPercyDom();
