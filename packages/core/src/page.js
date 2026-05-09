@@ -1,7 +1,7 @@
 import fs from 'fs';
 import logger from '@percy/logger';
-import sdkUtils from '@percy/sdk-utils';
 import Network from './network.js';
+import { exposeClosedShadowRoots } from './closed-shadow.js';
 import { PERCY_DOM } from './api.js';
 import {
   hostname,
@@ -9,8 +9,6 @@ import {
   waitForTimeout as sleep,
   serializeFunction
 } from './utils.js';
-
-const { exposeClosedShadowRoots } = sdkUtils;
 
 // Default ceiling on the customElements wait. Users may override via the
 // snapshot option of the same name. Set high enough to cover lazy-defined

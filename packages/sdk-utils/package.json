@@ -52,7 +52,6 @@
     }
   },
   "dependencies": {
-    "@percy/dom": "1.31.12-beta.0",
     "pac-proxy-agent": "^7.0.2"
   }
 }
