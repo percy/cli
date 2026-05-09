@@ -36,14 +36,7 @@ const DISABLED_ATTR = 'data-percy-disabled';
 const HOVER_ATTR = 'data-percy-hover';
 const ACTIVE_ATTR = 'data-percy-active';
 
-// Auto-detect: stamped from the live DOM during marking. CSS rules are
-// rewritten regardless of whether the user configured anything.
-const AUTO_DETECT_PSEUDO = [':focus', ':focus-within', ':checked', ':disabled'];
-// Config-only: rewritten only when at least one configured element matches
-// the rule's base selector. The user opts elements in via config and uses
-// execute scripts to force the state before snapshot capture.
-const CONFIG_ONLY_PSEUDO = [':hover', ':active'];
-const ALL_INTERACTIVE_PSEUDO = [...AUTO_DETECT_PSEUDO, ...CONFIG_ONLY_PSEUDO];
+const ALL_INTERACTIVE_PSEUDO = [':focus', ':focus-within', ':checked', ':disabled', ':hover', ':active'];
 
 const PSEUDO_TO_ATTR = {
   ':focus': '[data-percy-focus]',
@@ -54,118 +47,30 @@ const PSEUDO_TO_ATTR = {
   ':active': '[data-percy-active]'
 };
 
-// Order matters: longer pseudos (:focus-within) must be tried before their
-// prefix forms (:focus). The boundary lookahead `(?![-\w])` prevents :focus
-// from matching the start of :focus-within / :focus-visible / :focusable.
-// Used only by selectorContainsPseudo for cheap detection — rewriting
-// itself goes through walkPseudoSelector below, which is CSS-aware.
-const PSEUDO_BOUNDARY_RES = {
-  ':focus-within': /:focus-within(?![-\w])/g,
-  ':focus': /:focus(?![-\w])/g,
-  ':checked': /:checked(?![-\w])/g,
-  ':disabled': /:disabled(?![-\w])/g,
-  ':hover': /:hover(?![-\w])/g,
-  ':active': /:active(?![-\w])/g
-};
-
-// Priority order: longest pseudo first so ':focus-within' wins over ':focus'
-// at the same position.
-const PSEUDO_PRIORITY = [':focus-within', ':focus', ':checked', ':disabled', ':hover', ':active'];
+// Boundary regex per pseudo-class. Lookahead `(?![-\w])` prevents :focus
+// from matching the start of :focus-within / :focus-visible. Order matters:
+// longer pseudos (:focus-within) are listed first so they win over :focus.
+const PSEUDO_RES = [
+  [':focus-within', /:focus-within(?![-\w])/g],
+  [':focus', /:focus(?![-\w])/g],
+  [':checked', /:checked(?![-\w])/g],
+  [':disabled', /:disabled(?![-\w])/g],
+  [':hover', /:hover(?![-\w])/g],
+  [':active', /:active(?![-\w])/g]
+];
 
 function selectorContainsPseudo(selectorText, pseudoList) {
   return pseudoList.some(pc => {
-    const re = PSEUDO_BOUNDARY_RES[pc];
+    const re = PSEUDO_RES.find(([p]) => p === pc)[1];
     re.lastIndex = 0;
     return re.test(selectorText);
   });
 }
 
-// CSS-aware rewriter: walks the selector text token-by-token, skipping over
-// string literals ('...' / "...") and attribute-bracket contents ([...]) so
-// that `:focus` appearing inside `[value=":focus"]` or a quoted string is
-// left alone. A naive global regex would corrupt those literals.
-//
-// `replace` receives `(pseudo)` and returns the replacement string. This
-// lets us implement both full rewrite (return PSEUDO_TO_ATTR[pseudo]) and
-// stripping (return '').
-function walkPseudoSelector(selectorText, replace) {
-  let out = '';
-  let i = 0;
-  let len = selectorText.length;
-  while (i < len) {
-    let ch = selectorText[i];
-    // Top-level string literal — copy verbatim through the closing quote.
-    if (ch === '"' || ch === "'") {
-      let quote = ch;
-      out += ch; i++;
-      while (i < len && selectorText[i] !== quote) {
-        if (selectorText[i] === '\\' && i + 1 < len) {
-          out += selectorText[i] + selectorText[i + 1];
-          i += 2;
-        } else {
-          out += selectorText[i++];
-        }
-      }
-      if (i < len) out += selectorText[i++];
-      continue;
-    }
-    // Attribute bracket — copy verbatim through the matching `]`. Handles
-    // nested brackets, single- and double-quoted strings inside.
-    if (ch === '[') {
-      let depth = 1;
-      out += ch; i++;
-      while (i < len && depth > 0) {
-        let cc = selectorText[i];
-        if (cc === '"' || cc === "'") {
-          let q = cc;
-          out += cc; i++;
-          while (i < len && selectorText[i] !== q) {
-            if (selectorText[i] === '\\' && i + 1 < len) {
-              out += selectorText[i] + selectorText[i + 1];
-              i += 2;
-            } else {
-              out += selectorText[i++];
-            }
-          }
-          if (i < len) out += selectorText[i++];
-        } else if (cc === '[') {
-          depth++; out += cc; i++;
-        } else if (cc === ']') {
-          depth--; out += cc; i++;
-        } else {
-          out += selectorText[i++];
-        }
-      }
-      continue;
-    }
-    // Top-level pseudo-class — try priority-ordered match.
-    if (ch === ':') {
-      let matched = false;
-      for (const pseudo of PSEUDO_PRIORITY) {
-        if (selectorText.startsWith(pseudo, i)) {
-          let nextCh = selectorText[i + pseudo.length];
-          if (!nextCh || !/[-\w]/.test(nextCh)) {
-            out += replace(pseudo);
-            i += pseudo.length;
-            matched = true;
-            break;
-          }
-        }
-      }
-      if (matched) continue;
-    }
-    out += ch;
-    i++;
-  }
-  return out;
-}
-
 export function rewritePseudoSelector(selectorText) {
-  return walkPseudoSelector(selectorText, pseudo => PSEUDO_TO_ATTR[pseudo]);
-}
-
-export function stripInteractivePseudo(selectorText) {
-  return walkPseudoSelector(selectorText, () => '');
+  let out = selectorText;
+  for (const [pseudo, re] of PSEUDO_RES) out = out.replace(re, PSEUDO_TO_ATTR[pseudo]);
+  return out;
 }
 
 // Record a live-DOM mutation so cleanup can undo it. Callers must ensure
@@ -211,11 +116,8 @@ function markFocusWithinAncestors(ctx, focused) {
 }
 
 function markInteractiveStates(ctx) {
-  ctx._focusedElementId = null;
   const focused = findDeepActiveElement(ctx.dom);
   if (focused && focused !== ctx.dom.body && focused !== ctx.dom.documentElement) {
-    const id = focused.getAttribute?.('data-percy-element-id');
-    if (id) ctx._focusedElementId = id;
     stampOnce(ctx, focused, FOCUS_ATTR, 'true');
     markFocusWithinAncestors(ctx, focused);
   }
@@ -250,29 +152,10 @@ function stampPseudoElementId(ctx, element) {
   }
 }
 
-// Per-element marking for configured elements. Stamps :focus / :checked /
-// :disabled when the live element matches them (auto-detect catches the
-// page-wide case; this handles configured elements whose .matches() may be
-// overridden by page code). Also stamps :hover and :active unconditionally
-// on configured elements — opting an element into pseudoClassEnabledElements
-// IS the user's request to capture those forced states.
+// Configured elements get :hover/:active stamped unconditionally — opting in
+// IS the request to capture those forced states. :focus/:checked/:disabled
+// are already covered by the page-wide markInteractiveStates pass.
 function markElementInteractiveStates(ctx, element) {
-  if (ctx._focusedElementId) {
-    // === naturally rejects null/undefined ids without needing a truthy
-    // short-circuit (ctx._focusedElementId is already truthy at this point).
-    if (element.getAttribute('data-percy-element-id') === ctx._focusedElementId) {
-      stampOnce(ctx, element, FOCUS_ATTR, 'true');
-    }
-  }
-  for (const [pseudo, attr] of [[':focus', FOCUS_ATTR], [':checked', CHECKED_ATTR], [':disabled', DISABLED_ATTR]]) {
-    try {
-      if (element.matches(pseudo)) stampOnce(ctx, element, attr, 'true');
-    } catch (e) {
-      // Browser doesn't support this pseudo — skip
-    }
-  }
-  // Configured elements get :hover and :active unconditionally so any CSS
-  // rule using those pseudos applies to them in the snapshot.
   stampOnce(ctx, element, HOVER_ATTR, 'true');
   stampOnce(ctx, element, ACTIVE_ATTR, 'true');
 }
@@ -280,10 +163,6 @@ function markElementInteractiveStates(ctx, element) {
 export function getElementsToProcess(ctx, config, markWithId = false) {
   const { dom } = ctx;
   const elements = [];
-  // Direct callers (tests, future consumers) may not have gone through
-  // markPseudoClassElements; initialize the mutation log so stampOnce and
-  // stampPseudoElementId can push without per-call guards.
-  if (!ctx._liveMutations) ctx._liveMutations = [];
 
   const stamp = (el) => {
     if (markWithId) {
@@ -444,39 +323,9 @@ function collectStyleSheets(doc) {
   return entries;
 }
 
-// Returns true when at least one element in `stampedSet` matches the rule's
-// base selector. Used to gate :hover/:active rewriting — without this gate
-// we'd rewrite every `.btn:hover` on the page and apply the resulting
-// [data-percy-hover] rule globally, but only configured elements receive
-// that stamp, so other matches would silently lose their hover styles.
-//
-// Iterates `stampedSet` (typically single digits — only configured
-// elements are stamped) and tests `el.matches(baseSelector)` per element,
-// rather than scanning the whole live tree per rule. For a design system
-// shipping hundreds of `.btn:hover` rules this is the difference between
-// O(R × T) and O(R × |stamped|).
-function someStampedMatches(baseSelector, stampedSet) {
-  for (const el of stampedSet) {
-    try {
-      if (el.matches(baseSelector)) return true;
-    } catch (e) {
-      // Stripped selector invalid in this scope (e.g. pseudo was at the
-      // start: ':hover') — skip and try the next element.
-    }
-  }
-  return false;
-}
-
 function extractPseudoClassRules(ctx) {
   const sheetEntries = collectStyleSheets(ctx.dom);
   const rulesByOwner = new Map();
-
-  // Compute the stamped-element set once — it's invariant for this whole
-  // call and a per-rule querySelectorAll over the live tree balloons fast
-  // (every `.btn:hover` on a page hit this loop before).
-  const stampedSet = ctx.pseudoClassEnabledElements
-    ? new Set(ctx.dom.querySelectorAll(`[${PSEUDO_ELEMENT_MARKER_ATTR}]`))
-    : null;
 
   for (const { sheet, owner } of sheetEntries) {
     let rules;
@@ -495,22 +344,6 @@ function extractPseudoClassRules(ctx) {
       if (!rule.selectorText.includes(':')) continue;
       if (!selectorContainsPseudo(rule.selectorText, ALL_INTERACTIVE_PSEUDO)) continue;
 
-      const hasConfigOnly = selectorContainsPseudo(rule.selectorText, CONFIG_ONLY_PSEUDO);
-      const hasAutoDetect = selectorContainsPseudo(rule.selectorText, AUTO_DETECT_PSEUDO);
-
-      // :hover/:active alone with no configured elements: skip — the
-      // rewritten selector wouldn't match anything.
-      if (hasConfigOnly && !hasAutoDetect) {
-        if (!stampedSet || stampedSet.size === 0) continue;
-        if (!someStampedMatches(stripInteractivePseudo(rule.selectorText), stampedSet)) continue;
-      }
-
-      // selectorContainsPseudo and rewritePseudoSelector share the boundary
-      // regexes, so a selector that passes the contains-check always
-      // rewrites to a different string. Skipping the equality guard keeps
-      // a single source of truth — if the invariant ever breaks, the test
-      // suite will surface it via mismatched output rather than a silent
-      // skip.
       const rewrittenSelector = rewritePseudoSelector(rule.selectorText);
 
       const cssText = `${rewrittenSelector} { ${rule.style.cssText} }`;

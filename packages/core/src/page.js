@@ -1,7 +1,7 @@
 import fs from 'fs';
 import logger from '@percy/logger';
 import Network from './network.js';
-import { exposeClosedShadowRoots } from './closed-shadow.js';
+import { exposeClosedShadowRoots } from '@percy/dom/src/closed-shadow.mjs';
 import { PERCY_DOM } from './api.js';
 import {
   hostname,
@@ -16,32 +16,29 @@ import {
 // undefined elements remain.
 export const DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT = 1500;
 
-// Body of the customElements wait. Kept as a JS string (not an inline
-// function) so nyc/istanbul does not instrument the body and we don't need
-// an istanbul-ignore. The body runs in the browser via Runtime.callFunctionOn.
-//
-// Re-polls on each tick so lazy-defined element cascades (one definition
-// triggering another via dynamic import) are awaited up to the deadline.
-export const WAIT_FOR_CUSTOM_ELEMENTS_BODY = [
-  'var deadline = Date.now() + (arguments[0] || 1500);',
-  'return new Promise(function(resolve) {',
-  '  function tick() {',
-  '    var undef = document.querySelectorAll(":not(:defined)");',
-  '    if (!undef.length) return resolve();',
-  '    if (Date.now() >= deadline) return resolve();',
-  '    var names = {};',
-  '    for (var i = 0; i < undef.length; i++) names[undef[i].localName] = true;',
-  '    var promises = Object.keys(names).map(function(n) {',
-  '      return window.customElements.whenDefined(n).catch(function(){});',
-  '    });',
-  '    Promise.race([',
-  '      Promise.all(promises),',
-  '      new Promise(function(r) { setTimeout(r, 100); })',
-  '    ]).then(tick);',
-  '  }',
-  '  tick();',
-  '});'
-].join('\n');
+// Body of the customElements wait. Runs in the browser via
+// Runtime.callFunctionOn. Re-polls each tick so lazy-defined element
+// cascades are awaited up to the deadline.
+export const WAIT_FOR_CUSTOM_ELEMENTS_BODY = `
+  var deadline = Date.now() + (arguments[0] || 1500);
+  return new Promise(function(resolve) {
+    function tick() {
+      var undef = document.querySelectorAll(":not(:defined)");
+      if (!undef.length) return resolve();
+      if (Date.now() >= deadline) return resolve();
+      var names = {};
+      for (var i = 0; i < undef.length; i++) names[undef[i].localName] = true;
+      var promises = Object.keys(names).map(function(n) {
+        return window.customElements.whenDefined(n).catch(function(){});
+      });
+      Promise.race([
+        Promise.all(promises),
+        new Promise(function(r) { setTimeout(r, 100); })
+      ]).then(tick);
+    }
+    tick();
+  });
+`;
 
 export class Page {
   static TIMEOUT = undefined;
@@ -255,7 +252,7 @@ export class Page {
     // PercyDOM.serialize() through window.__percyClosedShadowRoots. Skip the
     // CDP discovery hop when the customer opted out of shadow DOM.
     if (!disableShadowDOM) {
-      await exposeClosedShadowRoots(this.session, this._logShadowDebug.bind(this));
+      await exposeClosedShadowRoots(this.session, msg => this.log.debug(msg, this.meta));
     }
 
     await this.insertPercyDom();
@@ -271,14 +268,6 @@ export class Page {
     }), { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, ignoreIframeSelectors, pseudoClassEnabledElements, waitForCustomElementsTimeout });
 
     return { ...snapshot, ...capture };
-  }
-
-  // Logger for the closed-shadow CDP helper. Bound at the call site so the
-  // method lives on the prototype (and is therefore reachable from a test
-  // that constructs a Page via Object.create without invoking the
-  // constructor).
-  _logShadowDebug(msg) {
-    this.log.debug(msg, this.meta);
   }
 
   // Initialize newly attached pages and iframes with page options

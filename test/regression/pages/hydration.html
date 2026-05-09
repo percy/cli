@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hydration Regression Test</title>
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <style>
+    .status { padding: 12px; border: 1px solid #ccc; border-radius: 4px; min-height: 40px; margin-bottom: 8px; }
+    .hydrated { background: #d4edda; border-color: #28a745; color: #155724; font-weight: bold; }
+    .loading { background: #fff3cd; border-color: #ffc107; color: #856404; }
+  </style>
+</head>
+<body>
+  <h1>Hydration Test</h1>
+  <p style="color:#666;margin-bottom:16px;">
+    These components simulate framework hydration. The DOM stability wait should
+    let them finish hydrating before Percy serializes the DOM. With JS disabled
+    in Percy's renderer, the serialized HTML (already hydrated) is what renders.
+  </p>
+
+  <div class="section">
+    <div class="section-title">Fast Hydration (200ms)</div>
+    <div id="hydrate-fast" class="status loading">Loading...</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Slow Hydration (800ms)</div>
+    <div id="hydrate-slow" class="status loading">Loading...</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Multi-phase Hydration (100ms + 300ms + 500ms)</div>
+    <div id="hydrate-multi" class="status loading">Phase 0: Server rendered</div>
+  </div>
+
+  <script>
+    // Simulate fast hydration (React hydrating a simple component)
+    setTimeout(function() {
+      var el = document.getElementById('hydrate-fast');
+      el.className = 'status hydrated';
+      el.textContent = 'Hydrated in 200ms';
+    }, 200);
+
+    // Simulate slow hydration (Astro island loading)
+    setTimeout(function() {
+      var el = document.getElementById('hydrate-slow');
+      el.className = 'status hydrated';
+      el.textContent = 'Hydrated in 800ms';
+    }, 800);
+
+    // Simulate multi-phase hydration (Vue mounting in stages)
+    setTimeout(function() {
+      document.getElementById('hydrate-multi').textContent = 'Phase 1: Components mounted';
+    }, 100);
+    setTimeout(function() {
+      document.getElementById('hydrate-multi').textContent = 'Phase 2: Data fetched';
+    }, 400);
+    setTimeout(function() {
+      var el = document.getElementById('hydrate-multi');
+      el.className = 'status hydrated';
+      el.textContent = 'Phase 3: Fully hydrated';
+    }, 600);
+  </script>
+</body>
+</html>

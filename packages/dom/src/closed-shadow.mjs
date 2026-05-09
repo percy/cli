@@ -1,8 +1,7 @@
-// CLI-side closed-shadow capture. A near-identical copy lives in
-// @percy/sdk-utils for SDKs (puppeteer/playwright/etc.) to import; we
-// duplicate rather than cross-depend so @percy/core doesn't pull in a
-// package meant for SDK consumers. The two files are kept manually in
-// sync — this header is the only intentional difference.
+// Closed-shadow capture helper. Imported by @percy/core (CLI side) and by
+// @percy/sdk-utils (SDK plugins like puppeteer-percy, playwright-percy,
+// cypress-percy, selenium-chrome-percy) — both routes use the same source
+// from here, so there is no copy to keep in sync.
 //
 // Discovers closed shadow roots in the live page and exposes them to
 // PercyDOM.serialize() via per-document `__percyClosedShadowRoots`
@@ -44,11 +43,11 @@
 
 const DEFAULT_LOG = () => {};
 
-// Mirror HARD_MAX_IFRAME_DEPTH from @percy/dom serialize-frames so every
-// recursive walk in the capture pipeline shares the same ceiling. Counted
-// only across shadow / iframe boundary crossings — not plain children —
-// otherwise a normal deep DOM (html → body → div → … → custom-element)
-// would burn through the budget before reaching any shadow host.
+// Mirrors HARD_MAX_IFRAME_DEPTH from serialize-frames so every recursive
+// walk in the capture pipeline shares the same ceiling. Counted only across
+// shadow / iframe boundary crossings — not plain children — otherwise a
+// normal deep DOM (html → body → div → … → custom-element) would burn
+// through the budget before reaching any shadow host.
 const MAX_SHADOW_DEPTH = 10;
 
 // Bound concurrent CDP messages so we don't flood a session with hundreds

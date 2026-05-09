@@ -817,20 +817,6 @@ describe('serializeDOM', () => {
     });
   });
 
-  describe('capture-summary warnings', () => {
-    it('adds shadow-root capture warning when shadow hosts exist', () => {
-      if (getTestBrowser() !== chromeBrowser) return;
-
-      withExample('', { withShadow: false });
-      let el = document.createElement('div');
-      let shadow = el.attachShadow({ mode: 'open' });
-      shadow.innerHTML = '<p>shadow content</p>';
-      document.getElementById('test').appendChild(el);
-
-      let result = serializeDOM();
-      expect(result.warnings.some(w => w.includes('[capture]') && w.includes('shadow root'))).toBe(true);
-    });
-  });
 
   describe('shadow-utils getRuntime fallback', () => {
     it('falls back to window when the node has no ownerDocument.defaultView', () => {

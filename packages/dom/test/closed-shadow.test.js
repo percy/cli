@@ -1,6 +1,6 @@
-import exposeClosedShadowRoots, { walkCDPNodes } from '../src/closed-shadow.js';
+import exposeClosedShadowRoots, { walkCDPNodes } from '../src/closed-shadow.mjs';
 
-describe('Unit / exposeClosedShadowRoots', () => {
+describe('exposeClosedShadowRoots', () => {
   function makeCdp(handlers) {
     let calls = [];
     return {
@@ -274,7 +274,7 @@ describe('Unit / exposeClosedShadowRoots', () => {
   });
 });
 
-describe('Unit / walkCDPNodes', () => {
+describe('walkCDPNodes', () => {
   it('does nothing for null/undefined', () => {
     let pairs = [];
     walkCDPNodes(null, pairs);

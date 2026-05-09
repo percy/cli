@@ -63,15 +63,8 @@ function clampIframeDepth(raw) {
 // any future caller that doesn't go through serializeDOM).
 export function serializeFrames({ dom, clone, warnings, resources, enableJavaScript, disableShadowDOM, ignoreIframeSelectors, forceShadowAsLightDOM, maxIframeDepth, iframeDepth = 0 }) {
   maxIframeDepth = clampIframeDepth(maxIframeDepth);
-  let iframeTotal = 0;
-  let captured = 0;
-  let corsExcluded = 0;
-  let sandboxWarned = 0;
-  let ignored = 0;
-  let depthExcluded = 0;
 
   for (let frame of dom.querySelectorAll('iframe')) {
-    iframeTotal++;
     let percyElementId = frame.getAttribute('data-percy-element-id');
     let cloneEl = clone.querySelector(`[data-percy-element-id="${percyElementId}"]`);
 
@@ -79,7 +72,6 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
     let matchesSelector = ignoreIframeSelectors?.length &&
       ignoreIframeSelectors.some(sel => { try { return frame.matches(sel); } catch { return false; } });
     if (frame.hasAttribute('data-percy-ignore') || matchesSelector) {
-      ignored++;
       cloneEl?.remove();
       continue;
     }
@@ -88,29 +80,21 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
 
     // Warn about sandboxed iframes lacking the permissions Percy needs to
     // render with fidelity. Fully-permissive sandboxes (allow-scripts +
-    // allow-same-origin) capture fine and do NOT count toward the
-    // [capture] summary — counting them would inflate the user-visible
-    // "N sandboxed" number for safe configurations.
+    // allow-same-origin) capture fine.
     if (sandboxAttr !== null) {
       let frameLabel = frame.id || frame.src || frame.getAttribute('name') || '<unnamed iframe>';
       let tokens = sandboxAttr.split(/\s+/).filter(Boolean);
-      let warned = false;
 
       if (tokens.length === 0) {
         warnings.add(`Sandboxed iframe "${frameLabel}" has no permissions — content may not render with full fidelity in Percy`);
-        warned = true;
       } else {
         if (!tokens.includes('allow-scripts')) {
           warnings.add(`Sandboxed iframe "${frameLabel}" has scripts disabled — JS-dependent content will not render in Percy`);
-          warned = true;
         }
         if (!tokens.includes('allow-same-origin')) {
           warnings.add(`Sandboxed iframe "${frameLabel}" lacks allow-same-origin — styles and resources may not load correctly in Percy`);
-          warned = true;
         }
       }
-
-      if (warned) sandboxWarned++;
     }
 
     // delete frames within the head since they usually break pages when
@@ -128,12 +112,7 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
 
       // Bound recursion at the configured depth so nested iframes can't
       // blow the call stack on pathological pages.
-      if (iframeDepth + 1 >= maxIframeDepth) {
-        depthExcluded++;
-        continue;
-      }
-
-      captured++;
+      if (iframeDepth + 1 >= maxIframeDepth) continue;
 
       // recersively serialize contents — propagate ignoreIframeSelectors,
       // forceShadowAsLightDOM, and the depth counter so nested iframes/shadow
@@ -166,17 +145,7 @@ export function serializeFrames({ dom, clone, warnings, resources, enableJavaScr
       // break asset discovery by creating non-captured requests that hang
     } else if (!enableJavaScript && builtWithJs) {
       cloneEl.remove();
-    } else {
-      // frame.contentDocument is null or empty — cross-origin or otherwise inaccessible
-      corsExcluded++;
     }
-  }
-
-  if (iframeTotal > 0) {
-    let parts = [`${captured} captured`, `${corsExcluded} cross-origin excluded`, `${sandboxWarned} sandboxed`];
-    if (ignored > 0) parts.push(`${ignored} ignored via data-percy-ignore`);
-    if (depthExcluded > 0) parts.push(`${depthExcluded} excluded at depth limit (${maxIframeDepth})`);
-    warnings.add(`[capture] ${iframeTotal} iframe(s): ${parts.join(', ')}`);
   }
 }
 

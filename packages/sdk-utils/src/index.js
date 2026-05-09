@@ -10,12 +10,19 @@ import postBuildEvents from './post-build-event.js';
 import flushSnapshots from './flush-snapshots.js';
 import captureAutomateScreenshot from './post-screenshot.js';
 import getResponsiveWidths from './get-responsive-widths.js';
-import {
-  DEFAULT_MAX_IFRAME_DEPTH,
-  HARD_MAX_IFRAME_DEPTH,
-  clampIframeDepth
-} from './iframe-utils.js';
-import exposeClosedShadowRoots, { walkCDPNodes } from './closed-shadow.js';
+import exposeClosedShadowRoots, { walkCDPNodes } from '@percy/dom/src/closed-shadow.mjs';
+
+// Iframe depth constants shared with @percy/dom's serialize-frames. Kept
+// here so external Percy SDKs (Capybara, Cypress, Playwright, etc.) can
+// clamp their own pre-CLI configuration to the same bounds the CLI enforces.
+const DEFAULT_MAX_IFRAME_DEPTH = 3;
+const HARD_MAX_IFRAME_DEPTH = 10;
+
+function clampIframeDepth(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_MAX_IFRAME_DEPTH;
+  return Math.min(Math.floor(n), HARD_MAX_IFRAME_DEPTH);
+}
 
 export {
   logger,

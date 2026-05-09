@@ -1,6 +1,6 @@
 // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
 
-import { markPseudoClassElements, serializePseudoClasses, getElementsToProcess, rewriteCustomStateCSS, cleanupInteractiveStateMarkers, rewritePseudoSelector, stripInteractivePseudo } from '../src/serialize-pseudo-classes';
+import { markPseudoClassElements, serializePseudoClasses, getElementsToProcess, rewriteCustomStateCSS, cleanupInteractiveStateMarkers, rewritePseudoSelector } from '../src/serialize-pseudo-classes';
 import { rewriteCustomStateSelectors } from '../src/serialize-custom-states';
 import { withExample } from './helpers';
 
@@ -537,12 +537,10 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
-  describe('focus detection in markInteractiveStates focus detection', () => {
-    it('marks focused input elements with data-percy-focus via _focusedElementId', () => {
+  describe('focus detection in markInteractiveStates', () => {
+    it('marks focused input elements with data-percy-focus', () => {
       withExample('<input id="focusable" type="text" />', { withShadow: false });
       let el = document.getElementById('focusable');
-      // Set percy-element-id BEFORE mocking focus so _focusedElementId path works
-      el.setAttribute('data-percy-element-id', '_focusable_id');
       withMockedFocus(el, () => {
         markPseudoClassElements(ctx, { id: ['focusable'] });
       });
@@ -553,68 +551,10 @@ describe('serialize-pseudo-classes', () => {
     it('marks focused button elements with data-percy-focus', () => {
       withExample('<button id="focusbtn">Click</button>', { withShadow: false });
       let el = document.getElementById('focusbtn');
-      el.setAttribute('data-percy-element-id', '_focusbtn_id');
       withMockedFocus(el, () => {
         markPseudoClassElements(ctx, { id: ['focusbtn'] });
       });
       expect(el.hasAttribute('data-percy-focus')).toBe(true);
-    });
-
-    it('marks focused element by _focusedElementId in markInteractiveStates by _focusedElementId', () => {
-      withExample('<input id="focus-by-id" type="text" />', { withShadow: false });
-      let el = document.getElementById('focus-by-id');
-      el.setAttribute('data-percy-element-id', '_focus_test_id');
-      withMockedFocus(el, () => {
-        markPseudoClassElements(ctx, { id: ['focus-by-id'] });
-      });
-      expect(el.hasAttribute('data-percy-focus')).toBe(true);
-    });
-  });
-
-  describe('markElementInteractiveStates branches', () => {
-    it('marks focused element via _focusedElementId in markElementInteractiveStates (focused element)', () => {
-      withExample('<input id="mein-focus" type="text" />', { withShadow: false });
-      let el = document.getElementById('mein-focus');
-      el.setAttribute('data-percy-element-id', '_mein_focus_id');
-      ctx._focusedElementId = '_mein_focus_id';
-      getElementsToProcess(ctx, { id: ['mein-focus'] }, true);
-      expect(el.hasAttribute('data-percy-focus')).toBe(true);
-    });
-
-    it('marks :focus element via safeMatches in markElementInteractiveStates (:focus)', () => {
-      withExample('<button id="btn-focus">Click</button>', { withShadow: false });
-      let el = document.getElementById('btn-focus');
-      // Mock matches to return true for :focus (cross-browser reliable)
-      let origMatches = window.Element.prototype.matches;
-      Object.defineProperty(el, 'matches', {
-        value: function(sel) { return sel === ':focus' || origMatches.call(this, sel); },
-        configurable: true
-      });
-      ctx._focusedElementId = null;
-      getElementsToProcess(ctx, { id: ['btn-focus'] }, true);
-      expect(el.hasAttribute('data-percy-focus')).toBe(true);
-    });
-
-    it('marks :checked element in markElementInteractiveStates (:checked)', () => {
-      withExample('<input id="chk" type="checkbox" checked />', { withShadow: false });
-      let el = document.getElementById('chk');
-      expect(el.checked).toBe(true);
-      // Call getElementsToProcess directly to bypass markInteractiveStates
-      ctx._focusedElementId = null;
-      getElementsToProcess(ctx, { id: ['chk'] }, true);
-      expect(el.hasAttribute('data-percy-checked')).toBe(true);
-      expect(el.getAttribute('data-percy-checked')).toBe('true');
-    });
-
-    it('marks :disabled element in markElementInteractiveStates (:disabled)', () => {
-      withExample('<input id="dis" type="text" disabled />', { withShadow: false });
-      let el = document.getElementById('dis');
-      expect(el.disabled).toBe(true);
-      // Call getElementsToProcess directly to bypass markInteractiveStates
-      ctx._focusedElementId = null;
-      getElementsToProcess(ctx, { id: ['dis'] }, true);
-      expect(el.hasAttribute('data-percy-disabled')).toBe(true);
-      expect(el.getAttribute('data-percy-disabled')).toBe('true');
     });
   });
 
@@ -648,30 +588,6 @@ describe('serialize-pseudo-classes', () => {
       expect(() => serializePseudoClasses(ctx)).not.toThrow();
 
       style.remove();
-    });
-  });
-
-  describe('hover-only skip when no config (line 364)', () => {
-    it('skips hover-only rules when configuredSelectors is empty (no pseudoClassEnabledElements)', () => {
-      withExample('<style>.hoverable:hover { color: red; }</style><div class="hoverable">test</div>', { withShadow: false });
-      ctx = {
-        dom: document,
-        clone: document.implementation.createHTMLDocument('Clone'),
-        warnings: new Set(),
-        cache: new Map(),
-        resources: new Set(),
-        hints: new Set(),
-        shadowRootElements: []
-        // no pseudoClassEnabledElements -> configuredSelectors will be empty
-      };
-      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
-      ctx.clone.body.innerHTML = document.body.innerHTML;
-      serializePseudoClasses(ctx);
-      let interactiveStyle = ctx.clone.querySelector('style[data-percy-interactive-states]');
-      // hover-only rules should be skipped since no config exists
-      if (interactiveStyle) {
-        expect(interactiveStyle.textContent).not.toContain('[data-percy-hover]');
-      }
     });
   });
 
@@ -978,10 +894,9 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
-  describe('markInteractiveStates _focusedElementId falsy branch', () => {
-    it('skips _focusedElementId lookup when no element was focused', () => {
+  describe('markInteractiveStates with no focus', () => {
+    it('does not stamp data-percy-focus when nothing is focused', () => {
       withExample('<input id="unfocused" type="text" /><input id="chk2" type="checkbox" checked />', { withShadow: false });
-      // Do NOT focus anything — _focusedElementId should be null/undefined
       ctx = {
         dom: document,
         clone: document.implementation.createHTMLDocument('Clone'),
@@ -1003,20 +918,8 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
-  describe('markInteractiveStates focusedEl not found branch', () => {
-    it('handles focused element without percy-element-id so _focusedElementId stays null', () => {
-      withExample('<input id="no-percy-id" type="text" />', { withShadow: false });
-      let el = document.getElementById('no-percy-id');
-      // Mock activeElement — el has no data-percy-element-id so _focusedElementId stays null
-      withMockedFocus(el, () => {
-        ctx = { dom: document, warnings: new Set() };
-        markPseudoClassElements(ctx, { id: ['no-percy-id'] });
-      });
-      // _focusedElementId should be null because el has no data-percy-element-id at focus time
-      expect(ctx._focusedElementId).toBeNull();
-    });
-
-    it('handles focused element with percy-element-id to hit _focusedElementId true branch', () => {
+  describe('markInteractiveStates focused element', () => {
+    it('stamps data-percy-focus on the focused element via the page-wide pass', () => {
       withExample('<input id="has-percy-id" type="text" />', { withShadow: false });
       let el = document.getElementById('has-percy-id');
       el.setAttribute('data-percy-element-id', '_focus_branch_test');
@@ -1025,28 +928,6 @@ describe('serialize-pseudo-classes', () => {
         markPseudoClassElements(ctx, { id: ['has-percy-id'] });
       });
       expect(el.hasAttribute('data-percy-focus')).toBe(true);
-    });
-
-    it('covers focusedEl null branch when _focusedElementId does not match any element', () => {
-      withExample('<input id="phantom-focus" type="text" />', { withShadow: false });
-      ctx = { dom: document, warnings: new Set() };
-      // Mock activeElement to return an element with a percy-element-id that
-      // doesn't exist in the DOM, so querySelector returns null in markInteractiveStatesInRoot
-      let origActiveElement = Object.getOwnPropertyDescriptor(document.constructor.prototype, 'activeElement') ||
-        Object.getOwnPropertyDescriptor(document, 'activeElement');
-      let mockFocused = { getAttribute: () => '_phantom_id' };
-      Object.defineProperty(document, 'activeElement', { value: mockFocused, configurable: true });
-      try {
-        markPseudoClassElements(ctx, { id: [] });
-        expect(ctx._focusedElementId).toBe('_phantom_id');
-      } finally {
-        // Restore activeElement
-        if (origActiveElement) {
-          Object.defineProperty(document, 'activeElement', origActiveElement);
-        } else {
-          delete document.activeElement;
-        }
-      }
     });
   });
 
@@ -1338,8 +1219,8 @@ describe('serialize-pseudo-classes', () => {
       try {
         ctx = { dom: document, warnings: new Set() };
         markPseudoClassElements(ctx, null);
-        // The traversal should reach deepInput and capture its percy-element-id
-        expect(ctx._focusedElementId).toBe('_deep_focus_1');
+        // The traversal should reach deepInput and stamp [data-percy-focus]
+        expect(deepInput.hasAttribute('data-percy-focus')).toBe(true);
       } finally {
         if (origAE) {
           Object.defineProperty(document, 'activeElement', origAE);
@@ -1486,35 +1367,6 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
-  describe('configuredElementMatches catch branch', () => {
-    it('returns false when stripping the pseudo leaves an invalid selector', () => {
-      // A bare :hover rule strips to "" which throws inside querySelectorAll.
-      // The catch branch returns false so the rule is silently dropped.
-      withExample('<style>:hover { color: red }</style><button id="cfg-btn">x</button>');
-      ctx = {
-        dom: document,
-        clone: document.implementation.createHTMLDocument('Clone'),
-        warnings: new Set(),
-        cache: new Map(),
-        resources: new Set(),
-        hints: new Set(),
-        shadowRootElements: [],
-        pseudoClassEnabledElements: { id: ['cfg-btn'] }
-      };
-      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
-      ctx.clone.body.innerHTML = document.body.innerHTML;
-      markPseudoClassElements(ctx, ctx.pseudoClassEnabledElements);
-      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
-      ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
-      expect(() => serializePseudoClasses(ctx)).not.toThrow();
-      // No interactive-states style is injected because the bare-pseudo rule was rejected.
-      const interactiveStyle = ctx.clone.querySelector('style[data-percy-interactive-states]');
-      if (interactiveStyle) {
-        expect(interactiveStyle.textContent).not.toContain('[data-percy-hover]');
-      }
-    });
-  });
-
   describe('walkCSSRules nested at-rule without conditionText', () => {
     it('passes inner rules through unchanged when the outer at-rule has no condition', () => {
       // @layer has cssRules and a name but no conditionText / media — the
@@ -1555,92 +1407,8 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
-  describe('markElementInteractiveStates without data-percy-element-id', () => {
-    it('skips the _focusedElementId match when the element has no id', () => {
-      // Exercises the `if (id && id === ctx._focusedElementId)` short-circuit
-      // when `id` is null because the configured element has no
-      // data-percy-element-id stamped yet.
-      withExample('<input id="iel-input"/><button class="iel-btn">x</button>');
-      const focusable = document.getElementById('iel-input');
-      ctx = {
-        dom: document,
-        clone: document.implementation.createHTMLDocument('Clone'),
-        warnings: new Set(),
-        cache: new Map(),
-        resources: new Set(),
-        hints: new Set(),
-        shadowRootElements: [],
-        pseudoClassEnabledElements: { className: ['iel-btn'] }
-      };
-      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
-      ctx.clone.body.innerHTML = document.body.innerHTML;
-      withMockedFocus(focusable, () => {
-        // The button has no data-percy-element-id; markPseudoClassElements
-        // hits the short-circuit when checking for focus match.
-        expect(() => markPseudoClassElements(ctx, ctx.pseudoClassEnabledElements)).not.toThrow();
-      });
-    });
-  });
-
-  describe('configuredElementMatches return paths', () => {
-    it('returns false when no element is stamped (config matched nothing)', () => {
-      // Config matches nothing → no stamped elements → early return at the
-      // !stamped.length check.
-      withExample('<style>.cm-btn:hover { color: red }</style><button class="cm-btn">x</button>');
-      ctx = {
-        dom: document,
-        clone: document.implementation.createHTMLDocument('Clone'),
-        warnings: new Set(),
-        cache: new Map(),
-        resources: new Set(),
-        hints: new Set(),
-        shadowRootElements: [],
-        pseudoClassEnabledElements: { selectors: ['.does-not-exist'] }
-      };
-      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
-      ctx.clone.body.innerHTML = document.body.innerHTML;
-      markPseudoClassElements(ctx, ctx.pseudoClassEnabledElements);
-      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
-      ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
-      expect(() => serializePseudoClasses(ctx)).not.toThrow();
-      // No interactive-states style is injected since :hover rule is
-      // dropped without any configured element to gate it on.
-      const interactiveStyle = ctx.clone.querySelector('style[data-percy-interactive-states]');
-      if (interactiveStyle) {
-        expect(interactiveStyle.textContent).not.toContain('[data-percy-hover]');
-      }
-    });
-
-    it('returns false when configured element exists but does NOT match the base selector', () => {
-      // Configured element is present and stamped, but the rule's base
-      // selector matches a *different* element. configuredElementMatches
-      // walks `candidates` looking for the stamp marker and returns false.
-      withExample(
-        '<style>.unrelated:hover { color: red }</style>' +
-        '<button id="cm2-btn" class="cm2-btn">a</button>' +
-        '<button class="unrelated">b</button>'
-      );
-      ctx = {
-        dom: document,
-        clone: document.implementation.createHTMLDocument('Clone'),
-        warnings: new Set(),
-        cache: new Map(),
-        resources: new Set(),
-        hints: new Set(),
-        shadowRootElements: [],
-        pseudoClassEnabledElements: { id: ['cm2-btn'] }
-      };
-      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
-      ctx.clone.body.innerHTML = document.body.innerHTML;
-      markPseudoClassElements(ctx, ctx.pseudoClassEnabledElements);
-      // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
-      ctx.clone.body.innerHTML = ctx.dom.body.innerHTML;
-      expect(() => serializePseudoClasses(ctx)).not.toThrow();
-    });
-
-    it('returns true when a configured element matches the base selector and rewrites the rule', () => {
-      // The configured element IS in the candidate set — return true,
-      // rewrite proceeds.
+  describe(':hover/:active rewrite', () => {
+    it('rewrites :hover to [data-percy-hover] regardless of configured elements', () => {
       withExample(
         '<style>.cm3-btn:hover { color: red }</style>' +
         '<button id="cm3-btn" class="cm3-btn">x</button>'
@@ -1725,25 +1493,6 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
-  describe('markElementInteractiveStates — id mismatch branch', () => {
-    it('does not stamp focus when configured element has a different percy-element-id', () => {
-      // Outer `if (ctx._focusedElementId)` is truthy; inner `===` is false
-      // because the configured element's id doesn't match. This exercises
-      // the implicit-else branch (skip the stampOnce).
-      withExample('<input id="not-focused" type="text" />', { withShadow: false });
-      let el = document.getElementById('not-focused');
-      el.setAttribute('data-percy-element-id', '_some_other_id');
-      let ctx2 = { dom: document, warnings: new Set(), _focusedElementId: '_focused_elsewhere' };
-      getElementsToProcess(ctx2, { id: ['not-focused'] }, true);
-      expect(el.hasAttribute('data-percy-focus')).toBe(false);
-      // Cleanup live-DOM mutations
-      el.removeAttribute('data-percy-element-id');
-      el.removeAttribute('data-percy-pseudo-element-id');
-      el.removeAttribute('data-percy-hover');
-      el.removeAttribute('data-percy-active');
-    });
-  });
-
   describe('serializePseudoClasses — defaultView fallback', () => {
     it('falls back to global window when ctx.dom has no defaultView', () => {
       // serializePseudoClasses computes styles via ctx.dom.defaultView ||
@@ -1813,27 +1562,6 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
-  describe('stampPseudoElementId init-on-demand _liveMutations', () => {
-    it('initializes ctx._liveMutations when getElementsToProcess is called directly', () => {
-      // markPseudoClassElements initializes ctx._liveMutations before stamping;
-      // direct callers (tests, future consumers) may not. The init-on-demand
-      // branch in stampPseudoElementId must be reachable.
-      withExample('<div id="direct-stamp"></div>', { withShadow: false });
-      let ctx = { dom: document, warnings: new Set() };
-      // Pre-condition: no _liveMutations
-      expect(ctx._liveMutations).toBeUndefined();
-      getElementsToProcess(ctx, { id: ['direct-stamp'] }, true);
-      // Post: array initialized and contains the stamp
-      expect(Array.isArray(ctx._liveMutations)).toBe(true);
-      let el = document.getElementById('direct-stamp');
-      expect(ctx._liveMutations.some(([e, a]) =>
-        e === el && a === 'data-percy-pseudo-element-id'
-      )).toBe(true);
-      // Cleanup the live-DOM mutation we just made.
-      el.removeAttribute('data-percy-pseudo-element-id');
-    });
-  });
-
   describe('rewriteCustomStateCSS defensive guards', () => {
     it('returns early when ctx.clone has no querySelectorAll (collectStyleElements scope guard)', () => {
       // walkShadowDOM passes the root to visit() before its own querySelectorAll
@@ -1870,63 +1598,7 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
-  // CSS-aware tokenizer coverage. The replacement strategy is a small lexer
-  // that respects string and attribute-bracket literals so :focus appearing
-  // inside `[value=":focus"]` or a quoted string is left intact. A naive
-  // `/:focus(?![-\w])/g` would mangle those.
-  describe('rewritePseudoSelector — tokenizer edge cases', () => {
-    it('preserves :focus inside double-quoted attribute values', () => {
-      expect(rewritePseudoSelector('input[value=":focus"]:focus'))
-        .toBe('input[value=":focus"][data-percy-focus]');
-    });
-
-    it('preserves :checked inside single-quoted attribute values', () => {
-      expect(rewritePseudoSelector("[data-x=':checked']:checked"))
-        .toBe("[data-x=':checked'][data-percy-checked]");
-    });
-
-    it('preserves pseudo-class tokens in top-level quoted strings', () => {
-      // Hits the top-level string-literal branch (lines 99-110).
-      expect(rewritePseudoSelector('"a:focus":focus'))
-        .toBe('"a:focus"[data-percy-focus]');
-    });
-
-    it('preserves escape sequences inside top-level strings', () => {
-      expect(rewritePseudoSelector('"a\\":focus":focus'))
-        .toBe('"a\\":focus"[data-percy-focus]');
-    });
-
-    it('handles unterminated top-level string gracefully', () => {
-      expect(rewritePseudoSelector('"unterminated')).toBe('"unterminated');
-    });
-
-    it('preserves escape sequences inside attribute-bracket nested strings', () => {
-      // Hits the inner string-skip with escape (lines 122-128).
-      expect(rewritePseudoSelector('[x="a\\":focus"]:focus'))
-        .toBe('[x="a\\":focus"][data-percy-focus]');
-    });
-
-    it('handles single-quoted strings inside attribute brackets', () => {
-      expect(rewritePseudoSelector("[x='a:focus']:focus"))
-        .toBe("[x='a:focus'][data-percy-focus]");
-    });
-
-    it('handles nested attribute brackets via depth tracking', () => {
-      // Hits the depth++ / depth-- branches (lines 131-137).
-      expect(rewritePseudoSelector('[a[b]]:focus'))
-        .toBe('[a[b]][data-percy-focus]');
-    });
-
-    it('handles unterminated attribute bracket gracefully', () => {
-      expect(rewritePseudoSelector('[unterminated')).toBe('[unterminated');
-    });
-
-    it('handles unterminated string inside attribute bracket', () => {
-      // The inner string-skip loop reaches i==len before finding the
-      // closing quote, hitting the falsy branch of `if (i < len)` (line 130).
-      expect(rewritePseudoSelector('[x="abc')).toBe('[x="abc');
-    });
-
+  describe('rewritePseudoSelector', () => {
     it('does not rewrite :focus-within or :focus-visible', () => {
       expect(rewritePseudoSelector('.x:focus-within, .y:focus-visible'))
         .toBe('.x[data-percy-focus-within], .y:focus-visible');
@@ -1957,22 +1629,6 @@ describe('serialize-pseudo-classes', () => {
     });
   });
 
-  describe('stripInteractivePseudo — tokenizer-based stripping', () => {
-    it('strips all interactive pseudos from a selector', () => {
-      expect(stripInteractivePseudo('.x:focus.y:checked'))
-        .toBe('.x.y');
-    });
-
-    it('preserves pseudo tokens inside string literals when stripping', () => {
-      expect(stripInteractivePseudo('input[value=":focus"]:focus'))
-        .toBe('input[value=":focus"]');
-    });
-
-    it('preserves attribute-bracket contents when stripping', () => {
-      expect(stripInteractivePseudo('[a[b]]:hover')).toBe('[a[b]]');
-    });
-  });
-
   describe('rewriteCustomStateSelectors — tokenizer edge cases', () => {
     function names(set) { return Array.from(set).sort(); }
 
@@ -1988,47 +1644,6 @@ describe('serialize-pseudo-classes', () => {
       expect(rewriteCustomStateSelectors('my-el:--highlighted', s))
         .toBe('my-el[data-percy-custom-state~="highlighted"]');
       expect(names(s)).toEqual(['highlighted']);
-    });
-
-    it('preserves :state() text inside top-level quoted strings', () => {
-      let s = new Set();
-      expect(rewriteCustomStateSelectors('"keep :state(fake)":state(real)', s))
-        .toBe('"keep :state(fake)"[data-percy-custom-state~="real"]');
-      expect(names(s)).toEqual(['real']);
-    });
-
-    it('preserves :state() text inside attribute brackets', () => {
-      let s = new Set();
-      expect(rewriteCustomStateSelectors('[x=":state(fake)"]', s))
-        .toBe('[x=":state(fake)"]');
-      expect(s.size).toBe(0);
-    });
-
-    it('handles escape sequences inside top-level strings', () => {
-      let s = new Set();
-      expect(rewriteCustomStateSelectors('"a\\":state(x)":state(real)', s))
-        .toBe('"a\\":state(x)"[data-percy-custom-state~="real"]');
-      expect(names(s)).toEqual(['real']);
-    });
-
-    it('handles escape sequences inside attribute-bracket nested strings', () => {
-      let s = new Set();
-      expect(rewriteCustomStateSelectors('[x="a\\":state(fake)"]:state(real)', s))
-        .toBe('[x="a\\":state(fake)"][data-percy-custom-state~="real"]');
-      expect(names(s)).toEqual(['real']);
-    });
-
-    it('handles single-quoted strings inside attribute brackets', () => {
-      let s = new Set();
-      expect(rewriteCustomStateSelectors("[x='a:state(fake)']:state(real)", s))
-        .toBe("[x='a:state(fake)'][data-percy-custom-state~=\"real\"]");
-      expect(names(s)).toEqual(['real']);
-    });
-
-    it('handles nested attribute brackets', () => {
-      let s = new Set();
-      expect(rewriteCustomStateSelectors('[a[b]]:state(real)', s))
-        .toBe('[a[b]][data-percy-custom-state~="real"]');
     });
 
     it('rejects state names that fail validation', () => {

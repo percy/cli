@@ -58,3 +58,28 @@
   widths: [1280]
   ignoreIframeSelectors:
     - '.ad-frame'
+
+# Interactive states (:focus/:focus-within/:checked/:disabled), forced
+# :hover/:active via pseudoClassEnabledElements, ElementInternals :state(),
+# closed shadow roots (multiple shapes), nested shadows, :host/::slotted,
+# adopted stylesheets, and lazy-defined custom elements.
+- name: Interactive States & Custom States
+  url: /interactive-states.html
+  widths: [1280]
+  pseudoClassEnabledElements:
+    selectors:
+      - '.hover-test'
+      - '.active-test'
+
+# Hydration: page begins as plain HTML and is upgraded by JS post-load.
+# Capture must happen after hydration completes so the upgraded DOM is
+# what's serialized.
+- name: Hydration
+  url: /hydration.html
+  widths: [1280]
+
+# Sandboxed iframes (4 sandbox token combinations) and 3-level nested
+# iframes to exercise the depth-limit boundary.
+- name: Sandbox & Nested Iframes
+  url: /sandbox-iframes.html
+  widths: [1280]

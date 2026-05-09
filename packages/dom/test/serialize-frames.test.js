@@ -409,16 +409,6 @@ describe('serializeFrames', () => {
       expect($parsed('#frame-outside')).toHaveSize(1);
     });
 
-    it(`${platform}: includes ignored iframe count in capture warning`, () => {
-      withExample('<iframe id="frame-ig1" data-percy-ignore srcdoc="<p>a</p>"></iframe>' +
-        '<iframe id="frame-ig2" data-percy-ignore srcdoc="<p>b</p>"></iframe>' +
-        '<iframe id="frame-normal" srcdoc="<p>c</p>"></iframe>');
-
-      let result = serializeDOM();
-      let captureWarning = result.warnings.find(w => w.startsWith('[capture]'));
-      expect(captureWarning).toContain('2 ignored via data-percy-ignore');
-    });
-
     if (platform === 'plain') {
       it('uses Trusted Types policy to create srcdoc when available', () => {
         let createHTML = jasmine.createSpy('createHTML').and.callFake(html => html);
@@ -503,25 +493,6 @@ describe('serializeFrames', () => {
   });
 
   describe('iframe depth limit', () => {
-    it('reports depthExcluded when nested iframes exceed maxIframeDepth', async () => {
-      // Outer iframe contains an inner iframe. With maxIframeDepth=1, the
-      // outer is captured (depth 0 → 1) but the inner attempt (depth 1 → 2)
-      // is excluded — exercising the depth-excluded counter and continue.
-      withExample('<iframe id="depth-outer" srcdoc="<iframe id=\'depth-inner\' srcdoc=\'<input/>\'></iframe>"></iframe>');
-      let $outer = await getFrame('depth-outer', document, d => d.querySelector('#depth-inner'));
-      // Wait for the inner iframe to load too so its contentDocument is accessible
-      await when(() => {
-        let $inner = $outer.contentDocument.getElementById('depth-inner');
-        let loaded = $inner?.contentDocument && $inner.contentWindow.performance.timing.loadEventEnd;
-        return !!loaded;
-      }, 5000);
-
-      let result = serializeDOM({ maxIframeDepth: 1 });
-      const depthWarning = result.warnings.find(w => w.includes('depth limit'));
-      expect(depthWarning).toBeDefined();
-      expect(depthWarning).toContain('1 excluded at depth limit (1)');
-    });
-
     it('clamps non-finite or out-of-range maxIframeDepth to the default', () => {
       // Non-finite (NaN), zero, and negative values must fall back to
       // DEFAULT_MAX_IFRAME_DEPTH (3) — exercises clampIframeDepth's invalid path.
