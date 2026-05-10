@@ -195,7 +195,33 @@ describe('Percy', () => {
     await expectAsync(page.snapshot({ disableShadowDOM: true })).toBeResolved();
 
     expect(logger.stderr).toEqual(jasmine.arrayContaining([
-      jasmine.stringMatching(/Custom elements wait failed: boom/)
+      jasmine.stringMatching(/Custom elements wait failed: Error: boom/)
+    ]));
+  });
+
+  it('logs the raw value when the customElements wait rejects with a non-Error', async () => {
+    // The catch's debug-log uses `err && err.message ? err.message : err`
+    // to tolerate a thrown string/null/undefined. Cover the else branch
+    // by forcing the wait to reject with a plain string.
+    server.reply('/', () => [200, 'text/html', '<p>hi</p>']);
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    logger.loglevel('debug');
+    await page.goto('http://localhost:8000');
+
+    let originalEval = page.eval.bind(page);
+    spyOn(page, 'eval').and.callFake((body, ...args) => {
+      if (typeof body === 'string' && body.includes('var deadline')) {
+        // eslint-disable-next-line no-throw-literal
+        throw 'plain-string-thrown';
+      }
+      return originalEval(body, ...args);
+    });
+
+    await expectAsync(page.snapshot({ disableShadowDOM: true })).toBeResolved();
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Custom elements wait failed: plain-string-thrown/)
     ]));
   });
 

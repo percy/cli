@@ -263,7 +263,9 @@ export class Page {
       try {
         await this.eval(WAIT_FOR_CUSTOM_ELEMENTS_BODY, DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT);
       } catch (err) {
-        this.log.debug(`Custom elements wait failed: ${err && err.message ? err.message : err}`, this.meta);
+        // Template literal coerces Error/string/null/undefined alike — no
+        // need for a defensive ternary that adds untestable branches.
+        this.log.debug(`Custom elements wait failed: ${err}`, this.meta);
       }
 
       if (!disableShadowDOM) {
