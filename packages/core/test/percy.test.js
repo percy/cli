@@ -143,18 +143,29 @@ describe('Percy', () => {
     // wait + exposeClosedShadowRoots so the proper close error surfaces
     // from the downstream insertPercyDom (which gates on the same
     // session) rather than leaking a confusing CDP error first.
+    //
+    // network.idle() ALSO checks closedReason and throws upstream of the
+    // gate, so we stub it to resolve cleanly — the test must reach line
+    // 261 with closedReason already set in order to exercise the false
+    // branch of the if.
     server.reply('/', () => [200, 'text/html', '<p>hi</p>']);
     await percy.browser.launch();
     let page = await percy.browser.page();
     let sendSpy = spyOn(page.session, 'send').and.callThrough();
+    let evalSpy = spyOn(page, 'eval').and.callThrough();
     await page.goto('http://localhost:8000');
     sendSpy.calls.reset();
+    evalSpy.calls.reset();
 
+    spyOn(page.network, 'idle').and.resolveTo(undefined);
     page.session.closedReason = 'session closed';
 
     await expectAsync(page.snapshot({})).toBeRejected();
 
-    // The closed-shadow CDP walk (DOM.getDocument) must not have run.
+    // Both pre-snapshot best-effort steps must have been skipped.
+    let waitEvals = evalSpy.calls.allArgs().filter(([body]) =>
+      typeof body === 'string' && body.includes('var deadline'));
+    expect(waitEvals.length).toBe(0);
     let domGetDocSends = sendSpy.calls.allArgs().filter(a => a[0] === 'DOM.getDocument');
     expect(domGetDocSends.length).toBe(0);
   });
