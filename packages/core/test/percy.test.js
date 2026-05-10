@@ -137,6 +137,28 @@ describe('Percy', () => {
     expect(domGetDocSends.length).toBe(0);
   });
 
+  it('skips pre-snapshot wait and closed-shadow capture when the session is already closed', async () => {
+    // Regression for the closedReason gate: when the page session has
+    // already terminated, page.snapshot() must skip the customElements
+    // wait + exposeClosedShadowRoots so the proper close error surfaces
+    // from the downstream insertPercyDom (which gates on the same
+    // session) rather than leaking a confusing CDP error first.
+    server.reply('/', () => [200, 'text/html', '<p>hi</p>']);
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    let sendSpy = spyOn(page.session, 'send').and.callThrough();
+    await page.goto('http://localhost:8000');
+    sendSpy.calls.reset();
+
+    page.session.closedReason = 'session closed';
+
+    await expectAsync(page.snapshot({})).toBeRejected();
+
+    // The closed-shadow CDP walk (DOM.getDocument) must not have run.
+    let domGetDocSends = sendSpy.calls.allArgs().filter(a => a[0] === 'DOM.getDocument');
+    expect(domGetDocSends.length).toBe(0);
+  });
+
   it('continues the snapshot when the customElements wait throws', async () => {
     // The wait is best-effort — a flaky page that errors during the
     // customElements.whenDefined poll must not break the snapshot. Force
