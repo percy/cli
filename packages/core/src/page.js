@@ -10,15 +10,22 @@ import {
   serializeFunction
 } from './utils.js';
 
-// Default ceiling on the customElements wait. Users may override via the
-// snapshot option of the same name. Set high enough to cover lazy-defined
-// element cascades on slow networks; the loop exits early when no more
-// undefined elements remain.
+// Internal ceiling on the customElements wait. Set high enough to cover
+// lazy-defined element cascades on slow networks; the loop exits early
+// when no more undefined elements remain.
+//
+// NOTE: pages that always have at least one never-registering custom
+// element (e.g. a third-party widget whose loader is blocked) will pay
+// the full timeout on every snapshot — accepted trade-off for now.
 export const DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT = 1500;
 
 // Body of the customElements wait. Runs in the browser via
 // Runtime.callFunctionOn. Re-polls each tick so lazy-defined element
 // cascades are awaited up to the deadline.
+//
+// IMPORTANT: this body is intentionally ES5 — it is evaluated in the
+// page's realm and must work in any browser the page targets. Don't
+// "modernize" with arrow functions, let/const, or optional chaining.
 export const WAIT_FOR_CUSTOM_ELEMENTS_BODY = `
   var deadline = Date.now() + (arguments[0] || 1500);
   return new Promise(function(resolve) {
@@ -218,7 +225,7 @@ export class Page {
     execute,
     ...snapshot
   }) {
-    let { name, width, enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, ignoreIframeSelectors, pseudoClassEnabledElements, waitForCustomElementsTimeout } = snapshot;
+    let { name, width, enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, ignoreIframeSelectors, pseudoClassEnabledElements } = snapshot;
     this.log.debug(`Taking snapshot: ${name}${width ? ` @${width}px` : ''}`, this.meta);
 
     // wait for any specified timeout
@@ -247,9 +254,17 @@ export class Page {
     // page; if the session has already terminated, skip them so the proper
     // crash/close error surfaces from the downstream insertPercyDom +
     // serialize evals (which gate on the same session).
+    //
+    // Ordering is load-bearing: closed-shadow capture must run AFTER the
+    // customElements wait so we catch shadows attached inside upgrade /
+    // connectedCallback hooks. Don't reorder or parallelise these.
     if (!this.session.closedReason) {
-      let waitTimeout = waitForCustomElementsTimeout ?? DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT;
-      await this.eval(WAIT_FOR_CUSTOM_ELEMENTS_BODY, waitTimeout);
+      // Best-effort: a flaky page should not break the snapshot.
+      try {
+        await this.eval(WAIT_FOR_CUSTOM_ELEMENTS_BODY, DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT);
+      } catch (err) {
+        this.log.debug(`Custom elements wait failed: ${err && err.message ? err.message : err}`, this.meta);
+      }
 
       if (!disableShadowDOM) {
         await exposeClosedShadowRoots(this.session, msg => this.log.debug(msg, this.meta));
@@ -266,7 +281,17 @@ export class Page {
       /* eslint-disable-next-line no-undef */
       domSnapshot: PercyDOM.serialize(options),
       url: document.URL
-    }), { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, ignoreIframeSelectors, pseudoClassEnabledElements, waitForCustomElementsTimeout });
+    }), {
+      enableJavaScript,
+      disableShadowDOM,
+      forceShadowAsLightDOM,
+      domTransformation,
+      reshuffleInvalidTags,
+      ignoreCanvasSerializationErrors,
+      ignoreStyleSheetSerializationErrors,
+      ignoreIframeSelectors,
+      pseudoClassEnabledElements
+    });
 
     return { ...snapshot, ...capture };
   }

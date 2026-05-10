@@ -84,8 +84,7 @@ describe('Percy', () => {
       ignoreCanvasSerializationErrors: false,
       ignoreStyleSheetSerializationErrors: false,
       forceShadowAsLightDOM: false,
-      ignoreIframeSelectors: [],
-      waitForCustomElementsTimeout: 1500
+      ignoreIframeSelectors: []
     });
   });
 
@@ -112,7 +111,7 @@ describe('Percy', () => {
     });
 
     // expect required arguments are passed to PercyDOM.serialize
-    expect(evalSpy.calls.allArgs()[4]).toEqual(jasmine.arrayContaining([jasmine.anything(), { enableJavaScript: undefined, disableShadowDOM: true, domTransformation: undefined, reshuffleInvalidTags: undefined, ignoreCanvasSerializationErrors: undefined, ignoreStyleSheetSerializationErrors: undefined, ignoreIframeSelectors: undefined, forceShadowAsLightDOM: undefined, pseudoClassEnabledElements: undefined, waitForCustomElementsTimeout: undefined }]));
+    expect(evalSpy.calls.allArgs()[4]).toEqual(jasmine.arrayContaining([jasmine.anything(), { enableJavaScript: undefined, disableShadowDOM: true, domTransformation: undefined, reshuffleInvalidTags: undefined, ignoreCanvasSerializationErrors: undefined, ignoreStyleSheetSerializationErrors: undefined, ignoreIframeSelectors: undefined, forceShadowAsLightDOM: undefined, pseudoClassEnabledElements: undefined }]));
 
     expect(snapshot.url).toEqual('http://localhost:8000/');
     expect(snapshot.domSnapshot).toEqual(jasmine.objectContaining({

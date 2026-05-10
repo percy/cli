@@ -1,7 +1,9 @@
-// Closed-shadow capture helper. Imported by @percy/core (CLI side) and by
-// @percy/sdk-utils (SDK plugins like puppeteer-percy, playwright-percy,
-// cypress-percy, selenium-chrome-percy) — both routes use the same source
-// from here, so there is no copy to keep in sync.
+// Closed-shadow capture helper. CLI-side only.
+//
+// External Percy SDK plugins (puppeteer-percy, playwright-percy,
+// cypress-percy, selenium-chrome-percy) will get their own copy when
+// SDK-side closed-shadow capture is added — that work is intentionally
+// scoped to a separate change so this PR stays focused on the CLI path.
 //
 // Discovers closed shadow roots in the live page and exposes them to
 // PercyDOM.serialize() via per-document `__percyClosedShadowRoots`
@@ -52,13 +54,21 @@ const MAX_SHADOW_DEPTH = 10;
 
 // Bound concurrent CDP messages so we don't flood a session with hundreds
 // of in-flight resolveNode/callFunctionOn calls when a page has many
-// closed shadow hosts.
+// closed shadow hosts. Phase 1 (resolve) issues 2 calls per pair, so peak
+// in-flight there is 2 * CDP_BATCH_SIZE; phase 2 (stamp) is 1 per pair so
+// peak is exactly CDP_BATCH_SIZE. 8 chosen as a conservative default that
+// keeps both phases well under typical CDP message-queue depths.
 const CDP_BATCH_SIZE = 8;
 
 // The function body that installs the WeakMap and writes the host→shadow
 // pair. Runs inside Runtime.callFunctionOn with the host as `this`, so
 // `this.ownerDocument.defaultView` is the host's *own* realm — the iframe's
 // window when the host is inside an iframe.
+//
+// IMPORTANT: this is a string (required by Runtime.callFunctionOn) AND it
+// is intentionally ES5 — it executes in the page's realm, which may be any
+// browser/JS target the page itself targets. Don't "modernize" with arrow
+// functions, let/const, or optional chaining.
 const STAMP_FUNCTION =
   'function(shadowRoot) {' +
   '  var w = this.ownerDocument && this.ownerDocument.defaultView;' +
@@ -69,7 +79,9 @@ const STAMP_FUNCTION =
 
 // Marker for the in-flight guard — prevents concurrent invocations on the
 // same session from racing each other's DOM.enable / DOM.disable lifecycle.
-const IN_FLIGHT = Symbol.for('percy.closedShadow.inFlight');
+// Module-local Symbol (not Symbol.for) so it can't collide with any other
+// global registry entry.
+const IN_FLIGHT = Symbol('percy.closedShadow.inFlight');
 
 export async function exposeClosedShadowRoots(cdp, log = DEFAULT_LOG) {
   if (!cdp || typeof cdp.send !== 'function') return -1;
@@ -108,9 +120,10 @@ export async function exposeClosedShadowRoots(cdp, log = DEFAULT_LOG) {
             cdp.send('DOM.resolveNode', { backendNodeId: pair.hostBackendNodeId }),
             cdp.send('DOM.resolveNode', { backendNodeId: pair.shadowBackendNodeId })
           ]);
-          return { hostObj: hostRes.object, shadowObj: shadowRes.object };
+          return { hostObj: hostRes.object, shadowObj: shadowRes.object, pair };
         } catch (err) {
-          log(`Skipping a closed shadow pair: ${err && err.message ? err.message : err}`);
+          const msg = err && err.message ? err.message : err;
+          log(`Skipping a closed shadow pair: ${msg} (host=${pair.hostBackendNodeId}, shadow=${pair.shadowBackendNodeId})`);
           return null;
         }
       }));
@@ -123,13 +136,14 @@ export async function exposeClosedShadowRoots(cdp, log = DEFAULT_LOG) {
     let stamped = 0;
     for (let i = 0; i < resolved.length; i += CDP_BATCH_SIZE) {
       const slice = resolved.slice(i, i + CDP_BATCH_SIZE);
-      const results = await Promise.all(slice.map(({ hostObj, shadowObj }) =>
+      const results = await Promise.all(slice.map(({ hostObj, shadowObj, pair }) =>
         cdp.send('Runtime.callFunctionOn', {
           functionDeclaration: STAMP_FUNCTION,
           objectId: hostObj.objectId,
           arguments: [{ objectId: shadowObj.objectId }]
         }).then(() => true).catch(err => {
-          log(`Skipping a closed shadow pair: ${err && err.message ? err.message : err}`);
+          const msg = err && err.message ? err.message : err;
+          log(`Skipping a closed shadow pair: ${msg} (host=${pair.hostBackendNodeId}, shadow=${pair.shadowBackendNodeId})`);
           return false;
         })
       ));

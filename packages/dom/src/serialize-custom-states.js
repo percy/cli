@@ -10,6 +10,7 @@
 // effect, so the clone faithfully represents what the page renders.
 
 import { walkShadowDOM } from './shadow-utils';
+import { isCustomElement } from './utils';
 
 // State names that survive into the rewritten attribute selector. Anything
 // else (quotes, brackets, '</style>') would let a hostile page CSS escape
@@ -98,7 +99,7 @@ function addCustomStateAttributes(ctx, stateNames) {
   walkShadowDOM(ctx.dom, scope => {
     if (!scope.querySelectorAll) return;
     for (const el of scope.querySelectorAll('*')) {
-      if (!el.tagName?.includes('-')) continue;
+      if (!isCustomElement(el)) continue;
       const percyId = el.getAttribute('data-percy-element-id');
       if (!percyId) continue;
 

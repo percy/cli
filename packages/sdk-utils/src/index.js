@@ -10,7 +10,6 @@ import postBuildEvents from './post-build-event.js';
 import flushSnapshots from './flush-snapshots.js';
 import captureAutomateScreenshot from './post-screenshot.js';
 import getResponsiveWidths from './get-responsive-widths.js';
-import exposeClosedShadowRoots, { walkCDPNodes } from './closed-shadow.js';
 
 // Iframe depth constants shared with @percy/dom's serialize-frames. Kept
 // here so external Percy SDKs (Capybara, Cypress, Playwright, etc.) can
@@ -39,9 +38,7 @@ export {
   getResponsiveWidths,
   DEFAULT_MAX_IFRAME_DEPTH,
   HARD_MAX_IFRAME_DEPTH,
-  clampIframeDepth,
-  exposeClosedShadowRoots,
-  walkCDPNodes
+  clampIframeDepth
 };
 
 // export the namespace by default

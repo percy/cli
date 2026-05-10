@@ -6,7 +6,7 @@
 import markElement from './prepare-dom';
 import applyElementTransformations from './transform-dom';
 import serializeBase64 from './serialize-base64';
-import { handleErrors } from './utils';
+import { handleErrors, isCustomElement } from './utils';
 import {
   getClosedShadowRoot,
   hasClosedShadowRoot
@@ -25,11 +25,11 @@ const ignoreTags = ['NOSCRIPT'];
  * to prevent constructors from running (which could call attachShadow, fetch data, etc).
  */
 function cloneElementWithoutLifecycle(element) {
-  let isCustomElement = element.tagName?.includes('-');
-  let hasClosedShadow = isCustomElement && hasClosedShadowRoot(element);
-  let hasCallbacks = isCustomElement && element.attributeChangedCallback;
+  let isCustom = isCustomElement(element);
+  let hasClosedShadow = isCustom && hasClosedShadowRoot(element);
+  let hasCallbacks = isCustom && element.attributeChangedCallback;
 
-  if (!isCustomElement || (!hasCallbacks && !hasClosedShadow)) {
+  if (!isCustom || (!hasCallbacks && !hasClosedShadow)) {
     return element.cloneNode();
   }
 
