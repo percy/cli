@@ -275,7 +275,7 @@ export class Page {
       }
 
       if (!disableShadowDOM) {
-        await exposeClosedShadowRoots(this.session, msg => this.log.debug(msg, this.meta));
+        await exposeClosedShadowRoots(this.session, this._logShadowDebug.bind(this));
       }
     }
 
@@ -297,6 +297,15 @@ export class Page {
     });
 
     return { ...snapshot, ...capture };
+  }
+
+  // Logger for the closed-shadow CDP helper. Defined on the prototype (not
+  // a class-field arrow) so it's reachable from a unit test that constructs
+  // a Page via Object.create without invoking the constructor — gives us a
+  // direct way to cover the callback without simulating a closed shadow
+  // discovery flow at the integration level.
+  _logShadowDebug(msg) {
+    this.log.debug(msg, this.meta);
   }
 
   // Initialize newly attached pages and iframes with page options

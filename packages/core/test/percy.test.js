@@ -4,6 +4,7 @@ import Percy from '@percy/core';
 import Pako from 'pako';
 import DetectProxy from '@percy/client/detect-proxy';
 import { validateSnapshotOptions } from '../src/snapshot.js';
+import { Page } from '../src/page.js';
 
 describe('Percy', () => {
   let percy, server;
@@ -119,6 +120,19 @@ describe('Percy', () => {
         `<p>Hello there, Percy!</p>${img}`
       ) + '</body></html>'
     }));
+  });
+
+  it('Page._logShadowDebug forwards messages to log.debug with page meta', () => {
+    // Covers the callback Page passes to exposeClosedShadowRoots. Real
+    // snapshot tests don't fire it (no closed shadows in their HTML, no
+    // CDP error path), so exercise the method directly via Object.create
+    // with a stubbed log/meta.
+    let page = Object.create(Page.prototype);
+    let calls = [];
+    page.log = { debug: (msg, meta) => calls.push([msg, meta]) };
+    page.meta = { snapshot: { name: 'parity' } };
+    page._logShadowDebug('found 3 closed shadow root(s)');
+    expect(calls).toEqual([['found 3 closed shadow root(s)', page.meta]]);
   });
 
   it('skips closed-shadow CDP discovery when snapshot.disableShadowDOM is set', async () => {
