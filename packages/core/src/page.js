@@ -47,6 +47,13 @@ export const WAIT_FOR_CUSTOM_ELEMENTS_BODY = `
   });
 `;
 
+/* istanbul ignore next: runs in the page realm via Runtime.callFunctionOn,
+   not in the test process — there is no way to instrument it from here */
+function serializeDomCapture(_, options) {
+  /* eslint-disable-next-line no-undef */
+  return { domSnapshot: PercyDOM.serialize(options), url: document.URL };
+}
+
 export class Page {
   static TIMEOUT = undefined;
 
@@ -277,25 +284,17 @@ export class Page {
     // serialize and capture a DOM snapshot
     this.log.debug('Serialize DOM', this.meta);
 
-    let capture = await this.eval(
-      /* istanbul ignore next: no instrumenting injected code */
-      (_, options) => ({
-        /* eslint-disable-next-line no-undef */
-        domSnapshot: PercyDOM.serialize(options),
-        url: document.URL
-      }),
-      {
-        enableJavaScript,
-        disableShadowDOM,
-        forceShadowAsLightDOM,
-        domTransformation,
-        reshuffleInvalidTags,
-        ignoreCanvasSerializationErrors,
-        ignoreStyleSheetSerializationErrors,
-        ignoreIframeSelectors,
-        pseudoClassEnabledElements
-      }
-    );
+    let capture = await this.eval(serializeDomCapture, {
+      enableJavaScript,
+      disableShadowDOM,
+      forceShadowAsLightDOM,
+      domTransformation,
+      reshuffleInvalidTags,
+      ignoreCanvasSerializationErrors,
+      ignoreStyleSheetSerializationErrors,
+      ignoreIframeSelectors,
+      pseudoClassEnabledElements
+    });
 
     return { ...snapshot, ...capture };
   }
