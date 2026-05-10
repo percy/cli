@@ -137,6 +137,35 @@ describe('Percy', () => {
     expect(domGetDocSends.length).toBe(0);
   });
 
+  it('continues the snapshot when the customElements wait throws', async () => {
+    // The wait is best-effort — a flaky page that errors during the
+    // customElements.whenDefined poll must not break the snapshot. Force
+    // the wait eval to throw and assert that (a) the snapshot still
+    // resolves and (b) the failure is captured in the debug log.
+    server.reply('/', () => [200, 'text/html', '<p>hi</p>']);
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    logger.loglevel('debug');
+    await page.goto('http://localhost:8000');
+
+    let originalEval = page.eval.bind(page);
+    spyOn(page, 'eval').and.callFake((body, ...args) => {
+      // The customElements wait body is the only eval call where the
+      // first argument is a string containing `var deadline`. Forcing it
+      // to throw exercises the catch branch in page.snapshot.
+      if (typeof body === 'string' && body.includes('var deadline')) {
+        throw new Error('boom');
+      }
+      return originalEval(body, ...args);
+    });
+
+    await expectAsync(page.snapshot({ disableShadowDOM: true })).toBeResolved();
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Custom elements wait failed: boom/)
+    ]));
+  });
+
   describe('.start()', () => {
     // rather than stub prototypes, extend and mock
     class TestPercy extends Percy {
