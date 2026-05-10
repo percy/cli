@@ -277,8 +277,7 @@ export class Page {
     // serialize and capture a DOM snapshot
     this.log.debug('Serialize DOM', this.meta);
 
-    /* istanbul ignore next: no instrumenting injected code */
-    let capture = await this.eval((_, options) => ({
+    let capture = await this.eval(/* istanbul ignore next: no instrumenting injected code */(_, options) => ({
       /* eslint-disable-next-line no-undef */
       domSnapshot: PercyDOM.serialize(options),
       url: document.URL
