@@ -379,9 +379,11 @@ export class Network {
       this.log.debug(`Skipping resource: responseReceived not received within ${RESPONSE_RECEIVED_TIMEOUT}ms - ${request.url}`);
       // Chrome 143+ fetches dedicated worker scripts in the browser process
       // (PlzDedicatedWorker) and never surfaces the response on any CDP
-      // session. For enableJavaScript:true snapshots the cloud renderer needs
-      // these bytes to construct the worker, so fall back to a direct HTTP fetch.
-      if (request.type === 'Script') {
+      // session. resourceType varies — v143 reports 'Other' for the worker
+      // script, older Chrome reports 'Script' — so we don't gate on type.
+      // We do gate on allowedHostnames so we never direct-fetch a host the
+      // snapshot wouldn't have captured anyway.
+      if (hostnameMatches(this.intercept.allowedHostnames, originURL(request))) {
         await captureScriptDirectly(this, request, session);
       }
       this._forgetRequest(request);
@@ -644,9 +646,18 @@ async function sendResponseResource(network, request, session) {
   }
 }
 
-// Make a new request with Node based on a network request
+// Make a new request with Node based on a network request. The session is
+// usually the page session (full Network domain support), but for the v143
+// worker-script fallback the loadingFinished event arrives on the worker
+// session where Network.getCookies returns an Internal error — proceed with
+// no cookies in that case rather than abandoning the resource.
 async function makeDirectRequest(network, request, session) {
-  const { cookies } = await session.send('Network.getCookies', { urls: [request.url] });
+  let cookies = [];
+  try {
+    ({ cookies } = await session.send('Network.getCookies', { urls: [request.url] }));
+  } catch (error) {
+    network.log.debug(`Network.getCookies unavailable for ${request.url}: ${error.message}`);
+  }
 
   let headers = {
     // add default browser
@@ -683,18 +694,20 @@ async function captureScriptDirectly(network, request, session) {
   let meta = { ...network.meta, url };
 
   try {
-    log.debug('- Requesting worker script directly', meta);
+    log.debug('- Requesting resource directly (responseReceived timeout fallback)', meta);
     let body = await makeDirectRequest(network, request, session);
+    let urlObj = new URL(url);
+    let mimeType = mime.lookup(urlObj.origin + urlObj.pathname) || 'application/javascript';
 
-    let resource = createResource(url, body, 'application/javascript', {
+    let resource = createResource(url, body, mimeType, {
       status: 200,
-      headers: { 'content-type': ['application/javascript'] }
+      headers: { 'content-type': [mimeType] }
     });
 
-    log.debug(`- Saving worker script (direct fallback) sha=${resource.sha}`, meta);
+    log.debug(`- Saving direct-fetched resource sha=${resource.sha} mimetype=${mimeType}`, meta);
     network.intercept.saveResource(resource);
   } catch (error) {
-    log.debug(`Direct fetch failed for worker script: ${url} - ${error.message}`, meta);
+    log.debug(`Direct fetch failed for ${url} - ${error.message}`, meta);
   }
 }
 
