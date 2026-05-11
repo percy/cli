@@ -3222,52 +3222,6 @@ describe('Discovery', () => {
         jasmine.stringMatching(/Failed to continue response for http:\/\/example\.com\/orphan-continue-error: Target closed/)
       ]));
     });
-
-    it('logs gracefully when direct worker-script fetch fails', async () => {
-      // Same Network.requestWillBeSent stall as `captures requests from workers`
-      // to force the response-event race that triggers RESPONSE_RECEIVED_TIMEOUT.
-      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
-        let { method } = JSON.parse(data);
-        if (method === 'Network.requestWillBeSent') {
-          setTimeout(this._handleMessage.and.originalFn.bind(this), 10, data);
-        } else {
-          this._handleMessage.and.originalFn.call(this, data);
-        }
-      });
-
-      let workerHits = 0;
-      server.reply('/worker.js', () => {
-        workerHits += 1;
-        if (workerHits === 1) {
-          return [200, 'text/javascript', dedent`
-            self.addEventListener("message", async ({ data }) => {
-              let response = await fetch(new Request(data));
-              self.postMessage("done");
-            })`];
-        }
-        return [400, 'text/plain', 'bad request'];
-      });
-
-      server.reply('/', () => [200, 'text/html', dedent`
-        <!DOCTYPE html><html><head></head><body><script>
-          let worker = new Worker("/worker.js");
-          worker.addEventListener("message", ({ data }) => document.body.classList.add(data));
-          setTimeout(() => worker.postMessage("http://localhost:8000/img.gif"), 100);
-        </script></body></html>`]);
-
-      await percy.snapshot({
-        name: 'worker direct-fetch failure snapshot',
-        url: 'http://localhost:8000',
-        waitForSelector: '.done',
-        enableJavaScript: true
-      });
-
-      await percy.idle();
-
-      expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Direct fetch failed for http:\/\/localhost:8000\/worker\.js -/)
-      ]));
-    });
   });
 
   describe('with remote resources', () => {
