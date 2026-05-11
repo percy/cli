@@ -22,7 +22,7 @@
 // attributes into the page.
 
 import { uid } from './prepare-dom';
-import { walkShadowDOM, queryShadowAll, getShadowRoot } from './shadow-utils';
+import { walkShadowDOM, getShadowRoot } from './shadow-utils';
 import { rewriteCustomStateCSS } from './serialize-custom-states';
 
 export { rewriteCustomStateCSS };
@@ -121,12 +121,28 @@ function markInteractiveStates(ctx) {
     markFocusWithinAncestors(ctx, focused);
   }
 
-  for (const el of queryShadowAll(ctx.dom, ':checked')) {
-    stampOnce(ctx, el, CHECKED_ATTR, 'true');
-  }
-  for (const el of queryShadowAll(ctx.dom, ':disabled')) {
-    stampOnce(ctx, el, DISABLED_ATTR, 'true');
-  }
+  // Single walk of ctx.dom + shadow roots collecting BOTH :checked and
+  // :disabled in one pass. Previously two separate queryShadowAll calls
+  // each walked the tree and re-traversed every [data-percy-shadow-host]
+  // — on pages with many shadow hosts this doubled the per-snapshot
+  // walk cost. Also tracks which states were observed so the CSS rule
+  // extractor can skip work for selectors that have no matched elements.
+  ctx._stampedInteractive = ctx._stampedInteractive || new Set();
+  walkShadowDOM(ctx.dom, scope => {
+    if (!scope.querySelectorAll) return;
+    try {
+      for (const el of scope.querySelectorAll(':checked')) {
+        stampOnce(ctx, el, CHECKED_ATTR, 'true');
+        ctx._stampedInteractive.add('checked');
+      }
+    } catch (e) { /* selector unsupported in this scope */ }
+    try {
+      for (const el of scope.querySelectorAll(':disabled')) {
+        stampOnce(ctx, el, DISABLED_ATTR, 'true');
+        ctx._stampedInteractive.add('disabled');
+      }
+    } catch (e) { /* selector unsupported in this scope */ }
+  });
 }
 
 function isPopoverOpen(ctx, element) {
@@ -326,6 +342,23 @@ function extractPseudoClassRules(ctx) {
   const sheetEntries = collectStyleSheets(ctx.dom);
   const rulesByOwner = new Map();
 
+  // Short-circuit per pseudo: when markInteractiveStates ran first (the
+  // production path via markPseudoClassElements), `ctx._stampedInteractive`
+  // records which interactive states were actually observed. Rules for
+  // `:checked` / `:disabled` selectors that found no live elements can't
+  // match anything in the clone after rewriting, so we drop them from the
+  // filter and avoid the rewrite cost. When the marker is absent (unit
+  // tests that call serializePseudoClasses directly), fall back to the
+  // full pseudo list to preserve prior behavior. `:focus`, `:focus-within`,
+  // `:hover`, `:active` are kept regardless either way.
+  const activePseudos = ctx._stampedInteractive
+    ? ALL_INTERACTIVE_PSEUDO.filter(p => {
+      if (p === ':checked') return ctx._stampedInteractive.has('checked');
+      if (p === ':disabled') return ctx._stampedInteractive.has('disabled');
+      return true;
+    })
+    : ALL_INTERACTIVE_PSEUDO;
+
   for (const { sheet, owner } of sheetEntries) {
     let rules;
     try {
@@ -341,7 +374,7 @@ function extractPseudoClassRules(ctx) {
       // interactive pseudo. Skips most rules on most stylesheets without
       // touching the regex bank.
       if (!rule.selectorText.includes(':')) continue;
-      if (!selectorContainsPseudo(rule.selectorText, ALL_INTERACTIVE_PSEUDO)) continue;
+      if (!selectorContainsPseudo(rule.selectorText, activePseudos)) continue;
 
       const rewrittenSelector = rewritePseudoSelector(rule.selectorText);
 

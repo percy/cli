@@ -10,14 +10,13 @@ import {
   serializeFunction
 } from './utils.js';
 
-// Internal ceiling on the customElements wait. Set high enough to cover
-// lazy-defined element cascades on slow networks; the loop exits early
-// when no more undefined elements remain.
-//
-// NOTE: pages that always have at least one never-registering custom
-// element (e.g. a third-party widget whose loader is blocked) will pay
-// the full timeout on every snapshot — accepted trade-off for now.
-export const DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT = 1500;
+// Internal ceiling on the customElements wait. Set tight (500ms) so a
+// page with a never-registering custom element — third-party widget whose
+// loader is blocked, typo'd tag name, etc. — doesn't add a full 1500ms to
+// every snapshot. Real cascades of legitimate lazy-defined elements
+// complete well within this budget; the loop also exits early as soon as
+// `:not(:defined)` clears.
+export const DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT = 500;
 
 // Body of the customElements wait. Runs in the browser via
 // Runtime.callFunctionOn. Re-polls each tick so lazy-defined element
@@ -27,7 +26,7 @@ export const DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT = 1500;
 // page's realm and must work in any browser the page targets. Don't
 // "modernize" with arrow functions, let/const, or optional chaining.
 export const WAIT_FOR_CUSTOM_ELEMENTS_BODY = `
-  var deadline = Date.now() + (arguments[0] || 1500);
+  var deadline = Date.now() + (arguments[0] || 500);
   return new Promise(function(resolve) {
     function tick() {
       var undef = document.querySelectorAll(":not(:defined)");

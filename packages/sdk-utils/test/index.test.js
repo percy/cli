@@ -681,5 +681,25 @@ describe('SDK Utils', () => {
       expect(clampIframeDepth(NaN)).toEqual(3);
       expect(clampIframeDepth('abc')).toEqual(3);
     });
+
+    it('stays in lockstep with @percy/dom/src/serialize-frames.js', async () => {
+      // The constants + clampIframeDepth body are intentionally duplicated
+      // across @percy/sdk-utils and @percy/dom (cross-package import broke
+      // Node 14 CI in an earlier attempt). This test reads the dom source
+      // and asserts the literal values + clamp body match — drift fails
+      // loudly instead of silently. The dom path is resolved relative to
+      // process.cwd() so this works under both the CJS babel-register path
+      // (where __dirname is the test file dir) and the ESM loader path.
+      const fs = await import('fs');
+      const path = await import('path');
+      // sdk-utils tests run with cwd at the sdk-utils package root.
+      const domSource = fs.readFileSync(
+        path.resolve(process.cwd(), '../dom/src/serialize-frames.js'),
+        'utf8'
+      );
+      expect(domSource).toContain('export const DEFAULT_MAX_IFRAME_DEPTH = 3;');
+      expect(domSource).toContain('export const HARD_MAX_IFRAME_DEPTH = 10;');
+      expect(domSource).toMatch(/function clampIframeDepth\(raw\) \{[^}]*Number\(raw\)[^}]*Number\.isFinite[^}]*DEFAULT_MAX_IFRAME_DEPTH[^}]*Math\.min\(Math\.floor\(n\), HARD_MAX_IFRAME_DEPTH\)/);
+    });
   });
 });

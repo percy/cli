@@ -45,6 +45,12 @@ function setBaseURI(dom, warnings) {
 // Per-spec: nested iframes are captured up to a configurable depth (default 3).
 // Beyond that we skip recursion to bound runtime and prevent pathological pages
 // (e.g. cyclic iframe trees) from blowing the call stack.
+//
+// MIRROR: these constants + `clampIframeDepth` are duplicated in
+// @percy/sdk-utils/src/index.js (where external SDKs read them to clamp their
+// own pre-CLI config to the same bounds). The values must stay aligned —
+// drift is enforced by a parity test in @percy/sdk-utils/test/index.test.js.
+// Don't change one without changing the other.
 export const DEFAULT_MAX_IFRAME_DEPTH = 3;
 // Hard ceiling for any user-supplied maxIframeDepth — values above this are
 // clamped down. 10 levels is well past any realistic UI nesting and keeps

@@ -1465,11 +1465,14 @@ describe('serialize-pseudo-classes', () => {
     it('appends rules from each stylesheet under the same owner key', () => {
       // Two <style> elements at the document level — both produce auto-detect
       // rules, exercising the rulesByOwner.has(owner) === true branch on the
-      // second sheet.
+      // second sheet. The input is `checked` so markInteractiveStates stamps
+      // a live `:checked` element — without this, the per-pseudo short-circuit
+      // in extractPseudoClassRules would (correctly) drop the `:checked` rule
+      // and the assertion below would fail.
       withExample(
         '<style>.ms-btn:focus { color: red }</style>' +
         '<style>.ms-btn:checked { color: blue }</style>' +
-        '<input type="checkbox" class="ms-btn"/>'
+        '<input type="checkbox" class="ms-btn" checked />'
       );
       ctx = {
         dom: document,

@@ -14,6 +14,11 @@ import getResponsiveWidths from './get-responsive-widths.js';
 // Iframe depth constants shared with @percy/dom's serialize-frames. Kept
 // here so external Percy SDKs (Capybara, Cypress, Playwright, etc.) can
 // clamp their own pre-CLI configuration to the same bounds the CLI enforces.
+//
+// MIRROR: must match @percy/dom/src/serialize-frames.js. The pair is kept
+// duplicated (rather than imported across the package boundary) because the
+// previous cross-package import broke Node 14 CI; the parity test below
+// enforces alignment instead. Don't change one without changing the other.
 const DEFAULT_MAX_IFRAME_DEPTH = 3;
 const HARD_MAX_IFRAME_DEPTH = 10;
 
