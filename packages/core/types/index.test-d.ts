@@ -368,3 +368,27 @@ expectType<Promise<void>>(percy.snapshot({
   name: 'Snapshot',
   regions: [region, regionWithPadding, regionFull]
 }));
+
+// pseudoClassEnabledElements
+expectType<Promise<void>>(percy.snapshot({
+  url: 'http://localhost:3000',
+  name: 'pseudo-class snapshot',
+  pseudoClassEnabledElements: {
+    selectors: [':popover-open'],
+    id: ['my-id'],
+    className: ['my-class'],
+    xpath: ['//div[@id="x"]']
+  }
+}));
+
+expectType<PercyConfigOptions>(percy.setConfig({
+  snapshot: {
+    pseudoClassEnabledElements: { selectors: [':popover-open'] }
+  }
+}));
+
+expectError(percy.snapshot({
+  url: 'http://localhost:3000',
+  name: 'invalid pseudo-class snapshot',
+  pseudoClassEnabledElements: { unknown: ['x'] }
+}));
