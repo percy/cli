@@ -1,5 +1,5 @@
 import EventEmitter from 'events';
-import { sha256hash, request } from '@percy/client/utils';
+import { sha256hash, md5base64, request } from '@percy/client/utils';
 import { camelcase, merge } from '@percy/config/utils';
 import YAML from 'yaml';
 import path from 'path';
@@ -301,9 +301,19 @@ function processSendEventData(input, cliVersion) {
 }
 
 // Creates a local resource object containing the resource URL, mimetype, content, sha, and any
-// other additional resources attributes.
+// other additional resources attributes. md5 + contentLength are declared on snapshot creation
+// so percy-api can mint Content-MD5/Content-Length-bound signed URLs for direct bucket upload;
+// they must stay in lockstep with the bytes in `content` (see discovery.js PERCY_GZIP path).
 export function createResource(url, content, mimetype, attrs) {
-  return { ...attrs, sha: sha256hash(content), mimetype, content, url };
+  return {
+    ...attrs,
+    sha: sha256hash(content),
+    md5: md5base64(content),
+    contentLength: Buffer.byteLength(content, 'utf-8'),
+    mimetype,
+    content,
+    url
+  };
 }
 
 // Creates a root resource object with an additional `root: true` property. The URL is normalized

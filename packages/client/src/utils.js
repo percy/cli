@@ -25,6 +25,15 @@ export function sha256hash(content) {
     .digest('hex');
 }
 
+// Returns a base64-encoded MD5 of a string or buffer. Used as Content-MD5 for
+// GCS direct-bucket-upload integrity (RFC 1864), declared alongside the SHA-256.
+export function md5base64(content) {
+  return crypto
+    .createHash('md5')
+    .update(content, 'utf-8')
+    .digest('base64');
+}
+
 // Returns a base64 encoding of a string or buffer.
 export function base64encode(content) {
   return Buffer

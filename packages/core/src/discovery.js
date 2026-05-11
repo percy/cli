@@ -18,7 +18,8 @@ import {
 } from './utils.js';
 import { ByteLRU, entrySize, DiskSpillStore, createSpillDir } from './cache/byte-lru.js';
 import {
-  sha256hash
+  sha256hash,
+  md5base64
 } from '@percy/client/utils';
 import Pako from 'pako';
 
@@ -228,6 +229,8 @@ function processSnapshotResources({ domSnapshot, resources, ...snapshot }) {
       if (!alreadyZipped) {
         resources[index].content = Pako.gzip(resources[index].content);
         resources[index].sha = sha256hash(resources[index].content);
+        resources[index].md5 = md5base64(resources[index].content);
+        resources[index].contentLength = Buffer.byteLength(resources[index].content, 'utf-8');
       }
     }
   }
