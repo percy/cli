@@ -14,53 +14,61 @@
 <body>
   <h1>Hydration Test</h1>
   <p style="color:#666;margin-bottom:16px;">
-    These components simulate framework hydration. The DOM stability wait should
-    let them finish hydrating before Percy serializes the DOM. With JS disabled
-    in Percy's renderer, the serialized HTML (already hydrated) is what renders.
+    These custom-element components hydrate inside connectedCallback the moment
+    customElements.define runs. Percy's pre-snapshot wait blocks on
+    <code>:not(:defined)</code> elements, so by the time Percy serializes,
+    every component below has finished its synchronous hydration and the
+    captured DOM reflects the post-hydration state.
   </p>
 
   <div class="section">
-    <div class="section-title">Fast Hydration (200ms)</div>
-    <div id="hydrate-fast" class="status loading">Loading...</div>
+    <div class="section-title">Sync hydration on define</div>
+    <hydrate-sync>Loading...</hydrate-sync>
   </div>
 
   <div class="section">
-    <div class="section-title">Slow Hydration (800ms)</div>
-    <div id="hydrate-slow" class="status loading">Loading...</div>
+    <div class="section-title">Hydration that mutates structure</div>
+    <hydrate-structural>Loading...</hydrate-structural>
   </div>
 
   <div class="section">
-    <div class="section-title">Multi-phase Hydration (100ms + 300ms + 500ms)</div>
-    <div id="hydrate-multi" class="status loading">Phase 0: Server rendered</div>
+    <div class="section-title">Multi-phase hydration (all phases run synchronously)</div>
+    <hydrate-multi>Phase 0: Server rendered</hydrate-multi>
   </div>
 
   <script>
-    // Simulate fast hydration (React hydrating a simple component)
-    setTimeout(function() {
-      var el = document.getElementById('hydrate-fast');
-      el.className = 'status hydrated';
-      el.textContent = 'Hydrated in 200ms';
-    }, 200);
+    // Custom elements hydrate synchronously inside connectedCallback.
+    // Because Percy waits on `:not(:defined)` before serializing, the
+    // captured DOM always reflects the post-hydration state — regardless
+    // of how long the page takes to download the script.
 
-    // Simulate slow hydration (Astro island loading)
-    setTimeout(function() {
-      var el = document.getElementById('hydrate-slow');
-      el.className = 'status hydrated';
-      el.textContent = 'Hydrated in 800ms';
-    }, 800);
+    class HydrateSync extends HTMLElement {
+      connectedCallback() {
+        this.className = 'status hydrated';
+        this.textContent = 'Hydrated synchronously on define';
+      }
+    }
 
-    // Simulate multi-phase hydration (Vue mounting in stages)
-    setTimeout(function() {
-      document.getElementById('hydrate-multi').textContent = 'Phase 1: Components mounted';
-    }, 100);
-    setTimeout(function() {
-      document.getElementById('hydrate-multi').textContent = 'Phase 2: Data fetched';
-    }, 400);
-    setTimeout(function() {
-      var el = document.getElementById('hydrate-multi');
-      el.className = 'status hydrated';
-      el.textContent = 'Phase 3: Fully hydrated';
-    }, 600);
+    class HydrateStructural extends HTMLElement {
+      connectedCallback() {
+        this.className = 'status hydrated';
+        this.innerHTML = '<strong>Hydrated:</strong> structure replaced';
+      }
+    }
+
+    class HydrateMulti extends HTMLElement {
+      connectedCallback() {
+        // Run every phase synchronously so the final state is captured.
+        this.textContent = 'Phase 1: Components mounted';
+        this.textContent = 'Phase 2: Data fetched';
+        this.className = 'status hydrated';
+        this.textContent = 'Phase 3: Fully hydrated';
+      }
+    }
+
+    customElements.define('hydrate-sync', HydrateSync);
+    customElements.define('hydrate-structural', HydrateStructural);
+    customElements.define('hydrate-multi', HydrateMulti);
   </script>
 </body>
 </html>
