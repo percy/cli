@@ -4,6 +4,7 @@ import Percy from '@percy/core';
 import Pako from 'pako';
 import DetectProxy from '@percy/client/detect-proxy';
 import { validateSnapshotOptions } from '../src/snapshot.js';
+import { Page, WAIT_FOR_CUSTOM_ELEMENTS_BODY } from '../src/page.js';
 
 describe('Percy', () => {
   let percy, server;
@@ -83,7 +84,8 @@ describe('Percy', () => {
       responsiveSnapshotCapture: false,
       ignoreCanvasSerializationErrors: false,
       ignoreStyleSheetSerializationErrors: false,
-      forceShadowAsLightDOM: false
+      forceShadowAsLightDOM: false,
+      ignoreIframeSelectors: []
     });
   });
 
@@ -110,7 +112,7 @@ describe('Percy', () => {
     });
 
     // expect required arguments are passed to PercyDOM.serialize
-    expect(evalSpy.calls.allArgs()[3]).toEqual(jasmine.arrayContaining([jasmine.anything(), { enableJavaScript: undefined, disableShadowDOM: true, domTransformation: undefined, reshuffleInvalidTags: undefined, ignoreCanvasSerializationErrors: undefined, ignoreStyleSheetSerializationErrors: undefined, forceShadowAsLightDOM: undefined, pseudoClassEnabledElements: undefined }]));
+    expect(evalSpy.calls.allArgs()[4]).toEqual(jasmine.arrayContaining([jasmine.anything(), { enableJavaScript: undefined, disableShadowDOM: true, domTransformation: undefined, reshuffleInvalidTags: undefined, ignoreCanvasSerializationErrors: undefined, ignoreStyleSheetSerializationErrors: undefined, ignoreIframeSelectors: undefined, forceShadowAsLightDOM: undefined, pseudoClassEnabledElements: undefined }]));
 
     expect(snapshot.url).toEqual('http://localhost:8000/');
     expect(snapshot.domSnapshot).toEqual(jasmine.objectContaining({
@@ -118,6 +120,100 @@ describe('Percy', () => {
         `<p>Hello there, Percy!</p>${img}`
       ) + '</body></html>'
     }));
+  });
+
+  it('Page._logShadowDebug forwards messages to log.debug with page meta', () => {
+    // Covers the callback Page passes to exposeClosedShadowRoots. Real
+    // snapshot tests don't fire it (no closed shadows in their HTML, no
+    // CDP error path), so exercise the method directly via Object.create
+    // with a stubbed log/meta.
+    let page = Object.create(Page.prototype);
+    let calls = [];
+    page.log = { debug: (msg, meta) => calls.push([msg, meta]) };
+    page.meta = { snapshot: { name: 'parity' } };
+    page._logShadowDebug('found 3 closed shadow root(s)');
+    expect(calls).toEqual([['found 3 closed shadow root(s)', page.meta]]);
+  });
+
+  it('skips closed-shadow CDP discovery when snapshot.disableShadowDOM is set', async () => {
+    // When the per-snapshot disableShadowDOM flag is true, page.snapshot()
+    // skips the exposeClosedShadowRoots CDP call. Verify by inspecting
+    // session.send call args — the DOM.getDocument send (driven only by
+    // exposeClosedShadowRoots) must not appear during this snapshot.
+    server.reply('/', () => [200, 'text/html', '<p>hi</p>']);
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    let sendSpy = spyOn(page.session, 'send').and.callThrough();
+    await page.goto('http://localhost:8000');
+    sendSpy.calls.reset();
+    await page.snapshot({ disableShadowDOM: true });
+    let domGetDocSends = sendSpy.calls.allArgs().filter(a => a[0] === 'DOM.getDocument');
+    expect(domGetDocSends.length).toBe(0);
+  });
+
+  it('skips pre-snapshot wait and closed-shadow capture when the session is already closed', async () => {
+    // Regression for the closedReason gate: when the page session has
+    // already terminated, page.snapshot() must skip the customElements
+    // wait + exposeClosedShadowRoots so the proper close error surfaces
+    // from the downstream insertPercyDom (which gates on the same
+    // session) rather than leaking a confusing CDP error first.
+    //
+    // network.idle() ALSO checks closedReason and throws upstream of the
+    // gate, so we stub it to resolve cleanly — the test must reach line
+    // 261 with closedReason already set in order to exercise the false
+    // branch of the if.
+    server.reply('/', () => [200, 'text/html', '<p>hi</p>']);
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    let sendSpy = spyOn(page.session, 'send').and.callThrough();
+    let evalSpy = spyOn(page, 'eval').and.callThrough();
+    await page.goto('http://localhost:8000');
+    sendSpy.calls.reset();
+    evalSpy.calls.reset();
+
+    spyOn(page.network, 'idle').and.resolveTo(undefined);
+    page.session.closedReason = 'session closed';
+
+    await expectAsync(page.snapshot({})).toBeRejected();
+
+    // Both pre-snapshot best-effort steps must have been skipped. Match the
+    // wait body by identity against the exported constant so a future
+    // rename of internals inside the body doesn't silently turn this
+    // filter into a no-op.
+    let waitEvals = evalSpy.calls.allArgs().filter(([body]) =>
+      body === WAIT_FOR_CUSTOM_ELEMENTS_BODY);
+    expect(waitEvals.length).toBe(0);
+    let domGetDocSends = sendSpy.calls.allArgs().filter(a => a[0] === 'DOM.getDocument');
+    expect(domGetDocSends.length).toBe(0);
+  });
+
+  it('continues the snapshot when the customElements wait throws', async () => {
+    // The wait is best-effort — a flaky page that errors during the
+    // customElements.whenDefined poll must not break the snapshot. Force
+    // the wait eval to throw and assert that (a) the snapshot still
+    // resolves and (b) the failure is captured in the debug log.
+    server.reply('/', () => [200, 'text/html', '<p>hi</p>']);
+    await percy.browser.launch();
+    let page = await percy.browser.page();
+    logger.loglevel('debug');
+    await page.goto('http://localhost:8000');
+
+    let originalEval = page.eval.bind(page);
+    spyOn(page, 'eval').and.callFake((body, ...args) => {
+      // Identity-match the exported constant rather than substring-matching
+      // implementation details inside the body — a rename of any internal
+      // local would otherwise silently turn this fake into a passthrough.
+      if (body === WAIT_FOR_CUSTOM_ELEMENTS_BODY) {
+        throw new Error('boom');
+      }
+      return originalEval(body, ...args);
+    });
+
+    await expectAsync(page.snapshot({ disableShadowDOM: true })).toBeResolved();
+
+    expect(logger.stderr).toEqual(jasmine.arrayContaining([
+      jasmine.stringMatching(/Custom elements wait failed: boom/)
+    ]));
   });
 
   describe('.start()', () => {
@@ -2217,9 +2313,10 @@ describe('Percy', () => {
       percy = new Percy({ token: 'PERCY_TOKEN', archiveDir: './percy-archive' });
       await expectAsync(percy.start()).toBeResolved();
 
-      expect(percy.archiveDir).toMatch(/\/percy-archive$/);
+      // Windows resolves to backslash separators; match either / or \.
+      expect(percy.archiveDir).toMatch(/[\\/]percy-archive$/);
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Archiving snapshots to: .*\/percy-archive/)
+        jasmine.stringMatching(/Archiving snapshots to: .*[\\/]percy-archive/)
       ]));
     });
 
@@ -2250,7 +2347,7 @@ describe('Percy', () => {
       await expectAsync(percy.stop()).toBeResolved();
 
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Archived 1 snapshot\(s\) to: .*\/percy-archive/)
+        jasmine.stringMatching(/Archived 1 snapshot\(s\) to: .*[\\/]percy-archive/)
       ]));
     });
 

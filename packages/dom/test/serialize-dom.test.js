@@ -1,5 +1,6 @@
 import { withExample, replaceDoctype, createShadowEl, getTestBrowser, chromeBrowser, parseDOM, createAndAttachSlotTemplate } from './helpers';
 import serializeDOM, { waitForResize } from '@percy/dom';
+import { getClosedShadowRoot, hasClosedShadowRoot } from '../src/shadow-utils';
 
 describe('serializeDOM', () => {
   it('returns serialied html, warnings, and resources', () => {
@@ -30,7 +31,7 @@ describe('serializeDOM', () => {
 
   it('optionally returns a stringified response', () => {
     expect(serializeDOM({ stringifyResponse: true }))
-      .toMatch('{"html":".*","cookies":".*","userAgent":".*","warnings":\\[\\],"resources":\\[\\],"hints":\\[\\]}');
+      .toMatch('{"html":".*","cookies":".*","userAgent":".*","warnings":\\[.*\\],"resources":\\[\\],"hints":\\[\\]}');
   });
 
   it('always has a doctype', () => {
@@ -69,6 +70,26 @@ describe('serializeDOM', () => {
     const $ = parseDOM(serializeDOM().html);
 
     expect($('h2.callback').length).toEqual(1);
+  });
+
+  it('does not flag closed shadow roots as inaccessible when disableShadowDOM is set', () => {
+    if (!window.customElements.get('percy-opted-out')) {
+      class PercyOptedOut extends window.HTMLElement {
+        connectedCallback() { this.innerHTML = '<span>opted out</span>'; }
+      }
+      window.customElements.define('percy-opted-out', PercyOptedOut);
+    }
+    withExample('<percy-opted-out id="poo"></percy-opted-out>', { withShadow: false });
+    let el = document.getElementById('poo');
+    let origMap = window.__percyClosedShadowRoots;
+    let map = new WeakMap();
+    map.set(el, {});
+    window.__percyClosedShadowRoots = map;
+
+    let result = serializeDOM({ disableShadowDOM: true });
+    expect(result.warnings.some(w => w.includes('[capture]') && w.includes('potentially inaccessible'))).toBe(false);
+
+    window.__percyClosedShadowRoots = origMap;
   });
 
   it('applies default dom transformations', () => {
@@ -299,7 +320,7 @@ describe('serializeDOM', () => {
       const baseContent = document.querySelector('#content');
       baseContent.innerHTML = '<input type="text>';
       const serialized = serializeDOM();
-      expect(serialized.warnings).toEqual(['data-percy-shadow-host does not have shadowRoot']);
+      expect(serialized.warnings).toContain('data-percy-shadow-host does not have shadowRoot');
     });
 
     it('renders slot template with shadowrootmode open', () => {
@@ -669,6 +690,143 @@ describe('serializeDOM', () => {
       expect(result.html).toContain('data-percy-canvas-serialized');
       expect(result.warnings).toContain('Canvas Serialization failed, Replaced canvas with empty Image');
       expect(result.warnings).toContain('Error: Canvas error');
+    });
+  });
+
+  describe('closed shadow root capture', () => {
+    it('captures closed shadow root content when preflight WeakMap is populated', () => {
+      if (getTestBrowser() !== chromeBrowser) return;
+
+      // Simulate preflight: set up the WeakMap
+      let map = new WeakMap();
+      let origMap = window.__percyClosedShadowRoots;
+      window.__percyClosedShadowRoots = map;
+
+      let el = document.createElement('div');
+      el.id = 'closed-host';
+      // Manually create a closed shadow root and store in WeakMap
+      let shadow = el.attachShadow({ mode: 'closed' });
+      shadow.innerHTML = '<p>closed content</p>';
+      map.set(el, shadow);
+
+      document.getElementById('test')?.remove();
+      let $test = document.createElement('div');
+      $test.id = 'test';
+      $test.appendChild(el);
+      document.body.appendChild($test);
+
+      let result = serializeDOM();
+      expect(result.html).toContain('closed content');
+
+      // Cleanup
+      window.__percyClosedShadowRoots = origMap;
+    });
+
+    it('marks closed shadow hosts with data-percy-shadow-host', () => {
+      if (getTestBrowser() !== chromeBrowser) return;
+
+      let map = new WeakMap();
+      let origMap = window.__percyClosedShadowRoots;
+      window.__percyClosedShadowRoots = map;
+
+      let el = document.createElement('div');
+      let shadow = el.attachShadow({ mode: 'closed' });
+      shadow.innerHTML = '<span>test</span>';
+      map.set(el, shadow);
+
+      document.getElementById('test')?.remove();
+      let $test = document.createElement('div');
+      $test.id = 'test';
+      $test.appendChild(el);
+      document.body.appendChild($test);
+
+      serializeDOM();
+      expect(el.hasAttribute('data-percy-shadow-host')).toBe(true);
+
+      window.__percyClosedShadowRoots = origMap;
+    });
+  });
+
+  describe('interactive state CSS capture', () => {
+    it('marks checked inputs with data-percy-checked', () => {
+      withExample('<input type="checkbox" id="cb" checked>', { withShadow: false });
+      let result = serializeDOM();
+      expect(result.html).toContain('data-percy-checked="true"');
+    });
+
+    it('marks disabled inputs with data-percy-disabled', () => {
+      withExample('<input type="text" id="dis" disabled>', { withShadow: false });
+      let result = serializeDOM();
+      expect(result.html).toContain('data-percy-disabled="true"');
+    });
+
+    it('extracts :checked CSS rules and injects as attribute selectors', () => {
+      withExample('<label><input type="checkbox" checked><span>text</span></label>', { withShadow: false });
+      // Add a CSS rule with :checked
+      let style = document.createElement('style');
+      style.textContent = 'input:checked + span { color: green; }';
+      document.head.appendChild(style);
+
+      let result = serializeDOM();
+      expect(result.html).toContain('data-percy-interactive-states');
+      expect(result.html).toContain('[data-percy-checked]');
+
+      style.remove();
+    });
+
+    it('extracts :disabled CSS rules', () => {
+      withExample('<input type="text" disabled>', { withShadow: false });
+      let style = document.createElement('style');
+      style.textContent = 'input:disabled { opacity: 0.5; }';
+      document.head.appendChild(style);
+
+      let result = serializeDOM();
+      expect(result.html).toContain('[data-percy-disabled]');
+
+      style.remove();
+    });
+  });
+
+  describe(':state() CSS rewriting', () => {
+    it('rewrites :state() selectors to attribute selectors in shadow DOM styles', () => {
+      if (getTestBrowser() !== chromeBrowser) return;
+
+      withExample('', { withShadow: false });
+      let el = document.createElement('div');
+      let shadow = el.attachShadow({ mode: 'open' });
+      shadow.innerHTML = '<style>:host(:state(active)) { color: green; }</style><p>content</p>';
+      document.getElementById('test').appendChild(el);
+
+      let result = serializeDOM();
+      expect(result.html).toContain('[data-percy-custom-state~="active"]');
+      expect(result.html).not.toContain(':state(active)');
+    });
+
+    it('rewrites legacy :--state selectors', () => {
+      if (getTestBrowser() !== chromeBrowser) return;
+
+      withExample('', { withShadow: false });
+      let el = document.createElement('div');
+      let shadow = el.attachShadow({ mode: 'open' });
+      shadow.innerHTML = '<style>:host(:--loading) { opacity: 0.5; }</style><p>content</p>';
+      document.getElementById('test').appendChild(el);
+
+      let result = serializeDOM();
+      expect(result.html).toContain('[data-percy-custom-state~="loading"]');
+      expect(result.html).not.toContain(':--loading');
+    });
+  });
+
+  describe('shadow-utils getRuntime fallback', () => {
+    it('falls back to window when the node has no ownerDocument.defaultView', () => {
+      // Exercises the `(typeof window !== 'undefined' ? window : null)` fallback
+      // branch in shadow-utils.getRuntime — fires when getClosedShadowRoot is
+      // called with a node that is null or has no resolvable runtime.
+      // null-host calls return null/false without throwing — they hit the
+      // fallback, then the optional chain on the missing WeakMap yields the
+      // expected absent value.
+      expect(getClosedShadowRoot(null)).toBeNull();
+      expect(hasClosedShadowRoot(null)).toBe(false);
     });
   });
 });

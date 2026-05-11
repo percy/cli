@@ -287,6 +287,14 @@ export const configSchema = {
         type: 'boolean',
         default: false
       },
+      ignoreIframeSelectors: {
+        type: 'array',
+        default: [],
+        items: {
+          type: 'string',
+          minLength: 1
+        }
+      },
       pseudoClassEnabledElements: {
         type: 'object',
         additionalProperties: false,
@@ -511,6 +519,7 @@ export const snapshotSchema = {
         scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
         ignoreCanvasSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreCanvasSerializationErrors' },
         ignoreStyleSheetSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreStyleSheetSerializationErrors' },
+        ignoreIframeSelectors: { $ref: '/config/snapshot#/properties/ignoreIframeSelectors' },
         pseudoClassEnabledElements: { $ref: '/config/snapshot#/properties/pseudoClassEnabledElements' },
         discovery: {
           type: 'object',

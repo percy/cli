@@ -44,6 +44,22 @@
     <div id="resource-shadow-host"></div>
   </div>
 
+  <!-- Closed shadow root (mode: 'closed') — captured via the CDP
+       exposeClosedShadowRoots helper. element.shadowRoot returns null for
+       these from page JS, so they're invisible to the cloner without the
+       helper installing the WeakMap entry. -->
+  <div class="section">
+    <div class="section-title">Closed Shadow Root</div>
+    <div id="closed-shadow-host"></div>
+  </div>
+
+  <!-- Custom element with a closed shadow root attached in its constructor.
+       Common pattern for component libraries that hide internals. -->
+  <div class="section">
+    <div class="section-title">Custom Element with Closed Shadow Root</div>
+    <percy-closed-card></percy-closed-card>
+  </div>
+
   <script src="/assets/js/custom-element.js"></script>
   <script>
     // Programmatic shadow root
@@ -78,6 +94,56 @@
         <span>Shadow DOM with external image resource</span>
       </div>
     `;
+
+    // Programmatic CLOSED shadow root. The reference is held in a local
+    // const so the page can't reach it via element.shadowRoot — Percy's
+    // CDP discovery is the only way to capture this content.
+    const closedHost = document.getElementById('closed-shadow-host');
+    const closedShadow = closedHost.attachShadow({ mode: 'closed' });
+    closedShadow.innerHTML = `
+      <style>
+        .closed-content {
+          padding: 12px;
+          background: #fef9e7;
+          border: 1px solid #b7791f;
+          border-radius: 4px;
+          color: #744210;
+        }
+      </style>
+      <div class="closed-content">
+        <p>This content lives inside a <strong>closed</strong> shadow root.</p>
+        <p>element.shadowRoot returns null — Percy captures it via CDP.</p>
+      </div>
+    `;
+
+    // Custom element that opens a closed shadow root in its constructor —
+    // mirrors how component libraries (e.g. some web-component design
+    // systems) hide their implementation details.
+    if (!customElements.get('percy-closed-card')) {
+      customElements.define('percy-closed-card', class extends HTMLElement {
+        constructor() {
+          super();
+          const shadow = this.attachShadow({ mode: 'closed' });
+          shadow.innerHTML = `
+            <style>
+              .card {
+                padding: 12px;
+                background: #f0fff4;
+                border: 1px solid #2f855a;
+                border-radius: 4px;
+                color: #22543d;
+              }
+              .card-title { font-weight: bold; margin-bottom: 4px; }
+            </style>
+            <div class="card">
+              <div class="card-title">Closed Custom Element</div>
+              <p>Constructor attached a closed shadow root.</p>
+              <p>Captured via CDP because no JS handle escapes the constructor.</p>
+            </div>
+          `;
+        }
+      });
+    }
   </script>
 </body>
 </html>
