@@ -4,7 +4,7 @@ import Percy from '@percy/core';
 import Pako from 'pako';
 import DetectProxy from '@percy/client/detect-proxy';
 import { validateSnapshotOptions } from '../src/snapshot.js';
-import { Page } from '../src/page.js';
+import { Page, WAIT_FOR_CUSTOM_ELEMENTS_BODY } from '../src/page.js';
 
 describe('Percy', () => {
   let percy, server;
@@ -176,9 +176,12 @@ describe('Percy', () => {
 
     await expectAsync(page.snapshot({})).toBeRejected();
 
-    // Both pre-snapshot best-effort steps must have been skipped.
+    // Both pre-snapshot best-effort steps must have been skipped. Match the
+    // wait body by identity against the exported constant so a future
+    // rename of internals inside the body doesn't silently turn this
+    // filter into a no-op.
     let waitEvals = evalSpy.calls.allArgs().filter(([body]) =>
-      typeof body === 'string' && body.includes('var deadline'));
+      body === WAIT_FOR_CUSTOM_ELEMENTS_BODY);
     expect(waitEvals.length).toBe(0);
     let domGetDocSends = sendSpy.calls.allArgs().filter(a => a[0] === 'DOM.getDocument');
     expect(domGetDocSends.length).toBe(0);
@@ -197,10 +200,10 @@ describe('Percy', () => {
 
     let originalEval = page.eval.bind(page);
     spyOn(page, 'eval').and.callFake((body, ...args) => {
-      // The customElements wait body is the only eval call where the
-      // first argument is a string containing `var deadline`. Forcing it
-      // to throw exercises the catch branch in page.snapshot.
-      if (typeof body === 'string' && body.includes('var deadline')) {
+      // Identity-match the exported constant rather than substring-matching
+      // implementation details inside the body — a rename of any internal
+      // local would otherwise silently turn this fake into a passthrough.
+      if (body === WAIT_FOR_CUSTOM_ELEMENTS_BODY) {
         throw new Error('boom');
       }
       return originalEval(body, ...args);
