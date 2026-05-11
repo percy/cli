@@ -682,14 +682,21 @@ describe('SDK Utils', () => {
       expect(clampIframeDepth('abc')).toEqual(3);
     });
 
-    it('stays in lockstep with @percy/dom/src/serialize-frames.js', async () => {
+    // Node-only: reads the dom file from disk via fs to enforce parity
+    // with @percy/sdk-utils' duplicated constants/clamp body. The karma
+    // (browser) runs of this suite have a `process` polyfill but no real
+    // `process.cwd`/`fs`, so guard on cwd being callable.
+    const isNode = typeof process !== 'undefined' &&
+      typeof process.cwd === 'function' &&
+      !!(process.versions && process.versions.node);
+    const itNode = isNode ? it : xit;
+
+    itNode('stays in lockstep with @percy/dom/src/serialize-frames.js', async () => {
       // The constants + clampIframeDepth body are intentionally duplicated
       // across @percy/sdk-utils and @percy/dom (cross-package import broke
       // Node 14 CI in an earlier attempt). This test reads the dom source
       // and asserts the literal values + clamp body match — drift fails
-      // loudly instead of silently. The dom path is resolved relative to
-      // process.cwd() so this works under both the CJS babel-register path
-      // (where __dirname is the test file dir) and the ESM loader path.
+      // loudly instead of silently.
       const fs = await import('fs');
       const path = await import('path');
       // sdk-utils tests run with cwd at the sdk-utils package root.
