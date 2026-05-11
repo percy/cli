@@ -1,7 +1,7 @@
 import fs from 'fs';
 import logger from '@percy/logger/test/helpers';
 import { mockgit } from '@percy/env/test/helpers';
-import { sha256hash, base64encode } from '@percy/client/utils';
+import { md5base64, sha256hash, base64encode } from '@percy/client/utils';
 import PercyClient from '@percy/client';
 import api, { mockRequests } from './helpers.js';
 import * as CoreConfig from '@percy/core/config';
@@ -1222,7 +1222,9 @@ describe('PercyClient', () => {
                   'resource-url': '/foo',
                   mimetype: 'text/html',
                   'for-widths': [1000],
-                  'is-root': true
+                  'is-root': true,
+                  'content-md5': md5base64('foo'),
+                  'content-length': Buffer.byteLength('foo', 'utf-8')
                 }
               }, {
                 type: 'resources',
@@ -1231,7 +1233,9 @@ describe('PercyClient', () => {
                   'resource-url': '/bar',
                   mimetype: 'image/png',
                   'for-widths': null,
-                  'is-root': null
+                  'is-root': null,
+                  'content-md5': md5base64('bar'),
+                  'content-length': Buffer.byteLength('bar', 'utf-8')
                 }
               }]
             }
@@ -1314,7 +1318,9 @@ describe('PercyClient', () => {
                     'resource-url': '/foo',
                     mimetype: 'text/html',
                     'for-widths': [1000],
-                    'is-root': true
+                    'is-root': true,
+                    'content-md5': md5base64('foo'),
+                    'content-length': Buffer.byteLength('foo', 'utf-8')
                   }
                 }, {
                   type: 'resources',
@@ -1323,7 +1329,9 @@ describe('PercyClient', () => {
                     'resource-url': '/bar',
                     mimetype: 'image/png',
                     'for-widths': null,
-                    'is-root': null
+                    'is-root': null,
+                    'content-md5': md5base64('bar'),
+                    'content-length': Buffer.byteLength('bar', 'utf-8')
                   }
                 }]
               }
@@ -1365,13 +1373,57 @@ describe('PercyClient', () => {
                   'resource-url': null,
                   'for-widths': null,
                   'is-root': null,
-                  mimetype: null
+                  mimetype: null,
+                  'content-md5': null,
+                  'content-length': null
                 }
               }]
             }
           }
         }
       });
+    });
+
+    it('advertises direct-upload-v1 capability header by default', async () => {
+      await expectAsync(
+        client.createSnapshot(123, { name: 'cap-test', resources: [{ sha: 'sha' }] })
+      ).toBeResolved();
+
+      expect(api.requests['/builds/123/snapshots'][0].headers).toEqual(
+        jasmine.objectContaining({ 'X-Percy-Capabilities': 'direct-upload-v1' })
+      );
+    });
+
+    it('suppresses capability header when PERCY_DISABLE_DIRECT_UPLOAD is set', async () => {
+      process.env.PERCY_DISABLE_DIRECT_UPLOAD = '1';
+      try {
+        await expectAsync(
+          client.createSnapshot(123, { name: 'cap-test', resources: [{ sha: 'sha' }] })
+        ).toBeResolved();
+
+        expect(api.requests['/builds/123/snapshots'][0].headers['X-Percy-Capabilities']).toBeUndefined();
+      } finally {
+        delete process.env.PERCY_DISABLE_DIRECT_UPLOAD;
+      }
+    });
+
+    it('prefers caller-supplied md5/contentLength over recomputing from content', async () => {
+      await expectAsync(
+        client.createSnapshot(123, {
+          name: 'precomputed',
+          resources: [{
+            url: '/x',
+            sha: 'precomputed-sha',
+            content: 'foo',
+            md5: 'caller-md5-base64',
+            contentLength: 999
+          }]
+        })
+      ).toBeResolved();
+
+      const attrs = api.requests['/builds/123/snapshots'][0].body.data.relationships.resources.data[0].attributes;
+      expect(attrs['content-md5']).toBe('caller-md5-base64');
+      expect(attrs['content-length']).toBe(999);
     });
   });
 
@@ -1438,7 +1490,9 @@ describe('PercyClient', () => {
                   mimetype: 'text/html',
                   'resource-url': null,
                   'for-widths': [1000],
-                  'is-root': true
+                  'is-root': true,
+                  'content-md5': md5base64(testDOM),
+                  'content-length': Buffer.byteLength(testDOM, 'utf-8')
                 }
               }]
             }

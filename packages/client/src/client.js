@@ -9,6 +9,7 @@ import {
   request,
   formatBytes,
   sha256hash,
+  md5base64,
   base64encode,
   getPackageJSON,
   waitForTimeout,
@@ -308,6 +309,15 @@ export class PercyClient {
         meta
       });
     });
+  }
+
+  // Returns capability headers advertised on snapshot creation. `direct-upload-v1`
+  // tells percy-api to mint Content-MD5/Content-Length-bound GCS signed URLs in
+  // the missing-resources response. PERCY_DISABLE_DIRECT_UPLOAD is the
+  // customer-side escape hatch that forces fallback to POST /resources.
+  directUploadCapabilityHeaders() {
+    if (process.env.PERCY_DISABLE_DIRECT_UPLOAD) return {};
+    return { 'X-Percy-Capabilities': 'direct-upload-v1' };
   }
 
   // Creates a build with optional build resources. Only one build can be
@@ -630,13 +640,15 @@ export class PercyClient {
                 'resource-url': r.url || null,
                 'is-root': r.root || null,
                 'for-widths': r.widths || null,
-                mimetype: r.mimetype || null
+                mimetype: r.mimetype || null,
+                'content-md5': r.md5 ?? (r.content != null ? md5base64(r.content) : null),
+                'content-length': r.contentLength ?? (r.content != null ? Buffer.byteLength(r.content, 'utf-8') : null)
               }
             }))
           }
         }
       }
-    }, { identifier: 'snapshot.post', ...meta });
+    }, { identifier: 'snapshot.post', ...meta }, this.directUploadCapabilityHeaders());
   }
 
   // Finalizes a snapshot.
