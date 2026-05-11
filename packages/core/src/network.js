@@ -750,7 +750,15 @@ async function saveResponseResource(network, request, session) {
       let body = shouldCapture && await response.buffer();
 
       // Don't rename the below log line as it is used in getting network logs in api
-      if (!shouldCapture) {
+      /* istanbul ignore if: first check is a sanity check */
+      if (!response) {
+        logAssetInstrumentation(log, 'asset_load_missing', 'no_response', {
+          url,
+          snapshot: meta.snapshot,
+          requestType: request.type
+        });
+        return log.debug('- Skipping no response', meta);
+      } else if (!shouldCapture) {
         logAssetInstrumentation(log, 'asset_not_uploaded', 'disallowed_hostname', {
           url,
           hostname: new URL(url).hostname,
