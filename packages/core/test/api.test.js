@@ -1016,6 +1016,10 @@ describe('API Server', () => {
     const SS_NAME = 'HomeScreen';
     const ANDROID_DIR = `/tmp/${SID}_test_suite/logs/run1/screenshots`;
     const IOS_DIR = `/tmp/${SID}/emu_maestro_debug_abc/flow_x`;
+    // New SDK convention (filePath path): /tmp/<sid>{_test_suite}/percy/<name>.png
+    const ANDROID_FILEPATH_DIR = `/tmp/${SID}_test_suite/percy`;
+    const IOS_FILEPATH_DIR = `/tmp/${SID}/percy`;
+    const FILEPATH_NAME = 'FromFilePath';
 
     beforeEach(async () => {
       fs.mkdirSync(ANDROID_DIR, { recursive: true });
@@ -1031,6 +1035,14 @@ describe('API Server', () => {
       pngHeader.writeUInt32BE(1170, 16);
       pngHeader.writeUInt32BE(2532, 20);
       fs.writeFileSync(path.join(IOS_DIR, `${SS_NAME}.png`), pngHeader);
+
+      // filePath fixtures — same per-platform session root, but a different
+      // subdirectory than the legacy glob. Exercises the new SDK path
+      // independently from the back-compat glob.
+      fs.mkdirSync(ANDROID_FILEPATH_DIR, { recursive: true });
+      fs.writeFileSync(path.join(ANDROID_FILEPATH_DIR, `${FILEPATH_NAME}.png`), 'PNGBYTES-FILEPATH-ANDROID');
+      fs.mkdirSync(IOS_FILEPATH_DIR, { recursive: true });
+      fs.writeFileSync(path.join(IOS_FILEPATH_DIR, `${FILEPATH_NAME}.png`), 'PNGBYTES-FILEPATH-IOS');
     });
 
     async function postMaestro(body) {
@@ -1173,6 +1185,108 @@ describe('API Server', () => {
       await percy.start();
       await expectAsync(postMaestro({ name: 'DoesNotExist', sessionId: SID, platform: 'android' }))
         .toBeRejectedWithError(/Screenshot not found/);
+    });
+
+    // filePath path — new SDK convention (R2/R3/R4/R6).
+    // The SDK posts an absolute path the relay reads directly, skipping the legacy glob.
+    // Same realpath + per-platform session-root prefix check protects against traversal
+    // and symlink-escape; the cross-sessionId and outside-root tests below exercise it.
+
+    it('accepts filePath pointing to a file under the Android session root', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: FILEPATH_NAME,
+        sessionId: SID,
+        platform: 'android',
+        filePath: `${ANDROID_FILEPATH_DIR}/${FILEPATH_NAME}.png`
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-FILEPATH-ANDROID').toString('base64'));
+    });
+
+    it('accepts filePath pointing to a file under the iOS session root', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: FILEPATH_NAME,
+        sessionId: SID,
+        platform: 'ios',
+        filePath: `${IOS_FILEPATH_DIR}/${FILEPATH_NAME}.png`
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-FILEPATH-IOS').toString('base64'));
+    });
+
+    it('rejects filePath that is not a string with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        filePath: 12345
+      })).toBeRejectedWithError(/filePath.*must be a string/i);
+    });
+
+    it('rejects filePath that is not an absolute path with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        filePath: 'relative/path/screenshot.png'
+      })).toBeRejectedWithError(/filePath.*absolute/i);
+    });
+
+    it('rejects filePath exceeding the maximum length with 400', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        filePath: '/' + 'a'.repeat(1100)
+      })).toBeRejectedWithError(/filePath.*maximum length/i);
+    });
+
+    it('returns 404 when filePath points to a missing file', async () => {
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        filePath: `${ANDROID_FILEPATH_DIR}/DoesNotExist.png`
+      })).toBeRejectedWithError(/Screenshot not found/);
+    });
+
+    it('returns 404 when filePath resolves outside the session root', async () => {
+      // File exists, but lives at /tmp/<other>.png — not under /tmp/<sid>_test_suite/.
+      fs.writeFileSync('/tmp/percy-outside.png', 'OUTSIDE');
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        filePath: '/tmp/percy-outside.png'
+      })).toBeRejectedWithError(/Screenshot not found/);
+    });
+
+    it('returns 404 when filePath is in a different sessionId\'s subtree', async () => {
+      const otherDir = '/tmp/othersession_test_suite/percy';
+      fs.mkdirSync(otherDir, { recursive: true });
+      fs.writeFileSync(`${otherDir}/Foo.png`, 'OTHER-SID');
+      await percy.start();
+      await expectAsync(postMaestro({
+        name: 'Foo', sessionId: SID, platform: 'android',
+        filePath: `${otherDir}/Foo.png`
+      })).toBeRejectedWithError(/Screenshot not found/);
+    });
+
+    it('treats empty filePath as absent and falls back to the legacy glob', async () => {
+      spyOn(percy, 'upload').and.resolveTo();
+      await percy.start();
+
+      await expectAsync(postMaestro({
+        name: SS_NAME, sessionId: SID, platform: 'android',
+        filePath: ''
+      })).toBeResolvedTo(jasmine.objectContaining({ success: true }));
+
+      let [payload] = percy.upload.calls.mostRecent().args;
+      // Glob found the legacy fixture, not the filePath fixture
+      expect(payload.tiles[0].content).toBe(Buffer.from('PNGBYTES-ANDROID').toString('base64'));
     });
   });
 });

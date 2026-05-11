@@ -333,6 +333,28 @@ export function createPercyServer(percy, port) {
         platform = normalized;
       }
 
+      // Optional caller-supplied absolute path. When present, the relay reads
+      // the file directly and skips the legacy glob — the SDK has already
+      // chosen the path under the BS session root. Shape errors (non-string,
+      // non-absolute, too long) are 400. Existence and session-root scoping
+      // are enforced by the shared realpath + prefix check below, which
+      // returns 404 — same shape as the glob path. Treat empty string as
+      // absent so older SDKs that emit the field unconditionally still fall
+      // through to the glob.
+      let suppliedFilePath = null;
+      if (req.body.filePath !== undefined && req.body.filePath !== null && req.body.filePath !== '') {
+        if (typeof req.body.filePath !== 'string') {
+          throw new ServerError(400, 'Invalid filePath: must be a string');
+        }
+        if (req.body.filePath.length > 1024) {
+          throw new ServerError(400, 'Invalid filePath: exceeds maximum length of 1024');
+        }
+        if (!path.isAbsolute(req.body.filePath)) {
+          throw new ServerError(400, 'Invalid filePath: must be an absolute path');
+        }
+        suppliedFilePath = req.body.filePath;
+      }
+
       // Validate regions input shape early (before file I/O and ADB work) so
       // malformed requests don't consume resolver/relay work.
       if (req.body.regions !== undefined) {
@@ -366,71 +388,81 @@ export function createPercyServer(percy, port) {
         }
       }
 
-      // Find the screenshot file on disk. Pattern depends on platform:
-      //   Android (BrowserStack mobile): /tmp/{sid}_test_suite/logs/*/screenshots/{name}.png
-      //   iOS (BrowserStack realmobile): /tmp/{sid}/<maestro_debug_dir>/**/{name}.png
-      //     realmobile builds SCREENSHOTS_DIR with literal slashes from the flow-path
-      //     concatenation, causing Maestro to mkdir a deeply nested structure under the
-      //     {device}_maestro_debug_ root. The `**` recursive match handles any depth.
-      //     Exact {name}.png match at the leaf filters out Maestro's emoji-prefixed
-      //     debug frames (e.g., `screenshot-❌-<timestamp>-(flow).png`).
-      let searchPattern = platform === 'ios'
-        ? `/tmp/${sessionId}/*_maestro_debug_*/**/${name}.png`
-        : `/tmp/${sessionId}_test_suite/logs/*/screenshots/${name}.png`;
-
-      let files;
-      try {
-        let { default: glob } = await import('fast-glob');
-        files = await glob(searchPattern);
-      } catch {
-        // Fallback: manual directory walk (depth-limited to defeat malicious deep nesting).
-        files = [];
-        try {
-          if (platform === 'ios') {
-            let sessionDir = `/tmp/${sessionId}`;
-            let walk = async (dir, depth) => {
-              if (depth > 15) return; // sanity cap
-              let entries;
-              try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return; }
-              for (let entry of entries) {
-                let full = path.join(dir, entry.name);
-                if (entry.isDirectory()) {
-                  await walk(full, depth + 1);
-                } else if (entry.isFile() && entry.name === `${name}.png` && full.includes('_maestro_debug_')) {
-                  files.push(full);
-                }
-              }
-            };
-            await walk(sessionDir, 0);
-          } else {
-            let baseDir = `/tmp/${sessionId}_test_suite/logs`;
-            let logDirs = await fs.promises.readdir(baseDir);
-            for (let dir of logDirs) {
-              let screenshotPath = path.join(baseDir, dir, 'screenshots', `${name}.png`);
-              try {
-                await fs.promises.access(screenshotPath);
-                files.push(screenshotPath);
-              } catch { /* not found, continue */ }
-            }
-          }
-        } catch { /* base dir not found */ }
-      }
-
-      if (!files || files.length === 0) {
-        throw new ServerError(404, `Screenshot not found: ${name}.png (searched ${searchPattern})`);
-      }
-
-      // If multiple files match (iOS — same name reused across flows), pick the most recently modified
-      // for determinism.
+      // Locate the screenshot on disk. Two paths converge on `chosenFile`:
+      //   1. `filePath` supplied (new SDK ≥ v0.4 — the SDK chose an absolute
+      //      path under the BS session root and saved Maestro's PNG there).
+      //   2. Legacy glob (older SDKs — file lives at the BS-infra-chosen
+      //      SCREENSHOTS_DIR layout). Either way, the shared realpath +
+      //      session-root prefix check below enforces the security invariant.
       let chosenFile;
-      if (files.length === 1) {
-        chosenFile = files[0];
+      if (suppliedFilePath) {
+        chosenFile = suppliedFilePath;
       } else {
-        let mtimes = await Promise.all(files.map(async f => {
-          try { return { f, mtime: (await fs.promises.stat(f)).mtimeMs }; } catch { return { f, mtime: 0 }; }
-        }));
-        mtimes.sort((a, b) => b.mtime - a.mtime);
-        chosenFile = mtimes[0].f;
+        // Legacy glob. Pattern depends on platform:
+        //   Android (BrowserStack mobile): /tmp/{sid}_test_suite/logs/*/screenshots/{name}.png
+        //   iOS (BrowserStack realmobile): /tmp/{sid}/<maestro_debug_dir>/**/{name}.png
+        //     realmobile builds SCREENSHOTS_DIR with literal slashes from the flow-path
+        //     concatenation, causing Maestro to mkdir a deeply nested structure under the
+        //     {device}_maestro_debug_ root. The `**` recursive match handles any depth.
+        //     Exact {name}.png match at the leaf filters out Maestro's emoji-prefixed
+        //     debug frames (e.g., `screenshot-❌-<timestamp>-(flow).png`).
+        let searchPattern = platform === 'ios'
+          ? `/tmp/${sessionId}/*_maestro_debug_*/**/${name}.png`
+          : `/tmp/${sessionId}_test_suite/logs/*/screenshots/${name}.png`;
+
+        let files;
+        try {
+          let { default: glob } = await import('fast-glob');
+          files = await glob(searchPattern);
+        } catch {
+          // Fallback: manual directory walk (depth-limited to defeat malicious deep nesting).
+          files = [];
+          try {
+            if (platform === 'ios') {
+              let sessionDir = `/tmp/${sessionId}`;
+              let walk = async (dir, depth) => {
+                if (depth > 15) return; // sanity cap
+                let entries;
+                try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return; }
+                for (let entry of entries) {
+                  let full = path.join(dir, entry.name);
+                  if (entry.isDirectory()) {
+                    await walk(full, depth + 1);
+                  } else if (entry.isFile() && entry.name === `${name}.png` && full.includes('_maestro_debug_')) {
+                    files.push(full);
+                  }
+                }
+              };
+              await walk(sessionDir, 0);
+            } else {
+              let baseDir = `/tmp/${sessionId}_test_suite/logs`;
+              let logDirs = await fs.promises.readdir(baseDir);
+              for (let dir of logDirs) {
+                let screenshotPath = path.join(baseDir, dir, 'screenshots', `${name}.png`);
+                try {
+                  await fs.promises.access(screenshotPath);
+                  files.push(screenshotPath);
+                } catch { /* not found, continue */ }
+              }
+            }
+          } catch { /* base dir not found */ }
+        }
+
+        if (!files || files.length === 0) {
+          throw new ServerError(404, `Screenshot not found: ${name}.png (searched ${searchPattern})`);
+        }
+
+        // If multiple files match (iOS — same name reused across flows), pick the most recently modified
+        // for determinism.
+        if (files.length === 1) {
+          chosenFile = files[0];
+        } else {
+          let mtimes = await Promise.all(files.map(async f => {
+            try { return { f, mtime: (await fs.promises.stat(f)).mtimeMs }; } catch { return { f, mtime: 0 }; }
+          }));
+          mtimes.sort((a, b) => b.mtime - a.mtime);
+          chosenFile = mtimes[0].f;
+        }
       }
 
       // Canonicalize and confirm the resolved path still lives under the sessionId-owned dir.
