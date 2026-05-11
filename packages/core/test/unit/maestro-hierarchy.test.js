@@ -986,7 +986,13 @@ describe('Unit / maestro-hierarchy', () => {
       const httpRequest = async () => { throw Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }); };
       const execMaestro = async () => ({ stdout: '', stderr: '', exitCode: 1 });
       await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
-      expect(getMaestroHierarchyDrift().ios).toBeNull();
+      // R8: drift-bit fields (code/reason/firstSeenAt) NOT set on connection-class,
+      // but the slot now populates with activity counters (channel-broken fallback recorded).
+      const slot = getMaestroHierarchyDrift().ios;
+      expect(slot).not.toBeNull();
+      expect(slot.firstSeenAt).toBeUndefined();
+      expect(slot.code).toBeUndefined();
+      expect(slot.reason).toBeUndefined();
     });
 
     it('SpringBoard-only response does NOT flip the drift bit (no-aut-tree, not schema-drift)', async () => {
@@ -1008,7 +1014,13 @@ describe('Unit / maestro-hierarchy', () => {
       });
       const execMaestro = async () => ({ stdout: '', stderr: '', exitCode: 1 });
       await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
-      expect(getMaestroHierarchyDrift().ios).toBeNull();
+      // R8: same as connection-class — slot populates with activity counters
+      // (no-aut-tree records 'other' fallback), but drift-bit fields stay absent.
+      const slot = getMaestroHierarchyDrift().ios;
+      expect(slot).not.toBeNull();
+      expect(slot.firstSeenAt).toBeUndefined();
+      expect(slot.code).toBeUndefined();
+      expect(slot.reason).toBeUndefined();
     });
 
     it('reset helper clears both slots', async () => {
@@ -1022,6 +1034,505 @@ describe('Unit / maestro-hierarchy', () => {
       expect(getMaestroHierarchyDrift().ios).not.toBeNull();
       __testing.resetMaestroHierarchyDrift();
       expect(getMaestroHierarchyDrift()).toEqual({ android: null, ios: null });
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  Resolver activity counters + info-level transition logs (R7/R8).
+  //  Extends the two-slot drift envelope to surface the most recent failure
+  //  class, cumulative fallback count, and the resolver that ultimately
+  //  succeeded — so /percy/healthcheck can answer "what's the gRPC primary
+  //  actually doing on this BS host?" without --verbose logs.
+  // ─────────────────────────────────────────────────────────────────────────
+  describe('resolver activity counters + transition logs (R7/R8)', () => {
+    beforeEach(() => {
+      __testing.resetMaestroHierarchyDrift();
+    });
+
+    const GRPC_STATUS = {
+      OK: 0, CANCELLED: 1, INVALID_ARGUMENT: 3, DEADLINE_EXCEEDED: 4,
+      RESOURCE_EXHAUSTED: 8, FAILED_PRECONDITION: 9, ABORTED: 10,
+      OUT_OF_RANGE: 11, UNIMPLEMENTED: 12, INTERNAL: 13, UNAVAILABLE: 14,
+      DATA_LOSS: 15
+    };
+
+    const validAndroidEnv = (overrides = {}) => key => ({
+      ANDROID_SERIAL: 'env-serial',
+      PERCY_ANDROID_GRPC_PORT: '7100',
+      ...overrides
+    })[key];
+
+    const validIosEnv = key => {
+      if (key === 'PERCY_IOS_DEVICE_UDID') return '00008110-000065081404401E';
+      if (key === 'PERCY_IOS_DRIVER_HOST_PORT') return '11100';
+      return undefined;
+    };
+
+    const simpleGrpcXml =
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<hierarchy rotation="0">' +
+      '<node resource-id="com.example:id/clock" bounds="[40,50][500,150]"/>' +
+      '</hierarchy>';
+
+    function makeGrpcFactory({ response, error }) {
+      return () => ({
+        viewHierarchy: () => error ? Promise.reject(error) : Promise.resolve(response),
+        close: () => {}
+      });
+    }
+
+    const adbHierarchyOk = makeFakeExecAdb([
+      { match: args => args[0] === 'devices', result: okDevices },
+      { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
+    ]);
+
+    const maestroSimple = loadFixture('maestro-simple.json');
+    const maestroHierarchyOk = async () => ({ stdout: maestroSimple, stderr: '', exitCode: 0 });
+
+    // ─── Initial state (back-compat) ─────────────────────────────────────
+
+    it('initial state: both slots null (back-compat: no resolver activity → no envelope state)', () => {
+      expect(getMaestroHierarchyDrift()).toEqual({ android: null, ios: null });
+    });
+
+    // ─── Android success cases ──────────────────────────────────────────
+
+    it('Android gRPC success → android slot populated with succeededVia=grpc, no fallbacks', async () => {
+      const cache = new Map();
+      await dump({
+        platform: 'android',
+        getEnv: validAndroidEnv(),
+        execAdb: makeFakeExecAdb([{ match: args => args[0] === 'devices', result: okDevices }]),
+        execMaestro: maestroNotFound,
+        grpcClient: makeGrpcFactory({ response: { hierarchy: simpleGrpcXml } }),
+        grpcClientCache: cache
+      });
+
+      expect(getMaestroHierarchyDrift().android).toEqual({
+        lastFailureClass: null,
+        fallbackCount: 0,
+        succeededVia: 'grpc'
+      });
+      expect(getMaestroHierarchyDrift().ios).toBeNull();
+    });
+
+    it('Android maestro-cli success (no gRPC env) → succeededVia=maestro-cli, no fallbacks', async () => {
+      await dump({
+        platform: 'android',
+        getEnv: k => (k === 'ANDROID_SERIAL' ? 'env-serial' : undefined),
+        execAdb: makeFakeExecAdb([{ match: args => args[0] === 'devices', result: okDevices }]),
+        execMaestro: maestroHierarchyOk
+      });
+
+      expect(getMaestroHierarchyDrift().android).toEqual({
+        lastFailureClass: null,
+        fallbackCount: 0,
+        succeededVia: 'maestro-cli'
+      });
+    });
+
+    it('Android adb success (no gRPC env, no maestro CLI) → succeededVia=adb, fallbackCount=1 from CLI failure', async () => {
+      await dump({
+        platform: 'android',
+        execMaestro: maestroNotFound,
+        execAdb: makeFakeExecAdb([
+          { match: args => args[0] === 'devices', result: okDevices },
+          { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
+        ]),
+        getEnv: () => undefined
+      });
+
+      expect(getMaestroHierarchyDrift().android).toEqual({
+        lastFailureClass: 'other',
+        fallbackCount: 1,
+        succeededVia: 'adb'
+      });
+    });
+
+    // ─── Android gRPC contention-class → adb (skip CLI) ─────────────────
+
+    it('Android gRPC contention-class → adb: lastFailureClass=contention-class, fallbackCount=1, succeededVia=adb', async () => {
+      const cache = new Map();
+      await dump({
+        platform: 'android',
+        getEnv: validAndroidEnv(),
+        execAdb: makeFakeExecAdb([
+          { match: args => args[0] === 'devices', result: okDevices },
+          { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
+        ]),
+        execMaestro: maestroNotFound, // would-be CLI is skipped per contention-class rule
+        grpcClient: makeGrpcFactory({ error: { code: GRPC_STATUS.DEADLINE_EXCEEDED, message: 'queued' } }),
+        grpcClientCache: cache
+      });
+
+      expect(getMaestroHierarchyDrift().android).toEqual({
+        lastFailureClass: 'contention-class',
+        fallbackCount: 1,
+        succeededVia: 'adb'
+      });
+    });
+
+    // ─── Android gRPC channel-broken → maestro-cli success ──────────────
+
+    it('Android gRPC channel-broken → maestro-cli (success): lastFailureClass=channel-broken, fallbackCount=1, succeededVia=maestro-cli', async () => {
+      const cache = new Map();
+      await dump({
+        platform: 'android',
+        getEnv: validAndroidEnv(),
+        execAdb: makeFakeExecAdb([{ match: args => args[0] === 'devices', result: okDevices }]),
+        execMaestro: maestroHierarchyOk,
+        grpcClient: makeGrpcFactory({ error: { code: GRPC_STATUS.UNAVAILABLE, message: 'gone' } }),
+        grpcClientCache: cache
+      });
+
+      expect(getMaestroHierarchyDrift().android).toEqual({
+        lastFailureClass: 'channel-broken',
+        fallbackCount: 1,
+        succeededVia: 'maestro-cli'
+      });
+    });
+
+    // ─── Android gRPC channel-broken → maestro-cli fail → adb success ──
+
+    it('Android gRPC channel-broken → maestro fail → adb success: fallbackCount=2, lastFailureClass=other (from maestro), succeededVia=adb', async () => {
+      const cache = new Map();
+      await dump({
+        platform: 'android',
+        getEnv: validAndroidEnv(),
+        execAdb: makeFakeExecAdb([
+          { match: args => args[0] === 'devices', result: okDevices },
+          { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
+        ]),
+        execMaestro: async () => ({ stdout: '', stderr: 'maestro broken', exitCode: 1 }),
+        grpcClient: makeGrpcFactory({ error: { code: GRPC_STATUS.UNAVAILABLE, message: 'gone' } }),
+        grpcClientCache: cache
+      });
+
+      const slot = getMaestroHierarchyDrift().android;
+      expect(slot.fallbackCount).toBe(2);
+      expect(slot.succeededVia).toBe('adb');
+      // lastFailureClass reflects the MOST RECENT fallback trigger (maestro CLI failure).
+      expect(slot.lastFailureClass).toBe('other');
+    });
+
+    // ─── Android gRPC schema-class (no fallback) ────────────────────────
+
+    it('Android gRPC schema-class → no fallback: lastFailureClass=schema-class, fallbackCount=0, succeededVia=none, drift-bit set', async () => {
+      const cache = new Map();
+      const res = await dump({
+        platform: 'android',
+        getEnv: validAndroidEnv(),
+        execAdb: makeFakeExecAdb([{ match: args => args[0] === 'devices', result: okDevices }]),
+        execMaestro: async () => { throw new Error('should not invoke maestro-cli on schema-class'); },
+        grpcClient: makeGrpcFactory({ error: { code: GRPC_STATUS.UNIMPLEMENTED, message: 'no rpc' } }),
+        grpcClientCache: cache
+      });
+      expect(res.kind).toBe('dump-error');
+
+      const slot = getMaestroHierarchyDrift().android;
+      expect(slot).toEqual(jasmine.objectContaining({
+        lastFailureClass: 'schema-class',
+        fallbackCount: 0,
+        succeededVia: 'none',
+        code: GRPC_STATUS.UNIMPLEMENTED,
+        reason: 'grpc-schema-unimplemented'
+      }));
+      expect(typeof slot.firstSeenAt).toBe('string');
+    });
+
+    // ─── Counter accumulates across calls ───────────────────────────────
+
+    it('two consecutive Android gRPC contention failures: fallbackCount=2, lastFailureClass sticky', async () => {
+      const cache = new Map();
+      const opts = {
+        platform: 'android',
+        getEnv: validAndroidEnv(),
+        execAdb: makeFakeExecAdb([
+          { match: args => args[0] === 'devices', result: okDevices },
+          { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
+        ]),
+        execMaestro: maestroNotFound,
+        grpcClient: makeGrpcFactory({ error: { code: GRPC_STATUS.RESOURCE_EXHAUSTED, message: 'queued' } }),
+        grpcClientCache: cache
+      };
+      await dump(opts);
+      await dump(opts);
+
+      const slot = getMaestroHierarchyDrift().android;
+      expect(slot.fallbackCount).toBe(2);
+      expect(slot.lastFailureClass).toBe('contention-class');
+      expect(slot.succeededVia).toBe('adb');
+    });
+
+    // ─── Contention then later success → lastFailureClass sticky, succeededVia=grpc
+
+    it('gRPC contention then later gRPC success: lastFailureClass=contention-class sticky, succeededVia=grpc', async () => {
+      const cache = new Map();
+      // First call: gRPC contention → adb success.
+      await dump({
+        platform: 'android',
+        getEnv: validAndroidEnv(),
+        execAdb: makeFakeExecAdb([
+          { match: args => args[0] === 'devices', result: okDevices },
+          { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
+        ]),
+        execMaestro: maestroNotFound,
+        grpcClient: makeGrpcFactory({ error: { code: GRPC_STATUS.DEADLINE_EXCEEDED, message: 'queued' } }),
+        grpcClientCache: cache
+      });
+      // Second call: gRPC succeeds (different factory, same cache).
+      await dump({
+        platform: 'android',
+        getEnv: validAndroidEnv(),
+        execAdb: makeFakeExecAdb([{ match: args => args[0] === 'devices', result: okDevices }]),
+        execMaestro: maestroNotFound,
+        grpcClient: makeGrpcFactory({ response: { hierarchy: simpleGrpcXml } }),
+        grpcClientCache: new Map() // fresh cache to avoid factory mismatch
+      });
+
+      const slot = getMaestroHierarchyDrift().android;
+      expect(slot.fallbackCount).toBe(1); // sticky from first call
+      expect(slot.lastFailureClass).toBe('contention-class'); // sticky from first call
+      expect(slot.succeededVia).toBe('grpc'); // most-recent-wins
+    });
+
+    // ─── iOS success / failure cases ────────────────────────────────────
+
+    it('iOS HTTP success → succeededVia=maestro-http, no fallbacks', async () => {
+      const httpRequest = async () => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          axElement: {
+            identifier: 'com.example.app',
+            elementType: 1,
+            enabled: true,
+            frame: { X: 0, Y: 0, Width: 390, Height: 844 },
+            children: []
+          },
+          depth: 1
+        })
+      });
+      await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro: async () => { throw new Error('should not'); } });
+
+      expect(getMaestroHierarchyDrift().ios).toEqual({
+        lastFailureClass: null,
+        fallbackCount: 0,
+        succeededVia: 'maestro-http'
+      });
+    });
+
+    it('iOS HTTP schema-class → no fallback: lastFailureClass=schema-class, succeededVia=none, drift-bit set', async () => {
+      const httpRequest = async () => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ depth: 2 }) // missing axElement → schema-drift
+      });
+      await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro: async () => { throw new Error('should not'); } });
+
+      const slot = getMaestroHierarchyDrift().ios;
+      expect(slot).toEqual(jasmine.objectContaining({
+        lastFailureClass: 'schema-class',
+        fallbackCount: 0,
+        succeededVia: 'none',
+        reason: 'http-missing-root'
+      }));
+      expect(typeof slot.firstSeenAt).toBe('string');
+    });
+
+    it('iOS HTTP connection-fail → maestro-cli-fallback (success): lastFailureClass=channel-broken, fallbackCount=1, succeededVia=maestro-cli-fallback', async () => {
+      const httpRequest = async () => { throw Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }); };
+      const execMaestro = async () => ({
+        stdout: maestroSimple, stderr: '', exitCode: 0
+      });
+      await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
+
+      expect(getMaestroHierarchyDrift().ios).toEqual({
+        lastFailureClass: 'channel-broken',
+        fallbackCount: 1,
+        succeededVia: 'maestro-cli-fallback'
+      });
+    });
+
+    it('iOS HTTP no-aut-tree (SpringBoard-only) → maestro-cli-fallback (success): lastFailureClass=other, fallbackCount=1', async () => {
+      const httpRequest = async () => ({
+        statusCode: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          axElement: {
+            identifier: 'com.apple.springboard',
+            elementType: 1,
+            enabled: true,
+            frame: { X: 0, Y: 0, Width: 390, Height: 844 },
+            children: []
+          },
+          depth: 1
+        })
+      });
+      const execMaestro = async () => ({ stdout: maestroSimple, stderr: '', exitCode: 0 });
+      await dump({ platform: 'ios', getEnv: validIosEnv, httpRequest, execMaestro });
+
+      const slot = getMaestroHierarchyDrift().ios;
+      expect(slot.lastFailureClass).toBe('other');
+      expect(slot.fallbackCount).toBe(1);
+      expect(slot.succeededVia).toBe('maestro-cli-fallback');
+    });
+
+    it('iOS env-missing → lastFailureClass=other, fallbackCount=0, succeededVia=none', async () => {
+      await dump({ platform: 'ios', getEnv: () => undefined });
+
+      expect(getMaestroHierarchyDrift().ios).toEqual({
+        lastFailureClass: 'other',
+        fallbackCount: 0,
+        succeededVia: 'none'
+      });
+    });
+
+    it('Android adb-unavailable (no devices) → lastFailureClass=other, fallbackCount=0, succeededVia=none', async () => {
+      // adb `devices` returns empty → resolveSerial returns classification.
+      const execAdb = async () => ({ stdout: 'List of devices attached\n\n', stderr: '', exitCode: 0 });
+      await dump({ platform: 'android', execAdb, execMaestro: maestroNotFound, getEnv: () => undefined });
+
+      expect(getMaestroHierarchyDrift().android).toEqual({
+        lastFailureClass: 'other',
+        fallbackCount: 0,
+        succeededVia: 'none'
+      });
+    });
+
+    // ─── Cross-platform isolation ───────────────────────────────────────
+
+    it('iOS activity does not touch android slot and vice versa', async () => {
+      const cache = new Map();
+      // Android gRPC contention → adb
+      await dump({
+        platform: 'android',
+        getEnv: validAndroidEnv(),
+        execAdb: makeFakeExecAdb([
+          { match: args => args[0] === 'devices', result: okDevices },
+          { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
+        ]),
+        execMaestro: maestroNotFound,
+        grpcClient: makeGrpcFactory({ error: { code: GRPC_STATUS.DEADLINE_EXCEEDED } }),
+        grpcClientCache: cache
+      });
+      // iOS env-missing
+      await dump({ platform: 'ios', getEnv: () => undefined });
+
+      const drift = getMaestroHierarchyDrift();
+      expect(drift.android.succeededVia).toBe('adb');
+      expect(drift.ios.succeededVia).toBe('none');
+      expect(drift.android.lastFailureClass).toBe('contention-class');
+      expect(drift.ios.lastFailureClass).toBe('other');
+    });
+
+    // ─── Reset helper covers all fields ─────────────────────────────────
+
+    it('__testing.resetMaestroHierarchyDrift clears activity counters too', async () => {
+      const cache = new Map();
+      await dump({
+        platform: 'android',
+        getEnv: validAndroidEnv(),
+        execAdb: makeFakeExecAdb([
+          { match: args => args[0] === 'devices', result: okDevices },
+          { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
+        ]),
+        execMaestro: maestroNotFound,
+        grpcClient: makeGrpcFactory({ error: { code: GRPC_STATUS.DEADLINE_EXCEEDED } }),
+        grpcClientCache: cache
+      });
+      expect(getMaestroHierarchyDrift().android).not.toBeNull();
+
+      __testing.resetMaestroHierarchyDrift();
+      expect(getMaestroHierarchyDrift()).toEqual({ android: null, ios: null });
+    });
+
+    // ─── R7: info-level transition logs ─────────────────────────────────
+
+    it('R7: gRPC contention-class → adb transition emits info-level log line with structured shape', async () => {
+      const cache = new Map();
+      await dump({
+        platform: 'android',
+        getEnv: validAndroidEnv(),
+        execAdb: makeFakeExecAdb([
+          { match: args => args[0] === 'devices', result: okDevices },
+          { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
+        ]),
+        execMaestro: maestroNotFound,
+        grpcClient: makeGrpcFactory({ error: { code: GRPC_STATUS.DEADLINE_EXCEEDED, message: 'queued' } }),
+        grpcClientCache: cache
+      });
+      const log = logger.stdout.join('\n');
+      expect(log).toMatch(/\[percy\] hierarchy: grpc failed \(contention-class: grpc-contention-deadline_exceeded\) → falling back to adb/);
+    });
+
+    it('R7: gRPC channel-broken → maestro-cli transition emits info-level log line', async () => {
+      const cache = new Map();
+      await dump({
+        platform: 'android',
+        getEnv: validAndroidEnv(),
+        execAdb: makeFakeExecAdb([{ match: args => args[0] === 'devices', result: okDevices }]),
+        execMaestro: maestroHierarchyOk,
+        grpcClient: makeGrpcFactory({ error: { code: GRPC_STATUS.UNAVAILABLE, message: 'gone' } }),
+        grpcClientCache: cache
+      });
+      const log = logger.stdout.join('\n');
+      expect(log).toMatch(/\[percy\] hierarchy: grpc failed \(channel-broken: grpc-channel-broken-unavailable\) → falling back to maestro-cli/);
+    });
+
+    it('R7: maestro-cli → adb transition emits info-level log line', async () => {
+      await dump({
+        platform: 'android',
+        execMaestro: async () => ({ stdout: '', stderr: 'failed', exitCode: 1 }),
+        execAdb: makeFakeExecAdb([
+          { match: args => args[0] === 'devices', result: okDevices },
+          { match: args => args.includes('exec-out'), result: { stdout: loadFixture('simple.xml'), stderr: '', exitCode: 0 } }
+        ]),
+        getEnv: () => undefined
+      });
+      const log = logger.stdout.join('\n');
+      expect(log).toMatch(/\[percy\] hierarchy: maestro-cli failed \(other: maestro-exit-1\) → falling back to adb/);
+    });
+
+    it('R7: iOS HTTP → maestro-cli transition (connection-fail) emits info-level log line', async () => {
+      const httpRequest = async () => { throw Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }); };
+      await dump({
+        platform: 'ios',
+        getEnv: validIosEnv,
+        httpRequest,
+        execMaestro: maestroHierarchyOk
+      });
+      const log = logger.stdout.join('\n');
+      expect(log).toMatch(/\[percy\] hierarchy: maestro-http failed \(channel-broken: http-econnrefused\) → falling back to maestro-cli-fallback/);
+    });
+
+    it('R7: iOS out-of-range port → maestro-cli emits info-level log line', async () => {
+      const getEnv = key => {
+        if (key === 'PERCY_IOS_DEVICE_UDID') return '00008110-000065081404401E';
+        if (key === 'PERCY_IOS_DRIVER_HOST_PORT') return '99999'; // out of range
+        return undefined;
+      };
+      await dump({
+        platform: 'ios', getEnv,
+        httpRequest: async () => { throw new Error('should not run'); },
+        execMaestro: maestroHierarchyOk
+      });
+      const log = logger.stdout.join('\n');
+      expect(log).toMatch(/\[percy\] hierarchy: maestro-http failed \(other: out-of-range-port-99999\) → falling back to maestro-cli-fallback/);
+    });
+
+    it('R7: successful gRPC primary does NOT emit any "falling back to" info line', async () => {
+      const cache = new Map();
+      await dump({
+        platform: 'android',
+        getEnv: validAndroidEnv(),
+        execAdb: makeFakeExecAdb([{ match: args => args[0] === 'devices', result: okDevices }]),
+        execMaestro: maestroNotFound,
+        grpcClient: makeGrpcFactory({ response: { hierarchy: simpleGrpcXml } }),
+        grpcClientCache: cache
+      });
+      const log = logger.stdout.join('\n');
+      expect(log).not.toMatch(/\[percy\] hierarchy:.*falling back/);
     });
   });
 

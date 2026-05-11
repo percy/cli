@@ -148,11 +148,29 @@ const protoPackageDef = protoLoader.loadSync(protoFilePath, {
 const MaestroDriverClient = grpc.loadPackageDefinition(protoPackageDef)
   .maestro_android.MaestroDriver;
 
-// Two-slot drift envelope. Records the first schema-class failure per platform
-// so /percy/healthcheck can surface contract drift to ops. Each slot is
-// monotonic — once set, only the first occurrence's `firstSeenAt` is preserved.
-// Both Android (gRPC) and iOS (HTTP) schema-class call sites flow through the
-// same setMaestroHierarchyDrift({platform}) setter below.
+// Two-slot drift + resolver-activity envelope. Surfaces on /percy/healthcheck
+// so ops can answer two questions from one HTTP probe:
+//
+//   1. Has the per-platform schema-class drift bit fired? (set-once,
+//      first-seen-per-platform wins — preserves the original semantics)
+//         Fields: `code`, `reason`, `firstSeenAt` — only present after a
+//         schema-class failure on that platform.
+//
+//   2. What is the resolver cascade actually doing on this BS host?
+//      (R7/R8 — added to surface channel-broken / contention-class outcomes
+//      that previously only showed at --verbose debug level.)
+//         Fields: `lastFailureClass` ('schema-class' | 'channel-broken' |
+//         'contention-class' | 'other' | null), `fallbackCount` (cumulative
+//         primary→fallback transitions this process), `succeededVia`
+//         ('grpc' | 'maestro-cli' | 'adb' | 'maestro-http' |
+//         'maestro-cli-fallback' | 'none' | null — matches the existing
+//         `dump took Nms via X` log vocabulary).
+//
+// Both field groups coexist on the same per-platform slot. Slot stays `null`
+// until any resolver activity touches it; first activity initialises the
+// activity-counter fields, schema-class failure additionally sets the
+// drift-bit fields. Existing ops consumers reading `slot.{code,reason,firstSeenAt}`
+// keep working unchanged.
 //
 // Module-scoped is deliberate: drift is observability state — surfaced
 // process-wide on /percy/healthcheck. Multiple Percy instances in one process
@@ -458,18 +476,98 @@ function flattenMaestroNodes(root) {
   return nodes;
 }
 
-// Drift-bit setter. First-seen-per-platform wins; subsequent same-platform
-// writes are no-ops to preserve the original `firstSeenAt`. Unknown platform
-// values are silently ignored — the setter is internal and the call sites
-// pass static literals.
+// Lazily initialise the per-platform slot on first activity. Returns the slot
+// reference (mutable) or `null` for unknown platforms. Activity counters start
+// at their resting values so a slot that only ever saw a successful primary
+// reads `{lastFailureClass: null, fallbackCount: 0, succeededVia: <via>}`.
+function ensureSlot(platform) {
+  if (platform !== 'android' && platform !== 'ios') return null;
+  if (!maestroHierarchyDrift[platform]) {
+    maestroHierarchyDrift[platform] = {
+      lastFailureClass: null,
+      fallbackCount: 0,
+      succeededVia: null
+    };
+  }
+  return maestroHierarchyDrift[platform];
+}
+
+// Drift-bit setter. First-seen-per-platform wins for the `code`/`reason`/
+// `firstSeenAt` triple — preserves the original observable semantics. Coexists
+// with the activity-counter fields on the same slot. Unknown platform values
+// are silently ignored — the setter is internal and the call sites pass static
+// literals.
 function setMaestroHierarchyDrift({ platform, code, reason }) {
-  if (platform !== 'android' && platform !== 'ios') return;
-  if (maestroHierarchyDrift[platform]) return;
-  maestroHierarchyDrift[platform] = {
-    code,
-    reason,
-    firstSeenAt: new Date().toISOString()
-  };
+  const slot = ensureSlot(platform);
+  if (!slot) return;
+  if (slot.firstSeenAt) return; // first-seen wins
+  slot.code = code;
+  slot.reason = reason;
+  slot.firstSeenAt = new Date().toISOString();
+}
+
+// Records a primary→fallback transition. Increments the cumulative counter
+// and updates `lastFailureClass` to the most recent class (most-recent-wins;
+// the counter retains history). Called from the cascade orchestrator in
+// `dump()` at each fallback edge.
+function recordResolverFallback({ platform, failureClass }) {
+  const slot = ensureSlot(platform);
+  if (!slot) return;
+  slot.fallbackCount += 1;
+  slot.lastFailureClass = failureClass;
+}
+
+// Records the resolver that ultimately served the dump. Most-recent-wins;
+// `fallbackCount` and `lastFailureClass` are preserved (history). Called
+// from `dump()` immediately before returning a `kind: 'hierarchy'` result.
+function recordResolverSuccess({ platform, via }) {
+  const slot = ensureSlot(platform);
+  if (!slot) return;
+  slot.succeededVia = via;
+}
+
+// Records an unrecoverable failure — schema-class (no fallback per D10),
+// env-missing, adb-unavailable, all-fallbacks-failed. Sets `succeededVia`
+// to `'none'` and updates `lastFailureClass`. Drift-bit fields (if
+// applicable for schema-class) are set separately via
+// `setMaestroHierarchyDrift` at the same call site.
+function recordResolverFinalFailure({ platform, failureClass }) {
+  const slot = ensureSlot(platform);
+  if (!slot) return;
+  slot.lastFailureClass = failureClass;
+  slot.succeededVia = 'none';
+}
+
+// Maps a resolver result's reason string to the failure-class taxonomy used
+// in observability surfaces (envelope `lastFailureClass`, info log lines).
+// Returns one of: 'schema-class' | 'channel-broken' | 'contention-class' |
+// 'other'. The taxonomy lifts the existing classifier reason-string prefixes
+// (`grpc-schema-`, `grpc-contention-`, `grpc-channel-broken-`, etc.) up one
+// level so ops sees a stable four-value enum.
+function failureClassFromReason(reason) {
+  if (typeof reason !== 'string') return 'other';
+  if (reason.startsWith('grpc-contention-')) return 'contention-class';
+  if (reason.startsWith('grpc-channel-broken-')) return 'channel-broken';
+  if (reason.startsWith('grpc-schema-') ||
+      reason === 'grpc-decode' ||
+      reason === 'grpc-no-xml-envelope' ||
+      reason === 'grpc-unexpected-root' ||
+      reason.startsWith('grpc-parse-error')) {
+    return 'schema-class';
+  }
+  // iOS HTTP connection codes from classifyIosHttpFailure: http-econnrefused etc.
+  // and http-5xx (server reachable but unhealthy).
+  if (/^http-[a-z]+$/.test(reason)) return 'channel-broken';
+  if (/^http-5\d\d$/.test(reason)) return 'channel-broken';
+  // iOS HTTP schema/shape errors: http-4xx, http-unexpected-status-N,
+  // http-missing-*, http-parse-error*, http-frame-*, http-flatten-error*.
+  if (/^http-(missing-|parse-error|frame-|flatten-error|unexpected-)/.test(reason) ||
+      /^http-[34]\d\d/.test(reason)) {
+    return 'schema-class';
+  }
+  // Everything else (maestro-exit-N, maestro-parse-error, maestro-no-json,
+  // no-aut-tree springboard-only, out-of-range-port-N, shutdown, env-missing).
+  return 'other';
 }
 
 // ─── Android gRPC primary path ─────────────────────────────────────────────
@@ -983,6 +1081,7 @@ export async function dump({
     const driverHostPortRaw = getEnv('PERCY_IOS_DRIVER_HOST_PORT');
     if (!udid || !driverHostPortRaw) {
       log.warn(`iOS resolver env-missing: udid=${udid ? 'set' : 'unset'} driver_port=${driverHostPortRaw ? 'set' : 'unset'}`);
+      recordResolverFinalFailure({ platform: 'ios', failureClass: 'other' });
       return { kind: 'unavailable', reason: 'env-missing' };
     }
 
@@ -994,6 +1093,7 @@ export async function dump({
       httpResult = await runIosHttpDump({ port: driverHostPort, sessionId, httpRequest });
       if (httpResult.kind === 'hierarchy') {
         log.debug(`dump took ${Date.now() - started}ms via maestro-http (${httpResult.nodes.length} nodes)`);
+        recordResolverSuccess({ platform: 'ios', via: 'maestro-http' });
         return httpResult;
       }
       if (httpResult.kind === 'dump-error') {
@@ -1001,18 +1101,28 @@ export async function dump({
         // drift bit so /percy/healthcheck surfaces the contract mismatch
         // for ops investigation. First-seen-per-platform wins.
         setMaestroHierarchyDrift({ platform: 'ios', code: undefined, reason: httpResult.reason });
+        recordResolverFinalFailure({ platform: 'ios', failureClass: 'schema-class' });
         log.warn(`iOS HTTP schema-drift: ${httpResult.reason}`);
         return httpResult;
       }
       // Otherwise (connection-fail or no-aut-tree): fall through to CLI.
-      log.debug(`iOS HTTP ${httpResult.kind} (${httpResult.reason}); falling back to maestro-cli`);
+      const httpClass = failureClassFromReason(httpResult.reason);
+      recordResolverFallback({ platform: 'ios', failureClass: httpClass });
+      log.info(`[percy] hierarchy: maestro-http failed (${httpClass}: ${httpResult.reason}) → falling back to maestro-cli-fallback`);
     } else {
-      log.debug(`PERCY_IOS_DRIVER_HOST_PORT=${driverHostPortRaw} out of range [${IOS_DRIVER_HOST_PORT_MIN}-${IOS_DRIVER_HOST_PORT_MAX}]; using maestro-cli fallback`);
+      const oorReason = `out-of-range-port-${driverHostPortRaw}`;
+      recordResolverFallback({ platform: 'ios', failureClass: 'other' });
+      log.info(`[percy] hierarchy: maestro-http failed (other: ${oorReason}) → falling back to maestro-cli-fallback`);
     }
 
     const cliResult = await runMaestroIosDump(udid, driverHostPort ?? driverHostPortRaw, execMaestro, getEnv);
     const httpReason = httpResult ? `${httpResult.kind}/${httpResult.reason}` : 'out-of-range-port';
     log.debug(`dump took ${Date.now() - started}ms via maestro-cli-fallback (${httpReason}) kind=${cliResult.kind}`);
+    if (cliResult.kind === 'hierarchy') {
+      recordResolverSuccess({ platform: 'ios', via: 'maestro-cli-fallback' });
+    } else {
+      recordResolverFinalFailure({ platform: 'ios', failureClass: failureClassFromReason(cliResult.reason) });
+    }
     return cliResult;
   }
 
@@ -1020,6 +1130,7 @@ export async function dump({
   const { serial, classification } = await resolveSerial({ execAdb, getEnv });
   if (classification) {
     log.warn(`adb unavailable: ${classification.reason}`);
+    recordResolverFinalFailure({ platform: 'android', failureClass: 'other' });
     return classification;
   }
 
@@ -1049,25 +1160,31 @@ export async function dump({
       });
       if (grpcResult.kind === 'hierarchy') {
         log.debug(`dump took ${Date.now() - started}ms via grpc (${grpcResult.nodes.length} nodes)`);
+        recordResolverSuccess({ platform: 'android', via: 'grpc' });
         return grpcResult;
       }
       if (grpcResult.kind === 'unavailable' && grpcResult.reason === 'shutdown') {
         // R-7: shutdown-in-progress. Don't spawn fallback chain on a tearing-down process.
         log.debug('gRPC dump cancelled by shutdown; skipping fallback chain');
+        recordResolverFinalFailure({ platform: 'android', failureClass: 'other' });
         return grpcResult;
       }
       if (grpcResult.kind === 'dump-error') {
         // Schema-class — no fallback per D10. Drift bit set inside runAndroidGrpcDump.
+        recordResolverFinalFailure({ platform: 'android', failureClass: 'schema-class' });
         return grpcResult;
       }
       // connection-fail: split contention-class vs channel-broken per D10.
+      const grpcClass = failureClassFromReason(grpcResult.reason);
       if (isContentionClass(grpcResult.reason)) {
         // Contention-class: skip maestro CLI (would queue behind same flow); jump to adb.
-        log.debug(`gRPC ${grpcResult.reason}; skipping CLI, going straight to adb`);
+        recordResolverFallback({ platform: 'android', failureClass: grpcClass });
+        log.info(`[percy] hierarchy: grpc failed (${grpcClass}: ${grpcResult.reason}) → falling back to adb`);
         skipMaestroCli = true;
       } else {
         // Channel-broken: fall through to maestro CLI (CLI re-establishes the channel).
-        log.debug(`gRPC ${grpcResult.reason}; falling through to maestro CLI`);
+        recordResolverFallback({ platform: 'android', failureClass: grpcClass });
+        log.info(`[percy] hierarchy: grpc failed (${grpcClass}: ${grpcResult.reason}) → falling back to maestro-cli`);
       }
     } else {
       log.debug(`PERCY_ANDROID_GRPC_PORT=${grpcPortRaw} invalid; skipping gRPC primary`);
@@ -1079,15 +1196,22 @@ export async function dump({
   if (!skipMaestroCli) {
     const maestroResult = await runMaestroDump(serial, execMaestro, getEnv);
     if (maestroResult.kind === 'hierarchy') {
-      log.debug(`dump took ${Date.now() - started}ms via maestro (${maestroResult.nodes.length} nodes)`);
+      log.debug(`dump took ${Date.now() - started}ms via maestro-cli (${maestroResult.nodes.length} nodes)`);
+      recordResolverSuccess({ platform: 'android', via: 'maestro-cli' });
       return maestroResult;
     }
-    log.debug(`maestro path returned ${maestroResult.kind} (${maestroResult.reason}); falling back to adb uiautomator`);
+    recordResolverFallback({ platform: 'android', failureClass: failureClassFromReason(maestroResult.reason) });
+    log.info(`[percy] hierarchy: maestro-cli failed (${failureClassFromReason(maestroResult.reason)}: ${maestroResult.reason}) → falling back to adb`);
   }
 
   // adb fallback (final).
   const result = await runAdbFallback(serial, execAdb);
   log.debug(`dump took ${Date.now() - started}ms via adb (kind=${result.kind})`);
+  if (result.kind === 'hierarchy') {
+    recordResolverSuccess({ platform: 'android', via: 'adb' });
+  } else {
+    recordResolverFinalFailure({ platform: 'android', failureClass: failureClassFromReason(result.reason) });
+  }
   return result;
 }
 
