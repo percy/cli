@@ -572,6 +572,66 @@ export class PercyClient {
     }, this, uploadConcurrency);
   }
 
+  // PUTs a single resource directly to its percy-api-issued GCS signed URL.
+  // Returns the resource when the upload hits a transport-class failure
+  // (caller falls back to legacy POST /resources). Throws on correctness-class
+  // failures (400 BadDigest, 412 if-generation-match) — those signal a real
+  // bug in the declared md5/length or a leaked URL replay, and must not be
+  // silently masked by the fallback path.
+  async uploadResourceDirect(resource, meta = {}) {
+    let { signedUploadUrl, content, md5, contentLength, url, mimetype } = resource;
+    this.log.debug(`Direct-uploading ${formatBytes(contentLength)} resource: ${url}`, meta);
+    this.mayBeLogUploadSize(contentLength, meta);
+
+    let headers = {
+      'Content-MD5': md5,
+      'Content-Length': contentLength
+    };
+    if (mimetype) headers['Content-Type'] = mimetype;
+
+    try {
+      await request(signedUploadUrl, {
+        method: 'PUT',
+        rawBody: true,
+        body: content,
+        headers,
+        meta
+      });
+      return null;
+    } catch (err) {
+      let status = err.response?.statusCode;
+      if (status === 400 || status === 412) throw err;
+      this.log.debug(`Direct upload failed for ${url}, falling back to legacy: ${err.message}`, meta);
+      return resource;
+    }
+  }
+
+  // Uploads resources directly to GCS signed URLs concurrently. Returns the
+  // list of resources that hit transport-class failures so the caller can
+  // route them through the legacy upload path. Concurrency is shared with
+  // the legacy uploader via PERCY_RESOURCE_UPLOAD_CONCURRENCY.
+  async uploadResourcesDirect(resources, meta = {}) {
+    this.log.debug(`Direct-uploading ${resources.length} resource(s)...`, meta);
+
+    const uploadConcurrency = parseInt(process.env.PERCY_RESOURCE_UPLOAD_CONCURRENCY) || 2;
+    let fallback = [];
+
+    await pool(function*() {
+      for (let resource of resources) {
+        let resourceMeta = {
+          url: resource.url,
+          sha: resource.sha,
+          ...meta
+        };
+        yield this.uploadResourceDirect(resource, resourceMeta).then(failed => {
+          if (failed) fallback.push(failed);
+        });
+      }
+    }, this, uploadConcurrency);
+
+    return fallback;
+  }
+
   // Creates a snapshot for the active build using the provided attributes.
   async createSnapshot(buildId, {
     name,

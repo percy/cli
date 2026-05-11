@@ -1142,6 +1142,129 @@ describe('PercyClient', () => {
     });
   });
 
+  describe('#uploadResourceDirect() / #uploadResourcesDirect()', () => {
+    const GCS_BASE = 'https://storage.googleapis.com';
+    let gcsReply;
+
+    function makeResource(overrides = {}) {
+      const content = overrides.content ?? 'foo';
+      return {
+        url: '/foo.css',
+        sha: sha256hash(content),
+        mimetype: 'text/css',
+        content,
+        md5: md5base64(content),
+        contentLength: Buffer.byteLength(content, 'utf-8'),
+        signedUploadUrl: `${GCS_BASE}/percy-resources/ns_gid_${sha256hash(content)}?sig=fake`,
+        ...overrides
+      };
+    }
+
+    beforeEach(async () => {
+      gcsReply = await mockRequests(GCS_BASE);
+    });
+
+    it('PUTs raw bytes with Content-MD5, Content-Length, Content-Type headers and resolves to null on 200', async () => {
+      gcsReply.and.callFake(() => [200]);
+
+      const resource = makeResource({ content: 'p { color: purple; }' });
+      await expectAsync(client.uploadResourceDirect(resource)).toBeResolvedTo(null);
+
+      const req = gcsReply.calls.mostRecent().args[0];
+      expect(req.method).toBe('PUT');
+      expect(req.headers['Content-MD5']).toBe(resource.md5);
+      expect(req.headers['Content-Length']).toBe(resource.contentLength);
+      expect(req.headers['Content-Type']).toBe('text/css');
+    });
+
+    it('returns the resource for fallback on 403 (signed URL expired)', async () => {
+      gcsReply.and.callFake(() => [403, 'expired']);
+
+      const resource = makeResource();
+      await expectAsync(client.uploadResourceDirect(resource)).toBeResolvedTo(resource);
+    });
+
+    it('returns the resource for fallback on 429 (rate limited)', async () => {
+      gcsReply.and.callFake(() => [429]);
+
+      const resource = makeResource();
+      await expectAsync(client.uploadResourceDirect(resource)).toBeResolvedTo(resource);
+    });
+
+    it('returns the resource for fallback on 5xx after retries', async () => {
+      gcsReply.and.callFake(() => [503]);
+
+      const resource = makeResource();
+      await expectAsync(client.uploadResourceDirect(resource)).toBeResolvedTo(resource);
+    });
+
+    it('throws on 400 BadDigest (correctness failure must surface, not be masked)', async () => {
+      gcsReply.and.callFake(() => [400, '<Error><Code>BadDigest</Code></Error>']);
+
+      const resource = makeResource();
+      await expectAsync(client.uploadResourceDirect(resource)).toBeRejected();
+    });
+
+    it('throws on 412 Precondition Failed (object already exists — replay or bug)', async () => {
+      gcsReply.and.callFake(() => [412, '<Error><Code>PreconditionFailed</Code></Error>']);
+
+      const resource = makeResource();
+      await expectAsync(client.uploadResourceDirect(resource)).toBeRejected();
+    });
+
+    it('omits Content-Type when resource has no mimetype', async () => {
+      gcsReply.and.callFake(() => [200]);
+
+      const resource = makeResource();
+      delete resource.mimetype;
+      await client.uploadResourceDirect(resource);
+
+      const req = gcsReply.calls.mostRecent().args[0];
+      expect(req.headers['Content-Type']).toBeUndefined();
+    });
+
+    describe('#uploadResourcesDirect()', () => {
+      it('resolves to empty fallback list when every resource succeeds', async () => {
+        gcsReply.and.callFake(() => [200]);
+
+        await expectAsync(client.uploadResourcesDirect([
+          makeResource({ content: 'a' }),
+          makeResource({ content: 'b' })
+        ])).toBeResolvedTo([]);
+      });
+
+      it('collects transport-failed resources for fallback while letting successes pass', async () => {
+        const resources = [
+          makeResource({ content: 'a' }),
+          makeResource({ content: 'b' }),
+          makeResource({ content: 'c' })
+        ];
+
+        // succeed for 'a' and 'c', 5xx for 'b'
+        gcsReply.and.callFake(({ path }) => {
+          if (path.includes(resources[1].sha)) return [503];
+          return [200];
+        });
+
+        const fallback = await client.uploadResourcesDirect(resources);
+        expect(fallback.length).toBe(1);
+        expect(fallback[0].sha).toBe(resources[1].sha);
+      });
+
+      it('propagates correctness failures from any resource', async () => {
+        gcsReply.and.callFake(() => [400, '<Error><Code>BadDigest</Code></Error>']);
+
+        await expectAsync(client.uploadResourcesDirect([
+          makeResource()
+        ])).toBeRejected();
+      });
+
+      it('does nothing for an empty resource list', async () => {
+        await expectAsync(client.uploadResourcesDirect([])).toBeResolvedTo([]);
+      });
+    });
+  });
+
   describe('#createSnapshot()', () => {
     it('throws when missing a build id', async () => {
       await expectAsync(client.createSnapshot())
