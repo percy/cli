@@ -12,18 +12,25 @@ import {
 describe('Unit / Archive', () => {
   describe('validateArchiveDir', () => {
     it('resolves a valid path', () => {
-      let result = validateArchiveDir('/tmp/percy-archive');
-      expect(result).toBe('/tmp/percy-archive');
+      // Use path.resolve to construct the expected value so this works on
+      // Windows (which prepends a drive letter) as well as POSIX.
+      let input = path.resolve('/tmp/percy-archive');
+      let result = validateArchiveDir(input);
+      expect(result).toBe(input);
     });
 
     it('resolves a relative path to absolute', () => {
       let result = validateArchiveDir('./percy-archive');
-      expect(result).toMatch(/\/percy-archive$/);
+      // Windows resolves to backslash separators; match either / or \.
+      expect(result).toMatch(/[\\/]percy-archive$/);
       expect(result).not.toContain('..');
     });
 
     it('rejects paths that resolve to traversal segments', () => {
-      let traversal = '/foo/../../etc';
+      // Construct the path using the platform path.sep so the traversal
+      // check (which splits on path.sep) sees the '..' segments on both
+      // POSIX and Windows.
+      let traversal = ['', 'foo', '..', '..', 'etc'].join(path.sep);
       spyOn(path, 'resolve').and.returnValue(traversal);
       spyOn(path, 'normalize').and.returnValue(traversal);
 
@@ -194,6 +201,10 @@ describe('Unit / Archive', () => {
 
     it('skips symlink entries with a warning', () => {
       let archiveDir = '.test-archive-symlink';
+      // Clean any stale dir from a previous failed run — without this,
+      // Windows CI hits EEXIST on the symlink because the dir persists
+      // between runs.
+      fs.rmSync(archiveDir, { recursive: true, force: true });
       fs.mkdirSync(archiveDir, { recursive: true });
       fs.writeFileSync(`${archiveDir}/target.json`, '{}');
       fs.symlinkSync(

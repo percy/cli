@@ -2310,9 +2310,10 @@ describe('Percy', () => {
       percy = new Percy({ token: 'PERCY_TOKEN', archiveDir: './percy-archive' });
       await expectAsync(percy.start()).toBeResolved();
 
-      expect(percy.archiveDir).toMatch(/\/percy-archive$/);
+      // Windows resolves to backslash separators; match either / or \.
+      expect(percy.archiveDir).toMatch(/[\\/]percy-archive$/);
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Archiving snapshots to: .*\/percy-archive/)
+        jasmine.stringMatching(/Archiving snapshots to: .*[\\/]percy-archive/)
       ]));
     });
 
@@ -2343,7 +2344,7 @@ describe('Percy', () => {
       await expectAsync(percy.stop()).toBeResolved();
 
       expect(logger.stdout).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Archived 1 snapshot\(s\) to: .*\/percy-archive/)
+        jasmine.stringMatching(/Archived 1 snapshot\(s\) to: .*[\\/]percy-archive/)
       ]));
     });
 
