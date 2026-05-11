@@ -141,7 +141,7 @@ export async function request(url, options = {}, callback) {
   // gather request options
   let {
     body, headers, retries, retryNotFound,
-    interval, noProxy, buffer, meta = {}, ...requestOptions
+    interval, noProxy, buffer, rawBody, meta = {}, ...requestOptions
   } = options;
   let { protocol, hostname, port, pathname, search, hash } = new URL(url);
 
@@ -151,8 +151,9 @@ export async function request(url, options = {}, callback) {
   let { default: http } = protocol === 'https:' ? await import('https') : await import('http');
   let { proxyAgentFor } = await import('./proxy.js');
 
-  // automatically stringify body content
-  if (body !== undefined && typeof body !== 'string') {
+  // rawBody: send body and headers verbatim (e.g. binary PUT to a GCS signed URL).
+  // Otherwise stringify non-string bodies as JSON.
+  if (!rawBody && body !== undefined && typeof body !== 'string') {
     headers = { 'Content-Type': 'application/json', ...headers };
     body = JSON.stringify(body);
   }
