@@ -128,8 +128,9 @@ function markInteractiveStates(ctx) {
   // walk cost. Also tracks which states were observed so the CSS rule
   // extractor can skip work for selectors that have no matched elements.
   ctx._stampedInteractive = ctx._stampedInteractive || new Set();
+  // walkShadowDOM only invokes the visitor with Document/Element/ShadowRoot
+  // scopes — each has querySelectorAll, so no defensive guard is needed here.
   walkShadowDOM(ctx.dom, scope => {
-    if (!scope.querySelectorAll) return;
     try {
       for (const el of scope.querySelectorAll(':checked')) {
         stampOnce(ctx, el, CHECKED_ATTR, 'true');
