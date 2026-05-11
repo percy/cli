@@ -297,7 +297,6 @@ export class Network {
       try {
         await this.send(session, 'Fetch.failRequest', { requestId: interceptId, errorReason: 'Aborted' });
       } catch (error) {
-        /* istanbul ignore next: race with abort/close */
         this.log.debug(`Failed to abort oversized response for ${url}: ${error.message}`);
       }
       return;
@@ -312,7 +311,6 @@ export class Network {
     try {
       await this.send(session, 'Fetch.continueResponse', { requestId: interceptId });
     } catch (error) {
-      /* istanbul ignore next: race with abort/close */
       if (error.message === ABORTED_MESSAGE || error.message.includes('Invalid InterceptionId')) return;
       this.log.debug(`Failed to continue response for ${url}: ${error.message}`);
     }

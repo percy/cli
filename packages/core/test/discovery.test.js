@@ -3126,6 +3126,148 @@ describe('Discovery', () => {
         c.params?.requestId === 'untracked-malformed-intercept'
       )).toBe(true);
     });
+
+    it('logs gracefully when Fetch.failRequest fails during malformed-CL abort', async () => {
+      spyOn(Session.prototype, 'send').and.callFake(function(method, params) {
+        if (method === 'Fetch.failRequest' && params?.requestId === 'fail-request-intercept') {
+          return Promise.reject(new Error('Target closed'));
+        }
+        return Session.prototype.send.and.originalFn.call(this, method, params);
+      });
+
+      let snap = percy.snapshot({
+        name: 'fail-request error snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await waitFor(() => percy.browser.sessions.size > 0);
+      let [session] = percy.browser.sessions.values();
+
+      session.emit('Fetch.requestPaused', {
+        networkId: 'fail-request-id',
+        requestId: 'fail-request-intercept',
+        responseStatusCode: 200,
+        responseHeaders: [{ name: 'Content-Length', value: 'NaN' }],
+        request: { url: 'http://example.com/orphan-fail-request' }
+      });
+
+      await snap;
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Failed to abort oversized response for http:\/\/example\.com\/orphan-fail-request: Target closed/)
+      ]));
+    });
+
+    it('silently swallows Fetch.continueResponse benign races (ABORTED_MESSAGE)', async () => {
+      spyOn(Session.prototype, 'send').and.callFake(function(method, params) {
+        if (method === 'Fetch.continueResponse' && params?.requestId === 'continue-aborted-intercept') {
+          return Promise.reject(new Error('Request was aborted by browser'));
+        }
+        return Session.prototype.send.and.originalFn.call(this, method, params);
+      });
+
+      let snap = percy.snapshot({
+        name: 'continue-response aborted snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await waitFor(() => percy.browser.sessions.size > 0);
+      let [session] = percy.browser.sessions.values();
+
+      session.emit('Fetch.requestPaused', {
+        networkId: 'continue-aborted-id',
+        requestId: 'continue-aborted-intercept',
+        responseStatusCode: 200,
+        responseHeaders: [],
+        request: { url: 'http://example.com/orphan-continue-aborted' }
+      });
+
+      await snap;
+
+      expect(logger.stderr).not.toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Failed to continue response for http:\/\/example\.com\/orphan-continue-aborted/)
+      ]));
+    });
+
+    it('logs gracefully when Fetch.continueResponse fails with unexpected error', async () => {
+      spyOn(Session.prototype, 'send').and.callFake(function(method, params) {
+        if (method === 'Fetch.continueResponse' && params?.requestId === 'continue-error-intercept') {
+          return Promise.reject(new Error('Target closed'));
+        }
+        return Session.prototype.send.and.originalFn.call(this, method, params);
+      });
+
+      let snap = percy.snapshot({
+        name: 'continue-response error snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: testDOM
+      });
+
+      await waitFor(() => percy.browser.sessions.size > 0);
+      let [session] = percy.browser.sessions.values();
+
+      session.emit('Fetch.requestPaused', {
+        networkId: 'continue-error-id',
+        requestId: 'continue-error-intercept',
+        responseStatusCode: 200,
+        responseHeaders: [],
+        request: { url: 'http://example.com/orphan-continue-error' }
+      });
+
+      await snap;
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Failed to continue response for http:\/\/example\.com\/orphan-continue-error: Target closed/)
+      ]));
+    });
+
+    it('logs gracefully when direct worker-script fetch fails', async () => {
+      // Same Network.requestWillBeSent stall as `captures requests from workers`
+      // to force the response-event race that triggers RESPONSE_RECEIVED_TIMEOUT.
+      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+        let { method } = JSON.parse(data);
+        if (method === 'Network.requestWillBeSent') {
+          setTimeout(this._handleMessage.and.originalFn.bind(this), 10, data);
+        } else {
+          this._handleMessage.and.originalFn.call(this, data);
+        }
+      });
+
+      let workerHits = 0;
+      server.reply('/worker.js', () => {
+        workerHits += 1;
+        if (workerHits === 1) {
+          return [200, 'text/javascript', dedent`
+            self.addEventListener("message", async ({ data }) => {
+              let response = await fetch(new Request(data));
+              self.postMessage("done");
+            })`];
+        }
+        return [400, 'text/plain', 'bad request'];
+      });
+
+      server.reply('/', () => [200, 'text/html', dedent`
+        <!DOCTYPE html><html><head></head><body><script>
+          let worker = new Worker("/worker.js");
+          worker.addEventListener("message", ({ data }) => document.body.classList.add(data));
+          setTimeout(() => worker.postMessage("http://localhost:8000/img.gif"), 100);
+        </script></body></html>`]);
+
+      await percy.snapshot({
+        name: 'worker direct-fetch failure snapshot',
+        url: 'http://localhost:8000',
+        waitForSelector: '.done',
+        enableJavaScript: true
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Direct fetch failed for http:\/\/localhost:8000\/worker\.js -/)
+      ]));
+    });
   });
 
   describe('with remote resources', () => {
