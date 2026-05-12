@@ -10,6 +10,7 @@ import postBuildEvents from './post-build-event.js';
 import flushSnapshots from './flush-snapshots.js';
 import captureAutomateScreenshot from './post-screenshot.js';
 import getResponsiveWidths from './get-responsive-widths.js';
+import { waitForReadyScript, getReadinessConfig, isReadinessDisabled } from './serialize-dom.js';
 
 // Iframe depth constants shared with @percy/dom's serialize-frames. Kept
 // here so external Percy SDKs (Capybara, Cypress, Playwright, etc.) can
@@ -43,7 +44,10 @@ export {
   getResponsiveWidths,
   DEFAULT_MAX_IFRAME_DEPTH,
   HARD_MAX_IFRAME_DEPTH,
-  clampIframeDepth
+  clampIframeDepth,
+  waitForReadyScript,
+  getReadinessConfig,
+  isReadinessDisabled
 };
 
 // export the namespace by default
