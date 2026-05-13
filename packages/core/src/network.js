@@ -305,7 +305,7 @@ export class Network {
         if (error.message === ABORTED_MESSAGE || error.message.includes('Invalid InterceptionId')) {
           // benign race — request was already aborted upstream; nothing to un-pause
         } else {
-          this.log.warn(`Failed to abort oversized response for ${url}: ${error.message}`);
+          this.log.debug(`Failed to abort oversized response for ${url}: ${error.message}`);
           // Last-resort: un-pause Chrome's Fetch so it doesn't leak the response.
           try {
             await this.send(session, 'Fetch.continueResponse', { requestId: interceptId });
@@ -332,7 +332,7 @@ export class Network {
       await this.send(session, 'Fetch.continueResponse', { requestId: interceptId });
     } catch (error) {
       if (error.message === ABORTED_MESSAGE || error.message.includes('Invalid InterceptionId')) return;
-      this.log.warn(`Failed to continue response for ${url}: ${error.message}`);
+      this.log.debug(`Failed to continue response for ${url}: ${error.message}`);
     }
   }
 

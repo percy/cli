@@ -3243,7 +3243,7 @@ describe('Discovery', () => {
         return [400, 'text/plain', 'bad request'];
       });
 
-      let targetDOM = `<html><head><link href="direct-fetch-target.css" rel="stylesheet"/></head><body><p>x</p></body></html>`;
+      let targetDOM = '<html><head><link href="direct-fetch-target.css" rel="stylesheet"/></head><body><p>x</p></body></html>';
 
       await percy.snapshot({
         name: 'direct-fetch failure snapshot',
