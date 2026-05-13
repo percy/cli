@@ -3324,7 +3324,6 @@ describe('Discovery', () => {
         jasmine.stringMatching(/Skipping resource larger than 25MB/)
       ]));
     });
-
   });
 
   describe('with remote resources', () => {
