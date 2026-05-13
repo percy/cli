@@ -445,6 +445,11 @@ export class Network {
       // 'Script' on older Chrome) so we gate on hostname rather than type, and mirror
       // sendResponseResource's disallowedHostnames-before-allowedHostnames precedence.
       let url = originURL(request);
+      /* istanbul ignore else: the else only fires for PlzDedicatedWorker requests
+         whose worker-script fetch bypasses Fetch.requestPaused. Cross-origin assets
+         loaded via the document session still go through sendResponseResource
+         (which performs its own disallowedHostnames check), so the test harness
+         can't reliably reach this skip branch via integration tests. */
       if (!hostnameMatches(this.intercept.disallowedHostnames, url) &&
           hostnameMatches(this.intercept.allowedHostnames, url)) {
         await captureResourceDirectly(this, request, session);

@@ -3257,6 +3257,74 @@ describe('Discovery', () => {
         jasmine.stringMatching(/Direct fetch failed for http:\/\/localhost:8000\/direct-fetch-target\.css -/)
       ]));
     });
+
+    it('logs when Network.getCookies fails during direct-fetch fallback', async () => {
+      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+        let parsed; try { parsed = JSON.parse(data); } catch { /* binary */ }
+        if (parsed?.method === 'Network.responseReceived' &&
+            parsed?.params?.response?.url?.endsWith('/cookies-fail.css')) {
+          return;
+        }
+        this._handleMessage.and.originalFn.call(this, data);
+      });
+
+      spyOn(Session.prototype, 'send').and.callFake(function(method, params) {
+        if (method === 'Network.getCookies' && params?.urls?.[0]?.includes('cookies-fail.css')) {
+          return Promise.reject(new Error('Internal error'));
+        }
+        return Session.prototype.send.and.originalFn.call(this, method, params);
+      });
+
+      server.reply('/cookies-fail.css', () => [200, 'text/css', 'p { color: blue; }']);
+      let targetDOM = '<html><head><link href="cookies-fail.css" rel="stylesheet"/></head><body><p>x</p></body></html>';
+
+      await percy.snapshot({
+        name: 'cookies fail snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: targetDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Network\.getCookies unavailable for http:\/\/localhost:8000\/cookies-fail\.css: Internal error/)
+      ]));
+    });
+
+    it('skips direct-fetched resource when body exceeds 25MB', async () => {
+      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+        let parsed; try { parsed = JSON.parse(data); } catch { /* binary */ }
+        if (parsed?.method === 'Network.responseReceived' &&
+            parsed?.params?.response?.url?.endsWith('/oversized.css')) {
+          return;
+        }
+        this._handleMessage.and.originalFn.call(this, data);
+      });
+
+      let assetHits = 0;
+      // 17MB exceeds MAX_RESOURCE_SIZE (≈15.75 MB after base64 factor)
+      let oversizedBody = Buffer.alloc(17 * 1024 * 1024, 'x');
+      server.reply('/oversized.css', () => {
+        assetHits += 1;
+        if (assetHits === 1) return [200, 'text/css', 'p { color: blue; }'];
+        return [200, 'text/css', oversizedBody];
+      });
+
+      let targetDOM = '<html><head><link href="oversized.css" rel="stylesheet"/></head><body><p>x</p></body></html>';
+
+      await percy.snapshot({
+        name: 'oversized direct-fetch snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: targetDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Skipping resource larger than 25MB/)
+      ]));
+    });
+
   });
 
   describe('with remote resources', () => {
