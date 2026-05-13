@@ -7,8 +7,11 @@ const MAX_RESOURCE_SIZE = 25 * (1024 ** 2) * 0.63; // 25MB, 0.63 factor for acco
 const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
-// Chrome 143 omits Network.responseReceived for worker scripts; cap the wait so loadingFinished can clean up.
+// Chrome 143 omits Network.responseReceived for worker scripts; cap the wait
+// so loadingFinished can clean up. Per-request — N timeouts accumulate to N*2s; real-world N is ~1–2.
 const RESPONSE_RECEIVED_TIMEOUT = 2000;
+// Cap idle() impact when a host accepts the TCP connection then stalls during a direct fetch.
+const DIRECT_FETCH_TIMEOUT = 5000;
 
 // Stable, machine-readable codes for abort errors thrown from this module.
 // Consumers should prefer `error.code` over string matching on `error.message`.
@@ -279,8 +282,11 @@ export class Network {
   // hangs worker-initiated fetches, so we don't.
   _handleResponsePaused = async (session, event) => {
     let { networkId: requestId, requestId: interceptId, responseHeaders, responseStatusCode } = event;
+    // request may be undefined when a response-stage pause arrives for a request
+    // whose request-stage tracking we never installed (service-worker-fulfilled,
+    // or a cleanup race). We still need to unpause Chrome regardless.
     let request = this.#requests.get(requestId);
-    let url = request ? originURL(request) : event.request?.url;
+    let url = request ? originURL(request) : (event.request?.url && normalizeURL(event.request.url));
     let headersObj = headersArrayToObject(responseHeaders);
     let { tooLarge, malformed, rawValue } = inspectContentLength(headersObj);
 
@@ -290,14 +296,28 @@ export class Network {
         url, size: rawValue, snapshot: meta.snapshot
       });
       this.log.debug('- Skipping resource larger than 25MB', meta);
-      if (request) {
-        this._forgetRequest(request);
-        this.#requestsLifeCycleHandler.get(requestId).resolveResponseReceived();
-      }
+
+      // Disposition first, then forget the request — so we never leave Chrome's
+      // Fetch state paused while Percy thinks the request is already done.
       try {
         await this.send(session, 'Fetch.failRequest', { requestId: interceptId, errorReason: 'Aborted' });
       } catch (error) {
-        this.log.debug(`Failed to abort oversized response for ${url}: ${error.message}`);
+        if (error.message === ABORTED_MESSAGE || error.message.includes('Invalid InterceptionId')) {
+          // benign race — request was already aborted upstream; nothing to un-pause
+        } else {
+          this.log.warn(`Failed to abort oversized response for ${url}: ${error.message}`);
+          // Last-resort: un-pause Chrome's Fetch so it doesn't leak the response.
+          try {
+            await this.send(session, 'Fetch.continueResponse', { requestId: interceptId });
+          } catch (continueError) {
+            this.log.debug(`Last-resort continueResponse also failed for ${url}: ${continueError.message}`);
+          }
+        }
+      }
+
+      if (request) {
+        this._forgetRequest(request);
+        this.#requestsLifeCycleHandler.get(requestId).resolveResponseReceived();
       }
       return;
     }
@@ -312,7 +332,7 @@ export class Network {
       await this.send(session, 'Fetch.continueResponse', { requestId: interceptId });
     } catch (error) {
       if (error.message === ABORTED_MESSAGE || error.message.includes('Invalid InterceptionId')) return;
-      this.log.debug(`Failed to continue response for ${url}: ${error.message}`);
+      this.log.warn(`Failed to continue response for ${url}: ${error.message}`);
     }
   }
 
@@ -420,14 +440,16 @@ export class Network {
 
     if (!request.response) {
       this.log.debug(`Skipping resource: responseReceived not received within ${RESPONSE_RECEIVED_TIMEOUT}ms - ${request.url}`);
-      // Chrome 143+ fetches dedicated worker scripts in the browser process
-      // (PlzDedicatedWorker) and never surfaces the response on any CDP
-      // session. resourceType varies — v143 reports 'Other' for the worker
-      // script, older Chrome reports 'Script' — so we don't gate on type.
-      // We do gate on allowedHostnames so we never direct-fetch a host the
-      // snapshot wouldn't have captured anyway.
-      if (hostnameMatches(this.intercept.allowedHostnames, originURL(request))) {
-        await captureScriptDirectly(this, request, session);
+      // Chrome 143+ PlzDedicatedWorker: dedicated worker scripts fetch in the browser
+      // process and never surface a CDP response. resourceType varies ('Other' on v143,
+      // 'Script' on older Chrome) so we gate on hostname rather than type, and mirror
+      // sendResponseResource's disallowedHostnames-before-allowedHostnames precedence.
+      let url = originURL(request);
+      if (!hostnameMatches(this.intercept.disallowedHostnames, url) &&
+          hostnameMatches(this.intercept.allowedHostnames, url)) {
+        await captureResourceDirectly(this, request, session);
+      } else {
+        this.log.debug(`- Skipping direct-fetch fallback for ${url}: hostname not allowed`, this.meta);
       }
       this._forgetRequest(request);
       return;
@@ -507,7 +529,7 @@ export class Network {
   _initializeNetworkIdleWaitTimeout() {
     // Per-instance timeout so concurrent pages with different env values
     // (or env values changed mid-run by tests) don't stomp each other.
-    this.networkIdleWaitTimeout = parseInt(process.env.PERCY_NETWORK_IDLE_WAIT_TIMEOUT) || 30000;
+    this.networkIdleWaitTimeout = parseInt(process.env.PERCY_NETWORK_IDLE_WAIT_TIMEOUT, 10) || 30000;
 
     if (this.networkIdleWaitTimeout > 60000) {
       this.log.warn('Setting PERCY_NETWORK_IDLE_WAIT_TIMEOUT over 60000ms is not recommended. ' +
@@ -567,7 +589,7 @@ function headersArrayToObject(arr) {
 function inspectContentLength(headers) {
   let key = headers && Object.keys(headers).find(k => k.toLowerCase() === 'content-length');
   let rawValue = key ? headers[key] : undefined;
-  let parsed = parseInt(rawValue);
+  let parsed = parseInt(rawValue, 10);
   let tooLarge = Number.isFinite(parsed) && parsed > MAX_RESOURCE_SIZE;
   let malformed = rawValue !== undefined && rawValue !== null && String(rawValue).length > 0 && !Number.isFinite(parsed);
   return { tooLarge, malformed, rawValue };
@@ -689,15 +711,14 @@ async function sendResponseResource(network, request, session) {
   }
 }
 
-// Make a new request with Node based on a network request. The session is
-// usually the page session (full Network domain support), but for the v143
-// worker-script fallback the loadingFinished event arrives on the worker
-// session where Network.getCookies returns an Internal error — proceed with
-// no cookies in that case rather than abandoning the resource.
+// Make a new request with Node based on a network request. Cookies are read
+// from the page session because worker/auxiliary sessions have a partial
+// Network domain where Network.getCookies throws "Internal error".
 async function makeDirectRequest(network, request, session) {
   let cookies = [];
+  let cookieSession = network.page?.session ?? session;
   try {
-    ({ cookies } = await session.send('Network.getCookies', { urls: [request.url] }));
+    ({ cookies } = await cookieSession.send('Network.getCookies', { urls: [request.url] }));
   } catch (error) {
     network.log.debug(`Network.getCookies unavailable for ${request.url}: ${error.message}`);
   }
@@ -719,31 +740,53 @@ async function makeDirectRequest(network, request, session) {
   };
 
   if (network.authorization?.username) {
-    // include basic authorization username and password
-    let { username, password } = network.authorization;
-    let token = Buffer.from([username, password || ''].join(':')).toString('base64');
-    headers.Authorization = `Basic ${token}`;
+    // Browser's URLLoader origin-scopes Basic auth; this fallback runs in Node, so
+    // we re-enforce the same-origin rule explicitly to avoid leaking creds.
+    let targetOrigin, pageOrigin;
+    try { targetOrigin = new URL(request.url).origin; } catch {}
+    try { pageOrigin = new URL(network.meta?.snapshotURL).origin; } catch {}
+
+    if (targetOrigin && pageOrigin && targetOrigin === pageOrigin) {
+      let { username, password } = network.authorization;
+      let token = Buffer.from([username, password || ''].join(':')).toString('base64');
+      headers.Authorization = `Basic ${token}`;
+    }
   }
 
-  return makeRequest(request.url, { buffer: true, headers });
+  return makeRequest(request.url, { buffer: true, headers }, (body, res) => ({ body, status: res.statusCode }));
 }
 
 // Capture a resource via direct HTTP fetch when the browser-side response
 // never surfaces — Chrome 143+ fetches dedicated worker scripts in the browser
 // process (PlzDedicatedWorker) so loadingFinished fires without a body on CDP.
-async function captureScriptDirectly(network, request, session) {
+async function captureResourceDirectly(network, request, session) {
   let log = network.log;
   let url = originURL(request);
   let meta = { ...network.meta, url };
 
+  let timerId;
   try {
     log.debug('- Requesting resource directly (responseReceived timeout fallback)', meta);
-    let body = await makeDirectRequest(network, request, session);
+    let { body, status } = await Promise.race([
+      makeDirectRequest(network, request, session),
+      new Promise((_, reject) => {
+        timerId = setTimeout(() => reject(new Error(`Direct fetch timed out after ${DIRECT_FETCH_TIMEOUT}ms`)), DIRECT_FETCH_TIMEOUT);
+      })
+    ]);
+
+    if (body.length > MAX_RESOURCE_SIZE) {
+      logAssetInstrumentation(log, 'asset_not_uploaded', 'resource_too_large', {
+        url, size: body.length, snapshot: meta.snapshot
+      });
+      log.debug('- Skipping resource larger than 25MB', meta);
+      return;
+    }
+
     let urlObj = new URL(url);
     let mimeType = mime.lookup(urlObj.origin + urlObj.pathname) || 'application/javascript';
 
     let resource = createResource(url, body, mimeType, {
-      status: 200,
+      status,
       headers: { 'content-type': [mimeType] }
     });
 
@@ -751,6 +794,8 @@ async function captureScriptDirectly(network, request, session) {
     network.intercept.saveResource(resource);
   } catch (error) {
     log.debug(`Direct fetch failed for ${url} - ${error.message}`, meta);
+  } finally {
+    clearTimeout(timerId);
   }
 }
 
@@ -865,7 +910,7 @@ async function saveResponseResource(network, request, session) {
       // so request them directly.
       if (mimeType?.includes('font') || (detectedMime && detectedMime.includes('font'))) {
         log.debug('- Requesting asset directly', meta);
-        body = await makeDirectRequest(network, request, session);
+        ({ body } = await makeDirectRequest(network, request, session));
         log.debug('- Got direct response', meta);
       }
 

@@ -3222,6 +3222,41 @@ describe('Discovery', () => {
         jasmine.stringMatching(/Failed to continue response for http:\/\/example\.com\/orphan-continue-error: Target closed/)
       ]));
     });
+
+    it('logs gracefully when the direct-fetch fallback fails', async () => {
+      // Drop Network.responseReceived for one asset so it enters the
+      // RESPONSE_RECEIVED_TIMEOUT path that calls captureResourceDirectly,
+      // then make the direct fetch return 400 so the catch logs.
+      spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
+        let parsed; try { parsed = JSON.parse(data); } catch { /* binary */ }
+        if (parsed?.method === 'Network.responseReceived' &&
+            parsed?.params?.response?.url?.endsWith('/direct-fetch-target.css')) {
+          return;
+        }
+        this._handleMessage.and.originalFn.call(this, data);
+      });
+
+      let assetHits = 0;
+      server.reply('/direct-fetch-target.css', () => {
+        assetHits += 1;
+        if (assetHits === 1) return [200, 'text/css', 'p { color: blue; }'];
+        return [400, 'text/plain', 'bad request'];
+      });
+
+      let targetDOM = `<html><head><link href="direct-fetch-target.css" rel="stylesheet"/></head><body><p>x</p></body></html>`;
+
+      await percy.snapshot({
+        name: 'direct-fetch failure snapshot',
+        url: 'http://localhost:8000',
+        domSnapshot: targetDOM
+      });
+
+      await percy.idle();
+
+      expect(logger.stderr).toEqual(jasmine.arrayContaining([
+        jasmine.stringMatching(/Direct fetch failed for http:\/\/localhost:8000\/direct-fetch-target\.css -/)
+      ]));
+    });
   });
 
   describe('with remote resources', () => {
