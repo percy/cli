@@ -11,6 +11,16 @@ import install from './install.js';
 import Session from './session.js';
 import Page from './page.js';
 
+// Chrome features Percy disables for v143 new-headless asset discovery.
+const DISABLED_FEATURES = [
+  'Translate', // suppress translate prompt overlay
+  'OptimizationGuideModelDownloading', // suppress background model fetches
+  'IsolateOrigins', // [headless-only] keep cross-origin sub-resources on the page session for CDP capture
+  'site-per-process', // companion to IsolateOrigins
+  'HttpsFirstBalancedModeAutoEnable', // allow HTTP customer URLs (CI / local dev / staging)
+  'LocalNetworkAccessChecks' // allow loopback/RFC1918 sub-resources (Chrome 143 LNA gating)
+];
+
 export class Browser extends EventEmitter {
   log = logger('core:browser');
   sessions = new Map();
@@ -21,11 +31,7 @@ export class Browser extends EventEmitter {
   #lastid = 0;
 
   args = [
-    // Disable Chrome features that break asset discovery in v143 new-headless:
-    // site/origin isolation (so cross-origin events stay on the page session),
-    // HTTPS-first auto-upgrade (would block HTTP discovery), and Local Network
-    // Access permission checks (would block sub-resources to localhost/RFC1918).
-    '--disable-features=Translate,OptimizationGuideModelDownloading,IsolateOrigins,site-per-process,HttpsFirstBalancedModeAutoEnable,LocalNetworkAccessChecks',
+    `--disable-features=${DISABLED_FEATURES.join(',')}`,
     // disable several subsystems which run network requests in the background
     '--disable-background-networking',
     // disable task throttling of timer tasks from background pages

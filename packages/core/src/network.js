@@ -8,7 +8,8 @@ const ALLOWED_STATUSES = [200, 201, 301, 302, 304, 307, 308];
 const ALLOWED_RESOURCES = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Other'];
 const ABORTED_MESSAGE = 'Request was aborted by browser';
 // Chrome 143 omits Network.responseReceived for worker scripts; cap the wait
-// so loadingFinished can clean up. Per-request — N timeouts accumulate to N*2s; real-world N is ~1–2.
+// so loadingFinished can clean up. Per-request — N timeouts accumulate to N*2s;
+// PERCY_NETWORK_IDLE_WAIT_TIMEOUT (default 30s) caps cumulative impact.
 const RESPONSE_RECEIVED_TIMEOUT = 2000;
 // Cap idle() impact when a host accepts the TCP connection then stalls during a direct fetch.
 const DIRECT_FETCH_TIMEOUT = 5000;
@@ -750,6 +751,12 @@ export function raceWithTimeout(promise, ms, message) {
   ]).finally(() => clearTimeout(timerId));
 }
 
+// Server Content-Type wins; URL-extension mime is the fallback; binary default last.
+export function resolveDirectFetchMime(responseHeaders, urlForLookup) {
+  let serverMime = responseHeaders?.['content-type']?.split(';')[0].trim();
+  return serverMime || mime.lookup(urlForLookup) || 'application/octet-stream';
+}
+
 // Make a new request with Node based on a network request. Cookies are read
 // from the page session because worker/auxiliary sessions have a partial
 // Network domain where Network.getCookies throws "Internal error".
@@ -813,13 +820,8 @@ async function captureResourceDirectly(network, request, session) {
       return;
     }
 
-    // Prefer the server's explicit Content-Type, then URL-extension mime,
-    // then a safe binary default. NOT 'application/javascript' — JS is the
-    // worst wrong guess because the renderer will try to parse non-JS
-    // content as code and produce confusing errors.
     let urlObj = new URL(url);
-    let serverMime = responseHeaders?.['content-type']?.split(';')[0]?.trim();
-    let mimeType = serverMime || mime.lookup(urlObj.origin + urlObj.pathname) || 'application/octet-stream';
+    let mimeType = resolveDirectFetchMime(responseHeaders, urlObj.origin + urlObj.pathname);
 
     let resource = createResource(url, body, mimeType, {
       status,

@@ -1,5 +1,5 @@
 import { setupTest } from '../helpers/index.js';
-import { Network, AbortCodes, pickCookieSession, shouldAttachAuth, raceWithTimeout } from '../../src/network.js';
+import { Network, AbortCodes, pickCookieSession, shouldAttachAuth, raceWithTimeout, resolveDirectFetchMime } from '../../src/network.js';
 import { AbortError } from '../../src/utils.js';
 
 describe('Unit / Network', () => {
@@ -114,6 +114,24 @@ describe('Unit / Network', () => {
     it('propagates the original rejection when the promise rejects before the timeout', async () => {
       let failing = Promise.reject(new Error('boom'));
       await expectAsync(raceWithTimeout(failing, 50, 'timeout')).toBeRejectedWithError('boom');
+    });
+  });
+
+  // resolveDirectFetchMime — server header > URL ext > binary default.
+  describe('resolveDirectFetchMime', () => {
+    it('returns the bare server MIME, stripping parameters', () => {
+      expect(resolveDirectFetchMime({ 'content-type': 'text/css' }, '/x')).toBe('text/css');
+      expect(resolveDirectFetchMime({ 'content-type': 'text/css; charset=utf-8' }, '/x')).toBe('text/css');
+    });
+
+    it('falls back to URL-extension mime when no server header', () => {
+      expect(resolveDirectFetchMime({}, '/file.css')).toBe('text/css');
+      expect(resolveDirectFetchMime(undefined, '/file.png')).toBe('image/png');
+    });
+
+    it('falls back to application/octet-stream when neither header nor URL extension is recognized', () => {
+      expect(resolveDirectFetchMime({}, '/no-ext')).toBe('application/octet-stream');
+      expect(resolveDirectFetchMime({ 'content-type': '' }, '/no-ext')).toBe('application/octet-stream');
     });
   });
 });
