@@ -3325,10 +3325,10 @@ describe('Discovery', () => {
       ]));
     });
 
-    it('falls back to application/javascript mimetype on direct-fetch when URL has no extension', async () => {
-      // Mirrors the same-origin direct-fetch test scaffolding but uses a URL
-      // with no recognizable extension so mime.lookup returns falsy and the
-      // captureResourceDirectly path falls through to 'application/javascript'.
+    it('uses server Content-Type for direct-fetch mimetype when URL has no extension', async () => {
+      // For URLs with no recognizable extension, the direct-fetch path must
+      // honor the server's Content-Type response header rather than guessing
+      // a default. Server returns 'application/octet-stream' → that wins.
       spyOn(percy.browser, '_handleMessage').and.callFake(function(data) {
         let parsed; try { parsed = JSON.parse(data); } catch { /* binary */ }
         if (parsed?.method === 'Network.responseReceived' &&
@@ -3356,7 +3356,7 @@ describe('Discovery', () => {
       await percy.idle();
 
       expect(logger.stderr).toEqual(jasmine.arrayContaining([
-        jasmine.stringMatching(/Saving direct-fetched resource sha=[a-f0-9]+ mimetype=application\/javascript/)
+        jasmine.stringMatching(/Saving direct-fetched resource sha=[a-f0-9]+ mimetype=application\/octet-stream/)
       ]));
     });
   });

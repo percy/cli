@@ -784,7 +784,9 @@ async function makeDirectRequest(network, request, session) {
     headers.Authorization = `Basic ${token}`;
   }
 
-  return makeRequest(request.url, { buffer: true, headers }, (body, res) => ({ body, status: res.statusCode }));
+  return makeRequest(request.url, { buffer: true, headers }, (body, res) => ({
+    body, status: res.statusCode, headers: res.headers
+  }));
 }
 
 // Capture a resource via direct HTTP fetch when the browser-side response
@@ -797,7 +799,7 @@ async function captureResourceDirectly(network, request, session) {
 
   try {
     log.debug('- Requesting resource directly (responseReceived timeout fallback)', meta);
-    let { body, status } = await raceWithTimeout(
+    let { body, status, headers: responseHeaders } = await raceWithTimeout(
       makeDirectRequest(network, request, session),
       DIRECT_FETCH_TIMEOUT,
       `Direct fetch timed out after ${DIRECT_FETCH_TIMEOUT}ms`
@@ -811,8 +813,13 @@ async function captureResourceDirectly(network, request, session) {
       return;
     }
 
+    // Prefer the server's explicit Content-Type, then URL-extension mime,
+    // then a safe binary default. NOT 'application/javascript' — JS is the
+    // worst wrong guess because the renderer will try to parse non-JS
+    // content as code and produce confusing errors.
     let urlObj = new URL(url);
-    let mimeType = mime.lookup(urlObj.origin + urlObj.pathname) || 'application/javascript';
+    let serverMime = responseHeaders?.['content-type']?.split(';')[0]?.trim();
+    let mimeType = serverMime || mime.lookup(urlObj.origin + urlObj.pathname) || 'application/octet-stream';
 
     let resource = createResource(url, body, mimeType, {
       status,
