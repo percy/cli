@@ -19,25 +19,25 @@ $ npm install --save-dev @percy/cli
 
 ## Command Topics
 
-- [`percy exec`](./packages/cli-exec#readme) - capture and upload snapshots
-- [`percy snapshot`](./packages/cli-snapshot#readme) - snapshot a static directory or a list of pages
-- [`percy upload`](./packages/cli-upload#readme) - upload a static directory of images
-- [`percy config`](./packages/cli-config#readme) - manage configuration files
-- [`percy build`](./packages/cli-build#readme) - interact with Percy builds
+- [`percy exec`](../cli-exec#readme) - capture and upload snapshots
+- [`percy snapshot`](../cli-snapshot#readme) - snapshot a static directory or a list of pages
+- [`percy upload`](../cli-upload#readme) - upload a static directory of images
+- [`percy config`](../cli-config#readme) - manage configuration files
+- [`percy build`](../cli-build#readme) - interact with Percy builds
 
 ### Advanced
 
 In addition to the CLI packages, this repo contains core libraries responsible for Percy's CI/CD
 integrations, Percy API communication, DOM serialization, asset discovery, etc.
 
-- [`@percy/core`](./packages/core#readme) - performs snapshot asset discovery and uploading
-- [`@percy/client`](./packages/client#readme) - handles communicating with the Percy API
-- [`@percy/dom`](./packages/dom#readme) - serializes DOM snapshots
-- [`@percy/env`](./packages/env#readme) - captures CI build environment variables
-- [`@percy/config`](./packages/config#readme) - loads Percy configuration files
-- [`@percy/logger`](./packages/logger#readme) - common logger used throughout the CLI
-- [`@percy/sdk-utils`](./packages/sdk-utils#readme) - shared helpers for JavaScript SDKs
-- [`@percy/cli-command`](./packages/cli-command#readme) - Percy CLI command framework
+- [`@percy/core`](../core#readme) - performs snapshot asset discovery and uploading
+- [`@percy/client`](../client#readme) - handles communicating with the Percy API
+- [`@percy/dom`](../dom#readme) - serializes DOM snapshots
+- [`@percy/env`](../env#readme) - captures CI build environment variables
+- [`@percy/config`](../config#readme) - loads Percy configuration files
+- [`@percy/logger`](../logger#readme) - common logger used throughout the CLI
+- [`@percy/sdk-utils`](../sdk-utils#readme) - shared helpers for JavaScript SDKs
+- [`@percy/cli-command`](../cli-command#readme) - Percy CLI command framework
 
 ## Issues
 
@@ -77,4 +77,4 @@ $ yarn workspace @percy/core test
 
 ### How to update Chromium revision?
 
-check in Core Package's readme [here](./packages/core#readme).
+check in Core Package's readme [here](../core#readme).
