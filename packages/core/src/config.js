@@ -7,6 +7,9 @@ export const configSchema = {
       deferUploads: {
         type: 'boolean'
       },
+      archiveDir: {
+        type: 'string'
+      },
       useSystemProxy: {
         type: 'boolean',
         default: false
@@ -284,6 +287,14 @@ export const configSchema = {
         type: 'boolean',
         default: false
       },
+      ignoreIframeSelectors: {
+        type: 'array',
+        default: [],
+        items: {
+          type: 'string',
+          minLength: 1
+        }
+      },
       pseudoClassEnabledElements: {
         type: 'object',
         additionalProperties: false,
@@ -368,6 +379,13 @@ export const configSchema = {
       },
       disableCache: {
         type: 'boolean'
+      },
+      maxCacheRam: {
+        // 0 has no meaningful semantics — it's neither "unbounded" (use null)
+        // nor "disabled" (use --disable-cache). Reject it at schema time so the
+        // discovery clamp doesn't silently bump it to 25MB.
+        type: ['integer', 'null'],
+        minimum: 1
       },
       captureMockedServiceWorker: {
         type: 'boolean',
@@ -501,6 +519,7 @@ export const snapshotSchema = {
         scopeOptions: { $ref: '/config/snapshot#/properties/scopeOptions' },
         ignoreCanvasSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreCanvasSerializationErrors' },
         ignoreStyleSheetSerializationErrors: { $ref: '/config/snapshot#/properties/ignoreStyleSheetSerializationErrors' },
+        ignoreIframeSelectors: { $ref: '/config/snapshot#/properties/ignoreIframeSelectors' },
         pseudoClassEnabledElements: { $ref: '/config/snapshot#/properties/pseudoClassEnabledElements' },
         discovery: {
           type: 'object',

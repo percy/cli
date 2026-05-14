@@ -1,6 +1,7 @@
 import fs from 'fs';
 import logger from '@percy/logger';
 import Network from './network.js';
+import { exposeClosedShadowRoots } from './closed-shadow.js';
 import { PERCY_DOM } from './api.js';
 import {
   hostname,
@@ -8,6 +9,49 @@ import {
   waitForTimeout as sleep,
   serializeFunction
 } from './utils.js';
+
+// Internal ceiling on the customElements wait. Set tight (500ms) so a
+// page with a never-registering custom element — third-party widget whose
+// loader is blocked, typo'd tag name, etc. — doesn't add a full 1500ms to
+// every snapshot. Real cascades of legitimate lazy-defined elements
+// complete well within this budget; the loop also exits early as soon as
+// `:not(:defined)` clears.
+export const DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT = 500;
+
+// Body of the customElements wait. Runs in the browser via
+// Runtime.callFunctionOn. Re-polls each tick so lazy-defined element
+// cascades are awaited up to the deadline.
+//
+// IMPORTANT: this body is intentionally ES5 — it is evaluated in the
+// page's realm and must work in any browser the page targets. Don't
+// "modernize" with arrow functions, let/const, or optional chaining.
+export const WAIT_FOR_CUSTOM_ELEMENTS_BODY = `
+  var deadline = Date.now() + (arguments[0] || 500);
+  return new Promise(function(resolve) {
+    function tick() {
+      var undef = document.querySelectorAll(":not(:defined)");
+      if (!undef.length) return resolve();
+      if (Date.now() >= deadline) return resolve();
+      var names = {};
+      for (var i = 0; i < undef.length; i++) names[undef[i].localName] = true;
+      var promises = Object.keys(names).map(function(n) {
+        return window.customElements.whenDefined(n).catch(function(){});
+      });
+      Promise.race([
+        Promise.all(promises),
+        new Promise(function(r) { setTimeout(r, 100); })
+      ]).then(tick);
+    }
+    tick();
+  });
+`;
+
+/* istanbul ignore next: runs in the page realm via Runtime.callFunctionOn,
+   not in the test process — there is no way to instrument it from here */
+function serializeDomCapture(_, options) {
+  /* eslint-disable-next-line no-undef */
+  return { domSnapshot: PercyDOM.serialize(options), url: document.URL };
+}
 
 export class Page {
   static TIMEOUT = undefined;
@@ -187,7 +231,7 @@ export class Page {
     execute,
     ...snapshot
   }) {
-    let { name, width, enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements } = snapshot;
+    let { name, width, enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, ignoreIframeSelectors, pseudoClassEnabledElements } = snapshot;
     this.log.debug(`Taking snapshot: ${name}${width ? ` @${width}px` : ''}`, this.meta);
 
     // wait for any specified timeout
@@ -211,19 +255,56 @@ export class Page {
     // wait for any final network activity before capturing the dom snapshot
     await this.network.idle();
 
+    // Pre-snapshot best-effort steps: waiting for lazy custom elements and
+    // discovering closed shadow roots via CDP. Both target a fully-loaded
+    // page; if the session has already terminated, skip them so the proper
+    // crash/close error surfaces from the downstream insertPercyDom +
+    // serialize evals (which gate on the same session).
+    //
+    // Ordering is load-bearing: closed-shadow capture must run AFTER the
+    // customElements wait so we catch shadows attached inside upgrade /
+    // connectedCallback hooks. Don't reorder or parallelise these.
+    if (!this.session.closedReason) {
+      // Best-effort: a flaky page should not break the snapshot.
+      try {
+        await this.eval(WAIT_FOR_CUSTOM_ELEMENTS_BODY, DEFAULT_WAIT_FOR_CUSTOM_ELEMENTS_TIMEOUT);
+      } catch (err) {
+        /* istanbul ignore next: best-effort log; defensive against non-Error throws */
+        this.log.debug(`Custom elements wait failed: ${err.message ?? err}`, this.meta);
+      }
+
+      if (!disableShadowDOM) {
+        await exposeClosedShadowRoots(this.session, this._logShadowDebug.bind(this));
+      }
+    }
+
     await this.insertPercyDom();
 
     // serialize and capture a DOM snapshot
     this.log.debug('Serialize DOM', this.meta);
 
-    /* istanbul ignore next: no instrumenting injected code */
-    let capture = await this.eval((_, options) => ({
-      /* eslint-disable-next-line no-undef */
-      domSnapshot: PercyDOM.serialize(options),
-      url: document.URL
-    }), { enableJavaScript, disableShadowDOM, forceShadowAsLightDOM, domTransformation, reshuffleInvalidTags, ignoreCanvasSerializationErrors, ignoreStyleSheetSerializationErrors, pseudoClassEnabledElements });
+    let capture = await this.eval(serializeDomCapture, {
+      enableJavaScript,
+      disableShadowDOM,
+      forceShadowAsLightDOM,
+      domTransformation,
+      reshuffleInvalidTags,
+      ignoreCanvasSerializationErrors,
+      ignoreStyleSheetSerializationErrors,
+      ignoreIframeSelectors,
+      pseudoClassEnabledElements
+    });
 
     return { ...snapshot, ...capture };
+  }
+
+  // Logger for the closed-shadow CDP helper. Defined on the prototype (not
+  // a class-field arrow) so it's reachable from a unit test that constructs
+  // a Page via Object.create without invoking the constructor — gives us a
+  // direct way to cover the callback without simulating a closed shadow
+  // discovery flow at the integration level.
+  _logShadowDebug(msg) {
+    this.log.debug(msg, this.meta);
   }
 
   // Initialize newly attached pages and iframes with page options

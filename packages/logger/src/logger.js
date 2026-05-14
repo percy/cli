@@ -1,32 +1,66 @@
+import fs from 'fs';
+import { tmpdir } from 'os';
+import { join, dirname } from 'path';
+import { randomBytes } from 'crypto';
 import { colors } from './utils.js';
 
 const LINE_PAD_REGEXP = /^(\n*)(.*?)(\n*)$/s;
 const URL_REGEXP = /https?:\/\/[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,4}\b([-a-zA-Z0-9@:;%_+.~#?&//=[\]]*)/i;
 const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 
-// A PercyLogger instance retains logs in-memory for quick lookups while also writing log
-// messages to stdout and stderr depending on the log level and debug string.
+const FLUSH_AT_ENTRIES = 500;
+const FLUSH_TIMER_MS = 100;
+const READ_CHUNK_BYTES = 64 * 1024;
+
+// Hooks latch + active-instance set kept on the `process` object via Symbol.for
+// so that they are shared across module copies (the ESM loader-mock path used
+// by tests creates fresh module instances; a module-scoped variable would let
+// each one register its own listener and accumulate into MaxListenersWarning).
+// Using a Set rather than a single pointer also handles transitional states
+// where two PercyLogger instances are alive at once (e.g. test setups that
+// don't reset between cases) — both files get cleaned at exit.
+const EXIT_HOOKS_INSTALLED = Symbol.for('@percy/logger.exitHooksInstalled');
+const ACTIVE_INSTANCES = Symbol.for('@percy/logger.activeInstances');
+
+// A PercyLogger writes logs to stdout/stderr and persists every entry to a
+// JSONL file under os.tmpdir()/percy-logs/<pid>/, keeping resident memory
+// bounded across long builds. Falls back to an unbounded in-memory Set if
+// disk is unavailable (or if the rollback env var PERCY_LOGS_IN_MEMORY is set).
 export class PercyLogger {
-  // default log level
   level = 'info';
 
-  // namespace regular expressions used to determine which debug logs to write
   namespaces = {
     include: [/^.*?$/],
     exclude: [/^ci$/, /^sdk$/]
   };
 
-  // in-memory store for logs and meta info
-  messages = new Set();
-
-  // track deprecations to limit noisy logging
   deprecations = new Set();
 
-  // static vars can be overriden for testing
+  // disk-backed store state
+  diskMode = 'disk';
+  diskPath = null;
+  diskSize = 0;
+  writeBuffer = [];
+  flushTimer = null;
+  // snapshotLogs cache: Map<key, entry[]>. Bounded by # of un-evicted snapshot
+  // keys at any moment; evictSnapshot() drops them. Entries logged AFTER the
+  // eviction repopulate the cache through the next _refreshCache delta. Pre-
+  // eviction entries are restored on retry via the pendingFullScan re-scan in
+  // snapshotLogs (preserves master's `messages` Set retain-everything semantics
+  // for retried snapshots).
+  cache = new Map();
+  cacheCursor = 0;
+  pendingFullScan = new Set();
+  fallback = null;
+  // Lazy Map<key, entry[]> index over fallback Set. Populated on first
+  // snapshotLogs() call and maintained by _record. Avoids O(N²) scans when
+  // PERCY_LOGS_IN_MEMORY=1 is the active mode for a long-running build.
+  fallbackByKey = null;
+  writeFailureWarned = false;
+
   static stdout = process.stdout;
   static stderr = process.stderr;
 
-  // Handles setting env var values and returns a singleton
   constructor() {
     let { instance = this } = this.constructor;
 
@@ -36,18 +70,30 @@ export class PercyLogger {
       instance.loglevel(process.env.PERCY_LOGLEVEL);
     }
 
+    // If the rollback / test env var is set, flip to memory mode immediately so
+    // log() never goes through the disk buffer at all. Drain any entries that
+    // were already queued in disk mode so they aren't stranded after the flip.
+    // Note: PERCY_LOGS_IN_MEMORY is only consulted here at construction time;
+    // setting or unsetting it later has no effect because subsequent
+    // `new Logger()` returns the cached singleton — tests that need to flip
+    // mode mid-process must `delete logger.constructor.instance` first.
+    if (process.env.PERCY_LOGS_IN_MEMORY === '1' &&
+        instance.diskMode === 'disk' && !instance.diskPath) {
+      instance.diskMode = 'memory';
+      instance.fallback ??= new Set();
+      /* istanbul ignore if: only triggered when env=1 is set after logs have already buffered */
+      if (instance.writeBuffer.length) instance._drainBufferToMemory();
+    }
+
     this.constructor.instance = instance;
     return instance;
   }
 
-  // Change log level at any time or return the current log level
   loglevel(level) {
     if (level) this.level = level;
     return this.level;
   }
 
-  // Change namespaces by generating an array of namespace regular expressions from a
-  // comma separated debug string
   debug(namespaces) {
     if (this.namespaces.string === namespaces) return;
     this.namespaces.string = namespaces;
@@ -73,7 +119,6 @@ export class PercyLogger {
     });
   }
 
-  // Creates a new log group and returns level specific functions for logging
   group(name) {
     return Object.keys(LOG_LEVELS)
       .reduce((group, level) => Object.assign(group, {
@@ -89,61 +134,140 @@ export class PercyLogger {
       });
   }
 
-  // Query for a set of logs by filtering the in-memory store
+  // Returns matching entries. The semantics differ by mode:
+  // - memory mode: returns the live entry refs from the fallback Set; mutations
+  //   to entry.message (e.g. redactSecrets in percy.js sendBuildLogs) persist
+  //   in the Set. This mirrors master's `messages` contract.
+  // - disk mode: streams a fresh JSONL pass per call and returns freshly-parsed
+  //   copies. Mutations are local to the caller and never reach disk —
+  //   intentional, since disk-backed redaction would require a rewrite.
+  // Production consumers (sendBuildLogs) only depend on the array returned by
+  // redactSecrets, not the mutation side-effect, so both modes are correct.
   query(filter) {
-    return Array.from(this.messages).filter(filter);
+    if (this.diskMode === 'memory') {
+      return Array.from(this.fallback).filter(filter);
+    }
+
+    this._flushSync();
+    if (this.diskMode === 'memory') {
+      return Array.from(this.fallback).filter(filter);
+    }
+    return this._scanDisk(filter);
   }
 
-  // Formats messages before they are logged to stdio
+  // Returns entries tagged with the given snapshot meta. In disk mode, reads
+  // only the disk delta since the last call to amortize the work in defer
+  // mode (snapshots accumulate; logs route through the cache lazily). On
+  // retry — when evictSnapshot was called and snapshotLogs is invoked again
+  // for the same meta — pre-eviction entries are recovered from a full
+  // disk scan so the per-snapshot log resource includes both attempts.
+  // Returns a shallow copy so callers can mutate without corrupting the cache.
+  snapshotLogs(meta) {
+    let key = this._snapshotKey({ snapshot: meta });
+    if (!key) return [];
+
+    if (this.diskMode === 'memory') {
+      return [...this._filterFallback(key)];
+    }
+
+    this._flushSync();
+    /* istanbul ignore if: defensive — _flushSync only flips mode via _fallbackToMemory, which our snapshotLogs tests don't exercise mid-call */
+    if (this.diskMode === 'memory') {
+      return [...this._filterFallback(key)];
+    }
+    this._refreshCache();
+
+    // Retry path: this key was previously evicted. The incremental cursor has
+    // already advanced past its prior entries, so a delta-only refresh would
+    // miss them. Re-scan the entire JSONL once for this key to restore parity
+    // with master (where `messages = new Set()` retained every entry).
+    if (this.pendingFullScan.has(key)) {
+      this.pendingFullScan.delete(key);
+      let full = this._scanDisk(e => this._snapshotKey(e?.meta) === key);
+      // If full.length is 0 the key already has no cache entry (evictSnapshot
+      // deleted it) — leave it absent so cache.get returns undefined below.
+      if (full.length) this.cache.set(key, full);
+    }
+
+    let cached = this.cache.get(key);
+    return cached ? [...cached] : [];
+  }
+
+  evictSnapshot(meta) {
+    let key = this._snapshotKey({ snapshot: meta });
+    if (!key) return;
+    this.cache.delete(key);
+    // Mark for full-disk rescan on the next snapshotLogs(meta) — needed so a
+    // retry/re-discovery flow recovers the pre-eviction entries (master
+    // parity). Cleared once consumed to keep the rescan one-shot per evict.
+    this.pendingFullScan.add(key);
+  }
+
+  // Resets all logger state. Cleans up the disk file; next log will lazily reinit.
+  reset() {
+    // Why: discard buffered entries before _cleanup — between tests, the old
+    // diskPath may reference a file from a prior mockfs volume that no longer
+    // exists in the real fs. Letting _flushSync run would trip ENOENT and
+    // emit the disk-fallback warning into the next test's captured stderr.
+    this.writeBuffer = [];
+    /* istanbul ignore if: defensive — the only code path that schedules a
+       timer also drains via query() before reset() in tests */
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+    this._cleanup();
+    process[ACTIVE_INSTANCES]?.delete(this);
+    this.diskPath = null;
+    this.diskSize = 0;
+    this.cache.clear();
+    this.cacheCursor = 0;
+    this.pendingFullScan.clear();
+    this.fallback = null;
+    this.fallbackByKey = null;
+    this.diskMode = 'disk';
+    this.writeFailureWarned = false;
+    this.deprecations = new Set();
+  }
+
   format(debug, level, message, elapsed) {
     let color = (n, m) => this.isTTY ? colors[n](m) : m;
     let begin, end, suffix = '';
     let label = 'percy';
 
     if (arguments.length === 1) {
-      // format(message)
       [debug, message] = [null, debug];
     } else if (arguments.length === 2) {
-      // format(debug, message)
       [level, message] = [null, level];
     }
 
-    // do not format leading or trailing newlines
     [, begin, message, end] = message.match(LINE_PAD_REGEXP);
 
-    // include debug information
     if (this.level === 'debug') {
       if (debug) label += `:${debug}`;
 
-      // include elapsed time since last log
       if (elapsed != null) {
         suffix = ' ' + color('grey', `(${elapsed}ms)`);
       }
     }
 
-    // add colors
     label = color('magenta', label);
 
     if (level === 'error') {
-      // red errors
       message = color('red', message);
     } else if (level === 'warn') {
-      // yellow warnings
       message = color('yellow', message);
     } else if (level === 'info' || level === 'debug') {
-      // blue info and debug URLs
       message = message.replace(URL_REGEXP, color('blue', '$&'));
     }
 
     return `${begin}[${label}] ${message}${suffix}${end}`;
   }
 
-  // True if stdout is a TTY interface
   get isTTY() {
     return !!this.constructor.stdout.isTTY;
   }
 
-  // Replaces the current line with a log message
   progress(debug, message, persist) {
     if (!this.shouldLog(debug, 'info')) return;
     let { stdout } = this.constructor;
@@ -159,7 +283,6 @@ export class PercyLogger {
     this._progress = !!message && { message, persist };
   }
 
-  // Returns true or false if the level and debug group can write messages to stdio
   shouldLog(debug, level) {
     return LOG_LEVELS[level] != null &&
       LOG_LEVELS[level] >= LOG_LEVELS[this.level] &&
@@ -167,7 +290,6 @@ export class PercyLogger {
       this.namespaces.include.some(ns => ns.test(debug));
   }
 
-  // Ensures that deprecation messages are not logged more than once
   deprecated(debug, message, meta) {
     if (this.deprecations.has(message)) return;
     this.deprecations.add(message);
@@ -175,36 +297,29 @@ export class PercyLogger {
     this.log(debug, 'warn', `Warning: ${message}`, meta);
   }
 
-  // Generic log method accepts a debug group, log level, log message, and optional meta
-  // information to store with the message and other info
   log(debug, level, message, meta = {}) {
-    // message might be an error-like object
     let err = typeof message !== 'string' && (level === 'debug' || level === 'error');
     err &&= message.message ? Error.prototype.toString.call(message) : message.toString();
 
-    // save log entries
     let timestamp = Date.now();
     message = err ? (message.stack || err) : message.toString();
     let entry = { debug, level, message, meta, timestamp, error: !!err };
-    this.messages.add(entry);
 
-    // maybe write the message to stdio
+    this._record(entry);
+
     if (this.shouldLog(debug, level)) {
-      // unless the loglevel is debug, write shorter error messages
       if (err && this.level !== 'debug') message = err;
       this.write({ ...entry, message });
       this.lastlog = timestamp;
     }
   }
 
-  // Writes a log entry to stdio based on the loglevel
   write({ debug, level, message, timestamp, error }) {
     let elapsed = timestamp - (this.lastlog || timestamp);
     let msg = this.format(debug, error ? 'error' : level, message, elapsed);
     let progress = this.isTTY && this._progress;
     let { stdout, stderr } = this.constructor;
 
-    // clear any logged progress
     if (progress) {
       stdout.cursorTo(0);
       stdout.clearLine(0);
@@ -213,6 +328,277 @@ export class PercyLogger {
     (level === 'info' ? stdout : stderr).write(msg + '\n');
     if (!this._progress?.persist) delete this._progress;
     else if (progress) stdout.write(progress.message);
+  }
+
+  // ── internals ───────────────────────────────────────────────────────────────
+
+  _filterFallback(key) {
+    if (!this.fallbackByKey) {
+      // Lazy build: O(N) once, then O(1) per call. Keeps PERCY_LOGS_IN_MEMORY=1
+      // mode usable for 10k-snapshot builds where snapshotLogs is called per
+      // snapshot.
+      this.fallbackByKey = new Map();
+      for (let entry of this.fallback) {
+        let k = this._snapshotKey(entry?.meta);
+        if (!k) continue;
+        let arr = this.fallbackByKey.get(k);
+        if (!arr) this.fallbackByKey.set(k, arr = []);
+        arr.push(entry);
+      }
+    }
+    return this.fallbackByKey.get(key) || [];
+  }
+
+  _record(entry) {
+    if (this.diskMode === 'memory') {
+      this.fallback.add(entry);
+      // Maintain the lazy index incrementally if it exists. If it hasn't been
+      // built yet, _filterFallback will scan fallback once on next call.
+      if (this.fallbackByKey) {
+        let k = this._snapshotKey(entry?.meta);
+        if (k) {
+          let arr = this.fallbackByKey.get(k);
+          if (!arr) this.fallbackByKey.set(k, arr = []);
+          arr.push(entry);
+        }
+      }
+      return;
+    }
+
+    let line;
+    try {
+      line = JSON.stringify(entry) + '\n';
+    } catch {
+      // Why: circular references in meta would otherwise kill this log call.
+      // Preserve meta.snapshot so the entry still routes via snapshotLogs.
+      let safeMeta = { unserializable: true };
+      if (entry.meta?.snapshot) safeMeta.snapshot = entry.meta.snapshot;
+      entry = { ...entry, meta: safeMeta };
+      line = JSON.stringify(entry) + '\n';
+    }
+
+    let length = Buffer.byteLength(line, 'utf8');
+    this.writeBuffer.push({ line, length });
+    this._scheduleFlush();
+
+    if (this.writeBuffer.length >= FLUSH_AT_ENTRIES) this._flushSync();
+  }
+
+  _snapshotKey(meta) {
+    let s = meta?.snapshot;
+    if (!s || (!s.testCase && !s.name)) return null;
+    // NUL byte separator — `|` collides on legitimate names like
+    // ('a|b','c') vs ('a','b|c'); NUL is forbidden in test/snapshot names.
+    return `${s.testCase || ''}\x00${s.name || ''}`;
+  }
+
+  _scheduleFlush() {
+    if (this.flushTimer) return;
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = null;
+      this._flushSync();
+    }, FLUSH_TIMER_MS);
+    this.flushTimer.unref?.();
+  }
+
+  _flushSync() {
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+    if (!this.writeBuffer.length) return;
+
+    this._ensureDiskInit();
+    if (this.diskMode !== 'disk') {
+      this._drainBufferToMemory();
+      return;
+    }
+
+    let chunk = '';
+    let written = 0;
+    for (let item of this.writeBuffer) {
+      chunk += item.line;
+      written += item.length;
+    }
+
+    try {
+      fs.appendFileSync(this.diskPath, chunk);
+    } catch (err) {
+      this._fallbackToMemory(err);
+      return;
+    }
+
+    this.diskSize += written;
+    this.writeBuffer = [];
+  }
+
+  _drainBufferToMemory() {
+    /* istanbul ignore next: defensive — fallback is always set before drain runs */
+    if (!this.fallback) this.fallback = new Set();
+    for (let { line } of this.writeBuffer) {
+      /* istanbul ignore next: defensive — entries are JSON.stringify'd by us */
+      try { this.fallback.add(JSON.parse(line.replace(/\n$/, ''))); } catch { /* skip */ }
+    }
+    this.writeBuffer = [];
+  }
+
+  _ensureDiskInit() {
+    if (this.diskPath || this.diskMode !== 'disk') return;
+
+    try {
+      // Per-pid subdir keeps concurrent percy processes (CI matrix, parallel
+      // test workers, npx invocations) from clobbering each other's files.
+      let dir = join(tmpdir(), 'percy-logs', String(process.pid));
+      fs.mkdirSync(dir, { recursive: true });
+      this.diskPath = join(
+        dir,
+        `${Date.now()}-${randomBytes(8).toString('hex')}.jsonl`
+      );
+      fs.writeFileSync(this.diskPath, '');
+      this._installExitHooks();
+    } catch {
+      this.diskMode = 'memory';
+      /* istanbul ignore next: defensive — fallback may already be set */
+      this.fallback ??= new Set();
+      this.diskPath = null;
+    }
+  }
+
+  // Reads the disk delta into the snapshotLogs cache, grouped by snapshotKey.
+  // Streams in 64KB chunks so a long defer-mode build draining hundreds of MB
+  // at end-of-build doesn't allocate a single huge buffer.
+  _refreshCache() {
+    if (this.cacheCursor >= this.diskSize) return;
+    let fd = fs.openSync(this.diskPath, 'r');
+
+    try {
+      let buf = Buffer.alloc(READ_CHUNK_BYTES);
+      let offset = this.cacheCursor;
+      let partial = '';
+      while (offset < this.diskSize) {
+        let toRead = Math.min(READ_CHUNK_BYTES, this.diskSize - offset);
+        let n = fs.readSync(fd, buf, 0, toRead, offset);
+        offset += n;
+        let lines = (partial + buf.slice(0, n).toString('utf8')).split('\n');
+        partial = lines.pop();
+        for (let line of lines) {
+          let entry;
+          /* istanbul ignore next: defensive — entries are JSON.stringify'd by us */
+          try { entry = JSON.parse(line); } catch { continue; }
+          let key = this._snapshotKey(entry?.meta);
+          if (!key) continue;
+          let arr = this.cache.get(key);
+          if (!arr) this.cache.set(key, arr = []);
+          arr.push(entry);
+        }
+      }
+      this.cacheCursor = this.diskSize;
+    } finally {
+      fs.closeSync(fd);
+    }
+  }
+
+  // Streams the JSONL once and returns matching entries. Each call parses
+  // afresh — no parsed-entry cache, so RSS at upload time stays bounded by
+  // the size of the filtered result rather than the total log volume.
+  _scanDisk(filter) {
+    if (!this.diskPath || this.diskSize === 0) return [];
+
+    let result = [];
+    let fd = fs.openSync(this.diskPath, 'r');
+
+    try {
+      let buf = Buffer.alloc(READ_CHUNK_BYTES);
+      let offset = 0;
+      let partial = '';
+      while (offset < this.diskSize) {
+        let toRead = Math.min(READ_CHUNK_BYTES, this.diskSize - offset);
+        let n = fs.readSync(fd, buf, 0, toRead, offset);
+        offset += n;
+        let lines = (partial + buf.slice(0, n).toString('utf8')).split('\n');
+        partial = lines.pop();
+        for (let line of lines) {
+          /* istanbul ignore next: defensive — entries are JSON.stringify'd by us */
+          try {
+            let entry = JSON.parse(line);
+            if (filter(entry)) result.push(entry);
+          } catch { /* skip */ }
+        }
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+    return result;
+  }
+
+  _fallbackToMemory(err) {
+    /* istanbul ignore else: latch — only fires once per build */
+    if (!this.writeFailureWarned) {
+      this.writeFailureWarned = true;
+      PercyLogger.stderr.write(
+        `[percy] logger: disk write failed (${err?.code || err?.message || 'unknown'}), falling back to in-memory\n`
+      );
+    }
+
+    // Read whatever we already wrote to disk into the fallback Set so /logs
+    // upload still includes everything from before the failure.
+    let existing = [];
+    if (this.diskPath && this.diskSize > 0) {
+      /* istanbul ignore next: defensive — _scanDisk handles its own errors */
+      try { existing = this._scanDisk(() => true); } catch { /* tolerate */ }
+    }
+
+    this.diskMode = 'memory';
+    /* istanbul ignore next: defensive — fallback may already be set */
+    this.fallback ??= new Set();
+    for (let entry of existing) this.fallback.add(entry);
+    this._drainBufferToMemory();
+
+    /* istanbul ignore else: latch — diskPath always set on first fallback */
+    if (this.diskPath) {
+      /* istanbul ignore next: defensive — best-effort cleanup */
+      try { fs.unlinkSync(this.diskPath); } catch { /* tolerate */ }
+      this.diskPath = null;
+    }
+    this.diskSize = 0;
+    this.cache.clear();
+    this.cacheCursor = 0;
+    this.pendingFullScan.clear();
+    this.fallbackByKey = null;
+  }
+
+  _installExitHooks() {
+    let active = process[ACTIVE_INSTANCES] ??= new Set();
+    active.add(this);
+    /* istanbul ignore if: latch — only the first install per process */
+    if (process[EXIT_HOOKS_INSTALLED]) return;
+    process[EXIT_HOOKS_INSTALLED] = true;
+    let cleanup = () => {
+      for (let logger of process[ACTIVE_INSTANCES]) logger._cleanup();
+    };
+    process.once('exit', cleanup);
+    process.once('beforeExit', cleanup);
+    // Why: SIGINT/SIGTERM are intentionally not handled. The CLI runtime
+    // already installs its own signal listeners; adding ours pushes past
+    // the default 10-listener limit and trips MaxListenersExceededWarning
+    // in downstream test suites. On Ctrl-C / runner kill our JSONL is left
+    // in os.tmpdir()/percy-logs/<pid>/ which the OS cleans, and the
+    // pid-scoped subdir prevents concurrent runs from colliding.
+  }
+
+  _cleanup() {
+    /* istanbul ignore next: defensive — flush should not throw */
+    try { this._flushSync(); } catch { /* tolerate */ }
+    if (this.diskPath) {
+      let dir = dirname(this.diskPath);
+      /* istanbul ignore next: defensive — best-effort */
+      try { fs.unlinkSync(this.diskPath); } catch { /* tolerate */ }
+      // Best-effort rmdir of the per-pid subdir so long-lived runners don't
+      // accumulate empty directories. Fails harmlessly if peer instances of
+      // the same pid still hold files there.
+      /* istanbul ignore next: defensive — best-effort */
+      try { fs.rmdirSync(dir); } catch { /* tolerate */ }
+    }
   }
 }
 

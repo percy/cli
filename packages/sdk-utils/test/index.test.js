@@ -648,4 +648,65 @@ describe('SDK Utils', () => {
       ]);
     });
   });
+
+  describe('iframe depth constants', () => {
+    let { DEFAULT_MAX_IFRAME_DEPTH, HARD_MAX_IFRAME_DEPTH, clampIframeDepth } = utils;
+
+    it('exposes the default and hard-cap depth values', () => {
+      expect(DEFAULT_MAX_IFRAME_DEPTH).toEqual(3);
+      expect(HARD_MAX_IFRAME_DEPTH).toEqual(10);
+    });
+
+    it('clamps a user-supplied depth to the hard cap', () => {
+      expect(clampIframeDepth(50)).toEqual(10);
+      expect(clampIframeDepth(11)).toEqual(10);
+      expect(clampIframeDepth(10)).toEqual(10);
+    });
+
+    it('passes through valid in-range values', () => {
+      expect(clampIframeDepth(1)).toEqual(1);
+      expect(clampIframeDepth(5)).toEqual(5);
+      expect(clampIframeDepth(9)).toEqual(9);
+    });
+
+    it('floors fractional values', () => {
+      expect(clampIframeDepth(3.7)).toEqual(3);
+    });
+
+    it('falls back to the default for invalid input', () => {
+      expect(clampIframeDepth(undefined)).toEqual(3);
+      expect(clampIframeDepth(null)).toEqual(3);
+      expect(clampIframeDepth(0)).toEqual(3);
+      expect(clampIframeDepth(-1)).toEqual(3);
+      expect(clampIframeDepth(NaN)).toEqual(3);
+      expect(clampIframeDepth('abc')).toEqual(3);
+    });
+
+    // Node-only: reads the dom file from disk via fs to enforce parity
+    // with @percy/sdk-utils' duplicated constants/clamp body. The karma
+    // (browser) runs of this suite have a `process` polyfill but no real
+    // `process.cwd`/`fs`, so guard on cwd being callable.
+    const isNode = typeof process !== 'undefined' &&
+      typeof process.cwd === 'function' &&
+      !!(process.versions && process.versions.node);
+    const itNode = isNode ? it : xit;
+
+    itNode('stays in lockstep with @percy/dom/src/serialize-frames.js', async () => {
+      // The constants + clampIframeDepth body are intentionally duplicated
+      // across @percy/sdk-utils and @percy/dom (cross-package import broke
+      // Node 14 CI in an earlier attempt). This test reads the dom source
+      // and asserts the literal values + clamp body match — drift fails
+      // loudly instead of silently.
+      const fs = await import('fs');
+      const path = await import('path');
+      // sdk-utils tests run with cwd at the sdk-utils package root.
+      const domSource = fs.readFileSync(
+        path.resolve(process.cwd(), '../dom/src/serialize-frames.js'),
+        'utf8'
+      );
+      expect(domSource).toContain('export const DEFAULT_MAX_IFRAME_DEPTH = 3;');
+      expect(domSource).toContain('export const HARD_MAX_IFRAME_DEPTH = 10;');
+      expect(domSource).toMatch(/function clampIframeDepth\(raw\) \{[^}]*Number\(raw\)[^}]*Number\.isFinite[^}]*DEFAULT_MAX_IFRAME_DEPTH[^}]*Math\.min\(Math\.floor\(n\), HARD_MAX_IFRAME_DEPTH\)/);
+    });
+  });
 });
